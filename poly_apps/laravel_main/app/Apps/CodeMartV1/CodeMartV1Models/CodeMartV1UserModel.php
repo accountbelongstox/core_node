@@ -10,6 +10,7 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1OtpService;
 use App\Models\AppModel;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -138,7 +139,7 @@ class CodeMartV1UserModel extends AppModel
     public function isRegistrationComplete(): bool
     {
         return $this->email_verified_at !== null
-            && $this->hasVerifiedPhone()
+            && ($this->hasVerifiedPhone() || !CodeMartV1OtpService::smsDeliveryAvailable())
             && ($this->kycVerification?->isApproved() ?? false);
     }
 }

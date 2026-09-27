@@ -127,6 +127,9 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_enter_failed: 'terminal.errors.enter',
   terminal_input_failed: 'terminal.errors.input',
   terminal_window_offline: 'terminal.errors.windowOffline',
+  terminal_viewer_id_required: 'terminal.errors.viewerIdRequired',
+  terminal_viewer_window_limit_exceeded: 'terminal.errors.viewerWindowLimit',
+  terminal_viewer_limit_exceeded: 'terminal.errors.viewerLimit',
   terminal_schedule_mode_invalid: 'terminal.errors.scheduleMode',
   terminal_schedule_time_invalid: 'terminal.errors.scheduleTime',
   terminal_schedule_interval_invalid: 'terminal.errors.scheduleInterval',
@@ -176,6 +179,11 @@ function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string 
 
 function terminalDraftKey(terminalNumber: number): string {
   return String(terminalNumber);
+}
+
+function terminalRequestErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : '';
+  return ERROR_TRANSLATION_KEYS[message] ? message : 'request_failed';
 }
 
 type TerminalScheduleEditorMode = 'once' | 'interval';
@@ -690,18 +698,19 @@ const PcTerminalPage: React.FC = () => {
           ? current
           : nextSnapshot.windows[0]?.terminal_number || null
       ));
-    } catch {
+    } catch (error) {
       if (!mountedRef.current) return;
+      const errorCode = terminalRequestErrorCode(error);
       setSnapshot((current) => current ? {
         ...current,
         success: false,
-        error_code: 'request_failed',
+        error_code: errorCode,
       } : {
         success: false,
         platform: '',
         session: '',
         supported: false,
-        error_code: 'request_failed',
+        error_code: errorCode,
         count: 0,
         online_count: 0,
         stored_count: 0,

@@ -18,8 +18,10 @@
 
 const path = require('path');
 
-const { initGlobalConfig, getGlobalConfig } = require('../global_config');
+const { initGlobalConfig, getGlobalConfig, DEFAULT_HTTP_PORT } = require('../global_config');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 const { createApp } = require('../app');
+const { getThreadBus } = require('#@thread_bus');
 
 const NCORE_ROOT = path.join(__dirname, '..', '..');
 
@@ -33,8 +35,8 @@ let server = null;
  * @param {boolean} options.debug - Enable debug mode
  */
 async function launchLinuxService(options = {}) {
-    const host = options.host || '0.0.0.0';
-    const port = options.port || 58000;
+    const host = resolveBindHost(options.host);
+    const port = options.port || DEFAULT_HTTP_PORT;
     const debug = options.debug || false;
 
     console.log('[Service] Starting Linux service mode...');
@@ -61,19 +63,10 @@ async function launchLinuxService(options = {}) {
         }
     });
 
-    // Handle shutdown signals
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-    // Handle uncaught exceptions
-    process.on('uncaughtException', (error) => {
-        console.log('[Service] Uncaught exception:', error.message);
-        gracefulShutdown('uncaughtException');
-    });
-
-    process.on('unhandledRejection', (reason) => {
-        console.log('[Service] Unhandled rejection:', reason);
-        gracefulShutdown('unhandledRejection');
+    // ThreadBus owns SIGINT/SIGTERM/uncaughtException and awaits this hook with the other services
+    getThreadBus().register('linux-service', {
+        priority: 90,
+        onShutdown: async (reason) => closeServer(reason)
     });
 }
 
@@ -100,8 +93,8 @@ function notifySystemd(message) {
  * Graceful shutdown
  * @param {string} signal - Signal that triggered shutdown
  */
-function gracefulShutdown(signal) {
-    console.log(`[Service] Received ${signal}, shutting down gracefully...`);
+function closeServer(reason) {
+    console.log(`[Service] Received ${reason}, shutting down gracefully...`);
 
     // Notify systemd that we're stopping
     if (process.env.NOTIFY_SOCKET) {
@@ -111,20 +104,20 @@ function gracefulShutdown(signal) {
     const config = getGlobalConfig();
     config.serverRunning = false;
 
-    if (server) {
+    if (!server) {
+        return Promise.resolve();
+    }
+    return new Promise((resolve) => {
         server.close(() => {
             console.log('[Service] Server closed');
-            process.exit(0);
+            resolve();
         });
+        server.closeIdleConnections();
+    });
+}
 
-        // Force exit after timeout
-        setTimeout(() => {
-            console.log('[Service] Forcing exit after timeout');
-            process.exit(1);
-        }, 10000);
-    } else {
-        process.exit(0);
-    }
+function gracefulShutdown(signal) {
+    getThreadBus().shutdown(signal, true).finally(() => process.exit(0));
 }
 
 module.exports = {

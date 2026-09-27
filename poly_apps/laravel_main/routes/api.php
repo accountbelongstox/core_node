@@ -255,55 +255,73 @@ require_once __DIR__ . '/PddToolV1Router/PddToolV1Admin.php';
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\WorkerController;
 
+// Authentication per .claude/agents_shared/client_key_auth/laravel_route_auth.md:
+// machine-only routes take `client.key`; routes the UIs also call take
+// `client.key_or_dashboard`; operator-only routes take `dashboard.auth`.
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () {
     Route::prefix('task')->group(function () {
-        Route::post('create', [TaskController::class, 'create']);
-        Route::get('{taskId}/status', [TaskController::class, 'status']);
-        Route::post('{taskId}/cancel', [TaskController::class, 'cancel']);
-        // Fast lane + live drilldown control plane.
-        Route::post('{taskId}/bump', [TaskController::class, 'bump']);
-        Route::get('{taskId}/detail', [TaskController::class, 'detail']);
-        Route::get('list', [TaskController::class, 'list']);
-        Route::get('stats', [TaskController::class, 'stats']);
-        Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
-        Route::post('reset-assigned', [TaskController::class, 'resetAssigned']);
+        Route::middleware('client.key_or_dashboard')->group(function () {
+            Route::post('create', [TaskController::class, 'create']);
+            Route::get('{taskId}/status', [TaskController::class, 'status']);
+            Route::post('{taskId}/cancel', [TaskController::class, 'cancel']);
+            // Fast lane + live drilldown control plane.
+            Route::post('{taskId}/bump', [TaskController::class, 'bump']);
+            Route::get('{taskId}/detail', [TaskController::class, 'detail']);
+            Route::get('list', [TaskController::class, 'list']);
+            Route::get('stats', [TaskController::class, 'stats']);
+        });
+        Route::middleware('dashboard.auth')->group(function () {
+            Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
+            Route::post('reset-assigned', [TaskController::class, 'resetAssigned']);
+        });
     });
 
     Route::prefix('worker')->group(function () {
         // Paths mirror config/queue_center_contract.json `endpoints` (worker_*);
         // that block is the single source pycore / mcp-chrome / the UIs render.
-        Route::post('register', [WorkerController::class, 'register']);
-        Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
-        Route::post('unregister', [WorkerController::class, 'unregister']);
+        // The browser queue pump registers and accepts, so those two also take a login.
+        Route::middleware('client.key_or_dashboard')->group(function () {
+            Route::post('register', [WorkerController::class, 'register']);
+            Route::post('tasks/{taskType}/accept', [WorkerController::class, 'acceptTask']);
+            Route::get('list', [WorkerController::class, 'list']);
+            Route::get('stats', [WorkerController::class, 'stats']);
+        });
         // Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}.
         // {taskType} must be a key from config/queue_center_contract.json
         // task_types (validated in the controller).
-        Route::post('tasks/{taskType}/pull', [WorkerController::class, 'pullTasks']);
-        Route::post('tasks/{taskType}/accept', [WorkerController::class, 'acceptTask']);
-        Route::post('tasks/{taskType}/result', [WorkerController::class, 'submitResult']);
-        Route::post('tasks/{taskType}/release', [WorkerController::class, 'releaseTasks']);
-        Route::get('list', [WorkerController::class, 'list']);
-        Route::get('stats', [WorkerController::class, 'stats']);
+        Route::middleware('client.key')->group(function () {
+            Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
+            Route::post('unregister', [WorkerController::class, 'unregister']);
+            Route::post('tasks/{taskType}/pull', [WorkerController::class, 'pullTasks']);
+            Route::post('tasks/{taskType}/result', [WorkerController::class, 'submitResult']);
+            Route::post('tasks/{taskType}/release', [WorkerController::class, 'releaseTasks']);
+        });
     });
 
     // Unified Task Center — one aggregate over BOTH task layers (scheduler +
     // queue + workers + their relations) for the dashboard's Task Center page.
-    Route::get('task-center/overview', [\App\Http\Controllers\TaskCenterController::class, 'overview']);
-    Route::get('task-center/completed', [\App\Http\Controllers\TaskCenterController::class, 'completed']);
-    Route::get('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'getSettings']);
-    Route::post('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'updateSettings']);
+    Route::middleware('client.key_or_dashboard')->group(function () {
+        Route::get('task-center/overview', [\App\Http\Controllers\TaskCenterController::class, 'overview']);
+        Route::get('task-center/completed', [\App\Http\Controllers\TaskCenterController::class, 'completed']);
+        Route::get('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'getSettings']);
+    });
+    Route::post('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'updateSettings'])
+        ->middleware('dashboard.auth');
 
-    // AppQyV1 media ingestion (local pycore worker, no auth)
+    // AppQyV1 media ingestion (pycore / mcp-chrome machine callers)
     Route::prefix('app_qy_v1/media')->group(function () {
-        Route::post('ingest', [\App\Http\Controllers\MediaIngestController::class, 'ingest']);
-        Route::post('ingest-clip', [\App\Http\Controllers\MediaIngestController::class, 'ingestClip']);
-        // Claim-free, idempotent bulk sentence-audio upload (CoreBook §5.2): pycore
-        // pushes a locally-generated mp3 keyed by content_id+language (fill-missing).
-        Route::post('audio', [\App\Http\Controllers\MediaIngestController::class, 'audio']);
-        // AI web-chat reply audio (ChatGPT/Gemini read-aloud) captured + uploaded
-        // as a binary by the mcp-chrome extension; idempotent fill-missing.
-        Route::post('ai-audio', [\App\Http\Controllers\MediaIngestController::class, 'aiAudio']);
-        Route::post('enrich', [\App\Http\Controllers\MediaIngestController::class, 'enrich']);
+        Route::middleware('client.key')->group(function () {
+            Route::post('ingest', [\App\Http\Controllers\MediaIngestController::class, 'ingest']);
+            Route::post('ingest-clip', [\App\Http\Controllers\MediaIngestController::class, 'ingestClip']);
+            // Claim-free, idempotent bulk sentence-audio upload (CoreBook §5.2): pycore
+            // pushes a locally-generated mp3 keyed by content_id+language (fill-missing).
+            Route::post('audio', [\App\Http\Controllers\MediaIngestController::class, 'audio']);
+            // AI web-chat reply audio (ChatGPT/Gemini read-aloud) captured + uploaded
+            // as a binary by the mcp-chrome extension; idempotent fill-missing.
+            Route::post('ai-audio', [\App\Http\Controllers\MediaIngestController::class, 'aiAudio']);
+        });
+        Route::post('enrich', [\App\Http\Controllers\MediaIngestController::class, 'enrich'])
+            ->middleware('client.key_or_dashboard');
 
         // READ-ONLY browse + media-file serving (dashboard movies/books browser)
         Route::get('subtitles', [\App\Http\Controllers\MediaBrowseController::class, 'subtitles']);
@@ -386,34 +404,37 @@ Route::get('debug/test', function () {
 // Internal Pycore Log Mirror Route
 use App\Http\Controllers\Internal\PycoreLogController;
 
-Route::prefix('internal/pycore')->middleware('pycore.client')->group(function () {
+Route::prefix('internal/pycore')->middleware('client.key')->group(function () {
     Route::get('logs/latest', [PycoreLogController::class, 'getLatestLogs']);
 });
 
-// Relay control plane shared by the dashboard and Pycore clients.
+// Relay control plane shared by the dashboard, Pycore and mcp-chrome clients.
 Route::post('queue-center/mercure-authorization', [\App\Http\Controllers\QueueCenterController::class, 'hubAuthorization'])
-    ->middleware('dashboard.auth');
+    ->middleware('client.key_or_dashboard');
 
 // Relay plane (Mercure notifications plus authoritative HTTP data plane).
 require_once __DIR__ . '/RelayRouter/RelayApi.php';
 
 // Queue Center - centralized audio queues (word_audio, sentence_audio) over
-// global_tasks. Public control plane, same trust level as /api/task/*.
+// global_tasks. Operators and machines share the control plane; the lane diff
+// is machine-only.
 use App\Http\Controllers\QueueCenterController;
 
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->prefix('queue-center')->group(function () {
     // Paths mirror config/queue_center_contract.json `endpoints` (queue_center_*);
     // keep both in lockstep so every end renders the same URLs.
-    Route::get('overview', [QueueCenterController::class, 'overview']);
-    Route::get('events', [QueueCenterController::class, 'events']);
-    Route::get('receipts', [QueueCenterController::class, 'receipts']);
-    Route::get('queues/{queue}/items', [QueueCenterController::class, 'items']);
-    Route::get('queues/{queue}/diff', [QueueCenterController::class, 'diff']);
-    // UI pump reads: high-water ID page table + lazy page data materialization.
-    Route::get('queues/{queue}/id-pages', [QueueCenterController::class, 'idPages']);
-    Route::get('queues/{queue}/page-data', [QueueCenterController::class, 'pageData']);
-    Route::post('queues/{queue}/head', [QueueCenterController::class, 'moveToHead']);
-    Route::post('queues/{queue}/head/batch', [QueueCenterController::class, 'moveToHeadBatch']);
-    Route::post('tasks/{taskId}/cancel', [QueueCenterController::class, 'cancel']);
-    Route::post('tasks/{taskId}/retry', [QueueCenterController::class, 'retry']);
+    Route::middleware('client.key_or_dashboard')->group(function () {
+        Route::get('overview', [QueueCenterController::class, 'overview']);
+        Route::get('events', [QueueCenterController::class, 'events']);
+        Route::get('receipts', [QueueCenterController::class, 'receipts']);
+        Route::get('queues/{queue}/items', [QueueCenterController::class, 'items']);
+        // UI pump reads: high-water ID page table + lazy page data materialization.
+        Route::get('queues/{queue}/id-pages', [QueueCenterController::class, 'idPages']);
+        Route::get('queues/{queue}/page-data', [QueueCenterController::class, 'pageData']);
+        Route::post('queues/{queue}/head', [QueueCenterController::class, 'moveToHead']);
+        Route::post('queues/{queue}/head/batch', [QueueCenterController::class, 'moveToHeadBatch']);
+        Route::post('tasks/{taskId}/cancel', [QueueCenterController::class, 'cancel']);
+        Route::post('tasks/{taskId}/retry', [QueueCenterController::class, 'retry']);
+    });
+    Route::get('queues/{queue}/diff', [QueueCenterController::class, 'diff'])->middleware('client.key');
 });

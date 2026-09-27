@@ -23,6 +23,7 @@
  */
 
 const logger = require('#@logger');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 
 const SERVICE_STARTERS = {};
 
@@ -46,10 +47,10 @@ function startHeartbeat(config) {
 function startRpcV2(config) {
     logger.info('[ServiceStarter] Starting RPC v2 service...');
     try {
-        const rpc = require('#@ncore/utils/rpc');
+        const rpc = require('#@ncore/utils/rpc/index.js');
         const expressServer = rpc.createExpressServer({
             port: config.port || 58100,
-            host: config.host || '0.0.0.0',
+            host: resolveBindHost(config.host),
             basePath: '/rpc'
         });
 

@@ -1,0 +1,4 @@
+- [CRLF mixed line endings](crlf-mixed-line-endings.md) — some scripts/ files are CRLF; scripted edits must preserve endings
+- [Secret password runner](secret-password-runner.md) — secret node tools take the password on stdin via the runner, never argv
+- [Launcher generator parity](launcher-generator-parity.md) — generated launchers can lag the generator; parity-check then regenerate, never hand-edit
+- [Strict mode + desktop icons](win-strictmode-and-desktop-icons.md) — GlobalVars enables StrictMode Latest; organizer layout, pinned Window Launcher, keep keyword file ASCII

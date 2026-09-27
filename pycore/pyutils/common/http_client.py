@@ -272,6 +272,15 @@ def normalize_http_dial_host(
     return normalized_host
 
 
+def redacted_http_error(error: BaseException) -> str:
+    """Exception class and request host only: a request URL (path or query)
+    may carry an API key, so raw exception text is never logged."""
+    request = getattr(error, "request", None)
+    host = urllib.parse.urlsplit(str(getattr(request, "url", "") or "")).hostname or ""
+    name = type(error).__name__
+    return f"{name} host={host}" if host else name
+
+
 def build_http_base_url(host: str, port: int, scheme: str = "http") -> str:
     """Build a client URL from a server bind host and port."""
     dial_host = normalize_http_dial_host(host)
@@ -307,4 +316,5 @@ __all__ = [
     "build_http_base_url",
     "http_endpoint_ok",
     "normalize_http_dial_host",
+    "redacted_http_error",
 ]

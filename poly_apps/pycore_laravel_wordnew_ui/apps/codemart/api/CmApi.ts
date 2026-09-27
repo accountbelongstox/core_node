@@ -1,11 +1,10 @@
-import { BaseAPI } from '../../../core/integrations/laravel/transport/BaseAPI';
+import { BaseAPI, IDEMPOTENCY_KEY_HEADER } from '../../../core/integrations/laravel/transport/BaseAPI';
 import {
   createLaravelModuleConfig,
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
 import { cmHandleUnauthorized } from '../auth/cmAuthSession';
-import type { APIRequestConfig, APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
-import { clearCoordinatedRequests } from '../../../core/network/RequestCoordinator';
+import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { setAuthToken } from '../../../core/auth/AuthSession';
 import type {
   CmAiAnalysis,
@@ -31,9 +30,7 @@ import type {
   CmProject,
   CmProjectAnalysis,
   CmProjectDetail,
-  CmPublicHomeData,
-  CmPublicHomeLoadResult,
-  CmPublicTestimonialData,
+  CmProjectTransitionResult,
   CmRefund,
   CmRegisterPayload,
   CmRegisterResult,
@@ -54,74 +51,9 @@ import type {
 } from './CmApiTypes';
 import { cmFileNameFromDisposition, cmSaveBlob } from './cmDownload';
 
-const PUBLIC_HOME_CACHE_TTL_MS = 60_000;
-const IDEMPOTENCY_HEADER = 'Idempotency-Key';
-
-function asNullableNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function asNullableString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
-function normalizeTestimonial(value: unknown): CmPublicTestimonialData | null {
-  if (!value || typeof value !== 'object') return null;
-  const source = value as Record<string, unknown>;
-  const id = asNullableString(source.id);
-  const quote = asNullableString(source.quote);
-  const authorLabel = asNullableString(source.author_label);
-  const roleLabel = asNullableString(source.role_label);
-  if (!id || !quote || !authorLabel || !roleLabel) return null;
-  return {
-    id,
-    quote,
-    author_label: authorLabel,
-    role_label: roleLabel,
-    avatar_url: asNullableString(source.avatar_url),
-  };
-}
-
-function normalizePublicHome(value: unknown): CmPublicHomeData | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const source = value as Record<string, unknown>;
-  const testimonials = Array.isArray(source.testimonials)
-    ? source.testimonials.map(normalizeTestimonial).filter((item): item is CmPublicTestimonialData => item !== null)
-    : [];
-  return {
-    total_amount: asNullableString(source.total_amount),
-    currency: asNullableString(source.currency),
-    project_count: asNullableNumber(source.project_count),
-    developer_count: asNullableNumber(source.developer_count),
-    testimonials,
-  };
-}
-
 export class CmApi extends BaseAPI {
   constructor() {
     super({ ...createLaravelModuleConfig(LARAVEL_API_PREFIX.codeMartV1), onUnauthorized: cmHandleUnauthorized });
-  }
-
-  async getPublicHome(): Promise<CmPublicHomeLoadResult> {
-    const response = await this.get<unknown>(
-      'public/home',
-      undefined,
-      true,
-      PUBLIC_HOME_CACHE_TTL_MS,
-      false,
-    );
-    if (!response.success) {
-      return {
-        data: null,
-        errorCode: typeof response.debugInfo?.error_code === 'string'
-          ? response.debugInfo.error_code
-          : 'public_home_unavailable',
-      };
-    }
-    return {
-      data: normalizePublicHome(response.data),
-      errorCode: null,
-    };
   }
 
   /** Register through the shared identity; on success adopt the bearer session. */
@@ -133,21 +65,8 @@ export class CmApi extends BaseAPI {
     return response;
   }
 
-  /** Writes invalidate the short-lived shared GET coalescing so the next read reflects the change. */
-  protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
-    const response = await super.request<T>(config, retryCount);
-    if (config.method !== 'GET') clearCoordinatedRequests();
-    return response;
-  }
-
-  private async uploadFresh<T>(url: string, formData: FormData, onProgress: (percentage: number) => void): Promise<APIResponse<T>> {
-    const response = await this.uploadWithProgress<T>(url, formData, onProgress);
-    clearCoordinatedRequests();
-    return response;
-  }
-
   private postIdempotent<T>(url: string, data: unknown, idempotencyKey: string): Promise<APIResponse<T>> {
-    return this.request<T>({ url, method: 'POST', data, headers: { [IDEMPOTENCY_HEADER]: idempotencyKey } });
+    return this.request<T>({ url, method: 'POST', data, headers: { [IDEMPOTENCY_KEY_HEADER]: idempotencyKey } });
   }
 
   private postMultipart<T>(url: string, data: FormData): Promise<APIResponse<T>> {
@@ -223,7 +142,7 @@ export class CmApi extends BaseAPI {
     return this.post<CmProject>(`projects/${projectId}/publish`, {});
   }
 
-  async transitionProject(projectId: number, toStatus: string, reason: string): Promise<APIResponse<{ project: CmProject; from: string; to: string }>> {
+  async transitionProject(projectId: number, toStatus: string, reason: string): Promise<APIResponse<CmProjectTransitionResult>> {
     return this.post(`projects/${projectId}/transition`, { to_status: toStatus, reason: reason || null });
   }
 
@@ -242,7 +161,7 @@ export class CmApi extends BaseAPI {
   async uploadProjectAttachment(projectId: number, file: File, onProgress: (percentage: number) => void): Promise<APIResponse<CmAttachment>> {
     const formData = new FormData();
     formData.append('file', file);
-    return this.uploadFresh<CmAttachment>(`projects/${projectId}/attachments`, formData, onProgress);
+    return this.uploadWithProgress<CmAttachment>(`projects/${projectId}/attachments`, formData, onProgress);
   }
 
   async downloadProjectAttachment(projectId: number, attachment: CmAttachment): Promise<APIResponse<null>> {
@@ -457,7 +376,7 @@ export class CmApi extends BaseAPI {
   }
 
   async uploadKycDocuments(formData: FormData, onProgress: (percentage: number) => void = () => {}): Promise<APIResponse<unknown>> {
-    return this.uploadFresh<unknown>('auth/upload-kyc-documents', formData, onProgress);
+    return this.uploadWithProgress<unknown>('auth/upload-kyc-documents', formData, onProgress);
   }
 }
 

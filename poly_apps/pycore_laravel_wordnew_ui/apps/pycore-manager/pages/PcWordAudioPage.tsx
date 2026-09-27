@@ -26,26 +26,9 @@ import {
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { WordAudioStatus, WordAudioTestResponse } from '@/apps/pycore-manager/api';
 import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
-
-const OK_BADGE = 'bg-emerald-500/15 text-emerald-500';
-const OFF_BADGE = 'bg-slate-500/15 text-slate-400';
-
-function Badge({ ok, okLabel, offLabel }: { ok: boolean; okLabel: string; offLabel: string }) {
-  const Icon = ok ? CheckCircle2 : MinusCircle;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${ok ? OK_BADGE : OFF_BADGE}`}>
-      <Icon className="w-3 h-3" /> {ok ? okLabel : offLabel}
-    </span>
-  );
-}
-
-/** Compact byte size (B / KB / MB). */
-function humanBytes(n: number): string {
-  if (!n || n < 0) return '0 B';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
+import { humanBytes } from '@/apps/pycore-manager/utils/pcFormat';
+import { PresenceBadge } from '@/apps/pycore-manager/pages/vocabulary/vocabShared';
+import { usePcSingleAudio } from '@/apps/pycore-manager/hooks/usePcSingleAudio';
 
 /** Build a playable data: URI from a hit (base64 audio → <audio>/Audio idiom). */
 function audioSrc(r: WordAudioTestResponse | null): string | null {
@@ -65,7 +48,7 @@ export default function PcWordAudioPage() {
   const [result, setResult] = useState<WordAudioTestResponse | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [testBusy, setTestBusy] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  const { playing, play: playClip } = usePcSingleAudio();
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -102,16 +85,8 @@ export default function PcWordAudioPage() {
   const playAudio = useCallback(() => {
     const src = audioSrc(result);
     if (!src || playing) return;
-    try {
-      const audio = new Audio(src);
-      setPlaying(true);
-      audio.onended = () => setPlaying(false);
-      audio.onerror = () => setPlaying(false);
-      void audio.play().catch(() => setPlaying(false));
-    } catch {
-      setPlaying(false);
-    }
-  }, [result, playing]);
+    void playClip(src).catch(() => undefined);
+  }, [result, playing, playClip]);
 
   const canRun = !!word.trim();
   const src = audioSrc(result);
@@ -143,8 +118,8 @@ export default function PcWordAudioPage() {
           <div className="flex items-center justify-between mb-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{t('wordAudioPage.status')}</span>
             <div className="flex items-center gap-2">
-              <Badge ok={!!status?.forvo_key_present} okLabel={t('wordAudioPage.configured')} offLabel={t('wordAudioPage.notSet')} />
-              <Badge ok={status?.batch_engine === QUEUE_CENTER_WORD_AUDIO_BATCH.engine} okLabel={t('wordAudioPage.batchReady')} offLabel={t('wordAudioPage.unavailable')} />
+              <PresenceBadge ok={!!status?.forvo_key_present} yesLabel={t('wordAudioPage.configured')} noLabel={t('wordAudioPage.notSet')} />
+              <PresenceBadge ok={status?.batch_engine === QUEUE_CENTER_WORD_AUDIO_BATCH.engine} yesLabel={t('wordAudioPage.batchReady')} noLabel={t('wordAudioPage.unavailable')} />
             </div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-[11px]">
@@ -200,7 +175,7 @@ export default function PcWordAudioPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t(`wordAudioPage.source.${s.key}.label`, { defaultValue: s.label })}</span>
-                    <Badge ok={s.available} okLabel={t('wordAudioPage.available')} offLabel={t('wordAudioPage.unavailable')} />
+                    <PresenceBadge ok={s.available} yesLabel={t('wordAudioPage.available')} noLabel={t('wordAudioPage.unavailable')} />
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${s.requires_key
                       ? 'bg-amber-500/15 text-amber-500'
                       : 'bg-fuchsia-500/15 text-fuchsia-500'}`}>

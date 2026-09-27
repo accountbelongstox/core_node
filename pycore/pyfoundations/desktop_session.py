@@ -138,6 +138,15 @@ def _user_runtime_dir() -> str:
     return str(candidate) if candidate.is_dir() else ""
 
 
+def _cookie_mtime(path: str) -> Optional[float]:
+    """mtime of a cookie file, or None when it vanished after the glob
+    (mutter rotates Xwayland cookies at any time)."""
+    try:
+        return os.stat(path).st_mtime
+    except FileNotFoundError:
+        return None
+
+
 def xauthority_candidates(runtime_dir: str) -> Tuple[str, ...]:
     """Session cookie files, newest first; a re-login leaves the inherited XAUTHORITY stale."""
     search_roots = [runtime_dir] if runtime_dir else []
@@ -146,7 +155,8 @@ def xauthority_candidates(runtime_dir: str) -> Tuple[str, ...]:
     for root in search_roots:
         for pattern in XWAYLAND_AUTH_PATTERNS:
             candidates.extend(glob.glob(os.path.join(root, pattern)))
-    return tuple(sorted(set(candidates), key=os.path.getmtime, reverse=True))
+    stamped = [(mtime, path) for path in set(candidates) for mtime in (_cookie_mtime(path),) if mtime is not None]
+    return tuple(path for _mtime, path in sorted(stamped, reverse=True))
 
 
 def _resolve_xauthority(runtime_dir: str) -> str:

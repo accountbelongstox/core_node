@@ -418,8 +418,11 @@ class PushReceiver:
             atomic_write_bytes(target, content, allow_fallback=True)
             server_mtime = self._coerce_float(entry.get("server_mtime"))
             if server_mtime is not None:
+                # Never stamp a future time (a clock-skewed peer would put the
+                # hot-reload watcher into a restart loop).
+                stamp = min(server_mtime, time.time())
                 try:
-                    os.utime(target, (server_mtime, server_mtime))
+                    os.utime(target, (stamp, stamp))
                 except Exception:
                     pass
             restore_executable_bit(target, content)
@@ -725,8 +728,11 @@ class PushReceiver:
             atomic_write_bytes(target, content, allow_fallback=True)
             server_mtime = self._coerce_float(msg.get("mtime"))
             if server_mtime is not None:
+                # Never stamp a future time (a clock-skewed peer would put the
+                # hot-reload watcher into a restart loop).
+                stamp = min(server_mtime, time.time())
                 try:
-                    os.utime(target, (server_mtime, server_mtime))
+                    os.utime(target, (stamp, stamp))
                 except Exception:
                     pass
             # The exec bit is lost in transfer (a fresh file is written), so on

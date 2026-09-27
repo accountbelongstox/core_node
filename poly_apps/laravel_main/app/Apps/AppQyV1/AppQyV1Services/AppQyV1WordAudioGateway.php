@@ -68,6 +68,41 @@ class AppQyV1WordAudioGateway
         ];
     }
 
+    /**
+     * Read-only audio state for many words (no enqueue, no head move): one
+     * dictionary query per language instead of one lookup per word.
+     *
+     * @param array<int,array{word:string,language:string}> $items
+     * @return array<int,array{word:string,md5:string,language:string,audio_url:?string,audio_status:string}>
+     */
+    public function resolvePassiveBatch(array $items): array
+    {
+        $normalized = [];
+        $hashesByLanguage = [];
+        $rowsByLanguage = [];
+        $results = [];
+        $row = null;
+        $url = null;
+
+        foreach ($items as $item) {
+            $word = trim((string) ($item['word'] ?? ''));
+            $language = AppQyV1DictionaryService::getLanguageCode((string) ($item['language'] ?? ''));
+            $normalized[] = ['word' => $word, 'language' => $language, 'md5' => md5($word)];
+            $hashesByLanguage[$language][] = md5($word);
+        }
+        $rowsByLanguage = AppQyV1LangDictionaryModel::rowsByLanguageHashes(array_map('array_unique', $hashesByLanguage));
+        foreach ($normalized as $item) {
+            $row = $rowsByLanguage[$item['language']]->get($item['md5']) ?? null;
+            $url = $row instanceof AppQyV1LangDictionaryModel ? $this->resolveAudioPick($row)['url'] : null;
+            $results[] = $item + [
+                'audio_url' => $url,
+                'audio_status' => $url !== null ? 'ready' : 'pending',
+            ];
+        }
+
+        return $results;
+    }
+
     /** @return array<int,array<string,mixed>> */
     public function requestBatch(array $words, string $language): array
     {

@@ -31,6 +31,7 @@
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const logger = require('./logger');
 
 let _systemCacheDir = null;
 let _xdgCacheHome = null;
@@ -45,6 +46,7 @@ const LEGACY_LINUX_DATA_DIR = '/var/_core_node';
 const WINDOWS_WWW_BASE = path.join(WINDOWS_DATA_DRIVE_ROOT, WWW_DIR_NAME);
 const WINDOWS_CORE_NODE_DATA_DIR = path.join(WINDOWS_WWW_BASE, CORE_NODE_DATA_DIR_NAME);
 const WINDOWS_SHARED_CACHE_DIR = path.join(WINDOWS_WWW_BASE, CACHE_DIR_NAME);
+const WINDOWS_USER_DATA_DIR = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), CORE_NODE_DATA_DIR_NAME);
 const SHARED_GLOBAL_VAR_KEYS = new Set([
     'POSTGRES_PASSWORD',
     'MERCURE_PUBLISHER_JWT',
@@ -199,9 +201,7 @@ function getXdgCacheHome() {
         }
     }
 
-    if (!fs.existsSync(cacheHome)) {
-        fs.mkdirSync(cacheHome, { recursive: true });
-    }
+    ensureDirectory(cacheHome);
 
     _xdgCacheHome = cacheHome;
     return cacheHome;
@@ -270,6 +270,17 @@ function isDesktopLinux() {
     return false;
 }
 
+// Create a directory without letting a missing drive or permission error crash module load
+function ensureDirectory(dir) {
+    try {
+        fs.mkdirSync(dir, { recursive: true });
+        return true;
+    } catch (error) {
+        logger.warn(`Cannot create directory ${dir}: ${error.code || error.message}`);
+        return false;
+    }
+}
+
 /**
  * Get system cache directory
  * @returns {string}
@@ -286,7 +297,7 @@ function getSystemCacheDir() {
     const candidates = configuredDir
         ? [configuredDir]
         : process.platform === 'win32'
-            ? [preferredDir]
+            ? [preferredDir, WINDOWS_USER_DATA_DIR]
             : [preferredDir, LEGACY_LINUX_DATA_DIR, path.join(os.homedir(), CORE_NODE_DATA_DIR_NAME)];
 
     for (const candidate of candidates) {
@@ -310,9 +321,7 @@ function getSystemCacheDir() {
 function getUiStateCacheDir() {
     const dir = path.join(getSystemCacheDir(), 'ui_state');
 
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDirectory(dir);
 
     return dir;
 }
@@ -324,9 +333,7 @@ function getUiStateCacheDir() {
 function getAppCacheDir() {
     const dir = path.join(getSystemCacheDir(), 'cache');
 
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDirectory(dir);
 
     return dir;
 }
@@ -338,9 +345,7 @@ function getAppCacheDir() {
 function getAppConfigDir() {
     const dir = path.join(getSystemCacheDir(), 'config');
 
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDirectory(dir);
 
     return dir;
 }
@@ -352,9 +357,7 @@ function getAppConfigDir() {
 function getAppDataDir() {
     const dir = path.join(getSystemCacheDir(), 'data');
 
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDirectory(dir);
 
     return dir;
 }
@@ -366,9 +369,7 @@ function getAppDataDir() {
 function getAppLogsDir() {
     const dir = path.join(getSystemCacheDir(), 'logs');
 
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDirectory(dir);
 
     return dir;
 }
@@ -381,9 +382,7 @@ function getAppLogsDir() {
 function getBrowserSessionDir(profileName = 'default') {
     const dir = path.join(getSystemCacheDir(), 'browser', profileName);
 
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDirectory(dir);
 
     return dir;
 }
@@ -396,9 +395,7 @@ function getBrowserSessionDir(profileName = 'default') {
 function getBrowserUserDataDir(profileName = 'default') {
     const dir = path.join(getBrowserSessionDir(profileName), 'user_data');
 
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDirectory(dir);
 
     return dir;
 }

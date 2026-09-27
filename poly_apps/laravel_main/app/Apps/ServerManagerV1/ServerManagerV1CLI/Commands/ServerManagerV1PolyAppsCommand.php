@@ -193,7 +193,7 @@ class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
         $serviceCreated = $this->createOrUpdateService($serviceName, $appname, $appPath, $port, $appType);
 
         if (!$serviceCreated) {
-            $this->error('Failed to create service');
+            $this->error(__('server_manager.messages.failed_to_create_service'));
             return 1;
         }
         $this->success("✓ Service '{$serviceName}' configured");

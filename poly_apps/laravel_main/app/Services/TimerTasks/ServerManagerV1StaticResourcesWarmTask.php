@@ -16,6 +16,11 @@ use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1StaticResourceA
  */
 class ServerManagerV1StaticResourcesWarmTask extends OctaneTimerTaskAbstract
 {
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     public function getInterval(): int
     {
         return 60;

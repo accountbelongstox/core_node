@@ -6,7 +6,7 @@ import { FileNode, Language, StaticFileContent } from '@/apps/laravel-manager/ui
 import { getSource } from './resourceSources';
 import ViewerErrorBoundary from './ViewerErrorBoundary';
 import {
-    Play, SkipForward, SkipBack, AlertCircle,
+    SkipForward, SkipBack, AlertCircle,
     FileText, Loader2, FastForward, Pencil, Download,
     Save, RotateCcw, FileType, File
 } from "lucide-react";
@@ -422,7 +422,7 @@ const FileViewer: React.FC<FileViewerProps> = ({ file, playlist, onNavigate, lan
   const isReadingType = activeFile && activeFile.fileType ? ['markdown', 'text', 'code', 'pdf', 'epub'].includes(activeFile.fileType) : false;
 
   return (
-    <BentoCard title="Preview" icon={Play} glowing className="flex-1 flex flex-col min-h-0">
+    <BentoCard title="Preview" glowing className="flex-1 flex flex-col min-h-0">
       <div className="flex flex-col gap-4 flex-1 min-h-0">
         {/* Viewer toolbar: edit / save / cancel for editable textual files. */}
         {canEdit && (

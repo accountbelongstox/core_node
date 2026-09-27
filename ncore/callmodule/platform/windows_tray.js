@@ -19,7 +19,8 @@
 const path = require('path');
 const net = require('net');
 
-const { initGlobalConfig, getGlobalConfig } = require('../global_config');
+const { initGlobalConfig, DEFAULT_HTTP_PORT } = require('../global_config');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 const { createApp } = require('../app');
 const { getInstance: getTrayLauncher } = require('../../utils/electron/TrayLauncher');
 const { ncoreController } = require('../../ncontroller/controller');
@@ -80,8 +81,8 @@ function createLock() {
  * @param {string} options.browserType - Browser type to launch
  */
 async function launchWindowsTray(options = {}) {
-    const host = options.host || '0.0.0.0';
-    const port = options.port || 58000;
+    const host = resolveBindHost(options.host);
+    const port = options.port || DEFAULT_HTTP_PORT;
     const debug = options.debug || false;
     const noBrowser = options.noBrowser || false;
     const browserType = options.browserType || 'edge';
@@ -117,9 +118,8 @@ async function launchWindowsTray(options = {}) {
     const app = await createApp();
 
     server = app.listen(port, host, () => {
-        const config = getGlobalConfig();
         console.log('[Tray] Server started successfully');
-        console.log(`[Tray] Access URL: http://${config.localIp || host}:${port}`);
+        console.log(`[Tray] Access URL: http://${host}:${port}`);
 
         // Register with ThreadBus
         threadBus.register('windows-tray-server', {
@@ -157,8 +157,7 @@ async function initElectronTray(host, port) {
         iconPath = null;
     }
 
-    const config = getGlobalConfig();
-    const accessUrl = `http://${config.localIp || host}:${port}`;
+    const accessUrl = `http://${host}:${port}`;
 
     const trayConfig = {
         iconPath: iconPath,

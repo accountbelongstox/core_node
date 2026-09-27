@@ -1,0 +1,11 @@
+{
+  "task_id": "shell-8",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "K7a (pyservice default bind, pycore request)": {"status": "fixed", "reason": "pyservice_entry.sh no longer defaults BIND_HOST to 0.0.0.0. --host goes to the worker only when set, so pycore binds its contract loopback (HTTP_BIND_HOST), and pycore's resolve_bind_host still downgrades a non-loopback host unless rpcLanBind=true. The help and the log line say loopback, and the help names the rpcLanBind command."}
+  },
+  "issues": [],
+  "checks": "pyservice_entry.sh diff read; matches pycore-2's local_rpc_guard.resolve_bind_host behaviour.",
+  "checked_at": "2026-09-27T04:47:13+10:00"
+}

@@ -67,7 +67,7 @@ class TranslationController extends Controller
     public function translate(Request $request): JsonResponse
     {
         if (!$this->validatePasscode($request)) {
-            return $this->unauthorized('Invalid passcode');
+            return $this->unauthorized(__('api.messages.invalid_passcode'));
         }
 
         $request->validate([
@@ -103,13 +103,13 @@ class TranslationController extends Controller
             provider: $provider
         );
 
-        return $this->success($result, 'Translation completed successfully');
+        return $this->success($result, __('api.messages.translation_completed_successfully'));
     }
     
     public function batchTranslate(Request $request): JsonResponse
     {
         if (!$this->validatePasscode($request)) {
-            return $this->unauthorized('Invalid passcode');
+            return $this->unauthorized(__('api.messages.invalid_passcode'));
         }
 
         $request->validate([
@@ -146,13 +146,13 @@ class TranslationController extends Controller
             provider: $provider
         );
 
-        return $this->success(['results' => $results], 'Batch translation completed');
+        return $this->success(['results' => $results], __('api.messages.batch_translation_completed'));
     }
     
     public function detectAndTranslate(Request $request): JsonResponse
     {
         if (!$this->validatePasscode($request)) {
-            return $this->unauthorized('Invalid passcode');
+            return $this->unauthorized(__('api.messages.invalid_passcode'));
         }
 
         $request->validate([
@@ -181,14 +181,14 @@ class TranslationController extends Controller
             provider: $provider
         );
 
-        return $this->success($result, 'Detection and translation completed successfully');
+        return $this->success($result, __('api.messages.detection_and_translation_completed_successfully'));
     }
     
     public function getLanguages(Request $request): JsonResponse
     {
         return $this->success(
             ['languages' => $this->translationService->getAvailableLanguages()],
-            'Languages retrieved successfully'
+            __('api.messages.languages_retrieved_successfully')
         );
     }
 
@@ -196,7 +196,7 @@ class TranslationController extends Controller
     {
         return $this->success(
             ['types' => $this->translationService->getAvailableTypes()],
-            'Translation types retrieved successfully'
+            __('api.messages.translation_types_retrieved_successfully')
         );
     }
 
@@ -204,7 +204,7 @@ class TranslationController extends Controller
     {
         return $this->success(
             ['templates' => $this->translationService->getLanguageTemplates()],
-            'Language templates retrieved successfully'
+            __('api.messages.language_templates_retrieved_successfully')
         );
     }
     
@@ -257,13 +257,13 @@ class TranslationController extends Controller
             'provider_mapping' => $providerMapping,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-        return $this->success(['models' => $uniqueModels], 'Models retrieved successfully');
+        return $this->success(['models' => $uniqueModels], __('api.messages.models_retrieved_successfully'));
     }
     
     public function translateForLearning(Request $request): JsonResponse
     {
         if (!$this->validatePasscode($request)) {
-            return $this->unauthorized('Invalid passcode');
+            return $this->unauthorized(__('api.messages.invalid_passcode'));
         }
         
         $request->validate([
@@ -313,7 +313,7 @@ class TranslationController extends Controller
                 'cached' => true,
                 'result' => $task['result'],
                 'processing_time' => $task['processing_time'],
-            ], 'Task already completed (cached)');
+            ], __('api.messages.task_already_completed_cached'));
         }
 
         $prompt = null;
@@ -329,7 +329,7 @@ class TranslationController extends Controller
             'task_id' => $taskId,
             'status' => 'pending',
             'prompt' => $prompt,
-        ], 'Task created, please poll for status');
+        ], __('api.messages.task_created_please_poll_for_status'));
     }
     
     public function getTaskStatus(Request $request, string $taskId): JsonResponse
@@ -337,7 +337,7 @@ class TranslationController extends Controller
         $task = $this->taskManager->getTask($taskId);
 
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
         
         $response = [
@@ -371,7 +371,7 @@ class TranslationController extends Controller
         }
 
         unset($response['success']);
-        return $this->success($response, 'Task status retrieved successfully');
+        return $this->success($response, __('api.messages.task_status_retrieved_successfully'));
     }
     
     public function processNextTask(Request $request): JsonResponse
@@ -382,13 +382,13 @@ class TranslationController extends Controller
             if ($currentTask && isset($currentTask['task_id'])) {
                 $currentTaskId = $currentTask['task_id'];
             }
-            return $this->error('Another task is being processed', 400, ['current_task_id' => $currentTaskId]);
+            return $this->error(__('api.messages.another_task_is_being_processed'), 400, ['current_task_id' => $currentTaskId]);
         }
 
         $tasks = [];
         $tasksFile = \App\Providers\PathMapper::getLaravelDatabaseDir() . '/translation_tasks/tasks.json';
         if (!file_exists($tasksFile)) {
-            return $this->error('No pending tasks', 400);
+            return $this->error(__('api.messages.no_pending_tasks'), 400);
         }
         $tasksData = json_decode(file_get_contents($tasksFile), true);
         if (!$tasksData) {
@@ -402,7 +402,7 @@ class TranslationController extends Controller
         }
 
         if (empty($tasks)) {
-            return $this->error('No pending tasks', 400);
+            return $this->error(__('api.messages.no_pending_tasks'), 400);
         }
 
         usort($tasks, function($a, $b) {
@@ -413,7 +413,7 @@ class TranslationController extends Controller
         $task = $this->taskManager->getTask($taskId);
 
         if (!$this->taskManager->acquireLock($taskId)) {
-            return $this->error('Failed to acquire lock', 400);
+            return $this->error(__('api.messages.failed_to_acquire_lock'), 400);
         }
 
         $this->taskManager->updateTaskStatus($taskId, TranslationTaskManager::status('processing'));
@@ -479,13 +479,13 @@ class TranslationController extends Controller
         return $this->success([
             'task_id' => $taskId,
             'status' => $result['success'] ? 'completed' : 'failed',
-        ], 'Task processing completed');
+        ], __('api.messages.task_processing_completed'));
     }
     
     public function simpleTranslateWithGoogle(Request $request): JsonResponse
     {
         if (!$this->validatePasscode($request)) {
-            return $this->unauthorized('Invalid passcode');
+            return $this->unauthorized(__('api.messages.invalid_passcode'));
         }
 
         $request->validate([
@@ -539,6 +539,6 @@ class TranslationController extends Controller
             'src_lang' => $srcLang,
             'dest_lang' => $destLang,
             'provider' => 'google',
-        ], 'Translation completed successfully');
+        ], __('api.messages.translation_completed_successfully'));
     }
 }

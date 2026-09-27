@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
+const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper.js');
 
 const defaultConfig = {
     defaultProvider: process.env.TRANSLATOR_PROVIDER || 'azure',
@@ -32,7 +32,7 @@ const defaultConfig = {
         enabled: process.env.DEEPSEEK_ENABLED === 'true' || false,
         modelPath: process.env.DEEPSEEK_MODEL_PATH || 'deepseek-ai/deepseek-vl-1.3b-chat',
         modelDir: process.env.DEEPSEEK_MODEL_DIR || null,
-        pythonCommand: process.env.PYTHON_COMMAND || 'python',
+        pythonCommand: process.env.PYTHON_COMMAND || null,
         timeout: 30000,
         autoInit: false
     },

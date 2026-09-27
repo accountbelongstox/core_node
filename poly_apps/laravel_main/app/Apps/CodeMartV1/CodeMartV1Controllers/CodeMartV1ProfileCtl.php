@@ -29,7 +29,7 @@ class CodeMartV1ProfileCtl extends Controller
 
         $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);
         if (!$userModel) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('codemart.messages.user_not_found'));
         }
 
         return $this->success($this->serializeProfile($userModel));
@@ -57,12 +57,12 @@ class CodeMartV1ProfileCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
         $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);
         if (!$userModel) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('codemart.messages.user_not_found'));
         }
 
         $userAttributes = [];
@@ -107,7 +107,7 @@ class CodeMartV1ProfileCtl extends Controller
 
         return $this->success(
             $this->serializeProfile(CodeMartV1UserModel::findRegistration((int) $user->id)),
-            'Profile updated'
+            __('codemart.messages.profile_updated')
         );
     }
 
@@ -139,7 +139,7 @@ class CodeMartV1ProfileCtl extends Controller
             return $this->errorWithCode($result['error_code'], $result['message'], $result['http_status']);
         }
 
-        return $this->success($result, 'Role requested', 201);
+        return $this->success($result, __('codemart.messages.role_requested'), 201);
     }
 
     private function serializeProfile(CodeMartV1UserModel $userModel): array

@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 
 export interface CodeLastModifiedStatus {
   last_modified_at: string | null;
@@ -12,7 +12,7 @@ export interface CodeLastModifiedStatus {
 /**
  * Open dashboard probe for laravel_main source freshness (TopHeader poll).
  */
-export class CodeUpdateAPI extends BaseAPI {
+export class CodeUpdateAPI extends LmBaseAPI {
   async getLastModified(): Promise<CodeLastModifiedStatus | null> {
     const res = await this.get<CodeLastModifiedStatus>(
       'code-last-modified',

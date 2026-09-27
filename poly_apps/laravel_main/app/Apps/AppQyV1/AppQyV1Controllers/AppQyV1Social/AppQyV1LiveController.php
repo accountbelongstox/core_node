@@ -124,7 +124,7 @@ class AppQyV1LiveController extends Controller
             'live' => $shape,
         ]);
 
-        return $this->success(['live' => $shape], 'Live started');
+        return $this->success(['live' => $shape], __('app_qy_v1.messages.live_started'));
     }
 
     /**
@@ -143,17 +143,17 @@ class AppQyV1LiveController extends Controller
 
         $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
-            return $this->notFound('Live session not found');
+            return $this->notFound(__('app_qy_v1.messages.live_session_not_found'));
         }
         if ((int) $session->host_id !== $myId) {
-            return $this->forbidden('Only the host can end this live');
+            return $this->forbidden(__('app_qy_v1.messages.only_the_host_can_end_this_live'));
         }
 
         $session->endSession();
 
         return $this->success([
             'live' => $this->liveShape($session, $this->usersFor([(int) $session->host_id])),
-        ], 'Live ended');
+        ], __('app_qy_v1.messages.live_ended'));
     }
 
     /**
@@ -175,10 +175,10 @@ class AppQyV1LiveController extends Controller
 
         $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
-            return $this->notFound('Live session not found');
+            return $this->notFound(__('app_qy_v1.messages.live_session_not_found'));
         }
         if ((string) $session->status !== AppQyV1LiveSessionModel::STATUS_LIVE) {
-            return $this->error('Live session is not active', 422);
+            return $this->error(__('app_qy_v1.messages.live_session_is_not_active'), 422);
         }
 
         AppQyV1LiveViewerModel::touch($id, $myId);
@@ -220,7 +220,7 @@ class AppQyV1LiveController extends Controller
 
         $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
-            return $this->notFound('Live session not found');
+            return $this->notFound(__('app_qy_v1.messages.live_session_not_found'));
         }
 
         $cursor = (int) $request->query('cursor', 0);
@@ -272,10 +272,10 @@ class AppQyV1LiveController extends Controller
 
         $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
-            return $this->notFound('Live session not found');
+            return $this->notFound(__('app_qy_v1.messages.live_session_not_found'));
         }
         if ((string) $session->status !== AppQyV1LiveSessionModel::STATUS_LIVE) {
-            return $this->error('Live session is not active', 422);
+            return $this->error(__('app_qy_v1.messages.live_session_is_not_active'), 422);
         }
 
         $body = (string) $request->input('body');
@@ -300,7 +300,7 @@ class AppQyV1LiveController extends Controller
             ]);
         }
 
-        return $this->success(['message' => $shape], 'Message sent');
+        return $this->success(['message' => $shape], __('app_qy_v1.messages.message_sent'));
     }
 
     // ---- Shared helpers ----

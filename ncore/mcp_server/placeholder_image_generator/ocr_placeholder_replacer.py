@@ -5,6 +5,8 @@ OCR-Based Placeholder Replacer
 Scans directories, detects placeholder images using OCR, and replaces them intelligently
 """
 
+import builtins
+import functools
 import os
 import sys
 import re
@@ -16,6 +18,17 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
 from PIL import Image
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.secret_manager import get_secret_key_indexed
+
+OCRSPACE_API_KEY_SECRET = "OCRSPACE_API_KEY"
+
+# Imported by the MCP stdio server: diagnostics must not reach stdout
+print = functools.partial(builtins.print, file=sys.stderr)
 
 # Configure for proper initialization
 def ensure_dependencies():
@@ -45,9 +58,9 @@ class PlaceholderDetectionResult:
 class SimpleOCREngine:
     """Simplified OCR engine using Free OCR service"""
 
-    def __init__(self, api_key: str = "K84414795888957"):
+    def __init__(self, api_key: str = None):
         self.base_url = "https://api.ocr.space/parse/image"
-        self.api_key = api_key
+        self.api_key = api_key or get_secret_key_indexed(OCRSPACE_API_KEY_SECRET)
         self.max_file_size = 1024 * 1024  # 1MB
         print("[OCR_ENGINE] Initialized with Free OCR API")
 

@@ -16,11 +16,13 @@ type ReachabilityHandler = (reachable: boolean) => void;
 
 export class PycoreHttpError extends Error {
   readonly status: number;
+  readonly code: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code = '') {
     super(message);
     this.name = 'PycoreHttpError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -200,11 +202,14 @@ export class PycoreMasterClient extends MasterApiClient {
       ? JSON.parse(responseText)
       : responseText || null;
     if (!response.ok) {
+      const code = typeof payload?.error?.code === 'string' ? payload.error.code
+        : typeof payload?.error_code === 'string' ? payload.error_code : '';
       const message = payload?.error?.message
         || payload?.message
         || (typeof payload?.error === 'string' ? payload.error : '')
+        || code
         || `HTTP ${response.status}`;
-      throw new PycoreHttpError(response.status, String(message));
+      throw new PycoreHttpError(response.status, String(message), code);
     }
     return payload as T;
   }

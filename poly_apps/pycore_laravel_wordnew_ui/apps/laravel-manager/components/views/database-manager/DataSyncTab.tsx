@@ -164,7 +164,9 @@ export const DataSyncTab: React.FC = () => {
   const [selectedKey, setSelectedKey] = useState('');
   const [pendingTarget, setPendingTarget] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // The workspace poll owns nodeError; actionError stays until the next user action.
+  const [nodeError, setNodeError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [probe, setProbe] = useState<DataSyncDirectionProbe | null>(null);
   const [probing, setProbing] = useState(false);
@@ -299,8 +301,18 @@ export const DataSyncTab: React.FC = () => {
     pairIdsRef.current = [oldEndpointId, newServerNode?.id ?? ''];
   }, [oldEndpointId, newServerNode]);
 
+  // Poll ordering: a poll applies only when it started after the last applied
+  // poll and after the last local session update (a just-cancelled session
+  // must not flip back to running from a poll that was already in flight).
+  const pollStartedRef = useRef(0);
+  const pollAppliedRef = useRef(0);
+  const localUpdateFloorRef = useRef(0);
+
   const loadWorkspace = useCallback(async () => {
+    const seq = ++pollStartedRef.current;
     const workspace = await dataSyncModel.workspace();
+    if (seq <= pollAppliedRef.current || seq <= localUpdateFloorRef.current) return;
+    pollAppliedRef.current = seq;
     setEndpoints(workspace.endpoints);
     setSessions(workspace.sessions);
     setMachineCodes(workspace.machineCodes);
@@ -322,7 +334,7 @@ export const DataSyncTab: React.FC = () => {
       }
       return active?.manager_key ?? '';
     });
-    setError(workspace.errors.length > 0
+    setNodeError(workspace.errors.length > 0
       ? `${t('dbSync.errors.nodes')}: ${workspace.errors.map((item) => {
         const reason = item.message === DATA_SYNC_PROTOCOL_MISMATCH_ERROR
           ? t('dbSync.errors.protocol')
@@ -349,7 +361,14 @@ export const DataSyncTab: React.FC = () => {
   }, [loadWorkspace]);
 
   const replaceSession = (session: ManagedDataSyncSession) => {
+    localUpdateFloorRef.current = pollStartedRef.current;
     setSessions((current) => current.map((item) => item.manager_key === session.manager_key ? session : item));
+  };
+
+  const prependSession = (session: ManagedDataSyncSession) => {
+    localUpdateFloorRef.current = pollStartedRef.current;
+    setSessions((current) => [session, ...current]);
+    setSelectedKey(session.manager_key);
   };
 
   const toggleManagedEndpoint = (endpointId: string) => {
@@ -396,7 +415,7 @@ export const DataSyncTab: React.FC = () => {
   const start = async () => {
     if (!oldEndpointId || sameNodeSelected) return;
     setBusy(true);
-    setError(null);
+    setActionError(null);
     setNotice(null);
     try {
       // No manual probe yet: negotiate the direction first so Start follows
@@ -420,8 +439,7 @@ export const DataSyncTab: React.FC = () => {
           resources,
           compression,
         });
-        setSessions((current) => [session, ...current]);
-        setSelectedKey(session.manager_key);
+        prependSession(session);
         if (session.cancelled_sessions?.length) {
           setNotice(t('dbSync.autoCancelled', { count: session.cancelled_sessions.length }));
         }
@@ -435,8 +453,7 @@ export const DataSyncTab: React.FC = () => {
           resources,
           compression,
         });
-        setSessions((current) => [session, ...current]);
-        setSelectedKey(session.manager_key);
+        prependSession(session);
         setNewServerInput('');
         if (session.cancelled_sessions?.length) {
           setNotice(t('dbSync.autoCancelled', { count: session.cancelled_sessions.length }));
@@ -446,7 +463,7 @@ export const DataSyncTab: React.FC = () => {
       if (startError instanceof DataSyncApiError && startError.status === 401 && newServerNode) {
         setAuthEndpoint((current) => current ?? newServerNode);
       }
-      setError(
+      setActionError(
         startError instanceof Error && startError.message === DATA_SYNC_PEER_UNREACHABLE_ERROR
           ? t('dbSync.directionNone')
           : startError instanceof Error && startError.message === DATA_SYNC_SAME_NODE_ERROR
@@ -463,14 +480,14 @@ export const DataSyncTab: React.FC = () => {
   const togglePause = async () => {
     if (!selectedDriver) return;
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       const session = selectedDriver.status === 'paused'
         ? await dataSyncModel.resume(selectedDriver)
         : await dataSyncModel.pause(selectedDriver);
       replaceSession(session);
     } catch (toggleError) {
-      setError(toggleError instanceof Error && toggleError.message ? toggleError.message : t('dbSync.errors.control'));
+      setActionError(toggleError instanceof Error && toggleError.message ? toggleError.message : t('dbSync.errors.control'));
     } finally {
       setBusy(false);
     }
@@ -479,11 +496,11 @@ export const DataSyncTab: React.FC = () => {
   const cancelSelected = async () => {
     if (!selectedActive) return;
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       replaceSession(await dataSyncModel.cancel(selectedActive));
     } catch (cancelError) {
-      setError(cancelError instanceof Error && cancelError.message ? cancelError.message : t('dbSync.errors.control'));
+      setActionError(cancelError instanceof Error && cancelError.message ? cancelError.message : t('dbSync.errors.control'));
     } finally {
       setBusy(false);
     }
@@ -492,11 +509,11 @@ export const DataSyncTab: React.FC = () => {
   const bindTarget = async () => {
     if (!selectedDriver || pendingTarget.trim() === '') return;
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       replaceSession(await dataSyncModel.setTarget(selectedDriver, pendingTarget));
     } catch (targetError) {
-      setError(targetError instanceof Error && targetError.message ? targetError.message : t('dbSync.errors.target'));
+      setActionError(targetError instanceof Error && targetError.message ? targetError.message : t('dbSync.errors.target'));
     } finally {
       setBusy(false);
     }
@@ -644,7 +661,8 @@ export const DataSyncTab: React.FC = () => {
         {receiverActive && <AlertBox variant="warning">{t('dbSync.receiverBlocked')}</AlertBox>}
         {!receiverActive && probe?.direction === 'pull' && newServerWriterActive && <AlertBox variant="warning">{t('dbSync.fetcherBlocked')}</AlertBox>}
         {!receiverActive && newServerInput.trim() === '' && manifestDraftActive && <AlertBox variant="warning">{t('dbSync.manifestDraftBlocked')}</AlertBox>}
-        {error && <AlertBox variant="error">{error}</AlertBox>}
+        {actionError && <AlertBox variant="error">{actionError}</AlertBox>}
+        {nodeError && <AlertBox variant="error">{nodeError}</AlertBox>}
         {notice && <AlertBox variant="info">{notice}</AlertBox>}
       </div>
 

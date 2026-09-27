@@ -54,11 +54,14 @@ GITPUT_SECURITY_COMMON="$SCRIPT_PATH/gitput_security_common.sh"
 GITPUT_REPOSITORY_STATE="$SCRIPT_PATH/gitput_repository_state.sh"
 GITPUT_SYNC_COMMON="$SCRIPT_PATH/gitput_sync_common.sh"
 RUNTIME_ENVIRONMENT="$CORE_NODE_DIR/scripts/shells/linux/common/runtime_environment.sh"
+SECRET_TOOL_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/secret_tool_common.sh"
 
 # SSH key variables
 SSH_DIR="$HOME/.ssh"
 SSH_KEY_NAME="id_ed25519"
 SSH_PUB_NAME="id_ed25519.pub"
+# Opt-in: a root push also shares the project key with logged-in users that have none.
+GITPUT_SHARE_SSH_KEY_WITH_USERS="${GITPUT_SHARE_SSH_KEY_WITH_USERS:-false}"
 LOCAL_SSH_PUB_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.pub.js"
 LOCAL_SSH_KEY_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.js"
 SSH_INSTALL_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/24_install_git_ssh.sh"
@@ -98,6 +101,7 @@ GITEE_FORCE_PUSH_PROMPT="Force push to Gitee as a backup? [Y/n]: "
 
 source "$ARROW_MENU_SCRIPT"
 source "$RUNTIME_ENVIRONMENT"
+source "$SECRET_TOOL_COMMON"
 source "$GITHUB_HOST_REFRESH_SH"
 source "$GITEE_HOST_REFRESH_SH"
 source "$GITPUT_SECURITY_COMMON"
@@ -289,16 +293,14 @@ invoke_git_operations() {
                     local global_password=""
 
                     while true; do
-                        write_color_text "Enter encryption password: " "Yellow"
-                        read -r password1
+                        secret_read_hidden password1 "Enter encryption password: "
 
                         if [ -z "$password1" ]; then
                             write_color_text "ERROR: Password cannot be empty. Please try again." "Red"
                             continue
                         fi
 
-                        write_color_text "Confirm encryption password: " "Yellow"
-                        read -r password2
+                        secret_read_hidden password2 "Confirm encryption password: "
 
                         if [ "$password1" = "$password2" ]; then
                             global_password="$password1"
@@ -327,12 +329,12 @@ invoke_git_operations() {
                         write_color_text "  - Input: $file" "DarkGray"
                         write_color_text "  - Password: $masked_password" "DarkGray"
                         write_color_text "  - Output Dir: $secret_keys_encrypted_dir" "DarkGray"
-                        write_color_text "  - Command: node disguise.js \"$file\" \"$masked_password\" \"$secret_keys_encrypted_dir\"" "DarkGray"
+                        write_color_text "  - Command: node secret_password_runner.js disguise.js \"$file\" $SECRET_PASSWORD_ARG \"$secret_keys_encrypted_dir\"" "DarkGray"
 
                         # Run disguise.js encryption
                         write_color_text "Running encryption..." "Cyan"
                         local result
-                        result=$(node "$disguise_js_path" "$file" "$global_password" "$secret_keys_encrypted_dir" 2>&1)
+                        result=$(secret_tool_run "$global_password" "" node "$disguise_js_path" "$file" "$SECRET_PASSWORD_ARG" "$secret_keys_encrypted_dir" 2>&1)
                         local exit_code=$?
 
                         if [ $exit_code -eq 0 ]; then

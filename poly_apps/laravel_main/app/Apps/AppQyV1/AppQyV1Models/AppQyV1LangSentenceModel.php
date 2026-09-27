@@ -181,6 +181,13 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         return self::enrichmentQuery($lang, $fields)->count();
     }
 
+    /**
+     * Legacy claim candidates: rows still missing audio or in a retryable
+     * state. Completed rows are not candidates, so fully covered sentences at
+     * the top of the occurrence order can no longer starve the rows below
+     * them (variant backfill for completed rows runs in the global_tasks
+     * sentence_audio lane).
+     */
     public static function claimableAudioRows(string $lang, mixed $cutoff, int $limit): Collection
     {
         return self::onLang($lang)
@@ -190,11 +197,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             })
             ->where(function ($query): void {
                 $query->where('has_audio', false)
-                    ->orWhereIn('tts_status', ['pending', 'failed'])
-                    ->orWhere(function ($completedQuery): void {
-                        $completedQuery->where('has_audio', true)
-                            ->where('tts_status', 'completed');
-                    });
+                    ->orWhereIn('tts_status', ['pending', 'failed']);
             })
             ->orderByDesc('occurrence_count')
             ->orderBy('id')

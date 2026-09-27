@@ -26,10 +26,12 @@ $script:CurrentScriptPath = $null
 $script:InstallPowershellsDir = $null
 $script:PostinstallPath = $null
 $script:UpgradeScriptPath = $null
+$script:ChangedWslConfDistros = @()
 
 # Import common functions
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "DockerWslBridge.ps1")
 
 function Get-WindowsVersion {
     try {
@@ -541,36 +543,28 @@ function Step29_InstallWSL {
         
         foreach ($distroName in $linuxDistros) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking default user for $distroName..." -Type "Info"
-            
-            try {
-                # Check current wsl.conf
-                $wslConfContent = & wsl -d $distroName cat /etc/wsl.conf 2>&1
-                
-                if ($wslConfContent -match "default=root") {
-                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user is already root for $distroName." -Type "Success"
-                } else {
-                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Setting root as default user for $distroName..." -Type "Warning"
-                    
-                    # Create or update wsl.conf with root as default user
-                    & wsl -d $distroName bash -c "echo -e '[user]\ndefault=root' > /etc/wsl.conf"
 
-                    $wslConfAfter = & wsl -d $distroName cat /etc/wsl.conf 2>&1
-                    if ("$wslConfAfter" -match "default=root") {
-                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user set to root for $distroName." -Type "Success"
-                    } else {
-                        Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set default user for $distroName." -Type "Warning"
-                    }
+            try {
+                # Merge [user] default=root; every other /etc/wsl.conf section (e.g. [boot] systemd=true) is kept.
+                $wslConfResult = Set-WslConfKey -Distro $distroName -Section 'user' -Key 'default' -Value 'root' -Prefix "[Step $STEP_NUMBER]"
+                if ($wslConfResult -eq 'unchanged') {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user is already root for $distroName." -Type "Success"
+                } elseif ($wslConfResult -eq 'changed') {
+                    $script:ChangedWslConfDistros += $distroName
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Default user set to root for $distroName." -Type "Success"
+                } else {
+                    Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set default user for $distroName." -Type "Warning"
                 }
             } catch {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Error configuring $distroName : $_" -Type "Error"
             }
         }
-        
-        # Restart WSL to apply changes
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Restarting WSL to apply user configuration changes..." -Type "Info"
-        & wsl --shutdown
-        Start-Sleep -Seconds 3
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] WSL restarted." -Type "Success"
+
+        # Restart only the distros whose wsl.conf changed so the new default user applies.
+        foreach ($distroName in $script:ChangedWslConfDistros) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Terminating $distroName to apply the wsl.conf change..." -Type "Info"
+            & wsl --terminate $distroName
+        }
     } else {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] No Ubuntu/Debian distributions found. Skipping user configuration." -Type "Info"
     }

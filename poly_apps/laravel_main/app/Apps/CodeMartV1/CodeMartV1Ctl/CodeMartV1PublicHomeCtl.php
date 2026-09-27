@@ -62,7 +62,7 @@ class CodeMartV1PublicHomeCtl extends Controller
 
         return $this->success(
             $this->publicHomeService->submitContactMessage($validator->validated()),
-            'Message received',
+            __('codemart.messages.message_received'),
             201
         );
     }
@@ -82,7 +82,7 @@ class CodeMartV1PublicHomeCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
         return $this->success($this->estimateService->estimate([

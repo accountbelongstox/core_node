@@ -16,6 +16,8 @@
  * pycore end (e.g. PcBooksPage).
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import {
   Database, ChevronDown, ChevronUp, RefreshCw, WifiOff, Wifi, Film, BookOpen,
 } from 'lucide-react';
@@ -26,39 +28,32 @@ import type {
   MediaSourceListItem, MediaListResponse, MediaSentence,
 } from '@/apps/pycore-manager/api';
 
-// i18n labels (single source; pycore-manager pages use literals, no `t` object).
 const L = {
-  title: 'Laravel backend data',                       // Laravel 后端数据
-  hint: 'Per-source sync status against the SAME Laravel backend the sync engine targets.',
-  refresh: 'Refresh',                                  // 刷新
-  movies: 'Movies',                                    // 影片
-  books: 'Books',                                      // 书籍
-  sources: 'Sources',                                  // 来源
-  total: 'total',                                      // 共
-  segments: 'segments',                                // 段
-  sentences: 'sentences',                              // 句
-  subtitles: 'subtitles',                              // 字幕
-  cues: 'cues',                                        // 字幕条
-  clips: 'clips',                                      // 切片
-  local: 'local',                                      // 本地
-  backend: 'backend',                                  // 后端
-  synced: 'Synced',                                    // 同步于
-  syncTarget: 'Sync target',                           // 同步目标
-  reachable: 'reachable',                              // 可达
-  notReachable: 'unreachable',                         // 不可达
-  notSynced: 'not on backend yet',                     // 后端尚无数据
-  stateSynced: 'synced',                               // 已同步
-  statePartial: 'partial',                             // 部分同步
-  stateMissing: 'missing',                             // 未同步
-  stateUnknown: 'unknown',                             // 未知
-  empty: 'Nothing ingested yet — run a sync above, then refresh.',
-  noSources: 'No extracted sources known to pycore yet — run an extraction, then refresh.',
-  unreachable: 'Laravel backend unreachable — laravel_main (:9000) may be offline.',
-  peek: 'Peek',                                        // 速览
-  peekFirst: 'First sentences',                        // 前几句
-  noSentences: 'No sentences stored for this source.',
-  loadError: 'Query failed',                           // 查询失败
-};
+  title: 'laravelMedia.title',
+  hint: 'laravelMedia.hint',
+  refresh: 'laravelMedia.refresh',
+  books: 'laravelMedia.books',
+  sources: 'laravelMedia.sources',
+  synced: 'laravelMedia.synced',
+  syncTarget: 'laravelMedia.syncTarget',
+  reachable: 'laravelMedia.reachable',
+  notReachable: 'laravelMedia.notReachable',
+  notSynced: 'laravelMedia.notSynced',
+  stateSynced: 'laravelMedia.stateSynced',
+  statePartial: 'laravelMedia.statePartial',
+  stateMissing: 'laravelMedia.stateMissing',
+  stateUnknown: 'laravelMedia.stateUnknown',
+  empty: 'laravelMedia.empty',
+  noSources: 'laravelMedia.noSources',
+  unreachable: 'laravelMedia.unreachable',
+  peek: 'laravelMedia.peek',
+  peekFirst: 'laravelMedia.peekFirst',
+  noSentences: 'laravelMedia.noSentences',
+  loadError: 'laravelMedia.loadError',
+  local: 'laravelMedia.local',
+  backend: 'laravelMedia.backend',
+} as const;
+const C = 'laravelMedia.count';
 
 const PER_PAGE = 8;
 const PEEK_COUNT = 5;
@@ -111,15 +106,16 @@ interface PeekState {
   segments: number;
 }
 
-const countLine = (item: MediaSourceListItem): string => {
+const countLine = (item: MediaSourceListItem, t: TFunction): string => {
   const parts: string[] = [];
-  if (typeof item.segment_count === 'number') parts.push(`${item.segment_count} ${L.segments}`);
-  if (typeof item.sentence_count === 'number') parts.push(`${item.sentence_count} ${L.sentences}`);
-  if (typeof item.subtitle_count === 'number') parts.push(`${item.subtitle_count} ${L.subtitles}`);
+  if (typeof item.segment_count === 'number') parts.push(t(`${C}.segments`, { count: item.segment_count }));
+  if (typeof item.sentence_count === 'number') parts.push(t(`${C}.sentences`, { count: item.sentence_count }));
+  if (typeof item.subtitle_count === 'number') parts.push(t(`${C}.subtitles`, { count: item.subtitle_count }));
   return parts.join(' · ');
 };
 
 const PcLaravelMediaPanel: React.FC = () => {
+  const { t } = useTranslation('pc');
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,18 +132,18 @@ const PcLaravelMediaPanel: React.FC = () => {
         requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractBackendStatus, {}) as Promise<BackendStatus>,
         laravelApi.listMedia('book', PER_PAGE),
       ]);
-      if (!statusResult?.success) throw new Error(L.unreachable);
+      if (!statusResult?.success) throw new Error(t(L.unreachable));
       setStatus(statusResult);
       setBooks(booksResult);
       setError(null);
     } catch (e: unknown) {
       setStatus(null);
       setBooks(null);
-      setError(e instanceof Error ? e.message : L.unreachable);
+      setError(e instanceof Error ? e.message : t(L.unreachable));
     }
     setLoading(false);
     setFetchedOnce(true);
-  }, []);
+  }, [t]);
 
   // When the sync engine's Laravel target changes (endpoint switcher above),
   // re-fetch backend_status against the NEW backend — but only if this panel
@@ -188,15 +184,18 @@ const PcLaravelMediaPanel: React.FC = () => {
     } catch (e: unknown) {
       setPeek({
         key: item.source_key, kind, loading: false,
-        error: e instanceof Error ? e.message : L.loadError, sentences: [], segments: 0,
+        error: e instanceof Error ? e.message : t(L.loadError), sentences: [], segments: 0,
       });
     }
-  }, [peek?.key]);
+  }, [peek?.key, t]);
 
   const totalSummary = !fetchedOnce
     ? ''
     : status
-      ? `${status.sources.length} ${L.sources.toLowerCase()} · ${status.sources.filter((s) => s.state === 'synced').length} ${L.stateSynced}`
+      ? t(`${C}.summary`, {
+        count: status.sources.length,
+        synced: status.sources.filter((s) => s.state === 'synced').length,
+      })
       : '';
 
   // ---- pycore mode: per-source local↔backend comparison ------------------ #
@@ -205,27 +204,31 @@ const PcLaravelMediaPanel: React.FC = () => {
       className="rounded-xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02] p-2">
       <div className="flex items-center gap-2">
         <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide ${STATE_BADGE[src.state] || STATE_BADGE.unknown}`}>
-          {STATE_LABEL[src.state] || L.stateUnknown}
+          {t(STATE_LABEL[src.state] || L.stateUnknown)}
         </span>
         <span className="flex-1 min-w-0 text-xs font-bold text-slate-700 dark:text-slate-200 truncate"
           title={src.src_abs || src.source_path}>
           {src.stem || src.source_key}
         </span>
         {src.backend?.synced_at && (
-          <span className="shrink-0 text-[10px] text-slate-400">{L.synced} {src.backend.synced_at}</span>
+          <span className="shrink-0 text-[10px] text-slate-400">{t(L.synced, { time: src.backend.synced_at })}</span>
         )}
       </div>
       <div className="mt-1 text-[10px] text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5">
         <span>
-          <span className="font-bold uppercase tracking-wide mr-1">{L.local}</span>
-          {src.local.segments} {L.segments} · {src.local.cues} {L.cues} · {src.local.clips} {L.clips}
+          <span className="font-bold uppercase tracking-wide mr-1">{t(L.local)}</span>
+          {t(`${C}.segments`, { count: src.local.segments })} · {t(`${C}.cues`, { count: src.local.cues })} · {t(`${C}.clips`, { count: src.local.clips })}
           {src.local.srt ? ' · srt' : ''}
         </span>
         <span>
-          <span className="font-bold uppercase tracking-wide mr-1">{L.backend}</span>
+          <span className="font-bold uppercase tracking-wide mr-1">{t(L.backend)}</span>
           {src.backend
-            ? `${src.backend.segments} ${L.segments} · ${src.backend.cues} ${L.cues} · ${src.backend.sentences} ${L.sentences}`
-            : L.notSynced}
+            ? [
+              t(`${C}.segments`, { count: src.backend.segments }),
+              t(`${C}.cues`, { count: src.backend.cues }),
+              t(`${C}.sentences`, { count: src.backend.sentences }),
+            ].join(' · ')
+            : t(L.notSynced)}
         </span>
       </div>
     </li>
@@ -241,11 +244,11 @@ const PcLaravelMediaPanel: React.FC = () => {
         <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
           <Icon className="w-3.5 h-3.5" /> {label}
         </span>
-        <span className="text-[11px] text-slate-500">{data?.total ?? 0} {L.total}</span>
+        <span className="text-[11px] text-slate-500">{t(`${C}.total`, { count: data?.total ?? 0 })}</span>
       </div>
       {!data || data.items.length === 0 ? (
         <div className="text-[11px] text-slate-500 py-3 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-xl">
-          {L.empty}
+          {t(L.empty)}
         </div>
       ) : (
         <ul className="space-y-1">
@@ -262,13 +265,13 @@ const PcLaravelMediaPanel: React.FC = () => {
                       {item.title || item.source_key}
                     </span>
                     <span className="block text-[10px] text-slate-400 truncate">
-                      {countLine(item)}
+                      {countLine(item, t)}
                       {item.language ? ` · ${item.language}` : ''}
-                      {item.synced_at ? ` · ${L.synced} ${item.synced_at}` : ''}
+                      {item.synced_at ? ` · ${t(L.synced, { time: item.synced_at })}` : ''}
                     </span>
                   </span>
                   <span className="shrink-0 text-[10px] font-bold text-rose-500 flex items-center gap-1">
-                    {L.peek} {peeking ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {t(L.peek)} {peeking ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   </span>
                 </button>
                 {peeking && peek && (
@@ -282,11 +285,11 @@ const PcLaravelMediaPanel: React.FC = () => {
                     ) : (
                       <div className="rounded-lg bg-slate-200/40 dark:bg-black/30 p-2 space-y-1">
                         <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                          {L.peekFirst}
-                          {kind === 'movie' ? ` · ${peek.segments} ${L.segments}` : ''}
+                          {t(L.peekFirst)}
+                          {kind === 'movie' ? ` · ${t(`${C}.segments`, { count: peek.segments })}` : ''}
                         </p>
                         {peek.sentences.length === 0 ? (
-                          <p className="text-[11px] text-slate-500">{L.noSentences}</p>
+                          <p className="text-[11px] text-slate-500">{t(L.noSentences)}</p>
                         ) : peek.sentences.map((s) => (
                           <p key={s.seq} className="text-[11px] text-slate-600 dark:text-slate-300 break-words">
                             <span className="font-mono text-slate-400 mr-1.5">{s.seq}.</span>{s.text}
@@ -309,7 +312,7 @@ const PcLaravelMediaPanel: React.FC = () => {
       <button type="button" onClick={toggleOpen}
         className="w-full flex items-center justify-between text-xs font-bold uppercase text-slate-400 tracking-wider">
         <span className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-rose-500" /> {L.title}
+          <Database className="w-4 h-4 text-rose-500" /> {t(L.title)}
         </span>
         <span className="flex items-center gap-2 normal-case font-normal text-[11px] text-slate-500">
           {!open && totalSummary && <span>{totalSummary}</span>}
@@ -321,26 +324,26 @@ const PcLaravelMediaPanel: React.FC = () => {
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <p className="flex-1 min-w-[12rem] text-[11px] text-slate-400">
-              {L.hint}
+              {t(L.hint)}
             </p>
             {status && (
               <span className={`text-[10px] font-mono truncate max-w-[16rem] flex items-center gap-1 ${
                 status.reachable ? 'text-emerald-500' : 'text-rose-500'}`}
-                title={`${L.syncTarget}: ${status.base_url} (${status.reachable ? L.reachable : L.notReachable})`}>
+                title={t(L.syncTarget, { url: status.base_url, state: t(status.reachable ? L.reachable : L.notReachable) })}>
                 {status.reachable ? <Wifi className="w-3 h-3 shrink-0" /> : <WifiOff className="w-3 h-3 shrink-0" />}
                 {status.base_url}
               </span>
             )}
             <button type="button" onClick={refresh} disabled={loading}
               className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1 shrink-0 disabled:opacity-50">
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> {L.refresh}
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> {t(L.refresh)}
             </button>
           </div>
 
           {error && (
             <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
               <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-              <span className="break-words">{L.unreachable} ({error})</span>
+              <span className="break-words">{t(L.unreachable)} ({error})</span>
             </div>
           )}
 
@@ -349,17 +352,17 @@ const PcLaravelMediaPanel: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
-                    <Film className="w-3.5 h-3.5" /> {L.sources}
+                    <Film className="w-3.5 h-3.5" /> {t(L.sources)}
                   </span>
                   <span className="text-[11px] text-slate-500">
-                    {status.sources.length} {L.total}
+                    {t(`${C}.total`, { count: status.sources.length })}
                     {typeof status.total_backend_subtitles === 'number'
-                      ? ` · ${status.total_backend_subtitles} ${L.subtitles} ${L.backend}` : ''}
+                      ? ` · ${t(`${C}.backendSubtitles`, { count: status.total_backend_subtitles })}` : ''}
                   </span>
                 </div>
                 {status.sources.length === 0 ? (
                   <div className="text-[11px] text-slate-500 py-3 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-xl">
-                    {L.noSources}
+                    {t(L.noSources)}
                   </div>
                 ) : (
                   <ul className="space-y-1">
@@ -368,7 +371,7 @@ const PcLaravelMediaPanel: React.FC = () => {
                 )}
               </div>
               {/* Secondary block uses the same pycore-selected Laravel endpoint. */}
-              {renderList(books, 'book', L.books, BookOpen)}
+              {renderList(books, 'book', t(L.books), BookOpen)}
             </div>
           )}
         </div>

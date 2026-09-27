@@ -78,18 +78,29 @@ final class RelayDeviceService
                 ->where('expires_at', '>', now())
                 ->get()->unique('user_id');
 
+            $outboxRevision = null;
+
             foreach ($pairings as $pairing) {
+                $outboxRevision = $this->outbox->nextDeviceEventRevision(
+                    'pairing',
+                    (string) $pairing->pairing_id,
+                    $eventType,
+                    $eventPayload
+                );
+                if ($outboxRevision === null) {
+                    continue;
+                }
                 $this->outbox->append(
                     'pairing',
                     (string) $pairing->pairing_id,
-                    $revision,
+                    $outboxRevision,
                     $eventType,
                     'owner',
                     $this->topics->owner((int) $pairing->user_id),
                     [
                         'pairing_id' => (string) $pairing->pairing_id,
                         'device_id' => $deviceId,
-                        'revision' => $revision,
+                        'revision' => $outboxRevision,
                         'metadata' => $eventPayload,
                     ]
                 );

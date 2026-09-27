@@ -91,23 +91,31 @@ It runs from dd.sh step 171, from dd.ps1 Step21 (the ClaudeCode callback), and a
 | bubblewrap, socat | required only for the Bash sandbox (Linux/WSL2; native Windows unsupported) | installed; the sandbox stays off unless enabled |
 | python3, xrandr, a geometry-capable terminal / Windows Terminal | project launchers | installed |
 
-## 8. Roles, scopes and boundaries (14 roles)
+## 8. Roles, scopes and boundaries (22 roles)
 
 UI root: `poly_apps/pycore_laravel_wordnew_ui` (written as `UI/` below).
 
 | Role | Guide | Write scope |
 |---|---|---|
 | orchestrator | this guide | `docs_fix/`, `config/*.json`, `.claude/agents/`, `.claude/agents_shared/` |
-| pycore | `PYTHON_PYCORE.md` | `pycore/` (including TTS/audio), `pymain.py`, `pyservice.*`, `pyapps/` |
-| laravel | `LARAVEL_GUIDE.md` | local `poly_apps/laravel_main/` (every API consumed by the UIs, flutter and mcp-chrome). Develops and tests **locally** |
+| pycore | `PYTHON_PYCORE.md` | coordinator: `pymain.py`, `pyservice.*`, `pycore/{__init__,__main__,pycore_module_caller}.py`, `pycore/pylauncher/`, `pycore/pyutils/{launcher,pyservice_cli,python_env}/`, `pycore/pyctl/{management,pyservice_cli}/`; merges the pycore family; temporary writer of any pycore path the orchestrator assigns |
+| pycore-ai | `PYTHON_PYCORE.md` | large models: `pycore/pyctl/{ai,assist,tts,stt,translation}/`, `pycore/pyutils/{llm,ai_cluster,tts,edge_tts,azure_speech,stt,whisper_stt,ocr_cluster,translator,ultralytics,image_tools,document_processing,ensure_library,external_apis,audio_utils,media_processing}/`, `pycore/tts_install_assets/` |
+| pycore-runtime | `PYTHON_PYCORE.md` | state, cache, API/RPC, relay, Laravel link: `pycore/callmodule/`, `pycore/database/`, `pycore/pyutils/{common,rpc_v2,wsrpc,laravel,codesync}/`, `pycore/pyctl/{relay,runtime,queue_center,laravel,audio_orchestration,task_history,upload,client}/` |
+| pycore-architect | `PYTHON_PYCORE.md` | foundations and conformance: `pycore/pyfoundations/`, `pycore/pythreadpool/`, `pycore/pyheartbeat/`; audits all pycore against the guide and routes fixes to owners |
+| pycore-assist | `PYTHON_PYCORE.md` | every other path under `pycore/` and `pyapps/` (agent history, terminal, desktop/window/input, browser automation, MCP control, device, native UI, ...), and unbounded pycore work |
+| laravel | `LARAVEL_GUIDE.md` | coordinator and foundation of local `poly_apps/laravel_main/`: bootstrap, config, database, lang, middleware, providers, shared services (SafeMigrationHelper, initializers, ClientKey, Auth, OctaneTimer, AI gateway, ...), root routes, the unassigned apps (AChat, Clash, DingDuoDuo, ItTools, Mcp, PddTool) and every Laravel path no other role owns; merges the Laravel family. Develops and tests **locally** |
+| laravel-qyapp | `LARAVEL_GUIDE.md` | `app/Apps/AppQyV1/`, its router and migrations, and the machine routes pycore/mcp-chrome/flutter call (worker, internal/pycore, ingest, orch-audio, agent-history, delivery, QueueCenter services). Local |
+| laravel-codemart | `LARAVEL_GUIDE.md` | `app/Apps/CodeMartV1/`, its router and migrations. Local |
+| laravel-api | `LARAVEL_GUIDE.md` | the APIs the UI apps call: Dashboard/Settings/Auth controllers, queue-center and task-center views, server manager, data sync, realtime, relay, media browse. Local |
 | laravel-remote | `LARAVEL_GUIDE.md` | the same `poly_apps/laravel_main/` in the laravel-main **server** checkout, over SSH (§10). Develops and tests **directly on the server** |
-| shell | `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` | `scripts/`, `dd.sh`, `dd.cmd` (every role's installs) |
+| shell-linux | `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` | `dd.sh`, `scripts/linuxenvs/`, `scripts/shells/{linux,common,docker_compose}/`, `scripts/ai_shtools/`, every other `*.sh`/`*.bash` under `scripts/`. Debian 13 and Ubuntu 26.04 first, Kali compatible; the Debian WSL2 side of Windows delegation |
+| shell-windows | `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` | `dd.cmd`, `scripts/winenvs/`, `scripts/shells/win/`, every other `*.ps1`/`*.psm1`/`*.psd1`/`*.cmd`/`*.bat`/`*.reg`/`*.vbs` under `scripts/` |
 | reviewer | all guides | verdict files and its own report only |
-| laravel-manager | UI conventions | `UI/apps/laravel-manager/` |
-| pycore-manager | UI conventions | `UI/apps/pycore-manager/` |
-| wordnew | UI conventions, `UI/apps/wordnew/docs/` | `UI/apps/wordnew/`, `UI/flavors/wordnew/`, `UI/native/wordnew/` |
-| codemart | UI conventions | `UI/apps/codemart/`, `UI/flavors/codemart/` |
-| vortex | UI conventions | `UI/apps/vortex/`, `UI/flavors/vortex/`: the pycore UI sub-app "Vortex Sandbox" |
+| ui-laravel-manager | UI conventions | `UI/apps/laravel-manager/` |
+| ui-pycore-manager | UI conventions | `UI/apps/pycore-manager/` |
+| ui-wordnew | UI conventions, `UI/apps/wordnew/docs/` | `UI/apps/wordnew/`, `UI/flavors/wordnew/`, `UI/native/wordnew/` |
+| ui-codemart | UI conventions | `UI/apps/codemart/`, `UI/flavors/codemart/` |
+| ui-vortex | UI conventions | `UI/apps/vortex/`, `UI/flavors/vortex/`: the pycore UI sub-app "Vortex Sandbox" |
 | flutter | `FLUTTER_GUIDE.md` | `poly_apps/flutter_bloom/` |
 | ncore | `NODE_NCORE_GUIDE.md` | `ncore/`, `apps/` except `apps/mcp-chrome/`, `main.js`, `ncore_module_caller.js`, `public/` |
 | mcp-chrome | `MCP_CHROME_GUIDE.md` | `apps/mcp-chrome/` |
@@ -123,9 +131,21 @@ Boundaries:
 - B3 **Unassigned area.** `UI/apps/pdd-manager/` is assigned per task by the orchestrator.
 - B4 **Cross-end contracts.** `config/*_contract.json` and the endpoint constants shared across ends change only through the orchestrator, before the owners implement them.
 - B5 **Backends.** Laravel APIs belong to laravel and pycore RPCs to pycore. UI roles, flutter and mcp-chrome consume them through the centralized endpoint modules.
-- B6 **Installers.** Installs belong to shell. pycore owns only its runtime package policy code inside `pycore/`.
+- B6 **Installers.** Installs belong to shell-linux (Linux) and shell-windows (Windows). pycore owns only its runtime package policy code inside `pycore/`. Cross-platform files under `scripts/` (Python, JS, JSON, env, templates) have no default writer: the orchestrator assigns one of the two per task and records it.
 - B7 **Guides are read-only.** `development-guides/` changes only when the user asks.
 - B8 **Common rules.** AGENTS.md applies to all roles, with auto mode. Read-only git/gh is always allowed; every other git/gh command needs the user's prompt to ask for it.
+- B9 **No questions** (user, 2026-09-27). No session started by `claudeagents`/`claudeteamup` asks the user anything:
+  - every agent definition sets `disallowedTools: AskUserQuestion`;
+  - every catalog kickoff repeats the rule;
+  - when a choice comes up, the session takes the recommended option and records the choice and the reason: the orchestrator in docs_fix, a role in its report.
+- B10 **UI role names** (user, 2026-09-27). The five Web UI roles carry the `ui-` prefix: `ui-laravel-manager`, `ui-pycore-manager`, `ui-wordnew`, `ui-codemart`, `ui-vortex`. `flutter` and `mcp-chrome` keep their names.
+- B13 **Role families** (user, 2026-09-27). `laravel` and `pycore` coordinate their families. A coordinator merges its family's batches before review, runs the combined checks, and assigns one temporary writer at a time to a path shared inside the family, recording it in its report. The full path maps are in `.claude/agents/laravel.md` and `.claude/agents/pycore.md`; a path not listed belongs to the `laravel` coordinator or to `pycore-assist`.
+- B11 **Shell parity** (user, 2026-09-27). The shell role is split into `shell-linux` and `shell-windows`. Each agent file names its counterpart.
+  - Every functional change on one side has a counterpart change or a platform-only reason.
+  - Each role keeps its own ledger, `.claude/agents_shared/shell_parity/<linux|windows>.md`. Rows are `id | feature | files | status | task`, with ids `SPL-###`/`SPW-###` and status `aligned`, `pending-<other>` or `platform-only: <reason>`.
+  - A `pending-*` row requires a message to the counterpart and an `[shell-<other>] align: ...` task. The reviewer rejects a shell task that leaves one without its task.
+  - A Windows step that needs Linux or Docker delegates to the Debian 13 WSL2 script of shell-linux; it never re-implements it in PowerShell.
+- B12 **Guide edits** (user, 2026-09-27). The user allowed the orchestrator to edit `development-guides/`. The orchestrator records every guide change in docs_fix.
 
 ## 9. Orchestrator procedure
 1. Record the user's task in `docs_fix/`.

@@ -13,7 +13,7 @@
 const logger = require('#@logger');
 const expressProvider = require('../provider/expressProvider');
 const { processResponse } = require('../tool/response.js');
-const { getConfig } = require('../../common');
+const { getConfig, RPC_CONSTANTS } = require('../../common');
 const path = require('path');
 const fs = require('fs');
 const { APP_TEMPLATE_DIR } = require('#@global_dir');
@@ -23,6 +23,8 @@ const fileQuery = require('./file_query.js');
 const app = expressProvider.getExpressApp()
 const express = expressProvider.getExpress();
 const router = express.Router();
+const INTERNAL_ERROR_CODE = RPC_CONSTANTS.ERROR_CODES.INTERNAL_ERROR;
+let routerMounted = false;
 
 // Serve any static file from APP_TEMPLATE_DIR if it exists, with correct MIME type
 const the_mime = require('mime');
@@ -35,7 +37,9 @@ app.get(/^\/([\w\-.]+\.[\w]+)$/, (req, res, next) => {
         res.sendFile(filePath, err => {
             if (err) {
                 logger.error(`Error serving static file: ${err}`);
-                res.status(500).send('Server Error');
+                if (!res.headersSent) {
+                    res.sendStatus(500);
+                }
             }
         });
     } else {
@@ -54,6 +58,7 @@ function findFirstAvailableFile(filePaths) {
 }
 
 function truncateUserAgent(userAgent) {
+    userAgent = userAgent || '';
     const index = userAgent.indexOf(')');
     if (index !== -1) {
         return userAgent.slice(0, index + 1);  // Include the character ')' if needed
@@ -66,7 +71,7 @@ function logRequest(req, res, next) {
     const method = req.method;
     const path = req.originalUrl;
     const ip = req.ip;
-    const userAgent = req.get('User-Agent');
+    const userAgent = req.get('User-Agent') || '';
     const methodMarker = getMethodMarker(method);
     const truncateUserAgentString = truncateUserAgent(userAgent);
 
@@ -126,7 +131,9 @@ class RouterManager {
                         res.sendFile(filePathOrFunction, (err) => {
                             if (err) {
                                 logger.error(`Error serving file: ${err}`);
-                                res.status(500).send('Server Error');
+                                if (!res.headersSent) {
+                                    res.sendStatus(500);
+                                }
                             }
                         });
                     });
@@ -168,14 +175,24 @@ class RouterManager {
             return;
         }
 
-        const logRequestResult = (req, res, next) => {
-            logRequest(req, res, next);
-            next(); // Proceed to the actual handler
+        // Async handlers: a rejection is answered once here instead of becoming an unhandled rejection
+        const safeHandler = (req, res, next) => {
+            Promise.resolve()
+                .then(() => handler(req, res, next))
+                .catch((error) => {
+                    logger.error(`Route handler failed [${method.toUpperCase()}] ${path}: ${error && error.message}`);
+                    if (!res.headersSent) {
+                        res.status(500).json({ success: false, code: INTERNAL_ERROR_CODE, error: INTERNAL_ERROR_CODE });
+                    }
+                });
         };
 
-        router[method.toLowerCase()](path, logRequest, handler);
+        router[method.toLowerCase()](path, logRequest, safeHandler);
         this.routes.set(path, { handler, method });
-        app.use('/', router);
+        if (!routerMounted) {
+            app.use('/', router);
+            routerMounted = true;
+        }
         expressProvider.setExpressApp(app);
         if(printLog) {
             logger.success(`Route added: [${method.toUpperCase()}] ${path}`);
@@ -223,24 +240,23 @@ class RouterManager {
     }
 
     api(path, handler, printLog = true) {
-        this.addRouteHandler(path, async (req, res, next) => {
+        const apiHandler = (method) => async (req, res, next) => {
             try {
                 const result = await handler(req, res, next);
-                res.json(processResponse(result));
+                // Handlers that answered themselves (res.json/res.send) return nothing to send
+                if (!res.headersSent) {
+                    res.json(processResponse(result));
+                }
             } catch (error) {
-                logger.error(`Error in API route handler [GET] ${path}:`, error);
-                res.status(500).json({ error: 'Internal server error' + error });
+                logger.error(`Error in API route handler [${method}] ${path}: ${error && error.message}`);
+                if (!res.headersSent) {
+                    res.status(500).json({ success: false, code: INTERNAL_ERROR_CODE, error: INTERNAL_ERROR_CODE });
+                }
             }
-        }, "get", printLog);
-        this.addRouteHandler(path, async (req, res, next) => {
-            try {
-                const result = await handler(req, res, next);
-                res.json(processResponse(result));
-            } catch (error) {
-                logger.error(`Error in API route handler [POST] ${path}:`, error);
-                res.status(500).json({ error: 'Internal server error' + error });
-            }
-        }, "post", printLog);
+        };
+
+        this.addRouteHandler(path, apiHandler('GET'), "get", printLog);
+        this.addRouteHandler(path, apiHandler('POST'), "post", printLog);
     }
 
     getExpressRouter() {

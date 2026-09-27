@@ -1,0 +1,18 @@
+{
+  "task_id": "pycore-1",
+  "role": "pycore",
+  "verdict": "approved",
+  "findings": {
+    "K3": {"status": "fixed", "reason": "pycore/pyutils/common/client_key_auth.py is the single pycore signer and verifier. Values come from service_contract.json#client_key_auth (import fails if the error codes or clients drift); path and query go through relay_contract.canonical_path/canonical_query. The signing key is CORE_NODE_CLIENT_KEY_1; verifiers accept only _1.._5 by key id. A missing key yields no headers (Laravel answers client_key_missing) and one log line naming the secret and the dd step, never the value. The nonce is recorded after the HMAC check in a serialized ledger with the contract TTL."},
+    "PR-014": {"status": "fixed", "reason": "laravel_client.request encodes params into the URL and form fields into the body (requests-compatible) before signing, so the signed query and body digest are the exact wire bytes. JSON is serialized once, multipart signs UNSIGNED-PAYLOAD, and a non-bytes body raises instead of signing str(dict). All pycore -> Laravel calls go through this gateway; include_default_identity is gone, so relay calls are signed too, which enables the route table's auto-claim of device-enrollments."},
+    "PR-003": {"status": "fixed", "reason": "workspace_auth.py (the committed bearer secret) and common/http_auth.py are deleted. Every workspace route takes the K3 result (verified once per request and cached on the ASGI scope by rpc_v2/http/client_key_request.py, so the gate and the route never consume a nonce twice). Outbound CodeSync peer calls (peer_mesh, server_connection, client, manager, http_client SSE/POST, discovery) are signed through runtime.signed_peer_request, and docs_fix/CODESYNC_AI_COMMUNICATION_API.md describes the signed flow. No UI calls the workspace routes."}
+  },
+  "cross_end": "Scratchpad check on a copy of client_key_auth.py with only the imports stubbed (and the real relay canonical_path/canonical_query methods extracted): the key id, all 3 canonical strings and signatures of test_vectors.json reproduce; client_key_headers -> client_key_verify round trips ok, a replay gives client_key_nonce_replayed, and a tampered query gives client_key_signature_invalid. With Laravel (laravel-T1) and ncore (ncore-1) reproducing the same vectors, all three ends agree.",
+  "issues": [
+    "(non-blocking, rule) client_key_auth.py:31 hardcodes CLIENT_KEY_ID_LENGTH = 16 (ncore parses it from the contract key_id description), and the ERROR_* literals re-declare the contract codes; they are validated against the contract at import, so drift fails loudly. Prefer deriving them, as ncore does.",
+    "(non-blocking, churn) 35 pycore files were converted from CRLF to LF across the whole file (for example relay_transport.py: 411 lines changed for a 2-line edit; code_sync_routes.py, codesync/service.py, http_server.py, thread_bus_bridge.py, rpc_v2/server.py, pymain.py). pycore-manager and mcp-chrome restored per-line endings from HEAD when this happened. Please do the same so the history shows only real changes. This review used --ignore-space-at-eol.",
+    "endpoint_manager.py also carries PR-010 (selection generation) and forget_resolved, which belong to pycore-3 and are not covered here."
+  ],
+  "checks": "client_key_auth.py and client_key_request.py read in full; the diffs (ignore-space-at-eol) of laravel/client.py, identity.py, endpoint_manager.py, relay_transport.py, codesync service/routes/http_server and rpc_v2/discovery read; grep for laravel_client callers passing streaming bodies (none).",
+  "checked_at": "2026-09-27T04:36:32+10:00"
+}

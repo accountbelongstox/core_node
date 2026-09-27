@@ -59,7 +59,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'certificates' => [],
                 'total_certificates' => 0,
                 'error' => 'Certbot not found. Please install certbot first.'
-            ], 'Certbot not installed');
+            ], __('server_manager.messages.certbot_not_installed'));
         }
 
         // Enumerate every certbot config dir that actually holds certificates
@@ -125,14 +125,14 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'total_certificates' => 0,
                 'error' => 'Cannot access certbot certificates. Permission denied or no certificates found.',
                 'raw_error' => $lastError
-            ], 'No certificates available');
+            ], __('server_manager.messages.no_certificates_available'));
         }
 
         return $this->success([
             'certificates' => $certificates,
             'total_certificates' => count($certificates),
             'raw_output' => trim($rawOutput)
-        ], 'Certificate list retrieved successfully');
+        ], __('server_manager.messages.certificate_list_retrieved_successfully'));
     }
     
     /**
@@ -181,7 +181,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 
         // Validate domain
         if (!filter_var($domain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
-            return $this->error('Invalid domain name', 400, ['domain' => $domain]);
+            return $this->error(__('server_manager.messages.invalid_domain_name'), 400, ['domain' => $domain]);
         }
 
         if ($this->usesAcmeSh()) {
@@ -201,7 +201,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         // Get DNS credentials
         $dnsCredentials = $this->getDnsCredentials($provider);
         if (!$dnsCredentials) {
-            return $this->error('Failed to retrieve DNS credentials', 400, ['provider' => $provider]);
+            return $this->error(__('server_manager.messages.failed_to_retrieve_dns_credentials'), 400, ['provider' => $provider]);
         }
 
         $certbotPath = $this->findCertbotBinary();
@@ -225,9 +225,9 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'certificate_path' => \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($domain) . '/',
                 'output' => $result['output'],
                 'command' => $displayCmd,
-            ], 'SSL certificate generated successfully');
+            ], __('server_manager.messages.ssl_certificate_generated_successfully'));
         } else {
-            return $this->error('Failed to generate SSL certificate', 500, [
+            return $this->error(__('server_manager.messages.failed_to_generate_ssl_certificate'), 500, [
                 'domain' => $domain,
                 'error' => $result['error'],
                 'exit_code' => $result['exit_code'],
@@ -274,7 +274,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         }
 
         if (!$certbotPath) {
-            return $this->error('Certbot not found. Please install certbot first.', 404);
+            return $this->error(__('server_manager.messages.certbot_not_found_please_install_certbot_first'), 404);
         }
 
         // Check current user for diagnostic purposes
@@ -302,7 +302,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'certificates' => [],
                 'message' => 'No certificates found to renew',
                 'current_user' => $currentUser['name']
-            ], 'No certificates to renew');
+            ], __('server_manager.messages.no_certificates_to_renew'));
         }
 
         // Try with --dry-run first to check if renewal would work
@@ -321,7 +321,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             ]);
 
             return $this->error(
-                'Certificate renewal is currently unavailable due to system restrictions. Please run certbot manually as root or check system logs.',
+                __('server_manager.messages.certificate_renewal_is_currently_unavailable_due_to'),
                 503,
                 [
                     'diagnostic' => 'Filesystem restrictions prevent certbot from creating lock files',
@@ -341,7 +341,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'message' => 'All certificates are up to date. No renewal needed.',
                 'next_check' => 'Certificates will be checked again in 30 days',
                 'dry_run_output' => $dryRunResult
-            ], 'No certificates need renewal');
+            ], __('server_manager.messages.no_certificates_need_renewal'));
         }
 
         // If dry-run succeeded, proceed with actual renewal
@@ -375,7 +375,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'all' => $all,
                 'nginx_reloaded' => $reloadResult['success'],
                 'output' => $result['output']
-            ], 'Certificate renewal completed successfully');
+            ], __('server_manager.messages.certificate_renewal_completed_successfully'));
         } else {
             Log::error('ServerManagerV1: Certificate renewal failed', [
                 'domain' => $domain,
@@ -384,7 +384,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'exit_code' => $result['exit_code']
             ]);
 
-            return $this->error('Certificate renewal failed', 500, [
+            return $this->error(__('server_manager.messages.certificate_renewal_failed'), 500, [
                 'error' => $result['error'],
                 'exit_code' => $result['exit_code']
             ]);
@@ -411,7 +411,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         if ($this->usesAcmeSh()) {
             $certificate = ServerManagerV1AcmeShCertificateManager::certificate((string) $domain);
             if ($certificate === null) {
-                return $this->error('Certificate not found', 404, ['domain' => $domain]);
+                return $this->error(__('server_manager.messages.certificate_not_found'), 404, ['domain' => $domain]);
             }
 
             return $this->success($certificate, 'acme.sh certificate status retrieved successfully');
@@ -420,7 +420,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
 
         if (!file_exists($certPath)) {
-            return $this->error('Certificate not found', 404, ['domain' => $domain, 'path' => $certPath]);
+            return $this->error(__('server_manager.messages.certificate_not_found'), 404, ['domain' => $domain, 'path' => $certPath]);
         }
 
         // Get certificate information
@@ -429,7 +429,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         ]);
 
         if (!$result['success']) {
-            return $this->error('Failed to read certificate', 500, ['error' => $result['error']]);
+            return $this->error(__('server_manager.messages.failed_to_read_certificate'), 500, ['error' => $result['error']]);
         }
 
         $certInfo = $this->parseCertificateInfo($result['output']);
@@ -438,7 +438,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $certInfo['private_key_path'] = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptKeyPath($domain);
         $certInfo['chain_path'] = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptChainPath($domain);
 
-        return $this->success($certInfo, 'Certificate status retrieved successfully');
+        return $this->success($certInfo, __('server_manager.messages.certificate_status_retrieved_successfully'));
     }
     
     /**
@@ -527,7 +527,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         // If nginx not installed, skip certbot check (same as sh script)
         if (!$nginxInstalled) {
             $info['skip_reason'] = 'Nginx is not installed - Certbot requires Nginx';
-            return $this->success($info, 'Certbot check skipped - Nginx not installed');
+            return $this->success($info, __('server_manager.messages.certbot_check_skipped_nginx_not_installed'));
         }
 
         $installed = false;
@@ -738,7 +738,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $staging = (bool) $request->input('staging', false);
 
         if (empty($domain) || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$/', $domain)) {
-            return $this->error('Invalid domain name', 400);
+            return $this->error(__('server_manager.messages.invalid_domain_name'), 400);
         }
 
         if ($this->usesAcmeSh()) {
@@ -777,7 +777,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 
         $certbotPath = $this->findCertbotBinary();
         if ($certbotPath === null) {
-            return $this->error('Certbot not found.', 404);
+            return $this->error(__('server_manager.messages.certbot_not_found'), 404);
         }
 
         $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
@@ -793,7 +793,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         } else {
             $dnsCredentials = $this->getDnsCredentials($provider);
             if (!$dnsCredentials) {
-                return $this->error('Failed to retrieve DNS credentials for ' . $provider, 400);
+                return $this->error(__('server_manager.messages.failed_to_retrieve_dns_credentials_for') . $provider, 400);
             }
             $extraArgs = [ServerManagerV1CertificateMetadata::DNSPOD_KEEP_UNTIL_EXPIRING_ARG];
             if ($staging) {
@@ -803,7 +803,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             // authenticator, persistent credentials file, propagation wait).
             $certbotArgs = ServerManagerV1CertificateManager::buildDNSPodCertbotCommand([$domain], $extraArgs);
             if ($certbotArgs === null) {
-                return $this->error('Failed to prepare the DNSPod credentials file', 500);
+                return $this->error(__('server_manager.messages.failed_to_prepare_the_dnspod_credentials_file'), 500);
             }
             $shellCmd = escapeshellcmd($certbotPath)
                 . ' ' . implode(' ', array_map('escapeshellarg', $certbotArgs));
@@ -860,7 +860,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
     {
         $meta = Cache::get("cert_progress_{$requestId}");
         if (!$meta || !is_array($meta)) {
-            return $this->error('Request not found or expired.', 404, ['request_id' => $requestId]);
+            return $this->error(__('server_manager.messages.request_not_found_or_expired'), 404, ['request_id' => $requestId]);
         }
 
         $outputFile = $meta['output_file'] ?? '';
@@ -896,7 +896,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             'output' => $output,
             'output_lines' => $lines,
             'started_at' => $meta['started_at'] ?? null,
-        ], 'Progress retrieved');
+        ], __('server_manager.messages.progress_retrieved'));
     }
 
     /** @return string|null certbot binary path or null */

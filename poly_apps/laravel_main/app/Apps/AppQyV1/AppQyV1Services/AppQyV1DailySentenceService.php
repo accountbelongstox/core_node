@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -158,9 +159,7 @@ class AppQyV1DailySentenceService
             Log::warning('daily_sentences: json_encode failed', ['path' => $path]);
             return;
         }
-        $tmp = $path . '.tmp' . getmypid();
-        if (@file_put_contents($tmp, $json) === false || !@rename($tmp, $path)) {
-            @unlink($tmp);
+        if (!FileSystemManager::writeFileAtomic($path, $json)) {
             Log::warning('daily_sentences: write failed', ['path' => $path]);
         }
     }

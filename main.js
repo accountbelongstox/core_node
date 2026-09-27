@@ -52,7 +52,7 @@ class Main {
     async promptForAppSelection() {
         const apps = getCurrentApps();
         if (!apps || apps.length === 0) {
-            logger.error('No applications found in the apps directory.');
+            console.error('No applications found in the apps directory.');
             process.exit(1);
         }
 
@@ -168,8 +168,17 @@ class Main {
         await this.ensureContext();
 
         if (this.isService) {
-            await this.installService();
-            this.logger.success(`the ${this.appname} service installed successfully`);
+            const installed = await this.installService({
+                name: this.appname,
+                execPath: process.execPath,
+                entry: path.join(__dirname, 'main.js'),
+                args: { app: this.appname }
+            });
+            if (installed) {
+                this.logger.success(`the ${this.appname} service installed successfully`);
+            } else {
+                this.logger.error(`the ${this.appname} service was not installed`);
+            }
         } else if (this.appname) {
             if (!fs.existsSync(this.appentry)) {
                 this.logger.error(`App ${this.appname} not found in ${this.appdir}`);

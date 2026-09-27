@@ -2,7 +2,7 @@
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection } from '@capacitor-community/sqlite';
 import { stableIdentifier } from '../utils/stableHash';
-import type { CapDoc, CapRawResult, CapStoredDoc } from './CapDatabase';
+import type { CapDbBackendKind, CapDoc, CapRawResult, CapStoredDoc } from './CapDatabase';
 export function safeIsNative(): boolean {
   try {
     return Capacitor.isNativePlatform();

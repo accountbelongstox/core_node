@@ -10,13 +10,14 @@ class ResponseCache {
         this.startAutoCleanup();
     }
 
-    set(requestId, data, ttl = null) {
+    set(requestId, data, ttl = null, owner = null) {
         if (this.cache.size >= this.maxSize) {
             this.cleanOldest();
         }
 
         this.cache.set(requestId, {
             data,
+            owner,
             createdAt: Date.now(),
             expiresAt: Date.now() + (ttl || this.defaultTTL),
             accessed: 0
@@ -25,10 +26,14 @@ class ResponseCache {
         return true;
     }
 
-    get(requestId, remove = false) {
+    get(requestId, remove = false, owner = null) {
         const cached = this.cache.get(requestId);
 
         if (!cached) {
+            return null;
+        }
+
+        if (cached.owner && cached.owner !== owner) {
             return null;
         }
 

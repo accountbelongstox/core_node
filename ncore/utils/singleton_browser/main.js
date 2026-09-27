@@ -44,7 +44,7 @@ class SingletonBrowser {
             this.spiderEngine = createSpiderEngine();
             await this.spiderEngine.initialize();
 
-            const { platformDetector } = require('#@platform_detector');
+            const { platformDetector } = require('#@ncore/utils/system/platform_detector.js');
             const isDesktop = await platformDetector.isDesktopSystem();
             const headlessMode = !isDesktop;
 

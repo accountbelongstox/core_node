@@ -18,12 +18,15 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/libraries/recommended', [AppQyV1VocabularyLibraryPublicController::class, 'getRecommended']);
         // Library cover tasks on the global queue (chrome worker first, Laravel
         // AI fallback). Registered before the {libraryId} routes.
-        Route::post('/libraries/cover/tasks', [AppQyV1VocabularyCoverTaskCtl::class, 'enqueue']);
+        Route::post('/libraries/cover/tasks', [AppQyV1VocabularyCoverTaskCtl::class, 'enqueue'])
+            ->middleware('client.key_or_dashboard');
         Route::get('/libraries/cover/tasks', [AppQyV1VocabularyCoverTaskCtl::class, 'status']);
         Route::get('/libraries/{libraryId}/words', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraryWords']);
         // One-click AI cover regeneration (Laravel AiGateway text-to-image,
         // prompt-hash disk cache). POST so an optional prompt override can ride along.
-        Route::post('/libraries/{libraryId}/cover/ai-regenerate', [AppQyV1VocabularyLibraryPublicController::class, 'regenerateCoverAi']);
+        // Spends paid image quota and replaces a public cover: operators only.
+        Route::post('/libraries/{libraryId}/cover/ai-regenerate', [AppQyV1VocabularyLibraryPublicController::class, 'regenerateCoverAi'])
+            ->middleware('dashboard.auth');
         Route::get('/libraries', [AppQyV1VocabularyLibraryPublicController::class, 'getLibraries']);
 
         // Vocabulary page stats drill-down (dashboard, read-only). Powers the
@@ -37,7 +40,8 @@ Route::prefix($apiVersionPrefix)->group(function () {
 
         // Word validity intake for a third-party verification client.
         Route::get('/validity/pending', [AppQyV1VocabularyValidityController::class, 'getPending']);
-        Route::post('/validity/report', [AppQyV1VocabularyValidityController::class, 'report']);
+        Route::post('/validity/report', [AppQyV1VocabularyValidityController::class, 'report'])
+            ->middleware('client.key_or_dashboard');
     });
 
     // Per-language dictionary drill-down (Vocabulary page stats). Read-only,
@@ -54,20 +58,25 @@ Route::prefix($apiVersionPrefix)->group(function () {
     // the unified TTS queue (canonical tables).
     Route::get('/tts/queue/items', [AppQyV1VocabularyStatsController::class, 'ttsQueueItems']);
 
-    // Dictionary word MANAGEMENT (dashboard Words tab): create / update / delete
-    // a single word and batch actions (delete / mark valid|invalid / requeue tts).
-    Route::post('/dictionary/words', [AppQyV1DictionaryWordManagementController::class, 'create']);
-    Route::post('/dictionary/words/batch', [AppQyV1DictionaryWordManagementController::class, 'batch']);
-    Route::put('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'update']);
-    Route::delete('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'destroy']);
+    // Dictionary word MANAGEMENT (dashboard Words tab, operators only): create /
+    // update / delete a single word and batch actions (delete / mark
+    // valid|invalid / requeue tts).
+    Route::middleware('dashboard.auth')->group(function () {
+        Route::post('/dictionary/words', [AppQyV1DictionaryWordManagementController::class, 'create']);
+        Route::post('/dictionary/words/batch', [AppQyV1DictionaryWordManagementController::class, 'batch']);
+        Route::put('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'update']);
+        Route::delete('/dictionary/words/{md5}', [AppQyV1DictionaryWordManagementController::class, 'destroy']);
+    });
 
     // One-click cleanup (dashboard Words tab): paginated preview of junk rows,
     // then a confirm-gated purge. Words: row deleted; translations: only the
     // translations field cleared.
     Route::get('/dictionary/invalid-words', [AppQyV1DictionaryWordManagementController::class, 'invalidWordsPreview']);
-    Route::post('/dictionary/invalid-words/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidWords']);
     Route::get('/dictionary/invalid-translations', [AppQyV1DictionaryWordManagementController::class, 'invalidTranslationsPreview']);
-    Route::post('/dictionary/invalid-translations/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidTranslations']);
+    Route::middleware('dashboard.auth')->group(function () {
+        Route::post('/dictionary/invalid-words/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidWords']);
+        Route::post('/dictionary/invalid-translations/purge', [AppQyV1DictionaryWordManagementController::class, 'purgeInvalidTranslations']);
+    });
 });
 
 // Document re-processing endpoints: documents are stored per user at upload

@@ -39,6 +39,9 @@ final class DictLaneQueueCenter
     private const SNAPSHOT_SAVE_INTERVAL_SECONDS = 60;
     /** Inflight entries older than this are re-served (failed/dead tasks). */
     private const INFLIGHT_TTL_SECONDS = 900;
+    private const MATERIALIZE_LOCK_PREFIX = 'dict_lane:materialize:v1:';
+    private const MATERIALIZE_LOCK_SECONDS = 30;
+    private const LIVE_PAYLOAD_SCAN_LIMIT = 200;
 
     /** @var array<string,array<string,array{signature:string,rows:array<int,array>,saved_at:int}>> */
     private static array $laneCache = [];
@@ -203,22 +206,9 @@ final class DictLaneQueueCenter
             $batchSize = $lane === DictLaneCatalog::LANE_WORD_AUDIO
                 ? $limit - $created
                 : DictLaneCatalog::claimBatchSize($lane);
-            $batch = $this->takeBatch($lane, $langCode, $batchSize);
-            if ($batch === []) {
-                continue;
-            }
-
-            try {
-                $created += $this->materializeBatch($taskType, $lane, $langCode, $batch);
-            } catch (\Throwable $exception) {
-                $this->releaseInflight($lane, $langCode, $batch);
-                Log::warning('DictLaneQueueCenter: materialize page failed', [
-                    'lane' => $lane,
-                    'task_type' => $taskType,
-                    'language' => $langCode,
-                    'error' => $exception->getMessage(),
-                ]);
-            }
+            $created += $lane === DictLaneCatalog::LANE_WORD_AUDIO
+                ? $this->materializeHead($taskType, $lane, $langCode, $batchSize, [])
+                : $this->materializeBatchedLane($taskType, $lane, $langCode, $batchSize);
         }
 
         if ($created > 0) {
@@ -229,6 +219,84 @@ final class DictLaneQueueCenter
         }
 
         return $created;
+    }
+
+    /**
+     * Batched lanes create one task per batch with no group-key dedup, so the
+     * words already carried by live claim tasks (database truth, shared by
+     * every worker thread) are excluded, and one lane+language materializes
+     * under a shared lock at a time.
+     */
+    private function materializeBatchedLane(string $taskType, string $lane, string $langCode, int $batchSize): int
+    {
+        $lock = QueueCenterCacheStore::get()->lock(
+            self::MATERIALIZE_LOCK_PREFIX . sha1($lane . ':' . $langCode),
+            self::MATERIALIZE_LOCK_SECONDS
+        );
+        $created = 0;
+
+        if (!$lock->get()) {
+            return 0;
+        }
+        try {
+            if ($this->hasClaimCapacity($lane, $taskType, $langCode)) {
+                $created = $this->materializeHead($taskType, $lane, $langCode, $batchSize, $this->liveClaimMd5s($lane, $langCode));
+            }
+        } finally {
+            $lock->release();
+        }
+
+        return $created;
+    }
+
+    /** @param array<string,true> $excludedMd5s */
+    private function materializeHead(string $taskType, string $lane, string $langCode, int $batchSize, array $excludedMd5s): int
+    {
+        $batch = $this->takeBatch($lane, $langCode, $batchSize, $excludedMd5s);
+
+        if ($batch === []) {
+            return 0;
+        }
+        try {
+            return $this->materializeBatch($taskType, $lane, $langCode, $batch);
+        } catch (\Throwable $exception) {
+            $this->releaseInflight($lane, $langCode, $batch);
+            Log::warning('DictLaneQueueCenter: materialize page failed', [
+                'lane' => $lane,
+                'task_type' => $taskType,
+                'language' => $langCode,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        return 0;
+    }
+
+    /**
+     * md5s of the words carried by the live claim tasks of a batched lane.
+     *
+     * @return array<string,true>
+     */
+    private function liveClaimMd5s(string $lane, string $langCode): array
+    {
+        $md5s = [];
+
+        foreach (GlobalTask::liveTaskPayloads(
+            'AppQyV1',
+            DictLaneCatalog::liveCountTaskTypes($lane),
+            QueueCenterContract::taskStatuses('live'),
+            ['language' => $langCode],
+            self::LIVE_PAYLOAD_SCAN_LIMIT
+        ) as $payload) {
+            foreach ((array) ($payload['words'] ?? []) as $word) {
+                $md5 = is_array($word) ? (string) ($word['md5'] ?? '') : '';
+                if ($md5 !== '') {
+                    $md5s[$md5] = true;
+                }
+            }
+        }
+
+        return $md5s;
     }
 
     /**
@@ -335,11 +403,13 @@ final class DictLaneQueueCenter
 
     /**
      * Take the next batch from the cached lane head, skipping rows already
-     * materialized into a still-live claim task (inflight reservations).
+     * materialized into a still-live claim task: $excludedMd5s from the
+     * database, plus this thread's recent inflight reservations.
      *
+     * @param array<string,true> $excludedMd5s
      * @return array<int,array{id:int,word:string,md5:string,query_count:int}>
      */
-    private function takeBatch(string $lane, string $langCode, int $batchSize): array
+    private function takeBatch(string $lane, string $langCode, int $batchSize, array $excludedMd5s = []): array
     {
         $rows = $this->laneRowsFresh($lane, $langCode);
         $key = $lane . ':' . $langCode;
@@ -356,7 +426,7 @@ final class DictLaneQueueCenter
             if (count($batch) >= $batchSize) {
                 break;
             }
-            if (isset($inflight[(int) $row['id']])) {
+            if (isset($inflight[(int) $row['id']]) || isset($excludedMd5s[(string) $row['md5']])) {
                 continue;
             }
             $batch[] = $row;

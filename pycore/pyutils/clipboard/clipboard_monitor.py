@@ -149,7 +149,7 @@ class ClipboardMonitor:
                             thread_name="ClipboardChangeCallbackThread",
                         )
 
-                    ColorPrint.blue(f"[ClipboardMonitor] Clipboard changed: {current_content[:50]}...")
+                    ColorPrint.blue(f"[ClipboardMonitor] Clipboard changed: {len(current_content)} chars")
 
                 THREAD_BUS.signal(self._content_signal, current_content)
 
@@ -176,7 +176,7 @@ class ClipboardMonitor:
                 content_type="text"
             )
 
-        ColorPrint.green(f"[ClipboardMonitor] Clipboard set: {content[:50]}...")
+        ColorPrint.green(f"[ClipboardMonitor] Clipboard set: {len(content)} chars")
 
     @serialized_method
     def set_change_callback(self, callback: Callable[[str], None]):

@@ -55,7 +55,7 @@ def add_recognition_to_clipboard(
             # Duplicate item (already in recent history)
             return False
 
-        ColorPrint.green(f"[ClipboardSync] Added to clipboard history: {content[:50]}...")
+        ColorPrint.green(f"[ClipboardSync] Added to clipboard history: {len(content)} chars")
         if confidence is not None:
             ColorPrint.blue(f"[ClipboardSync] Language: {language}, Confidence: {confidence:.2%}")
         else:

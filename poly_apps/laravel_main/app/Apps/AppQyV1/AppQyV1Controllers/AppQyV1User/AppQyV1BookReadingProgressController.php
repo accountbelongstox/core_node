@@ -52,32 +52,32 @@ class AppQyV1BookReadingProgressController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $limit = min(500, max(1, (int) $request->query('limit', 100)));
         $items = $this->progressService->listForUser((int) $user->id, $limit);
 
-        return $this->success(['items' => $items], 'Book reading progress retrieved');
+        return $this->success(['items' => $items], __('app_qy_v1.messages.book_reading_progress_retrieved'));
     }
 
     public function get(Request $request, string $sourceKey): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $progress = $this->progressService->getForBook((int) $user->id, $sourceKey);
 
-        return $this->success(['progress' => $progress], 'Book reading progress retrieved');
+        return $this->success(['progress' => $progress], __('app_qy_v1.messages.book_reading_progress_retrieved'));
     }
 
     public function save(Request $request, string $sourceKey): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -88,32 +88,32 @@ class AppQyV1BookReadingProgressController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $validated = $validator->validated();
         $progress = $this->progressService->saveForBook((int) $user->id, $sourceKey, $validated);
 
-        return $this->success(['progress' => $progress], 'Book reading progress saved');
+        return $this->success(['progress' => $progress], __('app_qy_v1.messages.book_reading_progress_saved'));
     }
 
     public function getDailyReading(Request $request): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $progress = $this->progressService->getDailyReadingForUser((int) $user->id);
 
-        return $this->success(['progress' => $progress], 'Daily reading progress retrieved');
+        return $this->success(['progress' => $progress], __('app_qy_v1.messages.daily_reading_progress_retrieved'));
     }
 
     public function saveDailyReading(Request $request): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -122,7 +122,7 @@ class AppQyV1BookReadingProgressController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $progress = $this->progressService->saveDailyReadingForUser(
@@ -130,7 +130,7 @@ class AppQyV1BookReadingProgressController extends Controller
             $validator->validated(),
         );
 
-        return $this->success(['progress' => $progress], 'Daily reading progress saved');
+        return $this->success(['progress' => $progress], __('app_qy_v1.messages.daily_reading_progress_saved'));
     }
 
     public function previewDailyReadingResources(Request $request, string $articleId): JsonResponse

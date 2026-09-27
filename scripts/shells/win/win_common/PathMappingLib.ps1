@@ -92,6 +92,35 @@ function Test-PathMappingLocationsEqual {
     return ($left -eq $right)
 }
 
+# True when the two locations are equal or one contains the other.
+function Test-PathMappingLocationsNested {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LeftPath,
+        [Parameter(Mandatory = $true)]
+        [string]$RightPath
+    )
+
+    $pair = $null
+    $current = ""
+    $parent = ""
+
+    foreach ($pair in @(@($LeftPath, $RightPath), @($RightPath, $LeftPath))) {
+        $current = Get-NormalizedPathMappingLocation -Path $pair[0]
+        while ($current) {
+            if (Test-PathMappingLocationsEqual -LeftPath $current -RightPath $pair[1]) {
+                return $true
+            }
+            $parent = Split-Path -Path $current -Parent
+            if ([string]::IsNullOrEmpty($parent) -or $parent -eq $current) {
+                break
+            }
+            $current = $parent
+        }
+    }
+    return $false
+}
+
 function Test-PathIsDirectoryJunction {
     param(
         [Parameter(Mandatory = $true)]
@@ -417,6 +446,24 @@ function Move-EntireDirectoryForPathMapping {
     return (Replace-TargetDirectoryWithSourceForPathMapping -SourcePath $source -TargetPath $target)
 }
 
+# Removes only the link entry of a junction or symlink. A recursive
+# Remove-Item on it (Windows PowerShell 5.1) deletes the target's contents.
+function Remove-PathMappingJunction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    try {
+        [System.IO.Directory]::Delete($Path, $false)
+        return $true
+    }
+    catch {
+        Write-PathMapLog -Message "Failed to remove junction $Path : $($_.Exception.Message)" -Type "Error"
+        return $false
+    }
+}
+
 function Remove-PathMappingLinkLocation {
     param(
         [Parameter(Mandatory = $true)]
@@ -425,6 +472,9 @@ function Remove-PathMappingLinkLocation {
 
     if (-not (Test-Path -LiteralPath $Path)) {
         return $true
+    }
+    if (Test-PathIsDirectoryJunction -Path $Path) {
+        return (Remove-PathMappingJunction -Path $Path)
     }
 
     try {
@@ -438,7 +488,7 @@ function Remove-PathMappingLinkLocation {
 
         try {
             Rename-Item -LiteralPath $Path -NewName $relocateName -ErrorAction Stop
-            Write-PathMapLog -Message "Could not delete $Path (files in use). Renamed to $relocatePath — delete manually after closing apps (e.g. Cursor)." -Type "Warning"
+            Write-PathMapLog -Message "Could not delete $Path (files in use). Renamed to $relocatePath - delete manually after closing apps (e.g. Cursor)." -Type "Warning"
             return $true
         }
         catch {
@@ -455,7 +505,7 @@ function Remove-PathMappingLinkLocation {
 
         try {
             Rename-Item -LiteralPath $Path -NewName $relocateName -ErrorAction Stop
-            Write-PathMapLog -Message "Path still present after remove (files in use). Renamed to $relocatePath — delete manually after closing apps." -Type "Warning"
+            Write-PathMapLog -Message "Path still present after remove (files in use). Renamed to $relocatePath - delete manually after closing apps." -Type "Warning"
             return $true
         }
         catch {
@@ -695,6 +745,12 @@ function Invoke-IdempotentPathMapping {
                 return $true
             }
 
+            # Merge what only the old target holds, then drop the link itself.
+            if ($currentTarget -and -not (Test-PathMappingLocationsNested -LeftPath $currentTarget -RightPath $target)) {
+                if (-not (Copy-MissingPathMappingContent -SourcePath $currentTarget -TargetPath $target)) {
+                    return $false
+                }
+            }
             Write-PathMapLog -Message "Removing stale junction: $link (target=$currentTarget)" -Type "Warning"
             if (-not (Remove-PathMappingLinkLocation -Path $link)) {
                 if ($SkipIfOccupied) {

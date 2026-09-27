@@ -218,18 +218,16 @@ repair_pnpm_global_shim_links() {
     done
 }
 
+# Other Node trees may serve other services: they are reported, never removed.
+# Our /usr/local/bin links point at NODE_INSTALL_DIR regardless.
 cleanup_wrong_install_locations() {
     local candidate=""
     local candidate_state=""
 
     for candidate in /usr/local/node /opt/node /var/node; do
-        if [ -d "$candidate" ] && [ "$candidate" != "$NODE_INSTALL_DIR" ]; then
-            if [ -x "$candidate/bin/node" ] && [ -x "$candidate/bin/npm" ] && [ -x "$candidate/bin/npx" ]; then
-                candidate_state="$("$candidate/bin/node" -v 2>/dev/null || true)"
-                if [ -n "$candidate_state" ]; then
-                    $USE_SUDO rm -rf "$candidate"
-                fi
-            fi
+        if [ -d "$candidate" ] && [ "$candidate" != "$NODE_INSTALL_DIR" ] && [ -x "$candidate/bin/node" ]; then
+            candidate_state="$("$candidate/bin/node" -v 2>/dev/null || true)"
+            echo "[17] Other Node.js install left in place: $candidate (${candidate_state:-unknown version}); remove it by hand if nothing uses it."
         fi
     done
 }

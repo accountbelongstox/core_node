@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
-import { wfNewAdminApi, wfNewAdminCoverTaskModel } from '../../api';
+import { wfNewAdminApi, wfNewAdminCoverTaskModel, adminErrorText } from '../../api';
 import type { LibraryCoverMode } from '@/core/integrations/laravel';
 import {
   libraryCoverView,
@@ -142,7 +142,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
       })
       .catch((e: any) => {
         if (!aliveRef.current || id !== reqIdRef.current) return;
-        setError(String(e?.message || 'Request failed'));
+        setError(adminErrorText(e));
         setData(null);
       })
       .finally(() => {
@@ -178,8 +178,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
   };
 
   const toastActionError = (e: any): void => {
-    if (e?.status === 401) addToast(trans('admin.needLogin'), 'warning');
-    else addToast(String(e?.message || 'Request failed'), 'warning');
+    addToast(adminErrorText(e), 'warning');
   };
 
   const enqueueCover = async (lib: WfNewAdminLibraryRow, mode: LibraryCoverMode): Promise<void> => {

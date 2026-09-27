@@ -50,7 +50,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
             'notes' => ($notesRequired ? 'required' : 'nullable') . '|string|max:2000',
         ]);
         if ($validator->fails()) {
-            return $this->codedError('validation_failed', 'Validation failed', $validator->errors(), 422);
+            return $this->codedError('validation_failed', __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         try {
@@ -192,13 +192,22 @@ class CodeMartV1AdminFinanceCtl extends Controller
         ));
     }
 
+    public function refundEscrow(Request $request, int $escrowId): JsonResponse
+    {
+        return $this->adminAction(
+            $request,
+            fn (int $adminId, ?string $notes) => $this->financeService->refundEscrow($escrowId, $adminId, $notes),
+            __('codemart.messages.escrow_refunded')
+        );
+    }
+
     public function resolveDispute(Request $request, int $paymentId): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'resolution' => 'required|in:' . CodeMartV1Constants::DISPUTE_RESOLUTION_REFUND . ',' . CodeMartV1Constants::DISPUTE_RESOLUTION_COMPLETE,
         ]);
         if ($validator->fails() && AuthHelper::requireAdmin($request)) {
-            return $this->codedError('validation_failed', 'Validation failed', $validator->errors(), 422);
+            return $this->codedError('validation_failed', __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         return $this->adminAction(

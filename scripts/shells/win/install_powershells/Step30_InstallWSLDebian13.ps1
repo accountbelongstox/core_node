@@ -11,7 +11,9 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 param(
-    [Parameter()] [string]$Action = "install"
+    [Parameter()] [string]$Action = "install",
+    [Parameter()] [string]$DistroName = "Debian",
+    [Parameter()] [string]$InstallDir = ""
 )
 
 if ($Action -eq "Global" -or $Action -eq "China") {
@@ -26,7 +28,11 @@ $script:WIN_COMMON_DIR = Join-Path (Split-Path $PSScriptRoot -Parent) "win_commo
 
 $script:STEP_NUMBER = 30
 $script:DEBIAN_VERSION = $Global:DEBIAN_VERSION
-$script:DEBIAN_DISTRO_NAME = "Debian"
+$script:DEBIAN_STORE_DISTRO_NAME = "Debian"
+$script:DEBIAN_DISTRO_NAME = $DistroName
+$script:DEBIAN_DISTRO_NAME_EXPLICIT = $PSBoundParameters.ContainsKey('DistroName')
+$script:DEBIAN_DISK_DIR = if ($InstallDir) { $InstallDir } else { $Global:WSL_DEBIAN_DISK_DIR }
+$script:CONSOLE_INPUT_REDIRECTED = [Console]::IsInputRedirected
 $script:DEBIAN_WSL_URL = $Global:DEBIAN_WSL_DOWNLOAD_URL
 $script:DEBIAN_WSL_FILENAME = $Global:DEBIAN_WSL_FILENAME
 $script:DEBIAN_WSL_LOCAL_PATH = $Global:DEBIAN_WSL_LOCAL_PATH
@@ -251,7 +257,11 @@ function Get-DebianWSLFile {
     $timeout = 10
     $startTime = Get-Date
     $endTime = $startTime.AddSeconds($timeout)
-    
+    if ($script:CONSOLE_INPUT_REDIRECTED) {
+        Write-StepMessage -Message "No interactive console; using the default 'Y'" -Type "Info"
+        $endTime = $startTime
+    }
+
     while ((Get-Date) -lt $endTime) {
         if ([Console]::KeyAvailable) {
             $key = [Console]::ReadKey($true)
@@ -310,23 +320,28 @@ function Install-DebianWSL {
         Write-StepMessage -Message "Installing from downloaded file: $WSLFilePath" -Type "Info"
         try {
             # Ensure WSL disk directory exists
-            if (-not (Test-Path $Global:WSL_DEBIAN_DISK_DIR)) {
-                New-Item -ItemType Directory -Path $Global:WSL_DEBIAN_DISK_DIR -Force | Out-Null
-                Write-StepMessage -Message "Created WSL Debian disk directory: $Global:WSL_DEBIAN_DISK_DIR" -Type "Info"
+            if (-not (Test-Path $script:DEBIAN_DISK_DIR)) {
+                New-Item -ItemType Directory -Path $script:DEBIAN_DISK_DIR -Force | Out-Null
+                Write-StepMessage -Message "Created WSL Debian disk directory: $script:DEBIAN_DISK_DIR" -Type "Info"
             }
-            
-            Write-StepMessage -Message "Command: wsl --import $script:DEBIAN_DISTRO_NAME `"$Global:WSL_DEBIAN_DISK_DIR`" `"$WSLFilePath`" --version 2" -Type "Info"
-            & wsl --import $script:DEBIAN_DISTRO_NAME $Global:WSL_DEBIAN_DISK_DIR $WSLFilePath --version 2 | Out-Host
+
+            Write-StepMessage -Message "Command: wsl --import $script:DEBIAN_DISTRO_NAME `"$script:DEBIAN_DISK_DIR`" `"$WSLFilePath`" --version 2" -Type "Info"
+            & wsl --import $script:DEBIAN_DISTRO_NAME $script:DEBIAN_DISK_DIR $WSLFilePath --version 2 | Out-Host
             $wslListAfterImport = @(& wsl --list --quiet | ForEach-Object { ("$_" -replace "`0", '').Trim() })
             if ($wslListAfterImport -contains $script:DEBIAN_DISTRO_NAME) {
-                Write-StepMessage -Message "Debian installed successfully from downloaded file to: $Global:WSL_DEBIAN_DISK_DIR" -Type "Success"
+                Write-StepMessage -Message "Debian installed successfully from downloaded file to: $script:DEBIAN_DISK_DIR" -Type "Success"
                 return $true
             }
         } catch {
             Write-StepMessage -Message "Failed to install from downloaded file: $_" -Type "Error"
         }
     }
-    
+
+    if ($script:DEBIAN_DISTRO_NAME -ne $script:DEBIAN_STORE_DISTRO_NAME) {
+        Write-StepMessage -Message "The native installer only creates '$script:DEBIAN_STORE_DISTRO_NAME'; '$script:DEBIAN_DISTRO_NAME' needs the Debian WSL package at $script:DEBIAN_WSL_LOCAL_PATH" -Type "Error"
+        return $false
+    }
+
     # Fallback to native installation
     Write-StepMessage -Message "Using WSL2 native installation method..." -Type "Info"
     try {
@@ -524,6 +539,7 @@ function Wait-ForRestart {
     Write-StepMessage -Message "After restart, run this script again to continue the installation" -Type "Info"
     Write-StepMessage -Message "The script will NOT automatically restart your computer" -Type "Info"
 
+    if ($script:CONSOLE_INPUT_REDIRECTED) { return }
     Write-Host ""
     Write-StepMessage -Message "Press Enter to continue (manual restart required)..." -Type "Warning"
     Read-Host
@@ -556,7 +572,7 @@ function Invoke-WSLDebianAction {
                     Write-StepMessage -Message "WSL2 installation may require system restart to complete" -Type "Warning"
                     Write-StepMessage -Message "However, you can try to continue installation first" -Type "Info"
 
-                    $continueChoice = Read-Host "Continue with Debian installation anyway? (y/n)"
+                    $continueChoice = if ($script:CONSOLE_INPUT_REDIRECTED) { 'n' } else { Read-Host "Continue with Debian installation anyway? (y/n)" }
                     if ($continueChoice -ne "y" -and $continueChoice -ne "Y") {
                         Wait-ForRestart
                         return $false
@@ -566,7 +582,11 @@ function Invoke-WSLDebianAction {
             }
 
             # 2. Check if Debian 13 is already installed
-            $debian13Distros = @(Get-InstalledDebian13Distros)
+            if ($script:DEBIAN_DISTRO_NAME_EXPLICIT) {
+                $debian13Distros = @(& wsl --list --quiet | ForEach-Object { ("$_" -replace "`0", '').Trim() } | Where-Object { $_ -eq $script:DEBIAN_DISTRO_NAME })
+            } else {
+                $debian13Distros = @(Get-InstalledDebian13Distros)
+            }
             if ($debian13Distros -and $debian13Distros.Count -gt 0) {
                 Write-StepMessage -Message "Debian 13 is already installed:" -Type "Success"
                 foreach ($distro in $debian13Distros) {

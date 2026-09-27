@@ -17,7 +17,7 @@ $commonDirectory = Join-Path $winDirectory 'win_common'
 $managerPath = Join-Path $commonDirectory 'FrankenPhpManager.ps1'
 . $managerPath
 
-Write-FrankenPhpLog -Message "Step $STEP_NUMBER: ensuring the official native Windows runtime."
+Write-FrankenPhpLog -Message "Step ${STEP_NUMBER}: ensuring the official native Windows runtime."
 Ensure-FrankenPhpNativeInstall | Out-Null
 if (Test-FrankenPhpNativePayload) {
     Write-FrankenPhpLog -Message "Step $STEP_NUMBER complete." -Type 'Success'

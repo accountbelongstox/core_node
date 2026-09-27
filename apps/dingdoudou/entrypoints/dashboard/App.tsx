@@ -40,7 +40,7 @@ import {
   syncOrders,
 } from '@/lib/dashboardBridge';
 import { downloadCsv } from '@/lib/exportCsv';
-import { hasFeature } from '@/lib/superCode';
+import { hasFeature, SUPER_CODE_PLACEHOLDER } from '@/lib/superCode';
 import { DEFAULT_BACKEND_URL } from '@/lib/backendUrl';
 import {
   dashboardText,
@@ -504,7 +504,7 @@ export default function App() {
           </div>
           {gateTab === 'super' ? (
             <form onSubmit={handleSuperCode} className="space-y-3">
-              <input value={superCode} onChange={(event) => setSuperCode(event.target.value)} required placeholder="DDK-XXXX-XXXXXX" className="w-full rounded-lg border bg-transparent p-3 font-mono text-sm" />
+              <input value={superCode} onChange={(event) => setSuperCode(event.target.value)} required placeholder={SUPER_CODE_PLACEHOLDER} className="w-full rounded-lg border bg-transparent p-3 font-mono text-sm" />
               <button disabled={gateBusy} className="w-full rounded-lg bg-blue-600 p-2.5 text-sm font-bold text-white">{gateBusy ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : ui.offlineActivate}</button>
             </form>
           ) : (

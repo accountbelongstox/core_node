@@ -12,6 +12,22 @@ export function bytesToBase64(bytes: ByteSequence): string {
   return btoa(binary);
 }
 
+/** Lowercase sha256 hex digest (WebCrypto). */
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes as BufferSource));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/** PNG, JPEG, GIF or WEBP magic bytes (the raster formats the backend accepts). */
+export function isRasterImageBytes(bytes: ByteSequence): boolean {
+  const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const gif = bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+  const webp = bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
+    && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  return png || jpeg || gif || webp;
+}
+
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return bytesToBase64(new Uint8Array(buffer));
 }

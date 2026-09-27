@@ -42,7 +42,12 @@ import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-ty
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { LaravelWorkerLifecycleBase } from './task-center/LaravelWorkerLifecycleBase';
 import { queueCenterWakeService } from './task-center/QueueCenterWakeService';
-import { IntervalController, TimeoutController, delay as waitForDelay } from '@/utils/async';
+import {
+  AsyncOperationController,
+  IntervalController,
+  TimeoutController,
+  delay as waitForDelay,
+} from '@/utils/async';
 import { resolveApiBase } from '@/services/ApiManager';
 
 // Subsystem tag for the global logger.
@@ -177,6 +182,9 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
     return HANDLED_TASK_TYPES.has(taskType);
   }
 
+  // One in-flight start: a watchdog resume and a user Start share it instead of
+  // registering the worker twice.
+  protected readonly startOperation = new AsyncOperationController<void>();
   protected readonly taskPolling = new IntervalController();
   protected readonly heartbeatPolling = new IntervalController();
   // Coalesce fast re-polls (B3): at most one scheduled burst in flight.
@@ -249,10 +257,14 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
    *   background, only when a task actually needs them.
    */
   async start(config: WorkerConfig, surface = true): Promise<void> {
-    if (this.isRunning) {
+    if (this.isRunning && !this.startOperation.isRunning) {
       logger.warn(LOG, 'Service already running');
       return;
     }
+    return this.startOperation.run(() => this.startOnce(config, surface));
+  }
+
+  private async startOnce(config: WorkerConfig, surface: boolean): Promise<void> {
     if (!config.apiUrl) {
       throw new Error('API URL is required');
     }

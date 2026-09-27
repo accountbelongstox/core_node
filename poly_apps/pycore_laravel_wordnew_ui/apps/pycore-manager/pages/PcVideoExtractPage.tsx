@@ -10,6 +10,7 @@
  * backend (:59000) is offline. Appearance/language live in the shell controls.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Clapperboard, Search, Play, RefreshCw, Square, Plus, Trash2, X,
   Folder, FileVideo, WifiOff, FolderOpen,
@@ -31,66 +32,57 @@ import { usePcVideoExtract } from '../PcVideoExtractContext';
 import type { SegWithFull, VeFlowStep } from '../PcVideoExtractContext';
 import PcLaravelMediaPanel from '../components/PcLaravelMediaPanel';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
 
 // Flow-step status → badge color + short label for the "处理流程 / Flow" panel.
-const FLOW_STATUS: Record<string, { dot: string; text: string; label: string }> = {
-  ok:       { dot: 'bg-emerald-500', text: 'text-emerald-500', label: 'OK' },
-  api:      { dot: 'bg-emerald-500', text: 'text-emerald-500', label: 'API' },
-  whisper:  { dot: 'bg-indigo-500',  text: 'text-indigo-500',  label: 'Whisper' },
-  ai:       { dot: 'bg-violet-500',  text: 'text-violet-500',  label: 'AI' },
-  cache:    { dot: 'bg-sky-500',     text: 'text-sky-500',     label: 'Cache' },
-  api_miss: { dot: 'bg-amber-500',   text: 'text-amber-500',   label: 'API miss' },
-  warn:     { dot: 'bg-amber-500',   text: 'text-amber-500',   label: 'Warn' },
-  empty:    { dot: 'bg-slate-400',   text: 'text-slate-400',   label: 'Empty' },
-  miss:     { dot: 'bg-slate-400',   text: 'text-slate-400',   label: 'Miss' },
-  fail:     { dot: 'bg-rose-500',    text: 'text-rose-500',    label: 'Fail' },
+const FLOW_STATUS: Record<string, { dot: string; text: string }> = {
+  ok:       { dot: 'bg-emerald-500', text: 'text-emerald-500' },
+  api:      { dot: 'bg-emerald-500', text: 'text-emerald-500' },
+  whisper:  { dot: 'bg-indigo-500',  text: 'text-indigo-500' },
+  ai:       { dot: 'bg-violet-500',  text: 'text-violet-500' },
+  cache:    { dot: 'bg-sky-500',     text: 'text-sky-500' },
+  api_miss: { dot: 'bg-amber-500',   text: 'text-amber-500' },
+  warn:     { dot: 'bg-amber-500',   text: 'text-amber-500' },
+  empty:    { dot: 'bg-slate-400',   text: 'text-slate-400' },
+  miss:     { dot: 'bg-slate-400',   text: 'text-slate-400' },
+  fail:     { dot: 'bg-rose-500',    text: 'text-rose-500' },
 };
 function flowStyle(status: string) {
-  return FLOW_STATUS[status] || { dot: 'bg-slate-400', text: 'text-slate-400', label: status };
+  return FLOW_STATUS[status] || { dot: 'bg-slate-400', text: 'text-slate-400' };
 }
 
-// i18n labels for the new sync + clip-variant UI. The rest of this page uses
-// hardcoded English literals (no `t` object exists in pycore-manager), so the
-// new copy follows the same pattern, centralized here as the single source.
-// Chinese values are kept alongside as inline comments for future i18n wiring.
 const L = {
-  veSyncLaravel: 'Sync to Laravel',   // 同步到 Laravel
-  veSyncAll: 'Sync ALL to Laravel',   // 全部同步到 Laravel
-  veAutoSync: 'Auto-sync after run',  // 跑完自动同步
-  veIdempotent: 'Idempotent — safe to re-run; existing data is never overwritten.', // 幂等——可重复执行,已有数据不会被覆盖
-  veSyncing: 'Syncing…',              // 同步中…
-  veSyncDone: 'Synced to Laravel',    // 已同步到 Laravel
-  veSyncFailed: 'Sync failed',        // 同步失败
-  veSyncStage: 'Stage',               // 阶段
-  veFullClip: 'Full',                 // 完整
-  veTinyClip: '2×2',
-  veAudioClip: 'Audio',               // 音频
-  veWholeFiles: 'Outputs',            // 输出文件
-  veOpenClipDir: 'Open clip dir',     // 打开切片目录
-  vePoster: 'Poster',                 // 海报
-  veOpenPosterDir: 'Open poster dir', // 打开海报目录
-  // language multi-select + multi-language correspondence
-  veLanguages: 'Languages',                       // 语言
-  veLanguagesHint: 'Pick the languages to build a per-cue correspondence for. The recognition (primary) language is checked and locked.',
-  veNeedOneLang: 'Select at least one language',   // 至少选择一种语言
-  vePrimaryLang: 'Primary (locked)',              // 主语言(锁定)
-  veSelected: 'selected',                          // 已选
-  veFlowTitle: 'Process / decision / cache flow',  // 处理流程 / 决策 / 缓存
-  veGrainLabel: 'Grain',                           // 粒度
-  veGrainCue: 'Cue',                               // 行
-  veGrainSentence: 'Sentence',                     // 句子
-  veBlankCorr: '—',                                // 留空占位
-  // subtitle source (options panel)
-  veSubtitleSource: 'Subtitle source',                                            // 字幕来源
-  veSrcApiFirst: 'API first (OpenSubtitles → Whisper)',                           // 优先 API(OpenSubtitles → Whisper)
-  veSrcWhisper: 'Always Whisper',                                                 // 始终使用 Whisper
-  veSubtitleSourceHint: 'API first tries OpenSubtitles for the primary track, then falls back to Whisper.', // API 优先先尝试 OpenSubtitles,失败再回退 Whisper
-  // fill languages (Laravel-sync section)
-  veFill: 'Fill languages (API → AI)',                                            // 填充语言(API → AI)
-  veFilling: 'Filling…',                                                          // 填充中…
-  veFillHint: 'Filled tracks are cached locally next to each video, then Submit (Sync) sends them.', // 填充的字幕缓存在视频旁,随后点击同步提交
-  veFillStage: 'Stage',                                                           // 阶段
-};
+  veSyncLaravel: 'videoExtract.page.syncLaravel',
+  veSyncAll: 'videoExtract.page.syncAll',
+  veAutoSync: 'videoExtract.page.autoSync',
+  veIdempotent: 'videoExtract.page.idempotent',
+  veSyncing: 'videoExtract.page.syncing',
+  veSyncStage: 'videoExtract.page.stage',
+  veFullClip: 'videoExtract.page.fullClip',
+  veTinyClip: 'videoExtract.page.tinyClip',
+  veAudioClip: 'videoExtract.page.audioClip',
+  veWholeFiles: 'videoExtract.page.wholeFiles',
+  veOpenClipDir: 'videoExtract.page.openClipDir',
+  vePoster: 'videoExtract.page.poster',
+  veLanguages: 'videoExtract.page.languages',
+  veLanguagesHint: 'videoExtract.page.languagesHint',
+  veNeedOneLang: 'videoExtract.page.needOneLang',
+  vePrimaryLang: 'videoExtract.page.primaryLang',
+  veSelected: 'videoExtract.page.selectedCount',
+  veFlowTitle: 'videoExtract.page.flowTitle',
+  veGrainLabel: 'videoExtract.page.grainLabel',
+  veGrainCue: 'videoExtract.page.grainCue',
+  veGrainSentence: 'videoExtract.page.grainSentence',
+  veBlankCorr: 'videoExtract.page.blankCorr',
+  veSubtitleSource: 'videoExtract.page.subtitleSource',
+  veSrcApiFirst: 'videoExtract.page.srcApiFirst',
+  veSrcWhisper: 'videoExtract.page.srcWhisper',
+  veSubtitleSourceHint: 'videoExtract.page.subtitleSourceHint',
+  veFill: 'videoExtract.page.fill',
+  veFilling: 'videoExtract.page.filling',
+  veFillHint: 'videoExtract.page.fillHint',
+  veFillStage: 'videoExtract.page.stage',
+} as const;
 
 const DEFAULT_BASE = 'D:\\.tmp';
 
@@ -139,6 +131,7 @@ const parentOf = (dir: string): string => {
 };
 
 const PcVideoExtractPage: React.FC = () => {
+  const { t } = useTranslation('pc');
   // --- persistent run/progress/snapshot/mapping/sync state (survives nav) - #
   // Lifted into PcVideoExtractContext (mounted above the routes) so navigating
   // away and back — or a full reload — re-attaches to the still-running backend
@@ -325,16 +318,16 @@ const PcVideoExtractPage: React.FC = () => {
       const r = await pycoreApi.pickPath(addMode, addPath || baseDir || DEFAULT_BASE);
       if (r?.success && r.path) setAddPath(r.path);
       else if (r?.canceled) { /* keep current */ }
-      else setNotice(r?.error || 'Native picker unavailable — type the path manually');
+      else setNotice(r?.error || t('videoExtract.page.pickerUnavailable'));
     } catch {
-      setNotice('Native picker unavailable — type the path manually');
+      setNotice(t('videoExtract.page.pickerUnavailable'));
     } finally { setBrowsing(false); }
   };
 
   // --- add / remove ------------------------------------------------------ #
   const confirmAdd = async () => {
     const p = addPath.trim();
-    if (!p) { setNotice('Enter a path'); return; }
+    if (!p) { setNotice(t('videoExtract.page.enterPath')); return; }
     try {
       const r = await pycoreApi.addVideoExtractEntry(p, addMode);
       if (r?.success) {
@@ -342,13 +335,13 @@ const PcVideoExtractPage: React.FC = () => {
         else await loadHistory();
         setShowAdd(false);
         setAddPath(baseDir || DEFAULT_BASE);
-        setNotice('Source added');
+        setNotice(t('videoExtract.page.sourceAdded'));
       } else {
-        setNotice(r?.error || 'Failed to add');
+        setNotice(r?.error || t('videoExtract.page.addFailed'));
       }
     } catch (e: any) {
       setUnreachable(true);
-      setNotice('Add failed: ' + (e?.message || 'pycore unreachable'));
+      setNotice(t('videoExtract.page.addFailedDetail', { error: e?.message || t('common.pycoreUnreachable') }));
     }
   };
 
@@ -358,7 +351,7 @@ const PcVideoExtractPage: React.FC = () => {
       if (r?.success && Array.isArray(r.entries)) setEntries(r.entries);
       else await loadHistory();
       setSelected((prev) => { const n = new Set(prev); n.delete(path); return n; });
-    } catch (e: any) { setNotice('Request failed: ' + (e?.message || '')); }
+    } catch (e: any) { setNotice(t('videoExtract.page.requestFailedDetail', { error: e?.message || '' })); }
   };
 
   const toggleSelect = (path: string) => {
@@ -388,7 +381,7 @@ const PcVideoExtractPage: React.FC = () => {
     if (sub.langs) return sub.langs[code] ?? null;
     return code === lockedLang ? (sub.text || null) : null;
   };
-  const grainLabel = (g?: string): string => (g === 'cue' ? L.veGrainCue : L.veGrainSentence);
+  const grainLabel = (g?: string): string => t(g === 'cue' ? t(L.veGrainCue) : t(L.veGrainSentence));
 
   // Keep the locked primary checked whenever the recognition language changes,
   // and mirror the checked set into the context (segments fetch + sync HTTPs).
@@ -436,13 +429,13 @@ const PcVideoExtractPage: React.FC = () => {
   // lifecycle to the context (which owns busy/progress/snapshot + polling).
   const preview = async () => {
     const paths = activePaths();
-    if (!paths.length) { setNotice('Select at least one source first'); return; }
+    if (!paths.length) { setNotice(t('videoExtract.page.selectSourceFirst')); return; }
     await previewRun({ ...reqBase(), paths, path: paths[0] });
   };
 
   const start = async () => {
     const paths = activePaths();
-    if (!paths.length) { setNotice('Select at least one source first'); return; }
+    if (!paths.length) { setNotice(t('videoExtract.page.selectSourceFirst')); return; }
     await startRun({ ...reqBase(), paths, path: paths[0] });
   };
 
@@ -452,7 +445,7 @@ const PcVideoExtractPage: React.FC = () => {
   const openPath = async (kind: VideoExtractOpenKind, path?: string | null) => {
     const r = await pycoreApi.openVideoExtractPath(kind, path ?? undefined)
       .catch(() => ({ success: false }));
-    if (!r.success) setNotice('Could not open path');
+    if (!r.success) setNotice(pcErrorCodeMessage((r as { error?: string }).error) || t('videoExtract.page.openFailed'));
   };
 
   // Sources eligible for sync: the selected entries, else the run root (so there
@@ -508,40 +501,40 @@ const PcVideoExtractPage: React.FC = () => {
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <Clapperboard className="w-5 h-5 text-rose-500" /> Video Extract
+              <Clapperboard className="w-5 h-5 text-rose-500" /> {t('nav.videoExtract')}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Extract audio + .srt (faster-whisper) from folders or single videos via the local pycore engine.
+              {t('videoExtract.page.subtitle')}
             </p>
           </div>
           <button onClick={() => { setAddPath(baseDir || DEFAULT_BASE); setShowAdd(true); }}
             className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 shrink-0">
-            <Plus className="w-4 h-4" /> Add source
+            <Plus className="w-4 h-4" /> {t('videoExtract.page.addSource')}
           </button>
         </div>
 
         {unreachable && (
           <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
             <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-words">pycore unreachable — the backend (:59000) may be offline. Showing the last known state.</span>
+            <span className="break-words">{t('videoExtract.page.unreachable')}</span>
           </div>
         )}
 
         {/* sources list */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Sources</h3>
+            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">{t('videoExtract.page.sources')}</h3>
             {entries.length > 0 && (
               <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer select-none">
-                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} /> Select all
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} /> {t('videoExtract.page.selectAll')}
               </label>
             )}
           </div>
-          <p className="text-[11px] text-slate-400">Check the sources to act on, then preview or start.</p>
+          <p className="text-[11px] text-slate-400">{t('videoExtract.page.sourcesHint')}</p>
 
           {entries.length === 0 ? (
             <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
-              No sources yet — add a folder or a single video.
+              {t('videoExtract.page.noSources')}
             </div>
           ) : (
             <ul className="space-y-1.5">
@@ -557,11 +550,11 @@ const PcVideoExtractPage: React.FC = () => {
                       ? 'bg-sky-500/15 text-sky-500'
                       : 'bg-amber-500/15 text-amber-500'}`}>
                     {e.mode === 'folder' ? <Folder className="w-3 h-3" /> : <FileVideo className="w-3 h-3" />}
-                    {e.mode === 'folder' ? 'Folder' : 'File'}
+                    {t(e.mode === 'folder' ? 'videoExtract.page.folder' : 'videoExtract.page.file')}
                   </span>
                   <span className="flex-1 text-xs font-mono text-slate-700 dark:text-slate-200 truncate" title={e.path}>{e.path}</span>
                   <button onClick={() => removeEntry(e.path)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition" title="Remove">
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition" title={t('videoExtract.page.remove')}>
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </li>
@@ -572,36 +565,36 @@ const PcVideoExtractPage: React.FC = () => {
 
         {/* action row */}
         <div className="flex flex-wrap items-center gap-2 mt-5">
-          <span title="Subtitles are always generated"
+          <span title={t('videoExtract.page.subtitlesAlways')}
             className="px-3 py-2.5 text-xs font-bold rounded-xl flex items-center gap-1.5 border bg-emerald-500/15 border-emerald-500/40 text-emerald-500 select-none">
-            <Captions className="w-4 h-4" /> Subtitles · {options.lang || 'en'}
+            <Captions className="w-4 h-4" /> {t('videoExtract.page.subtitlesLang', { lang: options.lang || 'en' })}
           </span>
           <button onClick={preview}
             className="px-4 py-2.5 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 text-xs font-bold rounded-xl flex items-center gap-1 transition text-slate-700 dark:text-slate-200">
-            <Search className="w-4 h-4" /> Preview
+            <Search className="w-4 h-4" /> {t('videoExtract.page.preview')}
           </button>
           {!busy ? (
             <button onClick={start}
               className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1">
-              <Play className="w-4 h-4 fill-current" /> Start
+              <Play className="w-4 h-4 fill-current" /> {t('videoExtract.page.start')}
             </button>
           ) : (
             <>
               <button onClick={togglePause} disabled={!taskId}
                 className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold rounded-xl transition flex items-center gap-1 disabled:opacity-50">
                 {paused ? <Play className="w-4 h-4 fill-current" /> : <Pause className="w-4 h-4" />}
-                {paused ? 'Resume' : 'Pause'}
+                {t(paused ? 'videoExtract.page.resume' : 'videoExtract.page.pause')}
               </button>
               <button onClick={stop}
                 className="px-6 py-2.5 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold rounded-xl transition flex items-center gap-1">
-                <Square className="w-4 h-4" /> Stop
+                <Square className="w-4 h-4" /> {t('videoExtract.page.stop')}
               </button>
             </>
           )}
           {snapshot?.output && (
             <button onClick={() => openPath('output', snapshot.output)}
               className="ml-auto px-4 py-2.5 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 text-xs font-bold rounded-xl flex items-center gap-1 transition text-slate-700 dark:text-slate-200">
-              <FolderOpen className="w-4 h-4" /> Open output
+              <FolderOpen className="w-4 h-4" /> {t('videoExtract.page.openOutput')}
             </button>
           )}
         </div>
@@ -625,7 +618,7 @@ const PcVideoExtractPage: React.FC = () => {
               <div className="mt-2.5">
                 <div className="flex items-center justify-between text-[11px] mb-1">
                   <span className="text-slate-500 flex items-center gap-1">
-                    <Captions className="w-3 h-3" /> Subtitle progress
+                    <Captions className="w-3 h-3" /> {t('videoExtract.page.subtitleProgress')}
                   </span>
                   <span className="font-bold text-emerald-500">
                     {Math.round(Math.max(0, Math.min(100, snapshot.current.srt_pct)))}%
@@ -645,22 +638,22 @@ const PcVideoExtractPage: React.FC = () => {
           <div className="mt-4 p-4 rounded-2xl bg-slate-100 dark:bg-black/30 border border-slate-200/50 dark:border-white/5 space-y-3">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
               <div>
-                <div className="text-slate-400 uppercase tracking-wide">Total</div>
+                <div className="text-slate-400 uppercase tracking-wide">{t('videoExtract.page.total')}</div>
                 <div className="font-bold text-slate-700 dark:text-slate-200">
                   {snapshot.processed ?? 0}/{snapshot.total ?? '?'}
                   {snapshot.total ? ` (${Math.round(((snapshot.processed ?? 0) / snapshot.total) * 100)}%)` : ''}
                 </div>
               </div>
               <div>
-                <div className="text-slate-400 uppercase tracking-wide">Elapsed</div>
+                <div className="text-slate-400 uppercase tracking-wide">{t('videoExtract.page.elapsed')}</div>
                 <div className="font-bold text-slate-700 dark:text-slate-200">{fmtDur(snapshot.elapsed_total)}</div>
               </div>
               <div>
-                <div className="text-slate-400 uppercase tracking-wide">ETA</div>
+                <div className="text-slate-400 uppercase tracking-wide">{t('videoExtract.page.eta')}</div>
                 <div className="font-bold text-slate-700 dark:text-slate-200">{fmtDur(snapshot.eta)}</div>
               </div>
               <div>
-                <div className="text-slate-400 uppercase tracking-wide">This file</div>
+                <div className="text-slate-400 uppercase tracking-wide">{t('videoExtract.page.thisFile')}</div>
                 <div className="font-bold text-slate-700 dark:text-slate-200">{fmtDur(snapshot.current?.file_elapsed)}</div>
               </div>
             </div>
@@ -669,15 +662,15 @@ const PcVideoExtractPage: React.FC = () => {
               <div className="pt-2 border-t border-slate-200/60 dark:border-white/5 space-y-2">
                 <div className="text-[11px] flex flex-wrap items-center gap-x-4 gap-y-1">
                   <span className="text-slate-700 dark:text-slate-200">
-                    <span className="text-slate-400">Current file:</span>{' '}
+                    <span className="text-slate-400">{t('videoExtract.page.currentFile')}</span>{' '}
                     <span className="font-mono">{snapshot.current.rel}</span>
                   </span>
                   <span className="text-slate-500">
-                    Source: {fmtMB(snapshot.current.src_size)}
+                    {t('videoExtract.page.sourceSize', { size: fmtMB(snapshot.current.src_size) })}
                   </span>
                   {Array.isArray(snapshot.current.audios) && snapshot.current.audios.length > 0 && (
                     <span className="text-slate-500">
-                      Output: {snapshot.current.audios.map((a) => fmtMB(a.size)).join(' + ')}
+                      {t('videoExtract.page.outputSize', { size: snapshot.current.audios.map((a) => fmtMB(a.size)).join(' + ') })}
                       {snapshot.current.mp4 ? ' · mp4' : ''}
                     </span>
                   )}
@@ -685,26 +678,26 @@ const PcVideoExtractPage: React.FC = () => {
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => openPath('file', currentSrc())}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1">
-                    <FileVideo className="w-3 h-3" /> Open file
+                    <FileVideo className="w-3 h-3" /> {t('videoExtract.page.openFile')}
                   </button>
                   <button onClick={() => openPath('file_dir', currentSrc())}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1">
-                    <Folder className="w-3 h-3" /> Open file dir
+                    <Folder className="w-3 h-3" /> {t('videoExtract.page.openFileDir')}
                   </button>
                   <button onClick={() => openPath('file_output_dir', snapshot.current?.out_dir)}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1">
-                    <FolderOpen className="w-3 h-3" /> Open output dir
+                    <FolderOpen className="w-3 h-3" /> {t('videoExtract.page.openOutputDir')}
                   </button>
                   <button onClick={() => openPath('subtitle', snapshot.current?.srt)}
                     disabled={!snapshot.current?.srt}
                     className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed">
-                    <Captions className="w-3 h-3" /> Open subtitle
+                    <Captions className="w-3 h-3" /> {t('videoExtract.page.openSubtitle')}
                   </button>
                 </div>
                 {Array.isArray(snapshot.current.flow) && snapshot.current.flow.length > 0 && (
                   <div className="pt-2 border-t border-slate-200/60 dark:border-white/5">
                     <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center gap-1">
-                      <Wand2 className="w-3.5 h-3.5" /> {L.veFlowTitle}
+                      <Wand2 className="w-3.5 h-3.5" /> {t(L.veFlowTitle)}
                     </div>
                     <ul className="space-y-1">
                       {snapshot.current.flow.map((s: VeFlowStep, i: number) => {
@@ -715,7 +708,7 @@ const PcVideoExtractPage: React.FC = () => {
                             <span className="min-w-0">
                               <span className="font-semibold text-slate-600 dark:text-slate-300">{s.label || s.step}</span>
                               {s.lang && <span className="ml-1 font-mono text-slate-400">[{s.lang}]</span>}
-                              <span className={`ml-1.5 font-bold ${st.text}`}>{st.label}</span>
+                              <span className={`ml-1.5 font-bold ${st.text}`}>{FLOW_STATUS[s.status] ? t(`videoExtract.flow.${s.status}`) : s.status}</span>
                               {s.provider && <span className="ml-1 text-slate-400">· {s.provider}</span>}
                               {s.detail && <span className="ml-1 text-slate-400 break-all">— {s.detail}</span>}
                             </span>
@@ -744,34 +737,34 @@ const PcVideoExtractPage: React.FC = () => {
         <section className="pc-glass p-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
             <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
-              <UploadCloud className="w-4 h-4 text-rose-500" /> {L.veSyncLaravel}
+              <UploadCloud className="w-4 h-4 text-rose-500" /> {t(L.veSyncLaravel)}
             </h3>
             <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer select-none">
               <input type="checkbox" checked={autoSync} onChange={(e) => setAutoSync(e.target.checked)} />
-              {L.veAutoSync}
+              {t(L.veAutoSync)}
             </label>
           </div>
-          <p className="text-[11px] text-slate-400 mb-3">{L.veIdempotent}</p>
+          <p className="text-[11px] text-slate-400 mb-3">{t(L.veIdempotent)}</p>
           <p className="text-[11px] text-slate-500 mb-3">
-            Laravel endpoint: use the switcher in the top bar (also in Settings).
+            {t('videoExtract.page.laravelEndpointHint')}
           </p>
 
           {/* language multi-select (>=1 required; recognition lang locked on) */}
           <div className="mb-3 rounded-2xl p-4 border bg-slate-100/60 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
             <div className="flex items-center justify-between mb-1">
               <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <Languages className="w-3.5 h-3.5" /> {L.veLanguages}
-                <span className="ml-1 normal-case font-normal text-slate-400">({selectedLangs.size} {L.veSelected})</span>
+                <Languages className="w-3.5 h-3.5" /> {t(L.veLanguages)}
+                <span className="ml-1 normal-case font-normal text-slate-400">({t(L.veSelected, { count: selectedLangs.size })})</span>
               </h4>
             </div>
-            <p className="text-[11px] text-slate-400 mb-2">{L.veLanguagesHint}</p>
+            <p className="text-[11px] text-slate-400 mb-2">{t(L.veLanguagesHint)}</p>
             <div className="flex flex-wrap gap-1.5">
               {SUPPORTED_LEARNING_LANGUAGES.map((l) => {
                 const on = selectedLangs.has(l.code);
                 const locked = l.code === lockedLang;
                 return (
                   <button key={l.code} type="button" onClick={() => toggleLang(l.code)} disabled={locked}
-                    title={locked ? L.vePrimaryLang : l.name}
+                    title={locked ? t(L.vePrimaryLang) : l.name}
                     className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
                       on
                         ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
@@ -785,7 +778,7 @@ const PcVideoExtractPage: React.FC = () => {
               })}
             </div>
             {selectedLangs.size === 0 && (
-              <p className="mt-2 text-[11px] font-bold text-amber-500">{L.veNeedOneLang}</p>
+              <p className="mt-2 text-[11px] font-bold text-amber-500">{t(L.veNeedOneLang)}</p>
             )}
           </div>
 
@@ -798,20 +791,20 @@ const PcVideoExtractPage: React.FC = () => {
               disabled={busy || filling || syncingAll || syncing.size > 0 || selectedLangs.size === 0}
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
               {filling ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
-              {filling ? L.veFilling : L.veFill}
+              {filling ? t(L.veFilling) : t(L.veFill)}
             </button>
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              {(options.subtitle_source ?? 'api_first') === 'api_first' ? 'API → AI' : 'AI only'}
+              {t((options.subtitle_source ?? 'api_first') === 'api_first' ? 'videoExtract.page.fillApiAi' : 'videoExtract.page.fillAiOnly')}
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 mb-2">{L.veFillHint}</p>
+          <p className="text-[11px] text-slate-400 mb-2">{t(L.veFillHint)}</p>
 
           {/* live fill progress (mirrors the sync progress UI) */}
           {fillProgress && (
             <div className="mb-3">
               <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
                 <RefreshCw className="w-3 h-3 animate-spin" />
-                {L.veFillStage}: <span className="font-bold text-slate-700 dark:text-slate-200">{fillProgress.stage}</span>
+                {t(L.veFillStage)}: <span className="font-bold text-slate-700 dark:text-slate-200">{fillProgress.stage}</span>
                 {fillProgress.total > 0 && <span className="text-slate-400">· {fillProgress.done}/{fillProgress.total}</span>}
                 {fillProgress.detail && <span className="truncate text-slate-400" title={fillProgress.detail}>· {fillProgress.detail}</span>}
               </div>
@@ -832,10 +825,10 @@ const PcVideoExtractPage: React.FC = () => {
               disabled={busy || filling || syncingAll || syncing.size > 0 || selectedLangs.size === 0}
               className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
               {syncingAll ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
-              {syncingAll ? L.veSyncing : L.veSyncAll}
+              {syncingAll ? t(L.veSyncing) : t(L.veSyncAll)}
             </button>
             {selectedLangs.size === 0 && (
-              <span className="text-[11px] font-bold text-amber-500">{L.veNeedOneLang}</span>
+              <span className="text-[11px] font-bold text-amber-500">{t(L.veNeedOneLang)}</span>
             )}
           </div>
           <ul className="space-y-1.5">
@@ -849,7 +842,7 @@ const PcVideoExtractPage: React.FC = () => {
                     disabled={inFlight || busy || filling || syncingAll || selectedLangs.size === 0}
                     className="px-3 py-1.5 text-[11px] font-bold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
                     {inFlight ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
-                    {inFlight ? L.veSyncing : L.veSyncLaravel}
+                    {inFlight ? t(L.veSyncing) : t(L.veSyncLaravel)}
                   </button>
                 </li>
               );
@@ -859,7 +852,7 @@ const PcVideoExtractPage: React.FC = () => {
             <div className="mt-3">
               <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
                 <RefreshCw className="w-3 h-3 animate-spin" />
-                {L.veSyncStage}: <span className="font-bold text-slate-700 dark:text-slate-200">{syncProgress.stage}</span>
+                {t(L.veSyncStage)}: <span className="font-bold text-slate-700 dark:text-slate-200">{syncProgress.stage}</span>
                 {syncProgress.total > 0 && <span className="text-slate-400">· {syncProgress.done}/{syncProgress.total}</span>}
                 {syncProgress.detail && <span className="truncate text-slate-400" title={syncProgress.detail}>· {syncProgress.detail}</span>}
               </div>
@@ -879,29 +872,29 @@ const PcVideoExtractPage: React.FC = () => {
         <section className="pc-glass p-6">
           <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
             <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
-              <Scissors className="w-4 h-4 text-rose-500" /> Segments
+              <Scissors className="w-4 h-4 text-rose-500" /> {t('videoExtract.page.segments')}
             </h3>
             <div className="flex items-center gap-2">
               {/* grain (cue / sentence) toggle for the correspondence display */}
-              <span className="text-[10px] uppercase tracking-wide text-slate-400">{L.veGrainLabel}:</span>
+              <span className="text-[10px] uppercase tracking-wide text-slate-400">{t(L.veGrainLabel)}:</span>
               {(['sentence', 'cue'] as const).map((g) => (
                 <button key={g} type="button" onClick={() => setCorrGrain(g)}
                   className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
                     corrGrain === g
                       ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
                       : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-slate-300'}`}>
-                  {g === 'cue' ? L.veGrainCue : L.veGrainSentence}
+                  {g === 'cue' ? t(L.veGrainCue) : t(L.veGrainSentence)}
                 </button>
               ))}
               {mapping && (
                 <span className="text-[11px] font-bold text-slate-500 ml-1">
-                  {mapping.segment_count} clip{mapping.segment_count === 1 ? '' : 's'} · {fmtDur(mapping.duration)}
+                  {t('videoExtract.page.clipCount', { count: mapping.segment_count })} · {fmtDur(mapping.duration)}
                 </span>
               )}
             </div>
           </div>
           <p className="text-[11px] text-slate-400 mb-3">
-            Click a cue to highlight its parent clip. Each cue shows every checked language side by side; blank = no correspondence.
+            {t('videoExtract.page.segmentsHint')}
           </p>
 
           {/* whole-file outputs (full mp4 / 2×2 mp4 / mp3 / srt) — these live in
@@ -909,21 +902,21 @@ const PcVideoExtractPage: React.FC = () => {
               folder-open buttons; absent ones (null filename) are disabled. */}
           {mapping?.files && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mr-1">{L.veWholeFiles}:</span>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mr-1">{t(L.veWholeFiles)}:</span>
               {([
-                { name: mapping.files.full_mp4, label: L.veFullClip, Icon: Film },
-                { name: mapping.files.tiny_mp4, label: L.veTinyClip, Icon: Grid2x2 },
-                { name: mapping.files.mp3, label: L.veAudioClip, Icon: Music },
+                { name: mapping.files.full_mp4, label: t(L.veFullClip), Icon: Film },
+                { name: mapping.files.tiny_mp4, label: t(L.veTinyClip), Icon: Grid2x2 },
+                { name: mapping.files.mp3, label: t(L.veAudioClip), Icon: Music },
                 { name: mapping.files.srt, label: 'SRT', Icon: Captions },
                 // Movie/TV poster (MOVIE_POSTER_PIPELINE.md §8): the poster.jpg
                 // lives in the same output dir; opens its folder like the rest
                 // (no local-file HTTP serving exists for an inline thumbnail).
-                { name: mapping.files.poster, label: L.vePoster, Icon: ImageIcon },
+                { name: mapping.files.poster, label: t(L.vePoster), Icon: ImageIcon },
               ] as Array<{ name?: string | null; label: string; Icon: typeof Film }>).map(({ name, label, Icon }) => (
                 <button key={label}
                   onClick={() => name && openPath('file_dir', joinDir(parentOf(segmentsDir), name))}
                   disabled={!name}
-                  title={name ? `${L.veOpenClipDir}: ${name}` : undefined}
+                  title={name ? `${t(L.veOpenClipDir)}: ${name}` : undefined}
                   className="px-2 py-1 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed">
                   <Icon className="w-3 h-3" /> {label}
                 </button>
@@ -933,7 +926,7 @@ const PcVideoExtractPage: React.FC = () => {
 
           {!mapping || mapping.segments.length === 0 ? (
             <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
-              No segments yet.
+              {t('videoExtract.page.noSegments')}
             </div>
           ) : (
             <ul className="space-y-2 max-h-[28rem] overflow-auto pr-1">
@@ -948,17 +941,17 @@ const PcVideoExtractPage: React.FC = () => {
                         : 'border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02]'}`}>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-rose-500/15 text-rose-500">
-                        Clip {seg.index}
+                        {t('videoExtract.page.clipIndex', { index: seg.index })}
                       </span>
                       <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
                         {fmtClock(seg.start)}–{fmtClock(seg.end)}
                       </span>
                       <span className="text-[11px] text-slate-400">
-                        {seg.subtitle_count} subtitles
+                        {t('videoExtract.page.subtitleCount', { count: seg.subtitle_count })}
                       </span>
                       {highlighted && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-500">
-                          <CornerDownRight className="w-3 h-3" /> in clip {seg.index}
+                          <CornerDownRight className="w-3 h-3" /> {t('videoExtract.page.inClip', { index: seg.index })}
                         </span>
                       )}
                       {/* per-segment clip variants: Full (full_mp4) / 2×2 (mp4) /
@@ -966,14 +959,14 @@ const PcVideoExtractPage: React.FC = () => {
                           variant's filename is null (not produced for this clip). */}
                       <div className="ml-auto flex items-center gap-1.5">
                         {([
-                          { name: (seg as SegWithFull).full_mp4, label: L.veFullClip, Icon: Film },
-                          { name: seg.mp4, label: L.veTinyClip, Icon: Grid2x2 },
-                          { name: seg.mp3, label: L.veAudioClip, Icon: Music },
+                          { name: (seg as SegWithFull).full_mp4, label: t(L.veFullClip), Icon: Film },
+                          { name: seg.mp4, label: t(L.veTinyClip), Icon: Grid2x2 },
+                          { name: seg.mp3, label: t(L.veAudioClip), Icon: Music },
                         ] as Array<{ name?: string | null; label: string; Icon: typeof Film }>).map(({ name, label, Icon }) => (
                           <button key={label}
                             onClick={() => name && openPath('file_dir', joinDir(segmentsDir, name))}
                             disabled={!name}
-                            title={name ? `${L.veOpenClipDir}: ${name}` : undefined}
+                            title={name ? `${t(L.veOpenClipDir)}: ${name}` : undefined}
                             className="px-2 py-1 text-[11px] font-bold rounded-lg bg-slate-200/60 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-slate-300/60 dark:hover:bg-white/10 transition flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed">
                             <Icon className="w-3 h-3" /> {label}
                           </button>
@@ -1013,7 +1006,7 @@ const PcVideoExtractPage: React.FC = () => {
                                         <span key={c} className="flex gap-1.5">
                                           <span className="shrink-0 font-mono uppercase text-[9px] text-slate-400 w-6 pt-0.5">{c}</span>
                                           <span className={`flex-1 break-words ${txt ? '' : 'text-slate-300 dark:text-slate-600 italic'}`}>
-                                            {txt || L.veBlankCorr}
+                                            {txt || t(L.veBlankCorr)}
                                           </span>
                                         </span>
                                       );
@@ -1041,18 +1034,18 @@ const PcVideoExtractPage: React.FC = () => {
 
       {/* Floating settings panel */}
       {!panelOpen && (
-        <button type="button" onClick={() => setPanelOpen(true)} aria-label="Open settings"
+        <button type="button" onClick={() => setPanelOpen(true)} aria-label={t('videoExtract.page.openSettings')}
           className="fixed right-0 top-1/2 -translate-y-1/2 z-40 pl-2 pr-1.5 py-3 rounded-l-2xl bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-600/30 flex flex-col items-center gap-1.5 transition">
           <SlidersHorizontal className="w-4 h-4" />
-          <span className="text-[10px] font-bold tracking-wider" style={{ writingMode: 'vertical-rl' }}>Options</span>
+          <span className="text-[10px] font-bold tracking-wider" style={{ writingMode: 'vertical-rl' }}>{t('videoExtract.page.options')}</span>
         </button>
       )}
       {panelOpen && (
         <div className="fixed inset-0 z-40 flex items-start sm:items-center justify-center p-4 pointer-events-none">
           <div className="pointer-events-auto w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border shadow-2xl backdrop-blur-xl bg-white/95 dark:bg-slate-900/95 border-slate-200 dark:border-white/10">
             <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b backdrop-blur-xl border-slate-200 dark:border-white/10 bg-white/90 dark:bg-slate-900/90">
-              <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100"><SlidersHorizontal className="w-4 h-4 text-rose-500" /> Options</h3>
-              <button type="button" onClick={() => setPanelOpen(false)} aria-label="Collapse to side"
+              <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100"><SlidersHorizontal className="w-4 h-4 text-rose-500" /> {t('videoExtract.page.options')}</h3>
+              <button type="button" onClick={() => setPanelOpen(false)} aria-label={t('videoExtract.page.collapsePanel')}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-500/10 transition">
                 <PanelRightClose className="w-4 h-4" />
               </button>
@@ -1063,7 +1056,7 @@ const PcVideoExtractPage: React.FC = () => {
               <div className="pc-glass p-5">
                 <button type="button" onClick={() => setShowResources((v) => !v)}
                   className="w-full flex items-center justify-between text-xs font-bold uppercase text-slate-400 tracking-wider">
-                  <span className="flex items-center gap-2"><Cpu className="w-4 h-4" /> Resources</span>
+                  <span className="flex items-center gap-2"><Cpu className="w-4 h-4" /> {t('videoExtract.page.resources')}</span>
                   <span className="flex items-center gap-2 normal-case font-normal text-[11px] text-slate-500">
                     {resources && !showResources && <span>CPU {Math.round(resources.cpu_percent)}% · MEM {Math.round(resources.mem.percent)}%</span>}
                     {showResources ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1083,7 +1076,7 @@ const PcVideoExtractPage: React.FC = () => {
                       </div>
                       <div>
                         <div className="flex items-center justify-between text-[11px] mb-1">
-                          <span className="text-slate-500 flex items-center gap-1"><MemoryStick className="w-3 h-3" /> Memory</span>
+                          <span className="text-slate-500 flex items-center gap-1"><MemoryStick className="w-3 h-3" /> {t('videoExtract.page.memory')}</span>
                           <span className="font-bold text-slate-700 dark:text-slate-200">
                             {fmtMB(resources.mem.used_mb * 1024 * 1024)} / {fmtMB(resources.mem.total_mb * 1024 * 1024)} ({Math.round(resources.mem.percent)}%)
                           </span>
@@ -1122,44 +1115,44 @@ const PcVideoExtractPage: React.FC = () => {
               <div className="pc-glass p-5">
                 <button type="button" onClick={() => setShowOptions((v) => !v)}
                   className="w-full flex items-center justify-between text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">
-                  <span>Options</span>
+                  <span>{t('videoExtract.page.options')}</span>
                   {showOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {showOptions && (
                 <div className="space-y-4">
                   <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 select-none opacity-90">
                     <input type="checkbox" checked readOnly disabled />
-                    Generate subtitles <span className="text-[10px] font-bold text-emerald-500">· {options.lang || 'en'}</span>
+                    {t('videoExtract.page.generateSubtitles')} <span className="text-[10px] font-bold text-emerald-500">· {options.lang || 'en'}</span>
                   </label>
 
                   {/* primary subtitle track source: OpenSubtitles → Whisper, or
                       always Whisper. Bound to options.subtitle_source (default
                       'api_first'); persisted via the setVideoExtractOptions effect. */}
                   <div>
-                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">{L.veSubtitleSource}</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">{t(L.veSubtitleSource)}</span>
                     <div className="flex flex-wrap gap-2">
                       {([
                         ['api_first', L.veSrcApiFirst],
                         ['whisper', L.veSrcWhisper],
-                      ] as ['api_first' | 'whisper', string][]).map(([val, label]) => (
+                      ] as ['api_first' | 'whisper', string][]).map(([val, labelKey]) => (
                         <button key={val} type="button"
                           onClick={() => setOptions((o) => ({ ...o, subtitle_source: val }))}
                           className={pill((options.subtitle_source ?? 'api_first') === val)}>
-                          {label}
+                          {t(labelKey)}
                         </button>
                       ))}
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-2">{L.veSubtitleSourceHint}</p>
+                    <p className="text-[11px] text-slate-400 mt-2">{t(L.veSubtitleSourceHint)}</p>
                   </div>
 
                   <div>
-                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">Whisper model</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">{t('videoExtract.page.whisperModel')}</span>
                     <div className="flex flex-wrap gap-2">
                       {allModels.map((m) => {
                         const installed = installedModels.includes(m);
                         return (
                           <button key={m} type="button" disabled={!installed}
-                            title={installed ? undefined : 'Not installed'}
+                            title={installed ? undefined : t('videoExtract.page.notInstalled')}
                             onClick={() => installed && setOptions((o) => ({ ...o, model: m }))}
                             className={pill(options.model === m, !installed)}>
                             {m}
@@ -1167,11 +1160,11 @@ const PcVideoExtractPage: React.FC = () => {
                         );
                       })}
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-2">Only installed models are selectable.</p>
+                    <p className="text-[11px] text-slate-400 mt-2">{t('videoExtract.page.installedOnly')}</p>
                   </div>
 
                   <div>
-                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">Audio formats</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">{t('videoExtract.page.audioFormats')}</span>
                     <div className="flex flex-wrap gap-2">
                       {FORMATS.map((f) => {
                         const on = options.formats.includes(f);
@@ -1189,10 +1182,10 @@ const PcVideoExtractPage: React.FC = () => {
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-slate-500 dark:text-slate-400">File extensions</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{t('videoExtract.page.fileExtensions')}</span>
                       <button type="button" onClick={toggleAllExtensions}
                         className="text-[11px] font-bold flex items-center gap-1 text-sky-500 hover:text-sky-400 transition">
-                        <ListChecks className="w-3.5 h-3.5" /> {allExtsSelected ? 'Clear' : 'Select all'}
+                        <ListChecks className="w-3.5 h-3.5" /> {t(allExtsSelected ? 'videoExtract.page.clear' : 'videoExtract.page.selectAll')}
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -1211,11 +1204,11 @@ const PcVideoExtractPage: React.FC = () => {
                         );
                       })}
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-2">Only matching files are processed (empty = all).</p>
+                    <p className="text-[11px] text-slate-400 mt-2">{t('videoExtract.page.extensionsHint')}</p>
                   </div>
 
                   <div>
-                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">Language</span>
+                    <span className="block text-xs text-slate-500 dark:text-slate-400 mb-2">{t('videoExtract.page.language')}</span>
                     <select value={options.lang}
                       onChange={(e) => setOptions((o) => ({ ...o, lang: e.target.value }))}
                       className={`${inputCls} w-56`}>
@@ -1240,7 +1233,7 @@ const PcVideoExtractPage: React.FC = () => {
           <div className="w-full max-w-md rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100"><Plus className="w-4 h-4 text-rose-500" /> Add source</h3>
+              <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100"><Plus className="w-4 h-4 text-rose-500" /> {t('videoExtract.page.addSource')}</h3>
               <button onClick={() => setShowAdd(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
             </div>
 
@@ -1250,18 +1243,18 @@ const PcVideoExtractPage: React.FC = () => {
                   addMode === 'folder'
                     ? 'border-rose-500 bg-rose-500/10 text-rose-500'
                     : 'border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300'}`}>
-                <Folder className="w-5 h-5" /> Folder
+                <Folder className="w-5 h-5" /> {t('videoExtract.page.folder')}
               </button>
               <button onClick={() => setAddMode('file')}
                 className={`flex flex-col items-center gap-1 p-3 rounded-2xl border text-xs font-bold transition ${
                   addMode === 'file'
                     ? 'border-rose-500 bg-rose-500/10 text-rose-500'
                     : 'border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300'}`}>
-                <FileVideo className="w-5 h-5" /> Single file
+                <FileVideo className="w-5 h-5" /> {t('videoExtract.page.singleFile')}
               </button>
             </div>
 
-            <label className="block text-[11px] text-slate-500 mb-1">Path</label>
+            <label className="block text-[11px] text-slate-500 mb-1">{t('videoExtract.page.path')}</label>
             <div className="flex gap-2 mb-2">
               <input type="text" value={addPath} autoFocus
                 onChange={(e) => setAddPath(e.target.value)}
@@ -1271,21 +1264,21 @@ const PcVideoExtractPage: React.FC = () => {
               <button onClick={browse} disabled={browsing}
                 className="px-3 py-2 text-xs font-bold rounded-xl bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-600 dark:text-slate-200 transition flex items-center gap-1 shrink-0 disabled:opacity-50">
                 {browsing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-                Browse
+                {t('videoExtract.page.browse')}
               </button>
             </div>
             <p className="text-[11px] text-slate-400 mb-5">
-              {addMode === 'folder' ? 'Pick a folder to scan recursively for videos.' : 'Pick a single video file.'}
+              {t(addMode === 'folder' ? 'videoExtract.page.pickFolderHint' : 'videoExtract.page.pickFileHint')}
             </p>
 
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowAdd(false)}
                 className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-200/50 dark:bg-white/5 text-slate-500 hover:text-slate-300 transition">
-                Cancel
+                {t('videoExtract.page.cancel')}
               </button>
               <button onClick={confirmAdd}
                 className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" /> Add
+                <Plus className="w-3.5 h-3.5" /> {t('videoExtract.page.add')}
               </button>
             </div>
           </div>

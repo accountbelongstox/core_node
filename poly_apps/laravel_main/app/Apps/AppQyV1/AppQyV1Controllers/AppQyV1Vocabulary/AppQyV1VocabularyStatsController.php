@@ -119,7 +119,7 @@ class AppQyV1VocabularyStatsController extends Controller
                 'start' => $start,
                 'limit' => $limit,
                 'items' => [],
-            ], 'No dictionary for this language');
+            ], __('app_qy_v1.messages.no_dictionary_for_this_language'));
         }
 
         // Dict-lane live queue (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
@@ -156,7 +156,7 @@ class AppQyV1VocabularyStatsController extends Controller
                 'cursor_id' => $cursorId,
                 'next_cursor' => $lanePage['next_cursor'],
                 'items' => $items,
-            ], 'Dictionary words retrieved');
+            ], __('app_qy_v1.messages.dictionary_words_retrieved'));
         }
         if ($laneKey !== null) {
             $lanePage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
@@ -262,7 +262,7 @@ class AppQyV1VocabularyStatsController extends Controller
             'start' => $start,
             'limit' => $limit,
             'items' => $items,
-        ], 'Dictionary words retrieved');
+        ], __('app_qy_v1.messages.dictionary_words_retrieved'));
     }
 
     /**
@@ -297,7 +297,7 @@ class AppQyV1VocabularyStatsController extends Controller
                 'invalid' => 0,
                 'unchecked' => 0,
                 'invalid_by_source' => [],
-            ], 'No dictionary for this language');
+            ], __('app_qy_v1.messages.no_dictionary_for_this_language'));
         }
 
         $summary = AppQyV1LangDictionaryModel::validitySummary($languageCode);
@@ -323,7 +323,7 @@ class AppQyV1VocabularyStatsController extends Controller
             'invalid' => $invalid,
             'unchecked' => $unchecked,
             'invalid_by_source' => $invalidBySource,
-        ], 'Validity summary retrieved');
+        ], __('app_qy_v1.messages.validity_summary_retrieved'));
     }
 
     /**
@@ -350,7 +350,7 @@ class AppQyV1VocabularyStatsController extends Controller
         $limit = (int) ($validated['limit'] ?? 10);
 
         if ($word === '') {
-            return $this->success(['word' => $word, 'language' => $language, 'count' => 0, 'sentences' => []], 'No word');
+            return $this->success(['word' => $word, 'language' => $language, 'count' => 0, 'sentences' => []], __('app_qy_v1.messages.no_word'));
         }
 
         // Books v3: examples live in the per-language sentence table
@@ -358,7 +358,7 @@ class AppQyV1VocabularyStatsController extends Controller
         // CODE for the table (the request may send a name like 'english').
         $langCode = $this->resolveLangCode($language);
         if (!LangSentence::tableExists($langCode)) {
-            return $this->success(['word' => $word, 'language' => $language, 'count' => 0, 'sentences' => []], 'No sentence library');
+            return $this->success(['word' => $word, 'language' => $language, 'count' => 0, 'sentences' => []], __('app_qy_v1.messages.no_sentence_library'));
         }
 
         $rows = LangSentence::containingWordRows($langCode, $word, $limit);
@@ -381,7 +381,7 @@ class AppQyV1VocabularyStatsController extends Controller
             'language' => $language,
             'count' => $sentences->count(),
             'sentences' => $sentences,
-        ], 'Sentences retrieved');
+        ], __('app_qy_v1.messages.sentences_retrieved'));
     }
 
     /**
@@ -479,7 +479,7 @@ class AppQyV1VocabularyStatsController extends Controller
             'limit' => $limit,
             'items' => array_values($items),
             'statistics' => $statistics,
-        ], 'TTS queue items retrieved');
+        ], __('app_qy_v1.messages.tts_queue_items_retrieved'));
     }
 
     /**
@@ -524,6 +524,6 @@ class AppQyV1VocabularyStatsController extends Controller
 
         return $this->success([
             'languages' => $languages,
-        ], 'Language breakdown retrieved');
+        ], __('app_qy_v1.messages.language_breakdown_retrieved'));
     }
 }

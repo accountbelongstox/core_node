@@ -901,6 +901,7 @@
 }
 
 .cm-steps-list li svg { width: 18px; }
+.cm-steps-list li .cm-step-optional { margin-left: auto; color: #7a8a9c; font-size: 12px; font-weight: 500; }
 .cm-steps-list li[data-completed="true"] { border-color: #bfe5d4; color: #2f9b70; }
 .cm-steps-list li[data-blocked="true"] { border-color: #f0c9c9; color: #c35454; }
 
@@ -1438,6 +1439,9 @@
 .cm-notice button { display: grid; padding: 2px; border: 0; background: transparent; color: inherit; cursor: pointer; place-items: center; }
 .cm-notice[data-tone="success"] { border-color: #bfe5d4; background: #effaf5; color: #23704f; }
 .cm-notice[data-tone="error"] { border-color: #f0c9c9; background: #fdf1f1; color: #a33f3f; }
+.cm-notice .cm-notice__action { display: inline-flex; gap: 4px; align-items: center; font-weight: 600; white-space: nowrap; }
+.cm-notice .cm-notice__action svg { width: 14px; height: 14px; margin: 0; }
+.cm-workspace .cm-workspace-page.cm-refresh-notice { padding: 12px 0 0; }
 
 .cm-state {
   display: flex;

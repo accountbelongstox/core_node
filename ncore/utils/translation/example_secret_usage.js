@@ -10,7 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const translationService = require('#@ncore/utils/translation');
+const translationService = require('#@ncore/utils/translation/index.js');
 const secretManager = require('#@secret_manager');
 const logger = require('#@logger');
 

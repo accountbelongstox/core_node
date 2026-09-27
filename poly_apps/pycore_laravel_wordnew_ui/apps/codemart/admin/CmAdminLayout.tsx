@@ -23,6 +23,7 @@ import {
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { useCmSignOut } from '../auth/useCmSignOut';
 import { CmAccessNotice } from '../components/access/CmAccessNotice';
+import { CmBootstrapRefreshNotice } from '../components/access/CmBootstrapRefreshNotice';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmChromeControls } from '../components/CmChromeControls';
 import { CmBrand } from '../components/CmBrand';
@@ -53,7 +54,7 @@ export const CmAdminLayout: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const userName = bootstrap?.user?.name || bootstrap?.user?.nickname || bootstrap?.user?.username || '';
 
-  if (loading || (!bootstrap && !error)) {
+  if (!bootstrap && (loading || !error)) {
     return <div className="cm-page-fallback" role="status">{t('admin.checkingAccess')}</div>;
   }
 
@@ -130,6 +131,7 @@ export const CmAdminLayout: React.FC = () => {
           </span>
           <CmChromeControls />
         </div>
+        <CmBootstrapRefreshNotice />
         <Outlet />
       </div>
     </div>

@@ -28,6 +28,9 @@ $script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\repair-chrome-crash.ps1"
 $script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
 $script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
+$script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager.ps1"
+$script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
+$script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -195,6 +198,28 @@ function Show-WindowsManagementSubMenu {
                 } else {
                     Write-ColorMessage -Message "Chrome repair script not found: $repairScript" -Type "Error"
                 }
+            }
+        },
+        @{
+            Text = "Repair Disk (chkdsk /f)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $script:DISK_REPAIR_SCRIPT)) -NoNewWindow -Wait
+            }
+        },
+        @{
+            Text = "Organize Desktop Icons";
+            Values = @("organize", "preview", "undo");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $desktopIconMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
+                $desktopIconAction = $script:DESKTOP_ICON_ACTIONS[$desktopIconMode]
+                Write-ColorMessage -Message "Desktop icon organizer: $desktopIconAction" -Type "Info"
+                Write-Host ""
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:DESKTOP_ICON_MANAGER_SCRIPT -DesktopIconAction $desktopIconAction
             }
         },
         @{

@@ -76,7 +76,7 @@ class TaskCenterController extends Controller
         if ($request->has('use_server_binary_assist')) {
             $ok = $config->set('use_server_binary_assist', $request->boolean('use_server_binary_assist'));
             if (!$ok) {
-                return $this->error('Failed to write settings file', 500);
+                return $this->error(__('api.messages.failed_to_write_settings_file'), 500);
             }
         }
         // laravel_translation_* writes intentionally ignored — pycore is sole control plane.
@@ -102,7 +102,7 @@ class TaskCenterController extends Controller
     {
         return $this->success(
             $this->summaryService->overview(),
-            'Task center overview retrieved successfully'
+            __('api.messages.task_center_overview_retrieved_successfully')
         );
     }
 
@@ -153,7 +153,7 @@ class TaskCenterController extends Controller
             'count' => $records->count(),
             'types' => $types,
             'next_cursor_id' => $records->count() === $limit ? $nextCursor : null,
-        ], 'Completed task history retrieved successfully');
+        ], __('api.messages.completed_task_history_retrieved_successfully'));
     }
 
 }

@@ -39,7 +39,7 @@ class ServerManagerV1SwooleCommand extends ServerManagerV1BaseCommand
     private function startService(?string $domain): int
     {
         if (!$domain && !$this->option('all')) {
-            $this->error('Domain is required (or use --all)');
+            $this->error(__('server_manager.messages.domain_is_required_or_use_all'));
             return 1;
         }
 
@@ -96,7 +96,7 @@ class ServerManagerV1SwooleCommand extends ServerManagerV1BaseCommand
     private function stopService(?string $domain): int
     {
         if (!$domain) {
-            $this->error('Domain is required');
+            $this->error(__('server_manager.messages.domain_is_required'));
             return 1;
         }
 
@@ -121,7 +121,7 @@ class ServerManagerV1SwooleCommand extends ServerManagerV1BaseCommand
     private function restartService(?string $domain): int
     {
         if (!$domain && !$this->option('all')) {
-            $this->error('Domain is required (or use --all)');
+            $this->error(__('server_manager.messages.domain_is_required_or_use_all'));
             return 1;
         }
 
@@ -176,7 +176,7 @@ class ServerManagerV1SwooleCommand extends ServerManagerV1BaseCommand
     private function switchMode(?string $domain): int
     {
         if (!$domain) {
-            $this->error('Domain is required for switch-mode action');
+            $this->error(__('server_manager.messages.domain_is_required_for_switch_mode_action'));
             return 1;
         }
 

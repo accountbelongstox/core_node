@@ -1,0 +1,2 @@
+- [Alias imports need full path](alias-imports-need-full-path.md) — `#@...` requires need the exact file incl. `.js`; extensionless ones throw at runtime
+- [Preserve line endings](preserve-line-endings.md) — CRLF/mixed files in scope; scripted edits must keep each line's ending

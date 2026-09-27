@@ -18,14 +18,21 @@ CodeSync workspace API 是远端 AI、DEV 与 client 代码目录之间的通信
 
 - 服务端角色必须是 `client`。
 - `light` 模式不开放 workspace API。
-- 当前 CLIENT CodeSync Base URL 为 `http://43.163.112.77:59000/code-sync`。
+- 当前 CLIENT CodeSync Base URL 为 `http://43.163.112.77:59000/code-sync`；该机器必须开启 `rpcLanBind`（见 §3），否则 pycore 只监听 127.0.0.1。
 - 公网通信必须使用 TLS 反向代理、VPN 或 SSH 隧道，不能直接暴露明文的 59000 端口。
 - 完整 pycore/FastAPI 和独立 `pyservice codesync run` 使用同一套业务实现与接口路径。
 
-## 3. 固定认证
+## 3. 客户端密钥认证（2026-09-27 起）
 
-所有 workspace API 请求必须携带固定 Bearer 密钥。密钥的唯一来源是
-`pycore/pyutils/codesync/workspace_auth.py` 中的 `WORKSPACE_SHARED_SECRET`；调用端必须先从该代码文件加载密钥，再构造 `Authorization` 请求头，不在文档、调用脚本或其他配置中复制密钥值。
+旧的固定 Bearer 密钥（`workspace_auth.py` 中的 `WORKSPACE_SHARED_SECRET`）已删除（审计 PR-003）。所有 workspace API 请求都改用共享客户端密钥签名，规则见 `docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md` §4（K1–K7），契约见 `config/service_contract.json#client_key_auth`。
+
+- 密钥是 `CORE_NODE_CLIENT_KEY_1`，保存在 dd.sh / dd.cmd 解密安装的密钥库 `.secret_keys/.secret_ignore/` 中，所有机器共用同一把。文档、脚本和配置里都不复制密钥值，也不打印密钥值。
+- 每个请求带 `X-Core-Node-*` 签名头：HMAC-SHA256，签名内容包括方法、路径、查询串、时间戳、nonce 和请求体 SHA-256。签名后必须原样发送签名时用的那段请求体字节。
+- 只有 `multipart/form-data` 请求的请求体摘要使用 `UNSIGNED-PAYLOAD`。
+- 调用端必须复用现有签名实现，不另写一份：
+  - Python：`pycore.pyutils.common.client_key_auth.client_key_headers(method, url, body_bytes, content_type)`；
+  - Node：`ncore/foundation/common/client_key_auth.js` 的 `signRequest`。
+- pycore 默认只监听 127.0.0.1（K7a）。需要接受局域网 CodeSync 对端或局域网发现的机器，要先执行一次：`pyservice config system set --key rpcLanBind --value true`。开启后，所有非本机调用都必须带有效签名。
 
 Python 调用示例：
 
@@ -33,56 +40,38 @@ Python 调用示例：
 import json
 import urllib.request
 
-from pycore.pyutils.codesync.workspace_auth import WORKSPACE_SHARED_SECRET
+from pycore.pyutils.common.client_key_auth import client_key_headers
 
 
-CLIENT_BASE_URL = "http://43.163.112.77:59000/code-sync"
+CLIENT_BASE_URL = "http://CLIENT_HOST:59000/code-sync"
 WORKSPACE_URL = f"{CLIENT_BASE_URL}/workspace"
-REQUEST_HEADERS = {
-    "Accept": "application/json",
-    "Authorization": f"Bearer {WORKSPACE_SHARED_SECRET}",
-}
+REQUEST_HEADERS = {"Accept": "application/json"}
 
+REQUEST_HEADERS.update(client_key_headers("GET", WORKSPACE_URL, b""))
 request = urllib.request.Request(WORKSPACE_URL, headers=REQUEST_HEADERS, method="GET")
 with urllib.request.urlopen(request, timeout=15) as response:
     capabilities = json.load(response)
 ```
 
-PowerShell 调用示例同样从代码文件读取，不写入或输出密钥：
+带 JSON 请求体时，先把请求体编码成字节，用同一段字节签名，再原样发送：
 
-```powershell
-$workspaceRoot = (Resolve-Path -LiteralPath '.').Path
-$authFile = Join-Path $workspaceRoot 'pycore\pyutils\codesync\workspace_auth.py'
-$clientBaseUrl = 'http://43.163.112.77:59000/code-sync'
-$authSource = Get-Content -LiteralPath $authFile -Raw
-$tokenMatch = [regex]::Match($authSource, 'cncs_[0-9a-f]+')
-$requestHeaders = @{}
-
-if (-not $tokenMatch.Success) {
-    throw 'Workspace Bearer token was not found in workspace_auth.py'
-}
-
-$requestHeaders['Accept'] = 'application/json'
-$requestHeaders['Authorization'] = "Bearer $($tokenMatch.Value)"
-Invoke-RestMethod -Uri "$clientBaseUrl/workspace" -Method Get -Headers $requestHeaders -TimeoutSec 15
+```python
+body_bytes = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+headers = {"Accept": "application/json", "Content-Type": "application/json"}
+headers.update(client_key_headers("PUT", file_url, body_bytes, "application/json"))
+request = urllib.request.Request(file_url, data=body_bytes, headers=headers, method="PUT")
 ```
 
-认证失败时返回：
-
-```http
-HTTP/1.1 401 Unauthorized
-WWW-Authenticate: Bearer realm="codesync-workspace"
-Content-Type: application/json
-```
+认证失败时返回 HTTP 401。`error` 是契约里的错误码，例如 `client_key_missing`、`client_key_signature_invalid`、`client_key_timestamp_invalid`、`client_key_nonce_replayed`：
 
 ```json
 {
   "success": false,
-  "error": "Workspace authorization is required"
+  "error": "client_key_signature_invalid"
 }
 ```
 
-HTTP 路由不保存密钥，只把 `Authorization` 交给业务服务层统一校验。
+HTTP 路由不保存密钥，只把签名头和原始请求体交给 `client_key_verify` 统一校验。
 
 ## 4. 通用协议
 
@@ -100,7 +89,7 @@ HTTP 路由不保存密钥，只把 `Authorization` 交给业务服务层统一�
 ```http
 GET /code-sync/workspace HTTP/1.1
 Host: CLIENT_HOST:59000
-Authorization: Bearer <shared-secret>
+X-Core-Node-Signature: <client-key signature headers, see §3>
 ```
 
 成功响应包含数据方向、根目录名称、文档清单范围、分页限制、文件编码、传输安全要求、条件写入规则以及全部 workspace 路由。
@@ -110,7 +99,7 @@ Authorization: Bearer <shared-secret>
 ```http
 GET /code-sync/workspace/files?limit=1000&include_hash=true&cursor= HTTP/1.1
 Host: CLIENT_HOST:59000
-Authorization: Bearer <shared-secret>
+X-Core-Node-Signature: <client-key signature headers, see §3>
 ```
 
 查询参数：
@@ -151,7 +140,7 @@ Authorization: Bearer <shared-secret>
 ```http
 GET /code-sync/workspace/file?path=pycore%2Fexample.py HTTP/1.1
 Host: CLIENT_HOST:59000
-Authorization: Bearer <shared-secret>
+X-Core-Node-Signature: <client-key signature headers, see §3>
 ```
 
 响应示例：
@@ -183,7 +172,7 @@ DEV 必须保存本次读取返回的 ETag，并在修改已有文件时放入 `
 ```http
 PUT /code-sync/workspace/file?path=pycore%2Fexample.py HTTP/1.1
 Host: CLIENT_HOST:59000
-Authorization: Bearer <shared-secret>
+X-Core-Node-Signature: <client-key signature headers, see §3>
 If-Match: "03f1..."
 Content-Type: application/json
 ```
@@ -200,7 +189,7 @@ Content-Type: application/json
 ```http
 PUT /code-sync/workspace/file?path=pycore%2Fnew_file.py HTTP/1.1
 Host: CLIENT_HOST:59000
-Authorization: Bearer <shared-secret>
+X-Core-Node-Signature: <client-key signature headers, see §3>
 If-None-Match: *
 Content-Type: application/json
 ```
@@ -236,7 +225,7 @@ Content-Type: application/json
 ```http
 POST /code-sync/workspace/documents HTTP/1.1
 Host: CLIENT_HOST:59000
-Authorization: Bearer <shared-secret>
+X-Core-Node-Signature: <client-key signature headers, see §3>
 Content-Type: application/json
 ```
 
@@ -262,7 +251,7 @@ Content-Type: application/json
 ```http
 GET /code-sync/workspace/documents/latest HTTP/1.1
 Host: CLIENT_HOST:59000
-Authorization: Bearer <shared-secret>
+X-Core-Node-Signature: <client-key signature headers, see §3>
 ```
 
 服务从 `docs_fix` 顶层选择修改时间最新的 `.md` 常规文件，不进入子目录。
@@ -308,7 +297,7 @@ API 创建的文档会解析并返回原始 `title` 与正文 `content`；已有
 | `200` | 读取、更新或幂等重试成功 |
 | `201` | 文件或文档首次创建成功 |
 | `400` | 路径、Base64、标题、正文或分页参数无效 |
-| `401` | Bearer 密钥缺失或错误 |
+| `401` | 客户端密钥签名缺失或无效（`error` 为 `client_key_*` 错误码） |
 | `404` | 文件或 `docs_fix` 文档不存在 |
 | `409` | 目标路径存在但不是常规文件 |
 | `412` | `If-Match` 或 `If-None-Match` 前置条件失败 |
@@ -340,7 +329,7 @@ API 创建的文档会解析并返回原始 `title` 与正文 `content`；已有
 
 | 协议项 | 权威实现 | 验证结论 |
 | --- | --- | --- |
-| 固定 Bearer 密钥与常量时间比较 | `pycore/pyutils/codesync/workspace_auth.py`、`pycore/pyutils/common/http_auth.py` | 一致 |
+| 客户端密钥签名（K3）与校验 | `pycore/pyutils/common/client_key_auth.py`、`pycore/pyutils/codesync/http_server.py` | 一致（2026-09-27） |
 | client 与 light 模式门禁 | `pycore/pyutils/codesync/service.py` | 一致 |
 | 统一路由路径 | `pycore/pyutils/codesync/routes.py` | 一致 |
 | FastAPI 路由 | `pycore/callmodule/rpc_routes/code_sync_routes.py` | 一致 |

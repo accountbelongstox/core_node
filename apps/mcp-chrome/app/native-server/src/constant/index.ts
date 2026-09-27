@@ -1,4 +1,16 @@
+import { EXTENSION_ID } from '../scripts/constant';
+
 const serviceContract = require('../../../../../../config/service_contract');
+const clientKeyErrorCodes: string[] = serviceContract.value('client_key_auth.error_codes');
+const CHROME_EXTENSION_SCHEME = 'chrome-extension://';
+const CHROME_EXTENSION_ORIGIN_PATTERN = /^chrome-extension:\/\/[a-p]{32}\/?$/;
+
+function launchingExtensionOrigins(): string[] {
+  return process.argv
+    .slice(2)
+    .filter((arg) => CHROME_EXTENSION_ORIGIN_PATTERN.test(arg))
+    .map((arg) => arg.replace(/\/$/, ''));
+}
 
 export const NATIVE_SERVER_PORT = serviceContract.port('mcp_chrome');
 
@@ -12,8 +24,30 @@ export const TIMEOUTS = {
 // Server configuration
 export const SERVER_CONFIG = {
   HOST: serviceContract.host('loopback'),
-  CORS_ORIGIN: true,
   LOGGER_ENABLED: false,
+} as const;
+
+// Local RPC guard (K7, ncore local_rpc_guard): browser callers only from the extension.
+export const LOCAL_RPC_GUARD_OPTIONS = {
+  allowedOrigins: [
+    ...new Set([`${CHROME_EXTENSION_SCHEME}${EXTENSION_ID}`, ...launchingExtensionOrigins()]),
+  ],
+  allowLoopbackOrigins: false,
+};
+
+// Shared ncore modules (paths from the repository root).
+export const NCORE_MODULES = {
+  CLIENT_KEY_AUTH: 'ncore/foundation/common/client_key_auth.js',
+  LOCAL_RPC_GUARD: 'ncore/foundation/common/local_rpc_guard.js',
+  // stdout is the native-messaging channel; this ncore logger switch sends its logs to stderr.
+  STDIO_LOG_ENV: 'MCP_MODE',
+  STDIO_LOG_MODE: 'mcp',
+} as const;
+
+// Client-key signing (K6): the host signs for the extension; the key never leaves this process.
+export const CLIENT_KEY_SIGNING = {
+  CLIENT: 'mcp_chrome',
+  PROTOCOL_INVALID_CODE: clientKeyErrorCodes.find((code) => code.endsWith('_protocol_invalid')) as string,
 } as const;
 
 // HTTP Status codes

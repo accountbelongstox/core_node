@@ -1,0 +1,17 @@
+{
+  "task_id": "ncore-4",
+  "role": "ncore",
+  "verdict": "approved",
+  "findings": {
+    "NC-006": {"status": "fixed", "reason": "RouterManager wraps every handler (safeHandler) so an async rejection is answered once (500 with the contract INTERNAL_ERROR code) instead of becoming an unhandled rejection; api()/download() and the error paths write only when !res.headersSent, so a handler that answered itself no longer triggers ERR_HTTP_HEADERS_SENT and kills the process. HttpRpcServer and file_query carry the same guards; the router is mounted once."},
+    "NC-009": {"status": "fixed", "reason": "Voice submit_audio_simple uses the real watcher instances (WatcherProvider getters) and awaits copy and delete per file; success needs at least one copied file. fcopy.copyFileToDir no longer deletes the source it was asked to keep."},
+    "NC-010": {"status": "fixed", "reason": "PR-025 duplicate. SingleInstanceManager creates the lock atomically (openSync 'wx'), decides staleness by pid liveness (process.kill(pid, 0)) plus hostname/start time, stops its heartbeat when the lock is no longer its own, and unlinks only its own lock (or a verified stale one). The owner's scratchpad lock check covers takeover, refusal, the foreign-takeover heartbeat and foreign-release cases."},
+    "NC-014": {"status": "fixed", "reason": "SIGINT/SIGTERM exits are coordinated by ThreadBus; process_on registers shutdown handlers with it instead of calling process.exit synchronously, and SingleInstanceManager/MCP modules drop their own exit handlers, so the async graceful shutdowns complete."},
+    "NC-025": {"status": "fixed", "reason": "StaticPathResolver uses globalDir.mapWebPath() on every Linux branch (per the report and diff)."},
+    "NC-027": {"status": "fixed", "reason": "logRequest defaults a missing User-Agent to ''."},
+    "NC-037": {"status": "fixed", "reason": "HTTP stack part: the 'Server Error' / 'Internal server error' literals are replaced by the contract error code. The dingdoudou UI strings stay in ncore-5."}
+  },
+  "issues": [],
+  "checks": "Diffs of RouterManager.js, dict_server.js, fcopy.js, SingleInstanceManager.js, thread_bus.js and process_on.js read; logger has no require of thread_bus (no cycle).",
+  "checked_at": "2026-09-27T04:43:45+10:00"
+}

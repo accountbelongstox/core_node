@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { isDebug } = require('#@global_vars');
+const { isDebug } = require('../../common/logger.js');
 const fs_promises = require('fs').promises;
 let log;
 try {
@@ -62,11 +62,7 @@ async function copyFileToDir(sourcePath, targetDir, replace = false, removeSourc
     if (fs.existsSync(targetPath)) {
         const targetStats = fs.statSync(targetPath);
         if (targetStats.size === 0 || replace) {
-            try {
-                deleteFile(sourcePath);
-            } catch (error) {
-                log.error(`Copy-Replace to copy file: ${error.message}`);
-            }
+            await deleteFile(targetPath);
         } else {
             log.debug(`Target file exists and replace is false: ${targetPath}`);
         }
@@ -82,12 +78,8 @@ async function copyFileToDir(sourcePath, targetDir, replace = false, removeSourc
             log.error(`Failed to copy file: ${error.message}`);
         }
     }
-    try {
-        if (removeSource) {
-            deleteFile(sourcePath);
-        }
-    } catch (e) {
-        log.error(`Copy-removeSource: ${e.message}`);
+    if (removeSource && result) {
+        await deleteFile(sourcePath);
     }
     return result
 }

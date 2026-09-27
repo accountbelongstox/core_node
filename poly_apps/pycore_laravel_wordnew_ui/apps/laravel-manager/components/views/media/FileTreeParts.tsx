@@ -4,7 +4,7 @@ import type { FileNode } from '@/apps/laravel-manager/uiTypes';
 import {
   AlertCircle, BookOpen, ChevronDown, ChevronRight, Code2, Download, File,
   FileText, FileType, FileVideo, Folder, FolderOpen, FolderPlus,
-  Image as ImageIcon, Music, Pencil, Trash2, UploadCloud, X,
+  Image as ImageIcon, Loader2, Music, Pencil, Trash2, UploadCloud, X,
 } from 'lucide-react';
 
 const FileTreeItem: React.FC<{

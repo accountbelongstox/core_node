@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
@@ -76,7 +76,7 @@ export function normalizeArticleItem(raw: Partial<ArticleItem>, index = 0): Arti
   };
 }
 
-export class ArticleAPI extends BaseAPI {
+export class ArticleAPI extends LmBaseAPI {
   async list(params?: { limit?: number; offset?: number; category?: string }): Promise<APIResponse<ArticleList>> {
     const response = await this.get<ArticleList>(LARAVEL_API_ROUTE.articles.list, params);
 

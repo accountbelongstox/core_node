@@ -1,0 +1,14 @@
+{
+  "task_id": "pycore-manager-2",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-011": {"status": "fixed", "reason": "VocabLibrariesTab applies the language on blur/Enter from a draft and drops superseded responses with a request sequence before setLibs and the cover-model track; VocabWordsTab gets the same guard."},
+    "FU-036": {"status": "fixed", "reason": "PcAgentHistoryPage has separate session/prompt/detail sequences checked after every await and before each set; only the newest request clears its loading flag."},
+    "FU-037": {"status": "fixed", "reason": "AudioOrchWorkspace.loadTasks records a request that arrives mid-flight (tasksReloadQueuedRef), and the running load loops once more, so the list is never left stale."},
+    "FU-040": {"status": "fixed", "reason": "usePcSingleAudio keeps one audio element per view: a new clip releases (pauses and settles) the previous one, and unmount releases it. It is used by PcWordAudioPanel, PcWordAudioPage and VocabTranslateTab. playWordClip is wordnew-specific (queue center), so not reusing it is justified."}
+  },
+  "issues": [],
+  "checks": "Diffs read; the hook's settle/playing transitions traced for back-to-back plays and unmount.",
+  "checked_at": "2026-09-27T04:21:16+10:00"
+}

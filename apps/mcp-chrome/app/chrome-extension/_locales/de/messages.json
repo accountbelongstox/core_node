@@ -2441,5 +2441,97 @@
         "example": "1234"
       }
     }
+  },
+  "unknownActionError": {
+    "message": "Unbekannte Aktion: $action$",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownCapabilityError": {
+    "message": "Unbekannte Fähigkeit: $capability$",
+    "placeholders": {
+      "capability": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerStartedStatus": {
+    "message": "Worker gestartet"
+  },
+  "workerStoppedStatus": {
+    "message": "Worker gestoppt"
+  },
+  "workerConfigRequired": {
+    "message": "Eine Worker-Konfiguration ist erforderlich"
+  },
+  "workerConfigApplied": {
+    "message": "Konfiguration übernommen"
+  },
+  "apiUrlEmpty": {
+    "message": "Die API-URL ist leer"
+  },
+  "serverReturnedError": {
+    "message": "Der Server hat einen Fehler gemeldet"
+  },
+  "taskCenterStartedStatus": {
+    "message": "Task Center gestartet"
+  },
+  "taskCenterStoppedStatus": {
+    "message": "Task Center gestoppt"
+  },
+  "processorTypeRequired": {
+    "message": "Ein Prozessortyp ist erforderlich"
+  },
+  "processorEnabledStatus": {
+    "message": "Prozessor $processor$ aktiviert",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorDisabledStatus": {
+    "message": "Prozessor $processor$ deaktiviert",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStartedStatus": {
+    "message": "Prozessor $processor$ gestartet",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStoppedStatus": {
+    "message": "Prozessor $processor$ gestoppt",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterAtLeastOneWord": {
+    "message": "Geben Sie mindestens ein Wort ein"
+  },
+  "startSupersededByStop": {
+    "message": "Der Start wurde durch Stopp ersetzt"
+  },
+  "capabilityChangeSupersededByStop": {
+    "message": "Die Fähigkeitsänderung wurde durch Stopp ersetzt"
+  },
+  "connectedPendingStatus": {
+    "message": "Verbunden · $count$ ausstehend",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

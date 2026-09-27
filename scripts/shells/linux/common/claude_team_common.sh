@@ -63,7 +63,6 @@ CLAUDE_TEAM_SESSION_TYPE=""
 CLAUDE_TEAM_GRAPHICAL="0"
 CLAUDE_TEAM_IS_WAYLAND="0"
 
-CLAUDE_TEAM_PERMISSION_MODE="auto"
 CLAUDE_TEAM_GUIDE_DOC=""
 CLAUDE_TEAM_RECORD_DIR=""
 CLAUDE_TEAM_AGENTS_DIR=""
@@ -290,7 +289,6 @@ PY
             continue
         fi
         case "$field_a" in
-            permission_mode) CLAUDE_TEAM_PERMISSION_MODE="$field_b" ;;
             guide_doc) CLAUDE_TEAM_GUIDE_DOC="$field_b" ;;
             record_dir) CLAUDE_TEAM_RECORD_DIR="$field_b" ;;
             agents_dir) CLAUDE_TEAM_AGENTS_DIR="$field_b" ;;
@@ -324,7 +322,7 @@ PY
     else
         CLAUDE_TEAM_TMUX_SOCKET="$CLAUDE_TEAM_SESSIONS_SOCKET"
     fi
-    claude_team_log OK "Catalog: $CLAUDE_TEAM_CATALOG_PATH (${#CLAUDE_TEAM_ROLE_NAMES[@]} roles, permission mode $CLAUDE_TEAM_PERMISSION_MODE, tmux socket $CLAUDE_TEAM_TMUX_SOCKET, grid ${CLAUDE_TEAM_GRID_COLUMNS}x${CLAUDE_TEAM_GRID_ROWS})"
+    claude_team_log OK "Catalog: $CLAUDE_TEAM_CATALOG_PATH (${#CLAUDE_TEAM_ROLE_NAMES[@]} roles, tmux socket $CLAUDE_TEAM_TMUX_SOCKET, grid ${CLAUDE_TEAM_GRID_COLUMNS}x${CLAUDE_TEAM_GRID_ROWS})"
     return 0
 }
 
@@ -580,7 +578,11 @@ claude_team_start_sessions() {
             started="1"
             claude_team_log START "Session $session: cwd=$CLAUDE_TEAM_ROOT_DIR size=${CLAUDE_TEAM_CELL_COLS}x${CLAUDE_TEAM_CELL_ROWS} env=$CLAUDE_TEAM_AGENT_TEAMS_ENV,$CLAUDE_TEAM_GIT_GUARD_ENV"
             claude_team_role_is_remote "$role" && claude_team_log START "  remote: ssh <secret ${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}> -> root from claudeteam (fallback ${CLAUDE_TEAM_ROLE_REMOTE_ROOT[$index]}): claude_team_install (incl. crossSessionInbound=accept); tmux -A $session; claudeteam --agent $role --remote-control $session (auto-reconnect ${CLAUDE_TEAM_REMOTE_RECONNECT_SECONDS}s)"
-            claude_team_log START "  command: claudeteam.sh --agent $role --name $session$([ "$CLAUDE_TEAM_MODE" = "team" ] && printf ' --teammate-mode %s' "$CLAUDE_TEAM_TEAM_TEAMMATE_MODE")$([ "$CLAUDE_TEAM_OPT_NO_KICKOFF" = "0" ] && printf ' <kickoff>') (permission mode $CLAUDE_TEAM_PERMISSION_MODE)"
+            if claude_team_role_is_remote "$role"; then
+                claude_team_log START "  command: ssh $CLAUDE_TEAM_SSH_OPTIONS <secret ${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}> bash -lc '... tmux -L $CLAUDE_TEAM_SESSIONS_SOCKET new-session -A -s $session ... claudeteam --agent $role --name $session --remote-control $session$([ "$CLAUDE_TEAM_OPT_NO_KICKOFF" = "0" ] && printf ' <kickoff>')'"
+            else
+                claude_team_log START "  command: claudeteam.sh --agent $role --name $session$([ "$role" = "$CLAUDE_TEAM_LEAD_ROLE" ] && [ "$CLAUDE_TEAM_REMOTE_ANY" = "1" ] && printf ' --remote-control %s' "$session")$([ "$CLAUDE_TEAM_MODE" = "team" ] && printf ' --teammate-mode %s' "$CLAUDE_TEAM_TEAM_TEAMMATE_MODE")$([ "$CLAUDE_TEAM_OPT_NO_KICKOFF" = "0" ] && printf ' <kickoff>')"
+            fi
         else
             CLAUDE_TEAM_ROW_SESSION_STATE[$index]="failed"
             claude_team_log ERROR "Session $session failed to start"
@@ -592,6 +594,24 @@ claude_team_start_sessions() {
         claude_team_tmux set-option -g mouse on >/dev/null 2>&1 || true
         claude_team_log OK "tmux socket $CLAUDE_TEAM_TMUX_SOCKET: set-titles on (#S), mouse on"
     fi
+    claude_team_remote_control_hint
+}
+
+# A remote role reaches the lead only while the lead runs with Remote Control
+# (both ends need it). A lead started before any remote role was enabled lacks
+# it and needs /remote-control once.
+claude_team_remote_control_hint() {
+    local lead_session=""
+    local lead_command=""
+
+    [ "$CLAUDE_TEAM_REMOTE_ANY" = "1" ] || return 0
+    lead_session="$(claude_team_session_name "$CLAUDE_TEAM_LEAD_ROLE")"
+    claude_team_tmux has-session -t "=$lead_session" 2>/dev/null || return 0
+    lead_command="$(claude_team_tmux display-message -p -t "=$lead_session" '#{pane_start_command}' 2>/dev/null)"
+    case "$lead_command" in
+        *--remote-control*) return 0 ;;
+    esac
+    claude_team_log WARN "Lead $lead_session runs without Remote Control, so remote roles cannot reach it: run /remote-control $lead_session in the lead once"
 }
 
 # Remote role: a local tmux session keeps an ssh -t connection (reconnecting every

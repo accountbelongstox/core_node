@@ -16,7 +16,7 @@ const path = require('path');
     const Base = require('#@base');
     const { getEnvValue } = require('#@baseTool');
     const { env } = require('#@global_vars');
-    const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
+    const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper.js');
 
     const __filename = __filename;
     const __dirname = path.dirname(__filename);

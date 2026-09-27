@@ -12,8 +12,7 @@
 
 const { APP_TMP_DIR, APP_DATA_DIR, APP_DATA_CACHE_DIR } = require('#@global_dir');
 const logger = require('#@logger');
-const rpc = require('#@ncore/utils/rpc');
-const UploadTools = rpc.getExpressServer().uploadTools;
+const UploadTools = require('#@ncore/utils/rpc/http_rpc/libs/UploadTools.js');
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR, 
     IS_SERVER 
 } = require('../provider/baseDir/BaseDirProvider.js');

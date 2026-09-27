@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const logger = require('#@logger');
-const rpc = require('#@ncore/utils/rpc');
+const rpc = require('#@ncore/utils/rpc/index.js');
 const ApiRoutes = require('./routes/api.js');
 const WebRoutes = require('./routes/web.js');
 const path = require('path');
@@ -68,21 +68,6 @@ class WebServer {
         // JSON parsing middleware
         this.app.use(express.json({ limit: '10mb' }));
         this.app.use(express.urlencoded({ extended: true }));
-
-        // CORS middleware
-        if (this.config.webConfig.enableCors) {
-            this.app.use((req, res, next) => {
-                res.header('Access-Control-Allow-Origin', '*');
-                res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-                res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-                
-                if (req.method === 'OPTIONS') {
-                    res.sendStatus(200);
-                } else {
-                    next();
-                }
-            });
-        }
 
         // Request logging middleware
         this.app.use((req, res, next) => {

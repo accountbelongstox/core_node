@@ -15,6 +15,8 @@ import os
 import re
 import sys
 
+from CodeHeaderCommon import SKIP_DIRS
+
 # Configuration
 TARGET_DIR = "../../"  # Relative to current Python file location
 
@@ -26,40 +28,6 @@ ALLOWED_SUBDIRS = {
     'ncore',
     'config',
     'development-guides',
-}
-
-# Skip these directories even within allowed subdirectories
-SKIP_DIRS = {
-    # Version control and build directories
-    '.git', '.svn', '.hg', 'dist', 'build', 'tmp', 'temp', '.output', '.outputs',
-
-    # Python related directories
-    '__pycache__', 'site-packages', '.venv', 'venv', 'env', '.env',
-    'python', 'python3', 'python2', 'Python', 'Python3', 'Python2',
-    '.python-version', 'pyenv', '.pyenv', 'conda', 'anaconda', 'miniconda',
-
-    # Node.js related directories
-    'node_modules', '.npm', 'npm', 'node', 'Node', 'nodejs', 'Node.js',
-    '.node-version', 'nvm', '.nvm',
-
-    # Flutter/Dart related directories
-    'flutter', 'Flutter', '.flutter', 'dart', 'Dart', '.dart_tool',
-    'flutter_tools', '.pub-cache', '.packages',
-
-    # PHP related directories
-    'vendor', 'php', 'PHP', 'composer', '.composer', 'pear', 'PEAR',
-    'phpunit', 'PHPUnit',
-
-    # Other language installations and tools
-    'go', 'Go', 'golang', 'rust', 'Rust', 'cargo', '.cargo',
-    'java', 'Java', 'jdk', 'JDK', 'jre', 'JRE', 'maven', 'gradle',
-    'ruby', 'Ruby', 'gems', '.gem', 'rbenv', '.rbenv',
-
-    # IDE and editor directories
-    '.vscode', '.idea', '.eclipse', '.netbeans',
-
-    # Package managers and caches
-    'cache', '.cache', 'logs', '.logs'
 }
 
 FILE_EXTENSIONS = {'.py', '.js', '.ts', '.php', '.dart', '.md', '.sh', '.cmd', '.bat', '.ps1'}

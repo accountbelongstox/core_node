@@ -37,9 +37,9 @@
 # - Integrates with package metadata PostInstallCallbacks array
 
 # Import global variables and common functions
-. "$PSScriptRoot\GlobalVars.ps1"
-. "$PSScriptRoot\CommonFunc.ps1"
-. "$PSScriptRoot\StringEscapeUtils.ps1"
+. (Join-Path $PSScriptRoot "GlobalVars.ps1")
+. (Join-Path $PSScriptRoot "CommonFunc.ps1")
+. (Join-Path $PSScriptRoot "StringEscapeUtils.ps1")
 
 # MCP path constants - Fixed paths for consistent MCP configuration handling
 $Global:MCP_CONFIG_PATH = Join-Path $Global:PROJECT_DIR "_prompt\mcp.json"
@@ -861,9 +861,9 @@ function Invoke-GeminiMcpIntegration {
         # Determine Gemini CLI settings path
         $geminiSettingsPath = ""
         $possiblePaths = @(
-            "$env:APPDATA\Google\Gemini\CLI\settings.json",
-            "$env:USERPROFILE\.config\gemini\settings.json",
-            "$env:USERPROFILE\.gemini\settings.json"
+            (Join-Path $env:APPDATA "Google\Gemini\CLI\settings.json"),
+            (Join-Path $env:USERPROFILE ".config\gemini\settings.json"),
+            (Join-Path $env:USERPROFILE ".gemini\settings.json")
         )
 
         foreach ($path in $possiblePaths) {
@@ -875,7 +875,7 @@ function Invoke-GeminiMcpIntegration {
 
         # If no existing settings found, create default path
         if ([string]::IsNullOrEmpty($geminiSettingsPath)) {
-            $geminiSettingsPath = "$env:APPDATA\Google\Gemini\CLI\settings.json"
+            $geminiSettingsPath = Join-Path $env:APPDATA "Google\Gemini\CLI\settings.json"
             $geminiDir = Split-Path $geminiSettingsPath -Parent
             if (-not (Test-Path $geminiDir)) {
                 New-Item -ItemType Directory -Path $geminiDir -Force | Out-Null

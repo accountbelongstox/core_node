@@ -18,9 +18,16 @@ const { getSystemCacheDir, getAppLogsDir } = require('./system_paths');
 const username = process.env.USERNAME || process.env.USER || 'default';
 const coceCacheDir = getSystemCacheDir();
 const commandLogDir = path.join(getAppLogsDir(), 'command');
-fs.mkdirSync(coceCacheDir, { recursive: true });
+try {
+    fs.mkdirSync(coceCacheDir, { recursive: true });
+} catch (error) {
+    console.warn(`[commander] Cannot create cache directory ${coceCacheDir}: ${error.code || error.message}`);
+}
 const cacheFilePath = path.join(coceCacheDir, '.shell_cache.json');
 const cachePowerShellFile = path.join(coceCacheDir, '.powershell_path_cache.json');
+const MAX_OUTPUT_BUFFER = 64 * 1024 * 1024;
+const POWERSHELL_ARGS = ['-NoProfile', '-NonInteractive', '-EncodedCommand'];
+const POWERSHELL_ENCODING = 'utf16le';
 
 const logger = {
     colors: {
@@ -113,8 +120,6 @@ function appendToLog(type, message) {
     }
 }
 
-const initialWorkingDirectory = process.cwd();
-
 // Platform detection
 function getPlatformShell() {
     return process.platform === 'win32' ?
@@ -170,10 +175,12 @@ function byteToStr(astr) {
 
 function wrapEmdResult(success = true, stdout = '', error = null, code = 0, info = true) {
     stdout = byteToStr(stdout);
-    error = byteToStr(stdout);
+    error = error === null || error === undefined ? null : byteToStr(error);
     if (info) {
         logger.info(stdout);
-        logger.warn(error);
+        if (error) {
+            logger.warn(error);
+        }
     }
     return {
         success,
@@ -216,57 +223,68 @@ function commandResultToString(obj, indent = 2) {
 
 function wrapTextResult(stdout = '', error = ``, info = true) {
     stdout = byteToStr(stdout);
-    error = byteToStr(stdout);
+    error = error === null || error === undefined ? '' : byteToStr(error);
     if (info) {
         logger.info(stdout);
-        logger.warn(error);
+        if (error) {
+            logger.warn(error);
+        }
     }
     return stdout + error
 }
 
-function execCmd(command, info = false, cwd = null, logname = null) {
-    if (Array.isArray(command)) {
-        command = command.join(" ");
-    }
-    if (info) {
-        logger.command(`${command}`);
-    }
-
+function shellOption() {
     const platformShell = getPlatformShell();
-    const options = {
-        shell: typeof platformShell.shell === 'boolean' ? 'cmd.exe' : platformShell.shell,
-        encoding: 'utf-8'
+    return platformShell.shell === true ? true : platformShell.shell;
+}
+
+// Structured runner: a string runs through the platform shell, an array runs [file, ...args] without a shell
+function runCommand(command, options = {}) {
+    let file, args, result, stdout, stderr, success;
+    const spawnOptions = {
+        cwd: options.cwd || undefined,
+        env: options.env ? { ...process.env, ...options.env } : process.env,
+        encoding: 'utf-8',
+        input: options.input,
+        stdio: options.inherit ? 'inherit' : 'pipe',
+        windowsHide: true,
+        maxBuffer: MAX_OUTPUT_BUFFER
     };
 
-    let hasChangedDir = false;
-    if (cwd) {
-        hasChangedDir = true;
-        options.cwd = cwd;
-        process.chdir(cwd);
+    if (Array.isArray(command)) {
+        file = String(command[0]);
+        args = command.slice(1).map(String);
+    } else {
+        file = String(command);
+        args = [];
+        spawnOptions.shell = shellOption();
     }
-    let resultText = "";
-    try {
-        const result = execSync(command, options);
-        resultText = byteToStr(result);
-    } catch (e) {
-        resultText = extraErrorStr(e);
-        if (!checkCmdSuccess(e)) {
-            logger.error(command);
-            logger.error(`${e}`);
-            resultText = ""
-        } else {
-            logger.success(resultText);
-        }
+    if (options.info) {
+        logger.command(Array.isArray(command) ? command.join(' ') : file);
     }
 
+    result = spawnSync(file, args, spawnOptions);
+    stdout = result.stdout ? byteToStr(result.stdout) : '';
+    stderr = result.stderr ? byteToStr(result.stderr) : (result.error ? String(result.error.message) : '');
+    success = !result.error && result.status === 0;
+
+    return { success, code: result.error ? -1 : result.status, stdout, stderr };
+}
+
+// An array command runs as argv without a shell (spaced paths stay one argument)
+function execCmd(command, info = false, cwd = null, logname = null) {
+    const result = runCommand(command, { cwd, info });
+    const resultText = result.success ? result.stdout : "";
+
+    if (!result.success) {
+        logger.error(Array.isArray(command) ? command.join(' ') : command);
+        logger.error(`exit ${result.code}: ${result.stderr.trim()}`);
+    }
     if (logname) {
         appendToLog(logname, resultText);
     }
     if (info) {
         logger.info(resultText);
-    }
-    if (hasChangedDir) {
-        process.chdir(initialWorkingDirectory);
     }
     return resultText;
 }
@@ -330,84 +348,68 @@ function execCmdResultText(command, info = false, cwd = null, logname = null) {
 }
 
 async function execCommand(command, info = true, cwd = null, logname = null) {
-    if (Array.isArray(command)) {
-        command = command.join(" ");
+    const result = runCommand(command, { cwd, info });
+
+    if (logname) {
+        appendToLog(logname, result.stdout);
     }
-    if (info) {
-        logger.command(`${command}`);
-    }
 
-    return new Promise((resolve, reject) => {
-        const platformShell = getPlatformShell();
-        const options = { stdio: 'pipe' };
-
-        if (cwd) {
-            options.cwd = cwd;
-            process.chdir(cwd);
-        }
-
-        const childProcess = spawnSync(platformShell.command, [...platformShell.args, command], options);
-        const stdoutData = childProcess.stdout.toString();
-        const stderrData = childProcess.stderr.toString();
-
-        if (info) {
-            logger.info(stdoutData);
-            if (stderrData) {
-                logger.warn(stderrData);
-            }
-        }
-
-        process.chdir(initialWorkingDirectory);
-
-        if (logname) {
-            appendToLog(`info`, stdoutData);
-        }
-
-        if (childProcess.error) {
-            resolve(wrapEmdResult(false, stdoutData, stderrData, -1, info));
-        } else if (childProcess.status === 0) {
-            resolve(wrapEmdResult(true, stdoutData, null, 0, info));
-        } else {
-            resolve(wrapEmdResult(false, stdoutData, stderrData, childProcess.status, info));
-        }
-    });
+    return wrapEmdResult(result.success, result.stdout, result.success ? null : result.stderr, result.code, info);
 }
 
-async function spawnAsync(command, info = true, cwd = null,  callback, timeout = 5000, progressCallback = null) {
+async function spawnAsync(command, info = true, cwd = null,  callback, timeout = 5000, progressCallback = null, env = null) {
     let cmd = '';
     let args = [];
+    const options = {
+        stdio: 'pipe',
+        cwd: cwd || undefined,
+        env: env ? { ...process.env, ...env } : process.env,
+        windowsHide: true
+    };
 
     if (typeof command === 'string') {
-        const platformShell = getPlatformShell();
-        cmd = platformShell.command;
-        args = [...platformShell.args, command];
+        cmd = command;
+        options.shell = shellOption();
     } else if (Array.isArray(command)) {
-        cmd = command[0];
-        args = command.slice(1);
+        cmd = String(command[0]);
+        args = command.slice(1).map(String);
     }
 
     if (info) {
-        logger.command(`${command}`);
+        logger.command(`${Array.isArray(command) ? command.join(' ') : command}`);
     }
     let timer = null;
+    let finished = false;
 
     return new Promise((resolve) => {
-        const options = { stdio: 'pipe' };
-        if (cwd) {
-            options.cwd = cwd;
-            process.chdir(cwd);
-        }
-
         const childProcess = spawn(cmd, args, options);
         let stdoutData = '';
         let stderrData = '';
 
-        const resetTimer = () => {
+        const clearTimer = () => {
             if (timer !== null) {
                 clearTimeout(timer);
+                timer = null;
+            }
+        };
+
+        const finish = (result) => {
+            if (finished) {
+                return;
+            }
+            finished = true;
+            clearTimer();
+            resolve(result);
+        };
+
+        const resetTimer = () => {
+            clearTimer();
+            if (finished || typeof callback !== 'function') {
+                return;
             }
             timer = setTimeout(() => {
-                if (callback) callback(wrapEmdResult(true, stdoutData, null, 0, info));
+                timer = null;
+                if (!finished) callback(wrapEmdResult(true, stdoutData, null, 0, info));
             }, timeout);
         };
 
@@ -421,7 +423,7 @@ async function spawnAsync(command, info = true, cwd = null,  callback, timeout =
                 logger.info(output);
             }
             stdoutData += output + '\n';
-            progressCallback?.(stdoutData);
+            progressCallback?.(output);
         };
 
         childProcess.stdout.on('data', handleYesNo);
@@ -433,21 +435,19 @@ async function spawnAsync(command, info = true, cwd = null,  callback, timeout =
                 logger.warn(error);
             }
             stderrData += error + '\n';
-            progressCallback?.(stdoutData);
+            progressCallback?.(error);
         });
 
         childProcess.on('close', (code) => {
-            process.chdir(initialWorkingDirectory);
             if (code === 0) {
-                resolve(wrapEmdResult(true, stdoutData, null, 0, info));
+                finish(wrapEmdResult(true, stdoutData, null, 0, info));
             } else {
-                resolve(wrapEmdResult(false, stdoutData, stderrData, code, info));
+                finish(wrapEmdResult(false, stdoutData, stderrData, code, info));
             }
         });
 
         childProcess.on('error', (err) => {
-            process.chdir(initialWorkingDirectory);
-            resolve(wrapEmdResult(false, stdoutData, err, -1, info));
+            finish(wrapEmdResult(false, stdoutData, err, -1, info));
         });
     });
 }
@@ -510,24 +510,18 @@ function execPowerShell(command, info = false, cwd = null, no_std = false, cmdEn
         command = command.join(" ");
     }
     command = command.trim();
-    const options = {
-        encoding: 'utf-8'
-    };
-    const fullCommand = `${powershellPath} -Command "${command}"`;
-    if (cmdEnv) {
-        try {
-            return execCmd(fullCommand, info, cwd, no_std, cmdEnv);
-        } catch (e) {
-            logger.error(e);
-            return null;
-        }
+
+    const encodedCommand = Buffer.from(command, POWERSHELL_ENCODING).toString('base64');
+    const result = runCommand([powershellPath, ...POWERSHELL_ARGS, encodedCommand], { cwd, env: cmdEnv });
+
+    if (!result.success) {
+        logger.error(`PowerShell exit ${result.code}: ${result.stderr.trim()}`);
+        return "";
     }
-    try {
-        return execCmd(fullCommand, info, cwd, no_std);
-    } catch (e) {
-        logger.error(e);
-        return null;
+    if (info && !no_std) {
+        logger.info(result.stdout);
     }
+    return result.stdout;
 }
 
 function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env = process.env, info = true) {
@@ -546,7 +540,8 @@ function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env
         if (info) {
             logger.command(`${command}`);
         }
-        return execSync(command, options);
+        const output = execSync(command, options);
+        return output === null || output === undefined ? '' : output;
     } catch (error) {
         logger.error(`Command execution failed: ${command}`);
         logger.error(error);
@@ -555,7 +550,7 @@ function pipeExecCmd(command, useShell = true, cwd = null, inheritIO = true, env
 }
 
 function pipeExecCmdAsync(command, useShell = true, cwd = null, inheritIO = true, env = process.env) {
-    return spawnAsync(command, useShell, cwd, inheritIO, env);
+    return spawnAsync(command, true, cwd, null, undefined, null, env);
 }
 
 async function execCmdShell(command, ignoreError = false, cwd = null, print = true) {
@@ -570,17 +565,18 @@ async function execCmdShell(command, ignoreError = false, cwd = null, print = tr
 async function execDetached(command, cwd = null) {
     return new Promise((resolve, reject) => {
         try {
-            const platformShell = getPlatformShell();
             const options = {
                 detached: true,
-                stdio: 'ignore'
+                stdio: 'ignore',
+                shell: shellOption(),
+                windowsHide: true
             };
 
             if (cwd) {
                 options.cwd = cwd;
             }
 
-            const childProcess = spawn(platformShell.command, [...platformShell.args, command], options);
+            const childProcess = spawn(command, [], options);
 
             // Unref the child process so the parent can exit independently
             childProcess.unref();
@@ -597,70 +593,6 @@ async function execDetached(command, cwd = null) {
 function extraErrorStr(e) {
     const { stdout, stderr } = extraError(e);
     return (stdout + stderr).trim();
-}
-
-function isSuccessOutput(output) {
-    if (!output) return false;
-
-    const normalizedOutput = output.toLowerCase().trim();
-
-    const successPatterns = [
-        /success/,
-        /completed/,
-        /done/,
-        /installed/,
-        /updated/,
-        /created/,
-        /enabled/,
-        /activated/,
-        /ok\b/,
-
-        /成功/,
-        /完成/,
-        /已安装/,
-        /已更新/,
-        /已创建/,
-        /已启用/,
-        /已激活/,
-        /正常/
-    ];
-
-    const failurePatterns = [
-        /error/,
-        /failed/,
-        /failure/,
-        /cannot/,
-        /unable to/,
-        /not found/,
-        /denied/,
-        /invalid/,
-        /exception/,
-
-        /错误/,
-        /失败/,
-        /未找到/,
-        /不存在/,
-        /无效/,
-        /异常/,
-        /拒绝/,
-        /无法/
-    ];
-
-    const hasFailure = failurePatterns.some(pattern =>
-        pattern.test(normalizedOutput)
-    );
-
-    if (hasFailure) return false;
-
-    const hasSuccess = successPatterns.some(pattern =>
-        pattern.test(normalizedOutput)
-    );
-
-    return hasSuccess || !hasFailure;
-}
-
-function checkCmdSuccess(e) {
-    return isSuccessOutput(extraErrorStr(e));
 }
 
 module.exports = {
@@ -680,6 +612,5 @@ module.exports = {
     execDetached,
     extraError,
     extraErrorStr,
-    isSuccessOutput,
-    checkCmdSuccess
+    runCommand
 };

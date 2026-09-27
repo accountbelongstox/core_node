@@ -2,6 +2,7 @@
 
 namespace App\Services\AiGateway;
 
+use App\Utils\FileSystemManager;
 use App\Providers\PathMapper;
 
 /**
@@ -351,13 +352,8 @@ class AiImageHistory
         }
         $doc['version'] = 1;
         $doc['saved_at'] = microtime(true);
-        $tmp = $path . '.tmp.' . getmypid();
         // ensure_ascii=False parity: keep unicode + slashes unescaped.
-        if (@file_put_contents($tmp, json_encode($doc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) !== false) {
-            @rename($tmp, $path);
-        } else {
-            @unlink($tmp);
-        }
+        FileSystemManager::writeFileAtomic($path, (string) json_encode($doc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     /**

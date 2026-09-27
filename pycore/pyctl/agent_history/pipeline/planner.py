@@ -13,7 +13,7 @@ from pycore.pyctl.agent_history.pipeline.config import (
     get_tool_cursor,
     get_tool_live_cursor,
     initialize_tool_lanes,
-    save_config,
+    save_cursor_state,
 )
 
 
@@ -163,7 +163,7 @@ def plan_batches() -> Tuple[List[Dict[str, Any]], int]:
             live_by_tool[tool] = live_items
 
     if config_changed:
-        save_config(cfg)
+        save_cursor_state(cfg)
 
     live_heads = [items[-1] for items in live_by_tool.values() if items]
     if live_heads:

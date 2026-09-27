@@ -1,0 +1,14 @@
+{
+  "task_id": "laravel-T6",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "LB-034": {"status": "fixed", "reason": "Audited set: 441 of the 446 matched lines call __() with en and zh_CN entries (codemart.messages, app_qy_v1.messages, server_manager.messages, api.messages, it_tools.messages), plus data_sync.* (47 keys) for the DataSync exception and session messages; the English 'not found' substring test became DataSyncNotFoundException. Machine error_code values are unchanged. My parity check: every new lang file has identical en and zh_CN key sets (app_qy_v1 195, api 140, server_manager 122, it_tools 7, data_sync 47, codemart 105). Two pre-existing defects that made every __() return the raw key or ignore the client language are fixed: bootstrap pins useLangPath(base_path('lang')) (an empty untracked resources/lang shadowed lang/), and the prepended ApplyRequestLocale middleware sets the locale from Accept-Language on every request (zh* -> zh_CN, otherwise the fallback en), so nothing carries over between Octane requests."}
+  },
+  "issues": [
+    "(recorded remainder, next owner laravel) 10 console-output lines in app/Console/Commands (the guide forbids editing app/Console), 173 interpolated double-quoted message calls and 737 'message'|'error' => '...' array entries outside the audit pattern. Counts are recorded, as the team brief requires for rule sweeps.",
+    "(non-blocking) wallet-ledger descriptions deferred from laravel-T2: confirm whether they are in the 441 or in the remainder, and record them."
+  ],
+  "checks": "ApplyRequestLocale.php and the bootstrap lang/locale hunks read; en vs zh_CN key-set comparison of the six lang files with php -r (read-only); resources/lang contains only empty untracked en and zh_CN dirs, which explains the shadowing.",
+  "checked_at": "2026-09-27T04:45:15+10:00"
+}

@@ -13,23 +13,11 @@
 // const { env } = require("#@global_vars");
 const path = require(`path`)
 const { gdir, appname, isServer } = require('#@global_vars');
-const serviceContract = require('../../config/service_contract');
+const serviceContract = require('#@/config/service_contract.js');
 const {
     ROOT_APP_STATIC_DIR,
     APP_METADATA_DIR,
 } = gdir;
-
-// Database Configuration Constants
-const SQLPUB_DB_KEY = `qianyuwords`;
-const SQLPUB_USER_KEY = `qianyuwords`;
-const SQLPUB_USER_PWD = `3r4fPtcQyhbgpWGv`;
-const SQLPUB_DB_URL = `mysql.sqlpub.com`;
-const SQLPUB_DB_PORT = `3306`;
-
-const XATA_DB_PREFIX_KEY = `70e12j:`;
-const XATA_DB_PREFIX_APK_KEY = `xau_rK29jqtDRzMu9WWQLvi6w43yTbszJ6s91`;
-const XATA_DB_SUFFIX_KEY = `@us-east-1.sql.xata.sh`;
-const XATA_DB_KEY = `qianyuwords_xata`;
 
 // Caddy Configuration Constants
 const CADDY_EXECUTABLE_PATH = `/usr/bin/caddy`;
@@ -64,11 +52,11 @@ const DataBakCopyPath = `${DownloadPath}traData.7z`
 const USER_TEST_SERVER_URL = serviceContract.url('http', serviceContract.host('loopback'), serviceContract.port('voice_api_local'))
 const USER_SERVER_URL = isServer ? serviceContract.url('https', serviceContract.serviceDomain('dictionary_api')) : USER_TEST_SERVER_URL
 const USER_API_URL = `${USER_SERVER_URL}/api/dict/v1`
-const USER_API_CLIENT_TOKEN = `ENC:2a8451256299fc77ad9487863fca9c5c:4c8350bcc1b9befcc03aec7d5bdd88496f212ad3778d734887a9a4fca8113626af586d7ed9e2c0396d27de9297922bf7a7031899df04783ea47e60b962589b7ff869bf5efd019db3f2e9933dbcf3aa0e80aab62c14297293eeab4b5804f5719779e2d19307389cd675787a60b851d160e91f43ac30384213d9ca746387e6908eb00d99c82d11175faf86a105dc7f6709377d15560c53bb0acca074130a26e098`
+const USER_API_CLIENT_TOKEN = 'SECRET:DICT_API_CLIENT_TOKEN_1'
 
 const config = {
     HTTP_PORT: serviceContract.port('voice_server'),
-    HTTP_HOST: serviceContract.host('any'),
+    HTTP_HOST: isServer ? serviceContract.host('any') : undefined,
     SERVER_URL: serviceContract.url('http', serviceContract.host('cloud_legacy'), serviceContract.port('voice_server')),
     CLIENTS_URL: [
         serviceContract.url('http', serviceContract.host('voice_client_primary'), serviceContract.port('voice_server')),

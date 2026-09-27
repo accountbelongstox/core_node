@@ -61,7 +61,8 @@ export interface LaravelArticleAudioReadyEvent {
   audio_rebuilt_at?: string | null;
 }
 
-export const LARAVEL_REALTIME_EVENTS = {
+/** Symbolic event → wire event name; queue-center names come from the contract. */
+const LARAVEL_REALTIME_WIRE_EVENTS = {
   queueChanged: QUEUE_CENTER_REALTIME_EVENTS.queue_changed,
   wordAudioHead: QUEUE_CENTER_REALTIME_EVENTS.word_audio_head,
   sentenceAudioHead: QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head,
@@ -70,16 +71,25 @@ export const LARAVEL_REALTIME_EVENTS = {
   articleAudioReady: 'article.audio.ready',
 } as const;
 
-export type LaravelRealtimeEventName =
-  (typeof LARAVEL_REALTIME_EVENTS)[keyof typeof LARAVEL_REALTIME_EVENTS];
+/** Symbolic realtime event; subscribers key on it, never on the wire name. */
+export type LaravelRealtimeEventName = keyof typeof LARAVEL_REALTIME_WIRE_EVENTS;
+
+export const LARAVEL_REALTIME_EVENTS: { readonly [EventName in LaravelRealtimeEventName]: EventName } = {
+  queueChanged: 'queueChanged',
+  wordAudioHead: 'wordAudioHead',
+  sentenceAudioHead: 'sentenceAudioHead',
+  workerPresence: 'workerPresence',
+  articlePublished: 'articlePublished',
+  articleAudioReady: 'articleAudioReady',
+};
 
 export type LaravelRealtimeEventPayloadMap = {
-  [LARAVEL_REALTIME_EVENTS.queueChanged]: LaravelQueueChangedEvent;
-  [LARAVEL_REALTIME_EVENTS.wordAudioHead]: LaravelQueueHeadEvent;
-  [LARAVEL_REALTIME_EVENTS.sentenceAudioHead]: LaravelQueueHeadEvent;
-  [LARAVEL_REALTIME_EVENTS.workerPresence]: LaravelWorkerPresenceEvent;
-  [LARAVEL_REALTIME_EVENTS.articlePublished]: LaravelArticlePublishedEvent;
-  [LARAVEL_REALTIME_EVENTS.articleAudioReady]: LaravelArticleAudioReadyEvent;
+  queueChanged: LaravelQueueChangedEvent;
+  wordAudioHead: LaravelQueueHeadEvent;
+  sentenceAudioHead: LaravelQueueHeadEvent;
+  workerPresence: LaravelWorkerPresenceEvent;
+  articlePublished: LaravelArticlePublishedEvent;
+  articleAudioReady: LaravelArticleAudioReadyEvent;
 };
 
 type LaravelRealtimePayload = LaravelRealtimeEventPayloadMap[LaravelRealtimeEventName];
@@ -89,6 +99,11 @@ interface RealtimeFrame {
   event: LaravelRealtimeEventName;
   payload: Record<string, unknown>;
 }
+
+const EVENT_BY_WIRE_NAME = new Map<string, LaravelRealtimeEventName>(
+  (Object.keys(LARAVEL_REALTIME_WIRE_EVENTS) as LaravelRealtimeEventName[])
+    .map((eventName) => [LARAVEL_REALTIME_WIRE_EVENTS[eventName], eventName]),
+);
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
@@ -105,7 +120,7 @@ class LaravelRealtime {
   private replaying = false;
   private fallbackReplayActive = false;
   private pendingFrames: RealtimeFrame[] = [];
-  private handlers = new Map<string, Set<Handler>>();
+  private handlers = new Map<LaravelRealtimeEventName, Set<Handler>>();
 
   constructor() {
     subscribeAuthSession(() => {
@@ -182,8 +197,9 @@ class LaravelRealtime {
     }
   }
 
-  private isRealtimeEvent(value: string): value is LaravelRealtimeEventName {
-    return Object.values(LARAVEL_REALTIME_EVENTS).includes(value as LaravelRealtimeEventName);
+  /** Symbolic event for a wire event name, or null for events this client ignores. */
+  private resolveEvent(wireName: unknown): LaravelRealtimeEventName | null {
+    return typeof wireName === 'string' ? EVENT_BY_WIRE_NAME.get(wireName) ?? null : null;
   }
 
   private emit(event: LaravelRealtimeEventName, payload: LaravelRealtimePayload): void {
@@ -213,8 +229,9 @@ class LaravelRealtime {
     while (hasMore) {
       const replay = await laravelApi.getQueueCenterEvents(this.lastId ?? 0);
       for (const item of replay.events) {
-        if (!this.isRealtimeEvent(item.event)) continue;
-        this.dispatchFrame({ event: item.event, payload: item.data });
+        const eventName = this.resolveEvent(item.event);
+        if (!eventName) continue;
+        this.dispatchFrame({ event: eventName, payload: item.data });
       }
       if (this.lastId === null || replay.cursor > this.lastId) this.lastId = replay.cursor;
       hasMore = replay.has_more;
@@ -234,16 +251,15 @@ class LaravelRealtime {
   }
 
   private handleMessage(event: string, value: unknown): void {
-    if (!this.isRealtimeEvent(event)) return;
+    const sseEvent = this.resolveEvent(event);
+    if (!sseEvent) return;
     const envelope = this.parseObject(value);
     if (!envelope) return;
     // Hub updates carry {event, data} envelopes; the SSE event type is the
     // canonical name - accept both shapes from one source of truth.
     const payload = this.parseObject(envelope.data) ?? envelope;
     if (!payload) return;
-    const eventName = (typeof envelope.event === 'string' && this.isRealtimeEvent(envelope.event))
-      ? envelope.event
-      : event;
+    const eventName = this.resolveEvent(envelope.event) ?? sseEvent;
     const queueFrame = { event: eventName, payload };
     if (this.replaying) {
       this.pendingFrames.push(queueFrame);

@@ -1,6 +1,5 @@
 {
-  "schema_version": 5,
-  "permission_mode": "auto",
+  "schema_version": 6,
   "guide_doc": "development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md",
   "record_dir": "docs_fix",
   "agents_dir": ".claude/agents",
@@ -8,14 +7,14 @@
   "sessions": {
     "session_prefix": "ct-",
     "tmux_socket": "claudeteam",
-    "kickoff_lead": "You are the orchestrator, session {session}. The roles are independent sessions that coordinate through cross-session messaging. Your binding guide is {guide}. Run ListAgents and confirm the {prefix}<role> sessions: {roles}. When the user gives you a task, record it in {record}, split it by the guide's role scopes, and create tasks as [<role>] subject. Dispatch each part with SendMessage to {prefix}<role> with notify_when_idle, route finished work to {prefix}reviewer for a verdict, and read {shared}/reports instead of transcripts. Read the guide now, confirm the roster, then wait for the user's task.",
-    "kickoff": "You are the {role} role, session {session}, one of the independent role sessions that coordinate through cross-session messaging. Read your agent instructions and your development guide, and {guide} section 8 for boundaries. Run ListAgents, tell {prefix}orchestrator you are ready, and wait for its tasks. Report with SendMessage, hand files over as paths in {shared}, and write {shared}/reports/{role}.md before going idle."
+    "kickoff_lead": "You are the orchestrator, session {session}. The roles are independent sessions that coordinate through cross-session messaging. Your binding guide is {guide}. Run ListAgents and confirm the {prefix}<role> sessions: {roles}. When the user gives you a task, record it in {record}, split it by the guide's role scopes, and create tasks as [<role>] subject. Dispatch each part with SendMessage to {prefix}<role> with notify_when_idle, route finished work to {prefix}reviewer for a verdict, and read {shared}/reports instead of transcripts. Read the guide now, confirm the roster, then wait for the user's task. Never ask the user questions: take the recommended option, record the choice, and continue.",
+    "kickoff": "You are the {role} role, session {session}, one of the independent role sessions that coordinate through cross-session messaging. Read your agent instructions and your development guide, and {guide} section 8 for boundaries. Run ListAgents, tell {prefix}orchestrator you are ready, and wait for its tasks. Report with SendMessage, hand files over as paths in {shared}, and write {shared}/reports/{role}.md before going idle. Never ask the user questions: take the recommended option, record the choice, and continue."
   },
   "team": {
     "session_name": "ca-orchestrator",
     "tmux_socket": "claudeagents",
     "teammate_mode_linux": "tmux",
-    "kickoff": "You are the orchestrator (team lead), session {session}, in agent-teams mode. Your binding guide is {guide}. The user will give you one task: record it in {record}, split it by the guide's role scopes and dependencies, create tasks as [<role>] subject, and spawn only the roles the task needs from the agent types in {agents_dir} ({roles}), each named exactly after its type, with the task context in its spawn prompt. Tasks complete only after the reviewer's approved verdict; read {shared}/reports for handoffs. Read the guide now, then wait for the user's task."
+    "kickoff": "You are the orchestrator (team lead), session {session}. Every enabled role runs as its own independent session ({prefix}<role>) in its own pane, started by the launcher, and shares the task list {task_list}. Your binding guide is {guide}. Run ListAgents and confirm the {prefix}<role> sessions: {roles}. When the user gives you a task: record it in {record}, split it by the guide's role scopes and dependencies, create tasks as [<role>] subject, and dispatch each part with SendMessage to {prefix}<role> (notify_when_idle). Do not spawn a teammate of a type that runs as a {prefix}<role> session (one writer per path); spawn in-process teammates or workflow agents only for work no running session owns. Tasks complete only after the reviewer's approved verdict; read {shared}/reports for handoffs. Read the guide now, confirm the roster, then wait for the user's task. Never ask the user questions: take the recommended option, record the choice, and continue."
   },
   "grid": {
     "columns": 5,
@@ -38,19 +37,51 @@
       "enabled": true
     },
     {
+      "name": "pycore-ai",
+      "enabled": true
+    },
+    {
+      "name": "pycore-runtime",
+      "enabled": true
+    },
+    {
+      "name": "pycore-architect",
+      "enabled": true
+    },
+    {
+      "name": "pycore-assist",
+      "enabled": true
+    },
+    {
       "name": "laravel",
       "enabled": true
     },
     {
+      "name": "laravel-qyapp",
+      "enabled": true
+    },
+    {
+      "name": "laravel-codemart",
+      "enabled": true
+    },
+    {
+      "name": "laravel-api",
+      "enabled": true
+    },
+    {
       "name": "laravel-remote",
-      "enabled": false,
+      "enabled": true,
       "remote": {
         "ssh_secret": "SSH_CONNECTION_1",
         "root": "/www/programing/core_node"
       }
     },
     {
-      "name": "shell",
+      "name": "shell-linux",
+      "enabled": true
+    },
+    {
+      "name": "shell-windows",
       "enabled": true
     },
     {
@@ -58,23 +89,23 @@
       "enabled": true
     },
     {
-      "name": "laravel-manager",
+      "name": "ui-laravel-manager",
       "enabled": true
     },
     {
-      "name": "pycore-manager",
+      "name": "ui-pycore-manager",
       "enabled": true
     },
     {
-      "name": "wordnew",
+      "name": "ui-wordnew",
       "enabled": true
     },
     {
-      "name": "codemart",
+      "name": "ui-codemart",
       "enabled": true
     },
     {
-      "name": "vortex",
+      "name": "ui-vortex",
       "enabled": true
     },
     {
@@ -92,6 +123,82 @@
   ],
   "remote": {
     "reconnect_seconds": 5,
-    "kickoff": "You are the {role} role, session {session}, running on the laravel-main server over SSH with Remote Control on. Your binding guide is {guide} (section 8 for boundaries). Develop in this server checkout and test directly on this server. Run ListAgents, tell {lead} (another machine; cross-session messaging through Remote Control) that you are ready, and wait for its tasks. Report with SendMessage including the changed-file list, and write {shared}/reports/{role}.md before going idle."
+    "kickoff": "You are the {role} role, session {session}, running on the laravel-main server over SSH with Remote Control on. Your binding guide is {guide} (section 8 for boundaries). Develop in this server checkout and test directly on this server. Run ListAgents, tell {lead} (another machine; cross-session messaging through Remote Control) that you are ready, and wait for its tasks. Report with SendMessage including the changed-file list, and write {shared}/reports/{role}.md before going idle. Never ask the user questions: take the recommended option, record the choice, and continue."
+  },
+  "role_source": {
+    "agents_dir": ".claude/agents",
+    "name_from": "frontmatter name",
+    "model_from": "frontmatter model (alias, latest: opus = Opus 5.5 for thinking roles, sonnet = Sonnet 5 for coding roles)",
+    "effort_from": "frontmatter effort, passed to role sessions as --effort",
+    "catalog_roles_are": "overrides only (enabled, remote); an agent file without a catalog row is enabled"
+  },
+  "session_env": {
+    "all": {
+      "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
+      "CLAUDE_CODE_TASK_LIST_ID": "core-node-team"
+    },
+    "lead": {
+      "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    },
+    "windows": {
+      "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT": "1"
+    },
+    "remote": {
+      "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"
+    }
+  },
+  "user_settings_merge": {
+    "crossSessionInbound": "accept",
+    "agentPushNotifEnabled": true,
+    "inputNeededNotifEnabled": true,
+    "preferredNotifChannel": "terminal_bell"
+  },
+  "layout": {
+    "window_name": "core-node-team",
+    "tmux_session": "core-node-team",
+    "min_lead": {
+      "cols": 100,
+      "rows": 30
+    },
+    "min_role": {
+      "cols": 60,
+      "rows": 15
+    },
+    "tab_groups": [
+      [
+        "orchestrator",
+        "reviewer",
+        "laravel",
+        "pycore",
+        "shell-windows",
+        "shell-linux"
+      ],
+      [
+        "laravel-qyapp",
+        "laravel-codemart",
+        "laravel-api",
+        "laravel-remote"
+      ],
+      [
+        "pycore-ai",
+        "pycore-runtime",
+        "pycore-architect",
+        "pycore-assist"
+      ],
+      [
+        "ui-laravel-manager",
+        "ui-pycore-manager",
+        "ui-wordnew",
+        "ui-codemart",
+        "ui-vortex"
+      ],
+      [
+        "ncore",
+        "mcp-chrome",
+        "flutter"
+      ]
+    ],
+    "merge_groups_when_room": true,
+    "unlisted_roles": "appended to the last tab group"
   }
 }

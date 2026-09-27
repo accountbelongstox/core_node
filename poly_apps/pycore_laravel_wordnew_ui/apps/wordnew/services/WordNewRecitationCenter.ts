@@ -27,6 +27,7 @@ import {
 } from '../api';
 import { isQueuedError } from '../../../core/network/api-client';
 import { wordNewEventBus } from './WordNewEventBus';
+import { localDateKey } from '../utils/WordNewTimeFormat';
 
 const FLUSH_INTERVAL_MS = 5000;
 
@@ -40,14 +41,6 @@ const newBatchId = (): string => {
     /* crypto unavailable — fall through */
   }
   return `wf-recite-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-};
-
-/** Local calendar date (YYYY-MM-DD) — used to reset the per-day unique set. */
-const localDateKey = (): string => {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
 };
 
 /** Payload of the 'recitation-updated' wordNewEventBus event. */

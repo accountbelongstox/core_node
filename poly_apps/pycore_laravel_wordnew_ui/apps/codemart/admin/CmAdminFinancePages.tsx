@@ -34,6 +34,8 @@ import {
   CM_ADMIN_WITHDRAWAL_STATUSES,
   type CmAdminDepositRow,
   type CmAdminDisputeResolution,
+  type CmAdminEscrowRefundResult,
+  type CmAdminEscrowRow,
   type CmAdminPaymentRow,
   type CmAdminProjectRow,
   type CmAdminRefundRow,
@@ -537,13 +539,37 @@ const CmAdminPaymentsTable: React.FC = () => {
 
 const CmAdminEscrowsTable: React.FC = () => {
   const { t } = useTranslation('cm');
+  const format = useCmAdminFormat();
+  const userName = useCmAdminUserName();
   const [status, setStatus] = useState('');
   const [projectId, setProjectId] = useState('');
   const filters = useMemo(() => ({ status, project_id: projectId }), [status, projectId]);
   const list = useCmAdminList((query) => cmAdminApi.escrows(query), filters);
+  const action = useCmAdminAction(list.reload);
+
+  const refund = (item: CmAdminEscrowRow): void => {
+    const params = { id: item.id, amount: format.money(item.remaining_amount, item.currency), payer: userName(item.payer) };
+    action.ask({
+      title: t('admin.payments.escrowRefund.title', params),
+      body: t('admin.payments.escrowRefund.body', params),
+      confirmLabel: t('admin.payments.escrowRefund.action'),
+      tone: 'danger',
+      reason: 'optional',
+      reasonLabel: t('admin.dialog.notes'),
+      successKey: 'admin.payments.escrowRefund.nothingLeft',
+      successText: (data) => {
+        const result = data as CmAdminEscrowRefundResult | null;
+        return result && !result.replayed
+          ? t('admin.payments.escrowRefund.done', { amount: format.money(result.refunded_amount, item.currency) })
+          : t('admin.payments.escrowRefund.nothingLeft');
+      },
+      run: (notes) => cmAdminApi.refundEscrow(item.id, notes),
+    });
+  };
 
   return (
     <>
+      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSelect
           labelKey="admin.filterStatus"
@@ -555,7 +581,7 @@ const CmAdminEscrowsTable: React.FC = () => {
         <CmAdminSearch labelKey="admin.payments.projectId" value={projectId} onApply={setProjectId} icon={false} inputMode="numeric" />
       </CmAdminToolbar>
       <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noEscrows" onRetry={() => void list.reload()}>
-        <CmAdminTable label={t('admin.payments.tab.escrows')}>
+        <CmAdminTable label={t('admin.payments.tab.escrows')} actions>
           <thead>
             <tr>
               <th>{t('admin.columnId')}</th>
@@ -567,6 +593,7 @@ const CmAdminEscrowsTable: React.FC = () => {
               <th>{t('admin.payments.remaining')}</th>
               <th>{t('admin.columnStatus')}</th>
               <th>{t('admin.columnCreated')}</th>
+              <th>{t('admin.columnActions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -581,12 +608,24 @@ const CmAdminEscrowsTable: React.FC = () => {
                 <td><strong><CmAdminMoney amount={item.remaining_amount} currency={item.currency} /></strong></td>
                 <td><CmAdminStatus status={item.status} group="admin.states.escrow" /></td>
                 <td className="cm-admin-nowrap"><CmAdminDate value={item.created_at} stacked /></td>
+                <td>
+                  <div className="cm-table-actions">
+                    {item.refundable ? (
+                      <button type="button" className="cm-workspace-button is-danger" onClick={() => refund(item)}>
+                        <RotateCcw aria-hidden="true" /> {t('admin.payments.escrowRefund.action')}
+                      </button>
+                    ) : (
+                      <span className="cm-admin-muted">{t('admin.noAction')}</span>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </CmAdminTable>
       </CmAdminListState>
       <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      {action.dialog}
     </>
   );
 };

@@ -14,16 +14,22 @@ import {
   normalizePycorePath,
 } from './pycoreEndpoints';
 import { RELAY_CONTRACT } from '../../contracts/RelayContract';
-import { SERVICE_CONTRACT_URL_ENTRIES } from '../../contracts/ServiceContract';
+import {
+  LOCAL_RPC_LOOPBACK_HOSTS,
+  NEXUS_DASH_FRONTEND_PORT,
+  SERVICE_CONTRACT_URL_ENTRIES,
+} from '../../contracts/ServiceContract';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
 
+export type PycorePresetSource = 'relay_origin' | 'contract_url' | 'host_key';
+
 export interface PycorePresetHost {
   host: string;
   label: string;
-  hint?: string;
+  source: PycorePresetSource;
   /** Full backend URL preset (relay scheme https entry); bare-host entries render to the direct :59000 form. */
   url?: string;
 }
@@ -36,12 +42,51 @@ export interface PycoreTarget {
   host?: string;
 }
 
+const PYCORE_LOOPBACK_HOSTS = new Set(LOCAL_RPC_LOOPBACK_HOSTS.map((host) => host.toLowerCase()));
+const PYCORE_DASHBOARD_ORIGIN_PORTS = [String(NEXUS_DASH_FRONTEND_PORT), String(PYCORE_PORT)];
+
 function parseBackendUrl(url: string): URL | null {
   try {
     return new URL(url);
   } catch {
     return null;
   }
+}
+
+/** Contract loopback hosts (K7): the only hosts pycore serves to browsers directly. */
+export function isPycoreLoopbackHost(host: string): boolean {
+  return PYCORE_LOOPBACK_HOSTS.has(String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, ''));
+}
+
+function isRelayBackendUrl(parsed: URL): boolean {
+  return parsed.protocol === 'https:' && parsed.port !== String(PYCORE_PORT);
+}
+
+/**
+ * K7a: browsers reach pycore directly only from a loopback page on the pycore
+ * machine; every other browser manages pycore through the HTTPS relay.
+ */
+export function isPycoreDirectAccessAllowed(): boolean {
+  return isLoopbackPage();
+}
+
+/** Contract dashboard ports pycore accepts as a browser Origin on a loopback page (K7). */
+export function pycoreDashboardOriginPorts(): string[] {
+  return [...PYCORE_DASHBOARD_ORIGIN_PORTS];
+}
+
+/** True when this loopback page's origin is on pycore's contract allow-list. */
+export function isPycoreDashboardOrigin(): boolean {
+  return isLoopbackPage()
+    && typeof location !== 'undefined'
+    && PYCORE_DASHBOARD_ORIGIN_PORTS.includes(location.port);
+}
+
+function isAllowedBackendUrl(url: string): boolean {
+  const parsed = parseBackendUrl(url);
+  if (!parsed) return false;
+  if (isRelayBackendUrl(parsed)) return true;
+  return isPycoreDirectAccessAllowed() && isPycoreLoopbackHost(parsed.hostname);
 }
 
 /**
@@ -74,9 +119,9 @@ function readTarget(): PycoreTarget {
       }
     }
     const url = normalizePycoreBackendUrl(String(target.url || ''));
-    if (url) return { mode: 'remote', url };
+    if (url && isAllowedBackendUrl(url)) return { mode: 'remote', url };
   }
-  if (target?.mode === 'local') return { mode: 'local' };
+  if (target?.mode === 'local' && isPycoreDirectAccessAllowed()) return { mode: 'local' };
   relayPreset = relayBackendPreset();
   if (relayPreset?.url) return { mode: 'remote', url: relayPreset.url };
   return { mode: 'origin' };
@@ -101,9 +146,7 @@ export function isPycoreRelayMode(): boolean {
   const target = readTarget();
   if (target.mode !== 'remote' || !target.url) return false;
   const parsed = parseBackendUrl(target.url);
-  return parsed !== null
-    && parsed.protocol === 'https:'
-    && parsed.port !== String(PYCORE_PORT);
+  return parsed !== null && isRelayBackendUrl(parsed);
 }
 
 export function isPycoreRemote(): boolean {
@@ -119,15 +162,8 @@ export function pycoreTargetHost(): string | null {
   return parsed.hostname;
 }
 
-function isSandbox(): boolean {
-  return typeof location !== 'undefined'
-    && (location.hostname.includes('run.app') || location.port === '3000');
-}
-
 export function isLoopbackPage(): boolean {
-  if (typeof location === 'undefined') return false;
-  const h = location.hostname.toLowerCase();
-  return h === 'localhost' || h === '127.0.0.1' || h === '::1';
+  return typeof location !== 'undefined' && isPycoreLoopbackHost(location.hostname);
 }
 
 /** UI served from the Vite dev shell (:13054). */
@@ -156,16 +192,6 @@ export function directPycoreHost(): string {
   return host ?? localPycoreHost();
 }
 
-export function pycoreLocalConnectionHint(): string {
-  return `${directPycoreHost()}:${PYCORE_PORT} (direct)`;
-}
-
-export function isPycoreSecureContext(): boolean {
-  if (typeof window === 'undefined') return false;
-  if (isSandbox()) return false;
-  return !!window.isSecureContext;
-}
-
 export function pycoreEffectiveHost(): string {
   return directPycoreHost();
 }
@@ -184,42 +210,33 @@ export function rewritePycoreEndpoint(endpoint: string): string {
   return buildPycoreHttpUrl(directPycoreHost(), endpoint);
 }
 
-export function pnaBlockedReason(host: string | null): string | null {
-  // Relay entries never touch the loopback directly - no PNA surface.
-  if (isPycoreRelayMode()) return null;
-  if (isPycoreSecureContext()) return null;
-  if (!host) return null;
-  const h = host.toLowerCase();
-  const isLoopback = h === '127.0.0.1' || h === 'localhost' || h === '::1';
-  const isPrivate = isLoopback
-    || /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)
-    || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h) || h.startsWith('fd') || h.startsWith('fc');
-  if (!isPrivate) return null;
-  return `This page is not a secure context (HTTP on a public IP). The browser blocks direct access to ${host}:${PYCORE_PORT} via Private Network Access. Switch to the HTTPS relay backend or use a localhost origin.`;
-}
-
 export function getPycoreTargetRecent(): string[] {
   const recent = StorageManager.get<unknown[]>(StorageKeys.TARGET_RECENT, []);
-  return Array.isArray(recent) ? recent.filter((value): value is string => typeof value === 'string') : [];
+  return Array.isArray(recent)
+    ? recent.filter((value): value is string => typeof value === 'string' && isAllowedBackendUrl(value))
+    : [];
 }
 
 export function getPycoreTargetPresets(): PycorePresetHost[] {
   const relayPreset = relayBackendPreset();
   const config = getWebAccessConfig();
-  const presets = config.serviceHostKeys.pycore.map((key): PycorePresetHost => ({
-    host: config.hosts[key],
-    label: key,
-  }));
+  const presets = config.serviceHostKeys.pycore
+    .map((key): PycorePresetHost => ({
+      host: config.hosts[key],
+      label: key,
+      source: 'host_key',
+    }))
+    .filter((preset) => isAllowedBackendUrl(buildPycoreHttpUrl(preset.host, '/')));
   const urlPresets = SERVICE_CONTRACT_URL_ENTRIES
     .map((entry): PycorePresetHost | null => {
       const parsed = parseBackendUrl(entry.url);
       const url = normalizePycoreBackendUrl(entry.url);
-      if (!parsed || !parsed.hostname || !url) return null;
+      if (!parsed || !parsed.hostname || !url || !isAllowedBackendUrl(url)) return null;
       return {
         host: parsed.hostname,
         label: entry.label,
+        source: 'contract_url',
         url,
-        hint: 'https backend entry',
       };
     })
     .filter((preset): preset is PycorePresetHost => preset !== null);
@@ -243,8 +260,8 @@ function relayBackendPreset(): PycorePresetHost | null {
   return {
     host: parsedRelay.hostname,
     url: relayUrl,
-    label: 'Relay (this server)',
-    hint: 'https relay scheme - rides the designated machine',
+    label: parsedRelay.hostname,
+    source: 'relay_origin',
   };
 }
 
@@ -255,19 +272,22 @@ export function normalizePycoreHost(input: string): string {
   return parseBackendUrl(url)?.hostname ?? '';
 }
 
-export function setPycoreTarget(target: PycoreTarget): void {
+/** Persist a target and reload; false (nothing changes) for a direct target K7a does not allow. */
+export function setPycoreTarget(target: PycoreTarget): boolean {
   if (target.mode === 'remote') {
     // Accept a stored url, a legacy host, or raw user input alike.
     const raw = target.url
       || (typeof (target as { host?: string }).host === 'string' ? (target as { host?: string }).host : '')
       || '';
     const url = normalizePycoreBackendUrl(raw);
-    if (!url) return;
+    if (!url || !isAllowedBackendUrl(url)) return false;
     StorageManager.set(StorageKeys.TARGET, { mode: 'remote', url });
     const recent = [url, ...getPycoreTargetRecent().filter((u) => u !== url)].slice(0, 6);
     StorageManager.set(StorageKeys.TARGET_RECENT, recent);
   } else {
+    if (target.mode === 'local' && !isPycoreDirectAccessAllowed()) return false;
     StorageManager.set(StorageKeys.TARGET, { mode: target.mode === 'local' ? 'local' : 'origin' });
   }
   if (typeof location !== 'undefined') location.reload();
+  return true;
 }

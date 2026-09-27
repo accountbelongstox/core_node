@@ -1,4 +1,5 @@
 import path from 'path';
+import os from 'os';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -10,8 +11,7 @@ import {
 } from './core/config/FrontendConfig';
 import {
   BIND_ANY_HOST,
-  CORE_NODE_DATA_DIR_POSIX,
-  CORE_NODE_DATA_DIR_WINDOWS_SUBPATH,
+  CORE_NODE_DATA_DIR_NAME,
   GLOBAL_VAR_DIR_NAME,
   WEB_ACCESS_CONFIG_FILE_NAME,
 } from './core/contracts/ServiceContract';
@@ -22,12 +22,53 @@ import {
 // Dashboard allowed-hosts come from an EXTERNAL constant-path file written
 // idempotently by the 132 domain-binding helper (one hostname per line).
 // Contract hosts are always present; the external file adds runtime domains.
-// All path pieces come from the canonical service contract.
-const CORE_NODE_DATA_DIR = process.env.CORE_NODE_DATA_DIR
-  ?? (process.platform === 'win32'
-    ? path.join(path.parse(process.cwd()).root, CORE_NODE_DATA_DIR_WINDOWS_SUBPATH)
-    : CORE_NODE_DATA_DIR_POSIX);
+// Directory names come from the canonical service contract; the WWW bases
+// follow the data-root rule every end shares (pycore core_node_dirs, ncore
+// system_paths.js, runtime_environment.sh, PathMapper::getCoreNodeRuntimeDir):
+// CORE_NODE_DATA_DIR wins, else D:\www\core_node on Windows, else
+// /www/www/core_node when /www is the NTFS dual-boot root, else /www/core_node,
+// then the legacy /var/_core_node and ~/core_node when those do not exist.
+const WINDOWS_WWW_BASE = 'D:\\www';
+const LINUX_WWW_ROOT = '/www';
+const LINUX_NTFS_WWW_BASE = '/www/www';
+const LEGACY_LINUX_DATA_DIR = '/var/_core_node';
+const PROC_MOUNTS_FILE = '/proc/mounts';
+const NTFS_FILE_SYSTEMS = new Set(['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g']);
+const CORE_NODE_DATA_DIR = resolveCoreNodeDataDir();
 const WEB_ACCESS_CONFIG_FILE = path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME, WEB_ACCESS_CONFIG_FILE_NAME);
+
+function mountOf(target: string): { source: string; fileSystem: string } | null {
+  let best: { mountPoint: string; source: string; fileSystem: string } | null = null;
+  try {
+    for (const line of fs.readFileSync(PROC_MOUNTS_FILE, 'utf8').split('\n')) {
+      const [source, rawMountPoint, fileSystem] = line.split(' ');
+      if (!source || !rawMountPoint || !fileSystem) continue;
+      const mountPoint = rawMountPoint.replace(/\\040/g, ' ');
+      const covers = target === mountPoint || target.startsWith(`${mountPoint.replace(/\/$/, '')}/`);
+      if (covers && (!best || mountPoint.length > best.mountPoint.length)) best = { mountPoint, source, fileSystem };
+    }
+  } catch {
+    return null;
+  }
+  return best;
+}
+
+function linuxWwwBase(): string {
+  const www = mountOf(LINUX_WWW_ROOT);
+  const root = mountOf('/');
+  const ntfsDataRoot = Boolean(www && root && www.source !== root.source && NTFS_FILE_SYSTEMS.has(www.fileSystem))
+    && fs.existsSync(LINUX_NTFS_WWW_BASE);
+  return ntfsDataRoot ? LINUX_NTFS_WWW_BASE : LINUX_WWW_ROOT;
+}
+
+function resolveCoreNodeDataDir(): string {
+  const configured = (process.env.CORE_NODE_DATA_DIR || '').trim();
+  if (configured) return configured;
+  if (process.platform === 'win32') return path.win32.join(WINDOWS_WWW_BASE, CORE_NODE_DATA_DIR_NAME);
+  const preferred = path.posix.join(linuxWwwBase(), CORE_NODE_DATA_DIR_NAME);
+  const candidates = [preferred, LEGACY_LINUX_DATA_DIR, path.join(os.homedir(), CORE_NODE_DATA_DIR_NAME)];
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? preferred;
+}
 
 const readExternalAllowedHosts = (): string[] | undefined => {
   try {

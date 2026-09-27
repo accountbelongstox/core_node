@@ -9,6 +9,7 @@
 const fs = require('fs');
 const {
   BROWSER_CHROME,
+  EXTENSION_ID,
   buildAllowedOrigins,
   getUserManifestPath,
   validateExtensionId,
@@ -19,7 +20,7 @@ function main() {
   
   if (!extensionId) {
     console.error('\nUsage: node update-extension-id.cjs <extension-id>\n');
-    console.error('Example: node update-extension-id.cjs lmngnnnghipjfcbbhpaknlnbjcbabblm\n');
+    console.error(`Example: node update-extension-id.cjs ${EXTENSION_ID}\n`);
     console.error('To find your extension ID:');
     console.error('1. Open Chrome and go to chrome://extensions/');
     console.error('2. Enable "Developer mode"');

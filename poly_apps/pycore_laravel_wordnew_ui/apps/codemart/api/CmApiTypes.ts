@@ -17,11 +17,6 @@ export interface CmPublicHomeData extends CmPublicMetricData {
   testimonials: CmPublicTestimonialData[];
 }
 
-export interface CmPublicHomeLoadResult {
-  data: CmPublicHomeData | null;
-  errorCode: string | null;
-}
-
 export interface CmRegisterPayload {
   username: string;
   email: string;
@@ -58,6 +53,7 @@ export interface CmOnboardingStep {
   key: string;
   completed: boolean;
   blocked: boolean;
+  optional?: boolean;
 }
 
 export interface CmOnboarding {
@@ -69,6 +65,7 @@ export interface CmOnboarding {
   steps: CmOnboardingStep[];
   next_step: string | null;
   complete: boolean;
+  phone_verification_available?: boolean;
 }
 
 export interface CmCounters {
@@ -103,6 +100,7 @@ export interface CmBootstrap {
       platform_commission_rate: number;
       default_page_size: number;
       max_page_size: number;
+      deposit_payment_methods?: string[];
       [key: string]: unknown;
     };
   };
@@ -214,6 +212,16 @@ export interface CmProjectDetail extends CmProject {
   milestones?: CmMilestone[];
   latest_analysis?: CmAnalysisSummary | null;
   access?: CmProjectAccess;
+}
+
+export interface CmProjectTransitionResult {
+  project: CmProject;
+  from: string;
+  to: string;
+  side_effects?: {
+    escrow_refund?: { refunded_escrows: number; refunded_amount: string };
+    [key: string]: unknown;
+  };
 }
 
 export interface CmProjectProposal {

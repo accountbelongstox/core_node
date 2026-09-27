@@ -60,11 +60,13 @@ class SubAppManager {
 
     registerRoute(appName, routeName, handler, options = {}) {
         if (!this.subApps.has(appName)) {
-            throw new Error(`SubApp ${appName} not registered`);
+            logger.error(`SubApp ${appName} not registered`);
+            return null;
         }
 
         if (typeof handler !== 'function') {
-            throw new Error(`Handler for route ${routeName} must be a function`);
+            logger.error(`Handler for route ${routeName} must be a function`);
+            return null;
         }
 
         const fullRouteName = options.useFullName !== false

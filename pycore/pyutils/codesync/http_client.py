@@ -14,7 +14,7 @@ from pycore.pyfoundations.http_sse import (
     read_sse_event,
 )
 import pycore.pyutils.codesync.routes as routes
-from pycore.pyutils.codesync.runtime import http
+from pycore.pyutils.codesync.runtime import signed_peer_headers, signed_peer_request
 from pycore.pyutils.codesync.sse_transport import (
     SSE_EVENT_NAME,
 )
@@ -49,9 +49,10 @@ class HttpFrameClient:
             "session_id": self._session_id,
             "sender_id": self.sender_id,
         })
+        url = f"{self._url(routes.EVENTS_PATH)}?{query}"
         request = urllib.request.Request(
-            f"{self._url(routes.EVENTS_PATH)}?{query}",
-            headers=SSE_REQUEST_HEADERS,
+            url,
+            headers={**SSE_REQUEST_HEADERS, **signed_peer_headers("GET", url)},
             method="GET",
         )
         self._response = urllib.request.urlopen(request, timeout=self.stream_timeout)
@@ -67,9 +68,10 @@ class HttpFrameClient:
     def send_text(self, text: str) -> None:
         self._ensure_connected()
         self._frame_id = uuid.uuid4().hex
-        response = http.post(
+        response = signed_peer_request(
+            "POST",
             self._url(routes.EVENTS_FRAME_PATH),
-            json={
+            {
                 "session_id": self._session_id,
                 "frame_id": self._frame_id,
                 "sender_id": self.sender_id,

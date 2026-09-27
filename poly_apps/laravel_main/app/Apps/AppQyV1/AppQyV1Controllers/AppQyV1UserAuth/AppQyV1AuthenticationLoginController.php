@@ -347,11 +347,11 @@ class AppQyV1AuthenticationLoginController extends Controller
                 if ($username && $password) {
                     $existingUser = User::findByUsernameEmailOrPhone($username);
                     if (!$existingUser) {
-                        return $this->error('Account does not exist', 422);
+                        return $this->error(__('app_qy_v1.messages.account_does_not_exist'), 422);
                     }
-                    return $this->error('Incorrect password', 422);
+                    return $this->error(__('app_qy_v1.messages.incorrect_password'), 422);
                 }
-                return $this->error('Invalid credentials', 422);
+                return $this->error(__('app_qy_v1.messages.invalid_credentials'), 422);
             }
 
             // Ensure default word group exists

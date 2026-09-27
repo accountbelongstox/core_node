@@ -14,7 +14,7 @@ const Base = require('#@base');
     const os = require('os');
     const fs = require('fs');
     const path = require('path');
-    const { execSync } = require('child_process');
+    const { execSync, execFileSync } = require('child_process');
 
     class DockerControl extends Base {
         constructor() {
@@ -152,14 +152,17 @@ const Base = require('#@base');
         controlContainer(containerName, action) {
             const validActions = ['start', 'stop', 'pause', 'restart'];
             if (!validActions.includes(action)) {
-                throw new Error('Invalid action. Use "start", "stop", "pause", or "restart".');
+                console.error('Invalid action. Use "start", "stop", "pause", or "restart".');
+                return false;
             }
             try {
                 console.log(`Attempting to ${action} container: ${containerName}`);
-                execSync(`docker ${action} ${containerName}`);
+                execFileSync('docker', [action, String(containerName)]);
                 console.log(`Container ${containerName} ${action}ed successfully.`);
+                return true;
             } catch (error) {
                 console.error(`Failed to ${action} container: ${containerName}`, error);
+                return false;
             }
         }
     }

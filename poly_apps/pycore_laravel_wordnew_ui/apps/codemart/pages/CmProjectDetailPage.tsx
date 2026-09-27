@@ -301,7 +301,11 @@ export const CmProjectDetailPage: React.FC = () => {
     notice.clear();
     const response = await cmApi.transitionProject(project.id, toStatus, reason);
     if (response.success) {
-      notice.success(t('transitions.projectDone', { status: t(`states.project.${toStatus}`, { defaultValue: toStatus }) }));
+      const refundedAmount = response.data?.side_effects?.escrow_refund?.refunded_amount;
+      const refunded = refundedAmount && Number(refundedAmount) > 0
+        ? t('transitions.escrowRefunded', { amount: format.money(refundedAmount, project.currency) })
+        : '';
+      notice.success([t('transitions.projectDone', { status: t(`states.project.${toStatus}`, { defaultValue: toStatus }) }), refunded].filter(Boolean).join(' '));
       await reloadAll();
       return true;
     }

@@ -15,6 +15,7 @@ type LocaleMessages = Record<string, LocaleMessage>;
 let userMessages: LocaleMessages = {};
 let englishMessages: LocaleMessages = {};
 let userLocale = '';
+let followingUserLocale = false;
 
 async function loadLocaleMessages(locale: string): Promise<LocaleMessages> {
   const url = chrome.runtime.getURL(`_locales/${locale}/messages.json`);
@@ -67,6 +68,20 @@ export async function loadUserLocale(): Promise<void> {
     userMessages = {};
     englishMessages = {};
   }
+}
+
+/**
+ * Keep this context on the popup-selected language. Background contexts call it
+ * once so the messages they return to the popup use the same locale.
+ */
+export function followUserLocale(): Promise<void> {
+  if (!followingUserLocale) {
+    followingUserLocale = true;
+    localStorage.subscribe<string>(STORAGE_KEYS.USER_LANGUAGE, () => {
+      void loadUserLocale();
+    });
+  }
+  return loadUserLocale();
 }
 
 export function getCurrentLocale(): string {

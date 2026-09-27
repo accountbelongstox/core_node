@@ -3,6 +3,7 @@ import { Landmark, Lock, RefreshCw, ShieldCheck, WalletCards } from 'lucide-reac
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
 import type {
+  CmBootstrap,
   CmDepositBankInfo,
   CmDepositInfo,
   CmDepositRecord,
@@ -24,9 +25,9 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedList } from '../components/workspace/useCmPagedList';
 
-const DEPOSIT_METHODS = ['alipay', 'wechat', 'bank_transfer'] as const;
-const WITHDRAWAL_METHODS = ['bank_transfer', 'alipay', 'wechat'] as const;
 const BANK_TRANSFER = 'bank_transfer';
+const DEFAULT_DEPOSIT_METHODS: readonly string[] = [BANK_TRANSFER];
+const WITHDRAWAL_METHODS = ['bank_transfer', 'alipay', 'wechat'] as const;
 const PENDING_STATUS = 'pending';
 const REFUNDABLE_PAYMENT_STATUSES = new Set(['completed', 'disputed']);
 const WALLET_TABS = ['transactions', 'deposits', 'payments', 'invoices', 'refunds', 'withdrawals'] as const;
@@ -38,9 +39,16 @@ const WITHDRAWAL_ACCOUNT_FIELDS: Record<string, readonly string[]> = {
   wechat: ['account_name', 'account'],
 };
 const MIN_WITHDRAWAL = 1;
+const HTTP_CREATED = 201;
 const TAB_QUERY_KEY = 'cm_wallet_tab';
 
 type CmWalletTab = typeof WALLET_TABS[number];
+
+/** Deposit methods the server accepts (bootstrap policy); bank transfer until the server lists them. */
+function depositMethodsOf(policy: CmBootstrap['vocabulary']['policy'] | undefined): readonly string[] {
+  const methods = policy?.deposit_payment_methods;
+  return Array.isArray(methods) && methods.length > 0 ? methods : DEFAULT_DEPOSIT_METHODS;
+}
 
 function parseDeposits(data: unknown): CmDepositRecord[] {
   if (Array.isArray(data)) return data as CmDepositRecord[];
@@ -107,13 +115,16 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
   const format = useCmFormat();
   const idempotency = useCmIdempotencyKey();
   const notice = useCmNotice();
+  const { bootstrap } = useCmBootstrap();
+  const depositMethods = depositMethodsOf(bootstrap?.vocabulary.policy);
   const [info, setInfo] = useState<CmDepositInfo | null>(null);
   const [history, setHistory] = useState<CmDepositRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [roleType, setRoleType] = useState('');
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<string>(DEPOSIT_METHODS[0]);
+  const [method, setMethod] = useState<string>(depositMethods[0]);
+  const selectedMethod = depositMethods.includes(method) ? method : depositMethods[0];
   const [bankInfo, setBankInfo] = useState<CmDepositBankInfo | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -152,7 +163,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
     setBusy(true);
     notice.clear();
     setBankInfo(null);
-    const response = await cmApi.createDeposit({ role_type: roleType, amount: amount ? Number(amount) : undefined, payment_method: method }, idempotency.current());
+    const response = await cmApi.createDeposit({ role_type: roleType, amount: amount ? Number(amount) : undefined, payment_method: selectedMethod }, idempotency.current());
     setBusy(false);
     if (response.success && response.data) {
       idempotency.reset();
@@ -235,8 +246,8 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
             </label>
             <label>
               <span>{t('wallet.columnMethod')}</span>
-              <select value={method} onChange={(event) => changeInput(() => setMethod(event.target.value))}>
-                {DEPOSIT_METHODS.map((value) => (
+              <select value={selectedMethod} onChange={(event) => changeInput(() => setMethod(event.target.value))}>
+                {depositMethods.map((value) => (
                   <option key={value} value={value}>{t(`wallet.methods.${value}`)}</option>
                 ))}
               </select>
@@ -284,7 +295,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
                         {t('wallet.bank.show')}
                       </button>
                     )}
-                    {deposit.status === PENDING_STATUS && deposit.payment_method !== BANK_TRANSFER && deposit.payment_url && (
+                    {deposit.status === PENDING_STATUS && deposit.payment_method !== BANK_TRANSFER && depositMethods.includes(deposit.payment_method) && deposit.payment_url && (
                       <a className="cm-workspace-button is-small is-primary" href={deposit.payment_url} target="_blank" rel="noreferrer">{t('wallet.payNow')}</a>
                     )}
                   </td>
@@ -337,7 +348,7 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
     notice.clear();
     const response = await cmApi.createInvoice({ payment_id: paymentId });
     setBusy(false);
-    if (response.success) notice.success(t('wallet.invoiceCreated'));
+    if (response.success) notice.success(t(response.status === HTTP_CREATED ? 'wallet.invoiceCreated' : 'wallet.invoiceExists'));
     else notice.error(cmErrorMessage(t, response, 'wallet.invoiceFailed'));
   };
 

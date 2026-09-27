@@ -16,13 +16,14 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const logger = require('./logger');
 
-let secretKeysCache, secretKeysDir, encryptedDir, rawDir, isProduction;
+let secretKeysCache, secretKeysDir, encryptedDir, rawDir, isProduction, secretNamePattern;
 
 secretKeysCache = new Map();
 secretKeysDir = null;
 encryptedDir = null;
 rawDir = null;
 isProduction = process.env.NODE_ENV === 'production' || process.env.IS_PRODUCTION === 'true';
+secretNamePattern = /^[A-Za-z0-9_]+$/;
 
 function initializeDirectories() {
   let coreNodeDir;
@@ -205,6 +206,31 @@ function getAllSecretKeys(password) {
   return keys;
 }
 
+function readRawSecret(keyName, rawDirPath) {
+  let filePath, content;
+
+  if (!secretNamePattern.test(String(keyName || ''))) {
+    logger.error('Invalid secret name: only letters, digits and underscore are allowed');
+    return null;
+  }
+
+  initializeDirectories();
+  filePath = path.join(rawDirPath || rawDir, keyName);
+
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    content = fs.readFileSync(filePath, 'utf8').trim();
+  } catch (error) {
+    logger.warn('Failed to read raw secret ' + keyName + ': ' + (error.code || error.message));
+    return null;
+  }
+
+  return content || null;
+}
+
 function clearCache() {
   secretKeysCache.clear();
 }
@@ -226,6 +252,7 @@ function hasSecretKey(keyName) {
 module.exports = {
   getSecretKey,
   getAllSecretKeys,
+  readRawSecret,
   clearCache,
   hasSecretKey,
 };

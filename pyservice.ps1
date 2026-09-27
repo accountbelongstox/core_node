@@ -38,7 +38,10 @@
 
 .EXAMPLE
     .\pyservice.ps1
-    Idempotent prerequisites, then launch on 0.0.0.0:59000.
+    Idempotent prerequisites, then launch on 127.0.0.1:59000. A LAN bind
+    (-BindHost 0.0.0.0) is honored only with the pycore LAN bind setting:
+    .\pyservice.ps1 config system set --key rpcLanBind --value true
+    and then admits only client-key signed machine callers.
 
 .PARAMETER NoUi
     Do not launch the unified dashboard UI; the PySide6 webview falls back to the
@@ -127,7 +130,7 @@
 param(
     [Parameter(Position=0)]
     [string]$Command = 'run',
-    [string]$BindHost = '0.0.0.0',
+    [string]$BindHost = '127.0.0.1',
     [int]   $Port     = 59000,
     [switch]$DebugMode,
     [switch]$NoReload,
@@ -165,6 +168,10 @@ Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 Set-Variable -Name 'PycorePythonRuntimeCommonLoaded' -Scope Script -Value $true
 
 $rpcListener = $null
+$workerExitCode = $null
+# Worker exit code for a restart handoff or a yield to a newer instance
+# (process_restart / pycore_module_caller): the UI server stays running.
+$workerHandoffExitCode = 3
 $uiResponse = $null
 $powerShellPath = $null
 $uiStartPath = $null
@@ -492,12 +499,13 @@ try {
     Write-Host ''
     $env:PORT = "$Port"
     & $py.Path @pyArgs
+    $workerExitCode = $LASTEXITCODE
 }
 finally {
     # Tear down the UI server (npm spawns a node child; /T kills the whole tree).
     if ($uiProc -and -not $uiProc.HasExited) {
         $rpcListener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-        if ($rpcListener) {
+        if ($workerExitCode -eq $workerHandoffExitCode -or $rpcListener) {
             Write-Host ("[i] Worker yielded to a newer instance; leaving UI server running (pid {0})." -f $uiProc.Id) -ForegroundColor DarkYellow
         } else {
             Write-Host ("[..] Stopping UI server (pid {0}) ..." -f $uiProc.Id) -ForegroundColor DarkGray

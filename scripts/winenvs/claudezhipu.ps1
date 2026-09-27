@@ -181,7 +181,7 @@ if (-not $zhipuApiKey) {
     exit 1
 }
 else {
-    Write-Host "API Key: $zhipuApiKey (loaded)" -ForegroundColor White
+    Write-Host "API Key: $(Get-AiCliMaskedSecret -Value $zhipuApiKey) (loaded)" -ForegroundColor White
 }
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""

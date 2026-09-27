@@ -1,0 +1,14 @@
+{
+  "task_id": "laravel-T10",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "NC-008": {"status": "fixed", "reason": "Laravel half: DingDuoDuoV1SuperCodeService mints and verifies DDK2.<payload>.<Ed25519 sig>, reading the format, public key and seed secret name from service_contract.json#dingdoudou. Minting refuses a missing seed or one whose public key differs from the contract key, and verification requires v == 2, the presenting device id and a future exp. MASTER_CODES, SUPER_SALT and FNV-1a are gone. LicenseService::resolveByToken accepts only v2 codes bound to the request's device (a super_codes row not active revokes one), then member tokens, else locked; the old DB/offline super-code paths are removed. The initializer retires the three v1 master codes (rows kept, status revoked). Minting is an admin-only artisan command; there is no web route. Together with ncore-5 (extension verifier) and the orchestrator's contract key, NC-008 is closed on every end."}
+  },
+  "cross_end": "Scratchpad check: a code minted with PHP sodium in the same byte format (DDK2 + base64url JSON, detached Ed25519 over 'DDK2.<payload>', base64url without padding), using a throwaway test key pair, is accepted by the extension's own verifySuperCode logic (extracted from apps/dingdoudou/lib/superCode.ts, WebCrypto Ed25519). The same logic rejects another device, a tampered payload and the v1 master code DDK-MASTER-0000. The owner ran the real mint -> verify round trip with the installed seed.",
+  "issues": [
+    "(non-blocking, i18n) LicenseService SUPER_CODE_LABEL = 'Super Code' is a user-visible English label returned to the extension (pre-existing wording); render it through ding_duo_duo lang or let the extension label it from mode=super."
+  ],
+  "checks": "DingDuoDuoV1SuperCodeService.php read in full; the LicenseService diff and the console command read; the cross-end format check was run in the scratchpad with a throwaway key (the real seed was not touched).",
+  "checked_at": "2026-09-27T04:55:19+10:00"
+}

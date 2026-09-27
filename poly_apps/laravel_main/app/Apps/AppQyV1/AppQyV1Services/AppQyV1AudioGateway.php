@@ -38,6 +38,12 @@ final class AppQyV1AudioGateway
         return $this->wordGateway()->requestBatch($words, $language);
     }
 
+    /** @param array<int,array{word:string,language:string}> $items */
+    public function resolveWordsPassive(array $items): array
+    {
+        return $this->wordGateway()->resolvePassiveBatch($items);
+    }
+
     public function requestSentence(
         ?string $hash,
         ?string $text,

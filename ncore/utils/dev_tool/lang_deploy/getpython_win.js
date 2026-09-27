@@ -13,7 +13,7 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const bdir = require('#@/ncore/global_vars/global_dir/globaldir.js');
+const bdir = require('#@ncore/utils/softinstall/binary_dir.js');
 const gconfig = require('#@gconfig');
 const langdir = gconfig.DEV_LANG_DIR;
 const { execCmd, execCmdResultText, pipeExecCmd } = require('#@commander');

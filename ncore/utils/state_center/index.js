@@ -371,8 +371,12 @@ class SettingsCenter extends EventEmitter {
         const previous = this.get(path);
         setNestedValue(this.cache, segments, cloneValue(value));
         if (options.persist !== false) {
-            this.userSettings.saveSettings(this.cache);
-            this.userSettings.syncToFile(segments.join(PATH_SEPARATOR), value);
+            // Merge into the current file content instead of overwriting it with a stale cache
+            const saved = this.userSettings.updateSettings((settings) => setNestedValue(settings, segments, cloneValue(value)));
+            if (saved) {
+                this.cache = saved;
+                this.userSettings.syncToFile(segments.join(PATH_SEPARATOR), value);
+            }
         }
         this.emit('change', {
             path: segments.join(PATH_SEPARATOR),
@@ -399,8 +403,11 @@ class SettingsCenter extends EventEmitter {
         const previous = this.get(path);
         const deleted = deleteNestedValue(this.cache, segments);
         if (deleted && options.persist !== false) {
-            this.userSettings.saveSettings(this.cache);
-            this.userSettings.syncToFile(segments.join(PATH_SEPARATOR));
+            const saved = this.userSettings.updateSettings((settings) => deleteNestedValue(settings, segments));
+            if (saved) {
+                this.cache = saved;
+                this.userSettings.syncToFile(segments.join(PATH_SEPARATOR));
+            }
         }
         if (deleted) {
             this.emit('delete', {

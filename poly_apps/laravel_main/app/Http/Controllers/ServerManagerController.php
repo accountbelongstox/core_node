@@ -42,7 +42,7 @@ class ServerManagerController extends Controller
             }
         }
 
-        return $this->success(['services' => $services], 'Services list retrieved successfully');
+        return $this->success(['services' => $services], __('api.messages.services_list_retrieved_successfully'));
     }
 
     /**
@@ -59,7 +59,7 @@ class ServerManagerController extends Controller
             'service_name' => $serviceName,
             'status' => $status,
             'enabled' => $enabled,
-        ], 'Service status retrieved successfully');
+        ], __('api.messages.service_status_retrieved_successfully'));
     }
 
     /**
@@ -96,13 +96,13 @@ class ServerManagerController extends Controller
         // Check if request is from localhost
         $allowedIps = ['127.0.0.1', '::1'];
         if (!in_array($request->ip(), $allowedIps, true)) {
-            return $this->error('Access denied. This endpoint is only accessible from localhost.', 403);
+            return $this->error(__('api.messages.access_denied_this_endpoint_is_only_accessible'), 403);
         }
 
         $serviceName = ServerManagerV1OctaneServiceManager::getCurrentOctaneServiceName();
 
         if ($serviceName === null) {
-            return $this->error('No Octane service found for current Laravel installation', 404);
+            return $this->error(__('api.messages.no_octane_service_found_for_current_laravel'), 404);
         }
 
         $serviceName = $this->validatedServiceName($serviceName);
@@ -126,10 +126,10 @@ class ServerManagerController extends Controller
                 'status' => $this->getServiceStatus($serviceName),
                 'output' => implode("\n", $output),
                 'cache_cleared' => true,
-            ], 'Current service restarted successfully');
+            ], __('api.messages.current_service_restarted_successfully'));
         }
 
-        return $this->error('Failed to restart current service', 500, [
+        return $this->error(__('api.messages.failed_to_restart_current_service'), 500, [
             'service_name' => $serviceName,
             'output' => implode("\n", $output),
         ]);
@@ -158,37 +158,39 @@ class ServerManagerController extends Controller
             'service_name' => $serviceName,
             'lines' => $lines,
             'logs' => implode("\n", $output),
-        ], 'Service logs retrieved successfully');
+        ], __('api.messages.service_logs_retrieved_successfully'));
     }
 
     /**
      * Toggle service auto-start
      */
+    /**
+     * Sets the auto-start state to the explicit target `enabled` (boolean,
+     * required), so a retried request converges instead of flipping back.
+     */
     public function toggleAutoStart(Request $request, string $serviceName): JsonResponse
     {
+        $validated = $request->validate(['enabled' => 'required|boolean']);
         $serviceName = $this->validatedServiceName($serviceName);
         $escapedServiceName = escapeshellarg($serviceName);
-        $enabled = $this->isServiceEnabled($serviceName);
+        $target = (bool) $validated['enabled'];
         $output = [];
         $returnCode = 0;
+        $action = $target ? 'enabled' : 'disabled';
 
-        if ($enabled) {
-            exec("sudo systemctl disable {$escapedServiceName} 2>&1", $output, $returnCode);
-            $action = 'disabled';
-        } else {
-            exec("sudo systemctl enable {$escapedServiceName} 2>&1", $output, $returnCode);
-            $action = 'enabled';
+        if ($this->isServiceEnabled($serviceName) !== $target) {
+            exec('sudo systemctl ' . ($target ? 'enable' : 'disable') . " {$escapedServiceName} 2>&1", $output, $returnCode);
         }
 
         if ($returnCode === 0) {
             return $this->success([
                 'service_name' => $serviceName,
-                'enabled' => !$enabled,
+                'enabled' => $target,
                 'action' => $action,
             ], "Auto-start {$action} successfully");
         }
 
-        return $this->error('Failed to toggle auto-start', 500, [
+        return $this->error(__('api.messages.failed_to_toggle_auto_start'), 500, [
             'service_name' => $serviceName,
             'output' => implode("\n", $output),
         ]);

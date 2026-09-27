@@ -28,7 +28,7 @@ from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HT
 
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
-    http as requests,
+    signed_peer_request,
     emit_event,
     is_shutdown_requested,
     register_shutdown_handler,
@@ -229,7 +229,7 @@ class CodeSyncClient:
             try:
                 # Try to connect to code-sync endpoint
                 url = f"http://{ip}:{self.server_port}{routes.PING_PATH}"
-                response = requests.get(url, timeout=1)
+                response = signed_peer_request("GET", url, timeout=1)
 
                 if response.status_code == 200:
                     ColorPrint.green(f"[CodeSync Client] Found server: {ip}")
@@ -354,7 +354,8 @@ class CodeSyncClient:
         with open(file_path, 'wb') as f:
             f.write(content)
 
-        os.utime(file_path, (mtime, mtime))
+        stamp = min(mtime, time.time())
+        os.utime(file_path, (stamp, stamp))
         return True
 
     def _process_file_for_server(self, server_conn: 'ServerConnection', file_info: Dict, is_initial: bool = False) -> str:

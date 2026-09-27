@@ -7,6 +7,7 @@
 import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { wordNewEventBus } from './WordNewEventBus';
+import { localDateKey } from '../utils/WordNewTimeFormat';
 
 export interface WordNewReadingProgress {
   index: number;
@@ -15,6 +16,11 @@ export interface WordNewReadingProgress {
 }
 
 type WordNewReadingProgressMap = Record<string, WordNewReadingProgress>;
+
+interface WordNewReadingToday {
+  date: string;
+  count: number;
+}
 
 class WordNewReadingProgressCenterClass {
   private async loadMap(): Promise<WordNewReadingProgressMap> {
@@ -53,6 +59,19 @@ class WordNewReadingProgressCenterClass {
     map[key] = progress;
     await this.saveMap(map);
     wordNewEventBus.emit('reading-progress-updated', { key, ...progress });
+  }
+
+  /** Sentences read today (local day; 0 after midnight). */
+  readToday(): number {
+    const stored = StorageManager.get<WordNewReadingToday | null>(StorageKeys.WORDNEW_READING_TODAY, null);
+    return stored && stored.date === localDateKey() && Number.isFinite(stored.count) ? stored.count : 0;
+  }
+
+  /** Count one more sentence read today; returns the new count. */
+  markReadToday(): number {
+    const count = this.readToday() + 1;
+    StorageManager.set(StorageKeys.WORDNEW_READING_TODAY, { date: localDateKey(), count });
+    return count;
   }
 
   /**

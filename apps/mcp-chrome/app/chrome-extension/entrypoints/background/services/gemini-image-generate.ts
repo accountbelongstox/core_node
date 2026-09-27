@@ -10,6 +10,7 @@ import { AsyncMutex, delay as waitForDelay } from '@/utils/async';
 
 const GENERATION_TIMEOUT_MS = 110000;
 const POLL_INTERVAL_MS = 3000;
+const GENERATION_ABANDONED = 'Generation abandoned before an image was collected';
 const generationMutex = new AsyncMutex();
 
 export interface GeminiGeneratedImage {
@@ -50,7 +51,10 @@ async function generateOnce(prompt: string): Promise<GeminiGeneratedImage | null
     if (last.status === 'done' || last.status === 'failed' || last.status === 'unknown') break;
   }
 
-  if (!last || last.status !== 'done' || !last.dataUrl) return null;
+  if (!last || last.status !== 'done' || !last.dataUrl) {
+    await geminiImageTool.cancel(started.jobId, last?.error || GENERATION_ABANDONED);
+    return null;
+  }
   return {
     imageBase64: last.dataUrl.replace(/^data:[^;]+;base64,/, ''),
     mime: last.mime || 'image/png',

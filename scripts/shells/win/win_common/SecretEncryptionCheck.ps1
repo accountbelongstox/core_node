@@ -73,6 +73,10 @@ $secretKeysDir = Join-Path $CoreNodeDir ".secret_keys"
 $encryptedDir = Join-Path $secretKeysDir "already_encrypted"
 $rawDir = Join-Path $secretKeysDir ".secret_ignore"
 
+# The shared client key is generated here, after the decryption check restored any
+# encrypted copy, so the prompt below encrypts a newly generated key.
+Initialize-ClientKeySecret
+
 # Nothing to encrypt if the raw directory does not exist
 if (-not (Test-Path $rawDir)) {
     return
@@ -167,8 +171,8 @@ foreach ($keyName in $filesNeedingEncryption) {
     }
 
     try {
-        # disguise.js interface: node disguise.js INPUT_FILE PASSWORD [OUTPUT_DIR]
-        $encryptResult = & $Global:NODE_EXE_PATH $disguiseJs $rawFilePath $password $encryptedDir
+        # disguise.js interface: node disguise.js INPUT_FILE PASSWORD [OUTPUT_DIR]; the password goes on stdin
+        $encryptResult = Invoke-SecretPasswordTool -Password $password -ToolPath $disguiseJs -ArgumentList @($rawFilePath, $Global:SECRET_PASSWORD_ARG, $encryptedDir)
 
         if (Test-Path $encryptedFilePath) {
             # Sync the raw file timestamp to the freshly written encrypted file so the

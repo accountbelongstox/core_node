@@ -35,6 +35,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyutils.tts.engine_policy import engine_setting
 
 _AVAIL_SIGNAL = BusSignals.TTS_CHATTTS_AVAILABLE
 _AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
@@ -46,7 +47,7 @@ def base_url() -> str:
 
 
 def _voice() -> str:
-    return (os.environ.get("CHATTTS_VOICE") or "alloy").strip() or "alloy"
+    return (engine_setting("CHATTTS_VOICE") or "alloy").strip() or "alloy"
 
 
 def _prompt_prefix() -> str:

@@ -9,6 +9,7 @@ use App\Http\Requests\DataSync\SetDataSyncTargetRequest;
 use App\Http\Requests\DataSync\StartDataSyncRequest;
 use App\Services\DataSync\DataSyncAbortException;
 use App\Services\DataSync\DataSyncBusyException;
+use App\Services\DataSync\DataSyncNotFoundException;
 use App\Services\DataSync\DataSyncPassiveService;
 use App\Services\DataSync\DataSyncProtocol;
 use App\Services\DataSync\DataSyncService;
@@ -38,7 +39,7 @@ final class DataSyncController extends Controller
     public function show(string $id): JsonResponse
     {
         return $this->respond(fn (): array => [
-            'session' => $this->service->get($id) ?? throw new \InvalidArgumentException('Data synchronization session was not found.'),
+            'session' => $this->service->get($id) ?? throw new DataSyncNotFoundException(),
         ]);
     }
 
@@ -240,6 +241,8 @@ final class DataSyncController extends Controller
             'connection' => 'required|string|max:128',
             'table' => 'required|string|max:128',
             'offset' => 'required|integer|min:0',
+            'cursor' => 'sometimes|array|max:16',
+            'cursor.*' => 'present|string|max:1024',
         ]);
 
         return $this->respond(fn (): array => $this->passive->exportDatabaseChunk(
@@ -247,7 +250,8 @@ final class DataSyncController extends Controller
             $this->token($request),
             (string) $validated['connection'],
             (string) $validated['table'],
-            (int) $validated['offset']
+            (int) $validated['offset'],
+            isset($validated['cursor']) ? array_values($validated['cursor']) : null
         ));
     }
 
@@ -318,17 +322,17 @@ final class DataSyncController extends Controller
     private function respond(callable $callback, int $status = 200): JsonResponse
     {
         try {
-            return $this->success($callback(), 'Success', $status);
+            return $this->success($callback(), __('api.messages.success'), $status);
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (DataSyncBusyException $exception) {
             return $this->error($exception->getMessage(), 503);
         } catch (DataSyncAbortException $exception) {
             return $this->error($exception->getMessage(), 409);
+        } catch (DataSyncNotFoundException $exception) {
+            return $this->notFound($exception->getMessage());
         } catch (\InvalidArgumentException $exception) {
-            return str_contains($exception->getMessage(), 'not found')
-                ? $this->notFound($exception->getMessage())
-                : $this->error($exception->getMessage(), 422);
+            return $this->error($exception->getMessage(), 422);
         } catch (\RuntimeException $exception) {
             return $this->error($exception->getMessage(), 409);
         }

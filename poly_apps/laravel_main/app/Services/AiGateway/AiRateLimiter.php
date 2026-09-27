@@ -2,6 +2,7 @@
 
 namespace App\Services\AiGateway;
 
+use App\Utils\FileSystemManager;
 use App\Providers\PathMapper;
 
 /**
@@ -366,10 +367,7 @@ class AiRateLimiter
             @mkdir($dir, 0775, true);
         }
         $data['saved_at'] = microtime(true);
-        $tmp = $path . '.tmp.' . getmypid();
-        if (@file_put_contents($tmp, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) !== false) {
-            @rename($tmp, $path);
-        }
+        FileSystemManager::writeFileAtomic($path, (string) json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     /**

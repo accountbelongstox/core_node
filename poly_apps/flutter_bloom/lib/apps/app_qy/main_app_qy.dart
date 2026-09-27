@@ -15,12 +15,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:qyflutter/common/app/main_common.dart';
+import 'package:qyflutter/common/localization/localization_manager.dart';
 import 'config_app_qy/app_config_app_qy.dart';
 import 'config_app_qy/provider_app_qy.dart';
 import 'router_app_qy/routes_provider_app_qy.dart';
 import 'settings_app_qy/settings_app_qy.dart';
 import 'localization_app_qy/en_app_qy.dart';
 import 'localization_app_qy/zh_app_qy.dart';
+import 'localization_app_qy/localization_keys_app_qy.dart';
+import 'resources_app_qy/colors_app_qy.dart';
 import 'providers_app_qy/qy_user_provider.dart';
 import 'controller_app_qy/settings_controller_app_qy.dart';
 import 'controller_app_qy/settings_controller_refactored_app_qy.dart';
@@ -59,9 +62,37 @@ class QyApp extends StatefulWidget {
 }
 
 class _QyAppState extends State<QyApp> {
+  StreamSubscription<int>? _userAuthFailureSubscription;
+
   @override
   void initState() {
     super.initState();
+    _userAuthFailureSubscription =
+        ApiServiceAppQy().userAuthFailures.listen(_onUserAuthFailure);
+  }
+
+  @override
+  void dispose() {
+    _userAuthFailureSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _onUserAuthFailure(int statusCode) {
+    final BuildContext? navigatorContext =
+        widget.routerConfig.configuration.navigatorKey.currentContext;
+    final String messageKey = statusCode == 403
+        ? QyAppLocalizationKeys.qyErrorForbidden
+        : QyAppLocalizationKeys.qyErrorUnauthorized;
+
+    if (navigatorContext != null && navigatorContext.mounted) {
+      ScaffoldMessenger.maybeOf(navigatorContext)?.showSnackBar(
+        SnackBar(
+          content: Text(messageKey.tr(navigatorContext)),
+          backgroundColor: ColorsAppQy.qyError,
+        ),
+      );
+    }
+    widget.routerConfig.go(QyAppRoutesProvider.routeLogin);
   }
 
   @override
@@ -180,7 +211,8 @@ Future<void> main() async {
         value: authService,
       ),
       ChangeNotifierProvider<AuthControllerAppQy>(
-        create: (_) => AuthControllerAppQy(authService: authService),
+        create: (_) =>
+            AuthControllerAppQy(authService: authService)..initialize(),
         lazy: false,
       ),
       ChangeNotifierProvider<CourseControllerAppQy>(

@@ -179,7 +179,7 @@ if (-not $deepseekApiKey) {
     exit 1
 }
 else {
-    Write-Host "API Key: $deepseekApiKey (loaded)" -ForegroundColor White
+    Write-Host "API Key: $(Get-AiCliMaskedSecret -Value $deepseekApiKey) (loaded)" -ForegroundColor White
 }
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""

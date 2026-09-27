@@ -57,6 +57,6 @@ class CodeMartV1TestimonialCtl extends Controller
             return $this->errorWithCode($result['error_code'], $result['message'], $result['http_status']);
         }
 
-        return $this->success($result, 'Testimonial submitted for moderation', 201);
+        return $this->success($result, __('codemart.messages.testimonial_submitted_for_moderation'), 201);
     }
 }

@@ -47,7 +47,7 @@ class TTSController extends Controller
             options: $request->input('options', [])
         );
 
-        return $this->success($result, 'Audio generated successfully');
+        return $this->success($result, __('api.messages.audio_generated_successfully'));
     }
     
     public function batchGenerate(Request $request): JsonResponse
@@ -62,7 +62,7 @@ class TTSController extends Controller
 
         $results = $this->ttsService->batchGenerate($request->input('items'));
 
-        return $this->success(['results' => $results], 'Batch generation completed');
+        return $this->success(['results' => $results], __('api.messages.batch_generation_completed'));
     }
     
     public function checkGeneration(Request $request): JsonResponse
@@ -73,7 +73,7 @@ class TTSController extends Controller
         
         $result = $this->ttsService->checkGeneration($request->input('audio_path'));
 
-        return $this->success($result, 'Generation status retrieved successfully');
+        return $this->success($result, __('api.messages.generation_status_retrieved_successfully'));
     }
     
     public function batchCheck(Request $request): JsonResponse
@@ -88,7 +88,7 @@ class TTSController extends Controller
             $results[$path] = $this->ttsService->checkGeneration($path);
         }
 
-        return $this->success(['results' => $results], 'Batch check completed');
+        return $this->success(['results' => $results], __('api.messages.batch_check_completed'));
     }
     
     public function serveAudioWithSpeed(string $language, string $type, string $speed, string $filename)
@@ -128,7 +128,7 @@ class TTSController extends Controller
     {
         return $this->success(
             ['voices' => $this->ttsService->getAvailableVoices()],
-            'Available voices retrieved successfully'
+            __('api.messages.available_voices_retrieved_successfully')
         );
     }
 
@@ -136,7 +136,7 @@ class TTSController extends Controller
     {
         $stats = $this->ttsService->getCacheStats();
 
-        return $this->success(['stats' => $stats], 'Cache stats retrieved successfully');
+        return $this->success(['stats' => $stats], __('api.messages.cache_stats_retrieved_successfully'));
     }
 
     public function clearCache(Request $request): JsonResponse

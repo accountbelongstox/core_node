@@ -415,7 +415,10 @@ install_packages_and_configure_git() {
     # xdg-utils provides xdg-open (used by pycore to open files/URLs). Idempotent,
     # non-fatal: only installs when xdg-open is missing. Output streams live.
     if ! command -v xdg-open >/dev/null 2>&1; then $USE_SUDO apt-get install -y xdg-utils || true; fi
-    git config --global http.sslVerify "false" || true
+    # TLS verification stays on; drop the global "false" earlier runs wrote.
+    if [ "$(git config --global --get http.sslVerify 2>/dev/null)" = "false" ]; then
+        git config --global --unset http.sslVerify || true
+    fi
     git config --global user.name "prop-dev" || true
     git config --global user.email "prop-dev@serve.com" || true
     echo "Essential packages installed."

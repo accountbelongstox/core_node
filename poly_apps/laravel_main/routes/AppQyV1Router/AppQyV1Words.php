@@ -65,11 +65,10 @@ Route::get('/word/{lang}/{word}/audio', [AppQyV1WordMediaController::class, 'aud
     ->where('lang', '[A-Za-z][A-Za-z0-9_-]*');
 Route::post('/word/audio/head', [AppQyV1WordMediaController::class, 'moveAudioToHead']);
 
-// FE-generated word audio upload (Puter.js): persist a synthesized clip for a
-// dictionary row matched by (lang, md5). Public trust level matches the media
-// resolve endpoint above; validated + fill-missing server-side.
+// Word audio upload from pycore (client key): persist a synthesized clip for a
+// dictionary row matched by (lang, md5); validated + fill-missing server-side.
 //   POST /api/app_qy_v1/word/audio/upload  { md5, lang, audio_base64, provider? }
-Route::post('/word/audio/upload', [AppQyV1WordMediaController::class, 'uploadAudio']);
+Route::post('/word/audio/upload', [AppQyV1WordMediaController::class, 'uploadAudio'])->middleware('client.key');
 
 // Missing-audio word batch for the browser-side Puter.js generator (pycore-manager
 // Queue Center persistent bar). Returns up to limit words with has_audio=false;
@@ -80,6 +79,6 @@ Route::get('/word/audio/missing-batch', [AppQyV1WordMediaController::class, 'mis
 // Fix garbled word text detected during browser-side audio generation.
 // Writes the cleaned form back to the content column (HTML/garbage -> '-').
 //   POST /api/app_qy_v1/word/fix-text  { md5, lang, cleaned_word }
-Route::post('/word/fix-text', [AppQyV1WordMediaController::class, 'fixWordText']);
+Route::post('/word/fix-text', [AppQyV1WordMediaController::class, 'fixWordText'])->middleware('client.key');
 
 });

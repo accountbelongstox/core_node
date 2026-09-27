@@ -1,0 +1,12 @@
+{
+  "task_id": "laravel-manager-6",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "route table adaptation (K6, requirements section 5)": {"status": "fixed", "reason": "api/LmBaseAPI.ts is the single laravel-manager transport: 401 maps to auth.login_hint and 403 AUTH_FORBIDDEN to auth.admin_required (en/zh); coded (error_code) failures are untouched. All api/modules/*API.ts classes and LaravelManagerApi.http use it; only LmBaseAPI extends the core BaseAPI. The dead claimAssistRequests/submitAssistRequest/releaseAssistRequests wrappers (assist/requests/* is client.key only) are deleted, and grep finds no callers anywhere. AI_MANAGEMENT and TASK_CENTER are behind AuthGuard, since all their routes need the operator login. All laravel-manager traffic goes through BaseAPI, so the shared login token is sent and nothing signs in the browser (K6)."},
+    "in-scope pre-existing error": {"status": "fixed", "reason": "api/modules/AppQyV1.ts used normalizeTranslationLanguages/TranslationLanguageCatalog without importing them (a ReferenceError masked by a catch); they are now exported from AppQyV1Types.ts and imported, and the broken unused import is removed."}
+  },
+  "issues": [],
+  "checks": "LmBaseAPI.ts, ServerManagerAPI.ts, LaravelManagerApi.ts, config/auth.ts and LmDashboard.tsx diffs read; grep for 'extends BaseAPI' under apps/laravel-manager/api (only LmBaseAPI) and for the removed assist wrappers across the UI tree. The toggle-autostart target state is split out as laravel-manager-10.",
+  "checked_at": "2026-09-27T04:30:08+10:00"
+}

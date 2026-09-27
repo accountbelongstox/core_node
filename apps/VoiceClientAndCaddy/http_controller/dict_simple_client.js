@@ -15,6 +15,7 @@ const path = require('path');
 const { APP_DATA_CACHE_DIR } = require('#@global_dir');
 const FormData = require('form-data');
 const axios = require('axios');
+const clientKeyAuth = require('#@foundation/common/client_key_auth.js');
 const { SUBMIT_AUDIO_SIMPLE_URL } = require('../provider/baseDir/BaseDirProvider.js');
 const {readJson} = require('#@freader');
 
@@ -184,9 +185,12 @@ async function submitSimpleAudio(audioFiles, content_type, callback) {
         logger.info('=== Submitting Request ===');
         logger.info(`Endpoint: ${SUBMIT_AUDIO_SIMPLE_URL}`);
 
+        const formHeaders = simpleForm.getHeaders();
+        const signed = clientKeyAuth.signRequest({ method: 'POST', url: SUBMIT_AUDIO_SIMPLE_URL, contentType: formHeaders['content-type'] });
         const response = await axios.post(SUBMIT_AUDIO_SIMPLE_URL, simpleForm, {
             headers: {
-                ...simpleForm.getHeaders()
+                ...formHeaders,
+                ...(signed.ok ? signed.headers : {})
             },
             maxContentLength: Infinity,
             maxBodyLength: Infinity,

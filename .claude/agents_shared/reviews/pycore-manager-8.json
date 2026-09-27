@@ -1,0 +1,11 @@
+{
+  "task_id": "pycore-manager-8",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "B9 (PcRpcAccessBanner on the shared classifier)": {"status": "fixed", "reason": "PcRpcAccessBanner classifies the newest pycore 401/403 debug record through the shared classifyPycoreAccess, rebuilding a PycoreHttpError from the recorded code (the K7 rejection body has message == code), so there is no code literal left in pycore-manager. When no rejection is recorded, it classifies the page only while pycore health is not up. The pc wording maps each kind: hostForbidden, originForbidden, originHint, and relayOnly for client_key_rejected and relay_only (the K7a ruling); unreachable shows no banner, and relay mode stays silent. The locale keys are renamed to kind names in en/zh."}
+  },
+  "issues": [],
+  "checks": "PcRpcAccessBanner.tsx read; grep for local_rpc_/client_key_ literals in apps/pycore-manager (none); en/zh keys present; shared files untouched.",
+  "checked_at": "2026-09-27T05:02:27+10:00"
+}

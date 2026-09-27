@@ -10,6 +10,8 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
+const { defaultBindHost } = require('#@foundation/common/local_rpc_guard.js');
+
 const WS_RPC_CONSTANTS = {
     MESSAGE_TYPES: {
         REQUEST: 'request',
@@ -29,7 +31,7 @@ const WS_RPC_CONSTANTS = {
 
     DEFAULTS: {
         SERVER_PORT: 8080,
-        SERVER_HOST: '0.0.0.0',
+        SERVER_HOST: defaultBindHost(),
         REQUEST_TIMEOUT: 30000,
         RECONNECT_INTERVAL: 3000,
         MAX_RECONNECT_ATTEMPTS: 10,

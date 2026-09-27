@@ -10,8 +10,8 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const { exec, spawn } = require('child_process');
 const net = require('net');
+const commander = require('../common/commander.js');
 
 class Porttool {
     constructor() {
@@ -27,107 +27,11 @@ class Porttool {
     }
 
     async execCommand(command, info = true, cwd = null, logname = null) {
-        if (info) {
-            this.info(command);
-        }
-        return new Promise((resolve, reject) => {
-            let options = {};
-            if (cwd) {
-                options.cwd = cwd;
-            }
-
-            exec(command, options, (error, stdout, stderr) => {
-                if (error) {
-                    console.error(`exec error: ${error}`);
-                    if (logname) {
-                        this.easyLog(stderr, logname);
-                    }
-                    resolve(this.wrapEmdResult(false, stdout, stderr, error.code, info));
-                } else {
-                    if (logname) {
-                        this.easyLog(stdout, logname);
-                    }
-                    if (stderr) {
-                        console.warn(`exec stderr: ${stderr}`);
-                        resolve(this.wrapEmdResult(true, stdout, stderr, 0, info));
-                    } else {
-                        resolve(this.wrapEmdResult(true, stdout, null, 0, info));
-                    }
-                }
-            });
-        });
+        return commander.execCommand(command, info, cwd, logname);
     }
 
     async spawnSync(command, info = true, cwd = null, logname = null) {
-        let cmd = '';
-        let args = [];
-        command = command.split(/\s+/)
-        if (Array.isArray(command)) {
-            cmd = command[0];
-            args = command.slice(1);
-        } else {
-            cmd = command;
-        }
-        if (info) {
-            this.info(command);
-        }
-        return new Promise((resolve, reject) => {
-            const options = {
-                stdio: 'pipe'
-            };
-            if (cwd) {
-                options.cwd = cwd;
-                process.chdir(cwd);
-            }
-            const childProcess = this.isLinux()
-                ? spawn('/bin/bash', ['-c', cmd].concat(args), options)
-                : spawn(cmd, args, options);
-
-            let stdoutData = '';
-            let stderrData = '';
-            childProcess.stdout.on('data', (data) => {
-                const output = this.byteToStr(data);
-                if (info) {
-                    this.info(output);
-                }
-                if (logname) {
-                    this.easyLog(output, logname);
-                }
-                stdoutData += output + '\n';
-            });
-            childProcess.stderr.on('data', (data) => {
-                const error = this.byteToStr(data);
-                if (info) {
-                    this.warn(error);
-                }
-                stderrData += error + '\n';
-            });
-            childProcess.on('close', (code) => {
-                process.chdir(this.currentDir);
-                if (logname) {
-                    this.easyLog(stdoutData, logname);
-                }
-                if (code === 0) {
-                    resolve(this.wrapEmdResult(true, stdoutData, null, 0, info));
-                } else {
-                    resolve(
-                        this.wrapEmdResult(false,
-                            stdoutData,
-                            stderrData,
-                            code, info)
-                    );
-                }
-            });
-            childProcess.on('error', (err) => {
-                process.chdir(this.currentDir);
-                resolve(
-                    this.wrapEmdResult(false,
-                        stdoutData,
-                        err,
-                        -1, info)
-                );
-            });
-        });
+        return commander.spawnAsync(command, info, cwd);
     }
 
     async isPortInUse(port) {
@@ -222,16 +126,7 @@ class Porttool {
         });
     }
     wrapEmdResult(success = true, stdout = '', error = null, code = 0, info = true) {
-        if (info) {
-            this.info(this.byteToStr(stdout))
-            this.warn(this.byteToStr(error))
-        }
-        return {
-            success,
-            stdout,
-            error,
-            code
-        }
+        return commander.wrapEmdResult(success, stdout, error, code, info);
     }
     byteToStr(astr) {
         try {

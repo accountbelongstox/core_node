@@ -941,7 +941,7 @@ finally {
 Write-Host "  [$SCRIPT_INDEX] Setting up Qt environment variables..." -ForegroundColor Cyan
 if (Test-Path $qtBinPath) {
     Write-Host "  [$SCRIPT_INDEX] Adding Qt bin directory to system PATH..." -ForegroundColor Cyan
-    Add-ToPath -PathToAdd $qtBinPath -Scope "Machine"
+    & $windowsPathFuncPath "add" $qtBinPath
     Write-Host "  [$SCRIPT_INDEX] Qt bin added to PATH: $qtBinPath" -ForegroundColor Green
 }
 else {

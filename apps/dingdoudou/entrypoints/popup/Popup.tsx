@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import {
   getLicense,
+  getDeviceId,
   submitSuperCode,
   loginMember,
   registerMember,
@@ -38,7 +39,7 @@ import {
   getSettings,
   patchSettings,
 } from '@/lib/dashboardBridge';
-import { isLicenseActive } from '@/lib/superCode';
+import { isLicenseActive, SUPER_CODE_PLACEHOLDER } from '@/lib/superCode';
 import { localizedErrorText, nextLanguage, popupText, type UiLanguage } from '@/lib/uiI18n';
 import type { LicenseState, PinduoduoAccount } from '@/lib/types';
 import { DEFAULT_BACKEND_URL } from '@/lib/backendUrl';
@@ -64,6 +65,7 @@ export function Popup() {
   const [license, setLicense] = useState<LicenseState | null>(null);
   const [bootLoading, setBootLoading] = useState(true);
   const [superCode, setSuperCode] = useState('');
+  const [deviceId, setDeviceId] = useState('');
   const [activating, setActivating] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [showBackend, setShowBackend] = useState(false);
@@ -108,12 +110,14 @@ export function Popup() {
     let alive = true;
     (async () => {
       try {
-        const [lic, settings] = await Promise.all([
+        const [lic, settings, device] = await Promise.all([
           getLicense().catch(() => null),
           getSettings().catch(() => null),
+          getDeviceId().catch(() => ''),
           refreshAccounts(),
         ]);
         if (alive) setLicense(lic);
+        if (alive) setDeviceId(device);
         if (alive && settings) setLang(settings.lang);
       } finally {
         if (alive) setBootLoading(false);
@@ -372,7 +376,7 @@ export function Popup() {
                   value={superCode}
                   onChange={(e) => setSuperCode(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleActivate()}
-                  placeholder="DDK-XXXX-XXXXXX"
+                  placeholder={SUPER_CODE_PLACEHOLDER}
                   spellCheck={false}
                   className="min-w-0 flex-1 rounded-lg border border-slate-600/60 bg-slate-900/70 px-2 py-1.5 text-slate-100 placeholder:text-slate-500 outline-none focus:border-red-500/70"
                 />
@@ -389,6 +393,11 @@ export function Popup() {
               <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
                 {text.offlineHint}
               </p>
+              {deviceId ? (
+                <p className="mt-1 break-all text-[11px] leading-relaxed text-slate-400">
+                  {text.deviceId}: <span className="select-all font-mono text-slate-300">{deviceId}</span>
+                </p>
+              ) : null}
 
               {/* Collapsible backend login */}
               <button

@@ -20,6 +20,7 @@ $shellsPath = Join-Path $scriptsDirPath 'shells'
 $winShellsPath = Join-Path $shellsPath 'win'
 $winCommonPath = Join-Path $winShellsPath 'win_common'
 $globalVarsPath = Join-Path $winCommonPath 'GlobalVars.ps1'
+$aiCliProvisionCommonPath = Join-Path $winCommonPath 'AiCliProvisionCommon.ps1'
 $shellsCommonPath = Join-Path $shellsPath 'common'
 $harnessSettingsScriptPath = Join-Path $shellsCommonPath 'pi_harness_settings.js'
 $mode = 'auto'
@@ -126,6 +127,8 @@ $volcAgentMcpSourcePath = $null
 $uvxExePath = $null
 
 . $globalVarsPath
+# Shared launcher helpers; secrets are printed through Get-AiCliMaskedSecret.
+. $aiCliProvisionCommonPath
 
 # Maintenance references:
 # - Pi providers/auth.json: https://pi.dev/docs/latest/providers
@@ -350,7 +353,7 @@ if ($piPath -and
                 if ($arkcliProfileResult) {
                     $arkcliProfileParts = @($arkcliProfileResult -split "`t", 2)
                     $volcApiKey = $arkcliProfileParts[0]
-                    Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($arkcliConfigPath)): $volcApiKey" -ForegroundColor Green
+                    Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($arkcliConfigPath)): $(Get-AiCliMaskedSecret -Value $volcApiKey)" -ForegroundColor Green
                     if ($arkcliProfileParts.Count -gt 1 -and $arkcliProfileParts[1]) {
                         $volcBaseUrl = $arkcliProfileParts[1].TrimEnd('/')
                         if (-not $volcBaseUrl.ToLowerInvariant().EndsWith('/v3')) {
@@ -373,7 +376,7 @@ if ($piPath -and
                     $legacySecretPath = $candidatePath
                     $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
                     if ($volcApiKey) {
-                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath)): $volcApiKey" -ForegroundColor Green
+                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath)): $(Get-AiCliMaskedSecret -Value $volcApiKey)" -ForegroundColor Green
                     }
                 }
             }

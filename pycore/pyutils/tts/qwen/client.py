@@ -22,6 +22,10 @@ _QUEUE_RECOVERY_INITIAL_BACKOFF_S = 0.25
 _QUEUE_RECOVERY_MAX_BACKOFF_S = 2.0
 _QUEUE_RECOVERY_STATUS_TIMEOUT_S = 3.0
 _QUEUE_RESULT_REQUEST_TIMEOUT_S = 30.0
+# A full server queue is waited out on the queue event stream (a finishing job
+# frees a slot), never by polling /status on a timer.
+_CAPACITY_EVENT_WAIT_S = 20.0
+_CAPACITY_POLL_CLIENT_PREFIX = "pycore-qwen-capacity-"
 _RETRYABLE_QUEUE_ERROR_MARKERS = (
     "aborted",
     "broken pipe",
@@ -461,6 +465,28 @@ def inspect_queue_job(
     return None, snapshot
 
 
+def _await_queue_event(
+    poll_client_id: str,
+    since_seq: int,
+    timeout_seconds: float,
+    service_base_url: Optional[str],
+) -> Tuple[bool, int]:
+    """Block on the server queue event stream until the next event after
+    ``since_seq`` (or the timeout); returns (stream ok, new cursor)."""
+    response = queue_events(
+        poll_client_id,
+        since_seq,
+        max(0.0, timeout_seconds),
+        service_base_url=service_base_url,
+    )
+    if not response.get("success"):
+        return False, since_seq
+    cursor = max(since_seq, int(response.get("seq") or 0))
+    if cursor:
+        acknowledge_events(poll_client_id, cursor, timeout=10.0, service_base_url=service_base_url)
+    return True, cursor
+
+
 def _submit_with_recovery(
     payload: Dict[str, Any],
     client_job_id: str,
@@ -479,6 +505,8 @@ def _submit_with_recovery(
     counts: Dict[str, Any] = {}
     active = 0
     queue_max = 0
+    capacity_client_id = f"{_CAPACITY_POLL_CLIENT_PREFIX}{client_job_id}"
+    capacity_cursor = -1
     while True:
         if capacity_wait is not None:
             reconciled, capacity_snapshot = inspect_queue_job(
@@ -493,7 +521,24 @@ def _submit_with_recovery(
             queue_max = int(capacity_snapshot.get("queue_max") or 0)
             active = int(counts.get("pending") or 0) + int(counts.get("running") or 0)
             if queue_max > 0 and active >= queue_max:
-                if not capacity_wait.sleep():
+                if capacity_wait.expired:
+                    return False, None, (
+                        f"qwen3tts queue capacity wait exceeded {capacity_wait.budget_seconds:.0f}s "
+                        f"(last error: {last_error})"
+                    )
+                if capacity_cursor < 0:
+                    # First wait: take the current cursor without blocking.
+                    stream_ok, capacity_cursor = _await_queue_event(
+                        capacity_client_id, 0, 0.0, service_base_url,
+                    )
+                else:
+                    stream_ok, capacity_cursor = _await_queue_event(
+                        capacity_client_id,
+                        capacity_cursor,
+                        min(_CAPACITY_EVENT_WAIT_S, max(0.0, capacity_wait.budget_seconds - capacity_wait.elapsed)),
+                        service_base_url,
+                    )
+                if not stream_ok and not capacity_wait.sleep():
                     return False, None, (
                         f"qwen3tts queue capacity wait exceeded {capacity_wait.budget_seconds:.0f}s "
                         f"(last error: {last_error})"

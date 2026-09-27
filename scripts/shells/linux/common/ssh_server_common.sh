@@ -11,6 +11,9 @@ SSH_SERVER_SYSTEMD_ROOT="/etc/systemd/system"
 SSH_SERVER_SYSTEMD_DROPIN=""
 SSH_SERVER_PORT="${SSH_SERVER_PORT:-22}"
 SSH_SERVER_CLIENT_ALIVE_INTERVAL="${SSH_SERVER_CLIENT_ALIVE_INTERVAL:-15}"
+# Unanswered alive requests before sshd closes a dead connection; its tmux
+# client then detaches, so a reconnect resumes the session (interval x count).
+SSH_SERVER_CLIENT_ALIVE_COUNT_MAX="${SSH_SERVER_CLIENT_ALIVE_COUNT_MAX:-4}"
 SSH_SERVER_LOGIN_GRACE_TIME="${SSH_SERVER_LOGIN_GRACE_TIME:-30}"
 SSH_SERVER_PASSWORD_AUTH="${SSH_SERVER_PASSWORD_AUTH:-no}"
 SSH_SERVER_MAX_STARTUPS="${SSH_SERVER_MAX_STARTUPS:-100:30:200}"
@@ -158,7 +161,7 @@ PasswordAuthentication $SSH_SERVER_PASSWORD_AUTH
 LoginGraceTime $SSH_SERVER_LOGIN_GRACE_TIME
 TCPKeepAlive no
 ClientAliveInterval $SSH_SERVER_CLIENT_ALIVE_INTERVAL
-ClientAliveCountMax 0
+ClientAliveCountMax $SSH_SERVER_CLIENT_ALIVE_COUNT_MAX
 MaxStartups $SSH_SERVER_MAX_STARTUPS"
 
     if printf '%s\n' "$SSH_SERVER_SUPPORTED_CONFIG" | awk '$1 == "persourcemaxstartups" { found = 1 } END { if (found) print "yes" }' | grep -q '^yes$'; then
@@ -269,7 +272,7 @@ ssh_server_validate_config() {
     elif [ "$SSH_SERVER_EFFECTIVE_PER_SOURCE_MAX_STARTUPS" = "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS" ]; then
         SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY=true
     fi
-    if [ "$SSH_SERVER_EFFECTIVE_PORT" = "$SSH_SERVER_PORT" ] && [ "$SSH_SERVER_EFFECTIVE_ROOT_LOGIN" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PUBKEY_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PASSWORD_AUTH" = "$SSH_SERVER_PASSWORD_AUTH" ] && [ "$SSH_SERVER_EFFECTIVE_LOGIN_GRACE_TIME" = "$SSH_SERVER_LOGIN_GRACE_TIME" ] && [ "$SSH_SERVER_EFFECTIVE_TCP_KEEPALIVE" = "no" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_INTERVAL" = "$SSH_SERVER_CLIENT_ALIVE_INTERVAL" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX" = "0" ] && [ "$SSH_SERVER_EFFECTIVE_MAX_STARTUPS" = "$SSH_SERVER_MAX_STARTUPS" ] && [ "$SSH_SERVER_CHANNEL_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY" = true ]; then
+    if [ "$SSH_SERVER_EFFECTIVE_PORT" = "$SSH_SERVER_PORT" ] && [ "$SSH_SERVER_EFFECTIVE_ROOT_LOGIN" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PUBKEY_AUTH" = "yes" ] && [ "$SSH_SERVER_EFFECTIVE_PASSWORD_AUTH" = "$SSH_SERVER_PASSWORD_AUTH" ] && [ "$SSH_SERVER_EFFECTIVE_LOGIN_GRACE_TIME" = "$SSH_SERVER_LOGIN_GRACE_TIME" ] && [ "$SSH_SERVER_EFFECTIVE_TCP_KEEPALIVE" = "no" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_INTERVAL" = "$SSH_SERVER_CLIENT_ALIVE_INTERVAL" ] && [ "$SSH_SERVER_EFFECTIVE_CLIENT_ALIVE_COUNT_MAX" = "$SSH_SERVER_CLIENT_ALIVE_COUNT_MAX" ] && [ "$SSH_SERVER_EFFECTIVE_MAX_STARTUPS" = "$SSH_SERVER_MAX_STARTUPS" ] && [ "$SSH_SERVER_CHANNEL_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_UNUSED_CONNECTION_TIMEOUT_READY" = true ] && [ "$SSH_SERVER_PER_SOURCE_MAX_STARTUPS_READY" = true ]; then
         SSH_SERVER_CONFIG_APPLIED=true
     fi
 }
@@ -471,7 +474,8 @@ ssh_server_apply_changed_config() {
 # cure is a persistent shell. This deploys an /etc/profile.d hook attaching
 # interactive SSH logins to a stable tmux session, so reconnecting resumes the
 # same shell. Session selection: a login attaches to the first session that is
-# missing or has no attached clients (a dropped connection leaves its session
+# missing or has no attached clients (sshd closes a dead connection after
+# ClientAliveCountMax unanswered alive requests, which leaves its session
 # unattached, so a reconnect resumes it); a second simultaneous window takes
 # the next free name (main, main-2, main-3, ...) instead of mirroring the
 # first window's input and screen. Non-interactive ssh/sftp/scp never source
@@ -494,7 +498,8 @@ ssh_server_ensure_session_persistence() {
 # Managed by 23_setup_ssh_remote.sh (core_node). Do not edit by hand.
 # Reconnect-resilient SSH: attach interactive logins to a persistent tmux
 # session so a dropped transport no longer kills the running shell.
-# A dropped connection leaves its session with no attached clients, so a
+# sshd closes a dead connection after $SSH_SERVER_CLIENT_ALIVE_COUNT_MAX unanswered alive requests
+# (${SSH_SERVER_CLIENT_ALIVE_INTERVAL}s apart), leaving its session with no attached clients, so a
 # reconnect resumes it; a second simultaneous window takes the next free
 # session name instead of sharing (mirroring) the first window.
 # Opt out per user: touch ~/$SSH_SERVER_TMUX_OPTOUT_FILE

@@ -18,6 +18,10 @@ export enum NativeMessageType {
   ENSURE_NATIVE = 'ensure_native',
   PING_NATIVE = 'ping_native',
   DISCONNECT_NATIVE = 'disconnect_native',
+  // Client-key signing (K6): the extension asks its native host to sign a
+  // Laravel request; only the digest and the signed headers cross the port.
+  SIGN_CLIENT_REQUEST = 'sign_client_request',
+  SIGN_CLIENT_REQUEST_RESPONSE = 'sign_client_request_response',
 }
 
 export interface NativeMessage<P = any, E = any> {
@@ -25,6 +29,22 @@ export interface NativeMessage<P = any, E = any> {
   responseToRequestId?: string;
   payload?: P;
   error?: E;
+}
+
+export interface ClientKeySignRequest {
+  method: string;
+  /** Request path plus the raw query exactly as sent, e.g. `/api/x?a=1`. */
+  url: string;
+  contentType: string;
+  /** Lowercase sha256 hex of the exact body bytes, or the contract unsigned literal. */
+  contentSha256: string;
+}
+
+export interface ClientKeySignResult {
+  ok: boolean;
+  headers?: Record<string, string>;
+  /** A `client_key_auth.error_codes` value when signing failed. */
+  code?: string;
 }
 
 // ============================================================

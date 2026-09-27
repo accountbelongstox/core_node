@@ -12,7 +12,7 @@
 
 const { Sequelize } = require('sequelize');
 const logger = require('#@logger');
-const { isDebug } = require('#@global_vars')
+const { isDebug } = require('../../common/logger.js')
 const printedDatabases = {};
 
 async function printTableStructure(sequelize, tableName, dbName) {

@@ -18,6 +18,17 @@
   "device": "cpu",
   "default_batch_size": 20
  },
+ "word_identity": {
+  "rule": "md5-of-exact-stored-dictionary-content",
+  "producer": "laravel",
+  "consumers_recompute": false,
+  "fields": {
+   "word_audio_lane": "payload.md5",
+   "dict_lanes_batched": "payload.words[].md5",
+   "word_audio_upload": "body.md5",
+   "delivery_word_key": "<lang>:<md5>[:<variant>]"
+  }
+ },
  "http_transfer": {
   "protocol": "offset-v1",
   "chunk_bytes": 262144,
@@ -40,6 +51,15 @@
    "cover_priority": "cover.priority",
    "poster_priority": "poster.priority",
    "worker_presence": "worker.presence"
+  },
+  "head_keys": {
+   "task_priority": "task_id",
+   "cover_priority": "items[].resource_key",
+   "poster_priority": "items[].resource_key"
+  },
+  "resource_key_formats": {
+   "cover_priority": "library:<library_id>",
+   "poster_priority": "<media_type>:<media_id>"
   }
  },
  "head_parts": {
@@ -188,10 +208,6 @@
    "protocol": "mercure",
    "path": "/.well-known/mercure",
    "token_ttl_seconds": 600
-  },
-  "device_identity": {
-   "clock_skew_seconds": 300,
-   "nonce_ttl_seconds": 600
   },
   "topics": {
    "machines": "pycore.machines",
@@ -477,7 +493,6 @@
    "completed": 500,
    "long_poll_seconds": 30,
    "history_records": 200,
-   "history_timeline": 50,
    "event_batch": 200
   },
   "capability_labels": {

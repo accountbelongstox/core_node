@@ -20,6 +20,8 @@ from pycore.pyutils.window.ops import (
     get_window_thread_process_id,
     get_wheel_scroll_lines,
     is_window_topmost,
+    WM_COMMAND,
+    post_window_message,
     press_native_key_combo,
     scroll_mouse_wheel,
     set_window_topmost,
@@ -50,6 +52,11 @@ NATIVE_KEY_NAMES = {
     TERMINAL_KEY_END: "END",
 }
 NATIVE_BUTTON_NAMES = {1: "left", 3: "right"}
+# Windows Terminal pastes on Ctrl+Shift+V. A classic console gets its own
+# Edit > Paste command (WM_COMMAND 0xFFF1): a right-click would COPY a QuickEdit
+# selection the activation click may have started instead of pasting.
+WINDOWS_TERMINAL_PASTE_KEYS = ("CTRL", "SHIFT", "V")
+CONSOLE_PASTE_COMMAND_ID = 0xFFF1
 
 
 class WindowsTerminalBackend(TerminalWindowBackend):
@@ -119,15 +126,9 @@ class WindowsTerminalBackend(TerminalWindowBackend):
         return None
 
     def _paste(self, window: Dict[str, Any]) -> bool:
-        rectangle = get_window_rect(int(window["native_id"]))
-        if rectangle is None:
-            return False
-        left, top, right, bottom = rectangle
-        return click_screen_point(
-            left + max(1, right - left) // 2,
-            top + max(1, bottom - top) // 2,
-            "right",
-        )
+        if str(window.get("class_name") or "").strip().lower() == WINDOWS_TERMINAL_HOST_CLASS.lower():
+            return press_native_key_combo(list(WINDOWS_TERMINAL_PASTE_KEYS))
+        return post_window_message(int(window["native_id"]), WM_COMMAND, CONSOLE_PASTE_COMMAND_ID, 0)
 
     def _capture(self, regions: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         return grab_screen_regions(list(regions))

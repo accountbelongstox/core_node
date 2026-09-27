@@ -31,10 +31,10 @@ Config (environment):
 """
 
 import os
-import threading
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORD_AUDIO_BATCH
 from pycore.pyutils.common.model_tiers import gpu_present
 from pycore.pyutils.tts.memory_gate import (
@@ -78,8 +78,6 @@ _PROFILE_ALIASES = {
     "agent_history": "sentence",
 }
 
-_PIN_LOCK = threading.Lock()
-_PROFILE: Optional[Dict[str, Any]] = None
 
 
 def _detect_mode() -> str:
@@ -93,41 +91,36 @@ def _fmt_gb(num_bytes: Optional[int]) -> str:
     return "unknown" if num_bytes is None else f"{num_bytes / _GB:.1f}GB"
 
 
-def pin_runtime_profile() -> Dict[str, Any]:
-    """Compute the profile once and fix it in memory (idempotent)."""
-    global _PROFILE
-    with _PIN_LOCK:
-        if _PROFILE is not None:
-            return _PROFILE
-        mode = _detect_mode()
-        enabled = mode != "off"
-        if mode == "gpu":
-            # Startup policy: qwen3tts is the only GPU consumer by design, so
-            # foreign processes holding the card are stopped when free VRAM is
-            # below the recommended floor (6 GB) — before the snapshot below.
-            reclaim_vram()
-        plan = dict((_GPU_PLAN if mode == "gpu" else _CPU_PLAN)) if enabled else {}
-        scheduled = frozenset(engine for chain in plan.values() for engine in chain)
-        gpu_util, free_vram, total_vram = gpu_stats()
-        _PROFILE = {
-            "enabled": enabled,
-            "mode": mode,
-            "plan": plan,
-            "scheduled": scheduled,
-            "gpu_util_percent": gpu_util,
-            "free_vram_bytes": free_vram,
-            "total_vram_bytes": total_vram,
-            "free_ram_bytes": free_ram_bytes(),
-        }
+def _compute_profile() -> Dict[str, Any]:
+    mode = _detect_mode()
+    enabled = mode != "off"
+    if mode == "gpu":
+        # Opt-in reclaim (QWEN3TTS_VRAM_RECLAIM=1) of pycore-started GPU
+        # processes when free VRAM is below the recommended floor (6 GB),
+        # before the snapshot below; other processes are never touched.
+        reclaim_vram()
+    plan = dict((_GPU_PLAN if mode == "gpu" else _CPU_PLAN)) if enabled else {}
+    scheduled = frozenset(engine for chain in plan.values() for engine in chain)
+    gpu_util, free_vram, total_vram = gpu_stats()
+    profile = {
+        "enabled": enabled,
+        "mode": mode,
+        "plan": plan,
+        "scheduled": scheduled,
+        "gpu_util_percent": gpu_util,
+        "free_vram_bytes": free_vram,
+        "total_vram_bytes": total_vram,
+        "free_ram_bytes": free_ram_bytes(),
+    }
     if not enabled:
         ColorPrint.yellow(
             f"[tts-profile] {TTS_RUNTIME_PROFILE_ENV}=off: legacy persisted engine chains active"
         )
-        return _PROFILE
+        return profile
     ColorPrint.green(
         f"[tts-profile] pinned runtime profile: mode={mode} "
         f"(free VRAM {_fmt_gb(free_vram)} / {_fmt_gb(total_vram)}, "
-        f"free RAM {_fmt_gb(_PROFILE['free_ram_bytes'])})"
+        f"free RAM {_fmt_gb(profile['free_ram_bytes'])})"
     )
     ColorPrint.blue(
         f"[tts-profile] word: {' -> '.join(plan['word'])} | "
@@ -138,7 +131,15 @@ def pin_runtime_profile() -> Dict[str, Any]:
         f"[tts-profile] auto-scheduled engines: {', '.join(sorted(scheduled))}; "
         "other engines run only via explicit UI test through the RAM/VRAM gateway"
     )
-    return _PROFILE
+    return profile
+
+
+_PROFILE_PROVIDER = SerializedSingletonProvider(_compute_profile, "tts.runtime_profile", "TtsRuntimeProfile")
+
+
+def pin_runtime_profile() -> Dict[str, Any]:
+    """Compute the profile once and fix it in memory (idempotent)."""
+    return _PROFILE_PROVIDER.get()
 
 
 def profile_snapshot() -> Dict[str, Any]:

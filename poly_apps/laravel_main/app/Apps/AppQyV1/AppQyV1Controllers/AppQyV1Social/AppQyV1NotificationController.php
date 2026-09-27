@@ -133,7 +133,7 @@ class AppQyV1NotificationController extends Controller
         $id = (int) $request->input('id', 0);
 
         if (!$all && $id <= 0) {
-            return $this->error('Provide a notification id or all:true', 422);
+            return $this->error(__('app_qy_v1.messages.provide_a_notification_id_or_all_true'), 422);
         }
 
         $updated = AppQyV1NotificationModel::markReadForUser(
@@ -141,6 +141,6 @@ class AppQyV1NotificationController extends Controller
             $all ? null : $id
         );
 
-        return $this->success(['updated' => $updated], 'Notifications marked read');
+        return $this->success(['updated' => $updated], __('app_qy_v1.messages.notifications_marked_read'));
     }
 }

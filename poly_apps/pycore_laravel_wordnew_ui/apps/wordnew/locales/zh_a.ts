@@ -101,6 +101,8 @@ export const zhLocaleA: Record<string, string> = {
     'admin.empty': '暂无数据',
     'admin.refresh': '刷新',
     'admin.needLogin': '该操作需要登录账号 — 后端对其保留令牌保护。',
+    'admin.needAdmin': '该操作需要管理员账号。',
+    'admin.requestFailed': '请求失败。',
     'admin.confirm': '确认',
     'admin.cancel': '取消',
     'admin.ov.totalLangs': '语言数',

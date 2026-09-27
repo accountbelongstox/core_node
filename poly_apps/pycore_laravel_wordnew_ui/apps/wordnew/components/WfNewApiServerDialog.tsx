@@ -27,6 +27,7 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
   const [newHost, setNewHost] = useState('');
   const [newPort, setNewPort] = useState<number>(WFNEW_API_PORT);
   const [probe, setProbe] = useState<{ running: boolean; text: string; ok: boolean | null }>({ running: false, text: '', ok: null });
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   // Make sure detection has run at least once when the dialog opens.
   useEffect(() => {
@@ -47,9 +48,17 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
     else notify.warning(trans('api.toastNoneReachable'));
   }, [trans]);
 
-  const handleUse = useCallback((id: string) => {
-    if (wfNewEndpoints.setEndpoint(id)) notify.info(trans('api.toastSelected'));
-  }, [trans]);
+  const handleUse = useCallback(async (id: string) => {
+    if (switchingId) return;
+    setSwitchingId(id);
+    try {
+      const result = await wfNewEndpoints.switchEndpoint(id);
+      if (result.ok) notify.success(trans('api.toastSwitched'));
+      else notify.warning(trans('api.toastSwitchFailed', { err: result.error ?? '' }));
+    } finally {
+      setSwitchingId(null);
+    }
+  }, [switchingId, trans]);
 
   const handleAdd = useCallback(() => {
     const host = newHost.trim();
@@ -165,10 +174,13 @@ export const WfNewApiServerDialog: React.FC<WfNewApiServerDialogProps> = ({ open
                     <div className="flex items-center gap-1.5 shrink-0">
                       {!isCurrent && (
                         <button
-                          onClick={() => handleUse(ep.id)}
-                          className="flex items-center gap-1 text-[10px] font-mono font-bold uppercase bg-white/5 hover:bg-indigo-500/15 text-indigo-500 px-2.5 py-1.5 rounded-lg border border-indigo-500/20 transition-all"
+                          onClick={() => { void handleUse(ep.id); }}
+                          disabled={switchingId !== null}
+                          className="flex items-center gap-1 text-[10px] font-mono font-bold uppercase bg-white/5 hover:bg-indigo-500/15 text-indigo-500 px-2.5 py-1.5 rounded-lg border border-indigo-500/20 transition-all disabled:opacity-50"
                         >
-                          <Check className="w-3 h-3" /> {trans('api.use')}
+                          {switchingId === ep.id
+                            ? <><RefreshCw className="w-3 h-3 animate-spin" /> {trans('api.statusChecking')}</>
+                            : <><Check className="w-3 h-3" /> {trans('api.use')}</>}
                         </button>
                       )}
                       {ep.custom && (

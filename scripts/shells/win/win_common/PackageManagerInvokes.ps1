@@ -15,8 +15,8 @@
 # Excluded: Invoke-WingetCommand (remains in CommonFunc.ps1)
 
 # Import required modules
-. "$PSScriptRoot\CommonFunc.ps1"
-. "$PSScriptRoot\PythonRuntimeCommon.ps1"
+. (Join-Path $PSScriptRoot "CommonFunc.ps1")
+. (Join-Path $PSScriptRoot "PythonRuntimeCommon.ps1")
 
 function Test-PipPackagePresentOnDisk {
     param(
@@ -2422,7 +2422,7 @@ function Invoke-ChocoCommand {
         # Chocolatey default installation directories
         $chocoInstallPath = $env:ChocolateyInstall
         if (-not $chocoInstallPath) {
-            $chocoInstallPath = "$env:ProgramData\chocolatey"
+            $chocoInstallPath = Join-Path $env:ProgramData "chocolatey"
         }
         
         # Main chocolatey bin directory
@@ -2647,7 +2647,7 @@ function Invoke-ScoopCommand {
         # Global scoop installation paths
         $globalScoopPath = $env:SCOOP_GLOBAL
         if (-not $globalScoopPath) {
-            $globalScoopPath = "$env:ProgramData\scoop"
+            $globalScoopPath = Join-Path $env:ProgramData "scoop"
         }
         
         if (Test-Path $globalScoopPath) {
@@ -3320,7 +3320,7 @@ function Invoke-GemCommand {
         # Common Windows Ruby installation paths
         $commonRubyPaths = @(
             "C:\Ruby*\bin",
-            "$env:ProgramFiles\Ruby*\bin",
+            (Join-Path $env:ProgramFiles "Ruby*\bin"),
             "${env:ProgramFiles(x86)}\Ruby*\bin"
         )
         
@@ -3926,8 +3926,8 @@ function Invoke-PowerShellCommand {
         "C:\Program Files",
         "C:\Program Files (x86)",
         $env:USERPROFILE,
-        "$env:USERPROFILE\bin",
-        "$env:USERPROFILE\.local\bin"
+        (Join-Path $env:USERPROFILE "bin"),
+        (Join-Path $env:USERPROFILE ".local\bin")
     )
     $searchPaths += $systemPaths
 
@@ -4003,8 +4003,8 @@ function Invoke-PowerShellCommand {
         "C:\Program Files",
         "C:\Program Files (x86)",
         $env:USERPROFILE,
-        "$env:USERPROFILE\bin",
-        "$env:USERPROFILE\.local\bin"
+        (Join-Path $env:USERPROFILE "bin"),
+        (Join-Path $env:USERPROFILE ".local\bin")
     )
     $searchPaths += $systemPaths
     

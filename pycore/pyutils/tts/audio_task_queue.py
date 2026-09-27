@@ -229,8 +229,10 @@ class AudioTaskQueue:
         return changed
 
     @serialized_method
-    def prune_absent(self, keep_task_ids: List[Any]) -> int:
-        """Drop queued Laravel-mirrored entries absent from the pending set.
+    def prune_absent(self, keep_task_ids: List[Any]) -> Tuple[int, List[str]]:
+        """Drop queued Laravel-mirrored entries absent from the pending set;
+        returns (pruned count, dedup keys of pruned Part1 members) so the
+        library can settle their tracker entries.
 
         The ordered diff IS the authoritative pending claim order: a mirrored
         task missing from it was finished or claimed elsewhere, so keeping it
@@ -246,9 +248,10 @@ class AudioTaskQueue:
             if str(raw_id or "").strip()
         }
         if not self._heap:
-            return 0
+            return 0, []
         kept: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
         pruned = 0
+        pruned_part1: List[str] = []
         for entry in self._heap:
             task = entry[-1]
             task_id = (
@@ -269,12 +272,14 @@ class AudioTaskQueue:
                 dedup_key = str(self._dedup_key_of(task) or "")
                 if dedup_key:
                     self._active_dedup_keys.discard(dedup_key)
+                    if dedup_key in self._part1_keys:
+                        pruned_part1.append(dedup_key)
                     self._part1_keys.discard(dedup_key)
         if pruned:
             self._heap = kept
             heapq.heapify(self._heap)
             self._part1_count_valid = False
-        return pruned
+        return pruned, pruned_part1
 
     @serialized_method
     def move_to_head(self, task_id: Any, queue_position: int) -> bool:

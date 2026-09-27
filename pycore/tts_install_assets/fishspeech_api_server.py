@@ -22,7 +22,7 @@ Run after install_fishspeech:
   python fishspeech_api_server.py
 
 Env:
-  FISHSPEECH_HOST / FISHSPEECH_PORT  - bind (default 0.0.0.0:8080)
+  FISHSPEECH_HOST / FISHSPEECH_PORT  - bind (default 127.0.0.1:8080)
   FISHSPEECH_UPSTREAM                - optional upstream base (e.g. http://127.0.0.1:8081)
   FISH_API_KEY                       - Fish Audio cloud API key
 """
@@ -181,7 +181,7 @@ def tts(req: TtsRequest):
 
 
 def main():
-    host = os.environ.get("FISHSPEECH_HOST", "0.0.0.0")
+    host = os.environ.get("FISHSPEECH_HOST", "127.0.0.1")
     port = int(os.environ.get("FISHSPEECH_PORT") or _DEFAULT_PORT)
     uvicorn.run(app, host=host, port=port)
 

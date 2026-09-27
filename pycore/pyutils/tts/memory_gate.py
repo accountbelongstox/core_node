@@ -11,11 +11,11 @@ synthesis on engines that actually fit instead of dying inside
 Config:
   TTS_MEMORY_GATE   - set to 0 to disable the gate (default: on)
   QWEN3TTS_MIN_FREE_VRAM_MB        - launch floor for auto->cuda (default 800)
-  QWEN3TTS_RECOMMENDED_FREE_VRAM_MB - below this, foreign GPU processes are
-                                      forcibly stopped at startup/launch
-                                      (default 6144; qwen3tts is the only GPU
-                                      consumer by design)
-  QWEN3TTS_VRAM_RECLAIM - set to 0 to disable the forcible VRAM reclaim
+  QWEN3TTS_RECOMMENDED_FREE_VRAM_MB - below this, the opt-in reclaim stops
+                                      GPU processes pycore itself started
+                                      (default 6144)
+  QWEN3TTS_VRAM_RECLAIM - set to 1 to opt in to the VRAM reclaim (default off);
+                          processes pycore did not start are never touched
 """
 
 import os
@@ -23,6 +23,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.network_constants import (
+    NVIDIA_SMI_TIMEOUT_SECONDS,
     QWEN3TTS_MIN_FREE_VRAM_MB,
     QWEN3TTS_MIN_FREE_VRAM_MB_ENV,
     QWEN3TTS_RECOMMENDED_FREE_VRAM_MB,
@@ -41,6 +42,8 @@ BYTES_PER_GIB = 1024 ** 3
 BYTES_PER_MIB = 1024 ** 2
 _GB = BYTES_PER_GIB
 _MB = BYTES_PER_MIB
+VRAM_RECLAIM_ON = "1"
+VRAM_RECLAIM_DEFAULT = "0"
 
 
 def _parler_requirement() -> Tuple[int, int]:
@@ -86,7 +89,7 @@ def _qwen3tts_requirement() -> Tuple[int, int]:
 
 # qwen3tts VRAM launch policy (MiB) imported from network_constants (single source of truth).
 # Env overrides: QWEN3TTS_MIN_FREE_VRAM_MB / QWEN3TTS_RECOMMENDED_FREE_VRAM_MB /
-# QWEN3TTS_VRAM_RECLAIM=0 (disable the forcible reclaim).
+# QWEN3TTS_VRAM_RECLAIM=1 (opt in to reclaiming VRAM from pycore-started processes).
 
 
 # engine -> callable returning (free RAM bytes, free VRAM bytes) required to
@@ -197,7 +200,7 @@ def _env_mib(name: str, default: int) -> int:
 
 
 def vram_reclaim_enabled() -> bool:
-    return (os.environ.get(QWEN3TTS_VRAM_RECLAIM_ENV) or "1").strip() != "0"
+    return (os.environ.get(QWEN3TTS_VRAM_RECLAIM_ENV) or VRAM_RECLAIM_DEFAULT).strip() == VRAM_RECLAIM_ON
 
 
 def _gpu_compute_apps(device_index: Optional[int]) -> Optional[List[Tuple[int, int]]]:
@@ -212,7 +215,7 @@ def _gpu_compute_apps(device_index: Optional[int]) -> Optional[List[Tuple[int, i
             "--query-compute-apps=pid,used_memory",
             "--format=csv,noheader,nounits",
         ]
-        result = exec_silent(cmd, info=False)
+        result = exec_silent(cmd, info=False, timeout=NVIDIA_SMI_TIMEOUT_SECONDS)
         if result.return_code != 0:
             return None
         rows: List[Tuple[int, int]] = []
@@ -226,14 +229,13 @@ def _gpu_compute_apps(device_index: Optional[int]) -> Optional[List[Tuple[int, i
 
 
 def reclaim_vram(device_index: Optional[int] = None) -> Dict[str, Any]:
-    """Forcibly stop OTHER processes holding the GPU when free VRAM is below
-    the recommended floor (default 6 GB).
+    """Opt-in (QWEN3TTS_VRAM_RECLAIM=1): stop GPU compute processes that pycore
+    itself started (its descendants, e.g. another TTS engine server) when free
+    VRAM is below the recommended floor (default 6 GB).
 
-    By design qwen3tts is the ONLY engine that needs the card, so foreign
-    compute apps are terminated (graceful terminate, then kill after a short
-    grace) and the freed VRAM is reported. This process is never touched, and
-    a GPU already above the recommended floor is left alone.
-    QWEN3TTS_VRAM_RECLAIM=0 disables the reclaim.
+    Processes pycore did not start are never touched; this process is never
+    touched, and a GPU already above the recommended floor is left alone.
+    When the card stays short, the caller falls back to CPU.
     """
     report: Dict[str, Any] = {
         "enabled": vram_reclaim_enabled(),
@@ -256,20 +258,19 @@ def reclaim_vram(device_index: Optional[int] = None) -> Dict[str, Any]:
         report["free_mb_after"] = report["free_mb_before"]
         return report
     apps = _gpu_compute_apps(device_index) or []
-    own_pid = os.getpid()
-    victims = [(pid, used) for pid, used in apps if pid and pid != own_pid]
+    psutil = get_third_package_psutil()
+    if psutil is None:
+        report["free_mb_after"] = report["free_mb_before"]
+        return report
+    own_descendants = {child.pid for child in psutil.Process(os.getpid()).children(recursive=True)}
+    victims = [(pid, used) for pid, used in apps if pid in own_descendants]
     if not victims:
         report["free_mb_after"] = report["free_mb_before"]
         return report
     ColorPrint.yellow(
         f"[tts-gpu] free VRAM {free_before // _MB} MiB < recommended "
-        f"{recommended_mb} MiB; stopping {len(victims)} foreign GPU process(es) "
-        "(qwen3tts is the only GPU consumer by design)"
+        f"{recommended_mb} MiB; stopping {len(victims)} pycore-started GPU process(es)"
     )
-    psutil = get_third_package_psutil()
-    if psutil is None:
-        report["free_mb_after"] = report["free_mb_before"]
-        return report
     for pid, used in victims:
         try:
             proc = psutil.Process(pid)

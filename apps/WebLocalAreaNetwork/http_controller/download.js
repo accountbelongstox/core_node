@@ -13,17 +13,15 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('#@logger');
+const { pathtool } = require('#@btools');
 const { ALLOW_DOWNLOAD_DIR, SKIP_DIRS } = require('#@gconfig');
 
 // List directory contents (dirs and files), skip SKIP_DIRS and __* dirs, only under ALLOW_DOWNLOAD_DIR
 function listDir(req, res) {
     let dir = req.query.dir;
     if (!dir || dir === '' || dir === '/') dir = '/';
-    let absDir = path.resolve(ALLOW_DOWNLOAD_DIR, '.' + dir);
-    // Normalize both paths to remove trailing slashes/backslashes
-    const normAbsDir = absDir.replace(/[\\/]+$/, '');
-    const normRoot = ALLOW_DOWNLOAD_DIR.replace(/[\\/]+$/, '');
-    if (!normAbsDir.startsWith(normRoot)) {
+    const absDir = pathtool.resolveInside(ALLOW_DOWNLOAD_DIR, String(dir));
+    if (!absDir) {
         return res.status(403).json({ error: 'Unauthorized directory' });
     }
     let items = [];
@@ -73,11 +71,9 @@ function downloadFile(req, res) {
         return null;
     }
     
-    let absFile = path.resolve(ALLOW_DOWNLOAD_DIR, '.' + file);
-    const normAbsFile = absFile.replace(/[\\/]+$/, '');
-    const normRoot = ALLOW_DOWNLOAD_DIR.replace(/[\\/]+$/, '');
-    
-    if (!normAbsFile.startsWith(normRoot)) {
+    const absFile = pathtool.resolveInside(ALLOW_DOWNLOAD_DIR, String(file));
+
+    if (!absFile) {
         res.status(403).send('Unauthorized directory');
         return null;
     }

@@ -1,0 +1,2 @@
+- [Laravel date serialization](laravel-date-serialization.md) — date-only fields arrive as UTC-midnight ISO; use cmParseDate calendar mode
+- [Task board fallback](team-task-board-fallback.md) — no task tools: use codemart-<n> rows in shared TASKS.md + report file

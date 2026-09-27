@@ -28,13 +28,10 @@
 # Secrets: KIMI_API_KEY_1 (required),
 #   KIMI_BASE_URL_1 (optional --base-url override).
 
-upgrade_choice=""
 model_pick=""
 mcp_install_choice=""
 kimi_installer_url="https://code.kimi.com/kimi-code/install.sh"
-current_version_output=""
-latest_version_output=""
-version_gap_large="0"
+ai_cli_provision_common_path=""
 script_dir_path=""
 script_source_path=""
 scripts_dir_path=""
@@ -204,50 +201,19 @@ if ! command -v kimi >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "[INFO] KIMI_API_KEY_1: ${kimi_api_key:-[empty]}"
+# Shared launcher helpers (scripts/shells/linux/common/ai_cli_provision_common.sh):
+# masked secret display, and the version check + optional upgrade, which prompts
+# only when a newer version is published, defaults to N and auto-skips after 5 seconds.
+ai_cli_provision_common_path="$core_node_path/scripts/shells/linux/common/ai_cli_provision_common.sh"
+. "$ai_cli_provision_common_path"
+
+echo "[INFO] KIMI_API_KEY_1: $(ai_cli_mask_secret "$kimi_api_key")"
 echo "[INFO] KIMI_BASE_URL_1: ${kimi_base_url:-[empty]}"
 if [ -z "$kimi_api_key" ]; then
     echo "[WARN] KIMI_API_KEY_1 is empty; provider setup will fail."
 fi
 
-# Version check + optional upgrade via the official native installer (default N).
-if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
-    current_version_output="$(kimi --version 2>/dev/null || true)"
-    latest_version_output="$(pnpm view @moonshot-ai/kimi-code version 2>/dev/null || true)"
-    version_gap_large="$(node -e '
-const currentInput = process.argv[1];
-const latestInput = process.argv[2];
-const parseVersion = (value) => {
-    const tokens = value.trim().split(/\s+/);
-    for (const token of tokens) {
-        const candidate = token.startsWith("v") ? token.slice(1) : token;
-        const parts = candidate.split(".");
-        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
-        if (valid) {
-            return parts.map(Number);
-        }
-    }
-    return null;
-};
-const current = parseVersion(currentInput);
-const latest = parseVersion(latestInput);
-const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
-const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
-process.stdout.write(large ? "1" : "0");
-' "$current_version_output" "$latest_version_output" 2>/dev/null || true)"
-fi
-if [ "$version_gap_large" = "1" ]; then
-    printf '\033[33mUpgrade Kimi Code CLI? [y/N]: \033[0m'
-    read -r upgrade_choice || upgrade_choice=""
-fi
-if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
-    echo "[INFO] Upgrading Kimi Code CLI with the official native installer..."
-    curl -fsSL "$kimi_installer_url" | bash
-    hash -r
-    echo "[INFO] Kimi Code CLI native upgrade command completed."
-elif [ "$version_gap_large" = "1" ]; then
-    echo "[INFO] Kimi Code CLI upgrade skipped."
-fi
+ai_cli_upgrade_prompt "kimi"
 
 # Model selection (default 1 = kimi k3 256K / k3-256k; auto-selects after 5s).
 echo "Select model (default 1 = kimi k3 256K / k3-256k; auto-select in 5 seconds):"

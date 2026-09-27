@@ -81,10 +81,13 @@ mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
 mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
 mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
 mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
+ai_cli_provision_common_path="$mcp_chrome_linux_common_dir/ai_cli_provision_common.sh"
 kimi_install_script_path="$core_node_path/scripts/shells/linux/debian/install_shells/153_install_desktop_applications.sh"
 source "$mcp_chrome_gvar_common_path"
 source "$mcp_chrome_venv_python_common_path"
 source "$mcp_chrome_service_contract_common_path"
+# Shared launcher helpers; keys are printed through ai_cli_mask_secret.
+source "$ai_cli_provision_common_path"
 mcp_chrome_extension_manifest_path="$mcp_chrome_path/$(sc_require mcp_chrome.build_output_dir)/$(sc_require mcp_chrome.extension_dir)/manifest.json"
 mcp_chrome_port="$(sc_require ports.mcp_chrome)"
 mcp_chrome_url="http://$(sc_require hosts.loopback):${mcp_chrome_port}/mcp"
@@ -172,7 +175,7 @@ if [ "${#kimi_key_values[@]}" -gt 0 ]; then
                 if [ "$entry_index" -eq "$selected_key_index" ]; then
                     entry_marker=" (current)"
                 fi
-                echo "  [$((entry_index + 1))] KIMI_API_KEY_${kimi_key_indices[$entry_index]}: ${kimi_key_values[$entry_index]}${entry_marker}"
+                echo "  [$((entry_index + 1))] KIMI_API_KEY_${kimi_key_indices[$entry_index]}: $(ai_cli_mask_secret "${kimi_key_values[$entry_index]}")${entry_marker}"
             done
             printf '\033[33mSelect key number [1-%s]: \033[0m' "${#kimi_key_values[@]}"
             read -r switch_pick || switch_pick=""
@@ -182,7 +185,7 @@ if [ "${#kimi_key_values[@]}" -gt 0 ]; then
         fi
     fi
     kimi_api_key="${kimi_key_values[$selected_key_index]}"
-    echo "[INFO] Using KIMI_API_KEY_${kimi_key_indices[$selected_key_index]}: $kimi_api_key"
+    echo "[INFO] Using KIMI_API_KEY_${kimi_key_indices[$selected_key_index]}: $(ai_cli_mask_secret "$kimi_api_key")"
 fi
 
 echo ""
@@ -211,7 +214,7 @@ if ! command -v kimi >/dev/null 2>&1; then
 fi
 
 echo "[INFO] KIMI_BASE_URL: ${kimi_base_url:-[empty]}"
-echo "[INFO] API key: ${kimi_api_key:-[empty]}"
+echo "[INFO] API key: $(ai_cli_mask_secret "$kimi_api_key")"
 if [ -z "$kimi_api_key" ]; then
     echo "[WARN] No API key found (KIMI_API_KEY_*); provider setup will be skipped."
 fi

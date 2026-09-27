@@ -134,6 +134,11 @@ def synthesis_submit(params: Dict[str, Any]) -> Dict[str, Any]:
                 "message": "scope and text are required",
             },
         }
+    if qwen_operations.normalize_audio_format(params.get("format")) is None:
+        return {
+            "success": False,
+            "error": qwen_operations.unsupported_format_error(),
+        }
     return {
         "success": True,
         "data": qwen_operations.submit(scope, params),

@@ -10,108 +10,24 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const path = require('path');
-const fs = require('fs');
-const { isWindows, isLinux, isMac } = require('#@global_vars');
-const commander = require('#@commander');
-const logger = require('#@logger');
+const explorer = require('#@ncore/utils/systool/libs/explorer.js');
 
-/**
- * App Executable Launcher
- *
- * Searches for and launches executable files in app directory.
- * Similar to ncore/utils/systool/libs/explorer.js but designed for launcher integration.
- *
- * Supports:
- * - Windows: .cmd, .bat files
- * - Linux: .sh files
- * - macOS: .sh files
- */
-
+// Launcher-facing name for the single explorer launch implementation (ncore/utils/systool/libs/explorer.js)
 class AppExecutableLauncher {
-    constructor() {
-        if (isWindows) {
-            this.supportedExtensions = ['.cmd', '.bat'];
-        } else if (isLinux || isMac) {
-            this.supportedExtensions = ['.sh'];
-        } else {
-            this.supportedExtensions = [];
-        }
+    get supportedExtensions() {
+        return explorer.supportedExtensions;
     }
 
     searchExecutableFile(directory, baseName) {
-        if (!fs.existsSync(directory)) {
-            return null;
-        }
-
-        for (const ext of this.supportedExtensions) {
-            const filePath = path.join(directory, baseName + ext);
-            if (fs.existsSync(filePath)) {
-                logger.info(`[Launcher] Found executable file: ${filePath}`);
-                return filePath;
-            }
-        }
-
-        return null;
+        return explorer.searchExecutableFile(directory, baseName);
     }
 
     async launchWithExplorer(filePath) {
-        try {
-            if (!fs.existsSync(filePath)) {
-                logger.error(`[Launcher] File not found: ${filePath}`);
-                return false;
-            }
-
-            let command;
-
-            if (isWindows) {
-                command = `explorer "${filePath}"`;
-            } else if (isMac) {
-                command = `open "${filePath}"`;
-            } else if (isLinux) {
-                command = `xdg-open "${filePath}"`;
-            } else {
-                logger.error('[Launcher] Unsupported operating system for explorer launch');
-                return false;
-            }
-
-            logger.info(`[Launcher] Launching with explorer: ${command}`);
-
-            await commander.execDetached(command);
-
-            logger.success(`[Launcher] Successfully launched: ${filePath}`);
-            return true;
-        } catch (error) {
-            logger.error(`[Launcher] Failed to launch file with explorer: ${error.message}`);
-            return false;
-        }
+        return explorer.launchWithExplorer(filePath);
     }
 
     async searchAndLaunchAppExecutables(appDirectory, appName) {
-        if (!isWindows) {
-            logger.info('[Launcher] Skipping launcher discovery: automatic explorer start is only available on Windows environments.');
-            return false;
-        }
-
-        if (!fs.existsSync(appDirectory)) {
-            logger.warn(`[Launcher] App directory not found: ${appDirectory}`);
-            return false;
-        }
-
-        const mainExecutable = this.searchExecutableFile(appDirectory, 'main');
-        if (mainExecutable) {
-            logger.info(`[Launcher] Found main executable for app ${appName}: ${mainExecutable}`);
-            return await this.launchWithExplorer(mainExecutable);
-        }
-
-        const appExecutable = this.searchExecutableFile(appDirectory, appName);
-        if (appExecutable) {
-            logger.info(`[Launcher] Found app-specific executable for app ${appName}: ${appExecutable}`);
-            return await this.launchWithExplorer(appExecutable);
-        }
-
-        logger.info(`[Launcher] No executable files found in app directory: ${appDirectory}`);
-        return false;
+        return explorer.searchAndLaunchAppExecutables(appDirectory, appName);
     }
 }
 

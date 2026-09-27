@@ -198,7 +198,7 @@ class MediaBrowseController extends Controller
     public function subtitleDetail(Request $request, string $source_key): JsonResponse
     {
         if (!$this->presenter->isValidSourceKey($source_key)) {
-            return $this->error('Invalid source key', 404);
+            return $this->error(__('api.messages.invalid_source_key'), 404);
         }
 
         $validated = $request->validate([
@@ -210,7 +210,7 @@ class MediaBrowseController extends Controller
 
         $subtitle = Subtitle::findBySourceKey($source_key);
         if (!$subtitle) {
-            return $this->error('Subtitle not found', 404);
+            return $this->error(__('api.messages.subtitle_not_found'), 404);
         }
 
         $segments = MediaSegment::orderedForSource($source_key)
@@ -248,7 +248,7 @@ class MediaBrowseController extends Controller
     public function bookDetail(Request $request, string $source_key): JsonResponse
     {
         if (!$this->presenter->isValidSourceKey($source_key)) {
-            return $this->error('Invalid source key', 404);
+            return $this->error(__('api.messages.invalid_source_key'), 404);
         }
 
         $validated = $request->validate([
@@ -280,7 +280,7 @@ class MediaBrowseController extends Controller
             }
         }
         if (!$source) {
-            return $this->error('Book not found', 404);
+            return $this->error(__('api.messages.book_not_found'), 404);
         }
 
         $grain = $validated['grain'] ?? 'sentence';
@@ -333,7 +333,7 @@ class MediaBrowseController extends Controller
     public function bookChapters(Request $request, string $source_key): JsonResponse
     {
         if (!$this->presenter->isValidSourceKey($source_key)) {
-            return $this->error('Invalid source key', 404);
+            return $this->error(__('api.messages.invalid_source_key'), 404);
         }
 
         $book = Book::findBySourceKey($source_key);
@@ -349,7 +349,7 @@ class MediaBrowseController extends Controller
             }
         }
         if (!$source) {
-            return $this->error('Book not found', 404);
+            return $this->error(__('api.messages.book_not_found'), 404);
         }
 
         $languages = $this->sourceLanguages($sourceType, $source);
@@ -380,7 +380,7 @@ class MediaBrowseController extends Controller
     public function bookIngestStatus(Request $request, string $source_key): JsonResponse
     {
         if (!$this->presenter->isValidSourceKey($source_key)) {
-            return $this->error('Invalid source key', 404);
+            return $this->error(__('api.messages.invalid_source_key'), 404);
         }
 
         $validated = $request->validate([
@@ -427,7 +427,7 @@ class MediaBrowseController extends Controller
     public function documentDetail(Request $request, string $id): JsonResponse
     {
         if (!ctype_digit($id)) {
-            return $this->error('Invalid document id', 404);
+            return $this->error(__('api.messages.invalid_document_id'), 404);
         }
 
         $validated = $request->validate([
@@ -439,12 +439,12 @@ class MediaBrowseController extends Controller
         // Documents belong to a user — require auth and ownership.
         $user = auth('sanctum')->user();
         if (!$user) {
-            return $this->error('Authentication required', 401);
+            return $this->error(__('api.messages.authentication_required_2'), 401);
         }
 
         $document = AppQyV1UploadedDocumentModel::findOwned((int) $id, (int) $user->id);
         if (!$document) {
-            return $this->error('Document not found', 404);
+            return $this->error(__('api.messages.document_not_found'), 404);
         }
 
         $library = $document->library;

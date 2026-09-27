@@ -6,7 +6,10 @@ const LIST_SEPARATOR = /[,\n]/;
 const DATE_LENGTH = 10;
 const DATE_TIME_LENGTH = 16;
 const MONEY_FRACTION_DIGITS = 2;
+export const CM_WHOLE_MONEY_DIGITS = 0;
+const PERCENT_FRACTION_DIGITS = 2;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const UTC_MIDNIGHT_PATTERN = /^(\d{4}-\d{2}-\d{2})[T ]00:00:00(?:\.0+)?(?:Z|[+-]00:?00)$/;
 
 export function cmSplitList(value: string): string[] {
   return Array.from(new Set(value.split(LIST_SEPARATOR).map((item) => item.trim()).filter((item) => item !== '')));
@@ -39,11 +42,16 @@ export function cmUserLabel(user: { name?: string | null; username?: string | nu
 }
 
 /** Locale money: "¥185,000.00" / "CN¥185,000.00"; plain grouped number when no currency is known. */
-export function cmFormatMoney(value: string | number | null | undefined, currency: string | null | undefined, language: string): string {
+export function cmFormatMoney(
+  value: string | number | null | undefined,
+  currency: string | null | undefined,
+  language: string,
+  fractionDigits: number = MONEY_FRACTION_DIGITS,
+): string {
   if (value === null || value === undefined || value === '') return '';
   const amount = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(amount)) return String(value);
-  const digits = { minimumFractionDigits: MONEY_FRACTION_DIGITS, maximumFractionDigits: MONEY_FRACTION_DIGITS };
+  const digits = { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits };
   if (currency) {
     try {
       return new Intl.NumberFormat(language, { style: 'currency', currency, ...digits }).format(amount);
@@ -51,7 +59,36 @@ export function cmFormatMoney(value: string | number | null | undefined, currenc
       return `${currency} ${new Intl.NumberFormat(language, digits).format(amount)}`;
     }
   }
-  return new Intl.NumberFormat(language, digits).format(amount);
+  return new Intl.NumberFormat(language, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: Math.max(fractionDigits, MONEY_FRACTION_DIGITS),
+  }).format(amount);
+}
+
+/** Locale "min – max" money range; uses Intl range formatting where the runtime has it. */
+export function cmFormatMoneyRange(
+  min: string | number,
+  max: string | number,
+  currency: string | null | undefined,
+  language: string,
+  fractionDigits: number = MONEY_FRACTION_DIGITS,
+): string {
+  const low = Number(min);
+  const high = Number(max);
+  if (currency && Number.isFinite(low) && Number.isFinite(high)) {
+    try {
+      const formatter = new Intl.NumberFormat(language, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
+      }) as Intl.NumberFormat & { formatRange?: (start: number, end: number) => string };
+      if (typeof formatter.formatRange === 'function') return formatter.formatRange(low, high);
+    } catch {
+      /* fall through to the joined form */
+    }
+  }
+  return `${cmFormatMoney(min, currency, language, fractionDigits)} – ${cmFormatMoney(max, currency, language, fractionDigits)}`;
 }
 
 export function cmFormatNumber(value: string | number | null | undefined, language: string): string {
@@ -60,20 +97,31 @@ export function cmFormatNumber(value: string | number | null | undefined, langua
   return Number.isFinite(amount) ? new Intl.NumberFormat(language).format(amount) : String(value);
 }
 
-function parseDate(value: string): Date | null {
-  const date = DATE_ONLY_PATTERN.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
+/** Locale percent from a rate: 0.1 -> "10%". */
+export function cmFormatPercent(value: string | number | null | undefined, language: string): string {
+  if (value === null || value === undefined || value === '') return '';
+  const rate = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(rate)
+    ? new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: PERCENT_FRACTION_DIGITS }).format(rate)
+    : String(value);
+}
+
+/** Calendar mode reads a UTC-midnight timestamp (a serialized Laravel `date`) as that local calendar day. */
+export function cmParseDate(value: string, calendar = false): Date | null {
+  const day = DATE_ONLY_PATTERN.test(value) ? value : (calendar ? UTC_MIDNIGHT_PATTERN.exec(value)?.[1] : undefined);
+  const date = day ? new Date(`${day}T00:00:00`) : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function cmFormatDate(value: string | null | undefined, language: string): string {
   if (!value) return '';
-  const date = parseDate(value);
+  const date = cmParseDate(value, true);
   return date ? new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(date) : value;
 }
 
 export function cmFormatDateTime(value: string | null | undefined, language: string): string {
   if (!value) return '';
-  const date = parseDate(value);
+  const date = cmParseDate(value);
   return date ? new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(date) : value;
 }
 

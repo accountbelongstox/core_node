@@ -2,6 +2,58 @@
  * Image processing utility functions
  */
 
+const REMOTE_IMAGE_TIMEOUT_MS = 15000;
+const REMOTE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+const DEFAULT_IMAGE_MIME = 'image/jpeg';
+
+export interface RemoteImageBytes {
+  bytes: Uint8Array;
+  mime: string;
+}
+
+/**
+ * Download a remote image within one deadline and a byte cap. A slow, failing
+ * or oversized response yields null so a caller moves on to its next candidate.
+ */
+export async function fetchRemoteImageBytes(
+  url: string,
+  options: { timeoutMs?: number; maxBytes?: number } = {},
+): Promise<RemoteImageBytes | null> {
+  const maxBytes = options.maxBytes ?? REMOTE_IMAGE_MAX_BYTES;
+  const signal = AbortSignal.timeout(options.timeoutMs ?? REMOTE_IMAGE_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { cache: 'no-store', signal });
+    if (!res.ok || !res.body) return null;
+    if (Number(res.headers.get('content-length') || 0) > maxBytes) {
+      await res.body.cancel();
+      return null;
+    }
+    const mime = (res.headers.get('content-type') || DEFAULT_IMAGE_MIME).split(';')[0].trim()
+      || DEFAULT_IMAGE_MIME;
+    const reader = res.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+      total += chunk.value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(chunk.value);
+    }
+    if (total === 0) return null;
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { bytes, mime };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Create ImageBitmap from data URL (for OffscreenCanvas)
  * @param dataUrl Image data URL

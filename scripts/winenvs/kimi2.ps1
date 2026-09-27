@@ -77,24 +77,14 @@ $chromeMcpConfig = $null
 $chromeMcpProperty = $null
 $mcpJson = $null
 $previousLocation = $null
-$upgradeChoice = $null
 $modelPick = $null
 $modelDeadline = $null
 $modelKey = $null
 $mcpInstallChoice = $null
 $pnpmCommand = $null
+$aiCliProvisionCommonScript = $null
 $nodeCommand = $null
 $kimiCommand = $null
-$currentVersionOutput = $null
-$latestVersionOutput = $null
-$currentVersionTokens = @()
-$latestVersionTokens = @()
-$versionSeparators = @()
-$versionToken = $null
-$versionCandidate = $null
-$currentVersion = $null
-$latestVersion = $null
-$versionGapLarge = $false
 $kimiModel = "k3-256k"
 $kimiModelLabel = "kimi k3 256K"
 $providerArgs = @()
@@ -211,53 +201,19 @@ if ($null -eq $kimiCommand) {
 $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 
-Write-Host "[INFO] KIMI_API_KEY_2: $(if ([string]::IsNullOrWhiteSpace($kimiApiKey)) { "[empty]" } else { $kimiApiKey })" -ForegroundColor White
+# Shared launcher helpers (scripts/shells/win/win_common/AiCliProvisionCommon.ps1):
+# masked secret display, and the version check + optional upgrade, which prompts
+# only when a newer version is published, defaults to N and auto-skips after 5 seconds.
+$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonScript
+
+Write-Host "[INFO] KIMI_API_KEY_2: $(Get-AiCliMaskedSecret -Value $kimiApiKey)" -ForegroundColor White
 Write-Host "[INFO] KIMI_BASE_URL_2: $(if ([string]::IsNullOrWhiteSpace($kimiBaseUrl)) { "[empty]" } else { $kimiBaseUrl })" -ForegroundColor White
 if ([string]::IsNullOrWhiteSpace($kimiApiKey)) {
     Write-Host "[WARN] KIMI_API_KEY_2 is empty; provider setup will fail." -ForegroundColor Yellow
 }
 
-# Version check + optional pnpm upgrade (default N).
-$versionSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
-if ($null -ne $pnpmCommand) {
-    $currentVersionOutput = (& $kimiCommand.Source --version 2>$null | Out-String).Trim()
-    $latestVersionOutput = (& $pnpmCommand.Source view "@moonshot-ai/kimi-code" version 2>$null | Out-String).Trim()
-    $currentVersionTokens = $currentVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($versionToken in $currentVersionTokens) {
-        $versionCandidate = $versionToken.Trim()
-        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $versionCandidate = $versionCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($versionCandidate, [ref]$currentVersion)) {
-            break
-        }
-    }
-    $latestVersionTokens = $latestVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($versionToken in $latestVersionTokens) {
-        $versionCandidate = $versionToken.Trim()
-        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $versionCandidate = $versionCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($versionCandidate, [ref]$latestVersion)) {
-            break
-        }
-    }
-}
-if (($null -ne $currentVersion) -and ($null -ne $latestVersion) -and ($latestVersion -gt $currentVersion)) {
-    $versionGapLarge = ($latestVersion.Major -gt $currentVersion.Major) -or
-        (($latestVersion.Major -eq $currentVersion.Major) -and ($latestVersion.Minor -gt $currentVersion.Minor))
-}
-if ($versionGapLarge) {
-    Write-Host "Upgrade Kimi Code CLI via pnpm? [y/N]: " -ForegroundColor Yellow -NoNewline
-    $upgradeChoice = Read-Host
-}
-if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
-    Write-Host "[INFO] Upgrading Kimi Code CLI via pnpm..." -ForegroundColor Cyan
-    & $pnpmCommand.Source add -g "@moonshot-ai/kimi-code@latest"
-    Write-Host "[INFO] Kimi Code CLI pnpm upgrade command completed." -ForegroundColor Green
-} elseif ($versionGapLarge) {
-    Write-Host "[INFO] Kimi Code CLI upgrade skipped." -ForegroundColor DarkGray
-}
+Invoke-AiCliUpgradePrompt -Tool "kimi"
 
 # Model selection (default 1 = kimi k3 256K / k3-256k; auto-selects after 5s).
 Write-Host "Select model (default 1 = kimi k3 256K / k3-256k; auto-select in 5 seconds):" -ForegroundColor Yellow

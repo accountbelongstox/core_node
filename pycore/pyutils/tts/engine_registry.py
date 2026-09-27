@@ -124,11 +124,15 @@ class TTSEngineAdapter(EngineAdapter):
         return str(getter() if getter else "").rstrip("/")
 
     def disabled_reason(self) -> Optional[str]:
+        """The engine's reason text; a coded reason (tts_reason_codes) is
+        returned as is, so its code and params reach the status UI."""
         getter = getattr(self.module, "disabled_reason", None)
         if not callable(getter):
             return None
         reason = getter()
-        return str(reason) if reason else None
+        if not reason:
+            return None
+        return reason if isinstance(reason, str) else str(reason)
 
     def last_synth_error(self) -> Optional[str]:
         getter = getattr(self.module, "last_synth_error", None)

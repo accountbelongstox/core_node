@@ -172,11 +172,11 @@ function Resolve-Python {
     }
 
     foreach ($p in @(
-        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python311\python.exe"),
         "C:\Python313\python.exe", "C:\Python312\python.exe", "C:\Python311\python.exe",
-        "$env:USERPROFILE\scoop\shims\python.exe"
+        (Join-Path $env:USERPROFILE "scoop\shims\python.exe")
     )) { $candidates.Add($p) }
 
     foreach ($c in $candidates) {
@@ -203,8 +203,8 @@ function Resolve-Ffmpeg {
     }
     foreach ($p in @(
         'D:\applications\FFmpeg\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe',
-        "$env:ProgramFiles\ffmpeg\bin\ffmpeg.exe",
-        "$env:USERPROFILE\scoop\shims\ffmpeg.exe"
+        (Join-Path $env:ProgramFiles "ffmpeg\bin\ffmpeg.exe"),
+        (Join-Path $env:USERPROFILE "scoop\shims\ffmpeg.exe")
     )) {
         if (Test-Path $p) {
             $ver = (& $p -version 2>&1 | Select-Object -First 1)

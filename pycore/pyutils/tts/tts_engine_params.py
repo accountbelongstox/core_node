@@ -122,7 +122,7 @@ TTS_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
         "model_managed": True,
         "model_idle_unload_s": 60,
         "long_wait": True,
-        "note": "Qwen3-TTS in-process (Alibaba). First run downloads HF model; 2–5 min cold start.",
+        "note": "Qwen3-TTS standalone server (isolated venv, Alibaba). Weights come from the installer; 2–5 min cold start.",
     },
     "bark": {
         "fields": ["text", "language"],
@@ -168,7 +168,7 @@ TTS_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
         "model_managed": True,
         "model_idle_unload_s": 60,
         "long_wait": True,
-        "note": "VoxCPM2 in-process (OpenBMB). GPU strongly recommended; cfg/timesteps tune quality.",
+        "note": "VoxCPM2 standalone server (OpenBMB). GPU strongly recommended; cfg/timesteps tune quality.",
     },
 
     # -- managed server engines (subprocess HTTP API, single-active) ----------

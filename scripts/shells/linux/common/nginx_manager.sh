@@ -46,6 +46,8 @@ NGINX_MANAGER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$NGINX_MANAGER_DIR/runtime_environment.sh"
 # shellcheck source=/dev/null
+source "$NGINX_MANAGER_DIR/prompt_common.sh"
+# shellcheck source=/dev/null
 source "$NGINX_MANAGER_DIR/domain_setup_common.sh"
 
 NM_MAIN_CONF="$NGINX_MAIN_CONF"
@@ -99,19 +101,23 @@ nm_backup_dir() { nm_web_path "backup" "nginx-configs"; }
 # --- Primitives (each one independently idempotent) -------------------------
 
 # Disable/remove competing web servers (Caddy, Apache) and their repos.
+# A running Caddy holds 80/443, so it is stopped and disabled. Its package is
+# removed only on confirmation, and its config, ACME account and certificates
+# (/etc/caddy, /var/lib/caddy) are always kept.
 nm_conflicts_clear() {
     local sudo_cmd
+    local remove_choice=""
     sudo_cmd=$(lazy_sudo)
     echo "[nginx-mgr] Checking conflicting web servers..."
 
     if command -v caddy >/dev/null 2>&1; then
-        echo "[nginx-mgr] Removing Caddy..."
+        echo "[nginx-mgr] Stopping and disabling Caddy (it conflicts with nginx on 80/443)..."
         $sudo_cmd systemctl stop caddy 2>/dev/null || true
         $sudo_cmd systemctl disable caddy 2>/dev/null || true
-        $sudo_cmd apt remove --purge -y caddy 2>/dev/null || true
-        $sudo_cmd rm -f /etc/apt/sources.list.d/caddy-stable.list
-        $sudo_cmd rm -f /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-        $sudo_cmd rm -rf /etc/caddy /var/lib/caddy /var/log/caddy
+        prompt_read_default remove_choice "n" 30 "[nginx-mgr] Also remove the Caddy package? /etc/caddy and /var/lib/caddy are kept [y/N]: "
+        if [[ "$remove_choice" =~ ^[Yy]$ ]]; then
+            $sudo_cmd apt remove -y caddy 2>/dev/null || true
+        fi
     else
         echo "[nginx-mgr] No Caddy installation found"
     fi

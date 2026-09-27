@@ -45,7 +45,7 @@ final class ResourceSyncService
 
     public function root(string $key): string
     {
-        return $this->roots()[$key] ?? throw new \InvalidArgumentException("Unknown resource root: {$key}");
+        return $this->roots()[$key] ?? throw new \InvalidArgumentException(__('data_sync.resource_root_unknown', ['key' => $key]));
     }
 
     /**
@@ -91,11 +91,16 @@ final class ResourceSyncService
         $path = $this->sourceFilePath($key, $relativePath);
         $size = FileSystemManager::filesize($path);
         if ($size === false) {
-            throw new \RuntimeException("Resource file is missing: {$key}/{$relativePath}");
+            return $this->missingFile($key, $relativePath) + [
+                'offset' => $offset,
+                'next_offset' => $offset,
+                'size' => 0,
+                'final' => true,
+            ];
         }
         $content = FileSystemManager::readFileSegment($path, max(0, $offset), self::CHUNK_BYTES);
         if ($content === false) {
-            throw new \RuntimeException("Unable to read the resource file: {$key}/{$relativePath}");
+            throw new \RuntimeException(__('data_sync.resource_read_failed', ['path' => "{$key}/{$relativePath}"]));
         }
         $nextOffset = $offset + strlen($content);
 
@@ -124,9 +129,14 @@ final class ResourceSyncService
         foreach (array_slice($items, 0, self::BATCH_MAX_FILES) as $item) {
             $key = (string) ($item['key'] ?? '');
             $relativePath = (string) ($item['relative_path'] ?? '');
-            $content = FileSystemManager::readFile($this->sourceFilePath($key, $relativePath), false);
+            $path = $this->sourceFilePath($key, $relativePath);
+            if (!FileSystemManager::isFile($path)) {
+                $files[] = $this->missingFile($key, $relativePath);
+                continue;
+            }
+            $content = FileSystemManager::readFile($path, false);
             if ($content === false) {
-                throw new \RuntimeException("Unable to read the resource file: {$key}/{$relativePath}");
+                throw new \RuntimeException(__('data_sync.resource_read_failed', ['path' => "{$key}/{$relativePath}"]));
             }
             if ($files !== [] && $bytes + strlen($content) > self::CHUNK_BYTES) {
                 break;
@@ -160,7 +170,7 @@ final class ResourceSyncService
         }
         $partPath = $this->artifacts->incomingPath($jobId, "files/{$key}/{$relativePath}.part");
         if (!FileSystemManager::writeFile($partPath, $content) || !FileSystemManager::moveFile($partPath, $destinationPath)) {
-            throw new \RuntimeException("Unable to move the received resource file into place: {$key}/{$relativePath}");
+            throw new \RuntimeException(__('data_sync.resource_move_failed', ['path' => "{$key}/{$relativePath}"]));
         }
 
         return ['complete' => true, 'already_present' => false, 'bytes' => strlen($content)];
@@ -206,7 +216,7 @@ final class ResourceSyncService
             throw new DataSyncHashMismatchException("{$key}/{$relativePath}");
         }
         if (!FileSystemManager::moveFile($partPath, $destinationPath)) {
-            throw new \RuntimeException("Unable to move the received resource file into place: {$key}/{$relativePath}");
+            throw new \RuntimeException(__('data_sync.resource_move_failed', ['path' => "{$key}/{$relativePath}"]));
         }
 
         return array_merge($writeResult, ['complete' => true, 'already_present' => false]);
@@ -225,7 +235,7 @@ final class ResourceSyncService
         $size = FileSystemManager::filesize($path);
         $content = $size !== false ? FileSystemManager::readFileSegment($path, max(0, $offset), self::CHUNK_BYTES) : false;
         if ($content === false) {
-            throw new \RuntimeException("The resource archive is not prepared: {$key}");
+            throw new \RuntimeException(__('data_sync.archive_not_prepared', ['key' => $key]));
         }
         $nextOffset = $offset + strlen($content);
 
@@ -239,29 +249,98 @@ final class ResourceSyncService
         ];
     }
 
+    /**
+     * Resumable chunk of one resource archive. A replayed final chunk (lost
+     * response, or a retry while the archive is still being extracted)
+     * answers from the completion receipt keyed by key + sha256 instead of
+     * restarting at offset 0. With $deferExtraction the final chunk only
+     * stores the bytes and reports `extracting`; completeArchive() then runs
+     * in the owner's timer tick.
+     */
     public function receiveArchiveChunk(
         string $jobId,
         string $key,
         int $offset,
         string $content,
         string $expectedHash,
-        bool $final
+        bool $final,
+        bool $deferExtraction = false
     ): array {
         $this->root($key);
         $archivePath = $this->artifacts->incomingPath($jobId, "archives/{$key}.7z.part");
+        $receipt = $this->archiveReceipt($jobId, $key, $expectedHash);
+        $writeResult = [];
+
+        if ($receipt !== null) {
+            return [
+                'success' => true,
+                'offset' => (int) ($receipt['size'] ?? 0),
+                'complete' => true,
+                'already_present' => true,
+                'files' => (int) ($receipt['files'] ?? 0),
+            ];
+        }
         $writeResult = FileSystemManager::writeFileSegment($archivePath, $content, $offset);
 
         if (!$writeResult['success'] || !$final) {
             return array_merge($writeResult, ['complete' => false]);
         }
+        if ($deferExtraction) {
+            return array_merge($writeResult, ['complete' => false, 'extracting' => true]);
+        }
+
+        return array_merge($writeResult, $this->completeArchive($jobId, $key, $expectedHash));
+    }
+
+    /**
+     * Verifies and extracts a fully received archive, then records the
+     * completion receipt. Idempotent through that receipt.
+     */
+    public function completeArchive(string $jobId, string $key, string $expectedHash): array
+    {
+        $archivePath = $this->artifacts->incomingPath($jobId, "archives/{$key}.7z.part");
+        $receipt = $this->archiveReceipt($jobId, $key, $expectedHash);
+        $archiveSize = 0;
+        $files = 0;
+
+        if ($receipt !== null) {
+            return ['complete' => true, 'already_present' => true, 'files' => (int) ($receipt['files'] ?? 0)];
+        }
         if (FileSystemManager::hashFile($archivePath) !== $expectedHash) {
             FileSystemManager::delete($archivePath);
             throw new DataSyncHashMismatchException("{$key}.7z");
         }
-
+        $archiveSize = (int) FileSystemManager::filesize($archivePath);
         $files = SystemArchiveManager::extract7z($archivePath, $this->root($key));
+        $this->artifacts->put($jobId, $this->archiveReceiptName($key, $expectedHash), ['size' => $archiveSize, 'files' => $files]);
         FileSystemManager::delete($archivePath);
-        return array_merge($writeResult, ['complete' => true, 'files' => $files]);
+
+        return ['complete' => true, 'already_present' => false, 'files' => $files];
+    }
+
+    private function archiveReceipt(string $jobId, string $key, string $expectedHash): ?array
+    {
+        return $this->artifacts->get($jobId, $this->archiveReceiptName($key, $expectedHash));
+    }
+
+    private function archiveReceiptName(string $key, string $expectedHash): string
+    {
+        if (preg_match('/^[a-f0-9]{64}$/', $expectedHash) !== 1) {
+            throw new DataSyncHashMismatchException("{$key}.7z");
+        }
+
+        return 'archive-' . $key . '-' . substr($expectedHash, 0, 32);
+    }
+
+    private function missingFile(string $key, string $relativePath): array
+    {
+        return [
+            'key' => $key,
+            'relative_path' => $relativePath,
+            'missing' => true,
+            'sha256' => '',
+            'content' => '',
+        ];
     }
 
     private function hasHash(string $path, string $expectedHash): bool

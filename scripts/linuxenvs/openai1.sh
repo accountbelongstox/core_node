@@ -139,6 +139,9 @@ echo ""
 
 secretManagerScript="$shellsDirPath/secret_manager/secret_manager.sh"
 secretManagerReady=false
+aiCliProvisionCommonPath="$shellsDirPath/linux/common/ai_cli_provision_common.sh"
+# Shared launcher helpers; secrets are printed through ai_cli_mask_secret.
+. "$aiCliProvisionCommonPath"
 
 if [ -f "$secretManagerScript" ]; then
     source "$secretManagerScript"
@@ -283,7 +286,7 @@ if [ -n "${OPENAI_API_BASE}" ]; then
     echo "  OPENAI_API_BASE=${OPENAI_API_BASE}"
 fi
 if [ -n "${OPENAI_API_KEY}" ]; then
-    echo "  OPENAI_API_KEY=${OPENAI_API_KEY}"
+    echo "  OPENAI_API_KEY=$(ai_cli_mask_secret "${OPENAI_API_KEY}")"
 fi
 
 

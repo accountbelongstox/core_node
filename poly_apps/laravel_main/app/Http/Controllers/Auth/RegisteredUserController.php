@@ -53,7 +53,7 @@ class RegisteredUserController extends Controller
         ]);
 
         if ($this->checkUsernameIsExist($request->username)) {
-            return $this->error('Username already exists', 400);
+            return $this->error(__('api.messages.username_already_exists'), 400);
         }
 
         $roleLevel = 0;
@@ -91,7 +91,7 @@ class RegisteredUserController extends Controller
                     ]);
                     return $this->validationError(
                         ['registration_code' => ['Invalid invite code. Please check your code and try again.']],
-                        'Invalid invite code'
+                        __('api.messages.invalid_invite_code')
                     );
                 }
 
@@ -106,7 +106,7 @@ class RegisteredUserController extends Controller
                     ]);
                     return $this->validationError(
                         ['registration_code' => ['Invite code is expired or already used.']],
-                        'Invite code is expired or already used'
+                        __('api.messages.invite_code_is_expired_or_already_used')
                     );
                 }
 
@@ -152,7 +152,7 @@ class RegisteredUserController extends Controller
             'expiration' => $session['expiration'],
             'uid' => $user->id,
             'user' => $user,
-        ], 'User registered successfully');
+        ], __('api.messages.user_registered_successfully'));
     }
 
     public function checkUsernameIsExist($username)
@@ -188,7 +188,7 @@ class RegisteredUserController extends Controller
             }
 
             if ($request->invitation_code !== $validCode) {
-                return $this->validationError(['invitation_code' => ['Invalid invitation code']], 'Invalid invitation code');
+                return $this->validationError(['invitation_code' => ['Invalid invitation code']], __('api.messages.invalid_invitation_code_2'));
             }
         }
         
@@ -219,7 +219,7 @@ class RegisteredUserController extends Controller
         Auth::login($user);
 
         if ($request->wantsJson()) {
-            return $this->success(['user' => $user], 'Registration successful');
+            return $this->success(['user' => $user], __('api.messages.registration_successful'));
         }
 
         return response()->noContent();

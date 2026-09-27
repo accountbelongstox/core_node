@@ -31,12 +31,15 @@ CODE_IDENTITY_UNKNOWN = "unknown"
 SERVER_CODE_ID_ENV = "PYCORE_MANAGED_CODE_ID"
 
 
-def _gpu_release() -> None:
-    """Best-effort GPU/CPU memory release after unloading a model."""
+def release_gpu_memory() -> None:
+    """Best-effort GPU/CPU memory release after unloading a model; the CUDA
+    cache is emptied only when torch is already loaded (never imported here)."""
     try:
         gc.collect()
     except Exception:  # noqa: BLE001
         pass
+    if "torch" not in sys.modules:
+        return
     try:
         torch = get_third_package_torch()
         if torch.cuda.is_available():
@@ -496,7 +499,7 @@ class ManagedServiceProcessMixin:
                     ColorPrint.yellow(f"[managed] unloaded model {name}")
                 except Exception as e:  # noqa: BLE001
                     ColorPrint.yellow(f"[managed] unload {name} failed: {e}")
-            _gpu_release()
+            release_gpu_memory()
         self._invalidate_run_cache(name)
         THREAD_BUS.clear_signal(f"{READY_SIGNAL_PREFIX}{name}")
         # Back to idle in the model-load registry (server terminated / model unloaded).
@@ -520,4 +523,5 @@ __all__ = [
     "SERVER_CODE_ID_ENV",
     "START_TIMEOUT_SECONDS",
     "ManagedServiceProcessMixin",
+    "release_gpu_memory",
 ]

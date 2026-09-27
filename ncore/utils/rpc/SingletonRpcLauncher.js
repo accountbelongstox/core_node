@@ -162,7 +162,7 @@ class SingletonRpcLauncher extends EventEmitter {
     async startBackendServer() {
         if (this.backendServerRunning) {
             logger.warn('[SingletonRPC] Backend server already running');
-            return;
+            return true;
         }
 
         logger.info('[SingletonRPC] Starting backend server thread...');
@@ -172,7 +172,9 @@ class SingletonRpcLauncher extends EventEmitter {
 
             if (!portAvailable) {
                 logger.error(`[SingletonRPC] Port ${this.config.PORT} is already in use`);
-                throw new Error(`Port ${this.config.PORT} is already in use`);
+                this.backendServerRunning = false;
+                this.emit('backendError', { code: 'port_in_use', port: this.config.PORT });
+                return false;
             }
 
             this.backendServerRunning = true;
@@ -184,12 +186,13 @@ class SingletonRpcLauncher extends EventEmitter {
                 host: this.config.HOST,
                 port: this.config.PORT
             });
+            return true;
 
         } catch (error) {
             logger.error('[SingletonRPC] Failed to start backend server:', error);
             this.backendServerRunning = false;
             this.emit('backendError', error);
-            throw error;
+            return false;
         }
     }
 
@@ -246,7 +249,11 @@ class SingletonRpcLauncher extends EventEmitter {
                 await this.startClientCommunication();
             } else {
                 logger.info('[SingletonRPC] No server detected, starting full mode (backend + client)');
-                await this.startBackendServer();
+                if (!(await this.startBackendServer())) {
+                    logger.error(`[SingletonRPC] Launch failed: backend server did not start on ${this.config.HOST}:${this.config.PORT}`);
+                    this.emit('launchError', { code: 'backend_not_started', port: this.config.PORT });
+                    return false;
+                }
                 await this.startClientCommunication();
             }
 
@@ -257,11 +264,12 @@ class SingletonRpcLauncher extends EventEmitter {
             });
 
             logger.info('[SingletonRPC] Launch complete');
+            return true;
 
         } catch (error) {
             logger.error('[SingletonRPC] Launch failed:', error);
             this.emit('launchError', error);
-            throw error;
+            return false;
         }
     }
 

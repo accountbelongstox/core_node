@@ -22,7 +22,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue, start_bus_task
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
-from pycore.pyutils.laravel.client import laravel_client, laravel_failure
+from pycore.pyutils.laravel.client import (
+    LARAVEL_ERROR_ENDPOINT_UNKNOWN,
+    laravel_client,
+    laravel_failure,
+)
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
@@ -49,8 +53,10 @@ class AudioLaneFullSync:
 
     # -------------------- lane adapter (subclasses) --------------------
 
-    def _fetch_languages(self, base_url: str) -> List[Dict[str, Any]]:
-        """``[{language, language_code, without_audio?}]`` to pull, in order."""
+    def _fetch_languages(self, base_url: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """(``[{language, language_code, without_audio?}]`` to pull in order,
+        failure). A failed listing returns ``laravel_failure(...)``, never an
+        empty or guessed language set that would report success."""
         raise NotImplementedError
 
     def _page_request(self, language: Dict[str, Any], cursor: int) -> Tuple[str, Dict[str, Any]]:
@@ -123,6 +129,8 @@ class AudioLaneFullSync:
         """Kick the full pull on a background bus task (non-blocking)."""
         if not self.enabled():
             return {"success": False, "error": self.DISABLED_CODE}
+        if base_url and not laravel_endpoint_manager.is_catalog_endpoint(base_url):
+            return {"success": False, "error": LARAVEL_ERROR_ENDPOINT_UNKNOWN}
         if self._running.get():
             return {"success": True, "running": True}
         start_bus_task(self.run_full_sync, base_url, thread_name=f"{type(self).__name__}Thread")
@@ -132,8 +140,10 @@ class AudioLaneFullSync:
         per_language: List[Dict[str, Any]] = []
         total_pulled = 0
         total_inserted = 0
-        failure: Dict[str, Any] = {}
-        for language in self._fetch_languages(base_url):
+        languages, failure = self._fetch_languages(base_url)
+        if failure:
+            ColorPrint.yellow(f"{self.LOG_PREFIX} language listing failed: {failure.get('error_code')}; full pull stopped")
+        for language in ([] if failure else languages):
             if not self.enabled():
                 break
             code = str(language.get("language_code") or language.get("language") or "").strip()

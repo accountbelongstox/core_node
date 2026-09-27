@@ -15,7 +15,7 @@ from pycore.pyctl.agent_history.pipeline.config import (
     advance_tool_cursor,
     get_config,
     mark_tool_live_item_completed,
-    save_config,
+    save_cursor_state,
 )
 from pycore.pyctl.agent_history.pipeline.planner import plan_batches
 from pycore.pyctl.agent_history.pipeline.article_stages import (
@@ -174,7 +174,7 @@ def tick_pipeline() -> None:
                 _advance_cursor_for_input(items[0])
                 cfg = get_config()
                 cfg["cursor"]["attempts"] = 0
-                save_config(cfg)
+                save_cursor_state(cfg)
             
         except Exception as e:
             err = str(e)
@@ -183,7 +183,7 @@ def tick_pipeline() -> None:
             cfg = get_config()
             attempts = int(cfg["cursor"].get("attempts") or 0) + 1
             cfg["cursor"]["attempts"] = attempts
-            save_config(cfg)
+            save_cursor_state(cfg)
             
             ColorPrint.yellow(f"[AgentHistoryPipeline] batch failed: {err}")
             
@@ -210,7 +210,7 @@ def _advance_cursor_for_input(input_data: Dict[str, Any]) -> None:
     else:
         advance_tool_cursor(cfg, tool, after_ts, after_fragment_id)
     cfg["last_tool"] = tool
-    save_config(cfg)
+    save_cursor_state(cfg)
 
 def _fail_item(item, error: Exception, op_service: Any) -> None:
     """Mark an item failed, KEEPING its checkpoint so a retry resumes the stage.

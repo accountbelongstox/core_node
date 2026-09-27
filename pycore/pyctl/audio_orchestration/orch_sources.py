@@ -41,11 +41,13 @@ def task_input(task: Dict[str, Any]) -> str:
     return "text" if is_text_task(task) else "book"
 
 
-def task_label(task: Dict[str, Any]) -> str:
-    """Short origin label for task event lines."""
-    if is_text_task(task):
-        return f"{task_source(task)} ({len(task.get('sentences') or [])} sentences)"
-    return f"book {str((task.get('book') or {}).get('source_key') or '')}"
+def task_label_params(task: Dict[str, Any]) -> Dict[str, Any]:
+    """Origin params of task event codes (source, book key, sentence count)."""
+    return {
+        "source": task_source(task),
+        "source_key": str((task.get("book") or {}).get("source_key") or ""),
+        "sentences": len(task.get("sentences") or []),
+    }
 
 
 def build_text_sentences(items: Any) -> List[Dict[str, Any]]:
@@ -86,6 +88,18 @@ def cached_task_sentences(task: Dict[str, Any]) -> Optional[List[Dict[str, Any]]
     return sentences
 
 
+def task_sentences_version(task: Dict[str, Any]) -> str:
+    """Version of what ``cached_task_sentences`` returns now ('' = None),
+    without starting a sync; output signatures include it so a hash never
+    outlives the sentences it covered."""
+    if is_text_task(task):
+        return "text"
+    source_key = str((task.get("book") or {}).get("source_key") or "")
+    if (orch_books.sync_states().get(source_key) or {}).get("status") == "running":
+        return ""
+    return orch_store.book_sentences_version(source_key)
+
+
 def ensure_task_sentences(
     task: Dict[str, Any],
     cancel_requested: Optional[Callable[[], bool]] = None,
@@ -104,6 +118,11 @@ def ensure_task_sentences(
     )
 
 
+def wake_sentence_waiters(task: Dict[str, Any]) -> None:
+    if not is_text_task(task):
+        orch_books.wake_sentence_waiters(str((task.get("book") or {}).get("source_key") or ""))
+
+
 __all__ = [
     "ORCH_SOURCE_VOCAB_BOOK",
     "ORCH_SOURCE_PROMPT_REWRITE",
@@ -113,8 +132,9 @@ __all__ = [
     "task_source",
     "is_text_task",
     "task_input",
-    "task_label",
+    "task_label_params",
     "build_text_sentences",
     "cached_task_sentences",
     "ensure_task_sentences",
+    "wake_sentence_waiters",
 ]

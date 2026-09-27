@@ -1,0 +1,12 @@
+{
+  "task_id": "pycore-manager-5",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "K6 / section 5 route table (pycore-manager)": {"status": "fixed", "reason": "Browser Laravel calls keep the shared login token and never sign. pcLaravelErrorMessage maps 401 to LARAVEL_LOGIN_REQUIRED and opens the shared login, 403 to LARAVEL_ADMIN_REQUIRED, else the error text or LARAVEL_REQUEST_FAILED. It is used by the vocabulary tabs, TaskCenterState (whose unused translation-queue methods with English literals were removed), the sentence-audio panel and the books enrich calls."},
+    "K7 / K7a (pycore-manager)": {"status": "fixed", "reason": "pycoreTarget.ts honours stored, preset and recent direct targets only on a loopback page and only for contract loopback hosts (LOCAL_RPC_LOOPBACK_HOSTS), and relay (https) targets always. setPycoreTarget returns false for a refused direct target. The dashboard origin mirror (nexus_dash_frontend and pycore ports) matches pycore's local_rpc_guard.allowed_origins. PycoreHttpError carries the rpc_v2 error code. The new PcRpcAccessBanner maps pycore K7 401 and 403 local_rpc_* codes to rpcAccess.* i18n, stays silent in relay mode, and shows relayOnly off-loopback. PcPycoreTargetSwitcher hides the direct modes off-loopback and is fully localized."}
+  },
+  "issues": [],
+  "checks": "Diffs of pycoreTarget.ts, PycoreClient.ts, pcErrorCodes.ts and PcRpcAccessBanner.tsx read; cross-checked against pycore-2's allowed_origins and the error codes (local_rpc_host_forbidden/origin_forbidden, client_key_*). Shared files are assigned in requirements section 6 (pycoreTarget.ts, and PycoreClient.ts for error-code surfacing only).",
+  "checked_at": "2026-09-27T04:51:04+10:00"
+}

@@ -12,6 +12,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WalletModel;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1OtpService;
 
 /**
  * Builds the versioned CodeMart bootstrap projection: user, roles,
@@ -142,8 +143,9 @@ class CodeMartV1BootstrapService
      */
     private function buildOnboarding(CodeMartV1UserModel $user, array $roleStatusMap, array $requestableRoles = []): array
     {
-        $emailVerified = $user->email_verified_at !== null || !empty($user->email);
+        $emailVerified = $user->email_verified_at !== null;
         $phoneVerified = $user->hasVerifiedPhone();
+        $phoneVerificationAvailable = CodeMartV1OtpService::smsDeliveryAvailable();
         $kycStatus = $user->kycVerification?->verification_status
             ?? CodeMartV1Constants::KYC_STATUS_NOT_STARTED;
         $kycApproved = $kycStatus === CodeMartV1Constants::KYC_STATUS_APPROVED;
@@ -171,38 +173,46 @@ class CodeMartV1BootstrapService
                 'key' => 'account',
                 'completed' => true,
                 'blocked' => false,
+                'optional' => false,
             ],
             [
                 'key' => 'role_request',
                 'completed' => $roleStatusMap !== [],
                 'blocked' => false,
+                'optional' => false,
                 'requestable_roles' => $requestableRoles,
             ],
             [
+                // Optional while no SMS provider is configured: the step
+                // could never complete, so next_step skips it.
                 'key' => 'phone_verification',
                 'completed' => $phoneVerified,
                 'blocked' => false,
+                'optional' => !$phoneVerificationAvailable,
             ],
             [
                 'key' => 'kyc',
                 'completed' => $kycApproved,
                 'blocked' => $kycStatus === CodeMartV1Constants::KYC_STATUS_REJECTED,
+                'optional' => false,
             ],
             [
                 'key' => 'deposit',
                 'completed' => $pendingRoles === [] || $depositRequired === [],
                 'blocked' => false,
+                'optional' => false,
             ],
             [
                 'key' => 'role_active',
                 'completed' => $activeRoles !== [],
                 'blocked' => false,
+                'optional' => false,
             ],
         ];
 
         $nextStep = null;
         foreach ($steps as $step) {
-            if (!$step['completed'] && !$step['blocked']) {
+            if (!$step['completed'] && !$step['blocked'] && !$step['optional']) {
                 $nextStep = $step['key'];
                 break;
             }
@@ -211,6 +221,7 @@ class CodeMartV1BootstrapService
         return [
             'email_verified' => $emailVerified,
             'phone_verified' => $phoneVerified,
+            'phone_verification_available' => $phoneVerificationAvailable,
             'kyc_status' => $kycStatus,
             'deposit_required' => $depositRequired,
             'requestable_roles' => $requestableRoles,

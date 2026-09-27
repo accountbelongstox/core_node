@@ -74,7 +74,7 @@ class AppQyV1PersonalDictionaryQueryController extends Controller
             $data[] = $this->formatEntry($entry);
         }
 
-        return $this->success($data, 'Personal dictionary queried successfully');
+        return $this->success($data, __('app_qy_v1.messages.personal_dictionary_queried_successfully'));
     }
 
     public function queryPDictionaryByWords(Request $request): JsonResponse
@@ -93,7 +93,7 @@ class AppQyV1PersonalDictionaryQueryController extends Controller
             }
         }
 
-        return $this->success($data, 'Personal dictionary queried by words successfully');
+        return $this->success($data, __('app_qy_v1.messages.personal_dictionary_queried_by_words_successfully'));
     }
 
 }

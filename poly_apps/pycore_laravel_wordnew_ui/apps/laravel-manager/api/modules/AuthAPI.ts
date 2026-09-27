@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
@@ -6,7 +6,7 @@ import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transpo
  * AuthAPI - Public Authentication API Module
  * Unified authentication endpoint for all apps
  */
-export class AuthAPI extends BaseAPI {
+export class AuthAPI extends LmBaseAPI {
   async login(data: { username: string; password: string }): Promise<APIResponse> {
     return this.post(LARAVEL_API_ROUTE.auth.login, data);
   }

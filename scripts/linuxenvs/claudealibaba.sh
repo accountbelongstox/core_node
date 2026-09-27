@@ -164,7 +164,7 @@ if [ -z "$DASHSCOPE_API_KEY" ]; then
     read -p "Press Enter to exit..."
     exit 1
 else
-    echo "API Key: $DASHSCOPE_API_KEY (loaded)"
+    echo "API Key: $(ai_cli_mask_secret "$DASHSCOPE_API_KEY") (loaded)"
 fi
 echo "============================================================"
 echo ""

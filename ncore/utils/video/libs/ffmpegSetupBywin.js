@@ -175,7 +175,8 @@ class FFmpegSetup {
             }
         }
 
-        throw new Error('FFmpeg is not installed and automatic installation failed');
+        logger.error('FFmpeg is not installed and automatic installation failed');
+        return null;
     }
 }
 

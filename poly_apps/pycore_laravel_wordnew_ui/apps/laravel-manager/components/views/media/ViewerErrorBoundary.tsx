@@ -26,8 +26,6 @@ interface ViewerErrorBoundaryState {
  * componentDidUpdate also clears the error if the file name changes.
  */
 class ViewerErrorBoundary extends Component<ViewerErrorBoundaryProps, ViewerErrorBoundaryState> {
-  declare props: Readonly<ViewerErrorBoundaryProps>;
-  declare setState: (state: Partial<ViewerErrorBoundaryState>) => void;
   state: ViewerErrorBoundaryState;
 
   constructor(props: ViewerErrorBoundaryProps) {

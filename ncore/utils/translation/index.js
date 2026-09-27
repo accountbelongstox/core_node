@@ -27,8 +27,8 @@ function clearCache() {
   translationService.clearCache();
 }
 
-function startHttpService(port) {
-  return httpService.startHttpService(port);
+function startHttpService(port, host) {
+  return httpService.startHttpService(port, host);
 }
 
 function stopHttpService() {

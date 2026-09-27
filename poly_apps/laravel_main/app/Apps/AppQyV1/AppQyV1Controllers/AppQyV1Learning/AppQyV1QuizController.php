@@ -159,6 +159,6 @@ class AppQyV1QuizController extends Controller
             }
         }
 
-        return $this->success($questions, 'Quiz generated successfully');
+        return $this->success($questions, __('app_qy_v1.messages.quiz_generated_successfully'));
     }
 }

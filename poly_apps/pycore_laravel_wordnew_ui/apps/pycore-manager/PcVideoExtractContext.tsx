@@ -39,6 +39,7 @@ import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 import { useTopicDrivenRefresh } from './hooks/useTopicDrivenRefresh';
 import { StorageManager } from '../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
+import { pcT } from './utils/pcI18n';
 
 const TASK_KEY = 'pycore.video-extract';
 // sentinel entry in `syncing` while a sync-ALL is in flight (not a real path,
@@ -188,13 +189,7 @@ interface PcVideoExtractValue {
   fillLanguages: (paths?: string[], languages?: string[], strategy?: 'api_first' | 'whisper') => Promise<void>;
 }
 
-const L = {
-  veSyncDone: 'Synced to Laravel',                              // 已同步到 Laravel
-  veSyncFailed: 'Sync failed',                                  // 同步失败
-  veAutoSyncStarted: 'Auto-sync to Laravel started (idempotent)', // 已自动开始同步到 Laravel(幂等)
-  veFillDone: 'Language tracks filled',                         // 语言字幕已填充
-  veFillFailed: 'Fill failed',                                  // 填充失败
-};
+const NOTICE = 'videoExtract.notice';
 
 // localStorage helpers — sync APIs can't be `.catch`-guarded, and localStorage
 // may throw (private mode / blocked storage), so these are the one place a
@@ -226,7 +221,13 @@ function progressOf(task: any): VeProgress {
 function doneOutput(task: any): string {
   const snap = snapshotOf(task);
   const s = snap.stats || {};
-  return `Done. ${snap.processed ?? 0}/${snap.total ?? 0} · srt ${s.srt_done ?? 0} new/${s.srt_skip ?? 0} skip · output: ${snap.output ?? '-'}`;
+  return pcT('videoExtract.doneOutput', {
+    processed: snap.processed ?? 0,
+    total: snap.total ?? 0,
+    srtNew: s.srt_done ?? 0,
+    srtSkip: s.srt_skip ?? 0,
+    output: snap.output ?? '-',
+  });
 }
 
 const PcVideoExtractContext = createContext<PcVideoExtractValue | null>(null);
@@ -326,7 +327,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   const done = polled ? isDone(polled) : false;
   // busy = a session is live (running) AND the backend task is not terminal.
   const busy = (task.running && !done) || starting;
-  const progress: VeProgress | null = polled ? progressOf(polled) : (starting ? { pct: 0, text: 'starting' } : null);
+  const progress: VeProgress | null = polled ? progressOf(polled) : (starting ? { pct: 0, text: pcT('videoExtract.progressStarting') } : null);
   const output = polled && done ? doneOutput(polled) : localOutput;
   const segmentsDir = snapshot?.current?.segments_dir ?? null;
 
@@ -362,7 +363,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (finishedRef.current === tid) return;
     finishedRef.current = tid;
     setPaused(false);
-    setNotice('Video extraction finished');
+    setNotice(pcT(`${NOTICE}.finished`));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [polled, done, savedTaskId]);
 
@@ -391,16 +392,16 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (stage === 'done') {
       const s = d?.summary || {};
       const parts = [
-        s.sentences != null ? `${s.sentences} sentences` : null,
-        s.segments != null ? `${s.segments} segments` : null,
-        s.clips != null ? `${s.clips} clips` : null,
+        s.sentences != null ? pcT(`${NOTICE}.sentences`, { count: s.sentences }) : null,
+        s.segments != null ? pcT(`${NOTICE}.segments`, { count: s.segments }) : null,
+        s.clips != null ? pcT(`${NOTICE}.clips`, { count: s.clips }) : null,
       ].filter(Boolean).join(' · ');
-      setNotice(`${L.veSyncDone}${parts ? ' — ' + parts : ''}`);
+      setNotice(`${pcT(`${NOTICE}.syncDone`)}${parts ? ' — ' + parts : ''}`);
       setSyncing(new Set());
       setSyncProgress(null);
     } else if (stage === 'error') {
       const errs = Array.isArray(d?.errors) ? d.errors.join('; ') : '';
-      setNotice(`${L.veSyncFailed}${d?.detail ? ': ' + d.detail : errs ? ': ' + errs : ''}`);
+      setNotice(`${pcT(`${NOTICE}.syncFailed`)}${d?.detail ? ': ' + d.detail : errs ? ': ' + errs : ''}`);
       setSyncing(new Set());
       setSyncProgress(null);
     }
@@ -421,16 +422,16 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (stage === 'done') {
       const s = d?.summary || {};
       const parts = [
-        s.filled != null ? `${s.filled} filled` : null,
-        s.skipped != null ? `${s.skipped} skipped` : null,
-        s.failed != null ? `${s.failed} failed` : null,
+        s.filled != null ? pcT(`${NOTICE}.filled`, { count: s.filled }) : null,
+        s.skipped != null ? pcT(`${NOTICE}.skipped`, { count: s.skipped }) : null,
+        s.failed != null ? pcT(`${NOTICE}.failed`, { count: s.failed }) : null,
       ].filter(Boolean).join(' · ');
-      setNotice(`${L.veFillDone}${parts ? ' — ' + parts : ''}`);
+      setNotice(`${pcT(`${NOTICE}.fillDone`)}${parts ? ' — ' + parts : ''}`);
       setFilling(false);
       setFillProgress(null);
     } else if (stage === 'error') {
       const errs = Array.isArray(d?.errors) ? d.errors.join('; ') : '';
-      setNotice(`${L.veFillFailed}${d?.detail ? ': ' + d.detail : errs ? ': ' + errs : ''}`);
+      setNotice(`${pcT(`${NOTICE}.fillFailed`)}${d?.detail ? ': ' + d.detail : errs ? ': ' + errs : ''}`);
       setFilling(false);
       setFillProgress(null);
     }
@@ -439,13 +440,19 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   // ---- actions ---------------------------------------------------------- #
   const preview = useCallback(async (req: VeStartReq): Promise<string> => {
     const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractPreview, { ...req, dry_run: true })
-      .catch((e: any) => ({ success: false, error: e?.message || 'pycore unreachable' }));
+      .catch((e: any) => ({ success: false, error: e?.message || pcT('common.pycoreUnreachable') }));
     if (!r.success) {
-      const msg = `Error: ${r.error}`;
+      const msg = pcT('videoExtract.previewError', { error: r.error });
       setLocalOutput(msg);
       return msg;
     }
-    const text = `${r.count} video(s) · ffmpeg ${r.ffmpeg_found ? 'OK' : 'missing'} · ${r.engine}/${r.model}/${r.device}\n` +
+    const text = `${pcT('videoExtract.previewSummary', {
+      count: r.count,
+      ffmpeg: pcT(r.ffmpeg_found ? 'videoExtract.ffmpegFound' : 'videoExtract.ffmpegMissing'),
+      engine: r.engine,
+      model: r.model,
+      device: r.device,
+    })}\n` +
       (r.videos || []).slice(0, 50).map((v: string) => '  • ' + v).join('\n');
     setLocalOutput(text);
     return text;
@@ -462,10 +469,10 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     // not just the primary. Primary is auto-included; this is the multi-select.
     const startReq = { ...req, selected_languages: corrLangsRef.current };
     const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractStart, startReq)
-      .catch((e: any) => ({ success: false, error: e?.message || 'request failed' }));
+      .catch((e: any) => ({ success: false, error: e?.message || pcT('common.requestFailed') }));
     setStarting(false);
     if (!r.success || !r.task_id) {
-      setNotice(r.error || 'Failed to start');
+      setNotice(r.error || pcT(`${NOTICE}.startFailed`));
       return;
     }
     const tid = r.task_id;
@@ -477,17 +484,17 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (taskId) pycoreApi.cancelVideoExtractTask(taskId).catch(() => { /* optional */ });
     task.end();
     setPaused(false);
-    setNotice('Stopped polling');
+    setNotice(pcT(`${NOTICE}.stoppedPolling`));
   }, [taskId, task]);
 
   const togglePause = useCallback(async (): Promise<void> => {
     if (!taskId) return;
     if (paused) {
       const r = await pycoreApi.resumeVideoExtractTask(taskId).catch(() => ({ success: false }));
-      if (r.success) { setPaused(false); setNotice('Resumed'); } else setNotice('Resume failed');
+      if (r.success) { setPaused(false); setNotice(pcT(`${NOTICE}.resumed`)); } else setNotice(pcT(`${NOTICE}.resumeFailed`));
     } else {
       const r = await pycoreApi.pauseVideoExtractTask(taskId).catch(() => ({ success: false }));
-      if (r.success) { setPaused(true); setNotice('Paused'); } else setNotice('Pause failed');
+      if (r.success) { setPaused(true); setNotice(pcT(`${NOTICE}.paused`)); } else setNotice(pcT(`${NOTICE}.pauseFailed`));
     }
   }, [taskId, paused]);
 
@@ -503,7 +510,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     const langs = (languages && languages.length) ? languages : corrLangsRef.current;
     requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractSyncSource, { source_path: sourcePath, languages: langs })
       .catch((e: any) => {
-        setNotice(`${L.veSyncFailed}: ${e?.message || 'HTTP failed'}`);
+        setNotice(`${pcT(`${NOTICE}.syncFailed`)}: ${e?.message || pcT('common.requestFailed')}`);
         setSyncing((prev) => { const n = new Set(prev); n.delete(sourcePath); return n; });
         setSyncProgress(null);
       });
@@ -526,7 +533,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (paths && paths.length) payload.paths = paths;
     await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractSyncAll, payload)
       .catch((e: any) => {
-        setNotice(`${L.veSyncFailed}: ${e?.message || 'HTTP failed'}`);
+        setNotice(`${pcT(`${NOTICE}.syncFailed`)}: ${e?.message || pcT('common.requestFailed')}`);
         setSyncing(new Set());
         setSyncProgress(null);
       });
@@ -549,7 +556,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (paths && paths.length) payload.paths = paths;
     await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractFillLanguages, payload, 600_000)
       .catch((e: any) => {
-        setNotice(`${L.veFillFailed}: ${e?.message || 'HTTP failed'}`);
+        setNotice(`${pcT(`${NOTICE}.fillFailed`)}: ${e?.message || pcT('common.requestFailed')}`);
         setFilling(false);
         setFillProgress(null);
       });
@@ -588,7 +595,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     autoSyncedRef.current = tid;
     if (!autoSync || syncing.size > 0) return;
     const root = (snapshotOf(polled).root as string | null | undefined) || null;
-    setNotice(L.veAutoSyncStarted);
+    setNotice(pcT(`${NOTICE}.autoSyncStarted`));
     syncAll(root ? [root] : undefined);
   }, [polled, done, savedTaskId, autoSync, syncing, syncAll]);
 

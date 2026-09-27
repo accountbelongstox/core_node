@@ -183,8 +183,11 @@ class ThreadBus:
         guard_name: str,
         name: str,
         data: Any = None,
+        consume: bool = True,
     ) -> bool:
-        """Publish a response only while its waiter guard still exists."""
+        """Publish a response only while its waiter guard still exists; the
+        guard is consumed unless ``consume`` is False (progress signals that
+        precede the final response)."""
         payload = {
             'data': data,
             'timestamp': time.time(),
@@ -194,7 +197,8 @@ class ThreadBus:
         def publish() -> _StatePayload:
             if guard_name not in self._signals:
                 return _StatePayload(False, [])
-            self._signals.pop(guard_name, None)
+            if consume:
+                self._signals.pop(guard_name, None)
             self._signals[name] = payload
             cond = self._signal_condition(name)
             return _StatePayload(True, [cond])

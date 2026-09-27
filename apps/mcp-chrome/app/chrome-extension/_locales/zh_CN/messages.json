@@ -2441,5 +2441,97 @@
         "example": "1234"
       }
     }
+  },
+  "unknownActionError": {
+    "message": "未知操作：$action$",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownCapabilityError": {
+    "message": "未知能力：$capability$",
+    "placeholders": {
+      "capability": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerStartedStatus": {
+    "message": "工作器已启动"
+  },
+  "workerStoppedStatus": {
+    "message": "工作器已停止"
+  },
+  "workerConfigRequired": {
+    "message": "需要工作器配置"
+  },
+  "workerConfigApplied": {
+    "message": "配置已应用"
+  },
+  "apiUrlEmpty": {
+    "message": "API 地址为空"
+  },
+  "serverReturnedError": {
+    "message": "服务器返回错误"
+  },
+  "taskCenterStartedStatus": {
+    "message": "任务中心已启动"
+  },
+  "taskCenterStoppedStatus": {
+    "message": "任务中心已停止"
+  },
+  "processorTypeRequired": {
+    "message": "需要处理器类型"
+  },
+  "processorEnabledStatus": {
+    "message": "处理器 $processor$ 已启用",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorDisabledStatus": {
+    "message": "处理器 $processor$ 已禁用",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStartedStatus": {
+    "message": "处理器 $processor$ 已启动",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStoppedStatus": {
+    "message": "处理器 $processor$ 已停止",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterAtLeastOneWord": {
+    "message": "请至少输入一个单词"
+  },
+  "startSupersededByStop": {
+    "message": "启动已被停止操作取代"
+  },
+  "capabilityChangeSupersededByStop": {
+    "message": "能力变更已被停止操作取代"
+  },
+  "connectedPendingStatus": {
+    "message": "已连接 · 待处理 $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

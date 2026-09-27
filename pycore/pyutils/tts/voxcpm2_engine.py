@@ -21,7 +21,8 @@ Config:
                                 (default 127.0.0.1:57214)
   VOXCPM2_MODEL               - HuggingFace id or local path (server env)
   VOXCPM2_DEVICE              - cpu | cuda:0 | auto (server env)
-  VOXCPM2_CFG / VOXCPM2_TIMESTEPS - generation defaults (server env)
+  VOXCPM2_CFG / VOXCPM2_TIMESTEPS - generation defaults (server env); an engine
+                                test override is sent per request instead
   VOXCPM2_PROMPT_WAV / VOXCPM2_PROMPT_TEXT - voice clone reference
                                 (forwarded per request when set)
 """
@@ -44,8 +45,20 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyutils.tts.engine_policy import engine_setting
+from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_VENV_NOT_BUILT, tts_reason
 
 _ENGINE = "voxcpm2"
+_INSTALL_HINT = (
+    "Step58_InstallVoxcpm2.ps1 / 147_install_voxcpm2.sh (requires the dedicated "
+    "Python 3.12; Windows: Step13_InstallPython310_312.ps1 -Runtime 312)"
+)
+# Request field <- engine setting (a UI engine-test override reaches the
+# running server per request, never through the process environment).
+_REQUEST_SETTINGS = (
+    ("cfg_value", "VOXCPM2_CFG", float),
+    ("inference_timesteps", "VOXCPM2_TIMESTEPS", int),
+)
 _DEFAULT_HOST = HTTP_LOOPBACK_HOST
 _HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
 _REQUEST_TIMEOUT_S = float(
@@ -77,11 +90,7 @@ def available() -> bool:
 def disabled_reason() -> Optional[str]:
     if isolated_venv.venv_ready(_ENGINE):
         return None
-    return (
-        "VoxCPM2 isolated venv not built - run Step58_InstallVoxcpm2.ps1 / "
-        "147_install_voxcpm2.sh (requires the dedicated Python 3.12; "
-        "Windows: Step13_InstallPython310_312.ps1 -Runtime 312)"
-    )
+    return tts_reason(TTS_REASON_VENV_NOT_BUILT, engine=_ENGINE, installer=_INSTALL_HINT)
 
 
 def last_synth_error() -> Optional[str]:
@@ -146,19 +155,24 @@ def synthesize(
     """POST /synthesize and write the returned PCM16 WAV to output_mp3 (the
     server emits wav; mp3 targets are converted locally via ffmpeg). Returns
     False on failure (the orchestrator then falls through to the next
-    engine)."""
-    del speaker
+    engine). VoxCPM2 has no speed or language control (the model reads the
+    language from the text), so neither is sent; the speed is applied as
+    ffmpeg atempo in the mp3 conversion."""
+    del speaker, lang
     _LAST_SYNTH_ERROR.set(None)
     cleaned = (text or "").strip()
     if not cleaned:
         _LAST_SYNTH_ERROR.set("empty text")
         return False
     out = Path(output_mp3)
-    payload: Dict[str, Any] = {
-        "text": cleaned,
-        "language": (lang or "en"),
-        "speed": float(speed),
-    }
+    payload: Dict[str, Any] = {"text": cleaned}
+    for field, env_key, cast in _REQUEST_SETTINGS:
+        value = engine_setting(env_key).strip()
+        if value:
+            try:
+                payload[field] = cast(value)
+            except ValueError:
+                ColorPrint.yellow(f"[voxcpm2] ignoring invalid {env_key}={value}")
     prompt_wav = (os.environ.get("VOXCPM2_PROMPT_WAV") or "").strip()
     if prompt_wav:
         payload["prompt_wav_path"] = prompt_wav
@@ -179,7 +193,7 @@ def synthesize(
         tmp_wav = out.with_suffix(".voxcpm2.wav")
         tmp_wav.write_bytes(data)
         try:
-            if not wav_to_mp3(tmp_wav, out):
+            if not wav_to_mp3(tmp_wav, out, tempo=speed):
                 _LAST_SYNTH_ERROR.set("wav->mp3 conversion failed")
                 return False
             return True

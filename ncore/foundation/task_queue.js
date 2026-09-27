@@ -11,7 +11,7 @@
  * - Cleanup utilities
  *
  * Usage:
- *   const { getGlobalTaskQueue } = require('#@foundation/task_queue');
+ *   const { getGlobalTaskQueue } = require('#@foundation/task_queue.js');
  *   const queue = getGlobalTaskQueue();
  *
  *   await queue.put(task);

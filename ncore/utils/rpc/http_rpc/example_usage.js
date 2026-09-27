@@ -10,7 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const expressUtils = require('#@ncore/foundation/express_utils');
+const expressUtils = require('#@ncore/foundation/express_utils/index.js');
 const { WsRpcServer } = require('#@ncore/utils/ws_rpc');
 const { HttpRpcServer } = require('#@ncore/utils/http_rpc');
 const logger = require('#@logger');

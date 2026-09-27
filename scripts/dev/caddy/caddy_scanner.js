@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // ### AI SPECIAL ATTENTION RULES START ###
 // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 // 1. Write all code in English only.
@@ -10,7 +11,6 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-#!/usr/bin/env node
 
 const http = require('http');
 const { exec } = require('child_process');

@@ -30,7 +30,7 @@ Endpoints:
   GET  /health       -> { ok, device, model_loaded, load_error, sample_rate }
   GET  /             -> same as /health
   GET  /load         -> warm the model (visible on the console)
-  POST /synthesize   -> { text, language?, speed?, prompt_wav_path?, prompt_text?,
+  POST /synthesize   -> { text, prompt_wav_path?, prompt_text?,
                          cfg_value?, inference_timesteps? } -> PCM16 WAV bytes
 """
 
@@ -189,8 +189,6 @@ def _wav_bytes(samples: Any, sample_rate: int) -> bytes:
 
 class SynthRequest(BaseModel):
     text: str
-    language: str = "en"
-    speed: float = 1.0
     prompt_wav_path: Optional[str] = None
     prompt_text: Optional[str] = None
     cfg_value: Optional[float] = None

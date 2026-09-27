@@ -29,45 +29,8 @@ const rootdir = path.join(__dirname, '../../..');
 function getCwd() {
     return rootdir;
 }
-const osVersion = (() => {
-    const platform = os.platform();
-    if (platform === 'win32') {
-        const release = os.release();
-        const [major, minor, build] = release.split('.').map(Number);
-
-        if (major === 10 && build >= 22000) {
-            return 'win11';
-        }
-        else if (major === 10) {
-            return 'win10';
-        }
-    } else if (platform === 'linux') {
-        const distro = os.type();
-        const version = os.release();
-        if (distro.includes('Ubuntu')) {
-            return `ubuntu${version.split('.')[0]}`;
-        } else if (distro.includes('Debian')) {
-            return `debian${version.split('.')[0]}`;
-        } else if (distro.includes('Arch')) {
-            return `archlinux${version.split('.')[0]}`;
-        } else if (distro.includes('Fedora')) {
-            return `fedora${version.split('.')[0]}`;
-        } else if (distro.includes('CentOS')) {
-            return `centos${version.split('.')[0]}`;
-        } else if (distro.includes('Red Hat')) {
-            return `redhat${version.split('.')[0]}`;
-        } else if (distro.includes('openSUSE')) {
-            return `opensuse${version.split('.')[0]}`;
-        } else if (distro.includes('Manjaro')) {
-            return `manjaro${version.split('.')[0]}`;
-        } else if (distro.includes('Linux Mint')) {
-            return `linuxmint${version.split('.')[0]}`;
-        } else {
-            return platform;
-        }
-    }
-    return platform;
-})();
+// Per-OS directory tag from /etc/os-release ID + major VERSION_ID (win10/win11 on Windows), e.g. debian13, ubuntu24, kali2025
+const osVersion = systemPaths.getOsVarTag().toLowerCase().replace(/_/g, '');
 const LANG_COMPILER_DIRNAME = `.dev_${osVersion}`;
 const APP_INSTALL_NAME = `applications_${osVersion}`
 
@@ -80,7 +43,8 @@ function mapWebPath(sub = '') {
 
 let DATA_DRIVER, DATA_DIR;
 if (os.platform() === 'win32') {
-    DATA_DRIVER = systemPaths.WINDOWS_DATA_DRIVE_ROOT;
+    // The drive of the resolved core_node data dir (D:\ normally, the user profile drive as fallback)
+    DATA_DRIVER = path.parse(systemPaths.getSystemCacheDir()).root || systemPaths.WINDOWS_DATA_DRIVE_ROOT;
     DATA_DIR = path.join(DATA_DRIVER, `wwwroot`);
 } else {
     DATA_DRIVER = fs.existsSync('/mnt/d') ? '/mnt/d' : null;
@@ -119,11 +83,8 @@ function mkdir(dirPath) {
     try {
         return fs.mkdirSync(dirPath, { recursive: true });
     } catch (error) {
-        if (error.code === 'EACCES' || error.code === 'EPERM') {
-            console.warn(`[GLOBAL_DIR] Permission denied creating directory: ${dirPath}`);
-            return null;
-        }
-        throw error;
+        console.warn(`[GLOBAL_DIR] Cannot create directory ${dirPath}: ${error.code || error.message}`);
+        return null;
     }
 }
 

@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const { findEdgeTTSBinary } = require('./edgeTTSFinder');
 const { getAmericanVoice, getEnglishVoice } = require('../../provider/mate_data/soundQuality');
-const { execCommand, execCmdResultText } = require('#@commander');
+const { runCommand } = require('#@commander');
 const { findVoiceByLocale } = require('../../provider/mate_data/soundQuality');
 const { findLocalVoice, updateWordCount} = require('../voice_tool/check_voice');
 const { ensureWordQueueItem, generateAudioMa3Name, generateAudioMa3RawName, getVoiceDir, generateAudioSubtitleName, getSubtitleDir, showGenerateInfo } = require('../voice_tool/voice_tool');
@@ -59,9 +59,12 @@ const GET_TTS_PY_VOICES = async (edgeTTSBinary) => {
     if (!edgeTTSBinary) {
         edgeTTSBinary = await findEdgeTTSBinary();
     }
-    const command = `${edgeTTSBinary} --list-voices`;
-    const voicesText = await execCmdResultText(command);
-    TTS_PY_VOICES = processVoiceTextToVoiceList(voicesText);
+    const listResult = runCommand([edgeTTSBinary, '--list-voices']);
+    if (!listResult.success) {
+        log.error(`edge-tts --list-voices failed: ${listResult.stderr.trim()}`);
+        return [];
+    }
+    TTS_PY_VOICES = processVoiceTextToVoiceList(listResult.stdout);
     log.success(`\n--------------------------------------------------------------------------------`)
     log.success(`support voices: ${TTS_PY_VOICES.length}`);
     let voiceList = [];
@@ -119,9 +122,13 @@ const getOrGenerateAudioPy = async (input,callback) => {
                     continue;
                 }
             }
-            let command = `${edgeTTSBinary} --voice ${SoundQuality} --text "${queueItem.content}" --write-media "${mediaFilename}" --write-subtitles "${subtitlesFilename}"`;
-            showGenerateInfo(queueItem, SoundQuality, mediaFilename, command);
-            await execCommand(command);
+            const commandArgs = [edgeTTSBinary, '--voice', SoundQuality, '--text', String(queueItem.content), '--write-media', mediaFilename, '--write-subtitles', subtitlesFilename];
+            showGenerateInfo(queueItem, SoundQuality, mediaFilename, commandArgs.join(' '));
+            const result = runCommand(commandArgs);
+            if (!result.success || !fs.existsSync(mediaFilename)) {
+                log.error(`edge-tts failed for ${mediaFilename}: ${result.stderr.trim()}`);
+                continue;
+            }
             await updateWordCount(mediaFilename, queueItem.type);
             generatedWordFiles.push(mediaFilename);
         }

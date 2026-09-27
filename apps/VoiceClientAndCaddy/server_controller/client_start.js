@@ -11,6 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const { getJsonFromUrl } = require('#@/ncore/utils/net/libs/axios_tool.js');
+const clientKeyAuth = require('#@foundation/common/client_key_auth.js');
 const { GET_ROW_WORD_URL } = require('../provider/constants/StaticData.js');
 const logger = require('#@logger');
 const { arrtool } = require('#@btools');
@@ -102,7 +103,8 @@ async function submitSimpleAudioToServer() {
 
 
 async function startWordProcessingByClient() {
-    const result = await getJsonFromUrl(GET_ROW_WORD_URL);
+    const signed = clientKeyAuth.signRequest({ method: 'GET', url: GET_ROW_WORD_URL });
+    const result = await getJsonFromUrl(GET_ROW_WORD_URL, { headers: signed.ok ? signed.headers : {} });
     logger.info(`result:${result}`);
     return 
     try {

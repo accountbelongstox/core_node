@@ -28,6 +28,22 @@ echo "Claude AI #1 - v4 [team]"
 echo "============================================================"
 echo ""
 
+
+#region AI CLI Provisioning (install if missing + idempotent upgrade prompt)
+aiCliProvisionSource="${BASH_SOURCE[0]}"
+aiCliProvisionScriptsDir=""
+aiCliProvisionCommonPath=""
+if [ -L "$aiCliProvisionSource" ]; then
+    aiCliProvisionSource="$(readlink -f "$aiCliProvisionSource" 2>/dev/null || echo "$aiCliProvisionSource")"
+fi
+aiCliProvisionScriptsDir="$(cd "$(dirname "$aiCliProvisionSource")/.." && pwd)"
+aiCliProvisionCommonPath="$aiCliProvisionScriptsDir/shells/linux/common/ai_cli_provision_common.sh"
+. "$aiCliProvisionCommonPath"
+ai_cli_provision "claude"
+#endregion
+
+
+
 scriptSource="${BASH_SOURCE[0]}"
 if [ -L "$scriptSource" ]; then
     scriptSource="$(readlink -f "$scriptSource" 2>/dev/null || echo "$scriptSource")"
@@ -78,7 +94,7 @@ export ANTHROPIC_MODEL="$ANTHROPIC_MODEL"
 
 # Configuration summary
 echo "ANTHROPIC_BASE_URL: $ANTHROPIC_BASE_URL"
-echo "ANTHROPIC_AUTH_TOKEN: $ANTHROPIC_AUTH_TOKEN"
+echo "ANTHROPIC_AUTH_TOKEN: $(ai_cli_mask_secret "$ANTHROPIC_AUTH_TOKEN")"
 echo "ANTHROPIC_MODEL: $ANTHROPIC_MODEL"
 echo "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (always on)"
 if [ -n "${ANTHROPIC_MODEL:-}" ]; then

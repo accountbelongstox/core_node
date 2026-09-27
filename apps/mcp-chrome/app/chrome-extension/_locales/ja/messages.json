@@ -2294,5 +2294,97 @@
         "example": "1234"
       }
     }
+  },
+  "unknownActionError": {
+    "message": "不明なアクション: $action$",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownCapabilityError": {
+    "message": "不明な機能: $capability$",
+    "placeholders": {
+      "capability": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerStartedStatus": {
+    "message": "ワーカーを開始しました"
+  },
+  "workerStoppedStatus": {
+    "message": "ワーカーを停止しました"
+  },
+  "workerConfigRequired": {
+    "message": "ワーカー設定が必要です"
+  },
+  "workerConfigApplied": {
+    "message": "設定を適用しました"
+  },
+  "apiUrlEmpty": {
+    "message": "API URL が空です"
+  },
+  "serverReturnedError": {
+    "message": "サーバーがエラーを返しました"
+  },
+  "taskCenterStartedStatus": {
+    "message": "タスクセンターを開始しました"
+  },
+  "taskCenterStoppedStatus": {
+    "message": "タスクセンターを停止しました"
+  },
+  "processorTypeRequired": {
+    "message": "プロセッサの種類が必要です"
+  },
+  "processorEnabledStatus": {
+    "message": "プロセッサ $processor$ を有効にしました",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorDisabledStatus": {
+    "message": "プロセッサ $processor$ を無効にしました",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStartedStatus": {
+    "message": "プロセッサ $processor$ を開始しました",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStoppedStatus": {
+    "message": "プロセッサ $processor$ を停止しました",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterAtLeastOneWord": {
+    "message": "単語を 1 つ以上入力してください"
+  },
+  "startSupersededByStop": {
+    "message": "開始は停止によって取り消されました"
+  },
+  "capabilityChangeSupersededByStop": {
+    "message": "機能の変更は停止によって取り消されました"
+  },
+  "connectedPendingStatus": {
+    "message": "接続済み · 保留中 $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   }
 }

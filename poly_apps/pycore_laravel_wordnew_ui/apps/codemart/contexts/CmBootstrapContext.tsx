@@ -1,10 +1,18 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthSession } from '../../../core/auth/useAuthSession';
 import { subscribeAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
 import { cmApi } from '../api/CmApi';
 import type { CmBootstrap } from '../api/CmApiTypes';
 
 const UNREAD_REFRESH_INTERVAL_MS = 60_000;
+const BOOTSTRAP_UNAVAILABLE_ERROR = 'bootstrap_unavailable';
+
+function loginUserId(user: unknown): number | null {
+  const source = user && typeof user === 'object' ? user as { id?: unknown; user_id?: unknown } : null;
+  const raw = source ? source.id ?? source.user_id : null;
+  const id = typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : Number.NaN;
+  return Number.isFinite(id) ? id : null;
+}
 
 export interface CmBootstrapState {
   bootstrap: CmBootstrap | null;
@@ -25,17 +33,22 @@ export const CmBootstrapProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const requestRef = useRef(0);
+  const bootstrapUserIdRef = useRef<number | null>(null);
+  bootstrapUserIdRef.current = bootstrap?.user.id ?? null;
 
   const load = useCallback(async (): Promise<void> => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     setLoading(true);
     setError(null);
     const response = await cmApi.getBootstrap();
+    if (requestId !== requestRef.current) return;
     if (response.success && response.data) {
       setBootstrap(response.data);
       setUnreadCount(response.data.counters?.unread_notifications ?? 0);
     } else {
-      setBootstrap(null);
-      setError(response.error ?? 'bootstrap_unavailable');
+      setError(response.error ?? BOOTSTRAP_UNAVAILABLE_ERROR);
     }
     setLoading(false);
   }, []);
@@ -49,14 +62,22 @@ export const CmBootstrapProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     if (!authenticated) {
+      requestRef.current += 1;
       setBootstrap(null);
+      setError(null);
+      setLoading(false);
       setUnreadCount(0);
       return;
     }
     void load();
   }, [authenticated, load]);
 
-  useEffect(() => subscribeAuthLoginSuccess(() => {
+  useEffect(() => subscribeAuthLoginSuccess((detail) => {
+    const userId = loginUserId(detail.user);
+    if (userId !== null && bootstrapUserIdRef.current !== null && userId !== bootstrapUserIdRef.current) {
+      setBootstrap(null);
+      setUnreadCount(0);
+    }
     void load();
   }), [load]);
 

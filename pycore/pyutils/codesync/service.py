@@ -10,14 +10,11 @@ from typing import Any, Dict, Optional
 import pycore.pyutils.codesync.routes as code_sync_routes
 from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
 from pycore.pyutils.codesync.manager import get_code_sync_manager
+from pycore.pyutils.common.client_key_auth import ERROR_MISSING as CLIENT_KEY_ERROR_MISSING
 from pycore.pyutils.codesync.workspace_exchange import (
     DEFAULT_FILE_PAGE_SIZE,
     WorkspaceExchangeError,
     get_workspace_exchange,
-)
-from pycore.pyutils.codesync.workspace_auth import (
-    WORKSPACE_AUTHENTICATION_CHALLENGE,
-    workspace_authorized,
 )
 
 
@@ -293,9 +290,12 @@ def clear_pending_update(params: Optional[Dict[str, Any]] = None) -> Dict[str, A
     )
 
 
-def _client_workspace(authorization: str):
-    if not workspace_authorized(authorization):
-        raise WorkspaceExchangeError(401, "Workspace authorization is required")
+def _client_workspace(client_key: Dict[str, Any]):
+    if not client_key.get("ok"):
+        raise WorkspaceExchangeError(
+            401,
+            str(client_key.get("error_code") or CLIENT_KEY_ERROR_MISSING),
+        )
     manager = get_code_sync_manager()
     if not manager.is_client_mode():
         raise WorkspaceExchangeError(503, "Workspace exchange is only available in client mode")
@@ -312,9 +312,9 @@ def _workspace_error(exc: WorkspaceExchangeError) -> Dict[str, Any]:
     }
 
 
-def workspace_capabilities(authorization: str) -> Dict[str, Any]:
+def workspace_capabilities(client_key: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        result = _client_workspace(authorization).capabilities()
+        result = _client_workspace(client_key).capabilities()
         result["routes"] = {
             "list_files": {
                 "method": "GET",
@@ -347,26 +347,26 @@ def workspace_capabilities(authorization: str) -> Dict[str, Any]:
 
 
 def workspace_list_files(
-    authorization: str,
+    client_key: Dict[str, Any],
     cursor: str = "",
     limit: int = DEFAULT_FILE_PAGE_SIZE,
     include_hash: bool = False,
 ) -> Dict[str, Any]:
     try:
-        return _client_workspace(authorization).list_files(cursor, limit, include_hash)
+        return _client_workspace(client_key).list_files(cursor, limit, include_hash)
     except WorkspaceExchangeError as exc:
         return _workspace_error(exc)
 
 
-def workspace_read_file(authorization: str, file_path: str) -> Dict[str, Any]:
+def workspace_read_file(client_key: Dict[str, Any], file_path: str) -> Dict[str, Any]:
     try:
-        return _client_workspace(authorization).read_file(file_path)
+        return _client_workspace(client_key).read_file(file_path)
     except WorkspaceExchangeError as exc:
         return _workspace_error(exc)
 
 
 def workspace_write_file(
-    authorization: str,
+    client_key: Dict[str, Any],
     file_path: str,
     params: Optional[Dict[str, Any]] = None,
     *,
@@ -375,7 +375,7 @@ def workspace_write_file(
 ) -> Dict[str, Any]:
     request = _p(params)
     try:
-        return _client_workspace(authorization).write_file(
+        return _client_workspace(client_key).write_file(
             file_path,
             request.get("content_base64"),
             content_sha256=str(request.get("content_sha256") or ""),
@@ -387,12 +387,12 @@ def workspace_write_file(
 
 
 def workspace_write_document(
-    authorization: str,
+    client_key: Dict[str, Any],
     params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     request = _p(params)
     try:
-        return _client_workspace(authorization).write_document(
+        return _client_workspace(client_key).write_document(
             request.get("title"),
             request.get("content"),
         )
@@ -400,8 +400,8 @@ def workspace_write_document(
         return _workspace_error(exc)
 
 
-def workspace_latest_document(authorization: str) -> Dict[str, Any]:
+def workspace_latest_document(client_key: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        return _client_workspace(authorization).latest_document()
+        return _client_workspace(client_key).latest_document()
     except WorkspaceExchangeError as exc:
         return _workspace_error(exc)

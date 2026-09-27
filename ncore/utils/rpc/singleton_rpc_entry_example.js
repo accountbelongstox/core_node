@@ -148,7 +148,7 @@ class ExampleSingletonRpcLauncher extends SingletonRpcLauncher {
     async startBackendServer() {
         if (this.backendServerRunning) {
             logger.warn('[Example] Backend server already running');
-            return;
+            return true;
         }
 
         logger.info('[Example] Starting backend server thread...');
@@ -158,7 +158,8 @@ class ExampleSingletonRpcLauncher extends SingletonRpcLauncher {
 
             if (!portAvailable) {
                 logger.error(`[Example] Port ${this.config.PORT} is already in use`);
-                throw new Error(`Port ${this.config.PORT} is already in use`);
+                this.emit('backendError', { code: 'port_in_use', port: this.config.PORT });
+                return false;
             }
 
             await startExampleBackendServer(this.config);
@@ -170,12 +171,13 @@ class ExampleSingletonRpcLauncher extends SingletonRpcLauncher {
             });
 
             logger.info('[Example] Backend server thread started successfully');
+            return true;
 
         } catch (error) {
             logger.error('[Example] Failed to start backend server:', error);
             this.backendServerRunning = false;
             this.emit('backendError', error);
-            throw error;
+            return false;
         }
     }
 
@@ -282,7 +284,10 @@ async function main() {
     });
 
     try {
-        await launcher.launch();
+        if (!(await launcher.launch())) {
+            logger.error('[Example] Launch failed; see the launcher log for the reason');
+            return;
+        }
 
         logger.info('[Example] Launch complete. Status:', launcher.getStatus());
 

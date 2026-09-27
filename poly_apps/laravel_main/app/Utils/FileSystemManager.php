@@ -407,9 +407,16 @@ class FileSystemManager
 
     public static function writeFileAtomic(string $path, string $content): bool
     {
-        $staging = $path . '.' . getmypid() . '.tmp';
+        // FrankenPHP worker threads share one PID, so the staging name also
+        // carries random bytes to keep concurrent writers of one path apart.
+        $staging = $path . '.' . getmypid() . '.' . bin2hex(random_bytes(6)) . '.tmp';
 
-        return self::writeFile($staging, $content) && self::moveFile($staging, $path);
+        if (self::writeFile($staging, $content) && self::moveFile($staging, $path)) {
+            return true;
+        }
+        self::delete($staging);
+
+        return false;
     }
 
     public static function copy(string $source, string $destination): bool

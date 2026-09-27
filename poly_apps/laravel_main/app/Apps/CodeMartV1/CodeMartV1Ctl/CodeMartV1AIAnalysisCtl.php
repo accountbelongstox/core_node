@@ -43,7 +43,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
     private function analysisNotFound(): JsonResponse
     {
-        return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_FOUND, 'Analysis not found', null, 404);
+        return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_FOUND, __('codemart.messages.analysis_not_found'), null, 404);
     }
 
     private function failureResponse(array $result): JsonResponse
@@ -111,17 +111,17 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         $project = CodeMartV1ProjectModel::findOwnedByClient((int) $projectId, (int) $user->id);
         if (!$project) {
-            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 'Project not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, __('codemart.messages.project_not_found'), null, 404);
         }
         if ($project->status !== CodeMartV1Constants::PROJECT_STATUS_DRAFT) {
-            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, 'Only draft projects can be analyzed', [
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, __('codemart.messages.only_draft_projects_can_be_analyzed'), [
                 'status' => $project->status,
             ], 409);
         }
 
         $latest = CodeMartV1AIAnalysisModel::latestForProject((int) $project->id);
         if ($latest && in_array($latest->status, CodeMartV1Constants::ANALYSIS_ACTIVE_STATUSES, true)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_IN_PROGRESS, 'Project is already being analyzed', [
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_IN_PROGRESS, __('codemart.messages.project_is_already_being_analyzed'), [
                 'analysis_id' => (int) $latest->id,
             ], 409);
         }
@@ -186,10 +186,10 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         $project = CodeMartV1ProjectModel::findById((int) $projectId);
         if (!$project) {
-            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 'Project not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, __('codemart.messages.project_not_found'), null, 404);
         }
         if (!$project->isManagedBy((int) $user->id)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'You do not have access to this analysis', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.you_do_not_have_access_to_this_2'), null, 403);
         }
 
         $analysis = CodeMartV1AIAnalysisModel::latestForProject((int) $project->id);
@@ -217,12 +217,12 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->analysisNotFound();
         }
         if ($analysis->status !== CodeMartV1Constants::AI_ANALYSIS_COMPLETED) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_COMPLETED, 'Analysis not completed yet', [
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_COMPLETED, __('codemart.messages.analysis_not_completed_yet'), [
                 'status' => $analysis->status,
             ], 409);
         }
         if (!$this->isLatest($analysis)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_LATEST, 'Only the latest analysis can be accepted', null, 409);
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_LATEST, __('codemart.messages.only_the_latest_analysis_can_be_accepted'), null, 409);
         }
 
         $project = $analysis->project;
@@ -285,7 +285,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $analysis = $this->ownedAnalysis((int) $analysisId, (int) $user->id);
@@ -293,12 +293,12 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->analysisNotFound();
         }
         if ($analysis->status !== CodeMartV1Constants::AI_ANALYSIS_COMPLETED || $analysis->accepted_at !== null) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_COMPLETED, 'Only a completed, unaccepted analysis can be revised', [
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_COMPLETED, __('codemart.messages.only_a_completed_unaccepted_analysis_can_be'), [
                 'status' => $analysis->status,
             ], 409);
         }
         if (!$this->isLatest($analysis)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_LATEST, 'Only the latest analysis can be revised', null, 409);
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_LATEST, __('codemart.messages.only_the_latest_analysis_can_be_revised'), null, 409);
         }
 
         $project = $analysis->project;

@@ -23,7 +23,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Volume2, Languages,
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
-import { wfNewAdminApi } from '../../api';
+import { wfNewAdminApi, adminErrorText } from '../../api';
 import type {
   WfNewAdminWordRow, WfNewAdminWordsPage, WfNewAdminWordFilter,
   WfNewAdminWordSort, WfNewAdminWordEditable, WfNewAdminBatchAction,
@@ -137,9 +137,8 @@ export const WfNewAdminWords: React.FC<WfNewAdminWordsProps> = ({ activeTheme, t
   }, []);
 
   const toastError = useCallback((e: any): void => {
-    if (e?.status === 401) addToast(trans('admin.needLogin'), 'warning');
-    else addToast(String(e?.message || 'Request failed'), 'warning');
-  }, [addToast, trans]);
+    addToast(adminErrorText(e), 'warning');
+  }, [addToast]);
 
   const bumpReload = useCallback((): void => setReloadTick((t) => t + 1), []);
 

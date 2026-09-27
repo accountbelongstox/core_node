@@ -65,10 +65,10 @@ from pycore.pyutils.common.user_data_store import UserDataStore, user_data_store
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 from pycore.pyutils.laravel.identity import (
     LARAVEL_HEALTH_SERVICE,
-    build_pycore_identity_headers,
     laravel_server_namespace,
     parse_laravel_server_identity,
 )
+from pycore.pyutils.common.client_key_auth import client_key_headers
 from pycore.pyutils.common.laravel_http_transport import (
     create_laravel_http_session,
     response_http_version,
@@ -194,7 +194,7 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         resp = session.get(
             url + HEALTH_PATH,
-            headers=build_pycore_identity_headers(),
+            headers=client_key_headers("GET", url + HEALTH_PATH),
             timeout=timeout,
             **transport_options,
         )
@@ -327,6 +327,7 @@ class LaravelReachability:
             THREAD_BUS.signal(LARAVEL_ONLINE_SIGNAL, payload)
             THREAD_BUS.trigger_event(LARAVEL_ONLINE_EVENT, payload, async_mode=True)
         else:
+            laravel_endpoint_manager.forget_resolved(normalized)
             ColorPrint.yellow(f"[LaravelEndpoints] {normalized} unreachable; durable deliveries wait for the online edge")
 
     @serialized_method
@@ -368,6 +369,7 @@ class LaravelEndpointManager:
 
     def __init__(self):
         self._resolved: Optional[str] = None       # in-process resolve() cache
+        self._selection_generation: int = 0         # bumped by every invalidate()
         self._failed_sweep_at: float = 0.0          # monotonic ts of last all-down sweep
         self._ui_failed_at: float = 0.0             # monotonic ts of last UI-path probe miss
         # Last probe result per url: {url, healthy, latency_ms, last_checked, ...}
@@ -581,6 +583,14 @@ class LaravelEndpointManager:
         return laravel_reachability.servers()
 
     @serialized_method
+    def is_catalog_endpoint(self, url: str) -> bool:
+        """True when ``url`` is one of the configured endpoint candidates.
+
+        Callers that accept a Laravel base URL from a request check it here, so
+        pycore never logs in to, pulls from or signs for an arbitrary host."""
+        return bool(_normalize(url)) and _normalize(url) in self._load()["endpoints"]
+
+    @serialized_method
     def last_probe_result(self, url: str) -> Dict[str, Any]:
         """Last recorded health-probe result for one URL (network-free read).
 
@@ -614,6 +624,7 @@ class LaravelEndpointManager:
         """
         if self._resolved:
             return self._resolved
+        generation = self._generation()
         state = self._load()
         endpoints: List[str] = state["endpoints"]
         current: Optional[str] = state["current"]
@@ -638,7 +649,7 @@ class LaravelEndpointManager:
                 for attempt in range(STORED_PROBE_RETRIES + 1):
                     res = self.probe(current, timeout=STORED_PROBE_TIMEOUT)
                     if res.get("healthy"):
-                        self._resolved = current
+                        self._adopt_resolved(current, generation)
                         return current
                     if attempt < STORED_PROBE_RETRIES:
                         ColorPrint.yellow(
@@ -652,7 +663,7 @@ class LaravelEndpointManager:
             sweep = self._probe_many(endpoints)
             winner = next((u for u in endpoints if sweep.get(u, {}).get("healthy")), None)
             if winner:
-                self._resolved = winner
+                self._adopt_resolved(winner, generation)
                 if winner != current:
                     # Cache in-process only; only select() may persist ``current``.
                     ColorPrint.green(f"[LaravelEndpoints] Switched to {winner} (cached)")
@@ -697,6 +708,7 @@ class LaravelEndpointManager:
         """
         if self._resolved:
             return self._resolved
+        generation = self._generation()
         fallback = self.peek_stored_base_url()
         if skip_probe:
             return fallback
@@ -709,24 +721,45 @@ class LaravelEndpointManager:
         if current:
             res = self.probe(current, timeout=UI_PROBE_TIMEOUT)
             if res.get("healthy"):
-                self._resolved = current
+                self._adopt_resolved(current, generation)
                 return current
         if self._resolved:
             return self._resolved
         for url in state.get("endpoints") or []:
             last = self._probe_results.get(url) or {}
             if last.get("healthy"):
-                self._resolved = url
+                self._adopt_resolved(url, generation)
                 return url
         self._ui_failed_at = time.monotonic()
         return fallback
 
     @serialized_method
     def invalidate(self) -> None:
-        """Drop the in-process resolve cache (after select/add/remove)."""
+        """Drop the in-process resolve cache (after select/add/remove) and
+        start a new selection generation, so a probe begun before this point
+        can never install its stale winner."""
         self._resolved = None
+        self._selection_generation += 1
         self._failed_sweep_at = 0.0
         self._ui_failed_at = 0.0
+
+    @serialized_method
+    def _generation(self) -> int:
+        return self._selection_generation
+
+    @serialized_method
+    def _adopt_resolved(self, url: str, generation: int) -> bool:
+        """Install a resolve winner only while its selection generation holds."""
+        if generation != self._selection_generation:
+            return False
+        self._resolved = url
+        return True
+
+    @serialized_method
+    def forget_resolved(self, url: str) -> None:
+        """Offline edge of the cached winner: resolve again on the next call."""
+        if self._resolved and self._resolved == _normalize(url):
+            self._resolved = None
 
     def register_endpoint_change_listener(self, callback: Callable[[str], None]) -> None:
         """Register a callback invoked when select() confirms a healthy new endpoint.
@@ -923,8 +956,9 @@ class LaravelEndpointManager:
             True,
         )
         self.invalidate()
+        generation = self._selection_generation
         if probe:
-            start_bus_task(lambda: self._finish_select(u), thread_name="laravel-endpoint-select")
+            start_bus_task(lambda: self._finish_select(u, generation), thread_name="laravel-endpoint-select")
             ColorPrint.green(f"[LaravelEndpoints] Selected {u} (probe in background)")
         else:
             self._resolved = u
@@ -942,22 +976,18 @@ class LaravelEndpointManager:
                 "current": u,
                 "selected": dict(self._probe_results.get(u) or {"url": u})}
 
-    def _finish_select(self, u: str) -> None:
-        """Off-owner select completion: probe the choice; when healthy, cache
-        it as the resolver winner and notify endpoint-change listeners so
-        singleton workers re-register without waiting for their next tick."""
+    def _finish_select(self, u: str, generation: int) -> None:
+        """Off-owner select completion: probe the choice; when healthy (and no
+        newer selection happened meanwhile), cache it as the resolver winner
+        and notify endpoint-change listeners so singleton workers re-register
+        without waiting for their next tick."""
         probe_res = self.probe(u)
         if probe_res.get("healthy"):
-            self._mark_resolved(u)
-            self._notify_endpoint_changed(u)
+            if self._adopt_resolved(u, generation):
+                self._notify_endpoint_changed(u)
         else:
             ColorPrint.yellow(
                 f"[LaravelEndpoints] Selected endpoint {u} UNHEALTHY: {probe_res.get('error')}")
-
-    @serialized_method
-    def _mark_resolved(self, u: str) -> None:
-        """Cache the healthy selection on the state-owner thread."""
-        self._resolved = u
 
     @serialized_method
     def probe_route(self, url: Optional[str] = None) -> Dict[str, Any]:

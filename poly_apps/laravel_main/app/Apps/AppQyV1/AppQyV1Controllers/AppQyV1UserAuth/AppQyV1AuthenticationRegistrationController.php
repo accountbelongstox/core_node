@@ -65,7 +65,7 @@ class AppQyV1AuthenticationRegistrationController extends Controller
 
         if (CommonUserGen::checkUsernameIsExist($request->username)) {
             Log::info('[AppQyV1Registration] Username already exists', ['username' => $request->username]);
-            return $this->error('Username already exists', 400);
+            return $this->error(__('app_qy_v1.messages.username_already_exists'), 400);
         }
 
         $email = "";
@@ -113,7 +113,7 @@ class AppQyV1AuthenticationRegistrationController extends Controller
                     'code' => $inviteCode,
                     'username' => $request->username
                 ]);
-                return $this->error('Invalid invite code', 400);
+                return $this->error(__('app_qy_v1.messages.invalid_invite_code'), 400);
             }
 
             if (!$invite->canBeUsed()) {
@@ -125,7 +125,7 @@ class AppQyV1AuthenticationRegistrationController extends Controller
                     'max_uses' => $invite->max_uses,
                     'expires_at' => $invite->expires_at
                 ]);
-                return $this->error('Invite code is expired or already used', 400);
+                return $this->error(__('app_qy_v1.messages.invite_code_is_expired_or_already_used'), 400);
             }
 
             $roleLevel = $invite->getRoleLevel();
@@ -292,6 +292,6 @@ class AppQyV1AuthenticationRegistrationController extends Controller
             'role_name' => $roleName
         ]);
 
-        return $this->success($responseData, 'User registered successfully');
+        return $this->success($responseData, __('app_qy_v1.messages.user_registered_successfully'));
     }
 }

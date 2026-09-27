@@ -46,9 +46,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.network_constants import (
+    CHATTTS_HTTP_PORT,
     CHATTTS_MIN_FREE_VRAM_MB,
     COSYVOICE_HTTP_PORT,
+    F5TTS_HTTP_PORT,
     FISHSPEECH_HTTP_PORT,
+    HTTP_LOOPBACK_HOST,
     MELOTTS_HTTP_PORT,
     VOXCPM2_HTTP_PORT,
 )
@@ -84,18 +87,24 @@ from pycore.pyutils.tts.qwen.config import (
 _MELOTTS_API_SERVER = "melotts_api_server.py"
 _TTS_SERVICE_FACADE = ManagedServiceFacade("tts", "server_")
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
+_PYFOUNDATIONS_DIR = Path(__file__).resolve().parents[2] / "pyfoundations"
+_NETWORK_CONSTANTS_SOURCE = _PYFOUNDATIONS_DIR / "network_constants.py"
+_SERVICE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR / "service_contract.py"
+_HTTP_SSE_SOURCE = _PYFOUNDATIONS_DIR / "http_sse.py"
+_HTTP_EVENT_SERVICE_SOURCE = Path(__file__).resolve().parents[1] / "rpc_v2" / "http" / "event_service.py"
 
 # Free-VRAM floors (MiB) for launching a class-C server onto the GPU. When a
 # busy peer legitimately holds the card (single-active never interrupts an
 # in-flight service), the newcomer starts on CPU instead of dying inside
 # model load with a CUDA OOM. ChatTTS floor follows its official FAQ
-# ("at least 4GB of GPU memory"). qwen3tts is the ONLY engine that needs the
-# GPU by design: before its device decision the launcher RECLAIMS VRAM from
-# foreign processes when free VRAM is below the recommended floor
-# (memory_gate.QWEN3TTS_RECOMMENDED_FREE_VRAM_MB, 6 GB), then applies the
-# 800 MB minimum free-VRAM floor (memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB).
+# ("at least 4GB of GPU memory"). Before the qwen3tts device decision the
+# opt-in reclaim (QWEN3TTS_VRAM_RECLAIM=1) stops pycore-started GPU processes
+# when free VRAM is below the recommended floor
+# (memory_gate.QWEN3TTS_RECOMMENDED_FREE_VRAM_MB, 6 GB), then the launcher
+# applies the 800 MB minimum free-VRAM floor (memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB)
+# and falls back to CPU below it.
 # Env overrides: CHATTTS_MIN_FREE_VRAM_MB / QWEN3TTS_MIN_FREE_VRAM_MB /
-# QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=0.
+# QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=1.
 _CHATTTS_MIN_FREE_VRAM_MB = CHATTTS_MIN_FREE_VRAM_MB
 _MIB = 1024 ** 2
 
@@ -171,6 +180,10 @@ def _server_scripts(engine: str) -> List[Path]:
     [] and stay off the contract. An engine also needs a get_status probe
     (engine lifecycle probe) before registration activates it."""
     if engine == "qwen3tts":
+        # Every module the server imports or loads from source at start
+        # (qwen3tts_synthesis imports tts_text_chunking and tts_audio_assembly;
+        # the api server loads network_constants with its service_contract
+        # import, http_sse and the shared rpc_v2 event service by path).
         return [
             _ASSETS_DIR / "qwen3tts_api_server.py",
             _ASSETS_DIR / "qwen3tts_capabilities.py",
@@ -178,7 +191,13 @@ def _server_scripts(engine: str) -> List[Path]:
             _ASSETS_DIR / "qwen3tts_queue.py",
             _ASSETS_DIR / "qwen3tts_gpu.py",
             _ASSETS_DIR / "qwen3tts_web.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_audio_assembly.py",
             _ASSETS_DIR / "tts_server_common.py",
+            _NETWORK_CONSTANTS_SOURCE,
+            _SERVICE_CONTRACT_SOURCE,
+            _HTTP_SSE_SOURCE,
+            _HTTP_EVENT_SERVICE_SOURCE,
         ]
     if engine == "chattts":
         return [
@@ -227,8 +246,11 @@ def _start_command(engine: str) -> Optional[Tuple]:
         model_path = adapter.model_path() if adapter is not None else None
         if model_path is None:
             return None
+        parsed = urlparse(adapter.base_url() if adapter else "")
         env = dict(os.environ)
         env["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
+        env["CHATTTS_HOST"] = parsed.hostname or HTTP_LOOPBACK_HOST
+        env["CHATTTS_PORT"] = str(parsed.port or CHATTTS_HTTP_PORT)
         env["CHATTTS_MODEL_DIR"] = str(model_path)
         env["HF_HUB_OFFLINE"] = "1"
         env["TRANSFORMERS_OFFLINE"] = "1"
@@ -267,7 +289,7 @@ def _start_command(engine: str) -> Optional[Tuple]:
             return None
         adapter = tts_engine_registry.get(engine)
         parsed = urlparse(adapter.base_url() if adapter else "")
-        host = parsed.hostname or "127.0.0.1"
+        host = parsed.hostname or HTTP_LOOPBACK_HOST
         port = parsed.port or FISHSPEECH_HTTP_PORT
         extra: Dict[str, str] = {"FISHSPEECH_HOST": host, "FISHSPEECH_PORT": str(port)}
         for key in (
@@ -308,8 +330,12 @@ def _start_command(engine: str) -> Optional[Tuple]:
         script = staging / "f5tts_api_server.py"
         if not script.is_file():
             return None
+        adapter = tts_engine_registry.get(engine)
+        parsed = urlparse(adapter.base_url() if adapter else "")
         env = dict(os.environ)
         env["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
+        env["F5TTS_HOST"] = parsed.hostname or HTTP_LOOPBACK_HOST
+        env["F5TTS_PORT"] = str(parsed.port or F5TTS_HTTP_PORT)
         return staging, [py, str(script)], env
     if engine == "qwen3tts":
         return _qwen3tts_start_command(staging)
@@ -450,7 +476,7 @@ def _melotts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dic
         return None
     adapter = tts_engine_registry.get("melotts")
     parsed = urlparse(adapter.base_url() if adapter else "")
-    host = parsed.hostname or "127.0.0.1"
+    host = parsed.hostname or HTTP_LOOPBACK_HOST
     port = parsed.port or MELOTTS_HTTP_PORT
     extra: Dict[str, str] = {"MELOTTS_HOST": host, "MELOTTS_PORT": str(port)}
     model = (os.environ.get("MELOTTS_MODEL") or "").strip()
@@ -479,7 +505,7 @@ def _voxcpm2_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dic
         return None
     adapter = tts_engine_registry.get("voxcpm2")
     parsed = urlparse(adapter.base_url() if adapter else "")
-    host = parsed.hostname or "127.0.0.1"
+    host = parsed.hostname or HTTP_LOOPBACK_HOST
     port = parsed.port or VOXCPM2_HTTP_PORT
     extra: Dict[str, str] = {"VOXCPM2_HOST": host, "VOXCPM2_PORT": str(port)}
     model = (os.environ.get("VOXCPM2_MODEL") or "").strip()
@@ -526,7 +552,7 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
         return None
     base = qwen_engine.base_url()
     parsed = urlparse(base)
-    host = parsed.hostname or "127.0.0.1"
+    host = parsed.hostname or HTTP_LOOPBACK_HOST
     port = parsed.port or QWEN_DEFAULT_PORT
     extra: Dict[str, str] = {
         "QWEN3TTS_HOST": host,
@@ -640,6 +666,16 @@ def _listener_pids(psutil: Any, port: int) -> List[int]:
     return sorted(pids)
 
 
+def _launched_by_pycore(psutil: Any, pid: int, engine: str) -> bool:
+    """True when the process runs a pycore launch of ``engine``: its command
+    line or working directory lies in the engine staging dir or the pycore TTS
+    assets dir (every start_command launches from there)."""
+    roots = (str(staging_dir(engine).resolve()), str(_ASSETS_DIR.resolve()))
+    proc = psutil.Process(pid)
+    locations = [str(part) for part in proc.cmdline()] + [str(Path(proc.cwd()).resolve())]
+    return any(location.startswith(root) for location in locations for root in roots)
+
+
 def _foreign_listener_pids(engine: str) -> Optional[List[int]]:
     adapter = tts_engine_registry.get(engine)
     if adapter is None:
@@ -665,11 +701,13 @@ def _foreign_server_present(engine: str) -> Optional[bool]:
 
 
 def _stop_foreign_server(engine: str) -> Optional[bool]:
-    """Terminate a process we did NOT launch that is LISTENING on this engine's
-    port - typically a stale orphan from a previous pycore run (its stdout pipe
-    is dead, so every synth request 500s instantly while /health keeps passing).
-    Returns True when reclaimed, False when a listener remains, and None when
-    listener ownership cannot be inspected. An already-free port is success."""
+    """Terminate a stale pycore-launched server that this process does not own
+    and that is LISTENING on this engine's port - an orphan from a previous
+    pycore run (its stdout pipe is dead, so every synth request 500s instantly
+    while /health keeps passing). A listener pycore did not launch is never
+    touched. Returns True when reclaimed, False when a listener remains, and
+    None when listener ownership cannot be inspected. An already-free port is
+    success."""
     adapter = tts_engine_registry.get(engine)
     if adapter is None:
         return False
@@ -686,6 +724,13 @@ def _stop_foreign_server(engine: str) -> Optional[bool]:
         if os.getpid() in listener_pids:
             ColorPrint.yellow(
                 f"[tts] refusing to reclaim {engine} port {port} from this process"
+            )
+            return False
+        not_ours = [pid for pid in listener_pids if not _launched_by_pycore(psutil, pid, engine)]
+        if not_ours:
+            ColorPrint.yellow(
+                f"[tts] {engine} port {port} is held by a process pycore did not "
+                f"launch (pid={not_ours}); leaving it running"
             )
             return False
         for pid in listener_pids:

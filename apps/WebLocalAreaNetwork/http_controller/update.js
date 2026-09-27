@@ -14,10 +14,10 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('#@logger');
 const gconfig = require('#@gconfig');
+const { pathtool } = require('#@btools');
 const { WWWROOT_DIR, SKIP_DIRS, UPDATE_CACHE_DIR } = gconfig;
 const crypto = require('crypto');
-const rpc = require('#@ncore/utils/rpc');
-const UploadTools = rpc.getExpressServer().uploadTools;
+const UploadTools = require('#@ncore/utils/rpc/http_rpc/libs/UploadTools.js');
 const FILE_RECORDS_PATH = path.join(UPDATE_CACHE_DIR, 'file_records.json');
 function getFileRecords() {
     try {
@@ -80,15 +80,7 @@ async function checkFile(filePath) {
 
 // Helper: validate and resolve upload directory
 function resolveUploadDir(requestedDir) {
-    const base = WWWROOT_DIR;
-    if (!requestedDir || typeof requestedDir !== 'string') return base;
-    // Normalize and resolve
-    const absPath = path.resolve(base, '.' + requestedDir);
-    // Ensure it's within WWWROOT_DIR
-    if (absPath.startsWith(base)) {
-        return absPath;
-    }
-    return base;
+    return pathtool.resolveInside(WWWROOT_DIR, typeof requestedDir === 'string' ? requestedDir : '');
 }
 
 // Check if file exists by its properties
@@ -98,6 +90,9 @@ async function checkFileExists(req, res) {
             return { success: false, error: 'Invalid content-type, must be multipart/form-data' };
         }
         const uploadDir = resolveUploadDir(req.body?.uploadDir || req.query?.uploadDir || req.fields?.uploadDir || (req.headers['uploadDir']));
+        if (!uploadDir) {
+            return { success: false, error: 'Unauthorized directory' };
+        }
         // Use UploadTools.checkAndRecordUpload for duplicate check and record
         const result = await UploadTools.checkAndRecordUpload(req, uploadDir);
         return {
@@ -127,6 +122,10 @@ async function uploadFile(req, res) {
             }
             // If not duplicate, proceed to upload
             const uploadDir = resolveUploadDir(req.body?.uploadDir || req.query?.uploadDir || req.fields?.uploadDir || (req.headers['uploadDir']));
+            if (!uploadDir) {
+                resolve({ success: false, error: 'Unauthorized directory' });
+                return;
+            }
             const { filePaths } = await UploadTools.uploadAndKeepOriginName(req, uploadDir);
             const fileDetail = filePaths.fileDetails[0];
             if (!fileDetail || !fileDetail.path) {
@@ -134,7 +133,7 @@ async function uploadFile(req, res) {
                 return;
             }
             // Move file to final destination (already in uploadDir with original name)
-            const destName = fileDetail.originalName || path.basename(fileDetail.path) || 'uploaded_file';
+            const destName = path.basename(String(fileDetail.originalName || '')) || path.basename(fileDetail.path) || 'uploaded_file';
             const destPath = path.join(uploadDir, destName);
             if (fileDetail.path !== destPath) {
                 await fs.promises.rename(fileDetail.path, destPath);
@@ -170,8 +169,12 @@ const UPLOAD_DIRS_CACHE_TTL = 5000; // 5 seconds
 // Recursively scan all subdirectories (directories only) under WWWROOT_DIR, skipping SKIP_DIRS and __* dirs
 function scanSubdirectories(rootDir, baseDir = '') {
     let dirs = [];
-    const fullPath = path.join(rootDir, baseDir);
-    const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+    let entries = [];
+    try {
+        entries = rootDir ? fs.readdirSync(path.join(rootDir, baseDir), { withFileTypes: true }) : [];
+    } catch (error) {
+        logger.warn(`Cannot scan upload directory ${baseDir}: ${error.code || error.message}`);
+    }
     for (const entry of entries) {
         // Skip if in SKIP_DIRS or starts with '__'
         if (entry.isDirectory() && !SKIP_DIRS.includes(entry.name) && !entry.name.startsWith('__')) {

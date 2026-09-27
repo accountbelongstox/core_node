@@ -35,7 +35,7 @@ final class DataSyncService
     {
         $targetInput = trim($target);
         if ($targetInput === '') {
-            throw new \InvalidArgumentException('A fetch synchronization target is required.');
+            throw new \InvalidArgumentException(__('data_sync.fetch_target_required'));
         }
 
         return $this->createDriver('fetcher', $targetInput, $this->peer->normalizeAddress($targetInput), $syncDatabases, $syncResources, $compression);
@@ -63,10 +63,10 @@ final class DataSyncService
         return $this->runtime->withLock($id, function () use ($id, $targetInput, $normalizedTarget): array {
             $job = $this->requireDriver($id);
             if (!$this->runtime->isActive($job)) {
-                throw new \RuntimeException('A finished synchronization session cannot accept a target.');
+                throw new \RuntimeException(__('data_sync.finished_session_target'));
             }
             if (!empty($job['context']['peer_session_id'])) {
-                throw new \RuntimeException('The synchronization target cannot change after the peer session was prepared.');
+                throw new \RuntimeException(__('data_sync.target_locked'));
             }
             $job['target_input'] = $targetInput;
             $job['target'] = $normalizedTarget;
@@ -118,7 +118,7 @@ final class DataSyncService
      */
     public function cancel(string $id): array
     {
-        $job = $this->store->get($id) ?? throw new \InvalidArgumentException('Data synchronization session was not found.');
+        $job = $this->store->get($id) ?? throw new DataSyncNotFoundException();
         if (!$this->runtime->isActive($job)) {
             return $this->publicJob($job);
         }
@@ -129,7 +129,7 @@ final class DataSyncService
         $result = $this->runtime->tryLock($id, function () use ($id): ?array {
             $current = $this->store->get($id);
             return $current !== null && $this->runtime->isActive($current)
-                ? $this->runtime->finish($current, 'cancelled', DataSyncProtocol::CANCELLED_MESSAGE)
+                ? $this->runtime->finish($current, 'cancelled', DataSyncProtocol::cancelledMessage())
                 : $current;
         });
         $job = $result['acquired'] ? ($result['result'] ?? $job) : $job;
@@ -186,7 +186,7 @@ final class DataSyncService
         bool $compression
     ): array {
         if (!$syncDatabases && !$syncResources) {
-            throw new \InvalidArgumentException('At least one synchronization scope must be enabled.');
+            throw new \InvalidArgumentException(__('data_sync.scope_required'));
         }
 
         return $this->topology->run(function () use ($role, $targetInput, $normalizedTarget, $syncDatabases, $syncResources, $compression): array {
@@ -218,7 +218,7 @@ final class DataSyncService
     {
         $job = $this->store->get($id);
         if ($job === null || !in_array($job['role'] ?? null, DataSyncProtocol::DRIVER_ROLES, true)) {
-            throw new \InvalidArgumentException('Data synchronization session was not found.');
+            throw new DataSyncNotFoundException();
         }
         return $job;
     }

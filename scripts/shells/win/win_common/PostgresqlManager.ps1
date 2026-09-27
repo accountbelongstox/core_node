@@ -147,7 +147,7 @@ function Get-PgPassword {
 function Resolve-PgBinDir {
     # Prefer our native install, then any EDB install, then PATH.
     if (Test-Path (Join-Path $Global:PG_BIN_DIR "pg_ctl.exe")) { return $Global:PG_BIN_DIR }
-    $edb = Get-ChildItem -Path "$env:ProgramFiles\PostgreSQL" -Directory -ErrorAction SilentlyContinue |
+    $edb = Get-ChildItem -Path (Join-Path $env:ProgramFiles "PostgreSQL") -Directory -ErrorAction SilentlyContinue |
         Sort-Object Name -Descending | Select-Object -First 1
     if ($edb -and (Test-Path (Join-Path $edb.FullName "bin\pg_ctl.exe"))) { return (Join-Path $edb.FullName "bin") }
     $cmd = Get-Command pg_ctl.exe -ErrorAction SilentlyContinue

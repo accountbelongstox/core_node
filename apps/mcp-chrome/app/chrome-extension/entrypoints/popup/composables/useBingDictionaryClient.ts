@@ -153,7 +153,7 @@ export function useBingDictionaryClient() {
         queueOverview.value.hasMore = !!pg.has_more;
         // Loading the queue IS the live connectivity check for the panel.
         const pending = queueOverview.value.summary?.pending ?? 0;
-        connectionStatus.value = { state: 'ok', message: `Connected · ${pending} pending` };
+        connectionStatus.value = { state: 'ok', message: getMessage('connectedPendingStatus', [String(pending)]) };
       } else {
         queueOverview.value.error = (resp && resp.message) || getMessage('loadQueueFailed');
         connectionStatus.value = { state: 'fail', message: queueOverview.value.error };
@@ -260,7 +260,7 @@ export function useBingDictionaryClient() {
       connectionStatus.value = { state: 'fail', message: getMessage('noEndpointConfigured') };
       return;
     }
-    connectionStatus.value = { state: 'testing', message: 'Testing…' };
+    connectionStatus.value = { state: 'testing', message: getMessage('apiTesting') };
     try {
       const response = await chrome.runtime.sendMessage({
         type: BING_DICT_MSG,

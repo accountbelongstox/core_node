@@ -22,6 +22,7 @@ const os = require('os');
 const fs = require('fs');
 const { gdir, appname } = require('#@global_vars');
 const logger = require('#@logger');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 
 const {
     BASEDIR,
@@ -31,7 +32,7 @@ const {
 
 const APP_NAME = 'matrix';
 
-const WEB_HOST = '0.0.0.0';
+const WEB_HOST = resolveBindHost();
 const WEB_PORT = 48000;
 
 const APP_RESOURCES_DIR = path.join(APP_DIR, 'resources');

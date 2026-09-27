@@ -1003,11 +1003,11 @@ function Invoke-GitOperations {
                         Write-ColorText "  - Input: $($file.FullName)" -ForegroundColor Gray
                         Write-ColorText "  - Password: $maskedPassword" -ForegroundColor Gray
                         Write-ColorText "  - Output Dir: $secretKeysEncryptedDir" -ForegroundColor Gray
-                        Write-ColorText "  - Command: node disguise.js `"$($file.FullName)`" `"$maskedPassword`" `"$secretKeysEncryptedDir`"" -ForegroundColor Gray
+                        Write-ColorText "  - Command: node secret_password_runner.js disguise.js `"$($file.FullName)`" $Global:SECRET_PASSWORD_ARG `"$secretKeysEncryptedDir`"" -ForegroundColor Gray
 
                         # Run disguise.js encryption
                         Write-ColorText "Running encryption..." -ForegroundColor Cyan
-                        $result = & node "$disguiseJsPath" "$($file.FullName)" "$globalPassword" "$secretKeysEncryptedDir" 2>&1
+                        $result = Invoke-SecretPasswordTool -Password $globalPassword -ToolPath $disguiseJsPath -ArgumentList @($file.FullName, $Global:SECRET_PASSWORD_ARG, $secretKeysEncryptedDir)
 
                         if ($LASTEXITCODE -eq 0) {
                             Write-ColorText "SUCCESS: Encrypted $($file.Name)" -ForegroundColor Green

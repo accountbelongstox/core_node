@@ -4,13 +4,52 @@
 import time
 import uuid
 from functools import partial
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.common.operation_service import operation_service as operations
 from pycore.pyutils.tts.qwen.client import queue_cancel, queue_submit_and_wait
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME
+
+OPERATION_TERMINAL_STATUSES = ("completed", "failed", "cancelled")
+ITEM_ACTIVE_STATUSES = ("running",)
+OPERATION_AUDIO_DIR_NAME = "qwen_operations"
+AUDIO_FORMATS = ("wav", "mp3")
+DEFAULT_AUDIO_FORMAT = "wav"
+UNSUPPORTED_FORMAT_CODE = "unsupported_format"
+SYNTHESIS_FAILED_CODE = "synthesis_failed"
+AUDIO_STORE_FAILED_CODE = "audio_store_failed"
+
+
+def normalize_audio_format(value: Any) -> Optional[str]:
+    audio_format = str(value or DEFAULT_AUDIO_FORMAT).strip().lower()
+    return audio_format if audio_format in AUDIO_FORMATS else None
+
+
+def _retained_audio_path(operation_id: str, item_id: str, audio_format: str) -> Path:
+    # Named from server-side ids only; the file must stay directly inside
+    # the retained-audio directory.
+    audio_dir = (get_app_cache_dir() / OPERATION_AUDIO_DIR_NAME).resolve()
+    audio_path = (audio_dir / f"{operation_id}_{item_id}.{audio_format}").resolve()
+    if audio_path.parent != audio_dir:
+        raise ValueError(f"Retained audio path escapes {audio_dir}: {audio_path}")
+    return audio_path
+
+
+def unsupported_format_error() -> Dict[str, str]:
+    return {
+        "code": UNSUPPORTED_FORMAT_CODE,
+        "message": f"format must be one of: {', '.join(AUDIO_FORMATS)}",
+    }
+
+
+def _fail(operation_id: str, item_id: str, error_value: Dict[str, str]) -> None:
+    message = error_value["message"]
+    operations.fail_item(item_id, error_json=error_value, message=message)
+    operations.fail(operation_id, error_value, message=message)
 
 
 def _publish_progress(item_id: str, value: Dict[str, Any]) -> None:
@@ -49,13 +88,17 @@ def submit(scope: str, params: Dict[str, Any]) -> Dict[str, Any]:
     else:
         item_key = existing_items[0].item_key
 
-    start_bus_task(
-        _run,
-        operation.id,
-        item_key,
-        dict(params),
-        thread_name="QwenSynthesisWorker",
-    )
+    # An idempotent re-submit returns the existing operation: a terminal one
+    # keeps its result and a running item is not synthesized twice.
+    in_flight = any(item.status in ITEM_ACTIVE_STATUSES for item in existing_items)
+    if operation.status not in OPERATION_TERMINAL_STATUSES and not in_flight:
+        start_bus_task(
+            _run,
+            operation.id,
+            item_key,
+            dict(params),
+            thread_name="QwenSynthesisWorker",
+        )
     refreshed = operations.get_operation(operation.id)
     return {
         "operation_id": operation.id,
@@ -76,6 +119,10 @@ def _run(
     if item is None:
         return
 
+    audio_format = normalize_audio_format(params.get("format"))
+    if audio_format is None:
+        _fail(operation_id, item.id, unsupported_format_error())
+        return
     operations.start_item(
         item.id,
         stage="synthesizing",
@@ -85,7 +132,6 @@ def _run(
     language = str(params.get("language") or "en")
     speaker = params.get("speaker")
     instruct = params.get("instruct")
-    audio_format = str(params.get("format") or "wav")
     payload: Dict[str, Any] = {
         "text": text,
         "language": language,
@@ -115,12 +161,24 @@ def _run(
     if error:
         metadata["error"] = error
     if success:
+        try:
+            audio_path = _retained_audio_path(operation_id, item.id, audio_format)
+            audio_path.parent.mkdir(parents=True, exist_ok=True)
+            audio_path.write_bytes(audio)
+        except (OSError, ValueError) as exc:
+            _fail(
+                operation_id,
+                item.id,
+                {"code": AUDIO_STORE_FAILED_CODE, "message": str(exc)},
+            )
+            return
         result = {
             "meta": metadata,
             "bytes": len(audio),
             "format": audio_format,
             "speaker": speaker,
             "language": language,
+            "audio_path": str(audio_path),
         }
         operations.complete_item(
             item.id,
@@ -133,19 +191,13 @@ def _run(
         )
         return
 
-    error_value = {
-        "code": "synthesis_failed",
-        "message": metadata.get("error", "synthesis failed"),
-    }
-    operations.fail_item(
-        item.id,
-        error_json=error_value,
-        message=str(error_value["message"]),
-    )
-    operations.fail(
+    _fail(
         operation_id,
-        error_value,
-        message=str(error_value["message"]),
+        item.id,
+        {
+            "code": SYNTHESIS_FAILED_CODE,
+            "message": str(metadata.get("error", "synthesis failed")),
+        },
     )
 
 
@@ -172,4 +224,4 @@ def cancel(operation_id: str) -> Dict[str, Any]:
     }
 
 
-__all__ = ["submit", "status", "cancel"]
+__all__ = ["submit", "status", "cancel", "normalize_audio_format", "unsupported_format_error"]

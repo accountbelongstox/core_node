@@ -19,6 +19,7 @@ const {
     ListToolsRequestSchema,
 } = require('@modelcontextprotocol/sdk/types.js');
 const logger = require('#@logger');
+const { getThreadBus } = require('#@thread_bus');
 const SessionManager = require('./SessionManager');
 const ToolRegistry = require('./ToolRegistry');
 
@@ -177,14 +178,12 @@ class MCPServerManager {
      * Setup process signal handlers for graceful shutdown
      */
     setupSignalHandlers() {
-        const shutdownHandler = async (signal) => {
-            logger.info(`Received ${signal}, shutting down MCP Server...`);
-            await this.shutdown();
-            process.exit(0);
-        };
-
-        process.on('SIGINT', shutdownHandler);
-        process.on('SIGTERM', shutdownHandler);
+        getThreadBus().register('mcp-server-manager', {
+            onShutdown: async (reason) => {
+                logger.info(`Received ${reason}, shutting down MCP Server...`);
+                await this.shutdown();
+            }
+        });
     }
 
     /**

@@ -18,7 +18,7 @@ $SCRIPT_INDEX = "[Step 18]"
 $SCRIPT_VERSION = "3.0"
 
 # Import required modules
-$GlobalVarsPath = Join-Path $PSScriptRoot "..\win_common\GlobalVars.ps1"
+$GlobalVarsPath = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1"
 if (Test-Path $GlobalVarsPath) {
     . $GlobalVarsPath
 } else {
@@ -27,7 +27,7 @@ if (Test-Path $GlobalVarsPath) {
 
 # Declare variables
 $PowerShellRegistryPath = "HKEY_CLASSES_ROOT\Microsoft.PowerShellScript.1\Shell\Open\Command"
-$PowerShellExecutable = "${env:SystemRoot}\System32\WindowsPowerShell\v1.0\powershell.exe"
+$PowerShellExecutable = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 $PowerShellCommandTemplate = '"{0}" -noLogo -ExecutionPolicy Bypass -File "%1" %*'
 
 function Write-ColorMessage {

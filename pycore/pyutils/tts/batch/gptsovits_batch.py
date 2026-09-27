@@ -30,6 +30,7 @@ from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
+from pycore.pyutils.tts.engine_policy import engine_setting
 
 _ENGINE = "gptsovits"
 _REQUEST_TIMEOUT_S = int(TTS_REQUEST_TIMEOUT_SECONDS)
@@ -38,12 +39,12 @@ _LANG_MAP = gptsovits_engine.GPTSOVITS_LANG_MAP
 
 def _post_merged_wav(merged_text: str, text_lang: str, ref: Path, speed: float, out_wav: Path) -> bool:
     """POST one merged text to /tts with internal parallel fragment batching."""
-    prompt_lang = (os.environ.get("GPTSOVITS_PROMPT_LANG") or text_lang).strip()
+    prompt_lang = (engine_setting("GPTSOVITS_PROMPT_LANG") or text_lang).strip()
     body = {
         "text": merged_text,
         "text_lang": text_lang,
         "ref_audio_path": str(ref),
-        "prompt_text": os.environ.get("GPTSOVITS_PROMPT_TEXT", ""),
+        "prompt_text": engine_setting("GPTSOVITS_PROMPT_TEXT"),
         "prompt_lang": prompt_lang,
         "text_split_method": "cut5",
         "batch_size": const.gptsovits_batch_size(),

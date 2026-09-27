@@ -316,6 +316,45 @@ class PathUtil {
         };
     }
 
+    realpathExisting(targetPath) {
+        let current = targetPath;
+        const missing = [];
+
+        while (!fs.existsSync(current)) {
+            const parent = path.dirname(current);
+            if (parent === current) {
+                return null;
+            }
+            missing.unshift(path.basename(current));
+            current = parent;
+        }
+
+        try {
+            return path.join(fs.realpathSync(current), ...missing);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    isInside(rootDir, targetPath) {
+        const relative = path.relative(rootDir, targetPath);
+
+        return relative === '' || (!path.isAbsolute(relative) && relative.split(path.sep)[0] !== '..');
+    }
+
+    resolveInside(rootDir, requestedPath) {
+        let root, target;
+
+        if (!rootDir || typeof requestedPath !== 'string' || requestedPath.includes('\0')) {
+            return null;
+        }
+
+        root = this.realpathExisting(path.resolve(rootDir));
+        target = root ? this.realpathExisting(path.resolve(root, requestedPath.replace(/^[\\/]+/, ''))) : null;
+
+        return target && this.isInside(root, target) ? target : null;
+    }
+
 }
 
 PathUtil.toString = () => '[class PathUtil]';

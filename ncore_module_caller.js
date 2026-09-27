@@ -23,17 +23,18 @@
  *
  * Usage:
  *     node ncore_module_caller.js              # Platform-aware mode
- *     node ncore_module_caller.js --host 0.0.0.0 --port 58000
  */  
 
 const path = require('path');
+const serviceContract = require('#@/config/service_contract.js');
+const { defaultBindHost } = require('#@foundation/common/local_rpc_guard.js');
 
 const NCORE_ROOT = path.dirname(__filename);
 
 // Hardcoded configuration
 const CONFIG = {
-    HOST: '0.0.0.0',
-    PORT: 58000,
+    HOST: defaultBindHost(),
+    PORT: serviceContract.port('ncore_backend'),
     BROWSER_TYPE: 'edge',
     AUTO_LAUNCH_BROWSER: true,
     DEBUG: false

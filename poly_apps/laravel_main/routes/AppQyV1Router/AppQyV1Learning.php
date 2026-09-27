@@ -29,7 +29,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
         Route::post('/progress', [AppQyV1LearningController::class, 'updateProgress']);
         Route::get('/stats', [AppQyV1LearningController::class, 'getLearningStats']);
         Route::post('/sentence-words', [AppQyV1SentenceWordTableController::class, 'resolve']);
-        Route::post('/sentence-words/played', [AppQyV1SentenceWordTableController::class, 'markPlayed']);
+        Route::post('/sentence-words/played', [AppQyV1SentenceWordTableController::class, 'markPlayed'])->middleware('idempotent');
 
         Route::post('/upload', [AppQyV1VocabularyUploadController::class, 'uploadDocument']);
         Route::delete('/libraries/{library_id}', [AppQyV1VocabularyUploadController::class, 'deleteLibrary']);
@@ -38,7 +38,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
     // Daily recitation: append-only per-day log driving the existing
     // personal_dicts counters. Same auth group as /learning/progress.
     Route::prefix('recitation')->group(function () {
-        Route::post('/log', [AppQyV1DailyRecitationController::class, 'logRecitation']);
+        Route::post('/log', [AppQyV1DailyRecitationController::class, 'logRecitation'])->middleware('idempotent');
         Route::get('/today-plan', [AppQyV1DailyRecitationController::class, 'todayPlan']);
         Route::get('/summary', [AppQyV1DailyRecitationController::class, 'summary']);
         Route::get('/streak', [AppQyV1DailyRecitationController::class, 'streak']);

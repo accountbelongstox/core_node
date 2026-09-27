@@ -257,6 +257,26 @@ final class QueueCenterContract
         return array_values(self::realtime()['events'] ?? []);
     }
 
+    public static function realtimeEvent(string $name): string
+    {
+        $event = self::realtime()['events'][$name] ?? null;
+        if (!is_string($event) || $event === '') {
+            throw new RuntimeException("Unknown queue-center realtime event: {$name}");
+        }
+
+        return $event;
+    }
+
+    public static function realtimeTopic(): string
+    {
+        $topic = self::realtime()['topic'] ?? null;
+        if (!is_string($topic) || $topic === '') {
+            throw new RuntimeException('Unknown queue-center realtime topic');
+        }
+
+        return $topic;
+    }
+
     /**
      * Relay transport contract (Mercure wake/control topics + data-plane
      * HTTP store-and-fetch + capability-provider declarations). Every end
@@ -408,15 +428,6 @@ final class QueueCenterContract
             static fn (string $role): string => (string) ($values[$role] ?? $role),
             $events[$group] ?? []
         ));
-    }
-
-    public static function taskStreamEvent(string $role): string
-    {
-        $events = self::taskContract()['stream_events'] ?? [];
-        if (!array_key_exists($role, $events)) {
-            throw new RuntimeException("Unknown global-task stream event role: {$role}");
-        }
-        return (string) $events[$role];
     }
 
     public static function taskExecutionTypes(): array

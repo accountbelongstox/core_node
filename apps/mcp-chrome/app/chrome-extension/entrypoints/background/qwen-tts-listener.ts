@@ -1,6 +1,6 @@
 import { getQwenTtsProgress, runQwenTts } from './services/qwen-tts-service';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Qwen TTS Listener';
@@ -15,7 +15,7 @@ export function initQwenTtsListener(): void {
       case 'get_status':
         return { success: true, progress: await getQwenTtsProgress() };
       default:
-        return { success: false, error: `Unknown action: ${message.action}` };
+        return unknownActionResponse(message.action);
     }
   }, {
     createErrorResponse: (error) => {

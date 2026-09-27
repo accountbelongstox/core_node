@@ -34,7 +34,7 @@ class HeartbeatPusher extends EventEmitter {
         this._intervalId = null;
 
         try {
-            const { getGlobalTaskQueue } = require('#@foundation/task_queue');
+            const { getGlobalTaskQueue } = require('#@foundation/task_queue.js');
             this._taskQueue = getGlobalTaskQueue();
         } catch (error) {
             logger.warn('[Heartbeat] TaskQueue not available');
@@ -181,7 +181,7 @@ class HeartbeatPusher extends EventEmitter {
             return;
         }
 
-        const { TaskState } = require('#@foundation/task_queue');
+        const { TaskState } = require('#@foundation/task_queue.js');
 
         if (task.state === TaskState.CANCELLED) {
             return;
@@ -275,7 +275,7 @@ class HeartbeatSystem {
         this._running = false;
 
         try {
-            const { getGlobalTaskQueue } = require('#@foundation/task_queue');
+            const { getGlobalTaskQueue } = require('#@foundation/task_queue.js');
             this._taskQueue = getGlobalTaskQueue();
         } catch (error) {
             this._taskQueue = null;

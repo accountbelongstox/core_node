@@ -110,6 +110,10 @@ class EnAppQy {
     QyAppLocalizationKeys.qyYesLogout: 'Yes, logout',
     QyAppLocalizationKeys.qyLogin: 'Login',
     QyAppLocalizationKeys.qyLoginFailed: 'Login failed',
+    QyAppLocalizationKeys.qyErrorUnauthorized:
+        'Please log in to use this feature',
+    QyAppLocalizationKeys.qyErrorForbidden:
+        'Your account cannot use this feature, please log in again',
     QyAppLocalizationKeys.qyRegister: 'Register',
     QyAppLocalizationKeys.qyRegisterSuccess: 'Registration successful',
     QyAppLocalizationKeys.qyRegisterFailed: 'Registration failed',

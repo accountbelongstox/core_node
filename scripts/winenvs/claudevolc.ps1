@@ -170,7 +170,7 @@ if (-not $volcApiKey) {
     exit 1
 }
 else {
-    Write-Host "API Key: $volcApiKey (loaded)" -ForegroundColor White
+    Write-Host "API Key: $(Get-AiCliMaskedSecret -Value $volcApiKey) (loaded)" -ForegroundColor White
 }
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""

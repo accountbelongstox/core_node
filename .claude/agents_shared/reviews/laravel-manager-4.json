@@ -1,0 +1,12 @@
+{
+  "task_id": "laravel-manager-4",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-016": {"status": "fixed", "reason": "loadLibraries takes a request sequence; only the newest applies libraries and clears loading. The duplicate mount load is removed; the language effect (:225) runs on mount."},
+    "FU-035": {"status": "fixed", "reason": "getStructure/getData reject on failure (their only callers are TablesTab). TablesTab resets structure, rows and both errors on every table change, catches both loads and shows db_manager.viewer.* (en+zh) or the server message, so a failed load no longer shows the previous table's rows and no rejection is unhandled."}
+  },
+  "issues": [],
+  "checks": "git diff read; grep for getStructure/getData callers (DatabaseManager.tsx only); the pre-existing 'Loading…' literals remain for laravel-manager-5 (FU-042/FU-024).",
+  "checked_at": "2026-09-27T03:58:27+10:00"
+}

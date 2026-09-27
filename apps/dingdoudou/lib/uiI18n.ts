@@ -164,7 +164,8 @@ const POPUP_MESSAGES = {
   zh: {
     appName: '订多多', locked: '未授权', super: '超级码', member: '会员', loading: '加载中…',
     superLicense: '超级码授权', memberLicense: '会员授权', tier: '版本', offline: '离线',
-    logout: '退出授权', activate: '激活', offlineHint: '超级码完全离线校验，不连接后台。',
+    logout: '退出授权', activate: '激活', offlineHint: '超级码完全离线校验，不连接后台；超级码绑定本机设备 ID 并带有效期。',
+    deviceId: '本机设备 ID',
     backendLogin: '连接后台登录或注册', backendUrl: '后台地址', username: '用户名', email: '邮箱（可选）', password: '密码',
     confirmPassword: '确认密码', login: '登录', register: '注册', passwordMismatch: '两次输入的密码不一致',
     accounts: '拼多多账号', accountUnit: '个', noAccounts: '暂无绑定账号', expired: '登录已过期', normal: '正常',
@@ -180,7 +181,8 @@ const POPUP_MESSAGES = {
   en: {
     appName: 'DingDuoDuo', locked: 'Locked', super: 'Super code', member: 'Member', loading: 'Loading…',
     superLicense: 'Super-code license', memberLicense: 'Member license', tier: 'Tier', offline: 'Offline',
-    logout: 'Log out', activate: 'Activate', offlineHint: 'Super codes are verified fully offline without contacting the backend.',
+    logout: 'Log out', activate: 'Activate', offlineHint: 'Super codes are verified fully offline without contacting the backend; each code is bound to this device ID and expires.',
+    deviceId: 'Device ID',
     backendLogin: 'Backend login or registration', backendUrl: 'Backend URL', username: 'Username', email: 'Email (optional)', password: 'Password',
     confirmPassword: 'Confirm password', login: 'Log in', register: 'Register', passwordMismatch: 'The passwords do not match',
     accounts: 'PDD accounts', accountUnit: '', noAccounts: 'No bound accounts', expired: 'Login expired', normal: 'Active',

@@ -13,6 +13,7 @@ import { PcDeliveryOutboxStatus } from './PcDeliveryOutboxStatus';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
+import { usePcSingleAudio } from '../hooks/usePcSingleAudio';
 import { PcAudioLaneQueueView } from './PcAudioLaneQueueView';
 import { PcAudioLaneFullSyncRow } from './PcAudioLaneFullSyncRow';
 
@@ -23,6 +24,7 @@ export function PcWordAudioPanel(): ReactElement {
   const wordLane = lanes.payload?.lanes?.word_audio;
   const [expanded, setExpanded] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_EXPANDED) === '1');
   const [actionError, setActionError] = useState<string | null>(null);
+  const { play: playClip } = usePcSingleAudio();
   const wordSection = hub.sectionContracts.word_audio;
   const worker = hub.voiceWord?.worker;
   const workerOn = wordSection.toggle.enabled;
@@ -76,11 +78,11 @@ export function PcWordAudioPanel(): ReactElement {
     setActionError(null);
     try {
       const source = await laravelApi.getWordAudioMediaDataUrl(row.text, row.lang);
-      await new Audio(source).play();
+      await playClip(source);
     } catch (error: unknown) {
       setActionError(error instanceof Error ? error.message : t('queueCenter.wordAudioQueue.errors.playbackFailed'));
     }
-  }, [t]);
+  }, [playClip, t]);
 
   return (
     <div className="mb-3 rounded-lg border border-slate-700 bg-slate-900/80">

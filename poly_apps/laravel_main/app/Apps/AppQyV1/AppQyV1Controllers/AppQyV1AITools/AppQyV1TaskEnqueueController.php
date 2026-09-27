@@ -87,7 +87,7 @@ class AppQyV1TaskEnqueueController extends Controller
         $taskDefinition = QueueCenterContract::taskTypeDefinition($taskType);
         if ($taskDefinition === null) {
             return $this->error(
-                'Unsupported task_type. Allowed: ' . implode(', ', QueueCenterContract::taskTypeKeys()),
+                __('app_qy_v1.messages.unsupported_task_type_allowed') . implode(', ', QueueCenterContract::taskTypeKeys()),
                 422
             );
         }
@@ -150,7 +150,7 @@ class AppQyV1TaskEnqueueController extends Controller
             $response['priority'] = $task->priority;
         }
 
-        return $this->success($response, 'Task enqueued');
+        return $this->success($response, __('app_qy_v1.messages.task_enqueued'));
     }
 
     /**

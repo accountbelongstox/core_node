@@ -55,6 +55,6 @@ class AppQyV1UserStatsController extends Controller
             ];
         }
 
-        return $this->success($stats, 'Retention stats retrieved successfully');
+        return $this->success($stats, __('app_qy_v1.messages.retention_stats_retrieved_successfully'));
     }
 }

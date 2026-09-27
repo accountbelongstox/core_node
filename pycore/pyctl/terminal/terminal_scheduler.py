@@ -23,6 +23,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 SCHEDULE_RETRY_DELAY_SECONDS = 30
 SCHEDULE_PREVIEW_MAX_LENGTH = 80
 WAKEUP_SIGNAL = "terminal.scheduler.wakeup"
+DISPATCH_FAILED_ERROR_CODE = "terminal_dispatch_failed"
 
 
 def _failure(error_code: str) -> Dict[str, Any]:
@@ -50,7 +51,19 @@ class TerminalSchedulerThread(threading.Thread):
             claim = self._scheduler.claim_due(_now_ms())
             due = claim.get("entry")
             if isinstance(due, dict):
-                result = self._scheduler.execute_dispatch(due)
+                # One failing dispatch (clipboard, X11/D-Bus transport) must
+                # complete as failed; it must never end the scheduler thread.
+                try:
+                    result = self._scheduler.execute_dispatch(due)
+                except Exception as exc:  # noqa: BLE001
+                    terminal_activity_log.error(
+                        "schedule.dispatch.failed",
+                        terminal_number=due.get("terminal_number"),
+                        entry_id=due.get("id"),
+                        error_type=type(exc).__name__,
+                        error=str(exc),
+                    )
+                    result = {"success": False, "error_code": DISPATCH_FAILED_ERROR_CODE}
                 outcome = self._scheduler.complete_dispatch(
                     due,
                     result,

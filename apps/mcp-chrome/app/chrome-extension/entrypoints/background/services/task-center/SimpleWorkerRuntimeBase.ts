@@ -630,49 +630,19 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
       this.pullTaskTypeCursor = (offset + 1) % types.length;
       types.push(...types.splice(0, offset));
     }
-    if (!this.workerClient || types.length === 0) {
-      return {
-        success: true,
-        data: { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] },
-      };
-    }
-    const merged: Task[] = [];
-    let lastData: any = { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] };
-    let pendingUrgent = 0;
-    let pendingFast = 0;
-    for (let i = 0; i < types.length; i++) {
-      const remaining = Math.max(0, options.limit - merged.length);
-      if (remaining <= 0) break;
-      const contractLimit = Number(DIFF_DELIVERY.consumer_batch_limits?.[types[i]] || remaining);
-      const sliceLimit = this.queueSliceLimits.get(types[i]) ?? contractLimit;
-      const resp = await this.workerClient.pullTasks(types[i], undefined, {
-        limit: Math.min(remaining, Math.max(1, sliceLimit)),
-        preferRemote: options.preferRemote,
-      });
-      if (!resp.success || !resp.data) {
-        if (merged.length === 0) return resp;
-        break;
-      }
-      lastData = resp.data;
-      pendingUrgent += Number(resp.data.pending_urgent || 0);
-      pendingFast += Number(resp.data.pending_fast || 0);
-      if (Array.isArray(resp.data.tasks)) merged.push(...resp.data.tasks);
-      if (resp.data.queue_cursor != null) {
-        this.queueDiffCursors.set(types[i], Number(resp.data.queue_cursor));
-      }
-      if (resp.data.progress) {
-        this.updateQueueProgress(types[i], resp.data.progress);
-      }
-      if (merged.length >= options.limit) break;
-    }
-    lastData = {
-      ...lastData,
-      pending_urgent: pendingUrgent,
-      pending_fast: pendingFast,
-      tasks: merged,
-      count: merged.length,
-    };
-    return { success: true, data: lastData };
+    return this.pullAcrossTaskTypes(types, options.limit, {
+      preferRemote: options.preferRemote,
+      sliceLimit: (taskType, remaining) => this.queueSliceLimits.get(taskType)
+        ?? Number(DIFF_DELIVERY.consumer_batch_limits?.[taskType] || remaining),
+      onTypePulled: (taskType, data) => {
+        if (data.queue_cursor != null) {
+          this.queueDiffCursors.set(taskType, Number(data.queue_cursor));
+        }
+        if (data.progress) {
+          this.updateQueueProgress(taskType, data.progress);
+        }
+      },
+    });
   }
 
   protected async prefetchChangedHead(taskTypes?: string[]): Promise<void> {

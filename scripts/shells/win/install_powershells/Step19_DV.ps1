@@ -11,8 +11,8 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Import required modules
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
 
 # =============================================================================
 # VARIABLES (declared at the beginning of the file)

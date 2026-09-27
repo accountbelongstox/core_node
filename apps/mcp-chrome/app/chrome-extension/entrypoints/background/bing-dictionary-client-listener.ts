@@ -9,7 +9,8 @@
 import { bingDictionaryWorkerService, type WorkerConfig } from './services/bing-dictionary-worker-service';
 import { logger } from '@/utils/logger';
 import { BING_DICT_MSG, FEATURE_MESSAGE_TYPES } from '@/common/message-types';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
+import { getMessage } from '@/utils/i18n';
 import { toErrorMessage } from '@/utils/errors';
 import { resolveApiBase } from '@/services/ApiManager';
 
@@ -54,31 +55,31 @@ async function handleBingDictionaryMessage(
       if (!message.config) {
         return {
           success: false,
-          error: 'Config is required to start service',
+          error: getMessage('workerConfigRequired'),
         };
       }
 
       await bingDictionaryWorkerService.start(await workerConfig());
       return {
         success: true,
-        message: 'Worker service started',
+        message: getMessage('workerStartedStatus'),
         mode: 'worker',
       };
     }
 
     case 'stop':
       bingDictionaryWorkerService.stop();
-      return { success: true, message: 'Service stopped' };
+      return { success: true, message: getMessage('workerStoppedStatus') };
 
     case 'update_config': {
       if (!message.config) {
-        return { success: false, error: 'Config is required to update settings' };
+        return { success: false, error: getMessage('workerConfigRequired') };
       }
       await bingDictionaryWorkerService.updateConfig(await workerConfig());
       const status = bingDictionaryWorkerService.getStatus();
       return {
         success: true,
-        message: 'Config applied',
+        message: getMessage('workerConfigApplied'),
         isRunning: status.isRunning,
         stats: status.stats,
       };
@@ -125,6 +126,6 @@ async function handleBingDictionaryMessage(
     }
 
     default:
-      return { success: false, error: `Unknown action: ${message.action}` };
+      return unknownActionResponse(message.action);
   }
 }

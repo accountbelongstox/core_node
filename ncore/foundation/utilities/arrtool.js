@@ -10,7 +10,7 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-const { isDebug } = require('#@global_vars');
+const { isDebug } = require('../common/logger.js');
 const logger = {
     info: message => isDebug && console.log(message),
     error: message => isDebug && console.error(message),

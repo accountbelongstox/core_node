@@ -1,0 +1,17 @@
+{
+  "task_id": "ncore-2",
+  "role": "ncore",
+  "verdict": "approved",
+  "findings": {
+    "NC-002": {"status": "fixed", "reason": "The hardcoded scrypt master key, encryptValue and the AES decrypt are removed from config_tool.js (no callers left). Config values SECRET:<NAME> resolve from the shared store through secret_manager.readRawSecret; legacy ENC: values resolve to null with an error that names the key (fail closed). Secret-like keys and store references stay in process memory and are no longer written to the shared global_var directory. The ncore/apps ENC: blobs (Voice USER_API_CLIENT_TOKEN, openai o_secret) became store references, and both consumers load through importConfigFromJs, so they get the resolved value. No ENC: literal remains under ncore/ or apps/. The root config/index.js blobs are outside ncore scope and were requested from the orchestrator."},
+    "NC-024": {"status": "fixed", "reason": "importConfigFromJs no longer reads or rewrites the tracked config file; the content.replace(plaintext, ENC) rewrite is gone."},
+    "NC-033": {"status": "fixed", "reason": "The OCR.space and Unsplash keys come from the store (OCRSPACE_API_KEY_1..5, UNSPLASH_ACCESS_KEY_1..5 via pycore get_secret_key_indexed); the committed copies (three OCR, two Unsplash, plus the Unsplash secret and app id) are removed. The rotation list is in the owner report without values."}
+  },
+  "issues": [
+    "(non-blocking, user action) Hosts that ran the old code still hold ENC: files in their global_var directory, decryptable with the now-public old master key. Remove those files once, and rotate every secret in the owner's rotation table (the values are in git history).",
+    "ncore/foundation/common/secret_manager.js readRawSecret (non-blocking) joins keyName into the raw dir without validating it. Names come from tracked config today, but reject anything that is not [A-Za-z0-9_] (the Laravel SecretStore rule) to keep SECRET:<NAME> from reading outside the store.",
+    "(orchestrator) config/index.js still carries ENC: values, which now resolve to null until they are converted to SECRET:<NAME> references."
+  ],
+  "checks": "Diffs of config_tool.js, secret_manager.js, the Voice config, the openai config, the OCR/Unsplash python files read; grep for encryptValue callers and remaining ENC: literals under ncore/apps; gconfig and openai config load paths traced to importConfigFromJs; no secret values written anywhere by the change.",
+  "checked_at": "2026-09-27T04:28:06+10:00"
+}

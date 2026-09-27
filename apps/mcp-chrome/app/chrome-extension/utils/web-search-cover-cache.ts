@@ -16,6 +16,7 @@ import { sha1Hex } from '@/utils/duoreader-importer-core';
 import { bookCoverQuery, type WebSearchEngine } from '@/utils/web-search-core';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { isOpfsAvailable, writeOpfsFile } from '@/utils/opfs';
+import { fetchRemoteImageBytes } from '@/utils/image-utils';
 
 export const WEB_SEARCH_COVER_CACHE_ROOT = 'cache/web_search/covers';
 export const COVER_CACHE_MANIFEST_FILE = 'manifest.json';
@@ -133,7 +134,7 @@ async function rebuildOpfsFromManifest(manifest: CoverSearchCacheManifest): Prom
     const dir = await getCacheDir(manifest.cacheKey, true);
     let saved = 0;
     for (const rec of manifest.images.slice(0, COVER_SEARCH_MAX)) {
-      const fetched = await fetchImageBytes(rec.remoteUrl);
+      const fetched = await fetchRemoteImageBytes(rec.remoteUrl);
       if (!fetched) continue;
       const handle = await dir.getFileHandle(rec.file, { create: true });
       await writeOpfsFile(handle, fetched.bytes);
@@ -264,19 +265,6 @@ export async function loadCoverSearchCache(
   }
 }
 
-async function fetchImageBytes(url: string): Promise<{ bytes: Uint8Array; mime: string } | null> {
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const mime = res.headers.get('content-type') || 'image/jpeg';
-    const buf = await res.arrayBuffer();
-    if (!buf.byteLength) return null;
-    return { bytes: new Uint8Array(buf), mime: mime.split(';')[0].trim() || 'image/jpeg' };
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Persist up to COVER_SEARCH_MAX remote image URLs under the idempotent cache key.
  * Returns remote URLs that were successfully cached (may be fewer than input).
@@ -300,7 +288,7 @@ export async function saveCoverSearchCache(
 
   for (let slot = 0; slot < unique.length; slot += 1) {
     const remoteUrl = unique[slot];
-    const fetched = await fetchImageBytes(remoteUrl);
+    const fetched = await fetchRemoteImageBytes(remoteUrl);
     if (!fetched) continue;
     const file = slotFileName(slot, fetched.mime);
     const handle = await dir.getFileHandle(file, { create: true });

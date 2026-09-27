@@ -63,6 +63,29 @@ ai_cli_label() {
     esac
 }
 
+# Masked form of a secret for launcher summaries (at most 4 chars kept per end).
+ai_cli_mask_secret() {
+    local value="$1"
+    local length=0
+    local keep=4
+    local middle=""
+
+    if [ -z "$value" ]; then
+        echo "[empty]"
+        return
+    fi
+    length=${#value}
+    if [ "$length" -le 4 ]; then
+        printf '%*s\n' "$length" '' | tr ' ' '*'
+        return
+    fi
+    if [ "$length" -le 8 ]; then
+        keep=1
+    fi
+    middle="$(printf '%*s' "$((length - 2 * keep))" '' | tr ' ' '*')"
+    printf '%s%s%s\n' "${value:0:keep}" "$middle" "${value: -keep}"
+}
+
 ai_cli_extract_version() {
     printf '%s' "$1" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' 2>/dev/null | head -n 1 || true
 }

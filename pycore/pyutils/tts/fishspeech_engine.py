@@ -44,6 +44,11 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_fishaudio_utils,
 )
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyutils.tts.tts_reason_codes import (
+    TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY,
+    TTS_REASON_FISHSPEECH_SOURCE_REQUIRED,
+    tts_reason,
+)
 
 _AVAIL_SIGNAL = BusSignals.TTS_FISHSPEECH_AVAILABLE
 _AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
@@ -128,15 +133,10 @@ def disabled_reason() -> Optional[str]:
         return None
     reachable, body = _probe_health_json()
     if reachable and body.get("synth_ready") is False:
-        return (
-            "Fish Speech bridge is up but cannot synthesize — set FISH_API_KEY, "
-            "FISHSPEECH_UPSTREAM, or start fish-speech tools/api_server.py"
-        )
+        return tts_reason(TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY)
     if reachable:
         return None
-    return (
-        f"Start Fish Speech server ({base_url()}) or set FISH_API_KEY with fish-audio-sdk"
-    )
+    return tts_reason(TTS_REASON_FISHSPEECH_SOURCE_REQUIRED, url=base_url())
 
 
 def available() -> bool:

@@ -542,11 +542,12 @@ show_slim_disk_submenu() {
         "Cap core_node data-root log sizes (>10MB trim + timer)"
         "Dev Cache & /var/log Cleanup (pip/npm/go/rust + logs)"
         "System Log Size Limits (journald + logrotate)"
+        "Remove Vendor Agents (/usr/local/qcloud: disable units, then delete)"
         "Back to Linux System Tools"
     )
 
     while true; do
-        arrow_menu_select "Slim & Disk Cleanup" menu_items "$selected_index" 10
+        arrow_menu_select "Slim & Disk Cleanup" menu_items "$selected_index" 11
         selected_index=$ARROW_MENU_SELECTED_INDEX
         case "$selected_index" in
             0) scan_large_paths ;;
@@ -559,7 +560,8 @@ show_slim_disk_submenu() {
             7) cap_var_core_node_logs ;;
             8) dev_cache_cleanup_menu ;;
             9) system_log_limits_menu ;;
-            10) return ;;
+            10) system_unwanted_paths_menu ;;
+            11) return ;;
         esac
     done
 }

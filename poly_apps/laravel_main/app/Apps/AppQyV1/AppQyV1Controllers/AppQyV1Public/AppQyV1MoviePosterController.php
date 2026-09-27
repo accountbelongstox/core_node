@@ -96,7 +96,7 @@ class AppQyV1MoviePosterController extends Controller
         $sourceKey = isset($validated['source_key']) ? (string) $validated['source_key'] : null;
 
         if ($id === null && ($sourceKey === null || $sourceKey === '')) {
-            return $this->error('Either id or source_key is required', 422);
+            return $this->error(__('app_qy_v1.messages.either_id_or_source_key_is_required'), 422);
         }
 
         $model = $this->resolveModel($type, $id, $sourceKey);
@@ -112,7 +112,7 @@ class AppQyV1MoviePosterController extends Controller
                 'provider' => 'mcp-chrome',
                 'already_done' => true,
                 'queued' => false,
-            ], 'Poster already submitted by mcp-chrome');
+            ], __('app_qy_v1.messages.poster_already_submitted_by_mcp_chrome'));
         }
 
         try {
@@ -126,7 +126,7 @@ class AppQyV1MoviePosterController extends Controller
                 'id' => $model->getKey(),
                 'error' => $e->getMessage(),
             ]);
-            return $this->error('Failed to queue poster for mcp-chrome', 500);
+            return $this->error(__('app_qy_v1.messages.failed_to_queue_poster_for_mcp_chrome'), 500);
         }
 
         return $this->success([
@@ -135,7 +135,7 @@ class AppQyV1MoviePosterController extends Controller
             'provider' => 'mcp-chrome',
             'already_done' => false,
             'queued' => $promoted > 0,
-        ], 'Poster queued for mcp-chrome search');
+        ], __('app_qy_v1.messages.poster_queued_for_mcp_chrome_search'));
     }
 
     /**

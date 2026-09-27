@@ -1,0 +1,2 @@
+- [Remote role messaging](remote_role_messaging.md) — laravel-remote needs RC on both ends; lead /remote-control if started before enable; server / not 0777
+- [Opus everywhere](feedback_opus_everywhere.md) — all roles/agents on claude-opus-5-5; built-in agent types default to Haiku, pass model 'opus'

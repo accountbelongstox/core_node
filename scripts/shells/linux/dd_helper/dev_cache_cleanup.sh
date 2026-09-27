@@ -14,7 +14,7 @@
 # =============================================================================
 # Development Tool Cache + System Log maintenance.
 # dev_cache_cleanup_menu / system_log_limits_menu are Linux System Tools ->
-# Slim & Disk Cleanup items; dd.sh startup only runs system_unwanted_paths_cleanup.
+# Slim & Disk Cleanup items, like system_unwanted_paths_cleanup (vendor agents).
 #
 # dev_cache_cleanup_prompt measures pip / npm / go / rust caches and /var/log
 # in parallel, then offers every oversized item in ONE stacked confirmation
@@ -46,6 +46,8 @@ _LOGLIMIT_CHANGED=0
 SYSTEM_UNWANTED_PATHS=(
     "/usr/local/qcloud"
 )
+# Where the units that run those agents live.
+SYSTEM_UNIT_DIRS=("/etc/systemd/system" "/lib/systemd/system" "/usr/lib/systemd/system")
 
 # Resolve the pip command: pip3, then pip, then `python3 -m pip`.
 _devcache_resolve_pip() {
@@ -175,13 +177,29 @@ _ensure_logrotate_block_size() {
     return 0
 }
 
-# Remove unwanted system paths (SYSTEM_UNWANTED_PATHS) when present. No prompt.
+# Remove unwanted system paths (SYSTEM_UNWANTED_PATHS) when present, after
+# stopping and disabling every systemd unit that still runs something there
+# (Tencent Cloud tat_agent / YDService / stargate), so no unit restart-loops.
 system_unwanted_paths_cleanup() {
     local p=""
+    local unit_file=""
+    local unit_dirs=()
+    local unit_dir=""
 
+    for unit_dir in "${SYSTEM_UNIT_DIRS[@]}"; do
+        [ -d "$unit_dir" ] && unit_dirs+=("$unit_dir")
+    done
     echo -e "\033[36m[CLEANUP] Checking unwanted system paths...\033[0m"
     for p in "${SYSTEM_UNWANTED_PATHS[@]}"; do
         if [ -e "$p" ] || [ -L "$p" ]; then
+            if [ "${#unit_dirs[@]}" -gt 0 ] && command -v systemctl >/dev/null 2>&1; then
+                while IFS= read -r unit_file; do
+                    [ -n "$unit_file" ] || continue
+                    echo -e "\033[33m[CLEANUP] Stopping and disabling unit: ${unit_file##*/}\033[0m"
+                    $USE_SUDO systemctl disable --now "${unit_file##*/}" 2>/dev/null || true
+                done < <(grep -rlF "$p" "${unit_dirs[@]}" 2>/dev/null | grep -E '\.service$' | sort -u)
+                $USE_SUDO systemctl daemon-reload 2>/dev/null || true
+            fi
             echo -e "\033[33m[CLEANUP] Removing: ${p}\033[0m"
             if $USE_SUDO rm -rf "$p"; then
                 echo -e "\033[32m[CLEANUP] Removed: ${p}\033[0m"
@@ -415,6 +433,20 @@ dev_cache_cleanup_menu() {
     echo "=== Dev Cache & /var/log Cleanup (pip/npm/go/rust + logs) ==="
     echo ""
     dev_cache_cleanup_prompt
+    echo ""
+    read -r -p "Press Enter to continue..."
+}
+
+system_unwanted_paths_menu() {
+    local confirm_choice=""
+
+    printf "\033c"
+    echo "=== Remove Vendor Agents ==="
+    printf '  %s\n' "${SYSTEM_UNWANTED_PATHS[@]}"
+    read -r -p "Disable their systemd units and delete these paths? (y/N): " confirm_choice
+    if [[ "$confirm_choice" =~ ^[Yy]$ ]]; then
+        system_unwanted_paths_cleanup
+    fi
     echo ""
     read -r -p "Press Enter to continue..."
 }

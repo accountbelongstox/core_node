@@ -68,7 +68,7 @@ const PcVersionChips: React.FC = () => {
   const chip = (label: string, version: PcCodeVersion | null, reason: string | null) => {
     const hasVersion = !!version && version.last_modified_unix > 0;
     const title = hasVersion
-      ? `${version!.latest_file || label}\n${t('version.codeUpdated')}: ${absoluteTime(version!.last_modified_unix)} · ${relativeAgo(version!.last_modified_unix)}`
+      ? `${version!.latest_file || label}\n${t('version.codeUpdated')}: ${absoluteTime(version!.last_modified_unix)} · ${relativeAgo(version!.last_modified_unix, t)}`
       : `${label}: ${reason || t('version.unavailable')}`;
     return (
       <span
@@ -81,7 +81,7 @@ const PcVersionChips: React.FC = () => {
       >
         <GitCommitHorizontal className="w-3 h-3 shrink-0" />
         <span className="uppercase tracking-wide opacity-70">{label}</span>
-        <span className="font-mono">{hasVersion ? relativeAgo(version!.last_modified_unix) : '—'}</span>
+        <span className="font-mono">{hasVersion ? relativeAgo(version!.last_modified_unix, t) : '—'}</span>
       </span>
     );
   };

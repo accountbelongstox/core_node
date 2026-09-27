@@ -15,10 +15,9 @@ import threading
 from typing import Optional, List, Dict, Tuple
 
 import pycore.pyutils.codesync.routes as routes
-from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
-    http as requests,
+    signed_peer_request,
     start_bus_task,
 )
 
@@ -99,7 +98,7 @@ class ServerConnection:
         """
         try:
             url = f"http://{self.host}:{self.port}{routes.REGISTER_PATH}"
-            response = http_progress_client.post(url, json={'client_id': self.client_id}, timeout=5)
+            response = signed_peer_request('POST', url, {'client_id': self.client_id}, timeout=5)
 
             if response.status_code == 200:
                 data = response.json()
@@ -127,7 +126,7 @@ class ServerConnection:
 
         try:
             url = f"http://{self.host}:{self.port}{routes.INITIAL_SYNC_PATH}"
-            response = http_progress_client.post(url, json={'client_id': self.client_id}, timeout=30)
+            response = signed_peer_request('POST', url, {'client_id': self.client_id}, timeout=30)
 
             if response.status_code == 200:
                 data = response.json()
@@ -188,7 +187,7 @@ class ServerConnection:
             self.skipped_count = 0
 
             url = f"http://{self.host}:{self.port}{routes.CHANGES_PATH}"
-            response = http_progress_client.post(url, json=request_data, timeout=10)
+            response = signed_peer_request('POST', url, request_data, timeout=10)
 
             if response.status_code == 200:
                 data = response.json()
@@ -295,10 +294,11 @@ class ServerConnection:
         for attempt in range(max_retries):
             try:
                 url = f"http://{self.host}:{self.port}{routes.DOWNLOAD_PATH}"
-                response = http_progress_client.post(
+                response = signed_peer_request(
+                    'POST',
                     url,
-                    json={'client_id': self.client_id, 'file_path': rel_path},
-                    timeout=30
+                    {'client_id': self.client_id, 'file_path': rel_path},
+                    timeout=30,
                 )
 
                 if response.status_code == 200:

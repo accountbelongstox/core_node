@@ -72,18 +72,16 @@ $ip = $null
 $stopPids = @()
 $stopPid = $null
 $AllProcesses = @()
-$ProcessById = @{}
-$processEntry = $null
 $phpProc = $null
 $isServeLane = $false
 $isWorkerLane = $false
 $ServiceTreePids = @()
-$ProcessAncestryMaxDepth = 16
-# Stale-process cleanup scope: artisan lanes whose own or ancestor command line references
-# $LaravelDir belong to this app; artisan serve also when it serves $Port.
-$LaravelDirPattern = ((($LaravelDir -split '[\\/]') | ForEach-Object { [regex]::Escape($_) }) -join '[\\/]') + '(?:[\\/"''\s]|$)'
+# Stale-process cleanup scope: only artisan lanes whose command line carries this
+# project's resolved artisan path (this script starts its lanes with that path), so a
+# second Laravel project's schedule:work or artisan serve is never stopped.
+$ArtisanPath = Join-Path $LaravelDir "artisan"
+$ArtisanPathPattern = ((($ArtisanPath -split '[\\/]') | ForEach-Object { [regex]::Escape($_) }) -join '[\\/]') + '(?:["''\s]|$)'
 $ArtisanServePattern = 'artisan\s+serve\b'
-$ArtisanServePortPattern = $null
 $ArtisanWorkerLanePattern = 'artisan\s+(queue:listen|reverb:start|schedule:work)\b'
 $portConns = $null
 $portWaited = 0
@@ -207,29 +205,6 @@ function Show-LaravelServiceAlreadyRunning {
     Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
 }
 
-# Win32_Process exposes no working directory: a process belongs to a directory when its own
-# or a live ancestor's command line references it (laravel_main\scripts\start.ps1, the
-# artisan serve server.php). A parent created after its child is a reused PID.
-function Test-ProcessOwnedByDirectory {
-    param(
-        [Parameter(Mandatory = $true)]$Process,
-        [Parameter(Mandatory = $true)][hashtable]$ProcessTable,
-        [Parameter(Mandatory = $true)][string]$DirectoryPattern
-    )
-    $current = $Process
-    $parent = $null
-    $depth = 0
-    while ($current -and ($depth -le $ProcessAncestryMaxDepth)) {
-        if ($current.CommandLine -and ($current.CommandLine -match $DirectoryPattern)) { return $true }
-        $parent = $ProcessTable[[int]$current.ParentProcessId]
-        if ((-not $parent) -or ([int]$parent.ProcessId -eq [int]$current.ProcessId)) { return $false }
-        if ($parent.CreationDate -and $current.CreationDate -and ($parent.CreationDate -gt $current.CreationDate)) { return $false }
-        $current = $parent
-        $depth++
-    }
-    return $false
-}
-
 # The access code lives in the external runtime store (PathMapper
 # laravel_data_dir, outside the repository); InstallationAccessCode.php only
 # reads it and is never regenerated. Self-contained reader (runs before the
@@ -304,7 +279,6 @@ if ($IsServiceRun) {
 
 $Port = Get-ServiceContractPort -Name "laravel_api_backend"
 $BindHost = Get-ServiceContractHost -Name "any"
-$ArtisanServePortPattern = "artisan\s+serve\b.*--port[=\s]+$Port\b"
 
 function New-InstallationAccessCode {
     $segments = @(
@@ -705,24 +679,16 @@ try {
     Write-Host "Ensuring port $Port is free (idempotent restart)..." -ForegroundColor Yellow
     $stopPids = @()
 
-    # (1) php.exe artisan lanes: the artisan serve fallback and the retired dev:win lanes
-    #     (queue:listen / reverb:start / schedule:work). schedule:work binds NO port, so the
-    #     port-based step (2) can never catch a stale one -- this command-line match is its
-    #     ONLY cleanup path. Lanes of this app (see Test-ProcessOwnedByDirectory) and
-    #     artisan serve on $Port are always stopped; the unattended --service run never
-    #     stops another project's lanes, an interactive run also clears unowned worker lanes.
+    # (1) php.exe artisan lanes of THIS project: the artisan serve fallback and the retired
+    #     dev:win lanes (queue:listen / reverb:start / schedule:work). schedule:work binds NO
+    #     port, so the port-based step (2) can never catch a stale one. A lane is stopped only
+    #     when its command line carries this project's resolved artisan path.
     $AllProcesses = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
-    $ProcessById = @{}
-    foreach ($processEntry in $AllProcesses) {
-        $ProcessById[[int]$processEntry.ProcessId] = $processEntry
-    }
     foreach ($phpProc in @($AllProcesses | Where-Object { ($_.Name -eq 'php.exe') -and $_.CommandLine })) {
         $isServeLane = ($phpProc.CommandLine -match $ArtisanServePattern)
         $isWorkerLane = ($phpProc.CommandLine -match $ArtisanWorkerLanePattern)
         if ((-not $isServeLane) -and (-not $isWorkerLane)) { continue }
-        if ((Test-ProcessOwnedByDirectory -Process $phpProc -ProcessTable $ProcessById -DirectoryPattern $LaravelDirPattern) -or
-            ($isServeLane -and ($phpProc.CommandLine -match $ArtisanServePortPattern)) -or
-            ($isWorkerLane -and (-not $ServiceMode))) {
+        if ($phpProc.CommandLine -match $ArtisanPathPattern) {
             $stopPids += [int]$phpProc.ProcessId
         }
     }
@@ -858,7 +824,7 @@ try {
         Write-Host "FrankenPHP runtime not provisioned yet (run this script with --service, elevated, or Step175_LaravelMainStart.ps1)." -ForegroundColor Yellow
         Write-Host "Fallback: php artisan serve on ${BindHost}:$Port (HTTP API only; no Octane worker, Mercure, queue or timer lanes)." -ForegroundColor Yellow
         $env:PHP_CLI_SERVER_WORKERS = "1"
-        php artisan serve "--host=$BindHost" "--port=$Port"
+        php $ArtisanPath serve "--host=$BindHost" "--port=$Port"
     }
 }
 finally {

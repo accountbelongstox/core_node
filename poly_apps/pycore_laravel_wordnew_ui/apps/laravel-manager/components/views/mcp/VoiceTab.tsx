@@ -395,7 +395,6 @@ const VoiceTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
           type: newVoiceType,
           content: newVoiceContent,
           language: newVoiceLanguage,
-          auto_play: false
         };
         response = await api.mcpV1.vsAddToQueue(request);
         if (response.success) {
@@ -900,7 +899,7 @@ const VoiceTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                 <p className="text-sm text-slate-600 dark:text-slate-400 mb-1 line-clamp-2">{item.content}</p>
                 <p className="text-xs text-slate-500">
                   {item.language} • {new Date(item.created_at).toLocaleString()}
-                  {item.play_count > 0 && ` • ${t.voice.played_prefix} ${item.play_count}${t.voice.played_suffix}`}
+                  {(item.play_count ?? 0) > 0 && ` • ${t.voice.played_prefix} ${item.play_count}${t.voice.played_suffix}`}
                 </p>
               </div>
             ))}

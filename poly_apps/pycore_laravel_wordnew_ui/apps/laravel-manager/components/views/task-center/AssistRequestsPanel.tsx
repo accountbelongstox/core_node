@@ -15,6 +15,7 @@ import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type { AssistRequestItem } from '@/apps/laravel-manager/api';
 import { usePersistentTask } from '@/core/tasks/usePersistentTask';
+import { useTaskCenterState } from './TaskCenterState';
 import {
   RefreshCw,
   XCircle,
@@ -34,10 +35,6 @@ import AssistRequestModal from './AssistRequestModal';
 
 interface AssistRequestsPanelProps {
   lang: Language;
-  autoRefresh: boolean;
-  refreshIntervalSec: number;
-  /** Bumped by TaskCenter's manual-refresh button -> one immediate fetch. */
-  refreshToken: number;
 }
 
 const REQUEST_STATUSES = ['pending', 'claimed', 'processing', 'completed', 'failed'] as const;
@@ -51,10 +48,10 @@ interface AssistRequestsSnapshot {
 
 const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
   lang,
-  autoRefresh,
-  refreshIntervalSec,
-  refreshToken,
 }) => {
+  // The shared TaskCenter header owns auto-refresh and the manual-refresh token.
+  const { autoRefresh, refreshIntervalSec, refreshToken } = useTaskCenterState();
+  const mountRefreshTokenRef = useRef(refreshToken);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -122,9 +119,9 @@ const AssistRequestsPanel: React.FC<AssistRequestsPanelProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefresh, refreshIntervalSec]);
 
-  // Manual refresh from the shared header.
+  // Manual refresh from the shared header (not the token value seen at mount).
   useEffect(() => {
-    if (refreshToken === 0) return;
+    if (refreshToken === mountRefreshTokenRef.current) return;
     loadSnapshot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshToken]);

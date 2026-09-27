@@ -37,6 +37,7 @@ None / [] / False on missing data.
 
 import json
 import re
+import shutil
 import time
 import uuid
 from pathlib import Path
@@ -45,6 +46,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_data_dir
 from pycore.pyutils.common.serialized_files import serialized_file
+from pycore.pyctl.audio_orchestration import orch_messages
 
 _AUTH_FILE = "auth.json"
 _BOOKS_CACHE_FILE = "books_cache.json"
@@ -167,19 +169,33 @@ def load_books_cache() -> Dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # per-book sentence cache                                                      #
 # --------------------------------------------------------------------------- #
-def save_book_sentences(source_key: str, payload: Dict[str, Any]) -> bool:
+def _book_sentences_path(source_key: str) -> Optional[Path]:
     safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", str(source_key or ""))
-    if not safe:
+    return base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json" if safe else None
+
+
+def save_book_sentences(source_key: str, payload: Dict[str, Any]) -> bool:
+    path = _book_sentences_path(source_key)
+    if path is None:
         return False
-    return _write_json(base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json", payload)
+    return _write_json(path, payload)
 
 
 def load_book_sentences(source_key: str) -> Optional[Dict[str, Any]]:
-    safe = re.sub(r"[^A-Za-z0-9_\-]+", "_", str(source_key or ""))
-    if not safe:
+    path = _book_sentences_path(source_key)
+    if path is None:
         return None
-    record = _read_json(base_dir() / _BOOK_SENTENCES_DIR / f"{safe}.json")
+    record = _read_json(path)
     return record if isinstance(record, dict) else None
+
+
+def book_sentences_version(source_key: str) -> str:
+    """Cheap version of the cached book sentences ('' = not cached)."""
+    path = _book_sentences_path(source_key)
+    if path is None or not path.is_file():
+        return ""
+    info = path.stat()
+    return f"{info.st_size}:{info.st_mtime_ns}"
 
 
 def _partial_path(source_key: str) -> Optional[Path]:
@@ -313,10 +329,15 @@ def load_system_status() -> Optional[Dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 # per-task event log + generated file listing                                  #
 # --------------------------------------------------------------------------- #
-def append_task_event(task: Dict[str, Any], message: str) -> None:
-    """Append one line to the task's viewable generation log (capped)."""
+def append_task_event(task: Dict[str, Any], code: str, **params: Any) -> None:
+    """Append one coded line to the task's viewable generation log (capped)."""
     events = list(task.get("events") or [])
-    events.append({"ts": int(time.time()), "message": str(message)[:300]})
+    events.append({
+        "ts": int(time.time()),
+        "code": code,
+        "params": params,
+        "message": orch_messages.render(code, params)[:300],
+    })
     task["events"] = events[-_TASK_EVENT_CAP:]
 
 
@@ -386,3 +407,19 @@ def delete_manifest(task_id: str) -> bool:
     if not path.is_file():
         return True
     return _delete_json(path)
+
+
+def delete_task_files(task: Dict[str, Any]) -> None:
+    """Remove a deleted task's manifest and output directory (segments and
+    staging). Pending output deliveries of a deleted task complete as
+    superseded, and resource deliveries own retained payload copies."""
+    # The task record is already gone: a removal failure is logged, never
+    # raised, so the delete still completes and publishes.
+    try:
+        delete_manifest(str(task.get("task_id") or ""))
+        root = (base_dir() / _OUTPUT_DIR).resolve()
+        directory = (root / str(task.get("slug") or "")).resolve()
+        if task.get("slug") and directory.parent == root and directory.is_dir():
+            shutil.rmtree(directory)
+    except OSError as exc:
+        ColorPrint.yellow(f"[AudioOrch] delete task files failed {task.get('task_id')}: {exc}")

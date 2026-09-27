@@ -1,7 +1,8 @@
 import { logger } from '@/utils/logger';
 import { QUEUE_CENTER_PATHS } from '@/utils/api-paths';
 import { QUEUE_CENTER_REALTIME_EVENTS } from '@/utils/queue-center-contract';
-import { AsyncOperationController, fetchWithTimeout, TimeoutController } from '@/utils/async';
+import { AsyncOperationController, TimeoutController } from '@/utils/async';
+import { laravelFetch } from '@/services/LaravelTransport';
 
 interface MercureConfig {
   transport: 'mercure';
@@ -98,8 +99,9 @@ class QueueCenterWakeService {
     this.connecting = true;
 
     try {
-      const response = await fetchWithTimeout(
+      const response = await laravelFetch(
         `${baseUrl}${QUEUE_CENTER_PATHS.OVERVIEW}`,
+        {},
         BOOTSTRAP_TIMEOUT_MS,
       );
       const body = await response.json();
@@ -212,8 +214,9 @@ class QueueCenterWakeService {
   private replay(baseUrl: string): Promise<void> {
     return this.replayOperation.run(async () => {
       const cursor = this.lastId ?? 0;
-      const response = await fetchWithTimeout(
+      const response = await laravelFetch(
         `${baseUrl}${QUEUE_CENTER_PATHS.EVENTS}?cursor=${cursor}&limit=200`,
+        {},
         BOOTSTRAP_TIMEOUT_MS,
       );
       if (!response.ok) throw new Error(`QUEUE_CENTER_REPLAY_HTTP_${response.status}`);

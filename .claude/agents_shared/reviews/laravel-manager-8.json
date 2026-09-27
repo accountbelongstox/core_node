@@ -1,0 +1,13 @@
+{
+  "task_id": "laravel-manager-8",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-025": {"status": "fixed", "reason": "laravel-manager remainder: LibrariesTab literals moved to vocabulary.libraries.* (en/zh), with the language options reusing vocabulary.words_manager.languages.*; the mock 'Daily Vocabulary - Day 1' tasks are removed (loadTasks sets an empty success state; no backend exists); LearningTasksPanel literals moved to vocabulary.tasks_panel.*. A literal scan of both tabs finds no UI text left."},
+    "FU-026": {"status": "fixed", "reason": "laravel-manager remainder: HtmlErrorModal's local formatBytes is deleted in favour of core/utils/formatBytes."},
+    "in-scope type/runtime fixes (orchestrator ask)": {"status": "fixed", "reason": "FileTreeParts rendered Loader2 without importing it (a ReferenceError in the delete dialog); it is now imported. VocabularyStatisticsWordRow.id is widened to number | string. LmDashboard no longer passes lang to the prop-less UnifiedToolsPage."}
+  },
+  "issues": [],
+  "checks": "Diffs of LibrariesTab, LearningTasksPanel, VocabularyLearning, HtmlErrorModal, FileTreeParts, uiTypesCommon and LmDashboard read; literal scan of the two tabs; the owner reports en/zh key parity (1573 each).",
+  "checked_at": "2026-09-27T04:38:59+10:00"
+}

@@ -63,6 +63,15 @@ sync_linuxenvs_to_bin() {
             fi
         done
     done
+    # Links of removed scripts still point into the linuxenvs dir but resolve to nothing.
+    for link_path in "$BIN_DIR_PATH"/*; do
+        [ -L "$link_path" ] && [ ! -e "$link_path" ] || continue
+        case "$(readlink "$link_path")" in
+            "$LINUXENVS_DIR_PATH"/*)
+                "${rm_cmd[@]}" "$link_path" 2>/dev/null && echo -e "\033[33m[SYNC]   Removed dangling link: $link_path\033[0m"
+                ;;
+        esac
+    done
     shopt -u nullglob
 
     echo -e "\033[32m[SYNC] $script_count script(s): $linked_count link(s) updated, $failed_count failed, others already correct\033[0m"

@@ -6,6 +6,7 @@ import type { APIResponse } from '../../../core/integrations/laravel/transport/T
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { useCmPageTitle } from '../components/public-home/useCmPageTitle';
+import { cmFormatMoney, cmFormatNumber, cmParseDate } from '../components/workspace/cmWorkspaceFormat';
 import {
   CM_ADMIN_FALLBACK_CURRENCY,
   CM_ADMIN_RESOURCE_STATE_GROUPS,
@@ -26,6 +27,7 @@ export interface CmAdminActionRequest {
   reason?: CmAdminReasonMode;
   reasonLabel?: string;
   successKey: string;
+  successText?: (data: unknown) => string;
   run: (reason: string) => Promise<APIResponse<unknown>>;
 }
 
@@ -33,7 +35,6 @@ type CmAdminFetcher<T> = (query: CmAdminQuery) => Promise<APIResponse<CmAdminPag
 
 const ADMIN_USER_PATH = '/codemart/admin/users';
 const ADMIN_ACTIVITY_PATH = '/codemart/admin/activity';
-const MONEY_FRACTION_DIGITS = 2;
 
 /** Readable fallback for server identifiers that have no translation yet. */
 export function cmAdminHumanize(value: string): string {
@@ -49,29 +50,16 @@ export function useCmAdminFormat() {
   const defaultCurrency = bootstrap?.vocabulary.policy.currency || CM_ADMIN_FALLBACK_CURRENCY;
 
   return useMemo(() => {
-    const money = (amount: string | number, currency?: string | null): string => {
-      const value = typeof amount === 'number' ? amount : Number(amount);
-      if (!Number.isFinite(value)) return String(amount);
-      try {
-        return new Intl.NumberFormat(language, {
-          style: 'currency',
-          currency: currency || defaultCurrency,
-          minimumFractionDigits: MONEY_FRACTION_DIGITS,
-          maximumFractionDigits: MONEY_FRACTION_DIGITS,
-        }).format(value);
-      } catch {
-        return new Intl.NumberFormat(language, { minimumFractionDigits: MONEY_FRACTION_DIGITS }).format(value);
-      }
-    };
-    const number = (value: number): string => new Intl.NumberFormat(language).format(value);
-    const date = (value: string, withTime: boolean): string | null => {
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return null;
+    const money = (amount: string | number, currency?: string | null): string => cmFormatMoney(amount, currency || defaultCurrency, language);
+    const number = (value: number): string => cmFormatNumber(value, language);
+    const date = (value: string, withTime: boolean, calendar = false): string | null => {
+      const parsed = cmParseDate(value, calendar);
+      if (!parsed) return null;
       return new Intl.DateTimeFormat(language, withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(parsed);
     };
     const time = (value: string): string => {
-      const parsed = new Date(value);
-      return Number.isNaN(parsed.getTime()) ? '' : new Intl.DateTimeFormat(language, { timeStyle: 'short' }).format(parsed);
+      const parsed = cmParseDate(value);
+      return parsed ? new Intl.DateTimeFormat(language, { timeStyle: 'short' }).format(parsed) : '';
     };
     return { language, money, number, date, time };
   }, [defaultCurrency, language]);
@@ -144,7 +132,7 @@ export function useCmAdminAction(onDone: () => void | Promise<void>) {
     if (!response.success) {
       return cmErrorMessage(t, response, 'admin.actionFailed');
     }
-    setNotice({ tone: 'success', text: t(request.successKey) });
+    setNotice({ tone: 'success', text: request.successText ? request.successText(response.data) : t(request.successKey) });
     setRequest(null);
     await onDone();
     return null;
@@ -412,7 +400,7 @@ export const CmAdminStatus: React.FC<{ status: string | null | undefined; group:
 export const CmAdminDate: React.FC<{ value: string | null | undefined; dateOnly?: boolean; stacked?: boolean }> = ({ value, dateOnly = false, stacked = false }) => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
-  const text = value ? format.date(value, !dateOnly && !stacked) : null;
+  const text = value ? format.date(value, !dateOnly && !stacked, dateOnly) : null;
   if (!value || !text) return <>{t('common.unavailable')}</>;
   if (stacked && !dateOnly) {
     return (

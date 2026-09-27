@@ -139,7 +139,7 @@ if ($sshConnection) {
 
 $sshPassword = Get-SSHSecret "SSH_PASSWORD_2"
 if ($sshPassword) {
-    Write-Host "[SUCCESS] SSH password loaded = $sshPassword" -ForegroundColor Green
+    Write-Host "[SUCCESS] SSH password loaded ($($sshPassword.Length) chars; displayed only when a password login is needed)" -ForegroundColor Green
 } else {
     Write-Host "[INFO] No password configured (using SSH key authentication)" -ForegroundColor Yellow
 }

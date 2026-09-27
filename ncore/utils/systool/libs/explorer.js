@@ -18,7 +18,13 @@ const logger = require('#@logger');
 
 class ExplorerLauncher {
     constructor() {
-        this.supportedExtensions = ['.cmd', '.bat', '.sh'];
+        if (isWindows) {
+            this.supportedExtensions = ['.cmd', '.bat'];
+        } else if (isLinux || isMac) {
+            this.supportedExtensions = ['.sh'];
+        } else {
+            this.supportedExtensions = [];
+        }
     }
 
     /**

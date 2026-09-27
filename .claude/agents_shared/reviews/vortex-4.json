@@ -1,0 +1,14 @@
+{
+  "task_id": "vortex-4",
+  "role": "vortex",
+  "verdict": "approved",
+  "findings": {
+    "frontend-ui cross-scope (okx/reveal_credentials, UI side)": {"status": "fixed", "reason": "OkxQuantPanel no longer calls okx/reveal_credentials. The RevealedCreds state, the show-all toggle and the cached full api_key are removed, and the KEY card shows only credentials.api_key_masked plus secret/passphrase presence dots. revealCredentials is removed from VortexPycoreContract.ts. No UI caller remains in the source tree (built bundles under native/ and dist/ excluded)."}
+  },
+  "issues": [
+    "(non-blocking, cross-scope) No server for okx/* routes (quant_info, reveal_credentials) exists under pycore/ or pyapps/ in this checkout. pycore should confirm that no okx/reveal_credentials handler remains wherever the okx routes are served.",
+    "apps/vortex/OkxQuantPanel.tsx (tracked in vortex-3) the file already reads the new vx namespace (t('quant.maskedNote'), t('quant.present')). Until shell/shell-i18n.ts registers vx (shared-layer change pending with the orchestrator), tsc reports TS2345 and the labels render as raw keys. vortex-3 is not approved until that lands."
+  ],
+  "checks": "git diff read (reveal-related hunks); grep for reveal_credentials/revealCredentials across UI source, pycore and pyapps; scope apps/vortex only.",
+  "checked_at": "2026-09-27T04:02:17+10:00"
+}

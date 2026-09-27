@@ -238,6 +238,9 @@ class AppQyV1SentenceAudioController extends Controller
             unset($result['error']);
         }
         if ($offsetReceipt !== null) {
+            if ($result['ok'] ?? false) {
+                $this->uploadService->discardCompleted($offsetReceipt);
+            }
             return response()->json([
                 'success' => (bool) ($result['ok'] ?? false),
                 'data' => array_merge($publicReceipt, $result),

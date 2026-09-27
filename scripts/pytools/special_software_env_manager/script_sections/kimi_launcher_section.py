@@ -271,17 +271,18 @@ if ($null -eq $kimiCommand) {
 $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
 $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 
-Write-Host "[INFO] KIMI_API_KEY_@@FILE_NUMBER@@: $(if ([string]::IsNullOrWhiteSpace($kimiApiKey)) { "[empty]" } else { $kimiApiKey })" -ForegroundColor White
+# Shared launcher helpers (scripts/shells/win/win_common/AiCliProvisionCommon.ps1):
+# masked secret display, and the version check + optional upgrade, which prompts
+# only when a newer version is published, defaults to N and auto-skips after 5 seconds.
+$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonScript
+
+Write-Host "[INFO] KIMI_API_KEY_@@FILE_NUMBER@@: $(Get-AiCliMaskedSecret -Value $kimiApiKey)" -ForegroundColor White
 Write-Host "[INFO] KIMI_BASE_URL_@@FILE_NUMBER@@: $(if ([string]::IsNullOrWhiteSpace($kimiBaseUrl)) { "[empty]" } else { $kimiBaseUrl })" -ForegroundColor White
 if ([string]::IsNullOrWhiteSpace($kimiApiKey)) {
     Write-Host "[WARN] KIMI_API_KEY_@@FILE_NUMBER@@ is empty; provider setup will fail." -ForegroundColor Yellow
 }
 
-# Version check + optional upgrade, shared with every other launcher
-# (scripts/shells/win/win_common/AiCliProvisionCommon.ps1): prompts only when a
-# newer version is published, defaults to N and auto-skips after 5 seconds.
-$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
-. $aiCliProvisionCommonScript
 Invoke-AiCliUpgradePrompt -Tool "kimi"
 
 # Model selection (default 1 = kimi k3 256K / @@DEFAULT_MODEL@@; auto-selects after 5s).
@@ -690,17 +691,18 @@ if ! command -v kimi >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "[INFO] KIMI_API_KEY_@@FILE_NUMBER@@: ${kimi_api_key:-[empty]}"
+# Shared launcher helpers (scripts/shells/linux/common/ai_cli_provision_common.sh):
+# masked secret display, and the version check + optional upgrade, which prompts
+# only when a newer version is published, defaults to N and auto-skips after 5 seconds.
+ai_cli_provision_common_path="$core_node_path/scripts/shells/linux/common/ai_cli_provision_common.sh"
+. "$ai_cli_provision_common_path"
+
+echo "[INFO] KIMI_API_KEY_@@FILE_NUMBER@@: $(ai_cli_mask_secret "$kimi_api_key")"
 echo "[INFO] KIMI_BASE_URL_@@FILE_NUMBER@@: ${kimi_base_url:-[empty]}"
 if [ -z "$kimi_api_key" ]; then
     echo "[WARN] KIMI_API_KEY_@@FILE_NUMBER@@ is empty; provider setup will fail."
 fi
 
-# Version check + optional upgrade, shared with every other launcher
-# (scripts/shells/linux/common/ai_cli_provision_common.sh): prompts only when a
-# newer version is published, defaults to N and auto-skips after 5 seconds.
-ai_cli_provision_common_path="$core_node_path/scripts/shells/linux/common/ai_cli_provision_common.sh"
-. "$ai_cli_provision_common_path"
 ai_cli_upgrade_prompt "kimi"
 
 # Model selection (default 1 = kimi k3 256K / @@DEFAULT_MODEL@@; auto-selects after 5s).

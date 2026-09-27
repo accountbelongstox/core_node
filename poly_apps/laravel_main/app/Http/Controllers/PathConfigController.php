@@ -52,7 +52,7 @@ class PathConfigController extends Controller
      */
     public function getPaths(): JsonResponse
     {
-        return $this->success(['paths' => $this->pathMappings()], 'Path mappings retrieved successfully');
+        return $this->success(['paths' => $this->pathMappings()], __('api.messages.path_mappings_retrieved_successfully'));
     }
 
     /**
@@ -66,6 +66,6 @@ class PathConfigController extends Controller
             return $this->notFound("Path mapping '{$name}' not found");
         }
 
-        return $this->success($pathMappings[$name], 'Path mapping retrieved successfully');
+        return $this->success($pathMappings[$name], __('api.messages.path_mapping_retrieved_successfully'));
     }
 }

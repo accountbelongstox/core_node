@@ -3,6 +3,7 @@
 namespace App\Services\DeveloperHistory;
 
 use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 use App\Utils\LanguageDetector;
 use App\Services\DeveloperHistory\Extractors\ClaudeCodeExtractor;
 use App\Services\DeveloperHistory\Extractors\CodexExtractor;
@@ -552,16 +553,10 @@ class DeveloperHistoryService
             Log::warning('developer_history: json_encode failed', ['path' => $path]);
             return;
         }
-        // Write to a temp file then rename (atomic on the same fs) so concurrent
-        // readers never observe a half-written index.json / prompts.json.
-        $tmp = $path . '.tmp' . getmypid();
-        if (@file_put_contents($tmp, $json) === false) {
+        // Temp file then rename, so concurrent readers never observe a
+        // half-written index.json / prompts.json.
+        if (!FileSystemManager::writeFileAtomic($path, $json)) {
             Log::warning('developer_history: write failed', ['path' => $path]);
-            return;
-        }
-        if (!@rename($tmp, $path)) {
-            @unlink($tmp);
-            Log::warning('developer_history: rename failed', ['path' => $path]);
         }
     }
 

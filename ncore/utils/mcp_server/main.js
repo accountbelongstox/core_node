@@ -14,6 +14,7 @@
 'use strict';
 
 const logger = require('#@logger');
+const { getThreadBus } = require('#@thread_bus');
 const StdioServer = require('./stdio_server');
 
 /**
@@ -72,26 +73,12 @@ function getServer() {
  * Setup signal handlers for graceful shutdown
  */
 function setupSignalHandlers() {
-    process.on('SIGINT', async () => {
-        logger.info('[MCP Server] Received SIGINT');
-        await stop();
-        process.exit(0);
-    });
-
-    process.on('SIGTERM', async () => {
-        logger.info('[MCP Server] Received SIGTERM');
-        await stop();
-        process.exit(0);
-    });
-
-    process.on('uncaughtException', (error) => {
-        logger.error('[MCP Server] Uncaught exception:', error);
-        stop().then(() => process.exit(1));
-    });
-
-    process.on('unhandledRejection', (reason) => {
-        logger.error('[MCP Server] Unhandled rejection:', reason);
-        stop().then(() => process.exit(1));
+    // ThreadBus owns SIGINT/SIGTERM/uncaughtException and awaits this hook before exiting
+    getThreadBus().register('mcp-stdio-server', {
+        onShutdown: async (reason) => {
+            logger.info(`[MCP Server] Received ${reason}`);
+            await stop();
+        }
     });
 }
 

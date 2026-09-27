@@ -31,6 +31,7 @@ SSH_KEYS_REMOVED=false
 # Source common functions and variables FIRST
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/secret_tool_common.sh"
 
 # Use global temporary directory structure (AFTER sourcing common functions)
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "27_install_git_ssh")
@@ -270,43 +271,6 @@ verify_local_ssh_files() {
     return 0
 }
 
-# Function to read password with asterisk display
-read_password_with_asterisks() {
-    local prompt="$1"
-    local password=""
-    local char=""
-
-    printf "%s" "$prompt"
-
-    # Disable echo and enable raw mode
-    stty -echo
-
-    while IFS= read -r -n 1 char; do
-        # Handle Enter key
-        if [[ -z "$char" ]]; then
-            break
-        fi
-
-        # Handle Backspace (both Delete and Backspace keys)
-        if [[ "$char" == $'\x7f' ]] || [[ "$char" == $'\x08' ]]; then
-            if [ ${#password} -gt 0 ]; then
-                password="${password%?}"
-                printf "\b \b"
-            fi
-        else
-            password+="$char"
-            printf "*"
-        fi
-    done
-
-    # Restore terminal settings
-    stty echo
-    echo
-
-    # Return password via echo (to be captured by caller)
-    echo "$password"
-}
-
 # Function to decrypt SSH keys (waits indefinitely for the user; no timeout)
 decrypt_ssh_keys() {
     local ask_msg="[Step $STEP_NUMBER] Do you have a password for the SSH key files? (y/n, default n): "
@@ -349,14 +313,9 @@ decrypt_ssh_keys() {
     local password=""
     local confirm_password=""
 
-    printf "Password: "
-    prompt_read_default password "" 30
-    printf "\n"
+    secret_read_hidden password "Password: "
+    secret_read_hidden confirm_password "Confirm Password: "
 
-    printf "Confirm Password: "
-    prompt_read_default confirm_password "" 30
-    printf "\n"
-    
     if [[ "$password" != "$confirm_password" ]]; then
         print_error_from_common_functions "Passwords do not match. Please try again."
         return 1
@@ -378,13 +337,13 @@ decrypt_ssh_keys() {
         fi
 
         # Decrypt public key
-        if ! $USE_SUDO "$NODE_PATH" "$LOCAL_SSH_PUB_JS" pwd "$password" "$ssh_location"; then
+        if ! secret_tool_run "$password" "${USE_SUDO:-}" "$NODE_PATH" "$LOCAL_SSH_PUB_JS" pwd "$SECRET_PASSWORD_ARG" "$ssh_location"; then
             print_error_from_common_functions "Failed to decrypt public key to $ssh_location"
             continue
         fi
 
         # Decrypt private key
-        if ! $USE_SUDO "$NODE_PATH" "$LOCAL_SSH_KEY_JS" pwd "$password" "$ssh_location"; then
+        if ! secret_tool_run "$password" "${USE_SUDO:-}" "$NODE_PATH" "$LOCAL_SSH_KEY_JS" pwd "$SECRET_PASSWORD_ARG" "$ssh_location"; then
             print_error_from_common_functions "Failed to decrypt private key to $ssh_location"
             continue
         fi

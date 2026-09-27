@@ -7,9 +7,9 @@ use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 // Pycore delivery: server identity, Laravel-side diff, batch upload. Contract:
 // docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md "W7 contract".
-// Runs at the pycore worker trust level of orch_audio/ingest/*.
+// Takes the shared client key, like orch_audio/ingest/*.
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
-    ->middleware(ServerIdentityHeader::class)
+    ->middleware([ServerIdentityHeader::class, 'client.key'])
     ->prefix('app_qy_v1/delivery')
     ->group(function () {
         Route::get('/info', [AppQyV1DeliveryCtl::class, 'info']);

@@ -73,7 +73,7 @@ class AppQyV1MediaContentPublicController extends Controller
     public function getContent(Request $request, string $type, int $id): JsonResponse
     {
         if ($type !== 'book' && $type !== 'subtitle') {
-            return $this->error('Invalid type. Must be book or subtitle.', 400);
+            return $this->error(__('app_qy_v1.messages.invalid_type_must_be_book_or_subtitle'), 400);
         }
 
         $pagination = $this->resolvePagination($request);
@@ -187,7 +187,7 @@ class AppQyV1MediaContentPublicController extends Controller
             'limit' => $pagination['limit'],
             'grain' => $grain,
             'sentences' => $sentences,
-        ], 'Media content retrieved successfully');
+        ], __('app_qy_v1.messages.media_content_retrieved_successfully'));
     }
 
     /**
@@ -387,6 +387,6 @@ class AppQyV1MediaContentPublicController extends Controller
             'limit' => $pagination['limit'],
             'grain' => 'sentence',
             'sentences' => $sentences,
-        ], 'Media content retrieved successfully');
+        ], __('app_qy_v1.messages.media_content_retrieved_successfully'));
     }
 }

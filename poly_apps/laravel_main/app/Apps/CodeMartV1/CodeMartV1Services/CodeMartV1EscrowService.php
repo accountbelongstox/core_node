@@ -119,6 +119,118 @@ class CodeMartV1EscrowService
         return $result;
     }
 
+    /**
+     * Reserves escrow headroom for a task budget: once a project is funded, the
+     * budgets of its live tasks may not exceed the funded amount. Call inside
+     * a transaction; the funding escrow rows are locked until it commits.
+     */
+    public static function assertBudgetHeadroom(int $projectId, ?int $excludeTaskId, mixed $budget): void
+    {
+        $requested = CodeMartV1FinanceService::money($budget ?? 0);
+        $escrows = null;
+        $funded = '0.00';
+        $committed = '0.00';
+
+        if (bccomp($requested, '0', 2) <= 0) {
+            return;
+        }
+        $escrows = CodeMartV1EscrowModel::query()
+            ->where('project_id', $projectId)
+            ->where('escrow_type', CodeMartV1Constants::ESCROW_TYPE_PROJECT_FUNDING)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        if ($escrows->isEmpty()) {
+            return;
+        }
+        foreach ($escrows as $escrow) {
+            $funded = bcadd($funded, bcsub((string) $escrow->amount, (string) ($escrow->refunded_amount ?? '0'), 2), 2);
+        }
+        $committed = CodeMartV1FinanceService::money(
+            CodeMartV1TaskModel::forProjectQuery($projectId)
+                ->where('status', '!=', CodeMartV1Constants::TASK_STATUS_CANCELLED)
+                ->when($excludeTaskId !== null, static fn ($query) => $query->whereKeyNot($excludeTaskId))
+                ->sum('budget_allocation')
+        );
+        if (bccomp(bcadd($committed, $requested, 2), $funded, 2) > 0) {
+            throw new CodeMartV1FinanceException('escrow_insufficient', __('codemart.errors.escrow_insufficient'), 409);
+        }
+    }
+
+    /**
+     * Returns the unreleased remainder of every held funding escrow of a
+     * project to its payer wallet. Idempotent: a refunded escrow has nothing
+     * left. Runs inside the caller's transaction when there is one.
+     *
+     * @return array{refunded_escrows: int, refunded_amount: string}
+     */
+    public static function refundRemainderForProject(int $projectId, ?int $actorId, string $reason): array
+    {
+        $result = CodeMartV1WalletModel::runInTransaction(function () use ($projectId, $reason): array {
+            $escrows = CodeMartV1EscrowModel::query()
+                ->where('project_id', $projectId)
+                ->where('escrow_type', CodeMartV1Constants::ESCROW_TYPE_PROJECT_FUNDING)
+                ->where('status', CodeMartV1Constants::ESCROW_STATUS_HELD)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+            $count = 0;
+            $total = '0.00';
+            $refunded = '0.00';
+
+            foreach ($escrows as $escrow) {
+                $refunded = self::refundHeldRemainder($escrow, $reason);
+                if (bccomp($refunded, '0', 2) > 0) {
+                    $count++;
+                    $total = bcadd($total, $refunded, 2);
+                }
+            }
+
+            return ['refunded_escrows' => $count, 'refunded_amount' => $total];
+        });
+
+        if ($result['refunded_escrows'] > 0) {
+            CodeMartV1DomainEventService::emit(
+                $actorId,
+                'project',
+                $projectId,
+                'escrow_refunded',
+                null,
+                null,
+                [],
+                null,
+                null,
+                null,
+                $result + ['project_id' => $projectId, 'reason' => $reason]
+            );
+        }
+
+        return $result;
+    }
+
+    /**
+     * Credits a held escrow's unreleased remainder to its payer and records
+     * the refund. The caller holds the escrow row lock inside a transaction.
+     * Returns the refunded amount ('0.00' when nothing remained).
+     */
+    public static function refundHeldRemainder(CodeMartV1EscrowModel $escrow, string $reason): string
+    {
+        $remaining = $escrow->remainingAmount();
+
+        if ($escrow->status !== CodeMartV1Constants::ESCROW_STATUS_HELD || bccomp($remaining, '0', 2) <= 0) {
+            return '0.00';
+        }
+        CodeMartV1WalletModel::lockForUser((int) $escrow->payer_id)->credit(
+            $remaining,
+            CodeMartV1Constants::WALLET_TX_REFUND,
+            "Project {$escrow->project_id} escrow remainder refund",
+            ['project_id' => $escrow->project_id, 'escrow_id' => $escrow->id, 'reason' => $reason]
+        );
+        $escrow->recordRefund($remaining, $reason);
+
+        return $remaining;
+    }
+
     private static function projectIdForTask(CodeMartV1TaskModel $task): ?int
     {
         $direct = $task->getAttribute('project_id');
@@ -152,7 +264,7 @@ class CodeMartV1EscrowService
             return ['released' => false, 'amount' => $amount, 'error_code' => 'task_not_assigned'];
         }
         if (bccomp($amount, '0', 2) <= 0) {
-            return ['released' => false, 'amount' => $amount, 'error_code' => 'task_budget_missing'];
+            return ['released' => false, 'amount' => $amount, 'error_code' => CodeMartV1Constants::ESCROW_ERROR_TASK_BUDGET_MISSING];
         }
 
         try {

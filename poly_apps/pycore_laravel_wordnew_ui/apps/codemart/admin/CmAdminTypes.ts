@@ -218,8 +218,15 @@ export interface CmAdminEscrowRow {
   remaining_amount: string;
   currency: string | null;
   status: string;
+  refundable?: boolean;
   released_at: string | null;
   created_at: string | null;
+}
+
+export interface CmAdminEscrowRefundResult {
+  escrow: CmAdminEscrowRow;
+  refunded_amount: string;
+  replayed: boolean;
 }
 
 export interface CmAdminProjectRow {

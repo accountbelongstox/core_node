@@ -1,0 +1,12 @@
+{
+  "task_id": "laravel-manager-2",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-030": {"status": "fixed", "reason": "Client side: backup create, restore and table import go through longOperation (retry:false, 15 min timeout); service start/stop/restart/toggle-autostart go through serviceControl (retry:false, 3 min, service name URL-encoded). A slow restore is sent once. The server-side restore lock and the explicit toggle target stay with laravel (cross-scope, listed in the report)."},
+    "FU-039": {"status": "fixed", "reason": "The Octane reconnect loop schedules every step through scheduleOctaneStep, which refuses after unmount, and the unmount effect clears the timer. Each await re-checks disposedRef, so leaving the view stops the probes and never reloads another view. The loop stops after 3 min with an i18n toast. All Octane texts moved to server.octane.* in en and zh."}
+  },
+  "issues": [],
+  "checks": "git diff read; restartCurrent uses request() (resolves with isNetworkError, so the simplified catch is correct); locale keys present in en and zh; scope apps/laravel-manager only.",
+  "checked_at": "2026-09-27T03:58:27+10:00"
+}

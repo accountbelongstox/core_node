@@ -67,13 +67,14 @@ param(
 #>
 
 # Load global variables and common functions
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\ApplicationsList.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
-. "$PSScriptRoot\..\win_common\WindowsPathFunction.ps1"
-. "$PSScriptRoot\..\win_common\PackageManagerInvokes.ps1"
-. "$PSScriptRoot\..\win_common\PostInstallCallbackProcessor.ps1"
-. "$PSScriptRoot\..\win_common\DesktopIconManager.ps1"
+$winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
+. (Join-Path $winCommonDir "GlobalVars.ps1")
+. (Join-Path $winCommonDir "ApplicationsList.ps1")
+. (Join-Path $winCommonDir "CommonFunc.ps1")
+. (Join-Path $winCommonDir "WindowsPathFunction.ps1")
+. (Join-Path $winCommonDir "PackageManagerInvokes.ps1")
+. (Join-Path $winCommonDir "PostInstallCallbackProcessor.ps1")
+. (Join-Path $winCommonDir "DesktopIconManager.ps1")
 
 
 # Local debug configuration for this script
@@ -1262,6 +1263,9 @@ try {
     elseif ($finalOrganization.Errors.Count -eq 0) {
         Write-Host "$SCRIPT_INDEX Final desktop organization completed successfully!" -ForegroundColor Green
         Write-Host "$SCRIPT_INDEX Summary: Categories: $($finalOrganization.CategoriesProcessed), Moved: $($finalOrganization.ShortcutsMoved), Unmatched: $($finalOrganization.UnmatchedShortcuts)" -ForegroundColor Green
+        if ($finalOrganization.ManifestPath) {
+            Write-Host "$SCRIPT_INDEX Undo: dd.ps1 > Management & Backup > Windows Management > Organize Desktop Icons [undo] ($($finalOrganization.ManifestPath))" -ForegroundColor Green
+        }
     }
     else {
         Write-Host "$SCRIPT_INDEX Final desktop organization completed with warnings" -ForegroundColor Yellow

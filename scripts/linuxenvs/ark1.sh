@@ -198,30 +198,6 @@ esac
 arkcli_api="${arkcli_api%/}"
 [ -n "$arkcli_api_key" ] && use_plain_claude=1
 
-mask_secret() {
-    local value="$1"
-    local len keep middle
-    if [ -z "$value" ]; then
-        echo "[empty]"
-        return
-    fi
-    len=${#value}
-    if [ "$len" -le 4 ]; then
-        printf '%*s' "$len" '' | tr ' ' '*'
-        return
-    fi
-    if [ "$len" -le 8 ]; then
-        keep=1
-    else
-        keep=4
-    fi
-    middle=$((len - 2 * keep))
-    [ "$middle" -lt 1 ] && middle=1
-    printf '%s' "${value:0:keep}"
-    printf '%*s' "$middle" '' | tr ' ' '*'
-    printf '%s' "${value: -keep}"
-}
-
 # Claude Code applies settings.json env AFTER process env; stale ANTHROPIC_*
 # entries written by an earlier arkcli run would override this launcher's
 # gateway settings. Remove them from the slot settings.json (plain mode only).
@@ -325,7 +301,7 @@ if [ "$use_plain_claude" -eq 1 ]; then
     unset ANTHROPIC_API_KEY
     claude_settings_file="$claude_config_dir/settings.json"
     clean_stale_anthropic_settings "$claude_settings_file"
-    masked_api_key="$(mask_secret "$arkcli_api_key")"
+    masked_api_key="$(ai_cli_mask_secret "$arkcli_api_key")"
     echo "ARKCLI_API_KEY: $masked_api_key -> ANTHROPIC_AUTH_TOKEN"
     echo "ANTHROPIC_BASE_URL: $ANTHROPIC_BASE_URL (set now)"
 else
@@ -553,7 +529,7 @@ if [ "$use_plain_claude" -eq 1 ]; then
     export ANTHROPIC_BASE_URL="$arkcli_api"
     export ANTHROPIC_AUTH_TOKEN="$arkcli_api_key"
     unset ANTHROPIC_API_KEY
-    [ -z "$masked_api_key" ] && masked_api_key="$(mask_secret "$arkcli_api_key")"
+    [ -z "$masked_api_key" ] && masked_api_key="$(ai_cli_mask_secret "$arkcli_api_key")"
 fi
 
 echo ""

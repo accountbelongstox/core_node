@@ -5,6 +5,7 @@ namespace App\Services\Dashboard;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
@@ -25,6 +26,8 @@ class DatabaseManagerService
 {
     /** Sub-directory under the backup dir where dumps + manifests are stored. */
     private const BACKUP_SUBDIR = 'db-manager';
+    private const CONNECTION_LOCK_PREFIX = 'db-manager:connection:';
+    private const CONNECTION_LOCK_SECONDS = 3900;
 
     // ---------------------------------------------------------------- connections
 
@@ -375,6 +378,30 @@ class DatabaseManagerService
      */
     public static function backup(string $connection): array
     {
+        return self::withConnectionLock($connection, static fn (): array => self::runBackup($connection));
+    }
+
+    /**
+     * One dump or restore per connection at a time (dashboard backup/restore
+     * and the data-sync receiver backups share it). A second request while one
+     * runs fails fast with 409 instead of running against the same database.
+     */
+    private static function withConnectionLock(string $connection, callable $callback): mixed
+    {
+        $lock = Cache::lock(self::CONNECTION_LOCK_PREFIX . $connection, self::CONNECTION_LOCK_SECONDS);
+
+        if (!$lock->get()) {
+            throw new \RuntimeException(__('db_manager.connection_busy', ['connection' => $connection]));
+        }
+        try {
+            return $callback();
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private static function runBackup(string $connection): array
+    {
         $desc = self::resolve($connection);
         $driver = $desc['driver'];
         $dir = self::backupDir();
@@ -437,6 +464,12 @@ class DatabaseManagerService
     public static function restore(string $id): array
     {
         $meta = self::requireBackup($id);
+
+        return self::withConnectionLock((string) $meta['connection'], static fn (): array => self::runRestore($id, $meta));
+    }
+
+    private static function runRestore(string $id, array $meta): array
+    {
         $connection = $meta['connection'];
         $dir = self::backupDir();
         $file = "{$dir}/" . $meta['file'];

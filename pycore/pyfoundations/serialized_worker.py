@@ -19,10 +19,18 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 DEFAULT_SERIALIZED_TIMEOUT = None
+# Minimum bound on waiting for the owner to BEGIN a timed call (queue wait); a
+# longer call timeout raises it, so an earlier call of the same length on a
+# busy owner is waited out. The call's own timeout starts once it has begun.
+SERIALIZED_START_TIMEOUT_SECONDS = 600.0
 
 
 def _response_guard_name(response_signal: str) -> str:
     return f"{response_signal}.waiting"
+
+
+def _response_started_name(response_signal: str) -> str:
+    return f"{response_signal}.started"
 
 
 def _publish_response(
@@ -93,6 +101,10 @@ class SerializedWorkerThread(threading.Thread):
             kwargs = request.get("kwargs", {})
             method = args[0] if callback is _invoke_serialized_method and args else callback
             active_signal = f"{self._queue_name}.active"
+            if response_signal and response_guard:
+                self._bus.signal_if_present(
+                    response_guard, _response_started_name(response_signal), True, consume=False,
+                )
             self._bus.signal(active_signal, {
                 "callback": getattr(method, "__qualname__", type(method).__name__),
                 "thread": self.name,
@@ -506,9 +518,14 @@ def call_serialized(
     bus: Any = THREAD_BUS,
     **kwargs: Any,
 ) -> Any:
-    """Execute one callback on its queue owner and return the bus response."""
+    """Execute one callback on its queue owner and return the bus response.
+
+    ``timeout`` bounds the callback's own execution: it starts when the owner
+    begins the call, so time spent queued behind earlier calls never counts.
+    """
     response_signal = f"{queue_name}.response.{uuid.uuid4().hex}"
     response_guard = _response_guard_name(response_signal)
+    started_signal = _response_started_name(response_signal)
     started = time.monotonic()
     bus.signal(response_guard, True)
     bus.send_message(queue_name, {
@@ -519,8 +536,12 @@ def call_serialized(
         "response_guard": response_guard,
         "queued_at": started,
     })
-    response = bus.wait_signal(response_signal, timeout=timeout)
+    response = None
+    start_timeout = None if timeout is None else max(SERIALIZED_START_TIMEOUT_SECONDS, timeout)
+    if timeout is None or bus.wait_signal(started_signal, timeout=start_timeout) is not None:
+        response = bus.wait_signal(response_signal, timeout=timeout)
     bus.clear_signal(response_guard)
+    bus.clear_signal(started_signal)
     bus.clear_signal(response_signal)
     if not isinstance(response, dict):
         active = bus.get_signal(f"{queue_name}.active", {}) or {}

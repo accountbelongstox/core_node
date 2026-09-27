@@ -51,7 +51,64 @@ class CodeMartV1AdminFinanceService
     {
         $result = CodeMartV1EscrowModel::adminPage($status, $projectId, $page, $pageSize);
 
-        return CodeMartV1FinanceService::pageResult($result, 'escrows', $page, $pageSize, static fn (CodeMartV1EscrowModel $escrow): array => [
+        return CodeMartV1FinanceService::pageResult($result, 'escrows', $page, $pageSize, static fn (CodeMartV1EscrowModel $escrow): array => self::escrowRow($escrow));
+    }
+
+    /**
+     * Admin refund of one escrow's unreleased remainder to its payer.
+     * Idempotent: an escrow with nothing left returns `replayed: true` and
+     * refunds nothing; a disputed escrow is refused.
+     */
+    public function refundEscrow(int $escrowId, int $adminId, ?string $notes): array
+    {
+        $result = CodeMartV1WalletModel::runInTransaction(function () use ($escrowId): array {
+            $escrow = CodeMartV1EscrowModel::query()->whereKey($escrowId)->lockForUpdate()->first();
+            $refunded = '0.00';
+
+            if (!$escrow) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_NOT_FOUND, __('codemart.errors.escrow_not_found'), 404);
+            }
+            if ($escrow->status === CodeMartV1Constants::ESCROW_STATUS_DISPUTED) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_NOT_REFUNDABLE, __('codemart.errors.escrow_not_refundable'), 409);
+            }
+            $refunded = CodeMartV1EscrowService::refundHeldRemainder($escrow, CodeMartV1Constants::ESCROW_REFUND_REASON_ADMIN);
+
+            return ['escrow' => $escrow, 'refunded_amount' => $refunded, 'replayed' => bccomp($refunded, '0', 2) <= 0];
+        });
+
+        if (!$result['replayed']) {
+            CodeMartV1DomainEventService::emit(
+                $adminId,
+                'project',
+                (int) $result['escrow']->project_id,
+                'escrow_refunded',
+                null,
+                null,
+                [],
+                null,
+                null,
+                null,
+                [
+                    'escrow_id' => (int) $result['escrow']->id,
+                    'refunded_amount' => $result['refunded_amount'],
+                    'reason' => CodeMartV1Constants::ESCROW_REFUND_REASON_ADMIN,
+                    'notes' => $notes,
+                ]
+            );
+        }
+
+        return [
+            'escrow' => self::escrowRow($result['escrow']->fresh(['payer', 'payee', 'project'])),
+            'refunded_amount' => $result['refunded_amount'],
+            'replayed' => $result['replayed'],
+        ];
+    }
+
+    private static function escrowRow(CodeMartV1EscrowModel $escrow): array
+    {
+        $remaining = $escrow->remainingAmount();
+
+        return [
             'id' => $escrow->id,
             'project_id' => $escrow->project_id,
             'project_title' => $escrow->project?->title,
@@ -61,12 +118,13 @@ class CodeMartV1AdminFinanceService
             'amount' => (string) $escrow->amount,
             'released_amount' => CodeMartV1FinanceService::money($escrow->released_amount ?? 0),
             'refunded_amount' => CodeMartV1FinanceService::money($escrow->refunded_amount ?? 0),
-            'remaining_amount' => $escrow->remainingAmount(),
+            'remaining_amount' => $remaining,
+            'refundable' => $escrow->status === CodeMartV1Constants::ESCROW_STATUS_HELD && bccomp($remaining, '0', 2) > 0,
             'currency' => $escrow->currency,
             'status' => $escrow->status,
             'released_at' => $escrow->released_at?->toIso8601String(),
             'created_at' => $escrow->created_at?->toIso8601String(),
-        ]);
+        ];
     }
 
     public function withdrawalsPage(?string $status, int $page, int $pageSize): array

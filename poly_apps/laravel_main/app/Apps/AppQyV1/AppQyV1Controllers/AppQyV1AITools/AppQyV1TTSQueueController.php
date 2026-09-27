@@ -64,7 +64,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         // Compatibility flag: interactive audio tasks move to the global queue head.
@@ -83,7 +83,7 @@ class AppQyV1TTSQueueController extends Controller
             return $this->error($result['error'] ?? 'Failed to add task', 400);
         }
 
-        return $this->success($this->addLogsToResponse($result), 'Task added to queue successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.task_added_to_queue_successfully'));
     }
 
     /**
@@ -129,7 +129,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $page = $request->input('page', 1);
@@ -139,7 +139,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->getQueueSummary((int)$page, (int)$perPage, $status, $type);
 
-        return $this->success($this->addLogsToResponse($result), 'Queue summary retrieved successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.queue_summary_retrieved_successfully'));
     }
 
     /**
@@ -158,7 +158,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $page = $request->input('page', 1);
@@ -167,7 +167,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->getCompletedTasks((int)$page, (int)$perPage, $type);
 
-        return $this->success($this->addLogsToResponse($result), 'Completed tasks retrieved successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.completed_tasks_retrieved_successfully'));
     }
 
     /**
@@ -196,10 +196,10 @@ class AppQyV1TTSQueueController extends Controller
         $task = $this->queueService->getTask($taskId);
 
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('app_qy_v1.messages.task_not_found'));
         }
 
-        return $this->success($this->addLogsToResponse($task), 'Task retrieved successfully');
+        return $this->success($this->addLogsToResponse($task), __('app_qy_v1.messages.task_retrieved_successfully'));
     }
 
     /**
@@ -230,7 +230,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $stats = $this->queueService->getStatistics();
 
-        return $this->success($this->addLogsToResponse($stats), 'Statistics retrieved successfully');
+        return $this->success($this->addLogsToResponse($stats), __('app_qy_v1.messages.statistics_retrieved_successfully'));
     }
 
     /**
@@ -269,7 +269,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $metrics = AppQyV1TTSQueueMetrics::getMetrics();
 
-        return $this->success($this->addLogsToResponse($metrics), 'Metrics retrieved successfully');
+        return $this->success($this->addLogsToResponse($metrics), __('app_qy_v1.messages.metrics_retrieved_successfully'));
     }
 
     /**
@@ -308,7 +308,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $metrics = $this->queueService->getPerformanceMetrics();
 
-        return $this->success($metrics, 'Performance metrics retrieved successfully');
+        return $this->success($metrics, __('app_qy_v1.messages.performance_metrics_retrieved_successfully'));
     }
 
     /**
@@ -361,7 +361,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->batchAddTasks($tasks, $defaultPosition);
 
-        return $this->success($this->addLogsToResponse($result), 'Batch tasks processed successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.batch_tasks_processed_successfully'));
     }
 
     /**
@@ -408,7 +408,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->batchGetTasks($taskIds);
 
-        return $this->success($this->addLogsToResponse($result), 'Batch tasks retrieved successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.batch_tasks_retrieved_successfully'));
     }
 
     /**
@@ -462,7 +462,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = \App\Helpers\AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $queries = $request->input('queries');
@@ -470,7 +470,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->intelligentBatchQuery($queries, $defaultPosition);
 
-        return $this->success($this->addLogsToResponse($result), 'Intelligent batch query completed successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.intelligent_batch_query_completed_successfully'));
     }
 
     /**
@@ -497,7 +497,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->getRecentLogs($limit);
 
-        return $this->success($result, 'Logs retrieved successfully');
+        return $this->success($result, __('app_qy_v1.messages.logs_retrieved_successfully'));
     }
 
     /**
@@ -518,12 +518,12 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $result = $this->queueService->requeueFailedTasks();
 
-        return $this->success($this->addLogsToResponse($result), 'Failed tasks re-queued successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.failed_tasks_re_queued_successfully'));
     }
 
     /**
@@ -554,7 +554,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $request->validate([
@@ -575,7 +575,7 @@ class AppQyV1TTSQueueController extends Controller
             return $this->error($result['error'] ?? 'Failed to add task', 400);
         }
 
-        return $this->success($this->addLogsToResponse($result), 'Task added successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.task_added_successfully'));
     }
 
     /**

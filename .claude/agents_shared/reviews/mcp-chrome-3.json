@@ -1,0 +1,16 @@
+{
+  "task_id": "mcp-chrome-3",
+  "role": "mcp-chrome",
+  "verdict": "approved",
+  "findings": {
+    "FU-007": {"status": "fixed", "reason": "The typed pull merge exists once, as LaravelWorkerLifecycleBase.pullAcrossTaskTypes: each type pulls only the remaining limit (optionally capped by the slice limit), and a later type's failure keeps the tasks already claimed (their leases are not dropped). The Bing worker's private copy is deleted and SimpleWorkerRuntimeBase delegates to it through the sliceLimit/onTypePulled hooks, so the 3x over-claim is gone."},
+    "FU-021": {"status": "fixed", "reason": "start() runs through an AsyncOperationController (PromiseController.run returns the in-flight promise), so a watchdog resume and a user Start share one startOnce and the worker is registered once."},
+    "FU-034": {"status": "fixed", "reason": "fetchRemoteImageBytes applies one AbortSignal.timeout (15 s) over headers and body, checks Content-Length, and caps the streamed bytes at 8 MiB; it returns null on timeout or oversize, so the worker moves on to the next candidate. bytesToBase64 replaces the byte loop; the raster magic check is centralized in isRasterImageBytes (reused by assist-image-api); web-search-cover-cache drops its own unbounded fetch."},
+    "FU-041": {"status": "fixed", "reason": "generateOnce calls geminiImageTool.cancel(jobId, reason) whenever no image was collected. cancel() marks the job failed and navigates its tab to a fresh chat before the mutex is released, so a late image cannot be taken by the next job's baseline."}
+  },
+  "issues": [
+    "entrypoints/background/services/gemini-image-generate.ts:13 (non-blocking) GENERATION_ABANDONED is an English sentence stored as job.error. If the popup shows job errors, give it a locale key (FU-042 class)."
+  ],
+  "checks": "Diffs read; AsyncOperationController/PromiseController semantics checked; all callers of the removed local fetch and magic-byte helpers are migrated; the sha256Hex addition in utils/binary.ts belongs to mcp-chrome-1 and is not covered here.",
+  "checked_at": "2026-09-27T04:22:31+10:00"
+}

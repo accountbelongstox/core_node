@@ -112,9 +112,9 @@ const toDetailRow = (w: LibraryWordRow, library: any): any => ({
   translations: Array.isArray(w.translations) ? w.translations : [],
 });
 
-const WordRow: React.FC<RowComponentProps<RowProps>> = ({
+const WordRow = ({
   index, style, words, pageBase, expandedKey, onToggleExpand, onPlay, renderWordDetail,
-}) => {
+}: RowComponentProps<RowProps>): React.ReactElement | null => {
   const w = words[index];
   if (!w) return null;
   const rowKey = keyOf(w, index);

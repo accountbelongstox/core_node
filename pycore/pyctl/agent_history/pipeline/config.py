@@ -31,6 +31,9 @@ USER_CONFIG_KEYS = (
 )
 # Pipeline-owned keys a patch may also set (not broadcast as user config).
 _INTERNAL_PATCH_KEYS = ("extract_as_article", "live_listen", "phase")
+# Keys the planner and worker own; they save only these, so a stale snapshot
+# never reverts a user change made while a batch was planned or processed.
+CURSOR_STATE_KEYS = ("cursor", "cursors", "live_cursors", "live_completed", "backfill_targets", "last_tool")
 
 def _default_cursor() -> Dict[str, Any]:
     defaults = user_data_store.get_default_section(_SECTION)
@@ -226,6 +229,11 @@ _agent_history_config_owner = _AgentHistoryConfigOwner()
 
 def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
     return _agent_history_config_owner.save(patch)
+
+
+def save_cursor_state(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Persist only the pipeline-owned cursor keys of a config snapshot."""
+    return save_config({key: cfg[key] for key in CURSOR_STATE_KEYS if key in cfg})
 
 def get_status() -> Dict[str, Any]:
     cfg = get_config()

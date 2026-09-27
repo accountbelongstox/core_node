@@ -1,6 +1,11 @@
 const element = (id) => document.getElementById(id);
+const CONSOLE_JOB_PREFIX = 'console-';
+const EVENTS_PATH = '/queue/events';
+const EVENT_NAMES = ['sse.state', 'sse.event'];
+const consoleClientId = `${CONSOLE_JOB_PREFIX}${crypto.randomUUID()}`;
 let audioUrl = '';
-let pollMs = 2500;
+let refreshing = false;
+let refreshAgain = false;
 
 function payload() {
   return {
@@ -50,12 +55,12 @@ async function submit() {
     const response = await fetch('/queue/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload()),
+      body: JSON.stringify({ ...payload(), client_job_id: `${CONSOLE_JOB_PREFIX}${crypto.randomUUID()}` }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || response.statusText);
     showMessage(`Queued ${data.job_id}`);
-    await refresh();
+    scheduleRefresh();
   } catch (error) {
     showMessage(String(error), true);
   }
@@ -67,7 +72,11 @@ async function cancel(jobId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ job_id: jobId }),
   });
-  await refresh();
+  scheduleRefresh();
+}
+
+function consoleJob(job) {
+  return String(job.client_job_id || '').startsWith(CONSOLE_JOB_PREFIX);
 }
 
 function addCell(row, value, className = '') {
@@ -127,12 +136,32 @@ async function refresh() {
     element('counts').textContent = Object.entries(status.counts || {})
       .map(([key, value]) => `${key} ${value}`)
       .join(' · ');
-    renderJobs(status.jobs || []);
-    pollMs = (status.counts?.running || 0) > 0 ? 5000 : 2500;
+    renderJobs((status.jobs || []).filter(consoleJob));
   } catch (error) {
-    pollMs = Math.min(10000, pollMs * 1.5);
     showMessage(String(error), true);
   }
+}
+
+// Coalesces bursts of queue events into at most one follow-up refresh.
+async function scheduleRefresh() {
+  if (refreshing) {
+    refreshAgain = true;
+    return;
+  }
+  refreshing = true;
+  try {
+    do {
+      refreshAgain = false;
+      await refresh();
+    } while (refreshAgain);
+  } finally {
+    refreshing = false;
+  }
+}
+
+function subscribe() {
+  const source = new EventSource(`${EVENTS_PATH}?client_id=${encodeURIComponent(consoleClientId)}`);
+  for (const name of EVENT_NAMES) source.addEventListener(name, scheduleRefresh);
 }
 
 async function loadCapabilities() {
@@ -150,13 +179,9 @@ async function loadCapabilities() {
   }
 }
 
-async function poll() {
-  await refresh();
-  window.setTimeout(poll, pollMs);
-}
-
 element('direct').onclick = synthesize;
 element('submit').onclick = submit;
-element('refresh').onclick = refresh;
+element('refresh').onclick = scheduleRefresh;
 loadCapabilities();
-poll();
+scheduleRefresh();
+subscribe();

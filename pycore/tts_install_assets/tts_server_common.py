@@ -31,7 +31,8 @@ _PYCORE_MODULE_NAME = "pycore"
 _PYFOUNDATIONS_MODULE_NAME = "pycore.pyfoundations"
 _NETWORK_CONSTANTS_MODULE_NAME = "pycore.pyfoundations.network_constants"
 
-TMP_DIR = Path(r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp")
+# pycore exports its resolved temp root (pygvar CORE_NODE_TMP_DIR) to the servers it starts.
+TMP_DIR = Path(os.environ.get("CORE_NODE_TMP_DIR") or (r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp"))
 
 
 def pycore_package_root() -> Path:

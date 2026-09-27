@@ -22,8 +22,11 @@ import {
   type AiWebProvider,
 } from '@/services/AiProviderSettings';
 import { resolveApiBase } from '@/services/ApiManager';
-import { delay as waitForDelay, fetchWithTimeout } from '@/utils/async';
+import { delay as waitForDelay } from '@/utils/async';
 import { toErrorMessage } from '@/utils/errors';
+import { laravelFetch } from '@/services/LaravelTransport';
+
+const AI_AUDIO_UPLOAD_TIMEOUT_MS = 30000;
 
 export { waitForTabComplete } from '@/utils/tab-readiness';
 
@@ -132,7 +135,7 @@ export async function uploadReplyAudio(params: {
       form.append('language', language);
       form.append('audio', blob, `${provider}-${promptHash}.${ext}`);
 
-      const resp = await fetchWithTimeout(url, 30000, { method: 'POST', body: form });
+      const resp = await laravelFetch(url, { method: 'POST', body: form }, AI_AUDIO_UPLOAD_TIMEOUT_MS);
 
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data && data.ok !== false) {

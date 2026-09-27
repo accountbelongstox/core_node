@@ -10,8 +10,8 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
 
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"

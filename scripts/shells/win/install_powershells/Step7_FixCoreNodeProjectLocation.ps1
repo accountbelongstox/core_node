@@ -57,7 +57,7 @@ function Find-CoreNodeProjects {
     $commonLocations = @(
         "C:\Users\$env:USERNAME\Documents\core_node",
         "C:\Users\$env:USERNAME\Desktop\core_node",
-        "$env:USERPROFILE\core_node",
+        (Join-Path $env:USERPROFILE "core_node"),
         "D:\core_node",
         "C:\core_node"
     )

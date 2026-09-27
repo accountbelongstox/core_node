@@ -555,7 +555,10 @@ class BaseLaravelWorkerService:
                 # may run for this deploy window.
                 self._sync_backend_legacy = True
             if full_sync and isinstance(ordered_ids, list):
-                self._apply_ordered_diff(scope, task_type, ordered_ids, base_url)
+                if not self._apply_ordered_diff(scope, task_type, ordered_ids, base_url):
+                    # This queue's rows could not be materialized: its cursor
+                    # stays, and the other queues of the round still sync.
+                    continue
                 new_cursor = int(data.get("cursor") or 0)
                 if new_cursor > 0:
                     self._queue_diff_cursors[task_type] = new_cursor
@@ -613,13 +616,15 @@ class BaseLaravelWorkerService:
         task_type: str,
         ordered_ids: List[Any],
         base_url: str,
-    ) -> None:
+    ) -> bool:
         """Apply one changed diff incrementally against the mirrored backlog.
 
         The backend reports the full pending claim order; the worker only
         materializes IDs it does not hold yet (page-data segments), drops
         staged rows that vanished from the pending set, and re-aligns the
         local order - never a bounded claim-pull, never a full re-fetch.
+        Returns False (nothing applied) when page-data rejects this queue, so
+        one unsupported queue never aborts the other queues' diff round.
         """
         seen: Set[str] = set()
         ordered: List[str] = []
@@ -642,10 +647,13 @@ class BaseLaravelWorkerService:
                 log_line=False,
             )
             if response.status_code != 200:
-                raise RuntimeError(
-                    f"Laravel queue page-data failed for {task_type}: "
-                    f"HTTP {response.status_code}"
-                )
+                failure = f"page-data HTTP {response.status_code}"
+                if self._diff_sync_log_state.get(task_type) != failure:
+                    self._diff_sync_log_state[task_type] = failure
+                    ColorPrint.yellow(
+                        f"{self._log_prefix} sync[{task_type}] skipped: Laravel queue {failure}"
+                    )
+                return False
             data = self._response_data(response)
             # Queue page-data contract names the materialized rows `items`;
             # accept the legacy `tasks` alias for older Laravel deployments.
@@ -685,6 +693,7 @@ class BaseLaravelWorkerService:
                 f"-{sync_values[keys[1]]} order={sync_values[keys[2]]} "
                 f"reorder={sync_values[keys[3]]}"
             )
+        return True
 
     def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
         """Re-align the in-process queue with the synced claim order (heap lanes)."""

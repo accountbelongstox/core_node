@@ -30,7 +30,7 @@ export function useCmNotice(): CmNoticeController {
 
 const NOTICE_ICONS = { success: CheckCircle2, error: AlertTriangle, info: Info } as const;
 
-export const CmNotice: React.FC<{ notice: CmNoticeState | null; onDismiss?: () => void }> = ({ notice, onDismiss }) => {
+export const CmNotice: React.FC<{ notice: CmNoticeState | null; onDismiss?: () => void; onRetry?: () => void }> = ({ notice, onDismiss, onRetry }) => {
   const { t } = useTranslation('cm');
   if (!notice) return null;
   const Icon = NOTICE_ICONS[notice.tone];
@@ -38,6 +38,11 @@ export const CmNotice: React.FC<{ notice: CmNoticeState | null; onDismiss?: () =
     <div className="cm-notice" data-tone={notice.tone} role={notice.tone === 'error' ? 'alert' : 'status'}>
       <Icon aria-hidden="true" />
       <p>{notice.text}</p>
+      {onRetry && (
+        <button type="button" className="cm-notice__action" onClick={onRetry}>
+          <RefreshCw aria-hidden="true" /> {t('common.retry')}
+        </button>
+      )}
       {onDismiss && (
         <button type="button" onClick={onDismiss} aria-label={t('common.dismiss')}>
           <X aria-hidden="true" />

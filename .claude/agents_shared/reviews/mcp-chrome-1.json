@@ -1,0 +1,18 @@
+{
+  "task_id": "mcp-chrome-1",
+  "role": "mcp-chrome",
+  "verdict": "approved",
+  "findings": {
+    "K3/K6 (native-host signing of the extension's Laravel calls)": {
+      "status": "fixed",
+      "reason": "One extension transport, services/LaravelTransport.ts laravelFetch, used by BaseApiClient (Worker/TaskCenter/StudyGen/Assist), QueueCenterWakeService, duoreader-importer-core and ai-web-common. It sends only {method, path+rawQuery as sent, contentType, contentSha256} over native messaging. The digest is the WebCrypto sha256 of the exact body; FormData signs the contract UNSIGNED-PAYLOAD with multipart. The host (client-key-signer.ts) validates the payload shape and calls ncore signRequest with client 'mcp_chrome' and the precomputed digest, which ncore validates, and returns only headers or a contract error code. The key and the canonical string never leave the host, and nothing reaches extension storage. Without a signature the call goes out unsigned and Laravel fails client.key routes closed; an unresponsive host pauses signing for 30 s; warnings are throttled and do not log the key."
+    }
+  },
+  "cross_end": "ncore signRequest reproduces test_vectors.json (verified independently in ncore-1). The owner ran the full signRequest path with the test key injected in memory and a pinned clock: headers and signatures match and ncore verifyRequestHeaders accepts all three. The fields sent (method, path+search as fetch transmits it, digest of the exact bytes) match what Laravel ClientKeyAuthService verifies (getPathInfo, QUERY_STRING, getContent, Content-Type media type).",
+  "issues": [
+    "(build order) the extension and host import the new sign types from chrome-mcp-shared dist; they appear after build:shared (the standard build runs it first). No build was run.",
+    "(resolved) the CLIENT_KEY_SIGN relay now answers only sender.id === chrome.runtime.id && !sender.tab; content scripts and tool-injected tab scripts get {ok:false}."
+  ],
+  "checks": "LaravelTransport.ts, client-key-signer.ts, the native-messaging-host and background relay diffs read; grep over the extension for fetch/fetchWithTimeout calls (the remaining ones target Puter, Mercure subscribe, health probes, third-party sites or the user-configured recorder server, not client.key routes).",
+  "checked_at": "2026-09-27T04:36:57+10:00"
+}

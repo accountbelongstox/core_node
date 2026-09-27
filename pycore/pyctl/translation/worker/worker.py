@@ -40,6 +40,7 @@ import pycore.pyctl.translation.worker.handlers.stt as h_stt
 import pycore.pyctl.translation.worker.handlers.translation as h_translation
 
 from pycore.pyutils.common.queue_center_contract import (
+    GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE,
     GLOBAL_TASK_TYPES_BY_KEY,
     task_execution_type,
     task_local_label,
@@ -67,7 +68,9 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     SUBTITLE_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["subtitle_search"]["key"]
     WORD_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
     SENTENCE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
-    TRANSLATION_FAST_PROCESSOR_TYPE = task_execution_type("word_media")
+    # The shared fast lane is the contract's remote_fast execution type (there
+    # is no "word_media" task type; resolving one fell back to remote_translation).
+    TRANSLATION_FAST_PROCESSOR_TYPE = GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE["remote_fast"]
     TRANSLATION_PROCESSOR_TYPE = task_execution_type(WORD_TRANSLATION_TASK_TYPE)
     SUBTITLE_EXECUTION_TYPE = task_execution_type(SUBTITLE_TASK_TYPE)
     AUDIO_EXECUTION_TYPE = task_execution_type(WORD_AUDIO_TASK_TYPE)

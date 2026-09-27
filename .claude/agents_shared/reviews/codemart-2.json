@@ -1,0 +1,16 @@
+{
+  "task_id": "codemart-2",
+  "role": "codemart",
+  "verdict": "approved",
+  "findings": {
+    "FU-015": {
+      "status": "fixed",
+      "reason": "CmBootstrapContext keeps the last good bootstrap on a failed refresh and only sets error; every page gate (CmCapabilityGate, CmDashboardPage:173, CmVerificationPage:422, CmAdminLayout:57) checks !bootstrap first, so a failed refresh after a mutation no longer replaces the page. CmBootstrapRefreshNotice shows access.refreshFailed (en+zh) with retry. Request counter drops superseded loads; sign-out clears state and invalidates in-flight loads."
+    }
+  },
+  "issues": [
+    "(resolved after approval) the optional account-switch hardening was applied: the subscribeAuthLoginSuccess handler clears the kept bootstrap and unread count when the logged-in id (id or user_id) differs from bootstrap.user.id, then reloads."
+  ],
+  "checks": "git diff read; all useCmBootstrap error consumers checked; i18n key present in en and zh; common.retry exists; scope apps/codemart only.",
+  "checked_at": "2026-09-27T03:55:37+10:00"
+}

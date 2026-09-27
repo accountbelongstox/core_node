@@ -10,6 +10,7 @@
 
 import { ASSIST_PATHS } from '@/utils/api-paths';
 import { ApiError, BaseApiClient } from '@/entrypoints/background/api/BaseApiClient';
+import { base64ToBytes, isRasterImageBytes } from '@/utils/binary';
 
 export type AssistItemType = 'cover' | 'poster';
 
@@ -34,18 +35,7 @@ export interface AssistSubmitResult {
  */
 export function looksLikeImageBase64(imageBase64: string): boolean {
   try {
-    const head = atob(imageBase64.slice(0, 24));
-    const bytes = Array.from(head, (c) => c.charCodeAt(0));
-    // PNG \x89PNG
-    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return true;
-    // JPEG \xFF\xD8\xFF
-    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return true;
-    // GIF87a / GIF89a
-    if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return true;
-    // WEBP: RIFF....WEBP
-    if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46
-      && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return true;
-    return false;
+    return isRasterImageBytes(base64ToBytes(imageBase64.slice(0, 24)));
   } catch {
     return false;
   }

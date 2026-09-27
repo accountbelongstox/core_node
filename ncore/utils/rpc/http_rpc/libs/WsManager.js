@@ -15,6 +15,8 @@ const app = expressProvider.getExpressApp();
 const WebSocket = require('ws');
 const http = require('http');
 const logger = require('#@logger');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
+const rpcCommon = require('../../common');
 
 let wss = null;
 const clients = new Set();
@@ -146,7 +148,10 @@ class WsManager {
     async start(portOrConfig) {
         let port = portOrConfig.HTTP_PORT;
         this.server = http.createServer(app);
-        this.wss = new WebSocket.Server({ server: this.server });
+        this.wss = new WebSocket.Server({
+            server: this.server,
+            verifyClient: localRpcGuard.createWsVerifyClient({ allowedOrigins: rpcCommon.getConfig().ALLOWED_ORIGINS || [] })
+        });
         wss = this.wss;
 
         wss.on('connection', (ws) => {

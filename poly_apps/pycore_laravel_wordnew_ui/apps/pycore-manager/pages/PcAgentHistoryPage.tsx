@@ -164,6 +164,9 @@ const PcAgentHistoryPage: React.FC = () => {
   const filterResetReady = useRef(false);
   const skipNextFilterReset = useRef(false);
   const manualRefreshPending = useRef(false);
+  const sessionRequestSeq = useRef(0);
+  const promptRequestSeq = useRef(0);
+  const detailRequestSeq = useRef(0);
 
   useLayoutEffect(() => {
     agentHistoryUiStateStore.save({
@@ -182,6 +185,8 @@ const PcAgentHistoryPage: React.FC = () => {
   }, [enabledTools, filterTool, filterUser, live, promptPage, search, selectedId, selectedTool, sessionPage, tab, taskPeriod]);
 
   const loadSessionPage = useCallback(async (force = false) => {
+    const sequence = ++sessionRequestSeq.current;
+    const stale = () => sequence !== sessionRequestSeq.current;
     setSessionLoading(true);
     setError(null);
     const scope = `sessions|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|page=${sessionPage}`;
@@ -197,6 +202,7 @@ const PcAgentHistoryPage: React.FC = () => {
         pageSize: PAGE_SIZE,
         sinceRevision: cached?.meta && cachedGeneratedAt ? cached.revision : undefined,
       });
+      if (stale()) return;
       if (!res.success || !res.data) {
         setError(res.error || t('agentHistory.loadError'));
         return;
@@ -245,6 +251,7 @@ const PcAgentHistoryPage: React.FC = () => {
         return;
       }
       const rows = await pycoreApi.getAgentHistorySessionPage(ids);
+      if (stale()) return;
       if (rows.success && rows.data) {
         setSessionRows(rows.data.items || []);
         sessionMaterializedKey.current = materializedKey;
@@ -252,13 +259,16 @@ const PcAgentHistoryPage: React.FC = () => {
         setError(rows.error || t('agentHistory.loadError'));
       }
     } catch (e) {
+      if (stale()) return;
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
     } finally {
-      setSessionLoading(false);
+      if (!stale()) setSessionLoading(false);
     }
   }, [debouncedSearch, filterTool, filterUser, sessionPage, t]);
 
   const loadPromptPage = useCallback(async (force = false) => {
+    const sequence = ++promptRequestSeq.current;
+    const stale = () => sequence !== promptRequestSeq.current;
     setPromptLoading(true);
     setError(null);
     const tools = filterTool ? undefined : enabledTools;
@@ -276,6 +286,7 @@ const PcAgentHistoryPage: React.FC = () => {
         pageSize: PAGE_SIZE,
         sinceRevision: cached?.meta && cachedGeneratedAt ? cached.revision : undefined,
       });
+      if (stale()) return;
       if (!res.success || !res.data) {
         setError(res.error || t('agentHistory.loadError'));
         return;
@@ -323,6 +334,7 @@ const PcAgentHistoryPage: React.FC = () => {
         return;
       }
       const rows = await pycoreApi.getAgentHistoryPromptPage(ids);
+      if (stale()) return;
       if (rows.success && rows.data) {
         setPrompts(rows.data.items || []);
         promptMaterializedKey.current = materializedKey;
@@ -330,9 +342,10 @@ const PcAgentHistoryPage: React.FC = () => {
         setError(rows.error || t('agentHistory.loadError'));
       }
     } catch (e) {
+      if (stale()) return;
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
     } finally {
-      setPromptLoading(false);
+      if (!stale()) setPromptLoading(false);
     }
   }, [debouncedSearch, enabledTools, filterTool, filterUser, promptPage, t]);
 
@@ -469,21 +482,25 @@ const PcAgentHistoryPage: React.FC = () => {
   };
 
   const handleSelect = useCallback(async (id: string) => {
+    const sequence = ++detailRequestSeq.current;
+    const stale = () => sequence !== detailRequestSeq.current;
     setSelectedId(id);
     setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
     try {
       const res = await pycoreApi.getAgentHistorySession(id);
+      if (stale()) return;
       if (res.success && res.data) {
         setDetail(res.data);
       } else {
         setDetailError(res.error || tk('loadError'));
       }
     } catch (e) {
+      if (stale()) return;
       setDetailError(e instanceof Error ? e.message : tk('loadError'));
     } finally {
-      setDetailLoading(false);
+      if (!stale()) setDetailLoading(false);
     }
   }, [tk]);
 

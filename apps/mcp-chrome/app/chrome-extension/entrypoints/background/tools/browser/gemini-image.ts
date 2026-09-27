@@ -21,6 +21,11 @@ const LOG = 'Gemini Image';
 // Session storage key for the lightweight job index (no dataUrl) so a status
 // poll can recover after the MV3 service worker restarts.
 const JOBS_KEY = 'gemini_image_jobs';
+const TAB_READY_OPTIONS = {
+  timeoutMs: 20000,
+  settleDelayMs: 600,
+  statusProbeDelayMs: 700,
+};
 
 export type GeminiJobStatus = 'generating' | 'done' | 'failed';
 
@@ -236,6 +241,29 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     }
   }
 
+  /**
+   * Abandon a job that will not be collected: mark it failed and move its tab
+   * to a fresh chat, so an image that renders late can never sit beside the
+   * next job's baseline snapshot and be taken as that job's result.
+   */
+  async cancel(jobId: string, reason: string): Promise<void> {
+    let job = this.jobStore.get(jobId);
+    if (!job) job = await this.jobStore.hydrate(jobId);
+    if (!job) return;
+    if (job.status === 'generating') {
+      job.status = 'failed';
+      job.error = reason;
+      await this.jobStore.persist();
+    }
+    try {
+      await chrome.tabs.update(job.tabId, { url: GEMINI_URL });
+      await waitForTabComplete(job.tabId, TAB_READY_OPTIONS);
+      logger.info(LOG, `Cancelled job ${jobId}; tab ${job.tabId} moved to a fresh chat`);
+    } catch (error) {
+      logger.warn(LOG, `Failed to reset tab ${job.tabId} for cancelled job ${jobId}`, error);
+    }
+  }
+
   // ------------------------------------------------------------------
 
   private genId(): string {
@@ -248,11 +276,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     if (!tab || !tab.url || !tab.url.includes('gemini.google.com')) {
       await chrome.tabs.update(tabId, { url: GEMINI_URL });
     }
-    await waitForTabComplete(tabId, {
-      timeoutMs: 20000,
-      settleDelayMs: 600,
-      statusProbeDelayMs: 700,
-    });
+    await waitForTabComplete(tabId, TAB_READY_OPTIONS);
   }
 
   /** Reuse an open Gemini tab, or create one. */

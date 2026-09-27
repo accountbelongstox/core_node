@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import type { WordAudioStatus } from '../../../../core/contracts/wordAudio';
 
@@ -48,7 +48,7 @@ export interface WordAudioTestResult {
  * WordAudioAPI module. Prefix is configured in core/api/index.ts as
  * `/api/local/word-audio`, so method paths are relative to that.
  */
-export class WordAudioAPI extends BaseAPI {
+export class WordAudioAPI extends LmBaseAPI {
   /**
    * Capability status — no provider call, lists each real source with an
    * available / needs-key flag plus whether a Forvo key is present. The key

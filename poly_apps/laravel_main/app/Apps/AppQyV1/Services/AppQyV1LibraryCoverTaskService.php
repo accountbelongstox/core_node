@@ -27,6 +27,7 @@ class AppQyV1LibraryCoverTaskService
 {
     public const MAX_IDS = 200;
     public const PROMPT_MAX_CHARS = 2000;
+    public const MODE_GENERATE = 'generate';
     public const HANDLER_CHROME = 'chrome';
     public const HANDLER_LARAVEL_AI = 'laravel_ai';
 

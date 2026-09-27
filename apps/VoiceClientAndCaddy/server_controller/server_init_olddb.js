@@ -19,7 +19,7 @@ const gconfig = require('#@gconfig');
 const dbUrl = gconfig.getConfig(`OLD_DB_URL`);
 const dataOldName = gconfig.getConfig(`OLD_DB_NAME`);
 const dbPath = path.join(OLD_DB_DIR, dataOldName);
-const { decompress } = require('#@/ncore/foundation/utilities/zip-tool/best_decompressor.js');
+const { decompress } = require('#@ncore/utils/zip_tool/best_decompressor.js');
 const { WrapWordTransItemNotKeepIdKey } = require('../basetool/db-tool/trans_item_wrap.js');
 const { addToMainWordsSet, hasWordInMainSet, getMainSet, diffToMainWordsSet } = require('../provider/constants/WordCounter.js');
 const {

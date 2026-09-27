@@ -3,6 +3,7 @@ import { X, Code, Eye, Link as LinkIcon, AlertTriangle } from 'lucide-react';
 import { CopyButton } from './common/CopyButton';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
+import { formatBytes } from '@/core/utils/formatBytes';
 
 export interface HtmlErrorModalProps {
   isOpen: boolean;
@@ -10,19 +11,6 @@ export interface HtmlErrorModalProps {
   htmlContent: string;
   url: string;
   statusCode?: number;
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let value = bytes;
-  let idx = 0;
-  while (value >= 1024 && idx < units.length - 1) {
-    value /= 1024;
-    idx += 1;
-  }
-  const fixed = idx === 0 ? 0 : value >= 10 ? 1 : 2;
-  return `${value.toFixed(fixed)} ${units[idx]}`;
 }
 
 export function HtmlErrorModal({

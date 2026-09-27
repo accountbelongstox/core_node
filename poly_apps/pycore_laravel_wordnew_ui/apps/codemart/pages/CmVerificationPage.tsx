@@ -430,6 +430,7 @@ export const CmVerificationPage: React.FC = () => {
 
   const onboarding = bootstrap.onboarding;
   const phoneVerified = onboarding.phone_verified;
+  const phoneAvailable = onboarding.phone_verification_available !== false;
   const kycStatus = onboarding.kyc_status || 'not_started';
   const requestableRoles = onboarding.requestable_roles ?? [];
   const currency = bootstrap.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
@@ -448,6 +449,7 @@ export const CmVerificationPage: React.FC = () => {
               <li key={step.key} data-completed={step.completed} data-blocked={step.blocked} data-current={onboarding.next_step === step.key}>
                 {step.completed ? <CheckCircle2 aria-hidden="true" /> : step.blocked ? <Lock aria-hidden="true" /> : <Circle aria-hidden="true" />}
                 <span>{t(`verification.steps.${step.key}`, { defaultValue: step.key })}</span>
+                {step.optional && !step.completed && <small className="cm-step-optional">{t('verification.optionalStep')}</small>}
               </li>
             ))}
           </ol>
@@ -458,7 +460,7 @@ export const CmVerificationPage: React.FC = () => {
           </p>
           <dl className="cm-kv is-single">
             <div><dt>{t('verification.email')}</dt><dd><span className="cm-status" data-status={onboarding.email_verified ? 'completed' : 'pending'}>{onboarding.email_verified ? t('verification.verified') : t('verification.unverified')}</span></dd></div>
-            <div><dt>{t('verification.phone')}</dt><dd><span className="cm-status" data-status={phoneVerified ? 'completed' : 'pending'}>{phoneVerified ? t('verification.verified') : t('verification.unverified')}</span></dd></div>
+            <div><dt>{t('verification.phone')}</dt><dd><span className="cm-status" data-status={phoneVerified ? 'completed' : phoneAvailable ? 'pending' : 'unavailable'}>{phoneVerified ? t('verification.verified') : phoneAvailable ? t('verification.unverified') : t('verification.notAvailable')}</span></dd></div>
             <div><dt>{t('verification.kyc')}</dt><dd><CmStatusBadge group="kyc" status={kycStatus} /></dd></div>
             {Object.entries(roles).map(([role, status]) => (
               <div key={role}><dt>{t(`roles.${role}`, { defaultValue: role })}</dt><dd><CmStatusBadge group="role" status={status} /></dd></div>
@@ -467,7 +469,13 @@ export const CmVerificationPage: React.FC = () => {
         </aside>
         <div className="cm-verification-main">
           {!onboarding.email_verified && <CmEmailVerification email={bootstrap.user.email} onVerified={completed} />}
-          {!phoneVerified && <CmPhoneVerification onVerified={completed} />}
+          {!phoneVerified && phoneAvailable && <CmPhoneVerification onVerified={completed} />}
+          {!phoneVerified && !phoneAvailable && (
+            <section className="cm-section-card">
+              <h2><Phone aria-hidden="true" /> {t('verification.phoneTitle')}</h2>
+              <CmNotice notice={{ tone: 'info', text: t('verification.phoneUnavailable') }} />
+            </section>
+          )}
           {kycStatus === 'pending' && (
             <section className="cm-section-card">
               <h2><IdCard aria-hidden="true" /> {t('verification.kycTitle')}</h2>

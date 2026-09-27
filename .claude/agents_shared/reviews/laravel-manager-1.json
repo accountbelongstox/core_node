@@ -1,0 +1,16 @@
+{
+  "task_id": "laravel-manager-1",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-003": {"status": "fixed", "reason": "BaseAPI.send retries a transient failure only for GET/HEAD or when the resolved headers carry a non-empty Idempotency-Key; a timed-out POST/PUT/PATCH/DELETE is no longer re-sent, so admin pay/approve and DB restore cannot be duplicated by the transport. Retries recurse in send, so a coalesced GET gets the full retry count."},
+    "FU-002": {"status": "fixed", "reason": "GET coalescing TTL is 0 (in-flight dedupe only), so no settled response, success or failure, is reused. Every settled write (request non-GET, rawRequest non-GET/HEAD, uploadWithProgress) bumps readGeneration in the coalescing key and clears the coordinator, so a GET after a mutation always refetches."}
+  },
+  "issues": [
+    "core/network/RequestCoordinator.ts:19 (non-blocking, outside this assignment) coordinateRequest still stores the settled value in recentResponses when ttlMs is 0. It stays until the next read of the same key or a clear, so the last response of every distinct GET key is retained in memory (for example page-data id segments). Skip the set when ttlMs <= 0. That needs a B2 writer assignment from the orchestrator.",
+    "core/integrations/laravel/transport/BaseAPI.ts:315 (non-blocking) request() sends every non-GET method through the write branch, including HEAD, which then invalidates coalesced reads. Harmless (extra refetch only).",
+    "(non-blocking, codemart scope) apps/codemart keeps a local IDEMPOTENCY_HEADER and a clearCoordinatedRequests override that are now redundant with BaseAPI.IDEMPOTENCY_KEY_HEADER and the write invalidation. Reuse and delete them in a later codemart task."
+  ],
+  "checks": "git diff read in full; send/rawRequest/uploadWithProgress paths traced; RequestCoordinator semantics checked (expiresAt > now, so ttl 0 is never reused); shared-layer write matches requirements section 6 (BaseAPI.ts -> laravel-manager).",
+  "checked_at": "2026-09-27T03:58:27+10:00"
+}

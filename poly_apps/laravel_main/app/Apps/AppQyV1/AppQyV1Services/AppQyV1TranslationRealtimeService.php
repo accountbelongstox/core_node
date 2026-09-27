@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Support\QueueCenterContract;
 
 final class AppQyV1TranslationRealtimeService
 {
@@ -36,7 +37,7 @@ final class AppQyV1TranslationRealtimeService
             $payload['old_priority'] = $oldPriority;
         }
 
-        AppQyV1TranslationEventModel::emit('task.priority', $payload);
+        AppQyV1TranslationEventModel::emit(QueueCenterContract::realtimeEvent('task_priority'), $payload);
     }
 
     public function wordTranslated(

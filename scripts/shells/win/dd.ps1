@@ -102,7 +102,7 @@ $script:COMMON_SCRIPTS_DIR = Join-Path $script:SHELLS_DIR "scripts"
 # =============================================================================
 # SCRIPT EXECUTION VARIABLES
 # =============================================================================
-$script:script_symlink_path = "$env:ProgramFiles\dd.ps1"
+$script:script_symlink_path = Join-Path $env:ProgramFiles "dd.ps1"
 $script:script_path = $MyInvocation.MyCommand.Path
 
 # =============================================================================

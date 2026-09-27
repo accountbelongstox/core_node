@@ -20,6 +20,7 @@ $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
 $serviceContractScript = $null
+$aiCliProvisionCommonScript = $null
 $mcpChromePath = $null
 $mcpChromeNodeModulesPath = $null
 $mcpChromeSharedArtifactPath = $null
@@ -115,6 +116,7 @@ $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 $serviceContractScript = Join-Path $winCommonDirPath "ServiceContract.ps1"
 $mcpChromePath = Join-Path $coreNodePath "apps"
 $mcpChromePath = Join-Path $mcpChromePath "mcp-chrome"
@@ -136,6 +138,8 @@ $mcpChromeSupervisorScriptPath = Join-Path $mcpChromeRegisterScriptPath "service
 $mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-local-dev.cjs"
 . $windowsPathFunctionScript
 . $serviceContractScript
+# Shared launcher helpers; keys are printed through Get-AiCliMaskedSecret.
+. $aiCliProvisionCommonScript
 $mcpChromeHost = Get-ServiceContractHost -Name "loopback"
 $mcpChromePort = Get-ServiceContractPort -Name "mcp_chrome"
 $mcpChromeUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpChromeHost -Port $mcpChromePort -Path "mcp"
@@ -238,7 +242,7 @@ if ($kimiKeyEntries.Count -gt 0) {
                 if ($entryIndex -eq $selectedKeyIndex) {
                     $entryMarker = " (current)"
                 }
-                Write-Host "  [$($entryIndex + 1)] KIMI_API_KEY_$($kimiKeyEntries[$entryIndex].Index): $($kimiKeyEntries[$entryIndex].Key)$entryMarker" -ForegroundColor White
+                Write-Host "  [$($entryIndex + 1)] KIMI_API_KEY_$($kimiKeyEntries[$entryIndex].Index): $(Get-AiCliMaskedSecret -Value $kimiKeyEntries[$entryIndex].Key)$entryMarker" -ForegroundColor White
             }
             Write-Host "Select key number [1-$($kimiKeyEntries.Count)]: " -ForegroundColor Yellow -NoNewline
             $switchPick = Read-Host
@@ -250,7 +254,7 @@ if ($kimiKeyEntries.Count -gt 0) {
         }
     }
     $kimiApiKey = $kimiKeyEntries[$selectedKeyIndex].Key
-    Write-Host "[INFO] Using KIMI_API_KEY_$($kimiKeyEntries[$selectedKeyIndex].Index): $kimiApiKey" -ForegroundColor White
+    Write-Host "[INFO] Using KIMI_API_KEY_$($kimiKeyEntries[$selectedKeyIndex].Index): $(Get-AiCliMaskedSecret -Value $kimiApiKey)" -ForegroundColor White
 }
 
 Write-Host ""
@@ -443,7 +447,7 @@ try {
 }
 
 Write-Host "[INFO] KIMI_BASE_URL: $(if ([string]::IsNullOrWhiteSpace($kimiBaseUrl)) { "[empty]" } else { $kimiBaseUrl })" -ForegroundColor White
-Write-Host "[INFO] API key: $(if ([string]::IsNullOrWhiteSpace($kimiApiKey)) { "[empty]" } else { $kimiApiKey })" -ForegroundColor White
+Write-Host "[INFO] API key: $(Get-AiCliMaskedSecret -Value $kimiApiKey)" -ForegroundColor White
 
 if (Test-Path -LiteralPath $kimiMcpConfigPath) {
     $mcpConfig = Get-Content -Raw -LiteralPath $kimiMcpConfigPath | ConvertFrom-Json

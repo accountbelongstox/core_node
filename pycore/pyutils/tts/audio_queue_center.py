@@ -54,7 +54,7 @@ from __future__ import annotations
 import hashlib
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -75,6 +75,9 @@ AUDIO_QUEUE_LANE_BY_KIND = {kind: lane for lane, kind in AUDIO_QUEUE_KIND_BY_LAN
 
 # THREAD_BUS signal published on every lane mutation ({lane, revision, reason}).
 AUDIO_QUEUE_CHANGED_SIGNAL = "audio_queue_center.changed"
+# Per-owner wake signal: set when an item an owner watches settles, when the
+# owner is released, or on wake_owner (cancel); owners wait on it, never poll.
+AUDIO_QUEUE_OWNER_SIGNAL_PREFIX = "audio_queue_center.owner"
 _PERSIST_SIGNAL = "audio_queue_center.persist_requested"
 _PERSIST_PAUSE_SIGNAL = "audio_queue_center.persist_pause"
 _PERSIST_MIN_INTERVAL_SECONDS = 5.0
@@ -87,6 +90,7 @@ TRACK_FAILED = "failed"
 TRACK_TERMINAL = (TRACK_DONE, TRACK_FAILED)
 # settled_by value for items a lane worker popped (owners use their own id).
 SETTLED_BY_LANE = "lane"
+PRUNED_SETTLE_ERROR = "pruned_absent_from_laravel_pending"
 _TRACKED_TERMINAL_CAP = 5000
 _LANE_VIEW_ITEM_LIMIT = 200
 
@@ -149,6 +153,11 @@ def _task_text(task: Dict[str, Any]) -> str:
 def _task_language(task: Dict[str, Any]) -> str:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     return str(payload.get("language") or "")
+
+
+def owner_signal(lane: str, owner: str) -> str:
+    """THREAD_BUS wake signal of one owner on one lane."""
+    return f"{AUDIO_QUEUE_OWNER_SIGNAL_PREFIX}.{lane}.{owner}"
 
 
 class AudioQueuePersistThread(threading.Thread):
@@ -316,10 +325,21 @@ class AudioQueueCenter:
         if queue is None:
             return {"reordered": 0, "pruned": 0}
         reordered = queue.reorder(ordered_task_ids)
-        pruned = queue.prune_absent(ordered_task_ids)
+        pruned, pruned_part1 = queue.prune_absent(ordered_task_ids)
+        owners: Set[str] = set()
+        if pruned_part1:
+            # A Part1 owner watching a pruned entry must not wait forever:
+            # its tracker entry settles (failed -> the owner resolves the
+            # item itself, e.g. downloads the audio produced elsewhere).
+            _released, owners = self._settle_state(
+                lane,
+                {key: {"ok": False, "error": PRUNED_SETTLE_ERROR} for key in pruned_part1},
+                SETTLED_BY_LANE,
+            )
         if reordered or pruned:
             self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LARAVEL_INTAKE)
             self._notify(lane, "laravel_order")
+        self._wake_owners(lane, owners)
         return {"reordered": reordered, "pruned": pruned}
 
     def apply_head_ticket(
@@ -552,10 +572,12 @@ class AudioQueueCenter:
         lane: str,
         outcomes: Dict[str, Dict[str, Any]],
         settled_by: str,
-    ) -> List[Dict[str, Any]]:
-        """INTERNAL: tracker terminal + Part1 release; returns taken tasks to complete."""
+    ) -> Tuple[List[Dict[str, Any]], Set[str]]:
+        """INTERNAL: tracker terminal + Part1 release; returns the taken tasks
+        to complete and the owners watching the settled keys."""
         now = time.time()
         released: List[Dict[str, Any]] = []
+        owners: Set[str] = set()
         for key, outcome in outcomes.items():
             self._part1_keys[lane].discard(key)
             task = self._taken[lane].pop(key, None)
@@ -564,6 +586,7 @@ class AudioQueueCenter:
             entry = self._tracked[lane].get(key)
             if entry is None:
                 continue
+            owners.update(entry["owners"])
             ok = bool(outcome.get("ok"))
             entry["state"] = TRACK_DONE if ok else TRACK_FAILED
             entry["provider"] = str(outcome.get("provider") or entry.get("provider") or "")
@@ -573,7 +596,18 @@ class AudioQueueCenter:
             entry["finished_at"] = now
             entry["updated_at"] = now
         self._evict_terminal(lane)
-        return released
+        return released, owners
+
+    @staticmethod
+    def _wake_owners(lane: str, owners: Set[str]) -> None:
+        for owner in owners:
+            if owner:
+                THREAD_BUS.signal(owner_signal(lane, owner), time.time())
+
+    def wake_owner(self, owner: str) -> None:
+        """Wake an owner waiting on any lane (e.g. its task was cancelled)."""
+        for lane in AUDIO_QUEUE_LANES:
+            self._wake_owners(lane, {str(owner or "")})
 
     def settle_local(self, lane: str, outcomes: Dict[str, Dict[str, Any]], owner: str) -> None:
         """M3 owner-side: record the owner's generation outcome per key
@@ -583,10 +617,12 @@ class AudioQueueCenter:
         queue = self.queue_for(lane)
         if queue is None or not outcomes:
             return
-        for task in self._settle_state(lane, dict(outcomes), str(owner or "")):
+        released, owners = self._settle_state(lane, dict(outcomes), str(owner or ""))
+        for task in released:
             queue.complete(task)
         self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         self._notify(lane, "local_settle")
+        self._wake_owners(lane, owners)
 
     @serialized_method
     def owner_counts(self, lane: str, owner: str) -> Dict[str, int]:
@@ -639,6 +675,7 @@ class AudioQueueCenter:
             queue.push(task)
         self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         self._notify(lane, "owner_released")
+        self._wake_owners(lane, {str(owner)})
         return dropped
 
     def tracked_states(self, lane: str, keys: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -937,13 +974,15 @@ class AudioQueueCenter:
             return
         queue.complete(task)
         dedup_key = audio_dedup_key_from_task(task, lane)
+        owners: Set[str] = set()
         if dedup_key:
-            self._settle_state(
+            _released, owners = self._settle_state(
                 lane,
                 {dedup_key: {"ok": bool(ok), "provider": provider, "error": error}},
                 SETTLED_BY_LANE,
             )
         self._notify(lane, "complete")
+        self._wake_owners(lane, owners)
 
     def request_pull(self, lane: str, prefer_remote: bool = False) -> None:
         """M5 wake entry: re-run the lane's Laravel intake (M1/M2)."""
@@ -955,6 +994,7 @@ audio_queue_center = AudioQueueCenter()
 
 __all__ = [
     "AUDIO_QUEUE_CHANGED_SIGNAL",
+    "AUDIO_QUEUE_OWNER_SIGNAL_PREFIX",
     "AUDIO_QUEUE_KIND_BY_LANE",
     "AUDIO_QUEUE_LANE_BY_KIND",
     "AUDIO_QUEUE_LANES",
@@ -964,6 +1004,7 @@ __all__ = [
     "SETTLED_BY_LANE",
     "TRACK_DONE",
     "TRACK_FAILED",
+    "owner_signal",
     "TRACK_PROCESSING",
     "TRACK_QUEUED",
     "AudioQueueCenter",

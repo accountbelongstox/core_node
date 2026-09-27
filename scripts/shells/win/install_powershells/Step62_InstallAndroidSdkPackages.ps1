@@ -24,9 +24,9 @@
 # (Step21_InstallApplications.ps1 -ExactPackageName Java, or the JDK bundled with
 # Android Studio).
 
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
-. "$PSScriptRoot\..\win_common\AndroidBuildEnv.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "AndroidBuildEnv.ps1")
 
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
 

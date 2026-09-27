@@ -1,0 +1,13 @@
+{
+  "task_id": "laravel-T8",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "client-key verifier follow-ups (laravel-T1 notes)": {"status": "fixed", "reason": "The verifier loads only CORE_NODE_CLIENT_KEY_1.._5 (ClientKeyAuthService:276), matching K1 and the pycore/ncore verifiers; the bare name is no longer accepted. The signed path is requestPath() = getBaseUrl().getPathInfo() (:309), which is the path as sent even under a sub-path mount (the owner's round trip included a /sub base path); at the web root it equals the old getPathInfo(). The owner re-ran the K3 vectors."}
+  },
+  "issues": [
+    "(inherent) a reverse proxy that strips a path prefix before Laravel would still make the signed and seen paths differ; mount Laravel at the same path the clients call."
+  ],
+  "checks": "ClientKeyAuthService keys() and requestPath() read.",
+  "checked_at": "2026-09-27T04:52:28+10:00"
+}

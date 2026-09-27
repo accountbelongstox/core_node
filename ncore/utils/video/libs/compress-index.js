@@ -10,7 +10,6 @@
 // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 // ### AI SPECIAL ATTENTION RULES END ###
 
-#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -152,11 +151,15 @@ class VideoProcessor {
         const startTime = Date.now();
         
         try {
-            await VideoCompressor.compressVideo(paths.temp, paths.completed);
+            const compressed = await VideoCompressor.compressVideo(paths.temp, paths.completed);
             const endTime = Date.now();
-            
-            if (!fs.existsSync(paths.completed)) {
-                throw new Error('Compressed file was not created');
+
+            if (!compressed || !fs.existsSync(paths.completed) || FileOperations.getFileSize(paths.completed) === 0) {
+                logger.error('Compression failed: ffmpeg did not produce a complete output file');
+                return {
+                    success: false,
+                    error: 'ffmpeg_failed'
+                };
             }
 
             const originalSize = videoStatus.sizes.original || videoStatus.sizes.deleted;

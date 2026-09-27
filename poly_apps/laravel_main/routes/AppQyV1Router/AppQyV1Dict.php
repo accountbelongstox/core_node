@@ -57,7 +57,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::any('/group/get_words', [DGWordController::class, 'getGroupWords']);
 
         // Group Progress Routes
-        Route::any('/group/update_progress', [DGProgressController::class, 'updateProgress']);
+        Route::any('/group/update_progress', [DGProgressController::class, 'updateProgress'])->middleware('idempotent');
         Route::any('/group/get_review_words', [DGProgressController::class, 'getReviewWords']);
         Route::any('/group/get_progress_stats', [DGProgressController::class, 'getProgressStats']);
         Route::post('/group/get_progress_blob', [DGProgressController::class, 'getProgressBlob']);

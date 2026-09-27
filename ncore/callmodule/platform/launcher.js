@@ -21,9 +21,11 @@
 const os = require('os');
 const path = require('path');
 
-const { initGlobalConfig } = require('../global_config');
+const { initGlobalConfig, DEFAULT_HTTP_PORT } = require('../global_config');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 const { createApp } = require('../app');
 const { getInstance: getSingletonManager } = require('./singleton_manager');
+const { getThreadBus } = require('#@thread_bus');
 
 const NCORE_ROOT = path.join(__dirname, '..', '..');
 const singletonManager = getSingletonManager();
@@ -33,8 +35,8 @@ const singletonManager = getSingletonManager();
  * @param {Object} options - Launch options
  */
 async function launchPlatformAware(options = {}) {
-    const host = options.host || '0.0.0.0';
-    const port = options.port || 58000;
+    const host = resolveBindHost(options.host);
+    const port = options.port || DEFAULT_HTTP_PORT;
     const debug = options.debug || false;
     const noBrowser = options.noBrowser || false;
     const browserType = options.browserType || 'edge';
@@ -97,21 +99,19 @@ async function launchPlatformAware(options = {}) {
 async function launchServiceMode(host, port) {
     console.log('[Launcher] Starting in service mode...');
 
+    initGlobalConfig({ ncoreRoot: NCORE_ROOT, httpPort: port, host });
     const app = await createApp();
 
-    app.listen(port, host, () => {
+    const server = app.listen(port, host, () => {
         console.log(`[Launcher] Server running on http://${host}:${port}`);
     });
 
-    // Handle graceful shutdown
-    process.on('SIGINT', () => {
-        console.log('[Launcher] Received SIGINT, shutting down...');
-        process.exit(0);
-    });
-
-    process.on('SIGTERM', () => {
-        console.log('[Launcher] Received SIGTERM, shutting down...');
-        process.exit(0);
+    // createApp() created the ThreadBus, which owns SIGINT/SIGTERM and runs every registered async shutdown
+    getThreadBus().register('launcher-http-server', {
+        onShutdown: async () => new Promise((resolve) => {
+            server.close(() => resolve());
+            server.closeIdleConnections();
+        })
     });
 }
 

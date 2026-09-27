@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
@@ -111,14 +112,14 @@ def search_images(
             }
         data = resp.json() or {}
     except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[ImageSearch] SerpApi request failed ({exc})")
+        ColorPrint.yellow(f"[ImageSearch] SerpApi request failed ({redacted_http_error(exc)})")
         return {
             "provider": "serpapi",
             "engine": _ENGINE,
             "query": clean,
             "count": 0,
             "results": [],
-            "error": str(exc),
+            "error": redacted_http_error(exc),
         }
 
     if data.get("error"):

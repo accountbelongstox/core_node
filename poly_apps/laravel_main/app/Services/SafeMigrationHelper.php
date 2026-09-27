@@ -5,6 +5,9 @@ namespace App\Services;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+use Throwable;
 
 /**
  * Safe Migration Helper — the canonical engine for ALL idempotent
@@ -55,6 +58,12 @@ use Illuminate\Support\Facades\DB;
  */
 class SafeMigrationHelper
 {
+    private const LOG_TAG = '[SafeMigrationHelper]';
+
+    private const PRIMARY_KEY_COLUMN_TYPES = ['increments', 'bigIncrements', 'id'];
+
+    private const COMPOSITE_COLUMN_TYPES = ['timestamps', 'morphs', 'softDeletes', 'softDeletesTz'];
+
     /**
      * Safely create a table (if it does not exist)
      *
@@ -255,9 +264,16 @@ class SafeMigrationHelper
         
         // Generate index name
         if ($indexName === null) {
+            $equivalentIndex = self::findEquivalentIndex($connection, $tableName, $columns, true);
+            if ($equivalentIndex !== null) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Unique index {$equivalentIndex['name']} on {$tableName} already covers the columns"
+                ];
+            }
             $indexName = self::generateIndexName($tableName, $columns);
         }
-        
+
         // Check if index exists — a name-only match is NOT enough: the existing
         // index must also match in uniqueness and columns. A drifted index
         // (e.g. created non-unique under the same name) is reconciled in place
@@ -309,6 +325,13 @@ class SafeMigrationHelper
         
         // Generate the index name
         if ($indexName === null) {
+            $equivalentIndex = self::findEquivalentIndex($connection, $tableName, $columns, false);
+            if ($equivalentIndex !== null) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Index {$equivalentIndex['name']} on {$tableName} already covers the columns"
+                ];
+            }
             $indexName = self::generateIndexName($tableName, $columns);
         }
         
@@ -624,6 +647,28 @@ class SafeMigrationHelper
     }
 
     /**
+     * Any existing index that satisfies an unnamed index requirement. Tables
+     * created through Blueprint carry its auto names ({table}_{cols}_index /
+     * _unique), not generateIndexName(), so a name-only probe would add a
+     * duplicate index on every table on the run after its creation. Column
+     * order must match exactly: a composite index with another leading column
+     * serves different queries.
+     */
+    private static function findEquivalentIndex(string $connection, string $tableName, $columns, bool $requireUnique): ?array
+    {
+        $expectedColumns = array_map('strtolower', array_map('strval', is_array($columns) ? $columns : [$columns]));
+
+        foreach (Schema::connection($connection)->getIndexes($tableName) as $index) {
+            $actualColumns = array_map('strtolower', array_map('strval', $index['columns'] ?? []));
+            if ($actualColumns === $expectedColumns && (!$requireUnique || !empty($index['unique']))) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Whether an existing index satisfies the requirement: same column set
      * (order- and case-insensitive) and, when uniqueness is required, actually
      * UNIQUE. A UNIQUE index also satisfies a plain-index requirement (it is
@@ -788,17 +833,11 @@ class SafeMigrationHelper
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
 
         // Step 4: add missing columns
-        $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
-        foreach ($missingColumns as $columnName) {
-            $columnDef = $expectedStructure['columns'][$columnName];
-            $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
-                self::applyColumnDefinition($table, $colName, $columnDef);
-            });
-            if ($result['status'] === 'added') {
-                $actions[] = ['action' => 'added_column', 'column' => $columnName, 'message' => $result['message']];
-            }
-        }
-        
+        $actions = array_merge(
+            $actions,
+            self::addMissingColumns($connection, $tableName, $expectedStructure['columns'], $currentColumns)
+        );
+
         // Step 5: drop extra columns (if enabled)
         if ($shrinkColumns) {
             $extraColumns = array_diff($currentColumns, array_keys($expectedStructure['columns']));
@@ -860,6 +899,92 @@ class SafeMigrationHelper
                 ? "Table {$tableName} is already aligned" 
                 : "Table {$tableName} aligned: " . count($actions) . " action(s) performed"
         ];
+    }
+
+    /**
+     * Additive reconcile of an existing table (contract §3): adds every
+     * declared column that is missing, with its declared type, nullability
+     * and default, so a NOT NULL column with a default backfills existing
+     * rows. Never drops, renames or retypes a column. A NOT NULL column
+     * without a default is added nullable when existing rows (or SQLite)
+     * could not satisfy it. A failing column does not stop the others; the
+     * failures are raised together afterwards.
+     */
+    private static function addMissingColumns(
+        string $connection,
+        string $tableName,
+        array $columns,
+        array $currentColumns
+    ): array {
+        $actions = [];
+        $failures = [];
+        $driver = DB::connection($connection)->getDriverName();
+        $tableHasRows = null;
+
+        foreach (array_diff(array_keys($columns), $currentColumns) as $columnName) {
+            $columnDef = $columns[$columnName];
+            $type = $columnDef['type'] ?? 'string';
+            $isPrimaryKey = in_array($type, self::PRIMARY_KEY_COLUMN_TYPES, true) || $columnName === 'id';
+
+            if ($driver === 'sqlite' && $isPrimaryKey) {
+                $actions[] = ['action' => 'skipped_column', 'column' => $columnName, 'message' => "SQLite cannot add PRIMARY KEY column to existing table. Table {$tableName} was retained unchanged; use an in-place compatible migration."];
+                continue;
+            }
+
+            if (!$isPrimaryKey && self::isNotNullWithoutDefault($columnDef)) {
+                $tableHasRows ??= DB::connection($connection)->table($tableName)->exists();
+                if ($driver === 'sqlite' || $tableHasRows) {
+                    $columnDef['nullable'] = true;
+                    Log::warning(self::LOG_TAG . " Column {$tableName}.{$columnName} is declared NOT NULL without a default; adding it nullable because existing rows cannot satisfy it", [
+                        'connection' => $connection,
+                        'type' => $type,
+                    ]);
+                }
+            }
+
+            try {
+                $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
+                    self::applyColumnDefinition($table, $colName, $columnDef);
+                });
+            } catch (Throwable $e) {
+                $failures[] = "{$columnName}: {$e->getMessage()}";
+                Log::error(self::LOG_TAG . " Failed to add missing column {$tableName}.{$columnName}", [
+                    'connection' => $connection,
+                    'type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+
+            if ($result['status'] === 'added') {
+                $actions[] = ['action' => 'added_column', 'column' => $columnName, 'message' => $result['message']];
+                Log::warning(self::LOG_TAG . " Added missing column {$tableName}.{$columnName}", [
+                    'connection' => $connection,
+                    'type' => $type,
+                    'nullable' => !empty($columnDef['nullable']),
+                    'default' => $columnDef['default'] ?? null,
+                ]);
+            }
+        }
+
+        if ($failures !== []) {
+            throw new RuntimeException("Table {$tableName}: missing columns could not be added: " . implode('; ', $failures));
+        }
+
+        return $actions;
+    }
+
+    private static function isNotNullWithoutDefault(array $columnDef): bool
+    {
+        if (!empty($columnDef['nullable']) || !empty($columnDef['useCurrent'])) {
+            return false;
+        }
+
+        if (in_array($columnDef['type'] ?? 'string', self::COMPOSITE_COLUMN_TYPES, true)) {
+            return false;
+        }
+
+        return !isset($columnDef['default']);
     }
 
     /**
@@ -1346,24 +1471,11 @@ class SafeMigrationHelper
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
 
         // Step 3: add missing columns
-        $driver = DB::connection($connection)->getDriverName();
-        $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
-        foreach ($missingColumns as $columnName) {
-            $columnDef = $expectedStructure['columns'][$columnName];
-            $isPkOrIncrements = in_array($columnDef['type'] ?? '', ['increments', 'bigIncrements', 'id'], true)
-                || $columnName === 'id';
-            if ($driver === 'sqlite' && $isPkOrIncrements) {
-                $actions[] = ['action' => 'skipped_column', 'column' => $columnName, 'message' => "SQLite cannot add PRIMARY KEY column to existing table. Table {$tableName} was retained unchanged; use an in-place compatible migration."];
-                continue;
-            }
-            $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
-                self::applyColumnDefinition($table, $colName, $columnDef);
-            });
-            if ($result['status'] === 'added') {
-                $actions[] = ['action' => 'added_column', 'column' => $columnName, 'message' => $result['message']];
-            }
-        }
-        
+        $actions = array_merge(
+            $actions,
+            self::addMissingColumns($connection, $tableName, $expectedStructure['columns'], $currentColumns)
+        );
+
         // Step 4: drop extra columns (if enabled)
         $shrinkColumns = $options['shrink_columns'] ?? false;
         if ($shrinkColumns) {

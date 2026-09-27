@@ -35,12 +35,12 @@ class AppQyV1ResourceIndexCommand extends Command
         $count = 0;
 
         if (!in_array($action, [self::ACTION_REBUILD, self::ACTION_RECONCILE, self::ACTION_STATUS], true)) {
-            $this->error('Unknown action: ' . $action . ' (expected rebuild, reconcile or status).');
+            $this->error(__('app_qy_v1.messages.unknown_action') . $action . ' (expected rebuild, reconcile or status).');
             return self::INVALID;
         }
         foreach ($kinds as $kind) {
             if (!in_array($kind, AppQyV1ResourceIndexService::INDEXED_KINDS, true)) {
-                $this->error('Unknown kind: ' . $kind . ' (expected ' . implode(', ', AppQyV1ResourceIndexService::INDEXED_KINDS) . ').');
+                $this->error(__('app_qy_v1.messages.unknown_kind') . $kind . ' (expected ' . implode(', ', AppQyV1ResourceIndexService::INDEXED_KINDS) . ').');
                 return self::INVALID;
             }
         }

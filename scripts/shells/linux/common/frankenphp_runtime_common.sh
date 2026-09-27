@@ -525,7 +525,7 @@ fm_dnspod_candidate_install() {
 
     candidate="$(fm_dnspod_build_static)"
     if [ -z "$candidate" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (official static build failed; the stderr log above carries the kept workdir path)"
+        echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (official static build failed; the stderr log above carries the kept workdir path)" >&2
         echo ""
         return
     fi
@@ -535,7 +535,7 @@ fm_dnspod_candidate_install() {
     if [ "$(fm_binary_usable "$candidate")" != "yes" ] \
         || [ "$(fm_module_in_bin "$candidate" "$FRANKENPHP_DNSPOD_MODULE")" != "yes" ] \
         || [ "$(fm_embedded_extension_loaded "$candidate" phar)" != "yes" ]; then
-        echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary failed the version/module/phar probe; keeping $binary"
+        echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary failed the version/module/phar probe; keeping $binary" >&2
         rm -rf "$(dirname "$candidate")"
         echo ""
         return
@@ -548,7 +548,7 @@ fm_dnspod_candidate_install() {
     $USE_SUDO chmod 755 "${target}.dnspod-new"
     $USE_SUDO mv -f "${target}.dnspod-new" "$target"
     rm -rf "$(dirname "$candidate")"
-    echo "[$SCRIPT_INDEX] compiled candidate staged ($("$target" version 2>/dev/null | sed -n '1p'))"
+    echo "[$SCRIPT_INDEX] compiled candidate staged ($("$target" version 2>/dev/null | sed -n '1p'))" >&2
     echo "$target"
 }
 

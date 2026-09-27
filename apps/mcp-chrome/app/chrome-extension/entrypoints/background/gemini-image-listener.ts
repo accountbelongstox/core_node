@@ -8,7 +8,7 @@
 import { geminiImageTool } from './tools/browser/gemini-image';
 import { logger } from '@/utils/logger';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Gemini Listener';
@@ -27,7 +27,7 @@ export function initGeminiImageListener() {
       const result = await geminiImageTool.status(String(message.jobId || ''));
       return { success: result.status !== 'unknown', result };
     }
-    return { success: false, error: `Unknown action: ${message.action}` };
+    return unknownActionResponse(message.action);
   }, {
     createErrorResponse: (error) => {
       logger.error(LOG, 'request failed', error);

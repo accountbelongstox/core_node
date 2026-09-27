@@ -47,7 +47,7 @@ export type {
   WorkerSubmitOutcome,
 } from '@/utils/queue-center-contract';
 
-type WorkerPullData = {
+export type WorkerPullData = {
   count: number;
   pending_urgent: number;
   pending_fast: number;
@@ -292,8 +292,7 @@ export class WorkerApiClient extends BaseApiClient {
 
   /**
    * Fetch the full detail bundle for a task. Mirrors Laravel
-   * `GET /api/task/{id}/detail` (the same shape the SSE detail stream emits as
-   * its task.detail-initial frame), used by the popup TaskDetailModal drilldown.
+   * `GET /api/task/{id}/detail`, used by the popup TaskDetailModal drilldown.
    * A control read — no worker_id required; the single task-detail read path.
    */
   async getTaskDetail(taskId: string): Promise<ApiResponse<TaskDetailBundle>> {

@@ -39,7 +39,7 @@ class AppQyV1NearbyController extends Controller
             return $this->success(['location_updated' => true, 'visible' => false]);
         }
         if (!isset($validated['latitude'], $validated['longitude'])) {
-            return $this->error('Latitude and longitude are required when location sharing is enabled.', 422);
+            return $this->error(__('app_qy_v1.messages.latitude_and_longitude_are_required_when_location'), 422);
         }
         AppQyV1UserPresenceModel::updateLocation(
             (int) $currentUser->id,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { RefreshCw, BookOpen, CheckCircle } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { LoadingBlock, AlertBox, EmptyState, StatusBadge } from '../../common';
 import {
   AsyncState,
@@ -15,9 +16,6 @@ interface LearningTasksPanelProps {
   vocabularyWords: VocabularyWord[];
   loadTasks: () => void;
   toggleWordLearned: (wordId: string) => void;
-  t: {
-    learning_tasks?: string;
-  };
 }
 
 /** Right panel of the Translate tab: legacy Learning-Tasks list with per-word vocabulary cards. */
@@ -28,17 +26,17 @@ const LearningTasksPanel: React.FC<LearningTasksPanelProps> = ({
   vocabularyWords,
   loadTasks,
   toggleWordLearned,
-  t,
 }) => {
+  const { t } = useTranslation();
   return (
     <div className={`${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold">{t.learning_tasks || 'Learning Tasks'}</h3>
+        <h3 className="font-semibold">{t('vocabulary.learning_tasks')}</h3>
         <div className="flex items-center gap-2">
           <button
             onClick={loadTasks}
             className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-            title="Refresh tasks"
+            title={t('vocabulary.tasks_panel.refresh')}
           >
             <RefreshCw className="w-4 h-4 text-slate-500" />
           </button>
@@ -54,7 +52,7 @@ const LearningTasksPanel: React.FC<LearningTasksPanelProps> = ({
         <div className="flex-1 flex flex-col gap-4 overflow-hidden">
           {/* Task List */}
           <div className="flex-shrink-0">
-            <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">Tasks</h4>
+            <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">{t('vocabulary.tasks_panel.list')}</h4>
             <div className="space-y-2 max-h-32 overflow-y-auto">
               {tasks.data.map(task => (
                 <button
@@ -91,7 +89,7 @@ const LearningTasksPanel: React.FC<LearningTasksPanelProps> = ({
           {selectedTask && vocabularyWords.length > 0 && (
             <div className="flex-1 flex flex-col overflow-hidden">
               <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">
-                Vocabulary ({vocabularyWords.filter(w => w.learned).length}/{vocabularyWords.length})
+                {t('vocabulary.tasks_panel.vocabulary', { learned: vocabularyWords.filter(w => w.learned).length, total: vocabularyWords.length })}
               </h4>
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
                 {vocabularyWords.map(word => (
@@ -139,7 +137,7 @@ const LearningTasksPanel: React.FC<LearningTasksPanelProps> = ({
                             ? 'bg-green-500 text-white hover:bg-green-600'
                             : 'bg-slate-200 dark:bg-slate-700 text-slate-500 hover:bg-slate-300 dark:hover:bg-slate-600'
                         }`}
-                        title={word.learned ? 'Mark as unlearned' : 'Mark as learned'}
+                        title={t(word.learned ? 'vocabulary.tasks_panel.mark_unlearned' : 'vocabulary.tasks_panel.mark_learned')}
                       >
                         <CheckCircle className="w-4 h-4" />
                       </button>
@@ -164,20 +162,20 @@ const LearningTasksPanel: React.FC<LearningTasksPanelProps> = ({
           )}
 
           {selectedTask && vocabularyWords.length === 0 && (
-            <EmptyState message="No vocabulary words in this task" className="flex-1" />
+            <EmptyState message={t('vocabulary.tasks_panel.no_words')} className="flex-1" />
           )}
         </div>
       ) : (
         <EmptyState
           icon={BookOpen}
-          message="No tasks available"
+          message={t('vocabulary.tasks_panel.empty')}
           className="flex-1"
           action={
             <button
               onClick={loadTasks}
               className="text-xs text-indigo-500 hover:text-indigo-400"
             >
-              Refresh
+              {t('common.refresh')}
             </button>
           }
         />

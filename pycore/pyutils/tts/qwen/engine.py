@@ -50,6 +50,11 @@ from pycore.pyutils.tts.qwen.config import (
     job_text_max_chars,
     request_timeout_seconds,
 )
+from pycore.pyutils.tts.tts_reason_codes import (
+    TTS_REASON_VENV_NOT_BUILT,
+    TTS_REASON_WEIGHTS_MISSING,
+    tts_reason,
+)
 
 _HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
 _REQUEST_TIMEOUT_S = request_timeout_seconds()
@@ -65,11 +70,14 @@ def available() -> bool:
 
 
 def disabled_reason() -> Optional[str]:
-    if isolated_venv_ready(ENGINE_NAME):
-        return None
-    return (
-        f"Qwen3-TTS isolated venv not built - run {INSTALL_HINT}"
-    )
+    """A missing venv or missing/incomplete local weights disables the engine
+    (the start command runs offline only), so no lease waits out a recovery
+    budget for a server that can never start."""
+    if not isolated_venv_ready(ENGINE_NAME):
+        return tts_reason(TTS_REASON_VENV_NOT_BUILT, engine=ENGINE_NAME, installer=INSTALL_HINT)
+    if not qwen_weights.local_model_ready():
+        return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=ENGINE_NAME, installer=INSTALL_HINT)
+    return None
 
 
 def last_synth_error() -> Optional[str]:

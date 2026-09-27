@@ -42,9 +42,9 @@ async function getUrl(url) {
     }
 }
 
-async function getJsonFromUrl(url) {
+async function getJsonFromUrl(url, options = {}) {
     try {
-        const response = await axios.get(url);
+        const response = await axios.get(url, { headers: options.headers });
         const data = response.data;
 
         if (typeof data === 'object') {

@@ -233,7 +233,7 @@ function Normalize-WindowsPath {
 function Backup-Environment {
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $backupDir = "D:\.tmp\.GlobalEnv"
-    $backupFile = "$backupDir\path_$timestamp.bak"
+    $backupFile = Join-Path $backupDir ("path_{0}.bak" -f $timestamp)
 
     try {
         if (-not (Test-Path $backupDir)) {

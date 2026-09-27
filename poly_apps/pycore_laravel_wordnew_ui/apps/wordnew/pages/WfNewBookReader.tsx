@@ -81,6 +81,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const [activeVerse, setActiveVerse] = useState<WfNewBookVerse | null>(null);
   const [resumeTarget, setResumeTarget] = useState<WfNewBookReadingProgress | null>(null);
   const [resumeApplied, setResumeApplied] = useState(false);
+  const [todayCount, setTodayCount] = useState(() => wordNewReadingProgressCenter.readToday());
 
   const [simul, setSimul] = useState(() => wfNewSettings.get('readerSimul'));
   const [selectedLangs, setSelectedLangs] = useState<string[]>([]);
@@ -135,6 +136,8 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const activeChapterRef = useRef<number | null>(null);
   const flatRef = useRef(false);
   const playbackRef = useRef<WordNewBookReaderPlayback | null>(null);
+  /** Bumped per verse load; only the newest load applies its result. */
+  const verseLoadSeqRef = useRef(0);
   const progressSaverRef = useRef<WordNewBookReaderProgressSaver | null>(null);
   const playingRef = useRef(false);
   const reloadRef = useRef<() => void>(() => { });
@@ -216,9 +219,11 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
 
   const persistProgress = useCallback((verse: WfNewBookVerse, pageNum: number) => {
     progressSaverRef.current?.schedule(verse, pageNum);
+    setTodayCount(wordNewReadingProgressCenter.markReadToday());
   }, []);
 
   const loadVerses = useCallback(async (chapterIndex: number | null, pageNum: number): Promise<WfNewBookVerse[]> => {
+    const loadSeq = (verseLoadSeqRef.current += 1);
     setLoadingVerses(true);
     try {
       const res = await wfNewApi.getBookVerses(sourceKey, {
@@ -226,17 +231,19 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
         page: pageNum,
         perPage: PER_PAGE,
       });
+      if (loadSeq !== verseLoadSeqRef.current) return [];
       setVerses(res.items);
       setPage(res.currentPage || pageNum);
       setLastPage(res.lastPage || 1);
       return res.items;
     } catch (e) {
+      if (loadSeq !== verseLoadSeqRef.current) return [];
       console.warn('[wordnew] Failed to load verses.', e);
       addToastRef.current(transRef.current('content.loadFailed'), 'warning');
       setVerses([]);
       return [];
     } finally {
-      setLoadingVerses(false);
+      if (loadSeq === verseLoadSeqRef.current) setLoadingVerses(false);
     }
   }, [sourceKey]);
 
@@ -335,6 +342,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
 
   useEffect(() => {
     let cancelled = false;
+    verseLoadSeqRef.current += 1;
     setLoadingChapters(true);
     setResumeApplied(false);
     setResumeTarget(null);
@@ -350,7 +358,8 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       return { sourceKey, chapterIndex: null, verseSeq: local.index, grain: 'sentence', page: 1, updatedAt: local.updatedAt };
     };
 
-    void loadProgress().then((prog) => { if (!cancelled && prog) setResumeTarget(prog); });
+    const progressLoad = loadProgress().catch(() => null);
+    void progressLoad.then((prog) => { if (!cancelled && prog) setResumeTarget(prog); });
 
     wfNewApi.getBookChapters(sourceKey).then(async (res) => {
       if (cancelled) return;
@@ -375,7 +384,8 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       });
       setChapters(res.chapters || []);
 
-      const prog = await loadProgress();
+      const prog = await progressLoad;
+      if (cancelled) return;
       if ((res.chapterCount || 0) > 0 && res.chapters.length) {
         let chapterIdx = prog?.chapterIndex ?? res.chapters[0].chapterIndex;
         let pageNum = prog?.page ?? 1;
@@ -491,6 +501,34 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const currentChapterTitle = !flat && activeChapter != null
     ? chapterTitleFor(chapters.find((c) => c.chapterIndex === activeChapter) || { chapterIndex: activeChapter, sentenceCount: 0, titles: {} }, activeLang, trans)
     : title;
+
+  const activePosInPage = activeVerse
+    ? verses.findIndex((v) => verseKey(v) === verseKey(activeVerse)) + 1
+    : 0;
+  const progressText = activePosInPage > 0
+    ? trans('reader.progress', {
+      pos: activePosInPage,
+      total: verses.length,
+      pct: Math.round((activePosInPage / verses.length) * 100),
+    })
+    : '';
+
+  /** Previous/next sentence from the console (enabled only while playing). */
+  const stepSentence = (delta: 1 | -1) => {
+    userPickedVerse.current = true;
+    scrollPausedUntil.current = 0;
+    void playbackRef.current?.stepSentence(delta);
+  };
+
+  /** Previous/next page of the current chapter; playback continues on the new page. */
+  const goPage = async (delta: 1 | -1) => {
+    const target = page + delta;
+    if (target < 1 || target > lastPage) return;
+    const wasPlaying = !!playbackRef.current?.isPlaying();
+    playbackRef.current?.stop();
+    const items = await loadVerses(flat ? null : activeChapter, target);
+    if (wasPlaying && items.length) void playbackRef.current?.playFrom(items[0]);
+  };
 
   return (
     <div className="space-y-4 pb-4">
@@ -624,6 +662,12 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
           chapterTitle={currentChapterTitle}
           verseRef={activeVerse?.ref || (activeVerse ? String(activeVerse.seq) : '')}
           activePos={activePos} chapterCount={chapters.length}
+          progressText={progressText} todayCount={todayCount}
+          canPrevPage={page > 1} canNextPage={page < lastPage}
+          onPrevSentence={() => stepSentence(-1)}
+          onNextSentence={() => stepSentence(1)}
+          onPrevPage={() => { void goPage(-1); }}
+          onNextPage={() => { void goPage(1); }}
           onPlayPause={() => {
             if (playing) playbackRef.current?.togglePause();
             else if (activeVerse) void playbackRef.current?.playFrom(activeVerse);

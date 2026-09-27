@@ -125,6 +125,8 @@ class BusSignals:
     VOICE_SUBTITLE_UI_SHOW = "voice_subtitle_ui_show"
     VOICE_SUBTITLE_UPDATE = "voice_subtitle_update"
     VOICE_SUBTITLE_UI_WINDOW_VISIBLE = "voice_subtitle_ui.window_visible"
+    VOICE_SUBTITLE_MODE_ENTER = "voice_subtitle.subtitle_mode_enter"
+    VOICE_SUBTITLE_MODE_EXIT = "voice_subtitle.subtitle_mode_exit"
 
     # TTS availability signals
     TTS_CHATTTS_AVAILABLE = "pyutils.tts.chattts.available"

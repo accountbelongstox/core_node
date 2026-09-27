@@ -77,8 +77,11 @@ class WorkerResultDelivery:
         """
         status = GLOBAL_TASK_STATUSES_BY_ROLE.get(status_role, status_role)
         task_display_id = worker._display_task_id(task_id)
+        terminal_result = status in GLOBAL_TASK_TERMINAL_STATUSES
+        # The offline window only skips best-effort progress pings; a terminal
+        # result always runs its retry budget and is deferred when it fails.
         retry_after = float(getattr(worker, "_result_retry_after", 0.0) or 0.0)
-        if retry_after > time.monotonic():
+        if retry_after > time.monotonic() and not terminal_result:
             return False
         if status not in GLOBAL_TASK_WORKER_RESULT_STATUSES:
             raise ValueError(f"Unsupported Laravel worker result status: {status_role}")
@@ -121,7 +124,6 @@ class WorkerResultDelivery:
             return False
         result_url = queue_center_endpoint("worker_task_result", task_type=task_type)
         result_base_url = worker._task_base_url(task_id)
-        terminal_result = status in GLOBAL_TASK_TERMINAL_STATUSES
 
         last_note = ""
         last_was_5xx = False

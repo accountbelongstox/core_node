@@ -176,7 +176,7 @@ if (-not $aliApiKey) {
     exit 1
 }
 else {
-    Write-Host "API Key: $aliApiKey (loaded)" -ForegroundColor White
+    Write-Host "API Key: $(Get-AiCliMaskedSecret -Value $aliApiKey) (loaded)" -ForegroundColor White
 }
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""

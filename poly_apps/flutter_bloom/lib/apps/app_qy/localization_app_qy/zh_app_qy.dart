@@ -108,6 +108,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyYesLogout: '确认退出',
     QyAppLocalizationKeys.qyLogin: '登录',
     QyAppLocalizationKeys.qyLoginFailed: '登录失败',
+    QyAppLocalizationKeys.qyErrorUnauthorized: '请先登录后再使用此功能',
+    QyAppLocalizationKeys.qyErrorForbidden: '当前账号无权使用此功能，请重新登录',
     QyAppLocalizationKeys.qyRegister: '注册',
     QyAppLocalizationKeys.qyRegisterSuccess: '注册成功',
     QyAppLocalizationKeys.qyRegisterFailed: '注册失败',

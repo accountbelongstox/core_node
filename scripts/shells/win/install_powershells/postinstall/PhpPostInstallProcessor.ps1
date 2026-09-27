@@ -17,8 +17,8 @@
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
 
 function Install-ComposerForPhp {
     param (

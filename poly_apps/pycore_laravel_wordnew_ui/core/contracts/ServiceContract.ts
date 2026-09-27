@@ -23,8 +23,7 @@ export const LARAVEL_API_BACKEND_PORT: number = contractDocument.ports.laravel_a
 export const NEXUS_DASH_FRONTEND_PORT: number = contractDocument.ports.nexus_dash_frontend;
 export const LARAVEL_API_BACKEND_URL = `http://${LOOPBACK_HOST}:${LARAVEL_API_BACKEND_PORT}`;
 export const NEXUS_DASH_FRONTEND_URL = `http://${LOOPBACK_HOST}:${NEXUS_DASH_FRONTEND_PORT}`;
-export const CORE_NODE_DATA_DIR_POSIX: string = contractDocument.paths.core_node_data_dir_posix;
-export const CORE_NODE_DATA_DIR_WINDOWS_SUBPATH: string = contractDocument.paths.core_node_data_dir_windows_subpath;
+export const CORE_NODE_DATA_DIR_NAME: string = contractDocument.paths.core_node_data_dir_name;
 export const GLOBAL_VAR_DIR_NAME: string = contractDocument.paths.global_var_dir_name;
 export const FRANKENPHP_ROOT_POSIX: string = contractDocument.paths.frankenphp_root_posix;
 export const FRANKENPHP_ROOT_WINDOWS_SUBPATH: string = contractDocument.paths.frankenphp_root_windows_subpath;
@@ -44,6 +43,14 @@ export const SERVICE_CONTRACT_URL_ENTRIES: { key: string; label: string; url: st
   ...contractDocument.access.service_url_entries,
 ];
 export const SERVICE_CONTRACT_HOSTS: Record<string, string> = { ...contractDocument.hosts };
+/** Loopback hosts a local RPC server accepts from browsers (client_key_auth.local_rpc, K7). */
+export const LOCAL_RPC_LOOPBACK_HOSTS: string[] = contractDocument.client_key_auth.local_rpc.loopback_hosts
+  .map((hostKey) => SERVICE_CONTRACT_HOSTS[hostKey])
+  .filter((host): host is string => typeof host === 'string' && host !== '');
+/** Rejection codes of client-key verification (client_key_auth.error_codes). */
+export const CLIENT_KEY_ERROR_CODES: string[] = [...contractDocument.client_key_auth.error_codes];
+/** Rejection codes of the local RPC browser gate (client_key_auth.local_rpc.error_codes, K7). */
+export const LOCAL_RPC_ERROR_CODES = { ...contractDocument.client_key_auth.local_rpc.error_codes };
 export const SERVICE_CONTRACT_SERVICE_HOST_KEYS: Record<string, string[]> = Object.fromEntries(
   Object.entries(contractDocument.access.service_host_keys).map(([service, keys]) => [service, [...keys]]),
 );

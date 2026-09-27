@@ -30,6 +30,7 @@
  */
 
 const logger = require('#@logger');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 const path = require('path');
 
 class NativeUIConfig {
@@ -82,7 +83,7 @@ class NativeUIConfig {
 
         this.rpcEnabled = options.rpcEnabled || false;
         this.rpcPort = options.rpcPort || 8000;
-        this.rpcHost = options.rpcHost || '0.0.0.0';
+        this.rpcHost = resolveBindHost(options.rpcHost);
         this.rpcDebug = options.rpcDebug !== false;
         this.rpcRouters = options.rpcRouters || null;
         this.rpcAllowOrigins = options.rpcAllowOrigins || null;

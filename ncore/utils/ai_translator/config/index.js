@@ -12,7 +12,7 @@
 
 const path = require('path');
 const { DATA_DIR } = require('#@global_dir');
-const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
+const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper.js');
 
 const defaultConfig = {
     // Database and storage paths

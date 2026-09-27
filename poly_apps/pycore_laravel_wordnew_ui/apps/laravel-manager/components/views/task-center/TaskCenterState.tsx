@@ -21,6 +21,8 @@ export interface TaskCenterState {
     loading: boolean;
     error: string | null;
     refreshNow: () => void;
+    /** Bumped by every manual refresh so self-loading panels re-fetch once. */
+    refreshToken: number;
     moveTaskToFront: (taskId: string, ordering: number | { priority?: number; queue_position?: number }) => void;
     autoRefresh: boolean;
     setAutoRefresh: (val: boolean) => void;
@@ -44,6 +46,7 @@ export const TaskCenterProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const [error, setError] = useState<string | null>(null);
     const [autoRefresh, setAutoRefresh] = useState(false);
     const [refreshIntervalSec, setRefreshIntervalSec] = useState(5);
+    const [refreshToken, setRefreshToken] = useState(0);
 
     const mounted = useRef(true);
     const refreshInFlight = useRef<Promise<void> | null>(null);
@@ -127,6 +130,7 @@ export const TaskCenterProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const refreshNow = useCallback(() => {
         fetchAll();
+        setRefreshToken((token) => token + 1);
     }, [fetchAll]);
 
     const moveTaskToFront = useCallback((taskId: string, ordering: number | { priority?: number; queue_position?: number }) => {
@@ -170,6 +174,7 @@ export const TaskCenterProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 loading,
                 error,
                 refreshNow,
+                refreshToken,
                 moveTaskToFront,
                 autoRefresh,
                 setAutoRefresh,

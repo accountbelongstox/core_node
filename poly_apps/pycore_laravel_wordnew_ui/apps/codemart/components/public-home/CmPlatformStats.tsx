@@ -2,7 +2,7 @@ import React from 'react';
 import { RotateCw } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import type { CmPublicHomeSnapshot } from '../../api/CmPublicApi';
-import { formatCmAmount } from './cmPublicFormat';
+import { CM_WHOLE_MONEY_DIGITS, cmFormatMoney, cmFormatNumber } from '../workspace/cmWorkspaceFormat';
 
 export interface CmPlatformStatsProps {
   data: CmPublicHomeSnapshot | null;
@@ -12,13 +12,13 @@ export interface CmPlatformStatsProps {
 }
 
 function formatCount(value: number | null | undefined, language: string, unavailable: string): string {
-  return value === null || value === undefined ? unavailable : new Intl.NumberFormat(language).format(value);
+  return value === null || value === undefined ? unavailable : cmFormatNumber(value, language);
 }
 
 export const CmPlatformStats: React.FC<CmPlatformStatsProps> = ({ data, loading, failed, onRetry }) => {
   const { t, i18n } = useTranslation('cm');
   const unavailable = loading ? t('common.loading') : t('common.unavailable');
-  const amount = data?.total_amount ? formatCmAmount(data.total_amount, data.currency, i18n.language) : unavailable;
+  const amount = data?.total_amount ? cmFormatMoney(data.total_amount, data.currency, i18n.language, CM_WHOLE_MONEY_DIGITS) : unavailable;
   const amountLabel = data?.total_amount_source === 'published_budgets'
     ? t('publicHome.metrics.publishedBudgets')
     : t('publicHome.metrics.protectedFunds');

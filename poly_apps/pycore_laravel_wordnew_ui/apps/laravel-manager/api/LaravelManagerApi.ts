@@ -23,6 +23,7 @@ import {
   setSharedBaseURL,
 } from '../../../core/integrations/laravel/transport/BaseAPI';
 import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from '../../../core/integrations/laravel/transport/ApiContract';
+import { LmBaseAPI } from './LmBaseAPI';
 
 /**
  * Laravel backend implementation used only through the Laravel Manager API
@@ -50,7 +51,7 @@ class APIService {
   public wordAudio: WordAudioAPI;
   public devHistory: DevHistoryAPI;
   public articles: ArticleAPI;
-  public http: BaseAPI;
+  public http: LmBaseAPI;
 
   private constructor() {
     // Seed the single shared base URL so EVERY module (including
@@ -107,7 +108,7 @@ class APIService {
     this.devHistory = new DevHistoryAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.devHistory));
 
     this.articles = new ArticleAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.appQyV1AiTools));
-    this.http = new BaseAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.root));
+    this.http = new LmBaseAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.root));
 
   }
 

@@ -167,7 +167,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
         $row->saveRecord();
         AppQyV1LangDictionaryModel::forgetMetricsCache($code);
 
-        return $this->success(['word' => $this->shapeRow($row)], 'Word saved');
+        return $this->success(['word' => $this->shapeRow($row)], __('app_qy_v1.messages.word_saved'));
     }
 
     /**
@@ -194,7 +194,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
         $row->saveRecord();
         AppQyV1LangDictionaryModel::forgetMetricsCache($code);
 
-        return $this->success(['word' => $this->shapeRow($row)], 'Word updated');
+        return $this->success(['word' => $this->shapeRow($row)], __('app_qy_v1.messages.word_updated'));
     }
 
     /**
@@ -251,7 +251,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
             'action' => $validated['action'],
             'requested' => count($md5s),
             'affected' => $affected,
-        ], 'Batch action applied');
+        ], __('app_qy_v1.messages.batch_action_applied'));
     }
 
     // ------------------------------------------------------------------ //
@@ -345,7 +345,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
             'start' => $start,
             'limit' => $limit,
             'rows' => $rows,
-        ], 'Cleanup preview');
+        ], __('app_qy_v1.messages.cleanup_preview'));
     }
 
     /**
@@ -385,7 +385,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
 
         $ids = array_keys($this->cleanupIdSet($code, $kind));
         if ($ids === []) {
-            return $this->success(['language' => $code, 'affected' => 0], 'Nothing to clean');
+            return $this->success(['language' => $code, 'affected' => 0], __('app_qy_v1.messages.nothing_to_clean'));
         }
 
         if ($kind === 'words') {

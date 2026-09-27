@@ -16,6 +16,7 @@ const logger = require('#@logger');
 const MCPConfig = require('./config/mcp_config');
 const MCPServerManager = require('./MCPServerManager');
 const SingleInstanceManager = require('./SingleInstanceManager');
+const { getThreadBus } = require('#@thread_bus');
 
 /**
  * Dual Mode Runner
@@ -61,13 +62,14 @@ class DualModeRunner {
         if (!validation.valid) {
             logger.error('Configuration validation failed:');
             validation.errors.forEach(error => logger.error(`  - ${error}`));
-            throw new Error('Invalid configuration');
+            return false;
         }
 
         if (validation.warnings.length > 0) {
             logger.warn('Configuration warnings:');
             validation.warnings.forEach(warning => logger.warn(`  - ${warning}`));
         }
+        return true;
     }
 
     /**
@@ -84,15 +86,15 @@ class DualModeRunner {
                 });
 
                 if (!this.singleInstance.acquireLock()) {
-                    const error = new Error('Another instance is already running. Only one instance is allowed.');
-                    logger.error(error.message);
+                    logger.error('Another instance is already running. Only one instance is allowed.');
 
                     const status = this.singleInstance.getStatus();
                     if (status.existingInstance) {
                         logger.error(`Existing instance: PID ${status.existingInstance.pid}, Uptime: ${Math.round(status.existingInstance.uptime / 1000)}s`);
                     }
 
-                    throw error;
+                    this.singleInstance = null;
+                    return null;
                 }
 
                 logger.info('Single instance lock acquired successfully');
@@ -120,7 +122,7 @@ class DualModeRunner {
                 this.singleInstance.shutdown();
             }
             logger.error('Failed to start MCP mode:', error.message);
-            throw error;
+            return null;
         }
     }
 
@@ -132,9 +134,8 @@ class DualModeRunner {
         logger.info('Starting in CLI mode...');
 
         if (!this.cliRunner || typeof this.cliRunner !== 'function') {
-            const error = new Error('CLI runner function not provided');
-            logger.error(error.message);
-            throw error;
+            logger.error('CLI runner function not provided');
+            return null;
         }
 
         try {
@@ -144,7 +145,7 @@ class DualModeRunner {
 
         } catch (error) {
             logger.error('CLI mode failed:', error.message);
-            throw error;
+            return null;
         }
     }
 
@@ -153,43 +154,14 @@ class DualModeRunner {
      * @private
      */
     setupCleanupHandlers() {
-        const cleanupHandler = async (signal) => {
-            logger.info(`Received ${signal}, cleaning up...`);
-
-            if (this.mcpServer && this.mcpServer.isRunning()) {
-                await this.mcpServer.shutdown();
-            }
-
-            if (this.singleInstance) {
-                this.singleInstance.shutdown();
-            }
-
-            process.exit(0);
-        };
-
-        process.on('SIGINT', cleanupHandler);
-        process.on('SIGTERM', cleanupHandler);
-
-        process.on('uncaughtException', (error) => {
-            logger.error('Uncaught exception:', error.message);
-
-            const cleanup = async () => {
+        // ThreadBus owns SIGINT/SIGTERM/uncaughtException; the single-instance lock registers itself to run last
+        getThreadBus().register(`mcp-server:${this.config.server.name}`, {
+            onShutdown: async (reason) => {
+                logger.info(`Received ${reason}, cleaning up...`);
                 if (this.mcpServer && this.mcpServer.isRunning()) {
                     await this.mcpServer.shutdown();
                 }
-
-                if (this.singleInstance) {
-                    this.singleInstance.shutdown();
-                }
-
-                process.exit(1);
-            };
-
-            cleanup();
-        });
-
-        process.on('unhandledRejection', (reason, promise) => {
-            logger.error('Unhandled rejection:', reason);
+            }
         });
     }
 
@@ -204,7 +176,9 @@ class DualModeRunner {
         }
 
         try {
-            this.validateConfig();
+            if (!this.validateConfig()) {
+                return null;
+            }
 
             this.mode = this.detectMode();
             logger.info(`Detected mode: ${this.mode}`);
@@ -219,7 +193,7 @@ class DualModeRunner {
 
         } catch (error) {
             logger.error('Failed to start DualModeRunner:', error.message);
-            throw error;
+            return null;
         }
     }
 

@@ -46,11 +46,14 @@ class FFmpegCommandBuilder:
         bitrate: str,
         sample_rate: int,
         mono: bool,
+        tempo: float = 1.0,
     ) -> Tuple[str, ...]:
         output_rate = min(OPUS_SAMPLE_RATES, key=lambda rate: abs(rate - sample_rate)) if encoder == "libopus" else sample_rate
+        filters = self._atempo_filters(tempo)
         return (
             "-y", "-i", str(source), "-vn", "-map", "0:a:0?",
             "-ac", "1" if mono else "2", "-ar", str(output_rate),
+            *(("-af", ",".join(filters)) if filters else ()),
             "-c:a", encoder, "-b:a", bitrate,
         )
 

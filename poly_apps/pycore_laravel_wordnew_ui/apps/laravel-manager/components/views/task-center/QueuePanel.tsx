@@ -83,7 +83,7 @@ type TaskSortMode = 'default' | 'order_desc' | 'order_asc';
 const QueuePanel: React.FC<QueuePanelProps> = ({
   lang,
 }) => {
-  const { globalTasks: snapshot, loading, error, refreshNow, moveTaskToFront } = useTaskCenterState();
+  const { globalTasks: snapshot, loading, error, refreshNow, refreshToken, moveTaskToFront } = useTaskCenterState();
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
   // Client-side task_type filter ('all' = every type). The list endpoint is
   // server-filtered by STATUS only, so type filtering is applied locally.
@@ -281,7 +281,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
-      <MissingSentenceAudioPanel lang={lang} refreshToken={0} />
+      <MissingSentenceAudioPanel lang={lang} refreshToken={refreshToken} />
 
       {/* Transient error / action notice banners */}
       {error && snapshot && <AlertBox variant="error">{error}</AlertBox>}
@@ -439,17 +439,17 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
             </button>
             {TASK_TYPE_KEYS.map((tt) => {
               const meta = taskTypeMeta(tt);
-              const Icon = meta.icon;
               const active = typeFilter === tt;
               return (
                 <button
                   key={tt}
                   onClick={() => setTypeFilter(active ? 'all' : tt)}
-                  className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${active ? 'bg-indigo-600 text-white' : meta.badge + ' hover:opacity-80'
+                  className={`inline-flex items-center gap-1 px-3 py-1 rounded border text-xs font-medium transition-colors ${active ? 'bg-indigo-600 border-indigo-600 text-white' : 'hover:opacity-80'
                     }`}
+                  style={active ? undefined : { color: meta.color, borderColor: `${meta.color}66`, backgroundColor: `${meta.color}18` }}
                   title={tt}
                 >
-                  <Icon className="w-3 h-3" />
+                  <span aria-hidden="true">{meta.icon}</span>
                   {meta.label}
                 </button>
               );
@@ -739,7 +739,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                                     )}
                                     <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">{formatDateTime(ev.created_at)}</span>
                                   </div>
-                                  {ev.detail !== undefined && ev.detail !== null && ev.detail !== '' && (
+                                  {ev.detail && Object.keys(ev.detail).length > 0 && (
                                     <pre className="mt-1 p-2 bg-slate-50 dark:bg-slate-800 rounded text-[11px] font-mono text-slate-600 dark:text-slate-400 whitespace-pre-wrap break-all max-h-24 overflow-y-auto">
                                       {formatResultPreview(ev.detail, previewLabels)}
                                     </pre>

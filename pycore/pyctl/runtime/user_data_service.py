@@ -6,6 +6,7 @@ Video Extraction history/state, and broadcasts settings changes live to the UI.
 """
 
 import os
+import re
 import sys
 import time
 import subprocess
@@ -28,6 +29,28 @@ from pycore.pyctl.runtime.user_data_models import (
 )
 
 from pycore.pyctl.runtime.system_settings_service import apply_system_settings_live
+from pycore.pyutils.common.local_rpc_guard import LAN_BIND_SETTING_KEY
+
+_SYSTEM_SETTINGS_BOOL_KEYS = ("monitorClipboard", "scheduledScreenshot", "notebooklmAutoConvert", LAN_BIND_SETTING_KEY)
+_SYSTEM_SETTINGS_NUMBER_KEYS = ("screenshotInterval",)
+_SYSTEM_SETTINGS_LANG_KEY = "lang"
+_SYSTEM_SETTINGS_LANG_PATTERN = re.compile(r"^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})?$")
+_SYSTEM_SETTINGS_ERROR_INVALID = "system_settings_invalid"
+
+
+def _system_settings_valid(settings) -> bool:
+    """Type check of the keys pycore acts on; other UI keys pass through."""
+    if not isinstance(settings, dict):
+        return False
+    if any(key in settings and not isinstance(settings[key], bool) for key in _SYSTEM_SETTINGS_BOOL_KEYS):
+        return False
+    if any(
+        key in settings and (isinstance(settings[key], bool) or not isinstance(settings[key], (int, float)))
+        for key in _SYSTEM_SETTINGS_NUMBER_KEYS
+    ):
+        return False
+    lang = settings.get(_SYSTEM_SETTINGS_LANG_KEY)
+    return lang is None or (isinstance(lang, str) and bool(_SYSTEM_SETTINGS_LANG_PATTERN.fullmatch(lang)))
 
 
 # Standalone script run in a short-lived child process to show a native folder/file
@@ -106,6 +129,12 @@ class UserDataService:
         return SystemSettingsResponse(success=True, settings=settings or None)
 
     def set_system_settings(self, settings: dict) -> SystemSettingsResponse:
+        if not _system_settings_valid(settings):
+            return SystemSettingsResponse(success=False, error=_SYSTEM_SETTINGS_ERROR_INVALID)
+        stored = self.store.get_section(SYSTEM_SETTINGS_SECTION) or {}
+        if LAN_BIND_SETTING_KEY not in settings and LAN_BIND_SETTING_KEY in stored:
+            # Headless-only setting: a UI save that does not know it keeps it.
+            settings = {**settings, LAN_BIND_SETTING_KEY: stored[LAN_BIND_SETTING_KEY]}
         self.store.set_section(SYSTEM_SETTINGS_SECTION, settings)
         saved = self.store.get_section(SYSTEM_SETTINGS_SECTION)
         # Broadcast live to any connected UI.

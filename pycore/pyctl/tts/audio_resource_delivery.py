@@ -39,7 +39,11 @@ from pycore.pyutils.laravel.delivery_outbox import (
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
-from pycore.pyutils.tts.word_audio_cache import cache_root as word_audio_cache_root
+from pycore.pyutils.tts.word_audio_cache import (
+    LEGACY_SEPARATOR,
+    WORD_PROVIDER_SEPARATOR,
+    cache_root as word_audio_cache_root,
+)
 from pycore.pyctl.audio_orchestration import orch_store
 from pycore.pyctl.task_history.store import query_records
 from pycore.pyctl.tts import word_audio_service
@@ -168,17 +172,20 @@ class AudioResourceDelivery:
 
     @staticmethod
     def _word_cache_rows() -> List[Dict[str, Any]]:
-        """``<lang>/{word}_{provider}.mp3`` whose name is unambiguous: one
-        separator, word and provider made of letters/digits only (a word the
-        file name sanitizer changed cannot be recovered)."""
+        """``<lang>/{word}@{provider}.mp3`` (legacy: ``{word}_{provider}.mp3``)
+        whose name is unambiguous: word and provider made of letters/digits
+        only (a word the file name sanitizer changed cannot be recovered)."""
         rows: List[Dict[str, Any]] = []
         root = word_audio_cache_root()
         if not root.is_dir():
             return rows
         for language_dir in sorted(entry for entry in root.iterdir() if entry.is_dir()):
             for path in language_dir.glob("*.mp3"):
-                word, _, provider = path.stem.partition("_")
-                if path.stem.count("_") != 1 or not word.isalnum() or not provider.isalnum() or path.stat().st_size <= 0:
+                separator = (
+                    WORD_PROVIDER_SEPARATOR if WORD_PROVIDER_SEPARATOR in path.stem else LEGACY_SEPARATOR
+                )
+                word, _, provider = path.stem.partition(separator)
+                if path.stem.count(separator) != 1 or not word.isalnum() or not provider.isalnum() or path.stat().st_size <= 0:
                     continue
                 row = audio_resource_ledger.entry("word", language_dir.name, word, str(path), provider)
                 if row is not None:

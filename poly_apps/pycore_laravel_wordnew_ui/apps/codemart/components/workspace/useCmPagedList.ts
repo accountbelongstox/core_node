@@ -35,12 +35,16 @@ export function useCmPagedList<R, T>(
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const pageRef = useRef(1);
+  const requestRef = useRef(0);
   const translate = useRef(t);
   translate.current = t;
 
   const load = useCallback(async (targetPage: number): Promise<void> => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     setLoading(true);
     const response = await fetcher(targetPage);
+    if (requestId !== requestRef.current) return;
     if (response.success && response.data) {
       const slice = extract(response.data);
       setItems(slice.items);
@@ -57,8 +61,12 @@ export function useCmPagedList<R, T>(
   const reload = useCallback(() => load(pageRef.current), [load]);
 
   useEffect(() => {
-    if (enabled) void load(1);
-    else setLoading(false);
+    if (enabled) {
+      void load(1);
+      return;
+    }
+    requestRef.current += 1;
+    setLoading(false);
   }, [enabled, load]);
 
   return { items, page, totalPages, loading, error, load, reload };

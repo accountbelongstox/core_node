@@ -21,7 +21,7 @@ class DevHistoryController extends Controller
     public function index(): JsonResponse
     {
         $service = new DeveloperHistoryService();
-        return $this->success($service->readIndex(), 'Developer history index');
+        return $this->success($service->readIndex(), __('api.messages.developer_history_index'));
     }
 
     public function prompts(Request $request): JsonResponse
@@ -44,7 +44,7 @@ class DevHistoryController extends Controller
             is_string($q) ? $q : null,
             is_string($lang) ? $lang : null
         );
-        return $this->success($data, 'Developer prompt history');
+        return $this->success($data, __('api.messages.developer_prompt_history'));
     }
 
     public function session(string $id): JsonResponse
@@ -54,14 +54,14 @@ class DevHistoryController extends Controller
         if ($detail === null) {
             return $this->notFound("Session '{$id}' not found");
         }
-        return $this->success($detail, 'Session detail');
+        return $this->success($detail, __('api.messages.session_detail'));
     }
 
     public function refresh(): JsonResponse
     {
         $service = new DeveloperHistoryService();
         $result = $service->extract(true);
-        return $this->success($result, 'Developer history refreshed');
+        return $this->success($result, __('api.messages.developer_history_refreshed'));
     }
 
     /**
@@ -73,14 +73,14 @@ class DevHistoryController extends Controller
         $id = (string) $request->input('id', '');
         $text = (string) $request->input('text', '');
         if ($id === '') {
-            return $this->error('Missing prompt id', 422);
+            return $this->error(__('api.messages.missing_prompt_id'), 422);
         }
         $service = new DeveloperHistoryService();
         $result = $service->updatePrompt($id, $text);
         if ($result === null) {
             return $this->error("Invalid prompt id '{$id}'", 422);
         }
-        return $this->success($result, 'Prompt updated');
+        return $this->success($result, __('api.messages.prompt_updated'));
     }
 
     /** Assist distribution: counts + recent translation-assist tasks. */
@@ -90,13 +90,13 @@ class DevHistoryController extends Controller
         return $this->success([
             'summary' => $assist->summary(),
             'recent' => $assist->recent(50),
-        ], 'Assist distribution');
+        ], __('api.messages.assist_distribution'));
     }
 
     /** Manually trigger an assist scan (enqueue pending non-English prompts). */
     public function assistScan(): JsonResponse
     {
         $enqueued = (new DevHistoryAssistService())->scanAndEnqueue();
-        return $this->success(['enqueued' => $enqueued], 'Assist scan complete');
+        return $this->success(['enqueued' => $enqueued], __('api.messages.assist_scan_complete'));
     }
 }

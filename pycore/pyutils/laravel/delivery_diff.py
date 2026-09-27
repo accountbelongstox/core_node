@@ -29,7 +29,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.http_progress_upload import HttpTransferProgress
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
-from pycore.pyutils.laravel.identity import get_pycore_machine_id
+from pycore.pyutils.common.client_key_auth import get_pycore_machine_id
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 
 

@@ -30,6 +30,7 @@ import type {
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
 import { useShell } from '../../../shell/ShellContext';
 import { SHELL_LANGUAGES } from '../../../shell/shellTypes';
+import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
 
 interface SystemSettings {
   monitorClipboard: boolean;
@@ -222,14 +223,17 @@ const PcSettingsPage: React.FC = () => {
     setSettings(merged);
     try {
       const r = await pycoreApi.setSystemSettings(merged as unknown as Record<string, unknown>);
-      if (r?.success === false) { setNotice(r?.error || 'Failed to save settings'); return; }
+      if (r?.success === false) {
+        setNotice(pcErrorCodeMessage(r?.error) || r?.error || t('settingsPage.saveFailed'));
+        return;
+      }
       setUnreachable(false);
-      setNotice('Saved');
+      setNotice(t('settingsPage.saved'));
     } catch {
       setUnreachable(true);
-      setNotice('Could not reach pycore — change not saved.');
+      setNotice(t('settingsPage.unreachable'));
     }
-  }, [settings]);
+  }, [settings, t]);
 
   // --- auto-start on boot ------------------------------------------------- #
   const toggleAutostart = async (enabled: boolean, target?: AutostartTarget) => {

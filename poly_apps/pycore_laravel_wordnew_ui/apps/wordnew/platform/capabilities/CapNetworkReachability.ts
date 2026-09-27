@@ -1,7 +1,7 @@
 /** Active reachability, online-gated retry, and network badge hooks. */
 import { useEffect, useRef, useState } from 'react';
 import { protocolFetch } from '../../../../core/network/ProtocolFetch';
-import { capNetwork, useNetworkStatus } from './CapNetworkCore';
+import { capNetwork, connectionGlyph, describeConnectionType, useNetworkStatus } from './CapNetworkCore';
 import type { CapNetworkStatus } from './CapNetworkCore';
 // ===========================================================================
 // EXTENDED CAPABILITIES — active reachability, wait-for-online, gated retry

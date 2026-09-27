@@ -8,6 +8,7 @@ This is the Linux-specific version of CommandContentGenerator.ps1
 from typing import Any, Dict, List
 
 from generators import CommandContentGeneratorBase
+from utils.secret_display import is_secret_name
 
 
 class LinuxCommandContentGenerator(CommandContentGeneratorBase):
@@ -298,7 +299,9 @@ echo "Model: $KIMI_MODEL (permissions: --yolo bypass)"
         # Build command display code
         build_command_code = """
 #region Build Launch Command Display
+# env_vars_parts run the tool; env_vars_display_parts are printed (secrets masked).
 env_vars_parts=()
+env_vars_display_parts=()
 
 """
         if has_kimi:
@@ -309,21 +312,32 @@ env_vars_parts=()
 env_vars_parts+=("KIMI_MODEL_PROVIDER_TYPE='${KIMI_MODEL_PROVIDER_TYPE}'")
 env_vars_parts+=("KIMI_MODEL_BASE_URL='${KIMI_MODEL_BASE_URL}'")
 env_vars_parts+=("KIMI_MODEL_API_KEY='${KIMI_MODEL_API_KEY}'")
+env_vars_display_parts+=("KIMI_MODEL_NAME='${KIMI_MODEL_NAME}'")
+env_vars_display_parts+=("KIMI_MODEL_PROVIDER_TYPE='${KIMI_MODEL_PROVIDER_TYPE}'")
+env_vars_display_parts+=("KIMI_MODEL_BASE_URL='${KIMI_MODEL_BASE_URL}'")
+env_vars_display_parts+=("KIMI_MODEL_API_KEY='$(ai_cli_mask_secret "${KIMI_MODEL_API_KEY}")'")
 
 """
         else:
             for var in variables:
                 var_name = var['Name']
+                shown_value = (
+                    f'$(ai_cli_mask_secret "${{{var_name}}}")' if is_secret_name(var_name)
+                    else f'${{{var_name}}}'
+                )
                 build_command_code += f"""if [ -n "${{{var_name}:-}}" ]; then
     env_vars_parts+=("{var_name}='${{{var_name}}}'")
+    env_vars_display_parts+=("{var_name}='{shown_value}'")
 fi
 
 """
 
         build_command_code += f"""if [ ${{#env_vars_parts[@]}} -gt 0 ]; then
     env_vars_command=$(IFS=' ' ; echo "${{env_vars_parts[*]}}")
-    full_command_display="$env_vars_command {bash_command}"
+    full_command="$env_vars_command {bash_command}"
+    full_command_display="$(IFS=' ' ; echo "${{env_vars_display_parts[*]}}") {bash_command}"
 else
+    full_command="{bash_command}"
     full_command_display="{bash_command}"
 fi
 #endregion
@@ -409,21 +423,29 @@ if ! command -v {tool_type} &> /dev/null; then
     echo "[INFO] For permanent fix, run: sudo $projectRootPath/dd.sh"
     echo ""
 
-    # Generate npx fallback command
+    # Generate npx fallback command (display parts mask secrets)
     env_vars_parts_npx=()
+    env_vars_display_parts_npx=()
 """
                 for var in variables:
                     var_name = var['Name']
+                    shown_value = (
+                        f'$(ai_cli_mask_secret "${{{var_name}}}")' if is_secret_name(var_name)
+                        else f'${{{var_name}}}'
+                    )
                     npx_fallback_section += f"""    if [ -n "${{{var_name}:-}}" ]; then
         env_vars_parts_npx+=("{var_name}='${{{var_name}}}'")
+        env_vars_display_parts_npx+=("{var_name}='{shown_value}'")
     fi
 """
 
                 npx_fallback_section += f"""
     if [ ${{#env_vars_parts_npx[@]}} -gt 0 ]; then
         env_vars_command_npx=$(IFS=' ' ; echo "${{env_vars_parts_npx[*]}}")
-        full_command_display="$env_vars_command_npx npx -y {npm_package}"
+        full_command="$env_vars_command_npx npx -y {npm_package}"
+        full_command_display="$(IFS=' ' ; echo "${{env_vars_display_parts_npx[*]}}") npx -y {npm_package}"
     else
+        full_command="npx -y {npm_package}"
         full_command_display="npx -y {npm_package}"
     fi
 
@@ -439,7 +461,10 @@ fi
             # Before it, show ALL variable info. No post-launch pauses.
             var_summary_lines = ""
             for var in variables:
-                var_summary_lines += f'echo "{var["Name"]} = $' + '{' + var["Name"] + '}"\n'
+                if is_secret_name(var["Name"]):
+                    var_summary_lines += f'echo "{var["Name"]} = $(ai_cli_mask_secret "$' + '{' + var["Name"] + '}")"\n'
+                else:
+                    var_summary_lines += f'echo "{var["Name"]} = $' + '{' + var["Name"] + '}"\n'
             launch_section = f"""
 #region Variable Summary + Single Continue
 echo ""
@@ -457,7 +482,7 @@ read -p "Press Enter to continue"
 #region Launch Tool
 echo ""
 echo "Executing: {bash_command}"
-eval "$full_command_display"
+eval "$full_command"
 #endregion
 """
         else:
@@ -476,7 +501,7 @@ echo "Command: $full_command_display"
 echo ""
 echo "Press Enter to continue..."
 read
-eval "$full_command_display"
+eval "$full_command"
 
 echo ""
 echo "Press Enter to exit..."

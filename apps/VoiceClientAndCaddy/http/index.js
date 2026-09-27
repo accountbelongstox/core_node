@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const { appname } = require('#@global_vars');
-const rpc = require('#@ncore/utils/rpc');
+const rpc = require('#@ncore/utils/rpc/index.js');
 const router = require('./router.js');
 // Initialize all routes
 
@@ -25,7 +25,7 @@ class HttpMain {
 
         this.expressServer = rpc.createExpressServer({
             HTTP_PORT: config.HTTP_PORT || 3000,
-            HTTP_HOST: config.HTTP_HOST || '0.0.0.0',
+            HTTP_HOST: config.HTTP_HOST,
             STATIC_PATHS: config.STATIC_PATHS,
             auth: { enabled: false }
         });

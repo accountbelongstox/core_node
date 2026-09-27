@@ -1,0 +1,12 @@
+{
+  "task_id": "codemart-3",
+  "role": "codemart",
+  "verdict": "approved",
+  "findings": {
+    "FU-017": {"status": "fixed", "reason": "cmParseDate(value, calendar) reads date-only and UTC-midnight serialized Laravel dates (Z or +00:00, optional fraction) as the local calendar day; cmFormatDate and CmAdminDate dateOnly use calendar mode, date-times keep instant parsing. The duplicate public formatCmDate is deleted and CmShowcasePage uses cmFormatDate (no remaining callers)."},
+    "FU-022": {"status": "fixed", "reason": "CmEstimatePage keeps the raw input string while typing; clampCount runs on blur and clampDraft on submit and retry, so typing is no longer clamped per keystroke. The two duplicated field blocks are one mapped block."}
+  },
+  "issues": [],
+  "checks": "git diff read; grep for formatCmDate/parseDate callers (none left); runEstimate callers convert with Number(); scope apps/codemart only.",
+  "checked_at": "2026-09-27T03:55:37+10:00"
+}

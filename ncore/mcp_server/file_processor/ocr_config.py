@@ -49,9 +49,7 @@ class OCRLimits:
 class APIKeys:
     """Default API keys for OCR services"""
 
-    DEFAULT_FREE_OCR_API_KEY = "K84414795888957"
-
-    # Environment variable names
+    # Shared secret store base name (OCRSPACE_API_KEY_1..5 or the OCRSPACE_API_KEY env var)
     ENV_FREE_OCR_KEY = "OCRSPACE_API_KEY"
     ENV_PADDLE_MODEL_DIR = "PADDLE_OCR_MODEL_DIR"
 

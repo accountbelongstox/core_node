@@ -69,14 +69,14 @@ class DashboardAuthController extends Controller
         );
 
         if ($verification['status'] === 'not_found' || $verification['status'] === 'invalid_password') {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         $user = $verification['user'];
 
         $credentials = ['username' => $user->username, 'password' => $validated['password']];
         if (!Auth::attempt($credentials, $request->boolean('remember'))) {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         $request->session()->regenerate();
@@ -91,7 +91,7 @@ class DashboardAuthController extends Controller
             'expiration' => $session['expiration'],
             'registration_open' => DashboardAuthService::registrationOpen(),
             'elevation_open' => DashboardAuthService::elevationOpen(),
-        ], 'Signed in successfully');
+        ], __('api.messages.signed_in_successfully'));
     }
 
     /**
@@ -100,7 +100,7 @@ class DashboardAuthController extends Controller
     public function register(Request $request): JsonResponse
     {
         if (!DashboardAuthService::registrationOpen()) {
-            return $this->error('Registration is closed: no invitation code is configured on the server.', 403);
+            return $this->error(__('api.messages.registration_is_closed_no_invitation_code_is'), 403);
         }
 
         $validated = $request->validate([
@@ -111,7 +111,7 @@ class DashboardAuthController extends Controller
         ]);
 
         if (!DashboardAuthService::verifyInvitationCode($validated['invitation_code'])) {
-            return $this->error('Invalid invitation code.', 403);
+            return $this->error(__('api.messages.invalid_invitation_code'), 403);
         }
 
         $user = DashboardAuthService::registerUser(
@@ -129,7 +129,7 @@ class DashboardAuthController extends Controller
             'token' => $session['token'],
             'token_type' => $session['token_type'],
             'expiration' => $session['expiration'],
-        ], 'Registration successful');
+        ], __('api.messages.registration_successful'));
     }
 
     /**
@@ -140,11 +140,11 @@ class DashboardAuthController extends Controller
     {
         $user = auth()->user();
         if (!$user instanceof User) {
-            return $this->error('Authentication required.', 401);
+            return $this->error(__('api.messages.authentication_required'), 401);
         }
 
         if (!DashboardAuthService::elevationOpen()) {
-            return $this->error('Elevation is closed: no super code is configured on the server.', 403);
+            return $this->error(__('api.messages.elevation_is_closed_no_super_code_is'), 403);
         }
 
         $validated = $request->validate([
@@ -152,14 +152,14 @@ class DashboardAuthController extends Controller
         ]);
 
         if (!DashboardAuthService::verifySuperCode($validated['super_code'])) {
-            return $this->error('Invalid super code.', 403);
+            return $this->error(__('api.messages.invalid_super_code'), 403);
         }
 
         $user = User::grantSuperAdmin($user->id);
 
         return $this->success([
             'user' => DashboardAuthService::userPayload($user),
-        ], 'Account elevated to Super Administrator');
+        ], __('api.messages.account_elevated_to_super_administrator'));
     }
 
     /**
@@ -169,7 +169,7 @@ class DashboardAuthController extends Controller
     {
         $user = auth()->user();
         if (!$user instanceof User || !$user->isSuperAdmin()) {
-            return $this->error('Super administrator privileges required.', 403);
+            return $this->error(__('api.messages.super_administrator_privileges_required'), 403);
         }
 
         $users = User::query()
@@ -192,7 +192,7 @@ class DashboardAuthController extends Controller
     {
         $user = auth()->user();
         if (!$user instanceof User) {
-            return $this->error('Authentication required.', 401);
+            return $this->error(__('api.messages.authentication_required'), 401);
         }
 
         $validated = $request->validate([
@@ -204,7 +204,7 @@ class DashboardAuthController extends Controller
 
         if (($validated['password'] ?? null) !== null &&
             !Hash::check($validated['current_password'] ?? '', $user->password)) {
-            return $this->error('The current password is incorrect.', 403);
+            return $this->error(__('api.messages.the_current_password_is_incorrect'), 403);
         }
 
         $updated = DashboardAuthService::updateProfile($user, [
@@ -215,7 +215,7 @@ class DashboardAuthController extends Controller
 
         return $this->success([
             'user' => DashboardAuthService::userPayload($updated),
-        ], 'Profile updated successfully');
+        ], __('api.messages.profile_updated_successfully'));
     }
 
     /**
@@ -229,6 +229,6 @@ class DashboardAuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return $this->success([], 'Signed out successfully');
+        return $this->success([], __('api.messages.signed_out_successfully'));
     }
 }

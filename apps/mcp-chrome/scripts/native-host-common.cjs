@@ -15,6 +15,7 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const SERVICE_CONTRACT = require(path.resolve(PROJECT_ROOT, '..', '..', 'config', 'service_contract.json'));
 const MCP_CHROME_LAYOUT = SERVICE_CONTRACT.mcp_chrome;
 const HOST_NAME = MCP_CHROME_LAYOUT.native_host_name;
+const EXTENSION_ID = MCP_CHROME_LAYOUT.extension_id;
 const EXTENSION_BUILD_DIR = path.join(
   PROJECT_ROOT,
   MCP_CHROME_LAYOUT.build_output_dir,
@@ -138,6 +139,7 @@ function removeWindowsRegistryKey(registryKey) {
 
 module.exports = {
   HOST_NAME,
+  EXTENSION_ID,
   EXTENSION_BUILD_DIR,
   BROWSER_CHROME,
   BROWSER_CHROMIUM,

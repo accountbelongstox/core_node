@@ -52,7 +52,7 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
         // The start script (175) provisions the installation access (super)
@@ -117,7 +117,7 @@ class CodeMartV1RegistrationCtl extends Controller
             'token' => $session['token'] ?? null,
             'token_type' => $session['token_type'] ?? null,
             'next_step' => 'email_verification',
-        ], 'Registration successful. Please verify your email.', 201);
+        ], __('codemart.messages.registration_successful_please_verify_your_email'), 201);
     }
 
     public function verifyEmail(Request $request): JsonResponse
@@ -128,25 +128,25 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
         if (!$this->emailService->verifyToken($request->email, $request->token)) {
-            return $this->error('Invalid or expired verification token', 422);
+            return $this->error(__('codemart.messages.invalid_or_expired_verification_token'), 422);
         }
 
         $user = CodeMartV1UserModel::findByEmail((string) $request->email);
 
         if (!$user) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('codemart.messages.user_not_found'));
         }
 
         $user->updateRecord(['email_verified_at' => now()]);
 
         return $this->success([
             'user_id' => $user->id,
-            'next_step' => 'phone_verification',
-        ], 'Email verified successfully');
+            'next_step' => CodeMartV1OtpService::smsDeliveryAvailable() ? 'phone_verification' : 'kyc',
+        ], __('codemart.messages.email_verified_successfully'));
     }
 
     public function requestPhoneVerification(Request $request): JsonResponse
@@ -159,12 +159,18 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
+        if (!CodeMartV1OtpService::smsDeliveryAvailable()) {
+            return $this->codedError(CodeMartV1Constants::ERROR_SMS_UNAVAILABLE, __('codemart.errors.sms_unavailable'), null, 503);
+        }
         $otpData = $this->otpService->createOtpRecord($user->id, $request->phone);
+        if (!$otpData['delivered']) {
+            return $this->codedError(CodeMartV1Constants::ERROR_SMS_UNAVAILABLE, __('codemart.errors.sms_unavailable'), null, 503);
+        }
 
-        return $this->success($otpData, 'OTP sent to your phone');
+        return $this->success($otpData, __('codemart.messages.otp_sent_to_your_phone'));
     }
 
     public function verifyPhoneOtp(Request $request): JsonResponse
@@ -177,17 +183,17 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
         if (!$this->otpService->verifyOtp($user->id, $request->otp_code)) {
-            return $this->error('Invalid or expired OTP code', 422);
+            return $this->error(__('codemart.messages.invalid_or_expired_otp_code'), 422);
         }
 
         return $this->success([
             'user_id' => $user->id,
             'next_step' => 'kyc_verification',
-        ], 'Phone number verified successfully');
+        ], __('codemart.messages.phone_number_verified_successfully'));
     }
 
     public function uploadKycDocuments(Request $request): JsonResponse
@@ -206,7 +212,7 @@ class CodeMartV1RegistrationCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
         $idFrontPath = $this->fileUploadService->uploadKycImage(
@@ -228,7 +234,7 @@ class CodeMartV1RegistrationCtl extends Controller
         );
 
         if (!$idFrontPath || !$selfiePath) {
-            return $this->error('File upload failed', 500);
+            return $this->error(__('codemart.messages.file_upload_failed'), 500);
         }
 
         $kycVerification = CodeMartV1UserModel::runInTransaction(function () use ($request, $user, $idFrontPath, $idBackPath, $selfiePath) {
@@ -258,7 +264,7 @@ class CodeMartV1RegistrationCtl extends Controller
             'kyc_id' => $kycVerification->id,
             'verification_status' => 'pending',
             'next_step' => 'deposit_payment',
-        ], 'KYC documents uploaded. Awaiting manual verification.', 201);
+        ], __('codemart.messages.kyc_documents_uploaded_awaiting_manual_verification'), 201);
     }
 
     public function getRegistrationStatus(Request $request): JsonResponse
@@ -269,7 +275,7 @@ class CodeMartV1RegistrationCtl extends Controller
         $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);
 
         if (!$userModel) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('codemart.messages.user_not_found'));
         }
 
         $emailVerified = $userModel->email_verified_at !== null;

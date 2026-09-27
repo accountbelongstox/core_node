@@ -12,6 +12,7 @@
 
 const express = require('express');
 const logger = require('#@logger');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 const translationService = require('./libs/translation_service');
 const { loadConfig } = require('./config/config_loader');
 
@@ -49,7 +50,7 @@ async function handleTranslate(req, res) {
   res.status(200).json(result);
 }
 
-function startHttpService(port) {
+function startHttpService(port, host) {
   if (server) {
     logger.warn('Translation HTTP service already running');
     return server;
@@ -57,9 +58,12 @@ function startHttpService(port) {
 
   config = loadConfig();
   port = port || config.PORT || 36315;
+  host = localRpcGuard.resolveBindHost(host || config.HOST);
 
   app = express();
-  app.use(express.json());
+  app.use(localRpcGuard.createExpressGuard());
+  app.use(express.json({ verify: localRpcGuard.captureRawBody }));
+  app.use(localRpcGuard.createExpressBodyDigestCheck());
 
   app.post('/translate', async (req, res) => {
     try {
@@ -79,8 +83,8 @@ function startHttpService(port) {
     res.status(404).json({ message: 'error url, only /translate is provided' });
   });
 
-  server = app.listen(port, () => {
-    logger.info('Translation HTTP service is running at http://localhost:' + port);
+  server = app.listen(port, host, () => {
+    logger.info('Translation HTTP service is running at http://' + host + ':' + port);
   });
 
   return server;

@@ -1,0 +1,2 @@
+- [Vortex CRLF files](vortex-crlf-files.md) — vortex sources are CRLF; scripted edits need newline='' or the Edit tool
+- [Vortex i18n namespace](vortex-i18n-namespace.md) — `vx` locale bundles, en/zh only, EndNamespace lives in the shared shell layer

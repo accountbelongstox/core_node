@@ -180,8 +180,9 @@ const CmDashboardPage: React.FC = () => {
   }
 
   const onboarding = bootstrap.onboarding;
-  const doneSteps = onboarding.steps.filter((step) => step.completed).length;
-  const progress = onboarding.steps.length > 0 ? Math.round((doneSteps / onboarding.steps.length) * 100) : 100;
+  const requiredSteps = onboarding.steps.filter((step) => !step.optional);
+  const doneSteps = requiredSteps.filter((step) => step.completed).length;
+  const progress = requiredSteps.length > 0 ? Math.round((doneSteps / requiredSteps.length) * 100) : 100;
   const nextStep = onboarding.next_step;
   const metrics = METRICS.filter((metric) => hasCapability(metric.capability) && (!metric.roles || metric.roles.some((role) => hasRole(role))));
   const shortcuts = SHORTCUTS.filter((shortcut) => hasCapability(shortcut.capability) && (!shortcut.role || hasRole(shortcut.role) || bootstrap.is_admin));
@@ -226,10 +227,10 @@ const CmDashboardPage: React.FC = () => {
             <span>{t('dashboard.nextStepLabel')}</span>
             <h2>{t(`dashboard.stepTitles.${nextStep}`, { defaultValue: t(`verification.steps.${nextStep}`, { defaultValue: nextStep }) })}</h2>
             <p>{t(`dashboard.stepHints.${nextStep}`, { defaultValue: t('dashboard.stepHints.default') })}</p>
-            <div className="cm-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={t('dashboard.progressLabel', { done: doneSteps, total: onboarding.steps.length })}>
+            <div className="cm-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={t('dashboard.progressLabel', { done: doneSteps, total: requiredSteps.length })}>
               <span style={{ width: `${progress}%` }} />
             </div>
-            <small>{t('dashboard.progressLabel', { done: doneSteps, total: onboarding.steps.length })}</small>
+            <small>{t('dashboard.progressLabel', { done: doneSteps, total: requiredSteps.length })}</small>
           </div>
           <Link to={STEP_ROUTES[nextStep] ?? DEFAULT_STEP_ROUTE} className="cm-workspace-button is-primary">
             {t('dashboard.continueStep')} <ArrowRight aria-hidden="true" />

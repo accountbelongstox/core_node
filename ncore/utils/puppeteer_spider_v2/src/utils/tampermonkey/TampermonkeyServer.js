@@ -18,6 +18,7 @@ const WebSocket = require('ws');
 const logger = require('#@logger');
 const { getThreadBus } = require('#@thread_bus');
 
+const INVALID_PAGE_PAYLOAD = 'invalid_page_payload';
 let sharedInstance = null;
 let sharedStartPromise = null;
 
@@ -362,7 +363,11 @@ class TampermonkeyServer extends EventEmitter {
         req.on('end', async () => {
             try {
                 const pageData = JSON.parse(body);
-                await this.processPagePayload(pageData);
+                if (!(await this.processPagePayload(pageData))) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: false, error: INVALID_PAGE_PAYLOAD }));
+                    return;
+                }
 
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
@@ -383,7 +388,8 @@ class TampermonkeyServer extends EventEmitter {
 
     async processPagePayload(pageData = {}) {
         if (!pageData || !pageData.content || !pageData.url) {
-            throw new Error('Invalid page payload received');
+            logger.error('[TAMPERMONKEY-SERVER] Invalid page payload received');
+            return false;
         }
 
         const sourceType = (pageData.sourceType || 'page').toLowerCase();
@@ -403,6 +409,7 @@ class TampermonkeyServer extends EventEmitter {
         }
 
         this.emit('page', pageData);
+        return true;
     }
 
     async handleComplete(req, res) {

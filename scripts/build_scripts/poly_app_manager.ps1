@@ -80,19 +80,19 @@ switch ($PROJECT_TYPE) {
                     $EFFECTIVE_ACTION = "build"
 
                     Write-Host ""
-                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
-                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
+                    Write-Host "| ACTION CONVERSION (Windows Platform Limitation)                         |" -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
                     Write-Host "  User selected action  : $SELECTED_ACTION" -ForegroundColor Cyan
                     Write-Host "  User selected platform: $SELECTED_PLATFORM" -ForegroundColor Cyan
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Windows constraint    : Cannot create systemd services" -ForegroundColor Yellow
                     Write-Host "  Required operation    : Build only (no deployment service)" -ForegroundColor Yellow
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Effective action      : $EFFECTIVE_ACTION" -ForegroundColor Green
                     Write-Host ""
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
 
                     # Run validation for build mode
@@ -213,19 +213,19 @@ switch ($PROJECT_TYPE) {
                     $EFFECTIVE_ACTION = "build"
 
                     Write-Host ""
-                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
-                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
+                    Write-Host "| ACTION CONVERSION (Windows Platform Limitation)                         |" -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
                     Write-Host "  User selected action  : $SELECTED_ACTION" -ForegroundColor Cyan
                     Write-Host "  User selected platform: $SELECTED_PLATFORM" -ForegroundColor Cyan
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Windows constraint    : Cannot create systemd services" -ForegroundColor Yellow
                     Write-Host "  Required operation    : Build only (no deployment service)" -ForegroundColor Yellow
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Effective action      : $EFFECTIVE_ACTION" -ForegroundColor Green
                     Write-Host ""
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
 
                     # Run validation for build mode

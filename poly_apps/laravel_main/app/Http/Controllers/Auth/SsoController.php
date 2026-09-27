@@ -71,12 +71,12 @@ class SsoController extends Controller
         $provider = $request->input('provider', 'authkit');
 
         if (!$workosApiKey || !$workosClientId) {
-            return $this->error('WorkOS API key or Client ID not configured', 400);
+            return $this->error(__('api.messages.workos_api_key_or_client_id_not'), 400);
         }
 
         try {
             if (!class_exists('\WorkOS\WorkOS')) {
-                return $this->error('WorkOS PHP SDK not installed. Please run: composer require workos/workos-php', 500);
+                return $this->error(__('api.messages.workos_php_sdk_not_installed_please_run'), 500);
             }
 
             $workos = new \WorkOS\WorkOS($workosApiKey);
@@ -100,13 +100,13 @@ class SsoController extends Controller
             return $this->success([
                 'url' => $authorizationUrl,
                 'state' => $state,
-            ], 'Authorization URL generated successfully');
+            ], __('api.messages.authorization_url_generated_successfully'));
         } catch (\Exception $e) {
             Log::error('WorkOS authorization URL generation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return $this->error('Failed to generate authorization URL: ' . $e->getMessage(), 500);
+            return $this->error(__('api.messages.failed_to_generate_authorization_url') . $e->getMessage(), 500);
         }
     }
 
@@ -192,7 +192,7 @@ class SsoController extends Controller
                     'token' => $token,
                     'token_type' => 'Bearer',
                     'expiration' => config('sanctum.expiration'),
-                ], 'Authentication successful');
+                ], __('api.messages.authentication_successful'));
             }
 
             $html = file_get_contents(public_path('debug-assets/debug-tools/sections/sso-section.html'));
@@ -238,7 +238,7 @@ class SsoController extends Controller
                 return $this->success([
                     'user' => $userArray,
                     'token' => $token,
-                ], 'User session retrieved');
+                ], __('api.messages.user_session_retrieved'));
             } else {
                 $userId = $sessionUser['id'] ?? null;
                 if ($userId && is_numeric($userId)) {
@@ -250,7 +250,7 @@ class SsoController extends Controller
                         return $this->success([
                             'user' => $userArray,
                             'token' => null,
-                        ], 'User session retrieved');
+                        ], __('api.messages.user_session_retrieved'));
                     }
                 }
                 $formattedUser = [
@@ -264,14 +264,14 @@ class SsoController extends Controller
                     'lastName' => $sessionUser['lastName'] ?? null,
                     'profilePictureUrl' => $sessionUser['profilePictureUrl'] ?? null,
                 ];
-                return $this->success(['user' => $formattedUser], 'User session retrieved');
+                return $this->success(['user' => $formattedUser], __('api.messages.user_session_retrieved'));
             }
         }
 
         return $this->success([
             'user' => null,
             'authenticated' => false,
-        ], 'No authenticated user');
+        ], __('api.messages.no_authenticated_user'));
     }
 
     /**
@@ -285,7 +285,7 @@ class SsoController extends Controller
         $password = $request->input('password');
 
         if (!$identifier || !$password) {
-            return $this->error('Email/username and password are required', 400);
+            return $this->error(__('api.messages.email_username_and_password_are_required'), 400);
         }
 
         $useWorkOS = $this->credentials->supportsPasswordAuthentication();
@@ -304,7 +304,7 @@ class SsoController extends Controller
     {
         try {
             if (!class_exists('\WorkOS\WorkOS')) {
-                return $this->error('WorkOS PHP SDK not installed. Please run: composer require workos/workos-php', 500);
+                return $this->error(__('api.messages.workos_php_sdk_not_installed_please_run'), 500);
             }
 
             $workosApiKey = $this->credentials->apiKey();
@@ -349,13 +349,13 @@ class SsoController extends Controller
                 'token' => $token,
                 'token_type' => 'Bearer',
                 'expiration' => config('sanctum.expiration'),
-            ], 'Authentication successful');
+            ], __('api.messages.authentication_successful'));
         } catch (\Exception $e) {
             Log::error('WorkOS password authentication failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return $this->error('Authentication failed: ' . $e->getMessage(), 401);
+            return $this->error(__('api.messages.authentication_failed') . $e->getMessage(), 401);
         }
     }
 
@@ -369,11 +369,11 @@ class SsoController extends Controller
         $user = User::findByUsernameEmailOrPhone($identifier);
 
         if (!$user) {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         if (!Hash::check($password, $user->password)) {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         $credentials = [];
@@ -388,7 +388,7 @@ class SsoController extends Controller
         }
 
         if (!Auth::attempt($credentials, $request->boolean('remember'))) {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         $request->session()->regenerate();
@@ -417,7 +417,7 @@ class SsoController extends Controller
             'token' => $token,
             'token_type' => 'Bearer',
             'expiration' => config('sanctum.expiration'),
-        ], 'Authentication successful');
+        ], __('api.messages.authentication_successful'));
     }
 
     /**
@@ -478,6 +478,6 @@ class SsoController extends Controller
         $request->session()->forget('workos_user');
         $request->session()->forget('workos_state');
         
-        return $this->success([], 'Logged out successfully');
+        return $this->success([], __('api.messages.logged_out_successfully'));
     }
 }

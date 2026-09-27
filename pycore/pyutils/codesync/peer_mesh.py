@@ -28,20 +28,19 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
-    http as requests,
     emit_event,
     is_shutdown_requested,
     register_shutdown_handler,
     THREAD_BUS,
     init_serialized_owner,
     serialized_method,
+    signed_peer_request,
     start_bus_task,
 )
 from pycore.pyutils.codesync.peer_config import PeerConfig, _local_lan_ip
@@ -139,7 +138,7 @@ class PeerMeshManager:
 
     def _probe(self, peer: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:
-            r = requests.get(self._peer_url(peer, routes.PEER_STATUS_PATH), timeout=PROBE_TIMEOUT)
+            r = signed_peer_request("GET", self._peer_url(peer, routes.PEER_STATUS_PATH), timeout=PROBE_TIMEOUT)
             if r.status_code == 200:
                 return r.json()
         except Exception:
@@ -305,9 +304,10 @@ class PeerMeshManager:
         local: Dict[str, Any],
     ) -> Optional[Dict[str, Any]]:
         try:
-            response = http_progress_client.post(
+            response = signed_peer_request(
+                "POST",
                 self._peer_url(peer, routes.PEER_HEARTBEAT_PATH),
-                json=local,
+                local,
                 timeout=PROBE_TIMEOUT,
             )
             if response.status_code == 200:
@@ -372,8 +372,8 @@ class PeerMeshManager:
         pid = peer.get("id")
         payload = self.config.to_payload()
         try:
-            r = http_progress_client.post(self._peer_url(peer, routes.PEER_CONFIG_PATH),
-                              json=payload, timeout=PROBE_TIMEOUT)
+            r = signed_peer_request("POST", self._peer_url(peer, routes.PEER_CONFIG_PATH),
+                                    payload, timeout=PROBE_TIMEOUT)
             ok = r.status_code == 200
         except Exception:
             ok = False
@@ -419,7 +419,8 @@ class PeerMeshManager:
 
         def check(ip: str):
             try:
-                r = requests.get(
+                r = signed_peer_request(
+                    "GET",
                     f"http://{ip}:{scan_port}{routes.PEER_STATUS_PATH}",
                     timeout=1,
                 )

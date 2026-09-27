@@ -24,7 +24,7 @@ class RealtimeConnectionService
             // and cannot obtain the cookie-issued session token. Fall back to
             // the token-less form when the hub subscriber key is missing —
             // consumers then degrade to polling instead of losing the overview.
-            $connection = RelayHubAuthService::issueForTopics('queue-center', $topics);
+            $connection = RelayHubAuthService::issueForTopics(QueueCenterContract::realtimeTopic(), $topics);
         } catch (\Throwable $e) {
             Log::warning('[QueueCenter] Mercure subscriber token not issued', [
                 'error' => $e->getMessage(),

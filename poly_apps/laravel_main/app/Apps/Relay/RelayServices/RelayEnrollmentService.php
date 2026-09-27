@@ -247,6 +247,37 @@ final class RelayEnrollmentService
         }, 3);
     }
 
+    /**
+     * A device whose enrollment request also carries a valid client-key
+     * signature holds the shared machine key, so it is claimed for the public
+     * fleet owner at once instead of waiting for a web-login claim.
+     */
+    public function approveWithClientKey(array $created): array
+    {
+        $owner = RelayFleetScope::publicOwner();
+        $claimCode = (string) ($created['enrollment']['claim_code'] ?? '');
+        $claimed = [];
+
+        if ($owner === null
+            || $claimCode === ''
+            || (string) ($created['enrollment']['state'] ?? '') !== RelayConstants::ENROLLMENT_PENDING) {
+            return $created;
+        }
+        try {
+            $claimed = $this->claim((int) $owner->getAuthIdentifier(), $claimCode);
+        } catch (RelayDomainException $exception) {
+            Log::info('[Relay] Client-key enrollment approval skipped', [
+                'enrollment_id' => (string) ($created['enrollment']['enrollment_id'] ?? ''),
+                'reason' => $exception->relayErrorCode(),
+            ]);
+
+            return $created;
+        }
+        $claimed['enrollment']['claim_code'] = $claimCode;
+
+        return $claimed;
+    }
+
     public function autoClaimPending(int $userId): int
     {
         $enrollments = RelayEnrollmentModel::query()

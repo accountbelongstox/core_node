@@ -14,7 +14,7 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const { execCmd } = require('#@commander');
-const bdir = require('#@/ncore/global_vars/global_dir/globaldir.js');
+const bdir = require('#@ncore/utils/softinstall/binary_dir.js');
 const gconfig = require('#@gconfig');
 const logger = require('#@logger');
 

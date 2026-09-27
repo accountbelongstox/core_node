@@ -75,8 +75,7 @@ const checkEdgeTTS = (pythonPath, pipPath) => {
 const installEdgeTTS = async ( pythonPath, pipPath ) => {
     try {
         log.info('Installing edge-tts...');
-        await pipeExecCmd(`"${pipPath}" install --break-system-packages edge-tts`);
-        return true;
+        return pipeExecCmd(`"${pipPath}" install --break-system-packages edge-tts`) !== null;
     } catch (error) {
         log.error(`Failed to install edge-tts: ${error.message}`);
         return false;

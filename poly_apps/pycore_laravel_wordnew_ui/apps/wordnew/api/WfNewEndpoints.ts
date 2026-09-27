@@ -183,12 +183,13 @@ class WfNewEndpointManager {
 
   // ---- selection + queries ----
 
-  /** Pin an endpoint as the user choice (persisted by the core manager). */
-  setEndpoint(id: string, saveAsUserChoice = true): boolean {
-    const ok = apiManager.setEndpoint(id, saveAsUserChoice);
+  /** Verified user switch: the core probes first and pins only a reachable
+   *  endpoint; a dead or mixed-content-blocked target changes nothing. */
+  async switchEndpoint(id: string, timeout?: number): Promise<{ ok: boolean; error: string | null }> {
+    const { ok, result } = await apiManager.switchEndpoint(id, timeout);
     this.emit();
-    if (ok) void this.recheckAndFailover();
-    return ok;
+    this.syncLoop();
+    return { ok, error: ok ? null : result?.error ?? null };
   }
 
   /** Add a user endpoint (persisted in the core registry). Returns its id or ''. */

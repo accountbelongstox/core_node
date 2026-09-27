@@ -32,10 +32,13 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_SETTING_REQUIRED, tts_reason
 
 _AVAIL_SIGNAL = BusSignals.TTS_F5TTS_AVAILABLE
 _AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
 _LAST_SYNTH_ERROR = SerializedValue(None, "F5TTSErrorState")
+_REF_AUDIO_SETTING = "F5TTS_REF_AUDIO"
+_REF_TEXT_SETTING = "F5TTS_REF_TEXT"
 
 
 def base_url() -> str:
@@ -56,9 +59,9 @@ def _ref_text() -> str:
 
 def disabled_reason() -> Optional[str]:
     if _ref_audio() is None:
-        return "Set F5TTS_REF_AUDIO to a reference clip"
+        return tts_reason(TTS_REASON_SETTING_REQUIRED, setting=_REF_AUDIO_SETTING)
     if not _ref_text():
-        return "Set F5TTS_REF_TEXT to the reference transcript"
+        return tts_reason(TTS_REASON_SETTING_REQUIRED, setting=_REF_TEXT_SETTING)
     return None
 
 

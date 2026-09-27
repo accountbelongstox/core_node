@@ -21,6 +21,11 @@ class DeveloperHistoryExtractionTask extends OctaneTimerTaskAbstract
         return 'developer_history_extraction';
     }
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     public function getInterval(): int
     {
         return 10; // continuous fast probe

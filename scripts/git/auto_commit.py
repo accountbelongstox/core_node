@@ -173,7 +173,6 @@ class GitManager:
         config_commands = [
             ('user.name', git_username, 'Git username'),
             ('user.email', f'{git_username}@server.com', 'Git email'),
-            ('http.sslVerify', 'false', 'SSL verification'),
             ('credential.helper', 'cache', 'Credential caching')
         ]
 

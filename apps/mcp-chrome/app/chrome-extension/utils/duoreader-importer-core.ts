@@ -4,6 +4,7 @@
 
 import { normalizeCoverUrls } from '@/utils/cover-playback';
 import { MEDIA_PATHS } from '@/utils/api-paths';
+import { laravelFetch } from '@/services/LaravelTransport';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { md5Hex } from './binary';
 
@@ -362,7 +363,7 @@ export async function fetchBookIngestStatus(
     }
     const qs = params.toString();
     const url = `${baseUrl.replace(/\/+$/, '')}${BOOK_INGEST_STATUS_PATH}/${encodeURIComponent(sourceKey)}/ingest-status${qs ? `?${qs}` : ''}`;
-    const res = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
+    const res = await laravelFetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!res.ok) {
       return empty;
     }
@@ -520,7 +521,7 @@ export async function postIngest(
   body: Record<string, unknown>,
 ): Promise<{ ok: boolean; status: number; detail: string }> {
   const url = `${baseUrl.replace(/\/+$/, '')}${INGEST_PATH}`;
-  const res = await fetch(url, {
+  const res = await laravelFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
@@ -614,7 +615,7 @@ export async function uploadSlotAudio(params: {
   form.append('audio', blob, `${contentId}.${ext}`);
 
   try {
-    const res = await fetch(url, { method: 'POST', body: form });
+    const res = await laravelFetch(url, { method: 'POST', body: form });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data?.ok !== false) {
       return { ok: true, status: data.status || 'completed', variantKey };

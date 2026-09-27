@@ -188,7 +188,8 @@ class CodeMartV1Constants
     public const DEPOSIT_STATUS_FAILED = 'failed';
     public const DEPOSIT_STATUS_REFUNDED = 'refunded';
     public const DEPOSIT_STATUS_REJECTED = 'rejected';
-    public const DEPOSIT_PAYMENT_METHODS = ['alipay', 'wechat', 'bank_transfer'];
+    // Only bank transfer is offered until a signed Alipay / WeChat gateway integration exists.
+    public const DEPOSIT_PAYMENT_METHODS = ['bank_transfer'];
     public const DEPOSIT_MIN_AMOUNT = 100;
 
     // Withdrawal Status
@@ -220,9 +221,19 @@ class CodeMartV1Constants
 
     // Business reference prefixes stored on payments.business_ref
     public const BUSINESS_REF_TASK_RELEASE = 'task_release:';
+    public const ESCROW_ERROR_TASK_BUDGET_MISSING = 'task_budget_missing';
+    public const ERROR_ESCROW_NOT_FOUND = 'escrow_not_found';
+    public const ERROR_ESCROW_NOT_REFUNDABLE = 'escrow_not_refundable';
+    public const ESCROW_REFUND_REASON_ADMIN = 'admin_refund';
+    public const ERROR_SMS_UNAVAILABLE = 'sms_unavailable';
+    // SMS provider implementations the OTP service can send through. The
+    // runtime key CODEMART_SMS_PROVIDER selects one; with none configured,
+    // phone verification is optional in onboarding.
+    public const SMS_PROVIDERS = [];
+    public const SMS_PROVIDER_CONFIG_KEY = 'CODEMART_SMS_PROVIDER';
 
     // Idempotency
-    public const IDEMPOTENCY_HEADER = 'Idempotency-Key';
+    public const IDEMPOTENCY_HEADER = \App\Http\Middleware\IdempotentRequest::HEADER;
     public const IDEMPOTENCY_KEY_MAX_LENGTH = 255;
 
     // Dispute resolutions
@@ -745,6 +756,7 @@ class CodeMartV1Constants
                 ],
                 'rating_range' => [self::MIN_RATING, self::MAX_RATING],
                 'payment_methods' => self::getAllPaymentMethods(),
+                'deposit_payment_methods' => self::DEPOSIT_PAYMENT_METHODS,
             ],
         ];
     }

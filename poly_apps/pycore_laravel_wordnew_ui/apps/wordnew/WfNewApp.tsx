@@ -575,6 +575,7 @@ export const WfNewApp: React.FC = () => {
               exit={{ opacity: 0, y: -15 }}
             >
               <WfNewBookReader
+                key={bookReader.sourceKey}
                 sourceKey={bookReader.sourceKey}
                 title={bookReader.title}
                 activeTheme={activeTheme}

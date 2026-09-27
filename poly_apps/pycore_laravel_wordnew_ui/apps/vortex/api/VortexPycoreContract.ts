@@ -10,7 +10,6 @@ export const VORTEX_PYCORE_HTTP_ROUTES = {
   metrics: 'okx/metrics',
   preopen: 'okx/preopen',
   quantInfo: 'okx/quant_info',
-  revealCredentials: 'okx/reveal_credentials',
   serialize: 'okx/serialize',
   setSettings: 'okx/set_settings',
   sparklines: 'okx/sparklines',

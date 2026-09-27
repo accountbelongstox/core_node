@@ -457,12 +457,29 @@ class LaravelDeliveryOutbox:
             / f"{source_sha256}{source_path.suffix or '.bin'}"
         )
         retained_path.parent.mkdir(parents=True, exist_ok=True)
-        if retained_path.is_file():
-            if hashlib.sha256(retained_path.read_bytes()).hexdigest() != source_sha256:
-                raise ValueError("retained payload digest conflicts with the staged delivery")
-        else:
-            shutil.copy2(str(source_path), str(retained_path))
+        # The file name is the content digest; an existing file with another
+        # digest is a torn copy and is replaced atomically.
+        if not retained_path.is_file() or hashlib.sha256(retained_path.read_bytes()).hexdigest() != source_sha256:
+            temporary = retained_path.with_name(f"{retained_path.name}.partial.{uuid.uuid4().hex}")
+            shutil.copy2(str(source_path), str(temporary))
+            os.replace(str(temporary), str(retained_path))
         return {"payload_path": str(retained_path), "payload_sha256": source_sha256}
+
+    def _release_payload(self, row: Dict[str, Any]) -> None:
+        """Delete a retained payload copy once no row references it."""
+        payload_path = str(row.get("payload_path") or "")
+        if not payload_path or self._repository().payload_referenced(
+            str(row.get("kind") or ""),
+            str(row.get("identity") or "").strip(),
+            _logical_id(str(row.get("delivery_id") or "")),
+            str(row.get("payload_sha256") or ""),
+        ):
+            return
+        retained = Path(payload_path)
+        if retained.is_file():
+            retained.unlink()
+        if retained.parent.is_dir() and not any(retained.parent.iterdir()):
+            retained.parent.rmdir()
 
     def _inherit_identity(self, row: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Adopt a delivered identity of the SAME server from its state
@@ -519,8 +536,17 @@ class LaravelDeliveryOutbox:
                 return {"delivery_id": delivery_id, "namespace": namespace, "already_delivered": True}
         current_sha256 = str(current.get("payload_sha256") or "")
         proposed_sha256 = str(record.get("payload_sha256") or "")
+        replaced: Dict[str, Any] = {}
         if current_sha256 and proposed_sha256 and current_sha256 != proposed_sha256:
-            raise ValueError("delivery payload digest conflicts with the idempotent step")
+            if _lease_active(current, _now()):
+                # The old bytes are being delivered right now; the next diff
+                # re-opens the item for the new bytes.
+                return copy.deepcopy(current)
+            # New bytes for the same delivery (e.g. a re-synthesis): the new
+            # payload restarts the delivery from its first step.
+            replaced = current
+            current = {}
+            current_sha256 = ""
         row = copy.deepcopy(current)
         row.update(copy.deepcopy(record))
         row["delivery_id"] = delivery_id
@@ -546,6 +572,8 @@ class LaravelDeliveryOutbox:
                 row["payload_sha256"] = current_sha256
         self._inherit_identity(row)
         self._save(row)
+        if replaced:
+            self._release_payload(replaced)
         return copy.deepcopy(row)
 
     # ------------------------------------------------------------------ #
@@ -676,6 +704,7 @@ class LaravelDeliveryOutbox:
                 namespace, str(shared["kind"]), str(shared["item_key"]), "", {"via": kind}, now,
             )
         self._repository().delete(str(delivery_id))
+        self._release_payload(row)
         self._repository().note_metrics(namespace, kind, now, True, "", False)
         if now - self._receipts_pruned_at >= DELIVERY_RECEIPT_PRUNE_INTERVAL_SECONDS:
             self._receipts_pruned_at = now

@@ -17,7 +17,7 @@ export function coordinateRequest<T>(
   if (pending) return pending;
 
   const request = operation().then((value) => {
-    recentResponses.set(key, { value, expiresAt: Date.now() + Math.max(0, ttlMs) });
+    if (ttlMs > 0) recentResponses.set(key, { value, expiresAt: Date.now() + ttlMs });
     return value;
   }).finally(() => {
     pendingRequests.delete(key);

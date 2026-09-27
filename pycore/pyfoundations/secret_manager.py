@@ -22,6 +22,12 @@ from pycore.pyfoundations.serialized_worker import SerializedValue
 from pathlib import Path
 from typing import Dict, List, Optional
 
+# The password reaches each encrypted tool through this runner's stdin; it is
+# never part of any process command line (scripts/encryption_tools).
+_PASSWORD_RUNNER = Path(__file__).resolve().parents[2] / "scripts" / "encryption_tools" / "secret_password_runner.js"
+_PASSWORD_STDIN_ARG = "--password-stdin"
+_DECRYPT_TIMEOUT_SECONDS = 30
+
 _BATCH_DECRYPTION_ATTEMPTED = SerializedValue(
     False,
     "SecretDecryptionAttemptStateThread",
@@ -190,10 +196,9 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
 
         try:
             result = exec_silent(
-                ['node', str(encrypted_file), 'pwd', password, str(raw_dir)],
-                capture_output=True,
-                text=True,
-                timeout=30
+                ['node', str(_PASSWORD_RUNNER), str(encrypted_file), 'pwd', _PASSWORD_STDIN_ARG, str(raw_dir)],
+                input=password,
+                timeout=_DECRYPT_TIMEOUT_SECONDS,
             )
 
             if result.return_code == 0:

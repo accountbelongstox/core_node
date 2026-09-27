@@ -20,6 +20,8 @@ const PUPPETEER_NAVIGATION_TIMEOUT_MINUTES = PUPPETEER_NAVIGATION_TIMEOUT_MS / 6
 const path = require('path');
 // const fs = require('fs');
 const os = require('os');
+// Single debug flag definition: the foundation logger parses the debug argument
+const { isDebug } = require('#@logger');
 const gdir = require('./global_dir/globaldir.js');
 const env = require('./libs/env.js');
 const { getAppName, getIsServer, getIsService, apps } = require('./libs/app_parameter.js');
@@ -73,25 +75,6 @@ const request_headers = {
     'Upgrade-Insecure-Requests': '1',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 }
-function isDebugEnabled() {
-    const args = process.argv.slice(2); // Exclude node and script path
-    for (const arg of args) {
-        const [key, value] = arg.split('=').map(str => str.trim().toLowerCase());
-
-        if (key === 'debug') {
-            if (value != "false" || value != "0") {
-                return true
-            }
-            return false;
-        }
-
-        if (key === 'debug=true') return true; // Handles cases like --DEBUG=true
-        if (key == 'debug=false') return false;
-    }
-
-    return false; // Default is false if not found
-}
-const isDebug = isDebugEnabled()
 const app = {
     appname,
     coredir,

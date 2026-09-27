@@ -25,7 +25,7 @@ final class DataSyncSessionRuntime
             if ($this->cancelRequested($id)) {
                 $job = $this->store->get($id);
                 if ($job !== null && $this->isActive($job)) {
-                    $this->finish($job, 'cancelled', DataSyncProtocol::CANCELLED_MESSAGE);
+                    $this->finish($job, 'cancelled', DataSyncProtocol::cancelledMessage());
                 }
                 throw new DataSyncAbortException();
             }

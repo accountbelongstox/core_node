@@ -234,8 +234,8 @@ class Logger {
         };
 
         this.isDebug = isDebugEnabled()
-        // Start namespace cleanup interval
-        setInterval(() => interval.cleanup(this), interval.INACTIVE_THRESHOLD);
+        // Start namespace cleanup interval; housekeeping must not keep the process alive
+        setInterval(() => interval.cleanup(this), interval.INACTIVE_THRESHOLD).unref();
     }
 
     /**

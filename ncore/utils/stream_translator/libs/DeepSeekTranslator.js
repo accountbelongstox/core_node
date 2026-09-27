@@ -17,11 +17,14 @@ const logger = require('./Logger.js');
 const { Worker } = require('worker_threads');
 const { getSharedDownloadCacheDir } = require('../../../foundation/common/system_paths.js');
 
+const DEFAULT_PYTHON_COMMAND = process.platform === 'win32' ? 'python' : 'python3';
+
 class DeepSeekTranslator {
     constructor(options = {}) {
         this.modelPath = options.modelPath || 'deepseek-ai/deepseek-vl-1.3b-chat';
         this.modelDir = options.modelDir || null;
-        this.pythonCommand = options.pythonCommand || 'python';
+        this.pythonCommand = options.pythonCommand || DEFAULT_PYTHON_COMMAND;
+        this.outputBuffer = '';
         this.process = null;
         this.isReady = false;
         this.requestQueue = [];
@@ -124,29 +127,34 @@ class DeepSeekTranslator {
     }
 
     handleModelOutput(output) {
-        try {
-            const lines = output.split('\n');
-            let i;
+        // Stdout chunks can split a JSON line; keep the unfinished tail for the next chunk
+        const lines = (this.outputBuffer + output).split('\n');
+        this.outputBuffer = lines.pop();
 
-            for (i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (line.startsWith('{') && line.endsWith('}')) {
-                    const response = JSON.parse(line);
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line.startsWith('{') || !line.endsWith('}')) {
+                continue;
+            }
 
-                    if (response.id !== undefined && this.responseHandlers.has(response.id)) {
-                        const handler = this.responseHandlers.get(response.id);
-                        this.responseHandlers.delete(response.id);
+            let response;
+            try {
+                response = JSON.parse(line);
+            } catch (error) {
+                logger.error('Error parsing model output: ' + error.message);
+                continue;
+            }
 
-                        if (response.error) {
-                            handler.reject(new Error(response.error));
-                        } else {
-                            handler.resolve(response.translation || response.text);
-                        }
-                    }
+            if (response.id !== undefined && this.responseHandlers.has(response.id)) {
+                const handler = this.responseHandlers.get(response.id);
+                this.responseHandlers.delete(response.id);
+
+                if (response.error) {
+                    handler.reject(new Error(response.error));
+                } else {
+                    handler.resolve(response.translation || response.text);
                 }
             }
-        } catch (error) {
-            logger.error('Error parsing model output: ' + error.message);
         }
     }
 

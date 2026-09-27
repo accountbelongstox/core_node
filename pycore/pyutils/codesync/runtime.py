@@ -1,44 +1,35 @@
 # -*- coding: utf-8 -*-
 """codesync.runtime - the bridge / shim layer."""
 
-import hashlib
-import json as _json
+import json
 import os
-import platform
-import re
 import socket
-import subprocess
 import sys
-import threading
-import time
-import uuid
-from collections import deque
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyutils.common.http_client import HttpClient
+from pycore.pyutils.common.client_key_auth import client_key_headers
+from pycore.pyutils.common.http_client import HttpClient, HttpResponse
 from pycore.pyutils.common.strtools.normalization import to_bool
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS as shared_thread_bus
-from pycore.pyfoundations.machine_id import INVALID_SMBIOS_UUIDS, SMBIOS_UUID_RE
+from pycore.pyfoundations.machine_id import (
+    get_hardware_machine_id as shared_get_hardware_machine_id,
+    get_machine_id as shared_get_machine_id,
+)
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
 from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir as _get_core_node_data_dir
 from pycore.pyfoundations.system_paths import (
     get_shared_download_cache_dir as _get_shared_download_cache_dir,
 )
 from pycore.pyfoundations.serialized_worker import (
+    BusTaskThread,
     SerializedWorkerThread as SharedSerializedWorkerThread,
     call_serialized as shared_call_serialized,
     init_serialized_owner as shared_init_serialized_owner,
     serialized_method,
+    start_bus_task as shared_start_bus_task,
 )
-
-try:
-    import winreg
-except ImportError:  # Windows-only standard-library module.
-    winreg = None
-
-
 
 
 class _ThreadBusProxy:
@@ -74,44 +65,12 @@ THREAD_BUS.signal(_LOCAL_SHUTDOWN_SIGNAL, False)
 THREAD_BUS.signal(_RUNTIME_CONFIG_SIGNAL, dict(_DEFAULT_RUNTIME_CONFIG))
 
 
-def _response_guard_name(response_signal: str) -> str:
-    return f"{response_signal}.waiting"
-
-
-def _publish_response(
-    response_signal: str,
-    response_guard: str,
-    response: Dict[str, Any],
-) -> None:
-    if not response_signal:
-        return
-    if response_guard:
-        THREAD_BUS.signal_if_present(response_guard, response_signal, response)
-        return
-    THREAD_BUS.signal(response_signal, response)
-
-
-class BusTaskThread(threading.Thread):
-    """Execute one callback delivered through the codesync THREAD_BUS proxy."""
-
-    def __init__(self, queue_name: str, thread_name: str, daemon: bool = True) -> None:
-        super().__init__(name=thread_name, daemon=daemon)
-        self._queue_name = queue_name
-
-    def run(self) -> None:
-        request = THREAD_BUS.receive_message(self._queue_name)
-        if not isinstance(request, dict):
-            return
-        response_signal = request.get("response_signal", "")
-        response_guard = request.get("response_guard", "")
-        try:
-            result = request["callback"](*request.get("args", ()), **request.get("kwargs", {}))
-            response = {"success": True, "result": result}
-        except Exception as exc:
-            response = {"success": False, "error": str(exc)}
+def _run_with_http_cleanup(callback: Callable, *args: Any, **kwargs: Any) -> Any:
+    """Run one Code Sync task, then close the thread's pooled HTTP client."""
+    try:
+        return callback(*args, **kwargs)
+    finally:
         http.close_current_thread()
-        _publish_response(response_signal, response_guard, response)
-        THREAD_BUS.clear_queue(self._queue_name)
 
 
 def start_bus_task(
@@ -122,27 +81,16 @@ def start_bus_task(
     response_signal: str = "",
     **kwargs: Any,
 ) -> BusTaskThread:
-    """Start a named Thread subclass whose task payload crosses THREAD_BUS."""
-    queue_name = f"codesync.bus_task.{uuid.uuid4().hex}"
-    response_guard = _response_guard_name(response_signal) if response_signal else ""
-    if response_guard:
-        THREAD_BUS.signal(response_guard, True)
-    THREAD_BUS.send_message(queue_name, {
-        "callback": callback,
-        "args": args,
-        "kwargs": kwargs,
-        "response_signal": response_signal,
-        "response_guard": response_guard,
-    })
-    worker = BusTaskThread(queue_name, thread_name, daemon)
-    try:
-        worker.start()
-    except Exception:
-        THREAD_BUS.clear_queue(queue_name)
-        if response_guard:
-            THREAD_BUS.clear_signal(response_guard)
-        raise
-    return worker
+    """The shared pyfoundations bus task, plus per-thread HTTP client cleanup."""
+    return shared_start_bus_task(
+        _run_with_http_cleanup,
+        callback,
+        *args,
+        thread_name=thread_name,
+        daemon=daemon,
+        response_signal=response_signal,
+        **kwargs,
+    )
 
 
 SerializedWorkerThread = partial(SharedSerializedWorkerThread, bus=THREAD_BUS)
@@ -267,6 +215,30 @@ log = _Log()
 # Shared HTTP client. It exposes the requests-compatible subset Code Sync uses. #
 # --------------------------------------------------------------------------- #
 http = HttpClient()
+PEER_JSON_CONTENT_TYPE = "application/json"
+
+
+def signed_peer_headers(method: str, url: str, body: bytes = b"", content_type: str = "") -> Dict[str, str]:
+    """K3 headers for one call to another pycore (K7: a non-loopback caller signs)."""
+    return client_key_headers(method, url, body, content_type)
+
+
+def signed_peer_request(
+    method: str,
+    url: str,
+    payload: Any = None,
+    timeout: Optional[float] = None,
+) -> HttpResponse:
+    """Every Code Sync peer call: the JSON body is encoded once and those exact
+    bytes are signed (K3), so the peer's K7 gate admits the request."""
+    body = (
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if payload is not None
+        else None
+    )
+    headers = {"Content-Type": PEER_JSON_CONTENT_TYPE} if body is not None else {}
+    headers.update(signed_peer_headers(method, url, body or b"", headers.get("Content-Type", "")))
+    return http.request(method, url, timeout=timeout, headers=headers, body=body)
 
 
 # --------------------------------------------------------------------------- #
@@ -322,119 +294,8 @@ def request_local_shutdown() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# identity + paths (stdlib; identical results to the pycore helpers)           #
+# identity + paths                                                             #
 # --------------------------------------------------------------------------- #
-_INVALID_SMBIOS_UUIDS = INVALID_SMBIOS_UUIDS
-_SMBIOS_UUID_RE = SMBIOS_UUID_RE
-
-
-def _subprocess_no_window() -> int:
-    return subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-
-
-def _normalize_uuid(value: str) -> str:
-    return value.strip().lower()
-
-
-def _is_valid_smbios_uuid(value: Optional[str]) -> bool:
-    if not value:
-        return False
-    norm = _normalize_uuid(value)
-    if norm in _INVALID_SMBIOS_UUIDS:
-        return False
-    if norm.replace("-", "") == "0" * 32:
-        return False
-    return bool(_SMBIOS_UUID_RE.match(norm))
-
-
-def _digest_id(prefix: str, raw: str) -> str:
-    return hashlib.sha256(f"{prefix}{raw}".encode("utf-8", errors="replace")).hexdigest()
-
-
-def _stdlib_windows_smbios_uuid() -> Optional[str]:
-    try:
-        if sys.platform != "win32":
-            return None
-        out = subprocess.run(
-            ["wmic", "csproduct", "get", "uuid"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            creationflags=_subprocess_no_window(),
-        )
-        if out.returncode != 0 or not out.stdout:
-            return None
-        lines = [l.strip() for l in out.stdout.splitlines()
-                 if l.strip() and l.strip().lower() != "uuid"]
-        return lines[0] if lines else None
-    except Exception:
-        return None
-
-
-def _stdlib_linux_smbios_uuid() -> Optional[str]:
-    if not sys.platform.startswith("linux"):
-        return None
-    for path in ("/sys/class/dmi/id/product_uuid",
-                 "/sys/devices/virtual/dmi/id/product_uuid"):
-        try:
-            with open(path, "r", encoding="utf-8", errors="replace") as fh:
-                value = (fh.read() or "").strip()
-                if value:
-                    return value
-        except Exception:
-            continue
-    return None
-
-
-def _stdlib_read_smbios_product_uuid() -> Optional[str]:
-    if sys.platform == "win32":
-        return _stdlib_windows_smbios_uuid()
-    if sys.platform.startswith("linux"):
-        return _stdlib_linux_smbios_uuid()
-    return None
-
-
-def _stdlib_machine_id() -> str:
-    """Replicates pycore.pyfoundations.machine_id.get_machine_id() exactly so
-    the self-entry id in the committed peers file is identical in both modes."""
-    raw: Optional[str] = None
-    try:
-        if sys.platform == "win32":
-            try:
-                key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                                     r"SOFTWARE\Microsoft\Cryptography", 0, winreg.KEY_READ)
-                guid, _ = winreg.QueryValueEx(key, "MachineGuid")
-                winreg.CloseKey(key)
-                raw = (guid or "").strip()
-            except Exception:
-                raw = None
-            if not raw:
-                raw = _stdlib_windows_smbios_uuid()
-        elif sys.platform.startswith("linux"):
-            for path in ("/etc/machine-id", "/var/lib/dbus/machine-id"):
-                try:
-                    with open(path, "r", encoding="utf-8", errors="replace") as fh:
-                        mid = (fh.read() or "").strip()
-                        if mid:
-                            raw = mid
-                            break
-                except Exception:
-                    continue
-    except Exception:
-        raw = None
-    if not raw:
-        raw = f"{platform.node()}|{uuid.getnode()}"
-    return _digest_id("", raw)
-
-
-def _stdlib_hardware_machine_id() -> str:
-    """Replicates pycore.pyfoundations.machine_id.get_hardware_machine_id()."""
-    raw = _stdlib_read_smbios_product_uuid()
-    if raw and _is_valid_smbios_uuid(raw):
-        return _digest_id("smbios:", _normalize_uuid(raw))
-    return _stdlib_machine_id()
-
-
 def get_machine_id() -> str:
     fn = _runtime_hook("machine_id")
     if fn is not None:
@@ -442,7 +303,7 @@ def get_machine_id() -> str:
             return fn()
         except Exception:
             pass
-    return _stdlib_machine_id()
+    return shared_get_machine_id()
 
 
 def get_hardware_machine_id() -> str:
@@ -452,7 +313,7 @@ def get_hardware_machine_id() -> str:
             return fn()
         except Exception:
             pass
-    return _stdlib_hardware_machine_id()
+    return shared_get_hardware_machine_id()
 
 
 def get_local_lan_ip() -> str:

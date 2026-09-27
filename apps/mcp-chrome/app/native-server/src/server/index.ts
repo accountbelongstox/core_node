@@ -1,11 +1,11 @@
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import cors from '@fastify/cors';
 import {
   NATIVE_SERVER_PORT,
   TIMEOUTS,
   SERVER_CONFIG,
   HTTP_STATUS,
   ERROR_MESSAGES,
+  LOCAL_RPC_GUARD_OPTIONS,
 } from '../constant';
 import {
   ExtensionConnectionError,
@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpServer } from '../mcp/mcp-server';
 import { SingletonHandler } from './singleton';
+import { localRpcGuard } from '../ncore';
 import { createLogger } from '../util/logger';
 
 const log = createLogger('Server');
@@ -70,9 +71,9 @@ export class Server {
   }
 
   private setupPlugins(): void {
-    this.fastify.register(cors, {
-      origin: SERVER_CONFIG.CORS_ORIGIN,
-    });
+    const guard = localRpcGuard.createFastifyGuard(LOCAL_RPC_GUARD_OPTIONS);
+    this.fastify.addHook('onRequest', guard.onRequest);
+    this.fastify.addHook('preParsing', guard.preParsing);
   }
 
   private setupRoutes(): void {

@@ -32,13 +32,12 @@ Standalone:
 
 import json
 import os
-import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import call_serialized
+from pycore.pyfoundations.serialized_worker import SerializedValue, call_serialized
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.tts import audio_utils
@@ -102,8 +101,7 @@ _BATCH_LIBRARIES: Dict[str, _Synthesizer] = {
     "qwen3tts": _qwen3tts_synthesize_words,
 }
 
-_RUN_LOCK = threading.Lock()
-_SELF_CHECK_THREAD_NAME = "TtsBatchStartupSelfCheck"
+_RUNNING = SerializedValue(False, "TtsBatchSelfCheckStateThread")
 
 # GPT-SoVITS zero-shot reference: official flow clones from a ~5s vocal sample
 # plus its transcript. Auto-provisioned with kokoro when the user has not
@@ -367,7 +365,7 @@ def run_selfcheck(
     lang: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Sequentially probe + batch-synthesize + release every batch-capable engine."""
-    if not _RUN_LOCK.acquire(blocking=False):
+    if not _RUNNING.compare_and_set(False, True):
         ColorPrint.yellow("[tts-selfcheck] already running; ignoring duplicate request")
         return {"status": "busy"}
     began = time.time()
@@ -410,32 +408,11 @@ def run_selfcheck(
         )
         return report
     finally:
-        _RUN_LOCK.release()
-
-
-def _selfcheck_main() -> None:
-    try:
-        run_selfcheck()
-    except Exception as exc:  # noqa: BLE001 - self-check must never crash startup
-        ColorPrint.red(f"[tts-selfcheck] sweep aborted: {exc}")
-
-
-def start_selfcheck_thread() -> Optional[threading.Thread]:
-    """Spawn the daemon self-check thread after startup; None when disabled."""
-    if not selfcheck_enabled():
-        return None
-    thread = threading.Thread(
-        target=_selfcheck_main,
-        name=_SELF_CHECK_THREAD_NAME,
-        daemon=True,
-    )
-    thread.start()
-    ColorPrint.blue("[tts-selfcheck] startup self-check thread started")
-    return thread
+        _RUNNING.set(False)
 
 
 if __name__ == "__main__":
     print(json.dumps(run_selfcheck(), ensure_ascii=False, indent=2))
 
 
-__all__ = ["selfcheck_enabled", "run_selfcheck", "start_selfcheck_thread"]
+__all__ = ["selfcheck_enabled", "run_selfcheck"]

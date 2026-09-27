@@ -75,6 +75,40 @@ final class RelayOutboxRepository
         }
     }
 
+    /**
+     * Next outbox revision for a device-originated event stream. Device
+     * revisions are not unique (a terminal counter restarts with pycore,
+     * agent-history uses epoch seconds), so the server keeps its own
+     * monotonic sequence per (entity, event type) under a transaction-scoped
+     * advisory lock; the time floor keeps it monotonic after outbox pruning.
+     * Returns null when the latest entry already carries the same metadata
+     * (a retried delivery). Call inside a transaction.
+     */
+    public function nextDeviceEventRevision(string $entityType, string $entityId, string $eventType, array $metadata): ?int
+    {
+        $latest = null;
+        $latestPayload = null;
+
+        DB::connection(RelayTablesMaps::connection())->select(
+            'SELECT pg_advisory_xact_lock(hashtextextended(CAST(? AS text), 0))',
+            [$entityType."\0".$entityId."\0".$eventType]
+        );
+        $latest = RelayOutboxModel::query()
+            ->where('entity_type', $entityType)
+            ->where('entity_id', $entityId)
+            ->where('event_type', $eventType)
+            ->orderByDesc('revision')
+            ->first();
+        $latestPayload = $latest !== null ? json_decode((string) $latest->payload, true) : null;
+        if (is_array($latestPayload)
+            && is_array($latestPayload['metadata'] ?? null)
+            && hash_equals(RelayContract::canonicalJson($latestPayload['metadata']), RelayContract::canonicalJson($metadata))) {
+            return null;
+        }
+
+        return max((int) ($latest?->revision ?? 0) + 1, time());
+    }
+
     public function pending(int $limit): iterable
     {
         return RelayOutboxModel::query()

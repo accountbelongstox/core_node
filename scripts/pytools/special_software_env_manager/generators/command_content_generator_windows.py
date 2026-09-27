@@ -8,6 +8,7 @@ This is the Windows-specific version of CommandContentGenerator.ps1
 from typing import Any, Dict, List
 
 from generators import CommandContentGeneratorBase
+from utils.secret_display import is_secret_name
 
 
 class WindowsCommandContentGenerator(CommandContentGeneratorBase):
@@ -486,6 +487,8 @@ Write-Host "Model: $env:KIMI_MODEL (permissions: --yolo bypass)" -ForegroundColo
         # Build command display code
         build_command_code = """
 #region Build Launch Command Display
+# Printed only (secrets masked). The tool runs as $fullCommand and inherits the
+# $env: values, so no value is ever put on a child command line.
 $envVarsParts = @()
 
 """
@@ -496,18 +499,23 @@ $envVarsParts = @()
             build_command_code += """$envVarsParts += "`$env:KIMI_MODEL_NAME='$($env:KIMI_MODEL_NAME)'"
 $envVarsParts += "`$env:KIMI_MODEL_PROVIDER_TYPE='$($env:KIMI_MODEL_PROVIDER_TYPE)'"
 $envVarsParts += "`$env:KIMI_MODEL_BASE_URL='$($env:KIMI_MODEL_BASE_URL)'"
-$envVarsParts += "`$env:KIMI_MODEL_API_KEY='$($env:KIMI_MODEL_API_KEY)'"
+$envVarsParts += "`$env:KIMI_MODEL_API_KEY='$(Get-AiCliMaskedSecret -Value $env:KIMI_MODEL_API_KEY)'"
 
 """
         else:
             for var in variables:
+                shown_value = (
+                    f"$(Get-AiCliMaskedSecret -Value $env:{var['Name']})" if is_secret_name(var['Name'])
+                    else f"$($env:{var['Name']})"
+                )
                 build_command_code += f"""if ($env:{var['Name']}) {{
-    $envVarsParts += "`$env:{var['Name']}='$($env:{var['Name']})'"
+    $envVarsParts += "`$env:{var['Name']}='{shown_value}'"
 }}
 
 """
 
         build_command_code += f"""$envVarsCommand = $envVarsParts -join '; '
+$fullCommand = "{ps_command}"
 if ($envVarsCommand) {{
     $fullCommandDisplay = "$envVarsCommand; {ps_command}"
 }} else {{
@@ -594,13 +602,18 @@ if (-not (Get-Command {tool_type} -ErrorAction SilentlyContinue)) {{
     $envVarsPartsNpx = @()
 """
                 for var in variables:
+                    shown_value = (
+                        f"$(Get-AiCliMaskedSecret -Value $env:{var['Name']})" if is_secret_name(var['Name'])
+                        else f"$($env:{var['Name']})"
+                    )
                     npx_fallback_section += f"""    if ($env:{var['Name']}) {{
-        $envVarsPartsNpx += "`$env:{var['Name']}='$($env:{var['Name']})'"
+        $envVarsPartsNpx += "`$env:{var['Name']}='{shown_value}'"
     }}
 """
 
                 npx_fallback_section += f"""
     $envVarsCommandNpx = $envVarsPartsNpx -join '; '
+    $fullCommand = "npx -y {npm_package}"
     if ($envVarsCommandNpx) {{
         $fullCommandDisplay = "$envVarsCommandNpx; npx -y {npm_package}"
     }} else {{
@@ -620,7 +633,11 @@ if (-not (Get-Command {tool_type} -ErrorAction SilentlyContinue)) {{
             # Before it, show ALL variable info. No post-launch "Press any key"/pause.
             var_summary_lines = ""
             for var in variables:
-                var_summary_lines += f'Write-Host "{var["Name"]} = $env:{var["Name"]}" -ForegroundColor Gray\n'
+                shown_value = (
+                    f'$(Get-AiCliMaskedSecret -Value $env:{var["Name"]})' if is_secret_name(var["Name"])
+                    else f'$env:{var["Name"]}'
+                )
+                var_summary_lines += f'Write-Host "{var["Name"]} = {shown_value}" -ForegroundColor Gray\n'
             launch_section = f"""
 #region Variable Summary + Single Continue
 Write-Host ""
@@ -638,7 +655,7 @@ $null = Read-Host "Press Enter to continue"
 #region Launch Tool
 Write-Host ""
 Write-Host "Executing: {ps_command}" -ForegroundColor White
-powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommandDisplay
+powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommand
 #endregion
 """
         else:
@@ -657,7 +674,7 @@ Write-Host "PowerShell Command: powershell -NoProfile -ExecutionPolicy Bypass -C
 Write-Host ""
 Write-Host "Press any key to continue..." -ForegroundColor Yellow
 $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommandDisplay
+powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommand
 
 Write-Host ""
 pause

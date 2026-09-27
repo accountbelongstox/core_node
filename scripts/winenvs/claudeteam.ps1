@@ -33,6 +33,7 @@ $scriptsDirPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $aiCliProvisionCommonScript = $null
+$claudeOfficialRestoreCommonScript = $null
 $windowsPathFunctionScript = $null
 $teammateMode = $null
 $claudeArgs = $null
@@ -50,6 +51,10 @@ $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
 . $windowsPathFunctionScript
 Set-CoreNodePaths
+
+$claudeOfficialRestoreCommonScript = Join-Path $winCommonDirPath "ClaudeOfficialRestoreCommon.ps1"
+. $claudeOfficialRestoreCommonScript
+Invoke-ClaudeOfficialRestore
 
 # Idempotent AI CLI provisioning: install Claude Code with the official native
 # installer when the command is missing, then offer an upgrade (default N,

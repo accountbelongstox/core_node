@@ -11,7 +11,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const PythonCaller = require('./PythonCaller');
-const { getXdgCacheHome } = require('../../../../foundation/common/system_paths');
+const { getXdgCacheHome } = require('#@ncore/foundation/common/system_paths.js');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');

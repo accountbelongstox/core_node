@@ -140,6 +140,58 @@
         "service_description": "Core Node MCP Chrome watcher and recovery supervisor",
         "service_cpu_quota": "200%",
         "service_memory_max": "4G",
-        "windows_task_name": "ncore-mcp-chrome"
+        "windows_task_name": "ncore-mcp-chrome",
+        "extension_id": "lmngnnnghipjfcbbhpaknlnbjcbabblm",
+        "firefox_extension_id": "mcp-chrome@core-node"
+    },
+    "dingdoudou": {
+        "super_code_format": "DDK2",
+        "super_code_public_key": "Yj70PJXmhQRGCOsUveFwC5cjH78SRdw0HarFPo11JKA",
+        "super_code_signing_secret": "DINGDUODUO_SUPER_CODE_SIGNING_KEY_1",
+        "super_code_spec": ".claude/agents_shared/client_key_auth/dingdoudou_super_code_v2.md"
+    },
+    "client_key_auth": {
+        "schema_version": 1,
+        "protocol_version": "2",
+        "canonical_version": "core-node-client-key",
+        "secret_key_base": "CORE_NODE_CLIENT_KEY",
+        "secret_key_sign_name": "CORE_NODE_CLIENT_KEY_1",
+        "secret_key_max_index": 5,
+        "secret_raw_dir": ".secret_keys/.secret_ignore",
+        "key_min_bytes": 32,
+        "key_encoding": "base64url-no-padding",
+        "key_id": "sha256-hex-of-decoded-key-first-16-chars",
+        "algorithm": "hmac-sha256",
+        "signature_encoding": "base64url-no-padding",
+        "canonical_joiner": "\n",
+        "canonical_fields": ["canonical_version", "protocol", "method", "path", "query", "client", "machine_id", "key_id", "timestamp", "nonce", "content_sha256"],
+        "canonicalization_source": "pycore_relay_contract.json#signature_profile.canonicalization",
+        "content_sha256": "sha256-hex-lowercase-of-exact-transmitted-body",
+        "unsigned_payload": "UNSIGNED-PAYLOAD",
+        "unsigned_payload_content_types": ["multipart/form-data"],
+        "clock_skew_seconds": 300,
+        "nonce_ttl_seconds": 600,
+        "nonce_pattern": "^[A-Za-z0-9_-]{16,128}$",
+        "machine_id_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+        "clients": ["pycore", "ncore", "mcp_chrome", "laravel_peer", "shell"],
+        "headers": {
+            "client": "X-Core-Node-Client",
+            "protocol": "X-Core-Node-Protocol",
+            "machine_id": "X-Core-Node-Machine-ID",
+            "key_id": "X-Core-Node-Key-ID",
+            "timestamp": "X-Core-Node-Timestamp",
+            "nonce": "X-Core-Node-Nonce",
+            "content_sha256": "X-Core-Node-Content-SHA256",
+            "signature": "X-Core-Node-Signature"
+        },
+        "error_codes": ["client_key_missing", "client_key_unknown", "client_key_protocol_invalid", "client_key_timestamp_invalid", "client_key_nonce_invalid", "client_key_nonce_replayed", "client_key_body_digest_invalid", "client_key_signature_invalid"],
+        "local_rpc": {
+            "bind_default": "loopback",
+            "loopback_hosts": ["localhost", "loopback", "ipv6_loopback"],
+            "loopback_browser_rule": "loopback-peer-and-loopback-host-header-and-allowed-origin",
+            "non_loopback_rule": "client_key_required",
+            "cors_wildcard_with_credentials": false,
+            "error_codes": {"host_forbidden": "local_rpc_host_forbidden", "origin_forbidden": "local_rpc_origin_forbidden"}
+        }
     }
 }

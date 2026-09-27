@@ -83,7 +83,7 @@ class LaravelRelayTransport:
             params={"clock_probe": uuid.uuid4().hex},
             headers={"Accept": RELAY_JSON_CONTENT_TYPE, "Cache-Control": "no-cache", "Accept-Encoding": "identity"},
             timeout=(relay_contract.duration("subscriber_connect_timeout_seconds"), relay_contract.duration("request_timeout_seconds")),
-            allow_redirects=False, log_line=False, include_default_identity=False,
+            allow_redirects=False, log_line=False,
         )
         received = time.monotonic()
         if response.status_code != 200:
@@ -368,7 +368,7 @@ class LaravelRelayTransport:
                     relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout),
                 ),
                 allow_redirects=False, log_line=False,
-                include_default_identity=False, sensitive_request=True,
+                sensitive_request=True,
             )
             received = time.monotonic()
             status = int(getattr(response, "status_code", 0) or 0)

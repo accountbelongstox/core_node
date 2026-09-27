@@ -12,6 +12,7 @@ import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-ty
 import { delay as waitForDelay } from '@/utils/async';
 import { tabController } from './tab-controller';
 import { queueCenterWakeService } from './task-center/QueueCenterWakeService';
+import { getMessage } from '@/utils/i18n';
 import {
   BingDictionaryWorkerRuntimeBase,
   LOG, NONDICT_ATTEMPTS, ANTISCRAPE_ABORT_THRESHOLD, ANTISCRAPE_COOLDOWN_MS,
@@ -21,6 +22,12 @@ import {
   DICTIONARY_TASK_TYPES, HANDLED_TASK_TYPES,
   type WorkerConfig,
 } from './bing-dictionary-worker-runtime';
+
+const PULL_TASK_TYPES = [
+  TASK_TYPE_KEYS.dictionary_explanation,
+  TASK_TYPE_KEYS.dictionary_explanation_demo,
+  TASK_TYPE_KEYS.word_translation,
+];
 
 export type { WorkerConfig, WorkerStats } from './bing-dictionary-worker-runtime';
 export const initBingWorkerLifecycle = () => _initLifecycle(() => bingDictionaryWorkerService.resume());
@@ -214,24 +221,8 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
    * routes. Each type is queried immediately so no Laravel request worker is
    * retained while the browser waits for work.
    */
-  private async pullTasksAcrossTypes(options: { limit: number }) {
-    const types = [
-      TASK_TYPE_KEYS.dictionary_explanation,
-      TASK_TYPE_KEYS.dictionary_explanation_demo,
-      TASK_TYPE_KEYS.word_translation,
-    ];
-    const merged: Task[] = [];
-    let lastData: any = { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] };
-    for (let i = 0; i < types.length; i++) {
-      const resp = await this.workerClient!.pullTasks(types[i], undefined, {
-        limit: options.limit,
-      });
-      if (!resp.success || !resp.data) return resp;
-      lastData = resp.data;
-      if (Array.isArray(resp.data.tasks)) merged.push(...resp.data.tasks);
-      if (merged.length >= options.limit) break;
-    }
-    return { success: true, data: { ...lastData, tasks: merged, count: merged.length } };
+  private pullTasksAcrossTypes(options: { limit: number }) {
+    return this.pullAcrossTaskTypes(PULL_TASK_TYPES, options.limit);
   }
 
   protected subscribeRealtimeWake(): void {
@@ -716,7 +707,7 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
     targetLanguage?: string,
   ): Promise<{ ok: boolean; summary?: any; items?: any[]; pagination?: any; message?: string }> {
     const base = (apiUrl || this.config?.apiUrl || '').trim().replace(/\/+$/, '');
-    if (!base) return { ok: false, message: 'No endpoint configured in Settings' };
+    if (!base) return { ok: false, message: getMessage('noEndpointConfigured') };
     const target = targetLanguage || this.config?.targetLanguage || DEFAULT_TARGET_LANG;
     try {
       const client =
@@ -737,9 +728,9 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
           pagination: resp.data.pagination,
         };
       }
-      return { ok: false, message: resp.message || 'Failed to load queue' };
+      return { ok: false, message: resp.message || getMessage('loadQueueFailed') };
     } catch (error: any) {
-      return { ok: false, message: error?.message || 'Unreachable' };
+      return { ok: false, message: error?.message || getMessage('unreachableStatus') };
     }
   }
 
@@ -775,17 +766,17 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
   async testConnection(apiUrl: string): Promise<{ ok: boolean; message: string }> {
     const trimmed = (apiUrl || '').trim().replace(/\/+$/, '');
     if (!trimmed) {
-      return { ok: false, message: 'API URL is empty' };
+      return { ok: false, message: getMessage('apiUrlEmpty') };
     }
     try {
       const client = new WorkerApiClient(trimmed);
       const response = await client.getWorkerStats();
       if (response.success) {
-        return { ok: true, message: 'Connected' };
+        return { ok: true, message: getMessage('connectedStatus') };
       }
-      return { ok: false, message: response.message || 'Server returned an error' };
+      return { ok: false, message: response.message || getMessage('serverReturnedError') };
     } catch (error: any) {
-      return { ok: false, message: error?.message || 'Unreachable' };
+      return { ok: false, message: error?.message || getMessage('unreachableStatus') };
     }
   }
 }

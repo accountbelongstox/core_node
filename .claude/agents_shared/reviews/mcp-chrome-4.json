@@ -1,0 +1,12 @@
+{
+  "task_id": "mcp-chrome-4",
+  "role": "mcp-chrome",
+  "verdict": "approved",
+  "findings": {
+    "FU-042": {"status": "fixed", "reason": "Extension part: background responses shown in the popup (listener start/stop/config, Task Center and processor statuses, unknown action/capability, Bing queue and connection messages) and the popup literals use chrome.i18n keys. The 19 new keys exist in all 6 locales (716 each, placeholder sets consistent), and every getMessage key used in the changed files exists in en. The background follows the popup-selected language through followUserLocale (ExtensionStorage subscribe). The worker-name part is refuted_ok: the names are protocol identifiers that Laravel QueueWorkerPresenceService::kind() classifies by substring."},
+    "RV-004": {"status": "fixed", "reason": "Extension part: the dead task-history-store.ts (no importer) is deleted, and the stream_events typing, TASK_STREAM_EVENT_BY_ROLE, TERMINAL_TASK_EVENTS and 'stream' in TaskSubPath are removed with no remaining reference. The only mentions left are in the gitignored, regenerated .wxt/types. The contract entry and Laravel QueueContract:415 are with the orchestrator and laravel."}
+  },
+  "issues": [],
+  "checks": "Locale JSON parsed per language (716 keys each, placeholders compared against en); a script checked every getMessage/t key in the changed files against en; grep for the removed RV-004 symbols.",
+  "checked_at": "2026-09-27T04:22:31+10:00"
+}

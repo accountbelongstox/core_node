@@ -41,14 +41,22 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   const [showRevision, setShowRevision] = useState(false);
   const pollTimer = useRef<number | null>(null);
   const wasActive = useRef(false);
+  const aliveRef = useRef(false);
+  const generationRef = useRef(0);
   const projectChangedRef = useRef(onProjectChanged);
   projectChangedRef.current = onProjectChanged;
+  const translate = useRef(t);
+  translate.current = t;
 
   const load = useCallback(async (): Promise<void> => {
+    const generation = generationRef.current;
+    const isCurrent = (): boolean => aliveRef.current && generation === generationRef.current;
+    if (!isCurrent()) return;
     const response = await cmApi.getProjectAnalysis(project.id);
+    if (!isCurrent()) return;
     setLoading(false);
     if (!response.success || !response.data) {
-      setLoadError(cmErrorMessage(t, response, 'analysis.loadFailed'));
+      setLoadError(cmErrorMessage(translate.current, response, 'analysis.loadFailed'));
       return;
     }
     setLoadError(null);
@@ -56,16 +64,22 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
     setData(response.data);
     if (wasActive.current && !active) {
       await projectChangedRef.current();
+      if (!isCurrent()) return;
     }
     wasActive.current = active;
     if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
     pollTimer.current = active ? window.setTimeout(() => { void load(); }, ANALYSIS_POLL_MS) : null;
-  }, [project.id, t]);
+  }, [project.id]);
 
   useEffect(() => {
+    aliveRef.current = true;
     void load();
     return () => {
+      aliveRef.current = false;
+      generationRef.current += 1;
+      wasActive.current = false;
       if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
+      pollTimer.current = null;
     };
   }, [load]);
 

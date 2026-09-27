@@ -195,6 +195,9 @@ class AppQyV1TTSWorkerController extends Controller
         $httpStatus = $result['http_status'] ?? ($result['success'] ? 200 : 500);
         unset($result['http_status']);
         if ($offsetReceipt !== null) {
+            if ($result['success'] ?? false) {
+                $this->uploadService->discardCompleted($offsetReceipt);
+            }
             return response()->json([
                 'success' => (bool) ($result['success'] ?? false),
                 'data' => array_merge($publicReceipt, $result),

@@ -30,13 +30,13 @@ class CodeMartV1ReviewerCtl extends Controller
         $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
 
         if ($existingRole && $existingRole->role_status === 'active') {
-            return $this->error('You are already a reviewer');
+            return $this->error(__('codemart.messages.you_are_already_a_reviewer'));
         }
 
         $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, 7);
 
         if ($recentApplication) {
-            return $this->error('You can only apply once every 7 days');
+            return $this->error(__('codemart.messages.you_can_only_apply_once_every_7'));
         }
 
         $testCases = $this->generateTestCases();
@@ -71,7 +71,7 @@ class CodeMartV1ReviewerCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
         $application = CodeMartV1ReviewerApplicationModel::findOwnedInProgress(
@@ -80,7 +80,7 @@ class CodeMartV1ReviewerCtl extends Controller
         );
 
         if (!$application) {
-            return $this->notFound('Application not found or already processed');
+            return $this->notFound(__('codemart.messages.application_not_found_or_already_processed'));
         }
 
         $testCases = json_decode($application->test_cases, true);
@@ -130,7 +130,7 @@ class CodeMartV1ReviewerCtl extends Controller
         $reviewerRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, CodeMartV1Constants::ROLE_REVIEWER, CodeMartV1Constants::ROLE_STATUS_ACTIVE);
 
         if (!$reviewerRole) {
-            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ROLE_REQUIRED, 'Only active reviewers can access review tasks', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ROLE_REQUIRED, __('codemart.messages.only_active_reviewers_can_access_review_tasks'), null, 403);
         }
 
         $page = max(1, (int) $request->get('page', 1));
@@ -171,32 +171,32 @@ class CodeMartV1ReviewerCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $reviewerRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, CodeMartV1Constants::ROLE_REVIEWER, CodeMartV1Constants::ROLE_STATUS_ACTIVE);
         if (!$reviewerRole) {
-            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ROLE_REQUIRED, 'Only active reviewers can submit reviews', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ROLE_REQUIRED, __('codemart.messages.only_active_reviewers_can_submit_reviews'), null, 403);
         }
 
         $submission = CodeMartV1TaskSubmissionModel::findById((int) $submissionId);
         $task = $submission ? CodeMartV1TaskModel::findById((int) $submission->task_id) : null;
         if (!$submission || !$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_NOT_FOUND, 'Submission not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_NOT_FOUND, __('codemart.messages.submission_not_found'), null, 404);
         }
         if (!$submission->isReviewable()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_INVALID_STATE, 'The submission is not awaiting review', [
+            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_INVALID_STATE, __('codemart.messages.the_submission_is_not_awaiting_review'), [
                 'status' => $submission->status,
             ], 409);
         }
 
         $project = $task->resolveProject();
         if ((int) $submission->submitted_by === (int) $user->id || ($project && $project->isManagedBy((int) $user->id))) {
-            return $this->codedError(CodeMartV1Constants::ERROR_REVIEW_CONFLICT_OF_INTEREST, 'You cannot review your own work or project', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEW_CONFLICT_OF_INTEREST, __('codemart.messages.you_cannot_review_your_own_work_or'), null, 403);
         }
 
         if (CodeMartV1CodeReviewModel::findForSubmissionReviewer((int) $submission->id, (int) $user->id)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_REVIEW_DUPLICATE, 'You have already reviewed this submission', null, 409);
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEW_DUPLICATE, __('codemart.messages.you_have_already_reviewed_this_submission'), null, 409);
         }
 
         $ratings = [

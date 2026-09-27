@@ -67,6 +67,11 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
         return 'appqyv1_cover_generation';
     }
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     /**
      * @inheritDoc
      */

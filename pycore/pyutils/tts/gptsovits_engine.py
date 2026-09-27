@@ -37,6 +37,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyutils.tts.engine_policy import engine_setting
 
 GPTSOVITS_LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}
 _LANG_MAP = GPTSOVITS_LANG_MAP
@@ -88,12 +89,12 @@ def _synthesize_chunk_to_wav(
     chunk_text: str, chunk_wav: Path, ref: Path, text_lang: str, speed: float
 ) -> bool:
     """POST one (chunk) text to /tts and store the wav response."""
-    prompt_lang = (os.environ.get("GPTSOVITS_PROMPT_LANG") or text_lang).strip()
+    prompt_lang = (engine_setting("GPTSOVITS_PROMPT_LANG") or text_lang).strip()
     body = {
         "text": chunk_text,
         "text_lang": text_lang,
         "ref_audio_path": str(ref),
-        "prompt_text": os.environ.get("GPTSOVITS_PROMPT_TEXT", ""),
+        "prompt_text": engine_setting("GPTSOVITS_PROMPT_TEXT"),
         "prompt_lang": prompt_lang,
         "speed_factor": float(speed),
         "media_type": "wav",

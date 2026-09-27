@@ -122,8 +122,8 @@ class ThreadBusBridgeMixin(QObject):
         # Voice-subtitle compact ("Subtitle Mode") window control. Triggered by the
         # web UI via HTTP controller -> thread_bus/trigger_event. Handled here (Qt thread)
         # because window/screen geometry must be touched on the GUI thread.
-        THREAD_BUS.register_event_handler('voice_subtitle.subtitle_mode_enter', self._on_thread_bus_subtitle_mode_enter)
-        THREAD_BUS.register_event_handler('voice_subtitle.subtitle_mode_exit', self._on_thread_bus_subtitle_mode_exit)
+        THREAD_BUS.register_event_handler(BusSignals.VOICE_SUBTITLE_MODE_ENTER, self._on_thread_bus_subtitle_mode_enter)
+        THREAD_BUS.register_event_handler(BusSignals.VOICE_SUBTITLE_MODE_EXIT, self._on_thread_bus_subtitle_mode_exit)
 
         if self.config.debug:
             ColorPrint.green(f"[PySide6Framework] Registered THREAD_BUS listeners with namespace: {namespace}")

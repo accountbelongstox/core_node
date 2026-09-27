@@ -205,7 +205,7 @@ function Invoke-CursorAgentPostInstallProcessor {
         Write-Host "$LogPrefix Agent CLI in PATH but version check failed (broken); will attempt repair." -ForegroundColor Yellow
     }
     if (-not $runtimeIntact -and $agentPresentBefore -and -not $agentBroken) {
-        Write-Host "$LogPrefix Note: legacy cursor-agent\versions\index.js not found; agent CLI version OK — skipping reinstall (idempotent)." -ForegroundColor Cyan
+        Write-Host "$LogPrefix Note: legacy cursor-agent\versions\index.js not found; agent CLI version OK - skipping reinstall (idempotent)." -ForegroundColor Cyan
     }
     if ($agentNeedInstall) {
         Write-Host "$LogPrefix Installing Cursor agent CLI (cursor + agent command)..." -ForegroundColor Cyan

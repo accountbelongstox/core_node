@@ -17,10 +17,10 @@
  *  3. Sentence Library — a batch enrichment control (`media.enrich`).
  *
  * Local React state only; every call is guarded and the UI never crashes when
- * the backend (:59000) is offline. Hardcoded-English copy is centralized in `L`,
- * with zh values kept as comments (the pycore-manager pages have no `t` object).
+ * the backend (:59000) is offline. `L` maps each label to its `pc` locale key.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BookOpen, Plus, Trash2, X, Folder, FileText, FolderOpen, RefreshCw,
   UploadCloud, Library, Sparkles, WifiOff, ListChecks, Filter, Languages,
@@ -41,147 +41,140 @@ import { PcCoreBookPanel } from './PcCoreBookPage';
 import PcSentenceAudioPanel from '../components/PcSentenceAudioPanel';
 import PcBookSourceExplorer from '../components/PcBookSourceExplorer';
 import { BookStatTile, formatBookMetric as nf } from '@/shared/books/BookStats';
+import { pcLaravelErrorMessage } from '../utils/pcErrorCodes';
+import { pcT } from '../utils/pcI18n';
 
-// i18n labels (single source; the pages use literals, not a `t` object).
 const L = {
-  title: 'Books',                                   // 书籍
-  subtitle: 'Add book files or folders (or drag them in), then sync them to Laravel as a sentence source via the local pycore engine.',
-  addSource: 'Add source',                          // 添加来源
-  sources: 'Sources',                               // 来源
-  selectAll: 'Select all',                          // 全选
-  noSources: 'No sources yet — add or drop a book file, or a folder of books.',
-  pick: 'Check the sources to sync, then push them to Laravel.',
-  folder: 'Folder',                                 // 文件夹
-  file: 'File',                                      // 文件
-  singleFile: 'Single file',                        // 单个文件
-  path: 'Path',                                      // 路径
-  browse: 'Browse',                                  // 浏览
-  cancel: 'Cancel',                                  // 取消
-  add: 'Add',                                        // 添加
-  remove: 'Remove',                                  // 移除
-  enterPath: 'Enter a path',                         // 请输入路径
-  pickFolderHint: 'Pick a folder to scan recursively for book files.',
-  pickFileHint: 'Pick a single book file.',
-  syncLaravel: 'Sync books to Laravel',             // 同步书籍到 Laravel
-  syncing: 'Syncing…',                               // 同步中…
-  syncDone: 'Synced to Laravel',                     // 已同步到 Laravel
-  syncFailed: 'Sync failed',                         // 同步失败
-  syncedBadge: 'Synced',                             // 已同步
-  syncStage: 'Stage',                                // 阶段
-  selectFirst: 'Select at least one source first',
-  // drag & drop / upload
-  dropHere: 'Drop files or folders here',            // 拖放文件或文件夹到此处
-  dropOr: 'or',                                       // 或
-  dropNoPath: 'The drop did not expose a file path (browser sandbox) — use Browse to pick the file/folder.',
-  upload: 'Upload',                                   // 上传
-  uploadHint: 'Upload file bytes — staged server-side, then analyzed and syncable (works without a file path).',
-  uploading: 'Uploading…',                            // 上传中…
-  // format filter
-  formats: 'Formats',                                // 格式
-  filterHint: 'Choose which document formats to scan.',
-  allFormats: 'All',                                 // 全部
-  noFormats: 'None',                                 // 无
-  // analyze / stats
-  analyze: 'Analyze',                                // 分析
-  analyzing: 'Analyzing…',                           // 分析中…
-  reAnalyze: 'Re-analyze',                           // 重新分析
-  statistics: 'Statistics',                          // 统计
-  words: 'Words',                                    // 词数
-  uniqueWords: 'Unique words',                       // 不重复词数
-  sentences: 'Sentences',                            // 句子数
-  uniqueSentences: 'Unique sentences',               // 不重复句子数
-  characters: 'Characters',                          // 字符数
-  langs: 'Languages',                                // 多语言
-  topWords: 'Top words',                             // 高频词
-  format: 'Format',                                  // 格式
-  filesWord: 'files',                                // 个文件
-  analyzedOf: 'analyzed of',                         // 已分析/共
-  capHit: 'file cap reached — sync still ingests all matching files',
-  showPreview: 'Preview',                            // 预览
-  hidePreview: 'Hide',                               // 收起
-  noText: 'no extractable text',                     // 无可提取文本
-  analyzeFailed: 'Analyze failed',                   // 分析失败
-  details: 'Details',                                // 详情
-  detailsTitle: 'Source details',                    // 来源详情
-  perFile: 'Per-file breakdown',                      // 分文件统计
-  allLanguages: 'Languages',                          // 各语言
-  allTopWords: 'Top words (full)',                    // 全部高频词
-  chars: 'chars',                                     // 字符
-  close: 'Close',                                     // 关闭
-  noAnalysis: 'No analysis yet — click Analyze first.',
-  // drill-down list modal
-  prev: 'Prev',                                       // 上一页
-  next: 'Next',                                       // 下一页
-  showing: 'Showing',                                 // 显示
-  listOf: 'of',                                       // 共
-  distinctWord: 'distinct',                           // 去重
-  totalOccur: 'total occurrences',                    // 总出现
-  loadingList: 'Loading…',                            // 加载中…
-  emptyList: 'No items.',                             // 无内容
-  // sync stage labels
-  stScan: 'Scanning',                                 // 扫描
-  stSource: 'Source',                                 // 来源
-  stExtract: 'Extracting text',                       // 提取文本
-  stBuild: 'Structuring',                             // 结构化
-  stIngest: 'Ingesting',                              // 入库
-  stClips: 'Clips',                                   // 切片
-  stDone: 'Done',                                     // 完成
-  stError: 'Error',                                   // 错误
-  // sentence library / enrichment
-  library: 'Sentence Library',                       // 句库
-  libraryHint: 'Trigger AI + TTS enrichment of stored sentences. Each batch processes up to the limit; loop to drain the queue.',
-  batchLimit: 'Batch limit',                         // 批量上限
-  enrichNow: 'Enrich now',                           // 立即丰富
-  enriching: 'Enriching…',                           // 丰富中…
-  keepGoing: 'Run until empty',                      // 持续运行至清空
-  stopLoop: 'Stop',                                  // 停止
-  processed: 'Processed',                            // 已处理
-  enriched: 'Enriched',                              // 已丰富
-  remaining: 'Remaining',                            // 剩余
-  enrichFailed: 'Enrichment failed',                 // 丰富失败
-  unreachable: 'pycore unreachable — the backend (:59000) may be offline. Connect to sync or analyze.',
-  // language multi-select
-  languages2: 'Languages',                            // 语言
-  languagesHint: 'Pick the languages to build a correspondence for. The detected primary language is checked and locked.',
-  needOneLang: 'Select at least one language',        // 至少选择一种语言
-  primaryLang: 'Primary (locked)',                    // 主语言（锁定）
-  selectedCount: 'selected',                          // 已选
-  // chapter -> sentence tree
-  chapters2: 'Chapters',                              // 章节
-  chaptersHint: 'Chapter → sentence tree. Each row shows every checked language side by side; blank = no correspondence.',
-  viewChapters: 'View chapters',                      // 查看章节
-  hideChapters: 'Hide chapters',                      // 收起章节
-  chapter: 'Chapter',                                 // 章
-  noChapters: 'No chapters analyzed yet.',            // 暂无章节
-  emptyChapter: 'No sentences in this chapter.',      // 本章无句子
-  grainSentence: 'Sentence',                          // 句子
-  grainCue: 'Cue',                                    // 行
-  grainLabel: 'Grain',                                // 粒度
-  blankCorr: '—',                                     // 留空占位
-  // advanced — embedded CoreBook panel
-  advanced: 'Advanced — AI languages · audio · whole/partial submit (CoreBook)',
-  advancedHint: 'The simple flow above ingests sources as-is. This advanced section converts a document to a portable CoreBook to AI-translate languages, synthesize audio, and submit it whole or partial.',
-  // one-click auto-flow (convert → translate → voice → submit)
-  runPipeline: 'Run pipeline',                       // 一键流水线
-  pipelineHint: 'One click runs the full CoreBook pipeline for the selected target languages — convert, AI-translate, synthesize audio, and submit to Laravel.',
-  pipelineRunning: 'Pipeline running…',              // 流水线运行中…
-  pipelineDone: 'Pipeline done',                      // 流水线完成
-  pipelineFailed: 'Pipeline failed',                  // 流水线失败
-  pipelineBusy: 'Another pipeline is running — wait for it to finish',
-  // auto-flow stage labels
-  flConvert: 'Converting',                            // 转换中
-  flTranslate: 'Translating',                         // 翻译中
-  flVoice: 'Synthesizing audio',                      // 合成语音
-  flAudio: 'Synthesizing audio',                      // 合成语音
-  flAudioUpload: 'Uploading audio',                   // 上传语音
-  flSubmit: 'Submitting',                             // 提交中
-  explore: 'Explore',                                  // 浏览
-  exploreHint: 'Languages · sentences · chapters · sortable words · searchable sentences',
-  metaLangs: 'languages',                              // 语言
-  metaChapters: 'chapters',                            // 章
-  flDone: 'Done',                                     // 完成
-  flError: 'Error',                                   // 错误
-};
+  title: 'books.title',
+  subtitle: 'books.subtitle',
+  addSource: 'books.addSource',
+  sources: 'books.sources',
+  selectAll: 'books.selectAll',
+  noSources: 'books.noSources',
+  pick: 'books.pick',
+  folder: 'books.folder',
+  file: 'books.file',
+  singleFile: 'books.singleFile',
+  path: 'books.path',
+  browse: 'books.browse',
+  cancel: 'books.cancel',
+  add: 'books.add',
+  remove: 'books.remove',
+  enterPath: 'books.enterPath',
+  pickFolderHint: 'books.pickFolderHint',
+  pickFileHint: 'books.pickFileHint',
+  syncLaravel: 'books.syncLaravel',
+  syncing: 'books.syncing',
+  syncDone: 'books.syncDone',
+  syncFailed: 'books.syncFailed',
+  syncedBadge: 'books.syncedBadge',
+  syncStage: 'books.syncStage',
+  selectFirst: 'books.selectFirst',
+  dropHere: 'books.dropHere',
+  dropOr: 'books.dropOr',
+  upload: 'books.upload',
+  uploadHint: 'books.uploadHint',
+  formats: 'books.formats',
+  filterHint: 'books.filterHint',
+  allFormats: 'books.allFormats',
+  noFormats: 'books.noFormats',
+  analyze: 'books.analyze',
+  analyzing: 'books.analyzing',
+  reAnalyze: 'books.reAnalyze',
+  words: 'books.words',
+  uniqueWords: 'books.uniqueWords',
+  sentences: 'books.sentences',
+  uniqueSentences: 'books.uniqueSentences',
+  characters: 'books.characters',
+  langs: 'books.langs',
+  topWords: 'books.topWords',
+  capHit: 'books.capHit',
+  showPreview: 'books.showPreview',
+  hidePreview: 'books.hidePreview',
+  noText: 'books.noText',
+  analyzeFailed: 'books.analyzeFailed',
+  prev: 'books.prev',
+  next: 'books.next',
+  loadingList: 'books.loadingList',
+  emptyList: 'books.emptyList',
+  stScan: 'books.stScan',
+  stSource: 'books.stSource',
+  stExtract: 'books.stExtract',
+  stBuild: 'books.stBuild',
+  stIngest: 'books.stIngest',
+  stClips: 'books.stClips',
+  stDone: 'books.stDone',
+  stError: 'books.stError',
+  library: 'books.library',
+  libraryHint: 'books.libraryHint',
+  batchLimit: 'books.batchLimit',
+  enrichNow: 'books.enrichNow',
+  enriching: 'books.enriching',
+  keepGoing: 'books.keepGoing',
+  stopLoop: 'books.stopLoop',
+  processed: 'books.processed',
+  enriched: 'books.enriched',
+  remaining: 'books.remaining',
+  enrichFailed: 'books.enrichFailed',
+  unreachable: 'books.unreachable',
+  languages2: 'books.languages2',
+  languagesHint: 'books.languagesHint',
+  needOneLang: 'books.needOneLang',
+  primaryLang: 'books.primaryLang',
+  selectedCount: 'books.selectedCount',
+  chapters2: 'books.chapters2',
+  chaptersHint: 'books.chaptersHint',
+  viewChapters: 'books.viewChapters',
+  hideChapters: 'books.hideChapters',
+  noChapters: 'books.noChapters',
+  emptyChapter: 'books.emptyChapter',
+  grainSentence: 'books.grainSentence',
+  grainCue: 'books.grainCue',
+  grainLabel: 'books.grainLabel',
+  blankCorr: 'books.blankCorr',
+  advanced: 'books.advanced',
+  advancedHint: 'books.advancedHint',
+  pipelineHint: 'books.pipelineHint',
+  pipelineRunning: 'books.pipelineRunning',
+  pipelineDone: 'books.pipelineDone',
+  pipelineFailed: 'books.pipelineFailed',
+  pipelineBusy: 'books.pipelineBusy',
+  flConvert: 'books.flConvert',
+  flTranslate: 'books.flTranslate',
+  flVoice: 'books.flVoice',
+  flAudio: 'books.flAudio',
+  flAudioUpload: 'books.flAudioUpload',
+  flSubmit: 'books.flSubmit',
+  explore: 'books.explore',
+  flDone: 'books.flDone',
+  flError: 'books.flError',
+  sourceAdded: 'books.sourceAdded',
+  pickerUnavailable: 'books.pickerUnavailable',
+  uploadFailed: 'books.uploadFailed',
+  submitFailed: 'books.submitFailed',
+  requestFailed: 'books.requestFailed',
+  fileSkipped: 'books.fileSkipped',
+  uploadSummary: 'books.uploadSummary',
+  skippedDetail: 'books.skippedDetail',
+  sourcesAdded: 'books.sourcesAdded',
+  noMatchingFiles: 'books.noMatchingFiles',
+  ingestSummary: 'books.ingestSummary',
+  syncSentences: 'books.syncSentences',
+  syncErrors: 'books.syncErrors',
+  errorCount: 'books.errorCount',
+  chapterNumber: 'books.chapterNumber',
+  sentenceCount: 'books.sentenceCount',
+  langCount: 'books.langCount',
+  chapterCount: 'books.chapterCount',
+  analyzedFiles: 'books.analyzedFiles',
+  fileCount: 'books.fileCount',
+  charCount: 'books.charCount',
+  wordsSummary: 'books.wordsSummary',
+  sentencesSummary: 'books.sentencesSummary',
+  distinctSummary: 'books.distinctSummary',
+  range: 'books.range',
+  pipelineTitle: 'books.pipelineTitle',
+} as const;
 
 const DEFAULT_BASE = 'D:\\.tmp';
 // Cap the "run until empty" loop so a stuck backend can never spin forever.
@@ -197,6 +190,7 @@ interface FlowProgress { stage: string; done: number; total: number; detail: str
 
 
 const PcBooksPage: React.FC = () => {
+  const { t } = useTranslation('pc');
   // --- sources (page-local; books need no backend history/options) -------- #
   const [entries, setEntries] = useState<BookEntry[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -298,15 +292,15 @@ const PcBooksPage: React.FC = () => {
       if (stage === 'done') {
         const s = d?.summary || {};
         const parts = [
-          s.sentences != null ? `${s.sentences} sentences` : null,
-          s.errors != null && s.errors ? `${s.errors} errors` : null,
+          s.sentences != null ? pcT(L.syncSentences, { count: s.sentences }) : null,
+          s.errors != null && s.errors ? pcT(L.syncErrors, { count: s.errors }) : null,
         ].filter(Boolean).join(' · ');
-        setNotice(`${L.syncDone}${parts ? ' — ' + parts : ''}`);
+        setNotice(`${pcT(L.syncDone)}${parts ? ' — ' + parts : ''}`);
         setSyncing(false);
         setSyncProgress(null);
       } else if (stage === 'error') {
         const errs = Array.isArray(d?.errors) ? d.errors.join('; ') : '';
-        setNotice(`${L.syncFailed}${d?.detail ? ': ' + d.detail : errs ? ': ' + errs : ''}`);
+        setNotice(`${pcT(L.syncFailed)}${d?.detail ? ': ' + d.detail : errs ? ': ' + errs : ''}`);
         setSyncing(false);
         setSyncProgress(null);
       }
@@ -413,14 +407,14 @@ const PcBooksPage: React.FC = () => {
           setEntries((prev) => prev.map((e) => (e.path === path ? { ...e, mode: r.mode as VideoExtractMode } : e)));
         }
       } else {
-        setNotice(`${L.analyzeFailed}${r?.error ? ': ' + r.error : ''}`);
+        setNotice(`${t(L.analyzeFailed)}${r?.error ? ': ' + r.error : ''}`);
       }
     } catch (e: any) {
-      setNotice(`${L.analyzeFailed}: ${e?.message || 'request failed'}`);
+      setNotice(`${t(L.analyzeFailed)}: ${e?.message || t(L.requestFailed)}`);
     } finally {
       setAnalyzing((prev) => { const n = new Set(prev); n.delete(path); return n; });
     }
-  }, [activeFormats, selectedLangList]);
+  }, [activeFormats, selectedLangList, t]);
 
   // Derive the detected primary language from the analyses and auto-check +
   // lock it (spec §9: the primary language is checked and cannot be unchecked).
@@ -461,11 +455,11 @@ const PcBooksPage: React.FC = () => {
 
   const confirmAdd = () => {
     const p = addPath.trim();
-    if (!p) { setNotice(L.enterPath); return; }
+    if (!p) { setNotice(t(L.enterPath)); return; }
     addEntry(p, addMode);
     setShowAdd(false);
     setAddPath(DEFAULT_BASE);
-    setNotice('Source added');
+    setNotice(t(L.sourceAdded));
   };
 
   const removeEntry = (path: string) => {
@@ -490,9 +484,9 @@ const PcBooksPage: React.FC = () => {
       const r = await pycoreApi.pickPath(addMode, addPath || DEFAULT_BASE);
       if (r?.success && r.path) setAddPath(r.path);
       else if (r?.canceled) { /* keep current */ }
-      else setNotice(r?.error || 'Native picker unavailable — type the path manually');
+      else setNotice(r?.error || t(L.pickerUnavailable));
     } catch {
-      setNotice('Native picker unavailable — type the path manually');
+      setNotice(t(L.pickerUnavailable));
     } finally { setBrowsing(false); }
   };
 
@@ -508,11 +502,11 @@ const PcBooksPage: React.FC = () => {
       const r = await pycoreApi.booksAnalyzeUpload(files, {
         preview_chars: 1200, persist: true, languages: selectedLangList(),
       });
-      if (!r || !r.success) { setNotice(`${L.analyzeFailed}${r?.error ? ': ' + r.error : ''}`); return; }
+      if (!r || !r.success) { setNotice(`${t(L.analyzeFailed)}${r?.error ? ': ' + r.error : ''}`); return; }
       let added = 0;
       const errs: string[] = [];
       r.files.forEach((f) => {
-        if (!f.path) { errs.push(`${f.name}: ${f.error || 'skipped'}`); return; }
+        if (!f.path) { errs.push(`${f.name}: ${f.error || t(L.fileSkipped)}`); return; }
         // Pre-store a single-file analysis so the card renders immediately.
         setAnalyses((prev) => ({
           ...prev,
@@ -524,13 +518,15 @@ const PcBooksPage: React.FC = () => {
         addEntry(f.path, 'file', false);
         added += 1;
       });
-      setNotice(`${added} uploaded${errs.length ? ` · ${errs.length} skipped (${errs.join('; ')})` : ''}`);
+      setNotice(`${t(L.uploadSummary, { count: added })}${errs.length
+        ? ` · ${t(L.skippedDetail, { count: errs.length, detail: errs.join('; ') })}`
+        : ''}`);
     } catch (e: any) {
-      setNotice(`${L.analyzeFailed}: ${e?.message || 'upload failed'}`);
+      setNotice(`${t(L.analyzeFailed)}: ${e?.message || t(L.uploadFailed)}`);
     } finally {
       setUploading(false);
     }
-  }, [addEntry, selectedLangList]);
+  }, [addEntry, selectedLangList, t]);
 
   // --- drag & drop ------------------------------------------------------- #
   // Desktop webviews / Electron expose the dropped item's absolute path on
@@ -551,9 +547,9 @@ const PcBooksPage: React.FC = () => {
     });
     // A dropped item with an extension is a file; otherwise treat it as a folder.
     withPath.forEach((p) => addEntry(p, /\.[A-Za-z0-9]{1,8}$/.test(p) ? 'file' : 'folder'));
-    if (withPath.length) setNotice(`${withPath.length} source(s) added`);
+    if (withPath.length) setNotice(t(L.sourcesAdded, { count: withPath.length }));
     if (noPath.length) void uploadFiles(noPath);
-  }, [addEntry, uploadFiles]);
+  }, [addEntry, uploadFiles, t]);
 
   const onPickUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fl = e.target.files;
@@ -589,9 +585,9 @@ const PcBooksPage: React.FC = () => {
 
   const syncBooks = useCallback(async () => {
     const selPaths = activePaths();
-    if (!selPaths.length) { setNotice(L.selectFirst); return; }
+    if (!selPaths.length) { setNotice(t(L.selectFirst)); return; }
     const langs = selectedLangList();
-    if (!langs.length) { setNotice(L.needOneLang); return; }
+    if (!langs.length) { setNotice(t(L.needOneLang)); return; }
     if (syncing) return;
     setSyncing(true);
     setSyncProgress({ stage: 'scan', done: 0, total: 0, detail: '' });
@@ -603,7 +599,7 @@ const PcBooksPage: React.FC = () => {
       paths = await resolveSyncPaths(selPaths);
     } catch { /* fall back to raw selection */ }
     if (!paths.length) {
-      setNotice(`${L.syncFailed}: no matching files for the selected formats`);
+      setNotice(`${t(L.syncFailed)}: ${t(L.noMatchingFiles)}`);
       setSyncing(false); setSyncProgress(null); return;
     }
     // One-shot batch submit: pycore builds the v2 payload for each source and
@@ -612,27 +608,27 @@ const PcBooksPage: React.FC = () => {
       const r = await pycoreApi.booksSubmit(paths, undefined, langs);
       if (!r || !r.success) {
         const errs = (r?.items || []).flatMap((it) => it.errors || []);
-        setNotice(`${L.syncFailed}${errs.length ? ': ' + errs.slice(0, 3).join('; ') : (r?.error ? ': ' + r.error : '')}`);
+        setNotice(`${t(L.syncFailed)}${errs.length ? ': ' + errs.slice(0, 3).join('; ') : (r?.error ? ': ' + r.error : '')}`);
       } else {
-        setNotice(`${L.syncDone} — ${r.total_sentences} sentences · ${r.total_words} words`);
+        setNotice(`${t(L.syncDone)} — ${t(L.ingestSummary, { sentences: r.total_sentences, words: r.total_words })}`);
       }
     } catch (e: any) {
-      setNotice(`${L.syncFailed}: ${e?.message || 'submit failed'}`);
+      setNotice(`${t(L.syncFailed)}: ${e?.message || t(L.submitFailed)}`);
     } finally {
       setSyncing(false);
       setSyncProgress(null);
       void loadState();   // refresh submission_state badges
     }
-  }, [entries, selected, syncing, resolveSyncPaths, loadState, selectedLangList]);
+  }, [entries, selected, syncing, resolveSyncPaths, loadState, selectedLangList, t]);
 
   // --- one-click auto-flow: convert → translate → voice → submit --------- #
   // Fires the backend `corebook.autoflow` HTTP for ONE source; per-stage progress
   // streams over the `corebook_autoflow` HTTP event (wired above). One flow at a
   // time; the catch keeps it safe when the HTTP service is offline.
   const runPipeline = useCallback(async (path: string) => {
-    if (flowPath) { setNotice(L.pipelineBusy); return; }
+    if (flowPath) { setNotice(t(L.pipelineBusy)); return; }
     const langs = selectedLangList();
-    if (!langs.length) { setNotice(L.needOneLang); return; }
+    if (!langs.length) { setNotice(t(L.needOneLang)); return; }
     setFlowPath(path);
     setFlowProgress({ stage: 'convert', done: 0, total: 0, detail: '' });
     setNotice(null);
@@ -640,28 +636,28 @@ const PcBooksPage: React.FC = () => {
       PYCORE_HTTP_ROUTES.corebookAutoflow,
       { path, languages: langs, source_type: 'book' },
       AUTOFLOW_HTTP_TIMEOUT_MS,
-    ).catch((e: any) => ({ success: false, errors: [e?.message || 'failed'] }));
+    ).catch((e: any) => ({ success: false, errors: [e?.message || t(L.requestFailed)] }));
     const errCount = Array.isArray(r?.errors) ? r.errors.length : 0;
     setFlowResult((prev) => ({ ...prev, [path]: { success: !!r?.success, errors: errCount } }));
     if (r?.success) {
       const title = r.title ? ` — ${r.title}` : '';
-      setNotice(`${L.pipelineDone}${title}${errCount ? ` · ${errCount} ${L.stError.toLowerCase()}` : ''}`);
+      setNotice(`${t(L.pipelineDone)}${title}${errCount ? ` · ${t(L.errorCount, { count: errCount })}` : ''}`);
     } else {
       const errs = Array.isArray(r?.errors) && r.errors.length ? `: ${r.errors.slice(0, 3).join('; ')}` : '';
-      setNotice(`${L.pipelineFailed}${errs}`);
+      setNotice(`${t(L.pipelineFailed)}${errs}`);
     }
     setFlowPath(null);
     setFlowProgress(null);
     void loadState();   // refresh submission_state badges after submit
-  }, [flowPath, selectedLangList, loadState]);
+  }, [flowPath, selectedLangList, loadState, t]);
 
   // --- enrichment -------------------------------------------------------- #
   const enrichOnce = useCallback(async (): Promise<EnrichResult | null> => {
     const lim = Math.max(1, Math.floor(limit) || 1);
     const r: any = await laravelApi.enrichMedia(lim)
-      .catch((e: any) => ({ error: e?.message || 'HTTP failed' }));
+      .catch((e: unknown) => ({ error: pcLaravelErrorMessage(e) }));
     if (!r || r.error || r.success === false) {
-      setNotice(`${L.enrichFailed}${r?.error ? ': ' + r.error : ''}`);
+      setNotice(`${t(L.enrichFailed)}${r?.error ? ': ' + r.error : ''}`);
       return null;
     }
     // media.enrich forwards Laravel's {success, data:{...}} envelope unchanged;
@@ -675,10 +671,10 @@ const PcBooksPage: React.FC = () => {
     };
     setEnrichResult(res);
     if (res.errors && res.errors.length) {
-      setNotice(`${L.enrichFailed}: ${res.errors.join('; ')}`);
+      setNotice(`${t(L.enrichFailed)}: ${res.errors.join('; ')}`);
     }
     return res;
-  }, [limit]);
+  }, [limit, t]);
 
   const enrichNow = useCallback(async () => {
     if (enriching || looping) return;
@@ -726,12 +722,12 @@ const PcBooksPage: React.FC = () => {
       if (r && r.success) {
         setListView({ path, kind, start: r.start, limit: r.limit, total: r.total, items: r.items, totals: r.totals || {}, loading: false });
       } else {
-        setListView({ path, kind, start, limit: LIST_LIMIT, total: 0, items: [], totals: {}, loading: false, error: r?.error || 'failed' });
+        setListView({ path, kind, start, limit: LIST_LIMIT, total: 0, items: [], totals: {}, loading: false, error: r?.error || t(L.requestFailed) });
       }
     } catch (e: any) {
-      setListView({ path, kind, start, limit: LIST_LIMIT, total: 0, items: [], totals: {}, loading: false, error: e?.message || 'request failed' });
+      setListView({ path, kind, start, limit: LIST_LIMIT, total: 0, items: [], totals: {}, loading: false, error: e?.message || t(L.requestFailed) });
     }
-  }, []);
+  }, [t]);
   const openList = useCallback((path: string, kind: string) => { void loadListPage(path, kind, 0); }, [loadListPage]);
 
   // --- chapter -> sentence tree (lazy load over booksList) ---------------- #
@@ -744,11 +740,11 @@ const PcBooksPage: React.FC = () => {
         { chapter_index: chapterIndex, languages: selectedLangList() });
       const slots: BookSlot[] = (r && r.success && Array.isArray(r.items)) ? (r.items as BookSlot[]) : [];
       setTrees((prev) => ({ ...prev, [path]: { ...prev[path], openChapter: chapterIndex, slots, slotsLoading: false,
-        error: r && r.success ? undefined : (r?.error || 'failed') } }));
+        error: r && r.success ? undefined : (r?.error || t(L.requestFailed)) } }));
     } catch (e: any) {
-      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], openChapter: chapterIndex, slots: [], slotsLoading: false, error: e?.message || 'request failed' } }));
+      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], openChapter: chapterIndex, slots: [], slotsLoading: false, error: e?.message || t(L.requestFailed) } }));
     }
-  }, [selectedLangList]);
+  }, [selectedLangList, t]);
 
   // Toggle the chapter tree for a source; first open lazily fetches the chapters.
   const toggleTree = useCallback(async (path: string) => {
@@ -763,16 +759,16 @@ const PcBooksPage: React.FC = () => {
         : [];
       // A book with no detected chapters shows a single "Chapter 1".
       if (!chapters.length && r && r.success) {
-        chapters = [{ chapter_index: 0, title: 'Chapter 1', sentence_count: 0 }];
+        chapters = [{ chapter_index: 0, title: t(L.chapterNumber, { number: 1 }), sentence_count: 0 }];
       }
       setTrees((prev) => ({ ...prev, [path]: { ...prev[path], open: true, loading: false, chapters,
-        error: r && r.success ? undefined : (r?.error || 'failed') } }));
+        error: r && r.success ? undefined : (r?.error || t(L.requestFailed)) } }));
       // Auto-expand the first chapter for immediate feedback.
       if (chapters.length) void loadChapterSlots(path, chapters[0].chapter_index, 'sentence');
     } catch (e: any) {
-      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], open: true, loading: false, error: e?.message || 'request failed' } }));
+      setTrees((prev) => ({ ...prev, [path]: { ...prev[path], open: true, loading: false, error: e?.message || t(L.requestFailed) } }));
     }
-  }, [trees, selectedLangList, loadChapterSlots]);
+  }, [trees, selectedLangList, loadChapterSlots, t]);
 
   // --- styling helpers --------------------------------------------------- #
   const inputCls = 'text-xs bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-200 focus:outline-none';
@@ -782,31 +778,31 @@ const PcBooksPage: React.FC = () => {
     : 0;
   // Friendly labels for sync stages streamed through HTTP events.
   const stageLabel = (stage: string): string => ({
-    scan: L.stScan, source: L.stSource, extract: L.stExtract, build: L.stBuild,
-    ingest: L.stIngest, clips: L.stClips, done: L.stDone, error: L.stError,
+    scan: t(L.stScan), source: t(L.stSource), extract: t(L.stExtract), build: t(L.stBuild),
+    ingest: t(L.stIngest), clips: t(L.stClips), done: t(L.stDone), error: t(L.stError),
   } as Record<string, string>)[stage] || stage;
   // Friendly labels for the auto-flow stages (incl. engine sub-steps).
   const flowStageLabel = (stage: string): string => ({
-    convert: L.flConvert, translate: L.flTranslate, voice: L.flVoice,
-    audio: L.flAudio, audio_upload: L.flAudioUpload, submit: L.flSubmit,
-    done: L.flDone, error: L.flError,
+    convert: t(L.flConvert), translate: t(L.flTranslate), voice: t(L.flVoice),
+    audio: t(L.flAudio), audio_upload: t(L.flAudioUpload), submit: t(L.flSubmit),
+    done: t(L.flDone), error: t(L.flError),
   } as Record<string, string>)[stage] || stage;
   const busyAny = enriching || looping;
   const filterLabel = useMemo(() => {
     if (!supportedFormats.length) return '';
-    if (formatFilter.size === supportedFormats.length) return L.allFormats;
-    if (formatFilter.size === 0) return L.noFormats;
+    if (formatFilter.size === supportedFormats.length) return t(L.allFormats);
+    if (formatFilter.size === 0) return t(L.noFormats);
     return `${formatFilter.size}/${supportedFormats.length}`;
-  }, [supportedFormats, formatFilter]);
+  }, [supportedFormats, formatFilter, t]);
 
   const renderStats = (s: BookTextStats, path: string) => (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
-      <BookStatTile variant="source" icon={<Type className="w-3 h-3" />} label={L.words} value={nf(s.word_count)} onClick={() => openList(path, 'words')} />
-      <BookStatTile variant="source" icon={<Hash className="w-3 h-3" />} label={L.uniqueWords} value={nf(s.unique_word_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_words')} />
-      <BookStatTile variant="source" icon={<AlignLeft className="w-3 h-3" />} label={L.sentences} value={nf(s.sentence_count)} onClick={() => openList(path, 'sentences')} />
-      <BookStatTile variant="source" icon={<Hash className="w-3 h-3" />} label={L.uniqueSentences} value={nf(s.unique_sentence_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_sentences')} />
-      <BookStatTile variant="source" icon={<FileText className="w-3 h-3" />} label={L.characters} value={nf(s.char_count)} />
-      <BookStatTile variant="source" icon={<Languages className="w-3 h-3" />} label={L.langs} value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500" onClick={() => openList(path, 'languages')} />
+      <BookStatTile variant="source" icon={<Type className="w-3 h-3" />} label={t(L.words)} value={nf(s.word_count)} onClick={() => openList(path, 'words')} />
+      <BookStatTile variant="source" icon={<Hash className="w-3 h-3" />} label={t(L.uniqueWords)} value={nf(s.unique_word_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_words')} />
+      <BookStatTile variant="source" icon={<AlignLeft className="w-3 h-3" />} label={t(L.sentences)} value={nf(s.sentence_count)} onClick={() => openList(path, 'sentences')} />
+      <BookStatTile variant="source" icon={<Hash className="w-3 h-3" />} label={t(L.uniqueSentences)} value={nf(s.unique_sentence_count)} accent="text-indigo-500" onClick={() => openList(path, 'unique_sentences')} />
+      <BookStatTile variant="source" icon={<FileText className="w-3 h-3" />} label={t(L.characters)} value={nf(s.char_count)} />
+      <BookStatTile variant="source" icon={<Languages className="w-3 h-3" />} label={t(L.langs)} value={(s.primary_language || 'und').toUpperCase()} accent="text-emerald-500" onClick={() => openList(path, 'languages')} />
     </div>
   );
 
@@ -826,7 +822,7 @@ const PcBooksPage: React.FC = () => {
   const renderTopWords = (s: BookTextStats) => (
     s.top_words.length > 0 && (
       <div className="flex flex-wrap items-center gap-1.5 mt-2">
-        <span className="text-[10px] uppercase tracking-wide text-slate-400">{L.topWords}</span>
+        <span className="text-[10px] uppercase tracking-wide text-slate-400">{t(L.topWords)}</span>
         {s.top_words.slice(0, 10).map((w) => (
           <span key={w.word} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] bg-slate-200/70 dark:bg-white/5 text-slate-600 dark:text-slate-300">
             {w.word} <span className="text-slate-400">×{w.count}</span>
@@ -841,18 +837,18 @@ const PcBooksPage: React.FC = () => {
     <div className="rounded-2xl p-4 border bg-slate-100/60 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-          <Languages className="w-3.5 h-3.5" /> {L.languages2}
-          <span className="ml-1 normal-case font-normal text-slate-400">({selectedLangs.size} {L.selectedCount})</span>
+          <Languages className="w-3.5 h-3.5" /> {t(L.languages2)}
+          <span className="ml-1 normal-case font-normal text-slate-400">({t(L.selectedCount, { count: selectedLangs.size })})</span>
         </h3>
       </div>
-      <p className="text-[11px] text-slate-400 mb-2">{L.languagesHint}</p>
+      <p className="text-[11px] text-slate-400 mb-2">{t(L.languagesHint)}</p>
       <div className="flex flex-wrap gap-1.5">
         {SUPPORTED_LEARNING_LANGUAGES.map((l) => {
           const on = selectedLangs.has(l.code);
           const locked = l.code === lockedLang;
           return (
             <button key={l.code} type="button" onClick={() => toggleLang(l.code)} disabled={locked}
-              title={locked ? L.primaryLang : l.name}
+              title={locked ? t(L.primaryLang) : l.name}
               className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition flex items-center gap-1 ${
                 on
                   ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
@@ -866,7 +862,7 @@ const PcBooksPage: React.FC = () => {
         })}
       </div>
       {selectedLangs.size === 0 && (
-        <p className="mt-2 text-[11px] font-bold text-amber-500">{L.needOneLang}</p>
+        <p className="mt-2 text-[11px] font-bold text-amber-500">{t(L.needOneLang)}</p>
       )}
     </div>
   );
@@ -878,14 +874,14 @@ const PcBooksPage: React.FC = () => {
   // Chapter title (v3.1): prefer the per-language title for the primary language,
   // then any non-empty title in the map, then the flat title, then a default.
   const chapterTitle = (ch: BookChapter): string => {
-    const t = ch.titles;
-    if (t) {
-      const byPrimary = t[lockedLang];
+    const titles = ch.titles;
+    if (titles) {
+      const byPrimary = titles[lockedLang];
       if (byPrimary) return byPrimary;
-      const firstNonEmpty = Object.values(t).find((v) => !!v);
+      const firstNonEmpty = Object.values(titles).find((v) => !!v);
       if (firstNonEmpty) return firstNonEmpty;
     }
-    return ch.title || `${L.chapter} ${ch.chapter_index + 1}`;
+    return ch.title || t(L.chapterNumber, { number: ch.chapter_index + 1 });
   };
 
   const renderTree = (path: string) => {
@@ -896,17 +892,17 @@ const PcBooksPage: React.FC = () => {
       <div className="mt-2.5 rounded-2xl p-3 border bg-slate-100/40 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
         <div className="flex items-center gap-1.5 mb-2 text-[11px] text-slate-500">
           <BookMarked className="w-3.5 h-3.5 text-rose-400" />
-          <span className="font-bold">{L.chapters2}</span>
-          <span className="text-slate-400">· {L.chaptersHint}</span>
+          <span className="font-bold">{t(L.chapters2)}</span>
+          <span className="text-slate-400">· {t(L.chaptersHint)}</span>
         </div>
         {tree.loading ? (
           <div className="py-4 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {L.loadingList}
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {t(L.loadingList)}
           </div>
         ) : tree.error ? (
           <div className="py-4 text-center text-[11px] text-amber-500">{tree.error}</div>
         ) : tree.chapters.length === 0 ? (
-          <div className="py-4 text-center text-[11px] text-slate-400">{L.noChapters}</div>
+          <div className="py-4 text-center text-[11px] text-slate-400">{t(L.noChapters)}</div>
         ) : (
           <div className="space-y-1.5">
             {tree.chapters.map((ch) => {
@@ -923,14 +919,14 @@ const PcBooksPage: React.FC = () => {
                       {chapterTitle(ch)}
                     </span>
                     {(ch.sentence_count ?? 0) > 0 && (
-                      <span className="shrink-0 text-[10px] text-slate-400">{nf(ch.sentence_count)} {L.sentences.toLowerCase()}</span>
+                      <span className="shrink-0 text-[10px] text-slate-400">{t(L.sentenceCount, { count: nf(ch.sentence_count) })}</span>
                     )}
                   </button>
                   {isOpen && (
                     <div className="px-2.5 pb-2.5">
                       {/* grain toggle (cue / sentence) */}
                       <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-[10px] uppercase tracking-wide text-slate-400">{L.grainLabel}:</span>
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400">{t(L.grainLabel)}:</span>
                         {(['sentence', 'cue'] as const).map((g) => (
                           <button key={g} type="button"
                             onClick={() => void loadChapterSlots(path, ch.chapter_index, g)}
@@ -938,23 +934,23 @@ const PcBooksPage: React.FC = () => {
                               tree.grain === g
                                 ? 'border-rose-500/60 bg-rose-500/10 text-rose-500'
                                 : 'border-slate-200 dark:border-white/10 text-slate-400 hover:border-slate-300'}`}>
-                            {g === 'cue' ? L.grainCue : L.grainSentence}
+                            {g === 'cue' ? t(L.grainCue) : t(L.grainSentence)}
                           </button>
                         ))}
                       </div>
                       {tree.slotsLoading ? (
                         <div className="py-3 text-center text-[11px] text-slate-400 flex items-center justify-center gap-2">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {L.loadingList}
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {t(L.loadingList)}
                         </div>
                       ) : tree.slots.length === 0 ? (
-                        <div className="py-3 text-center text-[11px] text-slate-400">{L.emptyChapter}</div>
+                        <div className="py-3 text-center text-[11px] text-slate-400">{t(L.emptyChapter)}</div>
                       ) : (
                         <div className="overflow-auto max-h-72 rounded-lg border border-slate-200/60 dark:border-white/5">
                           <table className="w-full text-[11px] border-collapse">
                             <thead className="sticky top-0 bg-slate-100 dark:bg-slate-900">
                               <tr>
                                 <th className="px-2 py-1 text-right text-slate-400 font-bold w-10">#</th>
-                                <th className="px-2 py-1 text-left text-slate-400 font-bold w-14">{L.grainLabel}</th>
+                                <th className="px-2 py-1 text-left text-slate-400 font-bold w-14">{t(L.grainLabel)}</th>
                                 {cols.map((c) => (
                                   <th key={c} className="px-2 py-1 text-left text-slate-400 font-bold">
                                     <span className="font-mono uppercase">{c}</span> <span className="font-normal opacity-70">{langName(c)}</span>
@@ -969,14 +965,14 @@ const PcBooksPage: React.FC = () => {
                                   <td className="px-2 py-1">
                                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                                       slot.grain === 'cue' ? 'bg-sky-500/15 text-sky-500' : 'bg-amber-500/15 text-amber-500'}`}>
-                                      {slot.grain === 'cue' ? L.grainCue : L.grainSentence}
+                                      {slot.grain === 'cue' ? t(L.grainCue) : t(L.grainSentence)}
                                     </span>
                                   </td>
                                   {cols.map((c) => {
                                     const txt = slot.langs ? slot.langs[c] : null;
                                     return (
                                       <td key={c} className={`px-2 py-1 break-words ${txt ? 'text-slate-700 dark:text-slate-200' : 'text-slate-300 dark:text-slate-600 italic'}`}>
-                                        {txt || L.blankCorr}
+                                        {txt || t(L.blankCorr)}
                                       </td>
                                     );
                                   })}
@@ -1004,10 +1000,10 @@ const PcBooksPage: React.FC = () => {
     const langN = selectedLangList().length;
     return (
       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
-        <span className="inline-flex items-center gap-1"><Languages className="w-3 h-3" />{langN} {L.metaLangs}</span>
-        <span className="inline-flex items-center gap-1"><AlignLeft className="w-3 h-3" />{nf(a.sentence_count)} {L.sentences.toLowerCase()}</span>
+        <span className="inline-flex items-center gap-1"><Languages className="w-3 h-3" />{t(L.langCount, { count: langN })}</span>
+        <span className="inline-flex items-center gap-1"><AlignLeft className="w-3 h-3" />{t(L.sentenceCount, { count: nf(a.sentence_count) })}</span>
         {meta?.chapters != null && (
-          <span className="inline-flex items-center gap-1"><BookMarked className="w-3 h-3" />{nf(meta.chapters)} {L.metaChapters}</span>
+          <span className="inline-flex items-center gap-1"><BookMarked className="w-3 h-3" />{t(L.chapterCount, { count: nf(meta.chapters) })}</span>
         )}
       </div>
     );
@@ -1024,12 +1020,12 @@ const PcBooksPage: React.FC = () => {
         <div className="flex items-center gap-2 text-[11px] text-slate-500">
           <FileStack className="w-3.5 h-3.5 text-rose-400" />
           {a.mode === 'folder'
-            ? <span>{nf(a.analyzed)} {L.analyzedOf} {nf(a.scanned)} {L.filesWord}</span>
-            : <span>1 {L.filesWord}</span>}
-          {a.truncated_files && <span className="text-amber-500">· {L.capHit}</span>}
+            ? <span>{t(L.analyzedFiles, { analyzed: nf(a.analyzed), scanned: nf(a.scanned) })}</span>
+            : <span>{t(L.fileCount, { count: 1 })}</span>}
+          {a.truncated_files && <span className="text-amber-500">· {t(L.capHit)}</span>}
           <button onClick={() => setDetailPath(path)}
             className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 transition">
-            <ListChecks className="w-3 h-3" /> {L.explore}
+            <ListChecks className="w-3 h-3" /> {t(L.explore)}
           </button>
         </div>
         {renderSourceMeta(path)}
@@ -1043,12 +1039,12 @@ const PcBooksPage: React.FC = () => {
             <button onClick={() => togglePreview(path)}
               className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-400">
               {showPv ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {showPv ? L.hidePreview : L.showPreview}
+              {showPv ? t(L.hidePreview) : t(L.showPreview)}
               <span className="text-slate-400 font-normal">· {previewFile.name}</span>
             </button>
             {showPv && (
               <pre className="mt-1.5 max-h-48 overflow-auto text-[11px] leading-relaxed whitespace-pre-wrap break-words rounded-xl p-3 bg-slate-100 dark:bg-black/40 border border-slate-200/60 dark:border-white/5 text-slate-600 dark:text-slate-300">
-                {previewFile.error ? `(${L.noText})` : previewFile.preview}
+                {previewFile.error ? `(${t(L.noText)})` : previewFile.preview}
               </pre>
             )}
           </div>
@@ -1064,9 +1060,9 @@ const PcBooksPage: React.FC = () => {
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-              <BookOpen className="w-5 h-5 text-rose-500" /> {L.title}
+              <BookOpen className="w-5 h-5 text-rose-500" /> {t(L.title)}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{L.subtitle}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{t(L.subtitle)}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setShowFilter((v) => !v)}
@@ -1074,19 +1070,19 @@ const PcBooksPage: React.FC = () => {
                 showFilter
                   ? 'border-rose-500 bg-rose-500/10 text-rose-500'
                   : 'border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300'}`}>
-              <Filter className="w-4 h-4" /> {L.formats}
+              <Filter className="w-4 h-4" /> {t(L.formats)}
               {filterLabel && <span className="text-[10px] opacity-80">({filterLabel})</span>}
             </button>
             <input ref={fileInputRef} type="file" multiple hidden onChange={onPickUpload}
               accept={supportedFormats.join(',')} />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
               className="px-3 py-2.5 text-xs font-bold rounded-xl transition flex items-center gap-1 border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 disabled:opacity-50"
-              title={L.uploadHint}>
-              {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />} {L.upload}
+              title={t(L.uploadHint)}>
+              {uploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />} {t(L.upload)}
             </button>
             <button onClick={() => { setAddPath(DEFAULT_BASE); setShowAdd(true); }}
               className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1">
-              <Plus className="w-4 h-4" /> {L.addSource}
+              <Plus className="w-4 h-4" /> {t(L.addSource)}
             </button>
           </div>
         </div>
@@ -1096,15 +1092,15 @@ const PcBooksPage: React.FC = () => {
           <div className="mb-4 rounded-2xl p-4 border bg-slate-100/60 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                <ScanText className="w-3.5 h-3.5" /> {L.formats}
+                <ScanText className="w-3.5 h-3.5" /> {t(L.formats)}
               </h3>
               <div className="flex items-center gap-2">
-                <button onClick={() => setAllFormats(true)} className="text-[11px] font-bold text-rose-500 hover:text-rose-400">{L.allFormats}</button>
+                <button onClick={() => setAllFormats(true)} className="text-[11px] font-bold text-rose-500 hover:text-rose-400">{t(L.allFormats)}</button>
                 <span className="text-slate-300 dark:text-slate-600">·</span>
-                <button onClick={() => setAllFormats(false)} className="text-[11px] font-bold text-slate-500 hover:text-slate-400">{L.noFormats}</button>
+                <button onClick={() => setAllFormats(false)} className="text-[11px] font-bold text-slate-500 hover:text-slate-400">{t(L.noFormats)}</button>
               </div>
             </div>
-            <p className="text-[11px] text-slate-400 mb-2">{L.filterHint}</p>
+            <p className="text-[11px] text-slate-400 mb-2">{t(L.filterHint)}</p>
             <div className="flex flex-wrap gap-1.5">
               {supportedFormats.map((fmt) => {
                 const on = formatFilter.has(fmt);
@@ -1118,7 +1114,7 @@ const PcBooksPage: React.FC = () => {
                   </button>
                 );
               })}
-              {!supportedFormats.length && <span className="text-[11px] text-slate-400">{L.unreachable}</span>}
+              {!supportedFormats.length && <span className="text-[11px] text-slate-400">{t(L.unreachable)}</span>}
             </div>
           </div>
         )}
@@ -1129,7 +1125,7 @@ const PcBooksPage: React.FC = () => {
         {!httpConnected && (
           <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
             <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-words">{L.unreachable}</span>
+            <span className="break-words">{t(L.unreachable)}</span>
           </div>
         )}
 
@@ -1140,25 +1136,25 @@ const PcBooksPage: React.FC = () => {
           onDrop={onDrop}
           className={`space-y-2 rounded-2xl transition ${dragOver ? 'ring-2 ring-rose-500/60 bg-rose-500/5 p-3' : ''}`}>
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">{L.sources}</h3>
+            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">{t(L.sources)}</h3>
             {entries.length > 0 && (
               <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer select-none">
-                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} /> {L.selectAll}
+                <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} /> {t(L.selectAll)}
               </label>
             )}
           </div>
-          <p className="text-[11px] text-slate-400">{L.pick}</p>
+          <p className="text-[11px] text-slate-400">{t(L.pick)}</p>
           <p className="text-[11px] text-slate-400 flex items-center gap-1">
-            <Workflow className="w-3 h-3 text-rose-400 shrink-0" /> {L.pipelineHint}
+            <Workflow className="w-3 h-3 text-rose-400 shrink-0" /> {t(L.pipelineHint)}
           </p>
 
           {entries.length === 0 ? (
             <div className={`text-xs py-8 text-center border border-dashed rounded-2xl transition ${
               dragOver ? 'border-rose-500/60 text-rose-500' : 'border-slate-300 dark:border-white/10 text-slate-500'}`}>
               <UploadCloud className="w-6 h-6 mx-auto mb-1.5 opacity-60" />
-              {L.dropHere} <span className="text-slate-400">{L.dropOr}</span>{' '}
-              <button onClick={() => { setAddPath(DEFAULT_BASE); setShowAdd(true); }} className="font-bold text-rose-500 hover:text-rose-400">{L.addSource}</button>
-              <div className="mt-1 text-[11px] text-slate-400">{L.noSources}</div>
+              {t(L.dropHere)} <span className="text-slate-400">{t(L.dropOr)}</span>{' '}
+              <button onClick={() => { setAddPath(DEFAULT_BASE); setShowAdd(true); }} className="font-bold text-rose-500 hover:text-rose-400">{t(L.addSource)}</button>
+              <div className="mt-1 text-[11px] text-slate-400">{t(L.noSources)}</div>
             </div>
           ) : (
             <ul className="space-y-2">
@@ -1177,17 +1173,17 @@ const PcBooksPage: React.FC = () => {
                           ? 'bg-sky-500/15 text-sky-500'
                           : 'bg-amber-500/15 text-amber-500'}`}>
                         {e.mode === 'folder' ? <Folder className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                        {e.mode === 'folder' ? L.folder : L.file}
+                        {e.mode === 'folder' ? t(L.folder) : t(L.file)}
                       </span>
                       <span className="flex-1 text-xs font-mono text-slate-700 dark:text-slate-200 truncate" title={e.path}>{e.path}</span>
                       {sourceStates[e.path]?.submission_state === 'synced' && (
                         <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-emerald-500/15 text-emerald-500">
-                          {L.syncedBadge}
+                          {t(L.syncedBadge)}
                         </span>
                       )}
                       <button onClick={() => analyzeEntry(e.path)} disabled={isAnalyzing}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-500/10 transition disabled:opacity-50"
-                        title={analyses[e.path] ? L.reAnalyze : L.analyze}>
+                        title={analyses[e.path] ? t(L.reAnalyze) : t(L.analyze)}>
                         {isAnalyzing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ScanText className="w-3.5 h-3.5" />}
                       </button>
                       <button onClick={() => void runPipeline(e.path)}
@@ -1196,7 +1192,7 @@ const PcBooksPage: React.FC = () => {
                           flowPath === e.path
                             ? 'text-rose-500 bg-rose-500/10'
                             : 'text-slate-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
-                        title={`${L.runPipeline}: ${L.flConvert} → ${L.flTranslate} (${selectedLangList().join(', ') || '—'}) → ${L.flVoice} → ${L.flSubmit}`}>
+                        title={t(L.pipelineTitle, { languages: selectedLangList().join(', ') || '—' })}>
                         {flowPath === e.path ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Workflow className="w-3.5 h-3.5" />}
                       </button>
                       <button onClick={() => void toggleTree(e.path)}
@@ -1204,24 +1200,24 @@ const PcBooksPage: React.FC = () => {
                           trees[e.path]?.open
                             ? 'text-rose-500 bg-rose-500/10'
                             : 'text-slate-400 hover:text-rose-500 hover:bg-rose-500/10'}`}
-                        title={trees[e.path]?.open ? L.hideChapters : L.viewChapters}>
+                        title={trees[e.path]?.open ? t(L.hideChapters) : t(L.viewChapters)}>
                         <BookMarked className="w-3.5 h-3.5" />
                       </button>
                       <button onClick={() => removeEntry(e.path)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition" title={L.remove}>
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition" title={t(L.remove)}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     {isAnalyzing && !analyses[e.path] && (
                       <div className="mt-2 text-[11px] text-slate-400 flex items-center gap-1.5">
-                        <RefreshCw className="w-3 h-3 animate-spin" /> {L.analyzing}
+                        <RefreshCw className="w-3 h-3 animate-spin" /> {t(L.analyzing)}
                       </div>
                     )}
                     {/* live auto-flow progress for THIS source */}
                     {flowPath === e.path && (
                       <div className="mt-2 text-[11px] text-rose-500 flex items-center gap-1.5 flex-wrap">
                         <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
-                        <span className="font-bold">{flowProgress ? flowStageLabel(flowProgress.stage) : L.pipelineRunning}</span>
+                        <span className="font-bold">{flowProgress ? flowStageLabel(flowProgress.stage) : t(L.pipelineRunning)}</span>
                         {flowProgress && flowProgress.total > 0 && (
                           <span className="text-slate-400">· {flowProgress.done}/{flowProgress.total}</span>
                         )}
@@ -1235,9 +1231,9 @@ const PcBooksPage: React.FC = () => {
                       <div className={`mt-2 text-[11px] flex items-center gap-1.5 ${
                         flowResult[e.path].success ? 'text-emerald-500' : 'text-amber-500'}`}>
                         <Workflow className="w-3 h-3 shrink-0" />
-                        {flowResult[e.path].success ? L.pipelineDone : L.pipelineFailed}
+                        {flowResult[e.path].success ? t(L.pipelineDone) : t(L.pipelineFailed)}
                         {flowResult[e.path].errors > 0 && (
-                          <span className="text-slate-400">· {flowResult[e.path].errors} {L.stError.toLowerCase()}</span>
+                          <span className="text-slate-400">· {t(L.errorCount, { count: flowResult[e.path].errors })}</span>
                         )}
                       </div>
                     )}
@@ -1255,10 +1251,10 @@ const PcBooksPage: React.FC = () => {
           <button onClick={syncBooks} disabled={syncing || selectedLangs.size === 0}
             className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
             {syncing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
-            {syncing ? L.syncing : L.syncLaravel}
+            {syncing ? t(L.syncing) : t(L.syncLaravel)}
           </button>
           {selectedLangs.size === 0 && (
-            <span className="text-[11px] font-bold text-amber-500">{L.needOneLang}</span>
+            <span className="text-[11px] font-bold text-amber-500">{t(L.needOneLang)}</span>
           )}
         </div>
 
@@ -1271,7 +1267,7 @@ const PcBooksPage: React.FC = () => {
           <div className="mt-4">
             <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
               <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
-              {L.syncStage}:
+              {t(L.syncStage)}:
               <span className="font-bold text-rose-500">{stageLabel(syncProgress.stage)}</span>
               {syncProgress.total > 0 && (
                 <span className="text-slate-400">· {syncProgress.done}/{syncProgress.total} ({syncPct}%)</span>
@@ -1293,14 +1289,14 @@ const PcBooksPage: React.FC = () => {
       <section className="pc-glass p-6">
         <div className="mb-4">
           <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
-            <Library className="w-4 h-4 text-rose-500" /> {L.library}
+            <Library className="w-4 h-4 text-rose-500" /> {t(L.library)}
           </h3>
-          <p className="text-[11px] text-slate-400 mt-1">{L.libraryHint}</p>
+          <p className="text-[11px] text-slate-400 mt-1">{t(L.libraryHint)}</p>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
           <div>
-            <label className="block text-[11px] text-slate-500 mb-1">{L.batchLimit}</label>
+            <label className="block text-[11px] text-slate-500 mb-1">{t(L.batchLimit)}</label>
             <input type="number" min={1} value={limit}
               onChange={(e) => setLimit(Math.max(1, Number(e.target.value) || 1))}
               disabled={busyAny}
@@ -1309,17 +1305,17 @@ const PcBooksPage: React.FC = () => {
           <button onClick={enrichNow} disabled={busyAny}
             className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
             {enriching ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {enriching ? L.enriching : L.enrichNow}
+            {enriching ? t(L.enriching) : t(L.enrichNow)}
           </button>
           {!looping ? (
             <button onClick={runUntilEmpty} disabled={busyAny}
               className="px-5 py-2.5 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 text-xs font-bold rounded-xl flex items-center gap-1 transition text-slate-700 dark:text-slate-200 disabled:opacity-50 disabled:cursor-not-allowed">
-              <ListChecks className="w-4 h-4" /> {L.keepGoing}
+              <ListChecks className="w-4 h-4" /> {t(L.keepGoing)}
             </button>
           ) : (
             <button onClick={stopLoop}
               className="px-5 py-2.5 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition">
-              <RefreshCw className="w-4 h-4 animate-spin" /> {L.stopLoop}
+              <RefreshCw className="w-4 h-4 animate-spin" /> {t(L.stopLoop)}
             </button>
           )}
         </div>
@@ -1327,15 +1323,15 @@ const PcBooksPage: React.FC = () => {
         {enrichResult && (
           <div className="mt-4 grid grid-cols-3 gap-3 text-[11px]">
             <div className="rounded-2xl p-4 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5">
-              <div className="text-slate-400 uppercase tracking-wide">{L.processed}</div>
+              <div className="text-slate-400 uppercase tracking-wide">{t(L.processed)}</div>
               <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{enrichResult.processed}</div>
             </div>
             <div className="rounded-2xl p-4 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5">
-              <div className="text-slate-400 uppercase tracking-wide">{L.enriched}</div>
+              <div className="text-slate-400 uppercase tracking-wide">{t(L.enriched)}</div>
               <div className="text-lg font-bold text-emerald-500">{enrichResult.enriched}</div>
             </div>
             <div className="rounded-2xl p-4 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5">
-              <div className="text-slate-400 uppercase tracking-wide">{L.remaining}</div>
+              <div className="text-slate-400 uppercase tracking-wide">{t(L.remaining)}</div>
               <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{enrichResult.remaining}</div>
             </div>
           </div>
@@ -1357,8 +1353,8 @@ const PcBooksPage: React.FC = () => {
           {showAdvanced ? <ChevronDown className="w-4 h-4 text-rose-500 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
           <BookMarked className="w-4 h-4 text-amber-500 shrink-0" />
           <div className="min-w-0">
-            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">{L.advanced}</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">{L.advancedHint}</p>
+            <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider">{t(L.advanced)}</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">{t(L.advancedHint)}</p>
           </div>
         </button>
         {showAdvanced && (
@@ -1375,7 +1371,7 @@ const PcBooksPage: React.FC = () => {
           <div className="w-full max-w-md rounded-3xl p-6 border bg-white dark:bg-slate-900 border-slate-200 dark:border-white/10 shadow-xl"
             onClick={(ev) => ev.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100"><Plus className="w-4 h-4 text-rose-500" /> {L.addSource}</h3>
+              <h3 className="text-sm font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100"><Plus className="w-4 h-4 text-rose-500" /> {t(L.addSource)}</h3>
               <button onClick={() => setShowAdd(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
             </div>
 
@@ -1385,18 +1381,18 @@ const PcBooksPage: React.FC = () => {
                   addMode === 'folder'
                     ? 'border-rose-500 bg-rose-500/10 text-rose-500'
                     : 'border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300'}`}>
-                <Folder className="w-5 h-5" /> {L.folder}
+                <Folder className="w-5 h-5" /> {t(L.folder)}
               </button>
               <button onClick={() => setAddMode('file')}
                 className={`flex flex-col items-center gap-1 p-3 rounded-2xl border text-xs font-bold transition ${
                   addMode === 'file'
                     ? 'border-rose-500 bg-rose-500/10 text-rose-500'
                     : 'border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300'}`}>
-                <FileText className="w-5 h-5" /> {L.singleFile}
+                <FileText className="w-5 h-5" /> {t(L.singleFile)}
               </button>
             </div>
 
-            <label className="block text-[11px] text-slate-500 mb-1">{L.path}</label>
+            <label className="block text-[11px] text-slate-500 mb-1">{t(L.path)}</label>
             <div className="flex gap-2 mb-2">
               <input type="text" value={addPath} autoFocus
                 onChange={(ev) => setAddPath(ev.target.value)}
@@ -1406,21 +1402,21 @@ const PcBooksPage: React.FC = () => {
               <button onClick={browse} disabled={browsing}
                 className="px-3 py-2 text-xs font-bold rounded-xl bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-600 dark:text-slate-200 transition flex items-center gap-1 shrink-0 disabled:opacity-50">
                 {browsing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-                {L.browse}
+                {t(L.browse)}
               </button>
             </div>
             <p className="text-[11px] text-slate-400 mb-5">
-              {addMode === 'folder' ? L.pickFolderHint : L.pickFileHint}
+              {addMode === 'folder' ? t(L.pickFolderHint) : t(L.pickFileHint)}
             </p>
 
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowAdd(false)}
                 className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-200/50 dark:bg-white/5 text-slate-500 hover:text-slate-300 transition">
-                {L.cancel}
+                {t(L.cancel)}
               </button>
               <button onClick={confirmAdd}
                 className="px-5 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1">
-                <Plus className="w-3.5 h-3.5" /> {L.add}
+                <Plus className="w-3.5 h-3.5" /> {t(L.add)}
               </button>
             </div>
           </div>
@@ -1445,26 +1441,26 @@ const PcBooksPage: React.FC = () => {
       {listView && (() => {
         const lv = listView;
         const KIND_LABEL: Record<string, string> = {
-          words: L.words, unique_words: L.uniqueWords, sentences: L.sentences,
-          unique_sentences: L.uniqueSentences, languages: L.langs,
+          words: t(L.words), unique_words: t(L.uniqueWords), sentences: t(L.sentences),
+          unique_sentences: t(L.uniqueSentences), languages: t(L.langs),
         };
         const fname = lv.path.split(/[\\/]/).pop();
         const from = lv.total === 0 ? 0 : lv.start + 1;
         const to = lv.start + lv.items.length;
         const hasPrev = lv.start > 0;
         const hasNext = lv.start + lv.limit < lv.total;
-        const t = lv.totals || {};
+        const totals = lv.totals || {};
         // Always surface the character count too (the user expects it shown).
-        const charsPart = (t.chars != null) ? ` · ${nf(t.chars)} ${L.characters.toLowerCase()}` : '';
+        const charsPart = (totals.chars != null) ? ` · ${t(L.charCount, { count: nf(totals.chars) })}` : '';
         let summary = '';
         if (lv.kind === 'words' || lv.kind === 'unique_words') {
-          summary = `${nf(t.unique_words)} ${L.distinctWord} · ${nf(t.words)} ${L.totalOccur}${charsPart}`;
+          summary = `${t(L.wordsSummary, { distinct: nf(totals.unique_words), total: nf(totals.words) })}${charsPart}`;
         } else if (lv.kind === 'sentences') {
-          summary = `${nf(t.sentences)} ${L.sentences.toLowerCase()}${charsPart}`;
+          summary = `${t(L.sentencesSummary, { count: nf(totals.sentences) })}${charsPart}`;
         } else if (lv.kind === 'unique_sentences') {
-          summary = `${nf(t.unique_sentences)} ${L.distinctWord}${charsPart}`;
+          summary = `${t(L.distinctSummary, { count: nf(totals.unique_sentences) })}${charsPart}`;
         } else if (lv.kind === 'languages') {
-          summary = `${nf(t.chars)} ${L.characters.toLowerCase()}`;
+          summary = t(L.charCount, { count: nf(totals.chars) });
         }
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -1484,12 +1480,12 @@ const PcBooksPage: React.FC = () => {
               <div className="flex-1 overflow-auto rounded-2xl border border-slate-200/60 dark:border-white/5 bg-slate-100/40 dark:bg-white/[0.02] p-2">
                 {lv.loading ? (
                   <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
-                    <RefreshCw className="w-4 h-4 animate-spin" /> {L.loadingList}
+                    <RefreshCw className="w-4 h-4 animate-spin" /> {t(L.loadingList)}
                   </div>
                 ) : lv.error ? (
                   <div className="py-8 text-center text-xs text-amber-500">{lv.error}</div>
                 ) : lv.items.length === 0 ? (
-                  <div className="py-8 text-center text-xs text-slate-400">{L.emptyList}</div>
+                  <div className="py-8 text-center text-xs text-slate-400">{t(L.emptyList)}</div>
                 ) : (lv.kind === 'words' || lv.kind === 'unique_words') ? (
                   <div className="flex flex-wrap gap-1.5">
                     {lv.items.map((w: any, i: number) => (
@@ -1503,7 +1499,7 @@ const PcBooksPage: React.FC = () => {
                     {lv.items.map((l: any) => (
                       <span key={l.script} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                         <span className="font-bold">{(l.code || '').toUpperCase()}</span>
-                        {Math.round((l.ratio || 0) * 100)}% · {nf(l.chars)} {L.chars}
+                        {Math.round((l.ratio || 0) * 100)}% · {t(L.charCount, { count: nf(l.chars) })}
                       </span>
                     ))}
                   </div>
@@ -1521,14 +1517,14 @@ const PcBooksPage: React.FC = () => {
 
               {/* pagination */}
               <div className="flex items-center justify-between mt-3 text-[11px] text-slate-500">
-                <span>{L.showing} {nf(from)}–{nf(to)} {L.listOf} {nf(lv.total)}</span>
+                <span>{t(L.range, { from: nf(from), to: nf(to), total: nf(lv.total) })}</span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => loadListPage(lv.path, lv.kind, Math.max(0, lv.start - lv.limit))}
                     disabled={!hasPrev || lv.loading}
-                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/5 font-bold disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300">{L.prev}</button>
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/5 font-bold disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300">{t(L.prev)}</button>
                   <button onClick={() => loadListPage(lv.path, lv.kind, lv.start + lv.limit)}
                     disabled={!hasNext || lv.loading}
-                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/5 font-bold disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300">{L.next}</button>
+                    className="px-3 py-1.5 rounded-lg bg-slate-200 dark:bg-white/5 font-bold disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 dark:text-slate-300">{t(L.next)}</button>
                 </div>
               </div>
             </div>

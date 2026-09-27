@@ -53,7 +53,7 @@ async function ensureDeviceId(): Promise<string> {
 
 async function requireActiveLicense(): Promise<NonNullable<Awaited<ReturnType<typeof store.getLicense>>>> {
   const license = await store.getLicense();
-  if (!isLicenseActive(license)) throw new AppError('license.inactive');
+  if (!license || !isLicenseActive(license)) throw new AppError('license.inactive');
   return license;
 }
 
@@ -84,6 +84,10 @@ async function handle(req: BgRequest): Promise<BgResponse> {
         const locked = lockedLicense();
         return ok(await store.setLicenseIfCurrent(lic, locked));
       }
+      // A stored super license stays valid only while its code still verifies for this device
+      if (lic?.mode === 'super' && !(await verifySuperCode(lic.code || '', await ensureDeviceId()))) {
+        return ok(await store.setLicenseIfCurrent(lic, lockedLicense()));
+      }
       if (lic?.mode === 'member') {
         const backend = await store.getBackend();
         if (backend?.memberToken) {
@@ -98,11 +102,14 @@ async function handle(req: BgRequest): Promise<BgResponse> {
       return ok(lic);
     }
     case 'license.submitSuperCode': {
-      if (!verifySuperCode(req.code)) throw new AppError('license.superCodeInvalid');
-      const lic = superLicense(req.code);
+      const claims = await verifySuperCode(req.code, await ensureDeviceId());
+      if (!claims) throw new AppError('license.superCodeInvalid');
+      const lic = superLicense(req.code, claims);
       await store.setOfflineLicense(lic);
       return ok(lic);
     }
+    case 'license.deviceId':
+      return ok(await ensureDeviceId());
     case 'license.loginMember': {
       const deviceId = await ensureDeviceId();
       const rawBaseUrl = req.baseUrl.trim();

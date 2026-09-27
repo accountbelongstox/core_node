@@ -20,12 +20,12 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin\DingDuoDuoV1
 |
 | require_once'd from routes/api.php, so these carry the /api prefix:
 | /api/ding_duo_duo_v1/admin/*. Guarded by 'custom.authenticate' (Sanctum
-| bearer token). Member management / expiry / permissions, recharge-API settings,
-| and cross-PDD-user bindings.
+| bearer token) plus 'dashboard.auth' (administrator). Member management /
+| expiry / permissions, recharge-API settings, and cross-PDD-user bindings.
 |
 */
 
-Route::prefix('ding_duo_duo_v1/admin')->middleware(['custom.authenticate'])->group(function () {
+Route::prefix('ding_duo_duo_v1/admin')->middleware(['custom.authenticate', 'dashboard.auth'])->group(function () {
     // Member management (CRUD) + expiry / permissions / tier.
     Route::get('members', [DingDuoDuoV1MemberAdminController::class, 'index']);
     Route::post('members', [DingDuoDuoV1MemberAdminController::class, 'store']);

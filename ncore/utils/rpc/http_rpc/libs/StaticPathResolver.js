@@ -61,40 +61,15 @@ class StaticPathResolver {
         }
 
         if (this.isLinux) {
-            if (this.isProduction) {
-                // NTFS-aware base from the single JS definition (globaldir.js).
-                return globalDir.WWW_BASE;
-            }
-
-            const dataDirs = ['/mnt/data', '/opt', '/home'];
-            for (const dir of dataDirs) {
-                if (fs.existsSync(dir)) {
-                    try {
-                        fs.accessSync(dir, fs.constants.W_OK);
-                        return dir;
-                    } catch (error) {
-                        continue;
-                    }
-                }
-            }
-            return '/www';
+            // NTFS-aware web base from the single JS definition (globaldir.js), desktop or headless
+            return globalDir.WWW_BASE;
         }
 
         return process.cwd();
     }
 
     getCoreNodeProjectRoot() {
-        const baseDir = this.getBaseDataDirectory();
-
-        if (this.isWSL || this.hasDesktop) {
-            return path.join(baseDir, 'programing', 'core_node');
-        }
-
-        if (this.isProduction) {
-            return path.join(baseDir, 'wwwroot', 'core_node');
-        }
-
-        return path.join(baseDir, 'core_node');
+        return globalDir.rootdir;
     }
 
     resolveStaticPath(pathKey, subPath = '') {
@@ -103,63 +78,13 @@ class StaticPathResolver {
 
         switch (pathKey) {
             case 'wwwroot':
-                if (this.isWSL) {
-                    resolvedPath = path.join(baseDir, 'www', 'wwwroot');
-                } else if (this.isProduction) {
-                    resolvedPath = globalDir.mapWebPath('wwwroot');
-                } else if (this.isWindows) {
-                    resolvedPath = path.join(baseDir, 'www', 'wwwroot');
-                } else {
-                    resolvedPath = path.join(baseDir, 'www', 'wwwroot');
-                }
-                break;
-
             case 'static':
-                if (this.isWSL) {
-                    resolvedPath = path.join(baseDir, 'www', 'static');
-                } else if (this.isProduction) {
-                    resolvedPath = globalDir.mapWebPath('static');
-                } else if (this.isWindows) {
-                    resolvedPath = path.join(baseDir, 'www', 'static');
-                } else {
-                    resolvedPath = path.join(baseDir, 'www', 'static');
-                }
-                break;
-
             case 'uploads':
-                if (this.isWSL) {
-                    resolvedPath = path.join(baseDir, 'www', 'uploads');
-                } else if (this.isProduction) {
-                    resolvedPath = globalDir.mapWebPath('uploads');
-                } else if (this.isWindows) {
-                    resolvedPath = path.join(baseDir, 'www', 'uploads');
-                } else {
-                    resolvedPath = path.join(baseDir, 'www', 'uploads');
-                }
-                break;
-
             case 'assets':
-                if (this.isWSL) {
-                    resolvedPath = path.join(baseDir, 'www', 'assets');
-                } else if (this.isProduction) {
-                    resolvedPath = globalDir.mapWebPath('assets');
-                } else if (this.isWindows) {
-                    resolvedPath = path.join(baseDir, 'www', 'assets');
-                } else {
-                    resolvedPath = path.join(baseDir, 'www', 'assets');
-                }
-                break;
-
             case 'shared-data':
-                if (this.isWSL) {
-                    resolvedPath = path.join(baseDir, 'www', 'shared-data');
-                } else if (this.isProduction) {
-                    resolvedPath = globalDir.mapWebPath('shared-data');
-                } else if (this.isWindows) {
-                    resolvedPath = path.join(baseDir, 'www', 'shared-data');
-                } else {
-                    resolvedPath = path.join(baseDir, 'www', 'shared-data');
-                }
+                resolvedPath = this.isLinux && !this.isWSL
+                    ? globalDir.mapWebPath(pathKey)
+                    : path.join(baseDir, 'www', pathKey);
                 break;
 
             case 'public':
@@ -205,10 +130,6 @@ class StaticPathResolver {
             ];
             paths['/assets'] = [this.resolveStaticPath('assets')];
             paths['/uploads'] = [this.resolveStaticPath('uploads')];
-        } else if (this.isProduction) {
-            paths['/static'] = [globalDir.mapWebPath('static'), globalDir.mapWebPath('wwwroot')];
-            paths['/assets'] = [globalDir.mapWebPath('assets')];
-            paths['/uploads'] = [globalDir.mapWebPath('uploads')];
         } else if (this.isWindows) {
             const baseDir = this.getBaseDataDirectory();
             paths['/static'] = [

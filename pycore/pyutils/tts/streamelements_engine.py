@@ -21,6 +21,12 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.api_secrets import streamelements_api_key
+from pycore.pyutils.tts.tts_reason_codes import (
+    TTS_REASON_AUTH_COOLDOWN,
+    TTS_REASON_PACKAGE_MISSING,
+    TTS_REASON_SECRET_REQUIRED,
+    tts_reason,
+)
 
 STREAMELEMENTS_SPEECH_URL = "https://api.streamelements.com/kappa/v2/speech"
 # (connect, read) timeouts (seconds).
@@ -29,6 +35,9 @@ _VOICE_BY_ACCENT = {"us": "Joanna", "uk": "Amy"}
 _WARNED_MISSING_KEY = SerializedValue(False, "StreamElementsWarningState")
 _AUTH_COOLDOWN_S = 300.0
 _COOLDOWN_UNTIL = SerializedValue(0.0, "StreamElementsCooldownState")
+_ENGINE = "streamelements"
+_API_KEY_SECRET = "STREAMELEMENTS_API_KEY"
+_HTTP_CLIENT_PACKAGE = "requests"
 
 
 def in_cooldown() -> bool:
@@ -63,15 +72,14 @@ def available() -> bool:
 def disabled_reason() -> Optional[str]:
     """Human-readable why this engine is off; None when usable."""
     if in_cooldown():
-        rem = cooldown_remaining()
-        return f"auth failure cooldown ({rem:.0f}s remaining)"
+        return tts_reason(TTS_REASON_AUTH_COOLDOWN, engine=_ENGINE, seconds=round(cooldown_remaining()))
     if not _key():
-        return "STREAMELEMENTS_API_KEY not in .secret_keys — engine disabled"
+        return tts_reason(TTS_REASON_SECRET_REQUIRED, secrets=_API_KEY_SECRET)
     try:
         if get_third_package_requests() is None:
-            return "HTTP client (requests) unavailable"
+            return tts_reason(TTS_REASON_PACKAGE_MISSING, package=_HTTP_CLIENT_PACKAGE)
     except Exception:  # noqa: BLE001
-        return "HTTP client (requests) unavailable"
+        return tts_reason(TTS_REASON_PACKAGE_MISSING, package=_HTTP_CLIENT_PACKAGE)
     return None
 
 

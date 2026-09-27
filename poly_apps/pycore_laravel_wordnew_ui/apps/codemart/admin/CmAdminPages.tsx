@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
+import { cmFormatPercent } from '../components/workspace/cmWorkspaceFormat';
 import adminConsoleImage from '../assets/images/admin-console.webp';
 import { cmAdminApi } from './CmAdminApi';
 import {
@@ -233,7 +234,6 @@ export const CmAdminOverviewPage: React.FC = () => {
 const CmAdminPolicyCard: React.FC<{ policy: CmAdminPolicy }> = ({ policy }) => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
-  const commission = Number(policy.platform_commission_rate);
   const thresholdRows = [
     ...Object.entries(policy.architect_thresholds ?? {}).map(([key, value]) => ({ key: `architect.${key}`, value })),
     ...Object.entries(policy.reviewer_thresholds ?? {}).map(([key, value]) => ({ key: `reviewer.${key}`, value })),
@@ -261,9 +261,7 @@ const CmAdminPolicyCard: React.FC<{ policy: CmAdminPolicy }> = ({ policy }) => {
             </div>
             <div>
               <dt>{t('admin.policy.commission')}</dt>
-              <dd>{Number.isFinite(commission)
-                ? new Intl.NumberFormat(format.language, { style: 'percent', maximumFractionDigits: 2 }).format(commission)
-                : String(policy.platform_commission_rate)}</dd>
+              <dd>{cmFormatPercent(policy.platform_commission_rate, format.language)}</dd>
             </div>
           </dl>
         </article>
@@ -410,23 +408,31 @@ export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAd
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestRef = useRef(0);
   const available = CM_ADMIN_KYC_DOCUMENTS.filter((type) => documents?.[type]);
 
   useEffect(() => () => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }, [objectUrl]);
 
+  useEffect(() => () => {
+    requestRef.current += 1;
+  }, []);
+
   const open = async (type: CmAdminKycDocument): Promise<void> => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    setObjectUrl(null);
+    setError(null);
     if (active === type) {
       setActive(null);
-      setObjectUrl(null);
+      setLoading(false);
       return;
     }
     setActive(type);
-    setObjectUrl(null);
-    setError(null);
     setLoading(true);
     const response = await cmAdminApi.kycFile(kycId, type);
+    if (requestId !== requestRef.current) return;
     setLoading(false);
     if (response.success && response.data) {
       setObjectUrl(URL.createObjectURL(response.data));

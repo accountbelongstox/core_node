@@ -22,7 +22,8 @@ function stableSerialize(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 
-function scopeFor(token: string | null): string {
+/** Data scope of a session: one per bearer token, 'public' without one. */
+export function scopeFor(token: string | null): string {
   return token ? `user-${stableHash(token)}` : 'public';
 }
 

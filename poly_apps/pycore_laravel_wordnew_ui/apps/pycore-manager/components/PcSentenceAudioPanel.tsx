@@ -31,10 +31,10 @@
  * synced to Laravel yet (Analyze -> Sync books to Laravel first).
  *
  * Local React state only; every call is guarded and the UI never crashes when
- * Laravel is offline. Hardcoded-English copy is centralized in `L`
- * (zh kept as comments - the pycore-manager pages have no `t` object).
+ * Laravel is offline. `L` maps each label to its `pc` locale key.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Volume2, RefreshCw, Play, Square, CheckCircle2, AlertTriangle, WifiOff,
   BookOpen, Sparkles,
@@ -44,6 +44,8 @@ import type { BookSourceState } from '@/apps/pycore-manager/api';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
+import { pcLaravelErrorMessage } from '../utils/pcErrorCodes';
+import { formatBookMetric as nf } from '@/shared/books/BookStats';
 
 // ---- persistence ---------------------------------------------------------- #
 // One localStorage blob mirrors the generation session so a refresh/reopen
@@ -79,33 +81,33 @@ const saveState = (s: AudioGenState) => {
   StorageManager.set(StorageKeys.PYCORE_SENTENCE_AUDIO_GENERATION, s);
 };
 
-// ---- i18n labels (single source; the pages use literals, not a `t` object) - #
 const L = {
-  title: 'Sentence Audio',                          // 句子语音
-  subtitle: 'Bulk backfill (media.enrich batches). On-demand reader audio: Queue Center → Sentence Voice Assist (claim queue).',
-  generate: 'Generate Audio',                       // 生成语音
-  resume: 'Resume',                                 // 继续
-  generating: 'Generating…',                        // 生成中…
-  stop: 'Stop',                                     // 停止
-  batchLimit: 'Batch limit',                        // 批量上限
-  progress: 'Progress',                             // 进度
-  done: 'Done',                                     // 已完成
-  remaining: 'Remaining',                           // 剩余
-  processed: 'Processed',                           // 已处理
-  errors: 'Errors',                                 // 错误
-  completed: 'All sentences have audio',            // 全部句子已有语音
-  interrupted: 'Generation was interrupted - click Resume to continue (idempotent, no duplicates).',
-  error: 'Generation failed',                       // 生成失败
-  needSynced: 'No synced books yet - Analyze a source, then "Sync books to Laravel" first.',
-  syncedBooks: 'Synced books',                      // 已同步书籍
-  noBooks: 'No book sources yet.',                  // 暂无书籍来源
-  sentences: 'sentences',                           // 句
-  notSynced: 'not synced',                          // 未同步
-  httpDown: 'Laravel backend (:9000) is unreachable.',
-  lastRun: 'Last run',                              // 上次运行
-};
+  title: 'sentenceAudio.title',
+  subtitle: 'sentenceAudio.subtitle',
+  generate: 'sentenceAudio.generate',
+  resume: 'sentenceAudio.resume',
+  stop: 'sentenceAudio.stop',
+  batchLimit: 'sentenceAudio.batchLimit',
+  progress: 'sentenceAudio.progress',
+  done: 'sentenceAudio.done',
+  remaining: 'sentenceAudio.remaining',
+  processed: 'sentenceAudio.processed',
+  errors: 'sentenceAudio.errors',
+  completed: 'sentenceAudio.completed',
+  interrupted: 'sentenceAudio.interrupted',
+  error: 'sentenceAudio.error',
+  needSynced: 'sentenceAudio.needSynced',
+  syncedBooks: 'sentenceAudio.syncedBooks',
+  sentences: 'sentenceAudio.sentences',
+  httpDown: 'sentenceAudio.httpDown',
+  lastRun: 'sentenceAudio.lastRun',
+  reset: 'sentenceAudio.reset',
+  enrichFailed: 'sentenceAudio.enrichFailed',
+} as const;
 
-const nf = (n: number | undefined | null) => (typeof n === 'number' ? n.toLocaleString() : '0');
+type EnrichBatch =
+  | { processed: number; enriched: number; remaining: number; errors: string[] }
+  | { error: string };
 
 interface PcSentenceAudioPanelProps {
   /** Book sources (path + mode) from PcBooksPage, for the context list. */
@@ -115,6 +117,7 @@ interface PcSentenceAudioPanelProps {
 }
 
 const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, sourceStates }) => {
+  const { t } = useTranslation('pc');
   const laravelEndpoint = usePcLaravelEndpoint();
   const [gen, setGen] = useState<AudioGenState>(loadState);
   // If a cached session was mid-generation, it was interrupted by the
@@ -150,13 +153,11 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
 
   // One enrich batch (mirrors PcBooksPage::enrichOnce). Returns the parsed
   // {processed, enriched, remaining, errors} or null on failure.
-  const enrichOnce = useCallback(async (limit: number): Promise<{
-    processed: number; enriched: number; remaining: number; errors: string[];
-  } | null> => {
+  const enrichOnce = useCallback(async (limit: number): Promise<EnrichBatch> => {
     const r: any = await laravelApi.enrichMedia(limit)
-      .catch((e: any) => ({ error: e?.message || 'HTTP failed' }));
+      .catch((e: unknown) => ({ error: pcLaravelErrorMessage(e, t(L.enrichFailed)) }));
     if (!r || r.error || r.success === false) {
-      return null;
+      return { error: String(r?.error || t(L.enrichFailed)) };
     }
     // media.enrich forwards Laravel's ApiResponse envelope {success, data:{...}}
     // unchanged because the HTTP controller resolves the raw result. Counts live under
@@ -169,7 +170,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
       remaining: Number(d.remaining ?? 0),
       errors: Array.isArray(d.errors) ? d.errors.map((e: any) => (typeof e === 'string' ? e : JSON.stringify(e))) : [],
     };
-  }, []);
+  }, [t]);
 
   // Start (or resume) the drain loop. Idempotent: the backend skips rows that
   // already have audio, so resuming after an interrupt never duplicates work.
@@ -191,10 +192,11 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
     for (let i = 0; i < MAX_LOOP_ITERATIONS; i += 1) {
       if (loopAbort.current) break;
       const res = await enrichOnce(gen.batchLimit);
-      if (!res) {
+      if ('error' in res) {
+        const failure = res.error;
         setGen((prev) => ({
           ...prev, status: 'error', remaining: lastRemaining,
-          errors: [...allErrors, 'pycore/Laravel unreachable or enrich failed'],
+          errors: [...allErrors, failure],
         }));
         return;
       }
@@ -242,15 +244,15 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
     <section className="pc-glass p-6">
       <div className="mb-4">
         <h3 className="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-2">
-          <Volume2 className="w-4 h-4 text-rose-500" /> {L.title}
+          <Volume2 className="w-4 h-4 text-rose-500" /> {t(L.title)}
         </h3>
-        <p className="text-[11px] text-slate-400 mt-1">{L.subtitle}</p>
+        <p className="text-[11px] text-slate-400 mt-1">{t(L.subtitle)}</p>
       </div>
 
       {!httpConnected && (
         <div className="mb-4 flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
           <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="break-words">{L.httpDown}</span>
+          <span className="break-words">{t(L.httpDown)}</span>
         </div>
       )}
 
@@ -258,11 +260,11 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
       <div className="mb-4 rounded-2xl p-3 border bg-slate-100/40 dark:bg-black/20 border-slate-200/60 dark:border-white/5">
         <div className="flex items-center gap-1.5 mb-1.5 text-[11px] text-slate-500">
           <BookOpen className="w-3.5 h-3.5 text-rose-400" />
-          <span className="font-bold">{L.syncedBooks}</span>
+          <span className="font-bold">{t(L.syncedBooks)}</span>
           <span className="text-slate-400">· {syncedBooks.length}</span>
         </div>
         {!anySynced ? (
-          <p className="text-[11px] text-amber-500">{L.needSynced}</p>
+          <p className="text-[11px] text-amber-500">{t(L.needSynced)}</p>
         ) : (
           <ul className="space-y-1 max-h-32 overflow-auto">
             {syncedBooks.map((b) => {
@@ -271,7 +273,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
               return (
                 <li key={b.path} className="flex items-center gap-2 text-[11px]">
                   <span className="flex-1 min-w-0 truncate font-mono text-slate-600 dark:text-slate-300" title={b.path}>{name}</span>
-                  <span className="shrink-0 text-slate-400">{nf(count)} {L.sentences}</span>
+                  <span className="shrink-0 text-slate-400">{t(L.sentences, { count: nf(count) })}</span>
                 </li>
               );
             })}
@@ -282,7 +284,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
       {/* Controls */}
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label className="block text-[11px] text-slate-500 mb-1">{L.batchLimit}</label>
+          <label className="block text-[11px] text-slate-500 mb-1">{t(L.batchLimit)}</label>
           <input type="number" min={1} max={500} value={gen.batchLimit}
             onChange={(e) => setBatchLimit(Number(e.target.value) || 1)}
             disabled={isRunning}
@@ -293,18 +295,18 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
             disabled={!httpConnected}
             className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-rose-600/20 transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
             {gen.status === 'interrupted' ? <Play className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-            {gen.status === 'interrupted' ? L.resume : L.generate}
+            {gen.status === 'interrupted' ? t(L.resume) : t(L.generate)}
           </button>
         ) : (
           <button onClick={stopGeneration}
             className="px-5 py-2.5 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition">
-            <RefreshCw className="w-4 h-4 animate-spin" /> {L.stop}
+            <RefreshCw className="w-4 h-4 animate-spin" /> {t(L.stop)}
           </button>
         )}
         {(gen.status === 'completed' || gen.status === 'interrupted') && (
           <button onClick={resetSession}
             className="px-4 py-2.5 bg-slate-200 dark:bg-white/5 hover:bg-slate-300 dark:hover:bg-white/10 text-xs font-bold rounded-xl flex items-center gap-1 transition text-slate-700 dark:text-slate-200">
-            <Square className="w-3.5 h-3.5" /> Reset
+            <Square className="w-3.5 h-3.5" /> {t(L.reset)}
           </button>
         )}
       </div>
@@ -317,7 +319,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
               : gen.status === 'error' ? <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
                 : isRunning ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-500" />
                   : <Volume2 className="w-3.5 h-3.5 text-slate-400" />}
-            {L.progress}
+            {t(L.progress)}
           </span>
           <span className="text-[11px] text-slate-500 font-mono">{pct}%</span>
         </div>
@@ -329,25 +331,25 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
             style={{ width: `${pct}%` }} />
         </div>
         <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
-          <span>{nf(gen.done)} / {nf(total)} {L.done}</span>
-          {gen.updatedAt > 0 && <span>{L.lastRun}: {new Date(gen.updatedAt).toLocaleTimeString()}</span>}
+          <span>{nf(gen.done)} / {nf(total)} {t(L.done)}</span>
+          {gen.updatedAt > 0 && <span>{t(L.lastRun)}: {new Date(gen.updatedAt).toLocaleTimeString()}</span>}
         </div>
       </div>
 
       {/* Status messages */}
       {gen.status === 'completed' && (
         <p className="mt-3 text-[11px] text-emerald-500 flex items-center gap-1.5">
-          <CheckCircle2 className="w-3.5 h-3.5" /> {L.completed}
+          <CheckCircle2 className="w-3.5 h-3.5" /> {t(L.completed)}
         </p>
       )}
       {gen.status === 'interrupted' && (
         <p className="mt-3 text-[11px] text-amber-500 flex items-start gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {L.interrupted}
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {t(L.interrupted)}
         </p>
       )}
       {gen.status === 'error' && (
         <p className="mt-3 text-[11px] text-amber-500 flex items-start gap-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {L.error}
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {t(L.error)}
         </p>
       )}
 
@@ -355,15 +357,15 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
       {(isRunning || gen.processed > 0) && (
         <div className="mt-4 grid grid-cols-3 gap-3 text-[11px]">
           <div className="rounded-2xl p-4 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5">
-            <div className="text-slate-400 uppercase tracking-wide">{L.processed}</div>
+            <div className="text-slate-400 uppercase tracking-wide">{t(L.processed)}</div>
             <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{nf(gen.processed)}</div>
           </div>
           <div className="rounded-2xl p-4 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5">
-            <div className="text-slate-400 uppercase tracking-wide">{L.done}</div>
+            <div className="text-slate-400 uppercase tracking-wide">{t(L.done)}</div>
             <div className="text-lg font-bold text-emerald-500">{nf(gen.done)}</div>
           </div>
           <div className="rounded-2xl p-4 border bg-slate-100 dark:bg-black/30 border-slate-200/50 dark:border-white/5">
-            <div className="text-slate-400 uppercase tracking-wide">{L.remaining}</div>
+            <div className="text-slate-400 uppercase tracking-wide">{t(L.remaining)}</div>
             <div className="text-lg font-bold text-slate-700 dark:text-slate-200">{nf(gen.remaining)}</div>
           </div>
         </div>
@@ -372,7 +374,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
       {/* Recent errors (capped, never abort the batch) */}
       {gen.errors.length > 0 && (
         <details className="mt-3 text-[11px]">
-          <summary className="cursor-pointer text-amber-500 font-bold">{L.errors} ({gen.errors.length})</summary>
+          <summary className="cursor-pointer text-amber-500 font-bold">{t(L.errors)} ({gen.errors.length})</summary>
           <ul className="mt-1.5 space-y-0.5 text-slate-500 dark:text-slate-400 max-h-32 overflow-auto">
             {gen.errors.map((e, i) => <li key={i} className="break-words">· {e}</li>)}
           </ul>

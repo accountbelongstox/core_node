@@ -18,11 +18,12 @@ use Carbon\Carbon;
 /**
  * Resolves a presented token into a license payload the 订多多 extension consumes.
  *
- * Resolution order: a DB super code (or an offline-valid one) -> a Sanctum
- * member token (validated via DingDuoDuoV1MemberService) -> locked. The
- * returned array ALWAYS carries these keys: mode, tier, features (array),
- * max_binds (int), expires_at (unix seconds or null), label, token,
- * member_id (int or null).
+ * Resolution order: a v2 super code (Ed25519-signed, bound to the presenting
+ * device, not expired, not revoked in super_codes) -> a Sanctum member token
+ * (validated via DingDuoDuoV1MemberService) -> locked. v1 master codes and
+ * salted codes are not accepted. The returned array ALWAYS carries these
+ * keys: mode, tier, features (array), max_binds (int), expires_at (unix
+ * seconds or null), label, token, member_id (int or null).
  */
 class DingDuoDuoV1LicenseService
 {
@@ -32,43 +33,39 @@ class DingDuoDuoV1LicenseService
     public static function resolveByToken(?string $token, ?string $deviceId = null): array
     {
         $token = is_string($token) ? trim($token) : '';
+        $payload = null;
+        $revoked = null;
+        $member = null;
+        $features = [];
+
         if ($token === '') {
             return self::lockedPayload($token);
         }
 
-        // 1) Super code stored in the DB (active + not expired). Case-insensitive
-        //    match so a lowercase-presented code still resolves.
-        $superCode = DingDuoDuoV1SuperCodeModel::findActiveCode($token);
+        // 1) v2 super code: signature, device binding and expiry are checked
+        //    offline; a super_codes row marked revoked withdraws it.
+        if (DingDuoDuoV1SuperCodeService::isV2Code($token)) {
+            $payload = DingDuoDuoV1SuperCodeService::verify($token, (string) $deviceId);
+            $revoked = $payload === null ? null : DingDuoDuoV1SuperCodeModel::findByCode($token);
+            if ($payload === null || ($revoked !== null && $revoked->status !== DingDuoDuoV1SuperCodeModel::STATUS_ACTIVE)) {
+                return self::lockedPayload($token);
+            }
 
-        if ($superCode && !self::isExpired($superCode->expires_at)) {
             return [
                 'mode' => DingDuoDuoV1LicenseMode::Super->value,
-                'tier' => $superCode->tier ?: DingDuoDuoV1Constants::TIER_UNLIMITED,
-                'features' => ['*'],
-                'max_binds' => (int) ($superCode->max_binds ?? 0),
-                'expires_at' => self::toUnix($superCode->expires_at),
-                'label' => $superCode->label ?: 'Super Code',
+                'tier' => is_string($payload['tier'] ?? null) && $payload['tier'] !== ''
+                    ? $payload['tier']
+                    : DingDuoDuoV1Constants::TIER_UNLIMITED,
+                'features' => is_array($payload['features'] ?? null) ? array_values($payload['features']) : ['*'],
+                'max_binds' => (int) ($payload['maxBinds'] ?? 0),
+                'expires_at' => (int) $payload['exp'],
+                'label' => __('ding_duo_duo.super_code_label'),
                 'token' => $token,
                 'member_id' => null,
             ];
         }
 
-        // 2) Offline-valid super code not (yet) persisted: honor it as unlimited so
-        //    the extension's offline-issued codes keep working server-side.
-        if (DingDuoDuoV1SuperCodeService::verify($token)) {
-            return [
-                'mode' => DingDuoDuoV1LicenseMode::Super->value,
-                'tier' => DingDuoDuoV1Constants::TIER_UNLIMITED,
-                'features' => ['*'],
-                'max_binds' => 0,
-                'expires_at' => null,
-                'label' => 'Super Code',
-                'token' => $token,
-                'member_id' => null,
-            ];
-        }
-
-        // 3) Member token: a Sanctum personal access token whose owning global
+        // 2) Member token: a Sanctum personal access token whose owning global
         //    user has an active, unexpired member extension row.
         $member = DingDuoDuoV1MemberService::activeMemberForToken($token);
 
@@ -86,7 +83,7 @@ class DingDuoDuoV1LicenseService
             ];
         }
 
-        // 4) Nothing matched -> locked.
+        // 3) Nothing matched -> locked.
         return self::lockedPayload($token);
     }
 

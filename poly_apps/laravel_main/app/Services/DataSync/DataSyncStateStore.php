@@ -136,6 +136,7 @@ final class DataSyncStateStore
             'received' => $context['received'] ?? null,
             'cancel_requested' => $context['cancel_requested'] ?? null,
             'ready' => $context['ready'] ?? null,
+            'resource_roots' => $context['resource_roots'] ?? null,
             'finalized' => $context['finalized'] ?? null,
             'receiver_status' => $context['receiver_status'] ?? ($context['receiver']['status'] ?? null),
         ], static fn ($value): bool => $value !== null);
@@ -342,7 +343,7 @@ final class DataSyncStateStore
     {
         $json = (string) json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         if (!FileSystemManager::writeFileAtomic($path, $json)) {
-            throw new \RuntimeException('Unable to persist data synchronization state.');
+            throw new \RuntimeException(__('data_sync.state_persist_failed'));
         }
     }
 

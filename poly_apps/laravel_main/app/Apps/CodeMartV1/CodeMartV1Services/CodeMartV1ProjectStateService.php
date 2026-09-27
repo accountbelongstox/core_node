@@ -220,6 +220,14 @@ class CodeMartV1ProjectStateService
             $effects['credited_developers'] = count($developerIds);
         }
 
+        if (in_array($toStatus, [CodeMartV1Constants::PROJECT_STATUS_CANCELLED, CodeMartV1Constants::PROJECT_STATUS_COMPLETED], true)) {
+            $effects['escrow_refund'] = CodeMartV1EscrowService::refundRemainderForProject(
+                (int) $project->id,
+                $actorId,
+                'project_' . $toStatus
+            );
+        }
+
         return $effects;
     }
 

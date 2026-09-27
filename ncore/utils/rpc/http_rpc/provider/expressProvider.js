@@ -11,7 +11,20 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 const expressOrigin = require('express');
-const fs = require('fs');
+const logger = require('#@logger');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
+const rpcCommon = require('../../common');
+
+const INTERNAL_ERROR_CODE = rpcCommon.RPC_CONSTANTS.ERROR_CODES.INTERNAL_ERROR;
+
+function guardOptions() {
+    const config = rpcCommon.getConfig();
+
+    return {
+        allowedOrigins: config.ALLOWED_ORIGINS || [],
+        credentials: Boolean(config.CORS_CREDENTIALS)
+    };
+}
 
 
 class ExpressProvider {
@@ -23,12 +36,14 @@ class ExpressProvider {
     }
 
     configureMiddleware() {
-        // Parse JSON bodies
-        this.app.use(expressOrigin.json());
-        
-        // Parse URL-encoded bodies
-        this.app.use(expressOrigin.urlencoded({ extended: true }));
-        
+        // Loopback trust or client-key signature (K7), CORS for allowed origins only
+        this.app.use((req, res, next) => localRpcGuard.createExpressGuard(guardOptions())(req, res, next));
+
+        // Parse JSON and URL-encoded bodies, keeping the exact bytes for the signed body digest
+        this.app.use(expressOrigin.json({ verify: localRpcGuard.captureRawBody }));
+        this.app.use(expressOrigin.urlencoded({ extended: true, verify: localRpcGuard.captureRawBody }));
+        this.app.use(localRpcGuard.createExpressBodyDigestCheck());
+
         // Add security headers
         this.app.use((req, res, next) => {
             res.header('X-Content-Type-Options', 'nosniff');
@@ -37,23 +52,13 @@ class ExpressProvider {
             next();
         });
 
-        // Add CORS headers
-        this.app.use((req, res, next) => {
-            res.header('Access-Control-Allow-Origin', '*');
-            res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-            res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-            next();
-        });
-
-        // Handle OPTIONS requests
-        this.app.options('*', (req, res) => {
-            res.sendStatus(200);
-        });
-
         // Error handling middleware
         this.app.use((err, req, res, next) => {
-            console.error(err.stack);
-            res.status(500).send('Something broke!');
+            logger.error('Express middleware error: ' + (err && err.message));
+            if (res.headersSent) {
+                return;
+            }
+            res.status((err && err.status) || 500).json({ success: false, code: INTERNAL_ERROR_CODE, error: INTERNAL_ERROR_CODE });
         });
     }
 

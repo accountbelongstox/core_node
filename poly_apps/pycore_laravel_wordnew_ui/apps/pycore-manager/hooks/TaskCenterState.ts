@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { laravelApi, pycoreApi } from '@/apps/pycore-manager/api';
-import type { PcTaskRecord, PycoreGlobalTaskDetail } from '@/apps/pycore-manager/api';
+import type { PcTaskRecord } from '@/apps/pycore-manager/api';
 import { TypedEventEmitter } from '../../../core/events/TypedEventEmitter';
 import {
     GLOBAL_TASK_HISTORY_BUCKETS,
@@ -10,11 +10,15 @@ import {
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import { pcLaravelErrorMessage } from '../utils/pcErrorCodes';
+import { pcT } from '../utils/pcI18n';
 
 export type CanonicalCompletedTaskType = (typeof GLOBAL_TASK_HISTORY_BUCKETS)[number];
 export type CompletedTaskType = 'all' | CanonicalCompletedTaskType;
 
 const SENTENCE_CONCURRENCY_LIMIT = QUEUE_CENTER_DIFF_DELIVERY.consumer_batch_limits.sentence_audio;
+
+const recentErrorText = (key: string): string => pcT(`queueCenter.recent.errors.${key}`);
 
 const normalizeCompletedTaskType = (rawType: string): CanonicalCompletedTaskType => {
     return normalizeGlobalTaskHistoryType(rawType);
@@ -49,13 +53,6 @@ export class PycoreTaskCenterStateService {
     public recentSyncing = false;
     public recentErr: string | null = null;
     private initialSyncStarted = false;
-
-    // --- Translation Queue State ---
-    public translationBusyTask: string | null = null;
-    public translationNotice: string | null = null;
-    public translationStacking = false;
-    public translationDetailLoading = false;
-    public translationTaskDetail: PycoreGlobalTaskDetail | null = null;
 
     public sentenceActionErr: string | null = null;
 
@@ -117,10 +114,10 @@ export class PycoreTaskCenterStateService {
             }
             this.ingestRecent(syncResult);
             if (laravelResult.status === 'rejected') {
-                this.recentErr = 'Laravel task history unavailable; showing local tasks';
+                this.recentErr = pcLaravelErrorMessage(laravelResult.reason, recentErrorText('laravelUnavailable'));
             }
-        } catch (syncError: any) {
-            this.recentErr = syncError?.message || 'Resource synchronization failed; showing the local archive';
+        } catch (syncError: unknown) {
+            this.recentErr = pcLaravelErrorMessage(syncError, recentErrorText('syncFailed'));
         } finally {
             this.recentLoading = false;
         }
@@ -139,8 +136,8 @@ export class PycoreTaskCenterStateService {
                 include_types: true,
             });
             this.ingestRecent(result);
-        } catch (e: any) {
-            this.recentErr = e?.message || 'Completed-task synchronization failed';
+        } catch (e: unknown) {
+            this.recentErr = pcLaravelErrorMessage(e, recentErrorText('archiveSyncFailed'));
         } finally {
             this.recentSyncing = false;
             this.emit();
@@ -167,89 +164,13 @@ export class PycoreTaskCenterStateService {
                 this.recentTypes = toCanonicalCounts(data.types as Record<string, number>);
             }
             this.recentNextCursorId = data.next_cursor_id ?? null;
-        } catch (e: any) {
-            this.recentErr = e?.message || 'Completed-task archive unavailable';
+        } catch (e: unknown) {
+            this.recentErr = pcLaravelErrorMessage(e, recentErrorText('archiveUnavailable'));
         } finally {
             this.recentLoading = false;
             this.emit();
         }
     }
-
-    // --- Translation Queue Methods ---
-    async fetchTranslationQueue(_refresh: boolean, refreshHub: () => Promise<void>) {
-        await refreshHub();
-    }
-
-    async changeTranslationPriority(
-        taskId: string,
-        next: number,
-        promoteTask: (taskId: string, priority: number) => void,
-    ) {
-        this.translationBusyTask = taskId;
-        this.emit();
-        try {
-            const r = await laravelApi.setQueuePriority(taskId, next);
-            if (r?.success === false) throw new Error(r?.error || 'Action failed');
-            const appliedPriority = Number(r?.data?.priority ?? r?.priority ?? next);
-            this.translationNotice = 'Priority updated';
-            promoteTask(taskId, appliedPriority);
-        } catch (e: any) {
-            this.translationNotice = `Action failed: ${e?.message || ''}`.trim();
-        } finally {
-            this.translationBusyTask = null;
-            this.emit();
-        }
-    }
-
-    async submitTranslationStack(words: string[], lang: string, target: string, refreshHub: () => Promise<void>) {
-        if (words.length === 0) {
-            this.translationNotice = 'Enter at least one word';
-            this.emit();
-            return;
-        }
-        this.translationStacking = true;
-        this.emit();
-        try {
-            const r = await laravelApi.stackQueue(words, lang.trim() || 'en', target.trim() || 'zh');
-            if (r?.success === false) throw new Error(r?.error || 'Action failed');
-            this.translationNotice = 'Words stacked at high priority';
-            await this.fetchTranslationQueue(true, refreshHub);
-        } catch (e: any) {
-            this.translationNotice = `Action failed: ${e?.message || ''}`.trim();
-        } finally {
-            this.translationStacking = false;
-            this.emit();
-        }
-    }
-
-    async openTranslationTaskDetail(taskId: string, initialTaskDetail: PycoreGlobalTaskDetail) {
-        this.translationDetailLoading = true;
-        this.translationTaskDetail = initialTaskDetail;
-        this.emit();
-        try {
-            const r = await laravelApi.getTranslationTaskDetail(taskId);
-            if (r?.success && r.task) {
-                this.translationTaskDetail = r.task;
-            }
-        } catch {
-            // Keep list-row snapshot.
-        } finally {
-            this.translationDetailLoading = false;
-            this.emit();
-        }
-    }
-
-    closeTranslationTaskDetail() {
-        this.translationTaskDetail = null;
-        this.translationDetailLoading = false;
-        this.emit();
-    }
-
-    clearTranslationNotice() {
-        this.translationNotice = null;
-        this.emit();
-    }
-
 
     async setSentenceAudioConcurrency(
         raw: string,

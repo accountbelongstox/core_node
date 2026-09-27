@@ -15,10 +15,12 @@ const path = require(`path`)
 const { gdir, appname, isServer } = require('#@global_vars');
 const {
     ROOT_APP_CACHE_DIR,
+    ROOT_APP_STATIC_DIR,
     APP_METADATA_DIR,
 } = gdir;
-const WWWROOT_DIR = path.join(gdir.rootdir, '../');
-const ALLOW_DOWNLOAD_DIR = path.join(gdir.rootdir, '../../');
+const SHARE_DIR = ROOT_APP_STATIC_DIR ? path.join(ROOT_APP_STATIC_DIR, 'share') : null;
+const WWWROOT_DIR = SHARE_DIR;
+const ALLOW_DOWNLOAD_DIR = SHARE_DIR;
 
 const SKIP_DIRS = [
     'node_modules',
@@ -133,7 +135,7 @@ const UPDATE_CACHE_DIR = path.join(ROOT_APP_CACHE_DIR, 'update_cache');
 
 const config = {
     HTTP_PORT: 3900,
-    HTTP_HOST: '0.0.0.0',
+    SHARE_DIR: SHARE_DIR,
     WWWROOT_DIR: WWWROOT_DIR,
     SKIP_DIRS: SKIP_DIRS,
     UPLOAD_DIRS_CACHE_TTL: UPLOAD_DIRS_CACHE_TTL,

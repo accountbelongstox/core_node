@@ -233,7 +233,7 @@ class TranslatorAPI {
             this.deepseekTranslator = new DeepSeekTranslator({
                 modelPath: this.deepseekConfig.modelPath || 'deepseek-ai/deepseek-vl-1.3b-chat',
                 modelDir: this.deepseekConfig.modelDir || null,
-                pythonCommand: this.deepseekConfig.pythonCommand || 'python',
+                pythonCommand: this.deepseekConfig.pythonCommand,
                 timeout: this.deepseekConfig.timeout || 30000
             });
 

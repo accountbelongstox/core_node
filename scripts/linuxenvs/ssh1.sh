@@ -120,7 +120,7 @@ fi
 
 SSH_PASSWORD=$(get_secret_value "SSH_PASSWORD_1")
 if [ -n "$SSH_PASSWORD" ]; then
-    echo "[SUCCESS] SSH password loaded: $SSH_PASSWORD"
+    echo "[SUCCESS] SSH password loaded (${#SSH_PASSWORD} chars; displayed only when a password login is needed)"
 else
     echo "[INFO] No password configured (using SSH key authentication)"
 fi

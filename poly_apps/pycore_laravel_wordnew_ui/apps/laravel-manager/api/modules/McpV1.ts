@@ -1,12 +1,13 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
+import type { VoiceQueueItem } from '../../uiTypes';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
 /**
  * McpV1 API Module
  * MCP manager - screenshots, tasks, prompts, etc.
  */
-export class McpV1API extends BaseAPI {
+export class McpV1API extends LmBaseAPI {
   screenshotAssetUrl(id: string, extension: string): string {
     return this.buildURL(LARAVEL_API_ROUTE.mcp.screenshotAsset(id, extension));
   }
@@ -189,7 +190,14 @@ export class McpV1API extends BaseAPI {
   }
 
   // ========== Voice Subtitle (voice subtitle queue) ==========
-  async vsAddToQueue(data: { type: 'text' | 'image' | 'voice'; content: any; group?: string; category?: string }): Promise<APIResponse> {
+  async vsAddToQueue(data: {
+    type: VoiceQueueItem['type'];
+    content: any;
+    language?: string;
+    voice?: string;
+    group?: string;
+    category?: string;
+  }): Promise<APIResponse> {
     return this.post('/voice-subtitle/add', data);
   }
 

@@ -4,12 +4,10 @@ import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { useApiResource } from '@/apps/laravel-manager/hooks';
 import type { DevHistoryAssistTask } from '@/apps/laravel-manager/api';
+import { useTaskCenterState } from './TaskCenterState';
 
 interface Props {
   lang: Language;
-  autoRefresh: boolean;
-  refreshIntervalSec: number;
-  refreshToken: number;
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -29,7 +27,8 @@ interface AssistDistData {
   recent: DevHistoryAssistTask[];
 }
 
-const AssistDistributionPanel: React.FC<Props> = ({ autoRefresh, refreshIntervalSec, refreshToken }) => {
+const AssistDistributionPanel: React.FC<Props> = () => {
+  const { autoRefresh, refreshIntervalSec, refreshToken } = useTaskCenterState();
   const [scanning, setScanning] = useState(false);
 
   const { data, loading, refresh } = useApiResource<AssistDistData>(

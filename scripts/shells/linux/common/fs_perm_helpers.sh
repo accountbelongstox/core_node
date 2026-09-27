@@ -17,6 +17,16 @@
 # fstype values whose permissions are fixed by mount options, so recursive
 # chown/chmod are no-ops-in-effect and full-tree-walks-in-cost -> skipped.
 FS_PERM_MOUNT_FIXED_FSTYPES="fuse fuseblk ntfs ntfs3 exfat vfat drvfs"
+# Never opened to mode 777 by a tree walk: secret stores become owner-only,
+# git metadata keeps its own modes and only loses group/other write.
+FS_PERM_PRIVATE_TREE_NAMES=(".secret_keys" ".secrets")
+FS_PERM_GIT_TREE_NAME=".git"
+# Application secret stores whose owner is the reading runtime (Laravel's
+# .core_node_secrets, read by the PHP user): the owner is kept, files become
+# 0600 and directories lose group/other write.
+FS_PERM_APP_SECRET_TREE_NAMES=(".core_node_secrets")
+# Decrypted secret directories inside a private tree (files there are 0600).
+FS_PERM_PRIVATE_RAW_DIR_NAMES=(".secret_ignore" "raw")
 ACTIVE_PERMISSION_USER=""
 ACTIVE_PERMISSION_GROUP=""
 ACTIVE_PERMISSION_SOURCE=""
@@ -134,32 +144,178 @@ resolve_active_permission_owner() {
     echo "$ACTIVE_PERMISSION_USER"
 }
 
+# fs_perm_target_safety <path> -> "safe" or the reason it is refused. The path
+# and its fully resolved form (symlinks, "//", "/.", "..") are both checked:
+# chown/chmod follow a symlink, so a link to "/" must never pass as a target.
+fs_perm_target_safety() {
+    local target_path="$1"
+    local resolved_path=""
+    local candidate=""
+
+    if [ -z "$target_path" ] || [[ "$target_path" != /* ]]; then
+        echo "not absolute"
+        return
+    fi
+    resolved_path="$(readlink -f -- "$target_path" 2>/dev/null || true)"
+    for candidate in "$target_path" "$resolved_path"; do
+        [ -n "$candidate" ] || continue
+        case "$candidate" in
+            /usr/local|/usr/local/*|/var/_core_node|/var/_core_node/*) ;;
+            /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/lib64|/lib64/*|/var|/var/lib|/var/log|/boot|/boot/*|/root|/home|/opt|/srv|/mnt|/media|/tmp|/run|/run/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*)
+                echo "system path $candidate"
+                return
+                ;;
+        esac
+    done
+    echo "safe"
+}
+
+# repair_private_tree <absolute-path> [user] [group]
+# Owner-only secret store: directories 0700, decrypted files 0600, other files
+# (git-tracked encrypted copies) lose every group/other bit but keep the owner
+# bits git tracks.
+repair_private_tree() {
+    local target_path="$1"
+    local target_user="${2:-}"
+    local target_group="${3:-}"
+    local privilege_prefix=""
+    local list_dir=""
+    local raw_name=""
+    local repair_status=0
+    local privilege_command=()
+    local owner_mismatch=()
+    local raw_match=()
+    local raw_exclude=()
+
+    [[ "$target_path" == /* ]] || return 1
+    [ -e "$target_path" ] || return 0
+    fs_perm_is_fuse_mount "$target_path" && return 0
+    if [ -z "$target_user" ]; then
+        resolve_active_permission_owner >/dev/null
+        target_user="$ACTIVE_PERMISSION_USER"
+        target_group="$ACTIVE_PERMISSION_GROUP"
+    elif [ -z "$target_group" ]; then
+        target_group="$(id -gn "$target_user" 2>/dev/null || echo "$target_user")"
+    fi
+    privilege_prefix="$(fs_perm_sudo_prefix)"
+    if [ "$(id -u)" -ne 0 ]; then
+        [ -n "$privilege_prefix" ] || return 1
+        privilege_command=("$privilege_prefix")
+    fi
+    owner_mismatch=(! -user "$target_user" -o ! -group "$target_group")
+    for raw_name in "${FS_PERM_PRIVATE_RAW_DIR_NAMES[@]}"; do
+        [ "${#raw_match[@]}" -gt 0 ] && raw_match+=(-o)
+        raw_match+=(-path "*/$raw_name/*")
+        raw_exclude+=(! -path "*/$raw_name/*")
+    done
+
+    list_dir="$(mktemp -d)" || return 1
+    "${privilege_command[@]}" find "$target_path" \
+        \( -type d \( "${owner_mismatch[@]}" -o ! -perm 0700 \) -fprint0 "$list_dir/dirs" \) \
+        -o \( -type f \( "${raw_match[@]}" \) \( "${owner_mismatch[@]}" -o ! -perm 0600 \) -fprint0 "$list_dir/raw" \) \
+        -o \( -type f "${raw_exclude[@]}" \( "${owner_mismatch[@]}" -o -perm /077 \) -fprint0 "$list_dir/files" \) \
+        2>/dev/null || repair_status=$?
+    cat "$list_dir/dirs" "$list_dir/raw" "$list_dir/files" 2>/dev/null \
+        | "${privilege_command[@]}" xargs -0 -r chown "$target_user:$target_group" -- || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chmod 700 -- < "$list_dir/dirs" 2>/dev/null || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chmod 600 -- < "$list_dir/raw" 2>/dev/null || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chmod go-rwx -- < "$list_dir/files" 2>/dev/null || repair_status=$?
+    rm -rf "$list_dir"
+    return "$repair_status"
+}
+
+# repair_app_secret_tree <absolute-path>
+# Owner kept (the runtime that reads it); files 0600, directories without
+# group/other write.
+repair_app_secret_tree() {
+    local target_path="$1"
+    local privilege_prefix=""
+    local list_dir=""
+    local repair_status=0
+    local privilege_command=()
+
+    [[ "$target_path" == /* ]] || return 1
+    [ -e "$target_path" ] || return 0
+    fs_perm_is_fuse_mount "$target_path" && return 0
+    privilege_prefix="$(fs_perm_sudo_prefix)"
+    if [ "$(id -u)" -ne 0 ]; then
+        [ -n "$privilege_prefix" ] || return 1
+        privilege_command=("$privilege_prefix")
+    fi
+    list_dir="$(mktemp -d)" || return 1
+    "${privilege_command[@]}" find "$target_path" \
+        \( -type d -perm /022 -fprint0 "$list_dir/dirs" \) \
+        -o \( -type f ! -perm 0600 -fprint0 "$list_dir/files" \) \
+        2>/dev/null || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chmod go-w -- < "$list_dir/dirs" 2>/dev/null || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chmod 600 -- < "$list_dir/files" 2>/dev/null || repair_status=$?
+    rm -rf "$list_dir"
+    return "$repair_status"
+}
+
+# repair_owned_tree_no_shared_write <absolute-path> [user] [group]
+# Git metadata: owned by the permission user, group/other write removed, every
+# other mode bit left as git wrote it.
+repair_owned_tree_no_shared_write() {
+    local target_path="$1"
+    local target_user="${2:-}"
+    local target_group="${3:-}"
+    local privilege_prefix=""
+    local mismatch_list=""
+    local repair_status=0
+    local privilege_command=()
+
+    [[ "$target_path" == /* ]] || return 1
+    [ -e "$target_path" ] || return 0
+    fs_perm_is_fuse_mount "$target_path" && return 0
+    if [ -z "$target_user" ]; then
+        resolve_active_permission_owner >/dev/null
+        target_user="$ACTIVE_PERMISSION_USER"
+        target_group="$ACTIVE_PERMISSION_GROUP"
+    elif [ -z "$target_group" ]; then
+        target_group="$(id -gn "$target_user" 2>/dev/null || echo "$target_user")"
+    fi
+    privilege_prefix="$(fs_perm_sudo_prefix)"
+    if [ "$(id -u)" -ne 0 ]; then
+        [ -n "$privilege_prefix" ] || return 1
+        privilege_command=("$privilege_prefix")
+    fi
+    mismatch_list="$(mktemp)" || return 1
+    "${privilege_command[@]}" find "$target_path" \( -type d -o -type f \) \
+        \( ! -user "$target_user" -o ! -group "$target_group" -o -perm /022 \) \
+        -print0 > "$mismatch_list" 2>/dev/null || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chown "$target_user:$target_group" -- < "$mismatch_list" || repair_status=$?
+    "${privilege_command[@]}" xargs -0 -r chmod go-w -- < "$mismatch_list" || repair_status=$?
+    rm -f "$mismatch_list"
+    return "$repair_status"
+}
+
 # repair_owned_tree_777 <absolute-path> [user] [group]
 # Makes the complete tree writable by the active regular user. Root performs
 # the privileged operation but does not become owner unless no active regular
 # user exists. One full-tree walk collects the mismatched entries; only those
 # entries are repaired, so a correct tree costs one walk and a partly wrong
-# tree never pays a second recursive chown/chmod walk.
+# tree never pays a second recursive chown/chmod walk. Secret stores and git
+# metadata are pruned from the walk and repaired by their own policy.
 repair_owned_tree_777() {
     local target_path="$1"
     local target_user="${2:-}"
     local target_group="${3:-}"
     local mismatch_list=""
+    local protected_list=""
+    local protected_path=""
+    local tree_name=""
     local mismatch_count=0
     local privilege_prefix=""
     local scan_status=0
     local repair_status=0
     local privilege_command=()
+    local prune_names=()
+    local target_safety=""
 
-    case "$target_path" in
-        /usr/local|/usr/local/*) ;;
-        ""|/|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
-            echo "[permissions] Refusing unsafe recursive target: $target_path" >&2
-            return 1
-            ;;
-    esac
-    if [[ "$target_path" != /* ]]; then
-        echo "[permissions] Target path is not absolute: $target_path" >&2
+    target_safety="$(fs_perm_target_safety "$target_path")"
+    if [ "$target_safety" != "safe" ]; then
+        echo "[permissions] Refusing unsafe recursive target ($target_safety): $target_path" >&2
         return 1
     fi
     [ -e "$target_path" ] || return 0
@@ -181,10 +337,27 @@ repair_owned_tree_777() {
         privilege_command=("$privilege_prefix")
     fi
 
+    for tree_name in "${FS_PERM_PRIVATE_TREE_NAMES[@]}" "${FS_PERM_APP_SECRET_TREE_NAMES[@]}" "$FS_PERM_GIT_TREE_NAME"; do
+        [ "${#prune_names[@]}" -gt 0 ] && prune_names+=(-o)
+        prune_names+=(-name "$tree_name")
+    done
+
     mismatch_list="$(mktemp)" || return 1
+    protected_list="$(mktemp)" || { rm -f "$mismatch_list"; return 1; }
     "${privilege_command[@]}" find "$target_path" \
-        \( -type d -o -type f \) \( ! -user "$target_user" -o ! -group "$target_group" -o ! -perm 0777 \) \
+        \( "${prune_names[@]}" \) -prune -fprint0 "$protected_list" \
+        -o \( -type d -o -type f \) \( ! -user "$target_user" -o ! -group "$target_group" -o ! -perm 0777 \) \
         -print0 > "$mismatch_list" 2>/dev/null || scan_status=$?
+    while IFS= read -r -d '' protected_path; do
+        if [ "${protected_path##*/}" = "$FS_PERM_GIT_TREE_NAME" ]; then
+            repair_owned_tree_no_shared_write "$protected_path" "$target_user" "$target_group" || repair_status=$?
+        elif [[ " ${FS_PERM_APP_SECRET_TREE_NAMES[*]} " == *" ${protected_path##*/} "* ]]; then
+            repair_app_secret_tree "$protected_path" || repair_status=$?
+        else
+            repair_private_tree "$protected_path" "$target_user" "$target_group" || repair_status=$?
+        fi
+    done < "$protected_list"
+    rm -f "$protected_list"
     mismatch_count="$(tr -cd '\0' < "$mismatch_list" | wc -c)"
     if [ "$scan_status" -ne 0 ] && [ "$mismatch_count" -eq 0 ]; then
         rm -f "$mismatch_list"
@@ -194,7 +367,7 @@ repair_owned_tree_777() {
     if [ "$mismatch_count" -eq 0 ]; then
         rm -f "$mismatch_list"
         echo "[permissions] Ready: $target_path -> $target_user:$target_group mode 777"
-        return 0
+        return "$repair_status"
     fi
 
     echo "[permissions] Repairing $mismatch_count entries: $target_path -> $target_user:$target_group mode 777"
@@ -216,15 +389,13 @@ ensure_owned_tree_777() {
     local target_group="${3:-}"
     local privilege_prefix=""
     local privilege_command=()
+    local target_safety=""
 
-    case "$target_path" in
-        /usr/local|/usr/local/*) ;;
-        ""|/|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
-            echo "[permissions] Refusing unsafe managed target: $target_path" >&2
-            return 1
-            ;;
-    esac
-    [[ "$target_path" == /* ]] || return 1
+    target_safety="$(fs_perm_target_safety "$target_path")"
+    if [ "$target_safety" != "safe" ]; then
+        echo "[permissions] Refusing unsafe managed target ($target_safety): $target_path" >&2
+        return 1
+    fi
     privilege_prefix="$(fs_perm_sudo_prefix)"
     if [ "$(id -u)" -ne 0 ]; then
         [ -n "$privilege_prefix" ] || return 1
@@ -266,13 +437,7 @@ repair_owned_entry_777() {
     local privilege_prefix=""
     local privilege_command=()
 
-    case "$target_path" in
-        /usr/local|/usr/local/*) ;;
-        ""|/|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
-            return 1
-            ;;
-    esac
-    [[ "$target_path" == /* ]] || return 1
+    [ "$(fs_perm_target_safety "$target_path")" = "safe" ] || return 1
     [ -e "$target_path" ] || return 0
     if [ -z "$target_user" ]; then
         resolve_active_permission_owner >/dev/null

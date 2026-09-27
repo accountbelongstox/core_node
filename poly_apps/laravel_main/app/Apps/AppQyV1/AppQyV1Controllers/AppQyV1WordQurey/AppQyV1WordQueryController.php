@@ -439,7 +439,7 @@ class AppQyV1WordQueryController extends Controller
     public function getDailyWords(Request $request)
     {
         if (!$this->markerManager->isInitialized()) {
-            return $this->error('System not initialized. Please initialize first.');
+            return $this->error(__('app_qy_v1.messages.system_not_initialized_please_initialize_first'));
         }
 
         $langCode = $request->input('language', 'en');
@@ -499,7 +499,7 @@ class AppQyV1WordQueryController extends Controller
             ];
         }
 
-        return $this->success($words, 'Daily words retrieved successfully');
+        return $this->success($words, __('app_qy_v1.messages.daily_words_retrieved_successfully'));
     }
 
     /**
@@ -520,7 +520,7 @@ class AppQyV1WordQueryController extends Controller
         $row = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
 
         if ($row === null) {
-            return $this->notFound('Word not found');
+            return $this->notFound(__('app_qy_v1.messages.word_not_found'));
         }
 
         $row->incrementQueryCount();
@@ -563,7 +563,7 @@ class AppQyV1WordQueryController extends Controller
             'audioUrl' => $audioUrl,
         ];
 
-        return $this->success($word, 'Word details retrieved successfully');
+        return $this->success($word, __('app_qy_v1.messages.word_details_retrieved_successfully'));
     }
 
     /**
@@ -626,7 +626,7 @@ class AppQyV1WordQueryController extends Controller
             ];
         }
 
-        return $this->success($words, 'Search results retrieved successfully');
+        return $this->success($words, __('app_qy_v1.messages.search_results_retrieved_successfully'));
     }
 
     /**
@@ -651,7 +651,7 @@ class AppQyV1WordQueryController extends Controller
 
         $row = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
         if ($row === null) {
-            return $this->notFound('Word not found');
+            return $this->notFound(__('app_qy_v1.messages.word_not_found'));
         }
 
         $wordText = $row->content;
@@ -686,7 +686,7 @@ class AppQyV1WordQueryController extends Controller
                 'word' => $wordText,
                 'is_favorite' => $newFavorite,
             ],
-            'Word favorite status updated successfully'
+            __('app_qy_v1.messages.word_favorite_status_updated_successfully')
         );
     }
 
@@ -712,7 +712,7 @@ class AppQyV1WordQueryController extends Controller
         $this->bumpUntranslatedQuery($row, $word, $language, $targetLanguage);
 
         if ($row === null) {
-            return $this->success(['word' => $word, 'found' => false], 'Word not found');
+            return $this->success(['word' => $word, 'found' => false], __('app_qy_v1.messages.word_not_found'));
         }
 
         $row->incrementQueryCount();
@@ -755,6 +755,6 @@ class AppQyV1WordQueryController extends Controller
             'audioUrl' => $audioUrl,
         ];
 
-        return $this->success(['word' => $word, 'found' => true, 'data' => $wordArray], 'Word found');
+        return $this->success(['word' => $word, 'found' => true, 'data' => $wordArray], __('app_qy_v1.messages.word_found'));
     }
 }

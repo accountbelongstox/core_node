@@ -371,7 +371,6 @@ main() {
 
     echo ""
     cleanup_directory_processing_cache
-    system_unwanted_paths_cleanup
 
     echo ""
     echo -e "\033[36m[FILE PROCESSING] CRLF -> LF and +x for .sh files\033[0m"

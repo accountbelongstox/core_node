@@ -123,7 +123,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = () => {
         <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('queueCenter.recent.hint')}</p>
         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] font-mono text-slate-500">
           <span>{t('queueCenter.recent.total')} <b className="text-slate-700 dark:text-slate-300">{total}</b></span>
-          <span>{t('queueCenter.recent.lastRefresh')} <b className="text-slate-700 dark:text-slate-300">{state.recentLastSyncAt ? relativeTime(state.recentLastSyncAt) : t('queueCenter.recent.never')}</b></span>
+          <span>{t('queueCenter.recent.lastRefresh')} <b className="text-slate-700 dark:text-slate-300">{state.recentLastSyncAt ? relativeTime(state.recentLastSyncAt, t) : t('queueCenter.recent.never')}</b></span>
         </div>
         {state.recentErr && <p className="text-[11px] text-amber-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3 shrink-0" />{state.recentErr}</p>}
       </section>
@@ -223,7 +223,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = () => {
                         <span className="text-[11px] font-mono text-slate-500">{rec.latency_ms != null ? `${rec.latency_ms}ms` : '—'}</span>
                       </td>
                       <td className="px-2 py-1.5 align-middle text-right">
-                        <span className="text-[11px] font-mono text-slate-400" title={rec.ts}>{relativeTime(rec.ts)}</span>
+                        <span className="text-[11px] font-mono text-slate-400" title={rec.ts}>{relativeTime(rec.ts, t)}</span>
                       </td>
                     </tr>
                     {isOpen && (

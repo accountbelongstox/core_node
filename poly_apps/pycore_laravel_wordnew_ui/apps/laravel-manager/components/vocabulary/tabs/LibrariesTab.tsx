@@ -14,6 +14,9 @@ import BooksPanel from '../BooksPanel';
 import VocabPosterStrip from '../VocabPosterStrip';
 import VocabularyCoverManagerMenu from '../VocabularyCoverManagerMenu';
 
+/** Library languages offered by the filter; labels live under vocabulary.words_manager.languages. */
+const LIBRARY_LANGUAGES = ['english', 'chinese', 'japanese', 'korean', 'french', 'german', 'spanish'] as const;
+
 interface LibrariesTabProps {
   libraries: any[];
   loadingLibraries: boolean;
@@ -51,31 +54,30 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
   t,
 }) => {
   const { t: tr } = useTranslation();
+  const languageLabel = (LIBRARY_LANGUAGES as readonly string[]).includes(selectedLanguage)
+    ? tr(`vocabulary.words_manager.languages.${selectedLanguage}`)
+    : selectedLanguage;
 
   return (
       <>
       {/* Collapsible language-filter side panel (secondary settings) */}
       <CollapsibleSection
-        title="Filters"
+        title={tr('vocabulary.libraries.filters')}
         icon={<Sliders className="w-4 h-4 text-indigo-500" />}
         open={librariesFilterOpen}
         onToggle={() => setLibrariesFilterOpen((v) => !v)}
         className="mb-4"
       >
         <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-xs text-slate-500 dark:text-slate-400">Language</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400">{tr('vocabulary.libraries.language')}</label>
           <select
             value={selectedLanguage}
             onChange={(e) => setSelectedLanguage(e.target.value)}
             className={`${commonClasses.input} text-sm`}
           >
-            <option value="english">English</option>
-            <option value="chinese">Chinese</option>
-            <option value="japanese">Japanese</option>
-            <option value="korean">Korean</option>
-            <option value="french">French</option>
-            <option value="german">German</option>
-            <option value="spanish">Spanish</option>
+            {LIBRARY_LANGUAGES.map((language) => (
+              <option key={language} value={language}>{tr(`vocabulary.words_manager.languages.${language}`)}</option>
+            ))}
           </select>
           <button
             onClick={loadLibraries}
@@ -83,7 +85,7 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
           >
             <RefreshCw className={`w-4 h-4 ${loadingLibraries ? 'animate-spin' : ''}`} />
-            Refresh
+            {tr('common.refresh')}
           </button>
         </div>
       </CollapsibleSection>
@@ -105,8 +107,8 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold flex items-center gap-2">
             <BookOpen className="w-5 h-5" />
-            Vocabulary Libraries
-            <span className="text-xs font-normal text-slate-400 capitalize">· {selectedLanguage}</span>
+            {tr('vocabulary.libraries.title')}
+            <span className="text-xs font-normal text-slate-400 capitalize">· {languageLabel}</span>
           </h3>
           <div className="flex items-center gap-3">
             <VocabularyCoverManagerMenu onChanged={loadLibraries} libraryIds={libraries.map((library: any) => library.id)} />
@@ -115,7 +117,7 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
               className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
             >
               <Sliders className="w-3.5 h-3.5" />
-              Filters
+              {tr('vocabulary.libraries.filters')}
             </button>
           </div>
         </div>
@@ -215,7 +217,7 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
                   )}
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-600 dark:text-slate-400">
-                      {library.word_count || 0} words
+                      {tr('vocabulary.libraries.words', { count: library.word_count || 0 })}
                     </span>
                     <div className="flex items-center gap-2">
                       {library.difficulty && (
@@ -231,7 +233,7 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
                       )}
                       {library.is_recommended && (
                         <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
-                          Recommended
+                          {tr('vocabulary.libraries.recommended')}
                         </span>
                       )}
                     </div>
@@ -239,7 +241,7 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
                   {library.category && (
                     <div className="mt-2">
                       <span className="text-xs text-slate-500 dark:text-slate-400">
-                        Category: {library.category}
+                        {tr('vocabulary.libraries.category', { category: library.category })}
                       </span>
                     </div>
                   )}
@@ -248,7 +250,7 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
             })}
           </div>
         ) : (
-          <EmptyState icon={BookOpen} message={`No libraries available for ${selectedLanguage}`} />
+          <EmptyState icon={BookOpen} message={tr('vocabulary.libraries.empty', { language: languageLabel })} />
         )}
       </div>
       </>

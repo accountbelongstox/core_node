@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
-import { wfNewAdminApi } from '../../api';
+import { wfNewAdminApi, adminErrorText } from '../../api';
 import type { WfNewAdminLangRow, WfNewAdminStatistics } from '../../api';
 
 /** Shared 5-column track: language name + four fixed numeric columns. */
@@ -75,7 +75,7 @@ export const WfNewAdminOverview: React.FC<WfNewAdminOverviewProps> = ({
     } catch (e: any) {
       if (!alive.current || id !== reqId.current) return;
       if (e?.status === 401) addToast(trans('admin.needLogin'), 'warning');
-      setError(String(e?.message || 'Request failed'));
+      setError(adminErrorText(e));
     } finally {
       if (alive.current && id === reqId.current) setLoading(false);
     }

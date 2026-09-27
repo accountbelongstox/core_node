@@ -24,6 +24,7 @@ from script_sections.pi_launcher_section import PiLauncherSectionGenerator
 from script_sections.kimi_launcher_section import KimiLauncherSectionGenerator
 from utils.secret_manager import LOCAL_SECRET_MANAGER
 from config.claude_launch_args import claude_no_question_bash_args, claude_no_question_ps_args
+from utils.secret_display import is_secret_name
 
 
 # ---------------------------------------------------------------------------
@@ -382,7 +383,10 @@ class ScriptManager:
                 f'{name}=$(read_secret_file "$secret_dir/{secret_key}")'
             )
             export_lines.append(f'export {name}="${name}"')
-            summary_lines.append(f'echo "{dname}: ${name}"')
+            if is_secret_name(name):
+                summary_lines.append(f'echo "{dname}: $(ai_cli_mask_secret "${name}")"')
+            else:
+                summary_lines.append(f'echo "{dname}: ${name}"')
 
         load_block = "\n".join(load_lines)
         export_block = "\n".join(export_lines)
@@ -520,9 +524,14 @@ exec claude "${{claude_args[@]}}" "$@"
             load_lines.append(
                 f'$env:{name} = Read-SecretFile (Join-Path $secretDir "{secret_key}")'
             )
-            summary_lines.append(
-                f'Write-Host "{dname}: $($env:{name})" -ForegroundColor White'
-            )
+            if is_secret_name(name):
+                summary_lines.append(
+                    f'Write-Host "{dname}: $(Get-AiCliMaskedSecret -Value $env:{name})" -ForegroundColor White'
+                )
+            else:
+                summary_lines.append(
+                    f'Write-Host "{dname}: $($env:{name})" -ForegroundColor White'
+                )
 
         load_block = "\n".join(load_lines)
         summary_block = "\n".join(summary_lines)

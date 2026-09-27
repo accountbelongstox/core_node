@@ -100,8 +100,7 @@ final class RealtimeOutboxPublisher
 
     private function publishQueueCenter(): int
     {
-        $realtime = QueueCenterContract::realtime();
-        $topic = (string) ($realtime['topic'] ?? 'queue-center');
+        $topic = QueueCenterContract::realtimeTopic();
         $rows = AppQyV1TranslationEventModel::pendingForPublish(self::BATCH_LIMIT);
 
         return $this->publishRows(

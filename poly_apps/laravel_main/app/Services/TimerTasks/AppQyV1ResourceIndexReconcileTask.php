@@ -17,6 +17,11 @@ final class AppQyV1ResourceIndexReconcileTask extends OctaneTimerTaskAbstract
     private const INTERVAL_SECONDS = 60;
     private const BUDGET_SECONDS = 2.0;
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     public function getInterval(): int
     {
         return self::INTERVAL_SECONDS;

@@ -227,22 +227,26 @@ pycore_service_status() {
     $USE_SUDO systemctl status "$PYCORE_SERVICE_NAME" --no-pager || true
 }
 
-# --- uninstall: stop + disable + remove unit ----------------------------- #
+# --- uninstall: disable + remove unit, then stop -------------------------- #
+# The tray toggle runs this from inside the pycore unit, whose cgroup the stop
+# kills: disable, rm and daemon-reload come first, and the stop is queued
+# (--no-block) last, so the unit is gone from boot even if this script dies.
 pycore_service_uninstall() {
+    local unit_file="/etc/systemd/system/${PYCORE_SERVICE_NAME}.service"
+
     echo "[pycore-service] Uninstalling systemd service '$PYCORE_SERVICE_NAME' ..."
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[pycore-service] systemctl not found; nothing to uninstall here."
         return 1
     fi
-    $USE_SUDO systemctl stop "$PYCORE_SERVICE_NAME" 2>/dev/null || true
     $USE_SUDO systemctl disable "$PYCORE_SERVICE_NAME" 2>/dev/null || true
-    local unit_file="/etc/systemd/system/${PYCORE_SERVICE_NAME}.service"
     if [ -f "$unit_file" ]; then
         $USE_SUDO rm -f "$unit_file"
         echo "[pycore-service] Removed $unit_file"
     fi
     $USE_SUDO systemctl daemon-reload 2>/dev/null || true
-    echo "[pycore-service] Uninstalled."
+    echo "[pycore-service] Uninstalled; stopping the running unit."
+    $USE_SUDO systemctl stop --no-block "$PYCORE_SERVICE_NAME" 2>/dev/null || true
 }
 
 # --- usage --------------------------------------------------------------- #

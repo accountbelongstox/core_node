@@ -4,6 +4,7 @@ import { Bell, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import { useTranslation } from '../../core/i18n/UiI18n';
 import { cmCanOpenPage, cmIsApplyEntry } from './auth/cmPageAccess';
 import { useCmSignOut } from './auth/useCmSignOut';
+import { CmBootstrapRefreshNotice } from './components/access/CmBootstrapRefreshNotice';
 import { CmBrand } from './components/CmBrand';
 import { CmChromeControls } from './components/CmChromeControls';
 import { useCmBootstrap } from './contexts/CmBootstrapContext';
@@ -120,6 +121,7 @@ export const CmLayout: React.FC = () => {
           {bellLink}
           <CmChromeControls />
         </div>
+        <CmBootstrapRefreshNotice />
         <Outlet />
       </div>
     </div>

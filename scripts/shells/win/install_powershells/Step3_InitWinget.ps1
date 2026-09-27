@@ -14,8 +14,8 @@
 $STEP_NUMBER = 3
 
 # Import variable management functions
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
 
 function Test-AndInstallWinGet {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking WinGet installation..." -Type "Info"

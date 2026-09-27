@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.metadata
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.coded_message import message_fields
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_CAPABILITIES_KEY,
@@ -31,6 +32,7 @@ import pycore.pyutils.tts.streamelements_engine as streamelements_engine
 
 
 TTS_ENGINE_STATUS_TTL_SECONDS = 300.0
+DISABLED_REASON_FIELD = "disabled_reason"
 
 
 def _dist_version(distribution: str) -> Optional[str]:
@@ -71,6 +73,7 @@ _CHUNK_CAPABLE_ENGINES = frozenset(
         "gptsovits",
         "kokoro",
         "sherpa",
+        "bark",
     )
 )
 
@@ -136,9 +139,9 @@ def _build_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
         if tier_model:
             entry["model"] = tier_model
     if refresh:
-        reason = _engine_disabled_reason(name, available)
-        if reason:
-            entry["disabled_reason"] = reason
+        # disabled_reason (English) + disabled_reason_code/_params (localized
+        # by the UI) of a coded reason (tts_reason_codes).
+        entry.update(message_fields(_engine_disabled_reason(name, available), DISABLED_REASON_FIELD))
     return entry
 
 

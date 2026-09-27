@@ -162,6 +162,34 @@ function Get-GlobalVar {
 
 <#
 .SYNOPSIS
+    Runs a node secret tool with its password on stdin
+
+.DESCRIPTION
+    The password never appears in a command line: secret_password_runner.js reads it
+    from stdin and puts it where ArgumentList holds $Global:SECRET_PASSWORD_ARG.
+
+.EXAMPLE
+    Invoke-SecretPasswordTool -Password $pw -ToolPath $encFile -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $rawDir)
+#>
+function Invoke-SecretPasswordTool {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Password,
+        [Parameter(Mandatory = $true)]
+        [string]$ToolPath,
+        [string[]]$ArgumentList = @()
+    )
+
+    $nodeExe = "node"
+    if (Test-Path -LiteralPath $Global:NODE_EXE_PATH -PathType Leaf) {
+        $nodeExe = $Global:NODE_EXE_PATH
+    }
+    $OutputEncoding = New-Object System.Text.UTF8Encoding $false
+    return ($Password | & $nodeExe $Global:SECRET_PASSWORD_RUNNER_JS $ToolPath @ArgumentList 2>&1)
+}
+
+<#
+.SYNOPSIS
     Decrypts files using disguise.js system with batch processing capability
 
 .DESCRIPTION
@@ -256,7 +284,7 @@ function Get-SecretContent {
 
                         try {
                             # Use node to decrypt the .js file
-                            $result = & node $encryptedFile.FullName pwd $plaintextPassword $rawDir 2>&1
+                            $result = Invoke-SecretPasswordTool -Password $plaintextPassword -ToolPath $encryptedFile.FullName -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $rawDir)
                             $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
                             $decryptedPath = Join-Path $rawDir $baseName
 

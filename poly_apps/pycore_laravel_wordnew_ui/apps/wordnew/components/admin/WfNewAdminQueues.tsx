@@ -22,7 +22,7 @@ import {
   ListTodo, Languages, RefreshCw, Activity, Send, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
-import { wfNewAdminApi } from '../../api';
+import { wfNewAdminApi, adminErrorText } from '../../api';
 import type {
   WfNewAdminTtsQueueStats, WfNewAdminQueueItem, WfNewAdminTransTask,
 } from '../../api';
@@ -118,7 +118,7 @@ export const WfNewAdminQueues: React.FC<WfNewAdminQueuesProps> = ({
       return true;
     } catch (e: any) {
       if (!alive.current || id !== statsReq.current) return false;
-      setStatsError(String(e?.message || 'Request failed'));
+      setStatsError(adminErrorText(e));
       return false;
     } finally {
       if (alive.current && id === statsReq.current) setStatsLoading(false);
@@ -141,7 +141,7 @@ export const WfNewAdminQueues: React.FC<WfNewAdminQueuesProps> = ({
       return true;
     } catch (e: any) {
       if (!alive.current || id !== itemsReq.current) return false;
-      setItemsError(String(e?.message || 'Request failed'));
+      setItemsError(adminErrorText(e));
       return false;
     } finally {
       if (alive.current && id === itemsReq.current) setItemsLoading(false);
@@ -167,7 +167,7 @@ export const WfNewAdminQueues: React.FC<WfNewAdminQueuesProps> = ({
       setTransError(null);
     } catch (e: any) {
       if (!alive.current || id !== transReq.current) return;
-      setTransError(String(e?.message || 'Request failed'));
+      setTransError(adminErrorText(e));
     } finally {
       if (alive.current && id === transReq.current) setTransLoading(false);
     }
@@ -218,8 +218,7 @@ export const WfNewAdminQueues: React.FC<WfNewAdminQueuesProps> = ({
       addToast(trans('admin.q.enqueued', { n: Number(res?.enqueued ?? 0) }), 'success');
       await loadTranslation();
     } catch (e: any) {
-      if (e?.status === 401) addToast(trans('admin.needLogin'), 'warning');
-      else addToast(String(e?.message || 'Request failed'), 'warning');
+      addToast(adminErrorText(e), 'warning');
     } finally {
       if (alive.current) setEnqueueBusy(false);
     }

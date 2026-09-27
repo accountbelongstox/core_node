@@ -43,7 +43,7 @@ class AppQyV1DictionaryTaskController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $language = 'english';
@@ -71,7 +71,7 @@ class AppQyV1DictionaryTaskController extends Controller
             return $this->success($result, $result['message']);
         }
 
-        return $this->success($result, 'Dictionary explanation task created');
+        return $this->success($result, __('app_qy_v1.messages.dictionary_explanation_task_created'));
     }
 
     /**
@@ -87,7 +87,7 @@ class AppQyV1DictionaryTaskController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $limit = 100;
@@ -103,6 +103,6 @@ class AppQyV1DictionaryTaskController extends Controller
             'words' => $words
         ];
 
-        return $this->success($data, 'Untranslated words retrieved');
+        return $this->success($data, __('app_qy_v1.messages.untranslated_words_retrieved'));
     }
 }

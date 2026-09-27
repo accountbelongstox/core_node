@@ -43,6 +43,11 @@ class AppQyV1PosterCollectionTask extends OctaneTimerTaskAbstract
         return 'appqyv1_poster_collection';
     }
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     public function getInterval(): int
     {
         return self::INTERVAL_SECONDS;

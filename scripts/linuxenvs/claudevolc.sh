@@ -143,7 +143,7 @@ if [ -z "$ARK_API_KEY" ]; then
     read -p "Press Enter to exit..."
     exit 1
 else
-    echo "API Key: $ARK_API_KEY (loaded)"
+    echo "API Key: $(ai_cli_mask_secret "$ARK_API_KEY") (loaded)"
 fi
 echo "============================================================"
 echo ""

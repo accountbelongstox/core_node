@@ -14,7 +14,7 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint,
-    http as requests,
+    signed_peer_request,
     emit_event,
     is_shutdown_requested,
     is_light,
@@ -706,7 +706,7 @@ class CodeSyncManager:
         peer_meta = {"id": peer_id, "name": name, "host": host, "port": port}
         url = f"http://{host}:{port}{routes.FILE_TREE_PATH}"
         try:
-            r = requests.get(url, timeout=20)
+            r = signed_peer_request("GET", url, timeout=20)
             code = getattr(r, "status_code", 0)
             if code != 200:
                 return {"success": False, "peer": peer_meta,

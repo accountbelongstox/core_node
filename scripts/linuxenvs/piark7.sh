@@ -110,10 +110,13 @@ SCRIPTS_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
 CORE_NODE_DIR="$(dirname "$SCRIPTS_DIR")"
 LINUX_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/linux/common"
 GVAR_COMMON_PATH="$LINUX_COMMON_DIR/gvar_common.sh"
+AI_CLI_PROVISION_COMMON_PATH="$LINUX_COMMON_DIR/ai_cli_provision_common.sh"
 SHELLS_COMMON_DIR="$CORE_NODE_DIR/scripts/shells/common"
 HARNESS_SETTINGS_SCRIPT="$SHELLS_COMMON_DIR/pi_harness_settings.js"
 
 source "$GVAR_COMMON_PATH"
+# Shared launcher helpers; secrets are printed through ai_cli_mask_secret.
+source "$AI_CLI_PROVISION_COMMON_PATH"
 
 ARKCLI_CONFIG_CANDIDATES=(
     "$PROGRAMING_USERS_DIR/ark1/.arkcli/config.yaml"
@@ -284,7 +287,7 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
                 ARKCLI_PROFILE_RESULT="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" arkcli-profile "$ARKCLI_CONFIG_PATH" "$VOLC_PROFILE_TYPE")"
                 if [ -n "$ARKCLI_PROFILE_RESULT" ]; then
                     VOLC_API_KEY="${ARKCLI_PROFILE_RESULT%%$'\t'*}"
-                    echo "[INFO] Loaded Volcengine API Key from $(basename "$ARKCLI_CONFIG_PATH"): $VOLC_API_KEY"
+                    echo "[INFO] Loaded Volcengine API Key from $(basename "$ARKCLI_CONFIG_PATH"): $(ai_cli_mask_secret "$VOLC_API_KEY")"
                     if [[ "$ARKCLI_PROFILE_RESULT" == *$'\t'* ]]; then
                         ARKCLI_PROFILE_BASE_URL="${ARKCLI_PROFILE_RESULT#*$'\t'}"
                     fi
@@ -308,7 +311,7 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
                 if [ -z "$VOLC_API_KEY" ]; then
                     VOLC_API_KEY="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_SECRET_PATH")"
                     if [ -n "$VOLC_API_KEY" ]; then
-                        echo "[INFO] Loaded Volcengine API Key from $(basename "$LEGACY_SECRET_PATH"): $VOLC_API_KEY"
+                        echo "[INFO] Loaded Volcengine API Key from $(basename "$LEGACY_SECRET_PATH"): $(ai_cli_mask_secret "$VOLC_API_KEY")"
                     fi
                 fi
             done

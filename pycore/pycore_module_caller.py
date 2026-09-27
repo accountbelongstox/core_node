@@ -24,7 +24,7 @@ Usage:
     ./pyservice.sh                                       # Linux / macOS / Git-Bash
 
     # Direct (no prerequisite installation step):
-    python pycore/pycore_module_caller.py                # Default (0.0.0.0:59000)
+    python pycore/pycore_module_caller.py                # Default (127.0.0.1:59000; LAN bind needs rpcLanBind)
     python pycore/pycore_module_caller.py --host 0.0.0.0 --port 8000
     python pycore/pycore_module_caller.py --debug
 """

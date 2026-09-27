@@ -15,8 +15,8 @@
 
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
 
 # Note: Environment variables (GOROOT, GOPATH, PATH) are handled by
 # Set-MultipleEnvironmentVariablesForPackage in Step21_InstallApplications.ps1

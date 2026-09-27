@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import type { FrankenPhpSiteRequest, NginxSite } from '../../uiTypes';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
@@ -45,7 +45,7 @@ const normalizeNginxSite = (site: Record<string, unknown>): NginxSite => {
  * ServerManagerV1 API Module
  * Server management system API
  */
-export class ServerManagerV1API extends BaseAPI {
+export class ServerManagerV1API extends LmBaseAPI {
   // ========== System Information ==========
   async getSystemInfo(): Promise<APIResponse> {
     return this.get('/system/info', undefined, true, 300000); // Cache 5 minutes

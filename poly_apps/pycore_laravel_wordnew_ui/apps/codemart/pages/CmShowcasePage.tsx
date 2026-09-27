@@ -4,12 +4,12 @@ import { BriefcaseBusiness, CalendarClock, ChevronLeft, ChevronRight, RotateCw, 
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
 import { cmPublicApi, type CmShowcaseProject, type CmShowcaseSection, type CmShowcaseTask } from '../api/CmPublicApi';
-import { formatCmAmountRange, formatCmDate } from '../components/public-home/cmPublicFormat';
 import { CmPublicIllustration, CmPublicSplit } from '../components/public-home/CmPublicBlocks';
 import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { useCmProtectedNavigate } from '../components/public-home/useCmProtectedNavigate';
+import { CM_WHOLE_MONEY_DIGITS, cmFormatDate, cmFormatMoneyRange, cmFormatNumber } from '../components/workspace/cmWorkspaceFormat';
 
 type CmShowcaseKind = 'open_tasks' | 'completed_projects';
 
@@ -106,7 +106,7 @@ function CmShowcaseBlock<T extends { id: number }>({
     <section id={id} className="cm-showcase-section" aria-busy={state.loading}>
       <header className="cm-showcase-section__header">
         <h2>{icon} {t(titleKey)}</h2>
-        {state.section && <span>{t('showcase.total', { number: new Intl.NumberFormat(i18n.language).format(total) })}</span>}
+        {state.section && <span>{t('showcase.total', { number: cmFormatNumber(total, i18n.language) })}</span>}
       </header>
       {state.error ? (
         <div className="cm-public-form__notice is-error" role="alert">
@@ -151,9 +151,9 @@ const CmShowcasePage: React.FC = () => {
 
   const renderTask = (task: CmShowcaseTask): React.ReactNode => {
     const budget = task.budget_range
-      ? formatCmAmountRange(task.budget_range.min, task.budget_range.max, task.currency, i18n.language)
+      ? cmFormatMoneyRange(task.budget_range.min, task.budget_range.max, task.currency, i18n.language, CM_WHOLE_MONEY_DIGITS)
       : t('showcase.budgetUndisclosed');
-    const due = formatCmDate(task.due_date, i18n.language);
+    const due = cmFormatDate(task.due_date, i18n.language);
     const meta = [label('estimate.complexities', task.category), label('estimate.budgetTypes', task.budget_type), label('showcase.priorities', task.priority)]
       .filter((value): value is string => value !== null);
     return (
@@ -175,7 +175,7 @@ const CmShowcasePage: React.FC = () => {
   };
 
   const renderProject = (project: CmShowcaseProject): React.ReactNode => {
-    const completed = formatCmDate(project.completed_at, i18n.language);
+    const completed = cmFormatDate(project.completed_at, i18n.language);
     const category = label('estimate.complexities', project.category);
     return (
       <article className="cm-showcase-card is-completed">
@@ -184,7 +184,7 @@ const CmShowcasePage: React.FC = () => {
         {project.duration_days !== null && (
           <p className="cm-showcase-card__budget">
             <span>{t('showcase.duration')}</span>
-            <strong>{t('showcase.days', { number: new Intl.NumberFormat(i18n.language).format(project.duration_days) })}</strong>
+            <strong>{t('showcase.days', { number: cmFormatNumber(project.duration_days, i18n.language) })}</strong>
           </p>
         )}
         {completed && <p className="cm-showcase-card__meta">{t('showcase.completedOn', { date: completed })}</p>}

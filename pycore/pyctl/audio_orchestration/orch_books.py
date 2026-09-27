@@ -273,6 +273,7 @@ def _fetch_sentences_blocking(source_key: str) -> Dict[str, Any]:
         orch_store.save_sync_state(source_key, _attempt_state(
             "running", fetched=len(sentences), total=total, attempt_at=attempt_at,
         ))
+        _sync_jobs.notify(source_key)
         if finished:
             break
     payload = {
@@ -359,12 +360,18 @@ def ensure_book_sentences(source_key: str, cancel_requested=None, progress_callb
         if cached and isinstance(cached.get("sentences"), list) and cached["sentences"]:
             return {"success": True, "cached": True, **cached}
         sync_book_sentences(source_key)
-    while _job_running(source_key):
+    wake = _sync_jobs.job_signal(source_key)
+    while True:
+        # Clear before checking: page progress and the job's finish re-set
+        # the signal, so the wait never misses a change (no timer polling).
+        THREAD_BUS.clear_signal(wake)
+        if not _job_running(source_key):
+            break
         if cancel_requested is not None and cancel_requested():
             return {"success": False, "error": "cancelled"}
         if progress_callback is not None:
             progress_callback(orch_store.load_sync_state().get(source_key) or {})
-        THREAD_BUS.wait_signal("audio_orchestration.sentences.wait", timeout=1)
+        THREAD_BUS.wait_signal(wake)
     state = orch_store.load_sync_state().get(source_key) or {}
     if state.get("status") == "failed":
         return {"success": False, "error": state.get("error_code") or "BOOK_SENTENCE_SYNC_FAILED"}
@@ -372,6 +379,10 @@ def ensure_book_sentences(source_key: str, cancel_requested=None, progress_callb
     if cached and isinstance(cached.get("sentences"), list) and cached["sentences"]:
         return {"success": True, "cached": True, **cached}
     return {"success": False, "error": "BOOK_SENTENCES_EMPTY"}
+
+
+def wake_sentence_waiters(source_key: str) -> None:
+    _sync_jobs.notify(str(source_key or "").strip())
 
 
 def estimate_sentence_seconds(sentence: Dict[str, Any]) -> float:
@@ -461,6 +472,7 @@ __all__ = [
     "sync_states",
     "sync_book_sentences",
     "ensure_book_sentences",
+    "wake_sentence_waiters",
     "estimate_sentence_seconds",
     "partition_sentences",
 ]

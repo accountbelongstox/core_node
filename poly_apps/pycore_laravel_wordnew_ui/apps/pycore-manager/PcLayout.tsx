@@ -15,6 +15,7 @@ import { PcFloatingLog } from './PcFloatingLog';
 import { PcHttpDebugger } from './PcHttpDebugger';
 import { PcTestPopupProvider } from './components/PcTestPopupContext';
 import { PcTopBar } from './components/PcTopBar';
+import { PcRpcAccessBanner } from './components/PcRpcAccessBanner';
 import { PcLaravelEndpointProvider } from './PcLaravelEndpointContext';
 import { useIsMobile } from './hooks/useIsMobile';
 import { SHELL_CLIPBOARD_HOST_ATTRIBUTE } from '../../shell/shellChrome';
@@ -106,6 +107,7 @@ export const PcLayout: React.FC = () => {
         )}
         <main className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           <PcTopBar onOpenNav={isMobile ? () => setNavOpen(true) : undefined} />
+          <PcRpcAccessBanner />
           {/* Reserve bottom space for the collapsed floating log (~56px). */}
           <div {...{ [SHELL_CLIPBOARD_HOST_ATTRIBUTE]: '' }} className="relative z-0 flex-1 min-h-0 overflow-hidden">
             <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain pb-16">

@@ -45,6 +45,16 @@ from pycore.pyutils.codesync.sse_transport import (
     code_sync_sse_broker,
     iter_code_sync_reply_stream,
 )
+from pycore.pyutils.common.client_key_auth import client_key_present, client_key_verify
+from pycore.pyutils.common.local_rpc_guard import (
+    ERROR_BODY_TOO_LARGE,
+    NON_LOOPBACK_BODY_MAX_BYTES,
+    STATUS_PAYLOAD_TOO_LARGE,
+    allowed_origins,
+    evaluate_request,
+    is_loopback_peer,
+    resolve_bind_host,
+)
 
 from urllib.parse import urlparse, parse_qs
 
@@ -65,12 +75,26 @@ class _Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     # ---- low-level helpers ------------------------------------------------ #
-    def _read_json(self) -> Dict[str, Any]:
+    def _read_body(self) -> bytes:
+        """Read the body; a non-loopback body is read only when the request is
+        signed and within the cap (the K7 gate then refuses the rest)."""
         length = int(self.headers.get("Content-Length", 0) or 0)
-        if length <= 0:
-            return {}
+        self._body_too_large = False
+        peer = self.client_address[0] if self.client_address else ""
+        if not is_loopback_peer(peer):
+            signed = client_key_present(dict(self.headers.items()))
+            self._body_too_large = signed and length > NON_LOOPBACK_BODY_MAX_BYTES
+            if not signed or self._body_too_large:
+                # The unread body would desynchronize a kept-alive connection.
+                self.close_connection = True
+                self._body = b""
+                return self._body
+        self._body = self.rfile.read(length) if length > 0 else b""
+        return self._body
+
+    def _read_json(self) -> Dict[str, Any]:
+        raw = self._read_body()
         try:
-            raw = self.rfile.read(length)
             return json.loads(raw.decode("utf-8")) if raw else {}
         except Exception:
             return {}
@@ -138,18 +162,53 @@ class _Handler(BaseHTTPRequestHandler):
         content = dict(result or {})
         status = int(content.pop("status_code", 200) or 200)
         headers = {"ETag": str(content["etag"])} if content.get("etag") else None
-        if status == 401:
-            headers = {
-                **(headers or {}),
-                "WWW-Authenticate": code_sync_service.WORKSPACE_AUTHENTICATION_CHALLENGE,
-            }
         return self._send_json(content, status=status, headers=headers)
 
-    def _workspace_authorization(self) -> str:
-        return str(self.headers.get("Authorization") or "")
+    def _workspace_client_key(self) -> Dict[str, Any]:
+        """K3 result of this request, verified once (the gate and the
+        workspace routes share it, so a nonce is never consumed twice)."""
+        if self._client_key is None:
+            raw_path, _separator, raw_query = self.path.partition("?")
+            self._client_key = client_key_verify(
+                self.command,
+                raw_path,
+                raw_query,
+                dict(self.headers.items()),
+                self._body,
+                str(self.headers.get("Content-Type") or ""),
+            )
+        return self._client_key
+
+    def _begin_request(self, body: bytes) -> bool:
+        """K7 gate; sends the rejection itself and returns False when denied."""
+        self._body = body
+        self._client_key = None
+        if getattr(self, "_body_too_large", False):
+            self._send_json(
+                {"success": False, "error": {"code": ERROR_BODY_TOO_LARGE, "message": ERROR_BODY_TOO_LARGE}},
+                status=STATUS_PAYLOAD_TOO_LARGE,
+            )
+            return False
+        headers = {str(name).lower(): str(value) for name, value in self.headers.items()}
+        peer = self.client_address[0] if self.client_address else ""
+        decision = evaluate_request(
+            peer,
+            headers,
+            getattr(self.server, "allowed_origins", frozenset()),
+            self._workspace_client_key,
+        )
+        if decision["allowed"]:
+            return True
+        self._send_json(
+            {"success": False, "error": {"code": decision["error_code"], "message": decision["error_code"]}},
+            status=int(decision["status"]),
+        )
+        return False
 
     # ---- routing ---------------------------------------------------------- #
     def do_GET(self):
+        if not self._begin_request(b""):
+            return
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         try:
             if path == routes.ROOT_PATH:
@@ -201,7 +260,7 @@ class _Handler(BaseHTTPRequestHandler):
             if path == routes.WORKSPACE_PATH:
                 return self._send_workspace_result(
                     code_sync_service.workspace_capabilities(
-                        self._workspace_authorization()
+                        self._workspace_client_key()
                     )
                 )
             if path == routes.WORKSPACE_FILES_PATH:
@@ -214,7 +273,7 @@ class _Handler(BaseHTTPRequestHandler):
                 include_hash = include_hash_value in ("1", "true", "yes", "on")
                 return self._send_workspace_result(
                     code_sync_service.workspace_list_files(
-                        self._workspace_authorization(),
+                        self._workspace_client_key(),
                         cursor,
                         limit,
                         include_hash,
@@ -225,14 +284,14 @@ class _Handler(BaseHTTPRequestHandler):
                 file_path = str((query.get("path") or [""])[0])
                 return self._send_workspace_result(
                     code_sync_service.workspace_read_file(
-                        self._workspace_authorization(),
+                        self._workspace_client_key(),
                         file_path,
                     )
                 )
             if path == routes.WORKSPACE_LATEST_DOCUMENT_PATH:
                 return self._send_workspace_result(
                     code_sync_service.workspace_latest_document(
-                        self._workspace_authorization()
+                        self._workspace_client_key()
                     )
                 )
             if path == routes.PEER_FILE_TREE_PATH:
@@ -260,6 +319,8 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         body = self._read_json()
+        if not self._begin_request(self._body):
+            return
         try:
             return self._dispatch_post(path, body)
         except Exception as exc:
@@ -268,13 +329,15 @@ class _Handler(BaseHTTPRequestHandler):
     def do_PUT(self):
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         body = self._read_json()
+        if not self._begin_request(self._body):
+            return
         try:
             if path == routes.WORKSPACE_FILE_PATH:
                 query = parse_qs(urlparse(self.path).query)
                 file_path = str((query.get("path") or [""])[0])
                 return self._send_workspace_result(
                     code_sync_service.workspace_write_file(
-                        self._workspace_authorization(),
+                        self._workspace_client_key(),
                         file_path,
                         body,
                         if_match=str(self.headers.get("If-Match") or ""),
@@ -329,7 +392,7 @@ class _Handler(BaseHTTPRequestHandler):
         if path == routes.WORKSPACE_DOCUMENTS_PATH:
             return self._send_workspace_result(
                 code_sync_service.workspace_write_document(
-                    self._workspace_authorization(),
+                    self._workspace_client_key(),
                     body,
                 )
             )
@@ -462,7 +525,7 @@ class CodeSyncHTTPServer:
 
     def __init__(self, host: str = HTTP_BIND_HOST, port: int = PYCORE_HTTP_PORT,
                  serve_panel: bool = True):
-        self.host = host
+        self.host = resolve_bind_host(host)
         self.port = port
         # When False (light mode), GET / returns a tiny JSON blob instead of the
         # full control panel. Stashed on the httpd so _Handler can read it.
@@ -473,6 +536,7 @@ class CodeSyncHTTPServer:
     def start(self) -> None:
         self._httpd = _QuietHTTPServer((self.host, self.port), _Handler)
         self._httpd.serve_panel = self.serve_panel
+        self._httpd.allowed_origins = allowed_origins((self.port,))
         self._thread = start_bus_task(
             self._httpd.serve_forever,
             thread_name="CodeSyncHTTPThread",

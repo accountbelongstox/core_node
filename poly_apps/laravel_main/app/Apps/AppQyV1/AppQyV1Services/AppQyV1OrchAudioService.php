@@ -100,6 +100,7 @@ final class AppQyV1OrchAudioService
         $results = [];
 
         OrchTask::runInTransaction(function () use ($machineId, $tasks, &$counts, &$results): void {
+            $this->lockTaskKeys($machineId, $tasks);
             foreach ($tasks as $task) {
                 $entry = $this->ingestTask($machineId, $task);
                 $counts[$entry['result']]++;
@@ -254,6 +255,26 @@ final class AppQyV1OrchAudioService
             ],
             'words' => $this->wordsWithAudio($task),
         ];
+    }
+
+    /**
+     * Serializes concurrent ingests of the same task: transaction-scoped
+     * advisory locks on every task key of the batch, taken in sorted order so
+     * two overlapping batches cannot deadlock. A second delivery then sees the
+     * first one's row instead of racing it into the unique task_key.
+     */
+    private function lockTaskKeys(string $machineId, array $tasks): void
+    {
+        $keys = array_values(array_unique(array_map(
+            static fn (array $task): string => OrchTask::taskKey($machineId, (string) $task['task_id']),
+            $tasks
+        )));
+        $connection = (new OrchTask())->getConnection();
+
+        sort($keys, SORT_STRING);
+        foreach ($keys as $key) {
+            $connection->select('SELECT pg_advisory_xact_lock(hashtextextended(CAST(? AS text), 0))', [$key]);
+        }
     }
 
     private function ingestTask(string $machineId, array $task): array
@@ -421,28 +442,24 @@ final class AppQyV1OrchAudioService
 
     private function wordsWithAudio(OrchTask $task): array
     {
-        $words = [];
+        $items = [];
 
         foreach (is_array($task->resources) ? $task->resources : [] as $resource) {
-            if (($resource['kind'] ?? '') !== self::RESOURCE_KIND_WORD || count($words) >= self::WORD_RESOURCE_LIMIT) {
+            if (($resource['kind'] ?? '') !== self::RESOURCE_KIND_WORD || count($items) >= self::WORD_RESOURCE_LIMIT) {
                 continue;
             }
-            $resolved = $this->audioGateway->requestWord(
-                (string) $resource['text'],
-                $this->language($resource['language'] ?? $task->language),
-                null,
-                false,
-                false
-            );
-            $words[] = [
-                'word' => (string) $resolved['word'],
-                'language' => (string) $resolved['language'],
-                'audio_url' => $resolved['audio_url'],
-                'audio_status' => (string) $resolved['audio_status'],
+            $items[] = [
+                'word' => (string) $resource['text'],
+                'language' => $this->language($resource['language'] ?? $task->language),
             ];
         }
 
-        return $words;
+        return array_map(static fn (array $resolved): array => [
+            'word' => (string) $resolved['word'],
+            'language' => (string) $resolved['language'],
+            'audio_url' => $resolved['audio_url'],
+            'audio_status' => (string) $resolved['audio_status'],
+        ], $items === [] ? [] : $this->audioGateway->resolveWordsPassive($items));
     }
 
     private function normalizeSentences(mixed $sentences): array

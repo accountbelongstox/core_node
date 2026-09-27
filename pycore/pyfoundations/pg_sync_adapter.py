@@ -63,6 +63,10 @@ SYNC_META_FILENAME = 'pg_sync_meta.json'
 DUMP_FILENAME = 'pg_win_export.sql'
 PG_CONTROL_SUBPATH = Path('data') / 'global' / 'pg_control'
 PG_DATA_SUBPATH = Path('data')
+# pg_dumpall output always re-creates the connected superuser role; that one
+# error is expected on every restore. Any other ERROR fails the restore.
+RESTORE_BENIGN_ERRORS = (re.compile(r'ERROR:\s+role "[^"]+" already exists'),)
+RESTORE_ERROR_MARKER = 'ERROR:'
 # Candidate Windows tool root names under /mnt/{X}
 WIN_TOOL_ROOTS = ['.dev_win10', '.dev_win11']
 # Timeout (seconds) for PG to start/stop
@@ -508,11 +512,19 @@ class PgSyncAdapter:
         cmd = [psql_bin, '-h', '127.0.0.1', '-p', '5432', '-U', 'postgres',
                '-d', 'postgres', '-f', str(dump_path)]
         rc, _, err = _pg_run(cmd, env=env, timeout=1200)
-        if rc != 0:
-            ColorPrint.plain(f'[pg-sync] Restore finished with warnings (rc={rc}). Last stderr: {err[-400:]}', flush=True)
-            # psql -f exits 3 on non-fatal errors; treat as partial success
-            if rc == 3 or 'ERROR' not in err:
-                return True
+        errors = [
+            line for line in (err or '').splitlines()
+            if RESTORE_ERROR_MARKER in line
+            and not any(pattern.search(line) for pattern in RESTORE_BENIGN_ERRORS)
+        ]
+        if rc != 0 or errors:
+            # psql -f exits 0 even when statements failed; after --clean the
+            # target objects are already gone, so any real ERROR is a failure.
+            ColorPrint.plain(
+                f'[pg-sync] Restore FAILED (rc={rc}, errors={len(errors)}). '
+                f'First errors: {" | ".join(errors[:3])[:400]} Last stderr: {(err or "")[-400:]}',
+                flush=True,
+            )
             return False
         ColorPrint.plain('[pg-sync] Restore complete.', flush=True)
         return True

@@ -1,0 +1,11 @@
+{
+  "task_id": "codemart-7",
+  "role": "codemart",
+  "verdict": "approved",
+  "findings": {
+    "B9 reuse (lead request)": {"status": "fixed", "reason": "useCmIdempotencyKey imports createIdempotencyKey from BaseAPI and deletes its local generator; behaviour is unchanged (one lazily created key per user action, kept across retries, reset() clears it). No other key generator is left in apps/codemart."}
+  },
+  "issues": [],
+  "checks": "useCmIdempotencyKey.ts read; LF kept as at HEAD.",
+  "checked_at": "2026-09-27T04:44:37+10:00"
+}

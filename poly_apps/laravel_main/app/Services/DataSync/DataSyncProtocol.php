@@ -22,5 +22,8 @@ final class DataSyncProtocol
     public const TERMINAL_RETENTION = 5;
     public const DRIVER_TICK_BUDGET_SECONDS = 8;
     public const COUNTERPART_REFRESH_SECONDS = 5;
-    public const CANCELLED_MESSAGE = 'Synchronization session cancelled by the operator.';
+    public static function cancelledMessage(): string
+    {
+        return __('data_sync.cancelled_by_operator');
+    }
 }

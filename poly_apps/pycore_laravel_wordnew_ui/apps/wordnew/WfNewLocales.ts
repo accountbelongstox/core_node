@@ -64,3 +64,12 @@ export function translate(
   }
   return value;
 }
+
+/** translate() for non-React modules: the shell mirrors its language onto <html lang>. */
+export function translateActive(
+  key: string,
+  replacements?: Record<string, string | number>
+): string {
+  const lang = typeof document !== 'undefined' ? document.documentElement.lang : 'en';
+  return translate(lang, key, replacements);
+}

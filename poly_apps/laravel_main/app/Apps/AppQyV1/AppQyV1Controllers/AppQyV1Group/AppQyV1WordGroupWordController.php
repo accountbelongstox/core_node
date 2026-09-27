@@ -56,7 +56,7 @@ class AppQyV1WordGroupWordController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $gid = $request->input('gid');
@@ -70,7 +70,7 @@ class AppQyV1WordGroupWordController extends Controller
         $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
-            return $this->error('Group not found', 404, [
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404, [
                 'supported_params' => $supported_params,
             ]);
         }
@@ -102,7 +102,7 @@ class AppQyV1WordGroupWordController extends Controller
                     'words_added' => 0,
                     'words_skipped' => $skippedCount,
                     'total_requested' => count($wordIds),
-                ], 'No new words to add');
+                ], __('app_qy_v1.messages.no_new_words_to_add'));
             }
 
             // word_id values are dictionary ids (tts_cache_{lang}); the
@@ -131,7 +131,7 @@ class AppQyV1WordGroupWordController extends Controller
                 'words_added' => $addedCount,
                 'words_skipped' => $skippedCount,
                 'total_requested' => count($wordIds),
-            ], 'Words added to group successfully');
+            ], __('app_qy_v1.messages.words_added_to_group_successfully'));
         });
     }
 
@@ -154,7 +154,7 @@ class AppQyV1WordGroupWordController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $gid = $request->input('gid');
@@ -168,7 +168,7 @@ class AppQyV1WordGroupWordController extends Controller
         $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
-            return $this->error('Group not found', 404, [
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404, [
                 'supported_params' => $supported_params,
             ]);
         }
@@ -188,7 +188,7 @@ class AppQyV1WordGroupWordController extends Controller
                 'gid' => $group->gid,
                 'words_removed' => $removedCount,
                 'total_requested' => count($wordIds),
-            ], 'Words removed from group successfully');
+            ], __('app_qy_v1.messages.words_removed_from_group_successfully'));
         });
     }
 
@@ -213,7 +213,7 @@ class AppQyV1WordGroupWordController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $gid = $request->input('gid');
@@ -226,7 +226,7 @@ class AppQyV1WordGroupWordController extends Controller
         $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
-            return $this->error('Group not found', 404, [
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404, [
                 'supported_params' => $supported_params,
             ]);
         }
@@ -415,7 +415,7 @@ class AppQyV1WordGroupWordController extends Controller
             'page' => $page,
             'per_page' => $perPage,
             'words' => $words,
-        ], 'Group words retrieved successfully');
+        ], __('app_qy_v1.messages.group_words_retrieved_successfully'));
     }
 
     /**

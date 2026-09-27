@@ -2,9 +2,10 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Cpu, Library, GraduationCap, Users, Settings } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
+import type { WordNewTab } from '../routing/WordNewHashRoutes';
 interface WfNewBottomDockProps {
-  activeTab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'admin';
-  setActiveTab: (tab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'admin') => void;
+  activeTab: WordNewTab;
+  setActiveTab: (tab: WordNewTab) => void;
   trans: (key: string) => string;
   activeTheme: ElementTheme;
   dark?: boolean;

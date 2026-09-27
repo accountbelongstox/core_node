@@ -1,0 +1,6 @@
+- [UI review patterns](ui_review_patterns.md) — per-hunk coverage when tasks share files, CRLF churn, sequence-ref stale guards, B2 assignment checks
+- [Client key review checklist](client_key_review_checklist.md) — vector reproduction, verifier/route-auth checks, K7 wrapper reuse, mass-move resolver, shell secret pitfalls
+- [pycore line-ending gate](pycore_line_ending_gate.md) — per-line EOL must match HEAD before any pycore approval; passed at pycore-4, keep checking
+- [pycore review patterns](pycore_review_patterns.md) — file names from RPC params, constants duplicated into TTS servers, incomplete identity lists, python -B
+- [Laravel schema review checklist](laravel_schema_review_checklist.md) — sys:init/SafeMigrationHelper path, read-only DB + in-process GET probes, index-dup patterns
+- [shell-windows review checklist](shell_windows_review_checklist.md) — unconditional undo flags, path string appends, copy ping-pong, read-only move verification, parity align tasks

@@ -14,13 +14,13 @@ const { APP_TMP_DIR, APP_DATA_CACHE_DIR } = require('#@global_dir');
 const logger = require('#@logger');
 const { replaceSpaceToDash } = require('#@ncore/foundation/utilities/strtool.js');
 const { ITEM_TYPE } = require('../provider/types/data_types.js');
-const rpc = require('#@ncore/utils/rpc');
-const UploadTools = rpc.getExpressServer().uploadTools;
+const UploadTools = require('#@ncore/utils/rpc/http_rpc/libs/UploadTools.js');
 const { fcopy } = require('#@ftools');
 const { copyFileToDir } = fcopy;
 const { DICT_SOUND_DIR, SENTENCES_SOUND_DIR,
 } = require('../provider/baseDir/BaseDirProvider.js');
 const { IS_SERVER } = require('../provider/constants/StaticData.js');
+const { getDICTSoundWatcher, getSENTENCESSoundWatcher } = require('../provider/WatcherProvider.js');
 const fs = require('fs');
 const path = require('path');
 const SUBMISSION_LOG_FILE = path.join(APP_DATA_CACHE_DIR, 'server_submissions.json');
@@ -156,13 +156,13 @@ async function submitAudio(req, res, next) {
         let is_copy_success = null;
         let all_copy_success = [];
         const voiceDir = getVoiceDir(fields.type);
-        fileDetails.forEach(file => {
+        for (const file of fileDetails) {
             if (file.size > 0) {
-                all_copy_success.push(copyFileToDir(file.path, voiceDir, false, true));
+                all_copy_success.push(await copyFileToDir(file.path, voiceDir, false, true));
             }
-            deleteFile(file.path);
-        });
-        is_copy_success = all_copy_success.every(item => item != null);
+            await deleteFile(file.path);
+        }
+        is_copy_success = all_copy_success.length > 0 && all_copy_success.every(item => item != null);
         if (is_copy_success) {
             await recordSubmission(content);
         }
@@ -187,8 +187,6 @@ async function submitAudio(req, res, next) {
 }
 
 async function submitAudioSimple(req, res, next) {
-    const DICT_SOUND_WATCHER = `DICT_SOUND_WATCHER`;
-    const SENTENCES_SOUND_WATCHER = `SENTENCES_SOUND_WATCHER`;
     try {
         logger.info('\n=== Audio Submission-Simple Request ===');
         const { fields, files, filePaths } = await UploadTools.uploadAndKeepOriginName(req, APP_TMP_DIR);
@@ -200,24 +198,23 @@ async function submitAudioSimple(req, res, next) {
         }
         const fileDetails = filePaths.fileDetails;
         const voiceDir = getVoiceDir(fields.type);
-        const watcher = fields.type == ITEM_TYPE.WORD ? DICT_SOUND_WATCHER : SENTENCES_SOUND_WATCHER;
+        const watcher = fields.type == ITEM_TYPE.WORD ? await getDICTSoundWatcher() : await getSENTENCESSoundWatcher();
         const watcher_name = fields.type == ITEM_TYPE.WORD ? 'DICT_SOUND_WATCHER' : 'SENTENCES_SOUND_WATCHER';
         let copy_success_count = 0;
         let added_watcher_count = 0;
-        fileDetails.forEach(file => {
+        for (const file of fileDetails) {
             if (file.size > 0) {
-                let is_copy_success = copyFileToDir(file.path, voiceDir, false, true);
-                if (is_copy_success) {
+                const copiedPath = await copyFileToDir(file.path, voiceDir, false, true);
+                if (copiedPath) {
                     copy_success_count++;
-                    let is_added = watcher.addToIndex(file.path);
-                    if (is_added) {
+                    if (watcher.add(copiedPath)) {
                         added_watcher_count++;
                     }
                     logger.info(`File submitted ${file.path} added to ${watcher_name}`);
                 }
             }
-            deleteFile(file.path);
-        });
+            await deleteFile(file.path);
+        }
         res.json({
             success: true,
             message: 'Files uploaded successfully',

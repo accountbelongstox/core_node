@@ -158,7 +158,7 @@ class AppQyV1PostController extends Controller
         // A text post must carry content; media/live posts can be empty here
         // (images/video uploaded via the media endpoints, live via external_url).
         if ($postType === AppQyV1PostModel::TYPE_TEXT && (!is_string($content) || trim($content) === '')) {
-            return $this->error('A text post requires content', 422);
+            return $this->error(__('app_qy_v1.messages.a_text_post_requires_content'), 422);
         }
 
         $post = AppQyV1PostModel::createForUser(
@@ -182,7 +182,7 @@ class AppQyV1PostController extends Controller
             'post' => $shape,
         ]);
 
-        return $this->success(['post' => $shape], 'Post created');
+        return $this->success(['post' => $shape], __('app_qy_v1.messages.post_created'));
     }
 
     /**
@@ -201,10 +201,10 @@ class AppQyV1PostController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
         if (!$post->canBeViewedBy($myId)) {
-            return $this->forbidden('You cannot view this post');
+            return $this->forbidden(__('app_qy_v1.messages.you_cannot_view_this_post'));
         }
 
         return $this->success([
@@ -233,15 +233,15 @@ class AppQyV1PostController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
         if ((int) $post->user_id !== $myId) {
-            return $this->forbidden('Only the author can delete this post');
+            return $this->forbidden(__('app_qy_v1.messages.only_the_author_can_delete_this_post'));
         }
 
         $post->deletePost();
 
-        return $this->success(['post_id' => $id], 'Post deleted');
+        return $this->success(['post_id' => $id], __('app_qy_v1.messages.post_deleted'));
     }
 
     /**
@@ -262,10 +262,10 @@ class AppQyV1PostController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
         if (!$post->canBeViewedBy($myId)) {
-            return $this->forbidden('You cannot like this post');
+            return $this->forbidden(__('app_qy_v1.messages.you_cannot_like_this_post'));
         }
 
         $likeResult = $post->registerLike($myId);
@@ -318,7 +318,7 @@ class AppQyV1PostController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
 
         $unlikeResult = $post->removeLike($myId);
@@ -362,10 +362,10 @@ class AppQyV1PostController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
         if (!$post->canBeViewedBy($myId)) {
-            return $this->forbidden('You cannot view this post');
+            return $this->forbidden(__('app_qy_v1.messages.you_cannot_view_this_post'));
         }
 
         $cursor = (int) $request->query('cursor', 0);
@@ -418,10 +418,10 @@ class AppQyV1PostController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
         if (!$post->canBeViewedBy($myId)) {
-            return $this->forbidden('You cannot comment on this post');
+            return $this->forbidden(__('app_qy_v1.messages.you_cannot_comment_on_this_post'));
         }
 
         $body = (string) $request->input('body');
@@ -431,7 +431,7 @@ class AppQyV1PostController extends Controller
             // Parent must belong to THIS post (one-level threading).
             $parent = AppQyV1PostCommentModel::findOnPost($parentId, $id);
             if (!$parent) {
-                return $this->error('Parent comment not found on this post', 422);
+                return $this->error(__('app_qy_v1.messages.parent_comment_not_found_on_this_post'), 422);
             }
         }
 
@@ -463,7 +463,7 @@ class AppQyV1PostController extends Controller
             }
         }
 
-        return $this->success(['comment' => $shape], 'Comment posted');
+        return $this->success(['comment' => $shape], __('app_qy_v1.messages.comment_posted'));
     }
 
     /**
@@ -482,15 +482,15 @@ class AppQyV1PostController extends Controller
 
         $comment = AppQyV1PostCommentModel::findOnPost($cid, $id);
         if (!$comment) {
-            return $this->notFound('Comment not found');
+            return $this->notFound(__('app_qy_v1.messages.comment_not_found'));
         }
         if ((int) $comment->user_id !== $myId) {
-            return $this->forbidden('Only the author can delete this comment');
+            return $this->forbidden(__('app_qy_v1.messages.only_the_author_can_delete_this_comment'));
         }
 
         $comment->deleteFromPost();
 
-        return $this->success(['comment_id' => $cid, 'post_id' => $id], 'Comment deleted');
+        return $this->success(['comment_id' => $cid, 'post_id' => $id], __('app_qy_v1.messages.comment_deleted'));
     }
 
     // ---- Shared shaping / visibility / fanout helpers ----

@@ -188,6 +188,9 @@ export interface Screenshot {
   original_name: string;
   mime_type: string;
   description?: string;
+  keywords?: string[];
+  /** File size in bytes. */
+  size?: number;
   created_at: string;
 }
 
@@ -460,7 +463,7 @@ export interface VocabularyStatistics {
 
 /** Single word row from vocabulary statistics word list API */
 export interface VocabularyStatisticsWordRow {
-  id?: number;
+  id?: number | string;
   library_id?: number;
   library_name?: string;
   language?: string;
@@ -607,9 +610,12 @@ export interface PlaceholderResponse {
 
 export interface VoiceQueueItem {
   id: string;
-  type: 'text' | 'url' | 'voice';
+  type: 'text' | 'image' | 'url' | 'voice' | 'file';
   content: string;
   language: string;
+  group?: string;
+  category?: string;
+  play_count?: number;
   status: 'queued' | 'processing' | 'playing' | 'completed' | 'error';
   audio_url?: string;
   subtitle_segments?: SubtitleSegment[];

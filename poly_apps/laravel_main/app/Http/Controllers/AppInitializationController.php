@@ -31,7 +31,7 @@ class AppInitializationController extends Controller
             $result['detailed'] = $this->manager->getDetailedStatus();
         }
 
-        return $this->success($result, 'Status retrieved successfully');
+        return $this->success($result, __('api.messages.status_retrieved_successfully'));
     }
 
     public function initializeAll(Request $request): JsonResponse
@@ -39,7 +39,7 @@ class AppInitializationController extends Controller
         $force = $request->input('force', false);
         $result = $this->manager->initializeAll($force);
 
-        return $this->success($result, 'Initialization completed');
+        return $this->success($result, __('api.messages.initialization_completed'));
     }
 
     public function initialize(Request $request, string $appName): JsonResponse
@@ -51,18 +51,18 @@ class AppInitializationController extends Controller
             return $this->notFound("App '{$appName}' not found");
         }
 
-        return $this->success($result, 'App initialized successfully');
+        return $this->success($result, __('api.messages.app_initialized_successfully'));
     }
 
     public function reset(Request $request, string $appName): JsonResponse
     {
         $result = $this->manager->reset($appName);
-        return $this->success($result, 'App reset successfully');
+        return $this->success($result, __('api.messages.app_reset_successfully'));
     }
 
     public function listApps(Request $request): JsonResponse
     {
         $apps = $this->manager->getRegisteredApps();
-        return $this->success(['apps' => $apps], 'Apps list retrieved successfully');
+        return $this->success(['apps' => $apps], __('api.messages.apps_list_retrieved_successfully'));
     }
 }

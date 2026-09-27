@@ -1,0 +1,11 @@
+{
+  "task_id": "codemart-6",
+  "role": "codemart",
+  "verdict": "approved",
+  "findings": {
+    "FU-026 / AGENTS reuse (lead request)": {"status": "fixed", "reason": "CmApi reuses BaseAPI.IDEMPOTENCY_KEY_HEADER. The request override and the uploadFresh wrapper that duplicated BaseAPI's write invalidation are removed: BaseAPI.request invalidates coalesced reads after every non-GET, and uploadWithProgress does so on settle. No codemart file imports RequestCoordinator or declares its own idempotency header any more."}
+  },
+  "issues": [],
+  "checks": "git diff of CmApi.ts read; grep for IDEMPOTENCY_HEADER/clearCoordinatedRequests/RequestCoordinator under apps/codemart (none). BaseAPI.uploadWithProgress only resolves (every settle path invalidates).",
+  "checked_at": "2026-09-27T04:12:49+10:00"
+}

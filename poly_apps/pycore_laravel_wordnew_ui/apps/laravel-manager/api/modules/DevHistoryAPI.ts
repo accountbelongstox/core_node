@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 
 /**
@@ -69,7 +69,7 @@ export interface DevHistoryPrompt {
   };
 }
 
-export class DevHistoryAPI extends BaseAPI {
+export class DevHistoryAPI extends LmBaseAPI {
   /** Session summaries + tool/user facets for classification. */
   async getIndex(): Promise<APIResponse<DevHistoryIndex>> {
     return this.get('/index');

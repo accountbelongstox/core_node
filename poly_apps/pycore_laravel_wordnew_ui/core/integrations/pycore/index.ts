@@ -70,12 +70,15 @@ export {
   getPycoreTarget, isPycoreRemote, pycoreTargetHost,
   getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
-  isPycoreSecureContext, pnaBlockedReason, isViteDevShell,
-  isLoopbackPage, directPycoreHost, pycoreLocalConnectionHint,
+  isViteDevShell,
+  isLoopbackPage, directPycoreHost,
+  isPycoreLoopbackHost, isPycoreDirectAccessAllowed,
+  isPycoreDashboardOrigin, pycoreDashboardOriginPorts,
   rewritePycoreEndpoint,
   isPycoreRelayMode, pycoreTargetBackendUrl, normalizePycoreBackendUrl,
 } from './pycoreTarget';
-export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
+export type { PycoreTarget, PycorePresetHost, PycorePresetSource } from './pycoreTarget';
+export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
 export {
   deliverThroughLaravelRelay, designateLaravelRelayDevice,
   clearLaravelRelayDevice, laravelRelayDeviceId,

@@ -184,57 +184,8 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const [notifications, setNotifications] = useState({ email: true, push: false, sms: false });
 
   const currentLang = langProp || lang;
-  const t = TRANSLATIONS[currentLang].settings || {
-    title: 'Settings',
-    api_config: 'API Configuration',
-    base_url: 'Base URL',
-    api_key: 'API Key',
-    save: 'Save',
-    reset: 'Reset to Default',
-    test_connection: 'Test Connection',
-    saved: 'Settings saved successfully',
-    reset_success: 'Settings reset to default',
-    test_success: 'Connection successful',
-    test_error: 'Connection failed',
-    profile: {
-      title: 'User Profile',
-      avatar: 'Avatar',
-      upload_avatar: 'Upload Avatar',
-      change_avatar: 'Change Avatar',
-      avatar_hint: 'JPG, PNG or WebP. Max 5 MB.',
-      avatar_updated: 'Avatar updated successfully',
-      avatar_failed: 'Failed to update avatar',
-      avatar_too_large: 'Image must be 5 MB or smaller',
-      avatar_invalid_type: 'Unsupported image type',
-      current_password: 'Current Password',
-      new_password: 'New Password',
-      confirm_password: 'Confirm Password',
-      change_password: 'Change Password',
-      password_changed: 'Password changed successfully',
-      password_failed: 'Failed to change password',
-      password_mismatch: 'New passwords do not match',
-      password_required: 'All password fields are required'
-    }
-  };
-  const tp = t.profile || {
-    title: 'User Profile',
-    avatar: 'Avatar',
-    upload_avatar: 'Upload Avatar',
-    change_avatar: 'Change Avatar',
-    avatar_hint: 'JPG, PNG or WebP. Max 5 MB.',
-    avatar_updated: 'Avatar updated successfully',
-    avatar_failed: 'Failed to update avatar',
-    avatar_too_large: 'Image must be 5 MB or smaller',
-    avatar_invalid_type: 'Unsupported image type',
-    current_password: 'Current Password',
-    new_password: 'New Password',
-    confirm_password: 'Confirm Password',
-    change_password: 'Change Password',
-    password_changed: 'Password changed successfully',
-    password_failed: 'Failed to change password',
-    password_mismatch: 'New passwords do not match',
-    password_required: 'All password fields are required'
-  };
+  const t = TRANSLATIONS[currentLang].settings;
+  const tp = t.profile;
 
   useEffect(() => {
     setBaseUrl(config.baseUrl);
@@ -561,7 +512,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   };
 
   const handleReset = () => {
-    if (confirm(t.messages?.confirm_reset || 'Are you sure you want to reset to default settings?')) {
+    if (confirm(t.confirm_reset)) {
       resetConfig();
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);

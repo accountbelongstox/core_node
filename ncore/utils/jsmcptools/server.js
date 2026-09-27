@@ -13,14 +13,20 @@
 'use strict';
 
 const fastify = require('fastify');
-const cors = require('@fastify/cors');
 const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { SSEServerTransport } = require('@modelcontextprotocol/sdk/server/sse.js');
 const { randomUUID } = require('crypto');
 const { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ListPromptsRequestSchema, isInitializeRequest } = require('@modelcontextprotocol/sdk/types.js');
 const logger = require('#@logger');
+const serviceContract = require('#@/config/service_contract.js');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 const { MCP_CHROME_PORT, TOOL_NAMES } = require('./tool_schemas');
+
+const CHROME_EXTENSION_SCHEME = 'chrome-extension://';
+const EXTENSION_ORIGINS = [(serviceContract.document.mcp_chrome || {}).extension_id]
+    .filter(Boolean)
+    .map((extensionId) => CHROME_EXTENSION_SCHEME + extensionId);
 
 const HTTP_STATUS = {
     OK: 200,
@@ -49,7 +55,7 @@ const ERROR_MESSAGES = {
 class MCPChromeServer {
     constructor(options = {}) {
         this.port = options.port || MCP_CHROME_PORT;
-        this.host = options.host || '127.0.0.1';
+        this.host = localRpcGuard.resolveBindHost(options.host);
         this.fastifyInstance = null;
         this.mcpServer = null;
         this.isRunning = false;
@@ -64,9 +70,9 @@ class MCPChromeServer {
     async initialize() {
         this.fastifyInstance = fastify({ logger: false });
 
-        await this.fastifyInstance.register(cors, {
-            origin: '*'
-        });
+        const guard = localRpcGuard.createFastifyGuard({ allowedOrigins: EXTENSION_ORIGINS });
+        this.fastifyInstance.addHook('onRequest', guard.onRequest);
+        this.fastifyInstance.addHook('preParsing', guard.preParsing);
 
         this.mcpServer = new Server(
             {

@@ -38,45 +38,74 @@ class UserSettings {
         if (fs.existsSync(this.configFile) || !fs.existsSync(this.legacyConfigFile)) {
             return;
         }
-        if (!fs.statSync(this.legacyConfigFile).isFile()) {
-            return;
+        try {
+            if (fs.statSync(this.legacyConfigFile).isFile()) {
+                fs.copyFileSync(this.legacyConfigFile, this.configFile, fs.constants.COPYFILE_EXCL);
+            }
+        } catch (error) {
+            logger.error(`Cannot import legacy settings: ${error.code || error.message}`);
         }
-        fs.copyFileSync(this.legacyConfigFile, this.configFile, fs.constants.COPYFILE_EXCL);
     }
 
     // Ensure required directories exist
     ensureDirectories() {
-        if (!fs.existsSync(this.configDir)) {
-            fs.mkdirSync(this.configDir, { recursive: true });
+        for (const dir of [this.configDir, this.syncDir]) {
+            try {
+                fs.mkdirSync(dir, { recursive: true });
+            } catch (error) {
+                logger.error(`Cannot create settings directory ${dir}: ${error.code || error.message}`);
+            }
         }
-        if (!fs.existsSync(this.syncDir)) {
-            fs.mkdirSync(this.syncDir, { recursive: true });
+    }
+
+    // Read settings; ok is false when the file exists but cannot be parsed
+    readSettingsFile() {
+        try {
+            if (fs.existsSync(this.configFile) && fs.statSync(this.configFile).isFile()) {
+                return { ok: true, settings: JSON.parse(fs.readFileSync(this.configFile, 'utf8')) };
+            }
+            return { ok: true, settings: {} };
+        } catch (error) {
+            logger.error('Error loading settings:', error);
+            return { ok: false, settings: {} };
         }
     }
 
     // Load settings from JSON file
     loadSettings() {
+        return this.readSettingsFile().settings;
+    }
+
+    /**
+     * Save settings to JSON file atomically (temp file plus rename)
+     * @param {Object} settings - Settings object to save
+     * @returns {boolean}
+     */
+    saveSettings(settings) {
+        const tempFile = `${this.configFile}.${process.pid}.tmp`;
         try {
-            if (fs.existsSync(this.configFile) && fs.statSync(this.configFile).isFile()) {
-                return JSON.parse(fs.readFileSync(this.configFile, 'utf8'));
-            }
-            return {};
+            fs.writeFileSync(tempFile, JSON.stringify(settings, null, 2));
+            fs.renameSync(tempFile, this.configFile);
+            return true;
         } catch (error) {
-            logger.error('Error loading settings:', error);
-            return {};
+            logger.error('Error saving settings:', error);
+            return false;
         }
     }
 
     /**
-     * Save settings to JSON file
-     * @param {Object} settings - Settings object to save
+     * Re-read the file, apply the change and save; refuses to save over a file that failed to parse
+     * @param {Function} mutator - Receives the current settings object and changes it in place
+     * @returns {Object|null} The saved settings, or null when nothing was saved
      */
-    saveSettings(settings) {
-        try {
-            fs.writeFileSync(this.configFile, JSON.stringify(settings, null, 2));
-        } catch (error) {
-            logger.error('Error saving settings:', error);
+    updateSettings(mutator) {
+        const current = this.readSettingsFile();
+        if (!current.ok) {
+            logger.error(`Settings file ${this.configFile} is unreadable; change not saved`);
+            return null;
         }
+        mutator(current.settings);
+        return this.saveSettings(current.settings) ? current.settings : null;
     }
 
     // Sync key-value to file system
@@ -88,7 +117,7 @@ class UserSettings {
                     fs.unlinkSync(filePath);
                 }
             } else {
-                fs.writeFileSync(filePath, String(value), 'utf8');
+                fs.writeFileSync(filePath, typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value), 'utf8');
             }
         } catch (error) {
             logger.error(`Error syncing key ${key}:`, error);
@@ -103,18 +132,19 @@ class UserSettings {
 
     // Set a key (add if not exists, default value is TRUE)
     setKey(key, value = true) {
-        const settings = this.loadSettings();
-        settings[key] = value;
-        this.saveSettings(settings);
-        this.syncToFile(key, value);
+        if (this.updateSettings((settings) => { settings[key] = value; })) {
+            this.syncToFile(key, value);
+        }
     }
 
     // Delete a key
     deleteKey(key) {
-        const settings = this.loadSettings();
-        if (key in settings) {
+        let existed = false;
+        const saved = this.updateSettings((settings) => {
+            existed = key in settings;
             delete settings[key];
-            this.saveSettings(settings);
+        });
+        if (saved && existed) {
             this.syncToFile(key);
             return true;
         }
@@ -227,28 +257,20 @@ class UserSettings {
      */
     replace(key, value) {
         try {
-            const settings = this.loadSettings();
-            
             // Create nested objects if key contains dots
             const keys = key.split('.');
-            let current = settings;
-            
-            // Navigate to the parent object
-            for (let i = 0; i < keys.length - 1; i++) {
-                if (!current[keys[i]]) {
-                    current[keys[i]] = {};
+            const saved = this.updateSettings((settings) => {
+                let current = settings;
+                for (let i = 0; i < keys.length - 1; i++) {
+                    if (!current[keys[i]]) {
+                        current[keys[i]] = {};
+                    }
+                    current = current[keys[i]];
                 }
-                current = current[keys[i]];
-            }
+                current[keys[keys.length - 1]] = value;
+            });
 
-            // Set the value at the final key
-            const finalKey = keys[keys.length - 1];
-            current[finalKey] = value;
-
-            // Save the updated settings
-            fs.writeFileSync(this.configFile, JSON.stringify(settings, null, 2));
-            
-            return true;
+            return Boolean(saved);
         } catch (error) {
             logger.error(`Failed to replace value for key ${key}:`, error);
             return false;

@@ -30,17 +30,23 @@
     Perform the heavy build (also enabled by MELOTTS_INSTALL=1).
 .PARAMETER Force
     Rebuild the venv from scratch and re-warm models.
+.PARAMETER Test
+    Docker backend: after ensure, run one bounded test (up, health, smoke, down) and
+    terminate the WSL distro (also enabled by DOCKER_MODEL_TEST=1).
 #>
 [CmdletBinding()]
 param(
     [string]$Python = 'python',
     [switch]$Full,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Test
 )
 
 $ErrorActionPreference = 'Stop'
 
 $SCRIPT_INDEX     = '[Step55-MeloTts]'
+$DOCKER_MODEL     = 'melotts'
+$doDockerTest     = ($Test -or $env:DOCKER_MODEL_TEST -eq '1')
 $coreNodeRoot     = $null
 $stagingDefault   = $null
 $targetDir        = $null
@@ -100,21 +106,21 @@ if ($env:MELOTTS_SKIP -eq '1') {
 $installMethod = Select-TtsInstallMethod -Engine melotts `
     -SupportedBackends @('native','docker') `
     -RecommendedBackend 'docker' `
-    -RecommendationSource 'MeloTTS official install.md: "If you are using Windows, we highly recommend using Docker" - https://github.com/myshell-ai/MeloTTS/blob/main/docs/install.md' `
+    -RecommendationSource 'MeloTTS official install.md: "To avoid compatibility issues, for Windows users and some macOS users, we suggest to run via Docker." - https://github.com/myshell-ai/MeloTTS/blob/main/docs/install.md' `
     -DefaultBackend 'docker' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
 if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
 if ($installMethod -eq 'docker') {
     . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
-    if (-not (Invoke-TtsDockerEnsure -Engine melotts -Prefix $SCRIPT_INDEX)) {
-        Write-Host "$SCRIPT_INDEX [!] docker platform is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown'))." -ForegroundColor DarkYellow
-        exit 1
+    if (-not (Invoke-DockerModelRunner -Model $DOCKER_MODEL -Action ensure -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker backend is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown')); the RESULT line above names the phase." -ForegroundColor DarkYellow
+        return
     }
-    Save-TtsInstallBackend -Engine melotts -Backend docker
-    if (-not (Invoke-TtsDockerApply -Engine melotts -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
-        Write-Host "$SCRIPT_INDEX [!] docker compose apply failed (phase above); docker backend is not ready." -ForegroundColor DarkYellow
-        exit 1
+    Save-TtsInstallBackend -Engine $DOCKER_MODEL -Backend docker
+    if ($doDockerTest -and -not (Invoke-DockerModelRunner -Model $DOCKER_MODEL -Action test -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker test did not pass (RESULT line above); the image and staging data are kept." -ForegroundColor DarkYellow
+        return
     }
-    Write-Host "$SCRIPT_INDEX [OK] docker compose service converged (project pycore-tts-melotts)." -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX [OK] docker backend ensured (image pycore-tts-$($DOCKER_MODEL):local; no container left running)." -ForegroundColor Green
     return
 }
 Save-TtsInstallBackend -Engine melotts -Backend native

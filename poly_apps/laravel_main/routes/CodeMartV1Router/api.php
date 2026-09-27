@@ -116,6 +116,7 @@ Route::prefix('codemart/v1')->name('codemart.')->group(function () {
             Route::get('/payments', [CodeMartV1AdminFinanceCtl::class, 'payments'])->name('payments');
             Route::post('/payments/{paymentId}/resolve-dispute', [CodeMartV1AdminFinanceCtl::class, 'resolveDispute'])->name('payment-resolve-dispute');
             Route::get('/escrows', [CodeMartV1AdminFinanceCtl::class, 'escrows'])->name('escrows');
+            Route::post('/escrows/{escrowId}/refund', [CodeMartV1AdminFinanceCtl::class, 'refundEscrow'])->name('escrow-refund');
             Route::get('/projects', [CodeMartV1AdminCtl::class, 'projects'])->name('projects');
         });
 

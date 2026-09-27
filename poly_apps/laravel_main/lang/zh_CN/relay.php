@@ -12,8 +12,6 @@ return [
     'inline_body_too_large' => '内联正文超过上限，请先上传分块。',
     'invalid_blob_id' => '分块 ID 无效。',
     'invalid_machine_id' => '机器 ID 无效。',
-    'machine_auth_required' => '需要可识别的 Pycore 客户端。',
-    'machine_identity_invalid' => '需要有效的 Pycore 设备签名。',
     'machine_not_online' => '机器不在线。',
     'machine_not_registered' => '机器尚未注册。',
     'peer_offline' => '对端不在线或配对会话已过期。',

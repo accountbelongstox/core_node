@@ -41,7 +41,9 @@ def write_wav(samples: Any, sample_rate: int, out_path: Path) -> bool:
         return False
 
 
-def wav_to_mp3(wav_path: Path, mp3_path: Path) -> bool:
+def wav_to_mp3(wav_path: Path, mp3_path: Path, tempo: float = 1.0) -> bool:
+    """Transcode to mono 44.1 kHz mp3; ``tempo`` != 1 applies a pitch-preserving
+    speed change (for engines whose server has no speed parameter)."""
     if not ffmpeg_available():
         ColorPrint.yellow("[tts.audio] ffmpeg not on PATH; cannot transcode WAV -> MP3")
         return False
@@ -52,6 +54,7 @@ def wav_to_mp3(wav_path: Path, mp3_path: Path) -> bool:
         bitrate="192k",
         sample_rate=44100,
         mono=True,
+        tempo=tempo,
     )
     result = ffmpeg_runtime.execute_output_step(
         arguments,

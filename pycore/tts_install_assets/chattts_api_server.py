@@ -9,7 +9,7 @@ Run from the staging dir after install_chattts:
   python chattts_api_server.py
 
 Env:
-  CHATTTS_HOST / CHATTTS_PORT      - bind (default 0.0.0.0:8000)
+  CHATTTS_HOST / CHATTTS_PORT      - bind (default 127.0.0.1:8000)
   CHATTTS_DEVICE                   - cuda | cpu | auto (default auto); auto picks
                                      cuda only when enough VRAM is FREE (see below)
   CHATTTS_MIN_FREE_VRAM_MB         - free-VRAM floor for auto->cuda (default 4096;
@@ -20,6 +20,7 @@ Env:
   CHATTTS_PROMPT                   - oral tags prefix (e.g. [oral_2][laugh_0][break_6])
 """
 
+import hashlib
 import io
 import os
 
@@ -31,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import wave
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -53,11 +55,17 @@ from pydantic import BaseModel, Field
 _network_constants = tts_server_common.load_network_constants()
 _CHATTS_MIN_FREE_VRAM_MB = getattr(_network_constants, "CHATTTS_MIN_FREE_VRAM_MB", 4096)
 _DEFAULT_PORT = getattr(_network_constants, "CHATTTS_HTTP_PORT", 8000)
+NVIDIA_SMI_TIMEOUT_SECONDS = getattr(_network_constants, "NVIDIA_SMI_TIMEOUT_SECONDS", 10)
 _MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
 
 _chat = None
 _chat_lock = threading.Lock()
 _inference_lock = threading.Lock()
+# One fixed speaker embedding per requested voice name (seeded from the name),
+# so every call - and every word of a batch fallback - uses the same voice.
+_speakers = {}
+_SAMPLE_RATE = 24000
+_WAV_FORMAT = "wav"
 _device = None
 _load_error: Optional[str] = None
 
@@ -96,6 +104,7 @@ def _free_vram_mb() -> Optional[int]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
         )
     except Exception:  # noqa: BLE001
         return None
@@ -193,13 +202,41 @@ def root():
     return health()
 
 
-def _mp3_bytes(wav_samples) -> bytes:
+def _pcm16(wav_samples):
     arr = np.asarray(wav_samples, dtype=np.float32)
     arr = np.clip(arr, -1.0, 1.0)
-    pcm16 = (arr * 32767.0).astype(np.int16)
+    return (arr * 32767.0).astype(np.int16)
+
+
+def _wav_bytes(wav_samples) -> bytes:
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(_SAMPLE_RATE)
+        handle.writeframes(_pcm16(wav_samples).tobytes())
+    return buf.getvalue()
+
+
+def _speaker(chat, voice: str):
+    """Deterministic speaker embedding of one voice name (inference lock held)."""
+    key = (voice or "").strip().lower()
+    if key not in _speakers:
+        seed = int.from_bytes(hashlib.sha256(key.encode("utf-8")).digest()[:4], "big")
+        state = torch.random.get_rng_state()
+        torch.manual_seed(seed)
+        try:
+            _speakers[key] = chat.sample_random_speaker()
+        finally:
+            torch.random.set_rng_state(state)
+    return _speakers[key]
+
+
+def _mp3_bytes(wav_samples) -> bytes:
+    pcm16 = _pcm16(wav_samples)
     seg = AudioSegment(
         pcm16.tobytes(),
-        frame_rate=24000,
+        frame_rate=_SAMPLE_RATE,
         sample_width=2,
         channels=1,
     )
@@ -219,11 +256,11 @@ def audio_speech(req: SpeechRequest):
     try:
         chat = _get_chat()
         speed_tag = max(1, min(10, int(round(float(req.speed) * 5))))
-        params_infer = ChatTTS.Chat.InferCodeParams(
-            prompt=f"[speed_{speed_tag}]",
-            spk_emb=chat.sample_random_speaker(),
-        )
         with _inference_lock:
+            params_infer = ChatTTS.Chat.InferCodeParams(
+                prompt=f"[speed_{speed_tag}]",
+                spk_emb=_speaker(chat, req.voice or ""),
+            )
             wavs = chat.infer(
                 [payload],
                 skip_refine_text=True,
@@ -231,6 +268,8 @@ def audio_speech(req: SpeechRequest):
             )
         if not wavs:
             return JSONResponse({"error": "no audio"}, status_code=500)
+        if (req.response_format or "").strip().lower() == _WAV_FORMAT:
+            return StreamingResponse(io.BytesIO(_wav_bytes(wavs[0])), media_type="audio/wav")
         audio = _mp3_bytes(wavs[0])
         return StreamingResponse(io.BytesIO(audio), media_type="audio/mpeg")
     except Exception as exc:
@@ -238,7 +277,7 @@ def audio_speech(req: SpeechRequest):
 
 
 def main():
-    host = (os.environ.get("CHATTTS_HOST") or "0.0.0.0").strip()
+    host = (os.environ.get("CHATTTS_HOST") or "127.0.0.1").strip()
     port = int(os.environ.get("CHATTTS_PORT") or _DEFAULT_PORT)
     uvicorn.run(app, host=host, port=port)
 

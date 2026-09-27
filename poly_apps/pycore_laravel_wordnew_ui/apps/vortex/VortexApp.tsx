@@ -10,15 +10,26 @@ import {
   SlidersHorizontal, Repeat, Info, CheckSquare, Square, XSquare, PlusCircle,
   Sun, Moon, Globe, Database
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useShell } from '../../shell/ShellContext';
+import { SHELL_LANGUAGES } from '../../shell/shellTypes';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import OkxBacktestPanel from './OkxBacktestPanel';
 import OkxQuantPanel from './OkxQuantPanel';
 import OkxAccountPanel from './OkxAccountPanel';
+import { registerVxLocales, vxLocales } from './vx-locales';
+
+registerVxLocales();
 
 /** The tabs that are real URL routes under /vortex (e.g. /vortex/settings). */
 const VORTEX_TABS = ['market', 'compare', 'ledger', 'settings', 'okx-backtest'] as const;
 type VortexTab = (typeof VORTEX_TABS)[number];
+
+/** Shell languages Vortex ships a `vx` locale bundle for. */
+const VX_LANGUAGE_OPTIONS = SHELL_LANGUAGES.filter((l) => l.code in vxLocales);
+const TRADE_TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+const COMPARE_MAX = 4;
+const AIRDROP_AMOUNT = 15000;
 
 // Types representation
 interface CoinAsset {
@@ -41,6 +52,8 @@ interface Position {
   entryPrice: number;
   currentPrice: number;
   leverage: number;
+  /** Collateral (USDT, net of the open fee) locked by this position. */
+  margin: number;
 }
 
 interface HistoricTrade {
@@ -52,8 +65,34 @@ interface HistoricTrade {
   price: number;
   pnl: number;
   leverage: number;
-  time: string;
+  /** Epoch ms; legacy entries stored a preformatted string. */
+  time: number | string;
 }
+
+/** Positions persisted before margin tracking carry no margin: derive it from the entry notional. */
+const withMargin = (p: Omit<Position, 'margin'> & { margin?: number }): Position => ({
+  ...p,
+  margin: Number.isFinite(p.margin) ? (p.margin as number) : (p.quantity * p.entryPrice) / (p.leverage || 1),
+});
+
+const positionPnl = (p: Position, price: number) => p.quantity * (price - p.entryPrice);
+
+/** Isolated margin: a position can lose at most its margin. */
+const positionEquity = (p: Position, price: number) => Math.max(0, p.margin + positionPnl(p, price));
+
+/** Quantity bought with `amount` USDT: the open fee comes off the amount, the rest is margin. */
+const buyMargin = (amount: number, feeRate: number) => amount / (1 + feeRate);
+const buyQuantity = (amount: number, feeRate: number, leverage: number, price: number) =>
+  (buyMargin(amount, feeRate) * leverage) / price;
+
+/** Closing `share` (0..1] of a position credits `margin + qty × (exit − entry) − fee`. */
+const settleClose = (p: Position, share: number, price: number, feeRate: number) => {
+  const quantity = p.quantity * share;
+  const margin = p.margin * share;
+  const gross = Math.max(0, margin + quantity * (price - p.entryPrice));
+  const credit = gross * (1 - feeRate);
+  return { quantity, margin, credit, pnl: credit - margin };
+};
 
 interface ToastMessage {
   id: string;
@@ -88,213 +127,6 @@ const BASE_COINS = [
   { symbol: 'ARB', name: 'Arbitrum', category: 'L2', price: 0.825 },
 ];
 
-const VORTEX_I18N: Record<string, Record<string, string>> = {
-  en: {
-    title: "Quantum Vortex Quant Sandbox",
-    subtitle: "Real-time Simulated High-Frequency Sandbox Multi-Coin Terminal & Performance Analytics Arena",
-    tabMarket: "Market Plaza",
-    tabCompare: "Compare Arena",
-    tabLedger: "Sim Ledger",
-    tabSettings: "Control Center",
-    tabOkx: "OKX Backtest",
-    totalWealth: "Sim Portfolio Value",
-    availableCash: "Available Margin (USDT)",
-    holdingValue: "Crypto Value",
-    unrealizedPnL: "Unrealized Floating P&L",
-    updatedAt: "Ledger State Heartbeat",
-    searchPlaceholder: "Search symbol, category or name...",
-    categoryAll: "All Categories",
-    onlyBookmarked: "Stars Only",
-    filter1m: "1m Growth",
-    filter5m: "5m Growth",
-    actionTrade: "Pre-execution Sandbox Order Placement",
-    actionBuy: "Simulated Long BUY",
-    actionSell: "Simulated Short SELL",
-    amountUSDT: "Max Order Allocation Size (USDT)",
-    quantity: "Est. Asset Quantity Received",
-    insufficientFunds: "Insufficient margin in simulated balance!",
-    orderSuccess: "Vortex ledger sequence executed and committed to private sandbox sandbox local index!",
-    currentHoldings: "Live Holdings Terminal Tracker",
-    noHoldings: "No current active exposures. Search tokens in the list to trigger order placement!",
-    pnlTable: "Simulated Realized Ledger Records",
-    colSize: "Quantity",
-    colEntry: "Acquisition Price",
-    colCurrent: "Ticked Spot Price",
-    colROI: "Unrealized return margin & ROI%",
-    colAction: "Manual Liquidation",
-    closeBtn: "Liquidate",
-    historyTitle: "Real-time Settlement History Audit Logs",
-    totalProfit: "Realized Net Yield",
-    autoRefresh: "High-Freq Sim Heartbeat Speed",
-    refreshSuccess: "External rates feed updated.",
-    categoryLabel: "Category Filter Scope",
-    chartTitle: "High-Freq Spot Asset Wave",
-    searchFilterTitle: "Sandbox Filter Toolbelt",
-    quickStats: "Simulated Exchange Run stats",
-    detailTitle: "Spot Asset Intelligent Drawer",
-    orderBookTitle: "Real-time Sim Order book Depth (5-level)",
-    indicatorsTitle: "Sub-Engine Derived Indicators View",
-    rsiLabel: "Calculated Spot RSI Index (14 ticks)",
-    macdLabel: "MACD Signal Wave (Fast/Slow Drift)",
-    volume24h: "Simulated 24H volume",
-    compareHeadline: "Overlaid Relative Performance Grid",
-    compareSub: "Cross-asset normalized percent gain compare index starts from 15 ticks ago. Max 4 selected tokens.",
-    noSelectedCompare: "Please select 1 to 4 tokens from the coin directory using the 'Compare' checkbox to render superimposed chart overlays!",
-    metricCategory: "Asset category",
-    metricRSI: "RSI Trend",
-    metric1m: "1m Gain %",
-    metric5m: "5m Gain %",
-    metric24h: "Daily Gain %",
-    metricHoldings: "My Holdings",
-    clearCompare: "Clear list",
-    configSub: "Tune simulated latency, fee coefficients, trade parameters and layout modifiers below.",
-    optLatency: "Engine ticks timer period speed",
-    optFee: "Exchange commission rates (%)",
-    optLeverage: "Order Leverage Multiplier multiplier",
-    btnReset: "Restore initial $100,000 credit",
-    btnAirdrop: "Inject simulated $15,000 airdrop",
-    notifyReset: "Airdrop committed. Simulated account balances synced.",
-    langLabel: "System Lang support override",
-    themeLabel: "Theme canvas display profile"
-  },
-  zh: {
-    title: "Vortex 高级虚拟代币量化沙盒",
-    subtitle: "高频自更新算法行情、多维跨时性能指标对比、交互下账以及多模态配置中心",
-    tabMarket: "行情中心",
-    tabCompare: "多币竞技对比",
-    tabLedger: "持仓与账本",
-    tabSettings: "量化参数设置",
-    tabOkx: "OKX 回测",
-    totalWealth: "总模拟净资产 (USDT)",
-    availableCash: "保证金可用余额",
-    holdingValue: "代币持有总市值",
-    unrealizedPnL: "浮动中未实现盈亏",
-    updatedAt: "高频沙盒链账本同步",
-    searchPlaceholder: "检索代币符号、名称或板块...",
-    categoryAll: "全部板块",
-    onlyBookmarked: "仅自选星标",
-    filter1m: "1分钟内看涨",
-    filter5m: "5分钟内看涨",
-    actionTrade: "量子一键闪电交易下单柜台",
-    actionBuy: "模拟市价做多 (BUY)",
-    actionSell: "模拟市价做空 (SELL)",
-    amountUSDT: "单次下单计划额度 (USDT)",
-    quantity: "预计可交割虚拟代币份额",
-    insufficientFunds: "可用模拟保证金不足或没有持仓！交易已拒绝。",
-    orderSuccess: "订单交割完成！已同步写入Vortex沙盒私有账本结算序列中。",
-    currentHoldings: "活跃持仓与未交割头寸实时监控",
-    noHoldings: "当前无活跃风险敞口。请在左侧行情中心点击任何代币完成快速下单！",
-    pnlTable: "实盘持仓盈亏表",
-    colSize: "持仓量",
-    colEntry: "买入成本均价",
-    colCurrent: "外部最新参考价",
-    colROI: "未实现损益 (收益率 %)",
-    colAction: "清算操作",
-    closeBtn: "市价清算一击",
-    historyTitle: "沙盒已结算历史交割单",
-    totalProfit: "已结算账户净盈亏",
-    autoRefresh: "行情自动报价心跳",
-    refreshSuccess: "行情自动心跳触发成功，当前代币序列重估完毕。",
-    categoryLabel: "代币板块细分检索",
-    chartTitle: "实时一分钟高频趋势波动",
-    searchFilterTitle: "智能标的检索过滤面板",
-    quickStats: "交易中心量子统计",
-    detailTitle: "特定标的多模态详情视窗",
-    orderBookTitle: "实时模拟五档深度盘口",
-    indicatorsTitle: "衍生量化技标引擎计算",
-    rsiLabel: "相对强弱指标 RSI (14 周期)",
-    macdLabel: "MACD 移动平均多空博弈波形",
-    volume24h: "模拟 24H 交易额",
-    compareHeadline: "多币复合相对增长竞技场 (叠线对比)",
-    compareSub: "基于 15 周期前的首个计价，按比例归一化为百分比进行走势直观对抗。上限支持 4 个币种。",
-    noSelectedCompare: "请并在下方或行情中心勾选 '选择对比' 复选框（上限 4 个币），即可将多条代币走势绘制于同一基准百分比坐标内！",
-    metricCategory: "归属板块",
-    metricRSI: "RSI 位置",
-    metric1m: "1m 变化率",
-    metric5m: "5m 变化率",
-    metric24h: "24h 涨跌幅",
-    metricHoldings: "我的模拟持仓",
-    clearCompare: "清空对比队列",
-    configSub: "调整底层自循环行情延迟、下单杠杆倍数、手续费比率、多语言及主题视觉设定。",
-    optLatency: "模拟区块报价更新频率",
-    optFee: "模拟交易手续费系数 (%)",
-    optLeverage: "下单最大可配资持仓杠杆",
-    btnReset: "一键重置账户 $100,000 信用额",
-    btnAirdrop: "申请即时 $15,000 体验券空投",
-    notifyReset: "资产划转完成。沙盒账本及保证金已经刷新锁定。",
-    langLabel: "系统当前渲染语言",
-    themeLabel: "主题视觉主题模式"
-  },
-  ja: {
-    title: "Vortex 高度取引サンドボックス",
-    subtitle: "高画質リアルタイム更新、複数通貨同時比較、模擬取引下帳およびカスタマイズ設定ハブ",
-    tabMarket: "相場取引広場",
-    tabCompare: "マルチスタック比較",
-    tabLedger: "資産とポジション",
-    tabSettings: "コントロールハブ",
-    tabOkx: "OKX バックテスト",
-    totalWealth: "仮想評価総資産",
-    availableCash: "利用可能マージン (USDT)",
-    holdingValue: "保有暗号資産総額",
-    unrealizedPnL: "未実現持分評価損益",
-    updatedAt: "台帳ブロック心拍数",
-    searchPlaceholder: "シンボル、カテゴリ、名称を検索...",
-    categoryAll: "全セクター",
-    onlyBookmarked: "お気に入り限定",
-    filter1m: "1分上昇トレンド",
-    filter5m: "5分上昇トレンド",
-    actionTrade: "注文予約・瞬間シミュレーター",
-    actionBuy: "模擬買い注文 (BUY)",
-    actionSell: "模擬売り注文 (SELL)",
-    amountUSDT: "１回注文配分金額 (USDT)",
-    quantity: "推計可受領トークン数量",
-    insufficientFunds: "デモ残高が不足しているか、既存のポジションがありません！",
-    orderSuccess: "取引成立！Vortex模擬ローカル台帳へ書き込まれました。 ",
-    currentHoldings: "アクティブ露出リアルタイム追跡",
-    noHoldings: "既存の露出ポジションはありません。相場一覧からシンボルを選択してください！",
-    pnlTable: "リアルタイム評価損益一覧",
-    colSize: "保有数量",
-    colEntry: "平均取得単価",
-    colCurrent: "外部現在指数価格",
-    colROI: "未評価損益 (収益率 %)",
-    colAction: "清算アクション",
-    closeBtn: "ポジション決済",
-    historyTitle: "決済完了取引・交割報告履歴",
-    totalProfit: "決済済み累積実現損益",
-    autoRefresh: "レート自動心拍速度調整",
-    refreshSuccess: "マーケット価格が自律更新されました。",
-    categoryLabel: "カテゴリ切り替え",
-    chartTitle: "自律更新スポットトレンドライン",
-    searchFilterTitle: "サーチ検索・ターゲットフィルター",
-    quickStats: "量子模擬取引統計",
-    detailTitle: "特定通貨シミュレーションボード",
-    orderBookTitle: "模擬板情報オーダーブック (5档)",
-    indicatorsTitle: "エンジン生成インジケータ",
-    rsiLabel: "相対力指数 RSI (14 ticks)",
-    macdLabel: "MACD ダイバージェンス信号",
-    volume24h: "模擬24時間取引量",
-    compareHeadline: "複数コイン相対成長アリーナ",
-    compareSub: "15周期前の一番初期の価格を基準としパーセンテージ成長を1枚のグラフに統合して対決させます。(上限4通貨)",
-    noSelectedCompare: "相場一覧、あるいは下の選択枠から「比較対象」をチェック（最大4個）すると、ここに連動折れ線グラフが描画されます！",
-    metricCategory: "セクター分類",
-    metricRSI: "RSI状態",
-    metric1m: "1分騰落率",
-    metric5m: "5分騰落率",
-    metric24h: "24時間比較",
-    metricHoldings: "保有高",
-    clearCompare: "比較一覧をクリア",
-    configSub: "下部エンジン速度、手数料比率、マルチ言語のオーバーライド変更が行えます。",
-    optLatency: "ブロック心拍更新速度",
-    optFee: "取引コミッション料率 (%)",
-    optLeverage: "レバレッジ拡大倍率",
-    btnReset: "初期資本 $100,000 を再充填",
-    btnAirdrop: "緊急資金 $15,000 エアドロップ請求",
-    notifyReset: "エアドロップが決済処理されました。模擬台帳が正常に初期化されました。",
-    langLabel: "システムインターフェース言語",
-    themeLabel: "ディスプレイモード切り替え"
-  }
-};
-
 const Sparkline: React.FC<{ history: number[]; isPositive: boolean }> = ({ history, isPositive }) => {
   if (!history || history.length < 2) return null;
   const max = Math.max(...history);
@@ -322,8 +154,9 @@ const Sparkline: React.FC<{ history: number[]; isPositive: boolean }> = ({ histo
 
 export const VortexApp: React.FC = () => {
   const { lang, setLang, dark, setDark } = useShell();
-  const currentLocale = (lang === 'en' || lang === 'zh' || lang === 'ja') ? lang : 'zh';
-  const trans = VORTEX_I18N[currentLocale] || VORTEX_I18N['zh'];
+  const { t, i18n } = useTranslation('vx');
+  const formatTradeTime = (time: number | string) =>
+    typeof time === 'number' ? new Date(time).toLocaleTimeString(i18n.language, TRADE_TIME_FORMAT) : time;
 
   // Root layout selected tab — driven by the URL so every tab click is a real
   // route (/vortex/market, /vortex/settings, …). Sub-state (coin / view / filter)
@@ -362,7 +195,7 @@ export const VortexApp: React.FC = () => {
     const id = Date.now().toString() + Math.random();
     setToasts(prev => [...prev, { id, text, type }]);
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
+      setToasts(prev => prev.filter(item => item.id !== id));
     }, 4000);
   };
 
@@ -403,16 +236,17 @@ export const VortexApp: React.FC = () => {
   });
   const [positions, setPositions] = useState<Position[]>(() => {
     const saved = localStorage.getItem('vortex_crypto_positions');
-    return saved ? JSON.parse(saved) : [
+    const loaded = saved ? JSON.parse(saved) : [
       { id: 'btc', symbol: 'BTC', quantity: 0.5, entryPrice: 66400, currentPrice: 68420, leverage: 5 },
       { id: 'eth', symbol: 'ETH', quantity: 2.2, entryPrice: 3350, currentPrice: 3512, leverage: 5 }
     ];
+    return loaded.map(withMargin);
   });
   const [historyTrades, setHistoryTrades] = useState<HistoricTrade[]>(() => {
     const saved = localStorage.getItem('vortex_crypto_history');
     return saved ? JSON.parse(saved) : [
-      { id: 'h1', symbol: 'BTC', type: 'BUY', amount: 33200, quantity: 0.5, price: 66400, pnl: 0, leverage: 5, time: '12:15' },
-      { id: 'h2', symbol: 'ETH', type: 'BUY', amount: 7370, quantity: 2.2, price: 3350, pnl: 0, leverage: 5, time: '13:00' }
+      { id: 'h1', symbol: 'BTC', type: 'BUY', amount: 6640, quantity: 0.5, price: 66400, pnl: 0, leverage: 5, time: '12:15' },
+      { id: 'h2', symbol: 'ETH', type: 'BUY', amount: 1474, quantity: 2.2, price: 3350, pnl: 0, leverage: 5, time: '13:00' }
     ];
   });
 
@@ -613,7 +447,7 @@ export const VortexApp: React.FC = () => {
     setBookmarkedIds(prev => 
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
-    addToast(bookmarkedIds.includes(id) ? "Target removed from watch bookmarks." : "Target added to watch bookmarks.", 'star');
+    addToast(t(bookmarkedIds.includes(id) ? 'toast.bookmarkRemoved' : 'toast.bookmarkAdded'), 'star');
   };
 
   // Toggle selected coins inside Compare Arena list
@@ -623,8 +457,8 @@ export const VortexApp: React.FC = () => {
       if (prev.includes(id)) {
         return prev.filter(item => item !== id);
       } else {
-        if (prev.length >= 4) {
-          addToast("Sandbox compares index restricted to maximum of 4 concurrent tokens!", 'warning');
+        if (prev.length >= COMPARE_MAX) {
+          addToast(t('toast.compareMax', { max: COMPARE_MAX }), 'warning');
           return prev;
         }
         return [...prev, id];
@@ -666,25 +500,27 @@ export const VortexApp: React.FC = () => {
   // Asset sum valuation calculations
   const portfolioSummary = useMemo(() => {
     let holdingsTotal = 0;
-    let costBasisTotal = 0;
+    let equityTotal = 0;
+    let marginTotal = 0;
+    let totalPnL = 0;
 
     positions.forEach(pos => {
       const liveC = coins.find(c => c.id === pos.id);
       const currentPrice = liveC ? liveC.price : pos.currentPrice;
-      const originalValue = pos.quantity * pos.entryPrice;
-      const currentValue = pos.quantity * currentPrice;
-      
-      holdingsTotal += currentValue;
-      costBasisTotal += originalValue;
+
+      holdingsTotal += pos.quantity * currentPrice;
+      equityTotal += positionEquity(pos, currentPrice);
+      marginTotal += pos.margin;
+      totalPnL += positionPnl(pos, currentPrice);
     });
 
-    const netWorth = cash + holdingsTotal;
-    const totalPnL = holdingsTotal - costBasisTotal;
-    const realizedNet = historyTrades.reduce((acc, t) => acc + t.pnl, 0);
+    const netWorth = cash + equityTotal;
+    const realizedNet = historyTrades.reduce((acc, trade) => acc + trade.pnl, 0);
 
     return {
       netWorth,
       holdingsTotal,
+      marginTotal,
       totalPnL,
       realizedNet
     };
@@ -700,18 +536,17 @@ export const VortexApp: React.FC = () => {
     if (!activeCoin) return;
     if (tradeAmount <= 0) return;
 
-    const commissionFactor = 1 + (type === 'BUY' ? (feePercent / 100) : -(feePercent / 100));
+    const feeRate = feePercent / 100;
 
     if (type === 'BUY') {
       const realCost = tradeAmount;
       if (cash < realCost) {
-        addToast(trans.insufficientFunds, 'warning');
+        addToast(t('toast.insufficientFunds'), 'warning');
         return;
       }
 
-      const allocatedForTokens = realCost / commissionFactor;
-      // Received tokens under leverage (leverage multiplies buying power)
-      const tokenQuantity = (allocatedForTokens * leverage) / activeCoin.price;
+      const addedMargin = buyMargin(realCost, feeRate);
+      const tokenQuantity = buyQuantity(realCost, feeRate, leverage, activeCoin.price);
 
       setCash(prev => prev - realCost);
       setPositions(prev => {
@@ -721,12 +556,14 @@ export const VortexApp: React.FC = () => {
           const matched = res[existIdx];
           const combinedQty = matched.quantity + tokenQuantity;
           const weightedPrice = ((matched.quantity * matched.entryPrice) + (tokenQuantity * activeCoin.price)) / combinedQty;
+          const combinedMargin = matched.margin + addedMargin;
           res[existIdx] = {
             ...matched,
             quantity: combinedQty,
             entryPrice: weightedPrice,
             currentPrice: activeCoin.price,
-            leverage
+            margin: combinedMargin,
+            leverage: Math.round(((combinedQty * weightedPrice) / combinedMargin) * 100) / 100
           };
           return res;
         } else {
@@ -736,7 +573,8 @@ export const VortexApp: React.FC = () => {
             quantity: tokenQuantity,
             entryPrice: activeCoin.price,
             currentPrice: activeCoin.price,
-            leverage
+            leverage,
+            margin: addedMargin
           }];
         }
       });
@@ -752,43 +590,43 @@ export const VortexApp: React.FC = () => {
           price: activeCoin.price,
           pnl: 0,
           leverage,
-          time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          time: Date.now()
         },
         ...prev
       ]);
 
-      addToast(`${trans.orderSuccess} ${type} ${tokenQuantity.toFixed(4)} ${activeCoin.symbol} (Leverage: ${leverage}x)`, 'success');
+      addToast(t('toast.buyDone', { quantity: tokenQuantity.toFixed(4), symbol: activeCoin.symbol, leverage }), 'success');
     } else {
       // Selling / Liquidating specific quantity mapping to allocation value
       const targetPos = positions.find(p => p.id === activeCoin.id);
       if (!targetPos) {
-        addToast("No current active position of this asset found in simulated portfolio!", 'warning');
+        addToast(t('toast.noPosition'), 'warning');
         return;
       }
 
-      const totalValueHeld = targetPos.quantity * activeCoin.price;
-      const pctToSell = Math.min(1, tradeAmount / totalValueHeld);
+      // The USDT amount closes that much of the position's equity (all of it when equity is gone).
+      const equityHeld = positionEquity(targetPos, activeCoin.price);
+      const pctToSell = equityHeld > 0 ? Math.min(1, tradeAmount / equityHeld) : 1;
       if (pctToSell <= 0) return;
 
-      const soldQuantity = targetPos.quantity * pctToSell;
-      const initialBasisSold = soldQuantity * targetPos.entryPrice;
-      const proceedsRaw = soldQuantity * activeCoin.price;
-      const realProceedsRefunded = proceedsRaw / commissionFactor;
-
-      // Realized profit calculation factoring margin configuration
-      const pnlRealized = realProceedsRefunded - initialBasisSold;
+      const settled = settleClose(targetPos, pctToSell, activeCoin.price, feeRate);
+      const soldQuantity = settled.quantity;
+      const realProceedsRefunded = settled.credit;
+      const pnlRealized = settled.pnl;
 
       setCash(prev => prev + realProceedsRefunded);
       setPositions(prev => {
+        if (pctToSell >= 1) return prev.filter(p => p.id !== activeCoin.id);
         return prev.map(p => {
           if (p.id === activeCoin.id) {
             return {
               ...p,
-              quantity: p.quantity - soldQuantity
+              quantity: p.quantity - settled.quantity,
+              margin: p.margin - settled.margin
             };
           }
           return p;
-        }).filter(p => p.quantity > 0.0001);
+        });
       });
 
       setHistoryTrades(prev => [
@@ -801,12 +639,12 @@ export const VortexApp: React.FC = () => {
           price: activeCoin.price,
           pnl: pnlRealized,
           leverage: targetPos.leverage,
-          time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          time: Date.now()
         },
         ...prev
       ]);
 
-      addToast(`Liquidated ${soldQuantity.toFixed(4)} ${activeCoin.symbol} generating $${realProceedsRefunded.toFixed(2)} USDT proceeds.`, 'success');
+      addToast(t('toast.sellDone', { quantity: soldQuantity.toFixed(4), symbol: activeCoin.symbol, amount: realProceedsRefunded.toFixed(2) }), 'success');
     }
   };
 
@@ -814,11 +652,9 @@ export const VortexApp: React.FC = () => {
   const handleLiquidateWholePosition = (pos: Position) => {
     const freshData = coins.find(c => c.id === pos.id);
     const sellPrice = freshData ? freshData.price : pos.currentPrice;
-    const rawWorth = pos.quantity * sellPrice;
-    
-    const commissionDeducted = rawWorth * (1 - (feePercent / 100));
-    const basisCost = pos.quantity * pos.entryPrice;
-    const profit = commissionDeducted - basisCost;
+    const settled = settleClose(pos, 1, sellPrice, feePercent / 100);
+    const commissionDeducted = settled.credit;
+    const profit = settled.pnl;
 
     setCash(prev => prev + commissionDeducted);
     setPositions(prev => prev.filter(p => p.id !== pos.id));
@@ -832,12 +668,12 @@ export const VortexApp: React.FC = () => {
         price: sellPrice,
         pnl: profit,
         leverage: pos.leverage,
-        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        time: Date.now()
       },
       ...prev
     ]);
 
-    addToast(`Position ${pos.symbol} liquidated instantly at execution rate $${sellPrice.toFixed(4)}.`, 'info');
+    addToast(t('toast.positionClosed', { symbol: pos.symbol, price: sellPrice.toFixed(4), amount: commissionDeducted.toFixed(2) }), 'info');
   };
 
   // Reset states
@@ -848,13 +684,13 @@ export const VortexApp: React.FC = () => {
     localStorage.removeItem('vortex_crypto_cash');
     localStorage.removeItem('vortex_crypto_positions');
     localStorage.removeItem('vortex_crypto_history');
-    addToast(trans.notifyReset, 'success');
+    addToast(t('toast.reset'), 'success');
   };
 
   // Inject sample balance air-drop
   const triggerAirdrop = () => {
-    setCash(prev => prev + 15000);
-    addToast("Successfully deposited complimentary +$15,000 USDT mock margin!", 'success');
+    setCash(prev => prev + AIRDROP_AMOUNT);
+    addToast(t('toast.airdrop', { amount: AIRDROP_AMOUNT.toLocaleString(i18n.language) }), 'success');
   };
 
   return (
@@ -865,9 +701,9 @@ export const VortexApp: React.FC = () => {
       {/* Toast alert system stack */}
       <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
         <AnimatePresence>
-          {toasts.map(t => (
+          {toasts.map(toast => (
             <motion.div
-              key={t.id}
+              key={toast.id}
               initial={{ opacity: 0, x: 80, scale: 0.9 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 100, transition: { duration: 0.2 } }}
@@ -880,7 +716,7 @@ export const VortexApp: React.FC = () => {
               <div className="p-1 px-1.5 bg-indigo-500/10 text-indigo-400 rounded-md font-bold">
                 *
               </div>
-              <p className="font-semibold leading-relaxed pr-2">{t.text}</p>
+              <p className="font-semibold leading-relaxed pr-2">{toast.text}</p>
             </motion.div>
           ))}
         </AnimatePresence>
@@ -897,21 +733,21 @@ export const VortexApp: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="flex items-center gap-1 text-[10px] tracking-widest font-bold uppercase py-1 px-2.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono">
                 <Compass className="w-3.5 h-3.5 animate-spin animate-duration-3000" />
-                Vortex Quant Sandbox L4
+                {t('app.badge')}
               </span>
               <span className="text-[10px] tracking-widest font-bold uppercase py-1 px-2.5 rounded-full bg-indigo-500/15 text-indigo-400 font-mono">
-                {coins.length}+ Assets online
+                {t('app.assetsOnline', { n: coins.length })}
               </span>
             </div>
 
             <h1 className="text-3px font-extrabold tracking-tight text-white flex items-center gap-2 flex-wrap">
               <span className="bg-gradient-to-r from-emerald-450 to-teal-400 bg-clip-text text-transparent">
-                {trans.title}
+                {t('app.title')}
               </span>
               <span className="text-sm font-mono text-slate-400 border border-slate-800 px-2 py-0.5 rounded-md">V2.4</span>
             </h1>
             <p className="text-xs text-slate-450 mt-1.5 font-medium leading-relaxed max-w-2xl">
-              {trans.subtitle}
+              {t('app.subtitle')}
             </p>
           </div>
 
@@ -920,24 +756,24 @@ export const VortexApp: React.FC = () => {
             <div>
               <p className="text-[9px] uppercase font-mono text-zinc-400 tracking-wider flex items-center gap-1 justify-end">
                 <Activity className="w-3 h-3 text-emerald-400" />
-                {trans.updatedAt}
+                {t('app.updatedAt')}
               </p>
               <p className="text-xs font-mono font-bold text-indigo-400 mt-0.5 text-right">
-                {lastUpdated.toLocaleTimeString()}
+                {lastUpdated.toLocaleTimeString(i18n.language)}
               </p>
             </div>
             
             <button
               onClick={() => {
                 setAutoTickEnabled(v => !v);
-                addToast(autoTickEnabled ? "Auto heart rate paused." : "Auto heart rate resumed.", 'info');
+                addToast(t(autoTickEnabled ? 'toast.tickerPaused' : 'toast.tickerResumed'), 'info');
               }}
               className={`p-2 rounded-lg border transition-all cursor-pointer ${
                 autoTickEnabled 
                   ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' 
                   : 'bg-zinc-500/10 border-zinc-500/10 text-zinc-400'
               }`}
-              title="Pause Ticker Engine"
+              title={t('app.pauseTicker')}
             >
               {autoTickEnabled ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
             </button>
@@ -953,11 +789,11 @@ export const VortexApp: React.FC = () => {
           
           <div className="flex items-center gap-1">
             {[
-              { id: 'market', label: trans.tabMarket, icon: Compass },
-              { id: 'compare', label: trans.tabCompare, icon: SlidersHorizontal },
-              { id: 'ledger', label: trans.tabLedger, icon: Briefcase },
-              { id: 'okx-backtest', label: trans.tabOkx, icon: Database },
-              { id: 'settings', label: trans.tabSettings, icon: Settings },
+              { id: 'market', label: t('app.tabMarket'), icon: Compass },
+              { id: 'compare', label: t('app.tabCompare'), icon: SlidersHorizontal },
+              { id: 'ledger', label: t('app.tabLedger'), icon: Briefcase },
+              { id: 'okx-backtest', label: t('app.tabOkx'), icon: Database },
+              { id: 'settings', label: t('app.tabSettings'), icon: Settings },
             ].map(tab => {
               const Icon = tab.icon;
               const isSelected = activeTab === tab.id;
@@ -989,18 +825,14 @@ export const VortexApp: React.FC = () => {
           <div className="flex items-center gap-3 shrink-0">
             {/* Quick Language Toggle */}
             <div className="flex items-center bg-slate-200/50 dark:bg-white/5 border border-slate-200 dark:border-white/5 rounded-xl p-0.5 shadow-inner">
-              {[
-                { code: 'zh', short: '中' },
-                { code: 'en', short: 'EN' },
-                { code: 'ja', short: '日' }
-              ].map(item => {
+              {VX_LANGUAGE_OPTIONS.map(item => {
                 const isActive = lang === item.code;
                 return (
                   <button
                     key={item.code}
                     onClick={() => {
                       setLang(item.code);
-                      addToast(item.code === 'zh' ? "已切换至中文界面" : item.code === 'ja' ? "日本語に切り替えました" : "Interface switched to English", 'info');
+                      addToast(t('toast.langSwitched', { lng: item.code }), 'info');
                     }}
                     className={`px-2 py-0.5 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
                       isActive
@@ -1008,7 +840,7 @@ export const VortexApp: React.FC = () => {
                         : 'text-slate-500 dark:text-zinc-500 hover:text-indigo-500 dark:hover:text-indigo-400'
                     }`}
                   >
-                    {item.short}
+                    {item.label}
                   </button>
                 );
               })}
@@ -1019,14 +851,14 @@ export const VortexApp: React.FC = () => {
               onClick={() => {
                 const draftDark = !dark;
                 setDark(draftDark);
-                addToast(draftDark ? "Atmospheric Cyber (Dark) Mode" : "Clean Corporate (Light) Mode", 'success');
+                addToast(t(draftDark ? 'app.themeDark' : 'app.themeLight'), 'success');
               }}
               className={`p-2 rounded-xl border transition-all cursor-pointer ${
                 dark 
                   ? 'bg-white/5 border-white/5 text-amber-400 hover:bg-white/10' 
                   : 'bg-slate-100 border-slate-200 text-slate-800 hover:bg-slate-200 shadow-sm'
               }`}
-              title={dark ? "Clean Corporate (Light) Mode" : "Atmospheric Cyber (Dark) Mode"}
+              title={t(dark ? 'app.themeLight' : 'app.themeDark')}
             >
               {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -1036,11 +868,11 @@ export const VortexApp: React.FC = () => {
               <span className={`font-bold text-xs ${dark ? 'text-slate-400' : 'text-slate-800'}`}>
                 ${portfolioSummary.netWorth.toLocaleString(undefined, { maximumFractionDigits: 1 })} USDT
               </span>
-              <span>Available Cash: ${cash.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
+              <span>{t('app.availableCashShort')}: ${cash.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
             </div>
             
             <div className="px-2 py-1 rounded bg-indigo-500/10 text-indigo-400 font-mono text-[9px] uppercase font-bold hidden md:block">
-              SANDBOX SIM ACTIVE
+              {t('app.simActive')}
             </div>
           </div>
 
@@ -1056,14 +888,14 @@ export const VortexApp: React.FC = () => {
           } shadow-sm relative overflow-hidden flex flex-col justify-between`}>
             <div>
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-bold">{trans.totalWealth}</span>
+                <span className="font-bold">{t('app.totalWealth')}</span>
                 <Wallet className="w-4 h-4 text-slate-500" />
               </div>
               <p className="text-2xl font-black font-mono tracking-tight text-slate-800 dark:text-slate-100 mt-2">
                 ${portfolioSummary.netWorth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <p className="text-[9px] text-zinc-500 font-mono mt-2 uppercase">Estimate holding + cash net worth</p>
+            <p className="text-[9px] text-zinc-500 font-mono mt-2 uppercase">{t('app.totalWealthHint')}</p>
           </div>
 
           <div className={`p-4.5 rounded-2xl border ${
@@ -1071,14 +903,14 @@ export const VortexApp: React.FC = () => {
           } shadow-sm relative overflow-hidden flex flex-col justify-between`}>
             <div>
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-bold">{trans.availableCash}</span>
+                <span className="font-bold">{t('app.availableCash')}</span>
                 <DollarSign className="w-4 h-4 text-emerald-400" />
               </div>
               <p className="text-2xl font-black font-mono tracking-tight text-emerald-500 mt-2">
                 ${cash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <p className="text-[9px] text-emerald-600 font-bold font-mono mt-2 uppercase">100% liquifiable margin balance</p>
+            <p className="text-[9px] text-emerald-600 font-bold font-mono mt-2 uppercase">{t('app.availableCashHint')}</p>
           </div>
 
           <div className={`p-4.5 rounded-2xl border ${
@@ -1086,14 +918,14 @@ export const VortexApp: React.FC = () => {
           } shadow-sm relative overflow-hidden flex flex-col justify-between`}>
             <div>
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-bold">{trans.holdingValue}</span>
+                <span className="font-bold">{t('app.holdingValue')}</span>
                 <Coins className="w-4 h-4 text-indigo-400" />
               </div>
               <p className="text-2xl font-black font-mono tracking-tight text-slate-800 dark:text-slate-100 mt-2">
                 ${portfolioSummary.holdingsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
             </div>
-            <p className="text-[9px] text-indigo-500 font-mono mt-2 uppercase">Spot tokens evaluated in real-time</p>
+            <p className="text-[9px] text-indigo-500 font-mono mt-2 uppercase">{t('app.holdingValueHint')}</p>
           </div>
 
           <div className={`p-4.5 rounded-2xl border ${
@@ -1101,12 +933,12 @@ export const VortexApp: React.FC = () => {
           } shadow-sm relative overflow-hidden flex flex-col justify-between`}>
             <div>
               <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-bold">{trans.unrealizedPnL}</span>
+                <span className="font-bold">{t('app.unrealizedPnL')}</span>
                 <span className={`text-[10px] font-bold py-0.5 px-2 rounded ${
                   portfolioSummary.totalPnL >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-rose-500/15 text-rose-400'
                 }`}>
                   {portfolioSummary.totalPnL >= 0 ? '+' : ''}
-                  {((portfolioSummary.totalPnL / (portfolioSummary.holdingsTotal || 100000)) * 100).toFixed(2)}%
+                  {(portfolioSummary.marginTotal > 0 ? (portfolioSummary.totalPnL / portfolioSummary.marginTotal) * 100 : 0).toFixed(2)}%
                 </span>
               </div>
               <p className={`text-2xl font-black font-mono tracking-tight mt-2 ${
@@ -1117,7 +949,7 @@ export const VortexApp: React.FC = () => {
               </p>
             </div>
             <p className="text-[9px] text-zinc-500 font-mono mt-2">
-              REALIZED PROFIT NET: <span className={portfolioSummary.realizedNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}>${portfolioSummary.realizedNet.toFixed(2)}</span>
+              {t('app.realizedNet')}: <span className={portfolioSummary.realizedNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}>${portfolioSummary.realizedNet.toFixed(2)}</span>
             </p>
           </div>
 
@@ -1145,7 +977,7 @@ export const VortexApp: React.FC = () => {
                 } relative`}>
                   <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
                     <Filter className="w-3.5 h-3.5 text-indigo-400" />
-                    {trans.searchFilterTitle}
+                    {t('app.searchFilterTitle')}
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1157,7 +989,7 @@ export const VortexApp: React.FC = () => {
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder={trans.searchPlaceholder}
+                        placeholder={t('app.searchPlaceholder')}
                         className={`w-full text-xs font-semibold pl-9 pr-8 py-2.5 rounded-xl border focus:outline-none transition ${
                           dark 
                             ? 'bg-slate-950/70 border-white/5 text-slate-100 focus:border-indigo-500/50' 
@@ -1169,7 +1001,7 @@ export const VortexApp: React.FC = () => {
                           onClick={() => setSearchQuery('')}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold font-mono text-zinc-500 hover:text-indigo-450"
                         >
-                          Clear
+                          {t('app.clear')}
                         </button>
                       )}
                     </div>
@@ -1187,7 +1019,7 @@ export const VortexApp: React.FC = () => {
                       >
                         {categoriesList.map(cat => (
                           <option key={cat} value={cat}>
-                            {cat === 'all' ? trans.categoryAll : `${cat} Sector`}
+                            {cat === 'all' ? t('app.categoryAll') : t('app.sectorOption', { category: cat })}
                           </option>
                         ))}
                       </select>
@@ -1202,10 +1034,10 @@ export const VortexApp: React.FC = () => {
                               ? 'bg-slate-950/50 border-white/5 text-zinc-400 hover:border-slate-700'
                               : 'bg-transparent border-slate-200 text-zinc-650 hover:bg-slate-100'
                         }`}
-                        title={trans.onlyBookmarked}
+                        title={t('app.onlyBookmarked')}
                       >
                         {onlyShowBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
-                        <span className="hidden sm:inline">Star</span>
+                        <span className="hidden sm:inline">{t('app.star')}</span>
                       </button>
                     </div>
 
@@ -1224,7 +1056,7 @@ export const VortexApp: React.FC = () => {
                       }`}
                     >
                       <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{trans.filter1m}</span>
+                      <span>{t('app.filter1m')}</span>
                       {filterRising1m && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </button>
 
@@ -1239,12 +1071,12 @@ export const VortexApp: React.FC = () => {
                       }`}
                     >
                       <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{trans.filter5m}</span>
+                      <span>{t('app.filter5m')}</span>
                       {filterRising5m && <Check className="w-3.5 h-3.5 text-emerald-400" />}
                     </button>
 
                     <div className="ml-auto inline-flex items-center gap-1 text-[11px] font-mono text-slate-500 font-semibold">
-                      <span>Matches:</span>
+                      <span>{t('app.matches')}</span>
                       <span className="font-black text-indigo-400">{filteredCoins.length} / {coins.length}</span>
                     </div>
                   </div>
@@ -1256,8 +1088,8 @@ export const VortexApp: React.FC = () => {
                 }`}>
                   <div className="p-4 border-b border-white/5 bg-slate-900/5 flex items-center justify-between flex-wrap gap-3 text-slate-400 text-xs font-bold">
                     <div className="flex items-center gap-2">
-                      <span>{trans.tblToken}</span>
-                      <span className="text-[10px] text-zinc-500 font-mono">({filteredCoins.length} filtered)</span>
+                      <span>{t('app.tblToken')}</span>
+                      <span className="text-[10px] text-zinc-500 font-mono">{t('app.filteredCount', { n: filteredCoins.length })}</span>
                     </div>
 
                     <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-white/5 gap-1 shadow-inner">
@@ -1269,7 +1101,7 @@ export const VortexApp: React.FC = () => {
                             : 'text-zinc-500 hover:text-zinc-350 bg-transparent border border-transparent'
                         }`}
                       >
-                        List View
+                        {t('app.viewList')}
                       </button>
                       <button
                         onClick={() => setViewMode('matrix')}
@@ -1279,7 +1111,7 @@ export const VortexApp: React.FC = () => {
                             : 'text-zinc-500 hover:text-zinc-350 bg-transparent border border-transparent'
                         }`}
                       >
-                        Live Wall (200+ Trends)
+                        {t('app.viewMatrix')}
                       </button>
                     </div>
                   </div>
@@ -1413,7 +1245,7 @@ export const VortexApp: React.FC = () => {
                               <div className="flex-1 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 items-center text-right">
                                 
                                 <div>
-                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">Spot price:</span>
+                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">{t('app.spotPrice')}</span>
                                   <span className="font-mono font-black text-xs text-slate-250 dark:text-slate-150">
                                     ${coin.price > 100
                                       ? coin.price.toFixed(2)
@@ -1430,7 +1262,7 @@ export const VortexApp: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">1m gain:</span>
+                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">{t('app.gain1m')}</span>
                                   <span className={`inline-flex items-center gap-0.5 text-xs font-mono font-bold ${
                                     delta1m >= 0 ? 'text-emerald-500' : 'text-rose-500'
                                   }`}>
@@ -1440,7 +1272,7 @@ export const VortexApp: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">5m gain:</span>
+                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">{t('app.gain5m')}</span>
                                   <span className={`text-xs font-mono font-bold ${
                                     delta5m >= 0 ? 'text-emerald-500' : 'text-rose-500'
                                   }`}>
@@ -1449,7 +1281,7 @@ export const VortexApp: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">24h comparison:</span>
+                                  <span className="text-[9px] text-zinc-500 font-mono block md:hidden">{t('app.gain24h')}</span>
                                   <span className={`text-xs font-mono font-bold ${
                                     delta24h >= 0 ? 'text-emerald-500' : 'text-rose-500'
                                   }`}>
@@ -1470,10 +1302,10 @@ export const VortexApp: React.FC = () => {
                                         ? 'bg-transparent border-white/5 text-slate-500 hover:text-slate-350'
                                         : 'bg-transparent border-slate-205 text-slate-600 hover:bg-slate-50'
                                   }`}
-                                  title="Compare target in super overlay"
+                                  title={t('app.compareHint')}
                                 >
                                   {isSelectedCompare ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
-                                  <span className="hidden xl:inline">Compare</span>
+                                  <span className="hidden xl:inline">{t('app.compare')}</span>
                                 </button>
                               </div>
 
@@ -1485,7 +1317,7 @@ export const VortexApp: React.FC = () => {
 
                     {filteredCoins.length === 0 && (
                       <div className="p-12 text-center text-xs font-mono text-zinc-500">
-                        No digital assets matches active search configuration. Clear filters to explore!
+                        {t('app.noMatches')}
                       </div>
                     )}
                   </div>
@@ -1505,7 +1337,7 @@ export const VortexApp: React.FC = () => {
                     <div className="flex items-center justify-between border-b border-white/5 pb-3.5 mb-4">
                       <div>
                         <span className="text-[9px] text-indigo-400 font-mono uppercase tracking-widest font-black">
-                          {activeCoin.category} Sector • Ticker Spotlight
+                          {t('app.spotlight', { category: activeCoin.category })}
                         </span>
                         <h4 className="font-extrabold text-lg font-mono text-slate-100 dark:text-slate-100">
                           {activeCoin.symbol} / USDT
@@ -1552,9 +1384,9 @@ export const VortexApp: React.FC = () => {
                     </div>
 
                     <div className="flex items-center justify-between text-[9px] font-mono text-slate-500 pt-2 border-t border-white/5 mt-3">
-                      <span>15 Hart Ticks Ago</span>
-                      <span>Asset live performance profile</span>
-                      <span>Spot Now</span>
+                      <span>{t('app.ticksAgo')}</span>
+                      <span>{t('app.liveProfile')}</span>
+                      <span>{t('app.spotNow')}</span>
                     </div>
 
                   </div>
@@ -1567,7 +1399,7 @@ export const VortexApp: React.FC = () => {
                   }`}>
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
                       <Layers className="w-3.5 h-3.5 text-indigo-400" />
-                      {trans.orderBookTitle} (Depth)
+                      {t('app.orderBookTitle')}
                     </h3>
 
                     {/* Order depth book list wrapper */}
@@ -1593,7 +1425,7 @@ export const VortexApp: React.FC = () => {
                       <div className="py-2.5 my-1.5 border-y border-dashed border-white/5 text-center flex items-center justify-between px-2 bg-slate-900/10">
                         <span className="text-xs font-extrabold text-slate-350 flex items-center gap-1">
                           <Activity className="w-3.5 h-3.5 text-indigo-400" />
-                          Spot rate:
+                          {t('app.spotRate')}
                         </span>
                         <span className="font-extrabold text-indigo-400 tracking-tight">
                           ${activeCoin.price.toFixed(activeCoin.price > 100 ? 2 : 4)}
@@ -1630,17 +1462,17 @@ export const VortexApp: React.FC = () => {
                   }`}>
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-3.5 flex items-center gap-2">
                       <BarChart2 className="w-3.5 h-3.5 text-indigo-400" />
-                      {trans.indicatorsTitle}
+                      {t('app.indicatorsTitle')}
                     </h3>
 
                     <div className="grid grid-cols-2 gap-4 font-mono text-xs">
                       
                       <div className="p-3 bg-white/5 border border-white/5 rounded-xl">
-                        <span className="text-zinc-500 block text-[10px]">{trans.rsiLabel}</span>
+                        <span className="text-zinc-500 block text-[10px]">{t('app.rsiLabel')}</span>
                         <span className={`text-base font-black tracking-tight block mt-1.5 ${
                           indicators.rsi > 64 ? 'text-amber-500' : indicators.rsi < 36 ? 'text-cyan-500' : 'text-slate-200 dark:text-slate-100'
                         }`}>
-                          {indicators.rsi} ({indicators.trend})
+                          {indicators.rsi} ({t(`app.trend.${indicators.trend}`)})
                         </span>
                         <div className="w-full bg-slate-800 h-1 rounded-full mt-2 overflow-hidden">
                           <div 
@@ -1651,13 +1483,13 @@ export const VortexApp: React.FC = () => {
                       </div>
 
                       <div className="p-3 bg-white/5 border border-white/5 rounded-xl">
-                        <span className="text-zinc-500 block text-[10px]">{trans.macdLabel}</span>
+                        <span className="text-zinc-500 block text-[10px]">{t('app.macdLabel')}</span>
                         <span className={`text-base font-black tracking-tight block mt-1.5 ${
                           indicators.macdHeight >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}>
-                          {indicators.macdHeight >= 0 ? 'BUY SIGNAL' : 'SELL SIGNAL'}
+                          {t(indicators.macdHeight >= 0 ? 'app.buySignal' : 'app.sellSignal')}
                         </span>
-                        <p className="text-[10px] text-zinc-500 mt-1">Convergence drift: {indicators.macdHeight.toFixed(4)}</p>
+                        <p className="text-[10px] text-zinc-500 mt-1">{t('app.convergenceDrift', { value: indicators.macdHeight.toFixed(4) })}</p>
                       </div>
 
                     </div>
@@ -1671,7 +1503,7 @@ export const VortexApp: React.FC = () => {
                   }`}>
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-450 border-b border-white/5 pb-2.5 mb-4 flex items-center gap-2">
                       <ShoppingCart className="w-3.5 h-3.5 text-emerald-400" />
-                      {trans.actionTrade}
+                      {t('app.actionTrade')}
                     </h3>
 
                     {/* Order Side switch */}
@@ -1685,7 +1517,7 @@ export const VortexApp: React.FC = () => {
                         }`}
                       >
                         <ArrowUpRight className="w-3.5 h-3.5" />
-                        BUY / LONG
+                        {t('app.sideBuy')}
                       </button>
 
                       <button
@@ -1697,7 +1529,7 @@ export const VortexApp: React.FC = () => {
                         }`}
                       >
                         <ArrowDownRight className="w-3.5 h-3.5" />
-                        SELL / SHORT
+                        {t('app.sideSell')}
                       </button>
                     </div>
 
@@ -1705,8 +1537,8 @@ export const VortexApp: React.FC = () => {
                       {/* Max size config */}
                       <div>
                         <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
-                          <span>{trans.amountUSDT}</span>
-                          <span>Cash: ${cash.toFixed(2)}</span>
+                          <span>{t('app.amountUSDT')}</span>
+                          <span>{t('app.cashShort')} ${cash.toFixed(2)}</span>
                         </div>
 
                         <div className="relative mt-2">
@@ -1748,8 +1580,8 @@ export const VortexApp: React.FC = () => {
                       {/* Config leverage row */}
                       <div>
                         <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
-                          <span>{trans.optLeverage}</span>
-                          <span className="font-bold text-indigo-400">{leverage}x Cross Margin</span>
+                          <span>{t('app.optLeverage')}</span>
+                          <span className="font-bold text-indigo-400">{t('app.marginMode', { leverage })}</span>
                         </div>
                         <div className="grid grid-cols-4 gap-1.5 mt-2">
                           {[1, 5, 10, 20].map(lev => (
@@ -1773,9 +1605,9 @@ export const VortexApp: React.FC = () => {
                       <div className={`p-3 rounded-xl border flex items-center justify-between font-mono text-xs ${
                         dark ? 'bg-slate-950/60 border-white/5' : 'bg-slate-100 border-slate-205'
                       }`}>
-                        <span className="text-zinc-500 font-bold">{trans.quantity}</span>
+                        <span className="text-zinc-500 font-bold">{t('app.quantity')}</span>
                         <span className="font-extrabold text-indigo-400">
-                          {((tradeAmount * leverage) / activeCoin.price).toFixed(5)} {activeCoin.symbol}
+                          {buyQuantity(tradeAmount, feePercent / 100, leverage, activeCoin.price).toFixed(5)} {activeCoin.symbol}
                         </span>
                       </div>
 
@@ -1787,7 +1619,7 @@ export const VortexApp: React.FC = () => {
                             : 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/10'
                         }`}
                       >
-                        {tradeType === 'BUY' ? trans.actionBuy : trans.actionSell}
+                        {tradeType === 'BUY' ? t('app.actionBuy') : t('app.actionSell')}
                       </button>
 
                     </div>
@@ -1813,19 +1645,19 @@ export const VortexApp: React.FC = () => {
                 
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4 mb-6">
                   <div>
-                    <h2 className="text-lg font-black tracking-tight">{trans.compareHeadline}</h2>
-                    <p className="text-xs text-zinc-500 mt-0.5">{trans.compareSub}</p>
+                    <h2 className="text-lg font-black tracking-tight">{t('app.compareHeadline')}</h2>
+                    <p className="text-xs text-zinc-500 mt-0.5">{t('app.compareSub')}</p>
                   </div>
 
                   {compareIds.length > 0 && (
                     <button
                       onClick={() => {
                         setCompareIds([]);
-                        addToast("Cleared sandbox comparisons lineup.", 'info');
+                        addToast(t('toast.compareCleared'), 'info');
                       }}
                       className="text-xs font-bold text-rose-550 border border-rose-500/20 py-1.5 px-3 rounded-xl hover:bg-rose-500/10 cursor-pointer"
                     >
-                      {trans.clearCompare}
+                      {t('app.clearCompare')}
                     </button>
                   )}
                 </div>
@@ -1839,7 +1671,7 @@ export const VortexApp: React.FC = () => {
                       dark ? 'bg-slate-950/70 border-white/5' : 'bg-slate-100 border-slate-200'
                     }`}>
                       <div className="absolute top-2 left-3 text-[9px] uppercase font-mono text-indigo-400 font-black">
-                        Normalized cumulative growth (%) comparing last 15 ticks
+                        {t('app.compareChartTitle')}
                       </div>
 
                       {/* 0% Baseline axis */}
@@ -1933,40 +1765,40 @@ export const VortexApp: React.FC = () => {
 
                             <div className="space-y-2 text-xs font-mono pt-2 border-t border-white/5">
                               <div className="flex justify-between">
-                                <span className="text-zinc-500">{trans.tblPrice}</span>
+                                <span className="text-zinc-500">{t('app.tblPrice')}</span>
                                 <span className="font-extrabold text-slate-300">${coin.price.toFixed(coin.price > 10 ? 2 : 5)}</span>
                               </div>
 
                               <div className="flex justify-between">
-                                <span className="text-zinc-500">{trans.metricCategory}</span>
+                                <span className="text-zinc-500">{t('app.metricCategory')}</span>
                                 <span className="text-zinc-350">{coin.category}</span>
                               </div>
 
                               <div className="flex justify-between">
-                                <span className="text-zinc-500">1m Drift</span>
+                                <span className="text-zinc-500">{t('app.drift1m')}</span>
                                 <span className={ratio1m >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
                                   {ratio1m >= 0 ? '+' : ''}{ratio1m.toFixed(2)}%
                                 </span>
                               </div>
 
                               <div className="flex justify-between">
-                                <span className="text-zinc-500">5m Drift</span>
+                                <span className="text-zinc-500">{t('app.drift5m')}</span>
                                 <span className={ratio5m >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
                                   {ratio5m >= 0 ? '+' : ''}{ratio5m.toFixed(2)}%
                                 </span>
                               </div>
 
                               <div className="flex justify-between">
-                                <span className="text-zinc-500">24h Drift</span>
+                                <span className="text-zinc-500">{t('app.drift24h')}</span>
                                 <span className={ratio24h >= 0 ? 'text-emerald-555 font-bold' : 'text-rose-500 font-bold'}>
                                   {ratio24h >= 0 ? '+' : ''}{ratio24h.toFixed(1)}%
                                 </span>
                               </div>
 
                               <div className="flex justify-between pt-2 border-t border-white/5 text-[10px]">
-                                <span className="text-zinc-500">Active Exposure</span>
+                                <span className="text-zinc-500">{t('app.activeExposure')}</span>
                                 <span className="text-indigo-400 font-black">
-                                  {holding ? `${holding.quantity.toFixed(3)} ${coin.symbol}` : 'None'}
+                                  {holding ? `${holding.quantity.toFixed(3)} ${coin.symbol}` : t('app.none')}
                                 </span>
                               </div>
                             </div>
@@ -1977,7 +1809,7 @@ export const VortexApp: React.FC = () => {
                                 handleToggleCompareId(coin.id);
                               }}
                               className="absolute top-2 right-2 p-1 text-slate-500 hover:text-rose-400 font-black text-[10px]"
-                              title="Discard"
+                              title={t('app.discard')}
                             >
                               ✕
                             </button>
@@ -1990,7 +1822,7 @@ export const VortexApp: React.FC = () => {
                 ) : (
                   <div className="text-center py-16 text-xs text-zinc-500 flex flex-col items-center gap-3">
                     <Info className="w-8 h-8 text-indigo-450" />
-                    <p className="max-w-md leading-relaxed">{trans.noSelectedCompare}</p>
+                    <p className="max-w-md leading-relaxed">{t('app.noSelectedCompare')}</p>
                   </div>
                 )}
 
@@ -2002,7 +1834,7 @@ export const VortexApp: React.FC = () => {
               }`}>
                 <h4 className="text-xs font-black uppercase text-slate-400 mb-3.5 flex items-center gap-2">
                   <SlidersHorizontal className="w-4 h-4 text-indigo-400" />
-                  Quick checklist generator (Max 4 concurrent tokens selected)
+                  {t('app.checklistTitle')}
                 </h4>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5">
@@ -2044,7 +1876,6 @@ export const VortexApp: React.FC = () => {
               {/* Real OKX-API account vs the local simulated account (clearly distinguished) */}
               <OkxAccountPanel
                 dark={dark}
-                lang={currentLocale}
                 simCash={cash}
                 simPositionsCount={positions.length}
                 simEquity={portfolioSummary.netWorth}
@@ -2057,11 +1888,11 @@ export const VortexApp: React.FC = () => {
                 <h2 className="text-base font-black tracking-tight mb-4 flex items-center justify-between gap-2">
                   <span className="flex items-center gap-2">
                     <Briefcase className="w-4 h-4 text-indigo-400" />
-                    {trans.currentHoldings}
+                    {t('app.currentHoldings')}
                   </span>
                   
                   <span className="text-xs font-mono text-slate-500">
-                    Exposure leverage modifier limits preset: {leverage}x
+                    {t('app.leveragePreset', { leverage })}
                   </span>
                 </h2>
 
@@ -2070,10 +1901,8 @@ export const VortexApp: React.FC = () => {
                     const fresh = coins.find(c => c.id === pos.id);
                     const currentPrice = fresh ? fresh.price : pos.currentPrice;
                     const evaluation = pos.quantity * currentPrice;
-                    const expenditure = pos.quantity * pos.entryPrice;
-                    
-                    const yieldVal = evaluation - expenditure;
-                    const roiRatio = (yieldVal / expenditure) * 100;
+                    const yieldVal = positionPnl(pos, currentPrice);
+                    const roiRatio = pos.margin > 0 ? (yieldVal / pos.margin) * 100 : 0;
 
                     return (
                       <div key={pos.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -2081,31 +1910,36 @@ export const VortexApp: React.FC = () => {
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-extrabold text-base tracking-tight text-slate-100">{pos.symbol}</span>
                             <span className="py-0.5 px-1.5 rounded-md bg-white/5 text-[9px] font-mono text-zinc-500 uppercase">
-                              Spot exposure
+                              {t('app.longExposure')}
                             </span>
                             <span className="py-0.5 px-1.5 rounded-md bg-amber-500/10 text-[9px] font-mono text-amber-500 font-bold">
-                              {pos.leverage}x Leverage cross
+                              {t('app.positionLeverage', { leverage: pos.leverage })}
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-3 font-mono text-xs text-zinc-500">
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-3 font-mono text-xs text-zinc-500">
                             <div>
-                              <span>{trans.colSize}:</span>
+                              <span>{t('app.colSize')}:</span>
                               <span className="block font-black text-slate-350 mt-0.5">{pos.quantity.toFixed(4)}</span>
                             </div>
 
                             <div>
-                              <span>{trans.colEntry}:</span>
+                              <span>{t('app.colEntry')}:</span>
                               <span className="block font-bold mt-0.5">${pos.entryPrice.toFixed(4)}</span>
                             </div>
 
                             <div>
-                              <span>{trans.colCurrent}:</span>
+                              <span>{t('app.colCurrent')}:</span>
                               <span className="block font-bold mt-0.5 text-indigo-400">${currentPrice.toFixed(4)}</span>
                             </div>
 
                             <div>
-                              <span>Total Value:</span>
+                              <span>{t('app.colMargin')}:</span>
+                              <span className="block font-bold mt-0.5">${pos.margin.toFixed(2)}</span>
+                            </div>
+
+                            <div>
+                              <span>{t('app.totalValue')}:</span>
                               <span className="block font-black text-slate-200 mt-0.5">${evaluation.toFixed(2)}</span>
                             </div>
                           </div>
@@ -2114,7 +1948,7 @@ export const VortexApp: React.FC = () => {
                         {/* Yield returns & Liquidation button */}
                         <div className="flex md:flex-col items-end gap-3 justify-between md:justify-center">
                           <div className="text-right">
-                            <p className="text-[10px] text-zinc-500 uppercase font-mono">Simulated Yield</p>
+                            <p className="text-[10px] text-zinc-500 uppercase font-mono">{t('app.simYield')}</p>
                             <span className={`text-base font-mono font-black ${yieldVal >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                               {yieldVal >= 0 ? '+' : ''}${yieldVal.toFixed(2)}
                             </span>
@@ -2127,7 +1961,7 @@ export const VortexApp: React.FC = () => {
                             onClick={() => handleLiquidateWholePosition(pos)}
                             className="py-1.5 px-4 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white rounded-xl text-xs font-mono font-bold transition-all cursor-pointer"
                           >
-                            {trans.closeBtn}
+                            {t('app.closeBtn')}
                           </button>
                         </div>
                       </div>
@@ -2136,7 +1970,7 @@ export const VortexApp: React.FC = () => {
 
                   {positions.length === 0 && (
                     <div className="text-center py-12 text-xs font-mono text-zinc-500">
-                      {trans.noHoldings}
+                      {t('app.noHoldings')}
                     </div>
                   )}
                 </div>
@@ -2149,18 +1983,18 @@ export const VortexApp: React.FC = () => {
                 <div className="flex items-center justify-between border-b border-white/5 pb-4 mb-4">
                   <h3 className="text-xs font-black uppercase text-slate-400 flex items-center gap-2">
                     <Activity className="w-4 h-4 text-indigo-400" />
-                    {trans.historyTitle} ({historyTrades.length} entries)
+                    {t('app.historyTitle')} {t('app.entriesCount', { n: historyTrades.length })}
                   </h3>
 
                   {historyTrades.length > 0 && (
                     <button
                       onClick={() => {
                         setHistoryTrades([]);
-                        addToast("Simulated audit transactional trails cleared.", 'info');
+                        addToast(t('toast.historyCleared'), 'info');
                       }}
                       className="text-[10px] font-bold text-slate-500 hover:text-rose-400 cursor-pointer"
                     >
-                      Clear Logs
+                      {t('app.clearLogs')}
                     </button>
                   )}
                 </div>
@@ -2177,14 +2011,14 @@ export const VortexApp: React.FC = () => {
                         <span className={`py-0.5 px-2 rounded font-extrabold text-[9px] ${
                           trade.type === 'BUY' ? 'bg-emerald-500/15 text-emerald-450' : 'bg-rose-500/15 text-rose-450'
                         }`}>
-                          {trade.type}
+                          {t(`app.side.${trade.type}`)}
                         </span>
 
                         <span className="font-extrabold text-slate-250 dark:text-slate-100">{trade.symbol}</span>
                         <span className="text-zinc-500">|</span>
-                        <span className="text-zinc-500">Qty:</span>
+                        <span className="text-zinc-500">{t('app.qty')}</span>
                         <span className="font-semibold text-zinc-350">{trade.quantity.toFixed(4)}</span>
-                        <span className="text-zinc-500">@ Price:</span>
+                        <span className="text-zinc-500">{t('app.atPrice')}</span>
                         <span className="font-bold text-zinc-350">${trade.price.toFixed(4)}</span>
                         
                         {trade.leverage > 1 && (
@@ -2197,16 +2031,16 @@ export const VortexApp: React.FC = () => {
                       <div className="text-right flex items-center sm:justify-end gap-3 text-zinc-500">
                         {trade.pnl !== 0 && (
                           <span className={`font-bold ${trade.pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                            {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)} return
+                            {trade.pnl >= 0 ? '+' : ''}${trade.pnl.toFixed(2)} {t('app.returnLabel')}
                           </span>
                         )}
-                        <span>{trade.time}</span>
+                        <span>{formatTradeTime(trade.time)}</span>
                       </div>
                     </div>
                   ))}
 
                   {historyTrades.length === 0 && (
-                    <p className="text-center py-6 text-xs text-zinc-500">No transactional audits found.</p>
+                    <p className="text-center py-6 text-xs text-zinc-500">{t('app.noHistory')}</p>
                   )}
                 </div>
               </div>
@@ -2225,7 +2059,7 @@ export const VortexApp: React.FC = () => {
             >
               {/* OKX quant settings — rate limits / usage / database / KEY / pre-open (full width) */}
               <div className="md:col-span-2">
-                <OkxQuantPanel dark={dark} lang={currentLocale} />
+                <OkxQuantPanel dark={dark} />
               </div>
 
               {/* Left Settings modifiers */}
@@ -2233,15 +2067,15 @@ export const VortexApp: React.FC = () => {
                 dark ? 'bg-slate-900/30 border-white/5' : 'bg-white border-slate-200'
               } space-y-6`}>
                 <div>
-                  <h2 className="text-base font-black tracking-tight">Vortex Sandboxed Engine Customizers</h2>
-                  <p className="text-xs text-zinc-550 mt-1">{trans.configSub}</p>
+                  <h2 className="text-base font-black tracking-tight">{t('app.engineTitle')}</h2>
+                  <p className="text-xs text-zinc-550 mt-1">{t('app.configSub')}</p>
                 </div>
 
                 {/* HEARTBEAT PRICE SPEED */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 flex justify-between">
-                    <span>{trans.optLatency}</span>
-                    <span className="font-mono text-indigo-400">{(tickSpeed / 1000).toFixed(1)}s period</span>
+                    <span>{t('app.optLatency')}</span>
+                    <span className="font-mono text-indigo-400">{t('app.periodSeconds', { seconds: (tickSpeed / 1000).toFixed(1) })}</span>
                   </label>
                   <input
                     type="range"
@@ -2253,16 +2087,16 @@ export const VortexApp: React.FC = () => {
                     className="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-505"
                   />
                   <div className="flex justify-between text-[9px] font-mono text-zinc-500">
-                    <span>1.0s Speed (Aggressive block updates)</span>
-                    <span>15.0s Speed (Slow drift)</span>
+                    <span>{t('app.speedFast')}</span>
+                    <span>{t('app.speedSlow')}</span>
                   </div>
                 </div>
 
                 {/* TRANSACTION commission fee selection */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-400 flex justify-between">
-                    <span>{trans.optFee}</span>
-                    <span className="font-mono text-indigo-400">{feePercent}% per trade</span>
+                    <span>{t('app.optFee')}</span>
+                    <span className="font-mono text-indigo-400">{t('app.feePerTrade', { fee: feePercent })}</span>
                   </label>
                   <div className="grid grid-cols-4 gap-2">
                     {[0, 0.05, 0.1, 0.25].map(fee => (
@@ -2277,7 +2111,7 @@ export const VortexApp: React.FC = () => {
                               : 'bg-transparent border-slate-200 text-slate-600'
                         }`}
                       >
-                        {fee === 0 ? 'Fee-free' : `${fee}%`}
+                        {fee === 0 ? t('app.feeFree') : `${fee}%`}
                       </button>
                     ))}
                   </div>
@@ -2285,7 +2119,7 @@ export const VortexApp: React.FC = () => {
 
                 {/* Initial balance multipliers reset & deposit injection */}
                 <div className="space-y-3 pt-4 border-t border-white/5">
-                  <span className="text-xs font-bold text-slate-400 block mb-2">Private simulated funding command tools</span>
+                  <span className="text-xs font-bold text-slate-400 block mb-2">{t('app.fundingTools')}</span>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
@@ -2293,7 +2127,7 @@ export const VortexApp: React.FC = () => {
                       className="py-2.5 px-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
                     >
                       <PlusCircle className="w-4 h-4" />
-                      {trans.btnAirdrop}
+                      {t('app.btnAirdrop')}
                     </button>
 
                     <button
@@ -2301,7 +2135,7 @@ export const VortexApp: React.FC = () => {
                       className="py-2.5 px-4 bg-rose-500/20 hover:bg-rose-500 text-rose-450 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
-                      {trans.btnReset}
+                      {t('app.btnReset')}
                     </button>
                   </div>
                 </div>
@@ -2314,19 +2148,15 @@ export const VortexApp: React.FC = () => {
               } space-y-6`}>
                 
                 <div>
-                  <h3 className="text-sm font-black text-slate-205">Visual and Multi-National Settings</h3>
-                  <p className="text-xs text-zinc-550 mt-1">Configure language files translations and dark styling matrices.</p>
+                  <h3 className="text-sm font-black text-slate-205">{t('app.visualTitle')}</h3>
+                  <p className="text-xs text-zinc-550 mt-1">{t('app.visualSub')}</p>
                 </div>
 
                 {/* LANG CONTROLS */}
                 <div className="space-y-4">
-                  <span className="text-xs font-bold text-slate-400 block">{trans.langLabel}</span>
+                  <span className="text-xs font-bold text-slate-400 block">{t('app.langLabel')}</span>
                   <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { code: 'en', label: '🇺🇸 English' },
-                      { code: 'zh', label: '🇨🇳 中文' },
-                      { code: 'ja', label: '🇯🇵 日本語' },
-                    ].map(item => {
+                    {VX_LANGUAGE_OPTIONS.map(item => {
                       const isActive = lang === item.code;
                       return (
                         <button
@@ -2349,7 +2179,7 @@ export const VortexApp: React.FC = () => {
 
                 {/* THEME CONTROLS */}
                 <div className="space-y-4 pt-4 border-t border-white/5">
-                  <span className="text-xs font-bold text-slate-400 block">{trans.themeLabel}</span>
+                  <span className="text-xs font-bold text-slate-400 block">{t('app.themeLabel')}</span>
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => setDark(true)}
@@ -2360,7 +2190,7 @@ export const VortexApp: React.FC = () => {
                       }`}
                     >
                       <Pause className="w-4 h-4 fill-indigo-400 text-transparent" />
-                      Atmospheric Cyber (Dark)
+                      {t('app.themeDark')}
                     </button>
 
                     <button
@@ -2372,7 +2202,7 @@ export const VortexApp: React.FC = () => {
                       }`}
                     >
                       <Play className="w-4 h-4 fill-slate-900 text-transparent" />
-                      Clean Corporate (Light)
+                      {t('app.themeLight')}
                     </button>
                   </div>
                 </div>
@@ -2389,7 +2219,7 @@ export const VortexApp: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
-              <OkxBacktestPanel dark={dark} lang={currentLocale} />
+              <OkxBacktestPanel dark={dark} />
             </motion.div>
           )}
 

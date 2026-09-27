@@ -35,6 +35,7 @@ class DingDuoDuoV1ErrorCodes
     public const ADMIN_REQUIRED = 'ADMIN_REQUIRED';
     public const PERMISSION_DENIED = 'PERMISSION_DENIED';
     public const MEMBERSHIP_EXPIRED = 'MEMBERSHIP_EXPIRED';
+    public const SIGNATURE_INVALID = 'SIGNATURE_INVALID';
 
     // ==================== Validation Errors (400/422) ====================
     public const VALIDATION_FAILED = 'VALIDATION_FAILED';
@@ -46,6 +47,7 @@ class DingDuoDuoV1ErrorCodes
     public const INVALID_OPERATION = 'INVALID_OPERATION';
     public const BIND_LIMIT_REACHED = 'BIND_LIMIT_REACHED';
     public const ORDER_ALREADY_PAID = 'ORDER_ALREADY_PAID';
+    public const AMOUNT_MISMATCH = 'AMOUNT_MISMATCH';
 
     // ==================== Server Errors (500) ====================
     public const INTERNAL_ERROR = 'INTERNAL_ERROR';
@@ -73,6 +75,7 @@ class DingDuoDuoV1ErrorCodes
         self::ADMIN_REQUIRED => 'Admin access required',
         self::PERMISSION_DENIED => 'Permission denied',
         self::MEMBERSHIP_EXPIRED => 'Membership expired',
+        self::SIGNATURE_INVALID => 'Payment notification signature is missing or invalid',
 
         // 400 - Validation
         self::VALIDATION_FAILED => 'Validation failed',
@@ -84,6 +87,7 @@ class DingDuoDuoV1ErrorCodes
         self::INVALID_OPERATION => 'Invalid operation',
         self::BIND_LIMIT_REACHED => 'Bind limit reached',
         self::ORDER_ALREADY_PAID => 'Order already paid',
+        self::AMOUNT_MISMATCH => 'Paid amount does not match the order amount',
 
         // 500
         self::INTERNAL_ERROR => 'Internal server error',
@@ -112,6 +116,7 @@ class DingDuoDuoV1ErrorCodes
         self::ADMIN_REQUIRED => '需要管理员权限',
         self::PERMISSION_DENIED => '权限不足',
         self::MEMBERSHIP_EXPIRED => '会员已过期',
+        self::SIGNATURE_INVALID => '支付通知签名缺失或无效',
 
         // 400 - Validation
         self::VALIDATION_FAILED => '验证失败',
@@ -123,6 +128,7 @@ class DingDuoDuoV1ErrorCodes
         self::INVALID_OPERATION => '无效操作',
         self::BIND_LIMIT_REACHED => '绑定数量已达上限',
         self::ORDER_ALREADY_PAID => '订单已支付',
+        self::AMOUNT_MISMATCH => '支付金额与订单金额不一致',
 
         // 500
         self::INTERNAL_ERROR => '服务器内部错误',
@@ -167,7 +173,8 @@ class DingDuoDuoV1ErrorCodes
             self::FORBIDDEN,
             self::ADMIN_REQUIRED,
             self::PERMISSION_DENIED,
-            self::MEMBERSHIP_EXPIRED => 403,
+            self::MEMBERSHIP_EXPIRED,
+            self::SIGNATURE_INVALID => 403,
 
             // 422
             self::VALIDATION_FAILED => 422,

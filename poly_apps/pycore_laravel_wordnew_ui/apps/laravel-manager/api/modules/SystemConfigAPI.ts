@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 
 export interface PathMapping {
@@ -28,6 +28,32 @@ export interface ServerConfig {
   database: {
     default: string;
     connections: Record<string, any>;
+  };
+  cache: {
+    default: string;
+    stores: Record<string, { driver: string }>;
+  };
+  session: {
+    driver: string;
+    lifetime: number;
+    encrypt: boolean;
+    expire_on_close: boolean;
+  };
+  queue: {
+    default: string;
+    connections: Record<string, { driver: string }>;
+  };
+  mail: {
+    default: string;
+    mailers: Record<string, { transport: string }>;
+  };
+  filesystems: {
+    default: string;
+    disks: Record<string, { driver: string; root: string }>;
+  };
+  logging: {
+    default: string;
+    channels: Record<string, { driver: string }>;
   };
   paths: {
     core_node: string;
@@ -89,7 +115,7 @@ interface ApiInfoCacheEntry {
  * System Configuration API
  * Retrieves system path configuration and other global config
  */
-export class SystemConfigAPI extends BaseAPI {
+export class SystemConfigAPI extends LmBaseAPI {
   // Shared across instances and keyed by the fully-resolved request URL
   // (base URL + path + params), including one-request connection probes.
   private static apiInfoCache = new Map<string, ApiInfoCacheEntry>();

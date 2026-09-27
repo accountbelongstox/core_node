@@ -26,7 +26,7 @@ _CONTRACT_DOCUMENT: Dict[str, Any] = json.loads(_CONTRACT_PATH.read_text(encodin
 _TASK_CONTRACT: Dict[str, Any] = _CONTRACT_DOCUMENT["task_contract"]
 
 QueueCenterScope = str
-QueueCenterSectionLifecycle = Literal["off", "starting", "on", "error"]
+QueueCenterSectionLifecycle = Literal["off", "starting", "on", "stopping", "error"]
 
 
 def http_transfer_contract() -> Dict[str, Any]:
@@ -186,6 +186,12 @@ QUEUE_CENTER_REALTIME_EVENTS: Dict[str, str] = {
     str(key): str(value)
     for key, value in QUEUE_CENTER_REALTIME["events"].items()
 }
+# Priority event role -> the payload path of its head keys: "task_id" or
+# "items[].resource_key" (realtime.head_keys; no synthetic heads).
+QUEUE_CENTER_REALTIME_HEAD_KEYS: Dict[str, str] = {
+    str(key): str(value)
+    for key, value in QUEUE_CENTER_REALTIME["head_keys"].items()
+}
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
 # Sync log values are emitted only when at least one of these counters changes.
 QUEUE_CENTER_DIFF_SYNC_LOG_KEYS = ("staged", "vanished", "ordered", "reordered")
@@ -298,9 +304,6 @@ GLOBAL_TASK_EVENTS_BY_ROLE: Dict[str, str] = {
 GLOBAL_TASK_TERMINAL_EVENTS: Tuple[str, ...] = tuple(
     GLOBAL_TASK_EVENTS_BY_ROLE[role] for role in _TASK_CONTRACT["events"]["terminal"]
 )
-GLOBAL_TASK_STREAM_EVENTS_BY_ROLE: Dict[str, str] = {
-    str(key): str(value) for key, value in _TASK_CONTRACT["stream_events"].items()
-}
 GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE: Dict[str, str] = {
     str(key): str(value) for key, value in _TASK_CONTRACT["execution_types"].items()
 }
@@ -708,6 +711,7 @@ __all__ = [
     "QUEUE_CENTER_WORD_AUDIO_BATCH",
     "QUEUE_CENTER_REALTIME",
     "QUEUE_CENTER_REALTIME_EVENTS",
+    "QUEUE_CENTER_REALTIME_HEAD_KEYS",
     "QUEUE_CENTER_QUEUE_POSITION_CONTROLS",
     "QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES",
     "QUEUE_CENTER_DIFF_DELIVERY",
@@ -732,7 +736,6 @@ __all__ = [
     "GLOBAL_TASK_PROGRESS_TOTAL",
     "GLOBAL_TASK_STATUSES",
     "GLOBAL_TASK_STATUSES_BY_ROLE",
-    "GLOBAL_TASK_STREAM_EVENTS_BY_ROLE",
     "GLOBAL_TASK_TERMINAL_STATUSES",
     "GLOBAL_TASK_TERMINAL_EVENTS",
     "GLOBAL_TASK_TYPE_CATALOG",

@@ -84,10 +84,6 @@ interface ContractDocument {
       protocol: string;
       path: string;
     };
-    device_identity: {
-      clock_skew_seconds: number;
-      nonce_ttl_seconds: number;
-    };
     topics: Record<'machines' | 'pair', string>;
     events: Record<'request' | 'response' | 'roster', string>;
     machine_heartbeat_seconds: number;
@@ -138,7 +134,7 @@ interface ContractDocument {
     priorities: Record<'default' | 'manual' | 'fast' | 'maximum', number>;
     progress_stages: Record<'accepted' | 'synthesizing' | 'uploading' | 'finalizing' | 'completed', number>;
     limits: Record<
-      'list_default' | 'list' | 'monitor' | 'worker_pull_default' | 'worker_pull' | 'completed' | 'long_poll_seconds' | 'history_records' | 'history_timeline' | 'event_batch',
+      'list_default' | 'list' | 'monitor' | 'worker_pull_default' | 'worker_pull' | 'completed' | 'long_poll_seconds' | 'history_records' | 'event_batch',
       number
     >;
     capability_labels: Record<GlobalTaskCapability, string>;

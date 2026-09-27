@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import type { TFunction } from 'i18next';
 import {
   api, DbConnectionInfo, DbStatus, DbTableInfo, DbStructureColumn,
   DbTableDataResponse, ExportFormat, ImportMode, DbBackup,
-  DbCredentialInfo, DbAccountCreateResult,
+  DbCredentialInfo, DbAccountCreateResult, DatabaseManagerApiError,
 } from '@/apps/laravel-manager/api';
 import { commonClasses } from '@/shared/styles/theme';
 import { Modal } from '../admin/Modal';
@@ -23,12 +24,29 @@ import Portal from '@/shared/ui/Portal';
 import { OVERLAY_Z } from '@/shared/styles/overlay';
 import { logInfo, logSuccess, logError } from '@/core/logstore/logStore';
 import { Language } from '@/apps/laravel-manager/uiTypes';
-import { useTranslation } from '@/apps/laravel-manager/i18n';
+import { Trans, useTranslation } from '@/apps/laravel-manager/i18n';
 import { DataSyncTab } from './database-manager/DataSyncTab';
 import { findDbTableActions, type DbTableRowActionsProps } from './database-manager/DbTableActions';
 
 const DEFAULT_PER_PAGE = 1000;
 const MAX_PER_PAGE = 5000;
+const SCHEMA_FIELDS = ['name', 'type', 'nullable', 'key', 'default', 'extra'] as const;
+const BACKUP_COLUMNS = ['col_file', 'col_driver', 'col_connection', 'col_size', 'col_created', 'col_actions'] as const;
+const BOLD = { strong: <strong /> };
+const BOLD_MONO = { strong: <strong />, mono: <strong className="font-mono" /> };
+
+/** The server's message when it sent one, otherwise the localized fallback. */
+function errorText(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+/** Localized download failure: the HTTP status when the server answered, else the network message. */
+function downloadErrorText(error: unknown, t: TFunction): string {
+  if (error instanceof DatabaseManagerApiError && error.status > 0) {
+    return t('db_manager.download_failed_status', { status: error.status });
+  }
+  return errorText(error, t('db_manager.download_failed'));
+}
 
 /** Semantic tone for a driver name (driver words don't auto-map, so override). */
 function driverTone(driver: string): StatusTone {
@@ -47,10 +65,11 @@ function driverTone(driver: string): StatusTone {
 /** Schema grid (absorbed the former DatabaseViewer's richer columns). Fills its
  *  parent and scrolls internally with a sticky header. */
 const SchemaTable: React.FC<{ columns: DbStructureColumn[] }> = ({ columns }) => {
+  const { t } = useTranslation();
   if (!columns.length) {
-    return <p className="text-sm text-slate-500 dark:text-slate-400 p-3">No columns</p>;
+    return <p className="text-sm text-slate-500 dark:text-slate-400 p-3">{t('db_manager.tables.no_columns')}</p>;
   }
-  const headers = ['name', 'type', 'nullable', 'key', 'default', 'extra'];
+  const headers = SCHEMA_FIELDS;
   return (
     <div className="h-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
       <table className="min-w-full text-sm">
@@ -61,7 +80,7 @@ const SchemaTable: React.FC<{ columns: DbStructureColumn[] }> = ({ columns }) =>
                 key={h}
                 className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700"
               >
-                {h}
+                {t(`db_manager.schema.${h}`)}
               </th>
             ))}
           </tr>
@@ -110,9 +129,10 @@ const DataGrid: React.FC<{
   RowActions?: React.ComponentType<DbTableRowActionsProps>;
   actionsLabel?: string;
 }> = ({ columns, rows, RowActions, actionsLabel }) => {
+  const { t } = useTranslation();
   const keys = columns.map((c) => c.name);
   if (!keys.length) {
-    return <p className="text-sm text-slate-500 dark:text-slate-400 p-3">No columns</p>;
+    return <p className="text-sm text-slate-500 dark:text-slate-400 p-3">{t('db_manager.tables.no_columns')}</p>;
   }
   return (
     <div className="h-full overflow-auto rounded-lg border border-slate-200 dark:border-slate-700">
@@ -138,7 +158,7 @@ const DataGrid: React.FC<{
           {rows.length === 0 ? (
             <tr>
               <td colSpan={keys.length + (RowActions ? 1 : 0)} className="px-3 py-4 text-center text-slate-500">
-                No rows
+                {t('db_manager.tables.no_rows')}
               </td>
             </tr>
           ) : (
@@ -184,12 +204,13 @@ const PaginationBar: React.FC<{
   onPrev: () => void;
   onNext: () => void;
 }> = ({ currentPage, lastPage, total, perPage, onPrev, onNext }) => {
+  const { t } = useTranslation();
   const from = total === 0 ? 0 : (currentPage - 1) * perPage + 1;
   const to = Math.min(currentPage * perPage, total);
   return (
     <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
       <span>
-        {from}–{to} of {total} rows
+        {t('db_manager.tables.range', { from, to, total })}
       </span>
       <div className="flex items-center gap-2">
         <button
@@ -199,10 +220,10 @@ const PaginationBar: React.FC<{
           className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1`}
         >
           <ChevronLeft className="w-4 h-4" />
-          Prev
+          {t('db_manager.tables.prev')}
         </button>
         <span>
-          Page {currentPage} of {lastPage || 1}
+          {t('db_manager.tables.page_of', { page: currentPage, last: lastPage || 1 })}
         </span>
         <button
           type="button"
@@ -210,7 +231,7 @@ const PaginationBar: React.FC<{
           disabled={currentPage >= lastPage}
           className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1`}
         >
-          Next
+          {t('db_manager.tables.next')}
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
@@ -229,6 +250,7 @@ const StatRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, v
 // Former standalone Status tab, condensed to one card row rendered above the
 // table browser (Status + Tables are now ONE tab).
 const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
+  const { t } = useTranslation();
   const { data: status, loading, refresh: load } = useApiResource<DbStatus>(
     () => api.databaseManager.getStatus(connection.key),
     { deps: [connection.key] }
@@ -251,24 +273,24 @@ const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection })
       {loading ? (
         <span className="flex items-center gap-2 text-slate-400 text-sm">
           <InlineSpinner size={14} />
-          Loading status…
+          {t('db_manager.status.loading')}
         </span>
       ) : !status ? (
-        <span className="text-sm text-red-600 dark:text-red-400">Status unavailable</span>
+        <span className="text-sm text-red-600 dark:text-red-400">{t('db_manager.status.unavailable')}</span>
       ) : (
         <>
-          {item('DB', status.database)}
+          {item(t('db_manager.status.database'), status.database)}
           <StatusBadge
-            status={status.reachable ? 'reachable' : 'unreachable'}
+            status={t(status.reachable ? 'db_manager.status.reachable' : 'db_manager.status.unreachable')}
             tone={status.reachable ? 'success' : 'error'}
             withDot={false}
           />
-          {item('Size', status.size_human)}
-          {item('Tables', status.table_count)}
-          {status.server_version && item('Server', status.server_version)}
+          {item(t('db_manager.status.size'), status.size_human)}
+          {item(t('db_manager.status.tables'), status.table_count)}
+          {status.server_version && item(t('db_manager.status.server'), status.server_version)}
           <span className="flex items-center gap-1.5 text-sm whitespace-nowrap">
             <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-slate-400 dark:text-slate-500 text-xs">Backup via</span>
+            <span className="text-slate-400 dark:text-slate-500 text-xs">{t('db_manager.status.backup_via')}</span>
             <span className="font-medium text-slate-700 dark:text-slate-200">
               {backupMechanism(status.driver)}
             </span>
@@ -279,7 +301,7 @@ const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection })
       <button
         type="button"
         onClick={load}
-        title="Refresh status"
+        title={t('db_manager.status.refresh')}
         className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
       >
         <RefreshCw className="w-4 h-4" />
@@ -291,7 +313,7 @@ const StatusStrip: React.FC<{ connection: DbConnectionInfo }> = ({ connection })
 // ─────────────────────────────── Tables tab ───────────────────────────────
 type TableSortKey = 'name' | 'rows' | 'activity';
 
-const fmtRows = (n: number): string => (n < 0 ? 'unknown' : n.toLocaleString());
+const fmtRows = (n: number, unknownLabel: string): string => (n < 0 ? unknownLabel : n.toLocaleString());
 
 /** Short local timestamp for the best-effort activity time; em-dash when unknown. */
 const fmtActivity = (iso: string | null): string => {
@@ -310,8 +332,11 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
   const [selected, setSelected] = useState<string | null>(null);
   const [structure, setStructure] = useState<DbStructureColumn[]>([]);
   const [structureLoading, setStructureLoading] = useState(false);
+  // null = no failure; '' = failed without a server message.
+  const [structureError, setStructureError] = useState<string | null>(null);
   const [data, setData] = useState<DbTableDataResponse | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<TableSortKey>('name');
@@ -341,9 +366,9 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
         setTables(list);
         setSelected((prev) => (prev && list.some((t) => t.name === prev) ? prev : list[0]?.name ?? null));
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load tables'))
+      .catch((e) => setError(errorText(e, t('db_manager.tables.load_failed'))))
       .finally(() => setLoading(false));
-  }, [connection.key]);
+  }, [connection.key, t]);
 
   // Reset selection when switching connection, then (re)load.
   useEffect(() => {
@@ -352,18 +377,22 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
     loadTables();
   }, [loadTables]);
 
+  // A new table never shows the previous table's columns or rows.
   useEffect(() => {
-    if (!selected) {
-      setStructure([]);
-      setData(null);
-      return;
-    }
+    setStructure([]);
+    setStructureError(null);
+    setData(null);
+    setDataError(null);
+    if (!selected) return;
     let cancelled = false;
     setStructureLoading(true);
     api.databaseManager
       .getStructure(selected, connection.key)
       .then((cols) => {
         if (!cancelled) setStructure(cols);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setStructureError(e instanceof Error ? e.message : '');
       })
       .finally(() => {
         if (!cancelled) setStructureLoading(false);
@@ -377,10 +406,16 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
     if (!selected) return;
     let cancelled = false;
     setDataLoading(true);
+    setDataError(null);
     api.databaseManager
       .getData(selected, connection.key, page, perPage)
       .then((res) => {
         if (!cancelled) setData(res);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setData(null);
+        setDataError(e instanceof Error ? e.message : '');
       })
       .finally(() => {
         if (!cancelled) setDataLoading(false);
@@ -439,7 +474,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
         key={key}
         type="button"
         onClick={() => toggleSort(key)}
-        title={`Sort by ${label.toLowerCase()}`}
+        title={t('db_manager.tables.sort_by', { label })}
         className={`flex-1 flex items-center justify-center gap-1 px-1.5 py-1 rounded-md text-xs font-medium transition-colors ${
           active
             ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
@@ -457,7 +492,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
   };
 
   if (loading) {
-    return <LoadingBlock label="Loading tables…" />;
+    return <LoadingBlock label={t('db_manager.tables.loading')} />;
   }
 
   if (error) {
@@ -469,7 +504,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
           onClick={loadTables}
           className={`${commonClasses.button} ${commonClasses.buttonPrimary}`}
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -481,12 +516,12 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       <div className={`${commonClasses.card} w-72 flex-shrink-0 flex flex-col overflow-hidden`}>
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
           <span>
-            Tables{' '}
+            {t('db_manager.tables.title')}{' '}
             <span className="text-xs font-normal text-slate-400">
               {query ? `${visibleTables.length}/${tables.length}` : tables.length}
             </span>
           </span>
-          <button type="button" onClick={loadTables} title="Refresh">
+          <button type="button" onClick={loadTables} title={t('common.refresh')}>
             <RefreshCw className="w-4 h-4 text-slate-500 hover:text-indigo-600" />
           </button>
         </div>
@@ -497,60 +532,60 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Filter tables…"
+              placeholder={t('db_manager.tables.filter_placeholder')}
               className="w-full pl-8 pr-2 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400"
             />
           </div>
         </div>
         <div className="px-3 pb-2">
           <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
-            {sortButton('name', 'Name')}
-            {sortButton('rows', 'Rows')}
-            {sortButton('activity', 'Time')}
+            {sortButton('name', t('db_manager.tables.sort_name'))}
+            {sortButton('rows', t('db_manager.tables.sort_rows'))}
+            {sortButton('activity', t('db_manager.tables.sort_time'))}
           </div>
         </div>
         <div className="flex-1 overflow-auto border-t border-slate-100 dark:border-slate-700/50">
           {visibleTables.length === 0 ? (
-            <p className="p-3 text-sm text-slate-500">{query ? 'No matching tables' : 'No tables'}</p>
+            <p className="p-3 text-sm text-slate-500">{t(query ? 'db_manager.tables.no_matching' : 'db_manager.tables.none')}</p>
           ) : (
-            visibleTables.map((t) => (
+            visibleTables.map((row) => (
               <button
-                key={t.name}
+                key={row.name}
                 type="button"
                 onClick={() => {
-                  setSelected(t.name);
+                  setSelected(row.name);
                   setPage(1);
                 }}
                 className={`w-full text-left px-4 py-2 text-sm border-b border-slate-100 dark:border-slate-700/50 transition-colors ${
-                  selected === t.name
+                  selected === row.name
                     ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-2 border-l-indigo-500'
                     : 'border-l-2 border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-700/30'
                 }`}
-                title={t.name}
+                title={row.name}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span
                     className={`truncate font-mono text-[13px] ${
-                      selected === t.name
+                      selected === row.name
                         ? 'text-indigo-700 dark:text-indigo-300 font-medium'
                         : 'text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    {t.name}
+                    {row.name}
                   </span>
                   <StatusBadge
-                    status={t.is_app_table ? 'app' : 'main'}
-                    tone={t.is_app_table ? 'info' : 'success'}
+                    status={t(row.is_app_table ? 'db_manager.tables.badge_app' : 'db_manager.tables.badge_main')}
+                    tone={row.is_app_table ? 'info' : 'success'}
                     withDot={false}
                     className="flex-shrink-0"
                   />
                 </div>
                 <div className="flex items-center justify-between gap-2 text-xs text-slate-400 mt-0.5">
-                  <span>{fmtRows(t.rows)} rows</span>
-                  {t.activity_at && (
-                    <span className="flex items-center gap-1" title={`Last activity: ${fmtActivity(t.activity_at)}`}>
+                  <span>{t('db_manager.tables.rows', { rows: fmtRows(row.rows, t('db_manager.tables.rows_unknown')) })}</span>
+                  {row.activity_at && (
+                    <span className="flex items-center gap-1" title={t('db_manager.tables.last_activity', { time: fmtActivity(row.activity_at) })}>
                       <Clock3 className="w-3 h-3" />
-                      {fmtActivity(t.activity_at)}
+                      {fmtActivity(row.activity_at)}
                     </span>
                   )}
                 </div>
@@ -564,7 +599,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       {(() => {
         const viewerInner = !selected ? (
           <div className="flex-1 flex items-center justify-center text-slate-500 dark:text-slate-400">
-            Select a table
+            {t('db_manager.tables.select_table')}
           </div>
         ) : (
           <>
@@ -576,7 +611,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                 </span>
                 {selectedInfo && (
                   <span className="text-xs text-slate-400 flex-shrink-0">
-                    {fmtRows(selectedInfo.rows)} rows
+                    {t('db_manager.tables.rows', { rows: fmtRows(selectedInfo.rows, t('db_manager.tables.rows_unknown')) })}
                   </span>
                 )}
               </div>
@@ -592,7 +627,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                     }`}
                   >
                     <Columns3 className="w-4 h-4" />
-                    Structure
+                    {t('db_manager.tables.structure')}
                   </button>
                   <button
                     type="button"
@@ -604,13 +639,13 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                     }`}
                   >
                     <Table2 className="w-4 h-4" />
-                    Data
+                    {t('db_manager.tables.data')}
                   </button>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsFull((v) => !v)}
-                  title={isFull ? 'Exit fullscreen (Esc)' : 'Fullscreen this panel'}
+                  title={t(isFull ? 'db_manager.tables.fullscreen_exit' : 'db_manager.tables.fullscreen_enter')}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   {isFull ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -623,8 +658,10 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                 {structureLoading ? (
                   <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
                     <InlineSpinner />
-                    Loading…
+                    {t('db_manager.loading')}
                   </div>
+                ) : structureError !== null ? (
+                  <AlertBox variant="error">{structureError || t('db_manager.viewer.structure_failed')}</AlertBox>
                 ) : (
                   <SchemaTable columns={structure} />
                 )}
@@ -633,7 +670,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
               <div className="flex-1 min-h-0 flex flex-col p-4 gap-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    Rows / page
+                    {t('db_manager.tables.rows_per_page')}
                     <input
                       type="number"
                       min={1}
@@ -646,7 +683,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                       }}
                       className="w-24 px-2 py-1 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-400"
                     />
-                    <span className="text-slate-400">(max {MAX_PER_PAGE})</span>
+                    <span className="text-slate-400">{t('db_manager.tables.max_per_page', { max: MAX_PER_PAGE })}</span>
                   </label>
                   {data && (
                     <PaginationBar
@@ -663,8 +700,10 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                   {dataLoading ? (
                     <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
                       <InlineSpinner />
-                      Loading…
+                      {t('db_manager.loading')}
                     </div>
+                  ) : dataError !== null ? (
+                    <AlertBox variant="error">{dataError || t('db_manager.viewer.data_failed')}</AlertBox>
                   ) : data ? (
                     <DataGrid
                       columns={structure.length ? structure : []}
@@ -688,7 +727,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
               <div
                 className={`${commonClasses.card} flex-1 flex items-center justify-center text-sm text-slate-400 dark:text-slate-500`}
               >
-                Viewer is fullscreen — press Esc to return
+                {t('db_manager.tables.fullscreen_placeholder')}
               </div>
               <Portal>
                 <div className={`fixed inset-0 ${OVERLAY_Z.modal} bg-slate-100 dark:bg-slate-950 p-3 flex flex-col`}>
@@ -714,6 +753,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
 // ────────────────────────────── Import/Export tab ──────────────────────────────
 
 const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
+  const { t } = useTranslation();
   const toast = useToast();
   const [table, setTable] = useState('');
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv');
@@ -729,10 +769,11 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
       deps: [connection.key],
       initialData: [],
       onSuccess: (list) =>
-        setTable((prev) => (prev && list.some((t) => t.name === prev) ? prev : list[0]?.name ?? ''))
+        setTable((prev) => (prev && list.some((row) => row.name === prev) ? prev : list[0]?.name ?? ''))
     }
   );
   const tableList = tables ?? [];
+  const modeLabel = t(importMode === 'replace' ? 'db_manager.io.mode_replace' : 'db_manager.io.mode_append');
 
   const handleExport = async () => {
     if (!table) return;
@@ -743,9 +784,9 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
     try {
       await api.databaseManager.exportTable(table, connection.key, exportFormat);
       logSuccess('db-manager', `Export ${connection.key}.${table} done`);
-      toast.success(`Exported ${table} as ${exportFormat.toUpperCase()}`);
+      toast.success(t('db_manager.io.exported', { table, format: exportFormat.toUpperCase() }));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Export failed';
+      const msg = downloadErrorText(e, t);
       logError('db-manager', `Export ${connection.key}.${table} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -767,10 +808,10 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
         importMode
       );
       logSuccess('db-manager', `Import ${connection.key}.${table}: ${result.imported} imported, ${result.skipped} skipped`);
-      toast.success(`Imported ${result.imported}, skipped ${result.skipped}`);
+      toast.success(t('db_manager.io.imported', { imported: result.imported, skipped: result.skipped }));
       setFile(null);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Import failed';
+      const msg = errorText(e, t('db_manager.io.import_failed'));
       logError('db-manager', `Import ${connection.key}.${table} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -779,7 +820,7 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
   };
 
   if (loading) {
-    return <LoadingBlock label="Loading tables…" />;
+    return <LoadingBlock label={t('db_manager.tables.loading')} />;
   }
 
   return (
@@ -788,22 +829,22 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
       <div className={`${commonClasses.card} p-4 space-y-3`}>
         <div className="flex items-center gap-2">
           <Download className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="font-semibold text-slate-800 dark:text-slate-200">Export table</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t('db_manager.io.export_title')}</h3>
         </div>
-        <Field label="Table">
+        <Field label={t('db_manager.io.table')}>
           <select
             value={table}
             onChange={(e) => setTable(e.target.value)}
             className={`${commonClasses.select} w-full`}
           >
-            {tableList.map((t) => (
-              <option key={t.name} value={t.name}>
-                {t.name}
+            {tableList.map((row) => (
+              <option key={row.name} value={row.name}>
+                {row.name}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Format">
+        <Field label={t('db_manager.io.format')}>
           <select
             value={exportFormat}
             onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
@@ -820,7 +861,7 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
         >
           <Download className="w-4 h-4" />
-          Download
+          {t('db_manager.io.download')}
         </button>
       </div>
 
@@ -828,23 +869,23 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
       <div className={`${commonClasses.card} p-4 space-y-3`}>
         <div className="flex items-center gap-2">
           <Upload className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="font-semibold text-slate-800 dark:text-slate-200">Import file</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t('db_manager.io.import_title')}</h3>
         </div>
-        <Field label="Table">
+        <Field label={t('db_manager.io.table')}>
           <select
             value={table}
             onChange={(e) => setTable(e.target.value)}
             className={`${commonClasses.select} w-full`}
           >
-            {tableList.map((t) => (
-              <option key={t.name} value={t.name}>
-                {t.name}
+            {tableList.map((row) => (
+              <option key={row.name} value={row.name}>
+                {row.name}
               </option>
             ))}
           </select>
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Format">
+          <Field label={t('db_manager.io.format')}>
             <select
               value={importFormat}
               onChange={(e) => setImportFormat(e.target.value as ExportFormat)}
@@ -854,18 +895,18 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
               <option value="json">JSON</option>
             </select>
           </Field>
-          <Field label="Mode">
+          <Field label={t('db_manager.io.mode')}>
             <select
               value={importMode}
               onChange={(e) => setImportMode(e.target.value as ImportMode)}
               className={`${commonClasses.select} w-full`}
             >
-              <option value="append">Append</option>
-              <option value="replace">Replace</option>
+              <option value="append">{t('db_manager.io.mode_append')}</option>
+              <option value="replace">{t('db_manager.io.mode_replace')}</option>
             </select>
           </Field>
         </div>
-        <Field label="File">
+        <Field label={t('db_manager.io.file')}>
           <input
             type="file"
             accept={importFormat === 'csv' ? '.csv' : '.json'}
@@ -880,14 +921,14 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
         >
           <Upload className="w-4 h-4" />
-          Import
+          {t('db_manager.io.import')}
         </button>
       </div>
 
       <Modal
         isOpen={confirmImport}
         onClose={() => setConfirmImport(false)}
-        title="Confirm import"
+        title={t('db_manager.io.confirm_title')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -896,7 +937,7 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
               onClick={() => setConfirmImport(false)}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -907,18 +948,20 @@ const ImportExportTab: React.FC<{ connection: DbConnectionInfo }> = ({ connectio
                   : commonClasses.buttonPrimary
               }`}
             >
-              {importMode === 'replace' ? 'Replace & import' : 'Import'}
+              {t(importMode === 'replace' ? 'db_manager.io.replace_and_import' : 'db_manager.io.import')}
             </button>
           </div>
         }
       >
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          Import <strong>{file?.name}</strong> ({importFormat.toUpperCase()}) into{' '}
-          <strong>{table}</strong> on <strong>{connection.name}</strong> in{' '}
-          <strong>{importMode}</strong> mode.
+          <Trans
+            i18nKey="db_manager.io.confirm_body"
+            values={{ file: file?.name ?? '', format: importFormat.toUpperCase(), table, connection: connection.name, mode: modeLabel }}
+            components={BOLD}
+          />
           {importMode === 'replace' && (
             <span className="block mt-2 text-red-600 dark:text-red-400">
-              Replace mode clears existing rows in this table first.
+              {t('db_manager.io.replace_warning')}
             </span>
           )}
         </p>
@@ -943,6 +986,7 @@ function backupMechanism(driver: string): string {
 }
 
 const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
+  const { t } = useTranslation();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<DbBackup | null>(null);
@@ -960,10 +1004,10 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
     try {
       await api.databaseManager.createBackup(connection.key);
       logSuccess('db-manager', `Backup of ${connection.key} created`);
-      toast.success(`Backup created (${backupMechanism(connection.driver)})`);
+      toast.success(t('db_manager.backup.created', { mechanism: backupMechanism(connection.driver) }));
       load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Backup failed';
+      const msg = errorText(e, t('db_manager.backup.create_failed'));
       logError('db-manager', `Backup of ${connection.key} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -981,13 +1025,13 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       const res = await api.databaseManager.restoreBackup(target.id);
       if (res.success) {
         logSuccess('db-manager', `Restore of ${target.file} done`);
-        toast.success(res.message || 'Backup restored');
+        toast.success(res.message || t('db_manager.backup.restored'));
       } else {
         logError('db-manager', `Restore of ${target.file} failed — ${res.message || 'unknown error'}`);
-        toast.error(res.message || 'Restore failed');
+        toast.error(res.message || t('db_manager.backup.restore_failed'));
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Restore failed';
+      const msg = errorText(e, t('db_manager.backup.restore_failed'));
       logError('db-manager', `Restore of ${target.file} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -1004,14 +1048,14 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       const res = await api.databaseManager.deleteBackup(target.id);
       if (res.success) {
         logSuccess('db-manager', `Backup ${target.file} deleted`);
-        toast.success('Backup deleted');
+        toast.success(t('db_manager.backup.deleted'));
         load();
       } else {
         logError('db-manager', `Delete of backup ${target.file} failed`);
-        toast.error('Delete failed');
+        toast.error(t('db_manager.backup.delete_failed'));
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Delete failed';
+      const msg = errorText(e, t('db_manager.backup.delete_failed'));
       logError('db-manager', `Delete of backup ${target.file} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -1026,7 +1070,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       await api.databaseManager.downloadBackup(b.id, b.file);
       logSuccess('db-manager', `Download of ${b.file} started`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Download failed';
+      const msg = downloadErrorText(e, t);
       logError('db-manager', `Download of ${b.file} failed — ${msg}`);
       toast.error(msg);
     }
@@ -1036,7 +1080,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Mechanism for <strong>{connection.name}</strong>:{' '}
+          <Trans i18nKey="db_manager.backup.mechanism_for" values={{ connection: connection.name }} components={BOLD} />{' '}
           <StatusBadge
             status={backupMechanism(connection.driver)}
             tone={driverTone(connection.driver)}
@@ -1050,7 +1094,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2`}
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
+            {t('common.refresh')}
           </button>
           <button
             type="button"
@@ -1059,28 +1103,28 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
           >
             <Save className="w-4 h-4" />
-            Create backup
+            {t('db_manager.backup.create')}
           </button>
         </div>
       </div>
 
       {loading ? (
-        <LoadingBlock label="Loading backups…" />
+        <LoadingBlock label={t('db_manager.backup.loading')} />
       ) : backups.length === 0 ? (
         <div className={commonClasses.card}>
-          <EmptyState icon={Save} message="No backups yet" />
+          <EmptyState icon={Save} message={t('db_manager.backup.empty')} />
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-700/50">
-                {['File', 'Driver', 'Connection', 'Size', 'Created', 'Actions'].map((h) => (
+                {BACKUP_COLUMNS.map((h) => (
                   <th
                     key={h}
                     className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300"
                   >
-                    {h}
+                    {t(`db_manager.backup.${h}`)}
                   </th>
                 ))}
               </tr>
@@ -1099,14 +1143,14 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                   </td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{b.connection}</td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                    {b.size_human ?? `${b.size_bytes} B`}
+                    {b.size_human ?? t('db_manager.backup.size_bytes', { bytes: b.size_bytes })}
                   </td>
                   <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{b.created_at}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        title="Restore"
+                        title={t('db_manager.backup.restore')}
                         onClick={() => setRestoreTarget(b)}
                         disabled={busy}
                         className="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-600 dark:text-amber-400 disabled:opacity-50"
@@ -1115,7 +1159,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                       </button>
                       <button
                         type="button"
-                        title="Download"
+                        title={t('db_manager.backup.download')}
                         onClick={() => handleDownload(b)}
                         className="p-1.5 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400"
                       >
@@ -1123,7 +1167,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
                       </button>
                       <button
                         type="button"
-                        title="Delete"
+                        title={t('db_manager.backup.delete')}
                         onClick={() => setDeleteTarget(b)}
                         disabled={busy}
                         className="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 disabled:opacity-50"
@@ -1143,7 +1187,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       <Modal
         isOpen={restoreTarget !== null}
         onClose={() => setRestoreTarget(null)}
-        title="Restore backup"
+        title={t('db_manager.backup.restore_title')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1152,22 +1196,26 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
               onClick={() => setRestoreTarget(null)}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
               onClick={handleRestore}
               className={`${commonClasses.button} bg-amber-600 hover:bg-amber-700 text-white`}
             >
-              Restore
+              {t('db_manager.backup.restore')}
             </button>
           </div>
         }
       >
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          Restore <strong>{restoreTarget?.file}</strong> onto <strong>{connection.name}</strong>?
+          <Trans
+            i18nKey="db_manager.backup.restore_confirm"
+            values={{ file: restoreTarget?.file ?? '', connection: connection.name }}
+            components={BOLD}
+          />
           <span className="block mt-2 text-red-600 dark:text-red-400">
-            This overwrites the current database with the backup contents.
+            {t('db_manager.backup.restore_warning')}
           </span>
         </p>
       </Modal>
@@ -1176,7 +1224,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
       <Modal
         isOpen={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        title="Delete backup"
+        title={t('db_manager.backup.delete_title')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1185,20 +1233,20 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
               onClick={() => setDeleteTarget(null)}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
               onClick={handleDelete}
               className={`${commonClasses.button} bg-red-600 hover:bg-red-700 text-white`}
             >
-              Delete
+              {t('db_manager.backup.delete')}
             </button>
           </div>
         }
       >
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          Permanently delete <strong>{deleteTarget?.file}</strong>?
+          <Trans i18nKey="db_manager.backup.delete_confirm" values={{ file: deleteTarget?.file ?? '' }} components={BOLD} />
         </p>
       </Modal>
     </div>
@@ -1208,6 +1256,7 @@ const BackupTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
 // ─────────────────────────────── Credentials tab ───────────────────────────────
 
 const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) => {
+  const { t } = useTranslation();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
 
@@ -1260,18 +1309,18 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       if (res.is_configured_account) {
         if (res.synced) {
           logSuccess('db-manager', `Password for ${res.user}@${connection.key} changed & synced`);
-          toast.success('Password changed & synced to Laravel config');
+          toast.success(t('db_manager.credentials.change_success'));
         } else {
           logError('db-manager', `Password for ${res.user}@${connection.key} changed but NOT synced to Laravel config`);
-          toast.error('Password changed, but Laravel config was NOT synced — connections may break until re-synced.');
+          toast.error(t('db_manager.credentials.change_not_synced'));
         }
       } else {
         logSuccess('db-manager', `Password for account ${res.user}@${connection.key} changed`);
-        toast.success(`Password changed for ${res.user}`);
+        toast.success(t('db_manager.credentials.changed_for', { user: res.user }));
       }
       load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Password change failed';
+      const msg = errorText(e, t('db_manager.credentials.change_failed'));
       logError('db-manager', `Password change for ${connection.key} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -1298,10 +1347,10 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
         setCreatedAccount(res);
       }
       logSuccess('db-manager', `Account ${res.username}@${connection.key} created${res.generated ? ' (generated password)' : ''}`);
-      toast.success(`Account ${res.username} created`);
+      toast.success(t('db_manager.credentials.account_created', { user: res.username }));
       load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Account creation failed';
+      const msg = errorText(e, t('db_manager.credentials.account_create_failed'));
       logError('db-manager', `Create account ${username}@${connection.key} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -1318,10 +1367,10 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
     try {
       await api.databaseManager.dropAccount(connection.key, username);
       logSuccess('db-manager', `Account ${username}@${connection.key} dropped`);
-      toast.success(`Account ${username} dropped`);
+      toast.success(t('db_manager.credentials.dropped', { user: username }));
       load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Account drop failed';
+      const msg = errorText(e, t('db_manager.credentials.drop_failed'));
       logError('db-manager', `Drop account ${username}@${connection.key} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -1339,14 +1388,14 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       setGeneratedSynced(res.synced);
       if (res.synced) {
         logSuccess('db-manager', `Root password for ${connection.key} reset & synced`);
-        toast.success('Root password reset & synced to Laravel config');
+        toast.success(t('db_manager.credentials.reset_success'));
       } else {
         logError('db-manager', `Root password for ${connection.key} reset but NOT synced to Laravel config`);
-        toast.error('Password reset, but Laravel config was NOT synced — connections may break until re-synced.');
+        toast.error(t('db_manager.credentials.reset_not_synced'));
       }
       load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Password reset failed';
+      const msg = errorText(e, t('db_manager.credentials.reset_failed'));
       logError('db-manager', `Root password reset for ${connection.key} failed — ${msg}`);
       toast.error(msg);
     } finally {
@@ -1355,19 +1404,19 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
   };
 
   if (loading) {
-    return <LoadingBlock label="Loading credentials…" />;
+    return <LoadingBlock label={t('db_manager.credentials.loading')} />;
   }
 
   if (!info) {
     return (
       <div className="py-4">
-        <p className="text-red-600 dark:text-red-400 mb-3">Credentials unavailable</p>
+        <p className="text-red-600 dark:text-red-400 mb-3">{t('db_manager.credentials.unavailable')}</p>
         <button
           type="button"
           onClick={load}
           className={`${commonClasses.button} ${commonClasses.buttonPrimary}`}
         >
-          Retry
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -1381,43 +1430,43 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       <div className={`${commonClasses.card} p-4`}>
         <div className="flex items-center gap-2 mb-3">
           <KeyRound className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-          <h3 className="font-semibold text-slate-800 dark:text-slate-200">Credentials</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t('db_manager.credentials.title')}</h3>
           <StatusBadge status={info.driver} tone={driverTone(info.driver)} withDot={false} className="ml-1" />
         </div>
-        <StatRow label="Connection" value={info.connection} />
-        <StatRow label="Superuser" value={info.superuser ?? '—'} />
+        <StatRow label={t('db_manager.credentials.connection')} value={info.connection} />
+        <StatRow label={t('db_manager.credentials.superuser')} value={info.superuser ?? '—'} />
         {supported && info.password !== null && (
           <StatRow
-            label="Password"
+            label={t('db_manager.credentials.password')}
             value={
               <span className="flex items-center gap-2 font-mono">
                 <span className="select-all">
-                  {showPassword ? info.password || '(empty)' : '•'.repeat(Math.min(16, Math.max(8, info.password.length)))}
+                  {showPassword ? info.password || t('db_manager.credentials.empty_password') : '•'.repeat(Math.min(16, Math.max(8, info.password.length)))}
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  title={showPassword ? 'Hide password' : 'Show password'}
+                  title={t(showPassword ? 'db_manager.credentials.hide_password' : 'db_manager.credentials.show_password')}
                   className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
-                <CopyButton text={info.password} label="Copy" variant="outline" />
+                <CopyButton text={info.password} label={t('db_manager.credentials.copy')} variant="outline" />
               </span>
             }
           />
         )}
         <StatRow
-          label="Password auth"
+          label={t('db_manager.credentials.password_auth')}
           value={
             <StatusBadge
-              status={supported ? 'supported' : 'not applicable'}
+              status={t(supported ? 'db_manager.credentials.supported' : 'db_manager.credentials.not_applicable')}
               tone={supported ? 'success' : 'warning'}
               withDot={false}
             />
           }
         />
-        {info.secret_key && <StatRow label="Secret key" value={info.secret_key} />}
+        {info.secret_key && <StatRow label={t('db_manager.credentials.secret_key')} value={info.secret_key} />}
       </div>
 
       {/* Re-sync explainer (pgsql/mysql) */}
@@ -1425,16 +1474,12 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
         <AlertBox variant="info" icon={false}>
           <span className="flex gap-2">
             <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <span>
-              Changing or resetting the password also re-syncs Laravel&apos;s own config (its
-              credential store) so this connection keeps working afterward. Password auth applies to{' '}
-              <strong>pgsql / mysql</strong> only.
-            </span>
+            <span>{t('db_manager.credentials.sync_note')}</span>
           </span>
         </AlertBox>
       ) : (
         <AlertBox variant="warning">
-          {info.note || 'This file-based database has no password; credential controls are disabled.'}
+          {info.note || t('db_manager.credentials.no_password_note')}
         </AlertBox>
       )}
 
@@ -1443,11 +1488,14 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
         <div className={`${commonClasses.card} p-4 space-y-3`}>
           <div className="flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="font-semibold text-slate-800 dark:text-slate-200">Change password</h3>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t('db_manager.credentials.change')}</h3>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Set a new password for <strong>{info.superuser ?? 'the user'}</strong>. Laravel&apos;s config is
-            re-synced automatically.
+            <Trans
+              i18nKey="db_manager.credentials.change_desc_user"
+              values={{ user: info.superuser ?? t('db_manager.credentials.the_user') }}
+              components={BOLD}
+            />
           </p>
           <button
             type="button"
@@ -1460,18 +1508,17 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
           >
             <KeyRound className="w-4 h-4" />
-            Change password
+            {t('db_manager.credentials.change')}
           </button>
         </div>
 
         <div className={`${commonClasses.card} p-4 space-y-3`}>
           <div className="flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-red-600 dark:text-red-400" />
-            <h3 className="font-semibold text-slate-800 dark:text-slate-200">Reset root password</h3>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t('db_manager.credentials.reset')}</h3>
           </div>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Generate a fresh strong password. It is shown <strong>once</strong> — record it
-            immediately.
+            {t('db_manager.credentials.reset_desc')}
           </p>
           <button
             type="button"
@@ -1480,7 +1527,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
             className={`${commonClasses.button} bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 disabled:opacity-50`}
           >
             <ShieldAlert className="w-4 h-4" />
-            Reset root password
+            {t('db_manager.credentials.reset')}
           </button>
         </div>
       </div>
@@ -1491,9 +1538,9 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              <h3 className="font-semibold text-slate-800 dark:text-slate-200">Accounts</h3>
+              <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t('db_manager.credentials.accounts')}</h3>
               <span className="text-xs text-slate-400">
-                {info.driver === 'pgsql' ? 'PostgreSQL roles' : 'MySQL users'} ({info.users.length})
+                {t(info.driver === 'pgsql' ? 'db_manager.credentials.pgsql_roles' : 'db_manager.credentials.mysql_users')} ({info.users.length})
               </span>
             </div>
             <button
@@ -1507,24 +1554,24 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}
             >
               <UserPlus className="w-4 h-4" />
-              Add account
+              {t('db_manager.credentials.add_account')}
             </button>
           </div>
           {info.users.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              No accounts visible (catalog may require superuser privileges).
+              {t('db_manager.credentials.no_accounts')}
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="bg-slate-100 dark:bg-slate-800">
-                    <th className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300">Account</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{t('db_manager.credentials.col_account')}</th>
                     {info.driver !== 'pgsql' && (
-                      <th className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300">Host</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{t('db_manager.credentials.col_host')}</th>
                     )}
-                    <th className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300">Flags</th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-700 dark:text-slate-300">Actions</th>
+                    <th className="px-3 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{t('db_manager.credentials.col_flags')}</th>
+                    <th className="px-3 py-2 text-right font-medium text-slate-700 dark:text-slate-300">{t('db_manager.credentials.col_actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1538,7 +1585,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
                         <td className="px-3 py-2 font-mono text-[13px] text-slate-700 dark:text-slate-300">
                           {u.name}
                           {isConfigured && (
-                            <StatusBadge status="laravel" tone="info" withDot={false} className="ml-2" />
+                            <StatusBadge status={t('db_manager.credentials.flag_laravel')} tone="info" withDot={false} className="ml-2" />
                           )}
                         </td>
                         {info.driver !== 'pgsql' && (
@@ -1546,9 +1593,9 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
                         )}
                         <td className="px-3 py-2">
                           <span className="flex items-center gap-1.5">
-                            {u.super && <StatusBadge status="super" tone="warning" withDot={false} />}
+                            {u.super && <StatusBadge status={t('db_manager.credentials.flag_super')} tone="warning" withDot={false} />}
                             <StatusBadge
-                              status={u.can_login ? 'login' : 'no-login'}
+                              status={t(u.can_login ? 'db_manager.credentials.flag_login' : 'db_manager.credentials.flag_no_login')}
                               tone={u.can_login ? 'success' : 'error'}
                               withDot={false}
                             />
@@ -1565,16 +1612,16 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
                             disabled={busy}
                             className="px-2 py-1 text-xs rounded text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50"
                           >
-                            Change password
+                            {t('db_manager.credentials.change')}
                           </button>
                           <button
                             type="button"
                             onClick={() => setDropTarget(u.name)}
                             disabled={busy || isConfigured}
-                            title={isConfigured ? 'Laravel connects as this account — cannot drop' : `Drop ${u.name}`}
+                            title={isConfigured ? t('db_manager.credentials.drop_blocked') : t('db_manager.credentials.drop_user', { user: u.name })}
                             className="ml-1 px-2 py-1 text-xs rounded text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40"
                           >
-                            Drop
+                            {t('db_manager.credentials.drop')}
                           </button>
                         </td>
                       </tr>
@@ -1594,7 +1641,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
           setShowChange(false);
           resetChangeForm();
         }}
-        title="Change password"
+        title={t('db_manager.credentials.change')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1606,7 +1653,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               }}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -1614,20 +1661,23 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               disabled={!passwordsMatch || busy}
               className={`${commonClasses.button} ${commonClasses.buttonPrimary} disabled:opacity-50`}
             >
-              Change &amp; sync
+              {t('db_manager.credentials.change_and_sync')}
             </button>
           </div>
         }
       >
         <div className="space-y-3">
           <p className="text-sm text-slate-700 dark:text-slate-300">
-            New password for <strong>{changeTarget ?? info.superuser ?? 'the user'}</strong> on{' '}
-            <strong>{connection.name}</strong>.
-            {(changeTarget ?? info.superuser) === info.superuser
-              ? ' This also re-syncs Laravel’s config.'
-              : ' This account is not the one Laravel connects as — its credential store is untouched.'}
+            <Trans
+              i18nKey="db_manager.credentials.change_for"
+              values={{ user: changeTarget ?? info.superuser ?? t('db_manager.credentials.the_user'), connection: connection.name }}
+              components={BOLD}
+            />{' '}
+            {t((changeTarget ?? info.superuser) === info.superuser
+              ? 'db_manager.credentials.change_resyncs'
+              : 'db_manager.credentials.change_untouched')}
           </p>
-          <Field label="New password">
+          <Field label={t('db_manager.credentials.new_password')}>
             <input
               type="password"
               value={newPassword}
@@ -1637,8 +1687,8 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
             />
           </Field>
           <Field
-            label="Confirm password"
-            error={confirmPassword.length > 0 && !passwordsMatch ? 'Passwords do not match.' : undefined}
+            label={t('db_manager.credentials.confirm_password')}
+            error={confirmPassword.length > 0 && !passwordsMatch ? t('db_manager.credentials.passwords_no_match') : undefined}
           >
             <input
               type="password"
@@ -1655,7 +1705,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       <Modal
         isOpen={showReset}
         onClose={() => setShowReset(false)}
-        title="Reset root password"
+        title={t('db_manager.credentials.reset')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1664,7 +1714,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               onClick={() => setShowReset(false)}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -1672,16 +1722,19 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               disabled={busy}
               className={`${commonClasses.button} bg-red-600 hover:bg-red-700 text-white disabled:opacity-50`}
             >
-              Reset &amp; generate
+              {t('db_manager.credentials.reset_and_generate')}
             </button>
           </div>
         }
       >
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          Generate a new strong password for <strong>{info.superuser ?? 'the root user'}</strong> on{' '}
-          <strong>{connection.name}</strong> and re-sync Laravel&apos;s config?
+          <Trans
+            i18nKey="db_manager.credentials.reset_for"
+            values={{ user: info.superuser ?? t('db_manager.credentials.the_root_user'), connection: connection.name }}
+            components={BOLD}
+          />
           <span className="block mt-2 text-red-600 dark:text-red-400">
-            The current password stops working immediately. The new one is shown only once.
+            {t('db_manager.credentials.reset_confirm')}
           </span>
         </p>
       </Modal>
@@ -1690,7 +1743,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       <Modal
         isOpen={generated !== null}
         onClose={() => setGenerated(null)}
-        title="New password — store it now"
+        title={t('db_manager.credentials.new_password_title')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1699,27 +1752,23 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               onClick={() => setGenerated(null)}
               className={`${commonClasses.button} ${commonClasses.buttonPrimary}`}
             >
-              I&apos;ve stored it
+              {t('db_manager.credentials.stored_it')}
             </button>
           </div>
         }
       >
         <div className="space-y-3">
           <AlertBox variant="error">
-            <span>
-              Store this password now — it will <strong>not be shown again</strong>.
-            </span>
+            <span>{t('db_manager.credentials.store_now_warning')}</span>
           </AlertBox>
           <div className="flex items-center gap-2">
             <code className="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-sm break-all select-all">
               {generated}
             </code>
-            {generated && <CopyButton text={generated} label="Copy" variant="outline" />}
+            {generated && <CopyButton text={generated} label={t('db_manager.credentials.copy')} variant="outline" />}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {generatedSynced
-              ? 'This password was synced to Laravel’s credential store, so connections keep working.'
-              : 'WARNING: this password was NOT synced to Laravel’s credential store — re-sync manually or connections will break.'}
+            {t(generatedSynced ? 'db_manager.credentials.synced_note' : 'db_manager.credentials.not_synced_note')}
           </p>
         </div>
       </Modal>
@@ -1728,7 +1777,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       <Modal
         isOpen={showAddUser}
         onClose={() => setShowAddUser(false)}
-        title="Add account"
+        title={t('db_manager.credentials.add_account')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1737,7 +1786,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               onClick={() => setShowAddUser(false)}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -1745,31 +1794,29 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               disabled={!addUsername.trim() || busy}
               className={`${commonClasses.button} ${commonClasses.buttonPrimary} disabled:opacity-50`}
             >
-              Create account
+              {t('db_manager.credentials.create_account')}
             </button>
           </div>
         }
       >
         <div className="space-y-3">
           <p className="text-sm text-slate-700 dark:text-slate-300">
-            {info.driver === 'pgsql' ? (
-              <>Creates a PostgreSQL <strong>LOGIN role</strong> with privileges on database{' '}
-              <strong>{connection.database}</strong> (table-level grants stay with the operator).</>
-            ) : (
-              <>Creates a MySQL user <strong>@localhost</strong> with ALL privileges on schema{' '}
-              <strong>{connection.database}</strong>.</>
-            )}
+            <Trans
+              i18nKey={info.driver === 'pgsql' ? 'db_manager.credentials.add_pgsql_desc' : 'db_manager.credentials.add_mysql_desc'}
+              values={{ database: connection.database }}
+              components={BOLD}
+            />
           </p>
-          <Field label="Username">
+          <Field label={t('db_manager.credentials.username')}>
             <input
               type="text"
               value={addUsername}
               onChange={(e) => setAddUsername(e.target.value)}
-              placeholder="letters, digits, _ or -"
+              placeholder={t('db_manager.credentials.username_placeholder')}
               className={`${commonClasses.input} w-full font-mono`}
             />
           </Field>
-          <Field label="Password" hint="Leave empty to auto-generate a strong one.">
+          <Field label={t('db_manager.credentials.password')} hint={t('db_manager.credentials.password_hint')}>
             <input
               type="password"
               value={addPassword}
@@ -1784,7 +1831,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       <Modal
         isOpen={createdAccount !== null}
         onClose={() => setCreatedAccount(null)}
-        title="Account created — store the password now"
+        title={t('db_manager.credentials.created_title')}
         size="sm"
         footer={
           <div className="flex items-center justify-end">
@@ -1793,7 +1840,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               onClick={() => setCreatedAccount(null)}
               className={`${commonClasses.button} ${commonClasses.buttonPrimary}`}
             >
-              I stored it
+              {t('db_manager.credentials.stored_it')}
             </button>
           </div>
         }
@@ -1801,12 +1848,15 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
         {createdAccount && (
           <div className="space-y-3">
             <p className="text-sm text-slate-700 dark:text-slate-300">
-              Generated password for <strong className="font-mono">{createdAccount.username}</strong> —
-              shown <strong>once</strong>, it is not retrievable again.
+              <Trans
+                i18nKey="db_manager.credentials.created_password"
+                values={{ user: createdAccount.username }}
+                components={BOLD_MONO}
+              />
             </p>
             <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-100 dark:bg-slate-800 font-mono text-sm break-all">
               <span className="flex-1 select-all">{createdAccount.password}</span>
-              <CopyButton text={createdAccount.password} label="Copy" variant="outline" />
+              <CopyButton text={createdAccount.password} label={t('db_manager.credentials.copy')} variant="outline" />
             </div>
           </div>
         )}
@@ -1816,7 +1866,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
       <Modal
         isOpen={dropTarget !== null}
         onClose={() => setDropTarget(null)}
-        title="Drop account"
+        title={t('db_manager.credentials.drop_account')}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1825,7 +1875,7 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               onClick={() => setDropTarget(null)}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary}`}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -1833,15 +1883,17 @@ const CredentialsTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection
               disabled={busy}
               className={`${commonClasses.button} bg-red-600 hover:bg-red-700 text-white disabled:opacity-50`}
             >
-              Drop account
+              {t('db_manager.credentials.drop_account')}
             </button>
           </div>
         }
       >
         <p className="text-sm text-slate-700 dark:text-slate-300">
-          Drop database account <strong className="font-mono">{dropTarget}</strong> on{' '}
-          <strong>{connection.name}</strong>? Objects it owns may block the drop; this cannot be
-          undone.
+          <Trans
+            i18nKey="db_manager.credentials.drop_confirm"
+            values={{ user: dropTarget ?? '', connection: connection.name }}
+            components={BOLD_MONO}
+          />
         </p>
       </Modal>
     </div>
@@ -1891,7 +1943,7 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
   );
 
   if (loading) {
-    return <LoadingBlock full size="lg" label="Loading connections…" />;
+    return <LoadingBlock full size="lg" label={t('db_manager.loading_connections')} />;
   }
 
   if (error) {
@@ -1904,7 +1956,7 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
             onClick={loadConnections}
             className={`${commonClasses.button} ${commonClasses.buttonPrimary}`}
           >
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       </div>
@@ -1917,9 +1969,9 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
         <div className="flex items-center gap-3">
           <DatabaseZap className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Database Manager</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('db_manager.title')}</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Status, tables, import/export and backups across connections
+              {t('db_manager.subtitle')}
             </p>
           </div>
         </div>
@@ -1932,7 +1984,7 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
           >
             {connections.map((c) => (
               <option key={c.key} value={c.key}>
-                {c.name} {c.is_main ? '(main)' : '(app)'} · {c.driver}
+                {c.name} {t(c.is_main ? 'db_manager.kind_main' : 'db_manager.kind_app')} · {c.driver}
               </option>
             ))}
           </select>
@@ -1948,7 +2000,7 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
         {tab === 'sync' ? (
           <DataSyncTab />
         ) : !selected ? (
-          <div className="text-slate-500 dark:text-slate-400 py-6">No connection selected</div>
+          <div className="text-slate-500 dark:text-slate-400 py-6">{t('db_manager.no_connection')}</div>
         ) : (
           <>
             {tab === 'tables' && (

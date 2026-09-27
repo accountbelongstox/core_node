@@ -39,6 +39,9 @@ PG_CPU_PCT=""
 # wsl_mount_pg_image). Resolved from the central mapping (map_web_path "pg_mount")
 # AFTER gvar_common.sh is sourced -- never hardcoded here.
 PG_D_MOUNT=""
+# Panel PHP runtimes that read the password mirror under open_basedir; the
+# core_node FrankenPHP/Octane service itself runs as root.
+PG_PHP_RUNTIME_USER_CANDIDATES="www www-data nginx apache"
 # Per-app databases to provision. SOURCE OF TRUTH: Laravel's config/database.php
 # (its polyConnection('NAME') calls), so adding an app there auto-creates its DB here
 # and this list cannot drift -- it previously omitted pdd_tool_v1_database, which made
@@ -153,50 +156,20 @@ configure_postgresql() {
 
     # Determine installed major version
     POSTGRESQL_VERSION="$(detect_postgresql_version)"
-
-    # WSL: compile_dir lives on drvfs (/mnt/*), where PostgreSQL cannot run (the
-    # data dir must be owned by postgres with mode 0700, impossible on drvfs).
-    # Pin data/log dirs to the native ext4 distro-default cluster so the logic
-    # below adopts the default cluster and performs NO relocation/recreate.
-    if [ "$IS_WSL" = true ]; then
-        if wsl_mount_pg_image; then
-            # PG_DATA_ON_D=true and the D-image is mounted -> data lives on D.
-            POSTGRESQL_DATA_DIR="${PG_D_MOUNT}/${POSTGRESQL_VERSION}/main"
-            $USE_SUDO mkdir -p "${PG_D_MOUNT}/${POSTGRESQL_VERSION}" 2>/dev/null || true
-            safe_chown_R postgres:postgres "${PG_D_MOUNT}/${POSTGRESQL_VERSION}"
-            echo "[$SCRIPT_INDEX] WSL -> PG data on D-drive image: $POSTGRESQL_DATA_DIR"
-        else
-            echo "[$SCRIPT_INDEX] WSL detected -> keeping PostgreSQL on native ext4 (no drvfs relocation)"
-            POSTGRESQL_DATA_DIR="/var/lib/postgresql/$POSTGRESQL_VERSION/main"
-        fi
-        POSTGRESQL_LOG_DIR="/var/log/postgresql"
-    else
-        # Linux (non-WSL): prefer the project mapping path (map_web_path
-        # "postgresql" -> wwwroot/postgresql on the persistent data disk) so PG data
-        # lives with the rest of the app data. GUARD by filesystem type: PostgreSQL
-        # cannot run on NTFS/exFAT/FUSE (no postgres-owned 0700 dir), so fall back to
-        # the compile_dir value (native OS disk) when the mapped path is not POSIX.
-        local pg_mapped_base
-        pg_mapped_base="$(map_web_path "postgresql" 2>/dev/null)"
-        if [ -n "$pg_mapped_base" ] && pg_fs_is_posix "$pg_mapped_base"; then
-            POSTGRESQL_DATA_DIR="$pg_mapped_base/data"
-            POSTGRESQL_LOG_DIR="$pg_mapped_base/logs"
-            echo "[$SCRIPT_INDEX] PG data dir -> mapping path ($(pg_path_fstype "$pg_mapped_base")): $POSTGRESQL_DATA_DIR"
-        else
-            echo "[$SCRIPT_INDEX] Mapping path '$pg_mapped_base' is not POSIX-capable ($(pg_path_fstype "$pg_mapped_base")) -> keeping compile_dir: $POSTGRESQL_DATA_DIR"
-        fi
-    fi
+    pg_resolve_target_dirs "$POSTGRESQL_VERSION"
 
     POSTGRESQL_CONFIG_DIR="/etc/postgresql/$POSTGRESQL_VERSION/main"
 
     # If cluster exists in /etc/postgresql/<ver>/main
     local cluster_dir="$POSTGRESQL_CONFIG_DIR"
     local need_recreate=false
+    local current_data_dir=""
+    local current_log_dir=""
+    local current_user_databases=""
     if [ -d "$cluster_dir" ]; then
         echo "[$SCRIPT_INDEX] Found existing cluster directory: $cluster_dir"
         # Read current data_directory from config if present
-        local current_data_dir
-        current_data_dir=$($USE_SUDO grep -E "^[[:space:]]*data_directory[[:space:]]*=" "$cluster_dir/postgresql.conf" 2>/dev/null | sed -E "s/^[^=]*=[[:space:]]*'?([^']*)'?[[:space:]]*$/\1/")
+        current_data_dir="$(pg_config_value "$cluster_dir/postgresql.conf" data_directory)"
         if [ -z "$current_data_dir" ]; then
             # Try to infer default path
             current_data_dir="/var/lib/postgresql/$POSTGRESQL_VERSION/main"
@@ -204,16 +177,35 @@ configure_postgresql() {
         if [ "$current_data_dir" != "$POSTGRESQL_DATA_DIR" ]; then
             need_recreate=true
         fi
+        # Counted while the cluster still runs (pg_service stop follows below).
+        current_user_databases="$(pg_data_dir_user_databases "$current_data_dir")"
     else
         need_recreate=true
+    fi
+
+    # Never drop a cluster that may hold user data: keep it where it is and ask
+    # the operator to relocate it (pg_dropcluster deletes the data directory).
+    if [ "$need_recreate" = true ] && [ -d "$cluster_dir" ] \
+        && [ "$(pg_keep_existing_cluster "$current_data_dir" "$POSTGRESQL_DATA_DIR")" = "yes" ]; then
+        pg_print_relocation_action "$current_data_dir" "$POSTGRESQL_DATA_DIR" "$cluster_dir"
+        POSTGRESQL_DATA_DIR="$current_data_dir"
+        current_log_dir="$(pg_config_value "$cluster_dir/postgresql.conf" log_directory)"
+        [ -n "$current_log_dir" ] && POSTGRESQL_LOG_DIR="$current_log_dir"
+        need_recreate=false
     fi
 
     # Stop base service to avoid conflicts
     pg_service stop
 
     # Case 1: If target data dir already initialized (PG_VERSION exists), adopt it via config
-    if [ -f "$POSTGRESQL_DATA_DIR/PG_VERSION" ]; then
+    # (sudo test: the data dir is postgres-owned 0700, invisible to a non-root run).
+    if $USE_SUDO test -f "$POSTGRESQL_DATA_DIR/PG_VERSION"; then
         echo "[$SCRIPT_INDEX] Existing initialized data directory detected: $POSTGRESQL_DATA_DIR"
+        if [ -n "$current_data_dir" ] && [ "$current_data_dir" != "$POSTGRESQL_DATA_DIR" ]; then
+            if [ "$current_user_databases" != "missing" ] && [ "${current_user_databases:-0}" -gt 0 ]; then
+                echo "[$SCRIPT_INDEX] NOTICE: switching data_directory from $current_data_dir ($current_user_databases user database(s), kept on disk, not dropped) to $POSTGRESQL_DATA_DIR"
+            fi
+        fi
         # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
         if [ "$IS_WSL" = false ]; then
             safe_chown_R postgres:postgres "$POSTGRESQL_DATA_DIR"
@@ -254,8 +246,14 @@ configure_postgresql() {
         # Case 2: Recreate cluster with target data dir
         if [ "$need_recreate" = true ]; then
             echo "[$SCRIPT_INDEX] Recreating cluster with data dir: $POSTGRESQL_DATA_DIR"
-            # Drop existing cluster if present
+            # Drop existing cluster if present, and only when it provably holds
+            # no user databases (pg_dropcluster deletes the data directory).
             if [ -d "$cluster_dir" ]; then
+                if [ "$current_user_databases" != "0" ]; then
+                    pg_print_relocation_action "$current_data_dir" "$POSTGRESQL_DATA_DIR" "$cluster_dir"
+                    pg_service start
+                    return 1
+                fi
                 $USE_SUDO pg_dropcluster --stop "$POSTGRESQL_VERSION" main || true
             fi
             # Ensure parent and permissions; do not pre-create data dir (pg_createcluster will create it)
@@ -304,7 +302,8 @@ setup_postgresql_user() {
     pg_password="$(get_postgresql_password)"
 
     echo "[$SCRIPT_INDEX] Setting postgres superuser password (stored in global_var POSTGRES_PASSWORD)..."
-    run_as_postgres psql -d postgres -c "ALTER USER postgres WITH PASSWORD '$pg_password';"
+    # SQL on stdin: a -c argument would expose the password in /proc/<pid>/cmdline.
+    printf '%s\n' "ALTER USER postgres WITH PASSWORD '$pg_password';" | run_as_postgres psql -d postgres -q
 
     # Mirror the password into the app's OWN data dir as well. The var center may be
     # outside PHP's open_basedir on panel-style servers, so Laravel reads an empty
@@ -313,15 +312,24 @@ setup_postgresql_user() {
     # open_basedir and resolves cross-OS via the same path mapper App\Support\
     # CoreNodeSecrets uses (PathMapper 'laravel_data_dir' == map_web_path "laravel_db").
     # Idempotent: overwrite every run so it stays in sync with the role password.
-    local secret_mirror_dir secret_mirror_file
+    # The store belongs to its reader (pg_mirror_reader), as Laravel's own
+    # RuntimeConfigurationStore creates it: directory 0700, file 0600, so no
+    # other local account can read the password.
+    local secret_mirror_dir secret_mirror_file mirror_reader mirror_group
     secret_mirror_dir="$(map_web_path "laravel_db" ".core_node_secrets" 2>/dev/null)"
     if [ -n "$secret_mirror_dir" ]; then
-        $USE_SUDO mkdir -p "$secret_mirror_dir" 2>/dev/null || mkdir -p "$secret_mirror_dir" 2>/dev/null || true
+        mirror_reader="$(pg_mirror_reader)"
+        mirror_group="$(id -gn "$mirror_reader" 2>/dev/null || echo "$mirror_reader")"
+        $USE_SUDO test -d "$secret_mirror_dir" || $USE_SUDO mkdir -p "$secret_mirror_dir" 2>/dev/null
+        if [ "$($USE_SUDO stat -c '%U:%G %a' "$secret_mirror_dir" 2>/dev/null)" != "$mirror_reader:$mirror_group 700" ]; then
+            $USE_SUDO chown "$mirror_reader:$mirror_group" "$secret_mirror_dir" 2>/dev/null || true
+            $USE_SUDO chmod 700 "$secret_mirror_dir" 2>/dev/null || true
+        fi
         secret_mirror_file="$secret_mirror_dir/POSTGRES_PASSWORD"
-        if printf '%s\n' "$pg_password" | $USE_SUDO tee "$secret_mirror_file" >/dev/null 2>&1 \
-            || printf '%s\n' "$pg_password" > "$secret_mirror_file" 2>/dev/null; then
-            $USE_SUDO chmod 666 "$secret_mirror_file" 2>/dev/null || chmod 666 "$secret_mirror_file" 2>/dev/null || true
-            echo "[$SCRIPT_INDEX] Password mirrored to app data dir (open_basedir-safe): $secret_mirror_file"
+        if (umask 077; printf '%s\n' "$pg_password" | $USE_SUDO tee "$secret_mirror_file" >/dev/null 2>&1); then
+            $USE_SUDO chown "$mirror_reader:$mirror_group" "$secret_mirror_file" 2>/dev/null || true
+            $USE_SUDO chmod 600 "$secret_mirror_file" 2>/dev/null || true
+            echo "[$SCRIPT_INDEX] Password mirrored to app data dir (open_basedir-safe, $mirror_reader 0600): $secret_mirror_file"
         fi
     fi
 
@@ -476,34 +484,159 @@ wsl_mount_pg_image() {
     return 0
 }
 
-# Resolve the CANONICAL data dir from the central mapping (cross-system) and, as a
-# side effect, auto-fix the mount. Echoes ONLY the path on stdout (wsl_mount_pg_image
-# logs to stderr). WSL+D-image -> ${PG_D_MOUNT}/<ver>/main; WSL fallback / native
-# server -> the standard native cluster dir or the compile_dir relocation.
-pg_expected_data_dir() {
+# Canonical data/log dirs for this host, shared by configure_postgresql and the
+# drift check so both expect the same path. Sets POSTGRESQL_DATA_DIR and
+# POSTGRESQL_LOG_DIR; logs go to stderr (wsl_mount_pg_image may auto-fix the mount).
+pg_resolve_target_dirs() {
     local ver="$1"
+    local pg_mapped_base=""
+
+    # WSL: compile_dir lives on drvfs (/mnt/*), where PostgreSQL cannot run (the
+    # data dir must be owned by postgres with mode 0700, impossible on drvfs).
+    # Pin data/log dirs to the D-drive image or the native ext4 default cluster.
     if [ "$IS_WSL" = true ]; then
         if wsl_mount_pg_image; then
-            echo "${PG_D_MOUNT}/${ver}/main"
+            POSTGRESQL_DATA_DIR="${PG_D_MOUNT}/${ver}/main"
+            $USE_SUDO mkdir -p "${PG_D_MOUNT}/${ver}" 2>/dev/null || true
+            safe_chown_R postgres:postgres "${PG_D_MOUNT}/${ver}"
+            echo "[$SCRIPT_INDEX] WSL -> PG data on D-drive image: $POSTGRESQL_DATA_DIR" >&2
         else
-            echo "/var/lib/postgresql/${ver}/main"
+            echo "[$SCRIPT_INDEX] WSL detected -> keeping PostgreSQL on native ext4 (no drvfs relocation)" >&2
+            POSTGRESQL_DATA_DIR="/var/lib/postgresql/$ver/main"
         fi
-        return 0
+        POSTGRESQL_LOG_DIR="/var/log/postgresql"
+        return
     fi
-    map_web_path "compile_dir" "postgresql/data"
+
+    # Linux (non-WSL): prefer the project mapping path (map_web_path "postgresql"
+    # -> wwwroot/postgresql on the persistent data disk). PostgreSQL cannot run on
+    # NTFS/exFAT/FUSE, so fall back to compile_dir when the mapped path is not POSIX.
+    POSTGRESQL_DATA_DIR="$(map_web_path "compile_dir" "postgresql/data")"
+    POSTGRESQL_LOG_DIR="$(map_web_path "compile_dir" "postgresql/logs")"
+    pg_mapped_base="$(map_web_path "postgresql" 2>/dev/null)"
+    if [ -n "$pg_mapped_base" ] && pg_fs_is_posix "$pg_mapped_base"; then
+        POSTGRESQL_DATA_DIR="$pg_mapped_base/data"
+        POSTGRESQL_LOG_DIR="$pg_mapped_base/logs"
+        echo "[$SCRIPT_INDEX] PG data dir -> mapping path ($(pg_path_fstype "$pg_mapped_base")): $POSTGRESQL_DATA_DIR" >&2
+    else
+        echo "[$SCRIPT_INDEX] Mapping path '$pg_mapped_base' is not POSIX-capable ($(pg_path_fstype "$pg_mapped_base")) -> keeping compile_dir: $POSTGRESQL_DATA_DIR" >&2
+    fi
+}
+
+# Echoes ONLY the canonical data dir on stdout.
+pg_expected_data_dir() {
+    pg_resolve_target_dirs "$1"
+    echo "$POSTGRESQL_DATA_DIR"
+}
+
+# Reader of the password mirror: a panel PHP runtime user that runs PHP here
+# (it reads the file under open_basedir), else root.
+pg_mirror_reader() {
+    local candidate=""
+
+    for candidate in $PG_PHP_RUNTIME_USER_CANDIDATES; do
+        id "$candidate" >/dev/null 2>&1 || continue
+        if pgrep -u "$candidate" php >/dev/null 2>&1; then
+            echo "$candidate"
+            return
+        fi
+    done
+    echo "root"
+}
+
+# One unquoted/quoted value of a postgresql.conf setting (empty when unset).
+pg_config_value() {
+    local config_file="$1"
+    local setting="$2"
+
+    $USE_SUDO grep -E "^[[:space:]]*${setting}[[:space:]]*=" "$config_file" 2>/dev/null | tail -n 1 \
+        | sed -E "s/^[^=]*=[[:space:]]*('([^']*)'|([^[:space:]#]*)).*$/\2\3/"
+}
+
+# Number of user databases (every database but postgres and the templates) in a
+# data dir; "missing" when it holds no cluster. A running cluster on that dir is
+# asked through the privileged psql path (pg_database); a stopped one is counted
+# on disk (one numeric dir per database under base/, 3 of them system).
+pg_data_dir_user_databases() {
+    local data_dir="$1"
+    local db_dirs=0
+    local running_dir=""
+    local db_count=""
+
+    if [ -z "$data_dir" ] || ! $USE_SUDO test -f "$data_dir/PG_VERSION"; then
+        echo "missing"
+        return
+    fi
+    if is_postgresql_running; then
+        running_dir="$(run_as_postgres psql -tAc 'SHOW data_directory;' 2>/dev/null | tr -d '[:space:]')"
+        if [ "$running_dir" = "$data_dir" ]; then
+            db_count="$(run_as_postgres psql -tAc "SELECT count(*) FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres';" 2>/dev/null | tr -d '[:space:]')"
+            case "$db_count" in
+                ""|*[!0-9]*) ;;
+                *)
+                    echo "$db_count"
+                    return
+                    ;;
+            esac
+        fi
+    fi
+    db_dirs="$($USE_SUDO find "$data_dir/base" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | grep -cE '^[0-9]+$')"
+    if [ "$db_dirs" -gt 3 ]; then
+        echo "$((db_dirs - 3))"
+    else
+        echo "0"
+    fi
+}
+
+# "yes" when the configured cluster must stay: the target holds no cluster while
+# the current data dir is missing (disk not mounted?) or holds user databases.
+pg_keep_existing_cluster() {
+    local current_dir="$1"
+    local target_dir="$2"
+    local user_databases=""
+
+    if [ "$current_dir" = "$target_dir" ] || $USE_SUDO test -f "$target_dir/PG_VERSION"; then
+        echo "no"
+        return
+    fi
+    user_databases="$(pg_data_dir_user_databases "$current_dir")"
+    if [ "$user_databases" = "missing" ] || [ "$user_databases" -gt 0 ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+pg_print_relocation_action() {
+    local current_dir="$1"
+    local target_dir="$2"
+    local config_dir="$3"
+
+    echo "[$SCRIPT_INDEX] ACTION REQUIRED: PostgreSQL cluster kept at $current_dir (canonical target: $target_dir)."
+    if [ "$(pg_data_dir_user_databases "$current_dir")" = "missing" ]; then
+        echo "[$SCRIPT_INDEX]   Its data directory is missing: mount its disk, or remove the cluster by hand (pg_dropcluster) to let this script create a new one."
+        return
+    fi
+    echo "[$SCRIPT_INDEX]   It holds user databases and is never dropped automatically. To relocate it:"
+    echo "[$SCRIPT_INDEX]   systemctl stop postgresql && rsync -a '$current_dir/' '$target_dir/' && chown -R postgres:postgres '$target_dir'"
+    echo "[$SCRIPT_INDEX]   then set data_directory = '$target_dir' in $config_dir/postgresql.conf and systemctl start postgresql."
 }
 
 # True when a RUNNING cluster's actual data dir differs from the canonical/mapped
-# one (e.g. data still on native ext4 while the mapping now points at the D-image).
-# Drives the idempotent reconcile: recreate on the mapped dir (sys:init re-seeds from
-# init_data -- NOT a dump/restore migration).
+# one and can be reconciled without losing data: configure_postgresql then adopts
+# an initialized target, or recreates a cluster that holds no user databases.
 pg_data_dir_drifted() {
     is_postgresql_running || return 1
     local ver actual expected
     ver="$(detect_postgresql_version)"
     actual="$(run_as_postgres psql -tAc 'SHOW data_directory;' 2>/dev/null | tr -d '[:space:]')"
     expected="$(pg_expected_data_dir "$ver")"
-    [ -n "$actual" ] && [ -n "$expected" ] && [ "$actual" != "$expected" ]
+    [ -n "$actual" ] && [ -n "$expected" ] && [ "$actual" != "$expected" ] || return 1
+    if [ "$(pg_keep_existing_cluster "$actual" "$expected")" = "yes" ]; then
+        pg_print_relocation_action "$actual" "$expected" "/etc/postgresql/$ver/main"
+        return 1
+    fi
+    return 0
 }
 
 # True when at least one PostgreSQL cluster exists (running or stopped). Used by
@@ -553,14 +686,10 @@ main() {
                 echo "[$SCRIPT_INDEX] No running cluster -> creating/starting via configure_postgresql"
                 configure_postgresql
             elif pg_data_dir_drifted; then
-                # The running cluster's data dir != the canonical/mapped dir (e.g.
-                # still on native ext4 while the mapping now resolves to the D-image).
-                # Idempotently reconcile to the mapped dir: configure_postgresql adopts
-                # an existing mapped cluster (non-destructive) or recreates a fresh one
-                # there (sys:init re-seeds from init_data -- NOT a dump/restore migration).
+                # The running cluster's data dir != the canonical/mapped dir and the
+                # move loses nothing: configure_postgresql adopts an initialized mapped
+                # cluster, or recreates one that holds no user databases.
                 echo "[$SCRIPT_INDEX] Data dir DRIFT detected (actual != mapped) -> reconciling to mapped dir"
-                echo "[$SCRIPT_INDEX]   If the mapped dir has no cluster, the old one is dropped and recreated there;"
-                echo "[$SCRIPT_INDEX]   sys:init then re-seeds from init_data (no dump/restore migration)."
                 configure_postgresql
             fi
             if is_postgresql_running; then

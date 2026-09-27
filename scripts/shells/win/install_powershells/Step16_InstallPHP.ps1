@@ -15,9 +15,9 @@ $STEP_NUMBER = 16
 
 # Import variable management functions
 $parentDir = Split-Path $PSScriptRoot -Parent
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
-. "$parentDir\win_common\PackageManagerInvokes.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "PackageManagerInvokes.ps1")
 
 # All variable definitions at the beginning of the file
 $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"

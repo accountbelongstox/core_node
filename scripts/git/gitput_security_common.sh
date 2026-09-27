@@ -63,37 +63,6 @@ cleanup_skip_encrypt_cache() {
     $USE_SUDO mv "$temp_file" "$SKIP_ENCRYPT_CACHE_FILE"
 }
 
-read_masked_password() {
-    local prompt="$1"
-    local password=""
-    local char=""
-    local old_stty="$(stty -g 2>/dev/null)"
-
-    printf "%s" "$prompt"
-
-    stty -echo 2>/dev/null
-    while IFS= read -r -s -n1 char; do
-        if [[ -z "$char" ]]; then
-            printf "\n"
-            break
-        elif [[ $char == $'\n' || $char == $'\r' ]]; then
-            printf "\n"
-            break
-        elif [[ $char == $'\177' || $char == $'\b' ]]; then
-            if [ -n "$password" ]; then
-                password="${password%?}"
-                printf "\b \b"
-            fi
-        else
-            password+="$char"
-            printf "*"
-        fi
-    done
-
-    stty "$old_stty" 2>/dev/null
-    printf "%s" "$password"
-}
-
 # File validation function for win_common directory
 test_win_common_files() {
     write_color_text "=== Validating win_common directory files ===" "Yellow"
@@ -306,13 +275,6 @@ ensure_ssh_keys_installed() {
             need_decrypt=false
         elif echo "$ssh_test_output" | grep -qi "permission denied"; then
             write_color_text "[SSH] Key exists but GitHub rejected it - replacing with project key" "Yellow" >&2
-            # Backup the old key before overwriting
-            local backup_suffix="backup_$(date +%Y%m%d%H%M%S)"
-            cp "$found_key_path" "${found_key_path}.${backup_suffix}" 2>/dev/null
-            if [ -f "${found_key_path}.pub" ]; then
-                cp "${found_key_path}.pub" "${found_key_path}.pub.${backup_suffix}" 2>/dev/null
-            fi
-            write_color_text "[SSH] Old key backed up as ${found_key_path}.${backup_suffix}" "DarkGray" >&2
         else
             # Network error or timeout - cannot verify, try decrypt anyway
             write_color_text "[SSH] Cannot verify key (network issue), will ensure project key" "Yellow" >&2
@@ -348,6 +310,15 @@ ensure_ssh_keys_installed() {
             chmod 700 "$SSH_DIR"
         fi
 
+        # The --force decrypt below overwrites these names; keep a copy of each.
+        local backup_suffix="backup_$(date +%Y%m%d%H%M%S)"
+        local existing_key=""
+        for existing_key in "$SSH_DIR/$SSH_KEY_NAME" "$SSH_DIR/$SSH_PUB_NAME"; do
+            if [ -s "$existing_key" ] && cp -p "$existing_key" "${existing_key}.${backup_suffix}" 2>/dev/null; then
+                write_color_text "[SSH] Existing key backed up as ${existing_key}.${backup_suffix}" "DarkGray" >&2
+            fi
+        done
+
         # Show password hint from JS file
         local hint=""
         hint=$("$node_cmd" "$LOCAL_SSH_KEY_JS" show 2>&1 | grep -oP 'Password hint: \K.*' || true)
@@ -363,8 +334,7 @@ ensure_ssh_keys_installed() {
         if [ -n "$password" ]; then
             write_color_text "[SSH] Using decryption password from environment" "DarkGray" >&2
         elif [ -t 0 ]; then
-            printf "\033[36m[SSH] Enter decryption password: \033[0m" >&2
-            IFS= read -r password
+            secret_read_hidden password "[SSH] Enter decryption password: "
         else
             write_color_text "[SSH] No password available (set GIT_SSH_DECRYPT_PASSWORD for non-interactive runs); skipping SSH key decrypt" "Yellow" >&2
             return 1
@@ -379,7 +349,7 @@ ensure_ssh_keys_installed() {
         # Decrypt public key (--force to overwrite existing file)
         local decrypt_output=""
         write_color_text "[SSH] Decrypting public key..." "DarkGray" >&2
-        decrypt_output=$("$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
+        decrypt_output=$(secret_tool_run "$password" "" "$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$SECRET_PASSWORD_ARG" "$SSH_DIR" --force 2>&1)
         local pub_exit=$?
         if [ $pub_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
             write_color_text "[SSH] [ERROR] Public key decrypt FAILED (wrong password?)" "Red" >&2
@@ -391,7 +361,7 @@ ensure_ssh_keys_installed() {
 
         # Decrypt private key (--force to overwrite existing file)
         write_color_text "[SSH] Decrypting private key..." "DarkGray" >&2
-        decrypt_output=$("$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
+        decrypt_output=$(secret_tool_run "$password" "" "$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$SECRET_PASSWORD_ARG" "$SSH_DIR" --force 2>&1)
         local key_exit=$?
         if [ $key_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
             write_color_text "[SSH] [ERROR] Private key decrypt FAILED" "Red" >&2
@@ -464,8 +434,11 @@ ensure_ssh_keys_installed() {
         fi
     fi
 
-    # Step 6: If running as root, also install key to all logged-in non-root users
-    if [ "$(id -u)" -eq 0 ] && [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
+    # Step 6: optional (GITPUT_SHARE_SSH_KEY_WITH_USERS=true): a root run shares the
+    # key with logged-in non-root users that have no key of that name yet. A
+    # different existing key is the user's own identity and is never replaced.
+    if [ "$(id -u)" -eq 0 ] && [ "$GITPUT_SHARE_SSH_KEY_WITH_USERS" = "true" ] \
+        && [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
         local key_basename=""
         key_basename=$(basename "$found_key_path")
         local pub_file="${found_key_path}.pub"
@@ -491,6 +464,11 @@ ensure_ssh_keys_installed() {
             local user_key="$user_ssh_dir/$key_basename"
             local user_pub="$user_ssh_dir/${key_basename}.pub"
 
+            if [ -e "$user_key" ] && ! cmp -s "$found_key_path" "$user_key"; then
+                write_color_text "[SSH] Kept the existing different key of $login_user ($user_key)" "Yellow" >&2
+                continue
+            fi
+
             # Create .ssh dir if needed
             if [ ! -d "$user_ssh_dir" ]; then
                 mkdir -p "$user_ssh_dir"
@@ -499,13 +477,13 @@ ensure_ssh_keys_installed() {
             fi
 
             # Copy private key
-            cp -f "$found_key_path" "$user_key" 2>/dev/null
+            [ -e "$user_key" ] || cp "$found_key_path" "$user_key" 2>/dev/null
             chown "$login_user:$login_user" "$user_key" 2>/dev/null
             chmod 600 "$user_key" 2>/dev/null
 
             # Copy public key
-            if [ -f "$pub_file" ]; then
-                cp -f "$pub_file" "$user_pub" 2>/dev/null
+            if [ -f "$pub_file" ] && [ ! -e "$user_pub" ]; then
+                cp "$pub_file" "$user_pub" 2>/dev/null
                 chown "$login_user:$login_user" "$user_pub" 2>/dev/null
                 chmod 644 "$user_pub" 2>/dev/null
             fi

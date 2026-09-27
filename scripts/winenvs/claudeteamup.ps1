@@ -44,6 +44,7 @@ $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
 $aiCliProvisionCommonScript = $null
+$claudeOfficialRestoreCommonScript = $null
 $claudeTeamCommonScript = $null
 $roleList = $null
 
@@ -57,12 +58,18 @@ $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
 $aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
+$claudeOfficialRestoreCommonScript = Join-Path $winCommonDirPath "ClaudeOfficialRestoreCommon.ps1"
 $claudeTeamCommonScript = Join-Path $winCommonDirPath "ClaudeTeamCommon.ps1"
 . $windowsPathFunctionScript
 . $aiCliProvisionCommonScript
+. $claudeOfficialRestoreCommonScript
 . $claudeTeamCommonScript
 
 $roleList = @($Roles | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() })
+
+if (-not $Status) {
+    Invoke-ClaudeOfficialRestore
+}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan

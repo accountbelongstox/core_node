@@ -184,7 +184,7 @@ function Import-ClaudeTeamCatalog {
     $state = $null
 
     $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
-    Write-ClaudeTeamLog "OK" ("Catalog: {0} ({1} roles, permission mode {2})" -f $ClaudeTeamCatalogPath, @($script:ClaudeTeamCatalog.roles).Count, $script:ClaudeTeamCatalog.permission_mode)
+    Write-ClaudeTeamLog "OK" ("Catalog: {0} ({1} roles)" -f $ClaudeTeamCatalogPath, @($script:ClaudeTeamCatalog.roles).Count)
 
     foreach ($docRelative in @($script:ClaudeTeamCatalog.guide_doc)) {
         $docPath = Join-Path $ClaudeTeamRootDir $docRelative
@@ -286,21 +286,34 @@ function Get-ClaudeTeamCell {
     }
 }
 
+# A role window writes its own PID right after it starts, so a process that
+# started after the PID file was written reuses a stale PID and is not the role.
 function Get-ClaudeTeamLiveProcess {
     param([string]$Role)
     $pidPath = Get-ClaudeTeamPidPath -Role $Role
     $pidText = $null
     $pidValue = 0
+    $pidWrittenAt = $null
+    $processStartedAt = $null
     $process = $null
     if (-not (Test-Path -LiteralPath $pidPath)) {
         return $null
     }
+    $pidWrittenAt = (Get-Item -LiteralPath $pidPath).LastWriteTime
     $pidText = (Get-Content -LiteralPath $pidPath -Raw -ErrorAction SilentlyContinue)
     if ([string]::IsNullOrWhiteSpace($pidText) -or (-not [int]::TryParse($pidText.Trim(), [ref]$pidValue))) {
         return $null
     }
     $process = Get-Process -Id $pidValue -ErrorAction SilentlyContinue
-    if ($process -and ($ClaudeTeamShellNames -contains $process.ProcessName)) {
+    if (-not $process -or ($ClaudeTeamShellNames -notcontains $process.ProcessName)) {
+        return $null
+    }
+    try {
+        $processStartedAt = $process.StartTime
+    } catch {
+        return $null
+    }
+    if ($processStartedAt -le $pidWrittenAt.AddSeconds(1)) {
         return $process
     }
     return $null
@@ -471,10 +484,51 @@ function Start-ClaudeTeamRoleWindow {
     }
 }
 
+# A remote role reaches the lead only while the lead runs with Remote Control
+# (both ends need it). A lead started before any remote role was enabled lacks
+# it (its encoded command has no --remote-control) and needs /remote-control once.
+function Show-ClaudeTeamRemoteControlHint {
+    $leadProcess = $null
+    $leadSession = Get-ClaudeTeamSessionName -Role $ClaudeTeamLeadRole
+    $commandLine = ""
+    $tokens = @()
+    $tokenIndex = -1
+    $leadScript = ""
+    $i = 0
+
+    if (-not $script:ClaudeTeamRemoteAny) {
+        return
+    }
+    $leadProcess = Get-ClaudeTeamLiveProcess -Role $ClaudeTeamLeadRole
+    if (-not $leadProcess) {
+        return
+    }
+    $commandLine = [string](Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f $leadProcess.Id) -ErrorAction SilentlyContinue).CommandLine
+    $tokens = @($commandLine.Split(' ') | Where-Object { $_ })
+    for ($i = 0; $i -lt ($tokens.Count - 1); $i++) {
+        if ($tokens[$i] -eq "-EncodedCommand") {
+            $tokenIndex = $i + 1
+        }
+    }
+    if ($tokenIndex -lt 0) {
+        return
+    }
+    try {
+        $leadScript = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($tokens[$tokenIndex]))
+    } catch {
+        return
+    }
+    if (-not $leadScript.Contains("--remote-control")) {
+        Write-ClaudeTeamLog "WARN" ("Lead {0} runs without Remote Control, so remote roles cannot reach it: run /remote-control {0} in the lead once" -f $leadSession)
+    }
+}
+
 function Start-ClaudeTeamRoles {
     $row = $null
     $cell = $null
     $process = $null
+    $remote = $null
+    $startCommand = ""
     foreach ($row in $script:ClaudeTeamRows) {
         if (-not $row.Enabled) {
             continue
@@ -500,9 +554,16 @@ function Start-ClaudeTeamRoles {
             continue
         }
         $row.State = "started"
-        Write-ClaudeTeamLog "START" ("Role {0}: claudeteam.ps1 --agent {0} --name {1}{2}" -f $row.Role, $row.Session, $(if ($script:ClaudeTeamOptNoKickoff) { "" } else { " <kickoff>" }))
+        $remote = Get-ClaudeTeamRemoteConfig -Role $row.Role
+        if ($null -ne $remote) {
+            $startCommand = ("ssh.exe {0} <secret {1}> bash -lc '... tmux -L {2} new-session -A -s {3} ... claudeteam.sh --agent {4} --name {3} --remote-control {3}{5}'" -f ($ClaudeTeamSshOptions -join " "), [string]$remote.ssh_secret, [string]$script:ClaudeTeamCatalog.sessions.tmux_socket, $row.Session, $row.Role, $(if ($script:ClaudeTeamOptNoKickoff) { "" } else { " <kickoff>" }))
+        } else {
+            $startCommand = ("claudeteam.ps1 --agent {0} --name {1}{2}{3}" -f $row.Role, $row.Session, $(if (($row.Role -eq $ClaudeTeamLeadRole) -and $script:ClaudeTeamRemoteAny) { (" --remote-control {0}" -f $row.Session) } else { "" }), $(if ($script:ClaudeTeamOptNoKickoff) { "" } else { " <kickoff>" }))
+        }
+        Write-ClaudeTeamLog "START" ("Role {0}: {1}" -f $row.Role, $startCommand)
         Start-ClaudeTeamRoleWindow -Row $row -Cell $cell
     }
+    Show-ClaudeTeamRemoteControlHint
 }
 
 function Show-ClaudeTeamReport {
