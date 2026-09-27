@@ -43,11 +43,15 @@ WAKE_MIN_INTERVAL_SECONDS = 5.0
 RECOVERY_MAX_ATTEMPTS = 5
 TAKEOVER_WAIT_SECONDS = 30.0
 WINDOWS_ALREADY_EXISTS = 183
+WINDOWS_SYNCHRONIZE = 0x00100000
+WINDOWS_WAIT_OBJECT_0 = 0
 WATCH_MODE_DEV = "dev"
 WATCH_MODE_ONCE = "once"
 stop_event = threading.Event()
 windows_mutex_handle: Optional[int] = None
 posix_lock_file: Optional[IO[str]] = None
+owner_process_id = 0
+owner_process_handle: Optional[int] = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,10 +63,62 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--watch-mode", choices=[WATCH_MODE_DEV, WATCH_MODE_ONCE])
     parser.add_argument("--foreground", action="store_true")
     parser.add_argument("--wake", action="store_true")
+    parser.add_argument("--parent-pid", type=int, default=0)
     args = parser.parse_args()
     if not args.wake and not args.project_root:
         parser.error("--project-root is required unless --wake is used")
     return args
+
+
+def windows_kernel32() -> ctypes.WinDLL:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_bool, ctypes.c_uint32]
+    kernel32.OpenProcess.restype = ctypes.c_void_p
+    kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    kernel32.WaitForSingleObject.restype = ctypes.c_uint32
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle.restype = ctypes.c_bool
+    return kernel32
+
+
+# An owned supervisor (--parent-pid) exits with its launcher: a stopped Windows
+# logon task ends only its PowerShell host, never the processes it started.
+def attach_owner_process(parent_pid: int) -> bool:
+    global owner_process_id
+    global owner_process_handle
+
+    owner_process_id = parent_pid
+    if os.name != "nt":
+        return owner_process_alive()
+    owner_process_handle = windows_kernel32().OpenProcess(WINDOWS_SYNCHRONIZE, False, parent_pid)
+    return bool(owner_process_handle)
+
+
+def owner_process_alive() -> bool:
+    if owner_process_id <= 0:
+        return True
+    if os.name == "nt":
+        if not owner_process_handle:
+            return False
+        return windows_kernel32().WaitForSingleObject(owner_process_handle, 0) != WINDOWS_WAIT_OBJECT_0
+    try:
+        os.kill(owner_process_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def release_owner_process() -> None:
+    global owner_process_handle
+
+    if owner_process_handle:
+        windows_kernel32().CloseHandle(owner_process_handle)
+        owner_process_handle = None
 
 
 def acquire_singleton() -> bool:
@@ -70,11 +126,7 @@ def acquire_singleton() -> bool:
     global posix_lock_file
 
     if os.name == "nt":
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
-        kernel32.CreateMutexW.restype = ctypes.c_void_p
-        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-        kernel32.CloseHandle.restype = ctypes.c_bool
+        kernel32 = windows_kernel32()
         handle = kernel32.CreateMutexW(None, False, APP_MUTEX_NAME)
         if not handle:
             raise ctypes.WinError(ctypes.get_last_error())
@@ -106,10 +158,7 @@ def release_singleton() -> None:
     global posix_lock_file
 
     if windows_mutex_handle is not None:
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-        kernel32.CloseHandle.restype = ctypes.c_bool
-        kernel32.CloseHandle(windows_mutex_handle)
+        windows_kernel32().CloseHandle(windows_mutex_handle)
         windows_mutex_handle = None
     if posix_lock_file is not None:
         posix_lock_file.close()
@@ -356,6 +405,10 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
     print(f"[Supervisor] Watch mode: {watch_mode}.", flush=True)
 
     while not stop_event.is_set():
+        if not owner_process_alive():
+            print(f"[Supervisor] Owner process {owner_process_id} exited; stopping.", flush=True)
+            break
+
         current_takeover_signature = takeover_request_signature()
         if current_takeover_signature != takeover_signature:
             print("[Supervisor] Releasing the singleton for a foreground launcher.", flush=True)
@@ -433,10 +486,16 @@ def main() -> int:
     project_root: Optional[Path] = None
 
     if args.wake:
-        wake_extension(force=True)
+        if extension_is_connected():
+            print("[Supervisor] Chrome extension is connected; no reconnect needed.", flush=True)
+        else:
+            wake_extension(force=True)
         return 0
 
     project_root = Path(args.project_root).resolve()
+    if args.parent_pid > 0 and not attach_owner_process(args.parent_pid):
+        print(f"[Supervisor] Owner process {args.parent_pid} is not running.", flush=True)
+        return 0
 
     if args.recover_on_start:
         request_recovery()
@@ -451,8 +510,16 @@ def main() -> int:
         while time.monotonic() < takeover_deadline and not singleton_acquired:
             time.sleep(0.2)
             singleton_acquired = acquire_singleton()
+    if not singleton_acquired and args.parent_pid > 0:
+        # An owned supervisor waits its turn instead of exiting, so its owner
+        # does not respawn it (and re-request recovery) every restart pause.
+        print("[Supervisor] Waiting for the running supervisor instance to exit.", flush=True)
+        while not singleton_acquired and owner_process_alive():
+            time.sleep(POLL_INTERVAL_SECONDS)
+            singleton_acquired = acquire_singleton()
     if not singleton_acquired:
         print("[Supervisor] An MCP Chrome supervisor instance is already running.", flush=True)
+        release_owner_process()
         return 0
     try:
         signal.signal(signal.SIGINT, handle_stop_signal)
@@ -461,6 +528,7 @@ def main() -> int:
         return supervise(project_root, args.recover_on_start, args.watch_mode or WATCH_MODE_DEV)
     finally:
         release_singleton()
+        release_owner_process()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 const path = require('path');
 const { DATA_DIR } = require('#@global_dir');
 const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper.js');
+const logger = require('#@logger');
 
 const defaultConfig = {
     // Database and storage paths
@@ -178,9 +179,10 @@ const validateConfig = (config) => {
     }
     
     if (errors.length > 0) {
-        throw new Error(`Configuration validation failed: ${errors.join(', ')}`);
+        logger.error(`Configuration validation failed: ${errors.join(', ')}`);
+        return false;
     }
-    
+
     return true;
 };
 

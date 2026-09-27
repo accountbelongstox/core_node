@@ -42,6 +42,7 @@ Parity with shell-windows (binding; user D12, 2026-09-27):
 - The reviewer rejects a shell task that leaves a `pending-*` row without an alignment task.
 
 Rules:
+- Linux rules (user D24): `development-guides/LINUX_SHELL_RULES.md`. Define each Linux constant once, in the constants library or the contract. On Linux an NTFS mount holds source code and the data both OSes share (D26: the shared data dir D:/www/core_node = /www/www/core_node). Never put install paths, caches, build or temp directories, node_modules/vendor/.venv or Linux-only service state on it (ext4 `/opt` instead), and no recycle bin: never trash there (D25).
 - Shell scripts are in English. Declare variables at the file top.
 - The user's `CodeHeaderCleaner.py` strips the leading AI rules header blocks from files, the user's own tool and decision. Never re-add a stripped header block, and never treat its removal as your change.
 - Installers are idempotent at the finest grain: repair only missing binaries, files or pip packages, detected by existence.

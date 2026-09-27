@@ -116,14 +116,24 @@ final class AppQyV1ResourceIndexService
         RedisBucketIndex::remove(self::KIND_STATIC_FILE, [self::normalizeStaticPath($relativePath)]);
     }
 
-    /** Forget a deleted file given its absolute path; paths outside the static root are ignored. */
+    /** Record a stored file given its absolute path; paths outside the static_file kind are ignored. */
+    public function recordStaticPath(string $absolutePath): void
+    {
+        $relative = self::staticRelativePath($absolutePath);
+
+        clearstatcache(true, $absolutePath);
+        if ($relative !== null && is_file($absolutePath)) {
+            $this->recordStaticFile($relative, (int) filesize($absolutePath));
+        }
+    }
+
+    /** Forget a deleted file given its absolute path; paths outside the static_file kind are ignored. */
     public function forgetStaticPath(string $absolutePath): void
     {
-        $root = rtrim(str_replace('\\', '/', PathMapper::getLaravelStaticDir()), '/') . '/';
-        $path = str_replace('\\', '/', $absolutePath);
+        $relative = self::staticRelativePath($absolutePath);
 
-        if (str_starts_with($path, $root)) {
-            $this->forgetStaticFile(substr($path, strlen($root)));
+        if ($relative !== null) {
+            $this->forgetStaticFile($relative);
         }
     }
 
@@ -563,7 +573,7 @@ final class AppQyV1ResourceIndexService
 
     public static function orchSegmentPath(string $sha256): string
     {
-        return PathMapper::getAppQyV1AudioBaseDir(AppQyV1OrchAudioService::segmentAudioRelative($sha256));
+        return AppQyV1OrchAudioService::segmentAudioPath($sha256);
     }
 
     public static function normalizeStaticPath(string $path): string
@@ -576,6 +586,15 @@ final class AppQyV1ResourceIndexService
         }
 
         return $path;
+    }
+
+    private static function staticRelativePath(string $absolutePath): ?string
+    {
+        $root = rtrim(str_replace('\\', '/', PathMapper::getLaravelStaticDir()), '/') . '/';
+        $path = str_replace('\\', '/', $absolutePath);
+        $relative = str_starts_with($path, $root) ? self::normalizeStaticPath(substr($path, strlen($root))) : '';
+
+        return $relative !== '' && !str_starts_with($relative, self::AUDIO_STATIC_SUBDIR . '/') ? $relative : null;
     }
 
     private static function nonEmptyFile(string $path): bool

@@ -132,12 +132,8 @@
         "home_data_dir_fallback": "~/core_node",
         "ntfs_fs_types": ["ntfs", "ntfs3", "fuseblk", "ntfs-3g"],
         "linux_www_ntfs_root_rule": "linux_ntfs_nested_www_root is a directory and the linux_www_root mount has an FSTYPE in ntfs_fs_types and a SOURCE different from the / mount SOURCE",
-        "linux_data_dir_candidates": [
-            {"path": "linux_ntfs_nested_www_root", "join": "core_node_data_dir_name", "when": "linux_www_ntfs_root_rule"},
-            {"path": "linux_www_root", "join": "core_node_data_dir_name", "when": "not linux_www_ntfs_root_rule"},
-            {"path": "legacy_linux_data_dir"},
-            {"path": "home_data_dir_fallback"}
-        ],
+        "linux_ntfs_policy": "code_and_shared_data: on Linux an NTFS mount (FSTYPE in ntfs_fs_types) holds source code and the data both OSes share (the shared data dir linux_ntfs_nested_www_root/core_node_data_dir_name = D:/www/core_node, and shared files both OSes read; user D26). Never on NTFS: install paths, package caches/stores, build output, compile bases, temp dirs, node_modules/vendor/.venv, Linux-only service state (e.g. database clusters), and no recycle bin (user D25): nothing is sent to a trash on an NTFS mount and per-volume .Trash-<uid> creation is blocked idempotently (development-guides/LINUX_SHELL_RULES.md).",
+        "linux_data_dir_candidates": [{"path": "linux_ntfs_nested_www_root", "join": "core_node_data_dir_name", "when": "linux_www_ntfs_root_rule"}, {"path": "linux_www_root", "join": "core_node_data_dir_name", "when": "not linux_www_ntfs_root_rule"}, {"path": "legacy_linux_data_dir"}, {"path": "home_data_dir_fallback"}],
         "linux_data_dir_selection": "an exported CORE_NODE_DATA_DIR wins; otherwise the first applicable candidate that exists or can be created and is writable; path and join name sibling paths keys; home_data_dir_fallback is used without a writability test",
         "frankenphp_root_posix": "/www/programing/frankenphp",
         "frankenphp_root_windows_subpath": "frankenphp",

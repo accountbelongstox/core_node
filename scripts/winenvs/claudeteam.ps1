@@ -4,10 +4,15 @@
     or runs one role pane of the claudeagents / claudeteamup team window.
 
 .DESCRIPTION
-    Standalone: sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 and the catalog
-    session_env (all, windows, lead) for the current session, then runs claude
-    with --teammate-mode in-process --permission-mode auto. Any script arguments
-    are appended to the command line.
+    Standalone with --agent <role> naming an enabled registry role: applies that
+    role's session_env kinds (session_env.lead only for the lead role) and
+    --effort, and writes no PID file (there is no pane to verify).
+
+    Standalone otherwise (bare, or --agent names no enabled role): sets
+    CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 and the catalog session_env (all,
+    windows, lead) for the current session, then runs claude with
+    --teammate-mode in-process --permission-mode auto. Any script arguments are
+    appended to the command line.
 
     Role pane (started by claudeagents.ps1 / claudeteamup.ps1):
         claudeteam.ps1 --team-pane <sessions|team> --agent <role> --name <session>
@@ -38,7 +43,6 @@ $aiCliProvisionCommonScript = $null
 $claudeOfficialRestoreCommonScript = $null
 $windowsPathFunctionScript = $null
 $claudeTeamCommonScript = $null
-$teammateMode = "in-process"
 $claudeArgs = @()
 $claudeDisplayArgs = @()
 $forwardArgs = @()
@@ -51,6 +55,7 @@ $paneRole = ""
 $paneNoKickoff = $false
 $paneRoles = @()
 $paneRow = $null
+$standaloneRow = $null
 $kickoff = ""
 $kickoffDisplay = ""
 $sessionEnvironment = $null
@@ -136,12 +141,32 @@ if ($null -ne $paneRow) {
         $kickoffDisplay = (" <kickoff {0} chars>" -f $kickoff.Length)
     }
 } else {
-    $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
-    $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $null
-    $claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", $ClaudeTeamPermissionMode)
-    $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
-    $claudeArgs += $forwardArgs
-    $claudeDisplayArgs = $claudeArgs
+    # A named role (--agent <role>) that resolves to an enabled registry role
+    # runs as that role -- its own env kinds and effort, not the agent-teams
+    # lead -- so a standalone `claudeteam --agent <role>` matches the pane
+    # behavior instead of always becoming a second lead (DESIGN §3.2).
+    $standaloneRow = Get-ClaudeTeamStandaloneRow -Role $paneRole
+    if ($null -ne $standaloneRow) {
+        $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $standaloneRow
+        $claudeArgs = @()
+        if ((-not [string]::IsNullOrWhiteSpace($standaloneRow.Effort)) -and ($forwardArgs -notcontains "--effort")) {
+            $claudeArgs += @("--effort", $standaloneRow.Effort)
+        }
+        $claudeArgs += @("--permission-mode", $ClaudeTeamPermissionMode)
+        if ($standaloneRow.IsLead) {
+            $claudeArgs += @("--teammate-mode", $ClaudeTeamLeadTeammateMode)
+        }
+        $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
+        $claudeArgs += $forwardArgs
+        $claudeDisplayArgs = $claudeArgs
+    } else {
+        $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+        $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $null
+        $claudeArgs = @("--teammate-mode", $ClaudeTeamLeadTeammateMode, "--permission-mode", $ClaudeTeamPermissionMode)
+        $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
+        $claudeArgs += $forwardArgs
+        $claudeDisplayArgs = $claudeArgs
+    }
 }
 
 Write-Host ""
@@ -150,8 +175,10 @@ Write-Host "claudeteam.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 if ($null -ne $paneRow) {
     Write-Host ("[INFO] Role pane {0} ({1}), launcher mode {2}, model {3} (agent definition), effort {4}" -f $paneRow.Role, $paneRow.Session, $paneMode, $paneRow.Model, $paneRow.Effort) -ForegroundColor Green
+} elseif ($null -ne $standaloneRow) {
+    Write-Host ("[INFO] Standalone role {0} ({1}), model {2} (agent definition), effort {3}" -f $standaloneRow.Role, $standaloneRow.Session, $standaloneRow.Model, $standaloneRow.Effort) -ForegroundColor Green
 } else {
-    Write-Host ("[INFO] {0}=1 (session, multiple roles); teammate mode {1} (Windows default)" -f $ClaudeTeamAgentTeamsVariable, $teammateMode) -ForegroundColor Green
+    Write-Host ("[INFO] {0}=1 (session, multiple roles); teammate mode {1} (Windows default)" -f $ClaudeTeamAgentTeamsVariable, $ClaudeTeamLeadTeammateMode) -ForegroundColor Green
 }
 Write-Host ("[INFO] Session env: {0}=1 {1}" -f $ClaudeTeamSessionMarkerVariable, ((@($sessionEnvironment.Keys) | ForEach-Object { "{0}={1}" -f $_, $sessionEnvironment[$_] }) -join " ")) -ForegroundColor Green
 Write-Host ("[INFO] Invoking: claude {0}{1}" -f ($claudeDisplayArgs -join " "), $kickoffDisplay) -ForegroundColor Green
@@ -164,8 +191,11 @@ if ($null -eq $exitCode) {
     $exitCode = 0
 }
 
-# A role pane keeps its shell (-NoExit) so the pane stays open after claude ends.
+# A role pane keeps its shell (-NoExit) so the pane stays open after claude ends,
+# but the role itself is no longer running: drop the PID file (if this shell
+# still owns it) so a rerun sees the role as idle and restarts it (DESIGN §3.2).
 if ($null -ne $paneRow) {
+    Remove-ClaudeTeamPidFile -Session $paneRow.Session
     return
 }
 exit $exitCode

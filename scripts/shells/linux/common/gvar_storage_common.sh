@@ -11,18 +11,34 @@
 # (gvar_system_common.sh / runtime_environment.sh) are already available at
 # that point, so the same lookup works before and after get_var exists.
 get_program_drive_partuuid() {
-    local candidate=""
+    local candidate="" raw="" normalized=""
     if declare -F get_var >/dev/null 2>&1; then
-        get_var "CN_PROGRAM_PARTUUID" ""
-        return 0
-    fi
-    if [ -n "${GLOBAL_VAR_DIR:-}" ]; then
+        raw="$(get_var "CN_PROGRAM_PARTUUID" "" 2>/dev/null)" || raw=""
+    elif [ -n "${GLOBAL_VAR_DIR:-}" ]; then
         for candidate in "$GLOBAL_VAR_DIR/${OS_VAR_TAG:-UNKNOWN}_CN_PROGRAM_PARTUUID" "$GLOBAL_VAR_DIR/CN_PROGRAM_PARTUUID"; do
             if [ -f "$candidate" ]; then
-                head -n1 "$candidate" 2>/dev/null | tr -d '\r\n'
-                return 0
+                raw="$(head -n1 "$candidate" 2>/dev/null)"
+                break
             fi
         done
+    fi
+    [ -n "$raw" ] || return 0
+
+    # Normalize before ANY consumer compares/embeds this value: the global var
+    # store is world-writable (0777, ensure_core_state_roots) and this same
+    # string is later interpolated into a root-owned udev rule
+    # (mount_common.sh ensure_program_drive_udev_exclusion), so only a value
+    # that matches the shape of a real PARTUUID is ever returned -- anything
+    # else (quotes, another rule line, shell/udev metacharacters) is dropped
+    # here instead of reaching /etc/udev/rules.d. Also strips the cosmetic
+    # differences a Windows writer would record (braces, uppercase, CR/BOM)
+    # so the value actually matches blkid/udev's lowercase, brace-free form.
+    normalized="$(printf '%s' "$raw" | tr -d '\r\n{} \t' | sed '1s/^\xef\xbb\xbf//' | tr '[:upper:]' '[:lower:]')"
+    if [[ "$normalized" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+        || [[ "$normalized" =~ ^[0-9a-f]{8}-[0-9a-f]{2}$ ]]; then
+        printf '%s' "$normalized"
+    else
+        echo "[gvar-storage] CN_PROGRAM_PARTUUID does not look like a PARTUUID after normalization; ignoring it (no E: exclusion applied)." >&2
     fi
     return 0
 }
@@ -502,9 +518,9 @@ determine_largest_windows_drive() {
         drive_path="$DESKTOP_WINDOWS_MOUNT_PATH/$drive"
         if [ -d "$drive_path" ]; then
             if [ -n "$excluded_partuuid" ]; then
-                drive_device=$(findmnt -n -o SOURCE --target "$drive_path" 2>/dev/null)
+                drive_device=$(findmnt -n -o SOURCE --target "$drive_path" 2>/dev/null) || drive_device=""
                 if [ -n "$drive_device" ]; then
-                    drive_partuuid=$($USE_SUDO blkid -s PARTUUID -o value "$drive_device" 2>/dev/null)
+                    drive_partuuid=$($USE_SUDO blkid -s PARTUUID -o value "$drive_device" 2>/dev/null) || drive_partuuid=""
                     [ -n "$drive_partuuid" ] && [ "$drive_partuuid" = "$excluded_partuuid" ] && continue
                 fi
             fi

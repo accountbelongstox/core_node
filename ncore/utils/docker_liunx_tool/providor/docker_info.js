@@ -2,6 +2,7 @@ const Base = require('#@base');
     const fs = require('fs');
     const path = require('path');
     const { execSync } = require('child_process');
+    const logger = require('#@logger');
 
     class DockerInfo extends Base {
         constructor() {
@@ -30,9 +31,9 @@ const Base = require('#@base');
             if (fs.existsSync(configPath)) {
                 const daemonConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
                 return daemonConfig['data-root'] || '/var/lib/docker';
-            } else {
-                throw new Error(`daemon.json file not found at: ${configPath}`);
             }
+            logger.error(`daemon.json file not found at: ${configPath}`);
+            return null;
         }
 
         setRootDir(rootDirPath) {

@@ -754,11 +754,12 @@ class CodeMartV1DemoSeeder
         $this->adminService = app(CodeMartV1AdminService::class);
         $this->adminFinanceService = new CodeMartV1AdminFinanceService();
         $secret = CodeMartV1AdminPassword::ensure($this->passwordFile);
-        if ($secret['generated']) {
-            $this->log(__('codemart.cli.seed.password_generated', ['password' => $secret['password'], 'path' => $secret['path']]));
-        }
 
         $this->seedAccounts($secret['password']);
+        if ($secret['generated']) {
+            CodeMartV1AdminPassword::apply($secret['password']);
+            $this->log(__('codemart.cli.seed.password_file', ['path' => $secret['path']]));
+        }
         $this->seedProfiles();
         $this->seedRolesAndDeposits();
         $this->seedKyc();

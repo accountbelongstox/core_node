@@ -51,7 +51,8 @@ class ImageProcessor {
             const absolutePath = path.resolve(imagePath);
             
             if (!ftools.file.exists(absolutePath)) {
-                throw new Error(`Image file does not exist: ${absolutePath}`);
+                logger.error(`Image file does not exist: ${absolutePath}`);
+                return null;
             }
 
             if (this.imageLibrariesAvailable.sharp) {
@@ -105,17 +106,19 @@ class ImageProcessor {
                 format: format.toLowerCase()
             };
         } catch (error) {
-            throw new Error(`ImageMagick identify failed: ${error.message}`);
+            logger.error(`ImageMagick identify failed: ${error.message}`);
+            return null;
         }
     }
 
     async getImageDimensionsBasic(imagePath) {
         logger.warn('Using basic PNG header parsing - limited format support');
-        
+
         const buffer = fs.readFileSync(imagePath);
-        
+
         if (buffer.length < 24) {
-            throw new Error('File too small to be a valid image');
+            logger.error('File too small to be a valid image');
+            return null;
         }
 
         if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
@@ -128,30 +131,33 @@ class ImageProcessor {
             return this.parseJpegDimensions(buffer);
         }
 
-        throw new Error('Unsupported image format for basic parsing');
+        logger.error('Unsupported image format for basic parsing');
+        return null;
     }
 
     parseJpegDimensions(buffer) {
         let offset = 2;
-        
+
         while (offset < buffer.length) {
             if (buffer[offset] !== 0xFF) {
-                throw new Error('Invalid JPEG format');
+                logger.error('Invalid JPEG format');
+                return null;
             }
-            
+
             const marker = buffer[offset + 1];
-            
+
             if (marker === 0xC0 || marker === 0xC2) {
                 const height = buffer.readUInt16BE(offset + 5);
                 const width = buffer.readUInt16BE(offset + 7);
                 return { width, height, format: 'jpeg' };
             }
-            
+
             const length = buffer.readUInt16BE(offset + 2);
             offset += 2 + length;
         }
-        
-        throw new Error('Could not find JPEG dimensions');
+
+        logger.error('Could not find JPEG dimensions');
+        return null;
     }
 
     async resizeImage(sourcePath, targetPath, width, height, options = {}) {
@@ -160,7 +166,8 @@ class ImageProcessor {
             const absoluteTargetPath = path.resolve(targetPath);
             
             if (!ftools.file.exists(absoluteSourcePath)) {
-                throw new Error(`Source image does not exist: ${absoluteSourcePath}`);
+                logger.error(`Source image does not exist: ${absoluteSourcePath}`);
+                return false;
             }
 
             const resizeOptions = {
@@ -175,9 +182,13 @@ class ImageProcessor {
             } else if (this.imageLibrariesAvailable.jimp) {
                 await this.resizeImageWithJimp(absoluteSourcePath, absoluteTargetPath, width, height, resizeOptions);
             } else if (this.imageLibrariesAvailable.imagemagick) {
-                await this.resizeImageWithImageMagick(absoluteSourcePath, absoluteTargetPath, width, height, resizeOptions);
+                const resized = await this.resizeImageWithImageMagick(absoluteSourcePath, absoluteTargetPath, width, height, resizeOptions);
+                if (!resized) {
+                    return false;
+                }
             } else {
-                throw new Error('No image processing library available for resizing');
+                logger.error('No image processing library available for resizing');
+                return false;
             }
 
             logger.info(`Resized image: ${absoluteSourcePath} -> ${absoluteTargetPath} (${width}x${height})`);
@@ -258,8 +269,10 @@ class ImageProcessor {
 
         try {
             commander.execSync(cmd, { stdio: 'pipe' });
+            return true;
         } catch (error) {
-            throw new Error(`ImageMagick resize failed: ${error.message}`);
+            logger.error(`ImageMagick resize failed: ${error.message}`);
+            return false;
         }
     }
 
@@ -267,7 +280,8 @@ class ImageProcessor {
         try {
             const dimensions = await this.getImageDimensions(sourcePath);
             if (!dimensions) {
-                throw new Error('Could not get source image dimensions');
+                logger.error('Could not get source image dimensions');
+                return false;
             }
 
             const sourceWidth = dimensions.width;
@@ -285,10 +299,16 @@ class ImageProcessor {
                 fit: 'cover'
             };
 
-            await this.resizeImage(sourcePath, targetPath, newWidth, newHeight, cropOptions);
-            
+            const resized = await this.resizeImage(sourcePath, targetPath, newWidth, newHeight, cropOptions);
+            if (!resized) {
+                return false;
+            }
+
             if (newWidth !== targetWidth || newHeight !== targetHeight) {
-                await this.cropImageToSize(targetPath, targetPath, targetWidth, targetHeight);
+                const cropped = await this.cropImageToSize(targetPath, targetPath, targetWidth, targetHeight);
+                if (!cropped) {
+                    return false;
+                }
             }
 
             logger.info(`Resized and cropped image: ${sourcePath} -> ${targetPath} (${targetWidth}x${targetHeight})`);
@@ -316,11 +336,14 @@ class ImageProcessor {
                 const cmd = `convert "${sourcePath}" -gravity center -crop ${width}x${height}+0+0 "${targetPath}"`;
                 commander.execSync(cmd, { stdio: 'pipe' });
             } else {
-                throw new Error('No image processing library available for cropping');
+                logger.error('No image processing library available for cropping');
+                return false;
             }
-            
+            return true;
+
         } catch (error) {
-            throw new Error(`Failed to crop image: ${error.message}`);
+            logger.error(`Failed to crop image: ${error.message}`);
+            return false;
         }
     }
 
@@ -329,7 +352,8 @@ class ImageProcessor {
             const absolutePath = path.resolve(imagePath);
             
             if (!ftools.file.exists(absolutePath)) {
-                throw new Error(`Image file does not exist: ${absolutePath}`);
+                logger.error(`Image file does not exist: ${absolutePath}`);
+                return false;
             }
 
             const compressionOptions = {
@@ -340,15 +364,19 @@ class ImageProcessor {
             };
 
             const tempPath = absolutePath + '.tmp';
-            
+
             if (this.imageLibrariesAvailable.sharp) {
                 await this.compressImageWithSharp(absolutePath, tempPath, compressionOptions);
             } else if (this.imageLibrariesAvailable.jimp) {
                 await this.compressImageWithJimp(absolutePath, tempPath, compressionOptions);
             } else if (this.imageLibrariesAvailable.imagemagick) {
-                await this.compressImageWithImageMagick(absolutePath, tempPath, compressionOptions);
+                const compressed = await this.compressImageWithImageMagick(absolutePath, tempPath, compressionOptions);
+                if (!compressed) {
+                    return false;
+                }
             } else {
-                throw new Error('No image processing library available for compression');
+                logger.error('No image processing library available for compression');
+                return false;
             }
 
             fs.renameSync(tempPath, absolutePath);
@@ -420,8 +448,10 @@ class ImageProcessor {
 
         try {
             commander.execSync(cmd, { stdio: 'pipe' });
+            return true;
         } catch (error) {
-            throw new Error(`ImageMagick compression failed: ${error.message}`);
+            logger.error(`ImageMagick compression failed: ${error.message}`);
+            return false;
         }
     }
 
@@ -429,9 +459,10 @@ class ImageProcessor {
         try {
             const absoluteSourcePath = path.resolve(sourcePath);
             const absoluteTargetPath = path.resolve(targetPath);
-            
+
             if (!ftools.file.exists(absoluteSourcePath)) {
-                throw new Error(`Source image does not exist: ${absoluteSourcePath}`);
+                logger.error(`Source image does not exist: ${absoluteSourcePath}`);
+                return false;
             }
 
             const convertOptions = {
@@ -440,13 +471,20 @@ class ImageProcessor {
             };
 
             if (this.imageLibrariesAvailable.sharp) {
-                await this.convertImageFormatWithSharp(absoluteSourcePath, absoluteTargetPath, targetFormat, convertOptions);
+                const converted = await this.convertImageFormatWithSharp(absoluteSourcePath, absoluteTargetPath, targetFormat, convertOptions);
+                if (!converted) {
+                    return false;
+                }
             } else if (this.imageLibrariesAvailable.jimp) {
                 await this.convertImageFormatWithJimp(absoluteSourcePath, absoluteTargetPath, targetFormat, convertOptions);
             } else if (this.imageLibrariesAvailable.imagemagick) {
-                await this.convertImageFormatWithImageMagick(absoluteSourcePath, absoluteTargetPath, targetFormat, convertOptions);
+                const converted = await this.convertImageFormatWithImageMagick(absoluteSourcePath, absoluteTargetPath, targetFormat, convertOptions);
+                if (!converted) {
+                    return false;
+                }
             } else {
-                throw new Error('No image processing library available for format conversion');
+                logger.error('No image processing library available for format conversion');
+                return false;
             }
 
             logger.info(`Converted image format: ${absoluteSourcePath} -> ${absoluteTargetPath} (${targetFormat})`);
@@ -469,10 +507,12 @@ class ImageProcessor {
         } else if (format.toLowerCase() === 'webp') {
             pipeline = pipeline.webp({ quality: options.quality });
         } else {
-            throw new Error(`Unsupported output format: ${format}`);
+            logger.error(`Unsupported output format: ${format}`);
+            return false;
         }
 
         await pipeline.toFile(targetPath);
+        return true;
     }
 
     async convertImageFormatWithJimp(sourcePath, targetPath, format, options) {
@@ -497,8 +537,10 @@ class ImageProcessor {
 
         try {
             commander.execSync(cmd, { stdio: 'pipe' });
+            return true;
         } catch (error) {
-            throw new Error(`ImageMagick conversion failed: ${error.message}`);
+            logger.error(`ImageMagick conversion failed: ${error.message}`);
+            return false;
         }
     }
 

@@ -21,16 +21,12 @@ export const STORAGE_KEYS = {
   SEMANTIC_MODEL: 'selectedModel',
   SEMANTIC_MODEL_VERSION: 'selectedVersion',
   SEMANTIC_MODEL_STATE: 'modelState',
-  SEMANTIC_ENGINE_STATE: 'semanticEngineState',
   AUDIO_RECORDING_CONFIG: 'audioRecordingConfig',
 
   AI_WEB_PROVIDER: 'aiWebProvider',
   AI_VALIDITY_PROVIDER: 'aiValidityProvider',
   VALIDITY_LANGUAGE: 'validityLanguage',
   VALIDITY_LANGUAGES: 'validityLanguages',
-
-  USER_PREFERENCES: 'userPreferences',
-  VECTOR_INDEX: 'vectorIndex',
 
   // Task Center popup composable (useTaskCenter.ts).
   TASK_CENTER_CONFIG: 'task_center_config',

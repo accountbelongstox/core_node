@@ -14,8 +14,9 @@ use RuntimeException;
  * Password of every account the CodeMart seeder creates, kept in the secret
  * file of config/service_contract.json#codemart_admin_password under the
  * Laravel data dir. The deploy ensure step (175 / Step175) rotates the file
- * and applies it with codemart:admin-password; the seeder only creates the
- * file when it is missing and never rehashes an existing account.
+ * and applies it with codemart:admin-password. The seeder creates the file
+ * only when it is missing and then applies it at once; with an existing file
+ * it never rehashes an existing account.
  */
 final class CodeMartV1AdminPassword
 {

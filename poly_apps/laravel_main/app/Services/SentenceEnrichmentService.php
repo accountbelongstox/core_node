@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ResourceIndexService;
 use App\Services\EdgeTTS\EdgeTTSService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Providers\PathMapper;
@@ -324,6 +325,7 @@ class SentenceEnrichmentService
                 return null;
             }
         }
+        app(AppQyV1ResourceIndexService::class)->recordSentence($langCode, $contentId);
 
         // Bare relative reference stored on the audio column (Books v3 §6).
         return $relative;

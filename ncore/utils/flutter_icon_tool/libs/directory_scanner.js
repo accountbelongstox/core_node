@@ -89,7 +89,8 @@ class DirectoryScanner {
             const projectDir = path.resolve(projectPath);
             
             if (!ftools.file.exists(projectDir)) {
-                throw new Error(`Project directory does not exist: ${projectDir}`);
+                logger.error(`Project directory does not exist: ${projectDir}`);
+                return null;
             }
 
             for (const platform of platforms) {

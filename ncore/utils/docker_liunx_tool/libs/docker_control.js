@@ -3,6 +3,7 @@ const Base = require('#@base');
     const fs = require('fs');
     const path = require('path');
     const { execSync, execFileSync } = require('child_process');
+    const logger = require('#@logger');
 
     class DockerControl extends Base {
         constructor() {
@@ -16,14 +17,17 @@ const Base = require('#@base');
         controlDockerService(action) {
             const validActions = ['start', 'stop'];
             if (!validActions.includes(action)) {
-                throw new Error('Invalid action. Use "start" or "stop".');
+                logger.error('Invalid action. Use "start" or "stop".');
+                return false;
             }
             try {
                 console.log(`Attempting to ${action} Docker service...`);
                 execSync(`systemctl ${action} docker`);
                 console.log(`Docker service ${action}ed successfully.`);
+                return true;
             } catch (error) {
                 console.error(`Failed to ${action} Docker service`, error);
+                return false;
             }
         }
 

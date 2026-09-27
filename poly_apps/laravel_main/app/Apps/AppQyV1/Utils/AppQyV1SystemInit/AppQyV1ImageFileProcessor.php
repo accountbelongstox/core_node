@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ResourceIndexService;
 use Illuminate\Support\Facades\File;
 use ZipArchive;
 
@@ -311,6 +312,7 @@ class AppQyV1ImageFileProcessor
 
             // Copy and optimize image if needed
             if ($this->copyAndOptimizeImage($imageFilePath, $targetPath, $validation)) {
+                app(AppQyV1ResourceIndexService::class)->recordStaticPath($targetPath);
                 return [
                     'success' => true,
                     'source' => $imageFilePath,

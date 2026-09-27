@@ -18,6 +18,7 @@ import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
 import type { CmBootstrap, CmNotification, CmProject, CmReviewSubmission, CmTask } from '../api/CmApiTypes';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { CM_PROTECTED_ROUTE, cmProjectPath, cmTaskPath } from '../components/public-home/cmPublicRoutes';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmEmptyState, CmErrorState, CmLoadingState } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
@@ -29,10 +30,10 @@ const PREVIEW_SIZE = 5;
 const CLOSED_PROJECT_STATUSES = new Set(['completed', 'cancelled', 'archived']);
 const CLOSED_TASK_STATUSES = new Set(['completed', 'cancelled']);
 const STEP_ROUTES: Record<string, string> = {
-  account: '/codemart/profile',
-  deposit: '/codemart/wallet',
+  account: CM_PROTECTED_ROUTE.profile,
+  deposit: CM_PROTECTED_ROUTE.wallet,
 };
-const DEFAULT_STEP_ROUTE = '/codemart/verification';
+const DEFAULT_STEP_ROUTE = CM_PROTECTED_ROUTE.verification;
 
 interface CmShortcut {
   id: string;
@@ -43,14 +44,14 @@ interface CmShortcut {
 }
 
 const SHORTCUTS: CmShortcut[] = [
-  { id: 'createProject', capability: 'project.create', route: '/codemart/projects/new', Icon: FilePlus2, role: 'client' },
-  { id: 'myProjects', capability: 'project.read', route: '/codemart/projects', Icon: BriefcaseBusiness, role: 'client' },
-  { id: 'marketplace', capability: 'task.browse', route: '/codemart/marketplace', Icon: Store, role: 'developer' },
-  { id: 'myTasks', capability: 'task.read', route: '/codemart/tasks', Icon: ListTodo, role: 'developer' },
-  { id: 'architect', capability: 'architect.read', route: '/codemart/architect', Icon: Workflow, role: 'architect' },
-  { id: 'reviews', capability: 'review.read', route: '/codemart/reviews', Icon: ClipboardCheck, role: 'reviewer' },
-  { id: 'wallet', capability: 'finance.read', route: '/codemart/wallet', Icon: WalletCards },
-  { id: 'verification', capability: 'onboarding.read', route: '/codemart/verification', Icon: ShieldCheck },
+  { id: 'createProject', capability: 'project.create', route: CM_PROTECTED_ROUTE.projectCreate, Icon: FilePlus2, role: 'client' },
+  { id: 'myProjects', capability: 'project.read', route: CM_PROTECTED_ROUTE.projects, Icon: BriefcaseBusiness, role: 'client' },
+  { id: 'marketplace', capability: 'task.browse', route: CM_PROTECTED_ROUTE.marketplace, Icon: Store, role: 'developer' },
+  { id: 'myTasks', capability: 'task.read', route: CM_PROTECTED_ROUTE.tasks, Icon: ListTodo, role: 'developer' },
+  { id: 'architect', capability: 'architect.read', route: CM_PROTECTED_ROUTE.architect, Icon: Workflow, role: 'architect' },
+  { id: 'reviews', capability: 'review.read', route: CM_PROTECTED_ROUTE.reviews, Icon: ClipboardCheck, role: 'reviewer' },
+  { id: 'wallet', capability: 'finance.read', route: CM_PROTECTED_ROUTE.wallet, Icon: WalletCards },
+  { id: 'verification', capability: 'onboarding.read', route: CM_PROTECTED_ROUTE.verification, Icon: ShieldCheck },
 ];
 
 interface CmMetric {
@@ -64,13 +65,13 @@ interface CmMetric {
 }
 
 const METRICS: CmMetric[] = [
-  { id: 'activeProjects', capability: 'project.read', roles: ['client', 'architect'], route: '/codemart/projects', Icon: BriefcaseBusiness, tone: 'blue', value: (b, f) => f.number(b.counters.active_projects) },
-  { id: 'escrowFunds', capability: 'project.create', route: '/codemart/projects', Icon: ShieldCheck, tone: 'green', value: (b, f) => f.money(b.counters.protected_funds, b.counters.currency) },
-  { id: 'myOpenTasks', capability: 'task.read', route: '/codemart/tasks', Icon: ListTodo, tone: 'violet', value: (b, f) => f.number(b.counters.my_open_tasks) },
-  { id: 'marketplaceTasks', capability: 'task.browse', route: '/codemart/marketplace', Icon: Code2, tone: 'blue', value: (b, f) => f.number(b.counters.open_marketplace_tasks) },
-  { id: 'pendingReviews', capability: 'review.read', roles: ['reviewer'], route: '/codemart/reviews', Icon: ClipboardCheck, tone: 'amber', value: (b, f) => f.number(b.counters.pending_reviews) },
-  { id: 'walletBalance', capability: 'finance.read', route: '/codemart/wallet', Icon: WalletCards, tone: 'green', value: (b, f) => f.money(b.counters.wallet_balance, b.counters.currency) },
-  { id: 'unread', capability: 'notification.read', route: '/codemart/notifications', Icon: Bell, tone: 'amber', value: (b, f) => f.number(b.counters.unread_notifications) },
+  { id: 'activeProjects', capability: 'project.read', roles: ['client', 'architect'], route: CM_PROTECTED_ROUTE.projects, Icon: BriefcaseBusiness, tone: 'blue', value: (b, f) => f.number(b.counters.active_projects) },
+  { id: 'escrowFunds', capability: 'project.create', route: CM_PROTECTED_ROUTE.projects, Icon: ShieldCheck, tone: 'green', value: (b, f) => f.money(b.counters.protected_funds, b.counters.currency) },
+  { id: 'myOpenTasks', capability: 'task.read', route: CM_PROTECTED_ROUTE.tasks, Icon: ListTodo, tone: 'violet', value: (b, f) => f.number(b.counters.my_open_tasks) },
+  { id: 'marketplaceTasks', capability: 'task.browse', route: CM_PROTECTED_ROUTE.marketplace, Icon: Code2, tone: 'blue', value: (b, f) => f.number(b.counters.open_marketplace_tasks) },
+  { id: 'pendingReviews', capability: 'review.read', roles: ['reviewer'], route: CM_PROTECTED_ROUTE.reviews, Icon: ClipboardCheck, tone: 'amber', value: (b, f) => f.number(b.counters.pending_reviews) },
+  { id: 'walletBalance', capability: 'finance.read', route: CM_PROTECTED_ROUTE.wallet, Icon: WalletCards, tone: 'green', value: (b, f) => f.money(b.counters.wallet_balance, b.counters.currency) },
+  { id: 'unread', capability: 'notification.read', route: CM_PROTECTED_ROUTE.notifications, Icon: Bell, tone: 'amber', value: (b, f) => f.number(b.counters.unread_notifications) },
 ];
 
 interface CmPreviewRow {
@@ -189,21 +190,21 @@ const CmDashboardPage: React.FC = () => {
   const projectRows: CmPreviewRow[] = projects.items.map((project) => ({
     id: project.id,
     title: project.title,
-    to: `/codemart/projects/${project.id}`,
+    to: cmProjectPath(project.id),
     meta: project.budget ? format.money(project.budget, project.currency) : undefined,
     badge: <CmStatusBadge group="project" status={project.status} />,
   }));
   const taskRows: CmPreviewRow[] = tasks.items.map((task) => ({
     id: task.id,
     title: task.title,
-    to: `/codemart/tasks?task=${task.id}`,
+    to: cmTaskPath(task.id),
     meta: task.due_date ? t('tasks.due', { date: format.date(task.due_date) }) : undefined,
     badge: <CmStatusBadge group="task" status={task.status} />,
   }));
   const reviewRows: CmPreviewRow[] = reviews.items.map((submission) => ({
     id: submission.id,
     title: submission.task?.title ?? t('reviews.submissionTitle', { id: submission.id }),
-    to: '/codemart/reviews',
+    to: CM_PROTECTED_ROUTE.reviews,
     meta: format.dateTime(submission.created_at),
     badge: <CmStatusBadge group="submission" status={submission.status} />,
   }));
@@ -275,19 +276,19 @@ const CmDashboardPage: React.FC = () => {
       <div className="cm-dashboard-columns">
         <div className="cm-dashboard-columns__main">
           {showProjects && (
-            <CmPreviewList titleKey="dashboard.activeProjectsTitle" allRoute="/codemart/projects" emptyKey="dashboard.noActiveProjects" loading={projects.loading} error={projects.error} rows={projectRows} onRetry={() => void projects.reload()} />
+            <CmPreviewList titleKey="dashboard.activeProjectsTitle" allRoute={CM_PROTECTED_ROUTE.projects} emptyKey="dashboard.noActiveProjects" loading={projects.loading} error={projects.error} rows={projectRows} onRetry={() => void projects.reload()} />
           )}
           {showTasks && (
-            <CmPreviewList titleKey="dashboard.activeTasksTitle" allRoute="/codemart/tasks" emptyKey="dashboard.noActiveTasks" loading={tasks.loading} error={tasks.error} rows={taskRows} onRetry={() => void tasks.reload()} />
+            <CmPreviewList titleKey="dashboard.activeTasksTitle" allRoute={CM_PROTECTED_ROUTE.tasks} emptyKey="dashboard.noActiveTasks" loading={tasks.loading} error={tasks.error} rows={taskRows} onRetry={() => void tasks.reload()} />
           )}
           {showReviews && (
-            <CmPreviewList titleKey="dashboard.reviewQueueTitle" allRoute="/codemart/reviews" emptyKey="dashboard.noReviews" loading={reviews.loading} error={reviews.error} rows={reviewRows} onRetry={() => void reviews.reload()} />
+            <CmPreviewList titleKey="dashboard.reviewQueueTitle" allRoute={CM_PROTECTED_ROUTE.reviews} emptyKey="dashboard.noReviews" loading={reviews.loading} error={reviews.error} rows={reviewRows} onRetry={() => void reviews.reload()} />
           )}
           {!showProjects && !showTasks && !showReviews && (
             <CmEmptyState
               title={t('dashboard.noWorkTitle')}
               body={t('dashboard.noWorkBody')}
-              action={<Link to="/codemart/verification" className="cm-workspace-button is-primary">{t('dashboard.openVerification')}</Link>}
+              action={<Link to={CM_PROTECTED_ROUTE.verification} className="cm-workspace-button is-primary">{t('dashboard.openVerification')}</Link>}
             />
           )}
         </div>
@@ -295,7 +296,7 @@ const CmDashboardPage: React.FC = () => {
           <section className="cm-panel cm-dashboard-columns__side">
             <header className="cm-panel__header">
               <h2>{t('dashboard.notificationsTitle')}</h2>
-              <Link to="/codemart/notifications" className="cm-workspace-link">{t('dashboard.viewAll')} <ArrowRight aria-hidden="true" /></Link>
+              <Link to={CM_PROTECTED_ROUTE.notifications} className="cm-workspace-link">{t('dashboard.viewAll')} <ArrowRight aria-hidden="true" /></Link>
             </header>
             {notifications.loading ? (
               <CmLoadingState compact />
@@ -307,7 +308,7 @@ const CmDashboardPage: React.FC = () => {
               <ul className="cm-preview-list">
                 {notifications.items.map((item) => {
                   const params = cmNotificationParams(t, item);
-                  const link = cmNotificationLink(item) ?? '/codemart/notifications';
+                  const link = cmNotificationLink(item) ?? CM_PROTECTED_ROUTE.notifications;
                   return (
                     <li key={item.id} className={item.read ? '' : 'is-unread'}>
                       <Link to={link}>
@@ -329,15 +330,15 @@ const CmDashboardPage: React.FC = () => {
 const CmDashboardPrimaryAction: React.FC<{ hasCapability: (capability: string | null) => boolean }> = ({ hasCapability }) => {
   const { t } = useTranslation('cm');
   if (hasCapability('project.create')) {
-    return <Link to="/codemart/projects/new" className="cm-workspace-button is-primary"><FilePlus2 aria-hidden="true" /> {t('dashboard.createProject')}</Link>;
+    return <Link to={CM_PROTECTED_ROUTE.projectCreate} className="cm-workspace-button is-primary"><FilePlus2 aria-hidden="true" /> {t('dashboard.createProject')}</Link>;
   }
   if (hasCapability('task.browse')) {
-    return <Link to="/codemart/marketplace" className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('dashboard.browseMarketplace')}</Link>;
+    return <Link to={CM_PROTECTED_ROUTE.marketplace} className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('dashboard.browseMarketplace')}</Link>;
   }
   if (hasCapability('review.read')) {
-    return <Link to="/codemart/reviews" className="cm-workspace-button is-primary"><ClipboardCheck aria-hidden="true" /> {t('dashboard.openReviews')}</Link>;
+    return <Link to={CM_PROTECTED_ROUTE.reviews} className="cm-workspace-button is-primary"><ClipboardCheck aria-hidden="true" /> {t('dashboard.openReviews')}</Link>;
   }
-  return <Link to="/codemart/verification" className="cm-workspace-button is-primary"><ShieldCheck aria-hidden="true" /> {t('dashboard.openVerification')}</Link>;
+  return <Link to={CM_PROTECTED_ROUTE.verification} className="cm-workspace-button is-primary"><ShieldCheck aria-hidden="true" /> {t('dashboard.openVerification')}</Link>;
 };
 
 export default CmDashboardPage;

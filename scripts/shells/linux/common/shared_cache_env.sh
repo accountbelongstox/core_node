@@ -33,13 +33,17 @@ __scc_candidate=""
 CN_TREE_MNT=""
 CN_TREE_BACKING=""
 CN_TREE_CACHE_ROOT=""
-BUN_INSTALL_CACHE_DIR=""
-npm_config_cache=""
-UV_CACHE_DIR=""
-COMPOSER_CACHE_DIR=""
-COREPACK_HOME=""
 __scc_sc_common=""
 __scc_tree_fstype=""
+__scc_cache_template=""
+__scc_tree_root_selected=""
+# NOTE: BUN_INSTALL_CACHE_DIR / npm_config_cache / UV_CACHE_DIR /
+# COMPOSER_CACHE_DIR / COREPACK_HOME are intentionally NOT pre-declared here --
+# same pattern as HF_HOME/TORCH_HOME/XDG_CACHE_HOME further below. The
+# "${VAR:=...}" wiring in __scc_wire_tool_cache must see a caller's already-
+# exported value, if any; a "VAR=\"\"" declaration here would reset it to
+# empty first and make ":=" always overwrite it, silently defeating an
+# explicit override (e.g. UV_CACHE_DIR=/fast/uv ./dd.sh).
 
 if [ -z "${IS_HEADLESS_SERVER+x}" ] || [ -z "${CORE_NODE_DATA_DIR:-}" ] || [ -z "${CORE_NODE_WWW_BASE:-}" ]; then
     source "$SHARED_CACHE_RUNTIME_ENV"

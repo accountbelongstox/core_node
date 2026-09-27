@@ -38,8 +38,8 @@ class AppQyV1TtsVariantSpecModel extends AppQyV1Model
      * Canonical table structure — the single source of truth shared by the
      * create migration (AppQyV1_2026_07_13_000002) and the per-sys:init
      * alignment in seedDefaults(). The UNIQUE (lang, variant_key) index is
-     * REQUIRED: seedDefaults() upserts ON CONFLICT (lang, variant_key), which
-     * PostgreSQL rejects (42P10) without a matching unique/exclusion constraint.
+     * REQUIRED: seedDefaults() inserts ON CONFLICT DO NOTHING, which only
+     * deduplicates concurrent seeds when (lang, variant_key) is unique.
      */
     public static function tableStructure(): array
     {
@@ -86,48 +86,49 @@ class AppQyV1TtsVariantSpecModel extends AppQyV1Model
     ];
 
     /**
-     * Idempotent upsert of the canonical default variant specs. Safe to re-run;
-     * never deletes operator-added specs, only inserts/updates the defaults.
+     * Ensure-only seed: inserts the default (lang, variant_key) specs that are
+     * missing (ON CONFLICT DO NOTHING, backed by the
+     * uniq_tts_variant_spec_lang_key UNIQUE index). Existing rows keep every
+     * operator-chosen value (accent, gender, is_primary); operator-added specs
+     * are never touched. A missing default primary is inserted as non-primary
+     * when its language already has a primary spec (one primary per language).
      *
-     * @return array{seeded:int, updated:int}
+     * @return array{seeded:int, updated:int} updated is always 0
      */
     public static function seedDefaults(): array
     {
-        // Align the table first: the upsert below infers ON CONFLICT
-        // (lang, variant_key) from the UNIQUE index, so the structure must be
-        // guaranteed here. The create migration runs only once; this idempotent
-        // alignment re-runs at every sys:init and reconciles drifted indexes.
+        // Align the table first: concurrent seeds rely on the UNIQUE index to
+        // ignore duplicates. The create migration runs only once; this
+        // idempotent alignment re-runs at every sys:init and reconciles any
+        // drifted (e.g. non-unique) index.
         static::ensureTableAligned(static::tableStructure());
 
-        $seeded = 0;
-        $updated = 0;
-        $languages = array_values(array_unique(array_column(self::DEFAULT_SPECS, 'lang')));
         $existing = self::query()
-            ->whereIn('lang', $languages)
-            ->get(['lang', 'variant_key', 'accent', 'gender', 'is_primary'])
-            ->keyBy(static fn (self $row): string => $row->lang . "\0" . $row->variant_key);
+            ->whereIn('lang', array_values(array_unique(array_column(self::DEFAULT_SPECS, 'lang'))))
+            ->get(['lang', 'variant_key', 'is_primary']);
+        $present = $existing
+            ->map(static fn (self $row): string => $row->lang . "\0" . $row->variant_key)
+            ->all();
+        $primaryLanguages = $existing
+            ->filter(static fn (self $row): bool => (bool) $row->is_primary)
+            ->pluck('lang')
+            ->all();
+        $now = now();
+        $missing = [];
 
         foreach (self::DEFAULT_SPECS as $definition) {
-            $row = $existing->get($definition['lang'] . "\0" . $definition['variant_key']);
-            if ($row === null) {
-                $seeded++;
+            if (in_array($definition['lang'] . "\0" . $definition['variant_key'], $present, true)) {
                 continue;
             }
-
-            if ($row->accent !== $definition['accent']
-                || $row->gender !== $definition['gender']
-                || (bool) $row->is_primary !== $definition['is_primary']) {
-                $updated++;
-            }
+            $definition['is_primary'] = $definition['is_primary']
+                && !in_array($definition['lang'], $primaryLanguages, true);
+            $missing[] = $definition + ['created_at' => $now, 'updated_at' => $now];
         }
 
-        self::query()->upsert(
-            self::DEFAULT_SPECS,
-            ['lang', 'variant_key'],
-            ['accent', 'gender', 'is_primary']
-        );
-
-        return ['seeded' => $seeded, 'updated' => $updated];
+        return [
+            'seeded' => $missing === [] ? 0 : (int) self::query()->insertOrIgnore($missing),
+            'updated' => 0,
+        ];
     }
 
     /**

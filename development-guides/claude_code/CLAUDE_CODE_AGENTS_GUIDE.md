@@ -138,6 +138,10 @@ Boundaries:
   - every catalog kickoff repeats the rule;
   - when a choice comes up, the session takes the recommended option and records the choice and the reason: the orchestrator in docs_fix, a role in its report.
 - B10 **UI role names** (user, 2026-09-27). The five Web UI roles carry the `ui-` prefix: `ui-laravel-manager`, `ui-pycore-manager`, `ui-wordnew`, `ui-codemart`, `ui-vortex`. `flutter` and `mcp-chrome` keep their names.
+- B15 **Linux shell rules** (user D24, 2026-09-27): `development-guides/LINUX_SHELL_RULES.md` supplements the shell guide for every Linux script and Linux path computation.
+  - The Linux constants library defines each constant once.
+  - An NTFS mount holds source code and the data both OSes share (D26: the shared data dir D:/www/core_node = /www/www/core_node). No install paths, caches, build or temp directories, node_modules/vendor/.venv, or Linux-only service state (`service_contract.json#paths.linux_ntfs_policy`).
+  - No recycle bin on an NTFS mount (D25): scripts never trash there, the mount setup blocks per-volume trash idempotently, and emptying an existing trash needs the user.
 - B13 (superseded by B14) **Role families**: the laravel/pycore coordinator families of D16.
 - B14 **Groups and leaders** (user D22, 2026-09-27).
   - Every group has one leader. The claude lead (orchestrator) gives each group its tasks through the leader. The leader splits them over its members by the path map, one writer per path, then checks each member task and writes its verdict.

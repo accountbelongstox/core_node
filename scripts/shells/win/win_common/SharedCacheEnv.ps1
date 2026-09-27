@@ -6,20 +6,24 @@
 # sets HF_HOME / HF_HUB_CACHE / TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME env vars.
 # Does NOT set deprecated TRANSFORMERS_CACHE (transformers v5 uses HF_HOME only).
 #
-# P2 dual-boot drive layout (docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
-# sections 3.1/3.3): declares the Windows 3-drive constants (system/data/program) read
-# from config/service_contract.json paths.drive_layout. Detection/computation only at
-# load time -- never creates directories or writes anything on the program drive here;
-# first-adoption (writing the E: marker) is a separate installer-only helper below.
+# Declares the Windows 3-drive constants (system/data/program), read from
+# config/service_contract.json paths.drive_layout. Detection/computation only
+# at load time -- never creates directories or writes anything on the program
+# drive here; first-adoption (writing the E: marker) is a separate
+# installer-only helper below.
 
 $__sccServiceContractPath = Join-Path $PSScriptRoot 'ServiceContract.ps1'
-. $__sccServiceContractPath
+
+# Referenced by functions below that installers may call long after this
+# file's own load-time temp variables (the "__scc*" ones) are removed, so it
+# is a Global constant rather than one of those temp variables.
+$Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME = '.cn_volume'
 
 # Mirrors the system-name branches GlobalVars.ps1 computes inline for
 # $Global:LANG_COMPILER_DIR ("win11"/"win10"/"win_8"/"win_7"/"win" from
 # Win32_OperatingSystem). Duplicated here (same CIM source, same thresholds)
-# only because GlobalVars.ps1 dot-sources this file before it computes its own
-# value, so CN_TOOL_ROOT cannot read it back from there. Do not edit GlobalVars.ps1.
+# because this file is loaded before GlobalVars.ps1 computes its own value,
+# so CN_TOOL_ROOT cannot read it back from there.
 function Get-CnWindowsSystemName {
     $cnSystemName = 'win'
     try {
@@ -91,10 +95,20 @@ function Get-CnProgramDrivePartitionGuid {
         [string]$DriveLetter
     )
 
+    # Normalized (lowercase, no braces) so it matches both the Linux
+    # PARTUUID form and whatever this same function returns on a later call;
+    # the marker file and the live value it is compared against therefore
+    # always share one format. MSFT_Partition.Guid is NULL for a non-GPT
+    # (MBR) disk and this returns '' in that case, same as on any other
+    # failure (including a non-elevated caller, which the Storage CIM
+    # provider always refuses).
     $cnPartitionGuid = ''
     try {
         $cnPartition = Get-Partition -DriveLetter $DriveLetter -ErrorAction Stop
-        $cnPartitionGuid = [string]$cnPartition.Guid
+        $cnRawPartitionGuid = [string]$cnPartition.Guid
+        if ($cnRawPartitionGuid) {
+            $cnPartitionGuid = $cnRawPartitionGuid.Trim('{', '}').ToLowerInvariant()
+        }
     }
     catch {
         $cnPartitionGuid = ''
@@ -109,6 +123,14 @@ function Get-CnProgramDrivePartitionGuid {
 # A qualifying drive with no marker yet is the first-adoption case (still
 # qualifies here; Register-CnProgramDriveAdoption below writes the marker
 # later, from an installer, never from this load-time check).
+#
+# Get-Partition needs an elevated token: the Storage CIM provider denies a
+# standard one and Get-CnProgramDrivePartitionGuid then returns ''. When the
+# marker already exists, that empty result is treated as "cannot verify", not
+# "disqualified" -- an admin and a non-admin process must agree on the
+# program root once E: has already been adopted. Only an elevated caller can
+# still catch a swapped disk this way; a bare drive with no marker yet still
+# needs a real GUID to be treated as adoptable.
 function Test-CnProgramDriveQualifies {
     param(
         [Parameter(Mandatory = $true)]
@@ -135,13 +157,15 @@ function Test-CnProgramDriveQualifies {
         return $false
     }
 
+    $cnMarkerPath = Join-Path (Join-Path $DriveRoot $TreeSubdir) $Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME
+    $cnMarkerExists = Test-Path -LiteralPath $cnMarkerPath -PathType Leaf
     $cnPartitionGuid = Get-CnProgramDrivePartitionGuid -DriveLetter $DriveLetter
-    if (-not $cnPartitionGuid) {
-        return $false
+
+    if (-not $cnMarkerExists) {
+        return [bool]$cnPartitionGuid
     }
 
-    $cnMarkerPath = Join-Path (Join-Path $DriveRoot $TreeSubdir) '.cn_volume'
-    if (-not (Test-Path -LiteralPath $cnMarkerPath -PathType Leaf)) {
+    if (-not $cnPartitionGuid) {
         return $true
     }
 
@@ -171,7 +195,7 @@ function Register-CnProgramDriveAdoption {
 
     $cnPartitionGuid = Get-CnProgramDrivePartitionGuid -DriveLetter $DriveLetter
     if (-not $cnPartitionGuid) {
-        throw "Cannot resolve the partition GUID for drive letter $DriveLetter to adopt it as the program drive."
+        throw "Cannot resolve a GPT partition GUID for drive letter ${DriveLetter}: adopting it as the program drive requires a GPT-partitioned NTFS or ReFS volume (an MBR disk reports no partition GUID), and reading it also requires an elevated process."
     }
 
     $cnTreeSubdirPath = Join-Path $DriveRoot $TreeSubdir
@@ -179,8 +203,19 @@ function Register-CnProgramDriveAdoption {
         New-Item -ItemType Directory -Path $cnTreeSubdirPath -Force | Out-Null
     }
 
-    $cnMarkerPath = Join-Path $cnTreeSubdirPath '.cn_volume'
-    Set-Content -LiteralPath $cnMarkerPath -Value $cnPartitionGuid -Encoding ascii -NoNewline
+    $cnMarkerPath = Join-Path $cnTreeSubdirPath $Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME
+    $cnExistingMarkerContent = ''
+    if (Test-Path -LiteralPath $cnMarkerPath -PathType Leaf) {
+        try {
+            $cnExistingMarkerContent = (Get-Content -LiteralPath $cnMarkerPath -Raw -ErrorAction Stop).Trim()
+        }
+        catch {
+            $cnExistingMarkerContent = ''
+        }
+    }
+    if ($cnExistingMarkerContent -ne $cnPartitionGuid) {
+        Set-Content -LiteralPath $cnMarkerPath -Value $cnPartitionGuid -Encoding ascii -NoNewline
+    }
 
     return $cnPartitionGuid
 }
@@ -202,19 +237,44 @@ function Write-ProgramDriveFallbackWarning {
         return
     }
 
-    Write-Warning ("Program drive E: not found; using the original location {0}" -f $Global:WINDOWS_PROGRAM_DRIVE_ROOT)
+    Write-Warning ("Program drive {0} not available; using the original location {1}" -f $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL, $Global:WINDOWS_PROGRAM_DRIVE_ROOT)
     $Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED = $true
 }
+
+# ServiceContract.ps1 sets $script:ServiceContractPath (and other script-scope
+# state) when dot-sourced. Dot-sourcing merges scope, so this whole call chain
+# (e.g. SecretManager.ps1 -> GlobalVars.ps1 -> SharedCacheEnv.ps1 ->
+# ServiceContract.ps1) can share one script scope; dot-sourcing it directly
+# here would then overwrite a same-named variable further up that chain
+# (PowerShell variable names are case-insensitive) with the JSON config path
+# instead of the ServiceContract.ps1 script path. Load it inside a private
+# dynamic module instead: the module keeps its own script scope, and only its
+# functions -- never its internal variables -- are imported into the caller's
+# scope.
+$__sccServiceContractModule = New-Module -ScriptBlock {
+    param($ContractScriptPath)
+    . $ContractScriptPath
+} -ArgumentList $__sccServiceContractPath
+Import-Module $__sccServiceContractModule -Global -Force
 
 $__sccContractDataDriveRoot = [string](Get-ServiceContractValue -ContractPath 'paths.windows_data_drive_root')
 $__sccProgramDrivePrimary = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_primary')
 $__sccProgramDriveFallback = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_fallback')
 $__sccTreeSubdir = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_subdir')
 $__sccTreeRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_root.windows')
+$__sccTreeCacheRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_cache_root')
 $__sccToolRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tool_root.windows')
 $__sccToolchainEnvTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.toolchain_env_file.windows')
+$Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL = $__sccProgramDrivePrimary
 
-$Global:WINDOWS_SYSTEM_DRIVE_ROOT = Get-CnDriveRoot -DriveSpec $env:SystemDrive
+# [Environment]::SystemDirectory (e.g. C:\Windows\System32) does not depend on
+# any environment variable, unlike $env:SystemDrive, which a caller that
+# starts this process with a hand-built environment block may have omitted.
+$__sccSystemDriveSpec = $env:SystemDrive
+if (-not $__sccSystemDriveSpec) {
+    $__sccSystemDriveSpec = [System.IO.Path]::GetPathRoot([Environment]::SystemDirectory)
+}
+$Global:WINDOWS_SYSTEM_DRIVE_ROOT = Get-CnDriveRoot -DriveSpec $__sccSystemDriveSpec
 $Global:WINDOWS_DATA_DRIVE_ROOT = Get-CnDriveRoot -DriveSpec $__sccContractDataDriveRoot
 
 $__sccProgramDrivePrimaryRoot = Get-CnDriveRoot -DriveSpec $__sccProgramDrivePrimary
@@ -235,7 +295,7 @@ else {
 $__sccSystemName = Get-CnWindowsSystemName
 
 $Global:CN_TREE_ROOT = Resolve-CnDriveLayoutPath -Template $__sccTreeRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter }
-$Global:CN_TREE_CACHE_ROOT = Join-Path $Global:CN_TREE_ROOT 'cache'
+$Global:CN_TREE_CACHE_ROOT = Resolve-CnDriveLayoutPath -Template $__sccTreeCacheRootTemplate -Replacements @{ '<tree_root>' = $Global:CN_TREE_ROOT }
 $Global:CN_TOOL_ROOT = Resolve-CnDriveLayoutPath -Template $__sccToolRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter; '<sys>' = $__sccSystemName }
 $Global:CN_TOOLCHAIN_ENV_FILE = Resolve-CnDriveLayoutPath -Template $__sccToolchainEnvTemplate -Replacements @{ '<tool_root>' = $Global:CN_TOOL_ROOT }
 
@@ -390,7 +450,8 @@ function Ensure-PipCacheDirConfigured {
 }
 
 Remove-Variable -Name __sccSubDirs, __sccDir, __sccPath, __sccHfHubCache, __sccLegacyResolved, __sccHubResolved, `
-    __sccServiceContractPath, __sccContractDataDriveRoot, __sccProgramDrivePrimary, __sccProgramDriveFallback, `
-    __sccTreeSubdir, __sccTreeRootTemplate, __sccToolRootTemplate, __sccToolchainEnvTemplate, `
+    __sccServiceContractPath, __sccServiceContractModule, __sccContractDataDriveRoot, __sccProgramDrivePrimary, `
+    __sccProgramDriveFallback, __sccTreeSubdir, __sccTreeRootTemplate, __sccTreeCacheRootTemplate, `
+    __sccToolRootTemplate, __sccToolchainEnvTemplate, __sccSystemDriveSpec, `
     __sccProgramDrivePrimaryRoot, __sccProgramDriveFallbackRoot, __sccProgramDriveQualifies, `
     __sccEffectiveProgramDriveLetter, __sccSystemName -ErrorAction SilentlyContinue

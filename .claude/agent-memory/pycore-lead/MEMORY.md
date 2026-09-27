@@ -1,3 +1,2 @@
 - [Line endings](feedback_line_endings.md) — keep per-line CRLF/LF in pycore; reviewer rejects EOL churn; how to verify and restore
-- [pycore pitfalls](project_pycore_pitfalls.md) — serialized-call guard deadlock, engine-test settings via ContextVar, contract-owned policies, X4 md5 threading, static checks, route-registration auto-resume, merge scope
-- [pycore pitfalls](project_pycore_pitfalls.md) — serialized-call guard deadlock, engine-test settings via ContextVar, contract-owned policies, static check recipe
+- [pycore pitfalls](project_pycore_pitfalls.md) — READ BEFORE ANY CHECK: never call register_http_routes (auto-resumes orchestration); serialized-call guard deadlock, ContextVar engine settings, contract-owned policies, X4 md5 threading, static checks, merge scope

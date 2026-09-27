@@ -27,20 +27,21 @@ import { CmBootstrapRefreshNotice } from '../components/access/CmBootstrapRefres
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmChromeControls } from '../components/CmChromeControls';
 import { CmBrand } from '../components/CmBrand';
+import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 
 const ADMIN_NAV = [
-  { id: 'overview', path: '/codemart/admin', labelKey: 'admin.nav.overview', Icon: LayoutDashboard, end: true },
-  { id: 'users', path: '/codemart/admin/users', labelKey: 'admin.nav.users', Icon: Users, end: false },
-  { id: 'kyc', path: '/codemart/admin/kyc', labelKey: 'admin.nav.kyc', Icon: ShieldCheck, end: false },
-  { id: 'deposits', path: '/codemart/admin/deposits', labelKey: 'admin.nav.deposits', Icon: WalletCards, end: false },
-  { id: 'refunds', path: '/codemart/admin/refunds', labelKey: 'admin.nav.refunds', Icon: RotateCcw, end: false },
-  { id: 'withdrawals', path: '/codemart/admin/withdrawals', labelKey: 'admin.nav.withdrawals', Icon: Banknote, end: false },
-  { id: 'payments', path: '/codemart/admin/payments', labelKey: 'admin.nav.payments', Icon: CreditCard, end: false },
-  { id: 'projects', path: '/codemart/admin/projects', labelKey: 'admin.nav.projects', Icon: BriefcaseBusiness, end: false },
-  { id: 'testimonials', path: '/codemart/admin/testimonials', labelKey: 'admin.nav.testimonials', Icon: MessageSquareQuote, end: false },
-  { id: 'reviewers', path: '/codemart/admin/reviewer-applications', labelKey: 'admin.nav.reviewers', Icon: BadgeCheck, end: false },
-  { id: 'contact', path: '/codemart/admin/contact-messages', labelKey: 'admin.nav.contact', Icon: Inbox, end: false },
-  { id: 'activity', path: '/codemart/admin/activity', labelKey: 'admin.nav.activity', Icon: History, end: false },
+  { id: 'overview', path: CM_ADMIN_ROUTE.home, labelKey: 'admin.nav.overview', Icon: LayoutDashboard, end: true },
+  { id: 'users', path: CM_ADMIN_ROUTE.users, labelKey: 'admin.nav.users', Icon: Users, end: false },
+  { id: 'kyc', path: CM_ADMIN_ROUTE.kyc, labelKey: 'admin.nav.kyc', Icon: ShieldCheck, end: false },
+  { id: 'deposits', path: CM_ADMIN_ROUTE.deposits, labelKey: 'admin.nav.deposits', Icon: WalletCards, end: false },
+  { id: 'refunds', path: CM_ADMIN_ROUTE.refunds, labelKey: 'admin.nav.refunds', Icon: RotateCcw, end: false },
+  { id: 'withdrawals', path: CM_ADMIN_ROUTE.withdrawals, labelKey: 'admin.nav.withdrawals', Icon: Banknote, end: false },
+  { id: 'payments', path: CM_ADMIN_ROUTE.payments, labelKey: 'admin.nav.payments', Icon: CreditCard, end: false },
+  { id: 'projects', path: CM_ADMIN_ROUTE.projects, labelKey: 'admin.nav.projects', Icon: BriefcaseBusiness, end: false },
+  { id: 'testimonials', path: CM_ADMIN_ROUTE.testimonials, labelKey: 'admin.nav.testimonials', Icon: MessageSquareQuote, end: false },
+  { id: 'reviewers', path: CM_ADMIN_ROUTE.reviewerApplications, labelKey: 'admin.nav.reviewers', Icon: BadgeCheck, end: false },
+  { id: 'contact', path: CM_ADMIN_ROUTE.contactMessages, labelKey: 'admin.nav.contact', Icon: Inbox, end: false },
+  { id: 'activity', path: CM_ADMIN_ROUTE.activity, labelKey: 'admin.nav.activity', Icon: History, end: false },
 ] as const;
 
 /**
@@ -68,7 +69,7 @@ export const CmAdminLayout: React.FC = () => {
         bodyKey={bootstrap ? 'admin.forbiddenBody' : 'admin.accessUnavailableBody'}
         hints={bootstrap ? [t('access.denied.hint')] : []}
         onRetry={bootstrap ? undefined : () => void refresh()}
-        back={{ to: '/codemart/dashboard', label: t('admin.backToWorkspace') }}
+        back={{ to: CM_PROTECTED_ROUTE.dashboard, label: t('admin.backToWorkspace') }}
       />
     );
   }
@@ -76,7 +77,7 @@ export const CmAdminLayout: React.FC = () => {
   return (
     <div className="cm-workspace cm-admin" data-end="codemart">
       <header className="cm-workspace-mobile-header">
-        <Link to="/codemart/admin"><CmBrand compact /></Link>
+        <Link to={CM_ADMIN_ROUTE.home}><CmBrand compact /></Link>
         <div className="cm-workspace-mobile-header__controls">
           <CmChromeControls />
           <button
@@ -90,7 +91,7 @@ export const CmAdminLayout: React.FC = () => {
         </div>
       </header>
       <aside className={`cm-workspace-sidebar ${menuOpen ? 'is-open' : ''}`}>
-        <Link to="/codemart/admin" className="cm-workspace-sidebar__brand" onClick={() => setMenuOpen(false)}>
+        <Link to={CM_ADMIN_ROUTE.home} className="cm-workspace-sidebar__brand" onClick={() => setMenuOpen(false)}>
           <CmBrand />
           <span className="cm-admin-badge">{t('admin.badge')}</span>
         </Link>
@@ -113,7 +114,7 @@ export const CmAdminLayout: React.FC = () => {
             })}
           </div>
           <div className="cm-workspace-nav__account">
-            <Link to="/codemart/dashboard" className="cm-workspace-nav__link" onClick={() => setMenuOpen(false)}>
+            <Link to={CM_PROTECTED_ROUTE.dashboard} className="cm-workspace-nav__link" onClick={() => setMenuOpen(false)}>
               <ArrowLeft aria-hidden="true" />
               <span>{t('admin.backToWorkspace')}</span>
             </Link>

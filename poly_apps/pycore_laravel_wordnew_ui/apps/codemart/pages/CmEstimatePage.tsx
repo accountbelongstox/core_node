@@ -254,7 +254,7 @@ export const CmEstimatePage: React.FC = () => {
             )}
           </div>
           <aside className="cm-estimate-aside">
-            <CmPublicIllustration name="estimate-calculator" altKey="estimate.imageAlt" eager />
+            <CmPublicIllustration name="estimate-calculator" />
             <h2>{t('estimate.how.title')}</h2>
             <ol>
               {ESTIMATE_HOW_STEPS.map((step) => (

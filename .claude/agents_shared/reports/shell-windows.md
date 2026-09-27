@@ -4,6 +4,8 @@
 |---|---|---|
 | shell-windows-2 | D12a desktop icon organizer: scan, upgrade, real run, idempotency, undo | review round 1 fixed (2 blocking + 3 non-blocking in scope), awaiting reviewer |
 | shell-windows-3 | D12b Windows side: WSL2 + Debian 13 ensure, Docker model runner delegation, Step55/56 wiring | done, awaiting reviewer; model runs wait for shell-linux's runner |
+| shell-windows-9 | Windows FrankenPHP bugs found bringing up local Laravel (merged route braces, no PHP extensions, no skip_install_trust, LAN ACME retries) | done, awaiting reviewer |
+| p2-windows | Dual-boot P2: adjudicated 15 review findings on `SharedCacheEnv.ps1`'s Windows 3-drive layout constants (7 fixed, rest rejected/deferred with reasons) | done, awaiting reviewer |
 
 ## shell-windows-2: D12a desktop icon organizer
 
@@ -211,3 +213,111 @@ Blockers: none. Next owner: reviewer (shell-windows-2 review), then shell-linux 
   - Step52 and Step54 still `exit 1` in their docker branch;
   - the saved `TTS_FISHSPEECH_INSTALL_METHOD=native` keeps Step56 on native until `TTS_METHOD=docker` or `TTS_METHOD_RESELECT=1`.
 - Next owner: reviewer (shell-windows-3), then shell-linux (alignment), then the one-at-a-time model-run task.
+
+## shell-windows-9: Windows FrankenPHP generator bugs (from the D7 local Laravel bring-up)
+
+Source: `.claude/agents_shared/d7/laravel_local.md` blockers/`for shell-windows` section. All four defects fixed in `scripts/shells/win/win_common/FrankenPhpManager.ps1`. The live D7 instance and its config (`D:\www\frankenphp\**`, `D:\www\core_node\global_var\web_access_config.json`, `poly_apps/laravel_main/storage/frankenphp/**`) were never touched: verification ran the generator functions against script-scope path variables redirected to a scratch directory (dot-source the manager, then reassign `$script:FrankenPhp*` output paths before calling the `Ensure-*` functions), confirmed by comparing file mtimes before/after (all predate this session).
+
+### (a) Merged route-file closing brace (`Step175` invalid config)
+
+`Ensure-FrankenPhpLanLocalRoute` and `Ensure-FrankenPhpDomainRoutes` built each site block as `` "...{\n$tlsLine$apiHandlers}\n..." ``: `$apiHandlers`/`$uiHandlers` (from `Get-FrankenPhpReverseProxyHandlers`) already end in `\t}` with no trailing newline, so the literal `}` appended right after collapsed the two closing braces onto one line (`\t}}`), which `frankenphp validate` rejects with "unexpected EOF". Fixed by moving the trailing `}` onto its own line in all four site templates (LAN ts.net site, LAN mkcert site, per-domain API site, per-domain UI site).
+
+Verified two ways in a scratch dir:
+- Negative control: reproduced the exact pre-fix template (`\t}\n}` collapsed to `\t}}`) for a real generated `12gm.com.caddy` and ran `frankenphp validate` against it - it failed with `Error: adapting config using caddyfile: unexpected EOF, at ...\routes_broken\local_lan.caddy:27`, matching the D7 evidence.
+- Positive: with the fixed generators, `frankenphp validate --config <scratch Caddyfile> --adapter caddyfile` returned exit 0 / "Valid configuration" for both the LAN-local route (real Tailscale ts.net + mkcert 127.0.0.1 certificate material already on this machine, read-only) and a per-domain route with a real tls line (see (d) below for how that path was exercised).
+
+### (b) Embedded PHP loads no extensions (Step96 / `Ensure-FrankenPhpPhpConfiguration`)
+
+The Windows FrankenPHP release is a bare static-PHP zip with no `php.ini` and no packaged extension enablement (unlike Linux, which installs `php-zts-*` apt packages that enable their own extensions - see Parity). `Ensure-FrankenPhpPhpConfiguration` now writes, from one list (`$script:FrankenPhpRequiredExtensions` at the file top): `extension_dir = "<payload>\bin\ext"` plus one `extension=<name>` line per name in `pdo_pgsql pgsql mbstring openssl intl gd zip bcmath curl fileinfo sodium` that actually has a `php_<name>.dll` in the payload (`extension_dir` and the whole list are omitted while the payload is not installed yet). `bcmath` has no DLL in this FrankenPHP build - it is compiled into core - so the presence filter skips it automatically with no special-casing; `php -m` already lists it without any ini entry. This reuses the exact extension set the D7 hand-written `D:\www\frankenphp\php-conf.d\50-d7-local-extensions.ini` (made by hand, not by this generator) had already proven necessary, minus the dev-only extras that ini also carried (bz2, exif, mysqli, pdo_mysql, pdo_sqlite, sqlite3) that Laravel does not need.
+
+Verified in a scratch conf.d dir: `Ensure-FrankenPhpPhpConfiguration` is idempotent (identical content, unchanged, on a second run); `php.exe -m` with `PHP_INI_SCAN_DIR` pointed at the generated file loads exactly `pdo_pgsql pgsql mbstring openssl intl gd zip curl fileinfo sodium` (plus the always-present `bcmath`) with 0 warnings.
+
+### (c) Caddyfile missing `skip_install_trust`
+
+Added `skip_install_trust` to `Ensure-FrankenPhpCaddyfile`'s global options block, so Caddy never attempts to install its own CA into the OS trust store. Confirmed present in the generated scratch Caddyfile and that `frankenphp validate` still passes with it.
+
+### (d) LAN host: production domain routes with no tls line kept retrying ACME
+
+Recommended option taken (recorded here per the no-questions rule): **emit the per-domain route files only when this host is the production host**, not "give them `tls internal`" - the LAN-local route (`Ensure-FrankenPhpLanLocalRoute`, mkcert 127.0.0.1 / Tailscale ts.net) already is this host's local HTTPS entry point, so a second, internal-CA-backed way to reach the same backend under the public domain names would be redundant complexity with no real benefit (nobody browses 12gm.com from a LAN box that isn't the production host). `Ensure-FrankenPhpDomainRoutes` now skips its per-domain generation loop when `Test-FrankenPhpLanOnlyHost` (the existing host/role detection, already used by `Step175_LaravelMainStart.ps1` for the same LAN/production split) returns true; `Get-FrankenPhpExpectedRoutePaths` was updated the same way so `Remove-FrankenPhpStaleDomainRoutes` / `Test-FrankenPhpDomainRoutesReady` clean up any leftover per-domain files if a host stops being production. `Step175_LaravelMainStart.ps1` itself (the LE_PROD ACME ordering) is explicitly out of scope for this task and untouched.
+
+Verified in a scratch dir: pass 1 (real detection on this LAN dev machine) generated zero per-domain files (only `local_lan.caddy`) and the Caddyfile still validated; pass 2 (`Test-FrankenPhpLanOnlyHost` monkey-patched in-process to return `$false`, to exercise the code path without a real production host) generated `12gm.com.caddy` / `gm15.com.caddy` with a real tls line (pointed at a copy of the local mkcert cert, only to make `frankenphp validate` load a real cert/key pair) and validated too.
+
+### Changed files
+
+- `scripts/shells/win/win_common/FrankenPhpManager.ps1`: `$script:FrankenPhpExtensionDirectory`, `$script:FrankenPhpRequiredExtensions` (new top-of-file vars); `Ensure-FrankenPhpPhpConfiguration`; `Ensure-FrankenPhpLanLocalRoute`; `Get-FrankenPhpExpectedRoutePaths`; `Ensure-FrankenPhpDomainRoutes`; `Ensure-FrankenPhpCaddyfile`.
+- `.claude/agents_shared/shell_parity/windows.md`: SPW-031..034.
+
+### Verification
+
+- PowerShell 5.1 parser (`[System.Management.Automation.Language.Parser]::ParseFile`) on the whole file: 0 errors.
+- `D:\www\frankenphp\bin\frankenphp.exe validate --config <scratch Caddyfile> --adapter caddyfile`: exit 0 / "Valid configuration", for the LAN-only pass, the forced-production pass, and (as a negative control) confirmed exit 1 / "unexpected EOF" for the pre-fix template.
+- `php.exe -m` against the generated scratch conf.d ini: exact expected extension list, 0 warnings.
+- Live D7 instance and its config untouched (mtimes all predate this session; every generator ran against scratch-redirected `$script:FrankenPhp*` path variables, never the real ones).
+- No git writes.
+
+### Parity
+
+- SPW-031 (brace fix): `platform-only` - the bug was purely in the Windows here-string template; `frankenphp_domain_common.sh::fm_domain_render_route` and `fm_domain_lan_site_render` already put the closing brace on its own line.
+- SPW-032 (PHP extensions ini): `platform-only` - Linux enables its extensions through `php-zts-*` apt packages (`frankenphp_install_modes.sh` `FRANKENPHP_APT_PACKAGES`); mbstring/curl/openssl/fileinfo/sodium are compiled into that static build already.
+- SPW-033 (`skip_install_trust`): `pending-linux`. **Alignment request for shell-linux** (no live `shell-linux` teammate/session was reachable from this run - `ListAgents` showed none - so recording it here for the orchestrator to open `[shell-linux] align: SPW-033 skip_install_trust`): add `skip_install_trust` to the global options block in `scripts/shells/linux/common/frankenphp_runtime_common.sh::fm_caddyfile_render` (around line 713-718, the `{ admin ... auto_https disable_redirects ... }` block), same as Windows.
+- SPW-034 (LAN ACME gating): `pending-linux`. **Alignment request for shell-linux** (same reachability note as above; `[shell-linux] align: SPW-034 LAN-only hosts skip production domain routes`): `scripts/shells/linux/common/frankenphp_domain_common.sh::fm_domain_render_route` / `fm_domain_enable_ui_binding` generate the same no-tls-line per-domain route files unconditionally (called from `scripts/shells/linux/debian/debian_com/175_laravel_main_start_frankenphp.sh:67` with no host-role check), so a Linux LAN/dev box hits the identical failing-ACME retry storm. Recommended fix: reuse `net_env_detect`'s `NET_ENV_IS_LAN` (`scripts/shells/linux/common/network_detect_common.sh`) to skip `fm_domain_ensure_route_file` per domain (and clean up stale per-domain files) exactly the way `Ensure-FrankenPhpDomainRoutes` now does, keeping the same "production host only" choice for parity rather than `tls internal`.
+
+### Blockers
+
+None for this task. SPW-033/034 need a `[shell-linux] align: ...]` task from the orchestrator (see Parity above) before they can move from `pending-linux` to `aligned`.
+
+### Next owner
+
+Reviewer (shell-windows-9), then shell-linux for the SPW-033/034 alignment tasks.
+
+## p2-windows: dual-boot drive layout P2, review-findings fix pass
+
+Task: adjudicate 15 review findings against the already-implemented Windows 3-drive layout constants in `scripts/shells/win/win_common/SharedCacheEnv.ps1` (the only fenced file for this lane; `GlobalVars.ps1` is owned by another lane), fix confirmed ones, reject the rest with reasons, run the allowed static checks.
+
+### Findings disposition
+
+1. **Get-Partition needs elevation** (line 96, high) -- CONFIRMED (documented Storage-module behavior: `Get-Partition`/`Get-Disk` require an elevated token, `Get-Volume` does not; matches the finding's own probe evidence). **Fixed**: `Test-CnProgramDriveQualifies` now treats an empty GUID as "cannot verify" rather than "disqualified" whenever the on-disk marker already exists, so admin and non-admin processes agree on the program root once E: has been adopted. A bare drive with no marker still needs a real (elevated) GUID to be treated as adoptable.
+2. **ServiceContract.ps1 scope leak clobbers SecretManager.ps1's own `$serviceContractPath`** (line 16, medium) -- CONFIRMED, reproduced with a probe. **Fixed**: the dot-source moved into a `New-Module -ScriptBlock { . $ContractScriptPath }` wrapper, imported with `Import-Module -Global`, so `ServiceContract.ps1`'s internal `$script:ServiceContractPath` stays inside the module's own scope and only its functions reach the caller.
+3 + 7. **Off-drive recorded GUID / marker-only check is weak** (line 144, medium+high, submitted twice) -- **partially rejected, partially fixed**. Rejected the redesign to require a GUID recorded off the drive (e.g. in global vars): it contradicts the explicit original task instructions ("if E: qualifies and the marker is missing this is first adoption", "never write anything at load time on E:"), and `GLOBAL_VAR_DIR` is not defined yet at the point this file loads, so doing it properly needs the GlobalVars lane, which is out of this lane's fenced scope. Fixed the contained sub-issues instead: `Get-CnProgramDrivePartitionGuid` now normalizes the GUID (lowercase, no braces, matching the Linux PARTUUID form) at its single source; `Register-CnProgramDriveAdoption` now rewrites the marker only when its content differs (idempotent-at-the-finest-grain).
+4 + 8. **Hardcoded `'cache'` / hardcoded `'E:'` / duplicated `.cn_volume'` literal** (line 238, low, submitted twice) -- CONFIRMED (the rules explicitly list `tree_cache_root` as a contract key that must not be re-declared). **Fixed**: `CN_TREE_CACHE_ROOT` now resolves `paths.drive_layout.tree_cache_root` through `Resolve-CnDriveLayoutPath`; the marker filename is now the single `$Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME` constant; the fallback warning interpolates the actual configured primary-drive label instead of a literal `E:`.
+5 + 12 + 14. **`$env:SystemDrive` is a new hard load-time dependency** (line 217, low, submitted three times) -- CONFIRMED via probe (`Get-CnDriveRoot -DriveSpec $env:SystemDrive` throws "Cannot bind argument to parameter 'DriveSpec' because it is an empty string" when the variable is empty or unset -- PowerShell rejects an empty string for a `Mandatory` `[string]` parameter, not just `$null`). **Fixed**: falls back to `[System.IO.Path]::GetPathRoot([Environment]::SystemDirectory)` when `$env:SystemDrive` is empty.
+6 + 13. **`Get-CnWindowsSystemName` duplicates GlobalVars.ps1's branches; comments carry phase/process notes** (line 23, low, submitted twice) -- comments CONFIRMED as a rule violation (progress/phase notes in code) and fixed by trimming them to a plain technical rationale. The duplicate function itself is kept: the original task explicitly requires it (this file loads before `GlobalVars.ps1` computes its own copy, and `CN_TOOL_ROOT` needs a system name before that happens), and `GlobalVars.ps1` is not in this lane's fenced scope to de-duplicate against. Flagged as a follow-up below.
+9. **Exported key names differ from the requirements-doc §3.1 draft names (`CN_WIN_SYSTEM_DRIVE` etc.)** (line 217, low) -- REJECTED. `docs_fix/` is explicitly non-binding background per this session's instructions ("derive the correct latest state from the current code and the newest related record ... never treat them as binding"); the actual task instructions given to this lane (authoritative and newer than that draft) name `WINDOWS_SYSTEM_DRIVE_ROOT`/`WINDOWS_DATA_DRIVE_ROOT`/`WINDOWS_PROGRAM_DRIVE_ROOT`/`WINDOWS_PROGRAM_DRIVE_IS_FALLBACK` explicitly, and the fencing note itself says GlobalVars.ps1 "will read your keys" -- these are those keys. Recorded the real, exported names in the parity ledger (SPW-035) so the GlobalVars lane does not chase the stale draft names.
+10. **Fallback warning hardcodes `'E:'` and says "not found" even when E: exists but failed qualification** (line 205, low) -- CONFIRMED, fixed together with #4/#8 (dynamic drive letter, and reworded to "not available" so it no longer overclaims when E: is present but disqualified).
+11. **MBR disks: `MSFT_Partition.Guid` is NULL, adoption throws a generic message** (line 97, low) -- CONFIRMED (documented Microsoft behavior: `Guid` is only valid for GPT). Fixed the throw message only, to say a GPT-partitioned NTFS/ReFS volume is required; did not implement MBR PARTUUID synthesis (disk-signature + partition-number, matching Linux's MBR PARTUUID form), which is a separate, larger feature -- flagged as a follow-up.
+15. **Per-load `Get-Partition`/Storage-module cost; reviewer could not verify the non-admin case** (line 138, low) -- accepted as plausible and low priority. The elevation fix (#1) removes the worst symptom (admin/non-admin split-brain roots) but not the per-load cost itself. Did not implement the suggested raw-CIM-query optimization (`Get-CimInstance -Namespace root/Microsoft/Windows/Storage -Filter "DriveLetter='E'"`): it adds WMI filter-quoting risk for a low-severity item. Left as a deferred/rejected-for-now optimization.
+
+### Verification
+
+- PowerShell parser (`[System.Management.Automation.Language.Parser]::ParseFile`) on the changed file: 0 errors. No `.sh` files were touched, so no `bash -n`/shellcheck run.
+- Read-only/isolated probes in the scratchpad (no installers, package managers, mounts, registry writes or other system-changing commands run):
+  - Confirmed the exact `$env:SystemDrive` empty-string failure mode with a throwaway mandatory-param test function and `[System.IO.DriveInfo]::new('')` -- matches finding #5's reported error text exactly.
+  - Confirmed that a plain `& { $script:X = ... }` scriptblock still leaks the write into the caller's scope, while `New-Module -ScriptBlock { $script:X = ... }` does not -- this is why the fix for #2 uses `New-Module`, not a plain scriptblock.
+  - Loaded the real `ServiceContract.ps1` inside the `New-Module` wrapper: the caller's own `serviceContractPath` variable was untouched afterward, and `Get-ServiceContractValue`/`Get-ServiceContractHost` still worked -- confirms #2's fix in isolation.
+  - Dot-sourced the real, unmodified `SecretManager.ps1` end-to-end (it loads `GlobalVars.ps1` -> this file, then separately dot-sources `ServiceContract.ps1` itself at its own line 36): got "[SECRET_MANAGER] Library loaded successfully" with no hang or file-association dialog, and `Get-ServiceContractValue` still worked afterward -- confirms the fix resolves the actual reported failure. Note: `$serviceContractPath` still ends up holding the JSON path *after* SecretManager.ps1's own line 36 runs; that is SecretManager.ps1's own pre-existing, harmless quirk (dot-sourcing `ServiceContract.ps1` always re-sets its internal `$script:ServiceContractPath`), unrelated to this fix and outside this lane's fenced file.
+  - Full load of the edited file in an isolated child process (E: is absent on this machine; every `D:\www\cache\*` subdirectory the load-time loop creates already existed, so the run made no filesystem writes): resolved `WINDOWS_PROGRAM_DRIVE_ROOT=D:\` (correct fallback), `CN_TREE_CACHE_ROOT=D:\core_node_trees\cache` (now contract-derived, byte-identical to the old hardcoded value), `CN_TOOL_ROOT=D:\.dev_win10` (matches this machine's real build), and the fallback warning printed "Program drive E: not available; using the original location D:\". Re-dot-sourcing the file a second time in the same process succeeded cleanly (re-run safety preserved).
+  - Confirmed no `E:` drive and no `.cn_volume` marker exist anywhere on this machine, so the GUID-normalization change has no pre-existing marker to conflict with.
+  - Grepped the repo: none of the touched functions or the two new `$Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME` / `CN_PROGRAM_DRIVE_PRIMARY_LABEL` names are referenced anywhere outside this file yet, so the changes are self-contained.
+  - Did not directly reproduce #1's non-elevated `Get-Partition` failure on this machine (this session's shell is already elevated, and `runas /trustlevel:0x20000` would not run non-interactively in this sandbox); relied on the documented Storage-module elevation requirement plus the finding's own probe evidence (internally consistent: `Get-Volume` succeeding while `Get-Partition` fails non-elevated matches the documented split between those cmdlet families).
+
+### Changed file
+
+`scripts/shells/win/win_common/SharedCacheEnv.ps1` -- header comments (1-27), `Get-CnProgramDrivePartitionGuid` (92-118), `Test-CnProgramDriveQualifies` (120-181), `Register-CnProgramDriveAdoption` (183-221), `Write-ProgramDriveFallbackWarning` (230-242), the ServiceContract module-isolation load and contract-value reads (244-268), the `WINDOWS_SYSTEM_DRIVE_ROOT` fallback (270-277), `CN_TREE_CACHE_ROOT` (298), and the `Remove-Variable` cleanup list (452-457).
+
+### Parity
+
+Added `.claude/agents_shared/shell_parity/windows.md` row SPW-035, status `aligned` (Linux P1's own fenced files already read the same `paths.drive_layout` contract keys in parallel; the GUID normalization here is the format a future Linux PARTUUID exclusion rule would need).
+
+### Follow-ups for other lanes / the orchestrator
+
+- GlobalVars lane: once `GlobalVars.ps1` is safe to touch, consume `Get-CnWindowsSystemName` from this file instead of keeping its own copy of the same OS-version branches (findings #6/#13).
+- Possible future task: real cross-OS PARTUUID matching -- record the adopted GUID somewhere Linux can read (the global-var store, since `GLOBAL_VAR_DIR` is not yet defined at the point this file loads) so a different disk later assigned the same letter E: cannot silently auto-adopt just because it has no marker; also decide whether MBR program drives need support (disk-signature-based PARTUUID). Needs the GlobalVars lane and/or a contract addition, both outside this lane's fenced file (findings #3/#7/#11).
+- Optional low-priority perf follow-up: avoid the Storage module's measured ~0.5-1.3s import cost on every fresh process once E: exists and qualifies, by gating the `Get-Partition` call more tightly on adoption state (finding #15). Not done here.
+
+### Blockers
+
+None. No `pending-linux` rows were left by this pass.
+
+### Next owner
+
+Reviewer, for `p2-windows`.

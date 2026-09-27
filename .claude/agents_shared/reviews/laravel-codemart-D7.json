@@ -1,0 +1,63 @@
+{
+  "task_id": "laravel-codemart-D7",
+  "role": "codemart-laravel",
+  "reviewer": "codemart-lead",
+  "verdict": "changes_requested",
+  "scope": "D7 delta f4f223414..worktree (commits 5bbb23682, b20962b4f plus the uncommitted callers); D18 header removals ignored. Items reviewed: srv-05, cmdesign-03-api, CKA-28 ledger codes, the Initializer contract columns. The lang keys (lang/{en,zh_CN}/codemart.php) and the AppServiceProvider registration were added by the pycore-laravel D7 merge and are checked only as consumers.",
+  "findings": {
+    "srv-05": {
+      "status": "changes_requested",
+      "detail": "Command, secret file helper and seeder no longer hardcode a password; the switch reads config('services.codemart_seed_demo') (LaravelConfig, D17) and the comment is corrected. Two defects: (1) a generated secret is never applied to accounts that already exist, so the printed password does not work and the removed published password stays valid; (2) the generated password goes to the seeder log callback, which the initializer wires to Log::info."
+    },
+    "cmdesign-03-api": {
+      "status": "changes_requested",
+      "detail": "testimonial and reviewer_application groups, terminal_states, capability_roles and policy.withdrawal_methods/withdrawal_min_amount are served by GET /api/codemart/v1/bootstrap and equal the constants. terminal_states has no analysis or submission group, so ui-codemart cmdesign-03 cannot drop CmProjectAnalysisPanel.tsx:12 or CmSubmissionsPanel.tsx:15, which the dependent item names."
+    },
+    "CKA-28 (ledger codes)": {
+      "status": "confirmed",
+      "detail": "appendLedger stores description_code + description_params. Every credit/debit/freeze/unfreeze/settleFrozen caller passes a LEDGER_* code: 13 codes, 13 en and zh_CN keys. The transaction model translates by code in the request locale, and legacy rows keep their stored text. The literal-message sweep in the same item (RegistrationCtl:70, ProjectCtl:220, 33 English CodeMartV1FinanceException messages, ...) is not in this delta and stays open for G1."
+    },
+    "Initializer contract columns": {
+      "status": "confirmed with note",
+      "detail": "codemart_v1_wallet_transactions.description_code (varchar, null) and description_params (json, null) are aligned idempotently. codemart_v1_ai_analyses.accept_idempotency_key (CodeMartV1Initializer.php:414) has no reader or writer until cmgap-U30 lands."
+    }
+  },
+  "issues": [
+    "CodeMartV1DemoSeeder.php:756-761,855: when CodeMartV1AdminPassword::ensure() generates the secret file, existing seeded accounts keep their old hash (seedAccounts only hashes new users). The password that sys:init prints is rejected, and the removed published password keeps working. Rolled-back probe on the local DB: 0/7 accounts accept the generated password and 7/7 still accept the removed literal. Fix: when $secret['generated'] is true, call CodeMartV1AdminPassword::apply($secret['password']) after seedAccounts, reusing the command's applier (D17 and contract purpose: 'applied to the database at once'). When the file already exists, keep today's behaviour: the seeder never rehashes and only codemart:admin-password rotates. Verify: after seed with a missing scratch file, 7/7 accept it and 0/7 accept the removed literal; a second seed changes 0 hashes.",
+    "CodeMartV1DemoSeeder.php:758 with CodeMartV1Initializer.php:564: the generated password is passed to the seeder $log callback, which sys:init wires to Log::info. The plaintext secret ends up in laravel.log (syslog on the server). The probe captured 1 log message carrying it. Fix: the seeder logs only codemart.cli.seed.password_file (path). The password stays in the returned summary, which the console printers (initializer step message, sys:codemartinit) already use.",
+    "CodeMartV1Constants.php:786-797 (contractVocabulary terminal_states): add the analysis and submission groups from existing constants so that ui-codemart cmdesign-03 can derive its local sets. analysis: [completed, failed], whose non-terminal states pending/processing/revising equal CmProjectAnalysisPanel.tsx:12. submission: [approved, needs_revision, rejected], whose non-terminal states equal SUBMISSION_REVIEWABLE_STATUSES (CodeMartV1Constants.php:585). Also add SUBMISSION_STATUS_PENDING to states.submission (:725-730): the check constraint (CodeMartV1Initializer.php:202), SUBMISSION_REVIEWABLE_STATUSES and BootstrapService.php:291 all use it, but the vocabulary omits it. Declare the two lists as named constants next to the other *_TERMINAL_STATUSES."
+  ],
+  "non_blocking": [
+    "CodeMartV1Constants.php:786: the comment says terminal_states are 'states from which no further transition exists'. PROJECT_TRANSITIONS allows completed -> archived and cancelled -> archived. The values match the UI CLOSED_* sets, so keep them and reword the comment as closed states (no further work).",
+    "CodeMartV1Initializer.php:414: accept_idempotency_key has no reader or writer. cmgap-U30 (G1) must use it, or drop it from the contract structure. The column already exists locally; do not drop it, because that is destructive.",
+    "CodeMartV1AdminPassword.php:32,88: the RuntimeException messages are English literals and reach the sys:init step output through initialize()'s catch. Move them to codemart lang keys in the G1 literal sweep.",
+    "CodeMartV1AdminPassword.php:59: Str::random(24) is used instead of the InstallationAccessCode helper that the ruling names. Accepted: InstallationAccessCode exposes no generator (its placeholder is private and NEXU-shaped). Str::random is the framework helper, so no new generator was written. Its output [A-Za-z0-9] is a subset of the contract's base64url alphabet, and the length of 24 was verified.",
+    "CodeMartV1AdminPassword.php:68-69: writeFile + ensureFileMode repeat FileSystemManager::writePrivateFile with the mode taken from the contract. Optional: reuse writePrivateFile when the contract mode is 0600.",
+    "Remaining D7 scope that is not in this delta, still open for codemart-laravel-G1: the CKA-28 literal sweep (codemart literal scan to 0), cmgap-R1, cmgap-U30, CMDES-08, cmcont-11.",
+    "Cross-group, pycore-laravel: routes/web.php:149-155, the system/init group, has no dashboard.auth. On a first run, POST /system/init/{app} returns step messages that include the generated password, and a CSRF token is available from GET /csrf-token. Also, sys:codemartinit (app/Console/Commands/CodeMartV1SeedDemoData.php:18-19) prints hardcoded English (USER175-07).",
+    "Optional for ui-codemart cmdesign-03: contact_message statuses (new, handled) are not in the vocabulary, so CM_ADMIN_CONTACT_STATUSES stays local unless a group is added.",
+    "Deploy order (already in reports/laravel.md): ledger inserts need description_code, so the server runs sys:init (align) before any wallet write after the code sync."
+  ],
+  "checks": [
+    "Free RAM 6.65 GB before the in-process runs.",
+    "php -l: no errors in the 13 files (AdminPassword, AdminPasswordCommand, DemoSeeder, Initializer, Constants, WalletModel, WalletTransactionModel, PaymentCtl, Escrow/AdminFinance/FinanceService, lang en and zh_CN codemart.php).",
+    "Line endings: every file is LF, as at 74e7770; the two new files are LF. No BOM, and no AI rules header re-added.",
+    "git grep 'Codemart#2026' and DEMO_PASSWORD over code (tracked and untracked): 0 hits. It remains only in docs_fix and .claude records.",
+    "All old-signature wallet calls are gone: 12 credit/debit/freeze/unfreeze/settleFrozen call sites pass LEDGER_* codes. The only direct WalletTransactionModel::create outside appendLedger is the seeder opening balance, which uses LEDGER_OPENING_BALANCE.",
+    "The description column is nullable (migration CodeMartV1_2025_10_21_000004:80), so inserts with only a code are valid.",
+    "Vocabulary: the testimonial and reviewer_application groups equal their constants. capability_roles equals UI cmPageAccess.ts:7-14. withdrawal_methods is [bank_transfer, alipay, wechat] and min is 1. For task, terminal_states equal the transition-derived set.",
+    "In-process HTTP, rolled back on main+codemartv1, with a Sanctum token created inside the transaction: GET /api/codemart/v1/bootstrap returned 200 and the vocabulary equals contractVocabulary().",
+    "Align, rolled back on codemartv1: alignContractTables returned success with 0 'Added missing column' lines. The three columns exist (varchar/json/varchar, nullable).",
+    "srv-05 probe, rolled back on main+codemartv1, secret file in the scratchpad: seed with a missing file generated 24 chars. Existing accounts: 0/7 accept it, 7/7 accept the removed literal (FAIL), and 1 log message carries it (FAIL). A second seed changed 0 hashes. Fresh accounts via seedAccounts: 7 created, 7/7 accept the file password, and re-running changed 0 hashes. codemart:admin-password exits 2 without --file and 1 on an unreadable file. A new file gave 7 updated (7/7 accept), the same file gave 7 unchanged, and the output carries no password.",
+    "CKA-28 probe, rolled back: EscrowService::releaseForTask(task 1) released=true. The ledger row has description NULL, description_code task_escrow_release and params {task_id:1}. GET /api/codemart/v1/wallet/transactions returned 200: en 'Task 1 escrow release', zh-CN '任务 1 托管放款', with description_code and description_params in the payload.",
+    "Lang (read-only): 37 used codemart keys resolve in en and zh_CN. The 13 ledger keys equal the 13 LEDGER_* codes.",
+    "Residue after the rollbacks: no task_release:1 payment, no probe token, 0 ledger rows with a code, and the scratch secret files are deleted. Seeder attachment writes went to a scratchpad disk root. Worker restart not needed, because no Laravel code was changed by this review."
+  ],
+  "decisions": [
+    "Blocking fix 1 overrides the item's literal 'never rehashes an existing account' only for the generated-file case. Reason: D17 and the contract require the printed password to work at once, and applying through CodeMartV1AdminPassword::apply keeps a single rotation implementation.",
+    "The log leak is raised from the coordinator's non-blocking to blocking. It writes a plaintext credential to a log file, and the fix is one line.",
+    "The analysis/submission terminal groups are blocking because cmdesign-03-api exists to let ui-codemart drop exactly those local sets."
+  ],
+  "next_owner": "codemart-laravel (codemart-laravel-G1: the 3 issues above plus the open D7 items)",
+  "checked_at": "2026-09-27"
+}

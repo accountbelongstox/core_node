@@ -138,6 +138,7 @@ $checkerPath = Join-Path (Join-Path $videoToolsDir 'py_video_tools') 'check_deps
 $workerPath = Join-Path (Join-Path $videoToolsDir 'py_video_tools') 'video_audio_extractor.py'
 $fwInstallerPath = Join-Path (Join-Path (Join-Path $shellsDir 'win') 'install_powershells') 'Step11_InstallFasterWhisper.ps1'
 $cudaIndexPath = Join-Path $winCommonDir 'CudaIndex.ps1'
+$videoToolsCommonPath = Join-Path $videoToolsDir 'VideoToolsCommon.ps1'
 $cudaPolicy = $null
 $ctranslateCudaMajor = 12
 $ctranslateGpuPackages = @()
@@ -145,6 +146,7 @@ $ctranslatePolicyMatch = $false
 $gpuPackage = ''
 
 . $cudaIndexPath
+. $videoToolsCommonPath
 
 # Authenticate Hugging Face downloads (faster, avoids rate limiting).
 # Precedence: existing $env:HF_TOKEN  >  -HfToken arg  >  assembled default.
@@ -192,28 +194,6 @@ function Resolve-Python {
     return $null
 }
 
-# --------------------------------------------------------------------------- #
-# Locate ffmpeg.                                                              #
-# --------------------------------------------------------------------------- #
-function Resolve-Ffmpeg {
-    $cmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
-    if ($cmd) {
-        $ver = (& $cmd.Source -version 2>&1 | Select-Object -First 1)
-        return [PSCustomObject]@{ Path = $cmd.Source; Version = ("$ver").Trim() }
-    }
-    foreach ($p in @(
-        'D:\applications\FFmpeg\ffmpeg-8.0.1-full_build\bin\ffmpeg.exe',
-        (Join-Path $env:ProgramFiles "ffmpeg\bin\ffmpeg.exe"),
-        (Join-Path $env:USERPROFILE "scoop\shims\ffmpeg.exe")
-    )) {
-        if (Test-Path $p) {
-            $ver = (& $p -version 2>&1 | Select-Object -First 1)
-            return [PSCustomObject]@{ Path = $p; Version = ("$ver").Trim() }
-        }
-    }
-    return $null
-}
-
 Write-Host '======================================================' -ForegroundColor Cyan
 Write-Host ' Video Audio Extractor - environment check' -ForegroundColor Cyan
 Write-Host '======================================================' -ForegroundColor Cyan
@@ -234,7 +214,7 @@ Write-Host ("[OK] Python : {0}" -f $py.Version) -ForegroundColor Green
 Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
 
 # --- ffmpeg -------------------------------------------------------------- #
-$ff = Resolve-Ffmpeg
+$ff = Resolve-FfmpegTool
 if (-not $ff) {
     Write-Host '[X] ffmpeg was NOT found.' -ForegroundColor Red
     Write-Host '    Install it, then re-run this script:' -ForegroundColor Yellow
@@ -247,13 +227,7 @@ Write-Host ("[OK] ffmpeg : {0}" -f $ff.Version) -ForegroundColor Green
 Write-Host ("       path : {0}" -f $ff.Path)    -ForegroundColor DarkGray
 
 # --- GPU detection ------------------------------------------------------- #
-$hasGpu = $false
-if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try { $gpuOut = & nvidia-smi -L 2>$null; if ("$gpuOut" -match '(?m)^GPU\s+\d+:') { $hasGpu = $true } } catch { }
-    $ErrorActionPreference = $prevEap
-}
+$hasGpu = Test-NvidiaGpu
 if (-not $NoSubtitle) {
     $cudaPolicy = Get-CudaRuntimePolicy
     $ctranslateCudaMajor = [int](Get-AiRuntimePolicyValue -Name 'AI_CTRANSLATE2_CUDA_MAJOR' -Default '12')

@@ -1,13 +1,11 @@
 import React from 'react';
 import { BadgeCheck, ClipboardCheck, ShieldCheck } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
-import authWelcomeImage from '../assets/images/auth-welcome.webp';
+import { CmImage } from '../components/CmImage';
 import { CmPublicFooter } from '../components/public-home/CmPublicFooter';
 import { CmPublicHeader } from '../components/public-home/CmPublicHeader';
 import { useCmPageTitle } from '../components/public-home/useCmPageTitle';
 
-const AUTH_IMAGE_WIDTH = 720;
-const AUTH_IMAGE_HEIGHT = 960;
 const AUTH_POINTS = [
   { key: 'escrow', Icon: ShieldCheck },
   { key: 'verified', Icon: BadgeCheck },
@@ -36,14 +34,7 @@ export const CmAuthLayout: React.FC<CmAuthLayoutProps> = ({ titleKey, leadKey, i
       <main className="cm-auth-shell__main">
         <div className={`cm-public-container cm-auth-shell__grid ${wide ? 'is-wide' : ''}`}>
           <aside className="cm-auth-shell__aside">
-            <img
-              className="cm-auth-shell__image"
-              src={authWelcomeImage}
-              alt=""
-              width={AUTH_IMAGE_WIDTH}
-              height={AUTH_IMAGE_HEIGHT}
-              decoding="async"
-            />
+            <CmImage name="auth-welcome" className="cm-auth-shell__image" />
             <div className="cm-auth-shell__aside-copy">
               <h2>{t('publicAuth.aside.title')}</h2>
               <ul>

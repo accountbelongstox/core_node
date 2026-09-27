@@ -1,0 +1,38 @@
+{
+  "task_id": "wordnew-ui-G1",
+  "role": "wordnew-ui",
+  "reviewer": "wordnew-lead",
+  "verdict": "approved",
+  "base": "74e7770",
+  "findings": {
+    "CKA-12": {
+      "status": "confirmed_no_change",
+      "detail": "reviews/ui-wordnew-D7.json has verdict approved with issues [], so the item requires no change. git status and git diff HEAD are empty for core/network/api-client/. The diff against 74e7770 (MasterApiClient.ts 120 lines, RequestQueue.ts 27) is the already-approved D1 and D7 work in HEAD 8f95a2a24. createIdempotencyKey is defined only at core/integrations/laravel/transport/BaseAPI.ts:21 and used at MasterApiClient.ts:49,423 and RequestQueue.ts:23,100. generateEntryId|randomUUID|Math.random under core/network/api-client/ gives 0 hits. Byte scan: MasterApiClient.ts LF-only lines are [47, 48, 49, 365, 366, 367] in HEAD and in the working tree, and RequestQueue.ts has 0 LF-only lines. The B2 succession (ui-wordnew to wordnew-ui) still needs the claude lead's confirmation. No write happened under it."
+    },
+    "CKA-12-wn": {
+      "status": "confirmed",
+      "detail": "The uncommitted diff of apps/wordnew/services/WordNewRecitationCenter.ts is +2/-13 against HEAD. :29 imports createIdempotencyKey from ../../../core/integrations/laravel/transport/BaseAPI, the same deep path as apps/codemart/api/useCmIdempotencyKey.ts:2. The local newBatchId generator (old :34-44) is removed. The per-flush batch_id at :148 and sessionId at :49 use the shared key. Values are a UUID or 32 hex characters, which fit AppQyV1DailyRecitationController.php:72-73 'nullable|string|max:64'. The flush path makes one request per flush: doFlush (:137-185) makes one wfNewApi.recitationLog call. That goes through authedQueueablePostJSON (WfNewApiTransport.ts:284), then queueablePostJSON (:258), then WfNewQueuedTransport extends MasterApiClient (:124) .request({queueable: true}). MasterApiClient.withIdempotencyKey (:417-426) adds one Idempotency-Key header per request, and enqueueFailedWrite (:428-450) persists that header and the body (with batch_id) for replay. The controller dedupes replays on batch_id (:90-100). WordNewSentenceWordTable.ts:77-85 clientKey() is a persistent per-device client_key body field, and DailyReadingPlaybackModel.ts:79-85 builds local playback-step ids. Neither is an Idempotency-Key, so leaving them unchanged is correct under the item's rule. The file is CRLF on all 250 lines, as in HEAD (261) and base (268)."
+    },
+    "MCHR-31-wn-set": {
+      "status": "confirmed",
+      "detail": "The uncommitted diff of apps/wordnew/components/admin/WfNewAdminLibraries.tsx is +2/-2 against HEAD. :35 imports LIBRARY_COVER_WAITING_STATUSES from shared/library-cover/LibraryCoverTaskModel (ReadonlySet<string> at :31-35, {pending, retry, processing}). The local COVER_WAITING_STATUSES array (old :59) is deleted. coverBadge :210 uses .has(cover.coverStatus), with coverStatus typed string | null and guarded by a truthy check. Precedence at :194-214 (active, then failed, then waiting) and the admin.lib.cover.* keys are unchanged, so the pending badge still shows for pending, retry and processing. The file is LF on all 417 lines, as in HEAD, and the mode stays 100755. apps/wordnew/locales/ has no working-tree change."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "WordNewRecitationCenter.ts:49: sessionId is a log-grouping id, not an idempotency key, yet it now calls createIdempotencyKey(). This is accepted as reuse of the single central random-id function, which the item requires because the local generator had to go. If core later gains a transport-neutral id helper (see the ui-wordnew-D7 note on moving createIdempotencyKey into a core/network leaf), switch sessionId to it.",
+    "The body batch_id (server dedupe, AppQyV1DailyRecitationController.php:90-100) and the Idempotency-Key header (MasterApiClient.ts:423) are two separate keys, each minted once per flush and each stable across a queued replay. Unifying them would need a header parameter on WfNewApiTransport.queueablePostJSON. That is optional and was not part of this task.",
+    "WfNewAdminLibraries.tsx:203 still compares against the literal 'failed'. When the second half of MCHR-31-wn moves coverBadge into the shared presenter, it should use LIBRARY_COVER_STATUS.failed.",
+    "utils/WordNewClientIdentity.ts:37 and WordNewSentenceWordTable.ts:80-82 keep their own randomUUID/Math.random fallbacks for local persistent ids. They are outside CKA-12-wn's Idempotency-Key rule. A later reuse pass can move them to a neutral shared id helper once one exists."
+  ],
+  "checks": [
+    "Diff: git diff 74e7770 for the two changed files also contains committed hunks from other lanes (adminErrorText in WfNewAdminLibraries.tsx; localDateKey moved to utils/WordNewTimeFormat in WordNewRecitationCenter.ts). HEAD 8f95a2a24 holds them. The member's own hunks are the uncommitted diff against HEAD, exactly the ones listed above. git status --short in the UI root shows only these two files modified, and the member's report .claude/agents_shared/reports/wordnew-ui.md is untracked.",
+    "Type-check: free RAM 6.16 GB (guard 3 GB). bun node_modules/typescript/bin/tsc --noEmit in poly_apps/pycore_laravel_wordnew_ui exited 0 in 28 s with 0 'error TS' lines, so 0 under apps/wordnew/ and 0 under core/network/api-client/.",
+    "Greps: createIdempotencyKey is defined only at BaseAPI.ts:21, and its users are MasterApiClient.ts, RequestQueue.ts, WordNewRecitationCenter.ts, codemart useCmIdempotencyKey.ts and laravel-manager LmBaseAPI.ts. generateEntryId|randomUUID|Math.random in core/network/api-client/ gives 0 hits. randomUUID|Math.random in WordNewRecitationCenter.ts gives 0 hits. grep -rnw COVER_WAITING_STATUSES apps/wordnew gives 0 hits.",
+    "Line endings (Python byte scan of the working tree, HEAD and 74e7770): WordNewRecitationCenter.ts is all CRLF in every revision. WfNewAdminLibraries.tsx is all LF in every revision. MasterApiClient.ts LF-only lines are [47, 48, 49, 365, 366, 367] in HEAD and the working tree. RequestQueue.ts has 0 LF-only lines. No AI rules header was re-added: line 1 of both files is the same as in HEAD.",
+    "Scope (path map, section 8): both code files are under apps/wordnew/ (wordnew-ui). Nothing under core/, shared/, locales/, WNL-01 or the fenced shell files was written, and no config/ or contract changed.",
+    "AGENTS.md: English only, no new user-facing text (reuses admin.lib.cover.pending), imports at the file top, duplicate generator and duplicate status list removed in favour of the central ones, no tests touched, no git writes, and no Laravel change, so no FrankenPHP worker restart."
+  ],
+  "notes": "All three items are approved. CKA-12 needed no change (the D7 verdict was approved). CKA-12-wn and MCHR-31-wn-set are minimal reuse edits that type-check clean. Open for the orchestrator: confirm the B2 succession of core/network/api-client/ to wordnew-ui; assign writers for ProtocolFetch.ts:140-141, the pycore generator copies and the root package.json lint script. The second half of MCHR-31-wn waits for the ui-pycore-manager shared presenter.",
+  "checked_at": "2026-09-27"
+}

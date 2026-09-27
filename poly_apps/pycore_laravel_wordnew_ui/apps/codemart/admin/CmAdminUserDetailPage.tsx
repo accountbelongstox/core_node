@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
+import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
 import { CmErrorState, CmLoadingState, CmNotice } from '../components/workspace/CmStateViews';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
@@ -22,9 +23,6 @@ import {
   type CmAdminUserDetail,
   type CmAdminUserRole,
 } from './CmAdminTypes';
-
-const ADMIN_USERS_PATH = '/codemart/admin/users';
-const ADMIN_ACTIVITY_PATH = '/codemart/admin/activity';
 
 export const CmAdminUserDetailPage: React.FC = () => {
   const { t } = useTranslation('cm');
@@ -109,7 +107,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <Link className="cm-workspace-link cm-admin-back" to={ADMIN_USERS_PATH}>
+      <Link className="cm-workspace-link cm-admin-back" to={CM_ADMIN_ROUTE.users}>
         <ArrowLeft aria-hidden="true" /> {t('admin.userDetail.back')}
       </Link>
       <CmPageHeader
@@ -119,7 +117,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
         title={account ? account.username : undefined}
         onRefresh={() => void load()}
         actions={account && (
-          <Link className="cm-workspace-button" to={`${ADMIN_ACTIVITY_PATH}?actor_id=${account.id}`}>
+          <Link className="cm-workspace-button" to={cmRouteWithQuery(CM_ADMIN_ROUTE.activity, { actor_id: account.id })}>
             {t('admin.userDetail.actorActivity')}
           </Link>
         )}
@@ -276,7 +274,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                     </div>
                     {item.reviewable && (
                       <div className="cm-record-card__actions">
-                        <Link className="cm-workspace-button is-primary" to={`/codemart/admin/kyc?status=pending&search=${encodeURIComponent(account.username)}`}>
+                        <Link className="cm-workspace-button is-primary" to={cmRouteWithQuery(CM_ADMIN_ROUTE.kyc, { status: 'pending', search: account.username })}>
                           {t('admin.userDetail.reviewKyc')}
                         </Link>
                       </div>

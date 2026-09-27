@@ -50,6 +50,7 @@ final class AppQyV1DeliveryBatchService
     private const INLINE_BUDGET_SECONDS = 5.0;
     private const CHECKPOINT_ITEMS = 20;
     private const RETENTION_SECONDS = 86400;
+    private const BATCH_FILE_PATTERN = '/^([a-f0-9]{40})\.[^\/]+$/';
     private const DEFAULT_PROVIDER = 'pycore';
 
     public function __construct(
@@ -325,15 +326,52 @@ final class AppQyV1DeliveryBatchService
         return $view;
     }
 
-    private function purgeExpired(): void
+    /**
+     * Remove batches idle for RETENTION_SECONDS by their stored state: done,
+     * or still awaiting content (its upload spool expires after the same
+     * idle window). Processing batches are kept; files without a readable
+     * state expire by modification time. Returns the removed batch count.
+     */
+    public function purgeExpired(): int
     {
         $cutoff = time() - self::RETENTION_SECONDS;
+        $batches = [];
+        $removed = 0;
+        $deleted = false;
 
         foreach (FileSystemManager::iterateFiles($this->storageDirectory()) as $relative => $file) {
-            if (!str_contains($relative, '/') && $file->getMTime() < $cutoff) {
-                FileSystemManager::delete($file->getPathname());
+            if (preg_match(self::BATCH_FILE_PATTERN, $relative, $match) === 1) {
+                $batches[$match[1]][] = $file;
             }
         }
+        foreach ($batches as $batchId => $files) {
+            if (!$this->batchExpired((string) $batchId, $files, $cutoff)) {
+                continue;
+            }
+            $deleted = true;
+            foreach ($files as $file) {
+                $deleted = FileSystemManager::delete($file->getPathname()) && $deleted;
+            }
+            $removed += $deleted ? 1 : 0;
+        }
+
+        return $removed;
+    }
+
+    /** @param array<int,\SplFileInfo> $files */
+    private function batchExpired(string $batchId, array $files, int $cutoff): bool
+    {
+        $state = null;
+
+        foreach ($files as $file) {
+            if ($file->getMTime() >= $cutoff) {
+                return false;
+            }
+        }
+        $state = $this->readState($batchId);
+
+        return $state === null
+            || ($state['state'] !== self::STATE_PROCESSING && (int) ($state['updated_at'] ?? 0) < $cutoff);
     }
 
     private function readState(string $batchId): ?array

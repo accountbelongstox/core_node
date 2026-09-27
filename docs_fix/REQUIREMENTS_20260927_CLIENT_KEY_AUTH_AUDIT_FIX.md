@@ -243,6 +243,33 @@ Source list: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`
   - Continue every task.
   - Ruling: for local tests, pycore's Laravel endpoint is `http://127.0.0.1:9000` (loopback, no TLS), and machine calls are authenticated by `CORE_NODE_CLIENT_KEY_1` (K3) from the decrypted secret store. The note is in `.claude/agents_shared/d7/D23_endpoint.md`.
   - This replaces D8's `https://127.0.0.1` for pycore → Laravel. The process-level CA bundle and user-5 (trusting the CA system-wide) are withdrawn.
+- D24 (verbatim, about 20:2x): "通知角色 ，liunx端的常量库不要重复定义如果挂载ntfs不要在上面写任何编程语言的安装路径，上在只存放代码，不再作为其他使用，更新到文档，liunx shell规范。"
+  - The Linux constants library defines each constant once.
+  - On Linux an NTFS mount stores source code only, with no other use. No language or tool install paths, caches, build or temp directories, node_modules/vendor/.venv, data, logs or model weights go on it.
+  - Docs:
+    - a new `development-guides/LINUX_SHELL_RULES.md` supplements the shell guide. `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` stays untouched, because its name forbids AI edits;
+    - guide B15;
+    - a pointer line in 13 role files.
+  - Contract (orchestrator): `service_contract.json#paths.linux_ntfs_policy = code_only`.
+    - `linux_data_dir_candidates` no longer lists the NTFS `/www/www` entry: Linux data goes to `/www/core_node` only when `/www` is not NTFS, else `/var/_core_node`, else `~/core_node`.
+    - `linux_ntfs_nested_www_root` is kept for detection only.
+  - Readings (B9):
+    - "上在只存放代码，不再作为其他使用" also covers runtime data and model weights on Linux, not only install paths;
+    - Windows keeps D: as its data drive (the rule is Linux-side).
+    - Existing Linux data on the NTFS mount is neither moved nor deleted by scripts; copying it to ext4 is user-6.
+  - Notified: the role files (new spawns read them), core-node-e9 (its drive layout said "keep model data on D:", which D24 now forbids on Linux), and laravel-remote.
+- D25 (verbatim, about 20:3x): "在liuxx端也不允许在ntfs上使用回收站，如果有脚本创建，通知角色幂等修正回去。"
+  - On Linux there is no recycle bin on an NTFS mount. Scripts and programs never trash there. The mount setup blocks per-volume `.Trash-<uid>` idempotently with an empty root-owned `.Trash-<uid>` blocker file, placed only when no trash exists. A script that creates an NTFS trash is corrected idempotently by its owner.
+  - Docs: `LINUX_SHELL_RULES.md` §2, guide B15, `service_contract.json#paths.linux_ntfs_policy`, and the role pointer lines.
+  - Emptying the existing dual-boot `.Trash-1000` (about 73 GB, seen by core-node-e9) is irreversible, so it stays a user decision (user-7). Scripts only stop new trash creation and may remove an empty trash dir they created.
+  - The read-only audit workflow `d25-ntfs-trash-audit` (about 20:3x) finds every trash use or creation on Linux (scripts, pycore, other code). Fixes go to the owners by the path map. `mount_common.sh` is fenced to core-node-e9, which is asked to add the blocker in its mount work.
+- D26 (verbatim, about 20:4x): "两端的共享数据可以放在ntfs盘。这样两盘才能读得到，这个映射是可以的如，通知角色 。"
+  - Data both OSes share may live on the NTFS disk, because that is how both boots can read it, and the D: ↔ `/www/www` mapping is intended.
+  - Revises the D24 reading. The contract `linux_data_dir_candidates` is restored: the shared NTFS `/www/www/core_node` comes first on the dual-boot desktop. `linux_ntfs_policy = code_and_shared_data`.
+  - Still never on NTFS: install paths, package caches/stores, build output, temp dirs, node_modules/vendor/.venv, Linux-only service state (e.g. PostgreSQL clusters), and recycle bins (D25).
+  - user-6 (copying Linux data off NTFS) is withdrawn.
+  - Notified: the role files (`LINUX_SHELL_RULES.md` §2, guide B15, the pointer lines), core-node-e9 (its "keep model data on D:" holds again for data both OSes read), and laravel-remote.
+  - Implementers who read the D24 contract in between are corrected at review time: the leaders check against the current contract.
 - D14 (verbatim, about 15:3x): "允许 你修改 改 development-guides/".
   - The orchestrator may now edit `development-guides/` (guide B12). Every guide change is recorded here.
   - First use, about 15:3x, in `CLAUDE_CODE_AGENTS_GUIDE.md`:
@@ -439,6 +466,12 @@ Until then, machine calls fail closed with `client_key_missing`.
 - K1/K3 clarifications (reviewer notes):
   - key names are `CORE_NODE_CLIENT_KEY_1.._5` only, and a bare `CORE_NODE_CLIENT_KEY` is ignored on every end;
   - the signed path is the full path sent on the wire, including any base path. Laravel verifies `getBaseUrl().getPathInfo()`.
+- flutter backlog, won't-fix under D6 and kept for when flutter is reopened (flutter-G1, a read-only re-check about 20:1x; report `.claude/agents_shared/reports/flutter.md`):
+  - F-FL-1 still applies: app_qy calls `/api/dict/v1/*`, which laravel_main does not have.
+  - F-FL-3 still applies: dead ttsBatch/translate constants.
+  - **New F-FL-4 (high):** the live routed screens `course_ielts_screen_app_qy.dart`, `word_book_screen_app_qy.dart` and `home_search_screen_app_qy.dart` call `/api/v1/courses*`, `/api/v1/words/*` and `/api/v1/learning/*` through CourseService, WordService and LearningService with the real ApiServiceAppQy. None of these paths exist in laravel_main (the only `v1/*` group is `v1/auth`). This root cause is independent of F-FL-1.
+  - Dead code in app_qy: a second AuthService/AuthControllerAppQy, profile/social/settings services, the shared `laravel_endpoints.dart`, and most ApiServiceAppQy methods.
+  - No flutter call hits the 09-26/27 changes (client-key machine routes, delivery diff routes, X4, cover tasks).
 - D6 (user, verbatim): "flutter任务停止，并标记为不用修复。" The flutter teammate is stopped. flutter-1, flutter-2 and F-FL-1/2/3 are won't fix; nothing flutter-related goes to D5, and the reviewer drops flutter-1.
   - The flutter-1 edits already on disk were left in place, unreviewed, because the user did not ask for a revert. The files are in `poly_apps/flutter_bloom/lib/apps/app_qy/`: `services_app_qy/api_service_app_qy.dart`, `main_app_qy.dart`, `localization_app_qy/en_app_qy.dart`, `localization_app_qy/zh_app_qy.dart`.
 

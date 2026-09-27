@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Ban, Banknote, Check, RotateCcw, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
+import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
 import { CmListState, CmNotice } from '../components/workspace/CmStateViews';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
@@ -42,11 +43,10 @@ import {
   type CmAdminWithdrawalRow,
 } from './CmAdminTypes';
 
-const ADMIN_ACTIVITY_PATH = '/codemart/admin/activity';
 const DANGER_PROJECT_TARGETS = ['cancelled', 'archived'];
 
 function projectActivityPath(projectId: number): string {
-  return `${ADMIN_ACTIVITY_PATH}?resource_type=project&resource_id=${projectId}`;
+  return cmRouteWithQuery(CM_ADMIN_ROUTE.activity, { resource_type: 'project', resource_id: projectId });
 }
 
 /** Display name used inside confirmation sentences. */

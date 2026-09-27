@@ -198,13 +198,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
             ['table' => $projectsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllProjectStatuses()],
             ['table' => $depositsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllDepositStatuses()],
             ['table' => $tasksTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllTaskStatuses()],
-            ['table' => $submissionsTable, 'column' => 'status', 'values' => [
-                CodeMartV1Constants::SUBMISSION_STATUS_PENDING,
-                CodeMartV1Constants::SUBMISSION_STATUS_PENDING_REVIEW,
-                CodeMartV1Constants::SUBMISSION_STATUS_APPROVED,
-                CodeMartV1Constants::SUBMISSION_STATUS_NEEDS_REVISION,
-                CodeMartV1Constants::SUBMISSION_STATUS_REJECTED,
-            ]],
+            ['table' => $submissionsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllSubmissionStatuses()],
             ['table' => $paymentsTable, 'column' => 'status', 'values' => [
                 CodeMartV1Constants::PAYMENT_STATUS_PENDING,
                 CodeMartV1Constants::PAYMENT_STATUS_PROCESSING,
@@ -544,8 +538,9 @@ class CodeMartV1Initializer implements AppInitializerInterface
      * Idempotent demo dataset (upserts only), re-applied on every sys:init.
      * On by default; the config file switch services.codemart_seed_demo
      * (LaravelConfig, never .env) set to false turns it off. Account passwords
-     * come from the codemart_admin_password secret file, which is created and
-     * printed here only when missing; codemart:admin-password rotates them.
+     * come from the codemart_admin_password secret file, which is created,
+     * applied and printed here only when missing (never logged);
+     * codemart:admin-password rotates them.
      */
     private function seedDemoData(): array
     {

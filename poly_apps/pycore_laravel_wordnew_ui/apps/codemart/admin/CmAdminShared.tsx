@@ -5,6 +5,7 @@ import { useTranslation } from '../../../core/i18n/UiI18n';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
+import { CM_ADMIN_ROUTE, cmAdminUserPath, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
 import { CmNotice, type CmNoticeState } from '../components/workspace/CmStateViews';
 import {
   cmFormatDate,
@@ -39,9 +40,6 @@ export interface CmAdminActionRequest {
 }
 
 type CmAdminFetcher<T> = (query: CmAdminQuery) => Promise<APIResponse<CmAdminPage<T>>>;
-
-const ADMIN_USER_PATH = '/codemart/admin/users';
-const ADMIN_ACTIVITY_PATH = '/codemart/admin/activity';
 
 function extractAdminPage<T>(data: CmAdminPage<T>): CmPagedSlice<T> {
   return { items: data.items, totalPages: data.total_pages, total: data.total };
@@ -279,7 +277,7 @@ export const CmAdminUserLink: React.FC<{
   if (!id) return <>{t(fallbackKey)}</>;
   const label = user?.username || user?.name || t('admin.userNumber', { id });
   return (
-    <Link className="cm-workspace-link cm-admin-user" to={`${ADMIN_USER_PATH}/${id}`} title={user?.name ?? undefined}>
+    <Link className="cm-workspace-link cm-admin-user" to={cmAdminUserPath(id)} title={user?.name ?? undefined}>
       {label}
     </Link>
   );
@@ -367,7 +365,7 @@ export const CmAdminActivityTable: React.FC<{
                 <small className="cm-admin-sub">
                   <Link
                     className="cm-workspace-link"
-                    to={`${ADMIN_ACTIVITY_PATH}?resource_type=${encodeURIComponent(row.resource_type)}&resource_id=${row.resource_id}`}
+                    to={cmRouteWithQuery(CM_ADMIN_ROUTE.activity, { resource_type: row.resource_type, resource_id: row.resource_id })}
                     onClick={() => onResource?.(row.resource_type, row.resource_id)}
                   >
                     {resourceLabel}

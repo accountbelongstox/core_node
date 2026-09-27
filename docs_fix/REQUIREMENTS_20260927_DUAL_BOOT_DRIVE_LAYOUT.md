@@ -40,6 +40,46 @@ Evidence: the workflow outputs of this session, i.e. the chkdsk research, the NT
   - Switching OS must only switch links, or better, need no switch at all (section 3.5).
   - Every project start script calls the shared idempotent ensure (switch plus install).
 
+- D6 (verbatim): "扫描D盘，那些目录可以清理，分配了多少给liunx端。"
+  - Section 7 has the scan result.
+  - Linux has about 209 GB on disk 0 (ext4 198.2 GB + swap 10.8 GB).
+  - D: fills disk 1 entirely, and neither disk has unallocated space.
+- D7 (verbatim): "目前直接提示需要放在E盘，底层重构，如果没有E盘时提示，之后将分配E盘。"
+  - The base layer targets E: for programs, toolchains and build files.
+  - While E: is absent, callers print an explicit notice that these files belong on E: and continue with the original location.
+  - E: will be allocated later, by shrinking D:.
+- D8 (verbatim): "根据上面的扫描，分配新的任务，有那些liunx脚本在D盘创建了一些旧的目录，目前liunx的常要求编译等目录应该是在opt下或其他ext4磁盘下。而不是挂载的ntfs3，所以需要全面修正liunx端。"
+  - New phase P1b: a full audit and fix of every Linux script that creates compile, build, toolchain, cache, temp, venv or node_modules directories on the NTFS mount.
+  - All of those move to ext4 (`/opt` or another ext4 disk).
+  - Only shared data stays on D:.
+
+- D24 (team directive, relayed by ca-orchestrator; spec `development-guides/LINUX_SHELL_RULES.md`):
+  - On Linux an NTFS mount stores source code only. Tools, caches, builds, temp, node_modules/vendor/.venv, runtime data, logs and model weights all go to ext4.
+  - Each Linux constant is defined exactly once.
+  - Scripts never move or delete existing NTFS files.
+  - Contract: `paths.linux_ntfs_policy = code_only`. `linux_data_dir_candidates` is now `/www/core_node` (only when `/www` is not NTFS), then `/var/_core_node`, then `~/core_node`.
+  - This supersedes "keep model data on D:" in §3.2 for Linux; Windows is unchanged.
+
+- D26 (team directive; revises D24): data that both OSes share may stay on the NTFS disk. D: maps to `/www/www`, so shared model weights and shared data stay on D:.
+  - Contract: `paths.linux_ntfs_policy = code_and_shared_data`. `linux_data_dir_candidates` is restored, with `/www/www/core_node` first on the dual-boot desktop.
+  - Still never on NTFS on Linux:
+    - install paths
+    - package caches and stores
+    - build output and compile bases
+    - temp
+    - node_modules/vendor/.venv
+    - Linux-only service state (for example PostgreSQL clusters)
+    - Linux-only desktop caches
+    - recycle bins
+  - Resulting P1 amendment:
+    - `XDG_CACHE_HOME` moves to ext4, because it carries Linux-only desktop and tool caches.
+    - Shared model caches get explicit variables that point at the shared NTFS cache: `HF_HOME`, `TORCH_HOME`, and the Whisper model dir that pycore reads (check which variable before moving `XDG_CACHE_HOME`).
+- D25 (team directive, `LINUX_SHELL_RULES.md` §2): no recycle bin on an NTFS mount on Linux.
+  - Scripts and programs never trash there: no `gio trash`, `trash-put`, `kioclient` trash, `send2trash`, and no hand-made `.Trash*`.
+  - `mount_common.sh` blocks per-volume trash idempotently. When no trash exists at the mount root, it places an empty, root-owned, non-writable regular file `.Trash-<uid>` there. When a trash directory already exists, it reports it and leaves it alone.
+  - Emptying the existing `D:\.Trash-1000` (about 73 GB) needs explicit user approval.
+- Tree-bind condition (ca-orchestrator, `LINUX_SHELL_RULES.md` §2): the empty mount point `/www/core_node_trees` is allowed. Scripts write under it only after `mountpoint -q` confirms the bind. While it is unmounted it stays empty, and nothing falls back to writing into it.
+
 ## 2. Root cause of "D: dirty on Linux" (D3)
 
 Every piece of evidence comes from local event logs or the chkdsk log, except where marked.
@@ -214,6 +254,7 @@ Principle, from official docs plus the corruption evidence: Windows owns every l
 |---|---|---|---|
 | P0 | This record; contract-key proposal to ca-orchestrator | this session | done |
 | P1 | Linux safety: hard-pin `/opt`; toolchain caches off NTFS (`BUN_INSTALL_CACHE_DIR`, pnpm, npm, uv, corepack) and out of the NTFS `XDG_CACHE_HOME`; `mount_common.sh` hardening (3.6); E: exclusion hooks | shell-linux files, pycore/laravel mirrors | fences; review |
+| P1b | Full Linux audit and fix (D8): every script that writes compile, build, toolchain, cache, temp, venv or node_modules directories onto `/www` (NTFS) moves to ext4 through central constants. This covers desktop caches under `XDG_CACHE_HOME`, `.Trash-<uid>` creation on NTFS, the legacy `/www/core_node` data directory, and the agent runtimes. Workflow `linux-ntfs-writers-audit` produces file-disjoint fix groups per lane. | shell-linux lane, plus pycore/laravel mirrors through ca-orchestrator | fences per group; P1 done |
 | P2 | Architecture constants: Windows 3-drive keys with E: detection and fallback; Linux tree/tool roots; contract keys | shell-windows, shell-linux, orchestrator (contract) | fences; review |
 | P3 | Wrap-type installers and shims for node, npm, pnpm, bun and composer on both OSes; remove duplicate definitions | shell-windows, shell-linux | P2 |
 | P4 | Shared link ensure (Windows) / assert (Linux) plus start-script integration; `.gitignore` | shell lanes plus the owners of each start script | P2, P3; Linux rollout after P6 |
@@ -225,6 +266,21 @@ For each phase, the Workflow does the following:
 2. A three-lens adversarial review: PS 5.1/bash runtime with strict mode, semantics against official docs, and repo rules (constants center, no duplicates, idempotency, Debian 13 / Ubuntu 26.04).
 3. A fix round.
 4. Verification with parse and read-only probes. Destructive or system-changing actions stay behind explicit prompts.
+
+## 7. D: scan (2026-09-27, robocopy /L, read-only)
+
+D: is 1907.7 GB with 245 GB free.
+
+| Class | Items |
+|---|---|
+| A. Cleanable: regenerable, or already Linux trash | `D:\.Trash-1000` 73 GB, which holds a 46 GB `pagefile.sys` copy, `_build_awy` 13 GB, old core_node backups, node_modules, and the Linux compile-dir fallbacks `_ubuntu_24` and `_kali_2026`; `D:\.Trash-0`; `D:\www\cache\pip` 13 GB; `puppeteer` 2.5 GB; `.bun` 1.1 GB, `bun`, `pnpm`, `node`, `uv`, `xdg`, and the Linux desktop caches (`at-spi`, `dconf`, `gvfsd`, `mesa*`, `nvidia`, `numba`, `matplotlib`, `radv`); the empty `D:\_debian_13`, `D:\.dev_debian13` and `D:\.dev_linux`; `D:\.tmp\pip-*`, `tmp*` and `node-gyp`; `found.000`; a duplicate 22.8 GB mkv in `D:\.tmp\New` (verify the hash first) |
+| B. User data (the user decides) | `D:\.tmp\BaiduNetdiskDownload` 828 GB; `D:\programing\Ace5` 108 GB; `D:\.tmp\Downloads` 71 GB (ISOs); `D:\applications\Games` 60 GB; `RegionalHybridFlasher*` 18.6 GB |
+| C. Programs and build output, moving to E: | `D:\.dev_win10` 171 GB (Qt 85 GB, Pythons, Node, venvs, WSL disk 13 GB); `D:\applications` 92 GB; `D:\.pnpm-store` 11 GB; `pagefile.sys` 44 GB (to C: or E:) |
+| D. Data, staying on D: | `www\cache\pycore` 62 GB, `huggingface` 33 GB, `stt`, `whisper`, `tts`, `www\wwwroot`, `www\core_node`, `programing\core_node`, `programing\Users` 43 GB |
+
+- E: sizing: class C is about 320 GB, so E: should be about 350–400 GB with headroom.
+- Shrinking D: that far needs at least that much free space on D: first, which means cleaning class A and part of class B.
+- Nothing is deleted without explicit user approval. Before deleting the Linux-written trees, run a read-only `chkdsk D: /scan` first.
 
 ## 6. Status log
 

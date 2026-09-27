@@ -451,6 +451,17 @@ class CodeMartV1Constants
         ];
     }
 
+    public static function getAllSubmissionStatuses(): array
+    {
+        return [
+            self::SUBMISSION_STATUS_PENDING,
+            self::SUBMISSION_STATUS_PENDING_REVIEW,
+            self::SUBMISSION_STATUS_APPROVED,
+            self::SUBMISSION_STATUS_NEEDS_REVISION,
+            self::SUBMISSION_STATUS_REJECTED,
+        ];
+    }
+
     public static function getAllPaymentMethods(): array
     {
         return [
@@ -586,6 +597,12 @@ class CodeMartV1Constants
         self::SUBMISSION_STATUS_PENDING,
         self::SUBMISSION_STATUS_PENDING_REVIEW,
     ];
+    public const SUBMISSION_TERMINAL_STATUSES = [
+        self::SUBMISSION_STATUS_APPROVED,
+        self::SUBMISSION_STATUS_NEEDS_REVISION,
+        self::SUBMISSION_STATUS_REJECTED,
+    ];
+    public const ANALYSIS_TERMINAL_STATUSES = [self::AI_ANALYSIS_COMPLETED, self::AI_ANALYSIS_FAILED];
     public const MILESTONE_CLOSED_STATUSES = [
         self::MILESTONE_STATUS_COMPLETED,
         self::MILESTONE_STATUS_FAILED,
@@ -722,12 +739,7 @@ class CodeMartV1Constants
                 ],
                 'project' => self::getAllProjectStatuses(),
                 'task' => self::getAllTaskStatuses(),
-                'submission' => [
-                    self::SUBMISSION_STATUS_PENDING_REVIEW,
-                    self::SUBMISSION_STATUS_APPROVED,
-                    self::SUBMISSION_STATUS_NEEDS_REVISION,
-                    self::SUBMISSION_STATUS_REJECTED,
-                ],
+                'submission' => self::getAllSubmissionStatuses(),
                 'payment' => [
                     self::PAYMENT_STATUS_PENDING,
                     self::PAYMENT_STATUS_PROCESSING,
@@ -783,10 +795,12 @@ class CodeMartV1Constants
                     self::REVIEWER_APPLICATION_REVOKED,
                 ],
             ],
-            // Per state group: states from which no further transition exists.
+            // Per state group: closed states (no further work; archiving may still follow).
             'terminal_states' => [
                 'project' => self::PROJECT_CLOSED_STATUSES,
                 'task' => self::TASK_TERMINAL_STATUSES,
+                'submission' => self::SUBMISSION_TERMINAL_STATUSES,
+                'analysis' => self::ANALYSIS_TERMINAL_STATUSES,
                 'milestone' => self::MILESTONE_CLOSED_STATUSES,
                 'payment' => self::PAYMENT_TERMINAL_STATUSES,
                 'escrow' => self::ESCROW_TERMINAL_STATUSES,

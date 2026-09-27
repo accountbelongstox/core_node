@@ -25,13 +25,13 @@
 CLAUDE_TEAM_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_TEAM_COMMON_PATH="$CLAUDE_TEAM_COMMON_DIR/$(basename "${BASH_SOURCE[0]}")"
 CLAUDE_TEAM_ROOT_DIR="$(cd "$CLAUDE_TEAM_COMMON_DIR/../../../.." && pwd)"
-CLAUDE_TEAM_CATALOG_PATH="$CLAUDE_TEAM_ROOT_DIR/config/claude_team_roles.json"
 CLAUDE_TEAM_LAUNCHER_PATH="$CLAUDE_TEAM_ROOT_DIR/scripts/linuxenvs/claudeteam.sh"
 CLAUDE_TEAM_AI_CLI_LIB="$CLAUDE_TEAM_COMMON_DIR/ai_cli_provision_common.sh"
 CLAUDE_TEAM_CLAUDE_INSTALL_LIB="$CLAUDE_TEAM_ROOT_DIR/scripts/ai_shtools/claude_code_install.sh"
 . "$CLAUDE_TEAM_CLAUDE_INSTALL_LIB"
 CLAUDE_TEAM_BIN_DIR="/usr/local/bin"
 CLAUDE_TEAM_STATE_DIR="$CCI_TEAM_STATE_DIR"
+CLAUDE_TEAM_CATALOG_PATH="$CCI_TEAM_CATALOG_PATH"
 CLAUDE_TEAM_TOTAL_STEPS="9"
 CLAUDE_TEAM_ATTACH_WAIT_SECONDS="10"
 CLAUDE_TEAM_PID_WAIT_SECONDS="10"
@@ -56,6 +56,8 @@ CLAUDE_TEAM_PANE_SESSION_OPTION="@claude_session"
 CLAUDE_TEAM_PANE_BORDER_FORMAT=' #{?#{@claude_role},#{@claude_role} (#{@claude_session}),#{pane_title}} '
 CLAUDE_TEAM_REGRID_HOOKS=("after-split-window" "after-select-layout" "after-kill-pane")
 CLAUDE_TEAM_SAFE_ARG_PATTERN='^[A-Za-z0-9_./:=%@+,-]+$'
+# claude's own --name flag and its short form (Windows: $ClaudeTeamNameFlags, SPL-110).
+CLAUDE_TEAM_NAME_FLAGS=("--name" "-n")
 
 CLAUDE_TEAM_MODE="sessions"
 CLAUDE_TEAM_ENTRY_PATH=""
@@ -108,6 +110,7 @@ CLAUDE_TEAM_ROLE_AGENT_PATH=()
 CLAUDE_TEAM_ROLE_REMOTE_SECRET=()
 CLAUDE_TEAM_ROLE_REMOTE_ROOT=()
 CLAUDE_TEAM_ROLE_SOURCE=()
+CLAUDE_TEAM_ROLE_WINDOW=()
 CLAUDE_TEAM_ROW_STATE=()
 CLAUDE_TEAM_ROW_ACTION=()
 CLAUDE_TEAM_ROW_PID=()
@@ -151,6 +154,8 @@ CLAUDE_TEAM_PLACE_ORDER=()
 CLAUDE_TEAM_PACK_GROUPS=()
 CLAUDE_TEAM_GRID_MAX_COLS="1"
 CLAUDE_TEAM_GRID_MAX_ROWS="1"
+CLAUDE_TEAM_GRID_BEST_COLUMNS="1"
+CLAUDE_TEAM_GRID_BEST_SCORE="-1"
 CLAUDE_TEAM_TAB_COUNT="0"
 CLAUDE_TEAM_TAB_LEAD=()
 CLAUDE_TEAM_TAB_CAP=()
@@ -159,6 +164,8 @@ CLAUDE_TEAM_TAB_ROLES=()
 CLAUDE_TEAM_TAB_SPEC=()
 CLAUDE_TEAM_TAB_COLUMNS=()
 CLAUDE_TEAM_TAB_LEAD_COLS=()
+CLAUDE_TEAM_TAB_LEAD_ROWS=()
+CLAUDE_TEAM_TAB_LEAD_SHAPE=()
 CLAUDE_TEAM_TAB_NAME=()
 
 claude_team_step() {
@@ -240,6 +247,17 @@ claude_team_lead_session() {
         return 0
     fi
     printf '%s%s' "$CLAUDE_TEAM_SESSION_PREFIX" "$CLAUDE_TEAM_LEAD_ROLE"
+}
+
+# The other launcher's lead session name (ca-orchestrator for claudeteamup, or
+# ct-orchestrator for claudeagents): one orchestrator lead runs at a time (DESIGN
+# S3.2), so scan_live checks this session too before placing the lead here.
+claude_team_other_lead_session() {
+    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+        printf '%s%s' "$CLAUDE_TEAM_SESSION_PREFIX" "$CLAUDE_TEAM_LEAD_ROLE"
+        return 0
+    fi
+    printf '%s' "$CLAUDE_TEAM_TEAM_SESSION_NAME"
 }
 
 claude_team_session_name() {
@@ -349,6 +367,7 @@ claude_team_load_catalog() {
     local field_g=""
     local field_h=""
     local field_i=""
+    local field_j=""
     local index=""
     if [ ! -f "$CLAUDE_TEAM_CATALOG_PATH" ]; then
         claude_team_log ERROR "Role catalog missing: $CLAUDE_TEAM_CATALOG_PATH"
@@ -360,7 +379,7 @@ import os
 import sys
 
 catalog_path, root_dir = sys.argv[1:3]
-with open(catalog_path, encoding="utf-8") as handle:
+with open(catalog_path, encoding="utf-8-sig") as handle:
     data = json.load(handle)
 
 
@@ -403,7 +422,7 @@ if os.path.isdir(agents_dir):
             continue
         path = os.path.join(agents_dir, file_name)
         meta = {}
-        with open(path, encoding="utf-8") as handle:
+        with open(path, encoding="utf-8-sig") as handle:
             lines = handle.read().splitlines()
         if lines and lines[0].strip() == "---":
             for line in lines[1:]:
@@ -412,10 +431,14 @@ if os.path.isdir(agents_dir):
                 if ":" in line and not line[:1].isspace():
                     key, _, value = line.partition(":")
                     meta[key.strip()] = value.strip().strip("\"'")
-        if not meta.get("name"):
+        name = meta.get("name")
+        if not name:
             emit("W", path)
             continue
-        agents[meta["name"]] = (meta.get("model", ""), meta.get("effort", ""), path)
+        if name in agents:
+            emit("D", name, path)
+            continue
+        agents[name] = (meta.get("model", ""), meta.get("effort", ""), path)
 overrides = {}
 order = []
 for role in data.get("roles") or []:
@@ -429,7 +452,8 @@ for name in order:
     remote = role.get("remote") or {}
     model, effort, path = agents.get(name, ("", "", ""))
     emit("R", name, role.get("enabled", True) is not False, name in agents, model, effort, path,
-         remote.get("ssh_secret", ""), remote.get("root", ""), "catalog" if name in overrides else "agent-file")
+         remote.get("ssh_secret", ""), remote.get("root", ""), "catalog" if name in overrides else "agent-file",
+         role.get("window", True) is not False)
 PY
 )" || return 1
 
@@ -442,12 +466,13 @@ PY
     CLAUDE_TEAM_ROLE_REMOTE_SECRET=()
     CLAUDE_TEAM_ROLE_REMOTE_ROOT=()
     CLAUDE_TEAM_ROLE_SOURCE=()
+    CLAUDE_TEAM_ROLE_WINDOW=()
     CLAUDE_TEAM_ENV_SCOPE=()
     CLAUDE_TEAM_ENV_NAME=()
     CLAUDE_TEAM_ENV_VALUE=()
     CLAUDE_TEAM_GROUP_INDEX=()
     CLAUDE_TEAM_GROUP_ROLE=()
-    while IFS=$'\t' read -r kind field_a field_b field_c field_d field_e field_f field_g field_h field_i; do
+    while IFS=$'\t' read -r kind field_a field_b field_c field_d field_e field_f field_g field_h field_i field_j; do
         case "$kind" in
             R)
                 CLAUDE_TEAM_ROLE_NAMES+=("$field_a")
@@ -459,6 +484,7 @@ PY
                 CLAUDE_TEAM_ROLE_REMOTE_SECRET+=("${field_g#-}")
                 CLAUDE_TEAM_ROLE_REMOTE_ROOT+=("${field_h#-}")
                 CLAUDE_TEAM_ROLE_SOURCE+=("$field_i")
+                CLAUDE_TEAM_ROLE_WINDOW+=("$field_j")
                 ;;
             T)
                 CLAUDE_TEAM_GROUP_INDEX+=("$field_a")
@@ -470,6 +496,7 @@ PY
                 CLAUDE_TEAM_ENV_VALUE+=("$field_c")
                 ;;
             W) claude_team_log WARN "Agent file without a frontmatter name ignored: $field_a" ;;
+            D) claude_team_log WARN "Duplicate agent name $field_a ignored: $field_b" ;;
             G)
                 case "$field_a" in
                     guide_doc) CLAUDE_TEAM_GUIDE_DOC="$field_b" ;;
@@ -575,6 +602,11 @@ claude_team_validate_roles() {
             CLAUDE_TEAM_ROW_STATE[$index]="remote"
             CLAUDE_TEAM_REMOTE_ANY="1"
             claude_team_log OK "Remote role $role (model ${CLAUDE_TEAM_ROLE_MODEL[$index]:-default}, effort ${CLAUDE_TEAM_ROLE_EFFORT[$index]:-default}): ssh <secret ${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}> -> tmux ${CLAUDE_TEAM_SESSIONS_SOCKET}/$(claude_team_session_name "$role") in ${CLAUDE_TEAM_ROLE_REMOTE_ROOT[$index]} (Remote Control on)"
+            continue
+        fi
+        if [ "${CLAUDE_TEAM_ROLE_WINDOW[$index]}" = "0" ]; then
+            CLAUDE_TEAM_ROW_STATE[$index]="service"
+            claude_team_log OK "Service role $role: window:false in the catalog (task tag / roster entry only; no pane started here)"
             continue
         fi
         CLAUDE_TEAM_ROW_STATE[$index]="session"
@@ -798,9 +830,12 @@ claude_team_pid_path() {
 claude_team_named_pid() {
     local session="$1"
     local pid=""
+    local flag_pattern="${CLAUDE_TEAM_NAME_FLAGS[0]}|${CLAUDE_TEAM_NAME_FLAGS[1]}"
     command -v pgrep >/dev/null 2>&1 || return 1
-    for pid in $(pgrep -u "$(id -u)" -f -- "--name $session" 2>/dev/null); do
-        if [ -r "/proc/$pid/cmdline" ] && tr '\0' '\n' < "/proc/$pid/cmdline" | awk -v s="$session" 'prev == "--name" && $0 == s { found = 1 } { prev = $0 } END { exit !found }'; then
+    for pid in $(pgrep -u "$(id -u)" -f -- "($flag_pattern) $session" 2>/dev/null); do
+        if [ -r "/proc/$pid/cmdline" ] && tr '\0' '\n' < "/proc/$pid/cmdline" | \
+            awk -v s="$session" -v f1="${CLAUDE_TEAM_NAME_FLAGS[0]}" -v f2="${CLAUDE_TEAM_NAME_FLAGS[1]}" \
+                '(prev == f1 || prev == f2) && $0 == s { found = 1 } { prev = $0 } END { exit !found }'; then
             printf '%s' "$pid"
             return 0
         fi
@@ -868,8 +903,11 @@ claude_team_select_terminal() {
 }
 
 # Live state per role: running (PID alive, in the layout or elsewhere),
-# legacy-session (a per-role tmux session of the previous launcher), idle-pane
-# (its pane exists but claude is gone: respawned in place) or stopped (placed).
+# other-lead (the lead role only: the other launcher's lead is live, no tmux
+# session required -- a bare ct-orchestrator/ca-orchestrator claude process
+# counts too; no place, no respawn, DESIGN S3.2), legacy-session (a per-role
+# tmux session of the previous launcher), idle-pane (its pane exists but claude
+# is gone: respawned in place) or stopped (placed).
 claude_team_scan_live() {
     local index=""
     local role=""
@@ -925,6 +963,12 @@ claude_team_scan_live() {
                 CLAUDE_TEAM_ROW_TAB[$index]="elsewhere"
             fi
             claude_team_log SKIP "Role $role running (PID $pid, ${CLAUDE_TEAM_ROW_TAB[$index]})"
+        elif [ "$role" = "$CLAUDE_TEAM_LEAD_ROLE" ] && \
+            pid="$(claude_team_role_pid "$CLAUDE_TEAM_LEAD_ROLE" "$(claude_team_other_lead_session)")"; then
+            CLAUDE_TEAM_ROW_STATE[$index]="other-lead"
+            CLAUDE_TEAM_ROW_PID[$index]="$pid"
+            CLAUDE_TEAM_ROW_TAB[$index]="other launcher"
+            claude_team_log WARN "Role $role: the other launcher's lead $(claude_team_other_lead_session) is live (PID $pid); one lead at a time, not placed here"
         elif claude_team_tmux has-session -t "=$session" 2>/dev/null; then
             CLAUDE_TEAM_ROW_STATE[$index]="legacy-session"
             CLAUDE_TEAM_ROW_TAB[$index]="session $session"
@@ -1191,8 +1235,43 @@ claude_team_row_share() {
     printf '%s' "$base"
 }
 
+# Best column count for `count` panes over a full-width area `area_cols` and row
+# budget `area_rows`, at most `max_cols` columns and `max_rows` rows per column:
+# sets CLAUDE_TEAM_GRID_BEST_COLUMNS/CLAUDE_TEAM_GRID_BEST_SCORE (score stays -1
+# when no candidate fits `count` panes within max_cols x max_rows).
+claude_team_best_grid() {
+    local area_cols="$1"
+    local area_rows="$2"
+    local max_cols="$3"
+    local max_rows="$4"
+    local count="$5"
+    local columns="0"
+    local grid_rows="0"
+    local pane_cols="0"
+    local pane_rows="0"
+    local score="0"
+    CLAUDE_TEAM_GRID_BEST_COLUMNS="1"
+    CLAUDE_TEAM_GRID_BEST_SCORE="-1"
+    [ "$max_cols" -ge 1 ] || max_cols="1"
+    [ "$max_rows" -ge 1 ] || max_rows="1"
+    for ((columns = (count + max_rows - 1) / max_rows; columns <= max_cols && columns <= count; columns++)); do
+        grid_rows=$(((count + columns - 1) / columns))
+        pane_cols=$(((area_cols + 1) / columns - 1))
+        pane_rows=$((area_rows / grid_rows - 1))
+        score=$((pane_cols * pane_rows))
+        if [ "$score" -gt "$CLAUDE_TEAM_GRID_BEST_SCORE" ]; then
+            CLAUDE_TEAM_GRID_BEST_SCORE="$score"
+            CLAUDE_TEAM_GRID_BEST_COLUMNS="$columns"
+        fi
+    done
+}
+
 # Chooses the equal grid of one tab: the column count that maximizes the pane area
-# at no less than the minimum sizes, filled column by column.
+# at no less than the minimum sizes, filled column by column (DESIGN S3.1: max
+# area, column fill). The lead's tab first tries a full-height left column at or
+# above min_lead; when no column count leaves the lead at min_lead, the lead
+# takes a full-width top row instead (lead-top fallback, SPL-107) with the roles
+# gridded below it.
 claude_team_tab_grid() {
     local tab="$1"
     local cols="$CLAUDE_TEAM_BUDGET_COLS"
@@ -1204,10 +1283,10 @@ claude_team_tab_grid() {
     local columns="0"
     local grid_rows="0"
     local lead_cols="0"
+    local lead_rows="0"
     local area="0"
-    local pane_cols="0"
-    local pane_rows="0"
     local score="0"
+    local shape="left"
     local best_score="-1"
     local best_columns="1"
     local best_lead_cols="0"
@@ -1232,33 +1311,53 @@ claude_team_tab_grid() {
     CLAUDE_TEAM_TAB_SPEC[$tab]=""
     CLAUDE_TEAM_TAB_COLUMNS[$tab]="0"
     CLAUDE_TEAM_TAB_LEAD_COLS[$tab]="$cols"
+    CLAUDE_TEAM_TAB_LEAD_ROWS[$tab]="0"
+    CLAUDE_TEAM_TAB_LEAD_SHAPE[$tab]="left"
     if [ "$count" -gt 0 ]; then
         [ "$max_cols" -ge 1 ] || max_cols="1"
-        for ((columns = (count + max_rows - 1) / max_rows; columns <= max_cols && columns <= count; columns++)); do
-            grid_rows=$(((count + columns - 1) / columns))
-            lead_cols="0"
-            area="$cols"
-            if [ "${CLAUDE_TEAM_TAB_LEAD[$tab]}" = "1" ]; then
+        if [ "${CLAUDE_TEAM_TAB_LEAD[$tab]}" = "1" ]; then
+            for ((columns = (count + max_rows - 1) / max_rows; columns <= max_cols && columns <= count; columns++)); do
+                grid_rows=$(((count + columns - 1) / columns))
                 lead_cols=$(((cols - columns) / (columns + 1)))
-                [ "$lead_cols" -ge "$CLAUDE_TEAM_MIN_LEAD_COLS" ] || lead_cols="$CLAUDE_TEAM_MIN_LEAD_COLS"
+                [ "$lead_cols" -ge "$CLAUDE_TEAM_MIN_LEAD_COLS" ] || continue
                 area=$((cols - lead_cols - 1))
+                score=$(( ((area + 1) / columns - 1) * (rows / grid_rows - 1) ))
+                if [ "$score" -gt "$best_score" ]; then
+                    best_score="$score"
+                    best_columns="$columns"
+                    best_lead_cols="$lead_cols"
+                fi
+            done
+            if [ "$best_score" -lt 0 ]; then
+                shape="top"
+                lead_rows="$CLAUDE_TEAM_MIN_LEAD_ROWS"
+                if [ "$((rows - lead_rows - 1))" -lt 1 ]; then
+                    lead_rows=$((rows > 2 ? rows - 2 : 1))
+                fi
+                claude_team_best_grid "$cols" "$((rows - lead_rows - 1))" "$CLAUDE_TEAM_GRID_MAX_COLS" \
+                    "$(( (rows - lead_rows - 1) / (CLAUDE_TEAM_MIN_ROLE_ROWS + 1) ))" "$count"
+                best_score="$CLAUDE_TEAM_GRID_BEST_SCORE"
+                best_columns="$CLAUDE_TEAM_GRID_BEST_COLUMNS"
+                best_lead_cols="0"
+                claude_team_log WARN "Tab ${CLAUDE_TEAM_TAB_NAME[$tab]}: no ${CLAUDE_TEAM_MIN_ROLE_COLS}-col role column fits beside a ${CLAUDE_TEAM_MIN_LEAD_COLS}-col lead at ${cols}x${rows} (DESIGN S3.1 lead-top fallback): the lead takes a full-width top row ($lead_rows rows) instead"
             fi
-            pane_cols=$(((area + 1) / columns - 1))
-            pane_rows=$((rows / grid_rows - 1))
-            score=$((pane_cols * pane_rows))
-            if [ "$score" -gt "$best_score" ]; then
-                best_score="$score"
-                best_columns="$columns"
-                best_lead_cols="$lead_cols"
-            fi
-        done
+        else
+            claude_team_best_grid "$cols" "$rows" "$max_cols" "$max_rows" "$count"
+            best_score="$CLAUDE_TEAM_GRID_BEST_SCORE"
+            best_columns="$CLAUDE_TEAM_GRID_BEST_COLUMNS"
+        fi
         per_column=$((count / best_columns))
         extra=$((count % best_columns))
         cursor="0"
         area="$cols"
         if [ "${CLAUDE_TEAM_TAB_LEAD[$tab]}" = "1" ]; then
-            area=$((cols - best_lead_cols - 1))
-            CLAUDE_TEAM_TAB_LEAD_COLS[$tab]="$best_lead_cols"
+            if [ "$shape" = "top" ]; then
+                CLAUDE_TEAM_TAB_LEAD_ROWS[$tab]="$lead_rows"
+                rows=$((rows - lead_rows - 1))
+            else
+                area=$((cols - best_lead_cols - 1))
+                CLAUDE_TEAM_TAB_LEAD_COLS[$tab]="$best_lead_cols"
+            fi
         fi
         for ((column = 0; column < best_columns; column++)); do
             take="$per_column"
@@ -1280,15 +1379,24 @@ claude_team_tab_grid() {
         done
         CLAUDE_TEAM_TAB_SPEC[$tab]="$spec"
         CLAUDE_TEAM_TAB_COLUMNS[$tab]="$best_columns"
+        CLAUDE_TEAM_TAB_LEAD_SHAPE[$tab]="$shape"
     fi
     if [ "${CLAUDE_TEAM_TAB_LEAD[$tab]}" = "1" ]; then
         index="$(claude_team_role_index "$CLAUDE_TEAM_LEAD_ROLE")" || index=""
         if [ -n "$index" ]; then
             CLAUDE_TEAM_ROW_TAB[$index]="${CLAUDE_TEAM_TAB_NAME[$tab]}"
             CLAUDE_TEAM_ROW_PANE[$index]="lead"
-            CLAUDE_TEAM_ROW_CELLS[$index]="${CLAUDE_TEAM_TAB_LEAD_COLS[$tab]}x$((rows - 1))"
+            if [ "${CLAUDE_TEAM_TAB_LEAD_SHAPE[$tab]}" = "top" ]; then
+                CLAUDE_TEAM_ROW_CELLS[$index]="${CLAUDE_TEAM_BUDGET_COLS}x${CLAUDE_TEAM_TAB_LEAD_ROWS[$tab]}"
+            else
+                CLAUDE_TEAM_ROW_CELLS[$index]="${CLAUDE_TEAM_TAB_LEAD_COLS[$tab]}x$((CLAUDE_TEAM_BUDGET_ROWS - 1))"
+            fi
         fi
-        claude_team_log OK "Tab ${CLAUDE_TEAM_TAB_NAME[$tab]}: lead $CLAUDE_TEAM_LEAD_ROLE ${CLAUDE_TEAM_TAB_LEAD_COLS[$tab]} cols full height; ${CLAUDE_TEAM_TAB_COLUMNS[$tab]} column(s): ${CLAUDE_TEAM_TAB_SPEC[$tab]:-none}"
+        if [ "${CLAUDE_TEAM_TAB_LEAD_SHAPE[$tab]}" = "top" ]; then
+            claude_team_log OK "Tab ${CLAUDE_TEAM_TAB_NAME[$tab]}: lead $CLAUDE_TEAM_LEAD_ROLE full width, ${CLAUDE_TEAM_TAB_LEAD_ROWS[$tab]} rows top; ${CLAUDE_TEAM_TAB_COLUMNS[$tab]} column(s) below: ${CLAUDE_TEAM_TAB_SPEC[$tab]:-none}"
+        else
+            claude_team_log OK "Tab ${CLAUDE_TEAM_TAB_NAME[$tab]}: lead $CLAUDE_TEAM_LEAD_ROLE ${CLAUDE_TEAM_TAB_LEAD_COLS[$tab]} cols full height; ${CLAUDE_TEAM_TAB_COLUMNS[$tab]} column(s): ${CLAUDE_TEAM_TAB_SPEC[$tab]:-none}"
+        fi
     else
         claude_team_log OK "Tab ${CLAUDE_TEAM_TAB_NAME[$tab]}: ${CLAUDE_TEAM_TAB_COLUMNS[$tab]} column(s): ${CLAUDE_TEAM_TAB_SPEC[$tab]}"
     fi
@@ -1382,7 +1490,10 @@ claude_team_build_tab() {
     local parts="0"
     local percent="0"
     local cols="$CLAUDE_TEAM_BUDGET_COLS"
+    local budget_rows="$CLAUDE_TEAM_BUDGET_ROWS"
     local lead_cols="${CLAUDE_TEAM_TAB_LEAD_COLS[$tab]}"
+    local lead_rows="${CLAUDE_TEAM_TAB_LEAD_ROWS[$tab]}"
+    local lead_shape="${CLAUDE_TEAM_TAB_LEAD_SHAPE[$tab]}"
     local role=""
     if [ -n "${CLAUDE_TEAM_TAB_SPEC[$tab]}" ]; then
         IFS='|' read -r -a columns <<< "${CLAUDE_TEAM_TAB_SPEC[$tab]}"
@@ -1403,14 +1514,28 @@ claude_team_build_tab() {
     [ "${#columns[@]}" -gt 0 ] || return 0
     if [ "${CLAUDE_TEAM_TAB_LEAD[$tab]}" = "1" ]; then
         role="${columns[0]%%,*}"
-        percent=$((((cols - lead_cols - 1) * 100 + cols / 2) / cols))
-        [ "$percent" -ge 1 ] || percent="1"
-        [ "$percent" -le 99 ] || percent="99"
-        if claude_team_split_role_pane "$first_pane" -h "$percent" "$role"; then
-            tops[0]="$CLAUDE_TEAM_LAST_PANE_ID"
+        if [ "$lead_shape" = "top" ]; then
+            # Lead-top fallback (SPL-107): split off the grid area below the lead
+            # with -v, sized from the row budget instead of the column budget.
+            percent=$((((budget_rows - lead_rows - 1) * 100 + budget_rows / 2) / budget_rows))
+            [ "$percent" -ge 1 ] || percent="1"
+            [ "$percent" -le 99 ] || percent="99"
+            if claude_team_split_role_pane "$first_pane" -v "$percent" "$role"; then
+                tops[0]="$CLAUDE_TEAM_LAST_PANE_ID"
+            else
+                claude_team_mark_failed "$role"
+                tops[0]=""
+            fi
         else
-            claude_team_mark_failed "$role"
-            tops[0]=""
+            percent=$((((cols - lead_cols - 1) * 100 + cols / 2) / cols))
+            [ "$percent" -ge 1 ] || percent="1"
+            [ "$percent" -le 99 ] || percent="99"
+            if claude_team_split_role_pane "$first_pane" -h "$percent" "$role"; then
+                tops[0]="$CLAUDE_TEAM_LAST_PANE_ID"
+            else
+                claude_team_mark_failed "$role"
+                tops[0]=""
+            fi
         fi
     else
         tops[0]="$first_pane"
@@ -1464,8 +1589,9 @@ claude_team_respawn_roles() {
 }
 
 claude_team_regrid_hook_command() {
-    printf "run-shell -b \"bash '%s' --regrid '%s' '%s' '%s' '%s'\"" \
-        "$CLAUDE_TEAM_COMMON_PATH" "$CLAUDE_TEAM_TMUX_SOCKET" "$CLAUDE_TEAM_LAYOUT_SESSION" "$CLAUDE_TEAM_LEAD_ROLE" "$CLAUDE_TEAM_MIN_LEAD_COLS"
+    printf "run-shell -b \"bash '%s' --regrid '%s' '%s' '%s' '%s' '%s'\"" \
+        "$CLAUDE_TEAM_COMMON_PATH" "$CLAUDE_TEAM_TMUX_SOCKET" "$CLAUDE_TEAM_LAYOUT_SESSION" "$CLAUDE_TEAM_LEAD_ROLE" \
+        "$CLAUDE_TEAM_MIN_LEAD_COLS" "$CLAUDE_TEAM_MIN_LEAD_ROWS"
 }
 
 # Server options per the Claude Code terminal docs (passthrough for notifications
@@ -1503,29 +1629,41 @@ claude_team_apply_tmux_options() {
     fi
 }
 
-# Re-applies the equal grid of every window of <session>: panes are grouped into
-# columns by pane_left; a single full-height lead pane in the first column keeps
-# max(min lead cols, an equal share); then equal columns and equal rows through
-# resize-pane (never select-layout, so the after-select-layout hook cannot loop).
+# Re-applies the equal grid of every window of <session>. The lead pane (tagged
+# @claude_role == lead_role) is found directly from its own pane_width/height: at
+# or above window height it is a full-height LEFT column (resize-pane -x, at
+# least lead_min_cols); at or above window width but not full height it is a
+# full-width TOP row (SPL-107 lead-top fallback: resize-pane -y, at least
+# lead_min_rows); the remaining panes (any lead excluded) are grouped into equal
+# columns by pane_left and equal rows through resize-pane (never select-layout,
+# so the after-select-layout hook cannot loop).
 claude_team_regrid() {
     local session="$1"
     local lead_role="$2"
-    local lead_min="$3"
+    local lead_min_cols="$3"
+    local lead_min_rows="${4:-$lead_min_cols}"
     local window=""
     local size=""
     local width="0"
     local height="0"
     local left=""
     local top=""
+    local pw=""
+    local ph=""
     local pane=""
     local role=""
+    local lead_pane=""
+    local lead_pane_w="0"
+    local lead_pane_h="0"
+    local shape="plain"
     local previous_left=""
     local column="-1"
     local count="0"
-    local start="0"
     local role_columns="0"
     local lead_cols="0"
+    local lead_rows="0"
     local area="0"
+    local usable_rows="0"
     local position="0"
     local target="0"
     local column_panes=()
@@ -1543,7 +1681,16 @@ claude_team_regrid() {
         column_roles=()
         previous_left=""
         column="-1"
-        while read -r left top pane role; do
+        lead_pane=""
+        lead_pane_w="0"
+        lead_pane_h="0"
+        while read -r left top pw ph pane role; do
+            if [ "$role" = "$lead_role" ] && [ -z "$lead_pane" ]; then
+                lead_pane="$pane"
+                lead_pane_w="$pw"
+                lead_pane_h="$ph"
+                continue
+            fi
             if [ "$left" != "$previous_left" ]; then
                 column=$((column + 1))
                 column_panes[$column]=""
@@ -1553,22 +1700,38 @@ claude_team_regrid() {
             fi
             column_panes[$column]="${column_panes[$column]:+${column_panes[$column]} }$pane"
             column_counts[$column]=$((column_counts[column] + 1))
-        done < <(claude_team_tmux list-panes -t "$window" -F "#{pane_left} #{pane_top} #{pane_id} #{$CLAUDE_TEAM_PANE_ROLE_OPTION}" 2>/dev/null </dev/null | sort -k1,1n -k2,2n)
+        done < <(claude_team_tmux list-panes -t "$window" -F "#{pane_left} #{pane_top} #{pane_width} #{pane_height} #{pane_id} #{$CLAUDE_TEAM_PANE_ROLE_OPTION}" 2>/dev/null </dev/null | sort -k1,1n -k2,2n)
         count=$((column + 1))
         [ "$count" -ge 1 ] || continue
-        start="0"
         area="$width"
-        if [ "$count" -gt 1 ] && [ "${column_counts[0]}" = "1" ] && [ "${column_roles[0]}" = "$lead_role" ]; then
-            role_columns=$((count - 1))
-            lead_cols=$(((width - role_columns) / (role_columns + 1)))
-            [ "$lead_cols" -ge "$lead_min" ] || lead_cols="$lead_min"
-            [ "$lead_cols" -le $((width - 2 * role_columns)) ] || lead_cols=$((width - 2 * role_columns))
-            claude_team_tmux resize-pane -t "${column_panes[0]}" -x "$lead_cols" >/dev/null 2>&1 </dev/null
-            start="1"
-            area=$((width - lead_cols - 1))
+        usable_rows="$height"
+        shape="plain"
+        if [ -n "$lead_pane" ] && [ "$lead_pane_h" -ge $((height - 1)) ]; then
+            shape="left"
+        elif [ -n "$lead_pane" ] && [ "$lead_pane_w" -ge $((width - 1)) ]; then
+            shape="top"
         fi
-        for ((column = start; column < count - 1; column++)); do
-            target="$(claude_team_share "$area" $((count - start)) $((column - start)))"
+        case "$shape" in
+            left)
+                role_columns="$count"
+                lead_cols=$(((width - role_columns) / (role_columns + 1)))
+                [ "$lead_cols" -ge "$lead_min_cols" ] || lead_cols="$lead_min_cols"
+                [ "$lead_cols" -le $((width - 2 * role_columns)) ] || lead_cols=$((width - 2 * role_columns))
+                claude_team_tmux resize-pane -t "$lead_pane" -x "$lead_cols" >/dev/null 2>&1 </dev/null
+                area=$((width - lead_cols - 1))
+                ;;
+            top)
+                role_columns="$count"
+                lead_rows=$(((height - role_columns) / (role_columns + 1)))
+                [ "$lead_rows" -ge "$lead_min_rows" ] || lead_rows="$lead_min_rows"
+                [ "$lead_rows" -le $((height - 2 * role_columns)) ] || lead_rows=$((height - 2 * role_columns))
+                claude_team_tmux resize-pane -t "$lead_pane" -y "$lead_rows" >/dev/null 2>&1 </dev/null
+                usable_rows=$((height - lead_rows - 1))
+                ;;
+            *) ;;
+        esac
+        for ((column = 0; column < count - 1; column++)); do
+            target="$(claude_team_share "$area" "$count" "$column")"
             [ "$target" -ge 2 ] || continue
             claude_team_tmux resize-pane -t "${column_panes[$column]%% *}" -x "$target" >/dev/null 2>&1 </dev/null
         done
@@ -1576,7 +1739,7 @@ claude_team_regrid() {
             read -r -a panes <<< "${column_panes[$column]}"
             [ "${#panes[@]}" -gt 1 ] || continue
             for ((position = 0; position < ${#panes[@]} - 1; position++)); do
-                target="$(claude_team_row_share "$height" "${#panes[@]}" "$position")"
+                target="$(claude_team_row_share "$usable_rows" "${#panes[@]}" "$position")"
                 if [ "$position" = "0" ]; then
                     target=$((target + 1))
                 fi
@@ -1752,12 +1915,13 @@ claude_team_print_shared_data() {
 claude_team_print_report() {
     local index=""
     local role=""
-    local row_format="  %-19s %-21s %-24s %-9s %-8s %-8s %s\n"
+    local row_format="  %-19s %-21s %-10s %-8s %-24s %-9s %-8s %-8s %s\n"
     printf '\n'
-    printf "$row_format" "ROLE" "SESSION" "TAB" "PANE" "PID" "CELLS" "STATE"
+    printf "$row_format" "ROLE" "SESSION" "MODEL" "EFFORT" "TAB" "PANE" "PID" "CELLS" "STATE"
     for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
         role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
         printf "$row_format" "$role" "$(claude_team_session_name "$role")" \
+            "${CLAUDE_TEAM_ROLE_MODEL[$index]:-default}" "${CLAUDE_TEAM_ROLE_EFFORT[$index]:-default}" \
             "${CLAUDE_TEAM_ROW_TAB[$index]}" "${CLAUDE_TEAM_ROW_PANE[$index]}" \
             "${CLAUDE_TEAM_ROW_PID[$index]}" "${CLAUDE_TEAM_ROW_CELLS[$index]}" \
             "${CLAUDE_TEAM_ROW_STATE[$index]}"

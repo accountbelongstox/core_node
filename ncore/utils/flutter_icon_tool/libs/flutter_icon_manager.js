@@ -32,7 +32,7 @@ class FlutterIconManager {
             
             if (!ftools.file.exists(projectPath)) {
                 logger.error('Flutter project path does not exist', { projectPath });
-                throw new Error(`Flutter project path does not exist: ${projectPath}`);
+                return null;
             }
 
             this.scannedImages = {};
@@ -164,11 +164,13 @@ class FlutterIconManager {
             const absoluteTargetPath = path.resolve(targetPath);
             
             if (!ftools.file.exists(absoluteSourcePath)) {
-                throw new Error(`Source image does not exist: ${absoluteSourcePath}`);
+                logger.error(`Source image does not exist: ${absoluteSourcePath}`);
+                return false;
             }
-            
+
             if (!ftools.file.exists(absoluteTargetPath)) {
-                throw new Error(`Target image does not exist: ${absoluteTargetPath}`);
+                logger.error(`Target image does not exist: ${absoluteTargetPath}`);
+                return false;
             }
 
             const backupPath = await this.createBackup(absoluteTargetPath);

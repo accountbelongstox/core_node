@@ -190,6 +190,7 @@ trait AppQyV1AssistMediaOperations
             ]);
             return ['ok' => false, 'status' => 'error', 'error' => 'Failed to persist cover file', 'http_status' => 500];
         }
+        app(AppQyV1ResourceIndexService::class)->recordStaticPath($path);
 
         $library->cover_status = 'ready';
         $library->cover_error_message = null;
