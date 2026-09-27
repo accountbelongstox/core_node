@@ -11,6 +11,7 @@ import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmProjectAnalysisPanel } from '../components/workspace/CmProjectAnalysisPanel';
 import { CmProjectAttachments } from '../components/workspace/CmProjectAttachments';
 import { CmProjectFundPanel } from '../components/workspace/CmProjectFundPanel';
+import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { CmTransitionBar } from '../components/workspace/CmTransitionBar';
@@ -265,7 +266,7 @@ export const CmProjectDetailPage: React.FC = () => {
   };
 
   const backLink = (
-    <Link to="/codemart/projects" className="cm-workspace-button">
+    <Link to={CM_PROTECTED_ROUTE.projects} className="cm-workspace-button">
       <ArrowLeft aria-hidden="true" /> {t('projectDetail.backToList')}
     </Link>
   );

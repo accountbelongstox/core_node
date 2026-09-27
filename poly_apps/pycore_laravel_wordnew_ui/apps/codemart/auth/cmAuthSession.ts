@@ -1,11 +1,10 @@
 import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
 import { StorageManager } from '../../../core/persistence';
-import { CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE, CM_ROUTE_BASE } from '../components/public-home/cmPublicRoutes';
+import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE, CM_ROUTE_BASE } from '../components/public-home/cmPublicRoutes';
 
 const RETURN_PATH_KEY = 'codemart_auth_return_path';
 const SESSION_EXPIRED_KEY = 'codemart_auth_session_expired';
 const REDIRECT_PARAM = 'redirect';
-const ADMIN_HOME = '/codemart/admin';
 const AUTH_ENTRY_PATHS: readonly string[] = [
   CM_PUBLIC_ROUTE.login,
   CM_PUBLIC_ROUTE.register,
@@ -46,7 +45,7 @@ export function cmLoginHref(returnPath: string | null = null): string {
 }
 
 export function cmDefaultLandingPath(isAdmin: boolean): string {
-  return isAdmin ? ADMIN_HOME : CM_PROTECTED_ROUTE.dashboard;
+  return isAdmin ? CM_ADMIN_ROUTE.home : CM_PROTECTED_ROUTE.dashboard;
 }
 
 export function cmSessionExpired(): boolean {

@@ -102,6 +102,17 @@ function updateStatusDisplay(data) {
     });
 }
 
+function renderStatusError(message) {
+    const container = document.getElementById('status-container');
+    container.innerHTML = `
+        <div class="error-section">
+            <h3>Error</h3>
+            <p>Failed to fetch status: ${message}</p>
+            <p>Last attempt: ${new Date().toLocaleString()}</p>
+        </div>
+    `;
+}
+
 function fetchStatus() {
     if (isRequestPending) {
         console.log('Previous request still pending, skipping this update');
@@ -116,19 +127,14 @@ function fetchStatus() {
             if (data.success) {
                 updateStatusDisplay(data.data);
             } else {
-                throw new Error(data.message || 'Failed to fetch status');
+                const message = data.message || 'Failed to fetch status';
+                console.error('Failed to fetch status:', message);
+                renderStatusError(message);
             }
         })
         .catch(error => {
             console.error('Error fetching status:', error);
-            const container = document.getElementById('status-container');
-            container.innerHTML = `
-                <div class="error-section">
-                    <h3>Error</h3>
-                    <p>Failed to fetch status: ${error.message}</p>
-                    <p>Last attempt: ${new Date().toLocaleString()}</p>
-                </div>
-            `;
+            renderStatusError(error.message);
         })
         .finally(() => {
             isRequestPending = false;

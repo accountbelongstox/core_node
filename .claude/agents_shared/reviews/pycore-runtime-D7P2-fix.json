@@ -1,0 +1,103 @@
+{
+  "task_id": "pycore-runtime-D7P2-fix",
+  "role": "pycore-ui",
+  "reviewer": "pycore-lead",
+  "round": 1,
+  "verdict": "changes_requested",
+  "base": "74e7770",
+  "head": "4ddb4be8e (user commit 'win0.0.1', 20:24:56; it adds reports/pycore-ui.md and touches none of the B1-B6 files: git diff 8f95a2a24 4ddb4be8e on them is empty)",
+  "scope_reviewed": "The member result for the six blocking items of pycore-runtime-D7P2.json, dispatched to pycore-ui. Every item was deferred as out of scope. The only changed file is .claude/agents_shared/reports/pycore-ui.md.",
+  "summary": "pycore-ui acted correctly: the B1-B6 paths belong to pycore-runtime (and F-1 to pycore-lead), and pycore-ui wrote nothing outside its scope. The task itself is not done: every defect is still present at HEAD 4ddb4be8e. Approval would close pycore-runtime-D7P2-fix with B1-B6 open, so the verdict is changes_requested, and the re-dispatch goes to the owners, not back to pycore-ui.",
+  "findings": {
+    "pycore-runtime-D7P2-B1": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/callmodule/rpc_routes/local_queue_head_routes.py:30: _MD5_RE = re.compile(r\"^[0-9a-fA-F]{32}$\") still accepts upper-case and passes it through.",
+        "pycore/callmodule/rpc_routes/local_queue_head_routes.py:43-48: _sanitize_item_md5 drops but never normalizes.",
+        "pycore/pyutils/common/queue_center_contract.py:596: the fallback is still the literal f\"text:{...}\"; the :583-586 docstring still has the 'matching build_local_task and audio_resource_ledger.resource_key' clause.",
+        "grep key_format/fallback_when_md5_absent over pycore and pyapps: no reader of the contract key_format (only comments at local_queue_head_routes.py:28 and queue_center_contract.py:583)."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B2": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/callmodule/rpc_routes/local_queue_head_routes.py:56-60: the handler still forwards dict(item) whole, 'task' included, to audio_queue_center.promote_local_head (:66-71).",
+        "UI contract claim holds: OrchManifestPanel.tsx:100-104 sends {queue, items:[{kind, language, text}], owner}; PycoreApiLocal.ts:429-434 types items as {kind?, language, text}. The repo-wide grep finds no other RPC caller.",
+        "Scope note for the fix: pycore/pyctl/audio_orchestration/orch_promote.py:60-64 passes 'task' in-process to promote_local_head; that path is legitimate and must keep working. B2 changes only the RPC item building."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B3": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/pyctl/queue_center/snapshot_service.py:549-550: 'if applied: worker.request_pull(prefer_remote=True)' with no heartbeat-callback or restore_complete gate.",
+        "pycore/pyctl/queue_center/snapshot_service.py:362-371: wake_workers has the callback gate only; no shared helper exists."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B4": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/pyfoundations/serialized_worker.py:124-146: BusTaskThread.run still turns a failure into _error_response and prints nothing (F-1 not done).",
+        "pycore/pyfoundations/serialized_worker.py:42-43: _publish_response returns when response_signal is empty, so the failure is dropped.",
+        "pycore/pyctl/runtime/event_handlers.py:431-434: the docstring still says the failure 'propagates to the bus-task thread boundary instead of being hidden here'."
+      ],
+      "owner": "pycore-lead (F-1), then pycore-runtime (docstring and re-check)"
+    },
+    "pycore-runtime-D7P2-B5": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/pyutils/laravel/delivery_diff.py:257 f\"{DELIVERY_BATCH_PATH}/{batch_id}/content\" and :274 f\"{DELIVERY_BATCH_PATH}/{batch_id}\" still suffix the batch path; the config/queue_center_contract.json:294-295 routes.batch_content/batch_status templates are unused.",
+        "History comments still present: pycore/pyutils/laravel/delivery_diff.py:39-40 ('used to keep its own copy') and pycore/pyutils/common/queue_center_contract.py:220-222 ('used to keep their own copies')."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B6": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        ".claude/agents_shared/reports/pycore-runtime.md (mtime 17:25, 114 lines) still has no pycore-runtime-D7P2 section. It is pycore-runtime's own report, so pycore-ui correctly did not write it."
+      ],
+      "owner": "pycore-runtime"
+    }
+  },
+  "issues": [
+    "B1 open (pycore-runtime): queue_center_contract.py:596, :583-586 and local_queue_head_routes.py:26-30, :43-48. Add the word_identity_md5/word_identity_content pair built from word_identity.fallback_when_md5_absent.key_format, use it in audio_dedup_key and _sanitize_item_md5 (normalize '5D41...' to lower-case), and remove _MD5_RE and the 'matching build_local_task' clause.",
+    "B2 open (pycore-runtime): local_queue_head_routes.py:56-60. Build each RPC item only from language/text/kind/content_id plus the sanitized md5, and drop 'task'. Keep promote_local_head's in-process 'task' support for orch_promote.py:60-64.",
+    "B3 open (pycore-runtime): snapshot_service.py:549-550. Add one shared wake-gate helper (heartbeat callback enabled and audio_queue_center.restore_complete(lane)) and use it in apply_head_event and wake_workers (:362-371).",
+    "B4 open: pycore-lead F-1 first (serialized_worker.py:124-146: ColorPrint.red with thread name, error type, message and traceback when a callback without response_signal fails). Then pycore-runtime rewrites event_handlers.py:431-434 and runs the red-line re-check.",
+    "B5 open (pycore-runtime): delivery_diff.py:257 and :274 must use routes.batch_content/batch_status ({batch_id}). Remove the history comments at delivery_diff.py:39-40 and queue_center_contract.py:220-222.",
+    "B6 open (pycore-runtime): after B1-B5, write the pycore-runtime-D7P2 section in reports/pycore-runtime.md (items, changed files, per-file EOL, B1-B5 verification output)."
+  ],
+  "non_blocking": [
+    "Member conduct: correct. B1 §8 (one writer per path) and the pycore-ui role scope forbid these edits, and the record (docs_fix requirements, d22/items_pycore.json, d22/merge_meta.json) gives pycore-ui no temporary-writer assignment for them. The misroute is the dispatcher's, not the member's.",
+    "reports/pycore-ui.md EOL: the working copy is CRLF (47/47; the index blob is LF via core.autocrlf=true). Every other file in reports/ and reviews/ is LF, so the claim 'matching the other reports' is wrong. Rewrite it as LF on the next pycore-ui report update. Git Bash grep CR counts are unreliable in this environment; count with Python bytes instead.",
+    "reports/pycore-ui.md line-reference drift: the _publish_response early return is serialized_worker.py:42-43 (not :40-41), and the OrchManifestPanel throw is :105 (not :106).",
+    "pycore-ui backlog (not in this task): OrchManifestPanel.tsx:105 reads response.error while the promote route returns error_code (local_queue_head_routes.py:62, :65), so the panel shows the generic i18n text. Map error_code to an i18n message in a later pycore-manager task."
+  ],
+  "checks": [
+    "git log: HEAD moved from 8f95a2a24 (the member's HEAD) to 4ddb4be8e (user commit 20:24:56). git diff 8f95a2a24 4ddb4be8e on queue_center_contract.py, local_queue_head_routes.py, snapshot_service.py, event_handlers.py, delivery_diff.py, serialized_worker.py and reports/pycore-runtime.md is empty. git status --short pycore/ is empty.",
+    "git diff 74e7770 --stat on those files shows only the pre-outage D7P2 and pycore-5 hunks already judged in pycore-runtime-D7P2.json; no new change.",
+    "Re-ran each defect probe with grep/sed at HEAD 4ddb4be8e (lines in findings): all six defects are present, and F-1 is absent.",
+    "UI contract for B2: read OrchManifestPanel.tsx:95-106 and PycoreApiLocal.ts:425-436. A repo-wide grep for promoteLocalQueueHead/promote_local_head/queueCenterPromoteLocalHead finds OrchManifestPanel as the only UI caller and orch_promote.py as the in-process caller.",
+    "Boundary: pycore-ui changed only its own report. Nothing in its UI scope (pycore-manager, laravel-manager, vortex, pdd-manager, flavors/vortex, core/) and no pycore file is modified. The fenced shared_cache_env.sh (mtime 20:25) and SharedCacheEnv.ps1 changes are in the user commit and the working tree after the member finished (report mtime 20:20:51); they come from the fenced session core-node-e9, not from pycore-ui.",
+    "EOL survey by Python byte counts over reports/ and reviews/: all LF except reports/pycore-ui.md (CRLF).",
+    "No build, type-check, test or service was run: the member changed no code, so there is nothing to execute. No Laravel change, so no FrankenPHP restart."
+  ],
+  "decisions": [
+    "changes_requested instead of approved (recommended option): under the team protocol an approved verdict completes the task, and B1-B6 are all still open. The requested changes are for the task's owners, not for pycore-ui; pycore-ui has no further action on this task.",
+    "pycore-lead does not implement F-1 inside this review. F-1 is its own foundation development, verified by the reviewer service, and it must land before the pycore-runtime B4 docstring rewrite.",
+    "Re-dispatch: pycore-runtime takes B1, B2, B3, B5, B6 and the B4 docstring as the round-2 writer of pycore-runtime-D7P2-fix (one writer per path). pycore-lead takes F-1. pycore-ai adopts the B1 helpers afterwards (non-blocking follow-up from pycore-runtime-D7P2.json)."
+  ],
+  "next_owner": [
+    "pycore-lead (F-1)",
+    "pycore-runtime (B1, B2, B3, B5, B6, B4 docstring)"
+  ],
+  "checked_at": "2026-09-27T20:30:00+10:00"
+}

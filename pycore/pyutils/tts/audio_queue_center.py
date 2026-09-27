@@ -86,6 +86,12 @@ _PERSIST_MIN_INTERVAL_SECONDS = 5.0
 # finished (whole-Queue populated from the local snapshot), so a lane's own
 # first remote pull can wait on it (R6/§5.4: cache before any remote access).
 _RESTORE_COMPLETE_SIGNAL_PREFIX = "audio_queue_center.restore_complete"
+# Safety bound on ``wait_for_restore`` below (R6/§5.4): loading even a large
+# local snapshot takes seconds, not minutes; this only guards against the
+# boot chain never running for the lane at all. ONE definition (was
+# duplicated in capability_sync.py and audio_lane_full_sync.py) - a lane
+# starter imports this instead of redeclaring its own copy.
+AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS = 180.0
 
 # Tracker states of Part1 items (observability only).
 TRACK_QUEUED = "queued"
@@ -813,13 +819,18 @@ class AudioQueueCenter:
         """True once ``restore_from_cache(lane)`` has finished."""
         return bool(THREAD_BUS.has_signal(_restore_signal_name(lane)))
 
-    def wait_for_restore(self, lane: str, timeout: Optional[float] = None) -> bool:
+    def wait_for_restore(
+        self, lane: str, timeout: Optional[float] = AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
+    ) -> bool:
         """Block until this lane's cache-first restore finishes (condition-
         driven, no polling); True once signaled, False on timeout. A caller
         about to make this lane's first remote call waits on this so the
         local cache always loads before any remote access (R6/§5.4). A lane
         whose switch is OFF never restores, so callers only wait for a lane
-        they know is being (or about to be) activated."""
+        they know is being (or about to be) activated. A False return means
+        the restore never signaled within the bound - the caller should log
+        it (this library never sees why: the boot chain not running for the
+        lane, or a stalled restore)."""
         return bool(THREAD_BUS.wait_signal(_restore_signal_name(lane), timeout=timeout))
 
     @serialized_method

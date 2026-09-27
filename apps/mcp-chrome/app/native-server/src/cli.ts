@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 
 import { program } from 'commander';
-import * as fs from 'fs';
-import * as path from 'path';
 import {
   tryRegisterUserLevelHost,
   colorText,
@@ -122,40 +120,6 @@ program
       console.log(colorText('[OK] Execution permissions fixed successfully!', 'green'));
     } catch (error: any) {
       console.error(colorText(`Failed to fix permissions: ${error.message}`, 'red'));
-      process.exit(1);
-    }
-  });
-
-// Update the canonical service contract.
-program
-  .command('update-port <port>')
-  .description('Update the MCP Chrome port in the central service contract')
-  .action(async (port: string) => {
-    try {
-      const portNumber = parseInt(port, 10);
-      if (isNaN(portNumber) || portNumber < 1 || portNumber > 65535) {
-        console.error(colorText('Error: Port must be a valid number between 1 and 65535', 'red'));
-        process.exit(1);
-      }
-
-      const configPath = path.resolve(__dirname, '../../../../../config/service_contract.json');
-
-      if (!fs.existsSync(configPath)) {
-        console.error(colorText(`Error: Configuration file not found at ${configPath}`, 'red'));
-        process.exit(1);
-      }
-
-      const configData = fs.readFileSync(configPath, 'utf8');
-      const config = JSON.parse(configData);
-
-      config.ports.mcp_chrome = portNumber;
-
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 4));
-
-      console.log(colorText(`[OK] Port updated successfully to ${portNumber}`, 'green'));
-      console.log(colorText(`Updated contract: ${configPath}`, 'blue'));
-    } catch (error: any) {
-      console.error(colorText(`Failed to update port: ${error.message}`, 'red'));
       process.exit(1);
     }
   });

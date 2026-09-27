@@ -21,7 +21,7 @@ const CmProjectsPage = lazy(() => import('./pages/CmProjectsPage'));
 const CmProjectCreatePage = lazy(() => import('./pages/CmProjectsPage').then((module) => ({ default: module.CmProjectCreatePage })));
 const CmTasksPage = lazy(() => import('./pages/CmTasksPage'));
 const CmReviewsPage = lazy(() => import('./pages/CmReviewsPage'));
-const CmArchitectPage = lazy(() => import('./pages/CmReviewsPage').then((module) => ({ default: module.CmArchitectPage })));
+const CmArchitectPage = lazy(() => import('./pages/CmArchitectPage'));
 const CmWalletPage = lazy(() => import('./pages/CmWalletPage'));
 const CmVerificationPage = lazy(() => import('./pages/CmVerificationPage'));
 const CmProfilePage = lazy(() => import('./pages/CmProfilePage'));

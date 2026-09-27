@@ -11,7 +11,9 @@ Earlier records marked several of these functions as done; this audit
 supersedes those statuses.
 
 Status legend: `open` not started, `wip` in progress, `done` implemented,
-`verified` tested live on the local installation.
+`verified` tested live on the local installation, `missing` not in the
+code yet (owner task named), `superseded` replaced by a later ruling.
+Section 8 reconciles every open row with the code (D9, 2026-09-27).
 
 Work packages: S1 server money and trust, S2 server delivery flow,
 S3 server administration and public, U1 user workspace interface,
@@ -38,7 +40,7 @@ U2 administration interface, U3 public interface, D1 data seeding.
 | G07 | Wallet-to-wallet payment holds funds and then withdraws again (fails or double-deducts, frozen funds stuck) | S1 | verified |
 | G08 | Task creation, update, submission, and submission review never check the caller's relation to the project/task | S2 | verified |
 | G09 | Deliverable files are stored from the wrong request source | S2 | done |
-| G10 | Identity (KYC) documents are stored on public storage | S3 | done |
+| G10 | Identity (KYC) documents are stored on public storage | S3 | done for new uploads; legacy rows missing (CMDES-08, see 8.1) |
 | G11 | Public estimate and registration have no rate limiting | S3 | done |
 | G12 | A wrong administrator super code is silently ignored at registration | S3 | verified |
 
@@ -51,7 +53,7 @@ U2 administration interface, U3 public interface, D1 data seeding.
 | U03 | Proposal review state set when analysis completes; accept only from proposal review | n/a | missing | S2 | done |
 | U04 | Latest AI analysis per project retrievable from the server (no local-only tracking) | partial | missing | S2+U1 | done |
 | U05 | Client reviews submissions per task (approve / needs revision / reject) with notes | missing | exists | U1 | verified |
-| U06 | Reviewer decision drives the submission and task state | n/a | broken | S2 | verified |
+| U06 | Reviewer review is advisory: scores and a recommendation shown to the client, who decides the submission and task state | n/a | broken | S2 | verified (advisory, see 8.1) |
 | U07 | Task transitions: start work, block, unblock, cancel (state-checked) | missing | missing | S2+U1 | verified |
 | U08 | Task panel shows comment thread and last review notes for resubmission | missing | exists | U1 | verified |
 | U09 | Project transitions: pause, resume, cancel, complete, archive (state-checked) | missing | missing | S2+U1 | verified |
@@ -73,10 +75,10 @@ U2 administration interface, U3 public interface, D1 data seeding.
 | U25 | Architect eligibility shows client satisfaction; assignments link to project detail | broken | exists | U1 | done |
 | U26 | Reviewer / architect application entry visible to eligible developers | missing | exists | U1 | done |
 | U27 | Role request for existing accounts (become developer / client) | missing | missing | S3+U1 | done |
-| U28 | Email verification resend and registration status on the verification page | missing | exists | U1 | done (verify with token and status; the server has no resend endpoint) |
+| U28 | Email verification resend and registration status on the verification page | missing | exists | U1 | done for verify and status; resend missing (cmgap-R1, see 8.1) |
 | U29 | Profile edits send only the blocks of held roles; client company fields | partial | exists | U1 | done |
-| U30 | Idempotency key honored for deposits, payments, funding, analysis accept, refunds | missing | missing | S1+U1 | verified |
-| U31 | Translated wallet transaction types, milestone states, server error codes | partial | n/a | U1 | done |
+| U30 | Idempotency key honored for deposits, payments, funding, analysis accept, refunds | missing | missing | S1+U1 | verified except analysis accept, which is missing (cmgap-U30, see 8.1) |
+| U31 | Translated wallet transaction types, milestone states, server error codes | partial | n/a | U1 | done; ledger description codes are open in the UI (CKA-28-ui, see 8.1) |
 | U32 | Milestone deliverables stored as structured data | n/a | bug | S2 | done |
 
 ## 3. Administration console
@@ -121,7 +123,7 @@ U2 administration interface, U3 public interface, D1 data seeding.
 
 | ID | Function | Pkg | Status |
 | --- | --- | --- | --- |
-| D01 | System initialization seeds the CodeMart dataset idempotently (accounts, roles, wallets, deposits, projects in every state, milestones, tasks, submissions, reviews, escrows, payments, refunds, withdrawals, notifications, testimonials in both languages, reviewer application) | D1 | verified |
+| D01 | System initialization seeds the CodeMart dataset idempotently (accounts, roles, wallets, deposits, projects in every state, milestones, tasks, submissions, reviews, escrows, payments, refunds, withdrawals, notifications, testimonials in both languages, reviewer application) | D1 | superseded by D17 for the password and the switch (see 8.1); the dataset itself stays verified |
 | D02 | Seeded data exercises every new function above | D1 | verified |
 
 ## 6. Verification log

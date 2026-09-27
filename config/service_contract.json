@@ -138,41 +138,40 @@
         "frankenphp_root_posix": "/www/programing/frankenphp",
         "frankenphp_root_windows_subpath": "frankenphp",
         "drive_layout": {
-            "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 3.3): tools, caches, venvs and node_modules off NTFS; D: data only",
-            "tree_subdir": "core_node_trees",
+            "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 3.3): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27 (orchestrator ruling): no separate core_node_trees root on any OS; caches and per-project heavy dirs live under each OS's single tool_root.",
             "program_drive_primary": "E:",
             "program_drive_fallback": "D:",
             "program_partuuid": null,
             "program_partuuid_source": "detected per machine (the E: NTFS volume PARTUUID), stored in global vars, never committed",
             "linux_mounts_program_drive": false,
-            "tree_root": {
-                "windows": "<program_drive>\\core_node_trees",
-                "linux": "/www/core_node_trees",
-                "linux_backing": "/opt/core_node_trees",
-                "linux_link": "bind"
-            },
-            "tree_cache_root": "<tree_root>/cache",
-            "tree_cache_subdirs": [
-                "pnpm-store",
-                "bun",
-                "npm",
-                "composer",
-                "uv"
-            ],
             "tool_root": {
                 "windows": "<program_drive>\\.dev_<sys>",
                 "linux": "/opt/_<os>_<ver>"
             },
-            "toolchain_env_file": {
-                "windows": "<tool_root>\\bin\\toolchain.env",
-                "linux": "/etc/opt/core_node/toolchain.env"
+            "cache_root": "<tool_root>/cache",
+            "cache_subdirs": [
+                "pnpm-store",
+                "bun",
+                "npm",
+                "composer",
+                "uv",
+                "corepack"
+            ],
+            "trees_root": {
+                "windows": null,
+                "linux": "<tool_root>/trees"
             },
+            "trees_rule": "Linux only: per-project node_modules/vendor/.venv live in <trees_root>/<ns>/<dir> on ext4 and are bind-mounted over the plain in-repo directories at use time (mountpoint -q before any write); nothing is created or written on the NTFS share. Windows keeps these directories in the repo as normal directories (no junctions).",
             "link_dirs": [
                 "node_modules",
                 "vendor",
                 ".venv"
             ],
-            "tree_namespace_rule": "repo-relative path, '/' -> '__', lowercase"
+            "tree_namespace_rule": "repo-relative path, '/' -> '__', lowercase",
+            "toolchain_env_file": {
+                "windows": "<tool_root>\\bin\\toolchain.env",
+                "linux": "/etc/opt/core_node/toolchain.env"
+            }
         }
     },
     "files": {

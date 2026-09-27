@@ -57,6 +57,42 @@ RESOURCE_BATCH_LIMIT = 200
 BOOTSTRAP_META_KEY = "audio_cache.ledger_bootstrap"
 BOOTSTRAP_HISTORY_LIMIT = 1000
 LANE_HISTORY_WORKERS = ("tts_queue_poller", "tts_sentence_worker")
+# Contract word_identity.fallback_when_md5_absent.rejection_code
+# (config/queue_center_contract.json): an md5-less word Laravel cannot
+# resolve by lang + cleaned_word. Single-upload counterpart of the batch
+# path's BATCH_TERMINAL_REJECTIONS (no_target/invalid).
+WORD_NOT_FOUND_REJECTION_CODE = "WORD_NOT_FOUND"
+# 4xx statuses that ARE worth retrying (throttling/conflict, not a
+# permanent rejection) - shared with laravel_audio_delivery's domain-report
+# terminal rule.
+RETRYABLE_4XX_HTTP_STATUSES = (408, 409, 425, 429)
+
+
+def is_terminal_delivery_rejection(detail: str = "", status_code: Optional[int] = None) -> bool:
+    """ONE shared 4xx-terminal rule for Laravel delivery rejections (used by
+    the domain-report path in ``laravel_audio_delivery`` and the word-audio
+    single upload below): a rejection that retrying can never resolve, so it
+    must settle terminal instead of retry-poisoning the delivery row
+    forever. Excludes throttling/conflict codes (408/409/425/429).
+
+    Accepts either a failure ``detail`` string (``"server validation
+    rejected: ..."``, ``"unknown task on server (404)"``, ``"HTTP 4xx:
+    ..."``) or a raw ``status_code`` when only that is available (a plain
+    4xx body with no such prefix, e.g. word/audio/upload's "md5, lang and
+    audio_base64 are required" for an md5-less word - the contract
+    WORD_NOT_FOUND case: the server has no row to resolve by lang +
+    cleaned_word)."""
+    normalized = str(detail or "").lower()
+    if normalized.startswith("server validation rejected"):
+        return True
+    if normalized.startswith("unknown task on server"):
+        return True
+    retryable_prefixes = tuple(f"http {code}" for code in RETRYABLE_4XX_HTTP_STATUSES)
+    if normalized.startswith("http 4") and not normalized.startswith(retryable_prefixes):
+        return True
+    if isinstance(status_code, int) and 400 <= status_code < 500:
+        return status_code not in RETRYABLE_4XX_HTTP_STATUSES
+    return False
 
 
 class AudioResourceDelivery:
@@ -326,11 +362,31 @@ class AudioResourceDelivery:
             # apply to arbitrary tokens; terminal, not retry-poison.
             ColorPrint.gray(f"[AudioCacheDelivery] delivery={claimed['delivery_id']} word not in dictionary; no fill needed")
         elif not receipt.get("success") or receipt_status not in ("stored", "exists"):
-            raise RuntimeError(str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete"))
+            error = str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete")
+            if not clip_md5 and is_terminal_delivery_rejection(
+                detail=error, status_code=receipt.get("http_status"),
+            ):
+                # An md5-less word: the server has no md5 to resolve by, so a
+                # 4xx here (LDRI-11: word/audio/upload still requires md5)
+                # means the same as the contract's WORD_NOT_FOUND rejection -
+                # terminal, not retry-poison (mirrors the batch path's
+                # no_target/invalid handling).
+                ColorPrint.gray(
+                    f"[AudioCacheDelivery] delivery={claimed['delivery_id']} "
+                    f"md5-less word upload rejected ({error}); no fill needed"
+                )
+                return {"status": OUTCOME_DONE, "skipped": WORD_NOT_FOUND_REJECTION_CODE}
+            raise RuntimeError(error)
         return {"status": OUTCOME_DONE}
 
 
 audio_resource_delivery = AudioResourceDelivery()
 
 
-__all__ = ["RESOURCE_KIND", "audio_resource_delivery"]
+__all__ = [
+    "RESOURCE_KIND",
+    "WORD_NOT_FOUND_REJECTION_CODE",
+    "RETRYABLE_4XX_HTTP_STATUSES",
+    "is_terminal_delivery_rejection",
+    "audio_resource_delivery",
+]

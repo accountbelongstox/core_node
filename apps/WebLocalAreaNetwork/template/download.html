@@ -37,10 +37,15 @@
             localStorage.setItem('downloadCurrentPath', dir);
             fetch(`/api/list?dir=${encodeURIComponent(dir)}`)
                 .then(res => {
-                    if (res.status === 403) return res.json().then(data => { throw new Error(data.error || 'Unauthorized directory'); });
+                    if (res.status === 403) return res.json().then(data => ({ __accessError: data.error || 'Unauthorized directory' }));
                     return res.json();
                 })
                 .then(data => {
+                    if (data.__accessError) {
+                        const fileList = document.getElementById('fileList');
+                        fileList.innerHTML = `<div style='color:#f00;padding:16px;'>${data.__accessError}</div>`;
+                        return;
+                    }
                     currentPath = data.path || '/';
                     localStorage.setItem('downloadCurrentPath', currentPath);
                     renderBreadcrumb(currentPath);

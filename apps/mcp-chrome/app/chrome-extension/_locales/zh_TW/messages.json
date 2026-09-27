@@ -85,6 +85,30 @@
   "apiCustomEndpointDescription": {
     "message": "自訂：{0}"
   },
+  "apiEndpointProduction": {
+    "message": "正式環境雲端伺服器"
+  },
+  "apiEndpointLocalhost": {
+    "message": "本機開發伺服器"
+  },
+  "apiEndpointLoopback": {
+    "message": "本機迴路伺服器"
+  },
+  "apiEndpointLanBackup": {
+    "message": "區域網路備用伺服器"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "區域網路主要伺服器"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "遠端 Laravel 主服務"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet Nuul 伺服器"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet API 伺服器"
+  },
   "httpStatusError": {
     "message": "{0}（HTTP {1}）"
   },

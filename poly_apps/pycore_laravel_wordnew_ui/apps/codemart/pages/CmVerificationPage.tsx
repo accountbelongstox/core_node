@@ -7,6 +7,7 @@ import type { CmProject, CmRegistrationStatus } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
@@ -440,7 +441,7 @@ export const CmVerificationPage: React.FC = () => {
     <main className="cm-workspace-page">
       {header}
       <CmNotice notice={pageNotice.notice} onDismiss={pageNotice.clear} />
-      {showWalletLink && <p className="cm-inline-action"><Link to="/codemart/wallet" className="cm-workspace-button is-primary">{t('verification.openWalletDeposit')}</Link></p>}
+      {showWalletLink && <p className="cm-inline-action"><Link to={CM_PROTECTED_ROUTE.wallet} className="cm-workspace-button is-primary">{t('verification.openWalletDeposit')}</Link></p>}
       <div className="cm-verification-layout">
         <aside className="cm-section-card cm-verification-summary">
           <h2><ShieldCheck aria-hidden="true" /> {t('verification.stepsTitle')}</h2>
@@ -496,7 +497,7 @@ export const CmVerificationPage: React.FC = () => {
                 ))}
               </ul>
               <div className="cm-section-card__actions">
-                <Link to="/codemart/wallet" className="cm-workspace-button is-primary">{t('verification.openWalletDeposit')}</Link>
+                <Link to={CM_PROTECTED_ROUTE.wallet} className="cm-workspace-button is-primary">{t('verification.openWalletDeposit')}</Link>
               </div>
             </section>
           )}

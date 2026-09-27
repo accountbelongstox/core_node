@@ -144,3 +144,23 @@ None for the review.
 ### Next owner
 
 codemart-laravel: codemart-laravel-G1 takes the 3 blocking issues and the open D7 items.
+
+## laravel-codemart-D7-fix review (member codemart-laravel, round 1)
+
+- Verdict: approved, in `.claude/agents_shared/reviews/laravel-codemart-D7-fix.json` (base 74e7770).
+- Confirmed:
+  - B1: the seeder applies a generated secret at once. Probe: 7/7 accept it, 0/7 accept the removed literal, and a second seed changes 0 hashes.
+  - B2: the seeder logs only the path. Probe: 0 log messages contain the password.
+  - B3: terminal_states gains submission and analysis, and states.submission gains pending through getAllSubmissionStatuses(), which also feeds the check constraint (0 DDL).
+- Files (now in commit 4ddb4be8e): `CodeMartV1Utils/{CodeMartV1DemoSeeder,CodeMartV1AdminPassword,CodeMartV1Initializer}.php`, `CodeMartV1Commands/CodeMartV1AdminPasswordCommand.php`, `CodeMartV1Gvar/CodeMartV1Constants.php`.
+- Checks:
+  - Free RAM was 3.19 GB.
+  - php -l passes on all 5 files; LF is kept and no header was re-added.
+  - The removed-password grep finds 0 hits.
+  - The probe re-run (`scratchpad/d7fix_probe.php`, rolled back) and the align re-run (0 ALTER) both pass.
+  - route:list shows 113 CodeMart routes; :9000 health returns 200.
+- Non-blocking:
+  - The secret file is written before apply(); a failure between them needs codemart:admin-password (accepted per the ruling).
+  - Carried open items: codemart-laravel-G1 takes the D7 notes; pycore-laravel takes the system/init auth and the sys:codemartinit literals.
+  - codemart-ui should type `vocabulary.terminal_states` in CmApiTypes.ts.
+- Next owner: codemart-ui (cmdesign-03 can now drop CmSubmissionsPanel.tsx:15 and CmProjectAnalysisPanel.tsx:13); pycore-laravel for the referrals.

@@ -8,6 +8,7 @@ import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
+import { CM_PROTECTED_ROUTE, cmProjectPath } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
@@ -71,7 +72,7 @@ export const CmProjectsPage: React.FC = () => {
               <RefreshCw aria-hidden="true" /> {t('common.refresh')}
             </button>
             {canCreate && (
-              <Link to="/codemart/projects/new" className="cm-workspace-button is-primary">
+              <Link to={CM_PROTECTED_ROUTE.projectCreate} className="cm-workspace-button is-primary">
                 <FilePlus2 aria-hidden="true" /> {t('nav.createProject')}
               </Link>
             )}
@@ -110,7 +111,7 @@ export const CmProjectsPage: React.FC = () => {
           <CmEmptyState
             title={t('projects.emptyTitle')}
             body={canCreate ? t('projects.emptyBody') : t('projects.emptyBodyNoCreate')}
-            action={canCreate ? <Link to="/codemart/projects/new" className="cm-workspace-button is-primary"><FilePlus2 aria-hidden="true" /> {t('nav.createProject')}</Link> : undefined}
+            action={canCreate ? <Link to={CM_PROTECTED_ROUTE.projectCreate} className="cm-workspace-button is-primary"><FilePlus2 aria-hidden="true" /> {t('nav.createProject')}</Link> : undefined}
           />
         )
       ) : (
@@ -118,7 +119,7 @@ export const CmProjectsPage: React.FC = () => {
           {list.items.map((project) => (
             <article key={project.id} className="cm-record-card">
               <div className="cm-record-card__main">
-                <h2><Link to={`/codemart/projects/${project.id}`} className="cm-record-card__title-link">{project.title}</Link></h2>
+                <h2><Link to={cmProjectPath(project.id)} className="cm-record-card__title-link">{project.title}</Link></h2>
                 <p>{project.description}</p>
                 <div className="cm-record-card__meta">
                   <CmStatusBadge group="project" status={project.status} />
@@ -130,7 +131,7 @@ export const CmProjectsPage: React.FC = () => {
                 </div>
                 <p className="cm-record-card__hint">{t(`projects.nextAction.${project.status}`, { defaultValue: '' })}</p>
               </div>
-              <Link to={`/codemart/projects/${project.id}`} className="cm-workspace-button">
+              <Link to={cmProjectPath(project.id)} className="cm-workspace-button">
                 {t('projects.openDetail')} <ArrowRight aria-hidden="true" />
               </Link>
             </article>
@@ -201,7 +202,7 @@ export const CmProjectCreatePage: React.FC = () => {
     setPending(false);
     if (response.success && response.data) {
       await refresh();
-      navigate(`/codemart/projects/${response.data.id}`);
+      navigate(cmProjectPath(response.data.id));
       return;
     }
     notice.error(cmErrorMessage(t, response, 'projectCreate.createFailed'));
@@ -279,7 +280,7 @@ export const CmProjectCreatePage: React.FC = () => {
           </div>
         )}
         <div className="cm-project-form__actions">
-          <Link to="/codemart/projects" className="cm-workspace-button">{t('common.cancel')}</Link>
+          <Link to={CM_PROTECTED_ROUTE.projects} className="cm-workspace-button">{t('common.cancel')}</Link>
           <button type="submit" className="is-primary" disabled={!canCreate || pending}>
             {pending ? t('projectCreate.creating') : t('projectCreate.submit')}
           </button>

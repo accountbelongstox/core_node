@@ -17,6 +17,13 @@ Layout — one JSONL file per tool:
      "time", "text", "archived_at"}
 ``key`` = sha1(tool|os_user|ts|text): the same prompt is stored once even
 when session ids change across extractor schema revisions.
+
+``ARCHIVE_ROOT_ONLY_FIELD`` is an input-only flag on the caller's prompt
+dict (never persisted into an entry, never part of the dedupe key): when
+any prompt carries it truthy, its tool's JSONL came from a root-owned
+source (root spool) and the file is restricted to ``root_spool.SPOOL_FILE_MODE``
+so it is never more readable than the source it was mirrored from. A file
+that never receives such a prompt keeps the owner's default mode.
 """
 
 from __future__ import annotations
@@ -27,12 +34,14 @@ import os
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Tuple
 
 from pycore.pyctl.agent_history.agent_history_txt import store_dir
+import pycore.pyctl.agent_history.root_spool as root_spool
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 PROMPT_ARCHIVE_DIR_NAME = "prompt_archive"
-PROMPT_ARCHIVE_FILE_MODE = 0o666
+ARCHIVE_ROOT_ONLY_FIELD = "root_only"
 
 _ARCHIVE_ENTRY_FIELDS = ("tool", "os_user", "project", "session_id", "source", "ts", "text")
 _known_keys: Dict[str, Set[str]] = {}
@@ -67,7 +76,7 @@ def _load_keys(path: Path) -> Set[str]:
 def archive_prompts(prompts: List[Dict[str, Any]]) -> int:
     """Append prompts not archived yet. Returns appended count.
     Side-backup only: callers must treat any failure here as non-fatal."""
-    by_tool: Dict[str, List[Dict[str, Any]]] = {}
+    by_tool: Dict[str, List[Tuple[Dict[str, Any], bool]]] = {}
     for prompt in prompts or []:
         text = str(prompt.get("text") or "")
         if not text.strip():
@@ -75,12 +84,13 @@ def archive_prompts(prompts: List[Dict[str, Any]]) -> int:
         entry = {field: prompt.get(field) for field in _ARCHIVE_ENTRY_FIELDS}
         entry["ts"] = int(prompt.get("ts") or 0)
         entry["text"] = text
-        by_tool.setdefault(str(entry.get("tool") or "unknown"), []).append(entry)
+        root_only = bool(prompt.get(ARCHIVE_ROOT_ONLY_FIELD))
+        by_tool.setdefault(str(entry.get("tool") or "unknown"), []).append((entry, root_only))
 
     appended = 0
     archived_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with _lock:
-        for tool, entries in by_tool.items():
+        for tool, items in by_tool.items():
             path = _archive_path(tool)
             known = _known_keys.get(str(path))
             if known is None:
@@ -88,11 +98,13 @@ def archive_prompts(prompts: List[Dict[str, Any]]) -> int:
                 _known_keys[str(path)] = known
             lines: List[str] = []
             fresh: Set[str] = set()
-            for entry in sorted(entries, key=lambda item: item["ts"]):
+            has_root_only = False
+            for entry, root_only in sorted(items, key=lambda pair: pair[0]["ts"]):
                 key = _prompt_key(entry)
                 if key in known or key in fresh:
                     continue
                 fresh.add(key)
+                has_root_only = has_root_only or root_only
                 entry["key"] = key
                 entry["time"] = datetime.fromtimestamp(entry["ts"]).strftime("%Y-%m-%d %H:%M:%S") if entry["ts"] else ""
                 entry["archived_at"] = archived_at
@@ -100,20 +112,26 @@ def archive_prompts(prompts: List[Dict[str, Any]]) -> int:
             if not lines:
                 continue
             path.parent.mkdir(parents=True, exist_ok=True)
-            created = not path.exists()
             with open(path, "a", encoding="utf-8", newline="\n") as handle:
                 handle.writelines(lines)
             known.update(fresh)
-            if created and os.name != "nt":
+            # A file that ever receives a root-only entry is restricted to the
+            # root-spool file mode and never widened back; a file that never
+            # does keeps the owner's default mode (no chmod at all).
+            if has_root_only and os.name != "nt":
                 try:
-                    os.chmod(path, PROMPT_ARCHIVE_FILE_MODE)
-                except OSError:
-                    pass
+                    os.chmod(path, root_spool.SPOOL_FILE_MODE)
+                except OSError as exc:
+                    ColorPrint.yellow(
+                        f"[AgentHistory] Prompt archive chmod failed "
+                        f"path={path} mode={oct(root_spool.SPOOL_FILE_MODE)} errno={exc.errno}"
+                    )
             appended += len(lines)
     return appended
 
 
 __all__ = [
     "PROMPT_ARCHIVE_DIR_NAME",
+    "ARCHIVE_ROOT_ONLY_FIELD",
     "archive_prompts",
 ]

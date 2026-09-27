@@ -31,7 +31,10 @@ from pycore.pyutils.laravel.delivery_outbox import (
     DeliveryKind,
     laravel_delivery_outbox,
 )
-from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
+from pycore.pyctl.tts.audio_resource_delivery import (
+    audio_resource_delivery,
+    is_terminal_delivery_rejection,
+)
 
 AUDIO_LANE_KIND_PREFIX = "audio_lane."
 AUDIO_LANE_STEPS = ("result", "history")
@@ -56,15 +59,9 @@ class AudioLaneDelivery:
 
     @staticmethod
     def _terminal_report_error(detail: str) -> bool:
-        normalized = str(detail or "").lower()
-        return (
-            normalized.startswith("server validation rejected")
-            or normalized.startswith("unknown task on server")
-            or (
-                normalized.startswith("http 4")
-                and not normalized.startswith(("http 408", "http 409", "http 425", "http 429"))
-            )
-        )
+        """Delegates to the shared rule in ``audio_resource_delivery`` (ONE
+        4xx-terminal rule for every Laravel delivery rejection)."""
+        return is_terminal_delivery_rejection(detail=detail)
 
     def register(self, handler: Any) -> str:
         kind = audio_lane_kind(handler.LANE)

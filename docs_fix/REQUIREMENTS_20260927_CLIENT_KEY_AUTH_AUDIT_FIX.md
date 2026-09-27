@@ -270,6 +270,16 @@ Source list: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`
   - user-6 (copying Linux data off NTFS) is withdrawn.
   - Notified: the role files (`LINUX_SHELL_RULES.md` §2, guide B15, the pointer lines), core-node-e9 (its "keep model data on D:" holds again for data both OSes read), and laravel-remote.
   - Implementers who read the D24 contract in between are corrected at review time: the leaders check against the current contract.
+- D27 (verbatim, about 20:5x): "/opt/core_node_trees/www/core_node_trees这个目录是干什么用的，查看项目中，如果没什么用去掉。"
+  - Finding. `core_node_trees` came from core-node-e9's dual-boot drive layout (§10 of its record):
+    - Windows: `<program drive>\core_node_trees` would hold per-project node_modules/vendor/.venv through junctions, plus the toolchain caches;
+    - Linux: ext4 `/opt/core_node_trees` would be bind-mounted onto an empty NTFS mount point, `/www/core_node_trees`, so the Windows junctions resolve to ext4.
+    - Neither directory exists on disk: this machine has only C: and D:, so no E: program drive. Only e9's in-progress code references it: `SharedCacheEnv.ps1`, `mount_common.sh` (`ensure_tree_root_bind_mount`), `shared_cache_env.sh`, plus the contract keys.
+  - Without E:, the Windows side would fall back to `D:\core_node_trees` on the same NTFS disk as the code, which gains nothing. The Linux bind trick exists only to serve those junctions, and it puts a directory on the NTFS share.
+  - Ruling: remove `core_node_trees` everywhere.
+    - Contract `paths.drive_layout`: `tree_subdir`, `tree_root`, `tree_cache_root` and `tree_cache_subdirs` are removed. They are replaced by `cache_root = <tool_root>/cache` with `cache_subdirs`, and by `trees_root` (Linux `<tool_root>/trees`) with `trees_rule`: per-project Linux dirs are bind-mounted from ext4 over the plain in-repo directories at use time, and Windows keeps them in the repo as normal directories, with no junctions.
+    - The D24 mount-point exception in `LINUX_SHELL_RULES.md` is withdrawn.
+    - core-node-e9 updates its fenced code accordingly (asked about 20:5x). There is nothing on disk to delete.
 - D14 (verbatim, about 15:3x): "允许 你修改 改 development-guides/".
   - The orchestrator may now edit `development-guides/` (guide B12). Every guide change is recorded here.
   - First use, about 15:3x, in `CLAUDE_CODE_AGENTS_GUIDE.md`:

@@ -294,3 +294,57 @@
   - The MDSR-17 size gap stays non-blocking: it is not a regression, verifyResources still fails the session, and the largest local root has 40k files.
 - Changed files (this task): the verdict file and this report only.
 - Blockers: B1. Next owner: pycore-laravel (extra assignment; it can run in parallel with G3), then pycore-lead for the re-review.
+
+## laravel-api-D7-fix (leader dispatch; item laravel-api-D7-B1)
+
+- Status: deferred to the owner. Dispatched to pycore-laravel as task `[pycore-laravel] laravel-api-D7-fix`, with the patch below already validated.
+- Why deferred: `poly_apps/laravel_main/app/Utils/` is pycore-laravel's scope (path map; B1 one writer per path). The task says "write scope only", and pycore-lead has no temporary-writer clause.
+- Changed files (this task): this report only. No repo code was touched.
+- Scratch prototypes (not repo): `scratchpad/d7fix/{native_delete_proto,native_delete_proto2,link_probe,junction_trace}.php`. Each one cleans up its own sandbox.
+- Finding (binding for the fix): the item's `is_dir && !is_link` guard is unsafe on Windows.
+  - PHP 8.5 reports `is_link() = false` for a junction. `is_dir()` on a junction is inconsistent: false in link_probe, true in junction_trace and proto2.
+  - With that guard, the first prototype walked through a top-level junction and deleted the target's file (`outside_intact_after_top_junction: false`).
+  - The lstat view is stable: `filetype()` gives `dir` only for a real directory, `unknown` for a junction and `link` for a symlink.
+  - `RecursiveDirectoryIterator` (no FOLLOW_SYMLINKS) never descends into junctions or symlinks; they come back as leaves.
+- Patch for pycore-laravel (`FileSystemManager.php`; the file is LF, keep LF; no comments needed):
+  - In `delete()`, right after the `!file_exists` early return (:606-608), add `if (\App\Providers\PathMapper::isWindows()) { return self::deleteNative($mappedPath); }`. This skips the sudo user lookup and `fixPermissions` (chown/chgrp) on Windows. The POSIX path stays unchanged.
+  - `private static function deleteNative(string $path): bool`:
+    - `$iterator = null;` at the top;
+    - if `@filetype($path) === 'dir'`, walk `new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST)` and call `self::removeNativeEntry($entry->getPathname())` on each entry. Wrap the walk in `try/catch (\UnexpectedValueException)` so the method keeps its bool contract;
+    - then `self::removeNativeEntry($path); return !file_exists($path);`.
+  - `private static function removeNativeEntry(string $path): void`:
+    - `if (@unlink($path) || @rmdir($path)) { return; }`, then `@chmod($path, 0666); @unlink($path);`;
+    - unlink removes files and file links; rmdir removes emptied directories, directory symlinks and junctions without touching their targets; the chmod retry clears the Windows read-only attribute.
+- Verification of the prototype (in-process on scratch paths; identical output from CLI PHP 8.5.2 twice and FrankenPHP 1.12.7 `php-cli`, the D8 runtime):
+  - `{"file":true,"readonly_file":true,"top_junction_created":true,"top_junction_is_dir_reported":true,"top_junction_removed":true,"top_junction_target_intact":true,"top_dir_symlink_removed":true,"top_dir_symlink_target_intact":true,"top_file_symlink_removed":true,"top_file_symlink_target_intact":true,"nested_junction_created":true,"nested_dir_symlink_created":true,"nested_file_symlink_created":true,"nested_removed":true,"nested_targets_intact":true,"missing_path":true,"work_empty":true,"cleanup_done":true}`
+  - Free RAM was 3.09 GB, and only the scratch PHP scripts ran. The local FrankenPHP server was not touched.
+- Member verification (pycore-laravel):
+  - the stated checks: `php -l`; scratch file and nested directory; a terminal save of a scratch session removes its artifacts and incoming directories; `pruneTerminal` removes a scratch session beyond retention;
+  - plus: the prototype's junction and dir-symlink cases through `FileSystemManager::delete` (targets intact), and a completeArchive staging and `.7z.part` cleanup, if it can be reached with a scratch session;
+  - prune safety: back-date the scratch sessions' `updated_at` so that every pruned id is a scratch one; the 4 real terminal sessions must stay unchanged;
+  - after the edit: `curl -X POST http://localhost:2019/frankenphp/workers/restart`, then health 200.
+- Blast radius (for the re-review): 45 `FileSystemManager::delete(` calls in 17 files, plus `writeFileAtomic` staging cleanup (:408). All of them were silent no-ops on Windows and now delete, as they already do on Linux. The lstat guard keeps a delete from going through a junction or link. The user-facing path is `CodeBrowserFileOpsController` (Linux parity; its existing path guard applies).
+- Cross-scope and non-blocking (pycore-laravel, optional in the same pass): `FileSystemManager::rename()` (:527-600) is also sudo-only (`cp` + `rm`) with no Windows branch. Nothing in DataSync depends on it, since DataSync uses `moveFile` (:512, native).
+- Decisions (recommended option):
+  - Dispatch to the owner instead of a leader edit, per the binding §8 boundary and the task's "write scope only".
+  - Use the lstat-based `filetype() === 'dir'` guard instead of the item's `is_dir && !is_link`, because the prototype proved the latter deletes a junction target's contents.
+  - Use one unified `unlink || rmdir` for each entry instead of type branching, because `is_dir` is unreliable for junctions.
+- Next owner: pycore-laravel (implements the patch and runs the member verification). Then pycore-lead re-reviews and writes `.claude/agents_shared/reviews/laravel-api-D7-fix.json`, and updates the B1 entry of `laravel-api-D7.json`.
+
+## Review pycore-runtime-D7P2-fix round 1 (dispatched to member pycore-ui)
+
+- Verdict: changes_requested. File: `.claude/agents_shared/reviews/pycore-runtime-D7P2-fix.json`.
+- Result under review: pycore-ui deferred all six items (B1-B6) as out of scope, and changed only `reports/pycore-ui.md`.
+- The member acted correctly. The B1-B6 paths belong to pycore-runtime, and F-1 (for B4) belongs to pycore-lead. Nothing in the record assigns them to pycore-ui, so the misroute was the dispatcher's.
+- The task is not done: every defect is still present at HEAD 4ddb4be8e (the user commit at 20:24, which touches none of those files). Approving would close the task with B1-B6 open.
+- Non-blocking notes on the member's report:
+  - The working copy of `reports/pycore-ui.md` is CRLF, but every other report and review is LF (the index is LF through autocrlf).
+  - Two line references drifted: `serialized_worker.py:42-43` and `OrchManifestPanel.tsx:105`.
+  - UI backlog: `OrchManifestPanel.tsx:105` reads `error`, but the route returns `error_code`.
+- B2 scope note: `orch_promote.py:60-64` passes `task` in-process on purpose. Only the RPC item building changes.
+- Checks: read-only (git log/diff/status, grep/sed, Python EOL byte counts). No code changed, so there was nothing to build or test.
+- Decisions (recommended option):
+  - changes_requested rather than approved, because an approved verdict completes the task.
+  - F-1 is not done inside this review. It is my own foundation work, which the reviewer service verifies, and it lands before the B4 docstring rewrite.
+- Changed files (this task): the verdict file and this report only.
+- Blockers: B1-B6. Next owners: pycore-lead for F-1, and pycore-runtime for B1, B2, B3, B5, B6 and the B4 docstring (round 2 of pycore-runtime-D7P2-fix). Then pycore-lead re-reviews.

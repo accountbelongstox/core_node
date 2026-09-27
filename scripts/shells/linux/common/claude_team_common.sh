@@ -8,7 +8,9 @@
 # Windows counterpart: scripts/shells/win/win_common/ClaudeTeamCommon.ps1
 # Roles: .claude/agents/*.md frontmatter (name, model, effort). The catalog
 # config/claude_team_roles.json holds launcher-only data; its roles[] rows are
-# overrides only (enabled, remote), and an agent file without a row is enabled.
+# overrides only (enabled, remote, window), and an agent file without a row is
+# enabled. window:false is a service role: a valid roster row (report, task tags),
+# no pane started here.
 # Both modes start every enabled role as its own claude session (--agent <role>
 # --name <prefix><role> --effort <frontmatter>) in one tmux session
 # layout.tmux_session on the mode's socket: one window (tab) per packed group of
@@ -18,8 +20,8 @@
 # differs: team.kickoff (claudeagents) or sessions.kickoff_lead (claudeteamup).
 # A role whose PID is alive is skipped; a live pane without its claude is
 # respawned in place; a role without a pane opens in a new tab.
-# Executed directly with --regrid <socket> <session> <lead> <lead cols>, it
-# re-applies the grid (the tmux hooks call it).
+# Executed directly with --regrid <socket> <session> <lead> <lead cols> <lead
+# rows>, it re-applies the grid (the tmux hooks call it).
 # =============================================================================
 
 CLAUDE_TEAM_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -353,8 +355,8 @@ claude_team_ensure_claude() {
 }
 
 # Roles come from the .claude/agents frontmatter (name, model, effort); catalog
-# roles[] rows override enabled/remote. Catalog order first, then agent files
-# without a row, by name.
+# roles[] rows override enabled/remote/window. Catalog order first, then agent
+# files without a row, by name.
 claude_team_load_catalog() {
     local parsed=""
     local kind=""
@@ -1721,10 +1723,11 @@ claude_team_regrid() {
                 area=$((width - lead_cols - 1))
                 ;;
             top)
-                role_columns="$count"
-                lead_rows=$(((height - role_columns) / (role_columns + 1)))
-                [ "$lead_rows" -ge "$lead_min_rows" ] || lead_rows="$lead_min_rows"
-                [ "$lead_rows" -le $((height - 2 * role_columns)) ] || lead_rows=$((height - 2 * role_columns))
+                # Fixed at lead_min_rows (matching claude_team_tab_grid's own
+                # lead-top choice): a role-column count has no bearing on the
+                # lead's row share here, unlike the width split of the left shape.
+                lead_rows="$lead_min_rows"
+                [ "$lead_rows" -le $((height - 2)) ] || lead_rows=$((height > 3 ? height - 3 : 1))
                 claude_team_tmux resize-pane -t "$lead_pane" -y "$lead_rows" >/dev/null 2>&1 </dev/null
                 usable_rows=$((height - lead_rows - 1))
                 ;;
@@ -1882,7 +1885,7 @@ claude_team_layout() {
 claude_team_finish() {
     if [ "$CLAUDE_TEAM_DRY_RUN" = "1" ]; then
         claude_team_apply_tmux_options
-        claude_team_log PLAN "regrid: bash $CLAUDE_TEAM_COMMON_PATH --regrid $CLAUDE_TEAM_TMUX_SOCKET $CLAUDE_TEAM_LAYOUT_SESSION $CLAUDE_TEAM_LEAD_ROLE $CLAUDE_TEAM_MIN_LEAD_COLS (resize-pane per column and row)"
+        claude_team_log PLAN "regrid: bash $CLAUDE_TEAM_COMMON_PATH --regrid $CLAUDE_TEAM_TMUX_SOCKET $CLAUDE_TEAM_LAYOUT_SESSION $CLAUDE_TEAM_LEAD_ROLE $CLAUDE_TEAM_MIN_LEAD_COLS $CLAUDE_TEAM_MIN_LEAD_ROWS (resize-pane per column and row)"
         return 0
     fi
     if [ "$CLAUDE_TEAM_SESSION_EXISTS" = "0" ]; then
@@ -1890,7 +1893,7 @@ claude_team_finish() {
     fi
     claude_team_apply_tmux_options
     claude_team_verify_roles
-    claude_team_regrid "$CLAUDE_TEAM_LAYOUT_SESSION" "$CLAUDE_TEAM_LEAD_ROLE" "$CLAUDE_TEAM_MIN_LEAD_COLS"
+    claude_team_regrid "$CLAUDE_TEAM_LAYOUT_SESSION" "$CLAUDE_TEAM_LEAD_ROLE" "$CLAUDE_TEAM_MIN_LEAD_COLS" "$CLAUDE_TEAM_MIN_LEAD_ROWS"
     claude_team_log OK "Grid applied (resize-pane per column and row)"
     if [ -n "$CLAUDE_TEAM_LEAD_PANE_ID" ]; then
         claude_team_tmux select-window -t "$CLAUDE_TEAM_LEAD_PANE_ID" >/dev/null 2>&1 </dev/null
@@ -1973,5 +1976,6 @@ claude_team_run() {
 
 if [ "${BASH_SOURCE[0]}" = "$0" ] && [ "${1:-}" = "--regrid" ]; then
     CLAUDE_TEAM_TMUX_SOCKET="${2:-$CLAUDE_TEAM_SESSIONS_SOCKET}"
-    claude_team_regrid "${3:-$CLAUDE_TEAM_LAYOUT_SESSION}" "${4:-$CLAUDE_TEAM_LEAD_ROLE}" "${5:-$CLAUDE_TEAM_MIN_LEAD_COLS}"
+    claude_team_regrid "${3:-$CLAUDE_TEAM_LAYOUT_SESSION}" "${4:-$CLAUDE_TEAM_LEAD_ROLE}" "${5:-$CLAUDE_TEAM_MIN_LEAD_COLS}" \
+        "${6:-$CLAUDE_TEAM_MIN_LEAD_ROWS}"
 fi

@@ -19,12 +19,11 @@ from pycore.pyctl.queue_center.lane_registry import (
     LANE_BY_CALLBACK,
     lane_worker,
 )
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
-
-# Safety bound on an audio lane's cache-first restore wait (below): loading
-# even a large local snapshot takes seconds, not minutes; this only guards
-# against the boot chain never running for the lane at all.
-_AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS = 180.0
+from pycore.pyutils.tts.audio_queue_center import (
+    AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
+    AUDIO_QUEUE_LANES,
+    audio_queue_center,
+)
 
 
 def _start_audio_lane_after_restore(control: str, worker: Any) -> None:
@@ -32,7 +31,12 @@ def _start_audio_lane_after_restore(control: str, worker: Any) -> None:
     until its cache-first restore finishes (R6/§5.4 - the local cache loads
     in full before any remote access), then start it. BusTaskThread isolates
     a failure here from the caller."""
-    audio_queue_center.wait_for_restore(control, timeout=_AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS)
+    restored = audio_queue_center.wait_for_restore(control, timeout=AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS)
+    if not restored:
+        ColorPrint.yellow(
+            f"[AssistSync] {control} cache-first restore did not signal within "
+            f"{AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS:.0f}s; starting the lane anyway"
+        )
     worker.request_start()
 
 

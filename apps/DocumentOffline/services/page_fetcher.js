@@ -8,7 +8,10 @@ const global_dir = require('#@global_dir');
 class PageFetcher {
   constructor(fileMapper) {
     if (!fileMapper) {
-      throw new Error('PageFetcher requires a FileMapper instance');
+      logger.error('PageFetcher requires a FileMapper instance');
+      this.fileMapper = null;
+      this.tempRoot = null;
+      return;
     }
     this.fileMapper = fileMapper;
     this.tempRoot = path.join(global_dir.COMMON_CACHE_DIR, 'DocumentOffline', '.tmp_pages');
@@ -21,6 +24,10 @@ class PageFetcher {
   }
 
   async fetch(url) {
+    if (!this.fileMapper) {
+      logger.error('PageFetcher is not initialized: missing FileMapper instance');
+      return null;
+    }
     this.ensureTempDir();
     const parsed = new URL(url);
     const relativePath = this.fileMapper.mapPath(parsed);

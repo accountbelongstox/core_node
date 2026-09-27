@@ -79,7 +79,8 @@ async function installHtop() {
         } else if (await execCmdResultText('which yum')) {
             await pipeExecCmd('yum install -y htop');
         } else {
-            throw new Error('No supported package manager found (apt/yum)');
+            logger.error('No supported package manager found (apt/yum)');
+            return false;
         }
         return true;
     } catch (error) {

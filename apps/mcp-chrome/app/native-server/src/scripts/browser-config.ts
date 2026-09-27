@@ -1,8 +1,6 @@
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { HOST_NAME } from './constant';
 
 export enum BrowserType {
   CHROME = 'chrome',
@@ -19,137 +17,70 @@ export interface BrowserConfig {
   systemRegistryKey?: string;
 }
 
-type PlatformFamily = 'win32' | 'darwin' | 'linux';
-
-interface BrowserDefinition {
+interface NativeHostBrowserDefinition {
+  type: BrowserType;
   displayName: string;
-  userManifestSegments: Record<PlatformFamily, string[]>;
-  systemManifestSegments: Record<PlatformFamily, string[]>;
-  windowsRegistryPath: string;
   windowsDetectionRegistryPath: string;
   macApplicationPath: string;
   linuxCommands: string[];
 }
 
-const MANIFEST_FILE_NAME = `${HOST_NAME}.json`;
-const BROWSER_DEFINITIONS: Record<BrowserType, BrowserDefinition> = {
-  [BrowserType.CHROME]: {
-    displayName: 'Chrome',
-    userManifestSegments: {
-      win32: ['Google', 'Chrome', 'NativeMessagingHosts'],
-      darwin: ['Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'],
-      linux: ['.config', 'google-chrome', 'NativeMessagingHosts'],
-    },
-    systemManifestSegments: {
-      win32: ['Google', 'Chrome', 'NativeMessagingHosts'],
-      darwin: ['Google', 'Chrome', 'NativeMessagingHosts'],
-      linux: ['etc', 'opt', 'chrome', 'native-messaging-hosts'],
-    },
-    windowsRegistryPath: 'Google\\Chrome',
-    windowsDetectionRegistryPath: 'HKLM\\SOFTWARE\\Google\\Chrome',
-    macApplicationPath: '/Applications/Google Chrome.app',
-    linuxCommands: ['google-chrome', 'google-chrome-stable'],
-  },
-  [BrowserType.CHROMIUM]: {
-    displayName: 'Chromium',
-    userManifestSegments: {
-      win32: ['Chromium', 'NativeMessagingHosts'],
-      darwin: ['Library', 'Application Support', 'Chromium', 'NativeMessagingHosts'],
-      linux: ['.config', 'chromium', 'NativeMessagingHosts'],
-    },
-    systemManifestSegments: {
-      win32: ['Chromium', 'NativeMessagingHosts'],
-      darwin: ['Application Support', 'Chromium', 'NativeMessagingHosts'],
-      linux: ['etc', 'chromium', 'native-messaging-hosts'],
-    },
-    windowsRegistryPath: 'Chromium',
-    windowsDetectionRegistryPath: 'HKLM\\SOFTWARE\\Chromium',
-    macApplicationPath: '/Applications/Chromium.app',
-    linuxCommands: ['chromium', 'chromium-browser'],
-  },
-  [BrowserType.FIREFOX]: {
-    displayName: 'Firefox',
-    userManifestSegments: {
-      win32: ['Mozilla', 'NativeMessagingHosts'],
-      darwin: ['Library', 'Application Support', 'Mozilla', 'NativeMessagingHosts'],
-      linux: ['.mozilla', 'native-messaging-hosts'],
-    },
-    systemManifestSegments: {
-      win32: ['Mozilla', 'NativeMessagingHosts'],
-      darwin: ['Application Support', 'Mozilla', 'NativeMessagingHosts'],
-      linux: ['usr', 'lib', 'mozilla', 'native-messaging-hosts'],
-    },
-    windowsRegistryPath: 'Mozilla',
-    windowsDetectionRegistryPath: 'HKLM\\SOFTWARE\\Mozilla\\Mozilla Firefox',
-    macApplicationPath: '/Applications/Firefox.app',
-    linuxCommands: ['firefox', 'firefox-esr'],
-  },
-};
-
-function getPlatformFamily(): PlatformFamily {
-  const platform = os.platform();
-  return platform === 'win32' || platform === 'darwin' ? platform : 'linux';
+export interface NativeHostManifestOptions {
+  description: string;
+  extensionId?: string;
+  nativeServerDist?: string;
+  runHostPath?: string;
 }
 
-function getUserManifestPath(browser: BrowserType, platform: PlatformFamily): string {
-  const definition = BROWSER_DEFINITIONS[browser];
-  const rootPath =
-    platform === 'win32'
-      ? process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-      : os.homedir();
-
-  return path.join(rootPath, ...definition.userManifestSegments[platform], MANIFEST_FILE_NAME);
+interface NativeHostCommon {
+  getBrowserDefinition(browser: BrowserType): NativeHostBrowserDefinition;
+  getUserManifestPath(browser: BrowserType): string;
+  getSystemManifestPath(browser: BrowserType): string;
+  getWindowsUserRegistryKey(browser: BrowserType): string | null;
+  getWindowsSystemRegistryKey(browser: BrowserType): string | null;
+  getRunHostPath(nativeServerDist: string): string;
+  createManifestContent(
+    manifestPath: string,
+    browser: BrowserType,
+    options: NativeHostManifestOptions,
+  ): Record<string, unknown>;
+  registerUserHost(browser: BrowserType, options: NativeHostManifestOptions): boolean;
+  writeNodePath(nativeServerDist: string): string;
+  buildWindowsRegistryAddCommand(registryKey: string, manifestPath: string): string;
 }
 
-function getSystemManifestPath(browser: BrowserType, platform: PlatformFamily): string {
-  const definition = BROWSER_DEFINITIONS[browser];
-  const rootPath =
-    platform === 'win32'
-      ? process.env.ProgramFiles || 'C:\\Program Files'
-      : platform === 'darwin'
-        ? '/Library'
-        : path.parse(process.cwd()).root;
-
-  return path.join(rootPath, ...definition.systemManifestSegments[platform], MANIFEST_FILE_NAME);
-}
-
-function getRegistryKeys(
-  browser: BrowserType,
-  platform: PlatformFamily,
-): { user: string; system: string } | undefined {
-  const registryPath = BROWSER_DEFINITIONS[browser].windowsRegistryPath;
-
-  if (platform !== 'win32') {
-    return undefined;
-  }
-
-  return {
-    user: `HKCU\\Software\\${registryPath}\\NativeMessagingHosts\\${HOST_NAME}`,
-    system: `HKLM\\Software\\${registryPath}\\NativeMessagingHosts\\${HOST_NAME}`,
-  };
-}
+// The browser table and user-level registration live once, in
+// apps/mcp-chrome/scripts/native-host-common.cjs (same depth from src/ and dist/).
+const NATIVE_HOST_COMMON_PATH = path.resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  '..',
+  'scripts',
+  'native-host-common.cjs',
+);
+export const nativeHostCommon: NativeHostCommon = require(NATIVE_HOST_COMMON_PATH);
 
 export function getBrowserConfig(browser: BrowserType): BrowserConfig {
-  const platform = getPlatformFamily();
-  const definition = BROWSER_DEFINITIONS[browser];
-  const registryKeys = getRegistryKeys(browser, platform);
+  const definition = nativeHostCommon.getBrowserDefinition(browser);
 
   return {
     type: browser,
     displayName: definition.displayName,
-    userManifestPath: getUserManifestPath(browser, platform),
-    systemManifestPath: getSystemManifestPath(browser, platform),
-    registryKey: registryKeys?.user,
-    systemRegistryKey: registryKeys?.system,
+    userManifestPath: nativeHostCommon.getUserManifestPath(browser),
+    systemManifestPath: nativeHostCommon.getSystemManifestPath(browser),
+    registryKey: nativeHostCommon.getWindowsUserRegistryKey(browser) ?? undefined,
+    systemRegistryKey: nativeHostCommon.getWindowsSystemRegistryKey(browser) ?? undefined,
   };
 }
 
 export function detectInstalledBrowsers(): BrowserType[] {
   const detectedBrowsers: BrowserType[] = [];
-  const platform = getPlatformFamily();
+  const platform = process.platform;
 
   for (const browser of Object.values(BrowserType)) {
-    const definition = BROWSER_DEFINITIONS[browser];
+    const definition = nativeHostCommon.getBrowserDefinition(browser);
 
     if (platform === 'win32') {
       try {

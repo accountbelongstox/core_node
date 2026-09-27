@@ -22,7 +22,7 @@ import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
-import { cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { cmHumanize, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedList } from '../components/workspace/useCmPagedList';
 
 const BANK_TRANSFER = 'bank_transfer';
@@ -41,6 +41,7 @@ const WITHDRAWAL_ACCOUNT_FIELDS: Record<string, readonly string[]> = {
 const MIN_WITHDRAWAL = 1;
 const HTTP_CREATED = 201;
 const TAB_QUERY_KEY = 'cm_wallet_tab';
+const LEDGER_KEY_PREFIX = 'wallet.ledger.';
 
 type CmWalletTab = typeof WALLET_TABS[number];
 
@@ -587,6 +588,11 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const list = useCmPagedList(fetchTransactions, extractPage<CmWalletTransaction>, 'wallet.transactionsLoadFailed');
+  const describe = (transaction: CmWalletTransaction): string | null => {
+    const code = transaction.description_code;
+    if (!code) return transaction.description;
+    return t(`${LEDGER_KEY_PREFIX}${code}`, { ...(transaction.description_params ?? {}), defaultValue: cmHumanize(code) });
+  };
   return (
     <>
       <p className="cm-section-card__lead">{t('wallet.transactionsLead')}</p>
@@ -602,18 +608,21 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
             </tr>
           </thead>
           <tbody>
-            {list.items.map((transaction) => (
-              <tr key={transaction.id}>
-                <td>
-                  {t(`wallet.transactionTypes.${transaction.type}`, { defaultValue: transaction.type })}
-                  {transaction.description && <small className="cm-cell-note">{transaction.description}</small>}
-                </td>
-                <td className={`is-num ${isOutgoing(transaction) ? 'is-negative' : 'is-positive'}`}>{isOutgoing(transaction) ? '−' : '+'}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
-                <td className="is-num">{transaction.balance_after !== null ? format.money(transaction.balance_after, currency) : t('common.unavailable')}</td>
-                <td><CmStatusBadge group="transaction" status={transaction.status} /></td>
-                <td>{format.dateTime(transaction.created_at) || t('common.unavailable')}</td>
-              </tr>
-            ))}
+            {list.items.map((transaction) => {
+              const description = describe(transaction);
+              return (
+                <tr key={transaction.id}>
+                  <td>
+                    {t(`wallet.transactionTypes.${transaction.type}`, { defaultValue: transaction.type })}
+                    {description && <small className="cm-cell-note">{description}</small>}
+                  </td>
+                  <td className={`is-num ${isOutgoing(transaction) ? 'is-negative' : 'is-positive'}`}>{isOutgoing(transaction) ? '−' : '+'}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
+                  <td className="is-num">{transaction.balance_after !== null ? format.money(transaction.balance_after, currency) : t('common.unavailable')}</td>
+                  <td><CmStatusBadge group="transaction" status={transaction.status} /></td>
+                  <td>{format.dateTime(transaction.created_at) || t('common.unavailable')}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </CmListBody>

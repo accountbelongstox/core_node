@@ -41,19 +41,19 @@ workspace, K4 administration console, K5 images.
 | Privacy | /codemart/privacy | K2 | verified | pages/CmInfoPages.tsx; cm-locales infoPages.privacy, legal | legal layout with table of contents; real data stored, private KYC documents (admin-only viewer), visibility, retention |
 | Terms | /codemart/terms | K2 | verified | pages/CmInfoPages.tsx; cm-locales infoPages.terms | roles/deposits, escrow funding and release net of commission, refunds, withdrawals, conduct, suspension |
 | Download | /codemart/download | K2 | verified | pages/CmDownloadPage.tsx; cm-locales downloadPage | features split (download-devices), web workspace fallback, notice when no package |
-| Dashboard | /codemart/dashboard | K3 | rough | | |
-| Marketplace | /codemart/marketplace | K3 | rough | | |
-| My projects | /codemart/projects | K3 | rough | | |
-| Create project | /codemart/projects/new | K3 | rough | | |
-| Project detail | /codemart/projects/:id | K3 | rough | | |
-| My tasks | /codemart/tasks | K3 | rough | | |
-| Reviews | /codemart/reviews | K3 | rough | | |
-| Architect | /codemart/architect | K3 | rough | | |
-| Wallet | /codemart/wallet | K3 | rough | | |
-| Verification | /codemart/verification | K3 | rough | | |
-| Profile | /codemart/profile | K3 | rough | | |
-| Notifications | /codemart/notifications | K3 | rough | | |
-| Settings | /codemart/settings | K3 | rough | | |
+| Dashboard | /codemart/dashboard | K3 | polished | pages/CmDashboardPage.tsx | CmPageHeader :164; role-aware metrics, shortcuts and next onboarding step; loading/error/empty per panel :102-106; icons move to assets/icons (d9-01-ui); crawl in G3 |
+| Marketplace | /codemart/marketplace | K3 | polished | pages/CmMarketplacePage.tsx | CmPageHeader :103; loading/error/empty :156-160; crawl in G3 |
+| My projects | /codemart/projects | K3 | polished | pages/CmProjectsPage.tsx | CmPageHeader :65; loading/error/empty :100-111; crawl in G3 |
+| Create project | /codemart/projects/new | K3 | polished | pages/CmProjectsPage.tsx (CmProjectCreatePage :156) | CmPageHeader :213; form page, no list states; crawl in G3 |
+| Project detail | /codemart/projects/:id | K3 | polished | pages/CmProjectDetailPage.tsx | CmPageHeader :277 and :336; loading/empty/error :279-283; crawl in G3 |
+| My tasks | /codemart/tasks | K3 | polished | pages/CmTasksPage.tsx | CmPageHeader :295; loading/error/empty :309-313; crawl in G3 |
+| Reviews | /codemart/reviews | K3 | polished | pages/CmReviewsPage.tsx | CmPageHeader :286; loading/error/empty :300-304; the reviewer review is advisory; crawl in G3 |
+| Architect | /codemart/architect | K3 | polished | pages/CmArchitectPage.tsx (split out of CmReviewsPage, d9-03) | CmPageHeader :113; loading/error :125-127; crawl in G3 |
+| Wallet | /codemart/wallet | K3 | polished | pages/CmWalletPage.tsx | CmPageHeader :682; loading/error/empty per tab :79-81, :185-192; ledger codes wait on CKA-28-ui; crawl in G3 |
+| Verification | /codemart/verification | K3 | polished | pages/CmVerificationPage.tsx | CmPageHeader :421; loading/error :427; single-record page, no empty state; email resend waits on cmgap-R1-ui; crawl in G3 |
+| Profile | /codemart/profile | K3 | polished | pages/CmProfilePage.tsx | CmPageHeader :99; loading/error :101-103; single-record page, no empty state; crawl in G3 |
+| Notifications | /codemart/notifications | K3 | polished | pages/CmNotificationsPage.tsx | CmPageHeader :81; loading/error/empty :99-103; crawl in G3 |
+| Settings | /codemart/settings | K3 | polished | pages/CmSettingsPage.tsx | CmPageHeader :23; local preferences only, no server states; crawl in G3 |
 | Admin overview | /codemart/admin | K4 | verified | admin/CmAdminPages.tsx, CmAdminShared.tsx, styles/cm-workspace.css (admin section), cm-locales en/zh `admin` | decision dashboard: open queues first with hint + link, clear queues listed, platform totals, project status chips, policy (percent/locale money), terminology glossary, admin-console.webp banner |
 | Admin users + detail | /codemart/admin/users(/:id) | K4 | verified | admin/CmAdminPages.tsx, CmAdminUserDetailPage.tsx | username/name/email/role badges; detail titled by username, role transitions with effect text, shared activity table; suspend/activate tested |
 | Admin KYC | /codemart/admin/kyc | K4 | verified | admin/CmAdminPages.tsx | facts row, private document viewer (blob), approve/reject consequences; tested approve, reject, viewer |

@@ -85,6 +85,30 @@
   "apiCustomEndpointDescription": {
     "message": "Benutzerdefiniert: {0}"
   },
+  "apiEndpointProduction": {
+    "message": "Produktions-Cloud-Server"
+  },
+  "apiEndpointLocalhost": {
+    "message": "Lokaler Entwicklungsserver"
+  },
+  "apiEndpointLoopback": {
+    "message": "Lokaler Loopback-Server"
+  },
+  "apiEndpointLanBackup": {
+    "message": "LAN-Backup-Server"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "LAN-Primärserver"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "Entfernter Laravel-Hauptserver"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet-Nuul-Server"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet-API-Server"
+  },
   "httpStatusError": {
     "message": "{0} (HTTP {1})"
   },

@@ -17,12 +17,10 @@ These rules apply to every Linux script and every Linux path computation, in scr
   - package caches and stores, build output, compile bases, temp directories, `node_modules`, `vendor`, `.venv`;
   - Linux-only runtime state that the other OS never reads: database clusters (PostgreSQL data dirs), Linux service state and sockets, Linux-only logs.
 - Use ext4 instead:
-  - tools: `/opt/...` per `service_contract.json#paths.drive_layout` (`tool_root`, `tree_root`, `tree_cache_root`);
+  - tools: `/opt/...` per `service_contract.json#paths.drive_layout` (`tool_root`, `cache_root`, `trees_root`);
   - Linux-only state: ext4 paths such as `/var/_core_node` or the service's own ext4 dir. The shared data dir follows `linux_data_dir_candidates` (NTFS `/www/www/core_node` first on the dual-boot desktop).
 - Detect NTFS with the contract rule (`linux_www_ntfs_root_rule` / `ntfs_fs_types`) through the library helper. Do not add a second detection.
-- Allowed exception (orchestrator ruling on D24): an **empty directory on an NTFS mount used only as the mount point of an ext4 bind**, e.g. `/www/core_node_trees` bound from `/opt/core_node_trees` (`service_contract.json#paths.drive_layout.tree_root`). It stores no content on NTFS, and it lets the repo's Windows junctions resolve to ext4 on Linux.
-  - A script writes under such a path only after `mountpoint -q` confirms the bind is active.
-  - While unmounted, the directory stays empty, and nothing falls back to writing into it.
+- Withdrawn (user D27): the empty NTFS mount-point exception for `core_node_trees`. No directory is created on the NTFS share for tool trees; the per-project Linux dirs are bind-mounted from ext4 `<tool_root>/trees/<ns>` over the plain in-repo directories (`service_contract.json#paths.drive_layout.trees_rule`).
 - No recycle bin on an NTFS mount (user D25, 2026-09-27):
   - Scripts and programs never send files to a trash on an NTFS mount: no `gio trash`, `trash-put`, `kioclient move ... trash:/`, send2trash or a hand-made `.Trash*` directory there.
   - A delete a script legitimately performs on its own files there is a direct, scoped delete.

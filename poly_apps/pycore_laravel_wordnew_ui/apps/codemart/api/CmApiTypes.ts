@@ -405,7 +405,11 @@ export interface CmWalletTransaction {
   type: string;
   amount: string;
   balance_after: string | null;
+  /** Server text; shown only for legacy rows without a description_code. */
   description: string | null;
+  /** Ledger code (CodeMartV1Constants LEDGER_*), rendered through cm wallet.ledger.<code>. */
+  description_code?: string | null;
+  description_params?: Record<string, string | number> | null;
   metadata?: { direction?: string } & Record<string, unknown> | null;
   status: string;
   created_at: string | null;

@@ -91,7 +91,11 @@ class CrawlController {
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs, screenshot, debug } = this.parseArguments(argv);
+    const parsedArgs = this.parseArguments(argv);
+    if (!parsedArgs) {
+      return;
+    }
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs, screenshot, debug } = parsedArgs;
     this.domainContext = new DomainContext(targetUrl);
     this.resourceProcessor = new UnifiedResourceProcessor(
       this.domainContext,
@@ -731,7 +735,8 @@ class CrawlController {
 
     if (argv.length <= index) {
       this.printUsage();
-      throw new Error('Missing URL argument');
+      logger.error('Missing URL argument');
+      return null;
     }
 
     const rawUrl = argv[index];
@@ -771,7 +776,8 @@ class CrawlController {
 
     if (!rawUrl || !this.isValidUrl(rawUrl)) {
       this.printUsage();
-      throw new Error(`Invalid URL: ${rawUrl}`);
+      logger.error(`Invalid URL: ${rawUrl}`);
+      return null;
     }
 
     return {

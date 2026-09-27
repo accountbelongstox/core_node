@@ -85,6 +85,30 @@
   "apiCustomEndpointDescription": {
     "message": "사용자 지정: {0}"
   },
+  "apiEndpointProduction": {
+    "message": "프로덕션 클라우드 서버"
+  },
+  "apiEndpointLocalhost": {
+    "message": "로컬 개발 서버"
+  },
+  "apiEndpointLoopback": {
+    "message": "로컬 루프백 서버"
+  },
+  "apiEndpointLanBackup": {
+    "message": "LAN 백업 서버"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "LAN 기본 서버"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "원격 Laravel 메인"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet Nuul 서버"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet API 서버"
+  },
   "httpStatusError": {
     "message": "{0} (HTTP {1})"
   },

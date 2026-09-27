@@ -18,10 +18,10 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         if (coreNodeVersionCode) {
-            versionCode coreNodeVersionCode.toInteger()
+            versionCode = coreNodeVersionCode.toInteger()
         }
         if (coreNodeVersionName) {
-            versionName coreNodeVersionName
+            versionName = coreNodeVersionName
         }
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -33,10 +33,10 @@ android {
     signingConfigs {
         if (coreNodeReleaseSigningReady) {
             release {
-                storeFile file(coreNodeReleaseSigning.storeFile)
-                storePassword coreNodeReleaseSigning.storePassword
-                keyAlias coreNodeReleaseSigning.keyAlias
-                keyPassword coreNodeReleaseSigning.keyPassword
+                storeFile = file(coreNodeReleaseSigning.storeFile)
+                storePassword = coreNodeReleaseSigning.storePassword
+                keyAlias = coreNodeReleaseSigning.keyAlias
+                keyPassword = coreNodeReleaseSigning.keyPassword
             }
         }
     }
@@ -45,7 +45,7 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (coreNodeReleaseSigningReady) {
-                signingConfig signingConfigs.release
+                signingConfig = signingConfigs.release
             }
         }
     }

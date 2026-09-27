@@ -76,37 +76,93 @@ if ! command -v sc_get >/dev/null 2>&1; then
     [ -f "$__scc_sc_common" ] && source "$__scc_sc_common"
 fi
 if command -v sc_get >/dev/null 2>&1; then
-    CN_TREE_MNT="$(sc_get paths.drive_layout.tree_root.linux)"
-    CN_TREE_BACKING="$(sc_get paths.drive_layout.tree_root.linux_backing)"
+    # `|| VAR=""` on every sc_get read: sc_get can return non-zero (node
+    # throwing on a malformed/mid-edit contract, or neither node nor php
+    # resolvable yet on a fresh machine), and a bare "VAR=$(sc_get ...)" here
+    # would otherwise silently abort every `set -e` caller (dd.sh,
+    # 3_setting_base.sh, 7_project_validator.sh) while sourcing this hub.
+    CN_TREE_MNT="$(sc_get paths.drive_layout.tree_root.linux)" || CN_TREE_MNT=""
+    CN_TREE_BACKING="$(sc_get paths.drive_layout.tree_root.linux_backing)" || CN_TREE_BACKING=""
+    __scc_cache_template="$(sc_get paths.drive_layout.tree_cache_root)" || __scc_cache_template=""
 fi
+[ -n "$__scc_cache_template" ] || __scc_cache_template="<tree_root>/cache"
+
 if [ -z "$CN_TREE_MNT" ] || [ -z "$CN_TREE_BACKING" ]; then
-    echo "[shared-cache-env] Service contract unreadable for paths.drive_layout.tree_root (no node/php yet?); toolchain cache roots stay at their per-tool defaults." >&2
+    echo "[shared-cache-env] Service contract unreadable for paths.drive_layout.tree_root (no node/php yet?); toolchain caches use a per-user ext4 fallback instead of the shared tree." >&2
+    CN_TREE_CACHE_ROOT=""
 else
     if [ -d "$CN_TREE_MNT" ] && command -v findmnt >/dev/null 2>&1; then
         __scc_tree_fstype="$(findmnt -no FSTYPE -M "$CN_TREE_MNT" 2>/dev/null)"
     fi
     case "$__scc_tree_fstype" in
-        ext2|ext3|ext4) CN_TREE_CACHE_ROOT="$CN_TREE_MNT/cache" ;;
-        *)              CN_TREE_CACHE_ROOT="$CN_TREE_BACKING/cache" ;;
+        ext2|ext3|ext4) __scc_tree_root_selected="$CN_TREE_MNT" ;;
+        *)              __scc_tree_root_selected="$CN_TREE_BACKING" ;;
     esac
+    # Substitute the contract's own "<tree_root>/cache" template instead of
+    # re-declaring the "/cache" suffix as a separate literal.
+    CN_TREE_CACHE_ROOT="${__scc_cache_template//<tree_root>/$__scc_tree_root_selected}"
 
-    for __scc_d in "$CN_TREE_CACHE_ROOT" "$CN_TREE_CACHE_ROOT/bun" "$CN_TREE_CACHE_ROOT/npm" \
-                   "$CN_TREE_CACHE_ROOT/uv" "$CN_TREE_CACHE_ROOT/composer" "$CN_TREE_CACHE_ROOT/corepack"; do
-        [ -d "$__scc_d" ] && continue
-        mkdir -p "$__scc_d" 2>/dev/null \
-            || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__scc_d" 2>/dev/null; } || true
-    done
-
-    : "${BUN_INSTALL_CACHE_DIR:=$CN_TREE_CACHE_ROOT/bun}";   export BUN_INSTALL_CACHE_DIR
-    : "${npm_config_cache:=$CN_TREE_CACHE_ROOT/npm}";        export npm_config_cache
-    : "${UV_CACHE_DIR:=$CN_TREE_CACHE_ROOT/uv}";             export UV_CACHE_DIR
-    : "${COMPOSER_CACHE_DIR:=$CN_TREE_CACHE_ROOT/composer}"; export COMPOSER_CACHE_DIR
-    : "${COREPACK_HOME:=$CN_TREE_CACHE_ROOT/corepack}";      export COREPACK_HOME
+    if [ ! -d "$CN_TREE_CACHE_ROOT" ]; then
+        mkdir -p "$CN_TREE_CACHE_ROOT" 2>/dev/null \
+            || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$CN_TREE_CACHE_ROOT" 2>/dev/null; } || true
+    fi
+    # Best-effort 1777 (sticky + world-writable, like /tmp and the model-cache
+    # tree below): whichever user creates this tree first (root during an
+    # install, the desktop user afterwards, or the reverse) must not lock the
+    # other out with EACCES -- npm/uv/corepack all hard-fail on a cache dir
+    # owned by a different uid.
+    chmod 1777 "$CN_TREE_CACHE_ROOT" 2>/dev/null \
+        || { command -v sudo >/dev/null 2>&1 && sudo -n chmod 1777 "$CN_TREE_CACHE_ROOT" 2>/dev/null; } || true
 fi
+
+# Wire one toolchain cache var ($1) to its subdir name ($2). Prefers the
+# shared ext4 tree cache root (CN_TREE_CACHE_ROOT) when that subdir exists (or
+# can be created) and is writable by the CURRENT euid; otherwise falls back to
+# a per-user ext4 path under $HOME -- NEVER an unset var, because an unset var
+# lets the tool fall through to its own XDG_CACHE_HOME-derived default, which
+# the cross-OS block further below may point at the NTFS tree, reintroducing
+# the exact D: dirty-volume root cause this file exists to remove (see
+# docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2). The
+# ":=" only assigns when the var is unset/empty, so a caller's own exported
+# override always wins. corepack is deliberately included even though it is
+# not (yet) in the contract's tree_cache_subdirs list (task requirement; the
+# contract addition is a follow-up for ca-orchestrator). pnpm's store_dir is
+# intentionally NOT wired here -- see the comment block above (P3 follow-up).
+__scc_wire_tool_cache() {
+    local __var="$1" __subdir="$2" __shared="" __fallback=""
+    local -n __ref="$__var"
+    if [ -n "$CN_TREE_CACHE_ROOT" ]; then
+        __shared="$CN_TREE_CACHE_ROOT/$__subdir"
+        if [ ! -d "$__shared" ]; then
+            mkdir -p "$__shared" 2>/dev/null \
+                || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__shared" 2>/dev/null; } || true
+        fi
+        if [ -d "$__shared" ]; then
+            chmod 1777 "$__shared" 2>/dev/null \
+                || { command -v sudo >/dev/null 2>&1 && sudo -n chmod 1777 "$__shared" 2>/dev/null; } || true
+        fi
+        if [ -d "$__shared" ] && [ -w "$__shared" ]; then
+            : "${__ref:=$__shared}"
+            export "$__var"
+            return 0
+        fi
+    fi
+    __fallback="${HOME:-/root}/.cache/core_node/$__subdir"
+    mkdir -p "$__fallback" 2>/dev/null || true
+    : "${__ref:=$__fallback}"
+    export "$__var"
+}
+__scc_wire_tool_cache BUN_INSTALL_CACHE_DIR bun
+__scc_wire_tool_cache npm_config_cache npm
+__scc_wire_tool_cache UV_CACHE_DIR uv
+__scc_wire_tool_cache COMPOSER_CACHE_DIR composer
+__scc_wire_tool_cache COREPACK_HOME corepack
+unset -f __scc_wire_tool_cache
+
 export CN_TREE_MNT
 export CN_TREE_BACKING
 export CN_TREE_CACHE_ROOT
-unset __scc_sc_common __scc_tree_fstype
+unset __scc_sc_common __scc_tree_fstype __scc_cache_template __scc_tree_root_selected
 
 # Native shared MODEL-cache root. Pinned to the legacy native base
 # /var/_core_node ON PURPOSE: the unified runtime data root moved to
