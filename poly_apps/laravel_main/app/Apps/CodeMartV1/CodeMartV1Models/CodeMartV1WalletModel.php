@@ -110,16 +110,16 @@ class CodeMartV1WalletModel extends CodeMartV1Model
         return bccomp((string) $this->available_balance, $amount, self::SCALE) >= 0;
     }
 
-    public function credit(string $amount, string $type, string $description = '', array $metadata = []): CodeMartV1WalletTransactionModel
+    public function credit(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): CodeMartV1WalletTransactionModel
     {
         $this->balance = bcadd((string) $this->balance, $amount, self::SCALE);
         $this->available_balance = bcadd((string) $this->available_balance, $amount, self::SCALE);
         $this->save();
 
-        return $this->appendLedger($type, $amount, $description, $metadata + ['direction' => 'in']);
+        return $this->appendLedger($type, $amount, $descriptionCode, $descriptionParams, $metadata + ['direction' => 'in']);
     }
 
-    public function debit(string $amount, string $type, string $description = '', array $metadata = []): ?CodeMartV1WalletTransactionModel
+    public function debit(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
     {
         if (!$this->hasAvailable($amount)) {
             return null;
@@ -129,10 +129,10 @@ class CodeMartV1WalletModel extends CodeMartV1Model
         $this->available_balance = bcsub((string) $this->available_balance, $amount, self::SCALE);
         $this->save();
 
-        return $this->appendLedger($type, $amount, $description, $metadata + ['direction' => 'out']);
+        return $this->appendLedger($type, $amount, $descriptionCode, $descriptionParams, $metadata + ['direction' => 'out']);
     }
 
-    public function freeze(string $amount, string $type, string $description = '', array $metadata = []): ?CodeMartV1WalletTransactionModel
+    public function freeze(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
     {
         if (!$this->hasAvailable($amount)) {
             return null;
@@ -145,13 +145,14 @@ class CodeMartV1WalletModel extends CodeMartV1Model
         return $this->appendLedger(
             $type,
             $amount,
-            $description,
+            $descriptionCode,
+            $descriptionParams,
             $metadata + ['direction' => 'freeze'],
             CodeMartV1Constants::WALLET_TX_STATUS_PENDING
         );
     }
 
-    public function unfreeze(string $amount, string $type, string $description = '', array $metadata = []): ?CodeMartV1WalletTransactionModel
+    public function unfreeze(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
     {
         if (bccomp((string) $this->frozen_balance, $amount, self::SCALE) < 0) {
             return null;
@@ -164,13 +165,14 @@ class CodeMartV1WalletModel extends CodeMartV1Model
         return $this->appendLedger(
             $type,
             $amount,
-            $description,
+            $descriptionCode,
+            $descriptionParams,
             $metadata + ['direction' => 'unfreeze'],
             CodeMartV1Constants::WALLET_TX_STATUS_CANCELLED
         );
     }
 
-    public function settleFrozen(string $amount, string $type, string $description = '', array $metadata = []): ?CodeMartV1WalletTransactionModel
+    public function settleFrozen(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
     {
         if (bccomp((string) $this->frozen_balance, $amount, self::SCALE) < 0) {
             return null;
@@ -180,13 +182,18 @@ class CodeMartV1WalletModel extends CodeMartV1Model
         $this->balance = bcsub((string) $this->balance, $amount, self::SCALE);
         $this->save();
 
-        return $this->appendLedger($type, $amount, $description, $metadata + ['direction' => 'out']);
+        return $this->appendLedger($type, $amount, $descriptionCode, $descriptionParams, $metadata + ['direction' => 'out']);
     }
 
+    /**
+     * Ledger rows store a description code (CodeMartV1Constants::LEDGER_*)
+     * plus params instead of text; the transaction model translates them.
+     */
     private function appendLedger(
         string $type,
         string $amount,
-        string $description,
+        string $descriptionCode,
+        array $descriptionParams,
         array $metadata,
         string $status = CodeMartV1Constants::WALLET_TX_STATUS_SUCCESS
     ): CodeMartV1WalletTransactionModel {
@@ -195,7 +202,8 @@ class CodeMartV1WalletModel extends CodeMartV1Model
             'type' => $type,
             'amount' => $amount,
             'balance_after' => (string) $this->balance,
-            'description' => $description,
+            'description_code' => $descriptionCode,
+            'description_params' => $descriptionParams,
             'metadata' => $metadata,
             'status' => $status,
         ]);

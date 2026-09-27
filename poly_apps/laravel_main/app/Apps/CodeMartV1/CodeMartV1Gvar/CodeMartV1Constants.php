@@ -219,6 +219,22 @@ class CodeMartV1Constants
     public const WALLET_TX_STATUS_PENDING = 'pending';
     public const WALLET_TX_STATUS_CANCELLED = 'cancelled';
 
+    // Wallet ledger description codes (stored with params; translated at read
+    // time through codemart.ledger.<code>, rows before the codes keep description).
+    public const LEDGER_PAYMENT_SENT = 'payment_sent';
+    public const LEDGER_PAYMENT_RECEIVED = 'payment_received';
+    public const LEDGER_PROJECT_FUNDING = 'project_funding';
+    public const LEDGER_ESCROW_REMAINDER_REFUND = 'escrow_remainder_refund';
+    public const LEDGER_TASK_ESCROW_RELEASE = 'task_escrow_release';
+    public const LEDGER_REFUND_DEBIT = 'refund_debit';
+    public const LEDGER_REFUND_CREDIT = 'refund_credit';
+    public const LEDGER_DEPOSIT_REFUNDED = 'deposit_refunded';
+    public const LEDGER_WITHDRAWAL_REQUESTED = 'withdrawal_requested';
+    public const LEDGER_WITHDRAWAL_REJECTED = 'withdrawal_rejected';
+    public const LEDGER_WITHDRAWAL_PAID = 'withdrawal_paid';
+    public const LEDGER_WALLET_TOP_UP = 'wallet_top_up';
+    public const LEDGER_OPENING_BALANCE = 'opening_balance';
+
     // Business reference prefixes stored on payments.business_ref
     public const BUSINESS_REF_TASK_RELEASE = 'task_release:';
     public const ESCROW_ERROR_TASK_BUDGET_MISSING = 'task_budget_missing';

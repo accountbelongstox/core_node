@@ -3,3 +3,5 @@
 
 codexyolo -r减小laravel某些任务可能 占满cpu的问题，改为使用更合适的方式运行。同时将以上开如结果 写到docsfix目录，并关联前面的文档。同时从底翅重构pycore,确保UI中的0FF/ON
 实时与pycore中的状态绑定，并推动事件。
+
+修改角色编排 按小组划分 可以使用角色的前级或后缀来划分组每个组有一个小组长，改为pycore pyservice的前后端全栈组 5成员负责pyservice pycoer - laravel pycore relay API - poly apps pycore ui的多端联动开发 和pyservice的的前置shell脚本开发（特别是本地模型的初始化），pycore 代码小组长 负责审计所有有关pycore成员的开发和合并 需要符合规范，wordnew全栈开发组 5成员组长和下面的任务自动分配 负责poly apps pycore ui -wordnew -laravel qyappv1 - 前置shell脚本- capocitor编译-pycore 辅助联动 - mcp-chrome辅助联动开发，shell单独开发组 2成员 组长兼开发+开发 windows liunx负责dd.cmd dd.sh流和安装流程的开发和适配系统工作，codemart 3成员，组长兼开发+2开发，claude lead 1 同时兼claude脚色编排，
