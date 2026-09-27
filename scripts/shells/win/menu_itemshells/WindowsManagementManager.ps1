@@ -231,6 +231,23 @@ function Show-WindowsManagementSubMenu {
             }
         },
         @{
+            Text = "Tailscale (mesh VPN status / devices / restart / panel)";
+            Values = @("status", "devices", "restart", "panel");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $tailscaleMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
+                $tailscaleAction = $script:TAILSCALE_ACTIONS[$tailscaleMode]
+                if (-not (Test-Path -LiteralPath $script:TAILSCALE_COMMON_SCRIPT)) {
+                    Write-ColorMessage -Message "TailscaleCommon.ps1 not found: $script:TAILSCALE_COMMON_SCRIPT" -Type "Error"
+                } else {
+                    Write-ColorMessage -Message "Tailscale: $tailscaleAction" -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:TAILSCALE_COMMON_SCRIPT -Action $tailscaleAction
+                }
+            }
+        },
+        @{
             Text = "Path Mapping (.cursor / .devin)";
             Values = @("default");
             CurrentValueIndex = 0;

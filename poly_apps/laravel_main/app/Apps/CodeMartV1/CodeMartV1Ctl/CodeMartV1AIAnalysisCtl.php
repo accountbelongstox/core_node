@@ -11,6 +11,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectAttachmentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectProposalModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1EscrowService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
 use Illuminate\Http\JsonResponse;
@@ -50,7 +51,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
     {
         return $this->codedError(
             (string) $result['error_code'],
-            (string) ($result['message'] ?? 'Request failed'),
+            (string) ($result['message'] ?? __('codemart.errors.request_failed')),
             $result['details'] ?? null,
             (int) ($result['http_status'] ?? 400)
         );
@@ -161,7 +162,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
         return $this->success([
             'analysis_id' => $analysis->id,
             'status' => $analysis->status,
-            'message' => 'AI analysis started. You will be notified when complete.',
+            'message' => __('codemart.messages.analysis_started'),
         ]);
     }
 
@@ -207,14 +208,42 @@ class CodeMartV1AIAnalysisCtl extends Controller
         ]);
     }
 
+    /**
+     * Result of an accepted proposal. A replay with the acceptance's
+     * Idempotency-Key gets the same body, so the project status is the one
+     * the acceptance moved the project into.
+     */
+    private function acceptedResponse(CodeMartV1AIAnalysisModel $analysis): JsonResponse
+    {
+        $fundingAmount = CodeMartV1EscrowService::fundingAmount($analysis->project);
+
+        return $this->success([
+            'message' => __('codemart.messages.proposal_accepted'),
+            'project_id' => $analysis->project_id,
+            'project_status' => CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
+            'funding_amount' => $fundingAmount,
+            'payment_amount' => $fundingAmount,
+        ]);
+    }
+
+    /**
+     * Accepts the latest completed proposal and moves the project to
+     * funding_pending. A repeat with the Idempotency-Key the acceptance was
+     * made with returns the prior result; any other repeat keeps the
+     * transition conflict.
+     */
     public function acceptProposal(Request $request, $analysisId): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
+        $idempotencyKey = CodeMartV1FinanceService::idempotencyKey($request);
         $analysis = $this->ownedAnalysis((int) $analysisId, (int) $user->id);
         if (!$analysis) {
             return $this->analysisNotFound();
+        }
+        if ($analysis->isAcceptReplay($idempotencyKey)) {
+            return $this->acceptedResponse($analysis);
         }
         if ($analysis->status !== CodeMartV1Constants::AI_ANALYSIS_COMPLETED) {
             return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_COMPLETED, __('codemart.messages.analysis_not_completed_yet'), [
@@ -226,7 +255,12 @@ class CodeMartV1AIAnalysisCtl extends Controller
         }
 
         $project = $analysis->project;
-        $result = CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis, $project, $user) {
+        $result = CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis, $project, $user, $idempotencyKey) {
+            $locked = CodeMartV1AIAnalysisModel::lockById((int) $analysis->id);
+            if ($locked && $locked->isAcceptReplay($idempotencyKey)) {
+                return ['ok' => true];
+            }
+
             $transition = CodeMartV1ProjectStateService::systemTransition(
                 $project,
                 CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
@@ -239,7 +273,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
                 return $transition;
             }
 
-            $analysis->updateRecord(['accepted_at' => now()]);
+            $analysis->updateRecord(['accepted_at' => now(), 'accept_idempotency_key' => $idempotencyKey]);
             $project->updateRecord(['analysis_status' => CodeMartV1Constants::PROJECT_ANALYSIS_ACCEPTED]);
             CodeMartV1ProjectProposalModel::syncFromAnalysis($analysis, CodeMartV1Constants::PROPOSAL_STATUS_APPROVED);
 
@@ -264,15 +298,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->failureResponse($result);
         }
 
-        $fundingAmount = CodeMartV1EscrowService::fundingAmount($project);
-
-        return $this->success([
-            'message' => 'Proposal accepted. Please proceed to funding.',
-            'project_id' => $analysis->project_id,
-            'project_status' => $project->status,
-            'funding_amount' => $fundingAmount,
-            'payment_amount' => $fundingAmount,
-        ]);
+        return $this->acceptedResponse($analysis);
     }
 
     public function requestRevision(Request $request, $analysisId): JsonResponse
@@ -322,7 +348,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
                     'ok' => false,
                     'error_code' => CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE,
                     'http_status' => 409,
-                    'message' => 'The proposal can no longer be revised',
+                    'message' => __('codemart.errors.proposal_not_revisable'),
                     'details' => ['status' => $project->status],
                 ];
             }
@@ -363,7 +389,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         // No queue/dispatch: status is 'revising'; the Octane timer
         // (CodeMartV1AIAnalysisTask) re-processes it within ~5s.
-        return $this->success(['message' => 'Revision requested. AI will re-analyze with your feedback.']);
+        return $this->success(['message' => __('codemart.messages.revision_requested')]);
     }
 
     /**

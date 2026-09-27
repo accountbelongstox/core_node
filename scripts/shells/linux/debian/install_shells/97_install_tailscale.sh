@@ -36,6 +36,9 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+# TAILSCALE_SERVICE + is_tailscale_installed() (single definition, shared with
+# the Tailscale management menu / tailscale_common.sh dispatcher).
+source "$PARENT_DIR_LEVEL_2/common/tailscale_common.sh"
 
 # Initialize global variables
 init_global_vars
