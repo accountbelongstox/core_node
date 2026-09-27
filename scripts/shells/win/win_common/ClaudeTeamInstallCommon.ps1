@@ -6,7 +6,7 @@
 # Linux counterpart: claude_team_install in scripts/ai_shtools/claude_code_install.sh
 # Each item is checked and repaired on its own: node (project hooks), git (Git
 # Bash), Windows Terminal (the named team window; warns below 1.21), python (the
-# secret reader of remote roles), the team state/shared/reports/reviews/memory
+# secret reader of remote roles), the team state/shared/memory
 # dirs, the core_node PATH entries, and the catalog user_settings_merge keys in
 # the user settings (added only when absent, never overwritten). The Remote
 # Control environment check only reports. -CheckOnly reports [SKIP]/[MISSING]
@@ -33,8 +33,6 @@ $ClaudeTeamInstallBinaries = @(
     @{ Commands = @("python.exe", "py.exe"); WingetId = "Python.Python.3.13"; SkipStoreAlias = $true; Purpose = "secret store reader for remote roles (scripts/pytools)" }
 )
 $ClaudeTeamInstallAgentMemoryDir = Join-Path $ClaudeTeamInstallClaudeDir "agent-memory"
-$ClaudeTeamInstallReportsDir = Join-Path $ClaudeTeamInstallSharedDir "reports"
-$ClaudeTeamInstallReviewsDir = Join-Path $ClaudeTeamInstallSharedDir "reviews"
 $ClaudeTeamInstallUserClaudeDir = Join-Path $env:USERPROFILE ".claude"
 $ClaudeTeamInstallUserSettingsPath = Join-Path $ClaudeTeamInstallUserClaudeDir "settings.json"
 $ClaudeTeamInstallWtPackageName = "Microsoft.WindowsTerminal*"
@@ -349,8 +347,6 @@ function Invoke-ClaudeTeamInstall {
     Test-ClaudeTeamWindowsTerminalVersion
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallStateDir -Purpose "role PID files" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallSharedDir -Purpose "shared data between roles" -CheckOnly ([bool]$CheckOnly)
-    Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReportsDir -Purpose "role handoff reports (TeammateIdle gate)" -CheckOnly ([bool]$CheckOnly)
-    Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReviewsDir -Purpose "reviewer verdicts (TaskCompleted gate)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallAgentMemoryDir -Purpose "per-role agent memory (memory: project)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamPathEntry -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamUserSettings -CheckOnly ([bool]$CheckOnly)

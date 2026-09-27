@@ -223,3 +223,13 @@ None.
 ### Next owner
 
 codemart-lead: review and write the verdict for `codemart-laravel-G1`.
+
+## Session ct-codemart-laravel resume (2026-09-28, after usage-limit reset)
+
+- Status: idle, ready for tasks. No in-flight edits, nothing uncommitted in my scope.
+- Verified both prior tasks carry `"verdict": "approved"`: `reviews/laravel-codemart-D7-fix.json` and `reviews/codemart-laravel-G1.json`. codemart-lead's report confirms codemart-laravel-G1 was reviewed (0 blocking, 8 non-blocking notes) and routed to ca-orchestrator for the group merge.
+- Sent readiness messages to `ct-codemart-lead` (with the still-open D7-era items below) and to `ca-orchestrator`.
+- Still-open D7-era items with no round/owner recorded since the D7 review: `cmgap-R1` (email verification resend), `CMDES-08` (legacy KYC file migration to private disk), `cmcont-11` (local schema convergence proof for public/home). These are in `items_codemart.json` under `laravel-codemart-D7` and were never picked up in D7-fix or G1.
+- Open cross-scope referrals from my G1 report, needing routing through codemart-lead/claude lead, not mine to act on directly: the zh_CN glossary pass on `lang/zh_CN/codemart.php`, and the pycore-laravel items (`ApiResponse::success()` 'Success' default, `sys:codemartinit` hardcoded English, missing `dashboard.auth` on the system/init route group, a shared 'Super Administrator' rolename constant).
+- Blockers: none.
+- Next owner: ct-codemart-lead, to assign the next round (G3 / cmgap-R1 / CMDES-08 / cmcont-11 or other).

@@ -140,7 +140,6 @@ try {
         if ($null -ne $paneRow) {
             $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $paneRow
             $claudeArgs = @(Get-ClaudeTeamRoleClaudeArguments -Row $paneRow)
-            $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
             $claudeArgs += $paneExtraArgs
             $claudeDisplayArgs = $claudeArgs
             if (-not $paneNoKickoff) {
@@ -164,14 +163,12 @@ try {
                 if ($standaloneRow.IsLead) {
                     $claudeArgs += @("--teammate-mode", $ClaudeTeamLeadTeammateMode)
                 }
-                $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
                 $claudeArgs += $forwardArgs
                 $claudeDisplayArgs = $claudeArgs
             } else {
                 $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
                 $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $null
                 $claudeArgs = @("--teammate-mode", $ClaudeTeamLeadTeammateMode, "--permission-mode", $ClaudeTeamPermissionMode)
-                $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
                 $claudeArgs += $forwardArgs
                 $claudeDisplayArgs = $claudeArgs
             }

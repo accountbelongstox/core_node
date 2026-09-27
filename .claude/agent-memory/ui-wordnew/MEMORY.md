@@ -1,1 +1,2 @@
 - [Windows tooling pitfalls](windows-tooling-pitfalls.md) — bun lint needs typescript/bin/tsc; Edit normalizes mixed EOLs; count CR with perl/tr, not MSYS grep/awk
+- [Role succession: wordnew-ui](role-succession-wordnew-ui.md) — wordnew-ui (ct-wordnew-ui) owns apps/wordnew & flavors/wordnew per D22 map; ui-wordnew stays idle unless ca-orchestrator assigns direct

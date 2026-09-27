@@ -1,7 +1,13 @@
-# mcp-chrome report (2026-09-27)
+# mcp-chrome report (2026-09-27, updated 2026-09-28)
 
 Scope: `apps/mcp-chrome/`. Paths below are relative to `apps/mcp-chrome/app/` unless absolute.
 TaskCreate is unavailable; task ids follow `.claude/agents_shared/client_key_auth/TASKS.md` (`<role>-<n>`).
+
+## Update (2026-09-28, session resumed after usage-limit reset)
+
+All tasks below (mcp-chrome-1..5) were already approved before the reset; no work was in flight. Since then, D22 retired 13 roles into 5 groups and moved `apps/mcp-chrome` ownership to wordnew-link (`reviews/mcp-chrome-D7.json`: `"role": "wordnew-link (old role mcp-chrome)"`). `reports/wordnew-link.md` shows wordnew-link (as wordnew-link-G2) already completed the CKA-01 build/verify and MCHR-05/15/32/33/36/37/43/45 items on this scope.
+
+**Confirmed by orchestrator ruling R2** (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`) and by direct message from `ca-orchestrator`: wordnew-link is the default writer for `apps/mcp-chrome`; `mcp-chrome` (this session) is a pre-D22 alias that stays in reserve and edits only when a task explicitly names it as temporary writer. Saved as durable memory: `.claude/agent-memory/mcp-chrome/role-merged-into-wordnew-link.md`. Standing by idle; not editing `apps/mcp-chrome` unless the orchestrator or wordnew-lead names this session as temporary writer on a specific task.
 
 ## Tasks
 

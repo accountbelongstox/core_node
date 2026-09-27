@@ -549,3 +549,19 @@ Scratch scripts are in the session scratchpad: `d7_family_static.py`, `d7_start_
   - laravel-api: M-5;
   - reviewer: pycore-runtime-D7 and pycore-D7 (coordinator files `pycore_module_caller.py`, `pylauncher/tray_menu.py`, `pyutils/launcher/linux_desktop_user.py`; per-line EOL kept: LF, CRLF, LF);
   - orchestrator: the missing lane reports.
+
+## Session ct-pycore (2026-09-28)
+
+- Started as an independent role session. Ran ListAgents and reported ready to `ca-orchestrator` with the carry-over state. Waiting for tasks.
+- Carry-over state:
+  - pycore-1 to pycore-5 are approved.
+  - pycore-D7 (coordinator files) has no review file yet.
+  - M-1 now looks fixed on disk: `prompt_archive.ARCHIVE_ROOT_ONLY_FIELD` is defined and exported. Its review is pycore-assist's. M-2 to M-5 are unchanged, as far as this session knows.
+- D30 namespace audit (`d30/audit_by_owner.md`): no items for the coordinator paths.
+- Changed files: this report only. There are no pycore/pyapps working-tree changes.
+- Ruling R2 (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`), received from ca-orchestrator:
+  - `pycore-lead` is now the default writer for the coordinator paths (entry points, launcher and foundations).
+  - ct-pycore stays in reserve. It edits only when a task names it as temporary writer.
+  - pycore-D7 and M-2 to M-5 are on hold until the user's next task.
+  - Per R2/R3, pycore-assist paths go to `pycore-runtime`, including the `pyctl/agent_history/` writer.
+- Blockers: none. Status: idle, in reserve. Next owner: `pycore-lead` for the coordinator paths.

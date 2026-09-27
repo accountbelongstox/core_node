@@ -104,22 +104,26 @@ function Get-GitSyncPackageJsonPath {
 # GitHub SSH origin (read-only lookup + the one write primitive; no regex)
 # =============================================================================
 
-function Get-GitSyncGitHubSshUrl {
+function Get-GitSyncRemoteConfigs {
     <#
     .SYNOPSIS
-        Reads the "github=" SSH URL from scripts/git/git_remotes.conf -- the
-        single gitunified remote definition, also read by
-        gitput_unified_modules/config.py's load_remote_configs() and by
-        gitput_unified.ps1. Returns $null when the file or the key is
-        missing. No regex: a plain key/value split on the first "=".
+        Parses scripts/git/git_remotes.conf into a key/value table: every
+        "key=value" line, skipping blanks and comments. No regex: a plain
+        key/value split on the first "=". The single reader for that file --
+        Get-GitSyncGitHubSshUrl below and gitput_unified.ps1's
+        Load-RemoteConfigs both delegate to this, instead of each keeping
+        its own copy (gitput_unified.ps1 used to have a second, regex-based
+        parser). Returns an empty hashtable when the file is missing; the
+        caller decides whether a missing file is an error.
     #>
     param(
         [Parameter(Mandatory = $true)] [string]$RepoRoot
     )
 
+    $remoteConfigs = @{}
     $confPath = Get-GitSyncRemotesConfPath -RepoRoot $RepoRoot
     if (-not (Test-Path -LiteralPath $confPath)) {
-        return $null
+        return $remoteConfigs
     }
 
     $confLines = Get-Content -LiteralPath $confPath -Encoding UTF8
@@ -134,12 +138,63 @@ function Get-GitSyncGitHubSshUrl {
         }
         $confKey = $trimmedLine.Substring(0, $equalsIndex).Trim()
         $confValue = $trimmedLine.Substring($equalsIndex + 1).Trim()
-        if ($confKey -eq $script:GitSyncGitHubConfKey) {
-            return $confValue
-        }
+        $remoteConfigs[$confKey] = $confValue
+    }
+
+    return $remoteConfigs
+}
+
+function Get-GitSyncGitHubSshUrl {
+    <#
+    .SYNOPSIS
+        Reads the "github=" SSH URL from scripts/git/git_remotes.conf -- the
+        single gitunified remote definition, also read by
+        gitput_unified_modules/config.py's load_remote_configs() and by
+        gitput_unified.ps1's Load-RemoteConfigs (both via
+        Get-GitSyncRemoteConfigs above). Returns $null when the file or the
+        key is missing.
+    #>
+    param(
+        [Parameter(Mandatory = $true)] [string]$RepoRoot
+    )
+
+    $remoteConfigs = Get-GitSyncRemoteConfigs -RepoRoot $RepoRoot
+    if ($remoteConfigs.ContainsKey($script:GitSyncGitHubConfKey)) {
+        return $remoteConfigs[$script:GitSyncGitHubConfKey]
     }
 
     return $null
+}
+
+function Get-GitSyncCurrentRemoteUrl {
+    <#
+    .SYNOPSIS
+        Safe `git remote get-url $RemoteName` read: returns $null when the
+        remote does not exist or the command fails. Wrapped in try/catch on
+        purpose -- under a caller's $ErrorActionPreference = 'Stop'
+        (gitput_unified.ps1 sets this), a native command's stderr becomes a
+        terminating error even when redirected to $null (verified on PS
+        5.1), so an unwrapped call here would abort the whole syncgit/gitput
+        flow the first time a remote (typically "origin" on a fresh clone,
+        or a rotation target) does not exist yet. The one place this read
+        happens; reused by Set-GitSyncRemoteUrl, Set-GitSyncRemoteIfDifferent
+        and gitput_unified.ps1's Get-CurrentRemote.
+    #>
+    param(
+        [Parameter(Mandatory = $true)] [string]$RemoteName
+    )
+
+    try {
+        $currentUrl = (git remote get-url $RemoteName 2>$null)
+    } catch {
+        return $null
+    }
+
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($currentUrl)) {
+        return $null
+    }
+
+    return $currentUrl
 }
 
 function Set-GitSyncRemoteUrl {
@@ -157,10 +212,7 @@ function Set-GitSyncRemoteUrl {
         [Parameter(Mandatory = $true)] [string]$TargetUrl
     )
 
-    $currentUrl = (git remote get-url $RemoteName 2>$null)
-    if ($LASTEXITCODE -ne 0) {
-        $currentUrl = $null
-    }
+    $currentUrl = Get-GitSyncCurrentRemoteUrl -RemoteName $RemoteName
 
     if ([string]::IsNullOrEmpty($currentUrl)) {
         Write-Host "[syncgit] Executing: git remote add $RemoteName $TargetUrl"
@@ -190,10 +242,7 @@ function Set-GitSyncRemoteIfDifferent {
         return
     }
 
-    $currentUrl = (git remote get-url $RemoteName 2>$null)
-    if ($LASTEXITCODE -ne 0) {
-        $currentUrl = $null
-    }
+    $currentUrl = Get-GitSyncCurrentRemoteUrl -RemoteName $RemoteName
 
     if ($currentUrl -eq $TargetUrl) {
         Write-Host "[syncgit] $RemoteName already set to: $TargetUrl (no change needed)"

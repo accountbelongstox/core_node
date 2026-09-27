@@ -3,15 +3,9 @@
 # =============================================================================
 # claudeagents.sh
 # =============================================================================
-# Idempotently initializes and starts the Claude Code multi-role team (Linux).
-# Every enabled role of .claude/agents (catalog config/claude_team_roles.json rows
-# override enabled/remote) runs as its own claude session in one tmux session
-# (layout.tmux_session, socket team.tmux_socket): the lead ca-orchestrator with
-# agent teams on and the team.kickoff, every other role as ct-<role> with --effort
-# from its frontmatter, packed into tabs with an equal grid and shown in one
-# maximized terminal (headless: tmux attaches in the current tty). The lead
-# dispatches to the role sessions through cross-session messaging and the shared
-# task list, and spawns ad-hoc teammates (tmux split panes) only for unowned work.
+# Idempotently starts one Claude Code agent-team lead on Linux. The lead uses
+# the project agent definitions to spawn only the teammates needed by the task;
+# Claude Code owns their task list, messaging, panes and lifecycle.
 # Independent-sessions variant (same layout, sessions.kickoff_lead): claudeteamup.sh.
 # Windows counterpart: scripts/winenvs/claudeagents.ps1
 #
@@ -50,9 +44,9 @@ while [ "$#" -gt 0 ]; do
         -h|--help)
             echo "Usage: claudeagents [--status] [--no-windows] [--no-kickoff] [--roles a,b]"
             echo "  --status      dry run: print the plan (terminal, cell budget, tabs, panes, commands); change nothing"
-            echo "  --no-windows  start the role sessions without opening or attaching a terminal (headless / SSH)"
+            echo "  --no-windows  start the lead without opening or attaching a terminal (headless / SSH)"
             echo "  --no-kickoff  start roles without the catalog kickoff prompt"
-            echo "  --roles a,b   limit the role sessions to the named roles (the lead always starts)"
+            echo "  --roles a,b   limit the teammate types named in the lead kickoff (the lead always starts)"
             exit 0
             ;;
         *) echo "[WARN] Unknown argument ignored: $argument" ;;
@@ -62,7 +56,7 @@ done
 
 echo ""
 echo "============================================================"
-echo "claudeagents.sh - Claude Code team: every role a session, the lead with agent teams"
+echo "claudeagents.sh - Claude Code agent team: one lead, teammates on demand"
 echo "============================================================"
 echo "[INFO] Options: status=$CLAUDE_TEAM_OPT_STATUS no-windows=$CLAUDE_TEAM_OPT_NO_WINDOWS no-kickoff=$CLAUDE_TEAM_OPT_NO_KICKOFF roles=${CLAUDE_TEAM_OPT_ROLES:-all}"
 

@@ -1,5 +1,16 @@
 # pycore-ai report
 
+## Session resumed (2026-09-28, after a usage-limit reset)
+
+Checked state before taking any action: both `pycore-ai-D7` (PRAO-07) and `pycore-ai-D7P2-fix` (B1-B4, rounds 1-2) verdict files carry `"verdict": "approved"` (pycore-lead, round 2 for D7P2-fix at `ab566fdf7`); `git status --short -- pycore/` is empty, so the working tree already matches HEAD for my scope. No further action needed on either task.
+
+Checked `.claude/agents_shared/client_key_auth/TASKS.md` for my next queued items:
+- `pycore-ai-B1-adopt` (adopt `word_identity_md5`/`word_identity_content` at `audio_resource_ledger.py:42/:50` and `audio_queue_center.py:146`): gated on `pycore-runtime-D7P2-fix` being approved. That task is still round 3 `changes_requested` (verdict file `pycore-runtime-D7P2-fix.json`) and is running under workflow `reroute-pycore-runtime-d7p2-fix`, owned by pycore-runtime. Not actionable yet.
+- `misroute-sw3` (re-check the `shell-windows-3-fix` result in my own G3 D12 item once pycore-lead's review lands): recorded only, no action yet.
+- `D30-fix-pycore` (pycore-ai 3+1 incl. Step37) and `P1b-G12..G16` (system_paths.py / whisper download_root / scrcpy, with pycore-lead and pycore-runtime): both scheduled for "next pycore run" / "after each group's current run" — not started.
+
+No pycore-ai path is currently unblocked. Reported ready to `ca-orchestrator` and `pycore-lead` and am waiting for either the next dispatch or the B1-adopt gate to clear.
+
 ## pycore-ai-D7
 
 Batch 1/1. Status: implemented and statically verified; left in progress until the reviewer writes `.claude/agents_shared/reviews/pycore-ai-D7.json` with `"verdict": "approved"`.

@@ -136,4 +136,25 @@ None.
 
 ### Next owner
 
-codemart-lead: review codemart-ui-G1 and write `.claude/agents_shared/reviews/codemart-ui-G1.json`.
+codemart-lead: review codemart-ui-G1 and write `.claude/agents_shared/reviews/codemart-ui-G1.json`. Done — verdict "approved" (see `reviews/codemart-ui-G1.json`).
+
+## Status update (2026-09-28, post usage-limit reset)
+
+codemart-ui-G1 is fully approved, nothing in flight, working tree clean for apps/codemart and flavors/codemart. Reported readiness to ca-orchestrator and codemart-lead.
+
+codemart-lead reply: **hold** — ca-orchestrator has put all codemart work on hold until the user's next task. Not starting any item on my own until a task is dispatched.
+
+Status corrections from codemart-lead on the old `ui-codemart-D7` leftovers:
+- Already closed, approved in `reviews/ui-codemart-D7.json`: cmpui-07, cmgap-A14, cmgap-U30-ui.
+- Still open, waiting for dispatch (not to be started until codemart-lead sends a task):
+  - the rest of cmdesign-03 (API dependency cmdesign-03-api approved in codemart-laravel-G1);
+  - d9-01-ui: wire the 28 icons already generated under `assets/icons`, add the `?no-inline` glob, fill `CM_ICON_SPECS`, add i18n alt keys, clip with a border radius;
+  - cmgap-R1-ui, waiting on cmgap-R1.
+
+### Blockers
+
+None — holding by instruction, not blocked.
+
+### Next owner
+
+codemart-lead will send the next task (G2 or otherwise) when the user's next task arrives.

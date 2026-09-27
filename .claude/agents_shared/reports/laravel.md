@@ -15,8 +15,8 @@ Task ids follow the team convention `laravel-<n>`; the orchestrator mirrors them
 | laravel-T7 | [laravel] CodeMart contract follow-ups and DingDuoDuo admin gate | LB-008 (admin escrow refund), LB-019 (optional phone step), LB-020 (bootstrap deposit methods), LB-035 | approved (reviews/laravel-T7.json) |
 | laravel-T8 | [laravel] Client-key verifier follow-ups | LB-015/LB-032 follow-ups: indexed key names only, full request path incl. base path | approved (reviews/laravel-T8.json) |
 | laravel-T9 | [laravel] Rulings on T4 deferrals and remainders | LB-033, X4 (field names), RV-007 (resource keys), RV-004, LB-007 (queue-only regenerate) | approved (reviews/laravel-T9.json) |
-| laravel-T10 | [laravel] DingDuoDuo super code v2 minting (Laravel half) | NC-008 | submitted to reviewer |
-| laravel-T11 | [laravel] D1 regression: `public/home` 500, escrow columns missing on existing tables | requirements §10.4 | fixed locally; submitted to reviewer; server steps for laravel-remote below |
+| laravel-T10 | [laravel] DingDuoDuo super code v2 minting (Laravel half) | NC-008 | approved (reviews/laravel-T10.json) |
+| laravel-T11 | [laravel] D1 regression: `public/home` 500, escrow columns missing on existing tables | requirements §10.4 | approved (reviews/laravel-T11.json); server steps for laravel-remote below |
 
 ## laravel-T1
 
@@ -265,7 +265,7 @@ All earlier rulings are applied (B9: LB-008, LB-019, LB-033, X4, RV-007, LB-035)
 ## Next owner
 
 - orchestrator: rulings above; section 7 of the requirements record.
-- reviewer: laravel-T10, laravel-T11.
+- reviewer: none open (laravel-T10, laravel-T11 and laravel-D7 approved).
 - laravel-remote: laravel-T11 server steps after code sync.
 - shell: laravel-T11 note on the `sys:init` exit status in 175.
 - laravel (follow-up): LB-034 remainder (173 interpolated calls, 737 `'message'|'error' => '...'` entries).
@@ -356,3 +356,23 @@ laravel-remote, after CodeSync. The sync must include `config/service_contract.j
 6. A second `sys:init` prints no `Added missing column` lines.
 
 Review: `poly_apps/laravel_main/app/Providers/AppServiceProvider.php`, `app/Support/ContractDocument.php`, `lang/en/codemart.php`, `lang/zh_CN/codemart.php`. Status: in progress until the reviewer approves.
+
+## Session status (2026-09-28)
+
+- The session restarted after a usage-limit stop. No code was edited in this session.
+- Ready message sent to ca-orchestrator. Its reply: no go yet. (a), (b) and the LB-034 remainder wait for the user's next task. Nobody edits `PathMapper.php` until the orchestrator names its single writer at dispatch. The laravel-remote server steps stay queued until the code sync.
+- Superseded by R2/R3 (below): the proposed follow-ups went to pycore-laravel.
+- PathMapper ownership was settled by R3 (pycore-laravel).
+- `CLAUDE_CODE_AGENTS_GUIDE.md` has no §8, so §5 Boundaries applies.
+
+## Writer records (orchestrator rulings R2/R3, docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md)
+
+laravel is in reserve and edits only as a named temporary writer. The default writers are:
+
+| Path (under `poly_apps/laravel_main/`) | Default writer | Source |
+|---|---|---|
+| Laravel foundation (the laravel scope), including `app/Providers/PathMapper.php` | pycore-laravel | R2, R3 |
+| `app/Apps/CodeMartV1/`, `routes/CodeMartV1Router/`, CodeMart migrations | codemart-laravel (laravel-codemart writes only as a named temporary writer) | R2 |
+
+- The own follow-ups (McpV1Initializer status-file skip, PathMapper -> `service_contract.json#paths`, LB-034 remainder) moved to pycore-laravel via pycore-lead.
+- R5 (lang writers): `lang/{en,zh_CN}/codemart.php` -> codemart-laravel (standing writer); `lang/{en,zh_CN}/app_qy_v1.php` -> wordnew-laravel; every other `lang/` file -> pycore-laravel.

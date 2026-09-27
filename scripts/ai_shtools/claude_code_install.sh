@@ -13,8 +13,8 @@
 #   3. claude_team_install (also called by claudeteamup/claudeagents on every run):
 #      each team item is checked and repaired on its own - python3, tmux (distro,
 #      version reported), node, curl, ca-certificates, bubblewrap, socat; the terminal
-#      the launchers will open is reported (nothing installed); the state, shared,
-#      reports, reviews and agent-memory dirs; the catalog user_settings_merge keys
+#      the launchers will open is reported (nothing installed); the state, shared
+#      and agent-memory dirs; the catalog user_settings_merge keys
 #      (added only when absent); and each launcher link (claudeteam, claudeteamup,
 #      claudeagents + .sh aliases). CCI_CHECK_ONLY=1 reports without changing.
 # "Installed" means a claude binary that actually answers --version (dangling launcher
@@ -641,7 +641,7 @@ cci_ensure_team_settings() {
 }
 
 # Report-only: this account must be past first-run onboarding and logged in before
-# 30 role panes are spawned, or every pane silently stalls on the theme/login
+# a team lead is spawned, or its session stalls on the theme/login
 # screen instead of running its kickoff (each pane's PID stays alive, so a
 # liveness check alone reports "running" for a session that never started work).
 cci_check_claude_login() {
@@ -676,9 +676,9 @@ print("YES" if data.get("loggedIn") else "NO")
 PY
 )"
     case "$logged_in" in
-        YES) echo "[OK] Claude Code is logged in: role panes will run their kickoff instead of stalling on setup" ;;
-        NO) echo "[WARN] Claude Code is not logged in: every role pane will stall on the first-run setup/login screen (each looks \"running\" by PID alone). Run 'claude' once interactively (or 'claude setup-token') to finish onboarding and login, then re-run this launcher." ;;
-        *) echo "[WARN] Could not read claude auth status ($exec_path auth status --json); role panes may stall on first-run setup" ;;
+        YES) echo "[OK] Claude Code is logged in: the team lead can run its kickoff" ;;
+        NO) echo "[WARN] Claude Code is not logged in: the team lead will stall on first-run setup. Run 'claude' once interactively (or 'claude setup-token'), then re-run this launcher." ;;
+        *) echo "[WARN] Could not read claude auth status ($exec_path auth status --json); the team lead may stall on first-run setup" ;;
     esac
 }
 
@@ -689,8 +689,6 @@ claude_team_install() {
     cci_ensure_team_prereqs
     cci_ensure_dir "$CCI_TEAM_STATE_DIR" "role PID files"
     cci_ensure_dir "$CCI_SHARED_DIR" "shared data between roles"
-    cci_ensure_dir "$CCI_SHARED_DIR/reports" "role handoff reports (TeammateIdle gate)"
-    cci_ensure_dir "$CCI_SHARED_DIR/reviews" "reviewer verdicts (TaskCompleted gate)"
     cci_ensure_dir "$CCI_AGENT_MEMORY_DIR" "per-role agent memory (memory: project)"
     cci_ensure_team_settings
     cci_check_claude_login

@@ -88,3 +88,12 @@ Status: blocked (gate not met). Changed files: none, except this report.
 - pycore-ui (through pycore-lead): MCHR-31 needs to add the presenter to `shared/library-cover` and get it approved. Suggested shape: `libraryCoverPresentation(view: LibraryCoverView)`, returning `{ kind: 'active' | 'failed' | 'waiting' | 'none', phase, handler, title }`. That is enough for wordnew to map the result only to its tones and its `admin.lib.cover.*` keys.
 
 Blockers: pycore-ui MCHR-31 (presenter not landed or approved). Next owner: pycore-ui, then pycore-lead for the verdict, then wordnew-ui re-runs MCHR-31-wn-presenter.
+
+## Session resume (2026-09-28)
+
+Resumed after a claude.ai usage-limit reset with no in-flight task. Verified before going idle:
+- `.claude/agents_shared/reviews/wordnew-ui-G1.json` and `wordnew-ui-G2.json` are both `"verdict": "approved"`, matching the sections above.
+- `git status --short` for `apps/wordnew/` and `flavors/wordnew/` is clean; nothing to resume or repeat.
+- Notified `ct-wordnew-lead` and `ca-orchestrator` that I'm back and idle, awaiting new tasks.
+
+Blockers: none of my own. MCHR-31-wn-presenter is still open on pycore-ui/pycore-lead (see above). Next owner: whichever of wordnew-lead / ca-orchestrator assigns the next task.

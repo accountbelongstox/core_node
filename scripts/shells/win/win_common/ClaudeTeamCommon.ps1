@@ -2,9 +2,9 @@
 # Shared idempotent Claude multi-role team orchestration (Windows / PowerShell)
 # =============================================================================
 # Used by scripts/winenvs/claudeteamup.ps1 (mode "sessions", lead ct-orchestrator)
-# and scripts/winenvs/claudeagents.ps1 (mode "team", lead ca-orchestrator). Both
-# start every enabled role as its own independent session (cross-session
-# messaging); only the lead kickoff differs. Linux counterpart:
+# and scripts/winenvs/claudeagents.ps1 (mode "team", lead ca-orchestrator).
+# Sessions mode starts independent role sessions; team mode starts only the lead,
+# which spawns native teammates on demand. Linux counterpart:
 #   scripts/shells/linux/common/claude_team_common.sh
 # Roles: .claude/agents/*.md (frontmatter name, model, effort). Catalog
 # config/claude_team_roles.json: kickoffs, layout, session_env, remote, and role
@@ -557,11 +557,15 @@ function Import-ClaudeTeamCatalog {
             }
             $state = Get-ClaudeTeamRoleBlockedState -Role $role -CatalogRole $catalogRole -Agent $agent
             if ($null -eq $state) {
-                $state = "enabled"
-                if ($null -ne $remote) {
+                if (($script:ClaudeTeamMode -eq "team") -and ($role -ne $ClaudeTeamLeadRole)) {
+                    $state = "available-teammate"
+                    Write-ClaudeTeamLog "OK" ("Agent type {0} available on demand (model {1})" -f $role, $agent.Model)
+                } elseif ($null -ne $remote) {
+                    $state = "enabled"
                     $script:ClaudeTeamRemoteAny = $true
                     Write-ClaudeTeamLog "OK" ("Remote role {0}: ssh <secret {1}> -> tmux {2} in {3} (model {4}, effort {5}, Remote Control on)" -f $role, [string]$remote.ssh_secret, $session, [string]$remote.root, $agent.Model, $agent.Effort)
                 } else {
+                    $state = "enabled"
                     Write-ClaudeTeamLog "OK" ("Session role {0}: {1} (model {2}, effort {3}, group {4})" -f $role, $session, $agent.Model, $agent.Effort, ($groupIndex + 1))
                 }
             }
@@ -594,8 +598,13 @@ function Import-ClaudeTeamCatalog {
         }
         $state = Get-ClaudeTeamRoleBlockedState -Role $role -CatalogRole $catalogRole -Agent $agent
         if ($null -eq $state) {
-            $state = "no-window"
-            Write-ClaudeTeamLog "OK" ("Service role {0}: {1} (model {2}, effort {3}, no window; messaging/tasks only)" -f $role, $session, $agent.Model, $agent.Effort)
+            if (($script:ClaudeTeamMode -eq "team") -and ($role -ne $ClaudeTeamLeadRole)) {
+                $state = "available-teammate"
+                Write-ClaudeTeamLog "OK" ("Agent type {0} available on demand (model {1})" -f $role, $agent.Model)
+            } else {
+                $state = "no-window"
+                Write-ClaudeTeamLog "OK" ("Service role {0}: {1} (model {2}, effort {3}, no window; messaging/tasks only)" -f $role, $session, $agent.Model, $agent.Effort)
+            }
         }
         $script:ClaudeTeamRows += [pscustomobject]@{
             Role      = $role
@@ -618,7 +627,7 @@ function Import-ClaudeTeamCatalog {
 }
 
 function Get-ClaudeTeamOtherRoles {
-    return ((@($script:ClaudeTeamRows | Where-Object { $_.Enabled -and (-not $_.IsLead) -and $_.Window }) | ForEach-Object { $_.Role }) -join ", ")
+    return ((@($script:ClaudeTeamRows | Where-Object { (-not $_.IsLead) -and (($_.Enabled) -or ($_.State -eq "available-teammate")) }) | ForEach-Object { $_.Role }) -join ", ")
 }
 
 # session_env blocks merged in order (later blocks win): all, windows, lead, remote.
@@ -1323,7 +1332,7 @@ function Show-ClaudeTeamPlan {
             continue
         }
         $kickoffText = $(if ($script:ClaudeTeamOptNoKickoff) { "" } else { (" <kickoff {0} chars>" -f (Get-ClaudeTeamKickoff -Role $row.Role).Length) })
-        Write-Host ("           {0}: env {1}; claude {2} [ultracode --settings]{3}" -f $row.Role, (Get-ClaudeTeamEnvironmentText -Row $row), ((Get-ClaudeTeamRoleClaudeArguments -Row $row) -join " "), $kickoffText)
+        Write-Host ("           {0}: env {1}; claude {2}{3}" -f $row.Role, (Get-ClaudeTeamEnvironmentText -Row $row), ((Get-ClaudeTeamRoleClaudeArguments -Row $row) -join " "), $kickoffText)
     }
 }
 
@@ -1609,6 +1618,7 @@ function Show-ClaudeTeamReport {
     $budget = $script:ClaudeTeamBudget
     $tab = $null
     $paneCount = 0
+    $taskList = $null
     foreach ($tab in @($script:ClaudeTeamTabs)) {
         $paneCount = $paneCount + $tab.Rows.Count
     }
@@ -1618,12 +1628,19 @@ function Show-ClaudeTeamReport {
         $script:ClaudeTeamMonitor.Index, ($script:ClaudeTeamMonitor.WorkRight - $script:ClaudeTeamMonitor.WorkLeft), ($script:ClaudeTeamMonitor.WorkBottom - $script:ClaudeTeamMonitor.WorkTop), `
         $budget.Dpi, $budget.TotalCols, $budget.TotalRows, @($script:ClaudeTeamTabs).Count, $paneCount)
     Write-ClaudeTeamLog "OK" ("PID files: {0} (<session>.pid)" -f $ClaudeTeamStateDir)
-    Write-ClaudeTeamLog "OK" ("Shared project data: {0} (files by path; reports, reviews; git grant file git_grant.json); role memory: {1}" -f (Join-Path $ClaudeTeamRootDir ([string](Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "shared_dir" -Default ""))), (Join-Path (Join-Path $ClaudeTeamRootDir ".claude") "agent-memory"))
-    Write-ClaudeTeamLog "OK" ("Task list: {0} (shared by every session through {1}); agent-team runtime state: {2}, {3}" -f (Get-ClaudeTeamSessionEnvironment -Kinds @("all"))[$ClaudeTeamTaskListVariable], $ClaudeTeamTaskListVariable, $ClaudeTeamUserTasksDir, $ClaudeTeamUserTeamsDir)
-    Write-ClaudeTeamLog "OK" "Messaging: sessions discover each other with ListAgents and talk with SendMessage by --name (/list-agents shows the roster)"
+    Write-ClaudeTeamLog "OK" ("Shared project data: {0} (files by path; git grant file git_grant.json); role memory: {1}" -f (Join-Path $ClaudeTeamRootDir ([string](Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "shared_dir" -Default ""))), (Join-Path (Join-Path $ClaudeTeamRootDir ".claude") "agent-memory"))
+    $taskList = (Get-ClaudeTeamSessionEnvironment -Kinds @("all"))[$ClaudeTeamTaskListVariable]
+    if (-not [string]::IsNullOrWhiteSpace($taskList)) {
+        Write-ClaudeTeamLog "OK" ("Independent-session task list: {0} through {1}" -f $taskList, $ClaudeTeamTaskListVariable)
+    }
+    Write-ClaudeTeamLog "OK" ("Native agent-team runtime state: {0}, {1}" -f $ClaudeTeamUserTasksDir, $ClaudeTeamUserTeamsDir)
     Write-ClaudeTeamLog "OK" ("Dispatch: type one task in the {0} pane of window {1}" -f (Get-ClaudeTeamLeadSessionName -Mode $script:ClaudeTeamMode), (Get-ClaudeTeamWindowName))
     Write-ClaudeTeamLog "OK" "Git: read-only git/gh always allowed; other git/gh commands need a user prompt asking for git work (120 min grant; deny-git revokes)"
-    Write-ClaudeTeamLog "OK" "Re-run is idempotent: roles with a live shell PID or --name session are skipped, missing ones open as new tabs"
+    if ($script:ClaudeTeamMode -eq "team") {
+        Write-ClaudeTeamLog "OK" "Re-run is idempotent: the live lead is skipped; teammates remain owned by Claude Code"
+    } else {
+        Write-ClaudeTeamLog "OK" "Re-run is idempotent: roles with a live shell PID or --name session are skipped, missing ones open as new tabs"
+    }
 }
 
 function Invoke-ClaudeTeamUp {

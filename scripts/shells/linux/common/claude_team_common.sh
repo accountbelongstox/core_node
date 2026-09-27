@@ -3,21 +3,21 @@
 # =============================================================================
 # Shared idempotent Claude multi-role orchestration (Linux / bash)
 # =============================================================================
-# Used by scripts/linuxenvs/claudeagents.sh (mode "team"), claudeteamup.sh (mode
-# "sessions") and claudeteam.sh (role argv, kickoff, session_env, PID file).
+# Used by scripts/linuxenvs/claudeagents.sh (one agent-team lead),
+# claudeteamup.sh (independent role sessions) and claudeteam.sh.
 # Windows counterpart: scripts/shells/win/win_common/ClaudeTeamCommon.ps1
 # Roles: .claude/agents/*.md frontmatter (name, model, effort). The catalog
 # config/claude_team_roles.json holds launcher-only data; its roles[] rows are
 # overrides only (enabled, remote, window), and an agent file without a row is
-# enabled. window:false is a service role: a valid roster row (report, task tags),
+# enabled. window:false is a service role: a valid roster row and task tag,
 # no pane started here.
-# Both modes start every enabled role as its own claude session (--agent <role>
-# --name <prefix><role> --effort <frontmatter>) in one tmux session
+# Sessions mode starts every enabled role as its own Claude session in one tmux
+# session. Team mode starts only the lead; Claude Code spawns teammates on demand.
 # layout.tmux_session on the mode's socket: one window (tab) per packed group of
 # layout.tab_groups at layout.min_lead / layout.min_role cells, an explicit -l %
 # grid, role titles on the pane borders and session hooks that re-apply the grid.
-# The grid is chosen from the attached tmux client size. Only the lead kickoff
-# differs: team.kickoff (claudeagents) or sessions.kickoff_lead (claudeteamup).
+# The grid is chosen from the attached tmux client size. Team mode uses
+# team.kickoff; sessions mode uses sessions.kickoff_lead and sessions.kickoff.
 # A role whose PID is alive is skipped; a live pane without its claude is
 # respawned in place; a role without a pane opens in a new tab.
 # Executed directly with --regrid <socket> <session> <lead> <lead cols> <lead
@@ -554,12 +554,16 @@ claude_team_role_selected() {
     esac
 }
 
-# Enabled, has an agent file and is selected (the lead always is in team mode).
+# Enabled, has an agent file and is selected. Team mode starts only the lead;
+# the remaining definitions stay available for native Agent tool spawning.
 claude_team_role_active() {
     local index="$1"
     local role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
     [ "${CLAUDE_TEAM_ROLE_ENABLED[$index]}" = "1" ] || return 1
     [ "${CLAUDE_TEAM_ROLE_HAS_AGENT[$index]}" = "1" ] || return 1
+    if [ "$CLAUDE_TEAM_MODE" = "team" ] && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
+        return 1
+    fi
     if claude_team_role_selected "$role"; then
         return 0
     fi
@@ -595,9 +599,14 @@ claude_team_validate_roles() {
             claude_team_log WARN "Role $role skipped: no agent file with frontmatter name $role in $CLAUDE_TEAM_AGENTS_DIR"
             continue
         fi
-        if ! claude_team_role_active "$index"; then
+        if [ -n "$CLAUDE_TEAM_OPT_ROLES" ] && ! claude_team_role_selected "$role" && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
             CLAUDE_TEAM_ROW_STATE[$index]="not-selected"
             claude_team_log SKIP "Role $role not in --roles"
+            continue
+        fi
+        if [ "$CLAUDE_TEAM_MODE" = "team" ] && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
+            CLAUDE_TEAM_ROW_STATE[$index]="available-teammate"
+            claude_team_log OK "Agent type $role available on demand (model ${CLAUDE_TEAM_ROLE_MODEL[$index]:-default})"
             continue
         fi
         if [ -n "${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}" ]; then
@@ -620,7 +629,10 @@ claude_team_other_roles() {
     local index=""
     local names=""
     for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
-        if [ "${CLAUDE_TEAM_ROLE_NAMES[$index]}" = "$CLAUDE_TEAM_LEAD_ROLE" ] || ! claude_team_role_active "$index"; then
+        if [ "${CLAUDE_TEAM_ROLE_NAMES[$index]}" = "$CLAUDE_TEAM_LEAD_ROLE" ] || \
+                [ "${CLAUDE_TEAM_ROLE_ENABLED[$index]}" != "1" ] || \
+                [ "${CLAUDE_TEAM_ROLE_HAS_AGENT[$index]}" != "1" ] || \
+                ! claude_team_role_selected "${CLAUDE_TEAM_ROLE_NAMES[$index]}"; then
             continue
         fi
         names="${names:+$names, }${CLAUDE_TEAM_ROLE_NAMES[$index]}"
@@ -938,6 +950,9 @@ claude_team_scan_live() {
             CLAUDE_TEAM_PANE_WINDOWS+=("$pane_window")
         done < <(claude_team_tmux list-panes -s -t "=$CLAUDE_TEAM_LAYOUT_SESSION" -F "#{$CLAUDE_TEAM_PANE_ROLE_OPTION} #{pane_id} #{window_name}" 2>/dev/null)
         claude_team_log OK "tmux session $CLAUDE_TEAM_LAYOUT_SESSION (socket $CLAUDE_TEAM_TMUX_SOCKET): $CLAUDE_TEAM_TAB_BASE window(s), ${#CLAUDE_TEAM_PANE_ROLES[@]} role pane(s), $CLAUDE_TEAM_CLIENTS client(s)"
+        if [ "$CLAUDE_TEAM_MODE" = "team" ] && [ "${#CLAUDE_TEAM_PANE_ROLES[@]}" -gt 1 ]; then
+            claude_team_log WARN "Existing tmux session has prestarted role panes from the old orchestration. This run leaves them untouched; close that session once before rerunning to get the lead-only layout."
+        fi
     else
         claude_team_log OK "tmux session $CLAUDE_TEAM_LAYOUT_SESSION (socket $CLAUDE_TEAM_TMUX_SOCKET): not running"
     fi
@@ -1905,13 +1920,20 @@ claude_team_finish() {
 claude_team_print_shared_data() {
     local team_dir=""
     claude_team_log OK "Shared project data: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR (files by path; git grant file git_grant.json)"
-    claude_team_log OK "Handoff reports: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR/reports ; reviewer verdicts: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR/reviews ; role memory: $CLAUDE_TEAM_ROOT_DIR/.claude/agent-memory"
-    claude_team_log OK "Shared task list: $CLAUDE_TEAM_TASK_LIST ($CLAUDE_TEAM_USER_TASKS_DIR/$CLAUDE_TEAM_TASK_LIST); ad-hoc agent teams of the lead: $CLAUDE_TEAM_USER_TEAMS_DIR/<team>/"
+    claude_team_log OK "Shared handoff path: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR ; role memory: $CLAUDE_TEAM_ROOT_DIR/.claude/agent-memory"
+    if [ -n "$CLAUDE_TEAM_TASK_LIST" ]; then
+        claude_team_log OK "Independent-session task list: $CLAUDE_TEAM_TASK_LIST ($CLAUDE_TEAM_USER_TASKS_DIR/$CLAUDE_TEAM_TASK_LIST)"
+    fi
+    claude_team_log OK "Native agent-team runtime state: $CLAUDE_TEAM_USER_TEAMS_DIR/<team>/ and $CLAUDE_TEAM_USER_TASKS_DIR/<team>/"
     for team_dir in $(ls -1dt "$CLAUDE_TEAM_USER_TEAMS_DIR"/session-* 2>/dev/null | head -n 3); do
         claude_team_log OK "  live team dir: $team_dir"
     done
-    claude_team_log OK "Messaging: sessions discover each other with ListAgents and talk with SendMessage by --name (/list-agents shows the roster)"
-    claude_team_log OK "Dispatch: type one task in the $(claude_team_lead_session) pane; it dispatches to ${CLAUDE_TEAM_SESSION_PREFIX}<role> sessions; ad-hoc teammates split the lead's tab (--teammate-mode $CLAUDE_TEAM_TEAM_TEAMMATE_MODE)"
+    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+        claude_team_log OK "Dispatch: type one task in the $(claude_team_lead_session) pane; the lead spawns only the needed native teammates (--teammate-mode $CLAUDE_TEAM_TEAM_TEAMMATE_MODE)"
+    else
+        claude_team_log OK "Messaging: sessions discover each other with ListAgents and talk with SendMessage by --name"
+        claude_team_log OK "Dispatch: type one task in the $(claude_team_lead_session) pane; the lead sends work to ${CLAUDE_TEAM_SESSION_PREFIX}<role> sessions"
+    fi
     claude_team_log OK "Git: read-only git/gh always allowed; other git/gh commands need a user prompt asking for git work (120 min grant; deny-git revokes)"
 }
 
@@ -1933,7 +1955,11 @@ claude_team_print_report() {
     claude_team_log OK "Cell budget: ${CLAUDE_TEAM_BUDGET_COLS:-?}x${CLAUDE_TEAM_BUDGET_ROWS:-?} (${CLAUDE_TEAM_BUDGET_SOURCE:-not measured}); PID files: $CLAUDE_TEAM_STATE_DIR"
     claude_team_log OK "Attach: $(claude_team_attach_command) ; list: tmux -L $CLAUDE_TEAM_TMUX_SOCKET list-panes -s -t $CLAUDE_TEAM_LAYOUT_SESSION"
     claude_team_print_shared_data
-    claude_team_log OK "Re-run is idempotent: live roles are skipped, idle role panes respawn in place, missing roles open in a new tab"
+    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+        claude_team_log OK "Re-run is idempotent: the live lead is skipped; teammates remain owned by Claude Code"
+    else
+        claude_team_log OK "Re-run is idempotent: live roles are skipped, idle role panes respawn in place, missing roles open in a new tab"
+    fi
 }
 
 # Headless: tmux attaches in the current tty once the summary is printed.

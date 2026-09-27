@@ -749,3 +749,15 @@ Overall status of `pycore-runtime-D7P2-fix`: B1-B6 all done (B1/B2/B3/B5 in part
 part 2). F-1 was pycore-lead's own foundation task, already approved. Next owner: reviewer /
 pycore-lead, for the final verdict on `pycore-runtime-D7P2-fix`. No further pycore-runtime
 action is pending on this task.
+
+### Session resume note
+
+Session resumed after a usage-limit reset. Re-checked disk state before acting: `git status`
+(only the D22/D13 catalog-and-guide files listed above are modified, no pycore code pending),
+`.claude/agents_shared/reviews/pycore-runtime-D7P2-fix.json` (still round 3,
+`changes_requested`, `checked_at` 20:47 — predates part 1/2 above), and
+`.claude/agents_shared/client_key_auth/TASKS.md:172` (`pycore-runtime-D7P2-fix` row still points
+to "pycore-lead reviews", no round-4 verdict written yet). No new task had arrived from
+ca-orchestrator or pycore-lead. Re-sent pycore-lead the part 1+2 completion summary
+(`ct-pycore-lead`, msg_id `24db698f-c673-4c6f-b85b-17f6ca6614d2`) so round 4 can proceed, then
+went idle pending that verdict or a new task. No code was re-touched this resume.

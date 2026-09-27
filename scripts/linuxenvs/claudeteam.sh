@@ -165,14 +165,11 @@ done
 for envPair in "${CLAUDE_TEAM_SPEC_ENV[@]}"; do
     export "$envPair"
 done
-# Marks a role session: enables the project hooks .claude/hooks/git_guard.mjs and
-# .claude/hooks/team_gate.mjs (TaskCreated / TaskCompleted / TeammateIdle).
+# Marks a role session: enables the project git guard and task-owner tag hook.
 export CLAUDE_AGENTS_SESSION="1"
 
-# Every role runs in auto mode (classifier-reviewed, no prompts), for root and
-# regular users alike; ad-hoc teammates inherit the lead's mode.
-ai_cli_ultracode_prompt
-claude_args+=("${AI_CLI_ULTRACODE_ARGS[@]}")
+# Every role runs in auto mode; teammates inherit the lead's mode. Do not force
+# ultracode: it adds a planning workflow to every substantive request.
 claude_args+=(--permission-mode auto)
 claude_args+=("${CLAUDE_TEAM_SPEC_ARGS[@]}")
 claude_args+=("${passthrough_args[@]}")
@@ -180,7 +177,7 @@ if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_args+=("$CLAUDE_TEAM_SPEC_KICKOFF")
 fi
 
-claude_invoke_display="claude ${AI_CLI_ULTRACODE_ARGS[*]} --permission-mode auto ${CLAUDE_TEAM_SPEC_ARGS[*]} ${passthrough_args[*]}"
+claude_invoke_display="claude --permission-mode auto ${CLAUDE_TEAM_SPEC_ARGS[*]} ${passthrough_args[*]}"
 if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_invoke_display="$claude_invoke_display <kickoff ${#CLAUDE_TEAM_SPEC_KICKOFF} chars>"
 fi

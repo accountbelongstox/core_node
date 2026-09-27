@@ -5,7 +5,7 @@
 | Item | Status | Files written | Pending elsewhere |
 |---|---|---|---|
 | WNN-05 prerequisite gaps + entry parity | done in scope; the B2 half is a verified diff | `scripts/shells/win/win_common/AndroidBuildEnv.ps1`, `scripts/shells/win/install_powershells/Step62_InstallAndroidSdkPackages.ps1`, `scripts/shells/linux/common/android_build_env.sh`, `scripts/shells/linux/debian/install_shells/187_install_android_sdk.sh`, `native/wordnew/android/{build.gradle,variables.gradle}` | B2 writer applies `.claude/agents_shared/reports/wordnew-native-G2-b2.diff` (build_app.ps1, scripts/start_build.ps1, scripts/start_build.sh, scripts/flavor/flavor_build.py) |
-| WNN-06 readiness verification | done on Windows; the Linux runs are deferred | this report | the Linux runs, after core-node-e9 reports done (commands below) |
+| WNN-06 readiness verification | done on Windows and Linux | this report | none |
 
 Paths relative to `poly_apps/pycore_laravel_wordnew_ui/` (UI) unless they start with `scripts/` or `.claude/`. The user's sweep commits `93f8de054` (21:48:43) and `5e0eb3dc7` already contain my direct edits; I ran no git writes. Review against 74e7770.
 
@@ -97,12 +97,9 @@ WNN-05 verification:
 | 11 | patched `build_app.ps1 -List` / `-Sync -App nope -NonInteractive` / `-Sync -App wordnew -Platform ios` | 0 / 2 / non-zero | flavor list; build_apk.py reached and its exit 2 propagated; iOS refused before any command |
 | 12 | Gradle configuration check (scratch copy of `native/wordnew/android` with the tree's build.gradle, variables.gradle and app/build.gradle, a scratch copy of `@capacitor/android`, init script printing `android.buildToolsVersion`; `gradlew --offline --no-daemon help`, Gradle 8.14.3 / AGP 8.13.0) | 0 | pinned: `:app`, `:capacitor-android` and `:capacitor-cordova-android-plugins` all at 36.0.0. Baseline (hook and ext removed): all three at 35.0.0. With `--warning-mode all`, the only warnings are for the scratch copy's missing plugin dirs. The first attempt exited 1 because my trimmed settings dropped plugin projects; it was a scratch setup error and was fixed |
 | 13 | debug APK build | not run | the configuration check (12) confirmed the Gradle configuration, so no APK build was needed. No release build |
-| 14 | Linux: `start_build.sh --list`, `187_install_android_sdk.sh --check`, patched `start_build.sh --check --app wordnew` in Debian WSL | deferred | no "done" report from core-node-e9 reached me. At 21:57 it was idle, and its fenced files were committed in `5e0eb3dc7`, but that is not a report. Only `bash -n` and the gvar-free library tests ran |
+| 14 | Linux: `start_build.sh --list`, `187_install_android_sdk.sh --check`, `start_build.sh --check --app wordnew` (real tree, native Linux session, 2026-09-28) | 0, 0, 1 | shell-linux's fenced files (`gvar_common.sh`, `gvar_storage_common.sh`, `mount_common.sh`, `pyservice_entry.sh`, `shared_cache_env.sh`) are clean in `git status`, so the dependency is settled. `start_build.sh --list` (exit 0): the same three-app list as row 4 (codemart/wordnew enabled, shell/vortex skipped). `187_install_android_sdk.sh --check` (exit 0): JDK 21+ ready at `/opt/_debian_13/java/jdk-21.0.1`, SDK root `/usr/lib/android-sdk`, cmdline-tools/licenses/platform-tools/android-36/build-tools-36.0.0/ANDROID_HOME all ready. `start_build.sh --check --app wordnew` (exit 1) is against the **unpatched** tree (the G2-b2 diff has not landed): `--check` is genuinely `Unknown option` there (`start_build.sh:146`), which sets `READY=0` and prints "Prerequisites are not ready" — expected until the B2 writer applies `wordnew-native-G2-b2.diff`, not a defect. Unrelated noise: two `sudo` gvar-write failures for `DEBIAN_13_PUPPETEER_SKIP_DOWNLOAD`/`DEBIAN_13_SKIP_LARGE_MODELS` (no TTY for sudo in this session; not this task's gvars, does not affect the exit codes) |
 
-Deferred Linux commands, to run from `/www/programing/core_node` (or the WSL mount of D:) once core-node-e9 reports done:
-- `bash poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh --list` (expect exit 0 and the list in row 4);
-- `bash scripts/shells/linux/debian/install_shells/187_install_android_sdk.sh --check` (report only; exit 0);
-- after the diff lands: `bash poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh --check --app wordnew`.
+Linux commands run 2026-09-28 (see row 14): all three ran; the third's exit 1 is the expected pre-diff state, not a defect. Once the G2-b2 diff lands, re-run `bash poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh --check --app wordnew` and expect exit 0, "all build prerequisites are ready".
 
 Scratch: `scratchpad/wnn_g2/` holds a/ (base), b/ (patched), apply_test/, flavor_root/, gradle_bt/ and fake JDK/SDK dirs. The run-tree junctions were removed link-only with `[IO.Directory]::Delete`. No Gradle JVM is left running.
 
@@ -110,7 +107,7 @@ Scratch: `scratchpad/wnn_g2/` holds a/ (base), b/ (patched), apply_test/, flavor
 - orchestrator: assign the B2 writer for `build_app.ps1`, `scripts/start_build.ps1`, `scripts/start_build.sh` and `scripts/flavor/flavor_build.py`. My recommendation is wordnew-native, with pycore-ui as the fallback. The writer applies it from the repo root with `git apply .claude/agents_shared/reports/wordnew-native-G2-b2.diff` and checks the four sha256 values above.
 - The same B2 writer: `flavors/README.md` still documents `-App vortex -Native -Sync -Platform android` and `npm install` / `npx cap sync`. After the diff, -Sync goes through build_apk.py, which refuses flavors whose `platforms` lack android (vortex).
 - Still open from G1: the build_apk.py diff (F6), the `.gitignore` wrapper negation (F7), WNN-signing-key, and F2 (commit the regenerated `capacitor.settings.gradle` after the next `cap sync`).
-- wordnew-lead: verdict wordnew-native-G2, and the Linux runs of WNN-06 once core-node-e9 reports done (or re-dispatch them to me).
+- wordnew-lead: verdict wordnew-native-G2 (WNN-06 Linux runs are now closed, see row 14).
 
 ## wordnew-native-G1 (2026-09-27, diff base 74e7770)
 
