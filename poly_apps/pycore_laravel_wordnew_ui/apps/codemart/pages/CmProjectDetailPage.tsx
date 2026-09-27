@@ -17,11 +17,9 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { CmTransitionBar } from '../components/workspace/CmTransitionBar';
 import { cmJoinList, cmShortDate, cmSplitList, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 
-const COMPLEXITIES = ['simple', 'medium', 'complex', 'very_complex'] as const;
+const DEFAULT_COMPLEXITY = 'medium';
 const OWNER_ROLE = 'owner';
 const FUNDING_PENDING_STATUS = 'funding_pending';
-const PUBLISHABLE_STATUSES = new Set(['open', 'in_progress']);
-const CLOSED_STATUSES = new Set(['completed', 'cancelled', 'archived']);
 const SCOPE_EDITABLE_STATUSES = new Set(['draft', 'proposal_review']);
 const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
 const MIN_BUDGET = 100;
@@ -32,10 +30,11 @@ type CmStackField = typeof STACK_FIELDS[number];
 const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Promise<void> }> = ({ project, onSaved }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
+  const { policyList } = useCmBootstrap();
   const scopeEditable = SCOPE_EDITABLE_STATUSES.has(project.status);
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description);
-  const [complexity, setComplexity] = useState(project.complexity ?? 'medium');
+  const [complexity, setComplexity] = useState<string>(project.complexity ?? DEFAULT_COMPLEXITY);
   const [budget, setBudget] = useState(project.budget ?? '');
   const [startDate, setStartDate] = useState(cmShortDate(project.start_date));
   const [endDate, setEndDate] = useState(cmShortDate(project.end_date));
@@ -99,7 +98,7 @@ const CmProjectEditForm: React.FC<{ project: CmProjectDetail; onSaved: () => Pro
           <label>
             <span>{t('projectCreate.complexity')}</span>
             <select value={complexity} onChange={(event) => setComplexity(event.target.value)}>
-              {COMPLEXITIES.map((value) => (
+              {policyList('complexities').map((value) => (
                 <option key={value} value={value}>{t(`estimate.complexities.${value}`)}</option>
               ))}
             </select>
@@ -219,7 +218,7 @@ export const CmProjectDetailPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { projectId } = useParams<{ projectId: string }>();
-  const { bootstrap, refresh } = useCmBootstrap();
+  const { bootstrap, refresh, terminalStates, stateRule } = useCmBootstrap();
   const numericId = Number.parseInt(projectId ?? '', 10);
   const notice = useCmNotice();
 
@@ -289,7 +288,8 @@ export const CmProjectDetailPage: React.FC = () => {
   const access = project.access;
   const isOwner = access?.role === OWNER_ROLE;
   const canManage = access?.can_manage === true;
-  const closed = CLOSED_STATUSES.has(project.status);
+  const closed = terminalStates('project').includes(project.status);
+  const publishable = stateRule('project_task_publishable').includes(project.status) && !project.published_at;
   const currentUserId = bootstrap?.user.id ?? null;
   const milestones = project.milestones ?? [];
   const nextActionKey = `projects.nextAction.${project.status}`;
@@ -381,10 +381,10 @@ export const CmProjectDetailPage: React.FC = () => {
             ))}
           </div>
         )}
-        {isOwner && ((access?.allowed_transitions ?? []).length > 0 || (PUBLISHABLE_STATUSES.has(project.status) && !project.published_at)) && (
+        {isOwner && ((access?.allowed_transitions ?? []).length > 0 || publishable) && (
           <div className="cm-section-card__footer">
             <h3>{t('projectDetail.actionsTitle')}</h3>
-            {PUBLISHABLE_STATUSES.has(project.status) && !project.published_at && (
+            {publishable && (
               <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void publish()}>
                 <Send aria-hidden="true" /> {busy ? t('common.saving') : t('projects.publish')}
               </button>

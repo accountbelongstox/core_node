@@ -280,6 +280,7 @@ class CodeMartV1Constants
     public const ERROR_ESCROW_NOT_REFUNDABLE = 'escrow_not_refundable';
     public const ESCROW_REFUND_REASON_ADMIN = 'admin_refund';
     public const ERROR_SMS_UNAVAILABLE = 'sms_unavailable';
+    public const ERROR_MAIL_UNAVAILABLE = 'mail_unavailable';
     // SMS provider implementations the OTP service can send through. The
     // runtime key CODEMART_SMS_PROVIDER selects one; with none configured,
     // phone verification is optional in onboarding.
@@ -336,7 +337,6 @@ class CodeMartV1Constants
 
     // KYC private document storage (never the public disk).
     public const KYC_PRIVATE_DISK = 'local';
-    public const KYC_LEGACY_PUBLIC_DISK = 'public';
     public const KYC_FILE_COLUMNS = [
         'front' => 'id_front_image_path',
         'back' => 'id_back_image_path',
@@ -369,6 +369,12 @@ class CodeMartV1Constants
     public const THROTTLE_PUBLIC = 'throttle:120,1,codemart_public';
     public const THROTTLE_REGISTER = 'throttle:10,1,codemart_register';
     public const THROTTLE_CONTACT = 'throttle:5,1,codemart_contact';
+    // Authenticated route: the bucket is per user, not per IP.
+    public const THROTTLE_EMAIL_RESEND = 'throttle:3,10,codemart_email_resend';
+
+    // Email verification resend results (data.result); throttling is the standard 429.
+    public const EMAIL_RESEND_SENT = 'sent';
+    public const EMAIL_RESEND_ALREADY_VERIFIED = 'already_verified';
 
     // Additional capability keys
     public const CAPABILITY_ROLE_REQUEST = 'role.request';

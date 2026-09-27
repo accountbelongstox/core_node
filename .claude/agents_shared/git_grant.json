@@ -1,6 +1,6 @@
 {
-  "granted_at": "2026-09-27T11:50:57.009Z",
-  "expires_at": "2026-09-27T13:50:57.009Z",
+  "granted_at": "2026-09-27T11:59:41.275Z",
+  "expires_at": "2026-09-27T13:59:41.275Z",
   "session_id": "59362416-9b59-4a9b-b284-e4b3d83daf06",
-  "prompt_excerpt": "remote: Counting objects: 100% (23/23), done.\nremote: Compressing objects: 100% (1/1), done.\nremote: Total 12 (delta 11), reused 12 (delta 11), pack-reused 0 (from 0)\nUnpacking objects: 100% (12/12), "
+  "prompt_excerpt": "<agent-message from=\"a84615438c55c1f32\">\nshell-windows-G2 (D20 Windows) round 1 is changes_requested, with 2 blockers; the full verdict is in .claude/agents_shared/reviews/shell-windows-G2.json. Base "
 }

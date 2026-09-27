@@ -32,6 +32,10 @@
 
         // File browser logic
         let currentPath = localStorage.getItem('downloadCurrentPath') || '/';
+        function renderFileListError(message) {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = `<div style='color:#f00;padding:16px;'>${message}</div>`;
+        }
         function loadDir(dir) {
             if (!dir || dir === '' || dir === undefined) dir = '/';
             localStorage.setItem('downloadCurrentPath', dir);
@@ -42,8 +46,7 @@
                 })
                 .then(data => {
                     if (data.__accessError) {
-                        const fileList = document.getElementById('fileList');
-                        fileList.innerHTML = `<div style='color:#f00;padding:16px;'>${data.__accessError}</div>`;
+                        renderFileListError(data.__accessError);
                         return;
                     }
                     currentPath = data.path || '/';

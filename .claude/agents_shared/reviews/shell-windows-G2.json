@@ -1,0 +1,53 @@
+{
+  "task_id": "shell-windows-G2",
+  "role": "shell-windows",
+  "reviewer": "reviewer",
+  "round": 1,
+  "verdict": "changes_requested",
+  "base": "74e7770",
+  "base_note": "Diffed the working tree against 74e7770. This task's hunks were captured in backup commit 93f8de054 (21:48:43). Two hunks from other tasks are in the same files but not reviewed here: dd.ps1 script_symlink_path Join-Path and the gitput_unified.ps1 Invoke-SecretPasswordTool change, both in f4f223414 (15:57). The windows.md SPW-035 working-tree edit also belongs to another task. The stripped AI header blocks are ignored.",
+  "checked_at": "2026-09-27T21:58:14+10:00",
+  "notes": "B1 gitput_unified.ps1 (D20-WIN-LINKAGE): the user's 'one line ensuring the SSH GitHub origin' is never called. No call to Invoke-GitSyncEnsureGitHubSshOrigin exists anywhere in gitput_unified.ps1. Linux gitput_unified.sh:485 does call git_sync_ensure_github_ssh_origin in main(). GitSyncCommon.ps1:210-212 wrongly claims gitput reuses the function, and SPW-045 says 'aligned'. Fix: in the main try, after Set-Location $coreNodeDir (gitput_unified.ps1:1169), call Invoke-GitSyncEnsureGitHubSshOrigin -RepoRoot $coreNodeDir without aborting on failure, as Linux does. gitput sets EAP=Stop at :14, so make the get-url reads (GitSyncCommon.ps1:160,193) safe under Stop. Correct SPW-045. B2 duplicate reader: git_remotes.conf now has two PowerShell parsers. They are gitput_unified.ps1:420-441 Load-RemoteConfigs (regex) and GitSyncCommon.ps1:107-143 Get-GitSyncGitHubSshUrl, and gitput_unified.ps1:444 and :447 run them back to back. Fix: one no-regex reader in GitSyncCommon.ps1 (e.g. Get-GitSyncRemoteConfigs); Get-GitSyncGitHubSshUrl uses it and Load-RemoteConfigs delegates to it.",
+  "findings": {
+    "D20-WIN-SHARED": {
+      "status": "verified",
+      "detail": "GitSyncCommon.ps1 and syncgit.ps1: PS 5.1 Parser::ParseFile reports 0 errors on both. I stubbed git as an in-session function, which takes precedence over git.exe. `scripts\\winenvs\\syncgit.ps1 -DryRun` then made 0 git calls and printed repo root D:\\programing\\core_node, the remote git@github.com:accountbelongstox/core_node.git and the message win1.0.0up20260927-215509. `git remote -v` was unchanged before and after. The repo root comes from $PSScriptRoot through Split-Path, the URL from git_remotes.conf and the version from package.json via ConvertFrom-Json, and no .cmd shim was added (all 48 winenvs files are .ps1). Pull, stop and conflict listing match SPEC §1.5. Non-blocking issues are listed in non_blocking (N1-N3)."
+    },
+    "D20-WIN-DISPATCH": {
+      "status": "verified",
+      "detail": "Both powershell -File lines in dd.cmd now forward %*, and the file is CRLF like every other .cmd/.bat. dd.ps1 parses with 0 errors. I tested binding with a scratch copy of the new param block, via -File and via &. `help`, `-h` and `--help` bind to $Arguments[0]. `syncgit --dry-run` binds to [syncgit, --dry-run], also with -SkipInitialization in front. No arguments gives an empty command, so the menu path is unchanged. `cmd /c dd.cmd help` printed the table and returned, with no init lines. `& dd.ps1 syncgit --dry-run` with the stubbed git reached only the dry-run path and made 0 git calls. Both branches `return` before Set-ExecutionPolicy, GlobalVars.ps1 and Invoke-InteractiveMenu."
+    },
+    "D20-WIN-VERSION": {
+      "status": "verified",
+      "detail": "No dd/core_node version constant exists. The only *_VERSION= hits are the gitea_backup scripts' own BACKUP/RESTORE_CORE_NODE_VERSION. Root package.json line 3 has \"version\": \"1.0.0\". `git diff 74e7770 --stat` is empty for git_remotes.conf and for gitput_unified_modules/config.py, and the github= key already existed. The choice is recorded in the report and in SPW-045."
+    },
+    "D20-WIN-LINKAGE": {
+      "status": "changes_requested",
+      "detail": "Partly done. The URL read (Get-DefaultRemote, gitput_unified.ps1:405-417) and the write primitive (Set-RemoteUrl -> Set-GitSyncRemoteUrl, :501-511) are delegated, and grep finds set-url/remote add only in GitSyncCommon.ps1:167,170. Parser: 0 errors. Missing: the D20 user text asks for a line in gitunified that 'ensures switching to the SSH GitHub path and pushing to GitHub, not Gitee' (REQUIREMENTS §1 D20; SPEC §2), and gitput_unified.ps1 never calls Invoke-GitSyncEnsureGitHubSshOrigin (B1). Restore-OriginalRemote (:514-526) still restores a non-GitHub original remote such as Gitee, and it keeps its own compare-then-set (:519-521). Second defect: a duplicate git_remotes.conf reader (B2). Ledger: rows SPW-043/044/045 exist and have no id collision. Marking SPW-043/044 'aligned' instead of pending is justified, because the Linux D20 code is on disk and the align task shell-linux-5 exists (TASKS.md:135). SPW-045 'aligned' is false until B1 is fixed."
+    }
+  },
+  "issues": [
+    "B1 scripts/git/gitput_unified.ps1:1160-1170 + scripts/shells/win/win_common/GitSyncCommon.ps1:206-228: gitput_unified.ps1 never calls the 'ensure GitHub SSH origin' line (Invoke-GitSyncEnsureGitHubSshOrigin). The D20 user text requires it, and Linux gitput_unified.sh:485 calls git_sync_ensure_github_ssh_origin in main(). GitSyncCommon.ps1:210-212 wrongly says gitput reuses it, and SPW-045 wrongly says 'aligned'. -> After Set-Location $coreNodeDir (:1169), call Invoke-GitSyncEnsureGitHubSshOrigin -RepoRoot $coreNodeDir without aborting the push flow on failure (as Linux does). gitput sets $ErrorActionPreference='Stop' at :14, and I verified that in PS 5.1 `native 2>$null` then throws on any stderr output, so wrap GitSyncCommon.ps1:160,193 `git remote get-url` in one try/catch read helper; gitput's Get-CurrentRemote (:489-495) could also reuse that helper. Correct the docstring and SPW-045, then re-run Parser::ParseFile.",
+    "B2 scripts/git/gitput_unified.ps1:420-441 vs scripts/shells/win/win_common/GitSyncCommon.ps1:107-143: git_remotes.conf now has two PowerShell readers: Load-RemoteConfigs (regex) and Get-GitSyncGitHubSshUrl (IndexOf split). gitput_unified.ps1:444 and :447 parse the file twice in a row. This breaks the AGENTS.md rule on reusing and centralizing code and removing duplicate implementations. -> Add one no-regex reader to GitSyncCommon.ps1 (e.g. Get-GitSyncRemoteConfigs -RepoRoot, returning the key/value table). Make Get-GitSyncGitHubSshUrl return its 'github' key, and make Load-RemoteConfigs delegate to it, keeping its missing-file error. Linux has the same pair (gitput_repository_state.sh:232 load_remote_configs vs git_sync_common.sh:53-63); send that to shell-linux as the counterpart request."
+  ],
+  "non_blocking": [
+    "N1 GitSyncCommon.ps1:348: `git pull ... 2>&1 | Out-String` in PS 5.1 turns git's stderr progress lines ('From github.com:...') into NativeCommandError blocks ('git : From ... At ...:348 char ... CategoryInfo ... RemoteException'). I verified this with a cmd.exe stderr probe. -> Use `2>&1 | ForEach-Object { \"$_\" }`, as gitput's \"$pullResult\" already does. The missing `--no-edit` (a merge editor would hang behind the captured output) is already queued as D20-fix (TASKS.md:198, REQUIREMENTS:1031), so fold N1 into that task.",
+    "N2 GitSyncCommon.ps1:160,193 plus gitput_unified.ps1:491: the `git remote get-url` read is duplicated three times, and under a caller's EAP=Stop the `git remote add` branch at :165-167 can never run from gitput. Fold this into the helper named in B1.",
+    "N3 GitSyncCommon.ps1:337,344,361: the exit codes of `git add`, `git commit` and `git push` are not checked. A failed commit still goes on to pull and push, and a failed push still returns $true. -> Stop after an add or commit failure and return $false on a push failure (print a message only; no exit codes).",
+    "N4 GitSyncCommon.ps1:166,169: when gitput's github/gitee/local rotation calls Set-GitSyncRemoteUrl, it prints the '[syncgit] Executing:' prefix. That is cosmetic, and a neutral prefix would fit both callers.",
+    "N5 dd.ps1:63-109: $script:DdCliParamTable is used only for help, and dispatch is an if-chain. B9 reads 'one clean dispatch table per OS', and Linux's dd_register_param drives both help and dispatch. A Handler column would close that shape gap, but this is acceptable as the minimal version.",
+    "N6 gitput_unified.ps1:413-416: the fallback URL literal existed before this task and Linux mirrors it. Load-RemoteConfigs already exits when the conf file is missing, so it could be dropped once B2 is fixed.",
+    "N7 Parity ledger: .claude/agents_shared/shell_parity/linux.md has no SPL row for D20 yet. That belongs to shell-linux-5 (TASKS.md:135), not this task. The owner could not reach shell-linux (no session), so it put the counterpart note in its report; that fallback is acceptable."
+  ],
+  "checks": [
+    "git diff 74e7770 on dd.cmd, dd.ps1, gitput_unified.ps1 and windows.md, and a full read of the two new files; foreign hunks attributed to f4f223414 (15:57) with git show",
+    "PS 5.1 Parser::ParseFile: 0 errors on GitSyncCommon.ps1, syncgit.ps1, dd.ps1 and gitput_unified.ps1",
+    "Argument binding with a scratch copy of the dd.ps1 param block, via -File and &, for 8 argument sets",
+    "Dry run with git stubbed as an in-session function: winenvs syncgit -DryRun, dd.ps1 syncgit --dry-run and dd.ps1 --help made 0 git calls, and git remote -v was unchanged",
+    "cmd /c dd.cmd help: prints the table and returns, and %* forwarding works",
+    "PS 5.1 stderr probes: EAP=Stop with `2>$null` throws; EAP=Continue with `2>&1 | Out-String` prints NativeCommandError text",
+    "Linux counterpart read: git_sync_common.sh, gitput_unified.sh:478-485, gitput_repository_state.sh:226-245,450-476, and linux.md (no D20 rows)",
+    "Line endings: new .ps1 files, dd.ps1 and gitput_unified.ps1 are LF with 0 CR, like their win_common/winenvs siblings; dd.cmd and windows.md are all CRLF; no non-ASCII text added",
+    "Boundaries: all changed files are inside the assigned list; git_remotes.conf and config.py are untouched; no fenced core-node-e9 file was touched; no git write was run by the owner or the reviewer"
+  ]
+}

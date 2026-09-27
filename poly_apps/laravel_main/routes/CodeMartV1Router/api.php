@@ -46,6 +46,9 @@ Route::prefix('codemart/v1')->name('codemart.')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/bootstrap', [CodeMartV1BootstrapCtl::class, 'bootstrap'])->name('bootstrap');
 
+        Route::post('/auth/resend-verification-email', [CodeMartV1RegistrationCtl::class, 'resendVerificationEmail'])
+            ->middleware(CodeMartV1Constants::THROTTLE_EMAIL_RESEND)
+            ->name('resend-verification-email');
         Route::post('/auth/request-phone-verification', [CodeMartV1RegistrationCtl::class, 'requestPhoneVerification'])->name('request-phone-verification');
         Route::post('/auth/verify-phone-otp', [CodeMartV1RegistrationCtl::class, 'verifyPhoneOtp'])->name('verify-phone-otp');
         Route::post('/auth/upload-kyc-documents', [CodeMartV1RegistrationCtl::class, 'uploadKycDocuments'])->name('upload-kyc-documents');

@@ -413,6 +413,40 @@ cci_report_tmux_version() {
     fi
 }
 
+# Owner uid of the "unix:path=..." socket in DBUS_SESSION_BUS_ADDRESS, or empty
+# when unset/unreadable. Used to tell a real root session bus from one leaked
+# from another user's session (e.g. plain `su` instead of `su -`).
+cci_session_bus_owner_uid() {
+    local socket_path=""
+    socket_path="${DBUS_SESSION_BUS_ADDRESS#*unix:path=}"
+    socket_path="${socket_path%%,*}"
+    [ -n "$socket_path" ] && [ -S "$socket_path" ] || return 0
+    stat -c '%u' "$socket_path" 2>/dev/null
+}
+
+# A D-Bus factory terminal (gnome-terminal, ptyxis) is only a client: the
+# already-running server for that display owns the actual window and spawns the
+# attach command as ITS OWN user, not the caller's. Running as root through a
+# leaked desktop DBUS_SESSION_BUS_ADDRESS (uid mismatch) would silently open the
+# window, and the tmux attach, as the desktop user instead of root.
+cci_terminal_is_foreign_factory() {
+    local terminal="$1"
+    local bus_uid=""
+    [ "$(id -u)" = "0" ] || return 1
+    case "$terminal" in
+        gnome-terminal|ptyxis|kgx) ;;
+        x-terminal-emulator)
+            case "$(readlink -f "$(command -v x-terminal-emulator 2>/dev/null)" 2>/dev/null)" in
+                *gnome-terminal*|*ptyxis*|*kgx*) ;;
+                *) return 1 ;;
+            esac
+            ;;
+        *) return 1 ;;
+    esac
+    bus_uid="$(cci_session_bus_owner_uid)"
+    [ -n "$bus_uid" ] && [ "$bus_uid" != "0" ]
+}
+
 # Sets CCI_TEAM_TERMINAL to the first terminal of CCI_TEAM_TERMINALS on PATH, or
 # leaves it empty (headless) when there is no graphical display or no terminal.
 cci_detect_team_terminal() {
@@ -423,6 +457,10 @@ cci_detect_team_terminal() {
     fi
     for terminal in "${CCI_TEAM_TERMINALS[@]}"; do
         if command -v "$terminal" >/dev/null 2>&1; then
+            if cci_terminal_is_foreign_factory "$terminal"; then
+                echo "[SKIP] $terminal: its server belongs to uid $(cci_session_bus_owner_uid), not root (DBUS_SESSION_BUS_ADDRESS points at that user's session bus); the window and tmux attach would run as that user" >&2
+                continue
+            fi
             CCI_TEAM_TERMINAL="$terminal"
             return 0
         fi
@@ -602,6 +640,48 @@ cci_ensure_team_settings() {
     cci_check_remote_control_env
 }
 
+# Report-only: this account must be past first-run onboarding and logged in before
+# 30 role panes are spawned, or every pane silently stalls on the theme/login
+# screen instead of running its kickoff (each pane's PID stays alive, so a
+# liveness check alone reports "running" for a session that never started work).
+cci_check_claude_login() {
+    local exec_path=""
+    local status_json=""
+    local logged_in=""
+
+    exec_path="$(command -v "$CCI_EXEC" 2>/dev/null || true)"
+    if [ -z "$exec_path" ]; then
+        exec_path="$CCI_BIN_DIR/$CCI_EXEC"
+    fi
+    if [ ! -x "$exec_path" ]; then
+        echo "[SKIP] claude login check: $exec_path not installed yet"
+        return 0
+    fi
+
+    status_json="$(timeout "$CCI_VERSION_TIMEOUT_SECONDS" "$exec_path" auth status --json 2>/dev/null || true)"
+    logged_in="$(python3 - "$status_json" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1]
+try:
+    data = json.loads(raw) if raw else {}
+except ValueError:
+    print("UNKNOWN")
+    sys.exit(0)
+if not isinstance(data, dict):
+    print("UNKNOWN")
+    sys.exit(0)
+print("YES" if data.get("loggedIn") else "NO")
+PY
+)"
+    case "$logged_in" in
+        YES) echo "[OK] Claude Code is logged in: role panes will run their kickoff instead of stalling on setup" ;;
+        NO) echo "[WARN] Claude Code is not logged in: every role pane will stall on the first-run setup/login screen (each looks \"running\" by PID alone). Run 'claude' once interactively (or 'claude setup-token') to finish onboarding and login, then re-run this launcher." ;;
+        *) echo "[WARN] Could not read claude auth status ($exec_path auth status --json); role panes may stall on first-run setup" ;;
+    esac
+}
+
 # Shared team setup used by claude_code_install (dd.sh step 171), by the
 # claudeteamup/claudeagents launchers and on the server of a remote role:
 # prerequisites, directories, user settings, launcher links.
@@ -613,6 +693,7 @@ claude_team_install() {
     cci_ensure_dir "$CCI_SHARED_DIR/reviews" "reviewer verdicts (TaskCompleted gate)"
     cci_ensure_dir "$CCI_AGENT_MEMORY_DIR" "per-role agent memory (memory: project)"
     cci_ensure_team_settings
+    cci_check_claude_login
     cci_setup_claudeteam || true
 }
 

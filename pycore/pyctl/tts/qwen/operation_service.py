@@ -15,7 +15,11 @@ from pycore.pyutils.tts.qwen.client import queue_cancel, queue_submit_and_wait
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME
 
 OPERATION_TERMINAL_STATUSES = ("completed", "failed", "cancelled")
-ITEM_ACTIVE_STATUSES = ("running",)
+# "queued" covers the window between submit()'s start_bus_task call and
+# _run()'s start_item call (the item is still queued while the bus task is
+# starting); without it a re-submit in that window sees no "running" item
+# and starts a second _run for the same item.
+ITEM_ACTIVE_STATUSES = ("queued", "running")
 OPERATION_AUDIO_DIR_NAME = "qwen_operations"
 AUDIO_FORMATS = ("wav", "mp3")
 DEFAULT_AUDIO_FORMAT = "wav"

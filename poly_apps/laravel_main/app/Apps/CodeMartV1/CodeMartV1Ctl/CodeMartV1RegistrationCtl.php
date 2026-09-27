@@ -98,8 +98,7 @@ class CodeMartV1RegistrationCtl extends Controller
                 'role_activated_at' => $initialRoleStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE ? now() : null,
             ]);
 
-            $emailToken = $this->emailService->createEmailVerification($request->email);
-            $this->emailService->sendVerificationEmail($request->email, $emailToken);
+            $this->emailService->issueVerification((string) $request->email);
 
             return $user;
         });
@@ -145,8 +144,39 @@ class CodeMartV1RegistrationCtl extends Controller
 
         return $this->success([
             'user_id' => $user->id,
-            'next_step' => CodeMartV1OtpService::smsDeliveryAvailable() ? 'phone_verification' : 'kyc',
+            'next_step' => self::nextStepAfterEmail(),
         ], __('codemart.messages.email_verified_successfully'));
+    }
+
+    /**
+     * Mail a new verification link to the signed-in user's address. The route
+     * throttle (THROTTLE_EMAIL_RESEND) answers the standard 429 when exceeded.
+     */
+    public function resendVerificationEmail(Request $request): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
+        if ($user->email_verified_at !== null) {
+            return $this->success([
+                'result' => CodeMartV1Constants::EMAIL_RESEND_ALREADY_VERIFIED,
+                'next_step' => self::nextStepAfterEmail(),
+            ], __('codemart.messages.email_already_verified'));
+        }
+
+        if (!$this->emailService->issueVerification((string) $user->email)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_MAIL_UNAVAILABLE, __('codemart.errors.mail_unavailable'), null, 503);
+        }
+
+        return $this->success([
+            'result' => CodeMartV1Constants::EMAIL_RESEND_SENT,
+            'email' => $user->email,
+        ], __('codemart.messages.verification_email_sent'));
+    }
+
+    private static function nextStepAfterEmail(): string
+    {
+        return CodeMartV1OtpService::smsDeliveryAvailable() ? 'phone_verification' : 'kyc';
     }
 
     public function requestPhoneVerification(Request $request): JsonResponse

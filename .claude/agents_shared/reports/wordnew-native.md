@@ -1,5 +1,117 @@
 # wordnew-native report
 
+## wordnew-native-G2 (2026-09-27, diff base 74e7770)
+
+| Item | Status | Files written | Pending elsewhere |
+|---|---|---|---|
+| WNN-05 prerequisite gaps + entry parity | done in scope; the B2 half is a verified diff | `scripts/shells/win/win_common/AndroidBuildEnv.ps1`, `scripts/shells/win/install_powershells/Step62_InstallAndroidSdkPackages.ps1`, `scripts/shells/linux/common/android_build_env.sh`, `scripts/shells/linux/debian/install_shells/187_install_android_sdk.sh`, `native/wordnew/android/{build.gradle,variables.gradle}` | B2 writer applies `.claude/agents_shared/reports/wordnew-native-G2-b2.diff` (build_app.ps1, scripts/start_build.ps1, scripts/start_build.sh, scripts/flavor/flavor_build.py) |
+| WNN-06 readiness verification | done on Windows; the Linux runs are deferred | this report | the Linux runs, after core-node-e9 reports done (commands below) |
+
+Paths relative to `poly_apps/pycore_laravel_wordnew_ui/` (UI) unless they start with `scripts/` or `.claude/`. The user's sweep commits `93f8de054` (21:48:43) and `5e0eb3dc7` already contain my direct edits; I ran no git writes. Review against 74e7770.
+
+### Decisions (B9: I took the recommended option in each case)
+- **B2 files as a diff.** The item names four UI files and says they "need the B2 assignment". REQUIREMENTS §6 and `d22/merge_meta.json` record no B2 writer for them. So, as in G1, I did not edit them. The change is `.claude/agents_shared/reports/wordnew-native-G2-b2.diff` (705 lines, CRLF kept for the CRLF files).
+  - `git apply --check` passes from the repo root.
+  - `patch --binary -p1` on a copy of the current files gives byte-identical results: build_app.ps1 `99faadc8…`, start_build.ps1 `5d413552…`, start_build.sh `63e06ac8…`, flavor_build.py `af842baa…`.
+  - The base copies equal the current tree (`cmp`).
+  - The diff is independent of the G1 build_apk.py diff (no shared file), so the two can land in either order.
+- **"Android platform directory"** is the Capacitor platform `native/<app>/android`. The SDK platform `platforms;android-36` was already gated by `android.jar`.
+  - The new check lists missing `gradlew(.bat)`, wrapper jar/properties, `app/build.gradle` and `capacitor.settings.gradle`.
+  - In `start_build -Check` it is informational, not a blocker, because build_apk.py repairs it (`cap add android`, `cap sync`, and the G1 wrapper ensure).
+- **build_app.ps1 -Sync** now runs build_apk.py's full Android flow, the same as -Apk (which ends with Gradle). I did not add a sync-only mode, because build_apk.py is outside this item and has the pending G1 diff. `-Platform ios` is refused, as in start_build.
+  - The web path (flavor prep plus vite) stays Windows-only, as a thin wrapper over the shared flavor_build.py. It now uses build_apk.py's runner, `bun x vite build`.
+  - The delegation now exits with build_apk.py's exit code. Before, it returned 0 even when the build failed.
+- **Build-tools pin (F1).** Every Android module is pinned to the installers' constant 36.0.0 through a root `build.gradle` hook, and the value is in `variables.gradle`. I did not move the installers to AGP's default 35.0.0. A pin in `app/build.gradle` alone would leave the library modules on 35.0.0 (proved below).
+- **F5 (Linux gvar gates).** start_build.sh names the gate (`INSTALL_JAVA` / `INSTALL_ANDROID_SDK` = false) in its final error. It never flips the gate, because the gate is the user's dd configuration. 187 reads its gate through the library constant.
+- **Check modes.**
+  - Step62 `-Check` and 187 `--check` report only and always end normally ("no exit codes for return values").
+  - `start_build -Check/--check` keeps the script's single exit point: 0 when every prerequisite is ready, 1 otherwise.
+  - The license pass is gated on `licenses/android-sdk-license`. Package installs still accept licenses inline.
+- **flavor_build.py** now rewrites `capacitor.config.json` and `resources/icon.*` only when their content differs. It writes LF on every OS, because the dual-boot tree is shared. The first Windows run rewrites the ignored `capacitor.config.json` once, from CRLF to LF.
+
+### WNN-05 changes and parity
+
+| # | Change | Windows | Linux | Parity |
+|---|---|---|---|---|
+| P1 | JDK resolver takes the first candidate with major ≥ 21 (the Linux resolver used to stop at the first valid home, e.g. a JDK 17 JAVA_HOME) | `Resolve-AndroidBuildJavaHome` (already did this) | `android_build_resolve_java_home`; PATH java resolved with `readlink -f` | aligned |
+| P2 | The java major probe survives the `Stop` preference | `Get-AndroidBuildJavaMajor` sets a local `$ErrorActionPreference = "Continue"` | none | platform-only: in PS 5.1, stderr under 2>&1 becomes a terminating error. `GlobalVars.ps1:2` sets Stop, so every Windows JDK check returned major 0. Bash has no equivalent |
+| P3 | License pass gated on `licenses/android-sdk-license` | `Test-AndroidBuildSdkLicensesReady`, Step62 | `android_build_sdk_licenses_ready`, 187 | aligned |
+| P4 | Report-only check mode | Step62 `-Check` | 187 `--check` (it also reports the gate) | aligned |
+| P5 | Node toolchain detector (node, npx, bun; build_apk.py needs npx) | `Get-AndroidBuildMissingNodeCommands` | `android_build_missing_node_commands` | aligned |
+| P6 | Node deps markers: vite, `@capacitor/cli`, `core`, `android` | `Get-AndroidBuildMissingNodeDeps` | `android_build_missing_node_deps` | aligned |
+| P7 | Capacitor platform dir markers | `Get-AndroidBuildMissingPlatformFiles` (`gradlew.bat`) | `android_build_missing_platform_files` (`gradlew`) | aligned (the wrapper name differs per OS) |
+| P8 | dd install gate reader and names (`ANDROID_BUILD_{JAVA,SDK}_GATE`) | none | `android_build_install_gate`; 187 uses it | platform-only: Windows dd steps have no INSTALL_* gvar gates |
+| P9 | cmdline-tools temp dir created only when downloading | Step62 already uses `DOWNLOADS_DIR` only in that branch | 187 (keeps `--check` write-free) | aligned |
+| P10 | buildToolsVersion 36.0.0 for app and library modules | `native/wordnew/android` (one Gradle project for both OSes) | same | shared file |
+| D1 (diff) | Python step names (F4) | `Step8_InstallDefaultPython.ps1` | `13_install_default_python.sh` | aligned |
+| D2 | Node toolchain gate is node+npx+bun, and node deps use the P6 markers (was vite only) | start_build.ps1 | start_build.sh | aligned |
+| D3 | `-Check` / `--check` readiness (P5–P7 plus JDK/SDK; runs the step's check mode when the SDK is incomplete) | start_build.ps1 | start_build.sh | aligned |
+| D4 | Option names | `-DebugApk`, `-ReleaseApk`, alias `-SkipApkAssets`, alias `-CleanApk` | `--skip-assets`, `--clean` | aligned (table below) |
+| D5 | Gate note in the final error (F5) | none | `gate_note` | platform-only (as P8) |
+| D6 | -Sync delegates to build_apk.py, `bun x vite`, exit code propagated, iOS refused (F3) | build_app.ps1 | none | platform-only: build_app.ps1 is a Windows convenience wrapper. The build truth (build_apk.py, flavor_build.py) is shared, and Linux reaches it through start_build.sh |
+| D7 | Idempotent, LF flavor prep | flavor_build.py (shared) | same | shared file |
+
+Option parity after the diff (both scripts accept both spellings):
+
+| Windows | Linux |
+|---|---|
+| `-App` | `--app`, `--app=` |
+| `-List` | `--list` |
+| `-Check` | `--check` |
+| `-BuildType ask\|debug\|release` | `--build-type`, `--build-type=` |
+| `-DebugApk` / `-ReleaseApk` | `--debug-apk` / `--release-apk` |
+| `-Platform android\|ios` | `--platform`, `--platform=` |
+| `-SkipAssets` (alias `-SkipApkAssets`) | `--skip-apk-assets`, `--skip-assets` |
+| `-Clean` (alias `-CleanApk`) | `--clean-apk`, `--clean` |
+| `-NoOpenOutput` | `--no-open-output` |
+| `-NonInteractive` | `--non-interactive` |
+| `-ForceInstall` (`-f` by prefix) | `-f`, `--force-install` |
+
+WNN-05 verification:
+- PowerShell Parser: 0 errors on AndroidBuildEnv.ps1 and Step62 (tree), and on the patched start_build.ps1 and build_app.ps1 (scratch).
+- `bash -n` (GNU bash 5.2.37) passes on android_build_env.sh, 187 and the patched start_build.sh.
+- `python -m py_compile` passes on the patched flavor_build.py.
+- Changed PowerShell files are ASCII. The tree files keep their line endings (LF for the four prerequisite scripts, CRLF for the gradle files). The patched build_app.ps1 no longer has the em-dash and emoji, which PS 5.1 printed as mojibake.
+- Linux library, in Git Bash with `CORE_NODE_CACHE_DIR` set so that gvar_common.sh is not sourced:
+  - JAVA_HOME = a fake JDK 17 and a fake JDK 21 on PATH: the new resolver gives home = fake_jdk21, major 21, ready. The 74e7770 resolver gives fake_jdk17, major 17, not ready.
+  - Missing-list detectors: `[]` for the UI root and `native/wordnew/android`. All markers are listed for a scratch root and for `native/codemart/android`.
+  - The gate reader gives `[]` without the gvar store. The license gate is yes for the real SDK root and no for an empty root.
+- Windows library (detectors_check.ps1 under GlobalVars): node commands `[]`, UI deps `[]`, wordnew platform `[]`, codemart platform = all five markers, java ready (`D:\.dev_win10\Java21`), caller preference still `Stop`, SDK and licenses ready.
+- Fenced files: none of my changed files is fenced. `git diff 74e7770 --name-only` lists gvar_common.sh, gvar_storage_common.sh, mount_common.sh, pyservice_entry.sh, shared_cache_env.sh and SharedCacheEnv.ps1, but those changes are core-node-e9's work and none is mine.
+
+### WNN-06: readiness verification
+
+| # | Command | Exit | Result |
+|---|---|---|---|
+| 0 | free RAM | — | 1.48 GB (21:27; static checks only at that point), 3.41 GB (21:49), 4.47 / 3.63 / 3.27 GB right before each Gradle run (21:50:54, 21:51:51, 21:53:13), 4.37 GB (21:57) |
+| 1 | `python scripts/flavor/flavor_build.py --app wordnew --root UI` (tree, current script), run 1 | 0 | `capacitor.config.json` sha256 `7ed5ec47…` and `resources/icon.svg` `b429d9bf…` unchanged; mtime rewritten |
+| 2 | the same, run 2 | 0 | same hashes. `git status` on `resources/` and `capacitor.config.json` is clean. The config matches `flavors/wordnew/flavor.json`: appId `com.corenode.wordnew`, appName `WordNew`, backgroundColor and splash `#0f172a`, webDir `dist`. `android.path` is `native/wordnew/android` and the dir exists. `app/build.gradle` namespace and applicationId are the same id |
+| 3 | patched flavor_build.py twice on a scratch root (copy of flavors/wordnew, the config, icon.svg, plus stale icon.png and splash.png) | 0, 0 | run 1: "wrote" config (CRLF→LF), removed the stale icon.png and splash.png, icon.svg "unchanged". Run 2: both "unchanged", with the same mtime and sha256 (`4b9b7efc…`). The JSON equals the tree's apart from CRLF |
+| 4 | `python scripts/flavor/build_apk.py --root UI --list` | 0 | `codemart CodeMart com.core-node.codemart`, `wordnew WordNew com.corenode.wordnew`, skipped shell and vortex (Android is not enabled) |
+| 5 | `scripts/start_build.ps1 -List` (tree) | 0 | the same list; no step invoked |
+| 6 | `Step62_InstallAndroidSdkPackages.ps1 -Check` (tree) | 0 | JDK 21+ `D:\.dev_win10\Java21`, SDK root `C:\Users\mpc\AppData\Local\Android\Sdk`, and cmdline-tools, licenses, platform-tools, android-36, build-tools 36.0.0 and ANDROID_HOME are all ready. Before the P2 fix, the same run reported "JDK 21+ missing" (a false negative) |
+| 7 | Step62 `-Check` with `ANDROID_HOME`/`LOCALAPPDATA` pointed at a scratch SDK that has only adb | 0 | missing: cmdline-tools, licenses, platform, build-tools; the scratch SDK is unchanged afterwards |
+| 8 | patched `start_build.ps1 -Check -App wordnew` (scratch run tree, junctions to the real dirs) | 0 | node toolchain, python, node deps, JDK, SDK and platform dir are ready; "all build prerequisites are ready"; nothing is invoked |
+| 9 | patched `start_build.ps1 -Check -App codemart -SkipApkAssets -CleanApk -DebugApk` | 0 | aliases bind; platform dir reported (informational) as missing all five markers |
+| 10 | patched `start_build.ps1 -List` (scratch) | 0 | build_apk.py reached. Entries show as skipped only because `resolve()` follows the scratch junctions out of the scratch root |
+| 11 | patched `build_app.ps1 -List` / `-Sync -App nope -NonInteractive` / `-Sync -App wordnew -Platform ios` | 0 / 2 / non-zero | flavor list; build_apk.py reached and its exit 2 propagated; iOS refused before any command |
+| 12 | Gradle configuration check (scratch copy of `native/wordnew/android` with the tree's build.gradle, variables.gradle and app/build.gradle, a scratch copy of `@capacitor/android`, init script printing `android.buildToolsVersion`; `gradlew --offline --no-daemon help`, Gradle 8.14.3 / AGP 8.13.0) | 0 | pinned: `:app`, `:capacitor-android` and `:capacitor-cordova-android-plugins` all at 36.0.0. Baseline (hook and ext removed): all three at 35.0.0. With `--warning-mode all`, the only warnings are for the scratch copy's missing plugin dirs. The first attempt exited 1 because my trimmed settings dropped plugin projects; it was a scratch setup error and was fixed |
+| 13 | debug APK build | not run | the configuration check (12) confirmed the Gradle configuration, so no APK build was needed. No release build |
+| 14 | Linux: `start_build.sh --list`, `187_install_android_sdk.sh --check`, patched `start_build.sh --check --app wordnew` in Debian WSL | deferred | no "done" report from core-node-e9 reached me. At 21:57 it was idle, and its fenced files were committed in `5e0eb3dc7`, but that is not a report. Only `bash -n` and the gvar-free library tests ran |
+
+Deferred Linux commands, to run from `/www/programing/core_node` (or the WSL mount of D:) once core-node-e9 reports done:
+- `bash poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh --list` (expect exit 0 and the list in row 4);
+- `bash scripts/shells/linux/debian/install_shells/187_install_android_sdk.sh --check` (report only; exit 0);
+- after the diff lands: `bash poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh --check --app wordnew`.
+
+Scratch: `scratchpad/wnn_g2/` holds a/ (base), b/ (patched), apply_test/, flavor_root/, gradle_bt/ and fake JDK/SDK dirs. The run-tree junctions were removed link-only with `[IO.Directory]::Delete`. No Gradle JVM is left running.
+
+### Cross-scope and next owners
+- orchestrator: assign the B2 writer for `build_app.ps1`, `scripts/start_build.ps1`, `scripts/start_build.sh` and `scripts/flavor/flavor_build.py`. My recommendation is wordnew-native, with pycore-ui as the fallback. The writer applies it from the repo root with `git apply .claude/agents_shared/reports/wordnew-native-G2-b2.diff` and checks the four sha256 values above.
+- The same B2 writer: `flavors/README.md` still documents `-App vortex -Native -Sync -Platform android` and `npm install` / `npx cap sync`. After the diff, -Sync goes through build_apk.py, which refuses flavors whose `platforms` lack android (vortex).
+- Still open from G1: the build_apk.py diff (F6), the `.gitignore` wrapper negation (F7), WNN-signing-key, and F2 (commit the regenerated `capacitor.settings.gradle` after the next `cap sync`).
+- wordnew-lead: verdict wordnew-native-G2, and the Linux runs of WNN-06 once core-node-e9 reports done (or re-dispatch them to me).
+
 ## wordnew-native-G1 (2026-09-27, diff base 74e7770)
 
 | Item | Status | Files written | Pending elsewhere |

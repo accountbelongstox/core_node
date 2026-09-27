@@ -14,10 +14,9 @@ import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList } from '../components/workspace/useCmPagedList';
 
-const COMPLEXITIES = ['simple', 'medium', 'complex', 'very_complex'] as const;
-const BUDGET_TYPES = ['fixed', 'hourly'] as const;
+const DEFAULT_COMPLEXITY = 'medium';
+const DEFAULT_BUDGET_TYPE = 'fixed';
 const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
-const PROJECT_STATUSES = ['draft', 'proposal_review', 'funding_pending', 'open', 'in_progress', 'paused', 'completed', 'cancelled', 'archived'] as const;
 const DEFAULT_CURRENCY = 'CNY';
 const MIN_BUDGET = 100;
 const TITLE_MAX_LENGTH = 255;
@@ -34,7 +33,7 @@ const extractProjects = (data: { projects: CmProject[]; pagination: unknown }) =
 export const CmProjectsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { hasCapability } = useCmBootstrap();
+  const { hasCapability, states } = useCmBootstrap();
   const canCreate = hasCapability('project.create');
   const [status, setStatus] = useState<string>(ALL_STATUSES);
   const [searchDraft, setSearchDraft] = useState('');
@@ -89,7 +88,7 @@ export const CmProjectsPage: React.FC = () => {
           <span className="cm-visually-hidden">{t('projects.statusFilter')}</span>
           <select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value={ALL_STATUSES}>{t('projects.allStatuses')}</option>
-            {PROJECT_STATUSES.map((value) => (
+            {states('project').map((value) => (
               <option key={value} value={value}>{t(`states.project.${value}`)}</option>
             ))}
           </select>
@@ -156,15 +155,15 @@ const CmFieldLabel: React.FC<{ label: string; required?: boolean; hint?: string 
 export const CmProjectCreatePage: React.FC = () => {
   const { t } = useTranslation('cm');
   const navigate = useNavigate();
-  const { bootstrap, hasCapability, refresh } = useCmBootstrap();
+  const { bootstrap, hasCapability, refresh, policyList } = useCmBootstrap();
   const notice = useCmNotice();
   const canCreate = hasCapability('project.create');
   const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [complexity, setComplexity] = useState('medium');
+  const [complexity, setComplexity] = useState<string>(DEFAULT_COMPLEXITY);
   const [budget, setBudget] = useState('');
-  const [budgetType, setBudgetType] = useState<string>('fixed');
+  const [budgetType, setBudgetType] = useState<string>(DEFAULT_BUDGET_TYPE);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [stack, setStack] = useState<Record<CmStackField, string>>({ skills: '', languages: '', frameworks: '', databases: '' });
@@ -239,7 +238,7 @@ export const CmProjectCreatePage: React.FC = () => {
         <label>
           <CmFieldLabel label={t('projectCreate.budgetType')} required />
           <select value={budgetType} onChange={(event) => setBudgetType(event.target.value)}>
-            {BUDGET_TYPES.map((value) => (
+            {policyList('budget_types').map((value) => (
               <option key={value} value={value}>{t(`projectCreate.budgetTypes.${value}`)}</option>
             ))}
           </select>
@@ -247,7 +246,7 @@ export const CmProjectCreatePage: React.FC = () => {
         <label>
           <CmFieldLabel label={t('projectCreate.complexity')} required />
           <select value={complexity} onChange={(event) => setComplexity(event.target.value)}>
-            {COMPLEXITIES.map((value) => (
+            {policyList('complexities').map((value) => (
               <option key={value} value={value}>{t(`estimate.complexities.${value}`)}</option>
             ))}
           </select>

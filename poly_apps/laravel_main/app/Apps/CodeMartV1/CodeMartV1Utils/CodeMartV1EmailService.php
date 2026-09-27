@@ -41,6 +41,15 @@ class CodeMartV1EmailService
         return CodeMartV1EmailVerificationModel::consume($email, $token);
     }
 
+    /**
+     * Issue a fresh verification token (replacing the previous one) and mail
+     * it. Registration and resend share this single token path.
+     */
+    public function issueVerification(string $email): bool
+    {
+        return $this->sendVerificationEmail($email, $this->createEmailVerification($email));
+    }
+
     public function createEmailVerification(string $email): string
     {
         $token = $this->generateVerificationToken();
