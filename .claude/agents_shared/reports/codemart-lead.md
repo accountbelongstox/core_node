@@ -164,3 +164,110 @@ codemart-laravel: codemart-laravel-G1 takes the 3 blocking issues and the open D
   - Carried open items: codemart-laravel-G1 takes the D7 notes; pycore-laravel takes the system/init auth and the sys:codemartinit literals.
   - codemart-ui should type `vocabulary.terminal_states` in CmApiTypes.ts.
 - Next owner: codemart-ui (cmdesign-03 can now drop CmSubmissionsPanel.tsx:15 and CmProjectAnalysisPanel.tsx:13); pycore-laravel for the referrals.
+
+## codemart-lead-G1 (lead's own items; verdict by the reviewer service in `reviews/codemart-lead-G1.json`)
+
+UI below means `poly_apps/pycore_laravel_wordnew_ui/`. Diff base 74e7770. The user's backup commit 4ddb4be8e (20:24) already holds the first generator version; the working tree adds the later subject edits and the regenerated icons.
+
+### d9-01-gen: done (Laravel gateway run pending for the user)
+
+- Files:
+  - `UI/apps/codemart/assets/generate_cm_images.py` (LF kept; still the only generator).
+  - `UI/apps/codemart/assets/icons/*.webp`, 28 new files.
+  - `docs_fix/codemart_docs/PROGRESS_20260927_CODEMART_PAGE_POLISH.md` §3.1 (prompts, provider, sizes, ICON_SET_VERSION).
+- Generator changes:
+  - `--group images|icons` (default images), `--gateway laravel|pycore` (default laravel), `--dry-run`.
+  - Icon group: 12 nav icons (one per cmPages.tsx entry id), 7 feature icons (the CmDashboardPage metric ids), 4 category icons (project complexity, which is the public `category` field) and 5 empty-state icons. One flat square style, no text.
+  - `ICON_SET_VERSION = 1`, `ICON_SIZE = 128`, `ICON_MAX_BYTES = 30 KB`. The WebP quality steps down from 76 until the file fits; the images group got the 120 KB budget from the requirements §5.
+  - Laravel gateway: `POST /api/local/ai/image` on `http://127.0.0.1:9000`. Host and port are resolved through `pycore.pyfoundations.service_contract` (hosts.loopback, ports.laravel_api_backend). Proxies are bypassed, no token is sent, and the dashboard.auth loopback debug session is used.
+  - The pycore gateway is unchanged. `--provider` is accepted only with `--gateway pycore`, because the Laravel route has no provider field.
+- Verification:
+  - `py_compile` OK.
+  - `--help` lists `--group`, `--gateway` and `--dry-run`.
+  - `--group icons --dry-run` prints 28 `plan <name> 1:1 128px ...: <full prompt>` lines, exit 0, and calls no gateway (it only resolves the URL).
+  - An unknown `--only` name and `--provider` with the laravel gateway both exit 2 with a usage error.
+  - After the run, all 28 icons are WEBP 128x128. The largest is 1554 bytes and the total is 25402 bytes. None is git-ignored.
+- Run:
+  - Free RAM was 4.57 GB before the icon run and 3.62 / 3.12 GB before the two `--only` passes.
+  - Laravel gateway: 28/28 failed with `cURL error 60 ... unable to get local issuer certificate`. The FrankenPHP PHP has no CA bundle (`curl.cainfo` and `openssl.cafile` are empty in `D:\www\frankenphp\php-conf.d`), so every outgoing HTTPS call from Laravel fails.
+  - pycore gateway (`--gateway pycore --provider openrouter`, model google/gemini-2.5-flash-image): 28/28 generated.
+  - Two `--only` passes regenerated 6 weak icons, then 3; details are in PAGE_POLISH §3.1.
+  - I judged quality visually from contact sheets (scratchpad `icons_sheet.png`, `icons_regen*.png`).
+  - Residue:
+    - Some tiles have rounded corners, so the UI should clip icon images with a border radius.
+    - category-medium shows arrows on its blocks.
+- Deferrals and cross-scope:
+  - **User + shell-windows:** set a CA bundle for the FrankenPHP PHP (Step96 `Ensure-FrankenPhpPhpConfiguration`, `FrankenPhpManager.ps1`), then restart FrankenPHP; a worker restart is not enough for ini changes. The local instance must not be stopped by roles, so the restart is the user's. After that, re-run `python generate_cm_images.py --group icons --force` to prove the default Laravel gateway. This defect also breaks every other outgoing HTTPS call from the local Laravel (all AiGateway providers).
+  - **codemart-ui (d9-01-ui) can start:**
+    - wire `assets/icons/<name>.webp` into cmPages.tsx and CmDashboardPage (the dashboard shortcuts reuse the nav icon of the same page id);
+    - add the i18n alt texts in cm-locales;
+    - clip with a border radius;
+    - fold the icons into the IMG-01 registry (`assets/cmImageRegistry.ts`, which codemart-ui created in G1).
+  - `docs_fix/codemart_docs/REQUIREMENTS_20260927_CODEMART_PAGE_POLISH.md` §5 still names only the pycore gateway. It is outside this task's file list and is left for a later lead pass.
+
+### d9-redis: audit done; post-D9-01 proof pending on pycore-laravel
+
+- Files: `docs_fix/codemart_docs/PROGRESS_20260927_CODEMART_GAP_COMPLETION.md` §8.2.
+- Audit:
+  - `grep -rnE "Cache::store|Redis::|RateLimiter::for|->lock\(|cache\(\)->store"` over `app/Apps/CodeMartV1` and `routes/CodeMartV1Router` returns 0 hits (grep exit 1).
+  - Cache::remember and Cache::forget run only on the default store (`CodeMartV1PublicHomeService.php:54-62`).
+  - THROTTLE_* uses the default limiter.
+  - All money paths use `lockForUpdate` inside transactions.
+  - Queues stay sync.
+  - The audit found no CodeMart code change, so there is no codemart-laravel follow-up.
+- Baseline probe (scratchpad `cm_redis_probe/probe.php`, in-process, both connections rolled back):
+  - `cache.default=database`, `queue.default=sync`, `extension_loaded('redis')=false`, and `php -m` has no redis.
+  - public/home returns 200 and is cached afterwards.
+  - The `X-RateLimit-Remaining` header went 119 then 118 of 120.
+  - `fundProject` on project 3 funded the escrow and ran `select * from "codemart_v1_wallets" where "user_id" = ? limit 1 for update`.
+  - The probe printed "rolled back".
+- Deviation: free RAM was 2.32 GB when this light probe ran. It was checked in the same command, not before it. Later RAM was 1.13 GB, so the separate residue query was skipped: psql is not on PATH, and another PHP bootstrap was not run. The probe only rolls back, and fundProject has no mail or notification side effects.
+- Pending: D9-01 has not landed (`config/cache.php:18` is still `LaravelConfig::CACHE_STORE` = database, and there is no failover store). The same probe re-runs in G3. If D9-01 is still missing then, it is recorded as pending on pycore-laravel.
+
+### d9-04-docs: done
+
+- Files, all under `docs_fix/codemart_docs/` and all LF:
+  - `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`:
+    - the legend gains missing and superseded;
+    - rows G10, U06 (advisory), U28, U30 (analysis accept missing), U31 and D01 (superseded by D17);
+    - the §6 password text is removed;
+    - each §7 item has a status and evidence;
+    - new §8: 8.1 row table with file:line or task id, 8.2 Redis, 8.3 D22 choices.
+  - `PROGRESS_20260927_CODEMART_PAGE_POLISH.md`:
+    - the 13 K3 rows go from rough to polished, each with CmPageHeader and state lines; the crawl is G3;
+    - legend note;
+    - §3.1 icons;
+    - log entries.
+  - `PROGRESS_20260919_CODEMART_CONTINUATION.md`: the "175 asks, default no" demo-data text is superseded by D17.
+  - `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`: the reviewer role and flow are advisory, and the date line notes it.
+  - `PROGRESS_20260823_CODEMART_{INTEGRATION,LARAVEL_MAIN,PYCORE_UI}.md`:
+    - a D9 reconciliation pointer;
+    - the U30, U05/U06 and G10 superseded rows carry their current state;
+    - bootstrap "no local copy" becomes partial (cmdesign-03);
+    - i18n "done" gets the ledger exception (CKA-28-ui).
+- Verification:
+  - `grep -rn "Codemart#2026" docs_fix/codemart_docs` finds 0 hits, and `grep "Codemart#"` finds 0.
+  - The evidence lines were re-read in the code (cmAuthSession.ts:26-38, EscrowService.php:45-50, ReviewerCtl.php:153-156, TaskCtl.php:615, Constants.php:297,799,812,842, AdminService.php:103/625/661, Initializer.php:408,547).
+  - Line numbers drift while the members edit in G1; §8 says so.
+- Cross-group (orchestrator):
+  - the `docs_fix/` root copies of DESIGN_20260823, PROGRESS_20260823_*, PROGRESS_20260919 and REQUIREMENTS_20260927_CODEMART_PAGE_POLISH need their superseded marks;
+  - the lang-file temporary writer is requested (D22 choice).
+
+### Decisions taken without asking
+
+- Laravel is the default gateway. When it failed on this host, I used the pycore gateway, the second path that the item allows, rather than leave the icons pending. The Laravel failure is recorded for the user.
+- OpenRouter was pinned for one style, as in the K5 image run.
+- Icon size 128 covers 2x at 64 px. "Category" means project complexity, because the public API's `category` is `complexity`, and the feature icons follow the dashboard metric ids.
+- The K3 status is `polished` rather than `verified`, because the live crawl is G3.
+
+### Blockers
+
+- The Laravel gateway run needs the FrankenPHP CA bundle (user and shell-windows).
+- The post-D9-01 Redis proof needs pycore-laravel D9-01.
+
+### Next owner
+
+- codemart-ui: d9-01-ui.
+- reviewer: the codemart-lead-G1 verdict.
+- pycore-laravel: D9-01.
+- shell-windows and the user: the FrankenPHP CA bundle.

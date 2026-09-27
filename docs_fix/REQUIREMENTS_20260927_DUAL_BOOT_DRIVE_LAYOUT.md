@@ -74,6 +74,24 @@ Evidence: the workflow outputs of this session, i.e. the chkdsk research, the NT
   - Resulting P1 amendment:
     - `XDG_CACHE_HOME` moves to ext4, because it carries Linux-only desktop and tool caches.
     - Shared model caches get explicit variables that point at the shared NTFS cache: `HF_HOME`, `TORCH_HOME`, and the Whisper model dir that pycore reads (check which variable before moving `XDG_CACHE_HOME`).
+- D27 (team directive, relayed by ca-orchestrator): remove `core_node_trees` everywhere.
+  - Caches move under `<tool_root>/cache`.
+  - Linux per-project directories go under `<tool_root>/trees` and are bind-mounted over plain in-repo directories.
+  - Windows gets no junctions (`trees_root.windows = null`).
+- Q&A (user): "node module是否可以双系统共享，如果可以则不用连接，不可以则需要连接。"
+  - Answer: no. Each OS needs its own `node_modules`, `vendor` and `.venv`, because of native addons (esbuild/rollup/sharp/swc platform packages), `.bin` shims (`.cmd` vs symlinks), and the pnpm store and link layout.
+  - Sharing them also caused the NTFS corruption.
+- D28 (verbatim): "联接到 E: 现在代码就要直接重构，在没有分好E秀前可以提示。"
+  - This revises D27 for Windows. The code now junctions `node_modules`, `vendor` and `.venv` to the E: tree root per project namespace.
+  - While E: is absent, it warns and keeps the normal in-repo directories.
+  - On Linux the repo entry is then a Windows junction, so a per-project bind is impossible (mounting over a dangling junction fails). The Linux side goes back to one bind of `<tool_root>/trees` at the translated path `/www/core_node_trees`.
+  - That needs the contract change and the empty mount-point exception from ca-orchestrator (proposed 2026-09-27).
+- D28 applied by ca-orchestrator, then D30 (team directive, spec `development-guides/DIRECTORY_NAMESPACE_RULES.md`): one namespace directory per drive or filesystem.
+  - Namespaces: `E:\core_node_compiler`, `D:\www`, Linux ext4 `/opt/core_node`, and Linux NTFS `/www/www` (shared data) plus `/www/core_node_compiler` (the parent of the single empty trees mount point).
+  - Contract keys: `tool_root`, `cache_root`, `trees_root`, `trees_mount_linux` and `toolchain_env_file`. Some keys now hold per-OS objects.
+  - Legacy top-level directories stay in place and keep being read until the user approves a migration.
+  - This supersedes the root paths named in §3.
+  - The consolidated workflow `dual-boot-drive-layout-consolidated-d24-d30` implements D24–D30 in the fenced files.
 - D25 (team directive, `LINUX_SHELL_RULES.md` §2): no recycle bin on an NTFS mount on Linux.
   - Scripts and programs never trash there: no `gio trash`, `trash-put`, `kioclient` trash, `send2trash`, and no hand-made `.Trash*`.
   - `mount_common.sh` blocks per-volume trash idempotently. When no trash exists at the mount root, it places an empty, root-owned, non-writable regular file `.Trash-<uid>` there. When a trash directory already exists, it reports it and leaves it alone.

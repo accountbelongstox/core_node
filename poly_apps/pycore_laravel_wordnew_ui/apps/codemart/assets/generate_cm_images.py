@@ -157,7 +157,6 @@ def _encode_webp(image: Image.Image, max_bytes: int) -> bytes | None:
 
 
 def _laravel_image_url() -> str:
-    sys.path.insert(0, REPO_ROOT)
     from pycore.pyfoundations.service_contract import build_url, host, port
 
     return build_url('http', host(LARAVEL_HOST_KEY), port(LARAVEL_PORT_KEY), LARAVEL_IMAGE_PATH)
@@ -178,7 +177,6 @@ def _laravel_generate(url: str, prompt: str, aspect: str, source: str) -> dict:
 
 
 def _pycore_generator(provider: str):
-    sys.path.insert(0, REPO_ROOT)
     from pycore.pyctl.ai.ai_gateway import generate_image
 
     return lambda prompt, aspect, source: generate_image(prompt=prompt, size=aspect, source=source, provider=provider or None)
@@ -204,6 +202,7 @@ def main() -> int:
     if args.provider and args.gateway != GATEWAY_PYCORE:
         parser.error('--provider applies to the pycore gateway only')
 
+    sys.path.insert(0, REPO_ROOT)
     if args.group == GROUP_ICONS:
         print(f'icon set version {ICON_SET_VERSION}, {ICON_SIZE}x{ICON_SIZE}, max {ICON_MAX_BYTES // 1024} KB')
     if args.gateway == GATEWAY_LARAVEL:

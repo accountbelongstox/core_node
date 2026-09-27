@@ -30,7 +30,6 @@ export const CM_PROTECTED_ROUTE = {
   architect: '/codemart/architect',
   wallet: '/codemart/wallet',
   notifications: '/codemart/notifications',
-  settings: '/codemart/settings',
 } as const;
 
 export const CM_ADMIN_ROUTE = {

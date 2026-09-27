@@ -47,10 +47,17 @@ class CodeMartV1Constants
     public const COMPLEXITY_MEDIUM = 'medium';
     public const COMPLEXITY_COMPLEX = 'complex';
     public const COMPLEXITY_VERY_COMPLEX = 'very_complex';
+    public const COMPLEXITIES = [
+        self::COMPLEXITY_SIMPLE,
+        self::COMPLEXITY_MEDIUM,
+        self::COMPLEXITY_COMPLEX,
+        self::COMPLEXITY_VERY_COMPLEX,
+    ];
 
     // Budget Types
     public const BUDGET_TYPE_FIXED = 'fixed';
     public const BUDGET_TYPE_HOURLY = 'hourly';
+    public const BUDGET_TYPES = [self::BUDGET_TYPE_FIXED, self::BUDGET_TYPE_HOURLY];
 
     // Task Status
     public const TASK_STATUS_PENDING = 'pending';
@@ -67,6 +74,12 @@ class CodeMartV1Constants
     public const TASK_PRIORITY_MEDIUM = 'medium';
     public const TASK_PRIORITY_HIGH = 'high';
     public const TASK_PRIORITY_URGENT = 'urgent';
+    public const TASK_PRIORITIES = [
+        self::TASK_PRIORITY_LOW,
+        self::TASK_PRIORITY_MEDIUM,
+        self::TASK_PRIORITY_HIGH,
+        self::TASK_PRIORITY_URGENT,
+    ];
 
     // Submission Status
     public const SUBMISSION_STATUS_PENDING = 'pending';
@@ -83,6 +96,8 @@ class CodeMartV1Constants
     public const PAYMENT_STATUS_CANCELLED = 'cancelled';
     public const PAYMENT_STATUS_DISPUTED = 'disputed';
     public const PAYMENT_STATUS_REFUNDED = 'refunded';
+    // Payment states a payer may request a refund on (and a refund may settle).
+    public const PAYMENT_REFUNDABLE_STATUSES = [self::PAYMENT_STATUS_COMPLETED, self::PAYMENT_STATUS_DISPUTED];
 
     // Escrow Status
     public const ESCROW_STATUS_HELD = 'held';
@@ -121,6 +136,18 @@ class CodeMartV1Constants
     public const PAYMENT_TYPE_HOURLY = 'hourly';
     public const PAYMENT_TYPE_REFUND = 'refund';
     public const PAYMENT_TYPE_BONUS = 'bonus';
+    public const PAYMENT_TYPES = [
+        self::PAYMENT_TYPE_MILESTONE,
+        self::PAYMENT_TYPE_HOURLY,
+        self::PAYMENT_TYPE_REFUND,
+        self::PAYMENT_TYPE_BONUS,
+    ];
+    // Types a user may create through POST /payments (refund payments are system-made).
+    public const PAYMENT_CREATABLE_TYPES = [
+        self::PAYMENT_TYPE_MILESTONE,
+        self::PAYMENT_TYPE_HOURLY,
+        self::PAYMENT_TYPE_BONUS,
+    ];
 
     // Payment Methods
     public const PAYMENT_METHOD_WALLET = 'wallet';
@@ -139,6 +166,11 @@ class CodeMartV1Constants
     public const IDENTITY_TYPE_ID_CARD = 'ID_CARD';
     public const IDENTITY_TYPE_PASSPORT = 'PASSPORT';
     public const IDENTITY_TYPE_DRIVING_LICENSE = 'DRIVING_LICENSE';
+    public const IDENTITY_TYPES = [
+        self::IDENTITY_TYPE_ID_CARD,
+        self::IDENTITY_TYPE_PASSPORT,
+        self::IDENTITY_TYPE_DRIVING_LICENSE,
+    ];
 
     // AI Analysis Status
     public const AI_ANALYSIS_PENDING = 'pending';
@@ -255,6 +287,7 @@ class CodeMartV1Constants
     // Dispute resolutions
     public const DISPUTE_RESOLUTION_REFUND = 'refund';
     public const DISPUTE_RESOLUTION_COMPLETE = 'complete';
+    public const DISPUTE_RESOLUTIONS = [self::DISPUTE_RESOLUTION_REFUND, self::DISPUTE_RESOLUTION_COMPLETE];
 
     // Bank transfer reference prefix shown with deposit bank instructions
     public const DEPOSIT_BANK_REFERENCE_PREFIX = 'CMDEP-';
@@ -277,6 +310,8 @@ class CodeMartV1Constants
         self::ROLE_STATUS_REJECTED => [self::ROLE_STATUS_PENDING],
     ];
     public const ROLE_STATUS_REASON_REQUIRED = [self::ROLE_STATUS_SUSPENDED, self::ROLE_STATUS_REJECTED];
+    // Administration: statuses an administrator may grant a new role with.
+    public const ROLE_ADMIN_GRANT_STATUSES = [self::ROLE_STATUS_PENDING, self::ROLE_STATUS_ACTIVE];
 
     // Administration: project intervention target states.
     public const ADMIN_PROJECT_TARGET_STATUSES = [
@@ -317,6 +352,7 @@ class CodeMartV1Constants
     // Contact message status
     public const CONTACT_STATUS_NEW = 'new';
     public const CONTACT_STATUS_HANDLED = 'handled';
+    public const CONTACT_STATUSES = [self::CONTACT_STATUS_NEW, self::CONTACT_STATUS_HANDLED];
 
     // Localized public content
     public const DEFAULT_LOCALE = 'en';
@@ -459,6 +495,19 @@ class CodeMartV1Constants
             self::SUBMISSION_STATUS_APPROVED,
             self::SUBMISSION_STATUS_NEEDS_REVISION,
             self::SUBMISSION_STATUS_REJECTED,
+        ];
+    }
+
+    public static function getAllPaymentStatuses(): array
+    {
+        return [
+            self::PAYMENT_STATUS_PENDING,
+            self::PAYMENT_STATUS_PROCESSING,
+            self::PAYMENT_STATUS_COMPLETED,
+            self::PAYMENT_STATUS_FAILED,
+            self::PAYMENT_STATUS_CANCELLED,
+            self::PAYMENT_STATUS_DISPUTED,
+            self::PAYMENT_STATUS_REFUNDED,
         ];
     }
 
@@ -740,15 +789,7 @@ class CodeMartV1Constants
                 'project' => self::getAllProjectStatuses(),
                 'task' => self::getAllTaskStatuses(),
                 'submission' => self::getAllSubmissionStatuses(),
-                'payment' => [
-                    self::PAYMENT_STATUS_PENDING,
-                    self::PAYMENT_STATUS_PROCESSING,
-                    self::PAYMENT_STATUS_COMPLETED,
-                    self::PAYMENT_STATUS_FAILED,
-                    self::PAYMENT_STATUS_CANCELLED,
-                    self::PAYMENT_STATUS_DISPUTED,
-                    self::PAYMENT_STATUS_REFUNDED,
-                ],
+                'payment' => self::getAllPaymentStatuses(),
                 'analysis' => [
                     self::AI_ANALYSIS_PENDING,
                     self::AI_ANALYSIS_PROCESSING,
@@ -794,6 +835,7 @@ class CodeMartV1Constants
                     self::REVIEWER_APPLICATION_FAILED,
                     self::REVIEWER_APPLICATION_REVOKED,
                 ],
+                'contact_message' => self::CONTACT_STATUSES,
             ],
             // Per state group: closed states (no further work; archiving may still follow).
             'terminal_states' => [
@@ -808,6 +850,15 @@ class CodeMartV1Constants
                 'withdrawal' => self::WITHDRAWAL_TERMINAL_STATUSES,
                 'refund' => self::REFUND_TERMINAL_STATUSES,
                 'reviewer_application' => self::REVIEWER_APPLICATION_TERMINAL_STATUSES,
+            ],
+            // Server rule sets the validators enforce, per state group.
+            'state_rules' => [
+                'payment_refundable' => self::PAYMENT_REFUNDABLE_STATUSES,
+                'submission_reviewable' => self::SUBMISSION_REVIEWABLE_STATUSES,
+                'project_task_publishable' => self::PROJECT_MARKETPLACE_STATUSES,
+                'analysis_active' => self::ANALYSIS_ACTIVE_STATUSES,
+                'role_reason_required' => self::ROLE_STATUS_REASON_REQUIRED,
+                'role_admin_grantable' => self::ROLE_ADMIN_GRANT_STATUSES,
             ],
             'capability_roles' => self::CAPABILITY_ROLES,
             'roles' => self::getAllRoles(),
@@ -841,6 +892,15 @@ class CodeMartV1Constants
                 'deposit_payment_methods' => self::DEPOSIT_PAYMENT_METHODS,
                 'withdrawal_methods' => self::WITHDRAWAL_METHODS,
                 'withdrawal_min_amount' => self::WITHDRAWAL_MIN_AMOUNT,
+                'payment_types' => self::PAYMENT_TYPES,
+                'payment_creatable_types' => self::PAYMENT_CREATABLE_TYPES,
+                'identity_types' => self::IDENTITY_TYPES,
+                'kyc_document_slots' => array_keys(self::KYC_FILE_COLUMNS),
+                'dispute_resolutions' => self::DISPUTE_RESOLUTIONS,
+                'supported_locales' => self::SUPPORTED_LOCALES,
+                'task_priorities' => self::TASK_PRIORITIES,
+                'complexities' => self::COMPLEXITIES,
+                'budget_types' => self::BUDGET_TYPES,
             ],
         ];
     }

@@ -1,0 +1,41 @@
+{
+  "task_id": "shell-windows-G1",
+  "role": "shell-windows",
+  "reviewer": "reviewer",
+  "verdict": "changes_requested",
+  "base": "74e7770",
+  "round_base_note": "The full diff against 74e7770 also holds the shell-windows-1 work. This round's hunks were isolated with 8f95a2a24..HEAD. They are the user's backup commits 4ddb4be8e (20:24) and 2f31f9cd3 (20:31). The working tree equals HEAD for all four files, except a foreign p2-windows edit to the SPW-035 row of windows.md, which is not reviewed here.",
+  "checked_at": "2026-09-27T20:45:00+10:00",
+  "findings": {
+    "D13-WIN-BLOCKERS": {
+      "status": "changes_requested",
+      "detail": "Blockers (2)-(6) are confirmed. (2) Set-ClaudeTeamSessionEnvironment (ClaudeTeamCommon.ps1:1725-1730) clears every key of Get-ClaudeTeamSessionEnvironment -Kinds lead for a non-lead row. (3) Get-ClaudeTeamStandaloneRow (:1693-1707) and claudeteam.ps1:148-161 apply the role's env kinds, --effort (kept when the user passes --effort) and the lead teammate-mode. --agent stays in forwardArgs. This matches Linux claudeteam.sh:154 claude_team_role_spec. (4) Get-ClaudeTeamNamedProcessMap (:1373ff) filters on SessionId = this process's session. (5) Select-ClaudeTeamGrid (:957-985) scores paneCols*paneRows and keeps the smaller column count on a tie, like Linux claude_team_best_grid. Set-ClaudeTeamTabLayout (:1180-1198) fills column by column, with the leading columns taking the extra pane (Linux :1351-1366). I hand-checked the owner's machine (2560x1600@96, usable 2560x1520, MaxCols 4, MaxRows 5, 15 roles): max area gives 3 columns (91.0x15.05 = 1370 vs 4 columns 67.3x19.05 = 1283, 91x15 cells as reported), and the old aspect-2.5 rule gave 4 columns (0.884 vs 0.357). The two rules differ, as required. (6) $teammateMode is gone from claudeteam.ps1. $ClaudeTeamLeadTeammateMode is declared once (ClaudeTeamCommon.ps1:60). $ClaudeTeamInstallCatalogPath (:24) and $ClaudeTeamInstallUserClaudeDir (:38) are declared once, in ClaudeTeamInstallCommon.ps1, and ClaudeTeamCommon.ps1 has no copy. The verify text asked for ClaudeTeamCommon.ps1, but the owner's choice is correct because ApplicationsList.ps1:1256 dot-sources ClaudeTeamInstallCommon.ps1 standalone. (1) is only partly fixed. The local path is fixed: claudeteam.ps1:198 calls Remove-ClaudeTeamPidFile after `& claude`, and Get-ClaudeTeamLivePid and Open-ClaudeTeamMissingRoles count only claude.exe/node.exe --name matches, or a shell started after this launch. The remote role pane is not fixed (see issue 1)."
+    },
+    "D13-WIN-CATALOG-LEDGER": {
+      "status": "changes_requested",
+      "detail": "The code is confirmed. Get-ClaudeTeamRoleWindowFlag (:304-307) is used. Get-ClaudeTeamLayoutGroups keeps window:false roles out of tab_groups and out of the unlisted fallback. Import-ClaudeTeamCatalog adds them as rows with Group=-1, Window=$false, Tab/Pane/Pid/Cells '-' and State no-window. Start-ClaudeTeamRoles (:1483), the STEP 7 log (:1651) and Get-ClaudeTeamOtherRoles (:621) filter on Window, and Invoke-ClaudeTeamPacking, Show-ClaudeTeamPlan and Build-ClaudeTeamWtCalls see only startRows, so no tab, pane or wt segment can reference reviewer, ncore or flutter. Catalog check: reviewer, ncore and flutter are window:false, and groups[] needs no read. The SPW-020, SPW-023 and SPW-025 texts match the code, and SPW-024 is untouched. One defect remains: the SPW-036 status is wrong (see issue 2)."
+    }
+  },
+  "issues": [
+    "scripts/winenvs/claudeteam.ps1:112-115 -> In the remote role pane branch, Invoke-ClaudeTeamRemoteLoop runs and then returns without Remove-ClaudeTeamPidFile. The loop returns on a missing python, a missing ssh.exe or an empty secret (ClaudeTeamCommon.ps1:1750-1762), and its documented stop is Ctrl-C (:1766), which ends the script before :198 in every case. The -NoExit shell then keeps <session>.pid, Test-ClaudeTeamPidFile still reports it live, and the remote role shows 'running' forever and never restarts. This is the blocker-(1) / DESIGN §3.2 defect ('a pane's -NoExit shell alone does not count') for remote roles. Linux has no such gap because claudeteam.sh:141 exits the pane after the loop. Fix: after Initialize-ClaudeTeamPane succeeds, wrap the pane body (the remote loop and `& claude`) in try { ... } finally { Remove-ClaudeTeamPidFile -Session $paneRow.Session }. finally also runs on Ctrl-C and on terminating errors under ErrorActionPreference Stop. Then drop the separate call at :198 and extend the SPW-023 wording to remote panes.",
+    ".claude/agents_shared/shell_parity/windows.md SPW-036 -> The status says 'pending-linux: claude_team_load_catalog does not emit roles[].window ...', which is false. Linux already implements it: claude_team_common.sh:458 (the python parser emits window), :609-611 (claude_team_validate_roles sets state no-window with no ROW_ACTION) and claude_team_place_order :1107/:1119 (skips rows that are not 'place'). It landed in the same backup commit 4ddb4be8e, and linux.md:45 records SPW-036 aligned (shell-linux-G1). TASKS.md has no align task, and none is needed. A pending row without an align task is changes_requested. Fix: set SPW-036 to 'aligned (Linux: claude_team_load_catalog, claude_team_validate_roles, claude_team_place_order)'. Withdraw the cross-scope align request in reports/shell-windows.md:364-374 and in the result's cross_scope."
+  ],
+  "non_blocking": [
+    "ClaudeTeamCommon.ps1:25-29 and :39 still re-derive paths that ClaudeTeamInstallCommon.ps1:16-21/:27 already declares: $ClaudeTeamRootDir vs $ClaudeTeamInstallRootDir, $ClaudeTeamWinEnvsDir vs $ClaudeTeamInstallWinEnvsDir, and the '.claude' join vs $ClaudeTeamInstallClaudeDir. The dot-source now sits at :37, so reuse the Install values (AGENTS.md centralize constants).",
+    "claudeteam.ps1:151-158 rebuilds --effort/--permission-mode/--teammate-mode inline, which duplicates Get-ClaudeTeamRoleClaudeArguments. A switch there (omit --agent/--name, keep a user --effort) would keep one implementation.",
+    "Stale wording: the ClaudeTeamCommon.ps1:18-20 header ('a live process started with the role's --name skips its role') and the :1626 log ('live shell PID or --name session are skipped') should now say that only claude/node --name matches count.",
+    "Legacy <mode>-<role>.pid candidates (Get-ClaudeTeamPidCandidates) are never removed, so a surviving pre-D13 idle shell still counts as live. This is transitional only.",
+    "The inline 1 s tolerances (Get-ClaudeTeamNamedShellProcess AddSeconds(-1), Test-ClaudeTeamPidFile AddSeconds(1)) could share one top-level constant."
+  ],
+  "checks": [
+    "Diff 8f95a2a24..HEAD for ClaudeTeamCommon.ps1 (+287/-84 incl. the claudeteam.ps1 part), claudeteam.ps1 (+43/-13) and windows.md; ClaudeTeamInstallCommon.ps1 is unchanged this round.",
+    "PowerShell 5.1 Parser::ParseFile: 0 errors on ClaudeTeamCommon.ps1, claudeteam.ps1, ClaudeTeamInstallCommon.ps1, claudeteamup.ps1 and claudeagents.ps1.",
+    "Line endings: all four files are LF-only in 74e7770, 8f95a2a24 and the working tree (CR count 0), and claudeteam.ps1 keeps mode 100755.",
+    "Grep: no remaining $ClaudeTeamCatalogPath, $ClaudeTeamUserClaudeDir, $ClaudeTeamConfigDir or $ClaudeTeamTargetPaneAspect in any .ps1. The other $teammateMode hits are the unrelated ark*/claude* launchers.",
+    "Consumers of rows with .Enabled were traced. window:false rows are Enabled=true, and every packing, liveness and kickoff consumer also filters on Window. Initialize-ClaudeTeamPane and Get-ClaudeTeamStandaloneRow intentionally accept them.",
+    "Grid hand-check: 2560x1600@96 with 15 roles gives 3 columns (max area) vs 4 (old aspect 2.5). 2000x800 with 7 panes gives 7 vs 4, which matches the owner's harness.",
+    "Linux parity: claude_team_best_grid and the column distribution match. claudeteam.sh:154 applies the role spec to a standalone --agent. SPW-036 is already implemented on Linux.",
+    "Scope: shell-windows wrote only its own files (the two scripts, windows.md, its report and its memory). config/claude_team_roles.json was not touched. No tests were added.",
+    "The -Status dry run was not re-run (reviewer: read-only commands only). The window:false rows, tab and wt exclusion were verified statically."
+  ]
+}

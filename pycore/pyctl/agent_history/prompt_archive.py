@@ -30,15 +30,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
-from pycore.pyctl.agent_history.agent_history_txt import store_dir
+from pycore.pyctl.agent_history.agent_history_txt import restrict_mode, store_dir
 import pycore.pyctl.agent_history.root_spool as root_spool
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 PROMPT_ARCHIVE_DIR_NAME = "prompt_archive"
 ARCHIVE_ROOT_ONLY_FIELD = "root_only"
@@ -115,17 +113,9 @@ def archive_prompts(prompts: List[Dict[str, Any]]) -> int:
             with open(path, "a", encoding="utf-8", newline="\n") as handle:
                 handle.writelines(lines)
             known.update(fresh)
-            # A file that ever receives a root-only entry is restricted to the
-            # root-spool file mode and never widened back; a file that never
-            # does keeps the owner's default mode (no chmod at all).
-            if has_root_only and os.name != "nt":
-                try:
-                    os.chmod(path, root_spool.SPOOL_FILE_MODE)
-                except OSError as exc:
-                    ColorPrint.yellow(
-                        f"[AgentHistory] Prompt archive chmod failed "
-                        f"path={path} mode={oct(root_spool.SPOOL_FILE_MODE)} errno={exc.errno}"
-                    )
+            # See ``ARCHIVE_ROOT_ONLY_FIELD`` in the module docstring above.
+            if has_root_only:
+                restrict_mode(path, root_spool.SPOOL_FILE_MODE, "Prompt archive")
             appended += len(lines)
     return appended
 

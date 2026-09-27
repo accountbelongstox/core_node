@@ -6,11 +6,13 @@
 # sets HF_HOME / HF_HUB_CACHE / TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME env vars.
 # Does NOT set deprecated TRANSFORMERS_CACHE (transformers v5 uses HF_HOME only).
 #
-# Declares the Windows 3-drive constants (system/data/program), read from
-# config/service_contract.json paths.drive_layout. Detection/computation only
-# at load time -- never creates directories or writes anything on the program
-# drive here; first-adoption (writing the E: marker) is a separate
-# installer-only helper below.
+# Declares the Windows 3-drive constants (system/data/program) and the
+# per-drive namespace roots (config/service_contract.json paths.drive_layout,
+# amended by D28/D30: namespaces, tool_root, cache_root, trees_root,
+# toolchain_env_file). Detection/computation only at load time -- never
+# creates directories or writes anything on the program drive here;
+# first-adoption (writing the E: marker) and namespace-directory creation are
+# separate installer-only helpers below.
 
 $__sccServiceContractPath = Join-Path $PSScriptRoot 'ServiceContract.ps1'
 
@@ -118,11 +120,13 @@ function Get-CnProgramDrivePartitionGuid {
 }
 
 # Language-independent E: qualification (docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
-# section 3.1): ready + Fixed + NTFS/ReFS, and, when the tree-subdir marker
-# already exists, its content must match the drive's current partition GUID.
-# A qualifying drive with no marker yet is the first-adoption case (still
-# qualifies here; Register-CnProgramDriveAdoption below writes the marker
-# later, from an installer, never from this load-time check).
+# section 3.1, amended by user D27: no separate tree root/subdir on any OS,
+# so the marker lives directly at the drive root instead of under a tree
+# subdir): ready + Fixed + NTFS/ReFS, and, when the marker already exists,
+# its content must match the drive's current partition GUID. A qualifying
+# drive with no marker yet is the first-adoption case (still qualifies here;
+# Register-CnProgramDriveAdoption below writes the marker later, from an
+# installer, never from this load-time check).
 #
 # Get-Partition needs an elevated token: the Storage CIM provider denies a
 # standard one and Get-CnProgramDrivePartitionGuid then returns ''. When the
@@ -136,9 +140,7 @@ function Test-CnProgramDriveQualifies {
         [Parameter(Mandatory = $true)]
         [string]$DriveRoot,
         [Parameter(Mandatory = $true)]
-        [string]$DriveLetter,
-        [Parameter(Mandatory = $true)]
-        [string]$TreeSubdir
+        [string]$DriveLetter
     )
 
     $cnStructurallyReady = $false
@@ -157,7 +159,7 @@ function Test-CnProgramDriveQualifies {
         return $false
     }
 
-    $cnMarkerPath = Join-Path (Join-Path $DriveRoot $TreeSubdir) $Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME
+    $cnMarkerPath = Join-Path $DriveRoot $Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME
     $cnMarkerExists = Test-Path -LiteralPath $cnMarkerPath -PathType Leaf
     $cnPartitionGuid = Get-CnProgramDrivePartitionGuid -DriveLetter $DriveLetter
 
@@ -180,17 +182,18 @@ function Test-CnProgramDriveQualifies {
     return $cnMarkerContent -eq $cnPartitionGuid
 }
 
-# Installer-only: writes the first-adoption marker (drive partition GUID) under
-# <DriveRoot>\<TreeSubdir>\.cn_volume. Never called at load time; the caller is
-# always an installer/ensure step, once it has decided to adopt this drive.
+# Installer-only: writes the first-adoption marker (drive partition GUID) at
+# <DriveRoot>\.cn_volume. Never called at load time; the caller is always an
+# installer/ensure step, once it has decided to adopt this drive. No
+# directory is created here (user D27: no tree subdir on any OS) -- the
+# marker sits directly at the drive root, which already exists for any drive
+# that reached this point (Test-CnProgramDriveQualifies confirmed it ready).
 function Register-CnProgramDriveAdoption {
     param(
         [Parameter(Mandatory = $true)]
         [string]$DriveRoot,
         [Parameter(Mandatory = $true)]
-        [string]$DriveLetter,
-        [Parameter(Mandatory = $true)]
-        [string]$TreeSubdir
+        [string]$DriveLetter
     )
 
     $cnPartitionGuid = Get-CnProgramDrivePartitionGuid -DriveLetter $DriveLetter
@@ -198,12 +201,7 @@ function Register-CnProgramDriveAdoption {
         throw "Cannot resolve a GPT partition GUID for drive letter ${DriveLetter}: adopting it as the program drive requires a GPT-partitioned NTFS or ReFS volume (an MBR disk reports no partition GUID), and reading it also requires an elevated process."
     }
 
-    $cnTreeSubdirPath = Join-Path $DriveRoot $TreeSubdir
-    if (-not (Test-Path -LiteralPath $cnTreeSubdirPath)) {
-        New-Item -ItemType Directory -Path $cnTreeSubdirPath -Force | Out-Null
-    }
-
-    $cnMarkerPath = Join-Path $cnTreeSubdirPath $Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME
+    $cnMarkerPath = Join-Path $DriveRoot $Global:CN_PROGRAM_DRIVE_MARKER_FILE_NAME
     $cnExistingMarkerContent = ''
     if (Test-Path -LiteralPath $cnMarkerPath -PathType Leaf) {
         try {
@@ -220,6 +218,27 @@ function Register-CnProgramDriveAdoption {
     return $cnPartitionGuid
 }
 
+# Installer-only: the single helper that creates a directory rooted under a
+# drive namespace (DIRECTORY_NAMESPACE_RULES.md #2: "Create the namespace root
+# itself idempotently, with one helper per OS"). Idempotent -- repairs only a
+# missing directory, never resets an existing one -- and safe to call with a
+# deep path: New-Item -Force creates every missing intermediate segment
+# (including the namespace root itself, e.g. E:\core_node_compiler) in one
+# call. Never called at load time; today's only caller is
+# ProjectTreeCommon.ps1's trees target under $Global:CN_TREES_ROOT, which this
+# file never populates on the D: fallback, so this helper is never asked to
+# create anything there.
+function New-CnNamespaceDirectory {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $Path | Out-Null
+    }
+}
+
 # Re-run safe: this file can be dot-sourced more than once per process (several
 # win_common scripts dot-source it directly, not only through GlobalVars.ps1's
 # once-guard), so only seed the flag the first time it is missing.
@@ -227,8 +246,13 @@ if (-not (Test-Path Variable:Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED)) {
     $Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED = $false
 }
 
-# Called by installers/ensure functions, never at load time. Prints once per
-# process when the program drive fell back (E: absent or disqualified).
+# Called by installers/ensure functions (e.g. ProjectTreeCommon.ps1), never at
+# load time and never printed by this file itself -- only a caller that just
+# decided to fall back prints it. Prints once per process when the program
+# drive fell back (E: absent or disqualified). Text is explicit per user D7:
+# programs, toolchains, build files and project heavy directories (node_modules,
+# vendor, .venv) belong under the program-drive namespace, not just the bare
+# drive letter, and callers continue with the original location.
 function Write-ProgramDriveFallbackWarning {
     if (-not $Global:WINDOWS_PROGRAM_DRIVE_IS_FALLBACK) {
         return
@@ -237,7 +261,7 @@ function Write-ProgramDriveFallbackWarning {
         return
     }
 
-    Write-Warning ("Program drive {0} not available; using the original location {1}" -f $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL, $Global:WINDOWS_PROGRAM_DRIVE_ROOT)
+    Write-Warning ("Programs, toolchains, build files and project heavy directories belong under the program drive namespace {0}, but {1} is not available; continuing with the original location {2}." -f $Global:CN_PROGRAM_DRIVE_NAMESPACE_ROOT, $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL, $Global:WINDOWS_PROGRAM_DRIVE_ROOT)
     $Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED = $true
 }
 
@@ -258,12 +282,15 @@ $__sccServiceContractModule = New-Module -ScriptBlock {
 Import-Module $__sccServiceContractModule -Global -Force
 
 $__sccContractDataDriveRoot = [string](Get-ServiceContractValue -ContractPath 'paths.windows_data_drive_root')
+$__sccProgramDriveNamespace = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.namespaces.windows_program_drive')
 $__sccProgramDrivePrimary = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_primary')
 $__sccProgramDriveFallback = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_fallback')
-$__sccTreeSubdir = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_subdir')
-$__sccTreeRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_root.windows')
-$__sccTreeCacheRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_cache_root')
 $__sccToolRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tool_root.windows')
+$__sccToolRootFallbackTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tool_root.windows_d_fallback')
+$__sccCacheRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.cache_root.windows')
+$__sccCacheRootFallbackTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.cache_root.windows_d_fallback')
+$__sccCacheSubdirs = @(Get-ServiceContractValue -ContractPath 'paths.drive_layout.cache_subdirs')
+$__sccTreesRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.trees_root.windows')
 $__sccToolchainEnvTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.toolchain_env_file.windows')
 $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL = $__sccProgramDrivePrimary
 
@@ -279,7 +306,17 @@ $Global:WINDOWS_DATA_DRIVE_ROOT = Get-CnDriveRoot -DriveSpec $__sccContractDataD
 
 $__sccProgramDrivePrimaryRoot = Get-CnDriveRoot -DriveSpec $__sccProgramDrivePrimary
 $__sccProgramDriveFallbackRoot = Get-CnDriveRoot -DriveSpec $__sccProgramDriveFallback
-$__sccProgramDriveQualifies = Test-CnProgramDriveQualifies -DriveRoot $__sccProgramDrivePrimaryRoot -DriveLetter $__sccProgramDrivePrimary[0] -TreeSubdir $__sccTreeSubdir
+$__sccProgramDriveQualifies = Test-CnProgramDriveQualifies -DriveRoot $__sccProgramDrivePrimaryRoot -DriveLetter $__sccProgramDrivePrimary[0]
+
+# Always the intended E: namespace root (DIRECTORY_NAMESPACE_RULES.md #1),
+# regardless of whether E: currently qualifies -- Write-ProgramDriveFallbackWarning
+# names it even when falling back to D:. The Join-Path cmdlet resolves through
+# the PowerShell FileSystem provider and throws DriveNotFoundException when
+# the drive letter has no PSDrive at all (the common fallback case, E: absent
+# outright), so this goes through Resolve-CnDriveLayoutPath instead, exactly
+# like every other drive_layout template below -- [System.IO.Path]::GetFullPath
+# only normalizes the string and never touches the filesystem.
+$Global:CN_PROGRAM_DRIVE_NAMESPACE_ROOT = Resolve-CnDriveLayoutPath -Template '<program_drive>\<namespace>' -Replacements @{ '<program_drive>' = $__sccProgramDrivePrimary; '<namespace>' = $__sccProgramDriveNamespace }
 
 if ($__sccProgramDriveQualifies) {
     $Global:WINDOWS_PROGRAM_DRIVE_ROOT = $__sccProgramDrivePrimaryRoot
@@ -294,9 +331,28 @@ else {
 
 $__sccSystemName = Get-CnWindowsSystemName
 
-$Global:CN_TREE_ROOT = Resolve-CnDriveLayoutPath -Template $__sccTreeRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter }
-$Global:CN_TREE_CACHE_ROOT = Resolve-CnDriveLayoutPath -Template $__sccTreeCacheRootTemplate -Replacements @{ '<tree_root>' = $Global:CN_TREE_ROOT }
-$Global:CN_TOOL_ROOT = Resolve-CnDriveLayoutPath -Template $__sccToolRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter; '<sys>' = $__sccSystemName }
+# <program_drive> and <sys> are each resolved exactly once above ($__sccEffectiveProgramDriveLetter,
+# $__sccSystemName), then reused for every template that needs them. D28/D30:
+# when E: qualifies, tool_root, cache_root and trees_root each resolve their
+# own contract template under the E: namespace root (paths.drive_layout.namespaces.windows_program_drive,
+# already embedded in the templates themselves); on the D: fallback, tool_root
+# and cache_root use their literal *_d_fallback templates instead (no
+# <program_drive> token to substitute), and CN_TREES_ROOT is the empty string
+# -- D28: junctions (node_modules/vendor/.venv) are never created on the D:
+# fallback, so ProjectTreeCommon.ps1 falls back to plain in-repo directories
+# and prints Write-ProgramDriveFallbackWarning. The junction/link state
+# machine itself lives entirely in ProjectTreeCommon.ps1, not here.
+if ($__sccProgramDriveQualifies) {
+    $Global:CN_TOOL_ROOT = Resolve-CnDriveLayoutPath -Template $__sccToolRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter; '<sys>' = $__sccSystemName }
+    $Global:CN_CACHE_ROOT = Resolve-CnDriveLayoutPath -Template $__sccCacheRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter }
+    $Global:CN_TREES_ROOT = Resolve-CnDriveLayoutPath -Template $__sccTreesRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter }
+}
+else {
+    $Global:CN_TOOL_ROOT = Resolve-CnDriveLayoutPath -Template $__sccToolRootFallbackTemplate -Replacements @{ '<sys>' = $__sccSystemName }
+    $Global:CN_CACHE_ROOT = Resolve-CnDriveLayoutPath -Template $__sccCacheRootFallbackTemplate -Replacements @{}
+    $Global:CN_TREES_ROOT = ''
+}
+$Global:CN_CACHE_SUBDIR_NAMES = @($__sccCacheSubdirs | ForEach-Object { [string]$_ })
 $Global:CN_TOOLCHAIN_ENV_FILE = Resolve-CnDriveLayoutPath -Template $__sccToolchainEnvTemplate -Replacements @{ '<tool_root>' = $Global:CN_TOOL_ROOT }
 
 $Global:WINDOWS_PROGRAMING_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'programing'
@@ -450,8 +506,9 @@ function Ensure-PipCacheDirConfigured {
 }
 
 Remove-Variable -Name __sccSubDirs, __sccDir, __sccPath, __sccHfHubCache, __sccLegacyResolved, __sccHubResolved, `
-    __sccServiceContractPath, __sccServiceContractModule, __sccContractDataDriveRoot, __sccProgramDrivePrimary, `
-    __sccProgramDriveFallback, __sccTreeSubdir, __sccTreeRootTemplate, __sccTreeCacheRootTemplate, `
-    __sccToolRootTemplate, __sccToolchainEnvTemplate, __sccSystemDriveSpec, `
+    __sccServiceContractPath, __sccServiceContractModule, __sccContractDataDriveRoot, __sccProgramDriveNamespace, `
+    __sccProgramDrivePrimary, __sccProgramDriveFallback, __sccToolRootTemplate, __sccToolRootFallbackTemplate, `
+    __sccCacheRootTemplate, __sccCacheRootFallbackTemplate, __sccCacheSubdirs, __sccTreesRootTemplate, `
+    __sccToolchainEnvTemplate, __sccSystemDriveSpec, `
     __sccProgramDrivePrimaryRoot, __sccProgramDriveFallbackRoot, __sccProgramDriveQualifies, `
     __sccEffectiveProgramDriveLetter, __sccSystemName -ErrorAction SilentlyContinue

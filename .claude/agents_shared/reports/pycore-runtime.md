@@ -1,5 +1,109 @@
 # pycore-runtime report
 
+## pycore-assist-D7-fix
+
+Group map note (recorded per the "no questions" rule): the dispatched item ids carry the
+`pycore-assist-*` prefix from the D16 role map, but the current map (`.claude/agents_shared`
+task header → `.claude/agents/pycore-lead.md`, user D22, 2026-09-27; also
+`development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md` §8) assigns
+`pycore/pyctl/agent_history/` to pycore-runtime ("every other pycore path"; there is no
+`pycore-assist` role in the D22 map). Both items are inside the current pycore-runtime write
+scope, so both were implemented here rather than deferred. Diff base for review: 74e7770.
+
+### pycore-assist-D7-B1 (M-1): done (awaiting review)
+
+- Requirement: `prompt_archive.ARCHIVE_ROOT_ONLY_FIELD`, read by
+  `agent_history_service.py:415`, was never defined in `prompt_archive.py`, so every
+  `_extract_inner` pass over a changed source with at least one prompt raised
+  `AttributeError` before `write_index`/`write_prompts`/`write_state` ran; the outer
+  `except` at `agent_history_service.py:511-515` then returned an `error` summary with
+  nothing stored and no `sessions_changed`/`prompt_new` event.
+- Fix (`pycore/pyctl/agent_history/prompt_archive.py` only; the caller line at
+  `agent_history_service.py:415` is unchanged):
+  - `ARCHIVE_ROOT_ONLY_FIELD = "root_only"` declared at the top, next to
+    `PROMPT_ARCHIVE_DIR_NAME`, and exported in `__all__`.
+  - `archive_prompts` now reads it off each incoming prompt dict, carries it alongside the
+    built entry through grouping/dedupe (kept out of `_prompt_key` and out of the persisted
+    JSON line, so the dedupe key and the on-disk schema are both unchanged), and uses it
+    only to decide the per-tool file's chmod (see B2 below).
+- Verification:
+  - `grep -rn "0o666\|PROMPT_ARCHIVE_FILE_MODE" pycore/pyctl/agent_history` → empty.
+  - `py_compile` on `prompt_archive.py`, `agent_history_txt.py`, `agent_history_service.py`,
+    `root_spool.py` → all OK.
+  - Module-attribute check (`import pycore.x.y as alias; alias.NAME` for every such
+    reference) over every `.py` file in `pycore/pyctl/agent_history/` → 0 problems (was 1
+    before this fix: `prompt_archive.ARCHIVE_ROOT_ONLY_FIELD`).
+  - `python -c "import pycore.pyctl.agent_history.prompt_archive as m; hasattr(m, 'ARCHIVE_ROOT_ONLY_FIELD')"` → `True`; `agent_history_service` imports cleanly on Windows.
+  - Functional: `archive_prompts([{..., prompt_archive.ARCHIVE_ROOT_ONLY_FIELD: True}])` runs
+    without `AttributeError` and appends the entry (see the B2 scratch run below, which
+    exercises this same call).
+
+### pycore-assist-D7-B2 (AHSC-28 completion): done (awaiting review)
+
+- Requirement: `prompt_archive.py:35` set `PROMPT_ARCHIVE_FILE_MODE = 0o666` (world
+  writable/readable) and chmod'd every newly-created per-tool file to it unconditionally;
+  `:107-111` silenced any chmod failure with a bare `except OSError: pass`; the
+  `agent_history_txt.py` store had no restricted mode at all.
+- Fix:
+  - `pycore/pyctl/agent_history/prompt_archive.py`: no second mode literal — imports
+    `pycore.pyctl.agent_history.root_spool as root_spool` and reuses
+    `root_spool.SPOOL_FILE_MODE` (0o640, `root_spool.py:45`). A per-tool JSONL is chmod'd to
+    that mode only for the batch that contains at least one `ARCHIVE_ROOT_ONLY_FIELD` prompt
+    (`has_root_only`), and only once it ever does — there is no code path that widens a file
+    back, so a file that has never carried a root-only entry keeps the OS/owner default
+    mode untouched (no chmod call at all). The `os.name == "nt"` skip is a condition, not an
+    except; a real chmod failure is logged via `ColorPrint.yellow` with the path, the octal
+    mode and `exc.errno` instead of being swallowed.
+  - `pycore/pyctl/agent_history/agent_history_txt.py`: the store mixes root-only and
+    ordinary sessions into shared aggregate files (`index.txt`, `prompts.txt`, `state.txt`),
+    so entries cannot be cleanly separated per file the way `prompt_archive`'s per-tool
+    JSONLs are. The whole store is instead restricted unconditionally to the root-spool
+    modes it already uses as the convention for this data (`SPOOL_DIR_MODE` 0o750 for
+    `store_dir()`/`sessions_dir()`, `SPOOL_FILE_MODE` 0o640 applied in `_atomic_write`, the
+    one shared write path for `state.txt`/`index.txt`/`prompts.txt`/`sessions/<id>.txt`/
+    `prompt_edits.txt`). Both constants are imported from `root_spool`, no new literal. The
+    same `_restrict_mode` helper is used for both files and directories: skip on
+    `os.name == "nt"` via a condition, log a real failure via `ColorPrint.yellow` (path,
+    octal mode, `errno`), never raise.
+- Verification:
+  - `grep -rn 0o666 pycore/pyctl/agent_history` → empty.
+  - `py_compile` on both changed files → OK (see B1 above, same run).
+  - WSL Debian scratch run (`wsl.exe -d Debian -- python3 <scratchpad>/verify_agent_history_modes.py`, `prompt_archive.store_dir` and `agent_history_txt._restricted_dir`/`_atomic_write` pointed at a fresh `tempfile.mkdtemp()`, no repo state touched):
+    - a `claude` tool batch with one `ARCHIVE_ROOT_ONLY_FIELD=True` prompt → resulting `claude.jsonl` mode `0o640`;
+    - a `codex` tool batch with no root-only prompt → resulting `codex.jsonl` mode `0o644` (untouched owner default, not restricted);
+    - a second, non-root-only batch appended afterwards to the already-restricted `claude.jsonl` → mode stays `0o640` (never widened);
+    - `agent_history_txt._restricted_dir` on a fresh dir → `0o750`; `agent_history_txt._atomic_write` on a fresh file → `0o640`;
+    - printed `ALL OK`.
+  - Windows check (same repo, native `python`, same monkeypatch pattern): the same root-only
+    `archive_prompts` call and the same `_restricted_dir`/`_atomic_write` calls complete with
+    no exception (the `os.name == "nt"` branch is taken, chmod is never invoked) and the
+    files/dirs are created normally.
+  - EOL: `git diff --numstat` equals `--ignore-space-at-eol` for both files; `agent_history_txt.py` stayed all-CRLF (453/453 lines), `prompt_archive.py` stayed all-LF (137/137 lines) — no line-ending churn, no header re-added.
+
+### Cross-scope notes
+
+- None. Both files (`prompt_archive.py`, `agent_history_txt.py`) are inside
+  `pycore/pyctl/agent_history/`, which the current (D22) map assigns to pycore-runtime; no
+  other role's path was touched. `agent_history_service.py` (the caller) was read but not
+  edited, per the M-1 instruction to keep that line.
+- Pre-existing, unrelated: `pycore/pyctl/assist/capability_sync.py`,
+  `pycore/pyctl/tts/{audio_lane_full_sync,audio_resource_delivery,laravel_audio_delivery}.py`
+  and `pycore/pyutils/tts/{audio_queue_center,word_audio_cache}.py` show as modified in the
+  working tree from other concurrent agent work; none of them were read or touched for this
+  task.
+
+### Services and restarts
+
+No pycore or Laravel service was started, stopped or restarted for this task; the two
+changed modules only affect agent-history extraction, which the next pycore start or the
+next `extract()`/`live_scan()` call picks up.
+
+Changed files (this task):
+- `pycore/pyctl/agent_history/prompt_archive.py`
+- `pycore/pyctl/agent_history/agent_history_txt.py`
+
+Blockers: none. Next owner: reviewer, for `.claude/agents_shared/reviews/pycore-assist-D7-fix.json`.
+
 ## pycore-runtime-D7
 
 Batch 1/1, 2026-09-27 17:2x. Four items are implemented and verified. CKA-10-routes is deferred because its dependency is missing. The task stays in progress until the reviewer writes `.claude/agents_shared/reviews/pycore-runtime-D7.json` with `"verdict": "approved"`. Reviewers diff against 74e7770.

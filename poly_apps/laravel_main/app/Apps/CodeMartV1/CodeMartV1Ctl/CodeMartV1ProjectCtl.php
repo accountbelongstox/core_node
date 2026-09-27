@@ -51,7 +51,7 @@ class CodeMartV1ProjectCtl extends Controller
     {
         return $this->codedError(
             (string) $result['error_code'],
-            (string) ($result['message'] ?? 'Request failed'),
+            (string) ($result['message'] ?? __('codemart.errors.request_failed')),
             $result['details'] ?? null,
             (int) ($result['http_status'] ?? 400)
         );
@@ -156,9 +156,9 @@ class CodeMartV1ProjectCtl extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'complexity' => 'required|in:simple,medium,complex,very_complex',
+            'complexity' => 'required|in:' . implode(',', CodeMartV1Constants::COMPLEXITIES),
             'budget' => 'required|numeric|min:100',
-            'budget_type' => 'required|in:fixed,hourly',
+            'budget_type' => 'required|in:' . implode(',', CodeMartV1Constants::BUDGET_TYPES),
             'currency' => 'required|string|size:3',
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after:start_date',
@@ -217,7 +217,7 @@ class CodeMartV1ProjectCtl extends Controller
 
         $accessRole = $project->accessRoleFor((int) $user->id);
         if ($accessRole === null) {
-            return $this->accessDenied('You do not have access to this project');
+            return $this->accessDenied(__('codemart.errors.project_access_denied'));
         }
 
         $isOwner = $accessRole === CodeMartV1Constants::TRANSITION_ACTOR_OWNER;
@@ -245,7 +245,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->projectNotFound();
         }
         if (!$project->isOwnedBy((int) $user->id)) {
-            return $this->accessDenied('Only the project owner can update this project');
+            return $this->accessDenied(__('codemart.errors.project_update_owner_only'));
         }
         if (in_array($project->status, CodeMartV1Constants::PROJECT_CLOSED_STATUSES, true)) {
             return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, __('codemart.messages.closed_projects_cannot_be_edited'), [
@@ -256,7 +256,7 @@ class CodeMartV1ProjectCtl extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
-            'complexity' => 'sometimes|in:simple,medium,complex,very_complex',
+            'complexity' => 'sometimes|in:' . implode(',', CodeMartV1Constants::COMPLEXITIES),
             'budget' => 'sometimes|numeric|min:100',
             'start_date' => 'sometimes|nullable|date',
             'end_date' => 'sometimes|nullable|date',
@@ -352,7 +352,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->projectNotFound();
         }
         if (!$project->isOwnedBy((int) $user->id)) {
-            return $this->accessDenied('Only the project owner can publish this project');
+            return $this->accessDenied(__('codemart.errors.project_publish_owner_only'));
         }
         if (!$project->acceptsWork()) {
             return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_FUNDING_REQUIRED, __('codemart.messages.the_project_must_be_funded_before_it'), [
@@ -388,7 +388,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->projectNotFound();
         }
         if (!$project->isManagedBy((int) $user->id)) {
-            return $this->accessDenied('You do not have permission to create milestones for this project');
+            return $this->accessDenied(__('codemart.errors.milestone_create_denied'));
         }
         if (in_array($project->status, CodeMartV1Constants::PROJECT_CLOSED_STATUSES, true)) {
             return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, __('codemart.messages.closed_projects_cannot_receive_milestones'), [
@@ -456,7 +456,7 @@ class CodeMartV1ProjectCtl extends Controller
         }
         $project = $milestone->project;
         if (!$project->isManagedBy((int) $user->id)) {
-            return $this->accessDenied('Only the project owner or architect can update milestones');
+            return $this->accessDenied(__('codemart.errors.milestone_update_denied'));
         }
         if ($milestone->isClosed()) {
             return $this->codedError(CodeMartV1Constants::ERROR_MILESTONE_CLOSED, __('codemart.messages.the_milestone_is_closed'), [
@@ -517,19 +517,19 @@ class CodeMartV1ProjectCtl extends Controller
         }
         $project = $milestone->project;
         if (!$project->isManagedBy((int) $user->id)) {
-            return $this->accessDenied('Only the project owner or architect can complete milestones');
+            return $this->accessDenied(__('codemart.errors.milestone_complete_denied'));
         }
 
         $result = CodeMartV1ProjectModel::runInTransaction(function () use ($milestone, $project, $user) {
             $locked = CodeMartV1MilestoneModel::lockById((int) $milestone->id);
             if (!$locked || $locked->isClosed()) {
                 return ['ok' => false, 'error_code' => CodeMartV1Constants::ERROR_MILESTONE_CLOSED, 'http_status' => 409,
-                    'message' => 'The milestone is closed', 'details' => ['status' => $locked?->status]];
+                    'message' => __('codemart.messages.the_milestone_is_closed'), 'details' => ['status' => $locked?->status]];
             }
             $unfinished = CodeMartV1TaskModel::unfinishedCountForMilestone((int) $locked->id);
             if ($unfinished > 0) {
                 return ['ok' => false, 'error_code' => CodeMartV1Constants::ERROR_MILESTONE_TASKS_UNFINISHED, 'http_status' => 409,
-                    'message' => 'All milestone tasks must be completed or cancelled first', 'details' => ['unfinished_tasks' => $unfinished]];
+                    'message' => __('codemart.errors.milestone_tasks_unfinished'), 'details' => ['unfinished_tasks' => $unfinished]];
             }
 
             $fromStatus = (string) $locked->status;
@@ -582,7 +582,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->projectNotFound();
         }
         if ($project->accessRoleFor((int) $user->id) === null) {
-            return $this->accessDenied('You do not have access to this project');
+            return $this->accessDenied(__('codemart.errors.project_access_denied'));
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -608,7 +608,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->projectNotFound();
         }
         if (!$project->isManagedBy((int) $user->id)) {
-            return $this->accessDenied('Only the project owner or architect can upload attachments');
+            return $this->accessDenied(__('codemart.errors.attachment_upload_denied'));
         }
 
         $validator = Validator::make($request->all(), [
@@ -668,7 +668,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->projectNotFound();
         }
         if ($project->accessRoleFor((int) $user->id) === null) {
-            return $this->accessDenied('You do not have access to this project');
+            return $this->accessDenied(__('codemart.errors.project_access_denied'));
         }
 
         $attachment = CodeMartV1ProjectAttachmentModel::findForProject((int) $project->id, (int) $attachmentId);

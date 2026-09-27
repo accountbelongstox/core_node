@@ -607,8 +607,8 @@ claude_team_validate_roles() {
             continue
         fi
         if [ "${CLAUDE_TEAM_ROLE_WINDOW[$index]}" = "0" ]; then
-            CLAUDE_TEAM_ROW_STATE[$index]="service"
-            claude_team_log OK "Service role $role: window:false in the catalog (task tag / roster entry only; no pane started here)"
+            CLAUDE_TEAM_ROW_STATE[$index]="no-window"
+            claude_team_log OK "Service role $role: window:false in the catalog (task tag / roster entry only; no pane started here, SPW-036)"
             continue
         fi
         CLAUDE_TEAM_ROW_STATE[$index]="session"

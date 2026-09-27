@@ -20,11 +20,13 @@ These rules apply to every Linux script and every Linux path computation, in scr
   - tools: `/opt/...` per `service_contract.json#paths.drive_layout` (`tool_root`, `cache_root`, `trees_root`);
   - Linux-only state: ext4 paths such as `/var/_core_node` or the service's own ext4 dir. The shared data dir follows `linux_data_dir_candidates` (NTFS `/www/www/core_node` first on the dual-boot desktop).
 - Detect NTFS with the contract rule (`linux_www_ntfs_root_rule` / `ntfs_fs_types`) through the library helper. Do not add a second detection.
-- Withdrawn (user D27): the empty NTFS mount-point exception for `core_node_trees`. No directory is created on the NTFS share for tool trees; the per-project Linux dirs are bind-mounted from ext4 `<tool_root>/trees/<ns>` over the plain in-repo directories (`service_contract.json#paths.drive_layout.trees_rule`).
+- Allowed exception (user D28, which restores it after D27): the **single empty directory** `/www/core_node_compiler/trees` (`service_contract.json#paths.drive_layout.trees_mount_linux`, under the D30 namespace) on the NTFS share, used only as the mount point of the ext4 `<tool_root>/trees` bind. Windows junctions to the E: program drive then resolve to ext4 on Linux. A script writes under it only after `mountpoint -q` confirms the bind is active; while unmounted it stays empty, with no fallback writes. Linux creates no reparse point and writes nothing else on NTFS. See `trees_rule`.
 - No recycle bin on an NTFS mount (user D25, 2026-09-27):
   - Scripts and programs never send files to a trash on an NTFS mount: no `gio trash`, `trash-put`, `kioclient move ... trash:/`, send2trash or a hand-made `.Trash*` directory there.
   - A delete a script legitimately performs on its own files there is a direct, scoped delete.
   - The mount setup keeps the desktop from creating a per-volume trash (`.Trash-<uid>` / `.Trash`) on NTFS mounts, idempotently. If no trash exists, place the standard blocker: an empty `.Trash-<uid>` regular file at the mount root, owned by root and not writable, so GIO deletes permanently instead. If a trash directory already exists, report it and leave it.
+  - Second layer: NTFS fstab entries carry the `x-gvfs-notrash` option (GLib 2.66 and later refuses to trash on that mount). The existing single-entry fstab helper adds it idempotently.
+  - One blocker helper in the constants/mount library covers every NTFS mount path, including the `/www` bind root when it is NTFS. The `.Trash-` name is defined once.
   - Emptying or deleting an existing NTFS trash (e.g. the dual-boot `.Trash-1000`) is irreversible and needs the user's explicit approval.
   - A script found creating an NTFS trash is corrected idempotently by its owner: it stops creating the trash, and removes only an empty trash directory that it created itself.
 - Existing files already on an NTFS mount are neither moved nor deleted by a script. Copying them to ext4 is a separate step that needs the user's approval.
@@ -35,3 +37,6 @@ These rules apply to every Linux script and every Linux path computation, in scr
 
 ## 4. Parity
 - Every functional Linux change has its Windows counterpart, or a platform-only reason, recorded in the parity ledgers (`.claude/agents_shared/shell_parity/`; guide B11).
+
+## 5. Directory namespaces
+- Every directory a script creates lives under one namespace per filesystem (user D30): ext4 `/opt/core_node/`, and on the NTFS share `/www/www/` for shared data plus `/www/core_node_compiler/` as the mount-point parent. See `development-guides/DIRECTORY_NAMESPACE_RULES.md`.

@@ -65,3 +65,26 @@
 - Changed files (mine): the verdict file and this report section.
 - Blockers: pycore-ui MCHR-31, which needs the presenter in `shared/library-cover` and pycore-lead's approval. The member's suggested shape is in the verdict's non_blocking notes.
 - Next owner: pycore-ui (through pycore-lead/orchestrator), then wordnew-ui re-runs MCHR-31-wn-presenter.
+
+## Review wordnew-laravel-G1 (round 1)
+
+- Verdict: changes_requested. File: `.claude/agents_shared/reviews/wordnew-laravel-G1.json`.
+- Confirmed by re-running the member's verify scripts:
+  - srv-07 (no change needed);
+  - srv-07b (ensure-only variant seed; operator edits survive; one primary per language);
+  - LDRI-32 (one `segmentAudioPath` body);
+  - LDRI-28 (`recordStaticPath` on every AppQyV1 static store; no-op without phpredis);
+  - MCHR-27 (0 writes on both library list GETs; shape unchanged).
+- Round 2:
+  - (1) LDRI-22: `batchExpired` keeps processing batches forever, so an abandoned batch leaks its content (up to 32 MB). Expire it once its stored `updated_at` is past retention, and keep the API `purgeExpired(): int`.
+  - (2) MCHR-27b, leader-added: `AppQyV1VocabularyRecommendationController::coverImageUrl` should call `versionedCoverUrl`. It is a list GET that still runs one UPDATE per row.
+  - (3) Correct the member's CRLF claim in the report and memory. All 13 files are LF (`git ls-files --eol`).
+- Decision (recommended option): purge abandoned processing batches instead of resuming them inside purge. Pycore's diff delivery re-sends items that are still missing, and purge stays cheap on the `register()` path.
+- Open for a ruling (non-blocking): the srv-07b seed re-inserts a default voice that an operator removed through `replaceForLanguage`. A per-language ensure would respect removals.
+- Cross-scope (to pycore-laravel via the orchestrator):
+  - the FileSystemManager Windows delete (its owner already has `deleteNative` in the working tree) and rename;
+  - MoviePosterStore/WordGeminiImageTaskProcessor index hooks;
+  - the stale comments in `AppQyV1CoverGenerationTask`;
+  - LDRI-22-timer uses `purgeExpired(): int`.
+- Changed files (mine): the verdict file and this report section.
+- Next owner: wordnew-laravel (G1 round 2).

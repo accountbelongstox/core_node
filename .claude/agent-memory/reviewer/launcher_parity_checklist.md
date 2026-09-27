@@ -31,6 +31,14 @@ Gaps that both owners' ledgers marked "aligned" in the D13 parity check (shell-w
   - For the CR count, see [[shell-linux-review-checklist]].
 
 - **Layout sanity without launching.** Recompute the budget by hand from the Windows constants: 9x19 px cell, pane chrome 34x18 px and window chrome 40 px, all scaled by dpi/96. Assume a taskbar of 40 px x scale. Check the lead >= min_lead and roles >= min_role for each tab. In the shell-windows-1 round, 1920x1080@125% and 2560x1440@150% gave 6 tabs, above the spec's estimate, which is legitimate.
+- **PID cleanup on every pane exit path (shell-windows-G1, 2026-09-27).**
+  - A Windows fix that removes `<session>.pid` only after `& claude` misses the remote pane branch: `Invoke-ClaudeTeamRemoteLoop` returns on errors, and its documented stop is Ctrl-C.
+  - It also misses terminating errors.
+  - Require try/finally around the whole pane body. Linux does not need it, because its pane process exits.
+- **Same-round counterpart work makes "pending" rows stale.**
+  - Owners often write "Linux has the identical bug" from an older snapshot.
+  - Before accepting a pending row or a cross-scope request, check the counterpart code with `git show <latest backup>:file` and the working tree, and check its ledger.
+  - Example: SPW-036 window:false had already landed on Linux in the same backup commit.
 - **Latent PS 5.1 quoting.** A kickoff passed raw to `& claude` breaks on an embedded `"`. Grep the catalog kickoffs for quotes.
 
 **Why:** each side's ledger mapped features by name, not by rule, so these gaps passed as "aligned".

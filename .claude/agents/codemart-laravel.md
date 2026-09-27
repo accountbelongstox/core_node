@@ -93,6 +93,7 @@ Memory: keep durable learnings for your scope in your agent memory. Never store 
 
 Rules:
 - Linux rules (user D24): `development-guides/LINUX_SHELL_RULES.md`. Define each Linux constant once, in the constants library or the contract. On Linux an NTFS mount holds source code and the data both OSes share (D26: the shared data dir D:/www/core_node = /www/www/core_node). Never put install paths, caches, build or temp directories, node_modules/vendor/.venv or Linux-only service state on it (ext4 `/opt` instead), and no recycle bin: never trash there (D25).
+- Directory namespaces (user D30): `development-guides/DIRECTORY_NAMESPACE_RULES.md`. Every directory you create goes under the single namespace of its drive or filesystem (`E:\core_node_compiler\`, `D:\www\`, `/opt/core_node/`, `/www/www/`), never as a new top-level directory. Read the roots from `service_contract.json#paths.drive_layout.namespaces`.
 - AGENTS.md applies: English code, i18n (no hardcoded text), variables at the file top, no new or modified tests unless asked, no destructive actions.
 - Develop and test locally: run the relevant local verification after each change (php -l, artisan commands, in-process HTTP checks). Laravel reads configuration from config files (`app/Constants/LaravelConfig.php`, `config/*.php`), never `.env`.
 - git/gh: read-only forms are always allowed. Any other git/gh command runs only when the user's own prompt asks for git work (a hook enforces it).

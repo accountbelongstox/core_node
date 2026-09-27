@@ -20,6 +20,8 @@ $script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager
 $script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
 $script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
+$script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
+$script:TAILSCALE_ACTIONS = @{ "status" = "Status"; "devices" = "Devices"; "restart" = "Restart"; "panel" = "Panel" }
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")

@@ -51,18 +51,18 @@ class CodeMartV1EscrowService
 
             $project = CodeMartV1ProjectModel::query()->whereKey($projectId)->lockForUpdate()->first();
             if (!$project) {
-                throw new CodeMartV1FinanceException('project_not_found', 'Project not found', 404);
+                throw new CodeMartV1FinanceException('project_not_found', __('codemart.messages.project_not_found'), 404);
             }
             if ((int) $project->client_id !== $clientId) {
-                throw new CodeMartV1FinanceException('not_project_owner', 'Only the project owner can fund this project', 403);
+                throw new CodeMartV1FinanceException('not_project_owner', __('codemart.errors.funding_not_project_owner'), 403);
             }
             if ($project->status !== CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING) {
-                throw new CodeMartV1FinanceException('project_not_funding_pending', 'Project is not awaiting funding', 409);
+                throw new CodeMartV1FinanceException('project_not_funding_pending', __('codemart.errors.project_not_funding_pending'), 409);
             }
 
             $amount = self::fundingAmount($project);
             if (bccomp($amount, '0', 2) <= 0) {
-                throw new CodeMartV1FinanceException('funding_amount_missing', 'Project has no accepted proposal amount or budget', 422);
+                throw new CodeMartV1FinanceException('funding_amount_missing', __('codemart.errors.funding_amount_missing'), 422);
             }
 
             $ledger = $wallet->debit(
@@ -73,7 +73,7 @@ class CodeMartV1EscrowService
                 ['project_id' => $project->id]
             );
             if (!$ledger) {
-                throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
+                throw new CodeMartV1FinanceException('insufficient_balance', __('codemart.errors.insufficient_balance'), 422);
             }
 
             $escrow = CodeMartV1EscrowModel::createRecord([
@@ -288,7 +288,7 @@ class CodeMartV1EscrowService
                         && bccomp($row->remainingAmount(), $amount, 2) >= 0
                 );
                 if (!$escrow) {
-                    throw new CodeMartV1FinanceException('escrow_insufficient', 'Project escrow does not hold enough funds for this task', 409);
+                    throw new CodeMartV1FinanceException('escrow_insufficient', __('codemart.errors.escrow_insufficient'), 409);
                 }
 
                 $commission = CodeMartV1FinanceService::commission($amount);

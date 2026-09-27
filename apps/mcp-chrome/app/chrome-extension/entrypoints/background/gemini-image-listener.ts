@@ -16,7 +16,7 @@ const LOG = 'Gemini Listener';
 export function initGeminiImageListener() {
   registerRuntimeMessageHandler(FEATURE_MESSAGE_TYPES.GEMINI_IMAGE, async (message: any) => {
     if (message.action === 'start') {
-      const result = await geminiImageTool.start(
+      const result = await geminiImageTool.startExclusive(
         String(message.prompt || ''),
         !!message.openInNewTab,
         message.timeoutMs || 120000,
@@ -24,7 +24,7 @@ export function initGeminiImageListener() {
       return { success: result.ok, result };
     }
     if (message.action === 'status') {
-      const result = await geminiImageTool.status(String(message.jobId || ''));
+      const result = await geminiImageTool.statusExclusive(String(message.jobId || ''));
       return { success: result.status !== 'unknown', result };
     }
     return unknownActionResponse(message.action);

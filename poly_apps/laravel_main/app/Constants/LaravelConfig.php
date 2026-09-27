@@ -12,7 +12,8 @@ final class LaravelConfig
     public const APP_FALLBACK_LOCALE = 'en';
     public const APP_FAKER_LOCALE = 'en_US';
 
-    public const CACHE_STORE = 'database';
+    public const CACHE_STORE = 'failover';
+    public const CACHE_FAILOVER_STORES = ['redis', 'database'];
     public const CACHE_TABLE = 'cache';
     public const CACHE_LOCK_TABLE = 'cache_locks';
     public const CACHE_PREFIX = 'core-node-cache-';

@@ -142,6 +142,7 @@ Boundaries:
   - The Linux constants library defines each constant once.
   - An NTFS mount holds source code and the data both OSes share (D26: the shared data dir D:/www/core_node = /www/www/core_node). No install paths, caches, build or temp directories, node_modules/vendor/.venv, or Linux-only service state (`service_contract.json#paths.linux_ntfs_policy`).
   - No recycle bin on an NTFS mount (D25): scripts never trash there, the mount setup blocks per-volume trash idempotently, and emptying an existing trash needs the user.
+- B16 **Directory namespaces** (user D30, 2026-09-27): `development-guides/DIRECTORY_NAMESPACE_RULES.md`. Every directory the project creates lives under one namespace per drive or filesystem: `E:\core_node_compiler\`, `D:\www\`, ext4 `/opt/core_node/`, NTFS `/www/www/`, plus `/www/core_node_compiler/` as the mount-point parent. No other new top-level directories. Legacy top-level dirs move only with the user's approval.
 - B13 (superseded by B14) **Role families**: the laravel/pycore coordinator families of D16.
 - B14 **Groups and leaders** (user D22, 2026-09-27).
   - Every group has one leader. The claude lead (orchestrator) gives each group its tasks through the leader. The leader splits them over its members by the path map, one writer per path, then checks each member task and writes its verdict.

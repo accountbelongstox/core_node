@@ -1,21 +1,13 @@
 import { Task, TaskResult } from '../../api/WorkerApiClient';
 import { logger } from '@/utils/logger';
 import {
-  QUEUE_CENTER_REALTIME_EVENTS,
   TASK_STATUS_BY_ROLE,
   compareTasksByContract,
   workerResultStatus,
 } from '@/utils/queue-center-contract';
 import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
-import type { QueueCenterWakeSignal } from './QueueCenterWakeService';
-import { diffTaskSegmentStore } from '@/utils/diff-task-segments';
 import { tabController } from '../tab-controller';
-import {
-  SimpleWorkerRuntimeBase,
-  FAST_REPOLL_BASE_MS,
-  FAST_REPOLL_JITTER_MS,
-  QUEUE_HEAD_RESERVE,
-} from './SimpleWorkerRuntimeBase';
+import { SimpleWorkerRuntimeBase, QUEUE_HEAD_RESERVE } from './SimpleWorkerRuntimeBase';
 
 export type { SimpleWorkerConfig, SimpleWorkerStats } from './SimpleWorkerRuntimeBase';
 
@@ -124,21 +116,6 @@ export abstract class SimpleWorkerBase extends SimpleWorkerRuntimeBase {
     }
   }
 
-  protected applyHeadSignal(signal?: QueueCenterWakeSignal): void {
-    if (signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.word_audio_head
-      && signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head) return;
-    const rawItems = signal.payload?.items;
-    const items = Array.isArray(rawItems) ? rawItems : [];
-    for (const item of items) {
-      if (!item || typeof item !== 'object') continue;
-      const taskId = String((item as any).task_id || '').trim();
-      const queuePosition = Number((item as any).queue_position || 0);
-      if (!taskId) continue;
-      this.headPositions.set(taskId, queuePosition);
-      void diffTaskSegmentStore.moveToHead(taskId, queuePosition);
-    }
-  }
-
   private compareTasks(left: Task, right: Task): number {
     return compareTasksByContract(
       {
@@ -150,58 +127,6 @@ export abstract class SimpleWorkerBase extends SimpleWorkerRuntimeBase {
         queue_position: this.headPositions.get(right.task_id) ?? right.queue_position ?? 0,
       },
     );
-  }
-
-  protected updateQueueProgress(
-    taskType: string,
-    progress?: { completed?: number; total?: number } | null,
-  ): void {
-    if (!progress) return;
-    this.queueProgressByTaskType.set(taskType, {
-      completed: Number(progress.completed || 0),
-      total: Number(progress.total || 0),
-    });
-    let completed = 0;
-    let total = 0;
-    for (const item of this.queueProgressByTaskType.values()) {
-      completed += item.completed;
-      total += item.total;
-    }
-    this.stats.progressCompleted = completed;
-    this.stats.progressTotal = total;
-  }
-
-  /**
-   * Record fast/urgent backlog signals and trigger a fast re-poll burst when
-   * the backend says there is fast-tier work waiting. The burst is jittered and
-   * coalesced (only one scheduled at a time) so concurrent workers don't
-   * stampede the pull endpoint.
-   */
-  protected noteFastSignals(pendingUrgent?: number, pendingFast?: number): void {
-    this.stats.pendingUrgent = pendingUrgent ?? 0;
-    this.stats.pendingFast = pendingFast ?? 0;
-    if ((pendingFast ?? 0) > 0) {
-      this.scheduleFastRepoll();
-    }
-  }
-
-  protected scheduleFastRepoll(): void {
-    if (!this.isRunning) return;
-    // Ensure the next poll-loop iteration drains the fast tier immediately,
-    // even if the immediate cycle below no-ops because a cycle is in flight.
-    this.needsFastRepoll = true;
-    if (this.fastRepollTimeout.isScheduled) return; // coalesce - one burst in flight
-    const jitter = Math.floor(Math.random() * FAST_REPOLL_JITTER_MS);
-    this.fastRepollTimeout.schedule(() => {
-      if (!this.isRunning) return;
-      // Drain whatever fast-tier work matched our capabilities now.
-      // cycle()'s cycleInFlight guard prevents overlap with an in-flight cycle;
-      // needsFastRepoll (set above) guarantees the poll loop re-drains if this
-      // no-opped because a cycle was in flight.
-      this.cycle().catch((error) =>
-        logger.warn(this.workerLabel, 'Fast re-poll failed', error),
-      );
-    }, FAST_REPOLL_BASE_MS + jitter);
   }
 
   // ------------------------------------------------------------------

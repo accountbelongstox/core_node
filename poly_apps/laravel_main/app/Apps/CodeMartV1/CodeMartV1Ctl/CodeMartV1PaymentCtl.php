@@ -84,7 +84,7 @@ class CodeMartV1PaymentCtl extends Controller
             'project_id' => 'nullable|exists:codemartv1.codemart_v1_projects,id',
             'milestone_id' => 'nullable|exists:codemartv1.codemart_v1_milestones,id',
             'amount' => 'required|numeric|min:0.01',
-            'type' => 'required|in:milestone,hourly,bonus',
+            'type' => 'required|in:' . implode(',', CodeMartV1Constants::PAYMENT_CREATABLE_TYPES),
             'payment_method' => 'required|in:' . implode(',', CodeMartV1Constants::getAllPaymentMethods()),
             'description' => 'nullable|string',
         ]);
@@ -131,7 +131,7 @@ class CodeMartV1PaymentCtl extends Controller
                 if ($isWallet) {
                     $meta = ['payment_id' => $payment->id];
                     if (!$wallets[$payerId]->debit($amount, CodeMartV1Constants::WALLET_TX_PAYMENT, CodeMartV1Constants::LEDGER_PAYMENT_SENT, ['payment_id' => $payment->id, 'user_id' => $payeeId], $meta)) {
-                        throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
+                        throw new CodeMartV1FinanceException('insufficient_balance', __('codemart.errors.insufficient_balance'), 422);
                     }
                     $wallets[$payeeId]->credit($amount, CodeMartV1Constants::WALLET_TX_EARNING, CodeMartV1Constants::LEDGER_PAYMENT_RECEIVED, ['payment_id' => $payment->id, 'user_id' => $payerId], $meta);
                 }
@@ -257,7 +257,7 @@ class CodeMartV1PaymentCtl extends Controller
 
         return $this->success(
             $result['invoice']->loadRecordRelations('payment'),
-            $result['replayed'] ? 'Invoice already exists for this payment' : 'Invoice created successfully',
+            __($result['replayed'] ? 'codemart.messages.invoice_already_exists' : 'codemart.messages.invoice_created_successfully'),
             $result['replayed'] ? 200 : 201
         );
     }
@@ -311,19 +311,16 @@ class CodeMartV1PaymentCtl extends Controller
                 function () use ($request, $userId, $paymentId, $idempotencyKey, &$fromState): CodeMartV1RefundModel {
                     $payment = CodeMartV1PaymentModel::lockById($paymentId);
                     if (!$payment) {
-                        throw new CodeMartV1FinanceException('payment_not_found', 'Payment not found', 404);
+                        throw new CodeMartV1FinanceException('payment_not_found', __('codemart.messages.payment_not_found'), 404);
                     }
                     if ((int) $payment->payer_id !== $userId) {
-                        throw new CodeMartV1FinanceException('refund_forbidden_not_payer', 'Only the payer can request a refund', 403);
+                        throw new CodeMartV1FinanceException('refund_forbidden_not_payer', __('codemart.errors.refund_forbidden_not_payer'), 403);
                     }
-                    if (!in_array($payment->status, [
-                        CodeMartV1Constants::PAYMENT_STATUS_COMPLETED,
-                        CodeMartV1Constants::PAYMENT_STATUS_DISPUTED,
-                    ], true)) {
-                        throw new CodeMartV1FinanceException('refund_not_allowed_status', 'Payment is not refundable in its current status', 409);
+                    if (!in_array($payment->status, CodeMartV1Constants::PAYMENT_REFUNDABLE_STATUSES, true)) {
+                        throw new CodeMartV1FinanceException('refund_not_allowed_status', __('codemart.errors.payment_not_refundable'), 409);
                     }
                     if (CodeMartV1RefundModel::openForPayment((int) $payment->id)) {
-                        throw new CodeMartV1FinanceException('refund_already_open', 'This payment already has an open refund', 409);
+                        throw new CodeMartV1FinanceException('refund_already_open', __('codemart.errors.refund_already_open'), 409);
                     }
 
                     $fromState = $payment->status;
@@ -447,7 +444,7 @@ class CodeMartV1PaymentCtl extends Controller
                         ['withdrawal_id' => $withdrawal->id, 'phase' => 'freeze']
                     );
                     if (!$ledger) {
-                        throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
+                        throw new CodeMartV1FinanceException('insufficient_balance', __('codemart.errors.insufficient_balance'), 422);
                     }
 
                     return $withdrawal;

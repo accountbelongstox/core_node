@@ -348,3 +348,37 @@
   - F-1 is not done inside this review. It is my own foundation work, which the reviewer service verifies, and it lands before the B4 docstring rewrite.
 - Changed files (this task): the verdict file and this report only.
 - Blockers: B1-B6. Next owners: pycore-lead for F-1, and pycore-runtime for B1, B2, B3, B5, B6 and the B4 docstring (round 2 of pycore-runtime-D7P2-fix). Then pycore-lead re-reviews.
+
+## Review pycore-runtime-D7P2-fix round 2 (dispatched to member pycore-ui again)
+
+- Verdict: changes_requested (round 2). File: `.claude/agents_shared/reviews/pycore-runtime-D7P2-fix.json`.
+- Result under review: pycore-ui deferred B1-B6 again and changed only `reports/pycore-ui.md` (committed in the user commit 2f31f9cd3, 20:31).
+- The member acted correctly. The round-1 notes are fixed: the report is LF (crlf=0, lf=54, no BOM, HEAD blob identical), and every line reference in it is exact.
+- The task is still not done. At HEAD 2f31f9cd3 all six defects are present, and the six code files are unchanged since 4ddb4be8e. `reports/pycore-runtime.md` has no D7P2 section; its uncommitted edit belongs to pycore-assist-D7-fix. F-1 is not started.
+- Note for pycore-ai: after the 2f31f9cd3 change, the hand-built fallback in `audio_queue_center.py` is at `:146`, not `:140`. The other one is at `audio_resource_ledger.py:42`. pycore-ai adopts the helpers after B1.
+- Escalation (orchestrator): round 2 went to pycore-ui even though the round-1 verdict routed the work to the owners. A third round on pycore-ui cannot converge. Re-dispatch the task with role pycore-runtime (B1, B2, B3, B5, B6 and the B4 docstring), and give F-1 to pycore-lead as its own task, verified by the reviewer service.
+- Checks: read-only (git log/diff/status, grep/sed, Python byte counts, JSON parse of the verdict). Nothing was built or tested, and no git writes were made.
+- Changed files (this task): the verdict file and this report only.
+- Blockers: B1-B6. Next owners: the orchestrator (re-dispatch), pycore-lead (F-1), pycore-runtime (B1-B6).
+
+## Review pycore-runtime-D7P2-fix round 3 (dispatched to member pycore-ui a third time)
+
+- Verdict: changes_requested (round 3). File: `.claude/agents_shared/reviews/pycore-runtime-D7P2-fix.json`.
+- Result under review: pycore-ui deferred B1-B6 again and changed only `reports/pycore-ui.md` (uncommitted, 20:43, LF, no BOM).
+- The member acted correctly, and the round-2 wording note is fixed. Every line reference in the report is exact.
+- The task is still not done. HEAD is still 2f31f9cd3, the six code files are unchanged (mtimes 15:50-17:17), all six defects are present, F-1 has not started, and `reports/pycore-runtime.md` has no D7P2 section.
+- The orchestrator has now recorded the re-route: the `client_key_auth/TASKS.md` row "reroute-pending" (20:42) runs `[pycore-runtime] pycore-runtime-D7P2-fix` after the current loop ends. The verdict points to it. A fourth round on pycore-ui would get the same verdict.
+- Checks: read-only (git log/diff/status, grep/sed, Python byte counts), plus py_compile on the six code files as a sanity check. Nothing was built or tested, and no git writes were made.
+- Changed files (this task): the verdict file and this report only.
+- Blockers: B1-B6. Next owners: the orchestrator (end the pycore-ui loop, run the re-route), pycore-lead (F-1, verified by the reviewer service), pycore-runtime (B1, B2, B3, B5, the B4 docstring, then B6), then pycore-ai (adopt the B1 helpers).
+
+## Review pycore-assist-D7-fix (round 1, member pycore-runtime)
+
+- Verdict: changes_requested. File: `.claude/agents_shared/reviews/pycore-assist-D7-fix.json`. Base 74e7770; the changes are on HEAD 2f31f9cd3.
+- B1 (M-1) is accepted. `prompt_archive.py:44` ARCHIVE_ROOT_ONLY_FIELD is exported, consumed at :87, and never persisted. The caller at `agent_history_service.py:415` is unchanged. The AST module-attribute check finds 0 problems in 353 references. The negative control on the base file flags only :415.
+- B2 (AHSC-28) is functionally correct. There is no 0o666, the modes come from root_spool, restriction applies only to root-only batches and never widens, the nt check is a condition, and chmod failures are logged. The store is 0750/0640.
+- Blocking: `prompt_archive.py:121-128` copies the `agent_history_txt.py:45-54` `_restrict_mode` helper that the same change adds. Make it one public helper and call it from both files.
+- Checks: static only. Free RAM was 1.45 GB, below 3 GB, so the WSL and Windows functional runs were not repeated. compile OK, grep clean, the EOL gate is clean (txt CRLF, archive LF), and the added lines are ASCII.
+- Cross-scope, for shell-linux via the orchestrator (informational): `scan_shared_cache.sh:169-170` `chmod -R a+rX` re-widens the store.
+- Changed files (this task): the verdict file and this report only.
+- Blockers: issues[0]. Next owner: pycore-runtime (round 2).

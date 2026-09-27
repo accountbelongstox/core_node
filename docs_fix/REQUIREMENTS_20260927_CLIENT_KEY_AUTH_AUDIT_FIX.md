@@ -280,6 +280,40 @@ Source list: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`
     - Contract `paths.drive_layout`: `tree_subdir`, `tree_root`, `tree_cache_root` and `tree_cache_subdirs` are removed. They are replaced by `cache_root = <tool_root>/cache` with `cache_subdirs`, and by `trees_root` (Linux `<tool_root>/trees`) with `trees_rule`: per-project Linux dirs are bind-mounted from ext4 over the plain in-repo directories at use time, and Windows keeps them in the repo as normal directories, with no junctions.
     - The D24 mount-point exception in `LINUX_SHELL_RULES.md` is withdrawn.
     - core-node-e9 updates its fenced code accordingly (asked about 20:5x). There is nothing on disk to delete.
+- D28 (user, given in session core-node-e9 and relayed verbatim about 21:0x): "联接到 E: 现在代码就要直接重构，在没有分好E秀前可以提示。"
+  - The user was told there that node_modules/vendor/.venv cannot be shared across OSes (native addons, .bin shims, pnpm links), and asked for this.
+  - Windows junctions these dirs to the E: program drive now, in code. While E: is absent, the code warns and keeps the normal in-repo dirs, so this machine (C:/D: only) is unchanged today.
+  - This revises the Windows part of D27. The orchestrator adopted it because it is the user's latest wording and it only changes the orchestrator's own contract and rules; the user can overrule it here.
+  - Contract `paths.drive_layout`:
+    - `trees_root.windows = <program_drive>\core_node_trees`, only when E: qualifies, never on the D: fallback;
+    - `trees_root.linux = <tool_root>/trees` (ext4);
+    - `trees_mount_linux = /www/core_node_trees`, a single empty NTFS mount point that is bind-mounted, restored with the `mountpoint -q` condition;
+    - `trees_rule` describes both OSes and requires the junction translation to be proven on the real dual-boot Linux first.
+  - `LINUX_SHELL_RULES.md` §2 has the exception again.
+  - core-node-e9 runs the D28 round: `win_common/ProjectTreeCommon.ps1` (junction ensure plus the E: warning), the `SharedCacheEnv.ps1` keys, and the single bind in `mount_common.sh`. Start-script integration (P4) goes to the start-script owners through the orchestrator.
+- D29 (verbatim, about 21:1x): "dd.cmd sh中的菜单中的liunx/windows管理中加入tailscale的管理，如果本机安装，则添加重记服务，打开面板，显示所有devices IP状态等等，搜索官方文档。加入公共脚本直接调用。"
+  - Tailscale management goes into the Windows and Linux management menus of dd.
+  - When Tailscale is installed, the menu offers: status; every device with name, IPv4/IPv6, OS, online state, last seen, exit node and direct/relay; restart the service; and open the panel (the admin console, plus the local web UI where supported). The commands come from the official docs.
+  - The logic lives in shared common scripts that can also be called directly: `win_common/TailscaleCommon.ps1 -Action Status|Devices|Restart|Panel|Help` and `linux/common/tailscale_common.sh status|devices|restart|panel|help`.
+  - Reading (B9): "重记服务" = restart the service.
+  - Workflow `d29-tailscale-management`:
+    1. research on the official docs;
+    2. shell-windows-10 and shell-linux-11 in parallel, reusing `97_install_tailscale.sh` and the existing network helpers;
+    3. shell-windows reviews shell-linux, and the reviewer service reviews shell-windows.
+  - Tailscale is not restarted during the task. The main dd menu files owned by the running shell plan are not touched; if only they fit, the hook-in is queued.
+- D30 (verbatim, about 21:2x): "加入目录使用规范，在windows上必须 有一一个总的命名空间，比如E秀需要在在E:/core_node_compiler或其他目录下使用所有目录，不要建一堆目录。D盘也是一样，liunx也是一样。"
+  - One namespace directory per drive or filesystem for everything the project creates. The new guide `development-guides/DIRECTORY_NAMESPACE_RULES.md` covers both OSes, plus guide B16, `LINUX_SHELL_RULES.md` §5 and the role pointer lines.
+  - Namespaces:
+    - E: `E:\core_node_compiler\`, holding `.dev_<sys>`, `trees` and `cache`;
+    - D: the existing `D:\www\`, holding the data dir `core_node`, `frankenphp` and, on the D: fallback, `.dev_<sys>` and `cache`;
+    - Linux ext4 `/opt/core_node/`, holding `_<os>_<ver>`, `trees` and `cache`;
+    - Linux NTFS `/www/www/` for shared data, and `/www/core_node_compiler/trees` as the single empty bind mount point.
+  - Contract `paths.drive_layout`: new `namespaces`; `tool_root`, `cache_root`, `trees_root`, `trees_mount_linux` and `toolchain_env_file` are moved under them.
+  - Readings (B9):
+    - the user's code checkout (`D:\programing\core_node`) is user-managed and outside the rule;
+    - the D: namespace is the existing `D:\www`, so the data dir does not move;
+    - legacy top-level dirs made by earlier scripts (`D:\.dev_win10`, `/www/_debian_12`, `/www/_debian_13`, `.dev_debian13`, `.dev_linux`) stay in place and keep being read. Moving them is user-8.
+  - A read-only audit (`d30-namespace-audit`) lists every script or program that creates a top-level directory. Fixes go to the owners after their current items; core-node-e9's drive-layout code follows the new contract keys.
 - D14 (verbatim, about 15:3x): "允许 你修改 改 development-guides/".
   - The orchestrator may now edit `development-guides/` (guide B12). Every guide change is recorded here.
   - First use, about 15:3x, in `CLAUDE_CODE_AGENTS_GUIDE.md`:

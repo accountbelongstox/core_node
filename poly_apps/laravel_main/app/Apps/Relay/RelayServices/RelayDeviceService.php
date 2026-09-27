@@ -57,12 +57,7 @@ final class RelayDeviceService
         $eventPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
         $connection = DB::connection(RelayTablesMaps::connection());
 
-        $allowedEvents = [
-            RelayContract::event('terminal_changed'),
-            RelayContract::event('agent_history_prompt_new'),
-            RelayContract::event('agent_history_prompt_derived'),
-        ];
-        if (!in_array($eventType, $allowedEvents, true)) {
+        if (!in_array($eventType, RelayContract::deviceEvents(), true)) {
             throw new RelayDomainException('device_event_invalid', 422);
         }
         if (strlen(RelayContract::canonicalJson($eventPayload)) > RelayContract::limit('device_event_payload_bytes')) {

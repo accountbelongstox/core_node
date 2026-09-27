@@ -22,6 +22,7 @@ final class CodeMartV1AdminPassword
 {
     private const CONTRACT_SECTION = 'codemart_admin_password';
     private const SECRET_DIRECTORY_MODE = 0700;
+    private const LANG_PREFIX = 'codemart.cli.admin_password.';
     public const RESULT_UPDATED = 'updated';
     public const RESULT_UNCHANGED = 'unchanged';
     public const RESULT_MISSING = 'missing';
@@ -30,7 +31,7 @@ final class CodeMartV1AdminPassword
     {
         $section = ServiceContract::document()[self::CONTRACT_SECTION] ?? null;
         if (!is_array($section) || !isset($section['secret_file'], $section['length'], $section['file_mode'])) {
-            throw new RuntimeException('Service contract section is incomplete: ' . self::CONTRACT_SECTION);
+            throw new RuntimeException(__(self::LANG_PREFIX . 'contract_incomplete', ['section' => self::CONTRACT_SECTION]));
         }
 
         return $section;
@@ -86,7 +87,7 @@ final class CodeMartV1AdminPassword
 
         $password = self::generate();
         if (!self::write($path, $password)) {
-            throw new RuntimeException('Unable to write the CodeMart admin password file: ' . $path);
+            throw new RuntimeException(__(self::LANG_PREFIX . 'file_write_failed', ['path' => $path]));
         }
 
         return ['password' => $password, 'path' => $path, 'generated' => true];

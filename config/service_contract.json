@@ -138,17 +138,30 @@
         "frankenphp_root_posix": "/www/programing/frankenphp",
         "frankenphp_root_windows_subpath": "frankenphp",
         "drive_layout": {
-            "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 3.3): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27 (orchestrator ruling): no separate core_node_trees root on any OS; caches and per-project heavy dirs live under each OS's single tool_root.",
+            "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 3.3): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27, D28 and D30 (one namespace directory per drive/filesystem: development-guides/DIRECTORY_NAMESPACE_RULES.md).",
+            "namespaces": {
+                "windows_program_drive": "core_node_compiler",
+                "windows_data_drive": "www",
+                "linux_ext4": "/opt/core_node",
+                "linux_ntfs_shared_data": "/www/www",
+                "linux_ntfs_trees_mount_parent": "/www/core_node_compiler",
+                "rule": "every directory the project creates lives under one namespace per drive/filesystem; no other new top-level dirs; legacy top-level dirs stay until a user-approved migration"
+            },
             "program_drive_primary": "E:",
             "program_drive_fallback": "D:",
             "program_partuuid": null,
             "program_partuuid_source": "detected per machine (the E: NTFS volume PARTUUID), stored in global vars, never committed",
             "linux_mounts_program_drive": false,
             "tool_root": {
-                "windows": "<program_drive>\\.dev_<sys>",
-                "linux": "/opt/_<os>_<ver>"
+                "windows": "<program_drive>\\core_node_compiler\\.dev_<sys>",
+                "windows_d_fallback": "D:\\www\\.dev_<sys>",
+                "linux": "/opt/core_node/_<os>_<ver>"
             },
-            "cache_root": "<tool_root>/cache",
+            "cache_root": {
+                "windows": "<program_drive>\\core_node_compiler\\cache",
+                "windows_d_fallback": "D:\\www\\cache",
+                "linux": "/opt/core_node/cache"
+            },
             "cache_subdirs": [
                 "pnpm-store",
                 "bun",
@@ -158,10 +171,11 @@
                 "corepack"
             ],
             "trees_root": {
-                "windows": null,
-                "linux": "<tool_root>/trees"
+                "windows": "<program_drive>\\core_node_compiler\\trees",
+                "linux": "/opt/core_node/trees"
             },
-            "trees_rule": "Linux only: per-project node_modules/vendor/.venv live in <trees_root>/<ns>/<dir> on ext4 and are bind-mounted over the plain in-repo directories at use time (mountpoint -q before any write); nothing is created or written on the NTFS share. Windows keeps these directories in the repo as normal directories (no junctions).",
+            "trees_mount_linux": "/www/core_node_compiler/trees",
+            "trees_rule": "Windows (D28): when the E: program drive qualifies, node_modules/vendor/.venv of each project are junctions from the repo to <trees_root.windows>/<ns>/<dir>; never created on the D: fallback: while E: is absent the code warns and keeps the normal in-repo directories. Linux: ext4 <trees_root.linux> is bind-mounted once onto the single EMPTY mount point trees_mount_linux (under the namespace /www/core_node_compiler) on the NTFS share (mountpoint -q before any write; unmounted it stays empty) so translated junctions resolve to ext4; for a project whose entry is a plain directory (Windows without E:), a per-project runtime bind from <trees_root.linux>/<ns>/<dir> over the in-repo directory is used. Linux makes zero writes and no reparse points on NTFS. The junction translation must be proven on the real dual-boot Linux (ntfs3/ntfs-3g) before it is relied on.",
             "link_dirs": [
                 "node_modules",
                 "vendor",
@@ -170,7 +184,7 @@
             "tree_namespace_rule": "repo-relative path, '/' -> '__', lowercase",
             "toolchain_env_file": {
                 "windows": "<tool_root>\\bin\\toolchain.env",
-                "linux": "/etc/opt/core_node/toolchain.env"
+                "linux": "/opt/core_node/toolchain.env"
             }
         }
     },

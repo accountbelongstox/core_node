@@ -67,7 +67,7 @@ class CodeMartV1RegistrationCtl extends Controller
             if ($accessCode === '' || !hash_equals($accessCode, $registrationCode)) {
                 return $this->errorWithCode(
                     CodeMartV1Constants::ERROR_INVALID_REGISTRATION_CODE,
-                    'Invalid registration code',
+                    __('codemart.errors.invalid_registration_code'),
                     422
                 );
             }
@@ -202,12 +202,12 @@ class CodeMartV1RegistrationCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'identity_type' => 'required|in:ID_CARD,PASSPORT,DRIVING_LICENSE',
+            'identity_type' => 'required|in:' . implode(',', CodeMartV1Constants::IDENTITY_TYPES),
             'identity_number' => 'required|string|unique:codemartv1.codemart_v1_kyc_verifications',
             'real_name' => 'required|string|max:100',
             'date_of_birth' => 'required|date|before:today',
             'id_front_image' => 'required|file|image',
-            'id_back_image' => 'required_if:identity_type,ID_CARD|file|image',
+            'id_back_image' => 'required_if:identity_type,' . CodeMartV1Constants::IDENTITY_TYPE_ID_CARD . '|file|image',
             'selfie_image' => 'required|file|image',
         ]);
 

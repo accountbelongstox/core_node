@@ -3,3 +3,4 @@
 - [No env in Laravel](feedback-laravel-no-env.md) — user ruling: config files + RuntimeConfigurationStore, never env()/.env
 - [175 ensure semantics](feedback-175-ensure-semantics.md) — 175/sys:init repair not reset, skip initialized, step-testable, small changes
 - [Windows local runtime](windows-local-runtime.md) — dual-boot shared files, PS 5.1 quoting, FrankenPHP ext ini, WMI detach, no trust-store edits
+- [Contract-driven paths](contract-driven-paths.md) — PathMapper reads paths via ServiceContract; contract drifts live; lockstep ends; legacy literals stay

@@ -143,7 +143,7 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         }
 
         return $this->success([
-            'message' => 'Task accepted successfully',
+            'message' => __('codemart.messages.task_accepted_successfully'),
             'task_id' => (int) $task->id,
             'task' => $task,
         ]);

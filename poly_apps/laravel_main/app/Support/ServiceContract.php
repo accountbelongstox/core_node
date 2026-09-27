@@ -23,7 +23,9 @@ final class ServiceContract
 {
     private const LABEL = 'service contract';
     private const HOME_DATA_DIR_FALLBACK_KEY = 'home_data_dir_fallback';
+    private const DRIVE_LAYOUT_PATH = 'paths.drive_layout';
     private const RULE_NEGATION_PREFIX = 'not ';
+    private const POSIX_SEPARATOR = '/';
     private const WINDOWS_SEPARATOR = '\\';
 
     private static ?array $document = null;
@@ -110,6 +112,75 @@ final class ServiceContract
         return ContractDocument::stringList(self::document(), $path, self::LABEL);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function section(string $path): array
+    {
+        return ContractDocument::section(self::document(), $path, self::LABEL);
+    }
+
+    public static function wwwDirName(): string
+    {
+        return self::path('www_dir_name');
+    }
+
+    public static function coreNodeDataDirName(): string
+    {
+        return self::path('core_node_data_dir_name');
+    }
+
+    public static function globalVarDirName(): string
+    {
+        return self::path('global_var_dir_name');
+    }
+
+    public static function linuxWwwRoot(): string
+    {
+        return self::path('linux_www_root');
+    }
+
+    /** The /www/www level of a dual-boot NTFS /www mount (detection only). */
+    public static function linuxNtfsNestedWwwRoot(): string
+    {
+        return self::path('linux_ntfs_nested_www_root');
+    }
+
+    public static function legacyLinuxDataDir(): string
+    {
+        return self::path('legacy_linux_data_dir');
+    }
+
+    /**
+     * Dual-boot drive layout (paths.drive_layout): tree, tool and toolchain
+     * roots per OS and the Windows program-drive letters.
+     *
+     * @return array<string, mixed>
+     */
+    public static function driveLayout(): array
+    {
+        return self::section(self::DRIVE_LAYOUT_PATH);
+    }
+
+    /** Windows program drive used when no program drive is recorded (drive_layout.program_drive_fallback, e.g. D:). */
+    public static function windowsProgramDriveFallback(): string
+    {
+        return self::string(self::DRIVE_LAYOUT_PATH.'.program_drive_fallback');
+    }
+
+    /** Parent directory of drive_layout.tool_root.linux (the ext4 base that holds every /_<os>_<ver> tool root). */
+    public static function linuxToolBase(): string
+    {
+        $toolRoot = self::string(self::DRIVE_LAYOUT_PATH.'.tool_root.linux');
+        $separatorAt = strrpos($toolRoot, self::POSIX_SEPARATOR);
+
+        if ($separatorAt === false) {
+            throw new RuntimeException('Unknown service contract Linux tool root: '.$toolRoot);
+        }
+
+        return $separatorAt === 0 ? self::POSIX_SEPARATOR : substr($toolRoot, 0, $separatorAt);
+    }
+
     /** Windows data drive root in native form (paths.windows_data_drive_root, e.g. D:\). */
     public static function windowsDataDriveRoot(): string
     {
@@ -183,19 +254,19 @@ final class ServiceContract
     }
 
     /**
-     * The data_sync block; DataSyncProtocol is its typed reader.
+     * The data_sync block (protocol version, status groups, roles, retention).
      *
      * @return array<string, mixed>
      */
     public static function dataSync(): array
     {
-        return ContractDocument::section(self::document(), 'data_sync', self::LABEL);
+        return self::section('data_sync');
     }
 
     public static function globalVarDirectory(): string
     {
         return PathMapper::getCoreNodeRuntimeDir()
-            .DIRECTORY_SEPARATOR.self::string('paths.global_var_dir_name');
+            .DIRECTORY_SEPARATOR.self::globalVarDirName();
     }
 
     public static function webAccessDocument(): array

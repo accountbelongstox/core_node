@@ -5,4 +5,5 @@
 - [Laravel schema review checklist](laravel_schema_review_checklist.md) — sys:init/SafeMigrationHelper path, read-only DB + in-process GET probes, index-dup patterns
 - [shell-windows review checklist](shell_windows_review_checklist.md) — undo flags, path appends, copy ping-pong, preview drift, +1000 mtime checks, TASKS.md align tasks
 - [shell-linux review checklist](shell_linux_review_checklist.md) — root rm/mv in user homes, root-by-name recursion, 0-entry manifests, keyword re-diff, CR count via tr
+- [Laravel Windows file ops](laravel_windows_fileops_review.md) — junction = filetype 'unknown', unsafe isDir&&!isLink (Illuminate too), all-deferred fix task -> changes_requested
 - [Launcher parity checklist](launcher_parity_checklist.md) — claudeteam PS1/SH B11: PID = shell vs claude, one-lead rule, stale pending rows, env/flag/table/grid drift, CCI_* dup consts

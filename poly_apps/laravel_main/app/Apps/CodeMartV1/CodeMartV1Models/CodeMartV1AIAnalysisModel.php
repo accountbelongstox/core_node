@@ -26,6 +26,7 @@ class CodeMartV1AIAnalysisModel extends CodeMartV1Model
         'revision_notes',
         'completed_at',
         'accepted_at',
+        'accept_idempotency_key',
     ];
 
     protected $casts = [
@@ -84,5 +85,18 @@ class CodeMartV1AIAnalysisModel extends CodeMartV1Model
     public static function findWithProject(int $analysisId): ?self
     {
         return static::query()->with('project')->find($analysisId);
+    }
+
+    public static function lockById(int $analysisId): ?self
+    {
+        return static::query()->whereKey($analysisId)->lockForUpdate()->first();
+    }
+
+    /** True when this analysis was already accepted with the same Idempotency-Key. */
+    public function isAcceptReplay(?string $idempotencyKey): bool
+    {
+        return $idempotencyKey !== null
+            && $this->accepted_at !== null
+            && hash_equals((string) $this->accept_idempotency_key, $idempotencyKey);
     }
 }

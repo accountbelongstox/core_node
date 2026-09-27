@@ -97,25 +97,22 @@ class CodeMartV1FinanceService
         $result = CodeMartV1WalletModel::runInTransaction(function () use ($refundId, $adminId, $notes): array {
             $refund = CodeMartV1RefundModel::lockById($refundId);
             if (!$refund) {
-                throw new CodeMartV1FinanceException('refund_not_found', 'Refund not found', 404);
+                throw new CodeMartV1FinanceException('refund_not_found', __('codemart.errors.refund_not_found'), 404);
             }
 
             $payment = CodeMartV1PaymentModel::lockById((int) $refund->payment_id);
             if (!$payment) {
-                throw new CodeMartV1FinanceException('payment_not_found', 'Payment not found', 404);
+                throw new CodeMartV1FinanceException('payment_not_found', __('codemart.messages.payment_not_found'), 404);
             }
 
             if ($refund->status === CodeMartV1Constants::REFUND_STATUS_COMPLETED) {
                 return ['refund' => $refund, 'payment' => $payment, 'replayed' => true, 'source' => 'none'];
             }
             if ($refund->status !== CodeMartV1Constants::REFUND_STATUS_APPROVED) {
-                throw new CodeMartV1FinanceException('refund_invalid_state', 'Only approved refunds can be processed', 409);
+                throw new CodeMartV1FinanceException('refund_invalid_state', __('codemart.errors.refund_not_approved'), 409);
             }
-            if (!in_array($payment->status, [
-                CodeMartV1Constants::PAYMENT_STATUS_COMPLETED,
-                CodeMartV1Constants::PAYMENT_STATUS_DISPUTED,
-            ], true)) {
-                throw new CodeMartV1FinanceException('payment_invalid_state', 'Payment is not refundable in its current status', 409);
+            if (!in_array($payment->status, CodeMartV1Constants::PAYMENT_REFUNDABLE_STATUSES, true)) {
+                throw new CodeMartV1FinanceException('payment_invalid_state', __('codemart.errors.payment_not_refundable'), 409);
             }
 
             $amount = self::money($refund->amount);
@@ -142,7 +139,7 @@ class CodeMartV1FinanceService
                 ['payment_id' => $payment->id],
                 $ledgerMeta
             )) {
-                throw new CodeMartV1FinanceException('payee_insufficient_balance', 'Payee available balance is insufficient for this refund', 409);
+                throw new CodeMartV1FinanceException('payee_insufficient_balance', __('codemart.errors.payee_insufficient_balance'), 409);
             }
 
             $wallets[$payerId]->credit(

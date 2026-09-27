@@ -42,8 +42,11 @@ _SHARED_STATE_DIR = AI_SHARED_STATE_DIR / "agent_history"
 _LEGACY_DIR = AI_LEGACY_DIR / "agent_history"
 
 
-def _restrict_mode(path: Path, mode: int, label: str) -> None:
-    """Best-effort chmod (skipped on Windows, a condition not an except)."""
+def restrict_mode(path: Path, mode: int, label: str) -> None:
+    """Best-effort chmod (skipped on Windows, a condition not an except).
+
+    Shared by every store under this package (the txt store here and the
+    prompt archive) so there is exactly one chmod-with-logging helper."""
     if os.name == "nt":
         return
     try:
@@ -59,7 +62,7 @@ def _restricted_dir(path: Path) -> Path:
     root-only sessions into shared files, so the whole store is kept as
     tight as the root-spool output it can carry."""
     path.mkdir(parents=True, exist_ok=True)
-    _restrict_mode(path, SPOOL_DIR_MODE, "Store dir")
+    restrict_mode(path, SPOOL_DIR_MODE, "Store dir")
     return path
 
 
@@ -91,7 +94,7 @@ def _atomic_write(path: Path, content: str) -> None:
         except OSError:
             pass
         return
-    _restrict_mode(path, SPOOL_FILE_MODE, "Store file")
+    restrict_mode(path, SPOOL_FILE_MODE, "Store file")
 
 
 def _escape_value(val: str) -> str:

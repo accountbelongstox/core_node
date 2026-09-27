@@ -327,10 +327,11 @@ final class AppQyV1DeliveryBatchService
     }
 
     /**
-     * Remove batches idle for RETENTION_SECONDS by their stored state: done,
-     * or still awaiting content (its upload spool expires after the same
-     * idle window). Processing batches are kept; files without a readable
-     * state expire by modification time. Returns the removed batch count.
+     * Remove batches idle for RETENTION_SECONDS: every file and the stored
+     * updated_at are older than the window, whatever the state (a live
+     * processing batch checkpoints its updated_at while it advances). Files
+     * without a readable state expire by modification time. Returns the
+     * removed batch count.
      */
     public function purgeExpired(): int
     {
@@ -370,8 +371,7 @@ final class AppQyV1DeliveryBatchService
         }
         $state = $this->readState($batchId);
 
-        return $state === null
-            || ($state['state'] !== self::STATE_PROCESSING && (int) ($state['updated_at'] ?? 0) < $cutoff);
+        return $state === null || (int) ($state['updated_at'] ?? 0) < $cutoff;
     }
 
     private function readState(string $batchId): ?array
