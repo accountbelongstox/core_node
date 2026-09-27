@@ -83,8 +83,7 @@
                     });
                 })
                 .catch(err => {
-                    const fileList = document.getElementById('fileList');
-                    fileList.innerHTML = `<div style='color:#f00;padding:16px;'>${err.message || 'Error loading directory'}</div>`;
+                    renderFileListError(err.message || 'Error loading directory');
                 });
         }
         function renderBreadcrumb(path) {

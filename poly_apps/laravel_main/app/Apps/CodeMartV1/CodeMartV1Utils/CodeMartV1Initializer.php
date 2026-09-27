@@ -5,6 +5,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 use App\Constants\AppKeys;
 use App\Contracts\AppInitializerInterface;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1KycVerificationModel;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
 use App\Services\SafeMigrationHelper;
@@ -30,7 +31,10 @@ class CodeMartV1Initializer implements AppInitializerInterface
         'align_status_constraints',
         'verify_tables',
         'seed_demo_data',
+        'migrate_legacy_kyc_documents',
     ];
+
+    private const KYC_MIGRATION_CHUNK = 100;
 
     private const REQUIRED_TABLES = [
         'codemart_v1_email_verifications',
@@ -140,6 +144,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
             'align_status_constraints' => $this->alignStatusConstraints(),
             'verify_tables' => $this->verifyTables(),
             'seed_demo_data' => $this->seedDemoData(),
+            'migrate_legacy_kyc_documents' => $this->migrateLegacyKycDocuments(),
             default => ['status' => 'error', 'message' => __(self::LANG_PREFIX . 'unknown_step', ['step' => $step])],
         };
     }
@@ -564,6 +569,74 @@ class CodeMartV1Initializer implements AppInitializerInterface
             'status' => 'success',
             'message' => $message,
             'counts' => $summary['counts'],
+        ];
+    }
+
+    /**
+     * Moves the KYC documents of uploads made before the private-disk change
+     * off the public disk. Console only (sys:init); an HTTP-triggered
+     * initialization skips it. Idempotent: a document without a public copy
+     * is left alone. A row changes only when its document had to take another
+     * private path, and that update commits together with the public delete.
+     */
+    private function migrateLegacyKycDocuments(): array
+    {
+        if (!app()->runningInConsole()) {
+            return ['status' => 'skipped', 'message' => __(self::LANG_PREFIX . 'kyc_console_only')];
+        }
+
+        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::CODEMARTV1);
+        $fileUploadService = app(CodeMartV1FileUploadService::class);
+        $columns = CodeMartV1Constants::KYC_FILE_COLUMNS;
+        $moved = 0;
+        $repathed = 0;
+        $errors = [];
+
+        CodeMartV1KycVerificationModel::query()
+            ->where(static function ($query) use ($columns): void {
+                foreach ($columns as $column) {
+                    $query->orWhereNotNull($column);
+                }
+            })
+            ->chunkById(self::KYC_MIGRATION_CHUNK, static function ($rows) use ($connection, $fileUploadService, $columns, &$moved, &$repathed, &$errors): void {
+                foreach ($rows as $kyc) {
+                    foreach ($columns as $column) {
+                        $path = (string) ($kyc->{$column} ?? '');
+                        try {
+                            $target = $fileUploadService->copyLegacyKycFileToPrivate($path);
+                            if ($target === null) {
+                                continue;
+                            }
+                            DB::connection($connection)->transaction(static function () use ($fileUploadService, $kyc, $column, $path, $target): void {
+                                if ($target !== $path) {
+                                    CodeMartV1KycVerificationModel::query()
+                                        ->whereKey($kyc->id)
+                                        ->where($column, $path)
+                                        ->update([$column => $target]);
+                                }
+                                $fileUploadService->deleteLegacyKycFile($path);
+                            });
+                            $moved++;
+                            $repathed += $target !== $path ? 1 : 0;
+                        } catch (\Throwable $e) {
+                            $errors[] = "#{$kyc->id} {$column}: {$e->getMessage()}";
+                        }
+                    }
+                }
+            });
+
+        if ($errors !== []) {
+            return [
+                'status' => 'error',
+                'message' => __(self::LANG_PREFIX . 'kyc_migration_failed', ['count' => count($errors), 'moved' => $moved, 'errors' => implode('; ', $errors)]),
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'message' => __(self::LANG_PREFIX . 'kyc_documents_migrated', ['moved' => $moved, 'repathed' => $repathed]),
+            'moved' => $moved,
+            'repathed' => $repathed,
         ];
     }
 

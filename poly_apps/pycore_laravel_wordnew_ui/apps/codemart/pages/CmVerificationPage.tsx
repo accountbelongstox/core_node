@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Circle, IdCard, Lock, Mail, MessageSquareQuote, Phone, ShieldCheck, UserPlus } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
+import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { cmApi } from '../api/CmApi';
 import type { CmProject, CmRegistrationStatus } from '../api/CmApiTypes';
 import { cmErrorMessage } from '../api/cmErrors';
@@ -12,20 +13,28 @@ import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../componen
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 
-const TESTIMONIAL_LOCALES = ['en', 'zh'] as const;
 const TESTIMONIAL_MIN_LENGTH = 10;
-const TESTIMONIAL_PROJECT_STATUSES = new Set(['completed', 'archived']);
+const TESTIMONIAL_PROJECT_STATUS = 'completed';
 const PHONE_PATTERN = /^\+?\d{10,15}$/;
 const OTP_PATTERN = /^\d{6}$/;
 const DEFAULT_OTP_SECONDS = 600;
-const KYC_OPEN_STATUSES = new Set(['not_started', 'rejected']);
+const KYC_STEP = 'kyc';
+const KYC_NOT_STARTED_STATUS = 'not_started';
+const KYC_PENDING_STATUS = 'pending';
+const KYC_REJECTED_STATUS = 'rejected';
 const ID_CARD = 'ID_CARD';
-const IDENTITY_TYPES = [
-  { value: 'ID_CARD', labelKey: 'verification.typeIdCard' },
-  { value: 'PASSPORT', labelKey: 'verification.typePassport' },
-  { value: 'DRIVING_LICENSE', labelKey: 'verification.typeDrivingLicense' },
-] as const;
 const DEFAULT_CURRENCY = 'CNY';
+const EMAIL_RESEND_SENT = 'sent';
+const EMAIL_RESEND_ALREADY_VERIFIED = 'already_verified';
+const HTTP_TOO_MANY_REQUESTS = 429;
+const RETRY_AFTER_FIELD = 'retry_after';
+const SECONDS_PER_MINUTE = 60;
+
+function retryAfterSeconds(response: APIResponse<unknown>): number | null {
+  const body = response.debugInfo;
+  const seconds = Number(body?.details?.[RETRY_AFTER_FIELD] ?? body?.[RETRY_AFTER_FIELD]);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
 
 const CmEmailVerification: React.FC<{ email: string | null; onVerified: (message: string) => Promise<void> }> = ({ email, onVerified }) => {
   const { t } = useTranslation('cm');
@@ -33,6 +42,28 @@ const CmEmailVerification: React.FC<{ email: string | null; onVerified: (message
   const [address, setAddress] = useState(email ?? '');
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  const resend = async (): Promise<void> => {
+    if (resending) return;
+    setResending(true);
+    notice.clear();
+    const response = await cmApi.resendVerificationEmail();
+    setResending(false);
+    const result = response.success ? response.data?.result : null;
+    if (result === EMAIL_RESEND_ALREADY_VERIFIED) {
+      await onVerified(t('verification.emailAlreadyVerified'));
+    } else if (result === EMAIL_RESEND_SENT) {
+      notice.success(t('verification.emailResent', { email: response.data?.email || email || '' }));
+    } else if (response.status === HTTP_TOO_MANY_REQUESTS) {
+      const wait = retryAfterSeconds(response);
+      notice.error(wait === null
+        ? t('verification.emailResendThrottled')
+        : t('verification.emailResendThrottledWait', { minutes: Math.max(1, Math.ceil(wait / SECONDS_PER_MINUTE)) }));
+    } else {
+      notice.error(cmErrorMessage(t, response, 'verification.emailResendFailed'));
+    }
+  };
 
   const verify = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
@@ -63,6 +94,7 @@ const CmEmailVerification: React.FC<{ email: string | null; onVerified: (message
           <input value={token} autoComplete="one-time-code" onChange={(event) => setToken(event.target.value)} />
         </label>
         <div className="cm-project-form__actions">
+          <button type="button" disabled={resending} onClick={() => void resend()}>{resending ? t('verification.resendingEmail') : t('verification.resendEmail')}</button>
           <button type="submit" className="is-primary" disabled={busy || !address.trim() || !token.trim()}>{busy ? t('verification.verifying') : t('verification.verifyEmail')}</button>
         </div>
       </form>
@@ -150,6 +182,7 @@ const CmPhoneVerification: React.FC<{ onVerified: (message: string) => Promise<v
 const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: (message: string) => Promise<void> }> = ({ rejected, onSubmitted }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
+  const { policyList } = useCmBootstrap();
   const [identityType, setIdentityType] = useState<string>(ID_CARD);
   const [identityNumber, setIdentityNumber] = useState('');
   const [realName, setRealName] = useState('');
@@ -211,7 +244,7 @@ const CmKycForm: React.FC<{ rejected: boolean; onSubmitted: (message: string) =>
         <label>
           <span>{t('verification.identityType')}</span>
           <select value={identityType} onChange={(event) => setIdentityType(event.target.value)}>
-            {IDENTITY_TYPES.map((type) => <option key={type.value} value={type.value}>{t(type.labelKey)}</option>)}
+            {policyList('identity_types').map((type) => <option key={type} value={type}>{t(`verification.identityTypes.${type}`, { defaultValue: type })}</option>)}
           </select>
         </label>
         <label>
@@ -290,7 +323,8 @@ const CmRoleRequest: React.FC<{ roles: string[]; onRequested: (message: string, 
 const CmTestimonialForm: React.FC = () => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const [quotes, setQuotes] = useState<Record<string, string>>({ en: '', zh: '' });
+  const { policyList } = useCmBootstrap();
+  const [quotes, setQuotes] = useState<Record<string, string>>({});
   const [projects, setProjects] = useState<CmProject[]>([]);
   const [projectId, setProjectId] = useState('');
   const [authorLabel, setAuthorLabel] = useState('');
@@ -301,7 +335,7 @@ const CmTestimonialForm: React.FC = () => {
     let cancelled = false;
     void cmApi.getProjects({ include_assigned: true }).then((response) => {
       if (!cancelled && response.success && response.data) {
-        setProjects((response.data.projects ?? []).filter((project) => TESTIMONIAL_PROJECT_STATUSES.has(project.status)));
+        setProjects((response.data.projects ?? []).filter((project) => project.status === TESTIMONIAL_PROJECT_STATUS));
       }
     });
     return () => {
@@ -328,7 +362,7 @@ const CmTestimonialForm: React.FC = () => {
     });
     setBusy(false);
     if (response.success) {
-      setQuotes({ en: '', zh: '' });
+      setQuotes({});
       notice.success(t('verification.testimonialSubmitted'));
     } else {
       notice.error(cmErrorMessage(t, response, 'verification.testimonialFailed'));
@@ -340,11 +374,11 @@ const CmTestimonialForm: React.FC = () => {
       <h2><MessageSquareQuote aria-hidden="true" /> {t('verification.testimonialTitle')}</h2>
       <p className="cm-section-card__lead">{t('verification.testimonialDescription')}</p>
       <form className="cm-project-form" onSubmit={(event) => void submit(event)} noValidate>
-        {TESTIMONIAL_LOCALES.map((locale) => {
+        {policyList('supported_locales').map((locale) => {
           const text = (quotes[locale] ?? '').trim();
           return (
             <label key={locale} className="is-wide">
-              <span>{t(`verification.testimonialQuote.${locale}`)}</span>
+              <span>{t(`verification.testimonialQuote.${locale}`, { defaultValue: locale })}</span>
               <textarea
                 rows={3}
                 maxLength={1000}
@@ -432,7 +466,9 @@ export const CmVerificationPage: React.FC = () => {
   const onboarding = bootstrap.onboarding;
   const phoneVerified = onboarding.phone_verified;
   const phoneAvailable = onboarding.phone_verification_available !== false;
-  const kycStatus = onboarding.kyc_status || 'not_started';
+  const kycStatus = onboarding.kyc_status || KYC_NOT_STARTED_STATUS;
+  const kycPending = kycStatus === KYC_PENDING_STATUS;
+  const kycOpen = !kycPending && onboarding.steps.find((step) => step.key === KYC_STEP)?.completed !== true;
   const requestableRoles = onboarding.requestable_roles ?? [];
   const currency = bootstrap.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
   const roles = registration?.roles ?? bootstrap.roles;
@@ -477,13 +513,13 @@ export const CmVerificationPage: React.FC = () => {
               <CmNotice notice={{ tone: 'info', text: t('verification.phoneUnavailable') }} />
             </section>
           )}
-          {kycStatus === 'pending' && (
+          {kycPending && (
             <section className="cm-section-card">
               <h2><IdCard aria-hidden="true" /> {t('verification.kycTitle')}</h2>
               <CmNotice notice={{ tone: 'info', text: t('verification.kycPendingNote') }} />
             </section>
           )}
-          {KYC_OPEN_STATUSES.has(kycStatus) && <CmKycForm rejected={kycStatus === 'rejected'} onSubmitted={completed} />}
+          {kycOpen && <CmKycForm rejected={kycStatus === KYC_REJECTED_STATUS} onSubmitted={completed} />}
           {Object.keys(onboarding.deposit_required).length > 0 && (
             <section className="cm-section-card">
               <h2><ShieldCheck aria-hidden="true" /> {t('verification.depositTitle')}</h2>

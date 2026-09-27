@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Providers\PathMapper;
+use App\Support\QueueCenterContract;
 use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -11,7 +12,9 @@ use function Illuminate\Support\defer;
 
 /**
  * Batch delivery of many small audio items (contract: docs_fix/
- * REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, "W7 contract").
+ * REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, "W7 contract";
+ * kinds, limits, batch states, item statuses, error codes and retention:
+ * queue_center_contract.json#delivery).
  * A manifest registers the items; their concatenated bytes arrive through the
  * shared offset-v1 receiver; items are then stored by the existing
  * idempotent fill-missing writers after the response, with persisted
@@ -19,37 +22,12 @@ use function Illuminate\Support\defer;
  */
 final class AppQyV1DeliveryBatchService
 {
-    public const KINDS = [
-        AppQyV1ResourceIndexService::KIND_WORD_AUDIO,
-        AppQyV1ResourceIndexService::KIND_SENTENCE_AUDIO,
-    ];
-    public const MAX_ITEMS = 500;
-    public const MIN_ITEM_BYTES = 100;
-    public const MAX_ITEM_BYTES = 2097152;
-    public const MAX_TOTAL_BYTES = 33554432;
-
-    public const STATE_AWAITING_CONTENT = 'awaiting_content';
-    public const STATE_PROCESSING = 'processing';
-    public const STATE_DONE = 'done';
-
-    public const STATUS_STORED = 'stored';
-    public const STATUS_EXISTS = 'exists';
-    public const STATUS_NO_TARGET = 'no_target';
-    public const STATUS_INVALID = 'invalid';
-    public const STATUS_ERROR = 'error';
-
-    public const ERROR_BATCH_NOT_FOUND = 'DELIVERY_BATCH_NOT_FOUND';
-    public const ERROR_CONTENT_MISMATCH = 'DELIVERY_BATCH_CONTENT_MISMATCH';
-    public const ERROR_UPLOAD_INVALID = 'DELIVERY_UPLOAD_INVALID';
-    public const ERROR_STORE_FAILED = 'DELIVERY_STORE_FAILED';
-
     private const UPLOAD_LANE = 'delivery_batch';
     private const STORAGE_SUBDIR = 'writeback/app_qy_v1/delivery_batch';
     private const WORKER_PREFIX = 'pycore-delivery:';
     private const STALE_PROCESSING_SECONDS = 30;
     private const INLINE_BUDGET_SECONDS = 5.0;
     private const CHECKPOINT_ITEMS = 20;
-    private const RETENTION_SECONDS = 86400;
     private const BATCH_FILE_PATTERN = '/^([a-f0-9]{40})\.[^\/]+$/';
     private const DEFAULT_PROVIDER = 'pycore';
 
@@ -57,6 +35,41 @@ final class AppQyV1DeliveryBatchService
         private readonly AppQyV1DurableOffsetUploadService $uploadService,
         private readonly AppQyV1SentenceAudioService $sentenceAudio
     ) {
+    }
+
+    /** @return array<int,string> delivery.batch_kinds */
+    public static function kinds(): array
+    {
+        return QueueCenterContract::stringList('delivery.batch_kinds');
+    }
+
+    /** delivery.batch_limits.<name>: items, min_item_bytes, item_bytes, total_bytes. */
+    public static function limit(string $name): int
+    {
+        return QueueCenterContract::positiveInt('delivery.batch_limits.' . $name);
+    }
+
+    /** delivery.batch_states.<role>: awaiting_content, processing, done. */
+    public static function state(string $role): string
+    {
+        return QueueCenterContract::string('delivery.batch_states.' . $role);
+    }
+
+    /** delivery.batch_item_statuses.<role>: stored, exists, no_target, invalid, error. */
+    public static function itemStatus(string $role): string
+    {
+        return QueueCenterContract::string('delivery.batch_item_statuses.' . $role);
+    }
+
+    /** delivery.error_codes.<role>. */
+    public static function errorCode(string $role): string
+    {
+        return QueueCenterContract::string('delivery.error_codes.' . $role);
+    }
+
+    public static function retentionSeconds(): int
+    {
+        return QueueCenterContract::positiveInt('delivery.retention_seconds');
     }
 
     public static function batchId(string $machineId, string $kind, array $items): string
@@ -83,7 +96,7 @@ final class AppQyV1DeliveryBatchService
                 'batch_id' => $batchId,
                 'machine_id' => $machineId,
                 'kind' => $kind,
-                'state' => self::STATE_AWAITING_CONTENT,
+                'state' => self::state('awaiting_content'),
                 'items' => array_map(static function (array $item) use (&$offset): array {
                     $entry = [
                         'key' => (string) $item['key'],
@@ -92,6 +105,7 @@ final class AppQyV1DeliveryBatchService
                         'offset' => $offset,
                         'text' => isset($item['text']) ? (string) $item['text'] : null,
                         'provider' => isset($item['provider']) ? (string) $item['provider'] : null,
+                        'cleaned_word' => isset($item['cleaned_word']) ? (string) $item['cleaned_word'] : null,
                     ];
                     $offset += (int) $item['bytes'];
                     return $entry;
@@ -123,14 +137,14 @@ final class AppQyV1DeliveryBatchService
         $receipt = null;
 
         if ($state === null || $state['machine_id'] !== $machineId) {
-            return ['error_code' => self::ERROR_BATCH_NOT_FOUND, 'http' => 404];
+            return ['error_code' => self::errorCode('batch_not_found'), 'http' => 404];
         }
-        if ($state['state'] !== self::STATE_AWAITING_CONTENT) {
+        if ($state['state'] !== self::state('awaiting_content')) {
             return ['data' => $this->uploadService->alreadyStoredReceipt(self::UPLOAD_LANE, $batchId, $totalBytes)
                 + $this->view($state, false)];
         }
         if ($totalBytes !== (int) $state['total_bytes']) {
-            return ['error_code' => self::ERROR_UPLOAD_INVALID, 'http' => 422];
+            return ['error_code' => self::errorCode('upload_invalid'), 'http' => 422];
         }
         $receipt = $this->uploadService->receive(
             self::UPLOAD_LANE,
@@ -142,7 +156,7 @@ final class AppQyV1DeliveryBatchService
             $chunkSha256
         );
         if ($receipt === null) {
-            return ['error_code' => self::ERROR_UPLOAD_INVALID, 'http' => 422];
+            return ['error_code' => self::errorCode('upload_invalid'), 'http' => 422];
         }
         if (!($receipt['upload_complete'] ?? false)) {
             $state['offset'] = (int) $receipt['offset'];
@@ -152,12 +166,12 @@ final class AppQyV1DeliveryBatchService
         }
         if (!$this->contentMatches($state, (string) $receipt['spool_path'])) {
             FileSystemManager::delete((string) $receipt['spool_path']);
-            return ['error_code' => self::ERROR_CONTENT_MISMATCH, 'http' => 409];
+            return ['error_code' => self::errorCode('batch_content_mismatch'), 'http' => 409];
         }
         if (!$this->uploadService->promoteCompleted($receipt, $this->contentPath($batchId))) {
-            return ['error_code' => self::ERROR_STORE_FAILED, 'http' => 500];
+            return ['error_code' => self::errorCode('store_failed'), 'http' => 500];
         }
-        $state['state'] = self::STATE_PROCESSING;
+        $state['state'] = self::state('processing');
         $state['offset'] = $totalBytes;
         $state['updated_at'] = time();
         $this->writeState($state);
@@ -183,7 +197,7 @@ final class AppQyV1DeliveryBatchService
         if ($state === null || $state['machine_id'] !== $machineId) {
             return null;
         }
-        if ($state['state'] === self::STATE_PROCESSING
+        if ($state['state'] === self::state('processing')
             && time() - (int) $state['updated_at'] >= self::STALE_PROCESSING_SECONDS) {
             $this->advance($batchId, self::INLINE_BUDGET_SECONDS);
             $state = $this->readState($batchId) ?? $state;
@@ -200,7 +214,7 @@ final class AppQyV1DeliveryBatchService
             $started = microtime(true);
             $sinceCheckpoint = 0;
 
-            if ($state === null || $state['state'] !== self::STATE_PROCESSING) {
+            if ($state === null || $state['state'] !== self::state('processing')) {
                 return;
             }
             while ($state['processed'] < count($state['items'])) {
@@ -217,7 +231,7 @@ final class AppQyV1DeliveryBatchService
                 }
             }
             if ($state['processed'] >= count($state['items'])) {
-                $state['state'] = self::STATE_DONE;
+                $state['state'] = self::state('done');
                 FileSystemManager::delete($this->contentPath($batchId));
             }
             $state['updated_at'] = time();

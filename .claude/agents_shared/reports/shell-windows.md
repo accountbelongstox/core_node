@@ -14,6 +14,8 @@
 | shell-linux-11 (leader review, round 2) | Reviewed shell-linux's fix for the round-1 device-field gap (Owner/ExitNodeOption in `ts_show_devices`) | approved |
 | amend-windows-d28d30 | D28/D30 lane: verified `SharedCacheEnv.ps1` + new `ProjectTreeCommon.ps1` against the current contract (namespaces/tool_root/cache_root/trees_root/toolchain_env_file), re-ran the 7-state junction scratch test, updated the stale SPW-035 ledger row | done, awaiting reviewer (no code changes needed -- files were already correct) |
 | shell-linux-G1 (leader review) | Reviewed shell-linux's D13-LIN-BLOCKERS (7 sub-fixes) + D13-LIN-CATALOG (`window:false` role exclusion) round | approved |
+| shell-linux-12 (leader review, round 1) | Reviewed shell-linux's new `project_tree_common.sh` (P1b G11 per-project ext4 bind) | changes_requested: `ensure` force-unmounted/took over a foreign bind (`bind_rc==2`) instead of skipping |
+| shell-linux-12 (leader review, round 2) | Reviewed shell-linux's fix for the round-1 takeover finding | changes_requested: fix confirmed correct and independently re-verified live, but a second, pre-existing identity-check gap in `project_tree_bind_state` (same file, unchanged this round) was found and reproduced live |
 
 ## shell-windows-2: D12a desktop icon organizer
 
@@ -855,3 +857,36 @@ None. No `pending-*` row was left dangling, so no `[shell-linux] align: ...` fol
 ### Next owner
 
 Reviewer, against diff base `74e7770`. Orchestrator: consider whether the concurrent `shell-windows-10` (Tailscale review-round-2) session's upcoming `SPW-040`/`SPW-041` rows should be checked against this section's `SPW-043`/`SPW-044`/`SPW-045` once both land, since both sessions were editing `windows.md` at the same time.
+
+## shell-linux-12: leader review of shell-linux's project_tree_common.sh (P1b G11), rounds 1-2
+
+Reviewed shell-linux's new `scripts/shells/linux/common/project_tree_common.sh` (per-project runtime ext4 bind of `node_modules`/`vendor`/`.venv`, P1b group G11). This session found a round-1 review already on disk (`.claude/agents_shared/reviews/shell-linux-12.json`, round 1, `changes_requested`) from an earlier pass that this report had not yet logged; recording both rounds here for a complete trail.
+
+### Round 1 (verdict: changes_requested, already applied by shell-linux before this session started)
+
+`project_tree_ensure_dir`'s handling of a link path already mounted to something other than the computed `ext4_dir` (`bind_rc==2`) force-unmounted it and took over unconditionally, with no identity check -- contradicting the task's own "bind only when not already a mountpoint" guard, `LINUX_SHELL_RULES.md` #3 ("never reset"), and this same file's `project_tree_release_dir`, which already refuses a foreign/mismatched bind via a device+inode check. The verification run at the time never exercised this exact branch (only `status`/`release` against a foreign mount, not `ensure`). Round 1 also fixed a stale `SPW-035` pending-linux note in `.claude/agents_shared/shell_parity/windows.md` (this role's own ledger) to reflect that item (1) was already resolved and item (2) half-closed by `SPL-119`.
+
+### Round 2 (verdict: changes_requested -- one new finding)
+
+shell-linux's fix: `bind_rc==2` in `project_tree_ensure_dir` now skips with a warning and returns (mirroring `project_tree_release_dir`'s own posture) in both normal and `--dry-run` mode; the dead "would rebind" dry-run branch was removed; `project_tree_usage`'s `ensure` text was reworded.
+
+Independently re-verified this fix live in WSL Debian (root, genuine ext4 under `/opt`, not tmpfs/NTFS): reproduced the exact round-1 repro (baseline ensure/release, a real foreign `mount --bind` placed on `node_modules` after its `ext4_dir` already existed on disk, then `ensure` and `--dry-run` both correctly skip+warn and leave the foreign content untouched while a co-located `vendor` is still ensured normally in the same call). Confirmed correct.
+
+While building that scratch test, ran a second scenario the round-2 verification did not cover: a **fresh** project (`ensure` never run before, so its `ext4_dir` does not exist on disk yet) with a foreign `mount --bind` already sitting at the link path. Found and reproduced a real gap in `project_tree_bind_state` (unchanged this round, lines ~194-201): its device+inode identity check only runs `if [ -d "$ext4_dir" ]` -- when the target does not exist yet, the function returns 0 ("bound, correct") for *any* mountpoint at the link path, without ever checking identity. Live result: `status` reports `node_modules ... bound -> <ext4_dir>` and `ensure` reports "already bound" and takes no action, while the actual mount is confirmed (by reading a marker file through it) to still be the unrelated foreign source, and `<ext4_dir>` is confirmed absent on disk the whole time. This fails toward inaction (no NTFS write, no takeover -- same safe direction as the round-1 bug's opposite fix), but it silently and permanently defeats the tool's own purpose for that project+dir, and gives a false-positive success signal on a project's very first `ensure`/`status`, not an exotic corner case. The function's own comment already flags the ambiguity ("rc 0 = bound, and (when it can be verified) it is exactly ext4_dir") but resolves it the less-safe way; the fix is to fail closed (treat "cannot verify" as the already-implemented `bind_rc==2` skip+warn path) instead of failing open.
+
+Also noted, non-blocking: `.claude/agents_shared/reports/shell-linux.md`'s round-1-fix subsection says the `SPL-119` row in `linux.md` was left unchanged, but the actual working-tree diff shows it was edited in place this round (content is accurate; just a stale sentence in the report).
+
+Verdict written to `.claude/agents_shared/reviews/shell-linux-12.json` (round 2, `changes_requested`). No files in shell-windows's own write scope were touched by this review beyond the review file and this report; `.claude/agents_shared/shell_parity/windows.md`'s `SPW-035` row (already correctly `pending-linux` for the still-open `trees_mount_linux` bind + junction proof, out of scope for this task) was left as-is -- checked, not stale.
+
+### Changed files
+
+- `.claude/agents_shared/reviews/shell-linux-12.json` (round 2, verdict `changes_requested`)
+- `.claude/agents_shared/reports/shell-windows.md` (this section)
+
+### Blockers
+
+`shell-linux-12` stays open. shell-linux needs one more fix: make `project_tree_bind_state` fail closed (return the already-existing `bind_rc==2` code, or an equivalent treated the same way by `ensure`/`status`) when the link path is a mountpoint but `ext4_dir` cannot yet be verified to exist, instead of defaulting to "confirmed bound." No `pending-linux`/`pending-windows` parity row is implicated by this finding (it is an internal Linux-side correctness bug in a function not exposed to Windows' different reparse-point-based state model).
+
+### Next owner
+
+shell-linux, to fix the `project_tree_bind_state` identity gap and resubmit for round 3.

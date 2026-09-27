@@ -4,3 +4,4 @@
 - [Secret password runner](secret-password-runner.md) — secret node tools take the password on stdin via the runner, never argv
 - [Launcher generator parity](launcher-generator-parity.md) — generated launchers can lag the generator; parity-check then regenerate, never hand-edit
 - [Root acts as user](root-acts-as-user.md) — root steps in other users' homes run as that user (runuser); unshare+fake passwd sandbox
+- [dd.sh source-in-function scoping](dd-sh-source-in-function-scoping.md) — declare -A/-a in a file dd.sh sources via load_dd_helpers needs -g or it vanishes; verify dispatch live, not just bash -n
