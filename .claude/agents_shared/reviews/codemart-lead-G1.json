@@ -1,0 +1,84 @@
+{
+  "task_id": "codemart-lead-G1",
+  "role": "codemart-lead (the leader's own items; temporary writer of generate_cm_images.py and assets/icons/, owner of docs_fix/codemart_docs/)",
+  "reviewer": "reviewer",
+  "round": 1,
+  "verdict": "approved",
+  "base": "74e7770",
+  "head": "2f31f9cd3 (user commit 'win0.0.1', 2026-09-27 20:31:48 +1000). HEAD holds the 28 icons and the generator. The working tree adds one generator hunk: sys.path.insert moves from the two helpers into main() at :205. The 7 codemart_docs files are uncommitted edits.",
+  "checked_at": "2026-09-27 20:53 +1000",
+  "notes": "d9-01-gen, d9-04-docs: approved. d9-redis: the audit is approved, and the post-D9-01 proof is accepted as deferred to G3. Nothing blocks. Non-blocking: PAGE_POLISH:102 claims 'Vite bundles them with hashed names', but under the current config the icons are inlined -> codemart-ui d9-01-ui adds the '?no-inline' query to the ICON_MODULES glob, or the lead rewords the doc; category-medium still reads as a sort icon -> one more --only pass; GAP_COMPLETION:251 'D9-01 has not landed' is stale -> re-run the probe in G3 and update the text; generate_cm_images.py:239 says 'at quality 40', but the last quality tried is 44.",
+  "findings": {
+    "d9-01-gen": {
+      "claimed": "done",
+      "result": "confirmed, approved",
+      "evidence": [
+        "The single generator is kept. git diff 74e7770 --name-status adds no other generator file. generate_cm_images.py (+181/-? vs base) adds GROUPS images|icons, --group/--gateway/--dry-run, ICON_SET_VERSION=1 (:39), ICON_SIZE=128, ICON_MAX_BYTES=30 KB, and _encode_webp, which steps the quality down from 76. IMAGE_MAX_BYTES=120 KB matches REQUIREMENTS_20260927_CODEMART_PAGE_POLISH.md:88.",
+        "Laravel gateway: _laravel_image_url() uses pycore.pyfoundations.service_contract build_url/host('loopback')/port('laravel_api_backend'). The contract has hosts.loopback=127.0.0.1 and ports.laravel_api_backend=9000. The request is POST /api/local/ai/image with {prompt,size,source}, which matches AiLocalController::image (:143-185 reads prompt/size/model/source, and the response carries success/image_base64/provider/model). The route group routes/api/ai_local.php:15 uses 'dashboard.auth' = LocalDebugOrSanctum, whose loopback debug bypass binds an admin without a token. The script sends no token or cookie, and ProxyHandler({}) bypasses proxies.",
+        "pycore gateway: the call is unchanged, generate_image(prompt,size,source,provider) (ai_gateway.py:326-332). --provider is rejected unless --gateway pycore.",
+        "Icon set: 12 nav names = the CM_PAGES ids (cmPages.tsx:44-55). 7 feature names = the METRICS ids (CmDashboardPage.tsx:67-75, in kebab form; myOpenTasks->open-tasks, unread->unread-notifications). 4 category names = COMPLEXITY_* (CodeMartV1Constants.php:46-49; public 'category' = complexity at CodeMartV1PublicHomeService.php:183,200). 5 empty names = the dashboard empty keys (:279-306).",
+        "Re-run from the scratchpad with python -B, no repo writes: the compile to a scratch cfile is OK. --help lists --group {icons,images}, --gateway {laravel,pycore} and --dry-run. '--group icons --dry-run' prints the version line, the URL line and 28 'plan <name> 1:1 128px exists: <subject>, <style>' lines with exit 0 and no gateway call. The pycore dry-run imports nothing. '--only nope' exits 2, and '--provider openrouter' with the laravel gateway exits 2.",
+        "Icons: PIL reads all 28 as WEBP 128x128, each <= 30 KB (max 1460 B, total 25402 B). All are tracked (git ls-files) and none is git-ignored (check-ignore exit 1). Every per-icon size in PAGE_POLISH §3.1 matches the file within rounding.",
+        "PAGE_POLISH §3.1 records ICON_SET_VERSION 1, the style string, and every subject. The subjects are identical to the ICONS list in the working-tree generator, including the 5 re-prompted subjects. It also records the provider (OpenRouter, google/gemini-2.5-flash-image), the Laravel failure and the --only passes.",
+        "The Laravel failure cause is plausible: D:/www/frankenphp/php-conf.d (50-d7-local-extensions.ini, 99-core-node.ini) sets neither curl.cainfo nor openssl.cafile. It is recorded as pending for the user and shell-windows, as the item allows.",
+        "Visual spot check of 11 icons: a flat style with no text. category-medium still shows up/down arrows (recorded residue)."
+      ]
+    },
+    "d9-redis": {
+      "claimed": "deferred (audit done; post-D9-01 proof pending)",
+      "result": "audit confirmed; deferral accepted (requirement allows recording pending until G3)",
+      "evidence": [
+        "The required grep over app/Apps/CodeMartV1 and routes/CodeMartV1Router finds 0 hits (exit 1).",
+        "A wider grep finds only Cache::forget/remember on the default store (CodeMartV1PublicHomeService.php:54-62), plus 'Redis' strings in DemoSeeder demo data. There is no Queue/dispatch/ShouldQueue.",
+        "THROTTLE_* = 'throttle:N,1,codemart_*' (Constants.php:363-365 now, :327 at HEAD) is used at api.php:29,36,40. config/cache.php sets no 'limiter' key, so the default store is used.",
+        "lockForUpdate: WalletModel.php:77, EscrowService.php:52,142,176,278, AdminFinanceService.php:65,254. fundProject runs lockForUser inside runInTransaction (EscrowService.php:40-52).",
+        "Probe script scratchpad/cm_redis_probe/probe.php: read and judged sound. It begins transactions on the default and codemart connections, runs public/home twice through the HTTP kernel with a Cache::has check, captures the fundProject SQL for a wallet 'for update', rolls back in finally, and does not re-run.",
+        "D9-01 has since landed in the working tree: LaravelConfig.php:15-16 CACHE_STORE='failover' with CACHE_FAILOVER_STORES=['redis','database'], and config/cache.php:62-65 has the failover store (mtime 20:37). pycore-laravel reports D9-01 done. The G3 re-run is unblocked."
+      ]
+    },
+    "d9-04-docs": {
+      "claimed": "done",
+      "result": "confirmed, approved",
+      "evidence": [
+        "(a) GAP_COMPLETION: the legend gains missing/superseded. G10, U06 (advisory), U28, U30, U31 and D01 (superseded by D17) are updated. The §6 password is removed. Each §7 item has a status and evidence. §8.1 has the row table, §8.2 Redis and §8.3 the D22 choices, all seven listed plus the root-copy routing.",
+        "(b) CONTINUATION:48-54,79-80: the '175 asks, default no' text is superseded by D17. (c) DESIGN: the Reviewer row and flow are advisory, with an explanatory paragraph. (d) PAGE_POLISH: 13 K3 rows move to polished with CmPageHeader and state lines; the crawl is G3.",
+        "The 0823 docs get D9 pointers and superseded rows carrying their state. The INTEGRATION 'no local copy' row becomes partial (cmdesign-03).",
+        "grep 'Codemart#' over docs_fix/codemart_docs: 0 hits. No CODEMART_SEED_DEMO/.env switch text remains.",
+        "Spot check of 12 claims against the code. All held at HEAD 2f31f9cd3; drift since then comes only from concurrent member edits, as §8 states.",
+        "1. The routes have no email resend; only verify-email (:42) and request-phone-verification (:48 now, :49 at HEAD). OtpService::resendOtp is phone only.",
+        "2. cmAuthSession.ts:26-38 remember/stored/clear return path; CmLoginPage.tsx:52 query or stored.",
+        "3. AdminService.php:103 userSummaries, used by refundsPage :625/642 and depositsPage :661/678.",
+        "4. ReviewerCtl.php:152-156 is the advisory docblock.",
+        "5. TaskCtl.php:615 reviewSubmission drives the state.",
+        "6. AIAnalysisCtl.php:210 acceptProposal reads no Idempotency-Key; Initializer.php accept_idempotency_key is at :408 at HEAD.",
+        "7. Idempotency: DepositCtl.php:136, PaymentCtl.php:111, EscrowService.php:45-50.",
+        "8. Constants terminal_states/capability_roles/withdrawal_methods are at :799/:812/:842 at HEAD.",
+        "9. KYC_PRIVATE_DISK is at :297 at HEAD; FileUploadService.php:50 still tries KYC_LEGACY_PUBLIC_DISK.",
+        "10. services.php:27, LaravelConfig.php:58 at HEAD, Initializer.php:547 at HEAD; AdminPassword.php:23 CONTRACT_SECTION='codemart_admin_password'; the contract key exists (service_contract.json:258).",
+        "11. UI local lists: CmAdminTypes.ts:2-21, CmWalletPage.tsx:30, CmDashboardPage.tsx:30-31.",
+        "12. The K3 CmPageHeader/state lines match the pages for 12 of 13; Wallet drifted to :691 because of codemart-ui edits.",
+        "The cited reviews exist: laravel-codemart-D7-fix approved, ui-codemart-D7 approved, laravel-codemart-D7 changes_requested. The cited task ids exist in d22/items_codemart.json (cmgap-R1 :40, cmgap-R1-ui :118)."
+      ]
+    }
+  },
+  "issues": {
+    "blocking": [],
+    "non_blocking": [
+      "docs_fix/codemart_docs/PROGRESS_20260927_CODEMART_PAGE_POLISH.md:102 says 'Vite bundles them with hashed names'. That is not true under the current config. vite.config.ts sets no build.assetsInlineLimit, and Vite 6.4.3 defaults to 4096 B, so all 28 icons (max 1460 B), loaded through the eager glob at assets/cmImageRegistry.ts:2, become data: URIs with no hashed files. -> codemart-ui d9-01-ui: add query '?no-inline' to the ICON_MODULES glob (Vite 6 supports it) so the hashed-name definition of 'versioned' holds. Otherwise the lead rewords §3.1 and the requirement to accept inlining.",
+      "assets/icons/category-medium.webp shows up/down arrows, which read as a sort control rather than medium complexity. The residue is recorded, but the item says weak icons are regenerated -> run one more `--gateway pycore --provider openrouter --only category-medium` with a new subject before d9-01-ui wires the category icons.",
+      "docs_fix/codemart_docs/PROGRESS_20260927_CODEMART_GAP_COMPLETION.md:251 says 'D9-01 has not landed ... there is no failover store'. That is stale: LaravelConfig.php:15-16 and config/cache.php:62-65 now carry failover [redis, database] (pycore-laravel D9-01 done, 20:37). -> In G3, re-run cm_redis_probe/probe.php, record cache.default=failover and the three results, and replace the sentence.",
+      "generate_cm_images.py:239: the message says 'at quality {WEBP_MIN_QUALITY}' (40), but the loop 76->68->60->52->44 last tries 44. -> Print the last quality tried, or make the step land on the minimum. Cosmetic.",
+      "The report and result say the largest icon is 1554 B; the actual largest is 1460 B (feature-escrow-funds). The total of 25402 B is correct. Cosmetic.",
+      "A process deviation, already self-reported: the d9-redis baseline probe ran at 2.32 GB of free RAM, below the 3 GB guard. There was no residue risk, because both connections were rolled back. The G3 re-run must check RAM first.",
+      "docs_fix/codemart_docs/REQUIREMENTS_20260927_CODEMART_PAGE_POLISH.md §5 still names only the pycore gateway. It was left out of this item's file list; the lead updates it in a later pass, as the report says."
+    ]
+  },
+  "checks": {
+    "boundaries": "The lead wrote only the assigned files: the generator and icons as temporary writer (codemart-lead.md:56 path map), docs_fix/codemart_docs/* as owner, and its own report. assets/cmImageRegistry.ts and the deletion of cmPublicImages.ts/cmWorkspaceImages.ts are codemart-ui's, per the codemart-ui report.",
+    "agents_md": "Code and logs are in English. The CLI script needs no i18n. Constants are at the top of the file. No tests. One generator, with no duplicate path constant: no shared Python constant exists for /api/local/ai/image, and the host and port come from the contract helpers.",
+    "contracts": "config/service_contract.json hosts.loopback and ports.laravel_api_backend are read through pycore.pyfoundations.service_contract. codemart_admin_password is cited, never valued.",
+    "line_endings": "The generator and all 8 codemart_docs files are LF at base and LF in the working tree (CR count 0/0). No AI header was re-added. The file mode is unchanged.",
+    "reruns": "The python -B compile to a scratch cfile, --help, both dry-runs and the two exit-2 error paths ran from the scratchpad and wrote nothing to the repo. The icons were verified with PIL, read only. The greps were re-run.",
+    "not_run": "No gateway call, no PHP probe re-run (static read of probe.php only), no build."
+  }
+}
