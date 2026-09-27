@@ -76,7 +76,7 @@ class AppQyV1UserInitializationController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed',
+                'message' => __('app_qy_v1.messages.validation_failed_generic'),
                 'errors' => $validator->errors(),
             ], 422);
         }
@@ -87,7 +87,7 @@ class AppQyV1UserInitializationController extends Controller
         if (!empty($languageErrors)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Unsupported learning languages',
+                'message' => __('app_qy_v1.messages.unsupported_learning_languages'),
                 'errors' => ['learning_languages' => $languageErrors],
             ], 422);
         }
@@ -97,8 +97,8 @@ class AppQyV1UserInitializationController extends Controller
             if (!in_array($native, AppQyV1TableMaps::getSupportedLanguages(), true)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unsupported native language',
-                    'errors' => ['native_language' => ['Unsupported language code']],
+                    'message' => __('app_qy_v1.messages.unsupported_native_language'),
+                    'errors' => ['native_language' => [__('app_qy_v1.messages.unsupported_language_code', ['language' => $native])]],
                 ], 422);
             }
             $payload['native_language'] = $native;
@@ -110,7 +110,7 @@ class AppQyV1UserInitializationController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Initialization completed successfully',
+                'message' => __('app_qy_v1.messages.initialization_completed_successfully'),
                 'data' => $result['status'],
             ]);
     }

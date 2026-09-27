@@ -8,3 +8,4 @@
 - [PowerShell tool sandbox false positive](powershell-tool-sandbox-false-positive.md) — Remove-Item/Start-Process test rigs can hit a bogus "protected path" block; retry with dangerouslyDisableSandbox
 - [Dual-boot parity ledger can lag code](dual-boot-parity-ledger-can-lag-code.md) — SPW-035 can still describe an old directive (D27) after code moved to D28/D30; verify against contract/code, not the row text
 - [SharedCacheEnv.ps1 load side effects](shared-cache-env-load-side-effects.md) — dot-sourcing it creates real D:\www\cache\* dirs; stub its globals/functions in scratch tests instead
+- [Parity "aligned" needs a field diff](parity-aligned-needs-field-diff.md) — a row can say aligned while its counterpart has extra fields (e.g. Tailscale device Owner/ExitNodeOption); diff actual fields, don't trust the row status word

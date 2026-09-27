@@ -30,7 +30,7 @@ class AppQyV1ImageFileProcessor
     {
         try {
             if (!File::exists($imageArchivePath)) {
-                return ['success' => false, 'progress' => 0, 'error' => 'Image archive not found'];
+                return ['success' => false, 'progress' => 0, 'error' => __('app_qy_v1.messages.media_image_archive_not_found')];
             }
 
             // Get file extension to determine archive type
@@ -58,7 +58,7 @@ class AppQyV1ImageFileProcessor
             return [
                 'success' => false,
                 'progress' => 0,
-                'error' => 'Image processing failed: ' . $e->getMessage()
+                'error' => __('app_qy_v1.messages.media_image_processing_failed', ['error' => $e->getMessage()])
             ];
         }
     }
@@ -86,11 +86,11 @@ class AppQyV1ImageFileProcessor
                 case 'tar.gz':
                     return $this->extractTar($archivePath, $tempPath);
                 default:
-                    return ['success' => false, 'error' => 'Unsupported archive format: ' . $extension];
+                    return ['success' => false, 'error' => __('app_qy_v1.messages.archive_unsupported_format_named', ['format' => $extension])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'Archive extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -108,7 +108,7 @@ class AppQyV1ImageFileProcessor
             $result = $zip->open($archivePath);
             
             if ($result !== TRUE) {
-                return ['success' => false, 'error' => 'Failed to open ZIP archive'];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.archive_zip_open_failed')];
             }
             
             $zip->extractTo($tempPath);
@@ -117,7 +117,7 @@ class AppQyV1ImageFileProcessor
             return ['success' => true, 'extracted_path' => $tempPath];
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'ZIP extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_zip_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -140,11 +140,11 @@ class AppQyV1ImageFileProcessor
             if ($returnCode === 0) {
                 return ['success' => true, 'extracted_path' => $tempPath];
             } else {
-                return ['success' => false, 'error' => '7z extraction failed: ' . implode("\n", $output)];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.archive_7z_extraction_failed', ['error' => implode("\n", $output)])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => '7z extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_7z_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -167,11 +167,11 @@ class AppQyV1ImageFileProcessor
             if ($returnCode === 0) {
                 return ['success' => true, 'extracted_path' => $tempPath];
             } else {
-                return ['success' => false, 'error' => 'TAR extraction failed: ' . implode("\n", $output)];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.archive_tar_extraction_failed', ['error' => implode("\n", $output)])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'TAR extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_tar_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -191,7 +191,7 @@ class AppQyV1ImageFileProcessor
             $imageFiles = $this->findImageFilesRecursively($extractedPath, $imageExtensions);
             
             if (empty($imageFiles)) {
-                return ['success' => false, 'progress' => 0, 'error' => 'No image files found in archive'];
+                return ['success' => false, 'progress' => 0, 'error' => __('app_qy_v1.messages.media_no_image_files_in_archive')];
             }
 
             $totalFiles = count($imageFiles);
@@ -212,7 +212,7 @@ class AppQyV1ImageFileProcessor
                         $errors[] = $result['error'];
                     }
                 } catch (\Exception $e) {
-                    $errors[] = "Failed to process {$imageFile}: " . $e->getMessage();
+                    $errors[] = __('app_qy_v1.messages.media_file_process_failed', ['file' => $imageFile, 'error' => $e->getMessage()]);
                 }
                 
                 $processedFiles++;
@@ -239,7 +239,7 @@ class AppQyV1ImageFileProcessor
             return [
                 'success' => false,
                 'progress' => 0,
-                'error' => 'Image file processing failed: ' . $e->getMessage()
+                'error' => __('app_qy_v1.messages.media_image_file_processing_failed', ['error' => $e->getMessage()])
             ];
         }
     }
@@ -295,7 +295,7 @@ class AppQyV1ImageFileProcessor
 
             // Skip files that are too small (likely thumbnails or icons)
             if ($validation['file_size'] < 1024) { // Less than 1KB
-                return ['success' => false, 'skipped' => true, 'error' => 'File too small, likely thumbnail'];
+                return ['success' => false, 'skipped' => true, 'error' => __('app_qy_v1.messages.media_image_too_small_thumbnail')];
             }
 
             // Target directory for word images
@@ -321,11 +321,11 @@ class AppQyV1ImageFileProcessor
                     'dimensions' => $validation['width'] . 'x' . $validation['height']
                 ];
             } else {
-                return ['success' => false, 'error' => "Failed to copy image: $filename"];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.media_image_copy_failed', ['file' => $filename])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'Image processing error: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.media_image_processing_error', ['error' => $e->getMessage()])];
         }
     }
 
@@ -339,18 +339,18 @@ class AppQyV1ImageFileProcessor
     {
         try {
             if (!File::exists($imageFilePath)) {
-                return ['valid' => false, 'error' => 'File does not exist'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.media_file_missing')];
             }
 
             $fileSize = File::size($imageFilePath);
             if ($fileSize === 0) {
-                return ['valid' => false, 'error' => 'File is empty'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.media_file_empty')];
             }
 
             // Get image info
             $imageInfo = getimagesize($imageFilePath);
             if ($imageInfo === false) {
-                return ['valid' => false, 'error' => 'Not a valid image file'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.media_not_valid_image')];
             }
 
             $width = $imageInfo[0];
@@ -359,12 +359,12 @@ class AppQyV1ImageFileProcessor
 
             // Check dimensions
             if ($width < 10 || $height < 10) {
-                return ['valid' => false, 'error' => 'Image dimensions too small'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.media_image_dimensions_too_small')];
             }
 
             // Check file size limits (max 20MB)
             if ($fileSize > 20 * 1024 * 1024) {
-                return ['valid' => false, 'error' => 'File size too large (>20MB)'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.media_file_too_large', ['limit' => 20])];
             }
 
             return [
@@ -376,7 +376,7 @@ class AppQyV1ImageFileProcessor
             ];
 
         } catch (\Exception $e) {
-            return ['valid' => false, 'error' => 'Image validation failed: ' . $e->getMessage()];
+            return ['valid' => false, 'error' => __('app_qy_v1.messages.media_image_validation_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -468,12 +468,12 @@ class AppQyV1ImageFileProcessor
     {
         try {
             if (!File::exists($archivePath)) {
-                return ['valid' => false, 'error' => 'Archive file does not exist'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_file_missing')];
             }
 
             $fileSize = File::size($archivePath);
             if ($fileSize === 0) {
-                return ['valid' => false, 'error' => 'Archive file is empty'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_file_empty')];
             }
 
             // Check file extension
@@ -481,7 +481,7 @@ class AppQyV1ImageFileProcessor
             $supportedExtensions = ['zip', '7z', 'tar', 'gz'];
             
             if (!in_array($extension, $supportedExtensions)) {
-                return ['valid' => false, 'error' => 'Unsupported archive format'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_unsupported_format')];
             }
 
             return [
@@ -492,7 +492,7 @@ class AppQyV1ImageFileProcessor
             ];
 
         } catch (\Exception $e) {
-            return ['valid' => false, 'error' => 'Archive validation failed: ' . $e->getMessage()];
+            return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_validation_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -531,7 +531,7 @@ class AppQyV1ImageFileProcessor
             ];
 
         } catch (\Exception $e) {
-            return ['error' => 'Failed to get statistics: ' . $e->getMessage()];
+            return ['error' => __('app_qy_v1.messages.media_statistics_failed', ['error' => $e->getMessage()])];
         }
     }
 }

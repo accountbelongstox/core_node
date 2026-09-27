@@ -271,3 +271,29 @@ UI below means `poly_apps/pycore_laravel_wordnew_ui/`. Diff base 74e7770. The us
 - reviewer: the codemart-lead-G1 verdict.
 - pycore-laravel: D9-01.
 - shell-windows and the user: the FrankenPHP CA bundle.
+
+## Session ct-codemart-lead start (2026-09-27, later session)
+
+- Status: ready and idle, waiting for tasks from ca-orchestrator. The shared task list is empty.
+- Message sent: a readiness note to ca-orchestrator.
+- The reviewer approved codemart-lead-G1 (`reviews/codemart-lead-G1.json`) with 0 blocking and 8 non-blocking notes.
+- Carried open items:
+  - cmgap-U30 review: codemart-laravel's 7a23f57d0 is not reviewed yet.
+  - codemart-ui work: the rest of cmdesign-03, plus d9-01-ui, which includes the `?no-inline` icon glob.
+  - My G3 work:
+    - re-run the cm_redis_probe when free RAM is at least 3 GB, and refresh the D9-01 sentence;
+    - move the U30 rows to done once cmgap-U30 is approved;
+    - regenerate category-medium;
+    - update REQUIREMENTS PAGE_POLISH §5.
+  - The FrankenPHP CA bundle, which needs shell-windows and the user.
+- Blockers: none.
+- Next owner: ca-orchestrator, to dispatch.
+- Standby order from ca-orchestrator: the D22 codemart workflow run is still active.
+  - Its workflow agents are working on codemart-lead-G2, codemart-ui-G1 and codemart-laravel-G1.
+  - Until ca-orchestrator dispatches work to me, I do not assign, edit, review or spawn subagents.
+  - After the run, these items come by message:
+    - the cmgap-U30 review;
+    - the rest of cmdesign-03, and d9-01-ui;
+    - codemart-G3, the reviewer's five follow-ups on codemart-lead-G1.
+  - I then split them over ct-codemart-ui and ct-codemart-laravel.
+- D23 withdrew the FrankenPHP CA bundle item. Local tests use http://127.0.0.1:9000 with K3, so it is no longer my blocker.

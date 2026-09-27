@@ -36,8 +36,8 @@ class AppQyV1PersonalDictionaryDeletionController extends Controller
         AppQyV1PersonalDictionaryEntryModel::deleteForUser((int) $uid, (int) $id);
 
         return $this->success([
-            'message' => 'Personal dictionary entry deleted successfully',
-        ], 'Personal dictionary entry deleted successfully');
+            'message' => __('app_qy_v1.messages.personal_dictionary_entry_deleted'),
+        ], __('app_qy_v1.messages.personal_dictionary_entry_deleted'));
     }
 
     public function deletePersonalAllDictionary(Request $request): JsonResponse
@@ -47,8 +47,8 @@ class AppQyV1PersonalDictionaryDeletionController extends Controller
         AppQyV1PersonalDictionaryEntryModel::deleteForUser((int) $uid);
 
         return $this->success([
-            'message' => 'All personal dictionary entries deleted successfully',
-        ], 'All personal dictionary entries deleted successfully');
+            'message' => __('app_qy_v1.messages.personal_dictionary_all_entries_deleted'),
+        ], __('app_qy_v1.messages.personal_dictionary_all_entries_deleted'));
     }
 
 }

@@ -37,7 +37,7 @@ class AppQyV1VocabularyImporter
         if (!is_dir($this->vocabularyDataDir)) {
             return [
                 'success' => false,
-                'error' => 'Vocabulary data directory not found: ' . $this->vocabularyDataDir,
+                'error' => __('app_qy_v1.messages.vocabulary_data_dir_not_found', ['path' => $this->vocabularyDataDir]),
             ];
         }
 
@@ -67,7 +67,7 @@ class AppQyV1VocabularyImporter
         if (!file_exists($filePath)) {
             return [
                 'success' => false,
-                'error' => 'File not found: ' . $filePath,
+                'error' => __('app_qy_v1.messages.vocabulary_file_not_found', ['path' => $filePath]),
             ];
         }
 
@@ -76,7 +76,7 @@ class AppQyV1VocabularyImporter
             if ($content === false) {
                 return [
                     'success' => false,
-                    'error' => 'Failed to read file: ' . $filePath,
+                    'error' => __('app_qy_v1.messages.vocabulary_file_read_failed', ['path' => $filePath]),
                 ];
             }
 
@@ -90,7 +90,7 @@ class AppQyV1VocabularyImporter
             if (empty($words)) {
                 return [
                     'success' => false,
-                    'error' => 'No valid words found in file',
+                    'error' => __('app_qy_v1.messages.vocabulary_no_valid_words_in_file'),
                 ];
             }
 
@@ -194,7 +194,7 @@ class AppQyV1VocabularyImporter
         if ($langName === null) {
             return [
                 'success' => false,
-                'error' => 'Unsupported language code: ' . $langCode,
+                'error' => __('app_qy_v1.messages.unsupported_language_code', ['language' => $langCode]),
             ];
         }
 

@@ -10,6 +10,7 @@
 | amend-windows | D27 amendment: dual-boot layout dropped the tree root/subdir on both OSes; `SharedCacheEnv.ps1` re-worked to `CN_CACHE_ROOT`/`CN_CACHE_SUBDIR_NAMES` under `CN_TOOL_ROOT`, `.cn_volume` marker relocated to the drive root, no junction logic on Windows | done, awaiting reviewer |
 | shell-windows-10 | Answer the D27 question ("/opt/core_node_trees/www/core_node_trees, what is it for, remove if useless") for the Windows side; re-verify shell-windows-9 was not regressed | done (investigation only; no code changes needed on the Windows side) |
 | shell-windows-10 (D29) | Tailscale management: common library + Windows Management menu entry (status/devices/restart/panel), verified live against the running install, parity checked against shell-linux's own already-built counterpart | done, awaiting reviewer |
+| shell-linux-11 (leader review) | Reviewed shell-linux's D29 Tailscale task (round 2 re-verification submission) | changes_requested: device-table field parity gap (ExitNodeOption/Owner) |
 | amend-windows-d28d30 | D28/D30 lane: verified `SharedCacheEnv.ps1` + new `ProjectTreeCommon.ps1` against the current contract (namespaces/tool_root/cache_root/trees_root/toolchain_env_file), re-ran the 7-state junction scratch test, updated the stale SPW-035 ledger row | done, awaiting reviewer (no code changes needed -- files were already correct) |
 
 ## shell-windows-2: D12a desktop icon organizer
@@ -562,3 +563,43 @@ None for this lane. The two SPW-035 `pending-linux` items need `[shell-linux] al
 ### Next owner
 
 Reviewer, for `amend-windows-d28d30`. Then shell-linux for the two SPW-035 alignment items (contract-key rename in `shared_cache_env.sh`, and the `trees_root.linux`/`trees_mount_linux` bind-mount implementation). ca-orchestrator for the `WinScriptsInstaller.ps1` `$FILES` follow-up (add `ProjectTreeCommon.ps1`).
+
+## shell-linux-11: leader review of shell-linux's D29 Tailscale task (round 2)
+
+Reviewed shell-linux's re-verification submission for `shell-linux-11` (task text: build a shared `tailscale_common.sh`, wire a Linux menu entry, keep parity with the Windows `TailscaleCommon.ps1` already recorded as `SPW-037`/`SPW-038`/`SPW-039`). Verdict written to `.claude/agents_shared/reviews/shell-linux-11.json`: **changes_requested**.
+
+### What checked out
+
+- `bash -n` clean on all four touched files (`tailscale_common.sh`, `menu_itemshells/tailscale_menu.sh`, `dd_helper/linux_management.sh`, `debian/install_shells/97_install_tailscale.sh`); all four are 0 CR bytes (LF-only).
+- `git diff HEAD` empty for all five relevant files (the four `.sh` + `linux.md`) -- this round made no code changes, matching the report's own `changed_files: []`.
+- Protected lane confirmed untouched: `git show --stat` on the introducing commit `6ecff3401` does not list `dd.sh`, `dd_helper/menu_display.sh` or `dd_helper/permissions_repair_menu.sh`, and `grep -i tailscale` over those three files returns nothing. The menu entry lives in the sibling `dd_helper/linux_management.sh` (new `show_tailscale_management_menu()` + one new "Tailscale Management" row in `show_linux_system_tools_submenu`), which is not on the running plan's do-not-edit list -- so no queued hook-in was actually needed, as claimed.
+- `TAILSCALE_SERVICE` and `is_tailscale_installed()` each have exactly one definition in the repo, in `tailscale_common.sh`; `97_install_tailscale.sh` sources it and declares neither -- satisfies `LINUX_SHELL_RULES.md` #1 (one definition per constant).
+- `net_detect_tailscale_ipv4()` in `network_detect_common.sh` is reused (not reimplemented) by `ts_show_status`.
+- `PowerShell Parser::ParseFile` on the Windows counterpart `TailscaleCommon.ps1`: 0 errors.
+- No Tailscale action was executed by this review (no `tailscale`/`systemctl` call, no WSL distro start -- `wsl.exe -l -v` only lists registered distros without booting one).
+
+### Blocking finding: device-table field parity gap
+
+`ts_show_devices` (`scripts/shells/linux/common/tailscale_common.sh:215-229`) prints HOSTNAME/DNS NAME/OS/IPV4/IPV6/ONLINE/LAST SEEN/EXIT/CONNECTION, where EXIT is a plain yes/no on `ExitNode` only. The already-approved Windows counterpart (`TailscaleCommon.ps1` `Get-TailscaleDeviceRow`:254-260,267,273 and `Show-TailscaleDevices`:374-385) additionally carries an `Owner` column (`.User[UserID].LoginName`) and distinguishes `ExitNodeOption` ("offered") from `ExitNode` ("in-use"). The official-docs spec text supplied for this task also prints `ExitNodeOption` as its own field in the given Linux python example, so this is a gap against the assigned spec's own example, not just a stylistic Windows/Linux difference. `linux.md`'s `SPL-118` row lists the Linux fields accurately (no overclaim in the field list itself) but still marks the row `aligned` overall, which the field list contradicts. Requested fix: add the `ExitNodeOption` (and ideally `Owner`) column(s) to `ts_show_devices`, then correct `SPL-118`'s "aligned" framing (or split the gap into its own tracked id, mirroring how `SPW-038`/`SPW-039` tracked and closed the earlier `LastSeen` and panel-gating gaps on this same feature).
+
+### Parity ledger
+
+No Windows-side code changed by this review, so no new `SPW-###` row was added; `SPW-037/038/039` in `windows.md` already document the Windows fields this finding compares against. The fix belongs entirely on the Linux side (`SPL-118`).
+
+### Messaging
+
+`ListAgents` shows no reachable `shell-linux` teammate or session (only `ca-orchestrator` as the main session and two unrelated peers, `core-node-e9` and `ct-laravel-remote`), matching what shell-linux's own report already noted about this environment. Recording the alignment request here per the parity protocol's report option, for the orchestrator to relay to shell-linux: fix the `ExitNodeOption`/`Owner` device-field gap in `tailscale_common.sh::ts_show_devices` and correct `SPL-118`.
+
+### Changed files
+
+- `.claude/agents_shared/reviews/shell-linux-11.json` (new; verdict `changes_requested`).
+- `.claude/agents_shared/reports/shell-windows.md` (this section and its table row).
+- No changes to any file in shell-linux's or shell-windows's write scope.
+
+### Blockers
+
+None for shell-windows. shell-linux-11 stays open until the device-field gap is fixed and `SPL-118` is corrected.
+
+### Next owner
+
+ca-orchestrator: relay the alignment request to shell-linux (fix `ts_show_devices` field parity, correct `SPL-118`), since no direct session/teammate to shell-linux was reachable from here.

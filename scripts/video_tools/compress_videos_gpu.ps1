@@ -133,6 +133,7 @@ function Join-ProcessArguments {
 function Get-MediaInfo {
     param([Parameter(Mandatory = $true)] [string]$Path)
 
+    $ErrorActionPreference = 'Continue'
     $json = & $script:Ffmpeg.ProbePath -v error -print_format json -show_format -show_streams -i $Path 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $json) {
         return $null
@@ -501,19 +502,17 @@ function Invoke-VideoCompression {
                     $done++
                     $script:Stats.Skipped++
                     Write-CompressLog -Status 'skipped' -Source $file.FullName -OriginalBytes $file.Length -Detail $plan.Skip
-                    continue
-                }
-                if ($DryRun) {
+                } elseif ($DryRun) {
                     $done++
                     Write-Host ('[plan] {0} :: {1}' -f $file.FullName, $plan.Summary) -ForegroundColor Cyan
-                    continue
+                } else {
+                    $nextId++
+                    $job = [PSCustomObject]@{ Id = $nextId; Plan = $plan; Attempt = 1; Phase = ''; Handle = $null }
+                    Start-EncodePhase -Job $job
+                    $running.Add($job)
                 }
-                $nextId++
-                $job = [PSCustomObject]@{ Id = $nextId; Plan = $plan; Attempt = 1; Phase = ''; Handle = $null }
-                Start-EncodePhase -Job $job
-                $running.Add($job)
             }
-            foreach ($job in @($running)) {
+            foreach ($job in $running.ToArray()) {
                 if ($job.Handle.Process.HasExited) {
                     if (Complete-Job -Job $job) {
                         $running.Remove($job) | Out-Null
@@ -529,12 +528,16 @@ function Invoke-VideoCompression {
             }
         }
     } finally {
-        foreach ($job in @($running)) {
-            if ($job.Handle -and -not $job.Handle.Process.HasExited) {
-                $job.Handle.Process.Kill()
-                $job.Handle.Process.WaitForExit()
+        foreach ($job in $running.ToArray()) {
+            try {
+                if ($job.Handle -and -not $job.Handle.Process.HasExited) {
+                    $job.Handle.Process.Kill()
+                    $job.Handle.Process.WaitForExit()
+                }
+                Remove-TempFile -Path $job.Plan.TempPath
+            } catch {
+                Write-Host ('[cleanup] could not remove {0}: {1}' -f $job.Plan.TempPath, $_.Exception.Message) -ForegroundColor Red
             }
-            Remove-TempFile -Path $job.Plan.TempPath
         }
         Write-Progress -Activity 'GPU video compression' -Completed
     }

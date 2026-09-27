@@ -14,6 +14,9 @@ When a task forbids tests, servers and builds, laravel_main changes can still be
 - Schema code: PostgreSQL DDL is transactional, so `DB::connection($c)->beginTransaction()` ... `rollBack()` around SafeMigrationHelper / initializer calls shows exactly what they would add, with no residue. It cannot show per-statement failure isolation (an aborted txn fails every later statement).
 - HTTP without a running server: create the `Request` first, `$app->instance('request', $request)`, then `$httpKernel->bootstrap()` and `handle()`. Bootstrapping the HTTP kernel before a request is bound crashes in the UrlGenerator.
 - Capture log lines in the script with `Event::listen(MessageLogged::class, ...)`. The daily channel runs at `warning`, so `info` never reaches the log file.
+- Several HTTP calls as different users in one script: call `app('auth')->forgetGuards()` before each `handle()`, or the Sanctum guard keeps the first user. Create tokens inside the rolled-back transaction on the default connection. After the console kernel has booted, `$httpKernel->handle($request)` works without re-bootstrapping.
+- Artisan commands run inside the same transactions with `Artisan::call($name, $args)` (exit code) and `Artisan::output()`.
+- The user commits snapshot commits ("win0.0.1") during a task, so `git diff HEAD` can be empty; diff against the commit that was HEAD when the task started.
 - `laravel_db/*_init_status.json` "fully_initialized" is not proof that the schema was applied (the file is written outside the DB). Compare the declared structures with `information_schema` instead.
 
 **Why:** In the 2026-09-27 sessions the user ruled out tests and services (the local FrankenPHP service was disabled). These checks caught a missing lang path that `php -l` could not, and a duplicate-index idempotency bug in SafeMigrationHelper.

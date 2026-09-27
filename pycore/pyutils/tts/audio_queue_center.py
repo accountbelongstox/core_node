@@ -84,13 +84,13 @@ _PERSIST_PAUSE_SIGNAL = "audio_queue_center.persist_pause"
 _PERSIST_MIN_INTERVAL_SECONDS = 5.0
 # Per-lane restore-complete signal: set once restore_from_cache(lane) has
 # finished (whole-Queue populated from the local snapshot), so a lane's own
-# first remote pull can wait on it (R6/§5.4: cache before any remote access).
+# first remote pull can wait on it (R6 section 5.4: cache before any remote
+# access).
 _RESTORE_COMPLETE_SIGNAL_PREFIX = "audio_queue_center.restore_complete"
-# Safety bound on ``wait_for_restore`` below (R6/§5.4): loading even a large
-# local snapshot takes seconds, not minutes; this only guards against the
-# boot chain never running for the lane at all. ONE definition (was
-# duplicated in capability_sync.py and audio_lane_full_sync.py) - a lane
-# starter imports this instead of redeclaring its own copy.
+# Safety bound on ``wait_for_restore`` below (R6 section 5.4): loading even a
+# large local snapshot takes seconds, not minutes; this only guards against
+# the boot chain never running for the lane at all. ONE definition - a lane
+# starter imports this instead of declaring its own copy.
 AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS = 180.0
 
 # Tracker states of Part1 items (observability only).
@@ -1043,6 +1043,7 @@ audio_queue_center = AudioQueueCenter()
 
 
 __all__ = [
+    "AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS",
     "AUDIO_QUEUE_CHANGED_SIGNAL",
     "AUDIO_QUEUE_OWNER_SIGNAL_PREFIX",
     "AUDIO_QUEUE_KIND_BY_LANE",

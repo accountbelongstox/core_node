@@ -297,7 +297,7 @@
 
 ## laravel-api-D7-fix (leader dispatch; item laravel-api-D7-B1)
 
-- Status: deferred to the owner. Dispatched to pycore-laravel as task `[pycore-laravel] laravel-api-D7-fix`, with the patch below already validated.
+- Status: done by the owner and re-verified (see "Round 2" at the end of this section). Round 1 dispatched it to pycore-laravel as task `[pycore-laravel] laravel-api-D7-fix`, with the patch below already validated.
 - Why deferred: `poly_apps/laravel_main/app/Utils/` is pycore-laravel's scope (path map; B1 one writer per path). The task says "write scope only", and pycore-lead has no temporary-writer clause.
 - Changed files (this task): this report only. No repo code was touched.
 - Scratch prototypes (not repo): `scratchpad/d7fix/{native_delete_proto,native_delete_proto2,link_probe,junction_trace}.php`. Each one cleans up its own sandbox.
@@ -330,6 +330,35 @@
   - Use the lstat-based `filetype() === 'dir'` guard instead of the item's `is_dir && !is_link`, because the prototype proved the latter deletes a junction target's contents.
   - Use one unified `unlink || rmdir` for each entry instead of type branching, because `is_dir` is unreliable for junctions.
 - Next owner: pycore-laravel (implements the patch and runs the member verification). Then pycore-lead re-reviews and writes `.claude/agents_shared/reviews/laravel-api-D7-fix.json`, and updates the B1 entry of `laravel-api-D7.json`.
+- Round 2 (reply to the reviewer's round-1 changes_requested):
+  - The blocking issue is closed by its owner. pycore-laravel's write of `FileSystemManager.php` (mtime 20:43:42) landed in the user capture commit 0b6f362e3. `git diff 0b6f362e3` on the file is empty through HEAD 7bed0a953 and the working tree.
+    - The Windows branch is at :610-612, `deleteNative` at :643-664 and `removeNativeEntry` at :666-676.
+    - The code matches the patch above. The POSIX sudo block is byte-identical to 74e7770, and the file is still LF (0 CR).
+  - pycore-lead wrote no code in this round, because app/Utils stays pycore-laravel's scope.
+  - Re-verification (free RAM 5.36 GB):
+    - `php -l`: clean.
+    - `scratchpad/d7fix2/verify.php` (tag d7fx2b99daa4c, CLI PHP 8.5.2, output `out_cli_r3.json`, stderr empty): 42/42 PASS. It covers:
+      - a scratch file, a read-only file and a read-only dir;
+      - top-level junction, dir symlink and file symlink cases (every `*_created` flag true, every target intact);
+      - a nested tree with a read-only dir, junction, dir symlink and file symlink (removed, targets intact), and a missing path;
+      - the internal `concatenateFiles` :460 delete of a stale `.assembling` dir;
+      - a scratch terminal save (7 seeded entries become 0, summary kept);
+      - `completeArchive`, which removes the `.extract` staging and the `.7z.part`, leaves the live root untouched and has clean `forgetSession` output;
+      - `pruneTerminal` with 7 terminal sessions: the two back-dated scratch ones are pruned, an orphan scratch lock is swept, and the newest scratch session is kept.
+    - Real DataSync state: 16 entries byte-identical (4 jobs, 4 summaries, 4 locks, 4 manifest-cache files). No scratch leftovers remain.
+    - `GET :9000/api/health` returned 200.
+  - Workers: I did not restart them, because this round changed no code. The owner restarted them after the edit (`reports/pycore-laravel.md:219`, 200/200).
+  - Round-1 non-blocking items:
+    - Internal `self::delete` at :408, :460, :471 and :480: covered. :460 is exercised by the check above. :471 and :480 act on the same `<dest>.assembling` sibling, and :408 on the `<path>.<pid>.<rand>.tmp` staging file, so none can reach outside the caller's own temporary name.
+    - The `unlink || rmdir` retry after chmod is at :672-675, and the read-only dir checks pass.
+    - Why Illuminate is not reused (AGENTS.md reuse rule): `Filesystem::deleteDirectory` (vendor .../Illuminate/Filesystem/Filesystem.php:751) recurses on `isDir() && !isLink()`. That condition is true for a junction on PHP 8.5, and the first prototype proved it walks into the target. No junction-safe helper exists in app/.
+    - Informational (pycore-laravel backlog): the File::deleteDirectory callers `Providers/GlobalVar.php:165` and `ClipboardController.php:104/109` carry the same hazard.
+    - Prune verification deviation, now recorded: the item's cap (terminal_retention minus the 4 real sessions) cannot trigger a prune. The check back-dates the scratch sessions instead, to `2026-09-20T01:00:00+00:00` and `…01:00:01+00:00`. Both are older than the oldest real session (`2026-09-26T15:04:41+00:00`) and use the same ISO '+00:00' form, because `arsort` compares strings. At most 3 scratch terminal sessions exist at once. The script aborts unless jobs/ holds exactly the 4 known terminal protocol-5 ids.
+    - The ContractDocument.php and QueueCenterContract.php review is its own task (pycore-laravel scope), not this one.
+  - Verdict: `reviews/laravel-api-D7-fix.json` is round 2, approved, written by parallel pycore-lead passes at 21:15 and 21:22. The second pass added the FrankenPHP php-cli 8.5.11 run. The B1 entry of `laravel-api-D7.json` is in resolved_issues. My run matches both, so I left the verdict files unchanged rather than overwrite a concurrent writer.
+  - Decision (recommended option): verify and record, with no leader edit. This keeps the one-writer-per-path rule, and the owner's write already satisfies the blocking fix.
+  - Changed files (round 2): this report only.
+  - Blockers: none. Next owner: none for this task. `rename()` (sudo-only) and the `:673-675` redundant final `if` stay in pycore-laravel's backlog.
 
 ## Review pycore-runtime-D7P2-fix round 1 (dispatched to member pycore-ui)
 
@@ -449,3 +478,54 @@
   - Cross-scope, for shell-linux via the orchestrator (carried forward): `scan_shared_cache.sh:169-170`.
 - Changed files (this task): the verdict file and this report only. No git writes, and no services were touched.
 - Blockers: none. Next owner: none for this task.
+
+## Review laravel-api-D7-fix (round 2, member pycore-laravel)
+
+- Verdict: approved. Files: `.claude/agents_shared/reviews/laravel-api-D7-fix.json` (round 2) and the B1 entry of `laravel-api-D7.json` (moved to resolved_issues, verdict approved). Base 74e7770, HEAD 7bed0a953.
+- A parallel pycore-lead instance wrote round 2 first (21:15, 42/42 in-process, `scratchpad/d7fix2/out_cli.json`). Its content went into 7bed0a953. I merged my own pass into that file instead of overwriting it.
+- Diff: `FileSystemManager.php:610-612` (Windows branch), `deleteNative` :643-664 and `removeNativeEntry` :666-676 match the validated spec, with two accepted extras: SafeLogger in the catch, and unlink||rmdir retried after chmod. The POSIX sudo block and `PathMapper::isWindows()` are unchanged. LF is kept, and php -l is clean.
+- Junction safety: my own pass (`scratchpad/d7fixlead/verify_lead.php`, own sandbox, no data-dir writes) passes on both CLI PHP 8.5.2 and FrankenPHP php-cli 8.5.11. It covers a top-level junction, dir symlink and file symlink, nested links, a self-loop junction, read-only dirs, Unicode names, a locked file (false, no exception) and a missing path. Every target is hash-identical afterwards.
+- Real DataSync state (read-only): 4 sessions (8 files, mtimes 01:04-02:57) and 4 locks, untouched. No scratch leftovers. The empty `archives/` and `plans/` dirs were created by the first leader pass at 21:09. They are app-owned, and I left them in place.
+- Non-blocking (pycore-laravel):
+  - `:673-675` redundant final if.
+  - A dangling link is reported deleted but stays (pre-existing early return; parity with Linux).
+  - `rename()` is still sudo-only.
+  - The report's provenance: it says "already present" for its own earlier write.
+- Decision (recommended option): approve. The member changed no code in this dispatch, but the owner's earlier write carries B1's fix, and it is verified on both runtimes.
+- Changed files (this task): the two verdict files and this report. No git writes, and no services were touched.
+- Blockers: none. Next owner: none for this task. `rename()` stays in pycore-laravel's backlog.
+
+## Review shell-windows-3-fix (round 1, member pycore-runtime)
+
+- Verdict: changes_requested. File: `.claude/agents_shared/reviews/shell-windows-3-fix.json`.
+- Scope: the member refuted B1-B3 as wrong owner, made no code edits, and added 66 lines to `reports/pycore-runtime.md` (LF, additive).
+- Accepted: the ownership reading. Every B1-B3 file is pycore-ai's in the D22 map (pycore-lead.md:21-22), and no out-of-scope write happened.
+- Blocking:
+  - All three defects are still on disk at HEAD 7bed0a953:
+    - B1: the Step55:112-125 and Step56:88-100 docker branches and 139/143 run ensure with no opt-in gate.
+    - B2: DockerWslBridge.ps1:533, and the restart branch at :555-558, can still terminate a distro that was already running.
+    - B3: cosyvoice and gptsovits have no model.sh, so Step52/54 and 133/137 fail and Step52/54 exit 1.
+  - The claude lead has recorded this run's pycore-runtime agent as the writer (TASKS.md:174 misroute-sw3, uncommitted, written after the member's report). Round 2 implements the fix list in the verdict, including the SPW-007/009/011/013/014 ledger rows.
+- Non-blocking: the report quotes a 'Not yours: installers' line that is not in the current pycore-runtime.md (it matches the retired pycore.md:17).
+- Checks: git diff stat and EOL on the report; B1-B3 files unchanged against HEAD; every cited line re-read; not fenced for e9; free RAM 4.2 GB, with no builds, WSL starts or tests.
+- Decision (recommended option): changes_requested instead of approved. Approving would close the fix task with B1-B3 open (the same reasoning as pycore-runtime-D7P2-fix r3). TASKS.md:174 names the writer, so round 2 stays on pycore-runtime.
+- Changed files (this task): the verdict file and this report only.
+- Blockers: B1-B3. Next owner: pycore-runtime round 2, then a pycore-lead re-review. pycore-ai re-checks in G3 D12.
+
+## pycore-lead-F1 (F-1 foundation report, the B4 prerequisite; own development, verified by the reviewer service)
+
+- Status: implemented, awaiting the reviewer service verdict `.claude/agents_shared/reviews/pycore-lead-F1.json`. Base 74e7770; `serialized_worker.py` was unchanged since f4f223414 (mtime 15:50:36) before this edit.
+- Change (`pycore/pyfoundations/serialized_worker.py`, +13/-0):
+  - `:12` `import traceback` (stdlib; pyfoundations layering unchanged).
+  - `:78-83` `_report_unobserved_failure(thread_name, exc)`: one `ColorPrint.red` block. The first line is `[SerializedWorker] callback failed with no response_signal thread=<name> error_type=<type> error=<message>`, followed by the `traceback.format_exception` text.
+  - `:128-129` (SerializedWorkerThread.run) and `:156-157` (BusTaskThread.run): in the existing `except`, `if not response_signal: _report_unobserved_failure(self.name, exc)`. The response dict, `_publish_response` and the response_signal path are unchanged. No new try/except and no new logging layer.
+- EOL: the file is mixed (531 CRLF / 47 LF at base). All 13 added lines are CRLF, matching their CRLF neighbours; the 47 LF lines are untouched (now 544/47). `git diff --numstat` equals `--ignore-space-at-eol` (13/0).
+- Verification (scratchpad only, `python -B`, PYTHONDONTWRITEBYTECODE=1, no service, no register_http_routes):
+  - `python -m py_compile pycore/pyfoundations/serialized_worker.py`: OK. AST check: no undefined names in the helper; imports are stdlib plus pyfoundations only.
+  - `f1_probe.py`: 16/16 PASS. BusTaskThread with no signal: one red block with thread=F1ProbeNoSignalThread, error_type=RuntimeError, the message and a traceback ending `RuntimeError: probe failure 1`. BusTaskThread with a response_signal: the response equals `_error_response(RuntimeError("probe failure 2"))` and nothing red is printed. `map_bus_tasks` still re-raises a registered error type, with no red block. A successful no-signal task stays silent. `call_serialized` still raises RuntimeError with no red block. A fire-and-forget SerializedWorkerThread request prints one red block, and the owner thread keeps serving (the next call returns 16).
+  - `f1_control.py` against the pre-edit copy: a failing no-signal `start_bus_task` produced 0 messages. This confirms the silent drop that B4 describes.
+- Decision (recommended option): cover SerializedWorkerThread too, not only BusTaskThread. Both threads drop a failure through the same `_publish_response` no-signal return (`:43`). `pycore/pyctl/agent_history/prompt_transform_service.py:128-132` sends fire-and-forget requests (no response_signal) to a SerializedWorkerThread, so its failures were silent in the same way. PYTHON_PYCORE.md §1 asks to fix the shared design rather than one call site.
+- Decision: the report sits in the `except` branches, not in `_publish_response`, because only the `except` holds the exception and its traceback. `_publish_response` keeps its signature and behavior.
+- Effect on other callers: every `start_bus_task` without response_signal (AudioLaneBootChainThread, AudioLaneRestoreGate.*, AiProbeStartupThread, the worker pull tasks, codesync `start_bus_task`) now reports a raised failure. `await_bus_task` catches inside its worker and stays silent. Every `submit_coroutine_via_bus` caller uses wait=True (`pyutils/device/port_pool.py:210-240`), so none changes.
+- Changed files (this task): `pycore/pyfoundations/serialized_worker.py` and this report section. No git writes.
+- Blockers: none. Next owners: the reviewer service (verdict `pycore-lead-F1.json`), then pycore-runtime (pycore-runtime-D7P2-fix B4): rewrite the `event_handlers.py:431-434` docstring to name this report, keep try/finally with no except, and run the re-review probe (`_start_audio_lane_boot_chain` raises, one red block names AudioLaneBootChainThread, and apply_assist_runtime still runs).

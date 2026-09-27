@@ -103,7 +103,7 @@ class AppQyV1ProcessingCapabilityController extends Controller
                 'video' => $videoRec,
             ],
             'probed_at' => date('c'),
-        ], 'Processing capability probed');
+        ], __('app_qy_v1.messages.processing_capability_probed'));
     }
 
     // ----- probes ---------------------------------------------------------- #

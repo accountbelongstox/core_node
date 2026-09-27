@@ -8,8 +8,8 @@ Orchestration cites only `development-guides/` documents. Related documents in `
 | Mode | Use when | How workers share |
 |---|---|---|
 | Subagents | a side task would flood the main context | the result returns to the spawner; resume by name/ID with SendMessage |
-| Agent teams (`claudeagents`) | Claude plans, assigns and supervises a group | shared task list and mailbox; teammates message each other |
-| Independent sessions (`claudeteamup`) | you run long-lived role sessions yourself | cross-session messaging |
+| Agent teams (the lead of `claudeagents`) | Claude plans, assigns and supervises a group | shared task list and mailbox; here only ad-hoc in-process teammates for unowned work (§3) |
+| Independent sessions (`claudeagents`, `claudeteamup`) | every role runs long-lived in its own pane (§3.1) | cross-session messaging and the shared task list `CLAUDE_CODE_TASK_LIST_ID` |
 | Agent view (`claude agents`, `claude --bg`) | hand off independent tasks and check back | results in commits/branches/PRs. **Not used here**: background sessions move into git worktrees and commit/push by default, which conflicts with the no-git rule |
 | Dynamic workflows | very large or cross-checked jobs | a script holds the plan |
 
@@ -19,12 +19,16 @@ Same-file isolation: the official tool is worktrees. This project forbids git op
 - Frontmatter fields:
   - `name`, `description`;
   - optional: `tools`, `disallowedTools`, `model` (`inherit`), `permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`, `omitClaudeMd`, `effort`, `isolation`, `color`, `initialPrompt`.
-- `claude --agent <name>` runs a session as that agent.
+- `claude --agent <name>` runs a session as that agent, with the definition's `model` and `effort`.
+- **Models (user D11/D13):** one definition per role, in its frontmatter. `model: opus` for the thinking roles (orchestrator, pycore-lead, wordnew-lead, codemart-lead, reviewer, the remote roles), `model: sonnet` for the implementing roles (the members, shell-windows as the shell group's developer-leader, ncore, flutter), `effort: xhigh` for all. The aliases always resolve to the newest release (Opus 5.5, Sonnet 5), so no role runs an old model.
+  - Built-in agent types (claude-code-guide, Explore, Plan) do not take this policy and some default to an old model: pass `model: opus` on every built-in agent or workflow call.
+- **Catalog:** `config/claude_team_roles.json` holds launcher-only data, which Claude Code itself ignores: kickoff templates, `layout`, `session_env`, `user_settings_merge`, `remote`, `groups`, and `roles[]` as overrides only (`enabled`, `window`, `remote`). An agent file without a catalog row is enabled.
 - `memory: project` gives the agent `.claude/agent-memory/<name>/`. The first 200 lines / 25 KB of its `MEMORY.md` load at start, and Read/Write/Edit are enabled for it. All project roles use `memory: project` for durable scope learnings, never for task status.
   - A teammate is not documented to apply `memory`. Applied parts are `tools`, `model`, the body and `mcpServers`. Memory therefore works for `--agent` sessions and subagents.
 
 ## 3. Agent teams
-- **Enabling:** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`; the `claudeteam` launcher sets it. Only interactive sessions spawn teammates.
+- **Enabling:** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, set per launch for the lead only (`session_env.lead`). Never put it in project settings: that turns every named subagent in the repo into a teammate. Only interactive sessions spawn teammates.
+- **Session environment (every local session, `session_env.all`):** `CLAUDE_CODE_ENABLE_TODO_TOOLS=1`, without which Opus 5.5 and Sonnet 5 have no Task tools and the task hooks never fire, and `CLAUDE_CODE_TASK_LIST_ID=core-node-team`, one task list shared by all sessions. Windows sessions add `CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT=1` (`session_env.windows`).
 - **Lead:** the lead is fixed for the session's lifetime. There is one team per session and no nested teams.
 - **Spawning:** "Spawn a teammate using the pycore agent type, named pycore". Put the task context in the spawn prompt; teammates never inherit the lead's history.
 - **What a definition applies to a teammate:**
@@ -38,16 +42,28 @@ Same-file isolation: the official tool is worktrees. This project forbids git op
   - task list `~/.claude/tasks/<team>/` (dependencies, file-locked claims);
   - mailboxes `~/.claude/teams/<team>/inboxes/`;
   - members `~/.claude/teams/<team>/config.json` (never edit it).
-- **Display:** `--teammate-mode tmux` gives split panes and needs tmux. `in-process` is the default and the only option in Windows Terminal.
+- **Display:** `--teammate-mode tmux` gives split panes and needs tmux. `in-process` is the default and the only option in Windows Terminal. Teammates cannot be pre-declared or auto-spawned, so a window per role comes from independent sessions (§3.1).
 - **Permissions:** teammates inherit the lead's mode, and their prompts surface in the lead.
 - **Sizing:** 3–5 teammates, 5–6 tasks each. Tokens scale linearly with teammates.
 - **Limitations:** `/resume` does not restore in-process teammates; task status can lag; shutdown waits for the current tool call.
+
+### 3.1 Launchers (user D13, 2026-09-27; spec `.claude/agents_shared/d13/DESIGN.md`)
+- `claudeagents` and `claudeteamup` (`scripts/winenvs/*.ps1`, `scripts/linuxenvs/*.sh`) both start:
+  - the lead: `--agent orchestrator --name ca-orchestrator` (claudeagents) or `ct-orchestrator` (claudeteamup), with `session_env.lead`, and `--remote-control` when a remote role is enabled;
+  - every enabled local role whose catalog row is not `window: false`: `claude --agent <role> --name ct-<role> --effort <effort> --permission-mode auto <kickoff>`, each in its own pane;
+  - every enabled remote role through the ssh loop (§10).
+- The only difference is the lead kickoff: `team.kickoff` (claudeagents) or `sessions.kickoff_lead` (claudeteamup). Service roles (`window: false`) get no pane and are spawned on demand.
+- **Idempotent:** a role is live only when a claude/node process with its `--name` runs; an idle shell does not count. Live roles are skipped and missing ones reopened. Only one lead runs: when the other launcher's lead is live, it shows `other-lead` and no second lead starts.
+- **Layout at 1K/2K/4K:** the groups (`layout.tab_groups`) are packed into tabs by one rule: the largest pane area at or above `min_role`/`min_lead`, then column fill, then the lead takes the top row when it cannot get a full-height column.
+  - Windows: one named, maximized Windows Terminal window; the cell budget comes from a per-monitor DPI query; panes are `split-pane --size <fraction>`; each `wt` call stays under 32,767 characters.
+  - Linux: one tmux session (`layout.tmux_session`) with an explicit `-l %` grid, attached in one maximized terminal (ptyxis, gnome-terminal, konsole, xterm, or the current tty when headless).
+- `-Status` / `--status` prints the plan and every role's state without opening anything.
 
 ## 4. Cross-session messaging
 - **Tools:** `ListAgents` and `SendMessage` (by `--name`); `/list-agents` shows the roster.
 - **Content:** text only, never files; send paths instead. The cap is about 1M characters, and bursts and loops are throttled.
 - **Idle notice:** `notify_when_idle` sends one notice when the target goes idle (12 h). Only the main conversation can subscribe.
-- **Inbound delivery:** with no `crossSessionInbound` set, a prompting receiver (auto/manual) delivers, but holds messages from bypass senders. All roles run in auto mode, so they deliver to each other.
+- **Inbound delivery:** with no `crossSessionInbound` set, a prompting receiver (auto/manual) delivers, but holds messages from bypass senders. The installer therefore merges `crossSessionInbound: accept` into the user settings (§7), and all roles run in auto mode, so they deliver to each other.
 - **Trust:** a message is never user consent. It cannot approve prompts or change configuration.
 
 ## 5. Permissions and hooks
@@ -78,7 +94,10 @@ One shared script installs each item on its own:
 - Linux: `claude_team_install` in `scripts/ai_shtools/claude_code_install.sh`.
 - Windows: `Invoke-ClaudeTeamInstall` in `scripts/shells/win/win_common/ClaudeTeamInstallCommon.ps1`.
 
-It runs from dd.sh step 171, from dd.ps1 Step21 (the ClaudeCode callback), and at every `claudeagents`/`claudeteamup` start.
+It runs from dd.sh step 171, from dd.ps1 Step21 (the ClaudeCode callback), and at every `claudeagents`/`claudeteamup` start. It repairs only what is missing:
+- the state, shared, reports, reviews and agent-memory directories, and the PATH entry;
+- the catalog `user_settings_merge` keys, merged into `~/.claude/settings.json` only when absent and never overwritten: `crossSessionInbound: accept`, `agentPushNotifEnabled`, `inputNeededNotifEnabled` (push notifications through Remote Control), and `preferredNotifChannel: terminal_bell` (Windows Terminal and gnome-terminal get no desktop notifications otherwise);
+- a report-only Remote Control environment check (`ANTHROPIC_BASE_URL`, `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, `DISABLE_GROWTHBOOK`, `isolatePeerMachines`, `disableRemoteControl`).
 
 | Package | Official | Project |
 |---|---|---|
@@ -86,10 +105,11 @@ It runs from dd.sh step 171, from dd.ps1 Step21 (the ClaudeCode callback), and a
 | curl/wget, ca-certificates | required by the native installer | installed |
 | ripgrep | bundled | — |
 | Node.js | not needed by the native install (npm install only: Node 22+) | installed; the project hooks run on it |
-| tmux | required for split-pane teams | installed (Linux) |
+| tmux | required for split-pane teams | installed (Linux, 3.5 or newer from the distro); hosts the role panes |
+| Windows Terminal | the only Windows host for panes | installed (winget); a warning below 1.21 |
 | Git for Windows | optional, recommended (enables the Bash tool) | installed (Windows, winget `Git.Git`) |
 | bubblewrap, socat | required only for the Bash sandbox (Linux/WSL2; native Windows unsupported) | installed; the sandbox stays off unless enabled |
-| python3, xrandr, a geometry-capable terminal / Windows Terminal | project launchers | installed |
+| python3, a terminal (ptyxis, gnome-terminal, konsole or xterm) | project launchers | python3 installed; no terminal is installed, the detected one is reported |
 
 ## 8. Roles, scopes and boundaries (user D22, 2026-09-27: 16 roster roles in 5 groups, plus remote and service roles)
 
@@ -131,13 +151,13 @@ Boundaries:
 - B4 **Cross-end contracts.** `config/*_contract.json` and the endpoint constants shared across ends change only through the orchestrator, before the owners implement them.
 - B5 **Backends.** Laravel APIs belong to laravel and pycore RPCs to pycore. UI roles, flutter and mcp-chrome consume them through the centralized endpoint modules.
 - B6 **Installers.** Installs belong to shell-linux (Linux) and shell-windows (Windows). pycore owns only its runtime package policy code inside `pycore/`. Cross-platform files under `scripts/` (Python, JS, JSON, env, templates) have no default writer: the orchestrator assigns one of the two per task and records it.
-- B7 **Guides are read-only.** `development-guides/` changes only when the user asks.
+- B7 **Guides.** `development-guides/` changes only when the user asks; the orchestrator may edit it (B12).
 - B8 **Common rules.** AGENTS.md applies to all roles, with auto mode. Read-only git/gh is always allowed; every other git/gh command needs the user's prompt to ask for it.
 - B9 **No questions** (user, 2026-09-27). No session started by `claudeagents`/`claudeteamup` asks the user anything:
   - every agent definition sets `disallowedTools: AskUserQuestion`;
   - every catalog kickoff repeats the rule;
   - when a choice comes up, the session takes the recommended option and records the choice and the reason: the orchestrator in docs_fix, a role in its report.
-- B10 **UI role names** (user, 2026-09-27). The five Web UI roles carry the `ui-` prefix: `ui-laravel-manager`, `ui-pycore-manager`, `ui-wordnew`, `ui-codemart`, `ui-vortex`. `flutter` and `mcp-chrome` keep their names.
+- B10 (superseded by B14) **UI role names**: the `ui-` roles now belong to the groups (pycore-ui, wordnew-ui, codemart-ui; mcp-chrome is wordnew-link).
 - B15 **Linux shell rules** (user D24, 2026-09-27): `development-guides/LINUX_SHELL_RULES.md` supplements the shell guide for every Linux script and Linux path computation.
   - The Linux constants library defines each constant once.
   - An NTFS mount holds source code and the data both OSes share (D26: the shared data dir D:/www/core_node = /www/www/core_node). No install paths, caches, build or temp directories, node_modules/vendor/.venv, or Linux-only service state (`service_contract.json#paths.linux_ntfs_policy`).
@@ -175,12 +195,12 @@ Boundaries:
   - **Content:** text only; hand code over through the shared codebase.
   - **Approval:** `isolatePeerMachines: true` would require approval for every cross-machine send; it is not set.
 - **Agent teams are local.** A team exists in one session on the lead's machine, so a remote member is always an **independent session**, never a teammate.
-- **Project setup** (catalog role with a `remote` block: `ssh_secret`, `root`). Both launchers start a local tmux session or window that:
+- **Project setup** (catalog role with a `remote` block: `ssh_secret`, `root`; `pycore-gpu-remote` also has `os`, `root_linux`, `root_windows`). Both launchers start a local pane that:
   1. resolves the SSH target from the secret store (`scripts/pytools/special_software_env_manager/secret_read.py <ssh_secret>`; never printed);
   2. runs `ssh -t` (keepalive 30 s) and reconnects automatically every `remote.reconnect_seconds`;
   3. on the server, runs the shared idempotent `claude_team_install`;
   4. then runs `tmux -L claudeteam new-session -A -s ct-<role>`: attach if it exists, else create. As the official docs recommend, the remote session survives SSH drops;
-  5. inside it, runs `claudeteam.sh --agent <role> --name ct-<role> --remote-control ct-<role>`.
+  5. inside it, runs `claudeteam.sh --agent <role> --name ct-<role> --remote-control ct-<role> --effort <effort>`, with `session_env.remote` passed as tmux `-e` flags.
 - **The orchestrator** is started with `--remote-control <its session name>` whenever an enabled remote role exists, in both `claudeteamup` and `claudeagents`.
 - **Server prerequisites (once, by the user):** the same codebase at `root`, and `claude` signed in with the same claude.ai account.
 - **Code distribution (user D19, 2026-09-27):** code reaches every remote host only through **pyservice CodeSync** (`docs_fix/CODESYNC_AI_COMMUNICATION_API.md`).

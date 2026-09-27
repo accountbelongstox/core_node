@@ -204,7 +204,7 @@ class AppQyV1WordGroupManagementController extends Controller
         $user = Auth::user();
 
         if (!$user || $user->rolelevel != 1) {
-            return $this->forbidden('Unauthorized access, level: ' . ($user->rolelevel ?? 'none'));
+            return $this->forbidden(__('app_qy_v1.messages.unauthorized_access_level', ['level' => $user->rolelevel ?? 'none']));
         }
 
         $start = $request->input('start', 0);

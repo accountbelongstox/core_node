@@ -82,7 +82,7 @@ class AppQyV1TranslationService
         if (!isset(self::LANGUAGES[$langCode])) {
             return [
                 'success' => false,
-                'error' => 'Unsupported language: ' . $targetLanguage,
+                'error' => __('app_qy_v1.messages.unsupported_language', ['language' => $targetLanguage]),
             ];
         }
 
@@ -126,7 +126,7 @@ class AppQyV1TranslationService
         if (!isset(self::LANGUAGES[$langCode])) {
             return [
                 'success' => false,
-                'error' => 'Unsupported language: ' . $targetLanguage,
+                'error' => __('app_qy_v1.messages.unsupported_language', ['language' => $targetLanguage]),
             ];
         }
 

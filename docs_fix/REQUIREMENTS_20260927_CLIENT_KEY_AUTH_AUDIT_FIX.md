@@ -983,3 +983,14 @@ Rulings (B9):
    - the reviewer's verdicts;
    - the full team launch after approval, while the current lead's workflows keep running.
 
+### 12.3 Guide update (B12, about 21:2x)
+- shell-windows-G1 approved in round 2 (about 21:1x). The launchers no longer read the catalog `grid` key (grep: only the internal `Kind = "grid"` in `ClaudeTeamCommon.ps1` and one comment in `claude_team_common.sh`).
+- `CLAUDE_CODE_AGENTS_GUIDE.md` now describes the D13 launchers:
+  - §1 mode table: both launchers run every role as an independent session; the agent team is the lead's ad-hoc teammates only;
+  - §2: the per-role model policy (opus for the thinking roles, sonnet for the implementing roles, effort xhigh; built-in agent types get `model: opus` explicitly) and the catalog as launcher-only data;
+  - §3: `session_env` (AGENT_TEAMS for the lead only, TODO_TOOLS and TASK_LIST_ID for every session, ALT_SCREEN_FULL_REPAINT on Windows), and the new §3.1 launchers (sessions per role, `window: false`, liveness, one lead, the packing rule, `-Status`);
+  - §4: `crossSessionInbound: accept`;
+  - §7: what the installer repairs, the `user_settings_merge` keys, Windows Terminal and tmux versions, terminal detection;
+  - §10: the remote block fields and the remote command's `--effort` and tmux `-e` env;
+  - B7 points at B12; B10 is superseded by B14.
+- Next: delete the legacy catalog `grid` key once shell-linux-G1 is approved, then launch every role window with the new launcher.

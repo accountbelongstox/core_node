@@ -62,7 +62,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized access',
+                    'message' => __('app_qy_v1.messages.unauthorized_access'),
                     'supported_params' => $supported_params,
                 ], 401);
             }
@@ -73,7 +73,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$group) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group not found',
+                    'message' => __('app_qy_v1.messages.group_not_found'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 404);
@@ -141,7 +141,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized access',
+                    'message' => __('app_qy_v1.messages.unauthorized_access'),
                     'supported_params' => $supported_params,
                 ], 401);
             }
@@ -149,7 +149,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$gname) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group name is required',
+                    'message' => __('app_qy_v1.messages.group_name_is_required'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 400);
@@ -160,7 +160,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$group) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group not found',
+                    'message' => __('app_qy_v1.messages.group_not_found'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 404);
@@ -208,7 +208,7 @@ class AppQyV1WordGroupQueryController extends Controller
                 'status' => 'error',
                 'code' => 404,
                 'gid' => $gid,
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
@@ -256,7 +256,7 @@ class AppQyV1WordGroupQueryController extends Controller
                 'status' => 'error',
                 'code' => 404,
                 'gid' => $gid,
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
@@ -304,7 +304,7 @@ class AppQyV1WordGroupQueryController extends Controller
                 'status' => 'error',
                 'code' => 404,
                 'gid' => $gid,
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
@@ -331,7 +331,7 @@ class AppQyV1WordGroupQueryController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $validated = $request->validate([
@@ -410,6 +410,6 @@ class AppQyV1WordGroupQueryController extends Controller
             'limit' => $limit,
             'groups_length' => $groups->count(),
             'groups' => $mappedGroups,
-        ], 'Groups retrieved successfully');
+        ], __('app_qy_v1.messages.groups_retrieved_successfully'));
     }
 }

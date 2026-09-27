@@ -1,6 +1,6 @@
 {
-  "granted_at": "2026-09-27T11:11:48.067Z",
-  "expires_at": "2026-09-27T13:11:48.087Z",
+  "granted_at": "2026-09-27T11:21:59.284Z",
+  "expires_at": "2026-09-27T13:21:59.315Z",
   "session_id": "59362416-9b59-4a9b-b284-e4b3d83daf06",
-  "prompt_excerpt": "<agent-message from=\"a55ab464ce2f07796\">\n[pycore-laravel] laravel-api-D7-fix (item laravel-api-D7-B1) is done. FileSystemManager.php:602-641 at HEAD (24674d1a6) already carries the exact validated pat"
+  "prompt_excerpt": "<task-notification>\n<task-id>win10kjpe</task-id>\n<tool-use-id>toolu_01HLFMX18EzEDydCumb56XP1</tool-use-id>\n<output-file>D:\\.tmp\\claude\\D--programing-core-node\\59362416-9b59-4a9b-b284-e4b3d83daf06\\task"
 }

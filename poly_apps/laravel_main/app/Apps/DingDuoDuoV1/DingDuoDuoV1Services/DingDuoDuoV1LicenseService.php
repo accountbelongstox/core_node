@@ -51,7 +51,7 @@ class DingDuoDuoV1LicenseService
                 'features' => is_array($payload['features'] ?? null) ? array_values($payload['features']) : ['*'],
                 'max_binds' => (int) ($payload['maxBinds'] ?? 0),
                 'expires_at' => (int) $payload['exp'],
-                'label' => __('ding_duo_duo.super_code_label'),
+                'label' => null,
                 'token' => $token,
                 'member_id' => null,
             ];

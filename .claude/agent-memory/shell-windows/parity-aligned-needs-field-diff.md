@@ -1,0 +1,12 @@
+---
+name: parity-aligned-needs-field-diff
+description: A parity row marked "aligned" can still hide a field-level gap — when reviewing "same fields" parity, diff the actual output/columns against the counterpart's code, not just the row's prose or the spec's example scripts
+metadata:
+  type: feedback
+---
+
+When a review task says to check parity as "same actions, same dispatcher names, same device/output fields" (not just "has an equivalent"), read both implementations' actual field lists side by side — the ledger row's prose can list the Linux fields accurately (no overclaim there) while its overall status still says `aligned` against a Windows file that has more fields.
+
+**Why:** found this on shell-linux-11 (Tailscale device table, D29): Linux's `ts_show_devices` prints 9 columns (no `Owner`, `ExitNode` as plain yes/no). The already-approved Windows counterpart's `Get-TailscaleDeviceRow`/`Show-TailscaleDevices` additionally has an `Owner` column and splits `ExitNodeOption` ("offered") from `ExitNode` ("in-use"). The task's own supplied official-docs spec text also printed `ExitNodeOption` as a separate field in its given Linux example script. The parity row (`SPL-118`) listed the Linux fields correctly but still said `aligned` overall — trusting the row's status word alone would have approved a real gap. A prior round on this same feature (`SPW-038`/`SPW-039`) had already caught and closed two other field-level gaps (`LastSeen`, panel backend-gating) the same way, which is the precedent for how to track a newly found one: either fix it now, or split it into its own tracked id rather than editing the "aligned" row's prose only.
+
+**How to apply:** for any shell-parity review with an explicit "same fields" criterion, pull up the counterpart's actual field-producing code (the struct/columns list), enumerate both sides' fields, and diff them — don't stop at reading the row's summary text or just re-running `bash -n`/`Parser::ParseFile`. If the assigned spec includes its own example scripts for both platforms, check those too: a field present in the spec's own Linux example but missing from the implementation is a gap against the assignment itself, stronger grounds for `changes_requested` than a bare Windows/Linux inconsistency. See [[dual-boot-parity-ledger-can-lag-code]] for the related lesson that ledger text in general lags code/directives and must be verified against current state.

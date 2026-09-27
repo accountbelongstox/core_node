@@ -71,7 +71,7 @@ class AppQyV1WordGroupCreationController extends Controller
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Validation failed',
+                    'message' => __('app_qy_v1.messages.validation_failed_generic'),
                     'errors' => $validator->errors(),
                     'supported_params' => $supported_params,
                 ], 422);

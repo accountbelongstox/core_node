@@ -20,6 +20,7 @@ The junction facts were verified read-only on 2026-09-27 on PHP 8.5.2 CLI and Fr
 - Probe with read-only stats on existing links: `C:\Users\Default User` (junction), `C:\Documents and Settings` (junction), `C:\Users\All Users` (symlinkd). No sandbox writes are needed.
 - Developer Mode is on (`AllowDevelopmentWithoutDevLicense=1`), so `symlink()` works unprivileged. Still, a prototype's report should print its `*_created` flags, otherwise its link cases may be vacuous.
 - DataSync real sessions are in `D:/www/backup/data-sync/{jobs,locks}`. A prune test must back-date scratch `updated_at` to before the oldest real session, because arsort compares strings.
+- A reuse check that greps only for the new code's own tokens (CHILD_FIRST, filetype() misses scandir-based walks. Also grep `rmdir(` and `unlink(` together with scandir. In laravel-api-D7-fix round 2 (2026-09-27) this found `ServerManagerV1ElevatedAccess::nativeRmdir`, an unsafe duplicate using is_dir&&!is_link, so the verdict was changes_requested (delegate it to FileSystemManager::delete).
 - Verdict rule for a leader "-fix" task whose items are all deferred to the owner: the deferral is confirmed, but the item stays open, so the verdict is `changes_requested`, re-dispatched to the owner and not to the leader. Precedents: pycore-runtime-D7P2-fix and laravel-api-D7-fix.
 
 Related: [[laravel-schema-review-checklist]], [[pycore-review-patterns]].

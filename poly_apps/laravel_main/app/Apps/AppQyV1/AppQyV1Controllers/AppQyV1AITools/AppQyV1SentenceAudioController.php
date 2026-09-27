@@ -8,6 +8,8 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -34,7 +36,10 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class AppQyV1SentenceAudioController extends Controller
 {
+    use ApiResponse;
+
     private const CACHE_CONTROL = 'public, max-age=31536000';
+    private const ERROR_VALIDATION_FAILED = 'SENTENCE_AUDIO_VALIDATION_FAILED';
 
     private const MIME_MAP = [
         'mp3' => 'audio/mpeg',
@@ -72,10 +77,7 @@ class AppQyV1SentenceAudioController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
+            return $this->validationFailed($validator);
         }
 
         try {
@@ -142,10 +144,7 @@ class AppQyV1SentenceAudioController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
+            return $this->validationFailed($validator);
         }
 
         $success = filter_var($request->input('success'), FILTER_VALIDATE_BOOLEAN);
@@ -272,10 +271,7 @@ class AppQyV1SentenceAudioController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
+            return $this->validationFailed($validator);
         }
 
         $hash = $request->query('hash');
@@ -326,10 +322,7 @@ class AppQyV1SentenceAudioController extends Controller
             'items.*.language' => 'required|string|max:20',
         ]);
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
+            return $this->validationFailed($validator);
         }
         try {
             $result = $this->audioGateway->requestSentenceBatch((array) $request->input('items'));
@@ -364,10 +357,7 @@ class AppQyV1SentenceAudioController extends Controller
             'limit' => 'nullable|integer|min:1|max:1000',
         ]);
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
+            return $this->validationFailed($validator);
         }
         $language = trim((string) $request->query('language', ''));
         if ($language === '') {
@@ -416,10 +406,7 @@ class AppQyV1SentenceAudioController extends Controller
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
+            return $this->validationFailed($validator);
         }
         try {
             $data = $this->service->listMissing(
@@ -475,5 +462,15 @@ class AppQyV1SentenceAudioController extends Controller
             'Content-Type' => $contentType,
             'Cache-Control' => self::CACHE_CONTROL,
         ]);
+    }
+
+    private function validationFailed(ValidatorContract $validator): JsonResponse
+    {
+        return $this->codedError(
+            self::ERROR_VALIDATION_FAILED,
+            __('app_qy_v1.messages.sentence_audio_validation_failed', ['detail' => $validator->errors()->first()]),
+            ['errors' => $validator->errors()->toArray()],
+            422
+        );
     }
 }

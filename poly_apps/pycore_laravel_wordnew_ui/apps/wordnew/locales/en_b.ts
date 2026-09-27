@@ -555,6 +555,11 @@ export const enLocaleB: Record<string, string> = {
     'ttsPriority.saved': 'Engine priority saved.',
     'ttsPriority.saveFailed': 'Save failed. Try again.',
     'ttsPriority.unreachable': 'TTS priority unavailable - the backend may be offline.',
+    'ttsPriority.relayOnly': 'TTS priority needs pycore, and this page is not on the pycore machine. pycore accepts direct browser access only from localhost; open WordNew through the HTTPS relay entry.',
+    'ttsPriority.originNotAllowed': 'pycore does not answer this page ({origin}). pycore accepts browser pages only from localhost on port {ports}; open WordNew there or through the HTTPS relay entry.',
+    'ttsPriority.hostForbidden': 'pycore rejected this page ({code}): the request Host is not a loopback name. Open WordNew through localhost on the pycore machine, or through the HTTPS relay entry.',
+    'ttsPriority.originForbidden': 'pycore rejected the page origin {origin} ({code}). Open WordNew on the pycore machine through a dashboard port, or through the HTTPS relay entry.',
+    'ttsPriority.clientKeyRejected': 'pycore rejected this request: the client key check failed ({code}). Browsers reach pycore directly only from localhost; open WordNew through the HTTPS relay entry.',
     // Home learning dashboard (unified stats + settings)
     'dashboard.mastered': 'Mastered',
     'dashboard.learning': 'Learning',

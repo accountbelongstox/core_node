@@ -368,14 +368,17 @@ class AudioResourceDelivery:
             ColorPrint.gray(f"[AudioCacheDelivery] delivery={claimed['delivery_id']} word not in dictionary; no fill needed")
         elif not receipt.get("success") or receipt_status not in ("stored", "exists"):
             error = str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete")
-            if not clip_md5 and is_terminal_delivery_rejection(
-                detail=error, status_code=receipt.get("http_status"),
+            if not clip_md5 and (
+                receipt_status == WORD_NOT_FOUND_REJECTION_CODE
+                or is_terminal_delivery_rejection(
+                    detail=error, status_code=receipt.get("http_status"),
+                    error_code=receipt.get("error_code"),
+                )
             ):
                 # An md5-less word: the server has no md5 to resolve by, so a
-                # 4xx here (LDRI-11: word/audio/upload still requires md5)
-                # means the same as the contract's WORD_NOT_FOUND rejection -
-                # terminal, not retry-poison (mirrors the batch path's
-                # no_target/invalid handling).
+                # rejection here means the same as the contract's
+                # WORD_NOT_FOUND rejection - terminal, not retry-poison
+                # (mirrors the batch path's no_target/invalid handling).
                 ColorPrint.gray(
                     f"[AudioCacheDelivery] delivery={claimed['delivery_id']} "
                     f"md5-less word upload rejected ({error}); no fill needed"

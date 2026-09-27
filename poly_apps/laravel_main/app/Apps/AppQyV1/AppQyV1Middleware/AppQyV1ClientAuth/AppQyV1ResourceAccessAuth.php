@@ -22,8 +22,8 @@ class AppQyV1ResourceAccessAuth
         }
 
         return response()->json([
-            'error' => 'Unauthorized',
-            'message' => 'Invalid static resource access token'
+            'error' => __('app_qy_v1.messages.unauthorized'),
+            'message' => __('app_qy_v1.messages.invalid_static_resource_access_token')
         ], 401);
     }
 

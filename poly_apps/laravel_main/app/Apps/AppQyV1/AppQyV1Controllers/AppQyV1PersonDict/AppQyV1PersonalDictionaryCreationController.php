@@ -51,8 +51,8 @@ class AppQyV1PersonalDictionaryCreationController extends Controller
 
         return $this->success([
             'id' => (string) $entry->id,
-            'message' => 'Personal dictionary entry created successfully',
-        ], 'Personal dictionary entry created successfully');
+            'message' => __('app_qy_v1.messages.personal_dictionary_entry_created'),
+        ], __('app_qy_v1.messages.personal_dictionary_entry_created'));
     }
 
 }

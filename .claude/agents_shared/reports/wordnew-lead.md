@@ -107,3 +107,52 @@
   - `rename()` is still sudo-only.
 - Changed files (mine): the verdict file and this report section.
 - Blockers: none. Next owner: orchestrator (G1 is complete; route the cross-scope items and the srv-07b ruling).
+
+## Review wordnew-native-G1 (round 1)
+
+- Verdict: approved, with issues []. File: `.claude/agents_shared/reviews/wordnew-native-G1.json`. Rewritten after an independent re-review at 21:19; it replaces the 20:52 write.
+- WNN-01 (audit) is confirmed. Every file:line spot-check held, and the proposed `.gitignore` negation works in a scratch repo that carries the real rules.
+- `app/build.gradle` is +29/-2 against 74e7770 (CRLF, 100755), and it is in HEAD through 2f31f9cd3.
+- The build_apk.py halves of WNN-02/03/04 are a verified handoff diff (no B2 writer exists), which is the outcome the task foresaw. I re-ran them:
+  - `git apply --check` passes, and the result has sha256 7681c09e and passes py_compile on Windows and Debian;
+  - a release build without secrets exits 2 before any command, on both OSes;
+  - the throwaway PKCS12/JKS signing flow works;
+  - the wrapper repair is byte-identical and idempotent;
+  - `--version-info` prints 1.0.0/1000000;
+  - a lead Gradle re-run (offline, 4.2 GB free) shows release signing and the version only when all four values and the -P properties are present.
+- Decision (recommended option): I chose approved over changes_requested. The remaining points are non-blocking, and none of them breaks a verify step:
+  - truncated JKS is accepted;
+  - the Windows decrypt-step wording;
+  - the shallow `--root` IndexError;
+  - the daemon env hardening.
+- Interim gap (urgent): until the diff lands, APKs have no versionCode. The orchestrator should assign the B2 writer for `UI/scripts/flavor/build_apk.py` now; my recommendation is wordnew-native, with pycore-ui as the fallback, applying with `git apply`.
+- Hygiene: a stray `D:\d\.tmp\...\scratchpad\pc0..pc8.pyc` (20:10, not attributable to this task) comes from an MSYS `/d/` path that native Python resolved to `D:\d\`. I made the same slip and removed only my own two files; deleting the rest needs its owner or the user.
+- Changed files (mine): the verdict file and this report section.
+- Blockers: none for the member. Next owners:
+  - orchestrator: the build_apk.py B2 writer, the root `.gitignore` writer (WNN-03-commit), and the F3/F4 writers;
+  - wordnew-native: F1 buildToolsVersion;
+  - user: WNN-signing-key and F2.
+
+## Review wordnew-link-G1 (round 1)
+
+- Verdict: approved, with issues []. File: `.claude/agents_shared/reviews/wordnew-link-G1.json`.
+- Items MCHR-15, MCHR-05 (with MCHR-44), MCHR-32, MCHR-33, MCHR-36 and MCHR-37 are all confirmed against 74e7770..HEAD. Every G1 file is already in HEAD through the user's sweep commits.
+- Re-run checks:
+  - PowerShell Parser on start.ps1: 0 errors.
+  - py_compile passes.
+  - In-process checks confirm owner tracking and `--wake` gating.
+  - node smoke test of native-host-common.cjs on Windows and Debian: paths and registry keys match the removed TS table.
+  - tsc 7 and vue-tsc 5 errors, both the stale-shared-dist baseline. They ran in Debian WSL with the scratchpad node v22.20.0, at 4.78 GB free.
+  - The locale JSON and keys check passes.
+  - Line endings are kept.
+- Decision (recommended option): I chose approved over changes_requested. None of the non-blocking points breaks a verify step:
+  - the utils.ts:246 summary prints the manifest path as the error;
+  - English Gemini busy and abandoned errors reach the popup;
+  - a rare repoint-during-start race in Bing;
+  - the queue-diff GETs keep running during a Bing outage;
+  - the kernel32 re-creation nit.
+- Changed files (mine): the verdict file and this report section.
+- Blockers: none. Next owners:
+  - user: MCHR-05-live;
+  - orchestrator: the G2 CKA-01 shared dist rebuild;
+  - wordnew-link (optional follow-ups): the non-blocking list in the verdict file.

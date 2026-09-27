@@ -54,7 +54,7 @@ class AppQyV1SystemInitializationController extends Controller
             if ($this->markerManager->isInitializationComplete()) {
                 return response()->json([
                     'status' => 'success',
-                    'message' => 'System already initialized',
+                    'message' => __('app_qy_v1.messages.system_already_initialized'),
                     'storage_directories' => $this->getStorageDirectoriesInfo(),
                     'current_progress' => $this->getCurrentProgress(),
                     'progress' => [
@@ -136,7 +136,7 @@ class AppQyV1SystemInitializationController extends Controller
 
             $response = [
                 'status' => $allComplete ? 'success' : 'processing',
-                'message' => $allComplete ? 'Initialization completed' : 'Initialization in progress',
+                'message' => $allComplete ? __('app_qy_v1.messages.initialization_completed') : __('app_qy_v1.messages.initialization_in_progress'),
                 'storage_directories' => $this->getStorageDirectoriesInfo(),
                 'current_progress' => $this->getCurrentProgress(),
                 'detailed_status' => $this->getDetailedStatus(),
@@ -205,7 +205,7 @@ class AppQyV1SystemInitializationController extends Controller
             return [
                 'status' => 'download_required',
                 'download_url' => 'https://drive.google.com/file/d/audio-archive-id/view',
-                'message' => 'Please download audio archive from Google Drive'
+                'message' => __('app_qy_v1.messages.download_audio_archive_required')
             ];
         }
 
@@ -237,7 +237,7 @@ class AppQyV1SystemInitializationController extends Controller
             return [
                 'status' => 'download_required',
                 'download_url' => 'https://drive.google.com/file/d/images-archive-id/view',
-                'message' => 'Please download image archive from Google Drive'
+                'message' => __('app_qy_v1.messages.download_image_archive_required')
             ];
         }
 

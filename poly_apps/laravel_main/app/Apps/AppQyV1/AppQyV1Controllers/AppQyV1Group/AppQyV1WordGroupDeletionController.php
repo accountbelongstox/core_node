@@ -48,14 +48,14 @@ class AppQyV1WordGroupDeletionController extends Controller
         if (!$existGroup) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
         $existGroup->deleteRecord();
         return response()->json([
             'status' => 'success',
-            'message' => 'Group deleted successfully',
+            'message' => __('app_qy_v1.messages.group_deleted_successfully'),
             'supported_params' => $supported_params,
         ]);
     }
@@ -78,14 +78,14 @@ class AppQyV1WordGroupDeletionController extends Controller
             if (!$existGroup) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group not found',
+                    'message' => __('app_qy_v1.messages.group_not_found'),
                     'supported_params' => $supported_params,
                 ], 404);
             }
             $existGroup->deleteRecord();
             return response()->json([
                 'status' => 'success',
-                'message' => 'Group deleted successfully',
+                'message' => __('app_qy_v1.messages.group_deleted_successfully'),
                 'supported_params' => $supported_params,
             ]);
     }

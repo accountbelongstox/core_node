@@ -1,0 +1,71 @@
+{
+  "task_id": "shell-windows-3-fix",
+  "role": "pycore-runtime (task text tags every item '(pycore-ai)'; TASKS.md:174 'misroute-sw3' accepts this run's pycore-runtime agent as the writer)",
+  "reviewer": "pycore-lead",
+  "round": 1,
+  "verdict": "changes_requested",
+  "base": "74e7770",
+  "head": "7bed0a953 (HEAD at review time). None of the B1-B3 target files differs from HEAD in the working tree (git diff HEAD --stat is empty for all of them).",
+  "scope_reviewed": "The member changed only .claude/agents_shared/reports/pycore-runtime.md: +66 lines, additive, at the top of the file (uncommitted, 21:20:53). No code was changed. The review re-read the three blocking items of reviews/shell-windows-3.json (B1-B3). It checked the D22 path map (.claude/agents/pycore-lead.md:19-26, guide section 8) and the claude lead's record TASKS.md:174. It also checked the current state of every file the items name.",
+  "summary": "The member's ownership reading is correct under the default D22 map. Every file in B1-B3 is pycore-ai's (pycore-lead.md:21-22), and pycore-runtime wrote nothing outside its own report. The task is still not done. All three defects are present on disk at HEAD 7bed0a953, so approving would close shell-windows-3-fix with B1-B3 open. The claude lead has since recorded the writer for this run: TASKS.md:174 'misroute-sw3' says '[pycore-ai] shell-windows-3-fix is being implemented by a pycore-runtime agent in the running pycore run (old index mapping). Accepted (B9): no concurrent writer on those Windows model scripts, and pycore-lead reviews it; pycore-ai re-checks the result in its G3 D12 item'. That row is uncommitted, and the member's report does not cite it, so the member most likely finished before it existed. Under guide B1 the orchestrator assigns out-of-scope paths. So round 2 on pycore-runtime implements B1-B3 as the recorded temporary writer, and pycore-ai stays the default owner afterwards.",
+  "findings": {
+    "shell-windows-3-B1": {
+      "claimed": "refuted (wrong owner), no edit",
+      "result": "The ownership reading is confirmed, but the refutation does not stand after TASKS.md:174, and the defect is open",
+      "evidence": [
+        "Step55_InstallMelotts.ps1:55 sets $doFull = ($Full -or $env:MELOTTS_INSTALL -eq '1'). The docker branch at :112-125 calls Invoke-DockerModelRunner -Action ensure at :114 with no $doFull/$Force check.",
+        "Step56_InstallFishspeech.ps1:36 sets $doFull, :84-86 makes docker the default, and the docker branch at :88-100 calls ensure at :90 with no gate.",
+        "139_install_melotts.sh:32 sets DO_FULL from MELOTTS_INSTALL, and melotts_docker_backend (:36-48) runs ensure unconditionally from :66-67. 143_install_fishspeech.sh:44 sets DO_FULL, and fishspeech_docker_backend (:48-60) is called unconditionally from :80-81.",
+        "Ledger rows windows.md:18 and linux.md:13 (SPW-014) still describe the ungated branch."
+      ]
+    },
+    "shell-windows-3-B2": {
+      "claimed": "refuted (wrong owner), no edit",
+      "result": "The ownership reading is confirmed, but the refutation does not stand after TASKS.md:174, and the defect is open",
+      "evidence": [
+        "DockerWslBridge.ps1:533 is still $terminateAfter = $releaseAfter -or (($runningBefore -notcontains $distroName) -and $Action -ne 'up'). So test and 'up -Release' terminate a distro that was already running (finally at :568-570).",
+        "The restart branch at :555-558 calls Stop-DockerModelWslDistro whatever $runningBefore holds.",
+        "The .SYNOPSIS/.NOTES text at :505-506 ('test (and up -Release) always run down and terminate the distro') and ledger rows windows.md:13 (SPW-009) and :15 (SPW-011) still document that behavior."
+      ]
+    },
+    "shell-windows-3-B3": {
+      "claimed": "refuted (wrong owner), no edit",
+      "result": "The ownership reading is confirmed, but the refutation does not stand after TASKS.md:174, and the defect is open",
+      "evidence": [
+        "scripts/shells/docker_compose/tts/cosyvoice/ and gptsovits/ hold only Dockerfile, compose.yml and compose.gpu.yml. There is no model.sh, so tts_docker_compose_common.sh:146-150 returns FAIL model_definition_missing.",
+        "Invoke-TtsDockerEnsure and Invoke-TtsDockerApply (DockerWslBridge.ps1:574-592) route to Invoke-DockerModelRunner ensure/up.",
+        "Step52_InstallCosyVoice.ps1:78 and Step54_InstallGptsovits.ps1:130 call Invoke-TtsDockerEnsure without -StagingDir, and both branches still exit 1 (Step52:80,:85; Step54:132,:137).",
+        "Linux 133_install_cosyvoice.sh:62-69 and 137_install_gptsovits.sh:77-85 use tts_docker_apply_engine and hit the same missing definition."
+      ]
+    }
+  },
+  "issues": [
+    "B1 open (the writer for this run is pycore-runtime, per TASKS.md:174). Gate the docker branch on the opt-in. When neither $doFull nor $Force is set, Step55:112-125 and Step56:88-100 only report status and make no WSL call: print the saved TTS_<ENGINE>_BACKEND, TTS_DOCKER_PROVIDER_STATE and the opt-in hint (-Full / MELOTTS_INSTALL=1, and for fishspeech also FISHSPEECH_INSTALL=1 / NEURAL_TTS_INSTALL=1), then return. Run ensure and the optional test only when the user opted in. Make the same change with DO_FULL (and the Force equivalent if the script has one) in 139_install_melotts.sh:36-48/:66-67 and 143_install_fishspeech.sh:48-60/:80-81. Any new user-facing text follows the steps' existing message style (English shell output). Update SPW-014 in windows.md:18 and linux.md:13.",
+    "B2 open. In DockerWslBridge.ps1:533, terminate only a distro this call started: $terminateAfter = ($runningBefore -notcontains $distroName) -and ($releaseAfter -or $Action -ne 'up'). When the distro was already running, the finally block (:564-571) still runs the runner's down for test and 'up -Release', skips the terminate and logs that the distro was left running. In the restart branch (:555-558), if the distro was in $runningBefore, do not terminate it: report SKIP restart-required and ask the user to terminate it (wsl --terminate <distro>). Only a distro this call started is terminated and re-run. Fix the doc text at :505-506. Update SPW-009 (windows.md:13) and SPW-011 (windows.md:15, and linux.md:8/:10 only if the Linux wording changes).",
+    "B3 open. Recommended fix: add scripts/shells/docker_compose/tts/cosyvoice/model.sh (port 50000) and gptsovits/model.sh (port 9880) in the same plain column-0 MODEL_*=value form as melotts/fishspeech model.sh (MODEL_WEIGHTS_METHOD, MODEL_HEALTH_PATH, model_smoke and the other keys Get-DockerModelDefinition and the runner read). Move their compose.yml onto the runner env (TTS_MEM_LIMIT, TTS_CPUS, TTS_PIDS_LIMIT, pycore.fingerprint label). Pass -StagingDir $targetDir to Invoke-TtsDockerEnsure at Step52:78 and Step54:130. Replace exit 1 at Step52:80,:85 and Step54:132,:137 with the message and return. Check that 133:62-69 and 137:77-85 pass with the new definitions. Update SPW-007/SPW-013. Interim fix, only if the full fix cannot land in this round: remove 'docker' from SupportedBackends in Step52/54 and from --supported in 133/137, and record the reason and the follow-up in the ledger and the report.",
+    "Report for round 2: in reports/pycore-runtime.md, cite TASKS.md:174 'misroute-sw3' as the writer basis instead of the wrong-owner refusal. List every changed file with its EOL (keep each file's endings; the .ps1 and .sh files stay as they are). Include the checks: PowerShell parser 0 errors on DockerWslBridge.ps1 and Step52/54/55/56, bash -n on 133/137/139/143 and both new model.sh files, and in-process Get-DockerModelDefinition for cosyvoice and gptsovits. Do not run ensure/test, WSL starts or image builds for verification unless the task asks for it. Do not touch the fenced e9 files (scripts/shells/linux/common/{gvar_storage_common,shared_cache_env,gvar_common,mount_common,pyservice_entry}.sh, SharedCacheEnv.ps1)."
+  ],
+  "non_blocking": [
+    "reports/pycore-runtime.md (the shell-windows-3-fix section) quotes its role brief as 'Not yours: ... installers under `scripts/` (shell-linux, shell-windows)'. That line is not in .claude/agents/pycore-runtime.md. It resembles the retired .claude/agents/pycore.md:17 ('installers under `scripts/` (shell)'). Quote the current file, or drop the quote, when the section is rewritten in round 2.",
+    "The report says 'Changed files: none.' while the result lists the report itself. Name the report as the only changed file."
+  ],
+  "cross_scope": [
+    "Orchestrator/workflow: the dispatch tag was [pycore-runtime] while the item text says (pycore-ai). TASKS.md:174 now resolves this in favor of pycore-runtime for this run. If the claude lead wants pycore-ai to write it instead, it must end this loop and re-route before round 2. Either way there must be one writer, and pycore-ai must not edit these files in parallel.",
+    "pycore-ai: re-check the round-2 result in its G3 D12 item (TASKS.md:174), and take the model runs (G3) after B3 lands.",
+    "Unrelated working-tree edits seen during this review belong to pycore-ai scope and are not part of this task: pycore/pyctl/tts/audio_lane_full_sync.py, audio_resource_delivery.py and pycore/pyutils/tts/audio_queue_center.py (21:19-21:20). The member did not claim them, and they are reviewed under their own task."
+  ],
+  "checks": [
+    "git diff 74e7770 --stat and git diff HEAD --stat on reports/pycore-runtime.md: HEAD..worktree is +66/-0, additive only. LF with 0 CR, the same as HEAD. No AI rules header was touched.",
+    "git diff HEAD --stat on Step52/54/55/56, DockerWslBridge.ps1, tts_docker_compose_common.sh, 139/143 and docker_compose/tts/ is empty. The member made no code edits, which matches its claim.",
+    "Ownership: pycore-lead.md:21-22 lists Step{...51..61}_*.ps1, DockerWslBridge.ps1, tts_docker_compose_common.sh, docker_compose/tts/ and the Linux model-engine install scripts under pycore-ai. Guide section 8 agrees. The member's scope reading is correct.",
+    "Writer record: TASKS.md:174 'misroute-sw3' accepts this run's pycore-runtime agent as the writer, with pycore-lead reviewing. The row is uncommitted and TASKS.md was written at 21:22:22 and 21:26:03, after the member's report (21:20:53).",
+    "B1-B3 re-verified on disk at the lines listed under findings: all three defects are present.",
+    "Fence: none of the B1-B3 target files is in the e9 fence list.",
+    "Free RAM 4.2 GB. No builds, WSL starts or tests were run. They were not needed because no code changed."
+  ],
+  "decisions": [
+    "Recommended option: changes_requested, not approved. Approving would mark the B1-B3 fix task done while all three defects are open. Precedent: pycore-runtime-D7P2-fix r3. The claude lead's TASKS.md:174 record makes pycore-runtime the writer for this run, so round 2 goes to the same member with the concrete fix list above, not back to the routing question."
+  ],
+  "next_owner": "pycore-runtime, round 2 (the writer per TASKS.md:174), then a pycore-lead re-review. pycore-ai re-checks in G3 D12.",
+  "checked_at": "2026-09-27T21:27:45+10:00"
+}

@@ -44,9 +44,6 @@ class AudioLaneFullSync:
     LOG_PREFIX = "[AudioLaneFullSync]"
     PAGE_LIMIT = 1000
     REQUEST_TIMEOUT_SECONDS = 30
-    # Safety bound on the lane's cache-first restore wait below (R6/§5.4):
-    # ONE shared definition in audio_queue_center, next to wait_for_restore.
-    RESTORE_WAIT_TIMEOUT_SECONDS = AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS
 
     def __init__(self) -> None:
         self._running = SerializedValue(False, f"{type(self).__name__}RunningState")
@@ -114,18 +111,20 @@ class AudioLaneFullSync:
         error code; the cache-restored queue keeps the lane alive offline.
 
         Always runs on ``start_background``'s bus task, so waiting here for
-        the lane's cache-first restore (R6/§5.4: local cache before any
-        remote access) never blocks the caller that kicked the pull off.
+        the lane's cache-first restore (R6 section 5.4: local cache before
+        any remote access) never blocks the caller that kicked the pull off.
         """
         if not self.enabled():
             return {"success": False, "running": False, "error": self.DISABLED_CODE, "status": self.get_status()}
         if not self._running.compare_and_set(False, True):
             return {"success": True, "running": True, "status": self.get_status()}
-        restored = audio_queue_center.wait_for_restore(self.LANE, timeout=self.RESTORE_WAIT_TIMEOUT_SECONDS)
+        restored = audio_queue_center.wait_for_restore(
+            self.LANE, timeout=AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
+        )
         if not restored:
             ColorPrint.yellow(
                 f"{self.LOG_PREFIX} {self.LANE} cache-first restore did not signal within "
-                f"{self.RESTORE_WAIT_TIMEOUT_SECONDS:.0f}s; starting the full pull anyway"
+                f"{AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS:.0f}s; starting the full pull anyway"
             )
         audio_queue_center.note_state_change(self.LANE, "full_sync_started")
         try:

@@ -26,13 +26,13 @@ class AppQyV1AuthenticationEmailVerificationPromptController extends Controller
         if ($request->user()->hasVerifiedEmail()) {
             return response()->json([
                 'status' => 'verified',
-                'message' => 'Email already verified'
+                'message' => __('app_qy_v1.messages.auth_email_already_verified')
             ]);
         }
         
         return response()->json([
             'status' => 'unverified',
-            'message' => 'Email verification required',
+            'message' => __('app_qy_v1.messages.auth_email_verification_required'),
             'session_status' => $request->session()->get('status')
         ]);
     }

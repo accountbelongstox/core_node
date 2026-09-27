@@ -9,6 +9,7 @@ import asyncio
 import copy
 import threading
 import time
+import traceback
 import uuid
 from collections import deque
 from functools import wraps
@@ -74,6 +75,14 @@ def _raise_serialized_error(response: dict[str, Any], fallback: str) -> None:
     raise RuntimeError(message)
 
 
+def _report_unobserved_failure(thread_name: str, exc: Exception) -> None:
+    trace = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).rstrip()
+    ColorPrint.red(
+        f"[SerializedWorker] callback failed with no response_signal "
+        f"thread={thread_name} error_type={type(exc).__name__} error={exc}\n{trace}"
+    )
+
+
 class SerializedWorkerThread(threading.Thread):
     """Execute callbacks sequentially after receiving them from THREAD_BUS.
 
@@ -116,6 +125,8 @@ class SerializedWorkerThread(threading.Thread):
                 response = {"success": True, "result": result}
             except Exception as exc:
                 response = _error_response(exc)
+                if not response_signal:
+                    _report_unobserved_failure(self.name, exc)
             finally:
                 self._bus.clear_signal(active_signal)
             _publish_response(response_signal, response_guard, response, self._bus)
@@ -142,6 +153,8 @@ class BusTaskThread(threading.Thread):
             response = {"success": True, "result": result}
         except Exception as exc:
             response = _error_response(exc)
+            if not response_signal:
+                _report_unobserved_failure(self.name, exc)
         _publish_response(response_signal, response_guard, response)
         THREAD_BUS.clear_queue(self._queue_name)
 

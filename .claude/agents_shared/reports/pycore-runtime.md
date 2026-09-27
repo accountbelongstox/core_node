@@ -1,5 +1,71 @@
 # pycore-runtime report
 
+## shell-windows-3-fix
+
+Task header tag is `[pycore-runtime]`, but all three dispatched items are out of the
+pycore-runtime write scope under the current authoritative map
+(`.claude/agents/pycore-lead.md`, user D22, 2026-09-27, cross-checked against
+`development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md` §8). Each item's own
+requirement text is prefixed `(pycore-ai)`, and every file it names matches the pycore-ai
+entry in the map, not pycore-runtime's:
+
+- `scripts/shells/win/install_powershells/Step{52,54,55,56}_*.ps1` and
+  `scripts/shells/win/win_common/DockerWslBridge.ps1` are listed verbatim under
+  pycore-ai ("Windows model and engine install steps:
+  `Step{9,11,12,36,37,38,39,42,43,46,47,51..61}_*.ps1`" and "`DockerWslBridge.ps1`").
+- `scripts/shells/linux/common/tts_docker_compose_common.sh` is listed verbatim under
+  pycore-ai's Linux paths.
+- `scripts/shells/linux/debian/install_shells/{139_install_melotts,143_install_fishspeech}.sh`
+  and `scripts/shells/docker_compose/tts/{cosyvoice,gptsovits}/` fall under pycore-ai's
+  catch-all ("every other Linux script whose purpose is installing or initializing a local
+  model engine or its Docker runner").
+
+None of these paths are under `pycore/callmodule/`, `pycore/database/`,
+`pycore/pyutils/{common,rpc_v2,wsrpc,laravel,codesync}/`, `pycore/pyctl/{relay,runtime,
+queue_center,laravel,audio_orchestration,task_history,upload,client}/`, or the
+pyservice-prerequisite shell scripts pycore-runtime owns
+(`scripts/shells/linux/common/{pyservice_entry,pyservice_www_permissions,
+codesync_service}.sh` and their Windows counterparts). They are also explicitly called out
+as not-mine in my own role brief ("Not yours: ... installers under `scripts/`
+(shell-linux, shell-windows)").
+
+Decision (recommended option, taken per the no-questions rule): make no edits under this
+task. Writing TTS/Docker-model-runner installer logic here would violate the B1/B2/B3
+boundary rule (write only inside your scope) on a path another owner (pycore-ai) already
+holds, and would duplicate/conflict with whatever pycore-ai does concurrently on the same
+files. No file was read-modified; only path lookups (`find`) were run to confirm ownership
+before declining.
+
+No service was started, stopped or restarted, and no code was changed, so no
+`frankenphp/workers/restart` call was needed.
+
+Items:
+
+- `shell-windows-3-B1`: refuted (wrong owner). Files named (Step55/56 `.ps1`,
+  `139_install_melotts.sh`, `143_install_fishspeech.sh`) are pycore-ai's per the map above.
+  Route to pycore-ai; the fix as described (report-only status branch when neither
+  `$doFull`/`DO_FULL` nor `-Force` is set, before any WSL/docker call) still looks correct
+  on inspection of `Step55_InstallMelotts.ps1` / `Step56_InstallFishspeech.ps1` but was not
+  applied here.
+- `shell-windows-3-B2`: refuted (wrong owner). `DockerWslBridge.ps1` is pycore-ai's. Route
+  to pycore-ai.
+- `shell-windows-3-B3`: refuted (wrong owner). `Step52_InstallCosyVoice.ps1`,
+  `Step54_InstallGptsovits.ps1`, `tts_docker_compose_common.sh`, and
+  `docker_compose/tts/{cosyvoice,gptsovits}/` are pycore-ai's. Route to pycore-ai.
+
+Verification: `find` over the repo confirmed the on-disk locations of every path named in
+B1-B3 (`scripts/shells/win/install_powershells/Step{52,54,55,56}_*.ps1`,
+`scripts/shells/win/win_common/DockerWslBridge.ps1`,
+`scripts/shells/linux/common/tts_docker_compose_common.sh`,
+`scripts/shells/linux/debian/install_shells/{139_install_melotts,143_install_fishspeech}.sh`);
+each matched the pycore-ai map entry quoted above.
+
+Changed files: none.
+
+Blockers: none for pycore-runtime. Next owner: pycore-ai for all three items (B1, B2, B3);
+pycore-lead/orchestrator to re-tag task `shell-windows-3-fix` with the `[pycore-ai]` owner
+prefix per the team protocol ("every task subject starts with its owner role tag").
+
 ## pycore-assist-D7-fix
 
 Group map note (recorded per the "no questions" rule): the dispatched item ids carry the

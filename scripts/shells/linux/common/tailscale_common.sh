@@ -158,8 +158,10 @@ ts_show_status() {
 }
 
 # Every tailnet device: the official table, then a parsed detail listing
-# (HostName, DNSName, OS, IPv4/IPv6, Online, ExitNode, connection path) from
-# `status --json` (.Self + .Peer, ipn/ipnstate.PeerStatus fields).
+# (HostName, DNSName, OS, Owner, IPv4/IPv6, Online, ExitNode/ExitNodeOption,
+# connection path) from `status --json` (.Self + .Peer, ipn/ipnstate.PeerStatus
+# fields, .User[UserID].LoginName for Owner) -- same fields as the Windows
+# counterpart's Get-TailscaleDeviceRow/Show-TailscaleDevices.
 ts_show_devices() {
     if ! is_tailscale_installed; then
         echo "Tailscale is not installed; no devices to list."

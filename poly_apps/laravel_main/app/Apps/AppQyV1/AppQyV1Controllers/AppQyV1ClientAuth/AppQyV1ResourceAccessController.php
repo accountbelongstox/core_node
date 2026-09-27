@@ -42,7 +42,7 @@ class AppQyV1ResourceAccessController extends Controller
         if (!$token) {
             return response()->json([
                 'valid' => false,
-                'message' => 'Debug token required in development mode'
+                'message' => __('app_qy_v1.messages.debug_token_required')
             ], 401);
         }
 
@@ -52,7 +52,7 @@ class AppQyV1ResourceAccessController extends Controller
         return response()->json([
             'valid' => $isValid,
             'mode' => 'debug',
-            'message' => $isValid ? 'Debug token valid' : 'Invalid debug token'
+            'message' => $isValid ? __('app_qy_v1.messages.debug_token_valid') : __('app_qy_v1.messages.debug_token_invalid')
         ]);
     }
 
@@ -66,7 +66,7 @@ class AppQyV1ResourceAccessController extends Controller
         if (!$resourceKey) {
             return response()->json([
                 'valid' => false,
-                'message' => 'Resource access key required'
+                'message' => __('app_qy_v1.messages.resource_access_key_required')
             ], 401);
         }
 
@@ -76,7 +76,7 @@ class AppQyV1ResourceAccessController extends Controller
         return response()->json([
             'valid' => $isValid,
             'mode' => 'production',
-            'message' => $isValid ? 'Resource access key valid' : 'Invalid resource access key'
+            'message' => $isValid ? __('app_qy_v1.messages.resource_access_key_valid') : __('app_qy_v1.messages.resource_access_key_invalid')
         ]);
     }
 

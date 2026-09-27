@@ -71,7 +71,7 @@ class AppQyV1SystemInitComplianceCtl extends Controller
             'generated_at' => now()->toIso8601String(),
             'sections' => $sections,
             'languages' => $languageResult['languages'],
-        ], 'Initialization compliance report generated');
+        ], __('app_qy_v1.messages.initialization_compliance_report_generated'));
     }
 
     private function markerSection(): array

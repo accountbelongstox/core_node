@@ -162,9 +162,9 @@ class AppQyV1AuthenticationRegistrationController extends Controller
 
             if (strpos(strtolower($errorMessage), 'already exists') !== false) {
                 if (!empty($email) && User::emailExists($email)) {
-                    $errorMessage = 'Email already exists';
+                    $errorMessage = __('app_qy_v1.messages.email_already_exists');
                 } else {
-                    $errorMessage = 'Username already exists';
+                    $errorMessage = __('app_qy_v1.messages.username_already_exists');
                 }
             }
 

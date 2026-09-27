@@ -27,7 +27,7 @@ class AppQyV1AuthenticationPasswordConfirmationController extends Controller
     {
         return response()->json([
             'status' => 'confirm_password_required',
-            'message' => 'Password confirmation required'
+            'message' => __('app_qy_v1.messages.auth_password_confirmation_required')
         ]);
     }
 
@@ -49,7 +49,7 @@ class AppQyV1AuthenticationPasswordConfirmationController extends Controller
 
         return response()->json([
             'status' => 'password_confirmed',
-            'message' => 'Password confirmed successfully'
+            'message' => __('app_qy_v1.messages.auth_password_confirmed')
         ]);
     }
 }

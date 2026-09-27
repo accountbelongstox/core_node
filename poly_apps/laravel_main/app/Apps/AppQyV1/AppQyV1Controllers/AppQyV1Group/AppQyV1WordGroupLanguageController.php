@@ -29,7 +29,7 @@ class AppQyV1WordGroupLanguageController extends Controller
         $language = $validated['language'];
 
         if (!AppQyV1LanguageStudyGroupService::isValidLanguage($language)) {
-            return $this->error("Invalid language code: {$language}", 400);
+            return $this->error(__('app_qy_v1.messages.invalid_language_code', ['language' => $language]), 400);
         }
 
         $group = AppQyV1LanguageStudyGroupService::createLanguageDefaultGroup($user->id, $language);
@@ -63,7 +63,7 @@ class AppQyV1WordGroupLanguageController extends Controller
         }
 
         if (!AppQyV1LanguageStudyGroupService::isValidLanguage($language)) {
-            return $this->error("Invalid language code: {$language}", 400);
+            return $this->error(__('app_qy_v1.messages.invalid_language_code', ['language' => $language]), 400);
         }
 
         $groups = AppQyV1LanguageStudyGroupService::getByLanguage($user->id, $language);

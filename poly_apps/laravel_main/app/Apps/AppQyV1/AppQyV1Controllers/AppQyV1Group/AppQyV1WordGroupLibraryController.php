@@ -289,7 +289,7 @@ class AppQyV1WordGroupLibraryController extends Controller
                 'already_linked' => false,
                 'words_added' => $addedCount,
                 'total_words_in_library' => $libraryWords->count(),
-            ], 'Library added to group successfully');
+            ], __('app_qy_v1.messages.library_added_to_group_successfully'));
         });
     }
 
@@ -428,7 +428,7 @@ class AppQyV1WordGroupLibraryController extends Controller
                 'due' => $dueCount,
                 'total' => $entryCount,
             ],
-        ], 'Library add preview computed successfully');
+        ], __('app_qy_v1.messages.library_add_preview_computed_successfully'));
     }
 
     public function removeLibraryFromGroup(AppQyV1RemoveLibraryFromGroupRequest $request): JsonResponse
@@ -458,7 +458,7 @@ class AppQyV1WordGroupLibraryController extends Controller
         return $this->success([
             'gid' => $group->gid,
             'library_id' => $libraryId,
-        ], 'Library removed from group successfully');
+        ], __('app_qy_v1.messages.library_removed_from_group_successfully'));
     }
 
     public function getGroupLibraries(AppQyV1GetGroupLibrariesRequest $request): JsonResponse
@@ -492,6 +492,6 @@ class AppQyV1WordGroupLibraryController extends Controller
             'gname' => $group->gname,
             'libraries_count' => $libraries->count(),
             'libraries' => $libraries,
-        ], 'Group libraries retrieved successfully');
+        ], __('app_qy_v1.messages.group_libraries_retrieved_successfully'));
     }
 }

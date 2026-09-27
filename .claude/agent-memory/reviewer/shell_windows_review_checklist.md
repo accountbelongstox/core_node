@@ -20,6 +20,12 @@ Checks that paid off on shell-windows tasks (first seen on shell-windows-2, 2026
 - **Parser check.** Only Windows PowerShell 5.1 is installed (no pwsh). Use `powershell.exe -NoProfile -Command` with `[System.Management.Automation.Language.Parser]::ParseFile`.
 - **Preview vs real run.** Even when both call one decision function, preview decides followers against the pre-run state. Trace multi-item groups (copy-mode followers, followers of a "replace" winner) and implicit mkdir/link records; preview often mislabels them (seen in shell-windows-2 round 2, non-blocking).
 - **mtime attribution in Git Bash.** `find -newermt "YYYY-MM-DD HH:MM:SS"` is read as UTC. Add `+1000`, or every file after 01:xx local shows as new. Directory mtimes of the desktops and category folders at or before the first run's time prove that later runs changed nothing.
+- **Null-guard helpers with a Mandatory param** (shell-windows-10 D29):
+  - `[Parameter(Mandatory)]$Object` rejects $null unless it has `[AllowNull()]`, so an `if ($null -eq $Object)` guard is dead code.
+  - GlobalVars.ps1 sets EAP=Stop, so the binding error kills the script.
+  - Owners' live runs cover only the happy path (daemon Running). Trace the stopped and logged-out inputs by hand.
+- **A new common next to an older private copy.** Grep win_common for the same tool's exe path, detection and JSON parse (for example, FrankenPhpManager held its own Tailscale copies). Linux usually moves its copy into the common, so a Windows copy left behind is also a parity gap.
+- **Per-column device and table parity.** Ledger rows list different field sets for each side and still say "aligned". Compare the printed columns, not the function names.
 - **Align tasks** are listed in `.claude/agents_shared/client_key_auth/TASKS.md` (for example shell-linux-2 for D12a). Grep there before flagging "no align task".
 
 **Why:** these were the defects the owner's own report missed, even though it claimed a sandbox undo test passed.

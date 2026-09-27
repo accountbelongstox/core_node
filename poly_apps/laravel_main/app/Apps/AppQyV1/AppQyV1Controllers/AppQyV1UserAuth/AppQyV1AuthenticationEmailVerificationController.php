@@ -25,7 +25,7 @@ class AppQyV1AuthenticationEmailVerificationController extends Controller
         if ($request->user()->hasVerifiedEmail()) {
             return response()->json([
                 'status' => 'already_verified',
-                'message' => 'Email already verified'
+                'message' => __('app_qy_v1.messages.auth_email_already_verified')
             ]);
         }
 
@@ -35,7 +35,7 @@ class AppQyV1AuthenticationEmailVerificationController extends Controller
 
         return response()->json([
             'status' => 'verified',
-            'message' => 'Email verified successfully'
+            'message' => __('app_qy_v1.messages.auth_email_verified')
         ]);
     }
 }

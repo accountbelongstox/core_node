@@ -65,7 +65,8 @@
  "round2_checks": [
   "git log/status: app/Services/DataSync, DataSyncController.php and CommonApiInfo.php have no commit after 5bbb23682 and no working-tree change. FileSystemManager.php carries the B1 fix (0b6f362e3).",
   "In-process scratch run on CLI PHP 8.5.2 (free RAM 3.78 GB), 42/42 PASS: save.terminal_removes_artifacts, archive.staging_removed, archive.part_removed, prune.backdated_removed and prune.real_unchanged, with final.real_state_byte_identical over 16 real entries. Details are in reviews/laravel-api-D7-fix.json.",
-  "The owner restarted the workers (reports/pycore-laravel.md 'laravel-api-D7-fix'). GET http://127.0.0.1:9000/api/health returned 200 at re-review."
+  "The owner restarted the workers (reports/pycore-laravel.md 'laravel-api-D7-fix'). GET http://127.0.0.1:9000/api/health returned 200 at re-review.",
+  "Second leader pass (21:22, HEAD 7bed0a953): the junction-safety checks (scratchpad d7fixlead/verify_lead.php, own sandbox, no data-dir writes) pass on both CLI PHP 8.5.2 and FrankenPHP php-cli 8.5.11. They cover a top-level junction, dir symlink and file symlink, a nested junction, a self-loop junction, read-only dirs, Unicode names and a locked file. php -l is clean. The POSIX branch and PathMapper::isWindows() are unchanged from 74e7770. Real DataSync state: 4 sessions (8 files) and 4 locks, untouched. B1 stays resolved."
  ],
- "checked_at": "2026-09-27T21:15:00+10:00"
+ "checked_at": "2026-09-27T21:22:00+10:00"
 }

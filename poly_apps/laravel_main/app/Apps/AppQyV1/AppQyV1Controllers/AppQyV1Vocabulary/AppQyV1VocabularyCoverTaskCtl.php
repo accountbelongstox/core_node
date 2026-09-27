@@ -67,7 +67,7 @@ class AppQyV1VocabularyCoverTaskCtl extends Controller
             'ids' => 'required|array|min:1|max:' . AppQyV1LibraryCoverTaskService::MAX_IDS,
             'ids.*' => 'required|integer|min:1',
         ], [
-            'ids.required' => 'Query parameter ids is required (comma-separated library ids)',
+            'ids.required' => __('app_qy_v1.messages.cover_task_ids_required'),
         ]);
         if ($validator->fails()) {
             return $this->validationError($validator->errors(), $validator->errors()->first());
