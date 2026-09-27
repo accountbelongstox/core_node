@@ -1,0 +1,107 @@
+--- a/scripts/shells/docker_compose/tts/cosyvoice/model.sh
++++ b/scripts/shells/docker_compose/tts/cosyvoice/model.sh
+@@ -18,7 +18,7 @@
+ MODEL_EST_DISK_GB=8
+ MODEL_TEST_TIMEOUT=900
+ MODEL_HEALTH_PATH=/docs
+-MODEL_CONTEXT_ASSETS=""
++MODEL_CONTEXT_ASSETS=cosyvoice_build_constraints.txt
+ MODEL_WEIGHTS_METHOD=none
+ MODEL_IMPORT_CHECK=cosyvoice.cli.cosyvoice
+ MODEL_TORCH_INDEX_CUDA=https://download.pytorch.org/whl/cu124
+--- a/scripts/shells/docker_compose/tts/gptsovits/model.sh
++++ b/scripts/shells/docker_compose/tts/gptsovits/model.sh
+@@ -22,7 +22,7 @@
+ MODEL_EST_DISK_GB=8
+ MODEL_TEST_TIMEOUT=900
+ MODEL_HEALTH_PATH=/docs
+-MODEL_CONTEXT_ASSETS=""
++MODEL_CONTEXT_ASSETS=gptsovits_build_constraints.txt
+ MODEL_WEIGHTS_METHOD=none
+ MODEL_IMPORT_CHECK=GPT_SoVITS.TTS_infer_pack.TTS
+ MODEL_TORCH_INDEX_CUDA=https://download.pytorch.org/whl/cu124
+--- /dev/null
++++ b/scripts/shells/docker_compose/tts/voxcpm2/model.sh
+@@ -0,0 +1,30 @@
++#!/bin/bash
++# VoxCPM2 docker model definition, sourced by tts_docker_compose_common.sh and
++# read by DockerWslBridge.ps1 (MODEL_* lines split on the first '='). Keep plain
++# KEY=value lines at column 0: no export, no ${} expansion, GB values as decimals.
++MODEL_PORT=57214
++MODEL_MEM_LIMIT=8g
++MODEL_CPUS=3.0
++MODEL_PIDS_LIMIT=512
++MODEL_HOST_FREE_RAM_GB=9.5
++MODEL_EST_DISK_GB=8
++MODEL_TEST_TIMEOUT=1800
++MODEL_HEALTH_PATH=/health
++MODEL_CONTEXT_ASSETS="voxcpm2_api_server.py tts_text_chunking.py tts_audio_assembly.py tts_server_common.py"
++MODEL_WEIGHTS_METHOD=none
++MODEL_IMPORT_CHECK=voxcpm
++MODEL_DEFAULT_DEVICE=cpu
++
++model_smoke() {
++    local staging="$1"
++    local base_url="http://127.0.0.1:${MODEL_PORT}"
++    local out="$staging/smoke/voxcpm2_smoke.wav"
++    local payload='{"text":"Hello from VoxCPM2."}'
++
++    mkdir -p "$staging/smoke"
++    rm -f "$out"
++    curl -fsS -m "$MODEL_TEST_TIMEOUT" -o /dev/null "$base_url/load" || return 1
++    curl -fsS -m "$MODEL_TEST_TIMEOUT" -X POST "$base_url/synthesize" \
++        -H 'Content-Type: application/json' -d "$payload" -o "$out" || return 1
++    tts_docker_wav_ok "$out"
++}
+--- a/scripts/shells/docker_compose/tts/voxcpm2/compose.yml
++++ b/scripts/shells/docker_compose/tts/voxcpm2/compose.yml
+@@ -1,18 +1,28 @@
+ # Project-managed compose service for the VoxCPM2 class-C server.
+ # restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
++# Limits, port, device and staging come from model.sh through the docker model
++# runner. /data is the staging bind mount, so the HF cache stays outside the image.
+ services:
+   voxcpm2:
+     build:
+       context: .
+       args:
+         TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
++      labels:
++        pycore.fingerprint: ${TTS_IMAGE_FINGERPRINT:-}
+     image: pycore-tts-voxcpm2:local
+     container_name: pycore-tts-voxcpm2
+     restart: "no"
++    mem_limit: ${TTS_MEM_LIMIT:-8g}
++    memswap_limit: ${TTS_MEM_LIMIT:-8g}
++    cpus: ${TTS_CPUS:-3.0}
++    pids_limit: ${TTS_PIDS_LIMIT:-512}
+     ports:
+       - "127.0.0.1:${TTS_PORT:-57214}:57214"
+     volumes:
+-      - ${TTS_STAGING}:/data
++      - ${TTS_STAGING:?TTS_STAGING is required}:/data
++      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/pycore/pyfoundations:/opt/core_node/pycore/pyfoundations:ro
++      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/config/service_contract.json:/opt/core_node/config/service_contract.json:ro
+     environment:
+       VOXCPM2_DEVICE: ${TTS_DEVICE:-cpu}
+       VOXCPM2_MODEL: ${VOXCPM2_MODEL:-openbmb/VoxCPM2}
+@@ -20,6 +30,8 @@
+       VOXCPM2_TIMESTEPS: ${VOXCPM2_TIMESTEPS:-10}
+       VOXCPM2_PROMPT_WAV: ${VOXCPM2_PROMPT_WAV:-}
+       VOXCPM2_PROMPT_TEXT: ${VOXCPM2_PROMPT_TEXT:-}
++      PYCORE_PROJECT_ROOT: /opt/core_node
++      HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}
+     labels:
+       pycore.managed: "true"
+       pycore.engine: "voxcpm2"
+--- a/scripts/shells/docker_compose/tts/voxcpm2/Dockerfile
++++ b/scripts/shells/docker_compose/tts/voxcpm2/Dockerfile
+@@ -15,7 +15,7 @@
+     && pip install --no-cache-dir voxcpm soundfile fastapi "uvicorn[standard]"
+ 
+ # Build context carries the pycore asset servers (synced by the apply helper).
+-COPY voxcpm2_api_server.py tts_text_chunking.py tts_audio_assembly.py ./
++COPY voxcpm2_api_server.py tts_text_chunking.py tts_audio_assembly.py tts_server_common.py ./
+ 
+ ENV VOXCPM2_HOST=0.0.0.0 \
+     VOXCPM2_PORT=57214 \

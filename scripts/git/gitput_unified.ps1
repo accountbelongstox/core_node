@@ -416,14 +416,14 @@ function Get-DefaultRemote {
     return "git@github.com:accountbelongstox/$ProjectName.git"
 }
 
-# Load remote configurations from git_remotes.conf. Delegates the actual
-# parse to Get-GitSyncRemoteConfigs (GitSyncCommon.ps1, D20) -- the same
-# no-regex reader Get-GitSyncGitHubSshUrl uses -- instead of a second,
-# regex-based parser here; keeps this function's own missing-file error.
+# Load remote configurations from git_remotes.conf. Delegates the parse to
+# GitSyncCommon.ps1's Get-GitSyncRemoteConfigs (D20, review round 1 B2) --
+# the one no-regex reader for this file -- instead of a second regex parse
+# here; keeps this function's own missing-file error and exit.
 function Load-RemoteConfigs {
-    $configFile = Join-Path $PSScriptRoot "git_remotes.conf"
+    $configFile = Get-GitSyncRemotesConfPath -RepoRoot $coreNodeDir
 
-    if (-not (Test-Path $configFile)) {
+    if (-not (Test-Path -LiteralPath $configFile)) {
         Write-Error "Configuration file not found: $configFile"
         exit 1
     }
@@ -476,15 +476,16 @@ function Write-ColorText {
     Write-Host $Text -ForegroundColor $ForegroundColor
 }
 
-# Function to get current remote URL. Delegates the actual read to
-# Get-GitSyncCurrentRemoteUrl (GitSyncCommon.ps1, D20) -- safe under this
-# script's $ErrorActionPreference = 'Stop' -- instead of a second copy here.
+# Function to get current remote URL. Delegates to GitSyncCommon.ps1's
+# Get-GitSyncCurrentRemoteUrl (D20, review round 1 B1/N2) -- the one safe
+# reader for `git remote get-url` under this script's
+# $ErrorActionPreference = "Stop" -- instead of a second try/catch here.
 function Get-CurrentRemote {
-    $currentUrl = Get-GitSyncCurrentRemoteUrl -RemoteName "origin"
-    if ([string]::IsNullOrEmpty($currentUrl)) {
+    $remoteUrl = Get-GitSyncCurrentRemoteUrl -RemoteName "origin"
+    if ($null -eq $remoteUrl) {
         return ""
     }
-    return $currentUrl
+    return $remoteUrl
 }
 
 # Function to set remote URL. Delegates the actual git write to
@@ -1162,14 +1163,17 @@ try {
     Set-Location $coreNodeDir
     Write-ColorText "Changed to: $coreNodeDir" -ForegroundColor DarkCyan
 
-    # D20: one shared "origin is GitHub SSH, never Gitee" behavior
-    # (Invoke-GitSyncEnsureGitHubSshOrigin, GitSyncCommon.ps1), also used by
-    # the "syncgit" quick command and dd.cmd/dd.ps1 syncgit. Idempotent:
-    # no-op when origin is already correct. Does not abort the push/pull
-    # flow on failure -- each target below sets its own remote explicitly
-    # anyway -- matching Linux gitput_unified.sh main()'s
-    # git_sync_ensure_github_ssh_origin call.
-    Invoke-GitSyncEnsureGitHubSshOrigin -RepoRoot $coreNodeDir | Out-Null
+    # D20: proactively ensure origin is the GitHub SSH remote before any
+    # push target is processed (review round 1, B1 -- matches Linux's
+    # gitput_unified.sh main() calling git_sync_ensure_github_ssh_origin at
+    # the same point). Idempotent (no-op when origin is already correct)
+    # and does not abort the push flow on failure, since each target below
+    # sets its own remote explicitly anyway.
+    try {
+        Invoke-GitSyncEnsureGitHubSshOrigin -RepoRoot $coreNodeDir | Out-Null
+    } catch {
+        Write-ColorText "Warning: GitHub SSH origin check failed: $_" -ForegroundColor Yellow
+    }
 
     # Create working directory backup if enabled
     if (-not (Create-WorkingBackup)) {

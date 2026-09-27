@@ -107,21 +107,20 @@ function Get-GitSyncPackageJsonPath {
 function Get-GitSyncRemoteConfigs {
     <#
     .SYNOPSIS
-        Parses scripts/git/git_remotes.conf into a key/value table: every
-        "key=value" line, skipping blanks and comments. No regex: a plain
-        key/value split on the first "=". The single reader for that file --
+        Reads scripts/git/git_remotes.conf into a key/value table. No regex:
+        each non-comment, non-blank line is split on the first "=". This is
+        the one reader for that file on the PowerShell side -- both
         Get-GitSyncGitHubSshUrl below and gitput_unified.ps1's
-        Load-RemoteConfigs both delegate to this, instead of each keeping
-        its own copy (gitput_unified.ps1 used to have a second, regex-based
-        parser). Returns an empty hashtable when the file is missing; the
-        caller decides whether a missing file is an error.
+        Load-RemoteConfigs go through this instead of parsing the file a
+        second time (review round 1, B2). Returns an empty table when the
+        file is missing.
     #>
     param(
         [Parameter(Mandatory = $true)] [string]$RepoRoot
     )
 
-    $remoteConfigs = @{}
     $confPath = Get-GitSyncRemotesConfPath -RepoRoot $RepoRoot
+    $remoteConfigs = @{}
     if (-not (Test-Path -LiteralPath $confPath)) {
         return $remoteConfigs
     }
@@ -150,7 +149,7 @@ function Get-GitSyncGitHubSshUrl {
         Reads the "github=" SSH URL from scripts/git/git_remotes.conf -- the
         single gitunified remote definition, also read by
         gitput_unified_modules/config.py's load_remote_configs() and by
-        gitput_unified.ps1's Load-RemoteConfigs (both via
+        gitput_unified.ps1's Load-RemoteConfigs (which delegates to
         Get-GitSyncRemoteConfigs above). Returns $null when the file or the
         key is missing.
     #>
@@ -169,32 +168,31 @@ function Get-GitSyncGitHubSshUrl {
 function Get-GitSyncCurrentRemoteUrl {
     <#
     .SYNOPSIS
-        Safe `git remote get-url $RemoteName` read: returns $null when the
-        remote does not exist or the command fails. Wrapped in try/catch on
-        purpose -- under a caller's $ErrorActionPreference = 'Stop'
-        (gitput_unified.ps1 sets this), a native command's stderr becomes a
-        terminating error even when redirected to $null (verified on PS
-        5.1), so an unwrapped call here would abort the whole syncgit/gitput
-        flow the first time a remote (typically "origin" on a fresh clone,
-        or a rotation target) does not exist yet. The one place this read
-        happens; reused by Set-GitSyncRemoteUrl, Set-GitSyncRemoteIfDifferent
-        and gitput_unified.ps1's Get-CurrentRemote.
+        Safe wrapper around `git remote get-url <name>`: returns $null when
+        the remote does not exist or the read otherwise fails, and never
+        throws. Needed because PowerShell 5.1, under
+        $ErrorActionPreference = 'Stop' (set by gitput_unified.ps1, which
+        dot-sources this file), turns a native command's stderr line into a
+        terminating error even though that stream is redirected to $null
+        (review round 1, B1). Every `git remote get-url` read in this file
+        goes through this one helper instead of a bare `2>$null` each
+        (review round 1, N2 -- also folds in gitput_unified.ps1's own read).
     #>
     param(
         [Parameter(Mandatory = $true)] [string]$RemoteName
     )
 
+    $remoteUrl = $null
+
     try {
-        $currentUrl = (git remote get-url $RemoteName 2>$null)
+        $remoteUrl = (git remote get-url $RemoteName 2>$null)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($remoteUrl)) {
+            return $null
+        }
+        return $remoteUrl
     } catch {
         return $null
     }
-
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($currentUrl)) {
-        return $null
-    }
-
-    return $currentUrl
 }
 
 function Set-GitSyncRemoteUrl {
@@ -227,9 +225,9 @@ function Set-GitSyncRemoteIfDifferent {
     <#
     .SYNOPSIS
         Idempotent, finest-grain remote set: reads the current URL with
-        `git remote get-url`, and calls Set-GitSyncRemoteUrl only when it
-        differs. DryRun makes NO git.exe call at all and only prints the
-        command that would run.
+        Get-GitSyncCurrentRemoteUrl, and calls Set-GitSyncRemoteUrl only
+        when it differs. DryRun makes NO git.exe call at all and only
+        prints the command that would run.
     #>
     param(
         [Parameter(Mandatory = $true)] [string]$RemoteName,
@@ -256,9 +254,13 @@ function Invoke-GitSyncEnsureGitHubSshOrigin {
     <#
     .SYNOPSIS
         Ensures $RemoteName (default "origin") is the GitHub SSH URL from
-        git_remotes.conf, never Gitee. Reused by syncgit (this file) and by
-        gitput_unified.ps1's push flow, so there is one behavior for the
-        "origin" step in both entry points.
+        git_remotes.conf, never Gitee. Reused by syncgit (this file) and
+        called directly from gitput_unified.ps1's main(), before any push
+        target is processed, matching Linux's gitput_unified.sh main()
+        calling git_sync_ensure_github_ssh_origin (review round 1, B1 --
+        previously only defined here, never actually called from gitput),
+        so there is one behavior for the "origin" step in both entry
+        points.
     #>
     param(
         [Parameter(Mandatory = $true)] [string]$RepoRoot,

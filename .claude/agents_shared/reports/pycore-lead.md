@@ -567,3 +567,55 @@
 - Decision: 401/403 stay terminal (accepted the member's group decision; it is the requirement's literal rule).
 - Changed files (this task): the verdict file and this report section. No git writes.
 - Blockers: none. Next owner: orchestrator (the task can complete).
+
+## shell-linux-3-fix (leader dispatch; item shell-linux-3-B1)
+
+- Status: deferred to the owner, pycore-ai, with a validated patch. No repo code changed.
+  - Why: every target path (`scripts/shells/docker_compose/tts/{cosyvoice,gptsovits,voxcpm2}/`) is pycore-ai's (path map; B1 one writer per path). The item itself says "Fix (pycore-ai)", and the task says "write scope only".
+  - cosyvoice/gptsovits also had an active temporary writer: pycore-runtime (shell-windows-3-fix round 2 under TASKS.md:174 misroute-sw3). Its files landed in the user's merge 93f8de054 during this task.
+  - This follows the laravel-api-D7-fix precedent, where the reviewer ruled the deferral correct.
+- State at HEAD 22ea5b992 (the target files are unchanged since my baseline; checked with sha256sum -c):
+  - cosyvoice and gptsovits have model.sh and the compose.yml fixes (pycore-runtime).
+  - voxcpm2 has none of them. The harness still returns `FAIL model_definition_missing(.../voxcpm2/model.sh)`.
+  - New defect in the pycore-runtime files: `MODEL_CONTEXT_ASSETS=""` in cosyvoice/model.sh:18 and gptsovits/model.sh:22. Their Dockerfiles run `COPY cosyvoice_build_constraints.txt ./` (:22) and `COPY gptsovits_build_constraints.txt ./` (:14). `_tts_docker_sync_assets` copies only the files that model.sh lists into `<staging>/pycore_docker`, so every fresh build fails with `image_build_failed`. The fingerprint also misses the constraints file. The harness shows `dockerfile_copy_sources_in_context: MISSING cosyvoice_build_constraints.txt` (and the same for gptsovits). The item's spec already names these assets.
+- Patch for pycore-ai (5 files; keep the endings: model.sh LF, voxcpm2 compose.yml/Dockerfile CRLF; no other comments needed):
+  - Unified diff: `.claude/agents_shared/reports/pycore-lead-shell-linux-3-fix.diff`. `patch -p1 --binary` applies it cleanly to a copy of the current tree.
+  - The EOL-preserving edit script is `scratchpad/sl3fix/apply_patch.py`; it asserts exactly one match per edit. Full patched copies are in `scratchpad/sl3fix/patched/`. Here `scratchpad` = `D:/.tmp/claude/D--programing-core-node/59362416-9b59-4a9b-b284-e4b3d83daf06/scratchpad`.
+  - `cosyvoice/model.sh:18` becomes `MODEL_CONTEXT_ASSETS=cosyvoice_build_constraints.txt`.
+  - `gptsovits/model.sh:22` becomes `MODEL_CONTEXT_ASSETS=gptsovits_build_constraints.txt`.
+  - New `voxcpm2/model.sh`, in the melotts form:
+    - the 4-line header;
+    - `MODEL_PORT=57214`, `MODEL_MEM_LIMIT=8g`, `MODEL_CPUS=3.0`, `MODEL_PIDS_LIMIT=512`, `MODEL_HOST_FREE_RAM_GB=9.5`, `MODEL_EST_DISK_GB=8`, `MODEL_TEST_TIMEOUT=1800`, `MODEL_HEALTH_PATH=/health`;
+    - `MODEL_CONTEXT_ASSETS="voxcpm2_api_server.py tts_text_chunking.py tts_audio_assembly.py tts_server_common.py"`, `MODEL_WEIGHTS_METHOD=none`, `MODEL_IMPORT_CHECK=voxcpm`, `MODEL_DEFAULT_DEVICE=cpu`;
+    - `model_smoke`: GET `/load`, then POST `/synthesize` `{"text":"Hello from VoxCPM2."}` to `<staging>/smoke/voxcpm2_smoke.wav`, then `tts_docker_wav_ok`.
+  - `voxcpm2/compose.yml` (CRLF):
+    - 2 header lines, as in melotts;
+    - `build.labels: pycore.fingerprint: ${TTS_IMAGE_FINGERPRINT:-}`;
+    - `mem_limit`/`memswap_limit: ${TTS_MEM_LIMIT:-8g}`, `cpus: ${TTS_CPUS:-3.0}`, `pids_limit: ${TTS_PIDS_LIMIT:-512}`;
+    - `${TTS_STAGING:?TTS_STAGING is required}:/data`;
+    - the two read-only mounts from melotts/compose.yml:24-25 (pyfoundations and config/service_contract.json under /opt/core_node);
+    - `PYCORE_PROJECT_ROOT: /opt/core_node` and `HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}`.
+  - `voxcpm2/Dockerfile:18` (CRLF): `COPY voxcpm2_api_server.py tts_text_chunking.py tts_audio_assembly.py tts_server_common.py ./`.
+- Verification (static only; free RAM 4.02 GB; no Docker, distro, build or container; no repo writes except this report and the diff). Outputs are in `scratchpad/sl3fix/{harness_out.txt,compose_check_out.txt}`.
+  - `bash -n` passes on all 5 model.sh files and the lib in the patched tree. No `MODEL_` line uses `${}` or `export`.
+  - Static harness (`harness.sh`; it sources the lib from a sandbox copy with PATH=/usr/bin:/bin, so no docker) on the current and patched trees:
+    - Current tree: voxcpm2 gives `RESULT status voxcpm2 FAIL model_definition_missing(...)`, and cosyvoice/gptsovits give `MISSING <constraints>.txt`.
+    - Patched tree: all 5 engines load. Each gives `RESULT status <m> FAIL not_ready(engine,image[,weights])` (expected without Docker), and none gives model_definition_missing.
+    - Asset sync is OK, and every Dockerfile COPY source is in the build context for all 5 engines.
+    - melotts' fingerprint is still `899b66bb735ea6dc...:cpu`, so the sandbox is byte-faithful. voxcpm2's fingerprint is `7da55ee8c6c98486...:cpu`, and its test pre-flight needs 8704 MB.
+  - compose check (PyYAML render with the runner's `TTS_DOCKER_COMPOSE_ENV` keys): in the patched tree, all 5 have the fingerprint label, mem/memswap/cpus/pids from the runner env, the required `TTS_STAGING`, the port, the image/container names and the managed label, with no unresolved variables. voxcpm2 gets the 2 ro mounts and PYCORE_PROJECT_ROOT. The current voxcpm2 compose fails 6 of these checks.
+  - Windows bridge: `Get-DockerModelDefinition` (dot-sourced DockerWslBridge.ps1, sandbox root) reads the patched cosyvoice, gptsovits and voxcpm2 definitions. Ports are 50000/9880/57214, RAM 5/5/9.5 GB, disk 8 GB, and the assets are read as above.
+  - Container-layout simulation: with the 4 context files in `/opt/voxcpm2` and the mounted `/opt/core_node` layout, `tts_server_common.load_network_constants().VOXCPM2_HTTP_PORT` = 57214. Without PYCORE_PROJECT_ROOT it raises FileNotFoundError (`/opt/pyfoundations/network_constants.py`), which is why the env line is needed. The server's only sibling imports are tts_audio_assembly and tts_server_common; tts_audio_assembly imports tts_text_chunking.
+  - `docker compose config -q` was not run: no Docker on Windows, and starting the Debian distro only for this check is outside a static check. pycore-ai's G3 ensure runs it (`compose_config_invalid`).
+- Decisions (recommended options):
+  - Defer to the owner rather than make a leader edit (the reasons are above).
+  - voxcpm2 uses `MODEL_WEIGHTS_METHOD=none`, the item's default. The image does not stage weights: the server pulls openbmb/VoxCPM2 through HF_HOME=/data/hf (Dockerfile) on the first `/load`, so the download persists under the staging mount. Alternative for pycore-ai: `hf_flat` into `weights`, the same dir as the native 147 installer (`$TARGET_DIR/weights`, WEIGHT_ALLOW :27), plus `VOXCPM2_MODEL: /data/weights`. That would share one download between native and docker; it needs a G3 run to prove.
+  - Limits: the HF API reports openbmb/VoxCPM2 as 2,290,004,544 BF16 params (about 4.6 GB of weights). 8g fits a BF16 CPU load. The CPU dtype is unverified; an fp32 load would need about 10g and would show up as an OOM smoke failure in G3. Host RAM 9.5 follows the pattern of mem plus 1.5 GB. `MODEL_TEST_TIMEOUT=1800` covers the first download plus a CPU load. `MODEL_TORCH_INDEX_CUDA` is omitted, so the lib default cu130 applies, which matches voxcpm2's 74e7770 tier.
+  - `HF_ENDPOINT` is passed through as in melotts, because the weights download at runtime. No comment on the weights method was added to model.sh (AGENTS.md: code is documentation).
+- Cross-scope and non-blocking notes:
+  - For the shell-windows-3-fix round-2 re-review (pycore-lead; writer pycore-runtime): the `MODEL_CONTEXT_ASSETS=""` defect above is blocking for B3's cosyvoice/gptsovits docker builds. The patch above fixes it; whoever writes next applies it (pycore-ai, or pycore-runtime if the claude lead extends misroute-sw3).
+  - Unverified risk for pycore-ai G3: the pycore-runtime import checks `cosyvoice.cli.cosyvoice` and `GPT_SoVITS.TTS_infer_pack.TTS` run from WORKDIR with no PYTHONPATH. Upstream servers add `third_party/Matcha-TTS` or `GPT_SoVITS/` to sys.path, so ensure may FAIL `import_check_failed` (ModuleNotFoundError matcha/AR). If it does, add `PYTHONPATH` to the compose environment. gptsovits `up`/`test` also still need pretrained models, the documented limitation.
+  - After the fix lands, the orchestrator updates linux.md SPW-007 (it says "voxcpm2 only pending"), SPW-013 (add voxcpm2 compose) and windows.md.
+  - The voxcpm2 docker path is reached only through `docker_model_runner.sh`/`apply_tts_docker_for_engine.sh`; 147 and Step58 are native-only (`--supported "native"`).
+- Changed files (this task): this report section, and the handoff diff `.claude/agents_shared/reports/pycore-lead-shell-linux-3-fix.diff`. No repo code, no git writes, no service touched (so no worker restart).
+- Blockers: the owner's edit. Next owner: pycore-ai: apply the diff, run `bash -n` and `scratchpad/sl3fix/harness.sh <repo> <scratch staging>` (expect no model_definition_missing and all COPY sources present), then `docker compose config -q` or ensure in G3, one engine at a time with free RAM checked. Then the reviewer re-reviews shell-linux-3 B1, and the orchestrator updates the SPW rows.

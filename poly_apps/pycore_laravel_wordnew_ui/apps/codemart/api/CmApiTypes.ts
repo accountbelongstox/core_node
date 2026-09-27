@@ -39,6 +39,12 @@ export interface CmRegisterResult {
   next_step: string;
 }
 
+export interface CmEmailResendResult {
+  result: string;
+  email?: string | null;
+  next_step?: string | null;
+}
+
 export interface CmBootstrapUser {
   id: number;
   username: string;

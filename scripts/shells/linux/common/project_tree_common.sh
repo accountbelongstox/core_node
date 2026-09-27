@@ -189,14 +189,22 @@ project_tree_same_directory() {
     [ -n "$id_a" ] && [ "$id_a" = "$id_b" ]
 }
 
-# rc 0 = bound, and (when it can be verified) it is exactly ext4_dir;
-# rc 1 = not a mountpoint at all; rc 2 = mounted, but to something else.
+# rc 0 = bound, and CONFIRMED to be exactly ext4_dir (identity verified via
+# project_tree_same_directory); rc 1 = not a mountpoint at all; rc 2 = mounted,
+# but not confirmed as ext4_dir -- either verified to be a different source,
+# or identity cannot be verified at all because ext4_dir does not exist on
+# disk yet. The second case matters as much as the first: an existing mount
+# is never reported/treated as "ours" (rc 0) on the strength of "nothing
+# proved it isn't" -- this must fail closed, exactly like
+# project_tree_same_directory and project_tree_release_dir already do,
+# instead of failing open the way returning 0 here unconditionally once did.
 project_tree_bind_state() {
     local link_path="$1" ext4_dir="$2"
     mountpoint -q "$link_path" 2>/dev/null || return 1
-    if [ -n "$ext4_dir" ] && [ -d "$ext4_dir" ]; then
-        project_tree_same_directory "$link_path" "$ext4_dir" || return 2
+    if [ -z "$ext4_dir" ] || [ ! -d "$ext4_dir" ]; then
+        return 2
     fi
+    project_tree_same_directory "$link_path" "$ext4_dir" || return 2
     return 0
 }
 
@@ -291,7 +299,7 @@ project_tree_status_dir() {
             bind_rc=$?
             case "$bind_rc" in
                 0) state="bound -> $ext4_dir" ;;
-                2) state="bound to a DIFFERENT source (expected $ext4_dir)" ;;
+                2) state="bound, but NOT confirmed as $ext4_dir (different source, or $ext4_dir does not exist yet)" ;;
                 *) state="plain directory, not bound" ;;
             esac
             ;;

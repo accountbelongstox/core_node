@@ -50,14 +50,14 @@ class CodeMartV1FileUploadService
     }
 
     /**
-     * Move one KYC document that an upload before the private-disk change
-     * left on the public upload disk to the private KYC disk. Returns the
-     * private path the row must store (the same path, unless a different file
-     * already occupies it; the alternative name derives from the checksum so a
-     * rerun reuses it), or null when the public disk holds no copy. The public
-     * copy is deleted only after the private copy's checksum matches.
+     * First half of moving a KYC document that an upload before the
+     * private-disk change left on the public upload disk: copy it to the
+     * private KYC disk and verify the checksum. Returns the private path the
+     * row must store (the same path, unless a different file already occupies
+     * it; the alternative name derives from the checksum so a rerun reuses
+     * it), or null when the public disk holds no copy.
      */
-    public function moveLegacyKycFileToPrivate(string $path): ?string
+    public function copyLegacyKycFileToPrivate(string $path): ?string
     {
         $public = Storage::disk(self::UPLOAD_DISK);
         $private = Storage::disk(CodeMartV1Constants::KYC_PRIVATE_DISK);
@@ -90,11 +90,15 @@ class CodeMartV1FileUploadService
             throw new \RuntimeException(__('codemart.cli.init.kyc_checksum_mismatch', ['path' => $path, 'target' => $target]));
         }
 
-        if (!$public->delete($path)) {
+        return $target;
+    }
+
+    /** Second half of the move: delete the verified public copy. */
+    public function deleteLegacyKycFile(string $path): void
+    {
+        if (!Storage::disk(self::UPLOAD_DISK)->delete($path)) {
             throw new \RuntimeException(__('codemart.cli.init.kyc_delete_failed', ['path' => $path]));
         }
-
-        return $target;
     }
 
     public function uploadProfileImage(object $file): string|bool

@@ -15,6 +15,7 @@ import type {
   CmDepositCreateResult,
   CmDepositInfo,
   CmDepositRecord,
+  CmEmailResendResult,
   CmFundResult,
   CmInvoice,
   CmListPage,
@@ -346,6 +347,10 @@ export class CmApi extends BaseAPI {
 
   async verifyEmail(email: string, token: string): Promise<APIResponse<{ user_id: number; next_step: string }>> {
     return this.post('auth/verify-email', { email, token });
+  }
+
+  async resendVerificationEmail(): Promise<APIResponse<CmEmailResendResult>> {
+    return this.post<CmEmailResendResult>('auth/resend-verification-email', {});
   }
 
   async getRegistrationStatus(): Promise<APIResponse<CmRegistrationStatus>> {

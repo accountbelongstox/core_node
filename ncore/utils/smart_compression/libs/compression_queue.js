@@ -37,17 +37,23 @@ class CompressionQueue extends EventEmitter {
         } = options;
 
         if (!type || !['compression', 'extraction'].includes(type)) {
-            logger.error('Invalid task type. Must be "compression" or "extraction"');
+            const error = new Error('Invalid task type. Must be "compression" or "extraction"');
+            logger.error(error.message);
+            this.notifyRejectedTask(singleFileCallback, error);
             return null;
         }
 
         if (type === 'compression' && !sourcePath) {
-            logger.error('sourcePath is required for compression tasks');
+            const error = new Error('sourcePath is required for compression tasks');
+            logger.error(error.message);
+            this.notifyRejectedTask(singleFileCallback, error);
             return null;
         }
 
         if (type === 'extraction' && !archivePath) {
-            logger.error('archivePath is required for extraction tasks');
+            const error = new Error('archivePath is required for extraction tasks');
+            logger.error(error.message);
+            this.notifyRejectedTask(singleFileCallback, error);
             return null;
         }
 
@@ -91,6 +97,12 @@ class CompressionQueue extends EventEmitter {
         this.emit('taskAdded', task);
 
         return taskId;
+    }
+
+    notifyRejectedTask(singleFileCallback, error) {
+        if (typeof singleFileCallback === 'function') {
+            singleFileCallback(false, error, null);
+        }
     }
 
     removeTask(taskId) {

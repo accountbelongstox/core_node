@@ -372,6 +372,121 @@ class AppQyV1DictionaryTTSCoordinator
             return ['stored' => false, 'reason' => 'not_found'];
         }
 
+        return $this->storeEntryAudioBytes($entry, $langCode, $bytes, $providerLabel, $variantKey, $variantMeta, $mime);
+    }
+
+    /**
+     * storeWordAudioBytesDetailed for a word without a stored md5 (contract
+     * word_identity.fallback_when_md5_absent): the row is resolved by lang +
+     * cleaned_word, and a word not in the dictionary is 'not_found' with no
+     * row created. The result also carries the resolved row md5 (null when
+     * not found).
+     *
+     * @return array{stored:bool, reason:string, md5:?string}
+     */
+    public function storeCleanedWordAudioBytesDetailed(
+        string $langCode,
+        string $cleanedWord,
+        string $bytes,
+        string $providerLabel = 'bing',
+        ?string $spelling = null,
+        ?string $variantKey = null
+    ): array {
+        $entry = self::findByCleanedWord($langCode, $cleanedWord, $spelling);
+        if ($entry === null) {
+            return ['stored' => false, 'reason' => 'not_found', 'md5' => null];
+        }
+
+        return $this->storeEntryAudioBytes($entry, $langCode, $bytes, $providerLabel, $variantKey, null, null)
+            + ['md5' => (string) $entry->md5];
+    }
+
+    /**
+     * Dictionary row of a word without a stored md5, resolved by lang +
+     * cleaned_word (see rowsByCleanedWords); null when the word is not in
+     * the dictionary. Never creates a row.
+     */
+    public static function findByCleanedWord(string $langCode, string $cleanedWord, ?string $spelling = null): ?AppQyV1LangDictionaryModel
+    {
+        return self::rowsByCleanedWords($langCode, [$cleanedWord => $spelling])[$cleanedWord] ?? null;
+    }
+
+    /**
+     * Rows of words without a stored md5 (contract
+     * word_identity.fallback_when_md5_absent), resolved by lang + cleaned_word
+     * through the md5 index: the caller's spelling first when it names the
+     * same word, then the cleaned word and its letter-case forms. Words not
+     * in the dictionary are absent from the result; no row is created.
+     *
+     * @param array<string,?string> $words cleaned_word => original spelling|null
+     * @return array<string,AppQyV1LangDictionaryModel> cleaned_word => row
+     */
+    public static function rowsByCleanedWords(string $langCode, array $words): array
+    {
+        $forms = [];
+        $hashes = [];
+        $rows = null;
+        $row = null;
+        $resolved = [];
+
+        foreach ($words as $cleanedWord => $spelling) {
+            $forms[$cleanedWord] = self::cleanedWordForms((string) $cleanedWord, $spelling);
+            foreach ($forms[$cleanedWord] as $form) {
+                $hashes[md5($form)] = true;
+            }
+        }
+        if ($hashes === []) {
+            return [];
+        }
+        $rows = AppQyV1LangDictionaryModel::rowsByHashes($langCode, array_keys($hashes))->keyBy('md5');
+        foreach ($forms as $cleanedWord => $candidates) {
+            foreach ($candidates as $form) {
+                $row = $rows->get(md5($form));
+                if ($row !== null) {
+                    $resolved[$cleanedWord] = $row;
+                    break;
+                }
+            }
+        }
+
+        return $resolved;
+    }
+
+    /** @return array<int,string> */
+    private static function cleanedWordForms(string $cleanedWord, ?string $spelling): array
+    {
+        $word = trim($cleanedWord);
+        $lower = mb_strtolower($word, 'UTF-8');
+        $spelling = trim((string) $spelling);
+        $forms = $spelling !== '' && mb_strtolower($spelling, 'UTF-8') === $lower ? [$spelling] : [];
+
+        array_push(
+            $forms,
+            $word,
+            $lower,
+            mb_strtoupper(mb_substr($lower, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($lower, 1, null, 'UTF-8'),
+            mb_convert_case($lower, MB_CASE_TITLE, 'UTF-8'),
+            mb_strtoupper($lower, 'UTF-8')
+        );
+
+        return array_values(array_unique(array_filter($forms, static fn (string $form): bool => $form !== '')));
+    }
+
+    /**
+     * Fill-missing audio write for one resolved dictionary row (the shared
+     * tail of the md5 and cleaned_word store paths).
+     *
+     * @return array{stored:bool, reason:string}
+     */
+    private function storeEntryAudioBytes(
+        AppQyV1LangDictionaryModel $entry,
+        string $langCode,
+        string $bytes,
+        string $providerLabel,
+        ?string $variantKey,
+        ?array $variantMeta,
+        ?string $mime
+    ): array {
         $variantKey = ($variantKey === null) ? '' : $variantKey;
         // Per-variant fill-missing: never clobber an existing file. The primary
         // variant respects has_audio; non-primary variants check their own slot.
@@ -429,7 +544,7 @@ class AppQyV1DictionaryTTSCoordinator
 
         Log::info('[DictTTS] Assist word audio stored', [
             'language' => $langCode,
-            'md5' => $md5,
+            'md5' => (string) $entry->md5,
             'bytes' => strlen($bytes),
             'path' => $relativePath,
             'provider' => $providerLabel,

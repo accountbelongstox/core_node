@@ -38,5 +38,11 @@ Checks that paid off on shell-windows tasks (first seen on shell-windows-2, 2026
 - **Dot-sourcing a script that has a param block** (for example TailscaleCommon.ps1) leaks its parameter variables, together with their ValidateSet attributes, into the caller's scope, and that reaches every Step that dot-sources the manager. Grep callers for script-scope assignments to the same names (case-insensitive). Function-local ones are safe.
 - **Live-file mtimes.** A live file newer than the task can come from a bulk rewrite. Compare with its siblings' mtimes (all of global_var had the same second) before blaming the owner.
 
+- **Git/dry-run tasks** (shell-windows-G2 D20, 2026-09-27):
+  - Safe dry-run probe: define `function global:git { log $args }` in the session, then `&` the script. Functions win over git.exe, so even a wrong code path only hits the stub. Test argument binding first with a scratch copy of the param block (-File and &).
+  - PS 5.1 (verified): under EAP=Stop, `native 2>$null` throws on any stderr. `2>&1 | Out-String` prints NativeCommandError blocks for git progress lines. Check what EAP each caller sets (gitput_unified.ps1 sets Stop).
+  - "Linked / one behavior" claims: grep the linked script for the call to the high-level ensure function, not just the delegated write primitive. Also check that the Linux counterpart makes the same call.
+  - A new common often adds a second parser next to an in-script reader (Load-RemoteConfigs in gitput_unified.ps1). Grep for every reader of the config file.
+
 **Why:** these were the defects the owner's own report missed, even though it claimed a sandbox undo test passed.
 **How to apply:** use this list on every shell-windows review. See [[ui-review-patterns]] for per-hunk coverage in shared files.
