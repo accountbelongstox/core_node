@@ -13,10 +13,18 @@ RESOURCE_LIMITER_SCRIPT="$CORE_NODE_ROOT_DIR/$RESOURCE_LIMITER_SCRIPT_RELATIVE"
 # that matches a registered name calls its handler and dd.sh exits; anything
 # else keeps the existing free-form "each argument is a resource-limited
 # shell command" mode (handle_arguments below), unchanged.
-declare -A DD_PARAM_HANDLERS=()
-declare -A DD_PARAM_SUMMARIES=()
-declare -A DD_PARAM_EXAMPLES=()
-declare -a DD_PARAM_ORDER=()
+#
+# `-g` is required here: this file is sourced from inside load_dd_helpers()
+# (dd.sh), and a plain `declare -A` inside a function call chain scopes the
+# array LOCAL to that enclosing function -- it would be populated correctly
+# by the dd_register_param calls below (still inside load_dd_helpers), then
+# silently vanish once load_dd_helpers() returns, leaving dd_dispatch_arguments
+# (called afterward, at dd.sh's top level) looking up an empty/undeclared
+# array and always falling through to handle_arguments.
+declare -g -A DD_PARAM_HANDLERS=()
+declare -g -A DD_PARAM_SUMMARIES=()
+declare -g -A DD_PARAM_EXAMPLES=()
+declare -g -a DD_PARAM_ORDER=()
 
 dd_register_param() {
     local name="$1"

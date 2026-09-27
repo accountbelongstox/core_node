@@ -179,12 +179,16 @@ class FlutterIconManager {
             if (options.autoResize) {
                 const targetInfo = await this.getImageInfo(absoluteTargetPath);
                 if (targetInfo && targetInfo.width && targetInfo.height) {
-                    await this.imageProcessor.resizeAndCropImage(
+                    const resized = await this.imageProcessor.resizeAndCropImage(
                         absoluteSourcePath,
                         absoluteTargetPath,
                         targetInfo.width,
                         targetInfo.height
                     );
+                    if (!resized) {
+                        logger.error(`Failed to resize and replace image: ${absoluteTargetPath}`);
+                        return false;
+                    }
                     logger.info(`Resized and replaced image: ${absoluteTargetPath}`);
                     return true;
                 }

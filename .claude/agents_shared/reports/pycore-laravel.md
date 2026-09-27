@@ -222,3 +222,188 @@ Verification:
 - Changed files: none in `poly_apps/laravel_main/` (the file already matched the validated patch). This report only.
 - Blockers: none remaining for B1.
 - Next owner: pycore-lead, to re-review and flip `reviews/laravel-api-D7-fix.json` and the B1 entry of `reviews/laravel-api-D7.json` to `approved`.
+
+## pycore-laravel-G2
+
+Scope: srv-06, T12, CKA-13, USER175-07, USER175-09, D9-09. All paths are under `poly_apps/laravel_main/`. I ran no git writes. The user's own sync commit `93f8de054` ("win0.0.1") picked up these working-tree changes. Line endings are unchanged: every touched file is LF, before and after, and for each file `git diff --numstat 74e7770` equals the `--ignore-space-at-eol` numstat. The `-8/-9` header hunks at the tops of files are D18 header-cleaner removals, not mine.
+
+### srv-06 (merged srv-06, srv-02, USER175-12, D9-10): done
+Files:
+- `app/Apps/McpV1/McpV1Utils/McpV1Initializer.php`
+- `app/Apps/McpV1/McpV1Models/McpV1PlaceholderImageModel.php`
+- `app/Apps/McpV1/McpV1Utils/McpV1PlaceholderUtil.php`
+- `database/migrations/mcpv1_placeholder_images_table.php`
+- `app/Console/Commands/McpV1PlaceholderCleanupCommand.php`
+- `app/Console/Commands/InitializeApps.php`
+- `app/Services/InviteCodeInitializer.php`
+- `app/Models/InviteCode.php`
+- `lang/{en,zh_CN}/mcp_v1.php` (new)
+- `lang/{en,zh_CN}/runtime.php`
+
+Changes:
+- **Root cause of the server's daily `mcpv1:placeholder-cleanup` failure.** `McpV1PlaceholderImageModel` extended `AppModel` with no app key, so it queried the default connection `main` (`core_node_main`, where there is no `placeholder_images`). The migration and the initializer create the table on `mcpv1` (`mcp_v1_database`). The model now extends `McpV1Model`, so it uses the `mcpv1` connection.
+- **Single schema source.** The table structure now lives in `McpV1PlaceholderImageModel::tableStructure()`, following the AppQyV1 TTS model pattern. Both the migration and the initializer use it.
+- **Schema check.** A new `schemaReady()` runs `Schema::hasTable` plus `hasColumns` over every declared column.
+- **Initializer no longer trusts the status file alone.** A step is skipped only when `completed_steps` says it is done **and** `stepStateHolds()` confirms the real state:
+  - `create_placeholder_table` and `verify_tables` check `schemaReady()`;
+  - `create_storage_directory` checks `is_dir`;
+  - if the check itself throws, the step re-runs.
+- **Table creation.** `createPlaceholderTable` now runs `ensureTableAligned(tableStructure())`, the add-only SafeMigrationHelper path, instead of `Artisan::call('migrate', --path)`. The old call did nothing once the migrations repository recorded the file, even with the table gone. `verify_tables` uses `schemaReady()`.
+- **Storage directory.** `McpV1PlaceholderUtil::storageDirectory()` is now the one definition of the storage dir, used by the util and the initializer.
+- **Cleanup command.** When the table is absent, `mcpv1:placeholder-cleanup` returns 0 with a `Log::warning` line and the localized `mcp_v1.cleanup.table_missing` line.
+  - Choice (recommended, literal reading): the whole command is skipped, including the orphan-file sweep. So an in-process test run could not delete the one real file older than a day in `static/mcp_placeholders`.
+- **Invite codes.**
+  - `InviteCode::codesByType` became `activeCodesByType`: the newest active, unexpired code per type, through a shared private `activeUnexpiredQuery()` that `publicCodes()` now reuses. Its only caller, `InviteCodeInitializer`, was updated.
+  - sys:init keeps printing the admin invite code. The print block moved into `InitializeApps::displayInviteCodeResults()` so it can be tested in-process.
+  - When no active, unexpired admin code exists, sys:init prints `runtime.invite_code_none_active` instead of an empty header.
+- **env() reads.** The touched files contain no `env(` read. `InitializeApps.php` still reads `getenv('LARAVEL_SERVICE_RUN')`. That is a launcher-context signal, not a `.env` key, and it is already listed for an orchestrator ruling (laravel-D7 non_blocking), so it is unchanged.
+
+Verification (`scratchpad/g2_verify.php`: in-process, with transactions opened on mcpv1, codemartv1, appqyv1 and main and all rolled back; 32 of 32 checks passed):
+- `php -l`: every changed PHP file is clean.
+- The model connection is `mcpv1`.
+- The initializer ran against a scratch copy of the real `mcp_v1_init_status.json`, where every step is `completed_steps: true`. With `placeholder_images` dropped inside the transaction:
+  - run 1 re-ran `create_placeholder_table` and returned `{"status":"success","table_status":"created"}`, and `schemaReady()` was true afterwards;
+  - run 2 in the same transaction returned every step `skipped`, so no change.
+- With the table dropped again, `Artisan::call('mcpv1:placeholder-cleanup')` returned 0 and printed "Placeholder cleanup skipped: table placeholder_images is missing on connection mcpv1 (run php artisan sys:init)." No "Deleted" line appeared.
+- After the rollback, `placeholder_images` exists again (0 rows before and after).
+- Invite codes:
+  - `displayInviteCodeResults` prints `Generated Invite Codes:` and `• admin: <code>` (the code is redacted in the log; it is 26 characters);
+  - with every row set `is_active=false`, or with every row expired, `activeCodesByType('admin')` is `[]`, and the block prints "No active, unexpired admin invite code exists." (rolled back).
+- `php artisan schedule:list` still lists `0 3 * * * php artisan mcpv1:placeholder-cleanup`.
+- Workers restarted (`POST :2019/frankenphp/workers/restart` → 200), and `GET http://127.0.0.1:9000/api/health` → 200.
+
+### T12 (merged T12, CKA-32): done
+File: `app/Services/SafeMigrationHelper.php`.
+
+Changes:
+- One `normalizeIndexColumns()` (lower-case strings, declared order) is used by both `findEquivalentIndex()` (ordered compare) and `indexMatches()` (sorted compare).
+- `findEquivalentIndex()` skips pgsql partial indexes. The new `pgPartialIndexNames()` reads `pg_index.indpred IS NOT NULL` for the table in `current_schema()` (the same scope as Laravel's `compileIndexes`) and returns `[]` on other drivers.
+- `'morphs'` gets the NOT NULL relax:
+  - it left `COMPOSITE_COLUMN_TYPES`, so `isNotNullWithoutDefault()` treats it like any NOT NULL column without a default;
+  - the `morphs` branch of `applyColumnDefinition()` now emits `nullableMorphs()` when the relax set `nullable`.
+- The three whitespace-only lines (`:276`, `:843` and `:1482` in T11's numbering) are restored to their base content of 8 spaces.
+
+Verification:
+- `php -l` is clean.
+- The whitespace churn is gone. `git diff --numstat 74e7770` and `--ignore-space-at-eol` are both 191/31, and a hunk scan finds 0 whitespace-only hunks. No `-` line is whitespace-only.
+- In rolled-back PostgreSQL transactions:
+  - CodeMartV1: `alignTableStructureFromArray` over all 17 `CodeMartV1Initializer::contractTableStructures()` tables, with the initializer's options, reports `aligned` for every table, so zero changes;
+  - AppQyV1 (87 tables): `AppQyV1ArticleLibraryInitializer`, `UserInitializationTableService`, `BookReadingProgressTableService` and `ClientDeviceSettingsTableService` all report `exists`, and the TTS engine-config and variant-spec `ensureTableAligned` both report `aligned`, so zero changes;
+  - the `idx_*` snapshot of codemartv1 and appqyv1 is identical before and after, so no new `idx_*`.
+- Partial-index skip: on main, `pgPartialIndexNames` finds `idx_global_tasks_live_group_key` (`UNIQUE (task_type, group_key) WHERE group_key IS NOT NULL AND status IN (pending, assigned, processing)`). `findEquivalentIndex(main, global_tasks, [task_type, group_key])` returns null, so the partial index no longer satisfies a full-table spec.
+- A `morphs` definition with `nullable` builds `owner_type` and `owner_id`, both nullable.
+- **Residue list (no drop; harmless duplicates left by T11 run 1):**
+  - `codemart_v1_projects.idx_codemart_v1_projects_client_id` duplicates `codemart_v1_projects_client_id_index` (client_id);
+  - `codemart_v1_projects.idx_codemart_v1_projects_status` duplicates `codemart_v1_projects_status_index` (status);
+  - `codemart_v1_code_reviews.idx_codemart_v1_code_reviews_reviewer_id` duplicates `codemart_v1_code_reviews_reviewer_id_index` (reviewer_id).
+- Note, outside the item: the composite types (`timestamps`, `softDeletes`, `morphs`) have a pseudo column name that `getColumnListing()` never returns, so `addMissingColumns()` would retry them on each run. No table definition uses these types today.
+
+Foundation announcement (wordnew-laravel, codemart-laravel):
+- On an aligned schema, SafeMigrationHelper behaves as before.
+- The one semantic change: a pgsql partial index no longer satisfies an unnamed index spec with the same columns.
+
+### CKA-13: done (ncore CKA-14 can proceed)
+Files:
+- `app/Apps/DingDuoDuoV1/DingDuoDuoV1Services/DingDuoDuoV1LicenseService.php`
+- `lang/en/ding_duo_duo.php`
+- `lang/zh_CN/ding_duo_duo.php`
+
+Changes:
+- The super-code payload moved into `superPayload()`, next to `lockedPayload()`. It returns `label: null`, and the extension localizes from mode `super`.
+- `ding_duo_duo.super_code_label` is removed from en and zh_CN.
+
+Verification:
+- `php -l` is clean.
+- In-process, `superPayload('DDK2.scratch.sig', {exp, tier, features})` returns `mode: super`, `label: null`.
+- `resolveByToken('')` is still `locked`.
+- `Lang::has('ding_duo_duo.super_code_label')` is false in both locales.
+- A repo-wide grep for `super_code_label` finds only the records under `.claude/agents_shared/`, so there is no dangling reader.
+
+### USER175-07: done
+Files:
+- `app/Console/Commands/CodeMartV1SeedDemoData.php`
+- `lang/en/codemart.php`
+- `lang/zh_CN/codemart.php`
+- `app/Providers/AppServiceProvider.php`: confirmed, not changed.
+
+Changes:
+- Registration confirmed: `AppServiceProvider.php:30,104` registers `CodeMartV1AdminPasswordCommand`.
+- `sys:codemartinit` no longer prints a password inline in hardcoded English. It prints:
+  - `codemart.cli.seed.password_file`, the secret file path;
+  - `codemart.cli.seed.password_current`, the password read from the contract secret file (the seeder summary comes from `CodeMartV1AdminPassword::ensure`);
+  - the new `initialized`, `account_list` and `description` keys (en and zh_CN).
+- The seeder change that applies a generated password to existing accounts is codemart-laravel's. It has landed: `CodeMartV1DemoSeeder.php:758-762` calls `CodeMartV1AdminPassword::apply()` when it generates the file.
+
+Verification:
+- `php -l` is clean.
+- `php artisan list` shows `codemart:admin-password` and `sys:codemartinit` with the localized description.
+- `codemart:admin-password --help` shows `--file=FILE`.
+- Grep for `Codemart#2026` over `poly_apps/laravel_main`: 0 files.
+- All new keys resolve in en and zh_CN (`Lang::has` with no fallback), and the codemart, mcp_v1, runtime and ding_duo_duo lang files have full en/zh_CN key parity.
+- `displayPassword()`, run against a scratch path, printed both lines, and no secret file was created. The real secret file was only checked for existence, never written.
+
+### USER175-09: done, except the shared-helper call (blocked on USER175-08)
+File: `scripts/start.ps1`.
+
+Changes:
+- **Blocked:** the call to the shell-windows codemart-admin-password helper (USER175-08) after sys:init. That helper has not landed; a grep over every `*.ps1/psm1/cmd/bat` finds no codemart-admin-password code outside start.ps1. So start.ps1 does not call it yet, and start.ps1 has **no** password generator.
+  - "A single generator on Windows" holds today: the only one is Laravel's `CodeMartV1AdminPassword::generate()` through the sys:init seeder.
+  - When USER175-08 lands, its win_common helper must be dot-sourced and called right after the sys:init block (`start.ps1`, after "Initializing system"). `--show-codemart-password` may then delegate to the helper's show step.
+- **`--show-codemart-password`:** a read-only early exit next to `--show-super-code`, with a usage line.
+  - `Get-CodemartAdminPasswordFile` asks Laravel for the contract path (`CodeMartV1AdminPassword::defaultPath()`, kernel bootstrapped, last non-empty output line).
+  - `Show-CodemartAdminPassword` prints the file and the password, or "not generated yet (file: …)".
+- **Resource index:** after sys:init, `Invoke-LaravelResourceIndexEnsure` mirrors the Linux `ensure_laravel_redis_index`.
+  - With phpredis loaded: `app_qy_v1:resource-index status`; if it is not `resource_index_built=yes`, then `rebuild`, then re-check.
+  - Otherwise it logs the database fallback.
+- **D7 bring-up defect fixed:** the `php -r` helpers no longer contain inner double quotes, which Windows PowerShell 5.1 strips.
+  - `New-SecureRuntimeValue` app-key now uses `'base64:'`;
+  - `Get-StoredInstallationAccessCode` now uses `get('INSTALLATION_ACCESS_CODE')`;
+  - the new helper uses single quotes only.
+
+Verification (`scratchpad/g2_start_verify.ps1`, run with `powershell.exe` 5.1.19041):
+- `Parser::ParseFile`: 0 errors for start.ps1 and deploy.ps1.
+- Helper functions extracted from the AST and called in a scratch session:
+  - the old app-key `php -r` exits 255 (the defect reproduced);
+  - `New-SecureRuntimeValue app-key` → `base64:…`, 51 characters; `reverb-key` → 32;
+  - `Get-StoredInstallationAccessCode` → 24 characters (value not printed);
+  - `Get-RuntimeConfigurationValue` runs with exit 0 (`REVERB_APP_ID` is null in the local store, which is not from this change);
+  - `Get-CodemartAdminPasswordFile` → `D:\www\wwwroot\laravel_db\.core_node_secrets\CODEMART_ADMIN_PASSWORD`.
+- `Show-CodemartAdminPassword` against a scratch secret file prints its password; against a missing scratch file it prints the not-generated notice. The scratch file was removed.
+- The real `start.ps1 --show-codemart-password` run printed the file path and the password (redacted in the log, 24 characters) and exited 0 in 0.9 s. There was no sys:init, no service and no runtime output.
+- `--help` lists the new option.
+- The resource-index path was checked statically only. phpredis is not loaded on this host, so the runtime branch that runs here is the database-fallback log line; a full start.ps1 run was not repeated.
+
+### D9-09: done
+Files: `scripts/deploy.sh`, `scripts/deploy.ps1`.
+
+Changes:
+- **deploy.sh.** `run_artisan_sys_init` and `install_laravel_services` are removed.
+  - The latter registered the legacy `app-manager-laravel_main` start_service.sh unit, which would compete with 175's `ncore-laravel-<plane>` service on the same port.
+  - After `check_initialization` and `run_all_ups`, the main flow calls `run_canonical_start "$@"`, which is `bash "$CANONICAL_START" "$@"`. `CANONICAL_START` is `…/scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh`, the same target as start.sh.
+  - 175 ignores unknown args such as `--full-deploy`. Its service prompt defaults to Y without a TTY, so the non-interactive ServerManager `bash deploy.sh` still ends as a service.
+- **deploy.ps1.** `Initialize-LaravelRuntime` (config:clear + sys:init) is removed.
+  - The main flow runs `& $POWERSHELL_EXE -NoProfile -ExecutionPolicy Bypass -File $CANONICAL_START_PS1` (start.ps1) in its own process, the way start.ps1 runs Step175, and exits 1 on a non-zero exit.
+  - The post-start hint points at start.ps1 instead of `php artisan serve`.
+  - The variables are declared at the top.
+- Discovery is unchanged: both files keep their names and locations (`unified_manager.ps1:83`, `unified_config.sh:47`/`unified_core.py:307`, `systemd_service_manager.sh:208` working-dir rule, ServerManagerV1 `scripts/deploy.sh`).
+
+Verification:
+- `bash -n deploy.sh` (wsl -d Debian): exit 0.
+- PowerShell parse of deploy.ps1: 0 errors.
+- `grep -c sys:init`: deploy.sh 0, deploy.ps1 0.
+- Both reference the canonical script: deploy.sh:40 `175_laravel_main_start.sh`; deploy.ps1:24 and :1019 `start.ps1`.
+- Scratch call of the extracted `run_canonical_start --help` in Debian: `CANONICAL_START` resolves to `/mnt/d/programing/core_node/scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh`, the args pass through, and 175 printed its usage.
+
+### Cross-scope notes
+- **shell-windows (USER175-08):** land the win_common codemart-admin-password helper. pycore-laravel then adds the call after the sys:init block of start.ps1 (see USER175-09).
+- **shell-linux (observed during the `--help` delegation check in WSL Debian):**
+  - sourcing 175's libraries creates `/opt/core_node/_debian_13`;
+  - it prints `[sc] [FAIL] service contract value empty` for `versions.mercure`, `php_runtime.upload_max_filesize`, `post_max_size`, `max_execution_time_seconds` and `max_input_time_seconds`, plus "FrankenPHP root is absent from the service contract".
+  - This comes from the contract readers of 175/common. It is not caused by this change.
+- **laravel-remote / shell-linux:** a server that ran the old deploy.sh may still have the `app-manager-laravel_main` unit. 175 removes only `ncore-laravel-main` and the opposite plane's unit.
+- **CKA-25 (McpV1 i18n):** the remaining English literals in `McpV1Initializer` (for example "Already completed", "Table placeholder_images created successfully") are left for that item. The new messages already go through `mcp_v1.*`.
+
+### Summary
+- Status: all 6 items done. USER175-09's helper call is blocked on USER175-08 (shell-windows).
+- Next owner: pycore-lead, verdict `reviews/pycore-laravel-G2.json`.
+- Scratch files, all in this session's scratchpad: `g2_verify.php`, `g2_start_verify.ps1`, `deploy_fn_check.sh`, `dupidx.php`, `probe1.php`, `probe2.php`.

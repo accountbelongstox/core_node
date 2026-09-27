@@ -223,9 +223,24 @@ get_commit_message() {
     echo "$COMMIT_MESSAGE"
 }
 
-# Default remote: GitHub first (used for execution order and restore)
+# Default remote: GitHub first (used for execution order and restore). Reads
+# the single "github=" SSH URL definition from git_remotes.conf via
+# git_sync_common.sh (D20-LIN-LINKAGE), so this file has no second definition
+# of the URL; the hardcoded pattern below is only a last-resort fallback if
+# that conf key is ever missing. write_color_text is defined later in this
+# file, so a plain echo is used here (this runs at source time, before that
+# point).
 get_default_remote() {
     local project_name="$1"
+    local github_url=""
+
+    github_url="$(git_sync_get_github_ssh_url "$CORE_NODE_DIR")"
+    if [ -n "$github_url" ]; then
+        echo "$github_url"
+        return 0
+    fi
+
+    echo "Warning: no 'github=' entry in git_remotes.conf; falling back to the default GitHub SSH URL pattern" >&2
     echo "git@github.com:accountbelongstox/$project_name.git"
 }
 
@@ -434,16 +449,18 @@ get_current_remote() {
     git remote get-url origin 2>/dev/null || echo ""
 }
 
-# Function to set remote URL
+# Function to set remote URL. Delegates the actual write to
+# git_sync_set_remote_url (git_sync_common.sh), the one function that runs
+# `git remote add`/`git remote set-url` for both this multi-target push flow
+# and the D20 syncgit path (D20-LIN-LINKAGE) -- no second inline git command
+# here.
 set_remote_url() {
     local remote_url="$1"
 
-    write_color_text "Executing: git remote set-url origin $remote_url" "DarkGray"
-    git remote set-url origin "$remote_url"
-    if [ $? -eq 0 ]; then
+    if git_sync_set_remote_url "origin" "$remote_url"; then
         write_color_text "Remote set to: $remote_url" "Green"
     else
-        write_color_text "Failed to set remote: $?" "Red"
+        write_color_text "Failed to set remote" "Red"
         return 1
     fi
 }

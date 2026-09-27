@@ -2,69 +2,161 @@
 
 ## shell-windows-3-fix
 
-Task header tag is `[pycore-runtime]`, but all three dispatched items are out of the
-pycore-runtime write scope under the current authoritative map
-(`.claude/agents/pycore-lead.md`, user D22, 2026-09-27, cross-checked against
-`development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md` §8). Each item's own
-requirement text is prefixed `(pycore-ai)`, and every file it names matches the pycore-ai
-entry in the map, not pycore-runtime's:
+### Round 1 (superseded)
 
-- `scripts/shells/win/install_powershells/Step{52,54,55,56}_*.ps1` and
-  `scripts/shells/win/win_common/DockerWslBridge.ps1` are listed verbatim under
-  pycore-ai ("Windows model and engine install steps:
-  `Step{9,11,12,36,37,38,39,42,43,46,47,51..61}_*.ps1`" and "`DockerWslBridge.ps1`").
-- `scripts/shells/linux/common/tts_docker_compose_common.sh` is listed verbatim under
-  pycore-ai's Linux paths.
-- `scripts/shells/linux/debian/install_shells/{139_install_melotts,143_install_fishspeech}.sh`
-  and `scripts/shells/docker_compose/tts/{cosyvoice,gptsovits}/` fall under pycore-ai's
-  catch-all ("every other Linux script whose purpose is installing or initializing a local
-  model engine or its Docker runner").
+Round 1 refuted all three items as wrong owner under the default map (every B1-B3 path is
+pycore-ai's per `.claude/agents/pycore-lead.md:21-22`, not pycore-runtime's, and my own role
+brief's current text is "every other path under `pycore/`" plus a short pyservice-script list
+— it does not carry the "installers under `scripts/`" line my round-1 text quoted; that line
+matched the retired `.claude/agents/pycore.md:17` and should not have been quoted as current).
+That ownership reading was correct and is not being relitigated. Changed files in round 1:
+this report's `shell-windows-3-fix` section only (no code).
 
-None of these paths are under `pycore/callmodule/`, `pycore/database/`,
-`pycore/pyutils/{common,rpc_v2,wsrpc,laravel,codesync}/`, `pycore/pyctl/{relay,runtime,
-queue_center,laravel,audio_orchestration,task_history,upload,client}/`, or the
-pyservice-prerequisite shell scripts pycore-runtime owns
-(`scripts/shells/linux/common/{pyservice_entry,pyservice_www_permissions,
-codesync_service}.sh` and their Windows counterparts). They are also explicitly called out
-as not-mine in my own role brief ("Not yours: ... installers under `scripts/`
-(shell-linux, shell-windows)").
+### Round 2 (writer basis and result)
 
-Decision (recommended option, taken per the no-questions rule): make no edits under this
-task. Writing TTS/Docker-model-runner installer logic here would violate the B1/B2/B3
-boundary rule (write only inside your scope) on a path another owner (pycore-ai) already
-holds, and would duplicate/conflict with whatever pycore-ai does concurrently on the same
-files. No file was read-modified; only path lookups (`find`) were run to confirm ownership
-before declining.
+Writer basis: `.claude/agents_shared/client_key_auth/TASKS.md:174` row `misroute-sw3` — `[pycore-ai]
+shell-windows-3-fix is being implemented by a pycore-runtime agent in the running pycore run
+(old index mapping). Accepted (B9): no concurrent writer on those Windows model scripts, and
+pycore-lead reviews it; pycore-ai re-checks the result in its G3 D12 item` — verified present on
+disk at that path/line before implementing (the row is real; it was not taken on trust from the
+review text alone). `.claude/agents_shared/reviews/shell-windows-3-fix.json` (round 1,
+pycore-lead) and `.claude/agents_shared/reports/pycore-lead.md`'s matching section were also
+read and are consistent with this basis. Per this row and `pycore-lead.md`'s "a path that two
+groups need is written by one of them at a time, as the claude lead assigns it", B1-B3 were
+implemented here as the recorded temporary writer; pycore-ai stays the default owner and
+re-checks per TASKS.md.
 
-No service was started, stopped or restarted, and no code was changed, so no
-`frankenphp/workers/restart` call was needed.
+- `shell-windows-3-B1`: done. `Step55_InstallMelotts.ps1` and `Step56_InstallFishspeech.ps1`:
+  added `$dockerBackendKey`/`$dockerOptInNote` and gated the docker branch — with neither
+  `-Full`/`MELOTTS_INSTALL=1` (Step55) or `-Full`/`FISHSPEECH_INSTALL=1`/`NEURAL_TTS_INSTALL=1`
+  (Step56) nor `-Force`, it now prints the saved `TTS_<ENGINE>_BACKEND` and
+  `TTS_DOCKER_PROVIDER_STATE` plus the opt-in hint and returns, with no `DockerWslBridge.ps1`
+  dot-source and no WSL call. `139_install_melotts.sh`/`143_install_fishspeech.sh`: the same
+  gate in `melotts_docker_backend`/`fishspeech_docker_backend` (`$DO_FULL`/`$FORCE`), printing
+  the saved backend via `get_var "$(_install_method_key "$DOCKER_MODEL" BACKEND)"` and
+  returning before any `docker_model_runner.sh` call. Ledger: `windows.md` SPW-014, `linux.md`
+  SPW-014 updated (status "aligned").
+- `shell-windows-3-B2`: done. `DockerWslBridge.ps1:534` (was :533):
+  `$terminateAfter = ($runningBefore -notcontains $distroName) -and ($releaseAfter -or $Action -ne 'up')`
+  — a distro already running before the call is never terminated. The `finally` block now logs
+  "left running" instead of terminating when `$terminateAfter` is false but a release ran. The
+  restart-required branch now checks `$runningBefore -contains $distroName`: if so it logs
+  `SKIP restart-required` and asks the user to run `wsl --terminate <distro>` instead of
+  terminating and retrying; only a distro this call started is terminated and re-run. `.SYNOPSIS`
+  text at the top of `Invoke-DockerModelRunner` updated to match. Ledger: `windows.md` SPW-009
+  and SPW-011 updated.
+- `shell-windows-3-B3`: done, with one documented limitation. Added
+  `docker_compose/tts/cosyvoice/model.sh` (port 50000) and `.../gptsovits/model.sh` (port 9880)
+  in the plain column-0 `MODEL_*=value` form (verified against `tts_docker_compose_common.sh`'s
+  `TTS_DOCKER_REQUIRED_KEYS`/`TTS_DOCKER_OPTIONAL_KEYS`). Their `compose.yml` now read
+  `TTS_MEM_LIMIT`/`TTS_CPUS`/`TTS_PIDS_LIMIT` and carry the `pycore.fingerprint` build label,
+  matching melotts/fishspeech's compose.yml, and their `TTS_STAGING` volume now uses the
+  `:?required` guard those two already use. `Step52_InstallCosyVoice.ps1`/
+  `Step54_InstallGptsovits.ps1` now pass `-StagingDir $targetDir` to `Invoke-TtsDockerEnsure`
+  (Apply already did), and both `exit 1`s in the docker branch are replaced with `return`
+  (these Steps are dot-sourced into a shared PowerShell session by the prerequisite
+  orchestrator, so `exit` would end that whole session, not just this step — matching how
+  Step55/56 already only `return`). No Linux code change was needed for 133/137: they already
+  pass `$TARGET_DIR` to `tts_docker_apply_engine` and already `return`/`exit` per-subprocess
+  (each `install_shells/*.sh` runs as its own `bash` process, so `exit 1` there only ends that
+  subprocess, unlike the Windows dot-source case).
+  - Limitation (documented, not silently shipped): both new `model.sh` set
+    `MODEL_WEIGHTS_METHOD=none` and `MODEL_HEALTH_PATH=/docs`. Verified against the actual
+    upstream server sources (fetched from GitHub for this task): CosyVoice's
+    `runtime/python/fastapi/server.py` loads `iic/CosyVoice2-0.5B` from ModelScope at start
+    (not the Hugging Face Hub this runner's `compose_run`/`hf_flat` staging targets), and
+    GPT-SoVITS's `api_v2.py` needs its official `lj1995/GPT-SoVITS` HF models inside the
+    cloned repo tree (`GPT_SoVITS/pretrained_models`, the same repo id
+    `Step54_InstallGptsovits.ps1`'s native path already downloads), not under the generic
+    `/data` staging mount `compose.yml` binds — wiring either one through this runner's
+    weight-staging methods needs its own `compose.yml` volume/target, which is a materially
+    separate change left for pycore-ai (the model.sh comments state this explicitly). Neither
+    server defines a dedicated health route (confirmed by reading both files), so
+    `MODEL_HEALTH_PATH=/docs` uses FastAPI's default page, and `model_smoke` is a
+    reachability-only check (HTTP 200 on that path) rather than a full audio round trip, since
+    neither server's exact request contract (CosyVoice's `spk_id` for its SFT-style endpoint;
+    GPT-SoVITS's `/tts` parameters once weights are supplied) was confirmed. This resolves the
+    concrete `model_definition_missing` FAIL the task named; it does not make `up`/`test` fully
+    functional for these two engines yet. Flagged for pycore-ai's G3 D12 re-check per
+    TASKS.md:174, and recorded here rather than left implicit. Ledger: `windows.md` SPW-007
+    and SPW-013, `linux.md` SPW-007 and SPW-013 updated with this limitation.
 
-Items:
+No service was started, stopped or restarted (no Laravel/pycore code touched), so no
+`frankenphp/workers/restart` call was needed. No WSL start/ensure/test and no docker build was
+run, per the round-2 instruction; the fenced e9 files
+(`scripts/shells/linux/common/{gvar_storage_common,shared_cache_env,gvar_common,mount_common,
+pyservice_entry}.sh`, `SharedCacheEnv.ps1`) were not touched.
 
-- `shell-windows-3-B1`: refuted (wrong owner). Files named (Step55/56 `.ps1`,
-  `139_install_melotts.sh`, `143_install_fishspeech.sh`) are pycore-ai's per the map above.
-  Route to pycore-ai; the fix as described (report-only status branch when neither
-  `$doFull`/`DO_FULL` nor `-Force` is set, before any WSL/docker call) still looks correct
-  on inspection of `Step55_InstallMelotts.ps1` / `Step56_InstallFishspeech.ps1` but was not
-  applied here.
-- `shell-windows-3-B2`: refuted (wrong owner). `DockerWslBridge.ps1` is pycore-ai's. Route
-  to pycore-ai.
-- `shell-windows-3-B3`: refuted (wrong owner). `Step52_InstallCosyVoice.ps1`,
-  `Step54_InstallGptsovits.ps1`, `tts_docker_compose_common.sh`, and
-  `docker_compose/tts/{cosyvoice,gptsovits}/` are pycore-ai's. Route to pycore-ai.
+Verification:
+- PowerShell parser (`[System.Management.Automation.Language.Parser]::ParseFile`) on
+  `DockerWslBridge.ps1`, `Step52_InstallCosyVoice.ps1`, `Step54_InstallGptsovits.ps1`,
+  `Step55_InstallMelotts.ps1`, `Step56_InstallFishspeech.ps1`: 0 parse errors on all five.
+- `bash -n` on `133_install_cosyvoice.sh`, `137_install_gptsovits.sh`,
+  `139_install_melotts.sh`, `143_install_fishspeech.sh`,
+  `docker_compose/tts/{cosyvoice,gptsovits}/model.sh`, `tts_docker_compose_common.sh`,
+  `install_method_common.sh`: OK on all eight (no syntax errors).
+- In-process `_tts_docker_load_model` (sourcing `tts_docker_compose_common.sh` only, no
+  docker/WSL call) for melotts/fishspeech/cosyvoice/gptsovits: all four load successfully
+  (required keys present, `MODEL_WEIGHTS_METHOD` one of `compose_run`/`hf_flat`/`none`,
+  `model_smoke` defined); voxcpm2 still correctly reports `FAIL
+  model_definition_missing(...)` (unchanged, out of scope).
+- In-process `Get-DockerModelDefinition -Model <m>` (dot-sourcing `DockerWslBridge.ps1` only,
+  no WSL call) for the same four models: all read back the expected `MODEL_PORT`,
+  `MODEL_WEIGHTS_METHOD`, `MODEL_HEALTH_PATH`, `MODEL_HOST_FREE_RAM_GB`, `MODEL_EST_DISK_GB`
+  (13-16 keys each, matching the file contents); voxcpm2 returns an empty table (file absent).
+  Both readers (Bash and PowerShell) agree on every value for all four models.
+- `git diff ab566fdf7 HEAD` (`ab566fdf7` was HEAD at the start of this session, before any edit
+  here) scoped to the 11 changed/added files: 153 insertions / 18 deletions, matching exactly
+  the changes described above — isolated from other agents' unrelated concurrent commits to
+  some of these same shared files (e.g. `DockerWslBridge.ps1`'s Tailscale-unrelated SPW-037/
+  SPW-040-042 work landed in the same file from other rounds; diffing from this session's own
+  starting commit excludes that noise). No git add/commit/push was run by me; an automated
+  "DevOps User" process in this environment periodically auto-commits the working tree
+  (observed commits `win0.0.1`/`debian0.1` at 21:2x-21:4x), which is how these edits ended up
+  already at HEAD — not a git action taken by this agent.
+- Line endings: every changed/added file's line-ending count is unchanged from before the edit
+  (CRLF-count == total-line-count for all eleven files, both before and after; no LF crept into
+  a CRLF file or vice versa). The two new `model.sh` files came out CRLF, matching the existing
+  `melotts/model.sh`/`fishspeech/model.sh` convention in this same directory.
+- Resource guard: free RAM measured at 2.7 GB during this round, below the 3 GB build/test
+  threshold, confirming static checks only (no builds, no WSL starts, no docker) was the
+  correct and only allowed verification path here, not merely the requested one.
 
-Verification: `find` over the repo confirmed the on-disk locations of every path named in
-B1-B3 (`scripts/shells/win/install_powershells/Step{52,54,55,56}_*.ps1`,
-`scripts/shells/win/win_common/DockerWslBridge.ps1`,
-`scripts/shells/linux/common/tts_docker_compose_common.sh`,
-`scripts/shells/linux/debian/install_shells/{139_install_melotts,143_install_fishspeech}.sh`);
-each matched the pycore-ai map entry quoted above.
+Changed files (round 2):
+- `scripts/shells/win/win_common/DockerWslBridge.ps1`
+- `scripts/shells/win/install_powershells/Step52_InstallCosyVoice.ps1`
+- `scripts/shells/win/install_powershells/Step54_InstallGptsovits.ps1`
+- `scripts/shells/win/install_powershells/Step55_InstallMelotts.ps1`
+- `scripts/shells/win/install_powershells/Step56_InstallFishspeech.ps1`
+- `scripts/shells/linux/debian/install_shells/139_install_melotts.sh`
+- `scripts/shells/linux/debian/install_shells/143_install_fishspeech.sh`
+- `scripts/shells/docker_compose/tts/cosyvoice/compose.yml`
+- `scripts/shells/docker_compose/tts/gptsovits/compose.yml`
+- `scripts/shells/docker_compose/tts/cosyvoice/model.sh` (new)
+- `scripts/shells/docker_compose/tts/gptsovits/model.sh` (new)
+- `.claude/agents_shared/shell_parity/windows.md` (SPW-007, SPW-009, SPW-011, SPW-013, SPW-014)
+- `.claude/agents_shared/shell_parity/linux.md` (SPW-007, SPW-013, SPW-014)
+- `.claude/agents_shared/reports/pycore-runtime.md` (this section)
 
-Changed files: none.
+Deferrals / cross-scope notes for pycore-ai's G3 D12 re-check (TASKS.md:174):
+- Confirm the CosyVoice `/inference_sft`-style smoke contract (valid `spk_id` for
+  CosyVoice2-0.5B, which is primarily a zero-shot model) and GPT-SoVITS's `/tts` contract, then
+  upgrade `model_smoke` in both `model.sh` from the current reachability-only check to a real
+  audio round trip (matching melotts/fishspeech's `tts_docker_wav_ok` pattern).
+  For each fix, the model.sh comment block names this follow-up.
+- Add a `compose.yml` volume (or an equivalent staging path) so GPT-SoVITS's
+  `GPT_SoVITS/pretrained_models` and CosyVoice's ModelScope cache are staged through this
+  runner's weight-staging methods instead of `MODEL_WEIGHTS_METHOD=none`, if pre-staging (vs.
+  each container's own first-run download) is wanted.
+- `voxcpm2` still has no `model.sh` (SPW-007/linux.md); out of scope for B1-B3.
+- Unrelated uncommitted pycore-ai-scope edits noted by the round-1 reviewer
+  (`pycore/pyctl/tts/audio_lane_full_sync.py`, `audio_resource_delivery.py`,
+  `pycore/pyutils/tts/audio_queue_center.py`) were not touched and are not part of this task.
 
-Blockers: none for pycore-runtime. Next owner: pycore-ai for all three items (B1, B2, B3);
-pycore-lead/orchestrator to re-tag task `shell-windows-3-fix` with the `[pycore-ai]` owner
-prefix per the team protocol ("every task subject starts with its owner role tag").
+Blockers: none. Next owner: pycore-lead re-review (verdict file
+`.claude/agents_shared/reviews/shell-windows-3-fix.json`); pycore-ai re-checks the result in
+its G3 D12 item per TASKS.md:174, in particular the weights-staging/model_smoke follow-ups
+above.
 
 ## pycore-assist-D7-fix
 
@@ -527,3 +619,133 @@ red-line. Next owners:
 - pycore-ai, to adopt `word_identity_md5`/`word_identity_content` in
   `audio_resource_ledger.py:42/:52` and `audio_queue_center.py:139-140`
   (non-blocking follow-up recorded in both prior reviews).
+
+## pycore-runtime-D7P2
+
+Reconstructed per B6 of `.claude/agents_shared/reviews/pycore-runtime-D7P2-fix.json` (round-3
+verdict, reviewer pycore-lead) and `.claude/agents_shared/reviews/pycore-runtime-D7P2.json`.
+The original `pycore-runtime-D7P2` task ran 2026-09-27 ~17:0x-17:3x; its own report section
+was lost to an API outage before it could be written, and the round-3 review confirmed by grep
+that no "D7P2" section existed here. The six blocking items it raised (B1-B6) were then
+dispatched three times to pycore-ui in error (correctly deferred each time) before being
+re-routed to pycore-runtime as `pycore-runtime-D7P2-fix`; that task's parts 1 and 2 (below and
+above) implement B1-B6. This section records the original items themselves, mapped to their
+B-numbers, so the outage-lost report is not permanently missing.
+
+Items:
+
+- LDRI-35-py (delivery config centralization) -> B5: `identity.py`/`delivery_diff.py` read
+  `QUEUE_CENTER_DELIVERY` instead of literals; done except the batch content/status URL still
+  suffixed `DELIVERY_BATCH_PATH` by hand instead of reading the contract's `{batch_id}`
+  templates. Closed by B5 (`pycore-runtime-D7P2-fix`).
+- LDRI-12 fourth site, `queue_center_contract.audio_dedup_key` -> B1: `hashlib` removed from
+  the fallback path, but the same word-identity format was hand-built in three modules and
+  parsed in a fourth, with no code reading `word_identity.fallback_when_md5_absent.key_format`.
+  Closed by B1.
+- p5-02, manual-promote RPC 32-hex `md5` whitelist -> B1, B2: `local_queue_head_routes.py`
+  dropped an invalid `md5` but let an upper-case one through unchanged, and forwarded the
+  whole caller-supplied item (including `task` and `_laravel_base_url`) to
+  `promote_local_head`. Closed by B1 (md5 normalization) and B2 (item whitelist).
+- RESTARTTRAY-03 / AOQSD-19 / AOQSD-41, runtime half -> B3: the audio-lane boot chain gates
+  the lanes' heartbeat callback and `request_start` on the cache restore, but
+  `snapshot_service.apply_head_event`'s Mercure-replay wake (`worker.request_pull`) had no
+  such gate, so a replayed head ticket at boot could pull remotely before the restore
+  finished. Closed by B3.
+- AOQSD-36, event_handlers part -> B4: `_run_audio_lane_boot_chain`'s `try/finally` (no
+  `except`) kept the boot-chain failure from being swallowed, but its docstring's claim that
+  the failure "still propagates to the bus-task thread boundary" was false:
+  `BusTaskThread.run` (no `response_signal` for this callback) caught it and printed nothing.
+  Closed by B4, after pycore-lead's foundation fix F-1 (`pyfoundations/serialized_worker.py`).
+
+Changed files (B1, B2, B3, B5 -- see `pycore-runtime-D7P2-fix (part 1)` above for the
+file-by-file diff, decisions and verification detail):
+- `pycore/pyutils/common/queue_center_contract.py` (CRLF, 853/853 lines; was 814/814)
+- `pycore/callmodule/rpc_routes/local_queue_head_routes.py` (LF, 91/91 lines; was 73/73)
+- `pycore/pyctl/queue_center/snapshot_service.py` (LF, 863/863 lines; was 851/851)
+- `pycore/pyutils/laravel/delivery_diff.py` (LF, 316/316 lines; was 315/315)
+
+B4's file, `pycore/pyctl/runtime/event_handlers.py` (LF, 582/582 lines; was 578/578), is
+recorded in `pycore-runtime-D7P2-fix (part 2)` below.
+
+B1-B5 verification output (summary; full detail in `pycore-runtime-D7P2-fix (part 1)` above):
+- `word_identity_md5("5D41402ABC4B2A76B9719D911017C592")` ->
+  `"5d41402abc4b2a76b9719d911017c592"`.
+- `word_identity_content(None, "Hello")` -> `"text:hello"`; `audio_dedup_key("word_audio",
+  "en", "hello")` -> `"en:text:hello"`; with the same word's upper-case md5, `audio_dedup_key`
+  -> `"en:5d41402abc4b2a76b9719d911017c592"`.
+- `_build_rpc_item` drops `task`/`_laravel_base_url`/`owner`, keeps only
+  `language`/`text`/`kind`/`content_id`/`md5`; a direct `promote_handler` call with a nested
+  `task`/`_laravel_base_url` reaches the stubbed `promote_local_head` with no `task` key.
+- `DELIVERY_BATCH_CONTENT_PATH.replace("{batch_id}", "b1")` ->
+  `"/api/app_qy_v1/delivery/batch/b1/content"`; the `DELIVERY_BATCH_STATUS_PATH` equivalent ->
+  `".../batch/b1"`.
+- `grep -rn 'f"text:' pycore/pyutils/common pycore/callmodule` -> empty; `grep -rn _MD5_RE
+  pycore` -> empty; `grep -rn "used to keep"` in the two touched files -> empty.
+- `python -m py_compile` on all four files: OK; import check
+  (`PYTHONDONTWRITEBYTECODE=1`, `PIP_NO_INDEX=1`) of the five affected modules: clean.
+
+F-1 status: approved (pycore-lead, `pyfoundations/serialized_worker.py`), confirmed at HEAD by
+this task before the B4 docstring rewrite (see `pycore-runtime-D7P2-fix (part 2)` below).
+
+## pycore-runtime-D7P2-fix (part 2)
+
+Continuation of `pycore-runtime-D7P2-fix (part 1)` above. Part 1 closed B1, B2, B3 and B5; F-1
+(pycore-lead's foundation fix in `pyfoundations/serialized_worker.py`) is approved. This part
+closes B4 and writes B6 (this section plus the reconstructed `pycore-runtime-D7P2` section
+above).
+
+Concurrency: per the task's concurrency note, another pycore-runtime lane worked on
+`shell-windows-3` Windows scripts, then `agent_history_service.py`/`prompt_archive.py`,
+`ui_service.py`, and later `p5-02` in `queue_center_contract.py`, CodeSync and
+`user_data_store.py`; pycore-ai worked on its own `audio_resource_ledger.py`,
+`audio_queue_center.py` and `audio_resource_delivery.py`. None of those files were touched
+here. `pycore/pyctl/runtime/event_handlers.py` was re-read immediately before its edit.
+
+### B4 (docstring rewrite + red-line re-check): done (awaiting review)
+
+- F-1 confirmed at HEAD: `pyfoundations/serialized_worker.py` defines
+  `_report_unobserved_failure(thread_name, exc)` (one `ColorPrint.red` call: thread name,
+  error type, message, traceback), called from both `SerializedWorkerThread.run` (:126-129)
+  and `BusTaskThread.run` (:154-157) whenever a callback raises and carries no
+  `response_signal`. `git status` shows the working tree equal to HEAD for this file, so no
+  edit was needed here.
+- File: `pycore/pyctl/runtime/event_handlers.py`. `_run_audio_lane_boot_chain`'s docstring
+  (previously :431-434) is rewritten: the closing sentence no longer claims the failure
+  "still propagates to the bus-task thread boundary instead of being hidden here" (false, per
+  the round-3 review). It now says the callback carries no `response_signal`, so
+  `BusTaskThread.run` catches the failure itself and reports it with one `ColorPrint.red` line
+  naming the thread, the error type, the message and the traceback
+  (`pyfoundations.serialized_worker._report_unobserved_failure`), instead of hiding it here or
+  re-raising it to any caller. The `try/finally` body (no `except`) is unchanged, per
+  AOQSD-36 and the review's "keep try/finally with no except".
+- Verification:
+  - `python -m py_compile pycore/pyctl/runtime/event_handlers.py`: OK.
+  - Red-line re-check (scratchpad probe: `start_bus_task` with no `response_signal`,
+    `thread_name="AudioLaneBootChainThread"`, a callback that raises `RuntimeError` inside a
+    `try/finally` whose `finally` appends a marker): the real stderr output is one
+    `ColorPrint.red` block naming `AudioLaneBootChainThread`, `error_type=RuntimeError`, the
+    message, and the full traceback; the `finally` clause's marker (the
+    `apply_assist_runtime`-equivalent step) still ran. This matches the review's re-review
+    check exactly ("a probe that makes `_start_audio_lane_boot_chain` raise prints one red
+    line naming `AudioLaneBootChainThread`, and `apply_assist_runtime` still runs").
+  - EOL: `git diff --numstat` equals `--ignore-space-at-eol` (6/2) for this file; it stays
+    all-LF, 582/582 lines (was 578/578 at HEAD). No header re-added.
+
+### B6 (this report): done
+
+- This section and the reconstructed `pycore-runtime-D7P2` section above are B6.
+
+### Services and restarts
+
+No pycore or Laravel service was started, stopped or restarted for this task. No test was
+added or run beyond the static checks above (none was asked for). No git write command was
+run (read-only git only, per instructions).
+
+Changed files (part 2):
+- `pycore/pyctl/runtime/event_handlers.py` (LF)
+- `.claude/agents_shared/reports/pycore-runtime.md` (this report; CRLF)
+
+Overall status of `pycore-runtime-D7P2-fix`: B1-B6 all done (B1/B2/B3/B5 in part 1, B4/B6 in
+part 2). F-1 was pycore-lead's own foundation task, already approved. Next owner: reviewer /
+pycore-lead, for the final verdict on `pycore-runtime-D7P2-fix`. No further pycore-runtime
+action is pending on this task.

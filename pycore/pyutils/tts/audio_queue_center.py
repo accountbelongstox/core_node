@@ -63,6 +63,8 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import (
     audio_dedup_key,
     audio_dedup_key_from_task,
+    word_identity_content,
+    word_identity_md5,
 )
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.tts import audio_queue_cache
@@ -141,9 +143,9 @@ def build_local_task(
             "content_id": identity,
         }
     else:
-        real_md5 = str(md5 or "").strip()
+        real_md5 = word_identity_md5(md5)
         cleaned_word = text.lower()
-        identity = real_md5 or f"text:{cleaned_word}"
+        identity = word_identity_content(real_md5, text)
         payload = {
             "word": text,
             "content": text,

@@ -186,7 +186,7 @@ const validateConfig = (config) => {
     return true;
 };
 
-// Validate the final configuration
-validateConfig(finalConfig);
+// Validate the final configuration; callers must check `isValid` before starting
+const isConfigValid = validateConfig(finalConfig);
 
-module.exports = finalConfig;
+module.exports = { ...finalConfig, isValid: isConfigValid };

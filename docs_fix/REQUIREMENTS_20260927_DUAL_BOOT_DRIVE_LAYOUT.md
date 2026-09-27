@@ -346,6 +346,28 @@ To verify on the Linux host: `readlink -f /var/_core_node; findmnt -T /var/_core
   - Mirrors routed: `system_paths.py` goes to pycore-lead, `PathMapper.php` to pycore-laravel.
   - Workflow `dual-boot-drive-layout-p1-p2` started.
   - P1 keeps the pnpm store in place (it is already on ext4). P2 exports no new cache variables. Both of those changes come with the P3 `toolchain.env` wrappers.
+- 2026-09-27: the consolidated D24–D30 round is done. The user asked to skip the remaining review, so the workflow was stopped and the result verified directly.
+  - Linux (`bash -n` passes on every file):
+    - contract namespace, tool, cache and trees keys
+    - legacy `/opt/$SYS_DIR` kept sticky
+    - tool caches under `/opt/core_node/cache`
+    - trees bind at `/www/core_node_compiler/trees`
+    - NTFS trash blocker plus `x-gvfs-notrash`
+    - `core-node-ntfs-converge.service` boot convergence
+  - Windows (loads and the junction state machine is re-tested):
+    - `SharedCacheEnv.ps1` fallback roots `D:\www\.dev_<sys>` and `D:\www\cache`
+    - no trees on the D: fallback
+    - an explicit E: warning
+    - `ProjectTreeCommon.ps1`
+  - The contract freeze is lifted.
+  - Open follow-ups, routed through ca-orchestrator:
+    - G15: pass the whisper `download_root`, then move `XDG_CACHE_HOME` to ext4.
+    - G1: add `pip` to `cache_subdirs`, then point `PIP_CACHE_DIR` at ext4.
+    - Wire `3_setting_base.sh`.
+    - Add `ProjectTreeCommon.ps1` to the `WinScriptsInstaller` list.
+    - `25_install_uv.sh`.
+    - `project_tree_common.sh` must create a missing in-repo directory.
+    - P4 start-script calls (listed in the done message).
 - Open questions for the user:
   - Accept the bind-mode exception for workspace and npm projects?
   - Name of `<R>` (`core_node_trees`)?

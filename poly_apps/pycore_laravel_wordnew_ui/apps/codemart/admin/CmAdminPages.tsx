@@ -28,6 +28,7 @@ import { CmEmptyState, CmErrorState, CmListState, CmLoadingState, CmNotice } fro
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
 import {
   CmAdminDate,
@@ -43,12 +44,6 @@ import {
   useCmAdminParam,
 } from './CmAdminShared';
 import {
-  CM_ADMIN_IDENTITY_TYPES,
-  CM_ADMIN_KYC_DOCUMENTS,
-  CM_ADMIN_KYC_STATUSES,
-  CM_ADMIN_PROJECT_STATUSES,
-  CM_ADMIN_ROLE_STATUSES,
-  CM_ADMIN_ROLE_TYPES,
   type CmAdminKycDocument,
   type CmAdminKycRecord,
   type CmAdminOverviewData,
@@ -79,6 +74,7 @@ function queuesFor(overview: CmAdminOverviewData): CmAdminQueue[] {
 export const CmAdminOverviewPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
+  const { states } = useCmBootstrap();
   const [overview, setOverview] = useState<CmAdminOverviewData | null>(null);
   const [policy, setPolicy] = useState<CmAdminPolicy | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,9 +103,10 @@ export const CmAdminOverviewPage: React.FC = () => {
   const clearQueues = queues.filter((queue) => queue.count === 0);
   const pendingTotal = openQueues.reduce((sum, queue) => sum + queue.count, 0);
   const projectCounts = overview?.projects_by_status ?? {};
+  const knownProjectStatuses = states('project');
   const projectStatuses = [
-    ...CM_ADMIN_PROJECT_STATUSES.filter((status) => projectCounts[status]),
-    ...Object.keys(projectCounts).filter((status) => !(CM_ADMIN_PROJECT_STATUSES as readonly string[]).includes(status)),
+    ...knownProjectStatuses.filter((status) => projectCounts[status]),
+    ...Object.keys(projectCounts).filter((status) => !knownProjectStatuses.includes(status)),
   ];
 
   const totals = overview ? [
@@ -312,6 +309,7 @@ const CmAdminGlossary: React.FC = () => {
 
 export const CmAdminUsersPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { roles, states } = useCmBootstrap();
   const [search, setSearch] = useState(useCmAdminParam('search'));
   const [role, setRole] = useState(useCmAdminParam('role'));
   const [status, setStatus] = useState(useCmAdminParam('status'));
@@ -327,7 +325,7 @@ export const CmAdminUsersPage: React.FC = () => {
           labelKey="admin.filterRole"
           value={role}
           onChange={setRole}
-          options={CM_ADMIN_ROLE_TYPES}
+          options={roles}
           optionLabel={(option) => t(`roles.${option}`)}
           allKey="admin.allRoles"
         />
@@ -335,7 +333,7 @@ export const CmAdminUsersPage: React.FC = () => {
           labelKey="admin.filterRoleStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_ROLE_STATUSES}
+          options={states('role')}
           optionLabel={(option) => t(`states.role.${option}`)}
         />
       </CmAdminToolbar>
@@ -387,12 +385,13 @@ export const CmAdminUsersPage: React.FC = () => {
 /** Authenticated private KYC document preview (blob -> object URL, revoked on change/unmount). */
 export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAdminKycRecord['documents'] }> = ({ kycId, documents }) => {
   const { t } = useTranslation('cm');
+  const { policyList } = useCmBootstrap();
   const [active, setActive] = useState<CmAdminKycDocument | null>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestRef = useRef(0);
-  const available = CM_ADMIN_KYC_DOCUMENTS.filter((type) => documents?.[type]);
+  const available = policyList('kyc_document_slots').filter((type) => documents?.[type]);
 
   useEffect(() => () => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -457,6 +456,7 @@ export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAd
 
 export const CmAdminKycPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { states, policyList } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status', 'pending'));
   const [search, setSearch] = useState(useCmAdminParam('search'));
   const [identityType, setIdentityType] = useState('');
@@ -497,14 +497,14 @@ export const CmAdminKycPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_KYC_STATUSES}
+          options={states('kyc')}
           optionLabel={(option) => t(`states.kyc.${option}`)}
         />
         <CmAdminSelect
           labelKey="admin.kyc.identityType"
           value={identityType}
           onChange={setIdentityType}
-          options={CM_ADMIN_IDENTITY_TYPES}
+          options={policyList('identity_types')}
           optionLabel={(option) => t(`admin.kyc.identity.${option}`, { defaultValue: option })}
           allKey="admin.allTypes"
         />

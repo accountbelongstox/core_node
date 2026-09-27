@@ -4,13 +4,13 @@ import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { cmApi } from '../../api/CmApi';
 import type { CmMilestone, CmTask } from '../../api/CmApiTypes';
 import { cmErrorMessage } from '../../api/cmErrors';
+import { useCmBootstrap } from '../../contexts/CmBootstrapContext';
 import { CmNotice, useCmNotice } from './CmStateViews';
 import { CmStatusBadge } from './CmStatusBadge';
 import { CmSubmissionsPanel } from './CmSubmissionsPanel';
 import { cmShortDate, cmSplitList, useCmFormat } from './cmWorkspaceFormat';
 
-export const CM_TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
-const CLOSED_MILESTONE_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+const DEFAULT_TASK_PRIORITY = 'medium';
 const DELIVERABLE_SEPARATOR = '\n';
 
 interface CmMilestoneCardProps {
@@ -56,9 +56,10 @@ const CmTaskRow: React.FC<{ task: CmTask; currency: string | null; canManage: bo
 const CmTaskCreateForm: React.FC<{ milestoneId: number; onCreated: () => Promise<void> }> = ({ milestoneId, onCreated }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
+  const { policyList } = useCmBootstrap();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<string>('medium');
+  const [priority, setPriority] = useState<string>(DEFAULT_TASK_PRIORITY);
   const [dueDate, setDueDate] = useState('');
   const [budget, setBudget] = useState('');
   const [skills, setSkills] = useState('');
@@ -87,7 +88,7 @@ const CmTaskCreateForm: React.FC<{ milestoneId: number; onCreated: () => Promise
       notice.success(t('projectDetail.taskAdded'));
       setTitle('');
       setDescription('');
-      setPriority('medium');
+      setPriority(DEFAULT_TASK_PRIORITY);
       setDueDate('');
       setBudget('');
       setSkills('');
@@ -113,7 +114,7 @@ const CmTaskCreateForm: React.FC<{ milestoneId: number; onCreated: () => Promise
       <label>
         <span>{t('projectDetail.taskPriority')}</span>
         <select value={priority} onChange={(event) => setPriority(event.target.value)}>
-          {CM_TASK_PRIORITIES.map((value) => (
+          {policyList('task_priorities').map((value) => (
             <option key={value} value={value}>{t(`projectDetail.priorities.${value}`)}</option>
           ))}
         </select>
@@ -142,7 +143,8 @@ export const CmMilestoneCard: React.FC<CmMilestoneCardProps> = ({ index, milesto
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const notice = useCmNotice();
-  const closed = CLOSED_MILESTONE_STATUSES.has(milestone.status);
+  const { terminalStates } = useCmBootstrap();
+  const closed = terminalStates('milestone').includes(milestone.status);
   const editable = canManage && !closed;
   const tasks = milestone.tasks ?? [];
   const [mode, setMode] = useState<'none' | 'edit' | 'task' | 'complete'>('none');

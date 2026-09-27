@@ -62,6 +62,29 @@ git_sync_get_github_ssh_url() {
     echo "$url"
 }
 
+# Unconditionally points $1 remote at $2: `git remote add` when the remote
+# does not exist yet, else `git remote set-url`. This is the ONE function that
+# performs the actual git remote write, reused by:
+#   - git_sync_set_remote_if_different below (the idempotent D20 check), and
+#   - gitput_repository_state.sh's set_remote_url (the existing gitput_unified
+#     multi-target push/restore flow, D20-LIN-LINKAGE), instead of a second
+#     inline `git remote set-url origin ...` line there.
+# Never used in dry-run mode.
+git_sync_set_remote_url() {
+    local remote_name="$1"
+    local target_url="$2"
+    local current_url=""
+
+    current_url="$(git remote get-url "$remote_name" 2>/dev/null)"
+    if [ -z "$current_url" ]; then
+        echo "[syncgit] Executing: git remote add $remote_name $target_url"
+        git remote add "$remote_name" "$target_url"
+    else
+        echo "[syncgit] Executing: git remote set-url $remote_name $target_url"
+        git remote set-url "$remote_name" "$target_url"
+    fi
+}
+
 # Sets $1 remote to $2 only when it currently differs (idempotent, finest
 # grain); read-only (git remote get-url) when already correct. Never touches
 # any other remote.
@@ -86,13 +109,7 @@ git_sync_set_remote_if_different() {
         return 0
     fi
 
-    if [ -z "$current_url" ]; then
-        echo "[syncgit] Executing: git remote add $remote_name $target_url"
-        git remote add "$remote_name" "$target_url"
-    else
-        echo "[syncgit] Executing: git remote set-url $remote_name $target_url"
-        git remote set-url "$remote_name" "$target_url"
-    fi
+    git_sync_set_remote_url "$remote_name" "$target_url"
 }
 
 # Ensures origin is the GitHub SSH URL, never Gitee. Reused by syncgit and by

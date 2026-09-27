@@ -12,7 +12,6 @@ import { cmTotalPages, cmUserLabel, useCmFormat } from './cmWorkspaceFormat';
 import { useCmPagedList } from './useCmPagedList';
 
 const CLIENT_DECISIONS = ['approved', 'needs_revision', 'rejected'] as const;
-const REVIEWABLE_SUBMISSION_STATUSES = new Set(['pending', 'pending_review']);
 const TASK_REVIEW_STATUS = 'review';
 const RATING_VALUES = [1, 2, 3, 4, 5] as const;
 const APPROVED_DECISION = 'approved';
@@ -138,8 +137,9 @@ export const CmSubmissionsPanel: React.FC<CmSubmissionsPanelProps> = ({ taskId, 
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const notice = useCmNotice();
-  const { bootstrap } = useCmBootstrap();
+  const { bootstrap, stateRule } = useCmBootstrap();
   const currency = bootstrap?.vocabulary.policy.currency ?? null;
+  const reviewableStates = stateRule('submission_reviewable');
   const fetcher = useCallback((page: number) => cmApi.getTaskSubmissions(taskId, page), [taskId]);
   const list = useCmPagedList(fetcher, extractSubmissions, 'submissions.loadFailed');
 
@@ -181,7 +181,7 @@ export const CmSubmissionsPanel: React.FC<CmSubmissionsPanelProps> = ({ taskId, 
             {submission.submission_note && <p>{submission.submission_note}</p>}
             <CmSubmissionFiles submissionId={submission.id} files={submission.files} />
             <CmReviewList reviews={submission.reviews} />
-            {canReview && taskStatus === TASK_REVIEW_STATUS && REVIEWABLE_SUBMISSION_STATUSES.has(submission.status) && (
+            {canReview && taskStatus === TASK_REVIEW_STATUS && reviewableStates.includes(submission.status) && (
               <CmClientReviewForm submission={submission} onReviewed={onReviewed} />
             )}
           </article>

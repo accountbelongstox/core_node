@@ -7,6 +7,7 @@ import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../components/public-home/cmPu
 import { CmErrorState, CmLoadingState, CmNotice } from '../components/workspace/CmStateViews';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
 import { CmAdminKycDocumentViewer } from './CmAdminPages';
 import {
@@ -17,9 +18,6 @@ import {
   useCmAdminAction,
 } from './CmAdminShared';
 import {
-  CM_ADMIN_GRANT_STATUSES,
-  CM_ADMIN_ROLE_REASON_REQUIRED,
-  CM_ADMIN_ROLE_TYPES,
   type CmAdminUserDetail,
   type CmAdminUserRole,
 } from './CmAdminTypes';
@@ -27,12 +25,16 @@ import {
 export const CmAdminUserDetailPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const { userId } = useParams();
+  const { roles, stateRule } = useCmBootstrap();
   const numericId = Number(userId);
   const [detail, setDetail] = useState<CmAdminUserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [grantRole, setGrantRole] = useState('');
-  const [grantStatus, setGrantStatus] = useState<string>('pending');
+  const [grantStatusChoice, setGrantStatusChoice] = useState('');
+  const grantStatuses = stateRule('role_admin_grantable');
+  const grantStatus = grantStatuses.includes(grantStatusChoice) ? grantStatusChoice : grantStatuses[0] ?? '';
+  const reasonRequiredStates = stateRule('role_reason_required');
 
   const load = useCallback(async (): Promise<void> => {
     if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -59,10 +61,10 @@ export const CmAdminUserDetailPage: React.FC = () => {
   }, [load]);
 
   const heldRoles = new Set((detail?.roles ?? []).map((role) => role.role_type));
-  const grantableRoles = CM_ADMIN_ROLE_TYPES.filter((role) => !heldRoles.has(role));
+  const grantableRoles = roles.filter((role) => !heldRoles.has(role));
 
   const changeRole = (role: CmAdminUserRole, target: string): void => {
-    const reasonRequired = (CM_ADMIN_ROLE_REASON_REQUIRED as readonly string[]).includes(target);
+    const reasonRequired = reasonRequiredStates.includes(target);
     const roleLabel = t(`roles.${role.role_type}`, { defaultValue: role.role_type });
     const targetLabel = t(`states.role.${target}`, { defaultValue: target });
     action.ask({
@@ -183,7 +185,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                             <button
                               key={target}
                               type="button"
-                              className={`cm-workspace-button ${(CM_ADMIN_ROLE_REASON_REQUIRED as readonly string[]).includes(target) ? 'is-danger' : 'is-primary'}`}
+                              className={`cm-workspace-button ${reasonRequiredStates.includes(target) ? 'is-danger' : 'is-primary'}`}
                               onClick={() => changeRole(role, target)}
                             >
                               {t(`admin.userDetail.transition.${target}`, { defaultValue: target })}
@@ -209,8 +211,8 @@ export const CmAdminUserDetailPage: React.FC = () => {
                 </label>
                 <label>
                   <span>{t('admin.userDetail.initialStatus')}</span>
-                  <select value={grantStatus} onChange={(event) => setGrantStatus(event.target.value)}>
-                    {CM_ADMIN_GRANT_STATUSES.map((status) => (
+                  <select value={grantStatus} onChange={(event) => setGrantStatusChoice(event.target.value)}>
+                    {grantStatuses.map((status) => (
                       <option key={status} value={status}>{t(`states.role.${status}`)}</option>
                     ))}
                   </select>

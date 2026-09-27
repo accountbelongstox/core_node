@@ -1,1 +1,2 @@
 - [Windows tooling pitfalls](windows-tooling-pitfalls.md) — bun lint needs typescript/bin/tsc; Edit normalizes mixed EOLs; count CR with perl/tr, not MSYS grep/awk
+- [Android build pitfalls](android-build-pitfalls.md) — PS 5.1 Stop breaks java -version probes; AGP default build-tools hits library modules; B2 files ship as git-apply diffs

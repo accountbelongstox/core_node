@@ -60,7 +60,7 @@ $ClaudeTeamTaskListVariable = "CLAUDE_CODE_TASK_LIST_ID"
 $ClaudeTeamLeadTeammateMode = "in-process"
 $ClaudeTeamPermissionMode = "auto"
 $ClaudeTeamRemoteLauncherCommand = "claudeteam"
-$ClaudeTeamSshOptions = @("-t", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4")
+$ClaudeTeamSshOptions = @("-t", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4", "-o", "StrictHostKeyChecking=accept-new")
 $ClaudeTeamWtCommandLimit = 32767
 $ClaudeTeamDefaultWindowName = "core-node-team"
 $ClaudeTeamBaseDpi = 96

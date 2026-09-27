@@ -7,12 +7,14 @@ import { useCmSignOut } from './auth/useCmSignOut';
 import { CmBootstrapRefreshNotice } from './components/access/CmBootstrapRefreshNotice';
 import { CmBrand } from './components/CmBrand';
 import { CmChromeControls } from './components/CmChromeControls';
+import { CmIcon } from './components/CmImage';
 import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE, cmWorkspacePath } from './components/public-home/cmPublicRoutes';
 import { useCmBootstrap } from './contexts/CmBootstrapContext';
 import { CM_PAGES, type CmPageDef } from './cmPages';
 
 const NOTIFICATIONS_PAGE_ID = 'notifications';
 const MAX_BADGE_COUNT = 99;
+const NAV_ICON_SIZE = 20;
 
 const linkClassName = ({ isActive }: { isActive: boolean }): string => (
   `cm-workspace-nav__link ${isActive ? 'is-active' : ''}`
@@ -56,7 +58,6 @@ export const CmLayout: React.FC = () => {
   const primaryPages = visiblePages.filter((page) => page.group === 'primary');
   const accountPages = visiblePages.filter((page) => page.group === 'account');
   const renderLink = (page: CmPageDef): React.ReactElement => {
-    const Icon = page.Icon;
     return (
       <NavLink
         key={page.id}
@@ -64,7 +65,7 @@ export const CmLayout: React.FC = () => {
         className={linkClassName}
         onClick={() => setMenuOpen(false)}
       >
-        <Icon aria-hidden="true" />
+        <CmIcon name={page.icon} size={NAV_ICON_SIZE} decorative />
         <span>{t(isApplyEntry(page) && page.applyLabelKey ? page.applyLabelKey : page.labelKey)}</span>
         {page.id === NOTIFICATIONS_PAGE_ID && unreadCount > 0 && (
           <span className="cm-nav-badge" aria-label={t('notifications.unreadCount', { count: unreadCount })}>

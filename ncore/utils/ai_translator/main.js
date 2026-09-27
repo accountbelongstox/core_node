@@ -112,6 +112,11 @@ class AITranslatorMain {
     }
 
     async startTranslation(watchPaths = [], options = {}) {
+        if (!config.isValid) {
+            logger.error('[AI Translator] Refusing to start: configuration failed validation');
+            return false;
+        }
+
         if (this.processLock) {
             logger.warn('[AI Translator] Translation process already running');
             return false;

@@ -5,12 +5,12 @@ import { cmApi } from '../../api/CmApi';
 import type { CmProjectAnalysis, CmProjectDetail } from '../../api/CmApiTypes';
 import { cmErrorMessage } from '../../api/cmErrors';
 import { useCmIdempotencyKey } from '../../api/useCmIdempotencyKey';
+import { useCmBootstrap } from '../../contexts/CmBootstrapContext';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { CmStatusBadge } from './CmStatusBadge';
 import { cmFormatNumber, useCmFormat } from './cmWorkspaceFormat';
 
 const ANALYSIS_POLL_MS = 4000;
-const ACTIVE_ANALYSIS_STATUSES = new Set(['pending', 'processing', 'revising']);
 const DRAFT_STATUS = 'draft';
 const PROPOSAL_REVIEW_STATUS = 'proposal_review';
 const COMPLETED_STATUS = 'completed';
@@ -35,6 +35,10 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   const format = useCmFormat();
   const notice = useCmNotice();
   const idempotency = useCmIdempotencyKey();
+  const { openStates } = useCmBootstrap();
+  const activeStates = openStates('analysis');
+  const activeStatesRef = useRef(activeStates);
+  activeStatesRef.current = activeStates;
   const [data, setData] = useState<CmProjectAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -62,7 +66,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
       return;
     }
     setLoadError(null);
-    const active = ACTIVE_ANALYSIS_STATUSES.has(response.data.analysis?.status ?? '');
+    const active = activeStatesRef.current.includes(response.data.analysis?.status ?? '');
     setData(response.data);
     if (wasActive.current && !active) {
       await projectChangedRef.current();
@@ -92,7 +96,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
     idempotency.reset();
   }, [analysisId, idempotency.reset]);
 
-  const active = ACTIVE_ANALYSIS_STATUSES.has(analysis?.status ?? '');
+  const active = activeStates.includes(analysis?.status ?? '');
   const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active;
   const canRevise = isOwner && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
   const revisionValid = revisionNotes.trim().length >= REVISION_MIN_LENGTH;

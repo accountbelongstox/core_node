@@ -171,3 +171,134 @@ Line endings match 74e7770 in every file. The stripped AI rules header in `start
 - Open items:
   - MCHR-05-live (user).
   - The CKA-01 rebuild (G2). The running native host and extension use the old dist until `build:shared`, then native, then extension.
+
+## wordnew-link-G2 (D22, 2026-09-27)
+
+Items WNL-01, WNL-02, MCHR-43, CKA-01 and MCHR-45 are done. MCHR-43's non-interactive check stays gated on shell-windows MCHR-02, as the item says. Status: ready for the wordnew-lead verdict (`.claude/agents_shared/reviews/wordnew-link-G2.json`).
+
+Note: the user's sweep commit `93f8de054` (21:48) already contains my WNL-01 and MCHR-43 edits. Review against 74e7770. I ran no git write command.
+
+Environment:
+- Free RAM: 1.39 GB at the start, so I edited first. Then 6.58 GB for the UI tsc, 4.04 GB for the build, and 3.00 GB for the mcp-chrome type checks (after I dropped the WSL page cache; a 1.4 GB user `git` process was running).
+- The mcp-chrome build and type checks ran in Debian WSL, with a Linux bun 1.4.2 (matching Windows `bun --version`) and node v22.20.0 in the session scratchpad. Windows cannot use `node_modules`, because every entry there is a Linux symlink (see agent memory `type-check-on-windows`). No global install was made.
+- The WSL clock runs about 7 minutes ahead of Windows. All times below are Windows times.
+
+### WNL-01: the wordnew pycore glue and the TTS priority panel (K7a)
+
+- Status: done.
+- Files. wordnew-lead assigned these paths to me for this run.
+  - `poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/integrations/pycore.ts`: it now re-exports `classifyPycoreAccess` and `type PycoreAccess` from `core/integrations/pycore` (+2 lines).
+  - `.../apps/wordnew/components/settings/WordNewTtsEnginePriorityPanel.tsx`:
+    - `DEFAULT_TTS_PRIORITY`, the drifted copy without parler, is removed. The initial draft is `[]`, and the order comes only from pycore.
+    - A failed load or save sets `access = classifyPycoreAccess(error)` (:75, :113). The banner shows one localized hint per kind through the typed map `ACCESS_HINT_KEYS: Record<PycoreAccess['kind'], string>` (:18-25). A new kind added to the shared union becomes a compile error until it is mapped.
+    - While `access` is set, no order is shown (the draft is cleared) and Save is disabled (:201, `access !== null || draft.length === 0`). Reload retries.
+    - A save that pycore answers with `success: false` keeps the order and shows `ttsPriority.saveFailed`. Only a thrown request error is classified.
+    - An empty `tts.priority` falls back to `Object.keys(tts.available)`, which lists the engines pycore reports in pycore's order (:71). pycore cannot actually return an empty tts priority: `capability_service.py:_merge_order` (:86-103) returns the known order `default_tts_engine_priority()` when both the live and saved lists are empty. So no pycore request is needed.
+    - The `(r as any)` casts are gone, because `PcCapabilitySettings` already types `success` and `error`.
+  - `.../apps/wordnew/locales/{en_b,zh_b}.ts`: 5 new keys in each. They are `ttsPriority.relayOnly`, `originNotAllowed` ({origin}, {ports}), `hostForbidden` ({code}), `originForbidden` ({origin}, {code}) and `clientKeyRejected` ({code}). The `unreachable` kind reuses the existing `ttsPriority.unreachable`. ja and ko fall back to English through `translate()`.
+- Choice (recommended option): host_forbidden and origin_forbidden get separate hints, as in pycore-manager and vortex, instead of one shared text.
+- Choice (recommended option): a thrown save error also clears the order and disables Save, because "pycore cannot be used" then holds. The user's reorder is lost, and Reload fetches it again.
+- Verification:
+  - `bun node_modules/typescript/bin/tsc --noEmit` in the UI root: exit 0, 0 `error TS` (778 s, free RAM 6.58 GB).
+  - A grep for `DEFAULT_TTS_PRIORITY|capabilities/settings|:59000` in apps/wordnew finds 0 hits.
+  - All 19 `ttsPriority.*` keys the panel uses exist once in en_b.ts and once in zh_b.ts.
+  - The panel's only pycore import is `@/apps/wordnew/integrations/pycore` (:11-13).
+- Line endings: all four files are CRLF on both sides (`git ls-files --eol`: i/crlf w/crlf). The Edit tool briefly wrote the panel with the wrong ending, and I restored CRLF.
+
+### WNL-02: linkage audit (read-only)
+
+| # | Linkage point | Evidence | Status |
+|---|---|---|---|
+| 1 | Every wordnew pycore call goes through `apps/wordnew/integrations/pycore.ts` and PycoreApiLocal | A grep for `integrations/pycore`, `requestPycore`, `pycoreMasterClient`, `59000` and `PYCORE_PORT` over `apps/wordnew` and `flavors/wordnew` finds only the adapter (`integrations/pycore.ts:10-11`) and the panel import (`WordNewTtsEnginePriorityPanel.tsx:11-13`). The panel calls `pycoreApi.getCapabilitySettings` (:57) and `saveCapabilitySettings` (:99), which go to `core/integrations/pycore/PycoreApiLocal.ts:502-514` and then `PycoreHttp.ts:301 requestPycoreHttp`, on routes `PycoreHttpRoutes.ts:179-180`. All other wordnew data (orch audio, daily reading) comes from Laravel. | ok |
+| 2 | `config/pycore_relay_contract.json` route_policies cover the routes wordnew calls | wordnew calls `ui/capability_status/get_capability_settings` and `ui/capability_status/post_capability_settings` (POST, `PycoreHttpRoutes.ts:179-180`). No exact, prefix or suffix policy matches them among the 69 `route_policies`, so both fall to `route_policy_matching.default_profile` = `general_action` (contract :289, :341): permission `relay.route.control`, retry `at_most_once_action`. The same resolution is in `RelayContract.php:242-300` and `relay_contract.py:560-607`. A relay page therefore works only with a token that can `relay.route.control` or `relay.*` (`RelayAuthorizationService.php:21-24`). A read-scoped relay token gets `route_permission_denied`, and the read is never retried. | request sent to orchestrator (via wordnew-lead): add exact POST policies `ui/capability_status/get_capability_settings` → `general_read` and `ui/capability_status/post_capability_settings` → `general_write`. pycore-manager's capability drawer calls the same two routes. |
+| 3 | pycore → Laravel orch_audio ingest → the wordnew listing (`apps/wordnew/components/orch-audio`) fits the D7 pass criteria (§8.2 step 5a) | **pycore:** `orch_delivery.py:281-325` posts `{machine_id, tasks:[ingest]}` to `/api/app_qy_v1/orch_audio/ingest/tasks` (:41), signed by `laravel_client`. It then uploads only the `segments_missing` mp3s through offset-v1 `ingest/segment-audio` (:42). Only tasks in done or failed are delivered (:39). **Laravel:** the route is `client.key` (`AppQyV1OrchAudio.php:12-18`). `AppQyV1OrchAudioService::ingestTasks` (:97-112) takes sorted `pg_advisory_xact_lock`s per task_key (:266-277), then does `updateOrCreate(['task_key'])` only when `meta_hash` changed (:292, :333). A repeat upload is `unchanged`, so each task exists exactly once (task_key = sha256(machine_id, task_id)[:40], model :62-65). Segments are addressed by sha256, and an already stored segment returns `alreadyStoredReceipt` (:146-153). **wordnew:** `GET app_qy_v1/orch_audio/tasks` (sanctum, :20-24) → `api/methods/orchAudio.ts:139` → `WordNewOrchAudioListPage.tsx:77`. The source ids `vocab_book` and `prompt_rewrite` match pycore `orch_sources.py:22-24` and `orchAudioModel.ts:52-53`. | ok (static). The run-time proof belongs to the D7 long run. Non-blocking: the source ids are literals on both ends, and a `queue_center`/`service` contract entry would centralize them (orchestrator, optional). Ingest trusts the body `machine_id` (`AppQyV1OrchAudioCtl.php:44, :68`), not the signer, which is acceptable under the one shared K2 key. |
+| 4 | The extension's Laravel worker calls (bing dictionary, cover tasks) sign through the native host | Bing: `bing-dictionary-worker-service.ts:692,748` `new WorkerApiClient`. Cover tasks: `gemini-image-worker-service.ts` (library_cover) and `media-image-worker-service.ts` (library_cover_search, poster) run on `SimpleWorkerRuntimeBase`/`AssistPollingWorkerBase` with `WorkerApiClient` (`SimpleWorkerRuntimeBase.ts:28`). `WorkerApiClient` extends `BaseApiClient`, which calls `laravelFetch` (`BaseApiClient.ts:86`). `LaravelTransport.ts:95-128` sends only method, path+query and body digest to `requestClientKeySignature`. That is the native host's `SIGN_CLIENT_REQUEST` (`native-host.ts:436-437`), and the key never enters the extension. The only unsigned Laravel fetches are the public health and up probes (`api-health-listener.ts:26`, `ApiManager.ts:204`) and the Mercure subscribe with its own JWT (`QueueCenterWakeService.ts:115`). The bootstrap overview before that subscribe is signed (:102). | ok. Before CKA-01 the running host (dist 03:13) had no `sign_client_request` handler, so signing was off at run time. After the CKA-01 rebuild, `app/native-server/dist/native-messaging-host.js` contains it. The host process that is already running picks it up on its next start. |
+
+Gaps and requests (through wordnew-lead):
+- orchestrator (contracts): point 2, the relay route policies for the two capability-settings routes.
+- None for pycore-lead, ncore or wordnew-laravel.
+
+### MCHR-43: watch-mode prompt parity in start.ps1
+
+- Status: done. The non-interactive part of the verify is gated on shell-windows MCHR-02, which has no verdict yet.
+- Files:
+  - `apps/mcp-chrome/scripts/start.ps1` :257-262 (+6 lines).
+  - `apps/mcp-chrome/app/chrome-extension/_locales/{de,en,ja,ko,zh_CN,zh_TW}/messages.json`: `startWatchPrompt` loses its trailing `[Y/n]` (`[J/n]` in de), 1 line each, because the shared helper prints ` [Y/n] ` itself. The key was unused before this change (grep).
+- Logic, in order:
+  1. `MCP_CHROME_WATCH_MODE` pre-answers.
+  2. An installed or converging service forces `once`.
+  3. Otherwise `Read-YesNoDefaultYes (Get-LocalizedMessage -Key "startWatchPrompt")` from `NssmServiceManager.ps1` (already dot-sourced at :175-179) decides: No gives `once`, the default gives `dev`.
+  - There is no local prompt copy and no caller-side non-interactive guard. MCHR-02 centralizes that in the helper.
+- Verification:
+  - PowerShell Parser: `ParseErrors: 0`.
+  - Stub dry run of the block (scratchpad `watch_dry.ps1`, which runs start.ps1 lines 253-269 with stubbed helpers):
+
+    | env | service | answer | prompts | mode |
+    |---|---|---|---|---|
+    | 'once' | none | - | 0 | once |
+    | 'no' | none | - | 0 | once |
+    | 'dev' | none | - | 0 | dev |
+    | '' | none | Yes | 1 | dev |
+    | '' | none | No | 1 | once |
+    | '' | install | - | 0 | once |
+
+  - Current shared helper, before MCHR-02:
+    - With DD_AUTO_CONTINUE=1 and stdin redirected (no -NonInteractive), `Read-YesNoDefaultYes` returns True (the default) without blocking.
+    - Under `powershell -NonInteractive` it throws "Read and Prompt functionality is not available", so the after-MCHR-02 check must be re-run then.
+- Line endings: start.ps1 stays LF (i/lf w/lf, as at 74e7770). The locales keep CRLF, and en and zh_CN keep their mixed endings (`git ls-files --eol` unchanged). All 6 locales parse and keep 724 keys.
+- Behavior note: start.sh:227-229 forces `once` for DD_AUTO_CONTINUE, while start.ps1 now takes the prompt default `dev`, as the item orders. An unattended Windows run without `MCP_CHROME_WATCH_MODE` still parks in foreground dev-watch, as it did before this change. If Linux parity is wanted, that is a follow-up for wordnew-lead and shell-windows.
+
+### CKA-01: @fastify/cors removal carry-over and the ordered build
+
+- Status: done.
+- The verdict on `pnpm-workspace.yaml`: `mcp-chrome-D7.json` says to keep the deletion, and nobody asked for a restore, so I restored nothing.
+  - New fact for wordnew-lead: the file is tracked again. The user's Debian merge `36b72cd55` (parent `937239e18`, based on `b20962b4f`, where the temporary file existed) brought it back at 21:31, and the sweep `93f8de054` committed it.
+  - I did not delete it, because it now comes from the user's own merge and deleting it is not asked. Bun ignores it and the build is unaffected.
+  - Decision needed from wordnew-lead or the user: delete it again to match 74e7770, or keep it.
+- Build: one run of `bun run build` in Debian WSL (scratchpad `build_mcp.sh`), which runs build:shared, then build:native, then build:extension.
+  - `BUILD_RC=0`.
+  - shared: tsup CJS/ESM plus DTS, exit 0.
+  - native: `tsc` compile, `[OK] Build completed`, exit 0.
+  - extension: WXT 0.20.26, `Built extension in 10.4 s`, exit 0.
+- Evidence:
+  - `build_output/build_extension/build-stamp.json` changed from `1790442813787` (03:13) to `{"buildId":"1790510594872"}` (21:53).
+  - `packages/shared/dist/index.js` is dated 21:50, and `app/native-server/dist/{index,cli}.js` 21:53.
+  - The built en locale has `startWatchPrompt` = "Enable development watch mode?".
+  - `app/native-server/dist` has 0 `fastify/cors` hits. It now contains `local_rpc_guard` (`dist/constant/index.js`) and `sign_client_request` (`dist/native-messaging-host.js`).
+- verify grep: `fastify/cors` in `app/native-server/package.json`, `pnpm-lock.yaml`, `bun.lock` and `app/native-server/src` finds 0 hits.
+- Side effect: the native build script created `/var/_core_node/mcp_chrome/logs` inside the Debian WSL root fs, which is its normal behavior. `git status -- apps/mcp-chrome` is clean after the build, because every build output is ignored.
+- Runtime note: the native host that is already running (run_host.bat) still has the old code loaded. Chrome starts the new dist on the next native connect, and the extension reloads itself from the new build stamp. I did not restart any service.
+
+### MCHR-45: final mcp-chrome verify
+
+- Status: done.
+- Scope: `apps/mcp-chrome/{app/chrome-extension,app/native-server,packages/shared}` and `poly_apps/laravel_main/app/Apps/AppQyV1/Services/AppQyV1LibraryCoverTaskService.php` (read-only).
+- Checks, run after the CKA-01 build in Debian WSL (scratchpad `typecheck_mcp.sh`, node v22.20.0). Free RAM was 3.00 GB (Windows) before the start, with 5.0 GB free inside WSL.
+  - `tsc --noEmit -p tsconfig.json` (packages/shared): `SHARED_TSC_RC=0`, 0 errors.
+  - `tsc --noEmit -p tsconfig.json` (app/native-server): `NATIVE_TSC_RC=0`, 0 errors.
+  - `vue-tsc --noEmit -p tsconfig.json` (app/chrome-extension): `EXTENSION_VUE_TSC_RC=0`, 0 errors.
+  - The G1 baseline of 7 native and 5 extension errors, all from the stale `packages/shared/dist`, is gone after the rebuild.
+  - `php -l` (Windows PHP 8.5.2 CLI) reports "No syntax errors detected" for `app/Apps/AppQyV1/Services/AppQyV1LibraryCoverTaskService.php`, and for the related `app/Services/TaskProcessors/LibraryCoverTaskProcessor.php` and `app/Services/TimerTasks/AppQyV1LibraryCoverFallbackTask.php`.
+- Path note: the item names `app/Apps/AppQyV1/AppQyV1Services/...`, but the file lives under `app/Apps/AppQyV1/Services/`.
+
+### Files changed by me in G2
+
+- `poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/integrations/pycore.ts`
+- `poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/components/settings/WordNewTtsEnginePriorityPanel.tsx`
+- `poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/locales/{en_b,zh_b}.ts`
+- `apps/mcp-chrome/scripts/start.ps1`
+- `apps/mcp-chrome/app/chrome-extension/_locales/{de,en,ja,ko,zh_CN,zh_TW}/messages.json` (1 line each)
+- Build outputs, all git-ignored: `apps/mcp-chrome/packages/shared/dist`, `app/native-server/dist`, `build_output/build_extension`.
+- `.claude/agent-memory/wordnew-link/type-check-on-windows.md` (the WSL build recipe and the eol check)
+- this report
+
+No `config/*_contract.json`, test, fenced or development-guides file was touched. No AI rules header was re-added.
+
+### Status
+
+- Blockers: none.
+- Next owner: wordnew-lead, for the verdict and to decide the re-appeared `pnpm-workspace.yaml`.
+- Cross-scope:
+  - orchestrator: the relay route policies (WNL-02 point 2).
+  - shell-windows: MCHR-02, which unlocks the MCHR-43 non-interactive verify.
+  - user: MCHR-05-live, still open from G1.

@@ -26,6 +26,7 @@ from pycore.database.repositories.audio_resource_repository import AudioResource
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
 from pycore.pyfoundations.text_parsing import normalize_language_code
+from pycore.pyutils.common.queue_center_contract import word_identity_content
 from pycore.pyutils.common.strtools.normalization import media_content_id
 
 
@@ -38,8 +39,7 @@ def resource_key(kind: str, language: Optional[str], text: str, variant: str = "
     if kind == "sentence":
         content = media_content_id(text)
     else:
-        real_md5 = str(md5 or "").strip()
-        content = real_md5 or f"text:{str(text or '').strip().lower()}"
+        content = word_identity_content(md5, text)
     key = f"{normalize_language_code(language)}:{content}"
     variant = str(variant or "").strip()
     return f"{key}:{variant}" if variant else key

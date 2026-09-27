@@ -156,3 +156,33 @@
   - user: MCHR-05-live;
   - orchestrator: the G2 CKA-01 shared dist rebuild;
   - wordnew-link (optional follow-ups): the non-blocking list in the verdict file.
+
+## Review wordnew-laravel-G2 (round 1)
+
+- Verdict: approved, with issues []. File: `.claude/agents_shared/reviews/wordnew-laravel-G2.json`.
+- Items: AOQSD-09, MCHR-21, LDRI-29, CKA-26a and CKA-26b are all confirmed. All 33 files are in the user's sweep commit `ab566fdf7`, and no other G2 hunk exists since 74e7770.
+- Gate decision (recommended option): I accepted the member's reading that the AOQSD-09 lang temporary-writer gate is cleared. The basis is B13 (merge_meta.json:184, app_qy_v1 lang → laravel-qyapp), superseded by B14 with wordnew-laravel as the successor. The claude lead still has to confirm the hand-back of `lang/{en,zh_CN}/app_qy_v1.php` to pycore-laravel.
+- Re-run checks (5.35 GB free RAM):
+  - php -l passes on 31 files, and the static AST parse passes on the 2 files with a rule header.
+  - The audit scan finds 0 on the G2 paths. At 74e7770, Utils had 80 and the controllers plus middleware had 102.
+  - keys_verify and my own param_check pass. param_check covers 203 `__()` calls, and in each one the parameters equal the placeholders in en and zh_CN.
+  - http_verify: ALL PASS.
+  - resource-index status exits 0 with one marker, and invalid input exits 2.
+  - route:list shows 329 routes.
+  - Live :9000: health returned 200, and without_audio, cover/tasks and login returned localized 422 responses.
+  - All files are LF.
+- Non-blocking:
+  - the old concatenation key `validation_failed` (9 callers) overlaps with the new `sentence_audio_validation_failed` and `validation_failed_generic`, and zh now uses two terms for it;
+  - a second private `validationFailed` wrapper exists (after OrchAudioCtl);
+  - the ImageFileProcessor 20 MB limit is repeated;
+  - the deferred display texts and the 140-hit remainder in app/Apps/AppQyV1;
+  - the duplicated archive code;
+  - the stale memory line carried from G1.
+- Cross-scope (pycore-laravel via the orchestrator):
+  - the missing `lang/zh_CN/validation.php`;
+  - the English defaults in `ApiResponse`;
+  - the 'already exists' substring match on UnifiedAuthService.
+- Changed files (mine): the verdict file and this report section. Scratch scripts are in `scratchpad/wnlead_g2/` (param_check.php, render_ldri29.php).
+- Blockers: none. Next owners:
+  - orchestrator: confirm the lang hand-back and route the pycore-laravel items;
+  - wordnew-lead: schedule the next CKA-26 part, covering the remainder and the validation_failed consolidation.

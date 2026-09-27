@@ -949,6 +949,18 @@ class CrawlController {
         continue;
       }
 
+      if (this.fetcherType !== 'iframe' && !fetchResult) {
+        logger.error(`Fetcher returned no result for ${url}`);
+        this.failedUrls.push({
+          url: url,
+          linkText: '',
+          error: 'Fetcher returned no result',
+          timestamp: new Date().toISOString(),
+          mode: this.fetcherType
+        });
+        continue;
+      }
+
       try {
         if (this.fetcherType === 'iframe') {
           logger.info(`[DEBUG] Iframe content extracted, pages will be saved as they were processed`);

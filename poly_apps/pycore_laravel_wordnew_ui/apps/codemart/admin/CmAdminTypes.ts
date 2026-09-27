@@ -1,24 +1,4 @@
 export const CM_ADMIN_PAGE_SIZE = 20;
-export const CM_ADMIN_ROLE_TYPES = ['client', 'developer', 'architect', 'reviewer'] as const;
-export const CM_ADMIN_ROLE_STATUSES = ['pending', 'active', 'suspended', 'rejected'] as const;
-export const CM_ADMIN_ROLE_REASON_REQUIRED = ['suspended', 'rejected'] as const;
-export const CM_ADMIN_GRANT_STATUSES = ['pending', 'active'] as const;
-export const CM_ADMIN_KYC_STATUSES = ['pending', 'approved', 'rejected'] as const;
-export const CM_ADMIN_KYC_DOCUMENTS = ['front', 'back', 'selfie'] as const;
-export const CM_ADMIN_IDENTITY_TYPES = ['ID_CARD', 'PASSPORT', 'DRIVING_LICENSE'] as const;
-export const CM_ADMIN_DEPOSIT_STATUSES = ['pending', 'paid', 'rejected', 'refunded', 'failed'] as const;
-export const CM_ADMIN_REFUND_STATUSES = ['pending', 'approved', 'rejected', 'completed'] as const;
-export const CM_ADMIN_WITHDRAWAL_STATUSES = ['pending', 'approved', 'rejected', 'paid'] as const;
-export const CM_ADMIN_WITHDRAWAL_OPEN_STATUSES = ['pending', 'approved'] as const;
-export const CM_ADMIN_PAYMENT_STATUSES = ['pending', 'processing', 'completed', 'failed', 'cancelled', 'disputed', 'refunded'] as const;
-export const CM_ADMIN_PAYMENT_TYPES = ['milestone', 'hourly', 'bonus', 'refund'] as const;
-export const CM_ADMIN_ESCROW_STATUSES = ['held', 'released', 'refunded', 'disputed'] as const;
-export const CM_ADMIN_PROJECT_STATUSES = ['draft', 'proposal_review', 'funding_pending', 'open', 'in_progress', 'paused', 'completed', 'cancelled', 'archived'] as const;
-export const CM_ADMIN_TESTIMONIAL_STATUSES = ['pending', 'approved', 'hidden'] as const;
-export const CM_ADMIN_TESTIMONIAL_LOCALES = ['en', 'zh'] as const;
-export const CM_ADMIN_REVIEWER_STATUSES = ['in_progress', 'passed', 'failed', 'revoked'] as const;
-export const CM_ADMIN_CONTACT_STATUSES = ['new', 'handled'] as const;
-export const CM_ADMIN_DISPUTE_RESOLUTIONS = ['refund', 'complete'] as const;
 export const CM_ADMIN_FALLBACK_CURRENCY = 'CNY';
 export const CM_ADMIN_ACTIVITY_RESOURCES = [
   'project', 'milestone', 'task', 'submission', 'analysis', 'comment', 'attachment', 'payment', 'refund', 'deposit',
@@ -55,8 +35,8 @@ export const CM_ADMIN_RESOURCE_STATE_GROUPS: Record<string, string> = {
   escrow: 'admin.states.escrow',
 };
 
-export type CmAdminDisputeResolution = typeof CM_ADMIN_DISPUTE_RESOLUTIONS[number];
-export type CmAdminKycDocument = typeof CM_ADMIN_KYC_DOCUMENTS[number];
+export type CmAdminDisputeResolution = string;
+export type CmAdminKycDocument = string;
 export type CmAdminQuery = Record<string, string | number | undefined>;
 
 export interface CmAdminPage<T> {

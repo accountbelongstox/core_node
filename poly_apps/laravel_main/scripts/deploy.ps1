@@ -20,6 +20,10 @@ if ($PSScriptRoot) {
 }
 $APP_DIR = Split-Path -Parent $SCRIPT_DIR
 $CORE_NODE_DIR = Split-Path -Parent (Split-Path -Parent $APP_DIR)
+# Canonical laravel_main ensure/start on Windows (provisioning, service or foreground runtime).
+$CANONICAL_START_PS1 = Join-Path $SCRIPT_DIR "start.ps1"
+$POWERSHELL_EXE = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+if (-not $POWERSHELL_EXE) { $POWERSHELL_EXE = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source }
 
 # Save initial working directory to restore at the end
 $INITIAL_WORKING_DIR = Get-Location
@@ -901,40 +905,6 @@ function Test-Initialization {
     return $true
 }
 
-# Initialize Laravel without creating an alternate runtime configuration path.
-function Initialize-LaravelRuntime {
-    $laravelDir = Get-LaravelDir
-    $previousLocation = Get-Location
-    $configExitCode = 0
-    $initExitCode = 0
-
-    Set-Location $laravelDir
-
-    Write-Info "Clearing Laravel configuration cache..."
-    Write-Host "  Command: php artisan config:clear" -ForegroundColor Yellow
-    php artisan config:clear
-    $configExitCode = $LASTEXITCODE
-    if ($configExitCode -ne 0) {
-        Set-Location $previousLocation.Path
-        Write-Error "Laravel configuration cache clear failed"
-        return $false
-    }
-
-    Write-Info "Running Laravel system initialization..."
-    Write-Host "  Command: php artisan sys:init" -ForegroundColor Yellow
-    php artisan sys:init
-    $initExitCode = $LASTEXITCODE
-    Set-Location $previousLocation.Path
-
-    if ($initExitCode -ne 0) {
-        Write-Error "Laravel system initialization failed"
-        return $false
-    }
-
-    Write-Success "Laravel runtime initialization completed"
-    return $true
-}
-
 # Run all UP methods in sequence
 function Invoke-AllUps {
     Write-Info "========================================"
@@ -1046,13 +1016,17 @@ Invoke-AllUps
 Set-Location $INITIAL_WORKING_DIR
 Write-Info "Restored initial working directory: $INITIAL_WORKING_DIR"
 
-# Run the canonical Laravel runtime initialization.
-if (-not (Initialize-LaravelRuntime)) {
+# Provision, initialize and start through the canonical start.ps1, in its own process
+# because it ends with exit (the same way start.ps1 runs Step175).
+Write-Info "Delegating provisioning to the canonical start script: $CANONICAL_START_PS1"
+& $POWERSHELL_EXE -NoProfile -ExecutionPolicy Bypass -File $CANONICAL_START_PS1
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Canonical start failed (exit $LASTEXITCODE)"
     Set-Location $INITIAL_WORKING_DIR
     exit 1
 }
 
-# Verify Laravel project can start after sys:init (Windows: no service installation needed)
+# Verify the Laravel project after the canonical start
 $laravelDir = Get-LaravelDir
 Set-Location $laravelDir
 
@@ -1088,9 +1062,8 @@ Write-Success "Laravel artisan is working"
 
 Write-Host ""
 Write-Info "Laravel project is ready to start"
-Write-Info "To start the development server, run:"
-Write-Host "  cd $laravelDir" -ForegroundColor Yellow
-Write-Host "  php artisan serve" -ForegroundColor Yellow
+Write-Info "To start it again (service or foreground), run:"
+Write-Host "  powershell -File `"$CANONICAL_START_PS1`"" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "============================================================================" -ForegroundColor Cyan
 Write-Host ""

@@ -372,6 +372,7 @@ class ImageProcessor {
             } else if (this.imageLibrariesAvailable.imagemagick) {
                 const compressed = await this.compressImageWithImageMagick(absolutePath, tempPath, compressionOptions);
                 if (!compressed) {
+                    this._cleanupTempFile(tempPath);
                     return false;
                 }
             } else {
@@ -380,19 +381,26 @@ class ImageProcessor {
             }
 
             fs.renameSync(tempPath, absolutePath);
-            
+
             logger.info(`Compressed image: ${absolutePath}`);
             return true;
-            
+
         } catch (error) {
             logger.error('Error compressing image', { imagePath, error: error.message });
-            
-            const tempPath = path.resolve(imagePath) + '.tmp';
+
+            this._cleanupTempFile(path.resolve(imagePath) + '.tmp');
+
+            return false;
+        }
+    }
+
+    _cleanupTempFile(tempPath) {
+        try {
             if (ftools.file.exists(tempPath)) {
                 fs.unlinkSync(tempPath);
             }
-            
-            return false;
+        } catch (cleanupError) {
+            logger.error('Failed to remove leftover temp file', { tempPath, error: cleanupError.message });
         }
     }
 

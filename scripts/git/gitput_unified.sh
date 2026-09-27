@@ -95,9 +95,12 @@ source "$SECRET_TOOL_COMMON"
 source "$GITHUB_HOST_REFRESH_SH"
 source "$GITEE_HOST_REFRESH_SH"
 source "$GITPUT_SECURITY_COMMON"
+# GIT_SYNC_COMMON before GITPUT_REPOSITORY_STATE: the latter's
+# get_default_remote() calls git_sync_get_github_ssh_url() at source time
+# (D20-LIN-LINKAGE), so the shared library must already be loaded.
+source "$GIT_SYNC_COMMON"
 source "$GITPUT_REPOSITORY_STATE"
 source "$GITPUT_SYNC_COMMON"
-source "$GIT_SYNC_COMMON"
 
 # ===================================================================
 # PARAMETER PARSING

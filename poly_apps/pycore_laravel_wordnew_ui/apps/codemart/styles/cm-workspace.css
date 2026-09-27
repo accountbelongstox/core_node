@@ -156,6 +156,17 @@
   height: 18px;
 }
 
+.cm-icon {
+  flex: 0 0 auto;
+  border-radius: 24%;
+  object-fit: cover;
+}
+
+.cm-metric-card > span > .cm-icon,
+.cm-shortcut-card__icon > .cm-icon {
+  border-radius: inherit;
+}
+
 .cm-workspace-nav__link:hover {
   background: #f2f7fd;
   color: #355f93;

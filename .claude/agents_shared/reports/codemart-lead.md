@@ -317,3 +317,34 @@ UI below means `poly_apps/pycore_laravel_wordnew_ui/`. Diff base 74e7770. The us
   - G3 → exercise a coded ledger row.
 - Changed files: `.claude/agents_shared/reviews/codemart-ui-G1.json` and this report.
 - Blockers: none. Next owner: ca-orchestrator.
+
+## codemart-laravel-G1 review (workflow, round 1)
+
+- Verdict: approved, 0 blocking and 8 non-blocking notes, in `.claude/agents_shared/reviews/codemart-laravel-G1.json`.
+  - Base: 74e7770. The G1-only diff was read as 4ddb4be8e..HEAD: 31 files, +542/-214, in the user's snapshot commits 0b6f362e3, 7a23f57d0, 6ecff3401 and 7bed0a953.
+- Items: srv-05, CKA-28, cmdesign-03-api and cmgap-U30 are all confirmed.
+- Checks I re-ran:
+  - php -l on 42 files;
+  - LF/BOM/`<?php` checks;
+  - a reference check of 2383 references (scratchpad `lead_g1cm_refs.php`);
+  - a lang check (scratchpad `lead_g1cm_lang.php`): 237 keys, 0 missing, 0 placeholder mismatches, identical key sets;
+  - both verify greps: 'Codemart#2026' gives 0; CKA-28 gives only the 2 exempt seeder rows;
+  - route:list: 113 routes;
+  - the member's rolled-back probe, read first and then re-run unchanged (output in scratchpad `lead_g1cm_probe_out.json`);
+  - live health 200. The real secret file is accepted 7/7 and appears in 0 log files.
+- Decisions:
+  - Accepted the member's extension to 13 unlisted CodeMartV1 files. Reasons: CKA-28 says "any English message", and cmdesign-03-api says "each validator". All 13 are in the codemart-laravel scope, and no other writer touched them.
+  - Read the cmgap-U30 "exactly one activity row" as "no duplicate writes on replay". The acceptance writes the 2 pre-existing events (the project transition and the analysis accepted event); a replay writes 0.
+- Items to route:
+  - server zh copy (`lang/zh_CN/codemart.php`) against the PAGE_POLISH §3 glossary: the G1 additions bring 审核员 x3, 您 x8, 提案 x3 and KYC x6. The next writer of the file does one glossary pass, as the claude lead assigns.
+  - pycore-laravel (through the claude lead):
+    - the `ApiResponse::success()` 'Success' default;
+    - the sys:codemartinit English;
+    - the system/init auth;
+    - one shared constant for the 'Super Administrator' rolename.
+  - codemart-laravel, in a later pass:
+    - give CodeMartV1ApiInfo its enumerations from the constants;
+    - the `you_can_only_apply_once_every_7` :days placeholder.
+  - laravel-remote: sync through CodeSync and restart the workers; there is no schema change.
+- Changed files: `.claude/agents_shared/reviews/codemart-laravel-G1.json` and this report. No code was changed and no worker restart was needed.
+- Blockers: none. Next owner: ca-orchestrator (group merge and combined checks).

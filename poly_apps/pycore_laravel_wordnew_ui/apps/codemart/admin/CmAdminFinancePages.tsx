@@ -7,6 +7,7 @@ import { CmListState, CmNotice } from '../components/workspace/CmStateViews';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
 import {
   CmAdminDate,
@@ -23,15 +24,6 @@ import {
   useCmAdminParam,
 } from './CmAdminShared';
 import {
-  CM_ADMIN_DEPOSIT_STATUSES,
-  CM_ADMIN_DISPUTE_RESOLUTIONS,
-  CM_ADMIN_ESCROW_STATUSES,
-  CM_ADMIN_PAYMENT_STATUSES,
-  CM_ADMIN_PAYMENT_TYPES,
-  CM_ADMIN_PROJECT_STATUSES,
-  CM_ADMIN_REFUND_STATUSES,
-  CM_ADMIN_WITHDRAWAL_OPEN_STATUSES,
-  CM_ADMIN_WITHDRAWAL_STATUSES,
   type CmAdminDepositRow,
   type CmAdminDisputeResolution,
   type CmAdminEscrowRefundResult,
@@ -42,8 +34,6 @@ import {
   type CmAdminUserSummary,
   type CmAdminWithdrawalRow,
 } from './CmAdminTypes';
-
-const DANGER_PROJECT_TARGETS = ['cancelled', 'archived'];
 
 function projectActivityPath(projectId: number): string {
   return cmRouteWithQuery(CM_ADMIN_ROUTE.activity, { resource_type: 'project', resource_id: projectId });
@@ -70,6 +60,7 @@ export const CmAdminDepositsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
   const userName = useCmAdminUserName();
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const filters = useMemo(() => ({ status }), [status]);
   const list = useCmAdminList((query) => cmAdminApi.deposits(query), filters);
@@ -121,7 +112,7 @@ export const CmAdminDepositsPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_DEPOSIT_STATUSES}
+          options={states('deposit')}
           optionLabel={(option) => t(`admin.states.deposit.${option}`)}
         />
       </CmAdminToolbar>
@@ -187,6 +178,7 @@ export const CmAdminRefundsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
   const userName = useCmAdminUserName();
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const filters = useMemo(() => ({ status }), [status]);
   const list = useCmAdminList((query) => cmAdminApi.refunds(query), filters);
@@ -241,7 +233,7 @@ export const CmAdminRefundsPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_REFUND_STATUSES}
+          options={states('refund')}
           optionLabel={(option) => t(`admin.states.refund.${option}`)}
         />
       </CmAdminToolbar>
@@ -323,6 +315,8 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
   const userName = useCmAdminUserName();
+  const { states, openStates } = useCmBootstrap();
+  const openWithdrawalStates = openStates('withdrawal');
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const filters = useMemo(() => ({ status }), [status]);
   const list = useCmAdminList((query) => cmAdminApi.withdrawals(query), filters);
@@ -374,7 +368,7 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_WITHDRAWAL_STATUSES}
+          options={states('withdrawal')}
           optionLabel={(option) => t(`admin.states.withdrawal.${option}`)}
         />
       </CmAdminToolbar>
@@ -418,7 +412,7 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
                         <Banknote aria-hidden="true" /> {t('admin.withdrawals.pay')}
                       </button>
                     )}
-                    {(CM_ADMIN_WITHDRAWAL_OPEN_STATUSES as readonly string[]).includes(item.status) ? (
+                    {openWithdrawalStates.includes(item.status) ? (
                       <button type="button" className="cm-workspace-button is-danger" onClick={() => reject(item)}>
                         <X aria-hidden="true" /> {t('admin.reject')}
                       </button>
@@ -440,6 +434,7 @@ const CmAdminPaymentsTable: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
   const userName = useCmAdminUserName();
+  const { states, policyList } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [type, setType] = useState(useCmAdminParam('type'));
   const filters = useMemo(() => ({ status, type }), [status, type]);
@@ -473,14 +468,14 @@ const CmAdminPaymentsTable: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_PAYMENT_STATUSES}
+          options={states('payment')}
           optionLabel={(option) => t(`states.payment.${option}`)}
         />
         <CmAdminSelect
           labelKey="admin.payments.filterType"
           value={type}
           onChange={setType}
-          options={CM_ADMIN_PAYMENT_TYPES}
+          options={policyList('payment_types')}
           optionLabel={(option) => t(`admin.payments.type.${option}`)}
           allKey="admin.allTypes"
         />
@@ -512,7 +507,7 @@ const CmAdminPaymentsTable: React.FC = () => {
                 <td>
                   {item.status === 'disputed' ? (
                     <div className="cm-table-actions">
-                      {CM_ADMIN_DISPUTE_RESOLUTIONS.map((resolution) => (
+                      {policyList('dispute_resolutions').map((resolution) => (
                         <button
                           key={resolution}
                           type="button"
@@ -540,6 +535,7 @@ const CmAdminEscrowsTable: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
   const userName = useCmAdminUserName();
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState('');
   const [projectId, setProjectId] = useState('');
   const filters = useMemo(() => ({ status, project_id: projectId }), [status, projectId]);
@@ -574,7 +570,7 @@ const CmAdminEscrowsTable: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_ESCROW_STATUSES}
+          options={states('escrow')}
           optionLabel={(option) => t(`admin.states.escrow.${option}`)}
         />
         <CmAdminSearch labelKey="admin.payments.projectId" value={projectId} onApply={setProjectId} icon={false} inputMode="numeric" />
@@ -659,6 +655,8 @@ export const CmAdminPaymentsPage: React.FC = () => {
 export const CmAdminProjectsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const userName = useCmAdminUserName();
+  const { states, terminalStates } = useCmBootstrap();
+  const closedProjectStates = terminalStates('project');
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [search, setSearch] = useState(useCmAdminParam('search'));
   const [clientId, setClientId] = useState(useCmAdminParam('client_id'));
@@ -677,7 +675,7 @@ export const CmAdminProjectsPage: React.FC = () => {
         effect: t(`admin.projects.effect.${target}`, { defaultValue: '' }),
       }),
       confirmLabel: t(`admin.projects.action.${target}`, { defaultValue: targetLabel }),
-      tone: DANGER_PROJECT_TARGETS.includes(target) ? 'danger' : 'primary',
+      tone: closedProjectStates.includes(target) ? 'danger' : 'primary',
       reason: 'required',
       successKey: 'admin.projects.updated',
       run: (reason) => cmAdminApi.setProjectStatus(item.id, target, reason),
@@ -694,7 +692,7 @@ export const CmAdminProjectsPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_PROJECT_STATUSES}
+          options={states('project')}
           optionLabel={(option) => t(`states.project.${option}`)}
         />
         <CmAdminSearch labelKey="admin.projects.clientId" value={clientId} onApply={setClientId} icon={false} inputMode="numeric" />
@@ -733,7 +731,7 @@ export const CmAdminProjectsPage: React.FC = () => {
                       <button
                         key={target}
                         type="button"
-                        className={`cm-workspace-button ${DANGER_PROJECT_TARGETS.includes(target) ? 'is-danger' : ''}`}
+                        className={`cm-workspace-button ${closedProjectStates.includes(target) ? 'is-danger' : ''}`}
                         onClick={() => intervene(item, target)}
                       >
                         {target === 'cancelled' && <Ban aria-hidden="true" />}

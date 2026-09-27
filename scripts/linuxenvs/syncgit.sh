@@ -9,11 +9,16 @@
 # wrapper so `syncgit` (and `syncgit --dry-run`) is available on PATH, in the
 # same style as the other scripts/linuxenvs/ commands.
 
+# Only this script's own location is resolved here (needed to locate its
+# sibling library); the repo root itself is resolved by the shared
+# git_sync_resolve_repo_root function below, so there is one implementation
+# of "repo root from the script's own location" (git_sync_common.sh), not a
+# second one duplicated here.
 SYNCGIT_SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 SYNCGIT_SCRIPT_DIR="$(dirname "$SYNCGIT_SCRIPT_PATH")"
-SYNCGIT_REPO_ROOT="$(cd "$SYNCGIT_SCRIPT_DIR/../.." && pwd)"
-GIT_SYNC_COMMON_SH="$SYNCGIT_REPO_ROOT/scripts/shells/linux/common/git_sync_common.sh"
+GIT_SYNC_COMMON_SH="$SYNCGIT_SCRIPT_DIR/../shells/linux/common/git_sync_common.sh"
 SYNCGIT_DRY_RUN=false
+SYNCGIT_REPO_ROOT=""
 syncgit_arg=""
 
 for syncgit_arg in "$@"; do
@@ -33,4 +38,9 @@ if [ ! -f "$GIT_SYNC_COMMON_SH" ]; then
 fi
 
 source "$GIT_SYNC_COMMON_SH"
+SYNCGIT_REPO_ROOT="$(git_sync_resolve_repo_root)"
+if [ -z "$SYNCGIT_REPO_ROOT" ]; then
+    echo "[syncgit] ERROR: could not resolve the repo root" >&2
+    exit 1
+fi
 git_sync_run "$SYNCGIT_REPO_ROOT" "$SYNCGIT_DRY_RUN"

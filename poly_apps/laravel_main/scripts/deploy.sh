@@ -35,6 +35,9 @@ GVAR_COMMON="${COMMON_SCRIPTS_DIR}/gvar_common.sh"
 COMMON_FUNCTIONS="${COMMON_SCRIPTS_DIR}/common_functions.sh"
 GET_REAL_USER_SCRIPT="${COMMON_SCRIPTS_DIR}/get_real_user.sh"
 DEPLOY_UP_METHODS="${SCRIPT_DIR}/deploy_up_methods.sh"
+# Canonical laravel_main ensure/start (provisioning, service or foreground runtime),
+# the same target scripts/start.sh delegates to.
+CANONICAL_START="${SCRIPT_DIR}/../../../scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh"
 
 # ============================================================================
 # SOURCE COMMON SCRIPTS
@@ -322,88 +325,12 @@ fix_prerequisites() {
     echo -e "${GREEN}[PREREQUISITES] Setup complete${NC}\n"
 }
 
-# Initialize Laravel through the canonical application command.
-run_artisan_sys_init() {
-    local saved_dir="$(pwd)"
-
-    if [ ! -f "$LARAVEL_DIR/artisan" ]; then
-        echo -e "${RED}[ARTISAN] artisan file not found at $LARAVEL_DIR/artisan${NC}"
-        return 1
-    fi
-
-    print_cmd "cd \"$LARAVEL_DIR\""
-    cd "$LARAVEL_DIR" || return 1
-
-    if [ -n "$USE_SUDO" ] && [ "$(id -u)" -eq 0 ]; then
-        print_cmd "$USE_SUDO -u \"$REAL_USER\" php artisan config:clear"
-        if ! $USE_SUDO -u "$REAL_USER" php artisan config:clear; then
-            cd "$saved_dir" || true
-            return 1
-        fi
-        print_cmd "$USE_SUDO -u \"$REAL_USER\" php artisan sys:init 2>&1"
-        if ! $USE_SUDO -u "$REAL_USER" php artisan sys:init; then
-            cd "$saved_dir" || true
-            return 1
-        fi
-    else
-        print_cmd "php artisan config:clear"
-        if ! php artisan config:clear; then
-            cd "$saved_dir" || true
-            return 1
-        fi
-        print_cmd "php artisan sys:init"
-        if ! php artisan sys:init; then
-            cd "$saved_dir" || true
-            return 1
-        fi
-    fi
-
-    print_cmd "cd \"$saved_dir\""
-    cd "$saved_dir" || true
-
-    echo -e "${GREEN}[ARTISAN] OK Laravel runtime initialized${NC}"
-    return 0
-}
-
-# Function to install Laravel services (without domain binding)
-# Uses unified laravel_service_manager.sh -> start_service.sh (Octane/Swoole)
-# Same code path as App Manager "Ns" command for consistent systemd services
-install_laravel_services() {
-    echo -e "${BLUE}[SERVICE] Installing Laravel services (without domain binding)${NC}"
-
-    local saved_dir="$(pwd)"
-
-    if [ ! -d "$LARAVEL_DIR" ]; then
-        echo -e "${YELLOW}[SERVICE] Laravel directory not found, skipping service installation${NC}"
-        return 0
-    fi
-
-    local laravel_svc_mgr="$LARAVEL_DIR/../../../scripts/unified_manager/modules/laravel_service_manager.sh"
-    # Resolve to absolute path
-    laravel_svc_mgr="$(cd "$(dirname "$laravel_svc_mgr")" 2>/dev/null && pwd)/$(basename "$laravel_svc_mgr")"
-
-    if [ -f "$laravel_svc_mgr" ]; then
-        echo -e "${BLUE}[SERVICE] Using unified laravel_service_manager.sh${NC}"
-        # Only source if install_laravel_service is not already available
-        if ! type install_laravel_service >/dev/null 2>&1; then
-            source "$laravel_svc_mgr"
-        fi
-        local app_name
-        app_name="$(basename "$LARAVEL_DIR")"
-        print_cmd "install_laravel_service \"$app_name\""
-        install_laravel_service "$app_name" 2>&1
-    else
-        # Fallback: direct artisan command (legacy path)
-        echo -e "${YELLOW}[SERVICE] Unified manager not found, falling back to direct artisan command${NC}"
-        print_cmd "cd \"$LARAVEL_DIR\""
-        cd "$LARAVEL_DIR" || return 0
-        print_cmd "$USE_SUDO php artisan servermanager:poly_apps $(basename "$LARAVEL_DIR") 2>&1"
-        $USE_SUDO php artisan servermanager:poly_apps "$(basename "$LARAVEL_DIR")" 2>&1
-    fi
-
-    # Restore original directory
-    print_cmd "cd \"$saved_dir\""
-    cd "$saved_dir" || true
+# Provision and start laravel_main through the canonical 175 ensure script (runtime
+# store, PostgreSQL, Laravel initialization, then the systemd service or the foreground
+# runtime), exactly as scripts/start.sh does. Arguments pass through.
+run_canonical_start() {
+    print_cmd "bash \"$CANONICAL_START\" $*"
+    bash "$CANONICAL_START" "$@"
 }
 
 # ============================================================================
@@ -415,11 +342,8 @@ check_initialization
 # Run all UP methods automatically when sourced or executed
 run_all_ups
 
-# Run php artisan sys:init in low privilege user context
-run_artisan_sys_init
-
-# Install Laravel services (without domain binding)
-install_laravel_services
+# Provision, initialize and start through the canonical 175 ensure script
+run_canonical_start "$@"
 
 # Restore initial working directory
 print_cmd "cd \"$INITIAL_WORK_DIR\""

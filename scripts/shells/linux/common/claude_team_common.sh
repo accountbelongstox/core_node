@@ -42,7 +42,7 @@ CLAUDE_TEAM_GIT_GUARD_ENV="CLAUDE_AGENTS_SESSION=1"
 CLAUDE_TEAM_USER_TEAMS_DIR="$HOME/.claude/teams"
 CLAUDE_TEAM_USER_TASKS_DIR="$HOME/.claude/tasks"
 CLAUDE_TEAM_SECRET_READER="$CLAUDE_TEAM_ROOT_DIR/scripts/pytools/special_software_env_manager/secret_read.py"
-CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=30" "-o" "ServerAliveCountMax=4")
+CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=30" "-o" "ServerAliveCountMax=4" "-o" "StrictHostKeyChecking=accept-new")
 # claudeteam.sh pane options (same names as claudeteam.ps1): --team-pane <team|sessions>
 # marks a role pane of this launcher; the other two are launcher-only, never passed on.
 CLAUDE_TEAM_PANE_FLAG="--team-pane"

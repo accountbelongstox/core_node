@@ -7,6 +7,7 @@ import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmHumanize } from '../components/workspace/cmWorkspaceFormat';
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
 import {
   CmAdminActivityTable,
@@ -24,10 +25,6 @@ import {
 import {
   CM_ADMIN_ACTIVITY_ACTIONS,
   CM_ADMIN_ACTIVITY_RESOURCES,
-  CM_ADMIN_CONTACT_STATUSES,
-  CM_ADMIN_REVIEWER_STATUSES,
-  CM_ADMIN_TESTIMONIAL_LOCALES,
-  CM_ADMIN_TESTIMONIAL_STATUSES,
   type CmAdminContactMessageRow,
   type CmAdminReviewerApplicationRow,
   type CmAdminTestimonialRow,
@@ -38,6 +35,7 @@ const SCORE_FRACTION_DIGITS = 1;
 export const CmAdminTestimonialsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
+  const { states, policyList } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [search, setSearch] = useState('');
   const [sortDrafts, setSortDrafts] = useState<Record<number, string>>({});
@@ -91,7 +89,7 @@ export const CmAdminTestimonialsPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_TESTIMONIAL_STATUSES}
+          options={states('testimonial')}
           optionLabel={(option) => t(`admin.states.testimonial.${option}`)}
         />
       </CmAdminToolbar>
@@ -105,9 +103,9 @@ export const CmAdminTestimonialsPage: React.FC = () => {
                   <CmStatusBadge status={item.status} prefix="admin.states.testimonial" />
                 </div>
                 <div className="cm-admin-quotes">
-                  {CM_ADMIN_TESTIMONIAL_LOCALES.map((locale) => (
+                  {policyList('supported_locales').map((locale) => (
                     <blockquote key={locale}>
-                      <small>{t(`admin.testimonials.locale.${locale}`)}</small>
+                      <small>{t(`admin.testimonials.locale.${locale}`, { defaultValue: locale })}</small>
                       <span>{item.quotes?.[locale] ?? (item.quote_key ? t(item.quote_key, { defaultValue: item.quote_key }) : t('admin.testimonials.noQuote'))}</span>
                     </blockquote>
                   ))}
@@ -164,6 +162,7 @@ export const CmAdminTestimonialsPage: React.FC = () => {
 export const CmAdminReviewerApplicationsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ status, search }), [status, search]);
@@ -200,7 +199,7 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_REVIEWER_STATUSES}
+          options={states('reviewer_application')}
           optionLabel={(option) => t(`admin.states.reviewer.${option}`)}
         />
       </CmAdminToolbar>
@@ -248,6 +247,7 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
 
 export const CmAdminContactMessagesPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status', 'new'));
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ status, search }), [status, search]);
@@ -272,7 +272,7 @@ export const CmAdminContactMessagesPage: React.FC = () => {
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_CONTACT_STATUSES}
+          options={states('contact_message')}
           optionLabel={(option) => t(`admin.states.contact.${option}`)}
         />
       </CmAdminToolbar>
