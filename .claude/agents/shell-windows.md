@@ -36,6 +36,7 @@ Parity with shell-linux (binding; user D12, 2026-09-27):
 
 Rules:
 - Shell scripts are in English. Declare variables at the file top.
+- The user's `CodeHeaderCleaner.py` strips the leading AI rules header blocks from files, the user's own tool and decision. Never re-add a stripped header block, and never treat its removal as your change.
 - In PowerShell, build paths with Split-Path, Join-Path or Resolve-Path; never append strings to variables; never parse versions with regex.
 - Installers are idempotent at the finest grain: repair only missing binaries, files or pip packages, detected by existence.
 - Callers trust resolved PS1/SH references. Do not use exit codes as return values.

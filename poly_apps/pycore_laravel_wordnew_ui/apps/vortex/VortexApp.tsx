@@ -18,12 +18,20 @@ import OkxBacktestPanel from './OkxBacktestPanel';
 import OkxQuantPanel from './OkxQuantPanel';
 import OkxAccountPanel from './OkxAccountPanel';
 import { registerVxLocales, vxLocales } from './vx-locales';
+import { isVortexPycorePanelServed } from './api';
 
 registerVxLocales();
 
 /** The tabs that are real URL routes under /vortex (e.g. /vortex/settings). */
 const VORTEX_TABS = ['market', 'compare', 'ledger', 'settings', 'okx-backtest'] as const;
 type VortexTab = (typeof VORTEX_TABS)[number];
+
+/** OKX panels stay hidden until pycore serves every route they call. */
+const OKX_ACCOUNT_PANEL_SERVED = isVortexPycorePanelServed('account');
+const OKX_QUANT_PANEL_SERVED = isVortexPycorePanelServed('quant');
+const OKX_BACKTEST_PANEL_SERVED = isVortexPycorePanelServed('backtest');
+const VORTEX_HIDDEN_TABS: readonly string[] = OKX_BACKTEST_PANEL_SERVED ? [] : ['okx-backtest'];
+const VORTEX_VISIBLE_TABS: readonly string[] = VORTEX_TABS.filter((tab) => !VORTEX_HIDDEN_TABS.includes(tab));
 
 /** Shell languages Vortex ships a `vx` locale bundle for. */
 const VX_LANGUAGE_OPTIONS = SHELL_LANGUAGES.filter((l) => l.code in vxLocales);
@@ -166,14 +174,14 @@ export const VortexApp: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const pathSeg = location.pathname.replace(/^\/vortex\/?/, '').split('/')[0];
-  const activeTab: VortexTab = (VORTEX_TABS as readonly string[]).includes(pathSeg)
+  const activeTab: VortexTab = VORTEX_VISIBLE_TABS.includes(pathSeg)
     ? (pathSeg as VortexTab)
     : 'market';
   const setActiveTab = (tab: VortexTab) => navigate(`/vortex/${tab}`);
 
-  // /vortex with no sub-route → land on the market tab so the URL always names a page.
+  // /vortex with no sub-route or a hidden tab → land on the market tab so the URL always names a page.
   useEffect(() => {
-    if (!pathSeg) navigate('/vortex/market', { replace: true });
+    if (!pathSeg || VORTEX_HIDDEN_TABS.includes(pathSeg)) navigate('/vortex/market', { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathSeg]);
 
@@ -794,7 +802,7 @@ export const VortexApp: React.FC = () => {
               { id: 'ledger', label: t('app.tabLedger'), icon: Briefcase },
               { id: 'okx-backtest', label: t('app.tabOkx'), icon: Database },
               { id: 'settings', label: t('app.tabSettings'), icon: Settings },
-            ].map(tab => {
+            ].filter(tab => VORTEX_VISIBLE_TABS.includes(tab.id)).map(tab => {
               const Icon = tab.icon;
               const isSelected = activeTab === tab.id;
               return (
@@ -1874,12 +1882,14 @@ export const VortexApp: React.FC = () => {
             >
 
               {/* Real OKX-API account vs the local simulated account (clearly distinguished) */}
-              <OkxAccountPanel
-                dark={dark}
-                simCash={cash}
-                simPositionsCount={positions.length}
-                simEquity={portfolioSummary.netWorth}
-              />
+              {OKX_ACCOUNT_PANEL_SERVED && (
+                <OkxAccountPanel
+                  dark={dark}
+                  simCash={cash}
+                  simPositionsCount={positions.length}
+                  simEquity={portfolioSummary.netWorth}
+                />
+              )}
 
               {/* Positions exposures terminal monitor */}
               <div className={`p-6 rounded-2xl border ${
@@ -2058,9 +2068,11 @@ export const VortexApp: React.FC = () => {
               className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
             >
               {/* OKX quant settings — rate limits / usage / database / KEY / pre-open (full width) */}
-              <div className="md:col-span-2">
-                <OkxQuantPanel dark={dark} />
-              </div>
+              {OKX_QUANT_PANEL_SERVED && (
+                <div className="md:col-span-2">
+                  <OkxQuantPanel dark={dark} />
+                </div>
+              )}
 
               {/* Left Settings modifiers */}
               <div className={`p-6 rounded-2xl border ${

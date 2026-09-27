@@ -2058,25 +2058,6 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
   object-fit: cover;
 }
 
-.cm-admin-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  padding: 34px 20px;
-  border: 1px dashed #d3dce6;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #6c7b8d;
-  font-size: 14px;
-  text-align: center;
-}
-
-.cm-admin-state p { margin: 0; }
-.cm-admin-state > svg { width: 28px; height: 28px; color: #9aa8b8; }
-.cm-admin-state[data-tone="error"] { border-color: #f2cccc; background: #fdf6f6; color: #b24545; }
-
 .cm-admin-table {
   max-width: 100%;
   overflow-x: auto;
@@ -2317,31 +2298,6 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 
 .cm-admin-back svg { width: 16px; }
 
-.cm-admin-notice {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 16px;
-  padding: 11px 14px;
-  border: 1px solid #cfe3d8;
-  border-radius: 10px;
-  background: #eef9f3;
-  color: #276b4b;
-  font-size: 13px;
-}
-
-.cm-admin-notice[data-tone="error"] { border-color: #f2cccc; background: #fdf0f0; color: #b24545; }
-
-.cm-admin-notice button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-}
-
 .cm-admin-pager {
   display: flex;
   flex-wrap: wrap;
@@ -2502,7 +2458,8 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 
 .cm-admin-dialog__card h2 { margin: 0; color: #263445; font-size: 17px; font-weight: 650; }
 .cm-admin-dialog__card p { margin: 0; color: #5d6d80; font-size: 14px; line-height: 1.6; }
-.cm-admin-dialog__card .cm-admin-notice { margin: 0; }
+.cm-admin-dialog__card .cm-notice { margin: 0; }
+.cm-admin-dialog__card .cm-notice[data-tone] p { color: inherit; }
 
 .cm-admin-dialog__card label { display: grid; gap: 6px; color: #5d6d80; font-size: 12px; font-weight: 620; }
 
@@ -2527,8 +2484,6 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 .dark .cm-admin-panel,
 .dark .cm-admin-dialog__card { border-color: #2a3543; background: #1c242f; box-shadow: none; color: #93a3b5; }
 .dark .cm-admin-kv dd { color: #c3d3e6; }
-.dark .cm-admin-notice { border-color: #2d5a45; background: #16281f; color: #8fd3b0; }
-.dark .cm-admin-notice[data-tone="error"] { border-color: #5a2d2d; background: #2a1818; color: #f0a0a0; }
 .dark .cm-admin-document { border-color: #334052; background: #141a22; }
 .dark .cm-admin-quotes blockquote { background: #1a2634; color: #c3d0df; }
 .dark .cm-admin-dialog__card p { color: #93a3b5; }
@@ -2549,8 +2504,6 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 .dark .cm-admin-facts dd,
 .dark .cm-admin-note { color: #a9b8c9; }
 .dark .cm-admin-heading__image { border-color: #2a3543; opacity: 0.9; }
-.dark .cm-admin-state { border-color: #334052; background: #1c242f; color: #93a3b5; }
-.dark .cm-admin-state[data-tone="error"] { border-color: #5a2d2d; background: #2a1818; color: #f0a0a0; }
 .dark .cm-admin-table,
 .dark .cm-admin-clear-list,
 .dark .cm-admin-status-chip,

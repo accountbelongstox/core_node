@@ -108,6 +108,10 @@ class LaravelRelayAgentService:
             BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
             self._publish_prompt_derived_device_event,
         )
+        THREAD_BUS.register_event_handler(
+            BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
+            self._publish_config_changed_device_event,
+        )
         threads = list(alive.values())
         if RELAY_CONTROL_THREAD not in alive:
             threads.append(
@@ -174,6 +178,10 @@ class LaravelRelayAgentService:
         THREAD_BUS.unregister_event_handler(
             BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
             self._publish_prompt_derived_device_event,
+        )
+        THREAD_BUS.unregister_event_handler(
+            BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
+            self._publish_config_changed_device_event,
         )
         relay_activity_log.success(
             "runtime.event_handler.removed",
@@ -606,6 +614,9 @@ class LaravelRelayAgentService:
 
     def _publish_prompt_derived_device_event(self, payload: Any) -> None:
         self._publish_agent_history_event("agent_history_prompt_derived", payload, "item")
+
+    def _publish_config_changed_device_event(self, payload: Any) -> None:
+        self._publish_agent_history_event("agent_history_config_changed", payload, "config")
 
     def _publish_agent_history_event(self, event_name: str, payload: Any, container_key: str) -> None:
         """Forward an agent-history bus event to paired UI owners via the hub.

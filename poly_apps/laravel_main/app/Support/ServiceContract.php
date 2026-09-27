@@ -21,6 +21,11 @@ use RuntimeException;
  */
 final class ServiceContract
 {
+    private const LABEL = 'service contract';
+    private const HOME_DATA_DIR_FALLBACK_KEY = 'home_data_dir_fallback';
+    private const RULE_NEGATION_PREFIX = 'not ';
+    private const WINDOWS_SEPARATOR = '\\';
+
     private static ?array $document = null;
 
     public static function document(): array
@@ -84,47 +89,17 @@ final class ServiceContract
 
     public static function string(string $path): string
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_string($value) || $value === '') {
-            throw new RuntimeException("Unknown service contract string: {$path}");
-        }
-
-        return $value;
+        return ContractDocument::string(self::document(), $path, self::LABEL);
     }
 
     public static function positiveInt(string $path): int
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_int($value) || $value < 1) {
-            throw new RuntimeException("Unknown service contract positive integer: {$path}");
-        }
-
-        return $value;
+        return ContractDocument::positiveInt(self::document(), $path, self::LABEL);
     }
 
     public static function boolean(string $path): bool
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_bool($value)) {
-            throw new RuntimeException("Unknown service contract boolean: {$path}");
-        }
-
-        return $value;
+        return ContractDocument::boolean(self::document(), $path, self::LABEL);
     }
 
     /**
@@ -132,19 +107,89 @@ final class ServiceContract
      */
     public static function stringList(string $path): array
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_array($value)
-            || $value === []
-            || array_filter($value, static fn (mixed $item): bool => !is_string($item) || $item === '') !== []) {
-            throw new RuntimeException("Unknown service contract string list: {$path}");
+        return ContractDocument::stringList(self::document(), $path, self::LABEL);
+    }
+
+    /** Windows data drive root in native form (paths.windows_data_drive_root, e.g. D:\). */
+    public static function windowsDataDriveRoot(): string
+    {
+        return rtrim(str_replace('/', self::WINDOWS_SEPARATOR, self::path('windows_data_drive_root')), self::WINDOWS_SEPARATOR)
+            .self::WINDOWS_SEPARATOR;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function ntfsFileSystemTypes(): array
+    {
+        return self::stringList('paths.ntfs_fs_types');
+    }
+
+    /**
+     * Linux data dir candidates that need a writability test, in contract
+     * order (paths.linux_data_dir_candidates), with each "when" rule
+     * evaluated from $rules (rule key => holds). The home fallback is
+     * excluded; homeDataDirFallback() resolves it.
+     *
+     * @param array<string, bool> $rules
+     * @return array<int, string>
+     */
+    public static function linuxDataDirCandidates(array $rules): array
+    {
+        $candidates = [];
+        $when = '';
+        $negated = false;
+        $rule = '';
+        $path = '';
+
+        foreach (ContractDocument::section(self::document(), 'paths.linux_data_dir_candidates', self::LABEL) as $candidate) {
+            if (!is_array($candidate) || !is_string($candidate['path'] ?? null)) {
+                throw new RuntimeException('Unknown service contract data dir candidate');
+            }
+            if ($candidate['path'] === self::HOME_DATA_DIR_FALLBACK_KEY) {
+                continue;
+            }
+            $when = (string) ($candidate['when'] ?? '');
+            if ($when !== '') {
+                $negated = str_starts_with($when, self::RULE_NEGATION_PREFIX);
+                $rule = $negated ? substr($when, strlen(self::RULE_NEGATION_PREFIX)) : $when;
+                if (!array_key_exists($rule, $rules)) {
+                    throw new RuntimeException("Unknown service contract data dir rule: {$rule}");
+                }
+                if ($rules[$rule] === $negated) {
+                    continue;
+                }
+            }
+            $path = self::path($candidate['path']);
+            if (isset($candidate['join'])) {
+                $path = rtrim($path, '/').'/'.self::path((string) $candidate['join']);
+            }
+            $candidates[] = $path;
         }
 
-        return array_values($value);
+        return $candidates;
+    }
+
+    /** paths.home_data_dir_fallback with its leading ~ resolved against $home ('' without a home). */
+    public static function homeDataDirFallback(string $home): string
+    {
+        $fallback = self::path(self::HOME_DATA_DIR_FALLBACK_KEY);
+
+        if ($home === '') {
+            return '';
+        }
+
+        return str_starts_with($fallback, '~') ? rtrim($home, '/'.self::WINDOWS_SEPARATOR).substr($fallback, 1) : $fallback;
+    }
+
+    /**
+     * The data_sync block; DataSyncProtocol is its typed reader.
+     *
+     * @return array<string, mixed>
+     */
+    public static function dataSync(): array
+    {
+        return ContractDocument::section(self::document(), 'data_sync', self::LABEL);
     }
 
     public static function globalVarDirectory(): string

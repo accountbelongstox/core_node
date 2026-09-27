@@ -2,12 +2,20 @@ import { BaseAPI } from '../../../core/integrations/laravel/transport/BaseAPI';
 import {
   createLaravelModuleConfig,
   LARAVEL_API_PREFIX,
+  LARAVEL_API_ROUTE,
 } from '../../../core/integrations/laravel/transport/ApiContract';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { cmHandleUnauthorized } from './cmAuthSession';
 
-const LOGIN_PATH = 'api/login';
-const LOGOUT_PATH = 'api/logout';
+const accountRoute = (route: string): string => `${LARAVEL_API_PREFIX.common}${route}`;
+
+/** Shared account routes (root requests) used by the CodeMart sign-in and password flows. */
+export const CM_ACCOUNT_ROUTE = {
+  login: accountRoute(LARAVEL_API_ROUTE.auth.login),
+  logout: accountRoute(LARAVEL_API_ROUTE.auth.logout),
+  forgotPassword: accountRoute(LARAVEL_API_ROUTE.auth.forgotPassword),
+  resetPassword: accountRoute(LARAVEL_API_ROUTE.auth.resetPassword),
+} as const;
 
 export interface CmLoginUser {
   id: number;
@@ -32,7 +40,7 @@ export class CmAuthApi extends BaseAPI {
 
   login(username: string, password: string): Promise<APIResponse<CmLoginResult>> {
     return this.request<CmLoginResult>({
-      url: LOGIN_PATH,
+      url: CM_ACCOUNT_ROUTE.login,
       method: 'POST',
       data: { username, password },
       root: true,
@@ -41,7 +49,7 @@ export class CmAuthApi extends BaseAPI {
   }
 
   logout(): Promise<APIResponse<{ message?: string }>> {
-    return this.request<{ message?: string }>({ url: LOGOUT_PATH, method: 'POST', root: true, retry: false });
+    return this.request<{ message?: string }>({ url: CM_ACCOUNT_ROUTE.logout, method: 'POST', root: true, retry: false });
   }
 }
 

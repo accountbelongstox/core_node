@@ -1,12 +1,12 @@
 ---
 name: crlf-mixed-line-endings
-description: Some files under scripts/ (e.g. scripts/git/gitput_unified_modules/*.py) are CRLF; scripted edits must keep line endings
+description: Line endings under scripts/ are mixed (some .py CRLF, .sh must be LF); count CRs with tr, not grep, in Git Bash
 metadata:
   type: feedback
 ---
 
-Some tracked files in scripts/ are CRLF while most .sh/.ps1 are LF. A Python `open().read()`/`write()` edit silently converts CRLF to LF and turns a 10-line change into a whole-file diff.
+Some tracked files in scripts/ are CRLF (e.g. scripts/git/gitput_unified_modules/*.py) while `.gitattributes` forces `*.sh` to LF. A Python `open().read()`/`write()` edit silently converts CRLF to LF and turns a 10-line change into a whole-file diff. Working-tree `.sh` copies can also be CRLF although HEAD is LF (seen 2026-09-27 on the claude team launchers); normalizing those to LF is diff-free and required for bash under WSL.
 
-**Why:** happened on scripts/git/gitput_unified_modules/encryption.py (171 CRLF lines) during the IS-010 fix; caught only by `git diff --stat`.
+**Why:** IS-010 (encryption.py whole-file diff, caught only by `git diff --stat`); D13 (CRLF .sh working copies). In Git Bash, `grep -c $'\r' file` printed the line count instead of the CR count, so it gave false alarms.
 
-**How to apply:** before a scripted edit, check `grep -c $'\r' <file>`; use `open(p, newline='')` and write back with the same ending, or use the Edit tool. After a batch of edits, compare CR counts of `git show HEAD:<f>` vs the working file.
+**How to apply:** count CRs with `tr -cd '\r' < file | wc -c` (or `od -c`), never `grep -c $'\r'`. Keep the ending of CRLF files (`open(p, newline='')` or the Edit tool); convert `.sh` to LF. Compare against `git show HEAD:<f>` after batch edits. See [[wsl-verification-recipe]].

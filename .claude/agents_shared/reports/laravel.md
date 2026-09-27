@@ -238,8 +238,19 @@ Cross-scope notes:
 - shell: `175_laravel_main_start.sh:657` ignores the exit status of `sys:init` (no `set -e`, no check), so a failed `sys:init` still starts the service on a drifted schema. `poly_apps/laravel_main/scripts/start.ps1:641-643` already stops on failure. Suggest the same fail-stop, or at least a loud warning, in 175. I did not edit 175.
 - orchestrator: the §10.4 row "CodeMart tables come from `sys:init`, not migrations" is only half right. Base tables come from migrations; the added contract columns and new tables come from `sys:init`.
 
+## D7: local Laravel bring-up (2026-09-27 about 17:0x)
+
+Full record: `.claude/agents_shared/d7/laravel_local.md`. No application code was edited.
+- Up: FrankenPHP 1.12.7 with the Octane worker (4 workers). PID 28564 (parent cmd 10788, created through WMI with a hidden console, no service; the first instance was stopped by an unexplained Ctrl+C in its visible console and was relaunched at 17:09). Ports :443 / :9000 / :80 / 127.0.0.1:2019.
+- `https://127.0.0.1/api/health` and `.../api/codemart/v1/public/home` return 200 with the local mkcert CA given explicitly.
+- `sys:init` applied 18 pending migrations (orch_audio included); `route:list` shows 1086 routes.
+- Blocker (user decision): adding the new local CA to the Windows trust store was denied by the permission classifier. Default-trust clients (Windows, certifi in pycore) reject `https://127.0.0.1`.
+- Own follow-up (after the no-code-edit window): `start.ps1:340-363` `php -r` helpers break under Windows PowerShell 5.1 (inner quotes are dropped), so `start.ps1` fails on every run on this machine.
+- For shell-windows: the `FrankenPhpManager.ps1` route brace defect (:788,799,919,922), the embedded PHP extensions missing in Step96, no `skip_install_trust` in the Caddyfile, and Step175 running ACME for the production domains on a LAN desktop.
+
 ## Blockers
 
+- D7: the local mkcert CA is not trusted by default (see D7 above); a user decision is needed.
 - Until shell ships K2 and the user runs dd.sh / dd.cmd, `CORE_NODE_CLIENT_KEY_1` is absent and every `client.key` route fails closed with `client_key_missing` (expected per requirements §6).
 - Machine callers need their K3 signers (pycore, mcp-chrome native host, ncore) before their Laravel calls pass.
 - UI adaptations: laravel-manager must send `{"enabled": bool}` to toggle-autostart (now required) and should send `Idempotency-Key` on backup/restore; codemart's wallet must drop alipay/wechat deposits and handle the 503 `sms_unavailable`; wordnew sends `Idempotency-Key` per queued write.

@@ -12,6 +12,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyfoundations.third_party._deps import (
     DEPENDENCY_MAP,
+    LINUX_ONLY_PACKAGES,
     WINDOWS_ONLY_PACKAGES,
     GUI_ONLY_IMPORTS,
     _is_headless_linux,
@@ -42,6 +43,8 @@ def check_and_install_dependencies():
         all_dependencies.update(WINDOWS_ONLY_PACKAGES)
     else:
         ColorPrint.blue(f"[INFO] Skipping Windows-only packages on {current_platform}")
+    if current_platform == 'Linux':
+        all_dependencies.update(LINUX_ONLY_PACKAGES)
 
     # Headless Linux (no DISPLAY/Wayland): drop GUI-only Qt packages - there is no
     # display to use them and they are heavy (PySide6 ~629M, PyQt5 ~202M). They still

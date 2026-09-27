@@ -535,8 +535,10 @@ class CodeMartV1Initializer implements AppInitializerInterface
 
     /**
      * Idempotent demo dataset (upserts only), re-applied on every sys:init.
-     * Runs in every environment; only an explicit CODEMART_SEED_DEMO=false
-     * (services.codemart_seed_demo) turns it off.
+     * On by default; the config file switch services.codemart_seed_demo
+     * (LaravelConfig, never .env) set to false turns it off. Account passwords
+     * come from the codemart_admin_password secret file, which is created and
+     * printed here only when missing; codemart:admin-password rotates them.
      */
     private function seedDemoData(): array
     {
@@ -547,17 +549,21 @@ class CodeMartV1Initializer implements AppInitializerInterface
         if (!$enabled) {
             return [
                 'status' => 'skipped',
-                'message' => 'Demo seeding disabled (CODEMART_SEED_DEMO=false)',
+                'message' => __('codemart.cli.seed.disabled'),
             ];
         }
 
         $summary = (new CodeMartV1DemoSeeder())->seed(
             static fn (string $message) => Log::info('[CodeMartV1Init] ' . $message)
         );
+        $message = __('codemart.cli.seed.done', ['count' => count($summary['accounts'])]) . ' '
+            . ($summary['password_generated']
+                ? __('codemart.cli.seed.password_generated', ['password' => $summary['password'], 'path' => $summary['password_file']])
+                : __('codemart.cli.seed.password_file', ['path' => $summary['password_file']]));
 
         return [
             'status' => 'success',
-            'message' => 'Seeded ' . count($summary['accounts']) . ' demo accounts',
+            'message' => $message,
             'counts' => $summary['counts'],
         ];
     }

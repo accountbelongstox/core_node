@@ -17,12 +17,12 @@ final class DataSyncStateStore
         $now = now()->toIso8601String();
         $job = array_merge([
             'id' => str_replace('-', '', (string) str()->uuid()),
-            'protocol_version' => DataSyncProtocol::VERSION,
+            'protocol_version' => DataSyncProtocol::version(),
             'role' => $role,
             'status' => 'queued',
             'current_step' => 0,
             'progress' => 0,
-            'backup_directory' => in_array($role, ['receiver', 'fetcher'], true)
+            'backup_directory' => in_array($role, DataSyncProtocol::writerRoles(), true)
                 ? PathMapper::getBackupDir('db-manager')
                 : null,
             'steps' => DataSyncStepCatalog::create($role),
@@ -71,7 +71,7 @@ final class DataSyncStateStore
         $id = (string) $job['id'];
         $job['updated_at'] = now()->toIso8601String();
         $job['progress'] = $this->progress($job);
-        $terminal = in_array($job['status'] ?? null, DataSyncProtocol::TERMINAL_STATUSES, true);
+        $terminal = in_array($job['status'] ?? null, DataSyncProtocol::terminalStatuses(), true);
 
         if ($terminal) {
             $job['completed_at'] ??= $job['updated_at'];
@@ -154,7 +154,7 @@ final class DataSyncStateStore
             unset($receiver['counterpart']);
         }
 
-        $isDriver = in_array($job['role'] ?? null, DataSyncProtocol::DRIVER_ROLES, true);
+        $isDriver = in_array($job['role'] ?? null, DataSyncProtocol::driverRoles(), true);
 
         return array_filter([
             'endpoint' => $isDriver
@@ -178,7 +178,7 @@ final class DataSyncStateStore
     {
         foreach ($this->storedJobIds() as $id) {
             $summary = $this->readSummary($id);
-            if ($summary !== null && in_array($summary['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)) {
+            if ($summary !== null && in_array($summary['status'] ?? null, DataSyncProtocol::activeStatuses(), true)) {
                 return true;
             }
         }
@@ -198,12 +198,12 @@ final class DataSyncStateStore
             if (
                 $summary === null
                 || !in_array($summary['role'] ?? null, $roles, true)
-                || !in_array($summary['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)
+                || !in_array($summary['status'] ?? null, DataSyncProtocol::activeStatuses(), true)
             ) {
                 continue;
             }
             $job = $this->get($id);
-            if ($job !== null && in_array($job['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)) {
+            if ($job !== null && in_array($job['status'] ?? null, DataSyncProtocol::activeStatuses(), true)) {
                 $jobs[] = $job;
             }
         }
@@ -302,19 +302,19 @@ final class DataSyncStateStore
             if ($summary === null) {
                 continue;
             }
-            if ((int) ($summary['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
-                if (!in_array($summary['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true)) {
+            if ((int) ($summary['protocol_version'] ?? 0) !== DataSyncProtocol::version()) {
+                if (!in_array($summary['status'] ?? null, DataSyncProtocol::activeStatuses(), true)) {
                     $this->delete($id);
                 }
                 continue;
             }
-            if (in_array($summary['status'] ?? null, DataSyncProtocol::TERMINAL_STATUSES, true)) {
+            if (in_array($summary['status'] ?? null, DataSyncProtocol::terminalStatuses(), true)) {
                 $terminal[$id] = (string) ($summary['updated_at'] ?? '');
             }
         }
 
         arsort($terminal);
-        foreach (array_slice(array_keys($terminal), DataSyncProtocol::TERMINAL_RETENTION) as $id) {
+        foreach (array_slice(array_keys($terminal), DataSyncProtocol::terminalRetention()) as $id) {
             $this->delete((string) $id);
         }
 

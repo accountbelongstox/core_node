@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 #
 # Linux one-click install: download dd.sh anywhere, then run. Single-file mode shows menu, downloads bootstrap, hands off.
 #   Gitee (wget):   wget -O dd.sh https://gitee.com/accountbelongstox/core_node/raw/main/dd.sh && chmod +x dd.sh && bash dd.sh
@@ -75,6 +64,7 @@ DD_HELPER_FILES=(
     "$DD_HELPER_DIR/smart_permissions.sh"
     "$DD_HELPER_DIR/dev_cache_cleanup.sh"
     "$DD_HELPER_DIR/linuxenvs_sync.sh"
+    "$COMMON_SHELLS_DIR/git_sync_common.sh"
     "$DD_HELPER_DIR/main_execution.sh"
 )
 # Menu chain: not part of the startup steps; loaded when the menu is about to show.
@@ -411,14 +401,9 @@ main() {
 
 load_dd_helpers
 
-if [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "help" ]; then
-    show_cli_help
-    exit 0
-fi
-
 if [ $# -eq 0 ]; then
     main
 else
-    handle_arguments "$@"
+    dd_dispatch_arguments "$@"
 fi
 # sudo apt update && sudo apt install dos2unix && sudo dos2unix ./dd.sh && sudo chmod +x ./dd.sh

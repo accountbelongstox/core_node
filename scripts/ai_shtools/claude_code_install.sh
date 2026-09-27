@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Canonical Claude Code install workflow (Linux). Single source of truth shared by
 # the dd.sh AI & MCP Management menu, the install_shells 171 step and every claude*
@@ -22,9 +11,11 @@
 #   2. Make claude usable by EVERY user through /usr/local/bin: symlink when the newest
 #      working binary is world-reachable, otherwise copy the self-contained binary (0755).
 #   3. claude_team_install (also called by claudeteamup/claudeagents on every run):
-#      each team item is checked and repaired on its own - python3, tmux, node,
-#      xrandr + a geometry-capable terminal on graphical sessions, the shared dir
-#      .claude/agents_shared, and each launcher link (claudeteam, claudeteamup,
+#      each team item is checked and repaired on its own - python3, tmux (distro,
+#      version reported), node, curl, ca-certificates, bubblewrap, socat; the terminal
+#      the launchers will open is reported (nothing installed); the state, shared,
+#      reports, reviews and agent-memory dirs; the catalog user_settings_merge keys
+#      (added only when absent); and each launcher link (claudeteam, claudeteamup,
 #      claudeagents + .sh aliases). CCI_CHECK_ONLY=1 reports without changing.
 # "Installed" means a claude binary that actually answers --version (dangling launcher
 # symlinks left behind by pruned native versions do not count).
@@ -46,10 +37,21 @@ CCI_TEAM_UP_SRC="$CCI_LINUXENVS_DIR/claudeteamup.sh"
 CCI_AGENTS_SRC="$CCI_LINUXENVS_DIR/claudeagents.sh"
 CCI_SHARED_DIR="$CCI_CORE_NODE_DIR/.claude/agents_shared"
 CCI_AGENT_MEMORY_DIR="$CCI_CORE_NODE_DIR/.claude/agent-memory"
+CCI_TEAM_CATALOG_PATH="$CCI_CORE_NODE_DIR/config/claude_team_roles.json"
+# Role PID files (Windows: %LOCALAPPDATA%\core_node\claude_team).
+CCI_TEAM_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/core_node/claude_team"
 # User settings of the account that runs the role sessions (root included).
 CCI_USER_SETTINGS_PATH="$HOME/.claude/settings.json"
-CCI_GEOMETRY_EMULATORS=("xfce4-terminal" "konsole" "xterm")
-CCI_EMULATOR_PACKAGE="xfce4-terminal"
+CCI_CA_BUNDLE_PATH="/etc/ssl/certs/ca-certificates.crt"
+# Distro tmux on Debian 13 (3.5a) and Ubuntu 26.04 (3.6): -l % splits, allow-passthrough
+# all, extended-keys. Older versions are reported, never replaced.
+CCI_TMUX_MIN_VERSION="3.5"
+# One maximized terminal attached to the team tmux session, detected in this order
+# (Wayland-safe flags only; nothing is installed): ptyxis (Ubuntu 26.04 default),
+# gnome-terminal, konsole, xterm, then the Kali/XFCE terminals and the Debian
+# alternative. None found or no display: headless (tmux attach in the current tty).
+CCI_TEAM_TERMINALS=("ptyxis" "gnome-terminal" "konsole" "xterm" "xfce4-terminal" "qterminal" "x-terminal-emulator")
+CCI_TEAM_TERMINAL=""
 # 1 = only report each team item ([OK]/[MISSING]); never install or link.
 CCI_CHECK_ONLY="${CCI_CHECK_ONLY:-0}"
 CCI_REAL_USER=""
@@ -378,28 +380,82 @@ cci_ensure_dir() {
     mkdir -p "$dir_path" && echo "[OK] dir created: $dir_path ($purpose)"
 }
 
-# Team prerequisites, one binary at a time: python3 (role catalog), tmux (official
-# split-pane teammates; claudeteamup/claudeagents sessions), node (git guard hook),
-# and on a graphical session xrandr (screen geometry) plus a geometry-capable terminal.
-cci_ensure_team_prereqs() {
-    local emulator=""
-    cci_ensure_binary python3 python3 "role catalog parsing"
-    cci_ensure_binary tmux tmux "agent-team split panes and role sessions"
-    cci_ensure_binary node nodejs "project hooks .claude/hooks/*.mjs"
-    cci_ensure_binary bwrap bubblewrap "official Bash sandbox (filesystem isolation)"
-    cci_ensure_binary socat socat "official Bash sandbox (network proxy relay)"
-    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-        echo "[SKIP] no graphical display: xrandr and terminal emulator not required"
+# Finest-grained idempotent unit: one file owned by a package (detected by existence).
+cci_ensure_package_file() {
+    local file_path="$1" package="$2" purpose="$3"
+    if [ -s "$file_path" ]; then
+        echo "[SKIP] $package present: $file_path ($purpose)"
         return 0
     fi
-    cci_ensure_binary xrandr x11-xserver-utils "screen geometry for window placement"
-    for emulator in "${CCI_GEOMETRY_EMULATORS[@]}"; do
-        if command -v "$emulator" >/dev/null 2>&1; then
-            echo "[SKIP] geometry-capable terminal present: $(command -v "$emulator")"
+    if [ "$CCI_CHECK_ONLY" = "1" ]; then
+        echo "[MISSING] $file_path (package $package; $purpose)"
+        return 0
+    fi
+    echo "[INSTALL] $file_path missing; installing package $package ($purpose)"
+    cci_pkg_install "$package" || true
+    if [ -s "$file_path" ]; then
+        echo "[OK] $package installed: $file_path"
+    else
+        echo "[WARN] $file_path still missing after installing $package"
+    fi
+}
+
+# Report-only: the distro tmux version against the layout's feature floor.
+cci_report_tmux_version() {
+    local version=""
+    command -v tmux >/dev/null 2>&1 || return 0
+    version="$(tmux -V 2>/dev/null)"
+    version="${version#tmux }"
+    if [ "$(printf '%s\n%s\n' "$CCI_TMUX_MIN_VERSION" "$version" | sort -V | head -n 1)" = "$CCI_TMUX_MIN_VERSION" ]; then
+        echo "[SKIP] tmux $version (>= $CCI_TMUX_MIN_VERSION: -l % grid, allow-passthrough all, extended-keys)"
+    else
+        echo "[WARN] tmux $version is older than $CCI_TMUX_MIN_VERSION (the Debian 13 / Ubuntu 26.04 distro version); missing options are skipped"
+    fi
+}
+
+# Sets CCI_TEAM_TERMINAL to the first terminal of CCI_TEAM_TERMINALS on PATH, or
+# leaves it empty (headless) when there is no graphical display or no terminal.
+cci_detect_team_terminal() {
+    local terminal=""
+    CCI_TEAM_TERMINAL=""
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        return 0
+    fi
+    for terminal in "${CCI_TEAM_TERMINALS[@]}"; do
+        if command -v "$terminal" >/dev/null 2>&1; then
+            CCI_TEAM_TERMINAL="$terminal"
             return 0
         fi
     done
-    cci_ensure_binary "$CCI_EMULATOR_PACKAGE" "$CCI_EMULATOR_PACKAGE" "positioned role windows"
+    return 0
+}
+
+# Report-only: the terminal claudeagents/claudeteamup will open (nothing installed).
+cci_report_team_terminal() {
+    cci_detect_team_terminal
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        echo "[SKIP] no graphical display: the team session attaches in the current tty (headless)"
+    elif [ -n "$CCI_TEAM_TERMINAL" ]; then
+        echo "[SKIP] team terminal: $(command -v "$CCI_TEAM_TERMINAL") (one maximized window attached to tmux; nothing installed)"
+    else
+        echo "[WARN] no supported terminal (${CCI_TEAM_TERMINALS[*]}): the team session attaches in the current tty; nothing installed"
+    fi
+}
+
+# Team prerequisites, one item at a time: python3 (catalog and agent frontmatter),
+# tmux (the team layout and ad-hoc split-pane teammates), node (project hooks),
+# curl and ca-certificates (official native installer), bubblewrap and socat
+# (official Bash sandbox), and the terminal report.
+cci_ensure_team_prereqs() {
+    cci_ensure_binary python3 python3 "role catalog and agent frontmatter parsing"
+    cci_ensure_binary tmux tmux "team layout session and ad-hoc split-pane teammates"
+    cci_report_tmux_version
+    cci_ensure_binary node nodejs "project hooks .claude/hooks/*.mjs"
+    cci_ensure_binary curl curl "official native installer download"
+    cci_ensure_package_file "$CCI_CA_BUNDLE_PATH" ca-certificates "TLS for the official native installer"
+    cci_ensure_binary bwrap bubblewrap "official Bash sandbox (filesystem isolation)"
+    cci_ensure_binary socat socat "official Bash sandbox (network proxy relay)"
+    cci_report_team_terminal
 }
 
 # Link the claudeteam, claudeteamup and claudeagents launchers (and .sh aliases) for
@@ -413,21 +469,16 @@ cci_setup_claudeteam() {
     cci_link_into_bin "$CCI_AGENTS_SRC" "claudeagents.sh"
 }
 
-# Shared team setup used by claude_code_install (dd.sh step 171) and by the
-# claudeteamup/claudeagents launchers: prerequisites, shared dir, launcher links.
-# Finest-grained idempotent unit: one key in the Claude Code user settings
-# (~/.claude/settings.json). Other keys are preserved. Mode "set" writes the value
-# when it differs; mode "warn" only reports when the key currently equals the
-# given value (settings that would block cross-machine teamwork).
+# Report-only: one Claude Code user setting that would block cross-machine teamwork
+# when it currently equals the given value.
 cci_ensure_claude_user_setting() {
-    local mode="$1" key="$2" value_json="$3" purpose="$4"
+    local key="$1" value_json="$2" purpose="$3"
     local result=""
-    result="$(python3 - "$CCI_USER_SETTINGS_PATH" "$mode" "$key" "$value_json" "$CCI_CHECK_ONLY" <<'PY'
+    result="$(python3 - "$CCI_USER_SETTINGS_PATH" "$key" "$value_json" <<'PY'
 import json
-import os
 import sys
 
-path, mode, key, value_json, check_only = sys.argv[1:6]
+path, key, value_json = sys.argv[1:4]
 value = json.loads(value_json)
 try:
     with open(path, encoding="utf-8") as handle:
@@ -437,30 +488,88 @@ except FileNotFoundError:
 except ValueError:
     print("INVALID")
     sys.exit(0)
-current = data.get(key, None)
-if mode == "warn":
-    print("CONFLICT" if current == value else "SKIP")
+if not isinstance(data, dict):
+    print("INVALID")
     sys.exit(0)
-if current == value:
-    print("SKIP")
-elif check_only == "1":
-    print("MISSING")
-else:
-    data[key] = value
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(data, handle, indent=2, ensure_ascii=False)
-        handle.write("\n")
-    print("OK")
+print("CONFLICT" if data.get(key, None) == value else "SKIP")
 PY
 )"
     case "$result" in
-        SKIP) echo "[SKIP] Claude user setting $key ($purpose)" ;;
-        OK) echo "[OK] Claude user setting $key=$value_json written to $CCI_USER_SETTINGS_PATH ($purpose)" ;;
-        MISSING) echo "[MISSING] Claude user setting $key=$value_json ($purpose)" ;;
+        SKIP) echo "[SKIP] Claude user setting $key is not $value_json ($purpose)" ;;
         CONFLICT) echo "[WARN] Claude user setting $key=$value_json in $CCI_USER_SETTINGS_PATH blocks $purpose; remove it" ;;
         *) echo "[WARN] $CCI_USER_SETTINGS_PATH is not valid JSON; $key not checked" ;;
     esac
+}
+
+# Finest-grained idempotent unit: one key of the catalog user_settings_merge block,
+# added to the Claude Code user settings (~/.claude/settings.json) only when absent.
+# A present key is never overwritten; a value that differs is reported. Other keys
+# are preserved and the file is written once, through a temp file.
+cci_merge_team_user_settings() {
+    local status=""
+    local key=""
+    local wanted=""
+    local current=""
+    local merged="0"
+    while IFS=$'\t' read -r status key wanted current; do
+        merged="1"
+        case "$status" in
+            SKIP) echo "[SKIP] Claude user setting $key=$wanted present" ;;
+            OK) echo "[OK] Claude user setting $key=$wanted added to $CCI_USER_SETTINGS_PATH" ;;
+            MISSING) echo "[MISSING] Claude user setting $key=$wanted (would be added to $CCI_USER_SETTINGS_PATH)" ;;
+            KEEP) echo "[WARN] Claude user setting $key=$current kept (never overwritten); the team expects $wanted" ;;
+            CATALOG) echo "[WARN] $CCI_TEAM_CATALOG_PATH unreadable; user_settings_merge skipped" ;;
+            *) echo "[WARN] $CCI_USER_SETTINGS_PATH is not valid JSON; user_settings_merge skipped" ;;
+        esac
+    done < <(python3 - "$CCI_TEAM_CATALOG_PATH" "$CCI_USER_SETTINGS_PATH" "$CCI_CHECK_ONLY" <<'PY'
+import json
+import os
+import sys
+
+catalog_path, settings_path, check_only = sys.argv[1:4]
+try:
+    with open(catalog_path, encoding="utf-8") as handle:
+        merge = json.load(handle).get("user_settings_merge") or {}
+except (OSError, ValueError):
+    print("CATALOG\t-\t-\t-")
+    sys.exit(0)
+try:
+    with open(settings_path, encoding="utf-8") as handle:
+        data = json.load(handle)
+except FileNotFoundError:
+    data = {}
+except ValueError:
+    print("INVALID\t-\t-\t-")
+    sys.exit(0)
+if not isinstance(data, dict):
+    print("INVALID\t-\t-\t-")
+    sys.exit(0)
+changed = False
+for key, value in merge.items():
+    wanted = json.dumps(value, ensure_ascii=False)
+    if key not in data:
+        if check_only == "1":
+            print("MISSING\t%s\t%s\t-" % (key, wanted))
+        else:
+            data[key] = value
+            changed = True
+            print("OK\t%s\t%s\t-" % (key, wanted))
+    elif data[key] == value:
+        print("SKIP\t%s\t%s\t-" % (key, wanted))
+    else:
+        print("KEEP\t%s\t%s\t%s" % (key, wanted, json.dumps(data[key], ensure_ascii=False)))
+if changed:
+    os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+    temp_path = "%s.tmp" % settings_path
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    os.replace(temp_path, settings_path)
+PY
+)
+    if [ "$merged" = "0" ]; then
+        echo "[SKIP] catalog user_settings_merge is empty"
+    fi
 }
 
 # Report-only: variables that disable Remote Control (official requirements), so
@@ -483,16 +592,22 @@ cci_check_remote_control_env() {
     fi
 }
 
-# Claude Code settings the role sessions need on every machine (local and server).
+# Claude Code settings the role sessions need on every machine (local and server):
+# the catalog user_settings_merge keys (crossSessionInbound, push notifications,
+# preferredNotifChannel), then report-only checks of what blocks Remote Control.
 cci_ensure_team_settings() {
-    cci_ensure_claude_user_setting set crossSessionInbound '"accept"' "deliver messages between role sessions, including across machines"
-    cci_ensure_claude_user_setting warn isolatePeerMachines 'true' "cross-machine SendMessage without per-message approval"
-    cci_ensure_claude_user_setting warn disableRemoteControl 'true' "Remote Control for cross-machine role sessions"
+    cci_merge_team_user_settings
+    cci_ensure_claude_user_setting isolatePeerMachines 'true' "cross-machine SendMessage without per-message approval"
+    cci_ensure_claude_user_setting disableRemoteControl 'true' "Remote Control for cross-machine role sessions"
     cci_check_remote_control_env
 }
 
+# Shared team setup used by claude_code_install (dd.sh step 171), by the
+# claudeteamup/claudeagents launchers and on the server of a remote role:
+# prerequisites, directories, user settings, launcher links.
 claude_team_install() {
     cci_ensure_team_prereqs
+    cci_ensure_dir "$CCI_TEAM_STATE_DIR" "role PID files"
     cci_ensure_dir "$CCI_SHARED_DIR" "shared data between roles"
     cci_ensure_dir "$CCI_SHARED_DIR/reports" "role handoff reports (TeammateIdle gate)"
     cci_ensure_dir "$CCI_SHARED_DIR/reviews" "reviewer verdicts (TaskCompleted gate)"
@@ -522,7 +637,7 @@ claude_code_install() {
     fi
     echo ""
 
-    print_color "[STEP 3/3] Team setup: prerequisites, shared dir, claudeteam/claudeteamup/claudeagents links" "Info"
+    print_color "[STEP 3/3] Team setup: prerequisites, directories, user settings, claudeteam/claudeteamup/claudeagents links" "Info"
     claude_team_install
     echo ""
 

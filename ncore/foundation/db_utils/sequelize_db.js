@@ -1,18 +1,5 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const { Sequelize, DataTypes, Model } = require('sequelize');
 const path = require('path');
-const { APP_METADATA_SQLITE_DIR } = require('#@global_dir');
 const fs = require('fs');
 const logger = require('#@logger');
 const { fpath } = require('#@btools');
@@ -21,9 +8,13 @@ const { syncTableStructure } = require('./sequelize-libs/sequelize_sync');
 const ExitOn = require('#@/ncore/foundation/utilities/process_on.js');
 const GlobalDBMaps = {};
 
-function getDBPathFromDBName(dbNameOrPath) {
+function getDBPathFromDBName(dbNameOrPath, sqliteDir) {
     const dbNameIsAbsolute = path.isAbsolute(dbNameOrPath);
-    const dbPath = dbNameIsAbsolute ? dbNameOrPath : path.join(APP_METADATA_SQLITE_DIR, `${dbNameOrPath}.sqlitemate`);
+    if (!dbNameIsAbsolute && !sqliteDir) {
+        logger.error(`SequelizeDB: ${dbNameOrPath} is not an absolute path and no sqliteDir was given`);
+        return null;
+    }
+    const dbPath = dbNameIsAbsolute ? dbNameOrPath : path.join(sqliteDir, `${dbNameOrPath}.sqlitemate`);
     const dbName = fpath.getBasenameWithoutExt(dbPath);
     return {
         dbPath,
@@ -37,10 +28,10 @@ async function obtainInstantiationSequelize(dbPath, dbName, debugPrint = false, 
         console.log(`SequelizeDB Connected alreadyExists:${alreadyExists.join(',')}`);
     }
     logger.debug(`Successfully create new database: ${dbName}`);
-    if (!fs.existsSync(APP_METADATA_SQLITE_DIR)) {
-        fs.mkdirSync(APP_METADATA_SQLITE_DIR, { recursive: true });
-    }
     try {
+        if (path.isAbsolute(dbPath)) {
+            fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+        }
         const sequelize = new Sequelize({
             dialect: dbDialect,
             storage: dbPath,
@@ -101,9 +92,16 @@ async function destroyDatabase(dbName) {
 }
 
 async function getDatabase(dbNameOrPath, modelDefinition, options = { printStructure: true }) {
-    const { dbPath, dbName } = getDBPathFromDBName(dbNameOrPath);
+    const resolved = getDBPathFromDBName(dbNameOrPath, options.sqliteDir);
+    if (!resolved) {
+        return null;
+    }
+    const { dbPath, dbName } = resolved;
     if (!GlobalDBMaps[dbName]) {
         const sequelize = await obtainInstantiationSequelize(dbPath, dbName);
+        if (!sequelize) {
+            return null;
+        }
         let tableModels = null;
         try {
             tableModels = await defineSequelizeModelByDefinition(sequelize, modelDefinition, options, dbName);
@@ -147,7 +145,9 @@ async function closeAllDatabases() {
         }
     }
     logger.success('All database connections closed successfully');
-    GlobalDBMaps = {};
+    for (const dbName of Object.keys(GlobalDBMaps)) {
+        delete GlobalDBMaps[dbName];
+    }
 }
 ExitOn.addShutdownHandler(closeAllDatabases);
 module.exports = {

@@ -10,6 +10,13 @@ export const CM_WHOLE_MONEY_DIGITS = 0;
 const PERCENT_FRACTION_DIGITS = 2;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const UTC_MIDNIGHT_PATTERN = /^(\d{4}-\d{2}-\d{2})[T ]00:00:00(?:\.0+)?(?:Z|[+-]00:?00)$/;
+const IDENTIFIER_SEPARATOR = /[_-]+/g;
+
+/** Readable fallback for server identifiers that have no translation yet. */
+export function cmHumanize(value: string): string {
+  const text = value.replace(IDENTIFIER_SEPARATOR, ' ').trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : value;
+}
 
 export function cmSplitList(value: string): string[] {
   return Array.from(new Set(value.split(LIST_SEPARATOR).map((item) => item.trim()).filter((item) => item !== '')));
@@ -91,10 +98,11 @@ export function cmFormatMoneyRange(
   return `${cmFormatMoney(min, currency, language, fractionDigits)} – ${cmFormatMoney(max, currency, language, fractionDigits)}`;
 }
 
-export function cmFormatNumber(value: string | number | null | undefined, language: string): string {
+export function cmFormatNumber(value: string | number | null | undefined, language: string, maxFractionDigits?: number): string {
   if (value === null || value === undefined || value === '') return '';
   const amount = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(amount) ? new Intl.NumberFormat(language).format(amount) : String(value);
+  const options = maxFractionDigits === undefined ? undefined : { maximumFractionDigits: maxFractionDigits };
+  return Number.isFinite(amount) ? new Intl.NumberFormat(language, options).format(amount) : String(value);
 }
 
 /** Locale percent from a rate: 0.1 -> "10%". */
@@ -113,9 +121,9 @@ export function cmParseDate(value: string, calendar = false): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function cmFormatDate(value: string | null | undefined, language: string): string {
+export function cmFormatDate(value: string | null | undefined, language: string, calendar = true): string {
   if (!value) return '';
-  const date = cmParseDate(value, true);
+  const date = cmParseDate(value, calendar);
   return date ? new Intl.DateTimeFormat(language, { dateStyle: 'medium' }).format(date) : value;
 }
 
@@ -123,6 +131,12 @@ export function cmFormatDateTime(value: string | null | undefined, language: str
   if (!value) return '';
   const date = cmParseDate(value);
   return date ? new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' }).format(date) : value;
+}
+
+export function cmFormatTime(value: string | null | undefined, language: string): string {
+  if (!value) return '';
+  const date = cmParseDate(value);
+  return date ? new Intl.DateTimeFormat(language, { timeStyle: 'short' }).format(date) : '';
 }
 
 export interface CmFormatters {

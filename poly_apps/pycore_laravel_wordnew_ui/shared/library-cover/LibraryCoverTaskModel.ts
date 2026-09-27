@@ -18,6 +18,22 @@ import type {
 const LIBRARY_COVER_POLL_INTERVAL_MS = 3000;
 const COVER_VERSION_PARAM = 'v';
 
+/** Library `cover_status` values (AppQyV1VocabularyCoverService::COVER_STATUSES). */
+export const LIBRARY_COVER_STATUS = {
+  pending: 'pending',
+  processing: 'processing',
+  retry: 'retry',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+/** Cover statuses still waiting for a cover (AppQyV1VocabularyLibraryModel::COVER_QUEUED_STATUSES). */
+export const LIBRARY_COVER_WAITING_STATUSES: ReadonlySet<string> = new Set([
+  LIBRARY_COVER_STATUS.pending,
+  LIBRARY_COVER_STATUS.retry,
+  LIBRARY_COVER_STATUS.processing,
+]);
+
 export type LibraryCoverPhase = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export interface LibraryCoverEntry {
@@ -82,8 +98,8 @@ function taskPhase(task: LibraryCoverTask): LibraryCoverPhase {
 }
 
 function idlePhase(coverStatus: string | null): LibraryCoverPhase {
-  if (coverStatus === 'failed') return 'failed';
-  if (coverStatus === 'ready') return 'completed';
+  if (coverStatus === LIBRARY_COVER_STATUS.failed) return 'failed';
+  if (coverStatus === LIBRARY_COVER_STATUS.ready) return 'completed';
   return 'cancelled';
 }
 
@@ -208,7 +224,7 @@ export class LibraryCoverTaskModel {
         ...this.emptyEntry(id, previous[id]),
         mode,
         phase: 'queued',
-        coverStatus: 'pending',
+        coverStatus: LIBRARY_COVER_STATUS.pending,
         coverErrorMessage: null,
         active: true,
       };

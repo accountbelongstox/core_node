@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # ===================================================================
 # ALL VARIABLES DECLARATION - MOVED TO TOP OF FILE
@@ -53,6 +42,7 @@ GITEE_HOST_REFRESH_SH="$SCRIPT_PATH/gitee_host_refresh.sh"
 GITPUT_SECURITY_COMMON="$SCRIPT_PATH/gitput_security_common.sh"
 GITPUT_REPOSITORY_STATE="$SCRIPT_PATH/gitput_repository_state.sh"
 GITPUT_SYNC_COMMON="$SCRIPT_PATH/gitput_sync_common.sh"
+GIT_SYNC_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/git_sync_common.sh"
 RUNTIME_ENVIRONMENT="$CORE_NODE_DIR/scripts/shells/linux/common/runtime_environment.sh"
 SECRET_TOOL_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/secret_tool_common.sh"
 
@@ -107,6 +97,7 @@ source "$GITEE_HOST_REFRESH_SH"
 source "$GITPUT_SECURITY_COMMON"
 source "$GITPUT_REPOSITORY_STATE"
 source "$GITPUT_SYNC_COMMON"
+source "$GIT_SYNC_COMMON"
 
 # ===================================================================
 # PARAMETER PARSING
@@ -482,6 +473,14 @@ invoke_git_operations() {
 # Main execution with error handling
 main() {
     CURRENT_BRANCH_PREVIEW=$(cd "$CORE_NODE_DIR" && get_current_branch)
+
+    # D20: one shared "origin is GitHub SSH, never Gitee" behavior, reused
+    # from scripts/shells/linux/common/git_sync_common.sh (also used by the
+    # "syncgit" quick command and dd.sh syncgit). Idempotent: no-op when
+    # origin is already correct; does not abort the push flow on failure,
+    # since each target below sets its own remote explicitly anyway.
+    (cd "$CORE_NODE_DIR" && git_sync_ensure_github_ssh_origin "$CORE_NODE_DIR")
+
     GITHUB_FORCE_PUSH_MODE="no"
     GITEE_FORCE_PUSH_MODE="yes"
     GITEE_PREFER_LOCAL_MERGE=false

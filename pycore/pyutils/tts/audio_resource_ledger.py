@@ -13,9 +13,11 @@ Laravel sends with the word, queue_center_contract ``word_identity``) and
 ``<lang>:<media_content_id(text)>`` for sentences, ``:<variant>`` appended
 for a non-primary variant; ``<lang>`` comes from the central
 ``text_parsing.normalize_language_code`` (codes, regional codes and names).
+A word with no Laravel md5 (X4: orchestration-tokenized words, word-cache
+bootstrap, local Part1 tasks) keys as ``<lang>:text:<cleaned_word>`` instead;
+pycore never recomputes a stand-in md5 from the text.
 """
 
-import hashlib
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
@@ -36,12 +38,20 @@ def resource_key(kind: str, language: Optional[str], text: str, variant: str = "
     if kind == "sentence":
         content = media_content_id(text)
     else:
-        content = str(md5 or "").strip() or hashlib.md5(
-            str(text or "").strip().lower().encode("utf-8")
-        ).hexdigest()
+        real_md5 = str(md5 or "").strip()
+        content = real_md5 or f"text:{str(text or '').strip().lower()}"
     key = f"{normalize_language_code(language)}:{content}"
     variant = str(variant or "").strip()
     return f"{key}:{variant}" if variant else key
+
+
+def word_md5(key: str) -> str:
+    """The md5 segment of a word resource key ``<lang>:<md5>[:<variant>]``, or
+    "" when the key carries no Laravel md5 (``<lang>:text:<cleaned_word>``)."""
+    parts = str(key or "").split(":")
+    if len(parts) < 2 or parts[1] == "text":
+        return ""
+    return parts[1].strip()
 
 
 class AudioResourceLedger:
@@ -79,8 +89,9 @@ class AudioResourceLedger:
 
     def record(
         self, kind: str, language: Optional[str], text: str, path: str, provider: str = "", variant: str = "",
+        md5: str = "",
     ) -> Optional[Dict[str, Any]]:
-        row = self.entry(kind, language, text, path, provider, variant)
+        row = self.entry(kind, language, text, path, provider, variant, md5)
         if row is not None:
             self.record_many([row])
         return row
@@ -114,4 +125,4 @@ class AudioResourceLedger:
 audio_resource_ledger = AudioResourceLedger()
 
 
-__all__ = ["CLIP_KINDS", "audio_resource_ledger", "resource_key"]
+__all__ = ["CLIP_KINDS", "audio_resource_ledger", "resource_key", "word_md5"]

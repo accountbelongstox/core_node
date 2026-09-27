@@ -5,7 +5,7 @@ File Synchronization Tool - Server and Client
 Provides web interface and API for file browsing and batch downloading
 Supports concurrent downloads, resume capability, and progress tracking
 
-AI SPECIAL ATTENTION RULES:
+Implementation constraints:
 - This file uses ONLY Python standard library for server functionality
 - Virtual environment is auto-initialized on first run
 - Client uses requests and tqdm (installed in venv)

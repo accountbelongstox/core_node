@@ -317,6 +317,17 @@ class CodeMartV1Constants
     public const CAPABILITY_TESTIMONIAL_CREATE = 'testimonial.create';
     public const CAPABILITY_FINANCE_WITHDRAW = 'finance.withdraw';
 
+    // Role whose activation grants a capability through a self-service path
+    // (GET /bootstrap vocabulary.capability_roles).
+    public const CAPABILITY_ROLES = [
+        self::CAPABILITY_PROJECT_CREATE => self::ROLE_CLIENT,
+        self::CAPABILITY_TASK_BROWSE => self::ROLE_DEVELOPER,
+        self::CAPABILITY_TASK_READ => self::ROLE_DEVELOPER,
+        self::CAPABILITY_FINANCE_WITHDRAW => self::ROLE_DEVELOPER,
+        self::CAPABILITY_REVIEW_READ => self::ROLE_REVIEWER,
+        self::CAPABILITY_ARCHITECT_READ => self::ROLE_ARCHITECT,
+    ];
+
     // Activity resource types (administration and public surface)
     public const RESOURCE_USER = 'user';
     public const RESOURCE_USER_ROLE = 'user_role';
@@ -564,6 +575,23 @@ class CodeMartV1Constants
         self::MILESTONE_STATUS_FAILED,
         self::MILESTONE_STATUS_CANCELLED,
     ];
+    public const PAYMENT_TERMINAL_STATUSES = [
+        self::PAYMENT_STATUS_FAILED,
+        self::PAYMENT_STATUS_CANCELLED,
+        self::PAYMENT_STATUS_REFUNDED,
+    ];
+    public const ESCROW_TERMINAL_STATUSES = [self::ESCROW_STATUS_RELEASED, self::ESCROW_STATUS_REFUNDED];
+    public const DEPOSIT_TERMINAL_STATUSES = [
+        self::DEPOSIT_STATUS_FAILED,
+        self::DEPOSIT_STATUS_REFUNDED,
+        self::DEPOSIT_STATUS_REJECTED,
+    ];
+    public const WITHDRAWAL_TERMINAL_STATUSES = [self::WITHDRAWAL_STATUS_REJECTED, self::WITHDRAWAL_STATUS_PAID];
+    public const REFUND_TERMINAL_STATUSES = [self::REFUND_STATUS_COMPLETED, self::REFUND_STATUS_REJECTED];
+    public const REVIEWER_APPLICATION_TERMINAL_STATUSES = [
+        self::REVIEWER_APPLICATION_FAILED,
+        self::REVIEWER_APPLICATION_REVOKED,
+    ];
 
     // Code review records: client decision vs. advisory reviewer review.
     public const REVIEW_KIND_CLIENT = 'client';
@@ -727,7 +755,31 @@ class CodeMartV1Constants
                     self::REFUND_STATUS_COMPLETED,
                     self::REFUND_STATUS_REJECTED,
                 ],
+                'testimonial' => [
+                    self::TESTIMONIAL_STATUS_PENDING,
+                    self::TESTIMONIAL_STATUS_APPROVED,
+                    self::TESTIMONIAL_STATUS_HIDDEN,
+                ],
+                'reviewer_application' => [
+                    self::REVIEWER_APPLICATION_IN_PROGRESS,
+                    self::REVIEWER_APPLICATION_PASSED,
+                    self::REVIEWER_APPLICATION_FAILED,
+                    self::REVIEWER_APPLICATION_REVOKED,
+                ],
             ],
+            // Per state group: states from which no further transition exists.
+            'terminal_states' => [
+                'project' => self::PROJECT_CLOSED_STATUSES,
+                'task' => self::TASK_TERMINAL_STATUSES,
+                'milestone' => self::MILESTONE_CLOSED_STATUSES,
+                'payment' => self::PAYMENT_TERMINAL_STATUSES,
+                'escrow' => self::ESCROW_TERMINAL_STATUSES,
+                'deposit' => self::DEPOSIT_TERMINAL_STATUSES,
+                'withdrawal' => self::WITHDRAWAL_TERMINAL_STATUSES,
+                'refund' => self::REFUND_TERMINAL_STATUSES,
+                'reviewer_application' => self::REVIEWER_APPLICATION_TERMINAL_STATUSES,
+            ],
+            'capability_roles' => self::CAPABILITY_ROLES,
             'roles' => self::getAllRoles(),
             'transitions' => [
                 'project' => self::PROJECT_TRANSITIONS,
@@ -757,6 +809,8 @@ class CodeMartV1Constants
                 'rating_range' => [self::MIN_RATING, self::MAX_RATING],
                 'payment_methods' => self::getAllPaymentMethods(),
                 'deposit_payment_methods' => self::DEPOSIT_PAYMENT_METHODS,
+                'withdrawal_methods' => self::WITHDRAWAL_METHODS,
+                'withdrawal_min_amount' => self::WITHDRAWAL_MIN_AMOUNT,
             ],
         ];
     }

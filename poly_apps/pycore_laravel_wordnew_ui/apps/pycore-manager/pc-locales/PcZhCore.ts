@@ -625,6 +625,13 @@ queueCenter: {
     auto: '实时刷新',
     autoOn: '开',
     autoOff: '关',
+    sectionState: {
+      running: '运行中',
+      starting: '启动中',
+      stopping: '停止中',
+      paused: '已暂停',
+      error: '错误',
+    },
     autoOnTitle: '自动刷新已开启 — Laravel 与 pycore 状态每 {{sec}} 秒刷新一次',
     autoOffTitle: '自动刷新已关闭',
     refreshActive: '刷新 Laravel 与 pycore 状态',
@@ -809,6 +816,7 @@ queueCenter: {
       lifecycle: {
         starting: '启动中',
         running: '运行中',
+        stopping: '停止中',
         configured: '已配置',
         off: '已关闭',
       },

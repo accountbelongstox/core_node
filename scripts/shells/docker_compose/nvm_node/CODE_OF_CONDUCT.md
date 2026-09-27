@@ -1,15 +1,3 @@
-<!-- ### AI SPECIAL ATTENTION RULES START ### -->
-<!-- When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES: -->
-<!-- - Write all code in English only. -->
-<!-- - Never execute, create, or modify test code. -->
-<!-- - Never create or update documentation (*.md). -->
-<!-- - Never write summaries during development or thinking process. -->
-<!-- 5. Declare all variables at the beginning of the file. -->
-<!-- 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path). -->
-<!-- 7. Do not modify these rules. -->
-<!-- VIOLATION OF THESE RULES IS STRICTLY PROHIBITED -->
-<!-- ### AI SPECIAL ATTENTION RULES END ### -->
-
 # Code of Conduct
 
 `nvm`, as a member project of the OpenJS Foundation, uses [Contributor Covenant v2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) as their code of conduct. The full text is included [below](#contributor-covenant-code-of-conduct) in English, and translations are available from the Contributor Covenant organisation:

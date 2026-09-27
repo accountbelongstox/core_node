@@ -41,6 +41,9 @@ class AudioLaneFullSync:
     LOG_PREFIX = "[AudioLaneFullSync]"
     PAGE_LIMIT = 1000
     REQUEST_TIMEOUT_SECONDS = 30
+    # Safety bound on the lane's cache-first restore wait below (R6/§5.4):
+    # loading even a large local snapshot takes seconds, not minutes.
+    RESTORE_WAIT_TIMEOUT_SECONDS = 180.0
 
     def __init__(self) -> None:
         self._running = SerializedValue(False, f"{type(self).__name__}RunningState")
@@ -105,11 +108,17 @@ class AudioLaneFullSync:
     def run_full_sync(self, base_url: str = "") -> Dict[str, Any]:
         """Run one full pull NOW (idempotent; a run in flight is reported,
         never stacked). Laravel unreachable -> the pull stops with a stable
-        error code; the cache-restored queue keeps the lane alive offline."""
+        error code; the cache-restored queue keeps the lane alive offline.
+
+        Always runs on ``start_background``'s bus task, so waiting here for
+        the lane's cache-first restore (R6/§5.4: local cache before any
+        remote access) never blocks the caller that kicked the pull off.
+        """
         if not self.enabled():
             return {"success": False, "running": False, "error": self.DISABLED_CODE, "status": self.get_status()}
         if not self._running.compare_and_set(False, True):
             return {"success": True, "running": True, "status": self.get_status()}
+        audio_queue_center.wait_for_restore(self.LANE, timeout=self.RESTORE_WAIT_TIMEOUT_SECONDS)
         audio_queue_center.note_state_change(self.LANE, "full_sync_started")
         try:
             result = self._pull_all(base_url or laravel_endpoint_manager.get_active_base_url())

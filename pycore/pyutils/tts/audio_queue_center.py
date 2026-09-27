@@ -40,7 +40,9 @@ Public API (the ONLY external surface; everything else is library-internal):
   INTERNAL persistence hooks: ``restore_from_cache(lane)`` (once per process,
   before any remote intake) and ``persist_snapshot(lane, source)`` (marks the
   lane dirty; the persister thread writes it debounced, and a final flush
-  runs at shutdown).
+  runs at shutdown). ``restore_complete(lane)`` / ``wait_for_restore(lane,
+  timeout)`` let a lane's own remote-intake starter (state-driven, no
+  polling) hold off until that lane's cache-first restore has finished.
 
 Every mutation bumps the lane revision and publishes the THREAD_BUS signal
 ``AUDIO_QUEUE_CHANGED_SIGNAL`` so the pyctl lane-state publisher can push the
@@ -51,7 +53,6 @@ upward.
 
 from __future__ import annotations
 
-import hashlib
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -81,6 +82,10 @@ AUDIO_QUEUE_OWNER_SIGNAL_PREFIX = "audio_queue_center.owner"
 _PERSIST_SIGNAL = "audio_queue_center.persist_requested"
 _PERSIST_PAUSE_SIGNAL = "audio_queue_center.persist_pause"
 _PERSIST_MIN_INTERVAL_SECONDS = 5.0
+# Per-lane restore-complete signal: set once restore_from_cache(lane) has
+# finished (whole-Queue populated from the local snapshot), so a lane's own
+# first remote pull can wait on it (R6/§5.4: cache before any remote access).
+_RESTORE_COMPLETE_SIGNAL_PREFIX = "audio_queue_center.restore_complete"
 
 # Tracker states of Part1 items (observability only).
 TRACK_QUEUED = "queued"
@@ -108,10 +113,14 @@ def build_local_task(
     source: str,
     base_url: str = "",
     extra_payload: Optional[Dict[str, Any]] = None,
+    md5: str = "",
 ) -> Optional[Dict[str, Any]]:
     """ONE builder for pycore-local lane tasks (orchestration, manual promote,
     full pull). Payload shapes match the Laravel producers so the lane
-    workers process them unchanged; ``_local_source`` skips claim/result."""
+    workers process them unchanged; ``_local_source`` skips claim/result.
+    ``md5`` is the Laravel word identity when the caller has it (X4); a
+    word without one carries ``cleaned_word`` instead and no ``md5`` key -
+    pycore never recomputes a stand-in md5 from the text."""
     lane = str(lane or "").strip()
     language = str(language or "").strip().lower()
     text = str(text or "").strip()
@@ -126,13 +135,17 @@ def build_local_task(
             "content_id": identity,
         }
     else:
-        identity = hashlib.md5(text.lower().encode("utf-8")).hexdigest()
+        real_md5 = str(md5 or "").strip()
+        cleaned_word = text.lower()
+        identity = real_md5 or f"text:{cleaned_word}"
         payload = {
             "word": text,
             "content": text,
             "language": language,
-            "md5": identity,
+            "cleaned_word": cleaned_word,
         }
+        if real_md5:
+            payload["md5"] = real_md5
     payload.update(extra_payload or {})
     task: Dict[str, Any] = {
         "task_id": f"{source}-{AUDIO_QUEUE_KIND_BY_LANE[lane]}-{language}-{identity}",
@@ -153,6 +166,10 @@ def _task_text(task: Dict[str, Any]) -> str:
 def _task_language(task: Dict[str, Any]) -> str:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     return str(payload.get("language") or "")
+
+
+def _restore_signal_name(lane: str) -> str:
+    return f"{_RESTORE_COMPLETE_SIGNAL_PREFIX}.{lane}"
 
 
 def owner_signal(lane: str, owner: str) -> str:
@@ -481,7 +498,10 @@ class AudioQueueCenter:
             meta[key] = {"text": item.get("text"), "language": item.get("language")}
             task = item.get("task")
             if not isinstance(task, dict) and local_source:
-                task = build_local_task(lane, str(item.get("language") or ""), str(item.get("text") or ""), local_source)
+                task = build_local_task(
+                    lane, str(item.get("language") or ""), str(item.get("text") or ""), local_source,
+                    md5=str(item.get("md5") or ""),
+                )
             if isinstance(task, dict):
                 tasks_by_key[key] = task
         if not keys:
@@ -742,6 +762,7 @@ class AudioQueueCenter:
             return {"success": True, "lane": lane, "restored": 0, "cached": False, "already_restored": True}
         snapshot = audio_queue_cache.load_snapshot(lane)
         if not snapshot:
+            self._signal_restore_complete(lane)
             return {"success": True, "lane": lane, "restored": 0, "cached": False}
         tasks = snapshot.get("tasks") or []
         part1_tasks = {
@@ -774,6 +795,7 @@ class AudioQueueCenter:
             f"source={snapshot.get('source')}"
         )
         self._notify(lane, "cache_restore")
+        self._signal_restore_complete(lane)
         return {
             "success": True,
             "lane": lane,
@@ -782,6 +804,23 @@ class AudioQueueCenter:
             "saved_at": snapshot.get("saved_at"),
             "source": snapshot.get("source"),
         }
+
+    @staticmethod
+    def _signal_restore_complete(lane: str) -> None:
+        THREAD_BUS.signal(_restore_signal_name(lane), True)
+
+    def restore_complete(self, lane: str) -> bool:
+        """True once ``restore_from_cache(lane)`` has finished."""
+        return bool(THREAD_BUS.has_signal(_restore_signal_name(lane)))
+
+    def wait_for_restore(self, lane: str, timeout: Optional[float] = None) -> bool:
+        """Block until this lane's cache-first restore finishes (condition-
+        driven, no polling); True once signaled, False on timeout. A caller
+        about to make this lane's first remote call waits on this so the
+        local cache always loads before any remote access (R6/§5.4). A lane
+        whose switch is OFF never restores, so callers only wait for a lane
+        they know is being (or about to be) activated."""
+        return bool(THREAD_BUS.wait_signal(_restore_signal_name(lane), timeout=timeout))
 
     @serialized_method
     def persist_snapshot(self, lane: str, source: str = "") -> None:

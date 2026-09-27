@@ -91,7 +91,7 @@ It runs from dd.sh step 171, from dd.ps1 Step21 (the ClaudeCode callback), and a
 | bubblewrap, socat | required only for the Bash sandbox (Linux/WSL2; native Windows unsupported) | installed; the sandbox stays off unless enabled |
 | python3, xrandr, a geometry-capable terminal / Windows Terminal | project launchers | installed |
 
-## 8. Roles, scopes and boundaries (22 roles)
+## 8. Roles, scopes and boundaries (23 roles)
 
 UI root: `poly_apps/pycore_laravel_wordnew_ui` (written as `UI/` below).
 
@@ -108,6 +108,7 @@ UI root: `poly_apps/pycore_laravel_wordnew_ui` (written as `UI/` below).
 | laravel-codemart | `LARAVEL_GUIDE.md` | `app/Apps/CodeMartV1/`, its router and migrations. Local |
 | laravel-api | `LARAVEL_GUIDE.md` | the APIs the UI apps call: Dashboard/Settings/Auth controllers, queue-center and task-center views, server manager, data sync, realtime, relay, media browse. Local |
 | laravel-remote | `LARAVEL_GUIDE.md` | the same `poly_apps/laravel_main/` in the laravel-main **server** checkout, over SSH (§10). Develops and tests **directly on the server** |
+| pycore-gpu-remote | `PYTHON_PYCORE.md` | test-only remote role on a Linux or Windows GPU test host (§10): runs pyservice there, tests pycore features (GPU engines, orchestration, RPC/relay, CodeSync) and reports to the team; writes no code (reports, its memory, pyservice-managed runtime settings only) |
 | shell-linux | `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` | `dd.sh`, `scripts/linuxenvs/`, `scripts/shells/{linux,common,docker_compose}/`, `scripts/ai_shtools/`, every other `*.sh`/`*.bash` under `scripts/`. Debian 13 and Ubuntu 26.04 first, Kali compatible; the Debian WSL2 side of Windows delegation |
 | shell-windows | `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` | `dd.cmd`, `scripts/winenvs/`, `scripts/shells/win/`, every other `*.ps1`/`*.psm1`/`*.psd1`/`*.cmd`/`*.bat`/`*.reg`/`*.vbs` under `scripts/` |
 | reviewer | all guides | verdict files and its own report only |
@@ -172,6 +173,12 @@ Boundaries:
   4. then runs `tmux -L claudeteam new-session -A -s ct-<role>`: attach if it exists, else create. As the official docs recommend, the remote session survives SSH drops;
   5. inside it, runs `claudeteam.sh --agent <role> --name ct-<role> --remote-control ct-<role>`.
 - **The orchestrator** is started with `--remote-control <its session name>` whenever an enabled remote role exists, in both `claudeteamup` and `claudeagents`.
-- **Server prerequisites (once, by the user):** the same codebase at `root`, kept in step by code sync, and `claude` signed in with the same claude.ai account.
+- **Server prerequisites (once, by the user):** the same codebase at `root`, and `claude` signed in with the same claude.ai account.
+- **Code distribution (user D19, 2026-09-27):** code reaches every remote host only through **pyservice CodeSync** (`docs_fix/CODESYNC_AI_COMMUNICATION_API.md`).
+  - The DEV checkout pushes signed file versions (client key K3, SHA-256 version conditions) to the host's CodeSync client (`pyservice codesync run`, or pycore with CodeSync). A change made on a remote host travels back the same way.
+  - Git is never used to move code between machines. A remote role checks arrival by file SHA-256, never by git HEAD.
+- **Remote roles:**
+  - `laravel-remote` develops and tests on the laravel-main server;
+  - `pycore-gpu-remote` is a test-only GPU host, Linux or Windows. Its catalog `remote.os` is `auto`, and it starts only when its `ssh_secret` resolves.
 - **Reports and verdicts:** the remote role sends its changed-file list, verification output and handoff report by message. The reviewer and the verdict files stay on the local machine.
 

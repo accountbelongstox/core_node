@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """Global TTS runtime profile — the startup-pinned configurator.
 
-Computed ONCE at pyservice startup (pycore_module_caller pins it before any
-service starts) and then FIXED in memory for the process lifetime:
+Computed ONCE at pyservice startup (pycore_module_caller starts the pin in a
+background thread right after the --tts-selfcheck gate, while the RPC server
+and tray bind immediately; every reader goes through the locked, idempotent
+``pin_runtime_profile()`` and waits for it) and then FIXED in memory for the
+process lifetime:
 
   * GPU present -> word single: edge (the orchestrator's cooldown/circuit
                    automatically degrades to kokoro while edge is down),
@@ -20,9 +23,9 @@ RAM/VRAM scheduling gateway (pyutils.tts.memory_gate + the launch-time VRAM
 floors in tts_service_manager) first.
 
 With ``./pyservice.sh 1 --tts-selfcheck`` the standalone batch self-check
-sweeps each local model first (load -> test -> release RAM/GPU), and the
-worker pins THIS profile right after; without the flag the profile pins
-directly at startup.
+sweeps each local model first (load -> test -> release RAM/GPU) before the
+background pin starts; without the flag the background pin starts right
+after startup, in parallel with the RPC server and tray binding.
 
 Config (environment):
   TTS_RUNTIME_PROFILE - "auto" (default: gpu when CUDA present, else cpu),

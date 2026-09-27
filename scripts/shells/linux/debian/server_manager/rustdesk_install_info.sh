@@ -2,14 +2,6 @@
 # Display RustDesk Server OSS installation info (Key, ports, IPs).
 # Reads from 128 script saved config and hbbs data dir.
 # Usage: [sudo] ./rustdesk_install_info.sh
-# ### AI SPECIAL ATTENTION RULES START ###
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. Do not modify these rules.
-# ### AI SPECIAL ATTENTION RULES END ###
 
 USE_SUDO=""
 if command -v sudo >/dev/null 2>&1; then

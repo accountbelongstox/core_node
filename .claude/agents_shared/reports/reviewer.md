@@ -83,11 +83,52 @@
 | vortex-5 (rev) | vortex | keyed local_rpc error-code lookup | approved | position-based note closed |
 | laravel-T11 | laravel | D1 public/home 500: shared additive column reconcile + unnamed-index equivalence in SafeMigrationHelper | approved | local re-check: escrow columns numeric(15,2) NOT NULL default 0, in-process GET 200, rerun diff empty; 5 non-blocking notes; server steps pending laravel-remote |
 | pycore-4 | pycore | AT-001..AT-050, X2/X6/X8, RV-001/002/006/008/009/010 | changes_requested | 53 fixed, 2 already fixed, AT-015 withdrawn, 3 valid deferrals; line-ending gate passes (0 flipped lines over 154 files); blockers below |
-| shell-windows-2 | shell-windows | D12a desktop icon organizer (token matcher, undo manifest, menu entry, real run) | changes_requested | real run and idempotency verified from the manifest and desktop listings (78 = 75 + 3 shortcuts, one manifest, none displaced, nothing deleted); 2 blockers below; SPW-001..003 pending-linux |
+| pycore-4 (r2) | pycore | r1: AT-034 path, NVIDIA_SMI_TIMEOUT_SECONDS single source, AT-025/X6/AT-008/AT-014/AT-031/AT-039 notes | approved (round 2, 16:04) | both blockers fixed. Retained audio is named from uuid op/item ids; format allow-listed wav/mp3 at the RPC entry and in _run; resolved-parent guard. The constant lives only in network_constants. Reviewed against `74e7770`, because commit f4f2234 captured the tree. EOL gate re-run: 0 flipped lines over 163 entries. Non-blocking: memory_gate._gpu_query nvidia-smi has no timeout (report overclaims); a small re-submit race before start_item |
+| shell-windows-2 | shell-windows | D12a desktop icon organizer (token matcher, undo manifest, menu entry, real run) | approved (round 2, 16:02) | both blockers fixed (UndoneAt only on 0 errors; Join-Path prefix); collision/newer-only rules and IconExtractor -LiteralPath also fixed. Re-verified read-only: one manifest (15:36:32), no displaced/undone dir, 78 shortcuts, desktops and category folders unchanged since the first run. Non-blocking: preview labels for multi-item groups. SPW-001..003 pending-linux, align task shell-linux-2 exists (TASKS.md:82) |
+| shell-linux-2 | shell-linux | D12a Linux align: SPW-001 organizer, SPW-002 undo manifest, SPW-003 menu/CLI/154 hint; root runs act as each user | approved (round 1, 17:13) | The keyword table was re-diffed against Windows: 1084 pairs, identical. Collision, placement, preview, undo and idempotency rules traced and match Windows. bash -n passes, LF, ASCII. Ledger SPW-001..003 aligned; SPW-004/005 platform-only. Non-blocking: remove still uses root rm on filed paths (:553-568); root is detected by name, so a second uid-0 account recurses (:1429/:1470); a reformatted manifest parses to 0 entries and closes (:1324-1388); GNOME launch from category folders is unverified; the keyword table is duplicated across the platforms (centralize) |
+| shell-windows-1 | shell-windows | D10/D11/D13 Windows launchers, team_gate.mjs, SPW-018..030 | changes_requested (round 1, 17:18) | Spec §1-§6 items are present. The parser reports 0 errors in 5 files, and node --check passes. Hand-recomputed layouts meet lead >= 100x30 and roles >= 60x15 at 1K/2K/4K, with every role placed once. 6 blockers, listed below. The owner's notice #4 (Linux PID name) is refuted. |
+| shell-linux-1 | shell-linux | D10/D11/D13 Linux launchers, claude_team_install, SPL-101..112 | changes_requested (round 1, 17:19) | Spec §1-§6 items are present. bash -n passes on 6 files, all LF; shellcheck is not installed. Hand-recomputed packing: 213x52 gives 4 tabs, 227x57 gives 3, 284x72 gives 2. Lead >= 100x30 and roles >= 60x15 everywhere, every enabled role is placed once, and laravel-remote runs only as its ssh-loop pane. No settings/hooks/catalog/agents edits. 7 blockers, listed below. |
+| pycore-ai-D7 | pycore-ai | PRAO-07 prompt_derive source defaults use the central ai_sources ids | approved (round 1) | inspect.signature re-run: the defaults equal AI_SOURCE_PROMPT_DERIVE and AI_SOURCE_PROMPT_REWRITE. py_compile passes, and numstat is 3/2 both plain and with EOL ignored (LF only). The literal-grep hits at :31/:45 are the CONFIG_KEY_* template keys, so they are kept correctly. Non-blocking: derive is not in OPENROUTER_ATTEMPT_SOURCES (R3; pycore-assist if the panel should list it); a sideways pyctl/ai to agent_history import (required by the item); out of scope, pyutils/common/queue_center_contract.py has working-tree EOL churn (47/15 plain against 40/8 with EOL ignored), which belongs to its owner. |
 
 ## Open blockers
-- pycore-4 (owner pycore): (1) `pycore/pyctl/tts/qwen/operation_service.py:127` (AT-034) builds the retained audio path from the RPC params `item_key` and `format`, which allows path traversal. Fix: use server-side ids or a safe name, allow-list the format, and check the resolved parent. (2) `NVIDIA_SMI_TIMEOUT_SECONDS` is declared three times (memory_gate.py:46, qwen3tts_gpu.py:12, chattts_api_server.py:59); move it into network_constants. Re-review only these two hunks plus any new churn.
-- shell-windows-2 (owner shell-windows): (1) `scripts/shells/win/win_common/DesktopIconManager.ps1:1883` Undo writes `UndoneAt` even when entries failed. After that the run can never be retried, and the default undo jumps to an older run. Fix: set `UndoneAt` only when `Errors.Count -eq 0`. (2) `DesktopIconManager.ps1:1082` builds a path by appending `'\'` to a variable. Fix: `Join-Path $Global:DESKTOP_BACKUP_DIR ''`. Re-review only these two hunks plus any new churn. For the orchestrator: create `[shell-linux] align: SPW-001/002/003` (none exists yet). The Disk Repair hunk in WindowsManagementManager.ps1 and the untracked DiskRepairManager.ps1 belong to another task and are unreviewed.
+- shell-windows-1 (owner shell-windows), round 1. Full notes are in `reviews/shell-windows-1.json`.
+  - Re-checked at 17:27 against DESIGN §3.1/§3.2 (17:24). The code is unchanged, so the verdict is still changes_requested. §3.2 supersedes my pending-linux request for the one-lead rule: Linux aligns it in SPL-110, so no align task is needed. §3.1 makes blocker 5 binding: switch to max area, column fill and lead-top.
+  1. The idle pane shell counts as running forever: `ClaudeTeamCommon.ps1:1541`, `claudeteam.ps1:161-170`, and the `--name` map, which includes the shells. SPW-023 is also mislabeled "aligned" for the idle respawn.
+  2. Only one hardcoded `session_env.lead` name is removed (`:1557-1560`).
+  3. Standalone `claudeteam --agent <role>` runs as a lead (`claudeteam.ps1:138-145`).
+  4. The `--name` scan has no current-user filter (`:44`/`:1265`).
+  5. The grid rule differs from Linux `claude_team_tab_grid`, but both ledgers say aligned.
+  6. Duplicate constants: `claudeteam.ps1:41` `$teammateMode`, and `ClaudeTeamInstallCommon.ps1:24/:38`.
+- For shell-linux: SPL-110 (`linux.md:32`) is stale, because Windows has the `--name` check. Set it to aligned; no align task is needed.
+- For the orchestrator:
+  - paste the shell-windows-1 report section without notice #4;
+  - (superseded by DESIGN §3.2) no `[shell-linux] align` task is needed for the one-lead rule.
+- shell-linux-1 (owner shell-linux), round 1. Full notes are in `reviews/shell-linux-1.json`.
+  1. No one-lead rule (`claude_team_common.sh:904-942`). Add an `other-lead` state for the lead when the other launcher's lead is live, and add it to SPL-110. This round covers it, so no separate align task is needed.
+  2. SPL-110 (`linux.md:32`) is stale pending-windows. Set it to aligned, and do not create `[shell-windows] align: SPL-110`.
+  3. The summary table has no MODEL/EFFORT columns (`:1755-1764`).
+  4. The `--name` scan does not accept `-n` (`:802-803`).
+  5. The frontmatter parser needs `utf-8-sig` (`:406`), and on a duplicate name the first should win with a WARN (`:418`).
+  6. Add the lead-top fallback. The shared rule is max area, column fill and lead-top (`:1133-1136`, `:1196-1283`), recorded in SPL-107. The orchestrator routes SPW-025 (switch to max area and column fill) to shell-windows.
+  7. The catalog path constant is duplicated (`claude_code_install.sh:40` vs `claude_team_common.sh:28`).
+  - Non-blocking:
+    - the settings.json temp-file replace resets the file mode;
+    - the plain-standalone `--teammate-mode` difference goes into SPL-104/105;
+    - the regrid should treat untagged ad-hoc teammate panes separately;
+    - hooks fire during a re-run build;
+    - the PID wait is 10 s against 60 s on Windows;
+    - the session_env '-' placeholder.
+- (closed 16:04, pycore-4 round 2 approved) pycore-4 (owner pycore): (1) `pycore/pyctl/tts/qwen/operation_service.py:127` (AT-034) builds the retained audio path from the RPC params `item_key` and `format`, which allows path traversal. Fix: use server-side ids or a safe name, allow-list the format, and check the resolved parent. (2) `NVIDIA_SMI_TIMEOUT_SECONDS` is declared three times (memory_gate.py:46, qwen3tts_gpu.py:12, chattts_api_server.py:59); move it into network_constants. Re-review only these two hunks plus any new churn.
+- (closed 16:02, shell-windows-2 approved) For the orchestrator: shell-linux-2 must cover SPW-001..003. A shell-windows follow-up is still needed to centralize the `%LOCALAPPDATA%\core_node` state base (declared 3 times) and to point CommonFunc's category link at the shared helper. The concurrent Dual Boot and Disk Repair edits (WindowsManagementManager.ps1 16:00, DiskRepairManager.ps1, DualBootReadinessManager.ps1, DiskReadinessCommon.ps1, Step2, WinScriptsInstaller.ps1) are still unreviewed and need their own task id.
+
+- (open follow-ups, non-blocking, from shell-linux-2) shell-linux:
+  - run `remove_desktop_shortcut_...` per-user deletes as the user;
+  - detect root by uid, not by name, in the organize/undo dispatch;
+  - refuse to close a manifest that parses to 0 entries.
+
+  Orchestrator:
+  - one shared desktop-category keyword data file for both shells;
+  - an optional shell-windows follow-up: its preview says "Nothing to move" while Organize recreates a missing `<Category>.lnk`.
 
 ## Cross-end mismatches
 - (resolved by ncore-7 resubmit) ncore K7 Host/Origin test is exact-match like pycore's; mcp-chrome inherits the fix through its native server.
@@ -98,7 +139,8 @@
 - (resolved) laravel-T5 honours Idempotency-Key on the wordnew replay routes.
 
 ## Watch items (check when the owning task arrives)
-- (satisfied at pycore-4, 15:4x) pycore line-ending directive: numstat is identical with and without `--ignore-space-at-eol` (only commander.py differs, by trailing spaces), and a difflib scan finds 0 unchanged lines with a flipped EOL. Keep checking on later pycore tasks.
+- (satisfied at pycore-4, 15:4x, and again at round 2, 16:04) pycore line-ending directive: numstat is identical with and without `--ignore-space-at-eol` (only commander.py differs, by trailing spaces), and a difflib scan finds 0 unchanged lines with a flipped EOL. Since commit f4f2234 captured the working tree, scan against the base `74e7770` and compare raw blob bytes. Keep checking on later pycore tasks.
+- pycore follow-up (non-blocking from pycore-4 r2): `pycore/pyutils/tts/memory_gate.py:147` `_gpu_query` should pass `timeout=NVIDIA_SMI_TIMEOUT_SECONDS`, and `_torch_cuda.py:132` uses a literal 15. Check this when pycore next touches memory_gate.
 - (done in pycore-4) X4/RV-007: pycore no longer recomputes the word md5 (a missing md5 is an error; the three transitional ledger fallbacks are the §8.0 D7 item). Cover/poster heads are keyed by the contract `realtime.head_keys` paths, with no synthetic heads.
 - (done) local_rpc_guard reads the error codes from the contract `client_key_auth.local_rpc.error_codes`.
 - (done in laravel-T7/T9) LB-033 and the CodeMart laravel hunks.

@@ -61,6 +61,7 @@ PORTAL_ERROR_DENIED = "portal_request_denied"
 PORTAL_ERROR_TIMEOUT = "portal_request_timeout"
 PORTAL_ERROR_NO_STREAM = "portal_stream_unavailable"
 PORTAL_ERROR_KEY_UNMAPPED = "portal_key_unmapped"
+PORTAL_ERROR_NOT_APPLICABLE = "portal_not_applicable"
 portal_activity_log = ActivityLog("XdgDesktopPortal")
 
 
@@ -410,6 +411,7 @@ xdg_desktop_portal = XdgDesktopPortal()
 
 __all__ = [
     "PORTAL_ERROR_AUTHORIZATION_REQUIRED",
+    "PORTAL_ERROR_NOT_APPLICABLE",
     "PORTAL_ERROR_UNAVAILABLE",
     "xdg_desktop_portal",
 ]

@@ -2,14 +2,6 @@
 # List RustDesk OSS client IDs by scanning hbbs/hbbr logs and optional data dir.
 # OSS has no Web Console or API; this is the only way to see which client IDs used the server.
 # Usage: [sudo] ./rustdesk_list_clients.sh [--since "7 days ago"] [--data-dir /path] [--no-journal] [--no-db]
-# ### AI SPECIAL ATTENTION RULES START ###
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. Do not modify these rules.
-# ### AI SPECIAL ATTENTION RULES END ###
 
 set -e
 

@@ -32,8 +32,9 @@ Mirrors: scripts/shells/linux/common/runtime_environment.sh
 ($Global:USER_DIR / $Global:GLOBAL_VAR_DIR), and laravel
 App\Providers\PathMapper::getCoreNodeDataDir().
 
-This module is imported by pygvar, so it must stay stdlib-only (no pycore
-imports) to avoid import cycles.
+This module is imported by pygvar, so it imports only the stdlib-only
+foundations (service_contract, desktop_session) to avoid import cycles.
+Path names come from config/service_contract.json#paths.
 """
 
 import os
@@ -41,10 +42,14 @@ import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-CORE_NODE_DATA_DIR_NAME = 'core_node'
-GLOBAL_VAR_DIR_NAME = 'global_var'
-WINDOWS_DATA_DRIVE_ROOT = 'D:/'
-WINDOWS_WWW_DIR_NAME = 'www'
+from pycore.pyfoundations.desktop_session import LINUX_DISTRO, LinuxDistro
+from pycore.pyfoundations.service_contract import path_value as _contract_path
+from pycore.pyfoundations.service_contract import path_values as _contract_paths
+
+CORE_NODE_DATA_DIR_NAME = _contract_path('core_node_data_dir_name')
+GLOBAL_VAR_DIR_NAME = _contract_path('global_var_dir_name')
+WINDOWS_DATA_DRIVE_ROOT = _contract_path('windows_data_drive_root')
+WINDOWS_WWW_DIR_NAME = _contract_path('www_dir_name')
 WINDOWS_WWW_BASE = str(Path(WINDOWS_DATA_DRIVE_ROOT) / WINDOWS_WWW_DIR_NAME)
 WINDOWS_CORE_NODE_DATA_DIR = str(Path(WINDOWS_WWW_BASE) / CORE_NODE_DATA_DIR_NAME)
 LEGACY_WINDOWS_PROGRAMING_DIR_NAME = 'programing'
@@ -60,18 +65,22 @@ WINDOWS_TMP_USERS_DIR = str(
     / WINDOWS_TMP_DIR_NAME
     / LEGACY_WINDOWS_USERS_DIR_NAME
 )
-LEGACY_LINUX_DATA_DIR = '/var/_core_node'
+LEGACY_LINUX_DATA_DIR = _contract_path('legacy_linux_data_dir')
+LINUX_WWW_ROOT = _contract_path('linux_www_root')
+LINUX_NTFS_NESTED_WWW_ROOT = _contract_path('linux_ntfs_nested_www_root')
+HOME_DATA_DIR_FALLBACK = _contract_path('home_data_dir_fallback')
 LEGACY_LINUX_USERS_DIR = LEGACY_LINUX_DATA_DIR + '/' + LEGACY_WINDOWS_USERS_DIR_NAME
 UNIFIED_MANAGER_DIR_NAME = 'unified_manager'
 UNIFIED_MANAGER_LAUNCHER_DIR_NAME = 'temp_scripts'
 LEGACY_LINUX_GLOBAL_VAR_DIR = LEGACY_LINUX_DATA_DIR + '/' + GLOBAL_VAR_DIR_NAME
+OS_VAR_TAG_UNKNOWN = 'UNKNOWN'
 
 
 # fstype values an NTFS volume reports under /proc/mounts: the ntfs3 kernel
 # driver, the legacy ntfs driver, and ntfs-3g (FUSE, which reports fuseblk).
 # Bind-mounts of an NTFS root (e.g. 3_setting_base.sh binding the Windows D:\
 # root at /www) report the SOURCE filesystem type, so they are covered too.
-NTFS_FSTYPES = frozenset({'ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'})
+NTFS_FSTYPES = frozenset(_contract_paths('ntfs_fs_types'))
 
 
 def _mount_source(target: str) -> Optional[Tuple[str, str, str]]:
@@ -107,9 +116,9 @@ def www_data_root_mounted() -> bool:
     gvar_common.sh::www_ntfs_root_mounted); Laravel mirrors it in
     PathMapper.php::wwwNtfsRootMounted.
     """
-    if sys.platform == 'win32' or not os.path.isdir('/www/www'):
+    if sys.platform == 'win32' or not os.path.isdir(LINUX_NTFS_NESTED_WWW_ROOT):
         return False
-    www = _mount_source('/www')
+    www = _mount_source(LINUX_WWW_ROOT)
     root = _mount_source('/')
     return bool(
         www and root
@@ -120,7 +129,11 @@ def www_data_root_mounted() -> bool:
 
 def get_linux_www_base() -> str:
     """Linux WWW base honoring the dual-boot extra level (/www/www vs /www)."""
-    return '/www/www' if www_data_root_mounted() else '/www'
+    return LINUX_NTFS_NESTED_WWW_ROOT if www_data_root_mounted() else LINUX_WWW_ROOT
+
+
+def _home_data_dir() -> Path:
+    return Path(HOME_DATA_DIR_FALLBACK).expanduser()
 
 
 def _ensure_dir(path: Path) -> Path:
@@ -158,7 +171,7 @@ def get_core_node_data_dir() -> Path:
             pass
         if candidate.is_dir() and os.access(candidate, os.W_OK):
             return candidate
-    return _ensure_dir(Path.home() / CORE_NODE_DATA_DIR_NAME)
+    return _ensure_dir(_home_data_dir())
 
 
 def get_global_var_dir() -> Path:
@@ -175,7 +188,7 @@ def get_global_var_dir() -> Path:
             return shared
     except OSError:
         pass
-    return _ensure_dir(Path.home() / CORE_NODE_DATA_DIR_NAME / GLOBAL_VAR_DIR_NAME)
+    return _ensure_dir(_home_data_dir() / GLOBAL_VAR_DIR_NAME)
 
 
 def get_unified_manager_launcher_dir() -> Path:
@@ -242,6 +255,12 @@ _SHARED_GVAR_KEYS = frozenset({
 _OS_VAR_TAG: Optional[str] = None
 
 
+def _linux_os_var_tag(distro: LinuxDistro) -> str:
+    if not distro.detected:
+        return OS_VAR_TAG_UNKNOWN
+    return '{}_{}'.format(distro.distro_id.upper(), distro.version_major or '0')
+
+
 def get_os_var_tag() -> str:
     r"""OS tag for per-OS var-center keys: DEBIAN_13, UBUNTU_26, WIN10, WIN11.
 
@@ -255,7 +274,6 @@ def get_os_var_tag() -> str:
     global _OS_VAR_TAG
     if _OS_VAR_TAG:
         return _OS_VAR_TAG
-    tag = 'UNKNOWN'
     if sys.platform == 'win32':
         try:
             build = sys.getwindowsversion().build  # type: ignore[attr-defined]
@@ -263,19 +281,7 @@ def get_os_var_tag() -> str:
         except (AttributeError, OSError):
             tag = 'WIN10'
     else:
-        try:
-            os_id = ''
-            version = '0'
-            with open('/etc/os-release', 'r', encoding='utf-8', errors='replace') as handle:
-                for line in handle:
-                    if line.startswith('ID='):
-                        os_id = line.split('=', 1)[1].strip().strip('"').upper()
-                    elif line.startswith('VERSION_ID='):
-                        version = line.split('=', 1)[1].strip().strip('"').split('.')[0]
-            if os_id:
-                tag = '{}_{}'.format(os_id, version or '0')
-        except OSError:
-            pass
+        tag = _linux_os_var_tag(LINUX_DISTRO)
     _OS_VAR_TAG = tag
     return tag
 
@@ -335,6 +341,10 @@ __all__ = [
     'LEGACY_LINUX_DATA_DIR',
     'LEGACY_LINUX_USERS_DIR',
     'LEGACY_LINUX_GLOBAL_VAR_DIR',
+    'LINUX_WWW_ROOT',
+    'LINUX_NTFS_NESTED_WWW_ROOT',
+    'HOME_DATA_DIR_FALLBACK',
+    'OS_VAR_TAG_UNKNOWN',
     'NTFS_FSTYPES',
     'www_data_root_mounted',
     'get_linux_www_base',

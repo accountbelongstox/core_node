@@ -630,6 +630,13 @@ queueCenter: {
     auto: 'Live refresh',
     autoOn: 'on',
     autoOff: 'off',
+    sectionState: {
+      running: 'running',
+      starting: 'starting',
+      stopping: 'stopping',
+      paused: 'paused',
+      error: 'error',
+    },
     autoOnTitle: 'Auto-refresh on — Laravel and pycore state refresh every {{sec}}s',
     autoOffTitle: 'Auto-refresh off',
     refreshActive: 'Refresh Laravel and pycore state',
@@ -817,6 +824,7 @@ queueCenter: {
       lifecycle: {
         starting: 'starting',
         running: 'running',
+        stopping: 'stopping',
         configured: 'configured',
         off: 'off',
       },

@@ -7,7 +7,7 @@ import contractDocument from '../../../../config/queue_center_contract.json';
 
 export type QueueCenterControlName = (typeof contractDocument.control_names)[number];
 export type QueueCenterScope = keyof typeof contractDocument.section_scopes;
-export type QueueCenterSectionLifecycle = 'off' | 'starting' | 'on' | 'error';
+export type QueueCenterSectionLifecycle = 'off' | 'starting' | 'on' | 'stopping' | 'error';
 export type PcQueueHandler = 'chrome' | 'pycore';
 export type QueueDeliveryStage = 'waiting' | 'laravel_received' | 'worker_received' | 'completed' | 'failed';
 export type QueueDeliveryVisualStage = QueueDeliveryStage
@@ -335,8 +335,8 @@ export interface QueueCenterWorkerMetrics {
   last_heartbeat: string | null;
 }
 
-/** Word-audio full-pull status (pycore `word_audio_full_sync`, word_audio section only). */
-export interface QueueCenterWordAudioFullSyncStatus {
+/** Audio-lane full-pull status (pycore word/sentence lane full sync). */
+export interface AudioLaneFullSyncStatus {
   running: boolean;
   last_sync_at: number;
   last_result: {
@@ -387,8 +387,8 @@ export interface QueueCenterSectionContract {
   worker: QueueCenterWorkerMetrics;
   toggle: QueueCenterToggleEnvelope;
   lifecycle: QueueCenterSectionLifecycle;
-  /** word_audio only: pycore full-pull status block (absent for other scopes). */
-  full_sync?: QueueCenterWordAudioFullSyncStatus | null;
+  /** Audio-lane full-pull status block; pycore sends it on the word_audio section today. */
+  full_sync?: AudioLaneFullSyncStatus | null;
   error_code: string | null;
   last_error: string | null;
   observed_at: string | null;
@@ -478,7 +478,7 @@ export interface AudioLaneState {
   queue: AudioLaneQueueView;
   worker: AudioLaneWorkerState;
   section_contract: unknown;
-  full_sync?: QueueCenterWordAudioFullSyncStatus;
+  full_sync?: AudioLaneFullSyncStatus;
 }
 
 /** Push topic `queue_center.audio_lane.changed` and RPC `ui/queue_center/audio_lane_state`. */

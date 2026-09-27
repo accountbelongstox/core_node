@@ -2,10 +2,49 @@
 
 | Task | Scope | Status |
 |---|---|---|
-| shell-windows-2 | D12a desktop icon organizer: scan, upgrade, real run, idempotency, undo | done, awaiting reviewer |
+| shell-windows-2 | D12a desktop icon organizer: scan, upgrade, real run, idempotency, undo | review round 1 fixed (2 blocking + 3 non-blocking in scope), awaiting reviewer |
 | shell-windows-3 | D12b Windows side: WSL2 + Debian 13 ensure, Docker model runner delegation, Step55/56 wiring | done, awaiting reviewer; model runs wait for shell-linux's runner |
 
 ## shell-windows-2: D12a desktop icon organizer
+
+### Review round 1: fixes (reviews/shell-windows-2.json)
+
+Blocking:
+
+1. `Undo-DesktopIconOrganization` now sets `UndoneAt` and rewrites the manifest only when `$undoResults.Errors.Count -eq 0`. Otherwise it prints each failure and "The run stays open for undo; run Undo again (elevated for the Public desktop) to retry the failed entries: <manifest>". The default undo then picks the same run again, and the explicit `-DesktopIconUndoManifest` path no longer stops at "Already undone". Entries already restored replay as no-ops.
+2. `Get-DesktopShortcutClassification`: `$baseDirectoryPrefix = Join-Path $Global:DESKTOP_BACKUP_DIR ''`. It returns `D:\.dev_win10\.desktopIcons\` on PS 5.1.19041, whether or not the input already ends in `\`. The string append is gone.
+
+Non-blocking items in this task's scope:
+
+3. Same-destination idempotency:
+   - The new `Resolve-DesktopPlanCollisions`, called at the end of `Get-DesktopOrganizationPlan`, keeps at most one differing item per `<Category>\<name>`. The newest by mtime wins, and ties go to scan order (user desktop, Public desktop, category folders). Identical items follow the winner; every other item goes to `plan.Conflicts` and stays in place.
+   - The new `Get-DesktopPlacementDecision` returns place, unchanged, duplicate, replace or conflict. A different filed shortcut is displaced only by a strictly newer one; otherwise the item is a conflict. In move mode an identical desktop duplicate goes to `state\displaced\<runId>` (recorded as displace and undoable) instead of displacing the filed copy.
+   - `Move-ShortcutsToCategory` and Preview share this function. Preview no longer lists copies and refiles that the real run skips, and it prints "Nothing to move" when the run would change nothing.
+4. `IconExtractor.ps1:114`: `Get-Item -LiteralPath $targetPath`.
+5. Parity ledger:
+   - the Chrome/Edge keep-copy rule moved from SPW-004 (platform-only) into SPW-001;
+   - SPW-001 now records the collision and newer-only rules and the shared preview decision;
+   - SPW-002 now records the "UndoneAt only on success, a rerun retries" rule;
+   - the SPW-001 request below tells shell-linux to reuse `_dsm_login_users` and `_dsm_desktop_dir`.
+
+Left for other owners or tasks (outside this task's write scope):
+
+- The `%LOCALAPPDATA%\core_node` base is declared in 3 places (`DesktopIconManager.ps1:70`, `ClaudeTeamInstallCommon.ps1:32`, `PostgresqlManager.ps1:66`) and belongs in GlobalVars.
+- `CommonFunc.ps1:2588-2594` duplicates `Set-DesktopCategoryLink` without its `.lnk` fallback, and `Create-DesktopShortcutsForPackage` still deletes same-name shortcuts.
+- Next owner for both: a follow-up shell-windows task, if the orchestrator creates it.
+
+Round 1 checks:
+
+- PS 5.1 `Parser::ParseFile`: 0 errors on DesktopIconManager.ps1, IconExtractor.ps1, WindowsManagementManager.ps1 and Step21_InstallApplications.ps1. Both changed files are still ASCII with LF endings.
+- Sandbox under scratchpad (base, state and desktop paths overridden, so the real desktop was not touched):
+  - setup: user and Public `Chrome.lnk` with different content (user newer); identical `Notepad++.lnk` on both desktops; different `7-Zip.lnk` on both (Public newer); `Postman [x].lnk`;
+  - Preview 1 matched Run 1: Postman moved; Notepad++ moved, with the Public duplicate displaced; the Public 7-Zip moved; the user Chrome copied; the user 7-Zip and Public Chrome were kept as conflicts;
+  - Preview 2, Run 2 and Run 3: "Nothing to move", 0 records, still 1 manifest;
+  - Undo with a locked `APITools\Postman [x].lnk`: 10 restored, 1 error, and `UndoneAt` stayed empty. The retry restored the remaining 3 with 0 errors and set `UndoneAt`. A third undo printed "No organizer run to undo". The final tree was the original 7 shortcuts; undone links and the copy were in `state\undone\<runId>`.
+- Real machine, rerun after the fixes (elevated session): Preview, then Organize twice (the second run captured in full, child exit 0). Each printed only `kept (same name already in APITools, identical=False): ...\DevelopmentTools\Insomnia.lnk`, "Nothing to move; the desktop is already organized." and the pinned `Window Launcher.lnk`.
+  - There is still exactly 1 manifest (`organize_20260927_153631_584.json`) and no `displaced\` dir.
+  - The category folders hold 78 `.lnk` files, and both desktops are unchanged.
+- Git: HEAD `f4f223414 CodeHeaderCleanerBak` (DevOps User, 15:57:10, 1191 files) already contains these code edits. I did not make that commit; I ran read-only git only. The ledger and report edits made after it show as working-tree changes.
 
 ### Where it lives
 
@@ -43,7 +82,7 @@
 3. Only `.lnk` was handled. `.url` (plus `steam://`, `com.epicgames.launcher://`, `uplay://`, `origin://`, `battlenet://` → Games) and `.appref-ms` are handled now.
 4. MSI-advertised and shell shortcuts (empty TargetPath) were skipped as invalid. They are movable now; only shortcuts with a missing target stay, and they are reported.
 5. A category with no `.lnk` inside ran `Remove-Item -Recurse -Force` on its folder and desktop link, which could delete `.url`, `.cmd` and `.ps1` files. That removal is gone.
-6. A same-name shortcut already in a category was deleted before the move. It is now displaced into the state dir and recorded. Equivalent Chrome/Edge copies are skipped, where they used to be recopied on every run.
+6. A same-name shortcut already in a category was deleted before the move. Now it is displaced into the state dir and recorded, but only when the incoming shortcut is newer (round 1). An identical desktop duplicate is displaced instead. Equivalent Chrome/Edge copies are skipped; they used to be recopied on every run.
 7. The category-link skip used `-like "*<Category>*"`, which skipped real shortcuts such as "Games Launcher". It is now an exact category-name match, or a target inside `.desktopIcons`.
 8. If the symlink failed (no admin or Developer Mode), shortcuts were moved with no desktop link. A `.lnk` shortcut is now the fallback.
 9. Output went only through the debug channel. Moves, unmatched, broken, pinned items and the manifest path are printed now.
@@ -111,21 +150,26 @@ First run: 5 moves, a new category folder and its desktop link.
 
 ### Changed files
 
-- `scripts/shells/win/win_common/DesktopIconManager.ps1`
-- `scripts/shells/win/win_common/IconExtractor.ps1`
+- `scripts/shells/win/win_common/DesktopIconManager.ps1` (round 1: `Undo-DesktopIconOrganization`, `Get-DesktopShortcutClassification`, `Get-DesktopShortcutInfo` (LastWriteTimeUtc), `Get-DesktopOrganizationPlan`, new `Resolve-DesktopPlanCollisions`, new `Get-DesktopPlacementDecision`, `Move-ShortcutsToCategory`, `Invoke-DesktopIconOrganization` (preview and conflict output))
+- `scripts/shells/win/win_common/IconExtractor.ps1` (round 1: `-LiteralPath` at line 114)
 - `scripts/shells/win/menu_itemshells/WindowsManagementManager.ps1` (+25 lines; the earlier Disk Repair diff there is not mine)
 - `scripts/shells/win/install_powershells/Step21_InstallApplications.ps1` (+3 lines, undo hint; the earlier Join-Path diff there is not mine)
 - `.claude/agents_shared/shell_parity/windows.md` (new)
 
 ### Parity
 
-- SPW-001, SPW-002 and SPW-003: `pending-linux`. The alignment requests are below; the orchestrator should raise `[shell-linux] align: SPW-001/002/003 desktop icon organizer + undo + menu`.
-- SPW-004 and SPW-005: `platform-only`. See the ledger `.claude/agents_shared/shell_parity/windows.md`.
+- SPW-001, SPW-002 and SPW-003: `pending-linux`. No align task exists yet. The orchestrator must create `[shell-linux] align: SPW-001/002/003 desktop icon organizer + undo manifest + dd.sh menu entry` (the reviewer requires it for the pending rows).
+- SPW-004 and SPW-005: `platform-only`. See the ledger `.claude/agents_shared/shell_parity/windows.md`. SPW-004 no longer contains the Chrome/Edge keep-copy rule; that rule is in SPW-001.
 
 Alignment request for shell-linux (task shell-windows-2):
 
-- SPW-001: add a desktop organizer for the real login user's XDG Desktop dir (`xdg-user-dir DESKTOP`).
+- SPW-001: add a desktop organizer for each real login user's Desktop dir.
+  - Reuse `_dsm_login_users` and `_dsm_desktop_dir` from `scripts/shells/linux/common/desktop_shortcut_manager.sh` for user and Desktop discovery (they parse `user-dirs.dirs` literally, so root does not expand `$HOME` wrongly). Do not add a second discovery path. When run as root, pick the users through `_dsm_for_desktops`-style iteration.
   - What moves: only regular `*.desktop` launcher files. Never other files, folders or symlinks.
+  - Keep-copy rule (same as Windows): browser launchers whose Name has a `chrome` or `edge` token (for example Google Chrome, Chrome Beta or Microsoft Edge; Chromium has no `chrome` token, so it is moved) are copied into Browsers and stay on the Desktop. An identical copy already in Browsers means no change.
+  - Same destination: plan at most one differing launcher per `<Category>/<file>`. The newest mtime wins; ties go to scan order (then category folders). Launchers identical to the winner follow it; the rest are reported as conflicts and stay put.
+  - Existing different file at the destination: displace it into the state dir only when the incoming launcher is strictly newer (mtime); otherwise report a conflict. An identical Desktop duplicate (move mode) goes to the state dir as a `displace` entry.
+  - Preview must run the same placement decision as the real run and print "nothing to move" when the run would change nothing.
   - Where: `<base>/<Category>/`, with base `${CORE_NODE_DESKTOP_ICONS_DIR:-$HOME/.local/share/core_node/desktopIcons}`. Put one launcher (or symlink) per category folder on the Desktop.
   - Category names: the same as Windows (NetworkAccelerators, APITools, DevelopmentTools, TextEditors, DesignTools, MediaTools, OfficeTools, SocialMedia, CompressionTools, DatabaseTools, Browsers, Games, SecurityTools, SystemTools, DownloadTools, Education, Finance, Shopping, NetworkTools, AICLITools).
   - Keywords: the same lists. Keep them as one shared data file if you prefer; tell shell-windows so both sides read it.
@@ -137,7 +181,7 @@ Alignment request for shell-linux (task shell-windows-2):
   - Refile a filed launcher only when nothing supports its current folder, and never onto an existing name.
   - Never delete. A replaced same-name launcher moves to the state dir. A second run changes nothing.
   - Targets: Debian 13, Ubuntu 26.04, Kali. Run as the user; when running as root, chown to that user and keep `gio set metadata::trusted` on moved launchers.
-- SPW-002: undo manifest with the same JSON shape as Windows: `RunId, CreatedAt, BaseDirectory, UndoneAt, Entries[Action mkdir/link/move/copy/displace, Source, Destination, Category, Reason, Time]`. Store it at `${XDG_STATE_HOME:-$HOME/.local/state}/core_node/desktop_icons/manifests/organize_<runId>.json`. Write one only when something changed. Undo replays the newest run not yet undone, in reverse, and never overwrites. Undone copies and links go to `state/undone/<runId>`. Remove only the empty folders the run created. Set `UndoneAt` when done.
+- SPW-002: undo manifest with the same JSON shape as Windows: `RunId, CreatedAt, BaseDirectory, UndoneAt, Entries[Action mkdir/link/move/copy/displace, Source, Destination, Category, Reason, Time]`. Store it at `${XDG_STATE_HOME:-$HOME/.local/state}/core_node/desktop_icons/manifests/organize_<runId>.json`. Write one only when something changed. Undo replays the newest run not yet undone, in reverse, and never overwrites. Undone copies and links go to `state/undone/<runId>`. Remove only the empty folders the run created. Set `UndoneAt` only when no entry failed. On failure, print the failures and keep the run open so that a rerun retries them; replayed entries must be no-ops (a move only when the destination exists and the source is free, a copy or link only when present, and rmdir only when empty).
 - SPW-003: a dd.sh menu entry, "Organize Desktop Icons", with organize, preview and undo, beside the 154 desktop icon repair. Add a direct CLI (for example `desktop_icon_organizer.sh organize|preview|undo`). Print the undo hint after any install step that runs the organizer.
 
 Blockers: none. Next owner: reviewer (shell-windows-2 review), then shell-linux (SPW-001..003 alignment).

@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY FORBIDDEN
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Windows Management Menu
@@ -29,6 +17,7 @@ $script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\rep
 $script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
 $script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
 $script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager.ps1"
+$script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
 $script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
 
@@ -64,6 +53,14 @@ function Write-ColorMessage {
     }
     
     Write-Host "$prefix$Message" -ForegroundColor $color
+}
+
+function Invoke-ConsoleScript {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ScriptPath
+    )
+
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $ScriptPath)) -NoNewWindow -Wait
 }
 
 function Show-WindowsSystemInfoHeader {
@@ -206,7 +203,16 @@ function Show-WindowsManagementSubMenu {
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $script:DISK_REPAIR_SCRIPT)) -NoNewWindow -Wait
+                Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT
+            }
+        },
+        @{
+            Text = "Linux Dual Boot Readiness (Fast Startup)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT
             }
         },
         @{

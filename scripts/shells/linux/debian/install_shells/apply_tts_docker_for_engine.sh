@@ -1,20 +1,18 @@
 #!/bin/bash
-# apply_tts_docker_for_engine.sh <engine> <staging_dir>
-# Unnumbered entry point (same role as ensure_docker_for_tts.sh): converges one
-# engine's compose service from any caller - the linux model installers' docker
-# branch, or the Windows WSL bridge via wsl.exe --exec with translated paths.
+# apply_tts_docker_for_engine.sh <engine> [staging_dir]
+# Thin wrapper: docker_model_runner.sh ensure, then up, for one engine. Each
+# runner call prints its own RESULT line; the exit status only signals success.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
-
+RUNNER="$SCRIPT_DIR/docker_model_runner.sh"
 ENGINE="${1:-}"
 STAGING="${2:-}"
-if [[ -z "$ENGINE" || -z "$STAGING" ]]; then
-    echo "[apply-tts-docker] usage: apply_tts_docker_for_engine.sh <engine> <staging_dir>" >&2
+
+if [[ -z "$ENGINE" ]]; then
+    echo "[apply-tts-docker] usage: apply_tts_docker_for_engine.sh <engine> [staging_dir]" >&2
     exit 1
 fi
-
-# shellcheck source=../common/tts_docker_compose_common.sh
-. "$COMMON_DIR/tts_docker_compose_common.sh"
-tts_docker_apply_engine "$ENGINE" "$STAGING"
+bash "$RUNNER" ensure "$ENGINE" "$STAGING" || exit 1
+bash "$RUNNER" up "$ENGINE" "$STAGING" || exit 1
+exit 0

@@ -8,6 +8,7 @@ export {
 } from '../../../core/integrations/pycore';
 export type { PycoreAccess } from '../../../core/integrations/pycore';
 export {
+  isVortexPycorePanelServed,
   VORTEX_PYCORE_EVENT_TOPICS,
   VORTEX_PYCORE_HTTP_ROUTES,
 } from './VortexPycoreContract';

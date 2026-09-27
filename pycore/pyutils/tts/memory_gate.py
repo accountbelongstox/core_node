@@ -148,6 +148,7 @@ def _gpu_query() -> Optional[List[Tuple[int, int, int]]]:
             [smi, "--query-gpu=utilization.gpu,memory.free,memory.total",
              "--format=csv,noheader,nounits"],
             info=False,
+            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
         )
         if result.return_code != 0:
             return None

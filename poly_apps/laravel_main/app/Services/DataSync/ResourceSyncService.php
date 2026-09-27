@@ -10,7 +10,9 @@ final class ResourceSyncService
 {
     public const CHUNK_BYTES = 4 * 1024 * 1024;
     public const BATCH_MAX_FILES = 200;
+    public const ARCHIVE_MAX_FILES = 100000;
     private const HASH_CACHE_SUBDIR = 'data-sync/manifest-cache';
+    private const ARCHIVE_STAGING_SUFFIX = '.extract';
 
     public function __construct(private readonly DataSyncArtifactStore $artifacts) {}
 
@@ -256,6 +258,8 @@ final class ResourceSyncService
      * restarting at offset 0. With $deferExtraction the final chunk only
      * stores the bytes and reports `extracting`; completeArchive() then runs
      * in the owner's timer tick.
+     *
+     * @param array<string, string>|null $manifest planned relative path => SHA-256
      */
     public function receiveArchiveChunk(
         string $jobId,
@@ -264,7 +268,8 @@ final class ResourceSyncService
         string $content,
         string $expectedHash,
         bool $final,
-        bool $deferExtraction = false
+        bool $deferExtraction = false,
+        ?array $manifest = null
     ): array {
         $this->root($key);
         $archivePath = $this->artifacts->incomingPath($jobId, "archives/{$key}.7z.part");
@@ -278,6 +283,7 @@ final class ResourceSyncService
                 'complete' => true,
                 'already_present' => true,
                 'files' => (int) ($receipt['files'] ?? 0),
+                'skipped' => (array) ($receipt['skipped'] ?? []),
             ];
         }
         $writeResult = FileSystemManager::writeFileSegment($archivePath, $content, $offset);
@@ -289,33 +295,67 @@ final class ResourceSyncService
             return array_merge($writeResult, ['complete' => false, 'extracting' => true]);
         }
 
-        return array_merge($writeResult, $this->completeArchive($jobId, $key, $expectedHash));
+        return array_merge($writeResult, $this->completeArchive($jobId, $key, $expectedHash, $manifest));
     }
 
     /**
-     * Verifies and extracts a fully received archive, then records the
-     * completion receipt. Idempotent through that receipt.
+     * Verifies a fully received archive and extracts it into the session's
+     * incoming directory. Each extracted file whose SHA-256 matches the plan
+     * manifest (relative path => SHA-256) moves into the live root; any
+     * other file, and every planned file the archive lacks, is skipped and
+     * reported. Without a manifest (a peer that sends none) every extracted
+     * file moves. Idempotent through the completion receipt.
+     *
+     * @param array<string, string>|null $manifest
      */
-    public function completeArchive(string $jobId, string $key, string $expectedHash): array
+    public function completeArchive(string $jobId, string $key, string $expectedHash, ?array $manifest = null): array
     {
         $archivePath = $this->artifacts->incomingPath($jobId, "archives/{$key}.7z.part");
+        $stagingPath = $this->artifacts->incomingPath($jobId, "archives/{$key}" . self::ARCHIVE_STAGING_SUFFIX);
         $receipt = $this->archiveReceipt($jobId, $key, $expectedHash);
         $archiveSize = 0;
         $files = 0;
+        $skipped = [];
+        $staged = [];
 
         if ($receipt !== null) {
-            return ['complete' => true, 'already_present' => true, 'files' => (int) ($receipt['files'] ?? 0)];
+            return [
+                'complete' => true,
+                'already_present' => true,
+                'files' => (int) ($receipt['files'] ?? 0),
+                'skipped' => (array) ($receipt['skipped'] ?? []),
+            ];
         }
         if (FileSystemManager::hashFile($archivePath) !== $expectedHash) {
             FileSystemManager::delete($archivePath);
             throw new DataSyncHashMismatchException("{$key}.7z");
         }
         $archiveSize = (int) FileSystemManager::filesize($archivePath);
-        $files = SystemArchiveManager::extract7z($archivePath, $this->root($key));
-        $this->artifacts->put($jobId, $this->archiveReceiptName($key, $expectedHash), ['size' => $archiveSize, 'files' => $files]);
+        FileSystemManager::delete($stagingPath);
+        SystemArchiveManager::extract7z($archivePath, $stagingPath);
+        $staged = FileSystemManager::fileManifest($stagingPath);
+
+        foreach ($staged as $relativePath => $metadata) {
+            $relativePath = (string) $relativePath;
+            $expected = $manifest === null ? $metadata['sha256'] : ($manifest[$relativePath] ?? null);
+            if (!is_string($expected) || !hash_equals($expected, (string) $metadata['sha256'])) {
+                $skipped[] = $relativePath;
+                continue;
+            }
+            $stagedPath = $stagingPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
+            if (!FileSystemManager::moveFile($stagedPath, $this->sourceFilePath($key, $relativePath))) {
+                throw new \RuntimeException(__('data_sync.resource_move_failed', ['path' => "{$key}/{$relativePath}"]));
+            }
+            $files++;
+        }
+        foreach (array_keys(array_diff_key($manifest ?? [], $staged)) as $relativePath) {
+            $skipped[] = (string) $relativePath;
+        }
+        $this->artifacts->put($jobId, $this->archiveReceiptName($key, $expectedHash), ['size' => $archiveSize, 'files' => $files, 'skipped' => $skipped]);
+        FileSystemManager::delete($stagingPath);
         FileSystemManager::delete($archivePath);
 
-        return ['complete' => true, 'already_present' => false, 'files' => $files];
+        return ['complete' => true, 'already_present' => false, 'files' => $files, 'skipped' => $skipped];
     }
 
     private function archiveReceipt(string $jobId, string $key, string $expectedHash): ?array

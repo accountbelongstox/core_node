@@ -1,90 +1,122 @@
 #!/bin/bash
 # Refresh Desktop Icons and Caches
-# This script clears icon and desktop caches to force refresh
+# This script clears icon and desktop caches to force refresh.
+#   refresh_desktop_icons.sh                                 refresh the caches
+#   refresh_desktop_icons.sh organize|preview|undo [manifest] run the desktop organizer
+#                                                            (desktop_shortcut_manager.sh), then
+#                                                            refresh the caches after organize/undo
 
-echo "=== Refreshing Desktop Icons and Caches ==="
-echo ""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DESKTOP_SHORTCUT_MANAGER="$SCRIPT_DIR/common/desktop_shortcut_manager.sh"
+ORGANIZER_ACTION="${1:-}"
+ORGANIZER_MANIFEST="${2:-}"
+DESKTOP_USER="${SUDO_USER:-${USER:-$(id -un)}}"
+DESKTOP_HOME=""
+PRIVILEGE_PREFIX=""
 
-# Detect desktop user
-DESKTOP_USER="${SUDO_USER:-$USER}"
-DESKTOP_HOME="$(getent passwd "$DESKTOP_USER" 2>/dev/null | cut -d: -f6)"
-if [[ -z "$DESKTOP_HOME" ]] || [[ ! -d "$DESKTOP_HOME" ]]; then
-    DESKTOP_HOME="$HOME"
-fi
+source "$DESKTOP_SHORTCUT_MANAGER"
+PRIVILEGE_PREFIX="$(_dsm_sudo)"
 
-echo "Desktop user: $DESKTOP_USER"
-echo "Desktop home: $DESKTOP_HOME"
-echo ""
+refresh_desktop_caches() {
+    local icon_theme=""
 
-# Update desktop database
-echo ">>> Updating desktop databases..."
-if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database "$DESKTOP_HOME/.local/share/applications" 2>/dev/null
-    sudo update-desktop-database /usr/share/applications 2>/dev/null
-    echo "  Desktop database updated"
-else
-    echo "  update-desktop-database not found"
-fi
+    echo "=== Refreshing Desktop Icons and Caches ==="
+    echo ""
 
-# Clear GTK icon cache
-echo ">>> Clearing GTK icon caches..."
-if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    # System icon themes
-    for icon_theme in /usr/share/icons/hicolor /usr/share/icons/Yaru /usr/share/icons/gnome; do
-        if [[ -d "$icon_theme" ]]; then
-            echo "  - Updating $icon_theme..."
-            sudo gtk-update-icon-cache -f -t "$icon_theme" 2>/dev/null
-        fi
-    done
+    # Detect desktop user
+    DESKTOP_HOME="$(getent passwd "$DESKTOP_USER" 2>/dev/null | cut -d: -f6)"
+    if [[ -z "$DESKTOP_HOME" ]] || [[ ! -d "$DESKTOP_HOME" ]]; then
+        DESKTOP_HOME="$HOME"
+    fi
 
-    # User icon themes
-    if [[ -d "$DESKTOP_HOME/.local/share/icons" ]]; then
-        for icon_theme in "$DESKTOP_HOME/.local/share/icons"/*; do
+    echo "Desktop user: $DESKTOP_USER"
+    echo "Desktop home: $DESKTOP_HOME"
+    echo ""
+
+    # Update desktop database
+    echo ">>> Updating desktop databases..."
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$DESKTOP_HOME/.local/share/applications" 2>/dev/null
+        $PRIVILEGE_PREFIX update-desktop-database /usr/share/applications 2>/dev/null
+        echo "  Desktop database updated"
+    else
+        echo "  update-desktop-database not found"
+    fi
+
+    # Clear GTK icon cache
+    echo ">>> Clearing GTK icon caches..."
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        # System icon themes
+        for icon_theme in /usr/share/icons/hicolor /usr/share/icons/Yaru /usr/share/icons/gnome; do
             if [[ -d "$icon_theme" ]]; then
-                echo "  - Updating $(basename "$icon_theme")..."
-                gtk-update-icon-cache -f -t "$icon_theme" 2>/dev/null
+                echo "  - Updating $icon_theme..."
+                $PRIVILEGE_PREFIX gtk-update-icon-cache -f -t "$icon_theme" 2>/dev/null
             fi
         done
+
+        # User icon themes
+        if [[ -d "$DESKTOP_HOME/.local/share/icons" ]]; then
+            for icon_theme in "$DESKTOP_HOME/.local/share/icons"/*; do
+                if [[ -d "$icon_theme" ]]; then
+                    echo "  - Updating $(basename "$icon_theme")..."
+                    gtk-update-icon-cache -f -t "$icon_theme" 2>/dev/null
+                fi
+            done
+        fi
+        echo "  Icon cache updated"
+    else
+        echo "  gtk-update-icon-cache not found"
     fi
-    echo "  Icon cache updated"
-else
-    echo "  gtk-update-icon-cache not found"
-fi
 
-# Update MIME database
-echo ">>> Updating MIME database..."
-if command -v update-mime-database >/dev/null 2>&1; then
-    update-mime-database "$DESKTOP_HOME/.local/share/applications" 2>/dev/null
-    echo "  MIME database updated"
-else
-    echo "  update-mime-database not found"
-fi
+    # Update MIME database
+    echo ">>> Updating MIME database..."
+    if command -v update-mime-database >/dev/null 2>&1; then
+        update-mime-database "$DESKTOP_HOME/.local/share/applications" 2>/dev/null
+        echo "  MIME database updated"
+    else
+        echo "  update-mime-database not found"
+    fi
 
-# Check desktop environment and provide instructions
-echo ""
-echo ">>> Desktop Environment Detection"
-if pgrep -x gnome-shell >/dev/null 2>&1; then
-    echo "  GNOME Shell detected"
+    # Check desktop environment and provide instructions
     echo ""
-    echo "To apply changes immediately:"
-    echo "  1. Press Alt+F2"
-    echo "  2. Type 'r' and press Enter"
-    echo "  3. Or log out and log back in"
-elif pgrep -x plasmashell >/dev/null 2>&1; then
-    echo "  KDE Plasma detected"
-    echo ""
-    echo "To apply changes immediately:"
-    echo "  - Right-click desktop > Refresh Desktop"
-    echo "  - Or restart plasmashell: killall plasmashell && plasmashell &"
-elif pgrep -x xfce4-panel >/dev/null 2>&1; then
-    echo "  XFCE detected"
-    echo ""
-    echo "To apply changes:"
-    echo "  - Log out and log back in"
-else
-    echo "  Unknown desktop environment"
-    echo "  - Try logging out and logging back in"
-fi
+    echo ">>> Desktop Environment Detection"
+    if pgrep -x gnome-shell >/dev/null 2>&1; then
+        echo "  GNOME Shell detected"
+        echo ""
+        echo "To apply changes immediately:"
+        echo "  1. Press Alt+F2"
+        echo "  2. Type 'r' and press Enter"
+        echo "  3. Or log out and log back in"
+    elif pgrep -x plasmashell >/dev/null 2>&1; then
+        echo "  KDE Plasma detected"
+        echo ""
+        echo "To apply changes immediately:"
+        echo "  - Right-click desktop > Refresh Desktop"
+        echo "  - Or restart plasmashell: killall plasmashell && plasmashell &"
+    elif pgrep -x xfce4-panel >/dev/null 2>&1; then
+        echo "  XFCE detected"
+        echo ""
+        echo "To apply changes:"
+        echo "  - Log out and log back in"
+    else
+        echo "  Unknown desktop environment"
+        echo "  - Try logging out and logging back in"
+    fi
 
-echo ""
-echo "=== Cache refresh completed ==="
+    echo ""
+    echo "=== Cache refresh completed ==="
+}
+
+case "$ORGANIZER_ACTION" in
+    "")
+        refresh_desktop_caches
+        ;;
+    organize|undo)
+        organize_desktop_icons_from_desktop_shortcut_manager "$ORGANIZER_ACTION" "$ORGANIZER_MANIFEST"
+        echo ""
+        refresh_desktop_caches
+        ;;
+    *)
+        organize_desktop_icons_from_desktop_shortcut_manager "$ORGANIZER_ACTION" "$ORGANIZER_MANIFEST"
+        ;;
+esac

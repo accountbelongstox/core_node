@@ -9,4 +9,4 @@ Some tracked files in scripts/ are CRLF while most .sh/.ps1 are LF. A Python `op
 
 **Why:** happened on scripts/git/gitput_unified_modules/encryption.py (171 CRLF lines) during the IS-010 fix; caught only by `git diff --stat`.
 
-**How to apply:** before a scripted edit, check `grep -c $'\r' <file>`; use `open(p, newline='')` and write back with the same ending, or use the Edit tool. After a batch of edits, compare CR counts of `git show HEAD:<f>` vs the working file.
+**How to apply:** before a scripted edit, count CRs with `tr -cd '\r' < <file> | wc -c` (in the Bash tool, `grep -c $'\r$'` reported every line of an LF file as CRLF on 2026-09-27, so do not trust it); use `open(p, newline='')` and write back with the same ending, or use the Edit tool. After a batch of edits, compare CR counts of `git show HEAD:<f>` vs the working file. PowerShell 5.1 reads BOM-less `.ps1` as ANSI, so also check `LC_ALL=C tr -d '\000-\177' < <file> | wc -c` is 0.

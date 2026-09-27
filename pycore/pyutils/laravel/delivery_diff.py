@@ -27,32 +27,44 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.http_progress_upload import HttpTransferProgress
-from pycore.pyutils.common.queue_center_contract import http_transfer_contract
+from pycore.pyutils.common.queue_center_contract import (
+    QUEUE_CENTER_DELIVERY,
+    http_transfer_contract,
+)
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
 from pycore.pyutils.common.client_key_auth import get_pycore_machine_id
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 
 
-DELIVERY_INFO_PATH = "/api/app_qy_v1/delivery/info"
-DELIVERY_DIFF_PATH = "/api/app_qy_v1/delivery/diff"
-DELIVERY_BATCH_PATH = "/api/app_qy_v1/delivery/batch"
+# W7 contract values (config/queue_center_contract.json #delivery); this
+# module used to keep its own copy of every one of them.
+_DELIVERY_ROUTES = QUEUE_CENTER_DELIVERY["routes"]
+_DELIVERY_ERROR_CODES = QUEUE_CENTER_DELIVERY["error_codes"]
+_DELIVERY_BATCH_LIMITS = QUEUE_CENTER_DELIVERY["batch_limits"]
+DELIVERY_INFO_PATH = str(_DELIVERY_ROUTES["info"])
+DELIVERY_DIFF_PATH = str(_DELIVERY_ROUTES["diff"])
+DELIVERY_BATCH_PATH = str(_DELIVERY_ROUTES["batch"])
 DIFF_KIND_WORD_AUDIO = "word_audio"
 DIFF_KIND_SENTENCE_AUDIO = "sentence_audio"
 DIFF_KIND_ORCH_OUTPUT = "orch_output"
 DIFF_KIND_ARTICLE = "article"
-NEED_MISSING = "missing"
-NEED_STALE = "stale"
-BATCH_STATE_AWAITING_CONTENT = "awaiting_content"
-BATCH_STATE_DONE = "done"
-BATCH_STORED_STATUSES = ("stored", "exists")
-BATCH_TERMINAL_REJECTIONS = ("no_target", "invalid")
-ERROR_BATCH_NOT_FOUND = "DELIVERY_BATCH_NOT_FOUND"
-ERROR_BATCH_CONTENT_MISMATCH = "DELIVERY_BATCH_CONTENT_MISMATCH"
-# Contract defaults when delivery/info omits a limit.
-DEFAULT_DIFF_LIMITS = {DIFF_KIND_ORCH_OUTPUT: 500, DIFF_KIND_ARTICLE: 500}
-DEFAULT_DIFF_LIMIT = 5000
-DEFAULT_BATCH_LIMITS = {"items": 500, "item_bytes": 2 * 1024 * 1024, "total_bytes": 32 * 1024 * 1024}
-BATCH_MIN_ITEM_BYTES = 100
+NEED_MISSING = str(QUEUE_CENTER_DELIVERY["diff_reasons"]["missing"])
+NEED_STALE = str(QUEUE_CENTER_DELIVERY["diff_reasons"]["stale"])
+BATCH_STATE_AWAITING_CONTENT = str(QUEUE_CENTER_DELIVERY["batch_states"]["awaiting_content"])
+BATCH_STATE_DONE = str(QUEUE_CENTER_DELIVERY["batch_states"]["done"])
+BATCH_STORED_STATUSES = tuple(QUEUE_CENTER_DELIVERY["batch_stored_statuses"])
+BATCH_TERMINAL_REJECTIONS = tuple(QUEUE_CENTER_DELIVERY["batch_terminal_rejections"])
+ERROR_BATCH_NOT_FOUND = str(_DELIVERY_ERROR_CODES["batch_not_found"])
+ERROR_BATCH_CONTENT_MISMATCH = str(_DELIVERY_ERROR_CODES["batch_content_mismatch"])
+# Fallback limits used before delivery/info answers, or when it omits one.
+DEFAULT_DIFF_LIMITS = {
+    str(kind): int(limit) for kind, limit in QUEUE_CENTER_DELIVERY["diff_item_limits"].items()
+}
+DEFAULT_DIFF_LIMIT = int(QUEUE_CENTER_DELIVERY["diff_item_limit_default"])
+DEFAULT_BATCH_LIMITS = {
+    key: int(_DELIVERY_BATCH_LIMITS[key]) for key in ("items", "item_bytes", "total_bytes")
+}
+BATCH_MIN_ITEM_BYTES = int(_DELIVERY_BATCH_LIMITS["min_item_bytes"])
 BATCH_MANIFEST_ATTEMPTS = 2
 INFO_TTL_SECONDS = 600.0
 INFO_SIGNAL_PREFIX = "laravel.delivery.info"

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import {
+  bridgeRelayDeviceEvent,
   connectPycoreHttp,
   pycoreApi,
   pycoreEventBus,
@@ -321,7 +322,8 @@ function startAgentHistoryRuntime(): void {
       },
     ),
     // Config changed on any surface (tray, another tab, API): the event
-    // carries the authoritative user-facing keys, applied without a refetch.
+    // carries the authoritative user-facing keys, applied without a refetch;
+    // relay mode delivers the same event through the Laravel relay hub.
     pycoreEventBus.subscribe(
       PYCORE_EVENT_TOPICS.agentHistoryConfigChanged,
       (payload: any) => {
@@ -335,6 +337,7 @@ function startAgentHistoryRuntime(): void {
         });
       },
     ),
+    bridgeRelayDeviceEvent('agent_history_config_changed', PYCORE_EVENT_TOPICS.agentHistoryConfigChanged),
     pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => {
       void refreshAgentHistoryRuntime();
     }),

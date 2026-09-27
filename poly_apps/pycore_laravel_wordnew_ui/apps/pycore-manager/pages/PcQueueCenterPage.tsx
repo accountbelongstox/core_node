@@ -88,15 +88,15 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
   const Icon = def.Icon;
   const stateLabel = (() => {
     if (!toggle) return '';
-    if (toggle.gracefulStop) return 'stopping';
-    if (toggle.pausedByUser) return 'paused';
+    if (toggle.gracefulStop || toggle.lifecycle === 'stopping') return t('queueCenter.sectionState.stopping');
+    if (toggle.pausedByUser) return t('queueCenter.sectionState.paused');
     switch (toggle.lifecycle) {
       case 'on':
-        return 'running';
+        return t('queueCenter.sectionState.running');
       case 'starting':
-        return 'starting';
+        return t('queueCenter.sectionState.starting');
       case 'error':
-        return 'error';
+        return t('queueCenter.sectionState.error');
       default:
         return t('queueCenter.autoOff');
     }
@@ -130,7 +130,7 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
           {toggle && (
             <>
               <QcSectionSwitch on={toggle.enabled} busy={toggle.busy} onToggle={toggle.onToggle} title={toggle.title} />
-              <span className={`text-[10px] font-bold uppercase tracking-wide ${toggle.lifecycle === 'on' ? 'text-emerald-500' : toggle.lifecycle === 'error' ? 'text-rose-500' : toggle.enabled ? 'text-amber-500' : 'text-slate-400'
+              <span className={`text-[10px] font-bold uppercase tracking-wide ${toggle.lifecycle === 'on' ? 'text-emerald-500' : toggle.lifecycle === 'error' ? 'text-rose-500' : toggle.enabled || toggle.lifecycle === 'stopping' ? 'text-amber-500' : 'text-slate-400'
                 }`}>
                 {stateLabel}
               </span>

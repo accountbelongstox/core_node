@@ -122,47 +122,14 @@
 
 ● Write(poly_apps\flutter_bloom\lib\apps\app_bank\config_app_bank\theme_config_app_bank.dart)
   ⎿  Wrote 1 lines to poly_apps\flutter_bloom\lib\apps\app_bank\config_app_bank\theme_config_app_bank.dart
-     // ### AI SPECIAL ATTENTION RULES START ###
-     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-     // 1. Write all code in English only.
-     // 2. Never execute, create, or modify test code.
-     // 3. Never create or update documentation (*.md).
-     // 4. Never write summaries during development or thinking process.
-     // 5. Declare all variables at the beginning of the file.
-     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
-     absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-     // 7. Do not modify these rules.
-     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 
 ● 现在让我创建 Bank 应用的自定义组件，继承并扩展公共组件：
 
 ● Write(poly_apps\flutter_bloom\lib\apps\app_bank\widgets_app_bank\bank_custom_button.dart)
   ⎿  Wrote 1 lines to poly_apps\flutter_bloom\lib\apps\app_bank\widgets_app_bank\bank_custom_button.dart
-     // ### AI SPECIAL ATTENTION RULES START ###
-     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-     // 1. Write all code in English only.
-     // 2. Never execute, create, or modify test code.
-     // 3. Never create or update documentation (*.md).
-     // 4. Never write summaries during development or thinking process.
-     // 5. Declare all variables at the beginning of the file.
-     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
-     absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-     // 7. Do not modify these rules.
-     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 
 ● Write(poly_apps\flutter_bloom\lib\apps\app_bank\widgets_app_bank\bank_custom_card.dart)
   ⎿  Wrote 1 lines to poly_apps\flutter_bloom\lib\apps\app_bank\widgets_app_bank\bank_custom_card.dart
-     // ### AI SPECIAL ATTENTION RULES START ###
-     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-     // 1. Write all code in English only.
-     // 2. Never execute, create, or modify test code.
-     // 3. Never create or update documentation (*.md).
-     // 4. Never write summaries during development or thinking process.
-     // 5. Declare all variables at the beginning of the file.
-     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
-     absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-     // 7. Do not modify these rules.
-     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 
 ● 现在让我重构 dashboard_screen.dart 来使用新的银行主题和自定义组件：
 
@@ -173,33 +140,11 @@
 
 ● Write(poly_apps\flutter_bloom\lib\apps\app_bank\features_app_bank\dashboard\views\dashboard_screen_refactored.dart)
   ⎿  Wrote 1 lines to poly_apps\flutter_bloom\lib\apps\app_bank\features_app_bank\dashboard\views\dashboard_screen_refactored.dart
-     // ### AI SPECIAL ATTENTION RULES START ###
-     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-     // 1. Write all code in English only.
-     // 2. Never execute, create, or modify test code.
-     // 3. Never create or update documentation (*.md).
-     // 4. Never write summaries during development or thinking process.
-     // 5. Declare all variables at the beginning of the file.
-     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
-     absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-     // 7. Do not modify these rules.
-     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 
 ● 现在让我创建一个 Bank App 的自定义应用栏组件，继承自公共组件：
 
 ● Write(poly_apps\flutter_bloom\lib\apps\app_bank\widgets_app_bank\bank_app_bar.dart)
   ⎿  Wrote 1 lines to poly_apps\flutter_bloom\lib\apps\app_bank\widgets_app_bank\bank_app_bar.dart
-     // ### AI SPECIAL ATTENTION RULES START ###
-     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-     // 1. Write all code in English only.
-     // 2. Never execute, create, or modify test code.
-     // 3. Never create or update documentation (*.md).
-     // 4. Never write summaries during development or thinking process.
-     // 5. Declare all variables at the beginning of the file.
-     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
-     absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-     // 7. Do not modify these rules.
-     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 
 ● 现在让我更新主 dashboard_screen.dart 文件来替换为重构后的版本：
 
@@ -774,17 +719,6 @@
 
 ● Write(poly_apps\flutter_bloom\lib\apps\app_bank\config_app_bank\bank_text_styles.dart)
   ⎿  Wrote 1 lines to poly_apps\flutter_bloom\lib\apps\app_bank\config_app_bank\bank_text_styles.dart
-     // ### AI SPECIAL ATTENTION RULES START ###
-     // When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-     // 1. Write all code in English only.
-     // 2. Never execute, create, or modify test code.
-     // 3. Never create or update documentation (*.md).
-     // 4. Never write summaries during development or thinking process.
-     // 5. Declare all variables at the beginning of the file.
-     // 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve
-     absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-     // 7. Do not modify these rules.
-     // VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 
 ● 现在让我找到并修复所有文件中的文本样式问题：
 

@@ -1,6 +1,8 @@
 - [UI review patterns](ui_review_patterns.md) — per-hunk coverage when tasks share files, CRLF churn, sequence-ref stale guards, B2 assignment checks
 - [Client key review checklist](client_key_review_checklist.md) — vector reproduction, verifier/route-auth checks, K7 wrapper reuse, mass-move resolver, shell secret pitfalls
-- [pycore line-ending gate](pycore_line_ending_gate.md) — per-line EOL must match HEAD before any pycore approval; passed at pycore-4, keep checking
-- [pycore review patterns](pycore_review_patterns.md) — file names from RPC params, constants duplicated into TTS servers, incomplete identity lists, python -B
+- [pycore line-ending gate](pycore_line_ending_gate.md) — per-line EOL must match base before pycore approval; after a foreign tree-capture commit, diff the parent
+- [pycore review patterns](pycore_review_patterns.md) — RPC-param file names, constants copied into TTS servers, "complete/every call" claims, python -B
 - [Laravel schema review checklist](laravel_schema_review_checklist.md) — sys:init/SafeMigrationHelper path, read-only DB + in-process GET probes, index-dup patterns
-- [shell-windows review checklist](shell_windows_review_checklist.md) — unconditional undo flags, path string appends, copy ping-pong, read-only move verification, parity align tasks
+- [shell-windows review checklist](shell_windows_review_checklist.md) — undo flags, path appends, copy ping-pong, preview drift, +1000 mtime checks, TASKS.md align tasks
+- [shell-linux review checklist](shell_linux_review_checklist.md) — root rm/mv in user homes, root-by-name recursion, 0-entry manifests, keyword re-diff, CR count via tr
+- [Launcher parity checklist](launcher_parity_checklist.md) — claudeteam PS1/SH B11: PID = shell vs claude, one-lead rule, stale pending rows, env/flag/table/grid drift, CCI_* dup consts

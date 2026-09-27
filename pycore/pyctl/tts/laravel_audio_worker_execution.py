@@ -579,6 +579,7 @@ class LaravelAudioWorkerExecutionMixin:
                 [info["word"] for _task, info in entries],
                 language,
                 output_dir,
+                [str(info.get("md5") or "") for _task, info in entries],
             )
             for (task, _info), outcome in zip(entries, outcomes):
                 if not outcome["ok"]:

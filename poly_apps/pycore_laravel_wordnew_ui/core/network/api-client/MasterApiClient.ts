@@ -44,9 +44,9 @@
  *     internal emitter (onQueueChange / onQueueEntryFailed).
  */
 
-import { RequestQueue, QueuedRequestEntry, generateEntryId } from './RequestQueue';
+import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
 import { protocolFetch } from '../ProtocolFetch';
-import { IDEMPOTENCY_KEY_HEADER } from '../../integrations/laravel/transport/BaseAPI';
+import { IDEMPOTENCY_KEY_HEADER, createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
 
 /** Default dead-socket ceiling: 30 minutes ("一般30分钟"). 0 = wait forever. */
 export const DEFAULT_CEILING_MS = 30 * 60 * 1000;
@@ -420,7 +420,7 @@ export abstract class MasterApiClient {
     };
     const name = IDEMPOTENCY_KEY_HEADER.toLowerCase();
     if (!Object.keys(headers).some((key) => key.toLowerCase() === name)) {
-      headers[IDEMPOTENCY_KEY_HEADER] = generateEntryId();
+      headers[IDEMPOTENCY_KEY_HEADER] = createIdempotencyKey();
     }
     return { ...init, headers };
   }

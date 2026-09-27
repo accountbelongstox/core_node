@@ -11,7 +11,7 @@
 #      per-user binary sits under a mode-700 home, the self-contained binary is
 #      COPIED into /usr/local/bin (0755) so all users can run it (permission fix
 #      for the root -> regular-users case); otherwise it is symlinked.
-#   3. claude_team_install: python3/tmux/node (+ xrandr/terminal on desktops), .claude/agents_shared, claudeteam/claudeteamup/claudeagents links - each item idempotent.
+#   3. claude_team_install: python3/tmux/node/curl/ca-certificates, the terminal report, the team dirs, the catalog user_settings_merge keys, claudeteam/claudeteamup/claudeagents links - each item idempotent.
 #   4. Install MCP servers and sync MCP config to all AI tools.
 # Steps 1-3 are delegated to the canonical scripts/ai_shtools/claude_code_install.sh;
 # step 4 is delegated to scripts/ai_shtools/mcp_sync_engine.sh. The dd.sh AI & MCP
@@ -21,17 +21,6 @@
 # copy is skipped when already identical, symlinks are only (re)created when
 # missing/wrong, and MCP install/sync re-asserts existing config.
 #
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Script identification and path setup
 SCRIPT_INDEX="171"

@@ -11,7 +11,6 @@ import {
   Inbox,
   ListChecks,
   MessageSquareQuote,
-  RefreshCw,
   RotateCcw,
   ShieldCheck,
   UserCog,
@@ -24,17 +23,16 @@ import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
 import { cmFormatPercent } from '../components/workspace/cmWorkspaceFormat';
 import adminConsoleImage from '../assets/images/admin-console.webp';
+import { CmEmptyState, CmErrorState, CmListState, CmLoadingState, CmNotice } from '../components/workspace/CmStateViews';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPager } from '../components/workspace/CmPager';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmAdminApi } from './CmAdminApi';
 import {
   CmAdminDate,
-  CmAdminListState,
   CmAdminMoney,
-  CmAdminNotice,
-  CmAdminPageHeader,
-  CmAdminPager,
   CmAdminSearch,
   CmAdminSelect,
-  CmAdminStatus,
   CmAdminTable,
   CmAdminToolbar,
   CmAdminUserLink,
@@ -126,7 +124,8 @@ export const CmAdminOverviewPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader
+      <CmPageHeader
+        variant="admin"
         titleKey="admin.nav.overview"
         purposeKey="admin.purpose.overview"
         onRefresh={() => void load()}
@@ -142,14 +141,9 @@ export const CmAdminOverviewPage: React.FC = () => {
         )}
       />
       {loading ? (
-        <p className="cm-admin-state" role="status">{t('common.loading')}</p>
+        <CmLoadingState />
       ) : error || !overview ? (
-        <div className="cm-admin-state" data-tone="error" role="alert">
-          <p>{error ?? t('admin.loadFailed')}</p>
-          <button type="button" className="cm-workspace-button" onClick={() => void load()}>
-            <RefreshCw aria-hidden="true" /> {t('admin.retry')}
-          </button>
-        </div>
+        <CmErrorState message={error ?? t('admin.loadFailed')} onRetry={() => void load()} />
       ) : (
         <>
           <section className="cm-admin-section" aria-labelledby="cm-admin-queues">
@@ -211,12 +205,12 @@ export const CmAdminOverviewPage: React.FC = () => {
           <section className="cm-admin-section" aria-labelledby="cm-admin-projects">
             <h2 id="cm-admin-projects">{t('admin.overview.projectsByStatus')}</h2>
             {projectStatuses.length === 0 ? (
-              <p className="cm-admin-state">{t('admin.noProjectsAtAll')}</p>
+              <CmEmptyState title={t('admin.noProjectsAtAll')} compact />
             ) : (
               <div className="cm-admin-status-strip">
                 {projectStatuses.map((status) => (
                   <Link key={status} to={`${ADMIN_BASE}/projects?status=${status}`} className="cm-admin-status-chip">
-                    <CmAdminStatus status={status} group="states.project" />
+                    <CmStatusBadge status={status} prefix="states.project" />
                     <strong>{format.number(projectCounts[status] ?? 0)}</strong>
                   </Link>
                 ))}
@@ -337,7 +331,7 @@ export const CmAdminUsersPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.users" purposeKey="admin.purpose.users" onRefresh={() => void list.reload()} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.users" purposeKey="admin.purpose.users" onRefresh={() => void list.reload()} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.searchUsers" placeholderKey="admin.searchUsersPlaceholder" value={search} onApply={setSearch} />
         <CmAdminSelect
@@ -356,7 +350,7 @@ export const CmAdminUsersPage: React.FC = () => {
           optionLabel={(option) => t(`states.role.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noUsers" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noUsers" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.nav.users')}>
           <thead>
             <tr>
@@ -395,8 +389,8 @@ export const CmAdminUsersPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
     </main>
   );
 };
@@ -463,7 +457,7 @@ export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAd
       {active && (
         <figure className="cm-admin-document">
           {loading && <p className="cm-contract-note">{t('common.loading')}</p>}
-          {error && <p className="cm-admin-notice" data-tone="error">{error}</p>}
+          <CmNotice notice={error ? { tone: 'error', text: error } : null} />
           {objectUrl && <img src={objectUrl} alt={t(`admin.kyc.document.${active}`)} />}
           {objectUrl && <figcaption>{t('admin.kyc.privateNote')}</figcaption>}
         </figure>
@@ -506,8 +500,8 @@ export const CmAdminKycPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.kyc" purposeKey="admin.purpose.kyc" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.kyc" purposeKey="admin.purpose.kyc" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.searchKyc" value={search} onApply={setSearch} />
         <CmAdminSelect
@@ -526,14 +520,14 @@ export const CmAdminKycPage: React.FC = () => {
           allKey="admin.allTypes"
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noKyc" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noKyc" onRetry={() => void list.reload()}>
         <section className="cm-card-list">
           {list.items.map((item) => (
             <article key={item.id} className="cm-record-card cm-admin-record">
               <div className="cm-record-card__main">
                 <div className="cm-admin-record__title">
                   <h2>{item.real_name}</h2>
-                  <CmAdminStatus status={item.verification_status} group="states.kyc" />
+                  <CmStatusBadge status={item.verification_status} prefix="states.kyc" />
                 </div>
                 <dl className="cm-admin-facts">
                   <div><dt>{t('admin.columnUser')}</dt><dd><CmAdminUserLink user={item.user} userId={item.user_id} /></dd></div>
@@ -557,8 +551,8 @@ export const CmAdminKycPage: React.FC = () => {
             </article>
           ))}
         </section>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );

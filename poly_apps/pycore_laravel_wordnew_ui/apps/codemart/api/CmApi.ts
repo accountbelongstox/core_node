@@ -227,8 +227,8 @@ export class CmApi extends BaseAPI {
     return this.get<CmAiAnalysis>(`ai-analysis/${analysisId}`);
   }
 
-  async acceptAnalysis(analysisId: number): Promise<APIResponse<{ project_status: string; funding_amount: string }>> {
-    return this.post(`ai-analysis/${analysisId}/accept`, {});
+  async acceptAnalysis(analysisId: number, idempotencyKey: string): Promise<APIResponse<{ project_status: string; funding_amount: string }>> {
+    return this.postIdempotent(`ai-analysis/${analysisId}/accept`, {}, idempotencyKey);
   }
 
   async requestAnalysisRevision(analysisId: number, revisionNotes: string): Promise<APIResponse<unknown>> {

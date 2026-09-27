@@ -16,7 +16,6 @@ server whichever row carries it.
 """
 
 import base64
-import hashlib
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -38,7 +37,7 @@ from pycore.pyutils.laravel.delivery_outbox import (
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
-from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
+from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger, word_md5
 from pycore.pyutils.tts.word_audio_cache import (
     LEGACY_SEPARATOR,
     WORD_PROVIDER_SEPARATOR,
@@ -113,11 +112,13 @@ class AudioResourceDelivery:
         group_key: str = "",
         first_namespace: str = "",
         skip_namespace: str = "",
+        md5: str = "",
     ) -> Dict[str, Any]:
         """Record one new local clip and queue it for every target server
         (``first_namespace`` first, ``skip_namespace`` excluded - e.g. the
-        lane's own server, whose lane row carries the clip)."""
-        ledger_row = audio_resource_ledger.record(kind, language, text, path, provider, variant)
+        lane's own server, whose lane row carries the clip); ``md5`` is the
+        Laravel word identity when the producer has it."""
+        ledger_row = audio_resource_ledger.record(kind, language, text, path, provider, variant, md5)
         if ledger_row is None:
             return {"queued": False}
         record = self._record(ledger_row, group_key)
@@ -308,12 +309,17 @@ class AudioResourceDelivery:
         word_audio_service.word_audio_media(
             resource["text"], resource["language"], base_url=base_url, metadata_only=True,
         )
-        receipt = word_audio_service.upload_word_audio({
-            "md5": hashlib.md5(resource["text"].strip().lower().encode("utf-8")).hexdigest(),
+        clip_md5 = word_md5(resource.get("resource_key"))
+        upload_payload = {
             "lang": resource["language"], "provider": resource.get("provider") or "cache",
             "cleaned_word": resource["text"],
             "audio_base64": base64.b64encode(payload).decode("ascii"),
-        }, base_url=base_url)
+        }
+        if clip_md5:
+            # X4: pycore never invents a stand-in md5 for a word Laravel gave
+            # none for; the server resolves by lang + cleaned_word instead.
+            upload_payload["md5"] = clip_md5
+        receipt = word_audio_service.upload_word_audio(upload_payload, base_url=base_url)
         receipt_status = (receipt.get("data") or {}).get("status")
         if receipt_status == "not_found":
             # No dictionary row for this (lang, md5): fill-missing does not

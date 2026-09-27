@@ -1,12 +1,21 @@
 ---
 name: feedback-opus-everywhere
-description: User requires Claude Opus 5.5 for every role session, teammate, subagent and workflow agent; built-in agent types (claude-code-guide, Explore) silently default to Haiku
+description: Model policy for the core_node team — latest models only (opus = Opus 5.5 for thinking roles, sonnet = Sonnet 5 allowed for coding roles); built-in agent types silently default to old Haiku
 metadata:
   type: feedback
 ---
 
-Every session and agent in the core_node team runs Claude Opus 5.5 (`claude-opus-5-5`): the lead, the teammates, the subagents including the built-in types, the workflow agents and the remote role.
+Only the newest models run in the team, never an old one:
+- The thinking roles (orchestrator, reviewer, the laravel and pycore coordinators, pycore-architect, laravel-remote) use `model: opus`, which is Opus 5.5 today.
+- The coding roles may use `model: sonnet` (Sonnet 5).
+- Every role has `effort: xhigh`, because Opus 5.5 defaults to medium.
+- Use aliases, not pinned IDs, so the roles follow new releases.
 
-**Why:** 2026-09-27 (D11). The user saw the docs-check workflow's `claude-code-guide` agents running on Haiku 4.5 in /workflows and asked for Opus 5.5 everywhere, set by default in claudeteam/claudeagents.
+**Why:** On 2026-09-27 the user saw built-in `claude-code-guide` agents on Haiku 4.5 and asked for Opus 5.5 everywhere (D11). Later the same day it refined the rule (D13): Opus for long thinking; a fast model is fine for coding, but it "must be latest, never old".
 
-**How to apply:** In Workflow scripts, pass `model: 'opus'` on every `agent()` call whose agentType is a built-in type (claude-code-guide, Explore, Plan, general-purpose), or on every call to be safe. With the Agent tool, pass `model: "opus"` for built-in types. Custom role types inherit the lead's model unless their frontmatter pins one. After launching, check the model in the transcripts: grep `"model":` in `subagents/workflows/<run>/agent-*.jsonl`. Related: [[remote-role-messaging]].
+**How to apply:**
+- The per-role model lives in the `.claude/agents/*.md` frontmatter.
+- In Workflow scripts, pass `model: 'opus'` on every built-in agentType (claude-code-guide, Explore, Plan, general-purpose). Workflow agents inherit the lead's model unless `model` is given; custom-type frontmatter was not observed to apply inside workflows.
+- Check models via `"model":` in `subagents/workflows/<run>/agent-*.jsonl`.
+
+Related: [[remote-role-messaging]], [[parallel-user-sessions]].

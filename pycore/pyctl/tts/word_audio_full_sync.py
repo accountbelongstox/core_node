@@ -76,7 +76,8 @@ class WordAudioFullSync(AudioLaneFullSync):
             word,
             LOCAL_SOURCE_MARKER,
             base_url=base_url,
-            extra_payload={"md5": md5, "dict_row_id": int(row_id)},
+            extra_payload={"dict_row_id": int(row_id)},
+            md5=md5,
         )
 
 

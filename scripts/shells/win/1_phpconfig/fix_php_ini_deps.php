@@ -1,11 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Declare all variables at the beginning of the file.
-// 7. Do not modify these rules.
-// ### AI SPECIAL ATTENTION RULES END ###
 
 // Lightweight php.ini dependency fixer — called from start.ps1 every startup.
 // Comments out extensions that PHP auto-loads as runtime dependencies of another extension,

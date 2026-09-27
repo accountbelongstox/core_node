@@ -35,6 +35,28 @@ TRAY_TOGGLE_CODE_SYNC_DISTRIBUTE_SIGNAL = "tray_action_toggle_code_sync_distribu
 TRAY_TOGGLE_CODE_SYNC_SKIP_UPDATE_SIGNAL = "tray_action_toggle_code_sync_skip_update"
 TRAY_TOGGLE_PROMPT_DERIVE_SOUND_SIGNAL = "tray_action_toggle_prompt_derive_sound"
 TRAY_TOGGLE_PROMPT_NEW_NOTIFY_SIGNAL = "tray_action_toggle_prompt_new_notify"
+# Agent-history switches mirrored by the tray. Their owner (third layer) publishes
+# them on AGENT_HISTORY_CONFIG_CHANGED and the startup entry injects the initial
+# config; this second-layer module only keeps the last payload (PYTHON_PYCORE.md 2).
+AGENT_HISTORY_TRAY_STATE_SIGNAL = BusSignals.AGENT_HISTORY_CONFIG_CHANGED
+AGENT_HISTORY_TRAY_FLAGS = ("prompt_new_notify", "prompt_derive_sound")
+AGENT_HISTORY_TRAY_FLAG_DEFAULT = True
+
+
+def keep_agent_history_tray_state(payload: Any) -> None:
+    """Keep the tray flags of an AGENT_HISTORY_CONFIG_CHANGED payload ({"config": {...}})."""
+    config = payload.get("config") if isinstance(payload, dict) else None
+    if not isinstance(config, dict):
+        return
+    THREAD_BUS.signal(
+        AGENT_HISTORY_TRAY_STATE_SIGNAL,
+        {key: bool(config.get(key, AGENT_HISTORY_TRAY_FLAG_DEFAULT)) for key in AGENT_HISTORY_TRAY_FLAGS},
+    )
+
+
+def _agent_history_flag_state(key: str) -> str:
+    state = THREAD_BUS.get_signal(AGENT_HISTORY_TRAY_STATE_SIGNAL, {})
+    return "[X]" if state.get(key, AGENT_HISTORY_TRAY_FLAG_DEFAULT) else "[ ]"
 
 
 def build_code_sync_submenu() -> List[TrayMenuItem]:
@@ -195,11 +217,7 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
     # agent-history config flag (prompt_new_notify) the WEB UI settings operate;
     # the prompt-notify watcher reads it before every notification.
     def get_prompt_new_notify_state():
-        try:
-            from pycore.pyctl.agent_history.pipeline.config import get_config
-            return "[X]" if bool(get_config().get("prompt_new_notify", True)) else "[ ]"
-        except Exception:
-            return "[X]"
+        return _agent_history_flag_state("prompt_new_notify")
 
     menu_items.append(
         TrayMenuItem(
@@ -226,11 +244,7 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
         # sound on the desktop; this toggle flips the same agent-history config
         # flag (prompt_derive_sound) the WEB UI settings operate.
         def get_prompt_derive_sound_state():
-            try:
-                from pycore.pyctl.agent_history.pipeline.config import get_config
-                return "[X]" if bool(get_config().get("prompt_derive_sound", True)) else "[ ]"
-            except Exception:
-                return "[X]"
+            return _agent_history_flag_state("prompt_derive_sound")
 
         menu_items.append(
             TrayMenuItem(

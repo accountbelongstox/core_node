@@ -1,17 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
+import { CmErrorState, CmLoadingState, CmNotice } from '../components/workspace/CmStateViews';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmAdminApi } from './CmAdminApi';
 import { CmAdminKycDocumentViewer } from './CmAdminPages';
 import {
   CmAdminActivityTable,
   CmAdminDate,
   CmAdminMoney,
-  CmAdminNotice,
-  CmAdminPageHeader,
-  CmAdminStatus,
   CmAdminTable,
   useCmAdminAction,
 } from './CmAdminShared';
@@ -112,28 +112,23 @@ export const CmAdminUserDetailPage: React.FC = () => {
       <Link className="cm-workspace-link cm-admin-back" to={ADMIN_USERS_PATH}>
         <ArrowLeft aria-hidden="true" /> {t('admin.userDetail.back')}
       </Link>
-      <CmAdminPageHeader
+      <CmPageHeader
+        variant="admin"
         titleKey="admin.userDetail.title"
         purposeKey="admin.purpose.userDetail"
         title={account ? account.username : undefined}
         onRefresh={() => void load()}
-      >
-        {account && (
+        actions={account && (
           <Link className="cm-workspace-button" to={`${ADMIN_ACTIVITY_PATH}?actor_id=${account.id}`}>
             {t('admin.userDetail.actorActivity')}
           </Link>
         )}
-      </CmAdminPageHeader>
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       {loading ? (
-        <p className="cm-admin-state" role="status">{t('common.loading')}</p>
+        <CmLoadingState />
       ) : error || !detail || !account ? (
-        <div className="cm-admin-state" data-tone="error" role="alert">
-          <p>{error ?? t('admin.loadFailed')}</p>
-          <button type="button" className="cm-workspace-button" onClick={() => void load()}>
-            <RefreshCw aria-hidden="true" /> {t('admin.retry')}
-          </button>
-        </div>
+        <CmErrorState message={error ?? t('admin.loadFailed')} onRetry={() => void load()} />
       ) : (
         <>
           <section className="cm-admin-panel-grid">
@@ -180,7 +175,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                   {detail.roles.map((role) => (
                     <tr key={role.id}>
                       <td>{t(`roles.${role.role_type}`, { defaultValue: role.role_type })}</td>
-                      <td><CmAdminStatus status={role.role_status} group="states.role" /></td>
+                      <td><CmStatusBadge status={role.role_status} prefix="states.role" /></td>
                       <td><CmAdminMoney amount={role.deposit_amount} currency={detail.wallet.currency} /></td>
                       <td className="cm-admin-nowrap"><CmAdminDate value={role.role_activated_at} stacked /></td>
                       <td>
@@ -273,7 +268,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <div className="cm-record-card__meta">
                         <span>{t('admin.recordNumber', { id: item.id })}</span>
                         <span>{t(`admin.kyc.identity.${item.identity_type}`, { defaultValue: item.identity_type })}</span>
-                        <CmAdminStatus status={item.verification_status} group="states.kyc" />
+                        <CmStatusBadge status={item.verification_status} prefix="states.kyc" />
                         <span><CmAdminDate value={item.submitted_at} /></span>
                       </div>
                       {item.verification_notes && <p>{t('admin.notesValue', { notes: item.verification_notes })}</p>}
@@ -316,7 +311,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <td>{t(`roles.${deposit.role_type}`, { defaultValue: deposit.role_type })}</td>
                       <td><CmAdminMoney amount={deposit.amount} currency={detail.wallet.currency} /></td>
                       <td>{t(`admin.method.${deposit.payment_method}`, { defaultValue: deposit.payment_method })}</td>
-                      <td><CmAdminStatus status={deposit.status} group="admin.states.deposit" /></td>
+                      <td><CmStatusBadge status={deposit.status} prefix="admin.states.deposit" /></td>
                       <td className="cm-admin-nowrap"><CmAdminDate value={deposit.paid_at} stacked /></td>
                       <td className="cm-admin-nowrap"><CmAdminDate value={deposit.created_at} stacked /></td>
                     </tr>
@@ -347,7 +342,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <td>{t('admin.recordNumber', { id: project.id })}</td>
                       <td>{project.title}</td>
                       <td><CmAdminMoney amount={project.budget} currency={project.currency} /></td>
-                      <td><CmAdminStatus status={project.status} group="states.project" /></td>
+                      <td><CmStatusBadge status={project.status} prefix="states.project" /></td>
                       <td><CmAdminDate value={project.created_at} dateOnly /></td>
                     </tr>
                   ))}
@@ -377,7 +372,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <td>{t('admin.recordNumber', { id: task.id })}</td>
                       <td>{task.title}</td>
                       <td><CmAdminMoney amount={task.budget_allocation} currency={detail.wallet.currency} /></td>
-                      <td><CmAdminStatus status={task.status} group="states.task" /></td>
+                      <td><CmStatusBadge status={task.status} prefix="states.task" /></td>
                       <td><CmAdminDate value={task.due_date} dateOnly /></td>
                     </tr>
                   ))}

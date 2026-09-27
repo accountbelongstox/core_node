@@ -16,6 +16,9 @@ DEVICE="cpu"
 LANGUAGES="EN,ZH"
 VENV_PYTHON=""
 PREFIX="[install_melotts] "
+DOCKER_MODEL="melotts"
+DOCKER_RUNNER="$SCRIPT_DIR/docker_model_runner.sh"
+DOCKER_MODEL_TEST="${DOCKER_MODEL_TEST:-0}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -28,6 +31,22 @@ done
 
 [[ "${MELOTTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
 
+# Docker backend: runner ensure (no container left running), then an optional
+# bounded test (DOCKER_MODEL_TEST=1). Failures print a message and return.
+melotts_docker_backend() {
+    if ! bash "$DOCKER_RUNNER" ensure "$DOCKER_MODEL" "$TARGET_DIR"; then
+        echo "${PREFIX}[!] docker backend is not ready; the RESULT line above names the phase." >&2
+        return 1
+    fi
+    install_method_record_backend "$DOCKER_MODEL" docker
+    if [[ "$DOCKER_MODEL_TEST" == "1" ]] && ! bash "$DOCKER_RUNNER" test "$DOCKER_MODEL" "$TARGET_DIR"; then
+        echo "${PREFIX}[!] docker test did not pass (RESULT line above); the image and staging data are kept." >&2
+        return 1
+    fi
+    echo "${PREFIX}[OK] docker backend ensured (image pycore-tts-${DOCKER_MODEL}:local; no container left running)."
+    return 0
+}
+
 # --- Install method selection (native/docker), plan steps 16-17 ---
 # Per-engine choice; a saved valid choice is reused verbatim with no countdown.
 if [[ "${MELOTTS_SKIP:-0}" != "1" ]]; then
@@ -35,7 +54,7 @@ if [[ "${MELOTTS_SKIP:-0}" != "1" ]]; then
     INSTALL_METHOD="$(install_method_select melotts \
         --supported "native docker" \
         --recommended native \
-        --recommendation-source "MeloTTS official install.md recommends Docker only on Windows; Linux installs natively - https://github.com/myshell-ai/MeloTTS/blob/main/docs/install.md" \
+        --recommendation-source "MeloTTS official install.md: \"To avoid compatibility issues, for Windows users and some macOS users, we suggest to run via Docker.\" Linux installs natively - https://github.com/myshell-ai/MeloTTS/blob/main/docs/install.md" \
         --default native --method "${TTS_METHOD:-}" ${TTS_METHOD_RESELECT:+--reselect})" || {
         _method_rc=$?
         if [[ $_method_rc -eq 10 ]]; then
@@ -45,19 +64,8 @@ if [[ "${MELOTTS_SKIP:-0}" != "1" ]]; then
         exit "$_method_rc"
     }
     if [[ "$INSTALL_METHOD" == "docker" ]]; then
-        . "$SCRIPT_DIR/../../common/docker_prereq_common.sh"
-        if ! docker_prereq_ensure_for_engine melotts "$SCRIPT_DIR"; then
-            echo "[melotts][!] docker platform ensure failed (phase above); docker backend is not ready." >&2
-            exit 1
-        fi
-        install_method_record_backend melotts docker
-        . "$SCRIPT_DIR/../../common/tts_docker_compose_common.sh"
-        if ! tts_docker_apply_engine melotts "$TARGET_DIR"; then
-            echo "[melotts][!] docker compose apply failed (phase above); docker backend is not ready." >&2
-            exit 1
-        fi
-        echo "[melotts][OK] docker compose service converged (project pycore-tts-melotts)."
-        exit 0
+        melotts_docker_backend
+        exit $?
     fi
     install_method_record_backend melotts native
 fi

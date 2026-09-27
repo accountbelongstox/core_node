@@ -11,8 +11,8 @@ must start in the JSON document. All four runtime adapters derive their values
 from it; consumers must not introduce another literal vocabulary.
 """
 
-import hashlib
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, TypedDict
@@ -192,9 +192,35 @@ QUEUE_CENTER_REALTIME_HEAD_KEYS: Dict[str, str] = {
     str(key): str(value)
     for key, value in QUEUE_CENTER_REALTIME["head_keys"].items()
 }
+# Priority event role -> the format of its head keys
+# (realtime.resource_key_formats); "<name>" is one ":"-free segment.
+QUEUE_CENTER_REALTIME_RESOURCE_KEY_FORMATS: Dict[str, str] = {
+    str(key): str(value)
+    for key, value in QUEUE_CENTER_REALTIME["resource_key_formats"].items()
+}
+_RESOURCE_KEY_PLACEHOLDER = re.compile(r"<[^<>]+>")
+_RESOURCE_KEY_PATTERNS: Dict[str, "re.Pattern[str]"] = {
+    role: re.compile(
+        "[^:]+".join(re.escape(part) for part in _RESOURCE_KEY_PLACEHOLDER.split(template))
+    )
+    for role, template in QUEUE_CENTER_REALTIME_RESOURCE_KEY_FORMATS.items()
+}
+
+
+def realtime_head_key_valid(role: str, key: str) -> bool:
+    """True when ``key`` has the contract head key format of ``role``;
+    a role without a format (task_priority) accepts any non-empty key."""
+    pattern = _RESOURCE_KEY_PATTERNS.get(role)
+    return bool(key) and (pattern is None or pattern.fullmatch(key) is not None)
+
+
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
 # Sync log values are emitted only when at least one of these counters changes.
 QUEUE_CENTER_DIFF_SYNC_LOG_KEYS = ("staged", "vanished", "ordered", "reordered")
+# W7 pycore -> Laravel resource delivery (server identity, diff, offset-v1
+# batch upload); the one source for pyutils/laravel/identity.py and
+# delivery_diff.py, which used to keep their own copies of these values.
+QUEUE_CENTER_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["delivery"])
 QUEUE_CENTER_ENDPOINTS: Dict[str, str] = {
     str(key): str(value)
     for key, value in _CONTRACT_DOCUMENT["endpoints"].items()
@@ -552,19 +578,22 @@ def audio_dedup_key(
 ) -> str:
     """Canonical audio-lane dedup key "{lang}:{contentId}".
 
-    Mirrors QueueCenterService::dedupKeyFor: ``word_audio`` uses the md5 of
-    the lowercased word, ``sentence_audio`` the media content id. ONE
-    implementation for the audio queue heap resolver, audio orchestration,
-    and the queue-center RPC controllers — never re-implemented elsewhere.
+    Mirrors QueueCenterService::dedupKeyFor: ``word_audio`` uses Laravel's
+    word md5 (contract ``word_identity``); a word without one falls back to
+    the contract ``word_identity.fallback_when_md5_absent`` key format
+    ``<lang>:text:<cleaned_word>`` (Laravel resolves the row by lang +
+    cleaned_word; pycore never invents a stand-in md5), matching
+    ``build_local_task`` and ``audio_resource_ledger.resource_key``.
+    ``sentence_audio`` uses the media content id. ONE implementation for the
+    audio queue heap resolver, audio orchestration, and the queue-center RPC
+    controllers — never re-implemented elsewhere.
     """
     lang = str(language or "").strip().lower()
     queue_key = str(queue or "").strip()
     if queue_key == "sentence_audio":
         content = str(content_id or "").strip() or media_content_id(str(text or ""))
     else:
-        content = str(md5 or "").strip() or hashlib.md5(
-            str(text or "").strip().lower().encode("utf-8")
-        ).hexdigest()
+        content = str(md5 or "").strip() or f"text:{str(text or '').strip().lower()}"
     return f"{lang}:{content}"
 
 
@@ -712,8 +741,11 @@ __all__ = [
     "QUEUE_CENTER_REALTIME",
     "QUEUE_CENTER_REALTIME_EVENTS",
     "QUEUE_CENTER_REALTIME_HEAD_KEYS",
+    "QUEUE_CENTER_REALTIME_RESOURCE_KEY_FORMATS",
+    "realtime_head_key_valid",
     "QUEUE_CENTER_QUEUE_POSITION_CONTROLS",
     "QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES",
+    "QUEUE_CENTER_DELIVERY",
     "QUEUE_CENTER_DIFF_DELIVERY",
     "QUEUE_CENTER_DIFF_SYNC_LOG_KEYS",
     "QUEUE_CENTER_ENDPOINTS",

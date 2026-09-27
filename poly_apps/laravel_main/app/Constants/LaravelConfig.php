@@ -53,6 +53,10 @@ final class LaravelConfig
 
     public const QUEUE_CONNECTION = 'sync';
 
+    public const LOG_LEVEL = 'warning';
+
+    public const CODEMART_SEED_DEMO = true;
+
     private function __construct()
     {
     }

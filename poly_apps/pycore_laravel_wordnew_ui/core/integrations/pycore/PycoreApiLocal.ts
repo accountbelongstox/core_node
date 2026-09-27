@@ -69,7 +69,7 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
-import type { AudioLaneKey, AudioLaneStatePayload, QueueCenterWordAudioFullSyncStatus } from '../../contracts/QueueCenterTypes';
+import type { AudioLaneKey, AudioLaneStatePayload, AudioLaneFullSyncStatus } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
@@ -448,7 +448,7 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAudioLaneFullSync, { lane }) as Promise<{
       success: boolean;
       running?: boolean;
-      status?: QueueCenterWordAudioFullSyncStatus;
+      status?: AudioLaneFullSyncStatus;
       error?: string;
     }>,
 

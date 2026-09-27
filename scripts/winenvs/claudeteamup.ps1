@@ -1,25 +1,17 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Idempotently starts the Claude Code roles as independent sessions (Windows).
 
 .DESCRIPTION
-    Provisions Claude Code and Windows Terminal when missing, then opens one
-    positioned window per role from config/claude_team_roles.json running
-    claudeteam.ps1 --agent <role> --name ct-<role>. Roles coordinate through
-    cross-session messaging (ListAgents / SendMessage). Live PIDs are skipped.
-    Agent-teams variant: claudeagents.ps1
+    Provisions Claude Code and Windows Terminal when missing, then opens one named,
+    maximized Windows Terminal window with every enabled role of .claude/agents
+    (catalog overrides in config/claude_team_roles.json) in its own pane, packed
+    into tabs by the measured monitor size and DPI. Each pane runs
+    claudeteam.ps1 --team-pane sessions --agent <role> --name ct-<role>; the lead
+    ct-orchestrator gets sessions.kickoff_lead. Roles coordinate through
+    cross-session messaging (ListAgents / SendMessage). Live PIDs are skipped;
+    -Status prints the plan (monitors, tabs, panes, commands) without opening
+    anything. Agent-teams lead variant: claudeagents.ps1
     Linux counterpart: scripts/linuxenvs/claudeteamup.sh
 
 .EXAMPLE

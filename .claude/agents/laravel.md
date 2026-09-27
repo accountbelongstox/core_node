@@ -43,6 +43,7 @@ Coordinator duties:
 
 Laravel rules:
 - Ingest is idempotent (stable keys, no duplicates). Requests only read state; heavy work runs in timers or the queue.
+- Configuration comes from the config files (`app/Constants/LaravelConfig.php` and `config/*.php`), never from `.env` (user D17). Do not add `.env` keys or `env()` reads; move any you touch to the config files.
 - Never test a "remote machine" through loopback or LAN addresses. The remote peer is `api.si.12gm.com`.
 - Implement API shapes exactly as the orchestrator's contracts define them.
 - Not yours: UI code (ui-*), pycore (pycore family), `scripts/` and server system configuration (shell-linux, shell-windows).

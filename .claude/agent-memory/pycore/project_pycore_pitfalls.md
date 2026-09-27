@@ -1,6 +1,6 @@
 ---
 name: project-pycore-pitfalls
-description: Non-obvious pycore pitfalls learned during the D1/D10 audit fixes (serialized calls, engine settings, contracts, static checks)
+description: Non-obvious pycore pitfalls learned during the D1/D10 audit fixes (serialized calls, engine settings, contracts, X4 word md5 threading, static checks)
 metadata:
   type: project
 ---
@@ -11,6 +11,10 @@ Pitfalls that are not obvious from reading one file:
 - UI engine-test extras must never be written to `os.environ` (lanes and orchestration run concurrently); they go through `engine_policy.engine_setting` (ContextVar). Calls that hop to a model owner thread need `copy_context().run` to carry the override.
 - Relay route policies and Queue Center endpoint roles live only in the cross-end contracts (`config/pycore_relay_contract.json`, `config/queue_center_contract.json`); a missing entry there is an orchestrator change, not a pycore code change.
 - `scripts/pytools/aitools/qwen3tts_tester.py` imports `pycore.pyutils.tts.tts_engine_params`, so that module is not dead even though pycore/UI never import it.
+- Shared constants go in `pyfoundations/network_constants.py` once. pycore modules import them. The standalone servers in `tts_install_assets` read them with `getattr(tts_server_common.load_network_constants(), NAME, fallback)`. The reviewer rejects a constant redeclared in a server. pyfoundations modules (even `pybasecommon`) may import `network_constants`.
+- Any file path built from RPC params (`item_key`, `format`, names) is a path-traversal finding. Name files from server-side ids (`operation_service` makes uuid `op_…`/`item_…`), allow-list the extension, and check that the resolved parent is the target directory.
+- Every registered RPC route with no explicit policy falls to `pycore_relay_contract.json` `route_policy_matching.default_profile = general_action` (exposure `relay`). So removing a route with no in-repo caller can still break an out-of-repo relay client; say so when deleting routes. `pyctl/laravel/worker_base.py` (live) is not the deleted `pyutils/tts/worker_base.py`.
+- Word identity (X4) is Laravel's md5 of the exact stored word. Any path that stores or publishes a word clip must pass it on: `audio_resource_ledger.record/entry(md5=)`, `audio_resource_delivery.publish(md5=)`, `word_audio_cache.save_to_cache(md5=)`, `kokoro_batch.synthesize_words_to_cache(md5s)`, `build_local_task(md5=)`. A missing md5 silently re-keys the clip by md5(lower(strip)), which is the transitional fallback for words without a Laravel md5 only. `audio_dedup_key`'s fallback must stay identical to `build_local_task`'s.
 - Static checks that are allowed and useful (no services): ast.parse + symtable undefined-globals + an AST check that every `from pycore... import X` resolves, plus a module-level import-cycle scan; set `PYTHONDONTWRITEBYTECODE=1` for scratch runs.
 
 **Why:** each of these cost a review round or a startup outage in D1.

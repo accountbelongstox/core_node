@@ -100,3 +100,22 @@ export const CmEmptyState: React.FC<CmEmptyStateProps> = ({ title, body, action,
     </section>
   );
 };
+
+interface CmListStateProps {
+  loading: boolean;
+  error: string | null;
+  empty: boolean;
+  emptyKey: string;
+  onRetry?: () => void;
+  compact?: boolean;
+  children: React.ReactNode;
+}
+
+/** Loading, error (with retry) and empty states around a list; renders the list once it has rows. */
+export const CmListState: React.FC<CmListStateProps> = ({ loading, error, empty, emptyKey, onRetry, compact = false, children }) => {
+  const { t } = useTranslation('cm');
+  if (loading) return <CmLoadingState compact={compact} />;
+  if (error) return <CmErrorState message={error} onRetry={onRetry} compact={compact} />;
+  if (empty) return <CmEmptyState title={t(emptyKey)} compact={compact} />;
+  return <>{children}</>;
+};

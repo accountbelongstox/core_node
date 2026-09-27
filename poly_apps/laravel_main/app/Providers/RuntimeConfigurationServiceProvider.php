@@ -38,6 +38,11 @@ class RuntimeConfigurationServiceProvider extends ServiceProvider
         'ALIYUN_SMS_ACCESS_KEY_SECRET' => 'sms.drivers.aliyun.access_key_secret',
         'ALIYUN_SMS_SIGN_NAME' => 'sms.drivers.aliyun.sign_name',
         'ALIYUN_SMS_TEMPLATE_CODE' => 'sms.drivers.aliyun.template_code',
+        'CODEMART_BANK_NAME' => 'services.codemart_bank_transfer.bank_name',
+        'CODEMART_BANK_ACCOUNT_NAME' => 'services.codemart_bank_transfer.account_name',
+        'CODEMART_BANK_ACCOUNT_NUMBER' => 'services.codemart_bank_transfer.account_number',
+        'CODEMART_BANK_BRANCH' => 'services.codemart_bank_transfer.branch',
+        'CODEMART_BANK_SWIFT_CODE' => 'services.codemart_bank_transfer.swift_code',
     ];
 
     public function register(): void

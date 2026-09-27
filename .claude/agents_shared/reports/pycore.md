@@ -15,7 +15,8 @@ K3 vectors: all 3 signatures and canonical strings reproduce (scratchpad `k3_vec
 | pycore-1 | [pycore] K3 signer, one signing gateway, CodeSync on K3 | K3, PR-014, PR-003 | approved (reviews/pycore-1.json) |
 | pycore-2 | [pycore] K7/K7a local RPC gate and the open RPC surfaces | PR-001, PR-021, PR-030, PR-031, PR-037, okx reveal (FU cross-scope), AT-006, AT-029 | approved (reviews/pycore-2.json) |
 | pycore-3 | [pycore] runtime, Windows and process fixes | PR-004..PR-013, PR-015..PR-020, PR-022..PR-024, PR-026, PR-027, PR-032..PR-036 | approved (reviews/pycore-3.json) |
-| pycore-4 | [pycore] audio/TTS and queue fixes | AT-001..AT-050 (AT-015 withdrawn), X2, X6, X8, RV-001, RV-002, RV-006, RV-008, RV-009, RV-010 | review r1: changes requested; r1 fixes submitted, waiting for re-review (D10) |
+| pycore-4 | [pycore] audio/TTS and queue fixes | AT-001..AT-050 (AT-015 withdrawn), X2, X6, X8, RV-001, RV-002, RV-006, RV-008, RV-009, RV-010 | approved, round 2 (reviews/pycore-4.json) |
+| pycore-5 | [pycore] rulings: RV-007, X4, RV-004 | RV-007, X4, RV-004 | submitted, waiting for review (D10) |
 
 ## pycore-1: K3 signer (PR-014, PR-003)
 
@@ -186,6 +187,8 @@ r1 checks (static only, nothing started):
   - A difflib scan of the 16 files finds 0 unchanged lines with a flipped line ending.
   - Uniform CRLF files stay CRLF and uniform LF files stay LF. New lines in the mixed files (`operation_service`, `qwen3tts_gpu`, `serialized_worker`) take the ending of the lines they replace. The new file `orch_messages.py` stays LF.
 
+Review base (important). During this round, commit `f4f2234` ("CodeHeaderCleanerBak", author "DevOps User", 2026-09-27 15:57 +1000) captured the whole working tree, including every pycore-4 and r1 edit. pycore made no commit and ran only read-only git. So `git diff` against HEAD is now empty for pycore. Review against the parent instead: `git diff 74e7770 -- pycore` (161 pycore files). The line-ending gate and the difflib scan above were re-run against `74e7770`, with the same result.
+
 r1 decisions (B9):
 - An unknown `format` is rejected (`unsupported_format`), not mapped to mp3 as the qwen server does. A clear error beats a silent mp3 under a `.wav` or other name, and it follows the reviewer's allow-list.
 - The two extra nvidia-smi timeouts (`compute_caps`, `video_extract_service`) go beyond AT-036's listed sites. They are the same hang class, and they make the new constant the single bound for every nvidia-smi call in pycore.
@@ -254,10 +257,8 @@ r1 decisions (B9):
 | RV-009 | deferred | Reason: the fix is one entry in `config/pycore_relay_contract.json#route_policies`, a cross-end contract that only the orchestrator changes. pycore reads the policies from that file only and has no local list. D7 item: the orchestrator adds `{match: exact, value: ui/queue_center/audio_lane_state, profile: general_read, methods: [POST]}` (same shape as `ui/queue_center/event_page`). |
 | RV-010 | deferred (functional half fixed) | Fixed: the fallback to a non-existent `language_priority` is gone, and a failed breakdown fails the pull. Deferred: the rule half. The three listing paths are module constants because `queue_center_contract.json#endpoints` has no roles for them, and adding roles is the orchestrator's change. D7 item: the orchestrator adds `audio_word_listing` (`/api/app_qy_v1/dictionary/words`), `audio_word_language_breakdown` (`/api/app_qy_v1/vocabulary/language-breakdown`) and `audio_sentence_without_audio` (`/api/app_qy_v1/ai_tools/tts/sentence/without_audio`). pycore then switches `word_audio_full_sync.py` and `sentence_audio_full_sync.py` to `queue_center_endpoint(...)`. |
 
-Also on disk, from the rulings:
-- RV-004: pycore no longer reads `task_contract.stream_events` (`GLOBAL_TASK_STREAM_EVENTS_BY_ROLE` removed).
-- RV-007: cover and poster heads are keyed by the contract `realtime.head_keys` (`items[].resource_key`), with no synthetic heads (`snapshot_service`).
-- X4: the lane uses Laravel's `md5` and never recomputes it, and the ledger takes that md5. The three transitional md5(lower(strip)) fallbacks stay until D7 (§8.0).
+Also on disk:
+- The ruling items RV-004, RV-007 and X4 are tracked and reported as pycore-5 (section below).
 - Pre-existing defect fixed: `managed_service.py` used `_HEALTH_FAILURE_THRESHOLD` without importing it (a NameError on the managed health path).
 
 ### Changed files (pycore-4)
@@ -312,6 +313,7 @@ Earlier pycore teammate (verified in D10):
 - pycore-manager (UI localization of the new codes):
   - AT-039: `OrchTaskList.tsx` (about lines 107 and 277) should render `progress.message_code/message_params` and `events[].code/params` (the codes are in `pycore/pyctl/audio_orchestration/orch_messages.py`), falling back to `message`.
   - AT-050: `PcPipelineStatusPanels.tsx:302` and `PcTtsServerControls.tsx:136` should localize `disabled_reason_code/disabled_reason_params`, and the TTS test popup should localize `error_code/error_params`. The codes are in `pycore/pyutils/tts/tts_reason_codes.py`. The fallback is `disabled_reason` / `error`.
+  - AT-034 (r1): two new qwen synthesis error codes, both with an English `message` fallback. `ui/qwen/synthesis/submit` can return `error.code = unsupported_format` (allowed: wav, mp3). A qwen operation item can fail with `audio_store_failed`. The constants are in `pycore/pyctl/tts/qwen/operation_service.py`.
 - Shared UI layer, RV-008: `core/contracts/QueueCenterTypes.ts:10` and `QueueCenterContract.ts:579` should accept `stopping`; it currently maps to `off`.
 - Shared UI layer, AT-037: `core/integrations/pycore/PycoreHttpRoutes.ts:248` `wordAudioFetchYoudao` names a removed route and has no caller.
 - Orchestrator contracts:
@@ -325,6 +327,87 @@ Earlier pycore teammate (verified in D10):
 - AT-016: a ContextVar (`engine_setting`) instead of new fields on `TTSSynthesisRequest`. The engines already read settings by name, and `copy_context` carries the override to the parler model owner. This changes the fewest signatures.
 - AT-050: one shared `CodedMessage` (a `str` subclass) instead of a parallel code API per engine, so every existing text consumer (logs, the self-check) keeps working. `orch_messages` reuses its renderer, so one implementation remains.
 - AT-049: deferred rather than deleted, because a live consumer is outside the pycore scope.
+
+## pycore-5: rulings RV-007, X4, RV-004 (D10, submitted)
+
+Rulings: §7.2 (RV-007, X4, RV-004), the 06:0x contract changes (`queue_center_contract.json` `word_identity`, `realtime.head_keys`, `realtime.resource_key_formats`) and §8.0 (X4 words without a Laravel md5 go to D7).
+
+The earlier pycore teammate had left the first half of each ruling on disk. The D10 session checked those hunks against the rulings and the contract (read-only git, `--ignore-space-at-eol`). It then closed the gaps below.
+
+Review base:
+- The earlier hunks were captured by commit `f4f2234`, like the rest of pycore-4 (see the pycore-4 "Review base").
+- The D10 edits are uncommitted.
+- So `git diff 74e7770 -- <file>` shows both halves, and `git diff HEAD -- pycore` shows only the D10 edits (10 files).
+
+### Per finding
+
+| Id | Status | Where / how |
+|---|---|---|
+| RV-007 | fixed | **Event names:** every realtime event pycore handles is looked up in `QUEUE_CENTER_REALTIME_EVENTS` (contract `realtime.events`). A grep finds no event-name literal in `pycore/` or `pyapps/`. The Mercure topics come from Laravel's connection response. **Heads:** `snapshot_service._head_entries` reads the keys of each priority event at its contract `realtime.head_keys` path: `task_id` for task.priority, `items[].resource_key` for cover.priority and poster.priority. **D10:** only keys in the contract `realtime.resource_key_formats` are kept (`library:<library_id>`, `<media_type>:<media_id>`). The check is `queue_center_contract.realtime_head_key_valid`, whose patterns are compiled once from the contract; each `<name>` is one `:`-free segment. An event with no valid key adds no head, so the synthetic `event-<cursor>` head is gone (for example a cover retry with `all=true` and empty `items`). Heads carry `head_key`. **D10:** only task.priority sets translation-worker priority (`QUEUE_CENTER_TASK_PRIORITY_QUEUE`). The old loop that fed any priority event's `items[].task_id` to the translation worker is removed, because cover and poster rows are library and media rows, not global tasks. Laravel's only task.priority producer (`AppQyV1TranslationRealtimeService::priority`) sends one top-level `task_id`. |
+| X4 | fixed (pycore half); the fallbacks for words without a Laravel md5 stay until D7 (§8.0) | See "X4 detail" below. |
+| RV-004 | fixed (pycore half) | `GLOBAL_TASK_STREAM_EVENTS_BY_ROLE` and its `__all__` entry are removed. No pycore or pyapps file reads `task_contract.stream_events` (the only `stream_events` hit is the unrelated `event_service.stream_events` function). One reader outside pycore remains; see the cross-scope notes. |
+
+X4 detail. Contract `word_identity`: the md5 of the exact stored content, with `consumers_recompute: false`.
+- `payload.md5` (word_audio lane):
+  - `laravel_audio_worker_state` uses it as is. A word task without it fails with `word_audio payload carried no md5`; nothing is recomputed.
+  - Head events (Laravel `QueueHeadNotificationService` sends `md5`) and `audio_dedup_key_from_task` also read `payload.md5`.
+- `payload.words[].md5`:
+  - The batched dictionary lanes (word_validity, dictionary_explanation) are claimed by chrome, not pycore (contract claimants).
+  - pycore's multi-word audio handler (`translation/worker/handlers/audio.py`) passes each `words[].md5` to its result unchanged.
+- Upload `body.md5` (D10): the single upload (`audio_resource_delivery._deliver_resource`) sends the md5 held in the row's `resource_key` (new `audio_resource_ledger.word_md5`). A row recorded with Laravel's md5 therefore uploads that md5. The transitional recompute runs only for a row without a key.
+- Delivery key `<lang>:<md5>[:<variant>]`. D10 closed three paths that dropped Laravel's md5 and keyed by md5(lower(strip)):
+  1. Lane stage: `laravel_audio_delivery.stage` → `audio_resource_delivery.publish(..., md5=)` → `audio_resource_ledger.record(..., md5=)`. Before, the lane row used Laravel's md5, but the cache row published to the other servers was keyed by the recomputed md5.
+  2. Lane word batch: `_prepare_word_batch` → `kokoro_batch.synthesize_words_to_cache(..., md5s)` → `word_audio_cache.save_to_cache(..., md5)` → ledger.
+  3. Local tasks: `audio_queue_center.build_local_task(..., md5=)` uses Laravel's md5 as the task identity. The full pull (`word_audio_full_sync`) and the manual promote (items that carry `md5`) pass it. Before, the full pull's task id held the recomputed md5 while its payload held Laravel's.
+- Unchanged until D7 (§8.0: orchestration-tokenized words, the word-cache bootstrap and local Part1 tasks have no Laravel md5):
+  - the three listed fallbacks: `audio_resource_ledger.resource_key`, the single upload, and `build_local_task`;
+  - a fourth site that §8.0 does not list: `queue_center_contract.audio_dedup_key` recomputes when `md5` is absent, and it must match `build_local_task`, because orchestration's `resource_queue_key` depends on it. D10 corrected its docstring, which still described the old lowercased-word rule.
+- Not word identity, so unchanged:
+  - the article_audio md5 in `laravel_audio_worker_state` (Laravel's `payload.md5`, else the md5 of the content);
+  - the book payload's word `content_id` (`book_structure`), a book content-id scheme that the server computes the same way. It is not a contract `word_identity` field.
+- Known limit, until D7: a word cached by orchestration (fallback key) and later served to the lane from the cache gets a second ledger row, under Laravel's md5, for the same file. This happens only for words whose stored form is not lower-case. The row under the fallback key keeps the transitional behavior.
+
+### Changed files (pycore-5, D10 session)
+
+- `pycore/pyutils/common/queue_center_contract.py` (CRLF): `QUEUE_CENTER_REALTIME_RESOURCE_KEY_FORMATS`, `realtime_head_key_valid`, and the `audio_dedup_key` docstring.
+- `pycore/pyctl/queue_center/snapshot_service.py`.
+- `pycore/pyutils/tts/audio_resource_ledger.py`, `pycore/pyutils/tts/word_audio_cache.py`, `pycore/pyutils/tts/batch/kokoro_batch.py` (CRLF), `pycore/pyutils/tts/audio_queue_center.py`.
+- `pycore/pyctl/tts/audio_resource_delivery.py`, `pycore/pyctl/tts/laravel_audio_delivery.py`, `pycore/pyctl/tts/laravel_audio_worker_execution.py`, `pycore/pyctl/tts/word_audio_full_sync.py`.
+
+Earlier teammate, verified in D10 (in `f4f2234`):
+- `queue_center_contract.py`: `QUEUE_CENTER_REALTIME_HEAD_KEYS`, and the removal of `GLOBAL_TASK_STREAM_EVENTS_BY_ROLE`;
+- `snapshot_service.py`: `_head_entries`, and the `head_key` heads;
+- `laravel_audio_worker_state.py`: md5 required, no recompute;
+- `laravel_audio_delivery.py` and `audio_resource_ledger.py`: the ledger takes the lane md5.
+
+### Checks (static only; nothing was started or tested)
+
+- Static checks over the 10 files: `ast.parse`, the `symtable` undefined-global scan and `from pycore... import X` resolution (namespace packages such as `pyctl/tts` accepted): 0 problems. A negative probe shows the checker flags an undefined name, a missing name and a missing module.
+- Signatures: every changed signature only appends an optional parameter (`record`, `publish`, `save_to_cache`, `synthesize_words_to_cache`, `build_local_task`). All callers were checked with grep, including `scripts/` and `pyapps/` (none there).
+- Import edges: no new module edge. `snapshot_service` → `queue_center_contract` and `audio_resource_delivery` → `audio_resource_ledger` already existed; `re` is stdlib.
+- Scratch run with `python -B`:
+  - the real `queue_center_contract` module loads the formats as `library:[^:]+` and `[^:]+:[^:]+`;
+  - 11 key cases pass: `library:12` is accepted; `library:`, `book:3` (cover), `library:1:2` and `event-9` are rejected; task keys accept any non-empty id;
+  - `_head_entries` logic: cover `all=true` gives no head, and an item without `resource_key` is dropped;
+  - `word_md5("en:abc:slow")` gives `abc`;
+  - `GLOBAL_TASK_STREAM_EVENTS_BY_ROLE` is absent.
+- Line endings:
+  - `git diff --numstat` is identical with and without `--ignore-space-at-eol` against HEAD (10 files). Against `74e7770` it is identical for 163 entries, except the known `commander.py` (pycore-3).
+  - A difflib scan finds 0 unchanged lines with a flipped ending.
+  - New lines are CRLF in `kokoro_batch.py` (CRLF) and in `queue_center_contract.py` (mixed; the region is CRLF, and its 7 LF lines are unchanged from the base). The other files stay LF.
+
+### Cross-scope (for the orchestrator)
+
+- RV-004: `poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterContract.ts:132` (the `stream_events` type) and `:283` (`GLOBAL_TASK_STREAM_EVENTS_BY_ROLE`, no importer) still read `task_contract.stream_events`. The shared UI layer drops both before the orchestrator deletes the key. pycore, Laravel (T4/T9) and mcp-chrome (mcp-chrome-4) no longer read it. The built Android asset `native/wordnew/android/.../index-Bb2-UHxL.js` is regenerated by the next build.
+- X4, §8.0 D7 list: add `pycore/pyutils/common/queue_center_contract.py` `audio_dedup_key` (the md5 fallback when `md5` is absent) as the fourth transitional site. It is removed together with `build_local_task`'s fallback when Laravel resolves by `cleaned_word` and the contract gains `word_identity.fallback_when_md5_absent`.
+- RV-007: no UI reads `queue_heads` (grep of `poly_apps` and `apps`). The new `head_key` field (and `task_id: null` on cover and poster heads) needs no UI change.
+
+### Decisions taken without asking (B9)
+
+- RV-007: head keys are checked against `realtime.resource_key_formats`, not trusted as any string, so pycore holds only heads in the contract shape that both ends load. The alternative, reading the formats as documentation only, would leave a malformed key able to create a head.
+- RV-007: translation-worker priority comes from task.priority only. Applying `items[].task_id` from cover and poster events contradicts the ruling ("library and media rows, not global tasks"), and no producer sends that shape.
+- X4: the single upload reads the md5 from the ledger `resource_key` (contract shape `<lang>:<md5>[:<variant>]`), not from a new ledger column. This avoids a database schema change.
+- X4: the wire field names stay literals (`md5`). pycore adds no loader for the `word_identity` block, because no code would read its values (it would be dead code).
 
 ## Messages sent / cross-scope
 
@@ -348,4 +431,12 @@ Syntax errors:
 
 ## Blockers
 
-None. pycore-4 next owner: reviewer. Afterwards the orchestrator takes the cross-scope items above.
+None.
+
+pycore-5: submitted, waiting for review. Next owner: the reviewer. The D10 files are listed under "Changed files (pycore-5)". Review with `git diff HEAD -- pycore` for the D10 edits and `git diff 74e7770` for the earlier ruling hunks. Afterwards the orchestrator takes the pycore-5 cross-scope items.
+
+pycore-4 is approved in round 2. Next owner: the orchestrator, for the cross-scope items above and two non-blocking reviewer follow-ups:
+- `memory_gate.py:147` `_gpu_query` still calls nvidia-smi without a timeout, and `_torch_cuda.py:132` uses a literal 15.
+- The qwen submit counts only `running` items as in flight, so a re-submit between `start_bus_task` and `start_item` can start a second `_run`.
+
+AT-037 deletions (user question, 2026-09-27): read-only explanation in `.claude/agents_shared/reports/pycore-AT-037-deletions.md`. Nothing was restored.

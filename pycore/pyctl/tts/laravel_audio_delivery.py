@@ -90,9 +90,9 @@ class AudioLaneDelivery:
         clip_kind = str(info.get("kind") or "")
         clip_text = str((info.get("word") if clip_kind == "word" else None) or info.get("text") or "")
         clip_variant = str(info.get("variant_key") or "")
+        clip_md5 = str(info.get("md5") or "") if clip_kind == "word" else ""
         clip = audio_resource_ledger.entry(
-            clip_kind, info.get("language"), clip_text, audio_path, provider, clip_variant,
-            str(info.get("md5") or "") if clip_kind == "word" else "",
+            clip_kind, info.get("language"), clip_text, audio_path, provider, clip_variant, clip_md5,
         )
         identity = handler._delivery_identity(info)
         row = laravel_delivery_outbox.enqueue(kind, {
@@ -115,6 +115,7 @@ class AudioLaneDelivery:
             audio_resource_delivery.publish(
                 clip_kind, info.get("language"), clip_text, str(row.get("payload_path") or audio_path), provider,
                 clip_variant, skip_namespace=str(row.get("namespace") or "") if identity else "",
+                md5=clip_md5,
             )
         return row
 

@@ -10,6 +10,7 @@ from pycore.pyfoundations.runtime_abi import CUDA_TIERS, TORCH_CPU_INDEX
 from pycore.pyfoundations.python_package_policy import (
     DEPENDENCY_MAP,
     GUI_ONLY_IMPORTS,
+    LINUX_ONLY_PACKAGES,
     OPTIONAL_PACKAGES,
     WINDOWS_OCR_WINRT_PACKAGES,
     WINDOWS_ONLY_PACKAGES,

@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 from typing import Any, Dict
 
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DELIVERY
+
 LARAVEL_HEALTH_SERVICE = "Laravel API"
-# Laravel server identity (W7 contract): ``/api/health`` answers a stable
-# ``server_id``; an API response may carry it in LARAVEL_SERVER_ID_HEADER.
-# Delivery state is namespaced per server id; an endpoint whose server id is
-# unknown (legacy server) is namespaced by URL.
-LARAVEL_SERVER_ID_FIELD = "server_id"
-LARAVEL_SERVER_ID_HEADER = "X-Core-Node-Server-Id"
+# Laravel server identity (W7 contract, config/queue_center_contract.json
+# #delivery.server_identity): ``/api/health`` answers a stable ``server_id``;
+# an API response may carry it in LARAVEL_SERVER_ID_HEADER. Delivery state is
+# namespaced per server id; an endpoint whose server id is unknown (legacy
+# server) is namespaced by URL.
+_SERVER_IDENTITY = QUEUE_CENTER_DELIVERY["server_identity"]
+LARAVEL_SERVER_ID_FIELD = str(_SERVER_IDENTITY["body_field"])
+LARAVEL_SERVER_ID_HEADER = str(_SERVER_IDENTITY["header"])
 SERVER_NAMESPACE_PREFIX = "server:"
 URL_NAMESPACE_PREFIX = "url:"
 

@@ -2,3 +2,5 @@
 - [Secret password runner](secret-password-runner.md) — secret node tools take the password on stdin via the runner, never argv
 - [Launcher generator parity](launcher-generator-parity.md) — generated launchers can lag the generator; parity-check then regenerate, never hand-edit
 - [Strict mode + desktop icons](win-strictmode-and-desktop-icons.md) — GlobalVars enables StrictMode Latest; organizer layout, pinned Window Launcher, keep keyword file ASCII
+- [Edit tool unicode escapes](edit-tool-unicode-escapes.md) — typed ﻿ becomes the literal char; write escapes via node byte-level replace
+- [Hooks stay shell form](hooks-shell-form-decision.md) — exec-form "args" deferred: an older CLI would silently disable the git guard

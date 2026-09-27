@@ -8,7 +8,7 @@ import { useCallback, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { pycoreApi } from '@/apps/pycore-manager/api';
-import type { AudioLaneKey, QueueCenterWordAudioFullSyncStatus } from '@/apps/pycore-manager/api';
+import type { AudioLaneKey, AudioLaneFullSyncStatus } from '@/apps/pycore-manager/api';
 import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
 
 export function PcAudioLaneFullSyncRow({
@@ -17,7 +17,7 @@ export function PcAudioLaneFullSyncRow({
   enabled,
 }: {
   lane: AudioLaneKey;
-  status: QueueCenterWordAudioFullSyncStatus | null;
+  status: AudioLaneFullSyncStatus | null;
   enabled: boolean;
 }): ReactElement {
   const { t } = useTranslation('pc');

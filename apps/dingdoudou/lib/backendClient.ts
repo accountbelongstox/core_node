@@ -9,13 +9,13 @@
 //   GET  recharge/packages                          -> packages[]
 //   POST recharge/create    { token, package_id }   -> { pay_url }
 
-import type { BackendConfig, LicenseState } from './types';
+import type { BackendConfig, LicenseMode, LicenseState } from './types';
 import { errorText } from './value';
 import { normalizeBackendUrl } from './backendUrl';
 import { AppError } from './appError';
 
 interface BackendLicenseDTO {
-  mode?: 'member' | 'locked';
+  mode?: LicenseMode;
   tier?: string;
   features?: string[];
   permissions?: string[];
@@ -29,20 +29,27 @@ interface BackendLicenseDTO {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
+function toLicenseMode(mode: BackendLicenseDTO['mode']): LicenseMode {
+  return mode === 'super' || mode === 'locked' ? mode : 'member';
+}
+
 function toLicense(dto: BackendLicenseDTO, token?: string): LicenseState {
+  const mode = toLicenseMode(dto.mode);
+  const credential = token ?? dto.token;
   let expiresAt: number | null = null;
   if (dto.expires_at != null) {
     const n = typeof dto.expires_at === 'number' ? dto.expires_at : Date.parse(String(dto.expires_at));
     expiresAt = Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : null;
   }
   return {
-    mode: dto.mode === 'locked' ? 'locked' : 'member',
-    token: token ?? dto.token,
+    mode,
+    code: mode === 'super' ? credential : undefined,
+    token: credential,
     tier: dto.tier ?? 'free',
     features: dto.features ?? dto.permissions ?? [],
     maxBinds: dto.max_binds ?? 1,
     expiresAt,
-    label: dto.label ?? dto.remark ?? dto.username,
+    label: mode === 'member' ? dto.remark ?? dto.username ?? dto.label : undefined,
     verifiedAt: Date.now(),
     offline: false,
   };

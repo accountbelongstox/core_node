@@ -19,23 +19,26 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from pycore.pyfoundations.desktop_session import xauthority_candidates
+from pycore.pyfoundations.desktop_session import (
+    BUS_ADDRESS_ENV,
+    DISPLAY_ENV,
+    RUN_USER_ROOT,
+    RUNTIME_DIR_ENV,
+    SESSION_BUS_SOCKET,
+    WAYLAND_DISPLAY_ENV,
+    XAUTHORITY_ENV,
+    bus_address_for,
+    user_session_endpoints,
+    xauthority_candidates,
+)
 from pycore.pyfoundations.pygvar import IS_WINDOWS
 
 if not IS_WINDOWS:
     import pwd
 
 ROOT_UID = 0
-RUN_USER_ROOT = Path('/run/user')
 ROOT_RUNTIME_DIR = str(RUN_USER_ROOT / str(ROOT_UID))
 ROOT_BUS_MARKER = ROOT_RUNTIME_DIR + '/'
-SESSION_BUS_SOCKET = 'bus'
-BUS_ADDRESS_FORMAT = 'unix:path={path}'
-BUS_ADDRESS_ENV = 'DBUS_SESSION_BUS_ADDRESS'
-RUNTIME_DIR_ENV = 'XDG_RUNTIME_DIR'
-DISPLAY_ENV = 'DISPLAY'
-WAYLAND_DISPLAY_ENV = 'WAYLAND_DISPLAY'
-XAUTHORITY_ENV = 'XAUTHORITY'
 DESKTOP_UID_ENV_KEYS = ('PKEXEC_UID', 'SUDO_UID')
 SYSTEMD_INVOCATION_ENV = 'INVOCATION_ID'
 SERVICE_MARKER_ENV_KEYS = (SYSTEMD_INVOCATION_ENV, 'JOURNAL_STREAM')
@@ -45,10 +48,6 @@ IM_ENV_KEYS = frozenset({
 })
 PAM_ENVIRONMENT_FILE = Path('/etc/environment')
 ENV_VALUE_QUOTES = '"\''
-WAYLAND_SOCKET_GLOB = 'wayland-[0-9]*'
-X11_SOCKET_DIR = Path('/tmp/.X11-unix')
-DEFAULT_X11_DISPLAY = ':0'
-DEFAULT_X11_SOCKET = 'X0'
 HOME_XAUTHORITY = '.Xauthority'
 RUNUSER_BIN = 'runuser'
 SUDO_BIN = 'sudo'
@@ -63,14 +62,6 @@ class DesktopUser:
     uid: int
     name: str
     home: str
-
-    @property
-    def runtime_dir(self) -> str:
-        return str(RUN_USER_ROOT / str(self.uid))
-
-    @property
-    def bus_address(self) -> str:
-        return _bus_address(Path(self.runtime_dir))
 
     @property
     def working_dir(self) -> Optional[str]:
@@ -173,10 +164,6 @@ def _passwd_entry(uid: int):
         return None
 
 
-def _bus_address(runtime_dir: Path) -> str:
-    return BUS_ADDRESS_FORMAT.format(path=runtime_dir / SESSION_BUS_SOCKET)
-
-
 def _scrub_foreign_session_bus(env: Dict[str, str]) -> None:
     address = env.get(BUS_ADDRESS_ENV, '')
     if address and ROOT_BUS_MARKER not in address:
@@ -196,24 +183,25 @@ def _repoint_private_session_bus(env: Dict[str, str]) -> None:
     own_runtime_dir = RUN_USER_ROOT / str(os.getuid())
     own_bus = own_runtime_dir / SESSION_BUS_SOCKET
     if own_bus.is_socket() and str(own_bus) not in env.get(BUS_ADDRESS_ENV, ''):
-        env[BUS_ADDRESS_ENV] = _bus_address(own_runtime_dir)
+        env[BUS_ADDRESS_ENV] = bus_address_for(own_runtime_dir)
 
 
 def _desktop_user_assignments(user: DesktopUser) -> Dict[str, str]:
     """Identity, session and input-method variables of *user*'s desktop session."""
+    endpoints = user_session_endpoints(user.uid)
     assignments = _pam_im_environment()
     assignments.update({
         'HOME': user.home,
         'USER': user.name,
         'LOGNAME': user.name,
-        RUNTIME_DIR_ENV: user.runtime_dir,
-        BUS_ADDRESS_ENV: user.bus_address,
+        RUNTIME_DIR_ENV: endpoints.runtime_dir,
+        BUS_ADDRESS_ENV: endpoints.bus_address,
     })
-    display = os.environ.get(DISPLAY_ENV, '') or _default_x11_display()
+    display = os.environ.get(DISPLAY_ENV, '') or endpoints.x11_display
     session_values = (
         (DISPLAY_ENV, display),
-        (WAYLAND_DISPLAY_ENV, os.environ.get(WAYLAND_DISPLAY_ENV, '') or _first_wayland_socket(user)),
-        (XAUTHORITY_ENV, _user_xauthority(user) if display else ''),
+        (WAYLAND_DISPLAY_ENV, os.environ.get(WAYLAND_DISPLAY_ENV, '') or endpoints.wayland_display),
+        (XAUTHORITY_ENV, _user_xauthority(user, endpoints.runtime_dir) if display else ''),
     )
     for key, value in session_values:
         if value:
@@ -238,24 +226,13 @@ def _pam_im_environment() -> Dict[str, str]:
     return values
 
 
-def _default_x11_display() -> str:
-    return DEFAULT_X11_DISPLAY if (X11_SOCKET_DIR / DEFAULT_X11_SOCKET).exists() else ''
-
-
-def _first_wayland_socket(user: DesktopUser) -> str:
-    for candidate in sorted(Path(user.runtime_dir).glob(WAYLAND_SOCKET_GLOB)):
-        if candidate.is_socket():
-            return candidate.name
-    return ''
-
-
-def _user_xauthority(user: DesktopUser) -> str:
+def _user_xauthority(user: DesktopUser, runtime_dir: str) -> str:
     """X cookie readable by *user*: the inherited one when it is theirs."""
-    user_roots = (Path(user.runtime_dir), Path(user.home))
+    user_roots = (Path(runtime_dir), Path(user.home))
     configured = os.environ.get(XAUTHORITY_ENV, '')
     if configured and any(Path(configured).is_relative_to(root) for root in user_roots):
         return configured
-    for candidate in xauthority_candidates(user.runtime_dir):
+    for candidate in xauthority_candidates(runtime_dir):
         if Path(candidate).is_relative_to(user_roots[0]):
             return candidate
     home_cookie = Path(user.home) / HOME_XAUTHORITY

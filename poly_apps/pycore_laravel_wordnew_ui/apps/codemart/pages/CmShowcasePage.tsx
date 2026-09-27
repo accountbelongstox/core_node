@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { BriefcaseBusiness, CalendarClock, ChevronLeft, ChevronRight, RotateCw, Trophy } from 'lucide-react';
+import { BriefcaseBusiness, CalendarClock, RotateCw, Trophy } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
 import { cmPublicApi, type CmShowcaseProject, type CmShowcaseSection, type CmShowcaseTask } from '../api/CmPublicApi';
@@ -9,7 +9,8 @@ import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { useCmProtectedNavigate } from '../components/public-home/useCmProtectedNavigate';
-import { CM_WHOLE_MONEY_DIGITS, cmFormatDate, cmFormatMoneyRange, cmFormatNumber } from '../components/workspace/cmWorkspaceFormat';
+import { CmPager } from '../components/workspace/CmPager';
+import { CM_WHOLE_MONEY_DIGITS, cmFormatDate, cmFormatMoneyRange, cmFormatNumber, cmTotalPages } from '../components/workspace/cmWorkspaceFormat';
 
 type CmShowcaseKind = 'open_tasks' | 'completed_projects';
 
@@ -68,23 +69,6 @@ const CmSkillChips: React.FC<{ skills: string[] }> = ({ skills }) => {
   );
 };
 
-const CmShowcasePager: React.FC<{ page: number; total: number; onChange: (page: number) => void }> = ({ page, total, onChange }) => {
-  const { t } = useTranslation('cm');
-  const pageCount = Math.max(1, Math.ceil(total / SHOWCASE_PAGE_SIZE));
-  if (pageCount <= 1) return null;
-  return (
-    <nav className="cm-showcase-pager" aria-label={t('showcase.pagination')}>
-      <button type="button" onClick={() => onChange(page - 1)} disabled={page <= 1} aria-label={t('common.previous')}>
-        <ChevronLeft aria-hidden="true" />
-      </button>
-      <span>{t('showcase.pageOf', { page, total: pageCount })}</span>
-      <button type="button" onClick={() => onChange(page + 1)} disabled={page >= pageCount} aria-label={t('common.next')}>
-        <ChevronRight aria-hidden="true" />
-      </button>
-    </nav>
-  );
-};
-
 function CmShowcaseBlock<T extends { id: number }>({
   id,
   titleKey,
@@ -125,7 +109,12 @@ function CmShowcaseBlock<T extends { id: number }>({
       ) : (
         <div className="cm-showcase-grid">{state.section?.items.map((item) => <React.Fragment key={item.id}>{renderItem(item)}</React.Fragment>)}</div>
       )}
-      <CmShowcasePager page={state.page} total={total} onChange={state.setPage} />
+      <CmPager
+        variant="public"
+        page={state.page}
+        totalPages={cmTotalPages({ total, page_size: SHOWCASE_PAGE_SIZE })}
+        onChange={state.setPage}
+      />
     </section>
   );
 }

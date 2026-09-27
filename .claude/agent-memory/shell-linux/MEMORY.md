@@ -1,3 +1,6 @@
-- [CRLF mixed line endings](crlf-mixed-line-endings.md) — some scripts/ files are CRLF; scripted edits must preserve endings
+- [CRLF mixed line endings](crlf-mixed-line-endings.md) — mixed endings; .sh must be LF; count CRs with tr, not grep -c in Git Bash
+- [WSL verification recipe](wsl-verification-recipe.md) — run Linux dry runs via Git Bash wsl.exe script files; Debian WSL tools; shared scratchpad
+- [claudeteam cross-OS contract](claudeteam-cross-os-contract.md) — pane flags mirror claudeteam.ps1; remote server runs Linux claudeteam.sh from both OSes
 - [Secret password runner](secret-password-runner.md) — secret node tools take the password on stdin via the runner, never argv
 - [Launcher generator parity](launcher-generator-parity.md) — generated launchers can lag the generator; parity-check then regenerate, never hand-edit
+- [Root acts as user](root-acts-as-user.md) — root steps in other users' homes run as that user (runuser); unshare+fake passwd sandbox

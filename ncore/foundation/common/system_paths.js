@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * System Paths Module
  *
@@ -32,17 +20,25 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
+const serviceContract = require('#@/config/service_contract.js');
 
 let _systemCacheDir = null;
 let _xdgCacheHome = null;
-const NTFS_FILE_SYSTEMS = new Set(['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g']);
-const WINDOWS_DATA_DRIVE_ROOT = 'D:\\';
-const WWW_DIR_NAME = 'www';
-const CORE_NODE_DATA_DIR_NAME = 'core_node';
+const CONTRACT_PATHS = serviceContract.document.paths || {};
+const HOME_PREFIX = '~/';
+const NEGATED_RULE_PREFIX = 'not ';
+const LINUX_WWW_NTFS_ROOT_RULE = 'linux_www_ntfs_root_rule';
+const NTFS_FILE_SYSTEMS = new Set(CONTRACT_PATHS.ntfs_fs_types || []);
+const WINDOWS_DATA_DRIVE_ROOT = path.win32.normalize(String(CONTRACT_PATHS.windows_data_drive_root || ''));
+const WWW_DIR_NAME = String(CONTRACT_PATHS.www_dir_name || '');
+const CORE_NODE_DATA_DIR_NAME = String(CONTRACT_PATHS.core_node_data_dir_name || '');
 const CACHE_DIR_NAME = 'cache';
-const GLOBAL_VAR_DIR_NAME = 'global_var';
+const GLOBAL_VAR_DIR_NAME = String(CONTRACT_PATHS.global_var_dir_name || '');
 const LEGACY_USER_DATA_DIR_NAME = '.core_node';
-const LEGACY_LINUX_DATA_DIR = '/var/_core_node';
+const LEGACY_LINUX_DATA_DIR = resolveContractPath('legacy_linux_data_dir');
+const LINUX_WWW_ROOT = resolveContractPath('linux_www_root');
+const LINUX_NTFS_NESTED_WWW_ROOT = resolveContractPath('linux_ntfs_nested_www_root');
+const HOME_DATA_DIR_FALLBACK = resolveContractPath('home_data_dir_fallback');
 const WINDOWS_WWW_BASE = path.join(WINDOWS_DATA_DRIVE_ROOT, WWW_DIR_NAME);
 const WINDOWS_CORE_NODE_DATA_DIR = path.join(WINDOWS_WWW_BASE, CORE_NODE_DATA_DIR_NAME);
 const WINDOWS_SHARED_CACHE_DIR = path.join(WINDOWS_WWW_BASE, CACHE_DIR_NAME);
@@ -63,6 +59,37 @@ const SHARED_GLOBAL_VAR_KEYS = new Set([
     'GIT_PUSH_BRANCH',
     'GIT_UPDATE_TYPE'
 ]);
+
+function resolveContractPath(key) {
+    const raw = String(CONTRACT_PATHS[key] || '');
+    return raw.startsWith(HOME_PREFIX) ? path.join(os.homedir(), raw.slice(HOME_PREFIX.length)) : raw;
+}
+
+function contractRuleHolds(rule) {
+    if (rule === LINUX_WWW_NTFS_ROOT_RULE) {
+        return wwwDataRootMounted();
+    }
+    logger.warn(`Unknown service contract path rule: ${rule}`);
+    return null;
+}
+
+function candidateApplies(when) {
+    if (!when) {
+        return true;
+    }
+    const negated = when.startsWith(NEGATED_RULE_PREFIX);
+    const holds = contractRuleHolds(negated ? when.slice(NEGATED_RULE_PREFIX.length) : when);
+    return holds === null ? false : holds !== negated;
+}
+
+function getLinuxDataDirCandidates() {
+    const candidates = Array.isArray(CONTRACT_PATHS.linux_data_dir_candidates) ? CONTRACT_PATHS.linux_data_dir_candidates : [];
+    return candidates
+        .filter((candidate) => candidateApplies(candidate.when))
+        .map((candidate) => candidate.join
+            ? path.join(resolveContractPath(candidate.path), String(CONTRACT_PATHS[candidate.join] || ''))
+            : resolveContractPath(candidate.path));
+}
 
 function getMountInfo(target) {
     if (process.platform !== 'linux' || !fs.existsSync('/proc/mounts')) {
@@ -90,19 +117,19 @@ function getMountInfo(target) {
 }
 
 function wwwDataRootMounted() {
-    const wwwMount = getMountInfo('/www');
+    const wwwMount = getMountInfo(LINUX_WWW_ROOT);
     const rootMount = getMountInfo('/');
     return Boolean(
         wwwMount &&
         rootMount &&
         wwwMount.source !== rootMount.source &&
         NTFS_FILE_SYSTEMS.has(wwwMount.fileSystem) &&
-        fs.existsSync('/www/www')
+        fs.existsSync(LINUX_NTFS_NESTED_WWW_ROOT)
     );
 }
 
 function getLinuxWwwBase() {
-    return wwwDataRootMounted() ? '/www/www' : '/www';
+    return wwwDataRootMounted() ? LINUX_NTFS_NESTED_WWW_ROOT : LINUX_WWW_ROOT;
 }
 
 function getLegacySystemCacheDirs() {
@@ -195,7 +222,7 @@ function getXdgCacheHome() {
         } else if (process.env.CORE_NODE_CACHE_DIR) {
             cacheHome = path.join(process.env.CORE_NODE_CACHE_DIR, 'xdg');
         } else if (wwwDataRootMounted()) {
-            cacheHome = path.join(getLinuxWwwBase(), 'cache', 'xdg');
+            cacheHome = path.join(getLinuxWwwBase(), CACHE_DIR_NAME, 'xdg');
         } else {
             cacheHome = path.join(os.homedir(), '.cache');
         }
@@ -216,7 +243,7 @@ function getSharedDownloadCacheDir() {
             : path.join(LEGACY_LINUX_DATA_DIR, CACHE_DIR_NAME);
     const candidates = configuredDir
         ? [configuredDir]
-        : [preferredDir, path.join(os.homedir(), CORE_NODE_DATA_DIR_NAME, CACHE_DIR_NAME)];
+        : [preferredDir, path.join(HOME_DATA_DIR_FALLBACK, CACHE_DIR_NAME)];
     let cacheDir = preferredDir;
     for (const candidate of candidates) {
         try {
@@ -291,14 +318,11 @@ function getSystemCacheDir() {
     }
 
     const configuredDir = (process.env.CORE_NODE_DATA_DIR || '').trim();
-    const preferredDir = process.platform === 'win32'
-        ? WINDOWS_CORE_NODE_DATA_DIR
-        : path.join(getLinuxWwwBase(), CORE_NODE_DATA_DIR_NAME);
     const candidates = configuredDir
         ? [configuredDir]
         : process.platform === 'win32'
-            ? [preferredDir, WINDOWS_USER_DATA_DIR]
-            : [preferredDir, LEGACY_LINUX_DATA_DIR, path.join(os.homedir(), CORE_NODE_DATA_DIR_NAME)];
+            ? [WINDOWS_CORE_NODE_DATA_DIR, WINDOWS_USER_DATA_DIR]
+            : getLinuxDataDirCandidates();
 
     for (const candidate of candidates) {
         try {
@@ -310,7 +334,8 @@ function getSystemCacheDir() {
             continue;
         }
     }
-    _systemCacheDir = preferredDir;
+    _systemCacheDir = configuredDir
+        || (process.platform === 'win32' ? WINDOWS_CORE_NODE_DATA_DIR : HOME_DATA_DIR_FALLBACK);
     return _systemCacheDir;
 }
 

@@ -6,9 +6,10 @@ import {
   type PycoreHttpBinaryResult,
   PYCORE_HTTP_ROUTES,
 } from './PycoreApiTransport';
+import { relayRoutePolicyTimeoutMs } from '../../contracts/RelayContract';
 
 
-const TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS = 150_000;
+const TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS = relayRoutePolicyTimeoutMs('terminal_integration');
 
 export interface TerminalWindowRect {
   x: number;

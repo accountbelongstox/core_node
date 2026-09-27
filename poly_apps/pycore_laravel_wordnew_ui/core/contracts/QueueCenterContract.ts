@@ -16,6 +16,7 @@ import contractDocument from '../../../../config/queue_center_contract.json';
 import type {
   QueueCenterControlName,
   QueueCenterScope,
+  QueueCenterSectionLifecycle,
   PcQueueHandler,
   QueueDeliveryStage,
   GlobalTaskStatus,
@@ -39,7 +40,7 @@ import type {
   GlobalTaskTypeDefinition,
   GlobalTaskOrderingRecord,
   QueueCenterSectionContract,
-  QueueCenterWordAudioFullSyncStatus,
+  AudioLaneFullSyncStatus,
 } from './QueueCenterTypes';
 
 export type * from './QueueCenterTypes';
@@ -129,7 +130,6 @@ interface ContractDocument {
       values: Record<string, string>;
       terminal: string[];
     };
-    stream_events: Record<'initial' | 'transition' | 'ping' | 'close', string>;
     execution_types: Record<string, GlobalTaskExecutionType>;
     priorities: Record<'default' | 'manual' | 'fast' | 'maximum', number>;
     progress_stages: Record<'accepted' | 'synthesizing' | 'uploading' | 'finalizing' | 'completed', number>;
@@ -253,6 +253,9 @@ export const QUEUE_CENTER_TASK_PROGRESS = QUEUE_CENTER_CONTRACT.task_contract.pr
 export const QUEUE_CENTER_CONTROL_NAMES = QUEUE_CENTER_CONTRACT.control_names;
 export const QUEUE_CENTER_CALLBACK_ROLES = QUEUE_CENTER_CONTRACT.callback_queue_roles;
 export const QUEUE_CENTER_SCOPES = Object.keys(QUEUE_CENTER_CONTRACT.section_scopes) as QueueCenterScope[];
+export const QUEUE_CENTER_SECTION_LIFECYCLES: readonly QueueCenterSectionLifecycle[] = [
+  'off', 'starting', 'on', 'stopping', 'error',
+];
 const GLOBAL_TASK_TYPE_DEFINITIONS = QUEUE_CENTER_CONTRACT.task_contract.task_types as GlobalTaskTypeDefinition[];
 export const QUEUE_CENTER_CATEGORY_KEYS = QUEUE_CENTER_CONTRACT.categories.map((category) => category.key);
 export const QUEUE_CENTER_CATEGORY_CATALOG = QUEUE_CENTER_CONTRACT.categories.map((category) => {
@@ -280,7 +283,6 @@ export const GLOBAL_TASK_EVENTS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.ev
 export const GLOBAL_TASK_TERMINAL_EVENTS = QUEUE_CENTER_CONTRACT.task_contract.events.terminal.map(
   (role) => GLOBAL_TASK_EVENTS_BY_ROLE[role] ?? role,
 );
-export const GLOBAL_TASK_STREAM_EVENTS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.stream_events;
 export const GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.execution_types;
 export const GLOBAL_TASK_EXECUTION_TYPES = Object.values(GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE);
 export const GLOBAL_TASK_CAPABILITIES = Object.keys(
@@ -471,8 +473,8 @@ export function isQueueCenterScope(value: unknown): value is QueueCenterScope {
   return typeof value === 'string' && QUEUE_CENTER_SCOPES.includes(value as QueueCenterScope);
 }
 
-/** Parse the pycore word-audio full-pull status block (word_audio section only). */
-export function normalizeWordAudioFullSyncStatus(raw: unknown): QueueCenterWordAudioFullSyncStatus | null {
+/** Parse one pycore audio-lane full-pull status block. */
+export function normalizeAudioLaneFullSyncStatus(raw: unknown): AudioLaneFullSyncStatus | null {
   if (!raw || typeof raw !== 'object') return null;
   const value = raw as Record<string, unknown>;
   const lastResult = value.last_result && typeof value.last_result === 'object'
@@ -507,6 +509,14 @@ export function normalizeWordAudioFullSyncStatus(raw: unknown): QueueCenterWordA
     cache_count: toNumber(value.cache_count),
     queue_count: value.queue_count == null ? toNumber(value.cache_count) : toNumber(value.queue_count),
   };
+}
+
+/** Lane full-pull status: the pushed lane state first, the section contract as the fallback. */
+export function resolveAudioLaneFullSyncStatus(
+  laneFullSync: unknown,
+  section: Pick<QueueCenterSectionContract, 'full_sync'> | null | undefined,
+): AudioLaneFullSyncStatus | null {
+  return normalizeAudioLaneFullSyncStatus(laneFullSync) ?? section?.full_sync ?? null;
 }
 
 export function buildEmptyQueueCenterSection(
@@ -576,12 +586,10 @@ export function normalizeQueueCenterSections(
         graceful_stop: toBoolean(toggle.graceful_stop),
         paused_by_user: toggle.paused_by_user == null ? null : toBoolean(toggle.paused_by_user),
       },
-      lifecycle: lifecycle === 'off' || lifecycle === 'starting' || lifecycle === 'on' || lifecycle === 'error'
-        ? lifecycle
+      lifecycle: QUEUE_CENTER_SECTION_LIFECYCLES.includes(lifecycle as QueueCenterSectionLifecycle)
+        ? lifecycle as QueueCenterSectionLifecycle
         : 'off',
-      full_sync: scopeKey === 'word_audio'
-        ? normalizeWordAudioFullSyncStatus(raw.full_sync)
-        : null,
+      full_sync: normalizeAudioLaneFullSyncStatus(raw.full_sync),
       error_code: toNullableString(raw.error_code),
       last_error: toNullableString(raw.last_error),
       observed_at: toNullableString(raw.observed_at),

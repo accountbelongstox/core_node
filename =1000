@@ -1,0 +1,9 @@
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+NAME="Debian GNU/Linux"
+VERSION_ID="13"
+GNU bash, version 5.2.37(1)-release (x86_64-pc-linux-gnu)
+/usr/bin/mawk
+mawk 1.3.4 20250131
+/usr/bin/cmp
+/usr/sbin/runuser
+uid=0(root) gid=0(root) groups=0(root)

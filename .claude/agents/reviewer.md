@@ -18,6 +18,8 @@ For each task handed to you:
 3. Check boundaries (`development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md` §8): the owner wrote only inside its scope, and shared-UI writes were assigned.
 4. Check the AGENTS.md rules: English code, i18n with no hardcoded text, variables at the file top, no tests, and no duplicate implementations or constants.
 5. Check contract consistency with `config/*_contract.json`.
+   - The user's own `scripts/pytools/ai_prompt_upload_head/CodeHeaderCleaner.py` (a run at 2026-09-27 15:59; backup commit `f4f223414`) strips the leading AI rules header blocks from files. A later run may also strip them from `.ps1`/`.sh`/`.cmd`/`.bat`. Such removals are never a role's change: ignore them in diffs, and do not ask a role to restore them.
+   - Diff base: the user's backup commits (e.g. `f4f223414` "CodeHeaderCleanerBak") capture every role's working tree, so `git diff` against HEAD can be empty. Diff against the last commit before the run started (`74e7770` for the 2026-09-27 run) or the commit named in the task, and say which base you used.
    - For `shell-linux` and `shell-windows` tasks, also check parity (user D12). Every functional change needs one of: a row in the owner's `.claude/agents_shared/shell_parity/<linux|windows>.md` ledger; a `pending-*` row with an alignment task for the counterpart; or a stated platform-only reason. Linux changes must suit Debian 13 and Ubuntu 26.04. A `pending-*` row without an alignment task is `changes_requested`.
 6. Write `.claude/agents_shared/reviews/<task_id>.json` as `{"verdict": "approved"|"changes_requested", "notes": "file:line defect -> fix; ..."}`, and message the owner and the orchestrator.
 

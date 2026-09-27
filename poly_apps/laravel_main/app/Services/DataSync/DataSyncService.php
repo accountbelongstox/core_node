@@ -50,7 +50,7 @@ final class DataSyncService
         $probe['machine_code'] = $this->machine->code();
         $probe['peer_machine_code'] = $peerMachineCode !== '' ? $peerMachineCode : null;
         $probe['same_machine'] = $peerMachineCode !== '' ? hash_equals($this->machine->code(), $peerMachineCode) : null;
-        $probe['protocol_compatible'] = (int) ($probe['health']['protocol_version'] ?? 0) === DataSyncProtocol::VERSION;
+        $probe['protocol_compatible'] = (int) ($probe['health']['protocol_version'] ?? 0) === DataSyncProtocol::version();
 
         return $probe;
     }
@@ -122,7 +122,7 @@ final class DataSyncService
         if (!$this->runtime->isActive($job)) {
             return $this->publicJob($job);
         }
-        if (in_array($job['role'], DataSyncProtocol::DRIVER_ROLES, true)) {
+        if (in_array($job['role'], DataSyncProtocol::driverRoles(), true)) {
             return $this->publicJob($this->driver->cancel($job));
         }
         $this->runtime->requestCancel($id);
@@ -146,9 +146,9 @@ final class DataSyncService
     {
         return [
             'service' => 'laravel-main-data-sync',
-            'protocol_version' => DataSyncProtocol::VERSION,
+            'protocol_version' => DataSyncProtocol::version(),
             'compression_available' => SystemArchiveManager::available(),
-            'default_port' => DataSyncProtocol::DEFAULT_PORT,
+            'default_port' => DataSyncProtocol::defaultPort(),
             'machine_code' => $this->machine->code(),
         ];
     }
@@ -160,8 +160,8 @@ final class DataSyncService
      */
     public function advance(): void
     {
-        foreach ($this->store->activeAll(DataSyncProtocol::ROLES) as $job) {
-            if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
+        foreach ($this->store->activeAll(DataSyncProtocol::roles()) as $job) {
+            if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::version()) {
                 $this->runtime->tryLock((string) $job['id'], fn (): array => $this->runtime->finish(
                     $job,
                     'failed',
@@ -169,7 +169,7 @@ final class DataSyncService
                 ));
                 continue;
             }
-            if (in_array($job['role'], DataSyncProtocol::PASSIVE_ROLES, true)) {
+            if (in_array($job['role'], DataSyncProtocol::passiveRoles(), true)) {
                 $this->passive->advance($job);
             } else {
                 $this->driver->advance((string) $job['id']);
@@ -191,7 +191,7 @@ final class DataSyncService
 
         return $this->topology->run(function () use ($role, $targetInput, $normalizedTarget, $syncDatabases, $syncResources, $compression): array {
             $cancelled = [];
-            foreach ($this->store->activeAll(DataSyncProtocol::ROLES) as $active) {
+            foreach ($this->store->activeAll(DataSyncProtocol::roles()) as $active) {
                 $this->cancel((string) $active['id']);
                 $cancelled[] = (string) $active['id'];
             }
@@ -217,7 +217,7 @@ final class DataSyncService
     private function requireDriver(string $id): array
     {
         $job = $this->store->get($id);
-        if ($job === null || !in_array($job['role'] ?? null, DataSyncProtocol::DRIVER_ROLES, true)) {
+        if ($job === null || !in_array($job['role'] ?? null, DataSyncProtocol::driverRoles(), true)) {
             throw new DataSyncNotFoundException();
         }
         return $job;

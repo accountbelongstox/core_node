@@ -2,18 +2,17 @@ import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Ban, Banknote, Check, RotateCcw, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
+import { CmListState, CmNotice } from '../components/workspace/CmStateViews';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPager } from '../components/workspace/CmPager';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmAdminApi } from './CmAdminApi';
 import {
   CmAdminDate,
   CmAdminKeyValues,
-  CmAdminListState,
   CmAdminMoney,
-  CmAdminNotice,
-  CmAdminPageHeader,
-  CmAdminPager,
   CmAdminSearch,
   CmAdminSelect,
-  CmAdminStatus,
   CmAdminTable,
   CmAdminToolbar,
   CmAdminUserLink,
@@ -115,8 +114,8 @@ export const CmAdminDepositsPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.deposits" purposeKey="admin.purpose.deposits" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.deposits" purposeKey="admin.purpose.deposits" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSelect
           labelKey="admin.filterStatus"
@@ -126,7 +125,7 @@ export const CmAdminDepositsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.deposit.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noDeposits" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noDeposits" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.nav.deposits')} actions>
           <thead>
             <tr>
@@ -149,7 +148,7 @@ export const CmAdminDepositsPage: React.FC = () => {
                 <td><CmAdminMoney amount={item.amount} /></td>
                 <td>{t(`admin.method.${item.payment_method}`, { defaultValue: item.payment_method })}</td>
                 <td className="cm-admin-status-cell">
-                  <CmAdminStatus status={item.status} group="admin.states.deposit" />
+                  <CmStatusBadge status={item.status} prefix="admin.states.deposit" />
                   {item.admin_notes && <small className="cm-admin-sub">{item.admin_notes}</small>}
                 </td>
                 <td className="cm-admin-nowrap"><CmAdminDate value={item.created_at} stacked /></td>
@@ -177,8 +176,8 @@ export const CmAdminDepositsPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );
@@ -235,8 +234,8 @@ export const CmAdminRefundsPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.refunds" purposeKey="admin.purpose.refunds" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.refunds" purposeKey="admin.purpose.refunds" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSelect
           labelKey="admin.filterStatus"
@@ -246,7 +245,7 @@ export const CmAdminRefundsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.refund.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noRefunds" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noRefunds" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.nav.refunds')} actions>
           <thead>
             <tr>
@@ -276,7 +275,7 @@ export const CmAdminRefundsPage: React.FC = () => {
                 </td>
                 <td><CmAdminMoney amount={item.amount} currency={item.currency} /></td>
                 <td className="cm-admin-status-cell">
-                  <CmAdminStatus status={item.status} group="admin.states.refund" />
+                  <CmStatusBadge status={item.status} prefix="admin.states.refund" />
                   {item.admin_notes && <small className="cm-admin-sub">{item.admin_notes}</small>}
                 </td>
                 <td className="cm-admin-wide">
@@ -313,8 +312,8 @@ export const CmAdminRefundsPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );
@@ -368,8 +367,8 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.withdrawals" purposeKey="admin.purpose.withdrawals" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.withdrawals" purposeKey="admin.purpose.withdrawals" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSelect
           labelKey="admin.filterStatus"
@@ -379,7 +378,7 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
           optionLabel={(option) => t(`admin.states.withdrawal.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noWithdrawals" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noWithdrawals" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.nav.withdrawals')} actions>
           <thead>
             <tr>
@@ -403,7 +402,7 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
                   <CmAdminKeyValues value={item.account_info} />
                 </td>
                 <td className="cm-admin-status-cell">
-                  <CmAdminStatus status={item.status} group="admin.states.withdrawal" />
+                  <CmStatusBadge status={item.status} prefix="admin.states.withdrawal" />
                   {item.admin_notes && <small className="cm-admin-sub">{item.admin_notes}</small>}
                 </td>
                 <td className="cm-admin-nowrap"><CmAdminDate value={item.created_at} stacked /></td>
@@ -430,8 +429,8 @@ export const CmAdminWithdrawalsPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );
@@ -468,7 +467,7 @@ const CmAdminPaymentsTable: React.FC = () => {
 
   return (
     <>
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSelect
           labelKey="admin.filterStatus"
@@ -486,7 +485,7 @@ const CmAdminPaymentsTable: React.FC = () => {
           allKey="admin.allTypes"
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noPayments" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noPayments" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.payments.tab.payments')} actions>
           <thead>
             <tr>
@@ -508,7 +507,7 @@ const CmAdminPaymentsTable: React.FC = () => {
                 <td className="cm-admin-nowrap"><CmAdminProjectRef projectId={item.project_id} /></td>
                 <td><CmAdminMoney amount={item.amount} currency={item.currency} /></td>
                 <td>{t(`admin.payments.type.${item.type}`, { defaultValue: item.type })}</td>
-                <td><CmAdminStatus status={item.status} group="states.payment" /></td>
+                <td><CmStatusBadge status={item.status} prefix="states.payment" /></td>
                 <td className="cm-admin-nowrap"><CmAdminDate value={item.created_at} stacked /></td>
                 <td>
                   {item.status === 'disputed' ? (
@@ -530,8 +529,8 @@ const CmAdminPaymentsTable: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </>
   );
@@ -569,7 +568,7 @@ const CmAdminEscrowsTable: React.FC = () => {
 
   return (
     <>
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSelect
           labelKey="admin.filterStatus"
@@ -580,7 +579,7 @@ const CmAdminEscrowsTable: React.FC = () => {
         />
         <CmAdminSearch labelKey="admin.payments.projectId" value={projectId} onApply={setProjectId} icon={false} inputMode="numeric" />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noEscrows" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noEscrows" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.payments.tab.escrows')} actions>
           <thead>
             <tr>
@@ -606,7 +605,7 @@ const CmAdminEscrowsTable: React.FC = () => {
                 <td><CmAdminMoney amount={item.released_amount} currency={item.currency} /></td>
                 <td><CmAdminMoney amount={item.refunded_amount} currency={item.currency} /></td>
                 <td><strong><CmAdminMoney amount={item.remaining_amount} currency={item.currency} /></strong></td>
-                <td><CmAdminStatus status={item.status} group="admin.states.escrow" /></td>
+                <td><CmStatusBadge status={item.status} prefix="admin.states.escrow" /></td>
                 <td className="cm-admin-nowrap"><CmAdminDate value={item.created_at} stacked /></td>
                 <td>
                   <div className="cm-table-actions">
@@ -623,8 +622,8 @@ const CmAdminEscrowsTable: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </>
   );
@@ -636,7 +635,7 @@ export const CmAdminPaymentsPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.payments" purposeKey="admin.purpose.payments" />
+      <CmPageHeader variant="admin" titleKey="admin.nav.payments" purposeKey="admin.purpose.payments" />
       <div className="cm-tabs cm-admin-tabs" role="tablist" aria-label={t('admin.nav.payments')}>
         {(['payments', 'escrows'] as const).map((key) => (
           <button
@@ -687,8 +686,8 @@ export const CmAdminProjectsPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.projects" purposeKey="admin.purpose.projects" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.projects" purposeKey="admin.purpose.projects" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.searchProjects" value={search} onApply={setSearch} />
         <CmAdminSelect
@@ -700,7 +699,7 @@ export const CmAdminProjectsPage: React.FC = () => {
         />
         <CmAdminSearch labelKey="admin.projects.clientId" value={clientId} onApply={setClientId} icon={false} inputMode="numeric" />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noProjects" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noProjects" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.nav.projects')} actions>
           <thead>
             <tr>
@@ -725,7 +724,7 @@ export const CmAdminProjectsPage: React.FC = () => {
                 </td>
                 <td><CmAdminUserLink user={item.client} userId={item.client_id} /></td>
                 <td><CmAdminMoney amount={item.budget} currency={item.currency} /></td>
-                <td><CmAdminStatus status={item.status} group="states.project" /></td>
+                <td><CmStatusBadge status={item.status} prefix="states.project" /></td>
                 <td className="cm-admin-nowrap"><CmAdminDate value={item.created_at} dateOnly /></td>
                 <td>
                   <div className="cm-table-actions">
@@ -747,8 +746,8 @@ export const CmAdminProjectsPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );

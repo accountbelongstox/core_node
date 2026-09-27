@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar, Database, BellRing, BellOff, ShieldAlert } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import { connectPycoreHttp } from '@/apps/pycore-manager/api';
-import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { bridgeRelayDeviceEvent, pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import {
   getAgentHistoryRuntimeState,
@@ -23,8 +23,6 @@ import type {
   AgentHistorySessionIdItem,
   AgentHistorySessionSummary,
 } from '@/apps/pycore-manager/api';
-import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
-import { laravelRelayOperationEvents } from '../../../core/integrations/laravel/LaravelRelayOperationEvents';
 import {
   agentHistoryPageTableStore,
   type AgentHistoryPageTable,
@@ -63,9 +61,6 @@ function knownTool(tool: string): boolean {
   const tools = getAgentHistoryRuntimeState().supportedTools;
   return tools.length === 0 || tools.includes(tool);
 }
-const RELAY_PROMPT_NEW_EVENT = String(
-  (RELAY_CONTRACT.events as Record<string, string>).agent_history_prompt_new || '',
-);
 
 function validCachedPage<T extends { id: string }>(
   table: AgentHistoryPageTable<T> | null,
@@ -376,18 +371,10 @@ const PcAgentHistoryPage: React.FC = () => {
     };
     const offSessions = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, scheduleReload);
     const offPromptNew = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistoryPromptNew, scheduleReload);
-    // Relay mode: pycore forwards prompt.new through the Laravel relay outbox
-    // to the FrankenPHP Mercure hub; bridge it onto the same local topic.
-    const offRelay = RELAY_PROMPT_NEW_EVENT
-      ? laravelRelayOperationEvents.onEvent((event, data) => {
-          if (event !== RELAY_PROMPT_NEW_EVENT) return;
-          const frame = data as { metadata?: unknown } | null;
-          pycoreEventBus.dispatch(
-            PYCORE_EVENT_TOPICS.agentHistoryPromptNew,
-            (frame && typeof frame === 'object' ? frame.metadata : data) ?? {},
-          );
-        })
-      : () => {};
+    // Relay mode: prompt.new arrives through the Laravel relay hub and is
+    // bridged onto the same local topic (agent_history.config.changed is
+    // bridged by the runtime store, which owns the config state).
+    const offRelay = bridgeRelayDeviceEvent('agent_history_prompt_new', PYCORE_EVENT_TOPICS.agentHistoryPromptNew);
     return () => {
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       offSessions();

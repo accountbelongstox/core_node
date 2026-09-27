@@ -55,8 +55,10 @@ BRIDGE_ERROR_RELOGIN_REQUIRED = "gnome_bridge_relogin_required"
 BRIDGE_ERROR_ROOT_USER = "gnome_bridge_requires_desktop_user"
 BRIDGE_ERROR_SOURCE_MISSING = "gnome_bridge_source_missing"
 BRIDGE_ERROR_SETTINGS_FAILED = "gnome_bridge_settings_failed"
+BRIDGE_ERROR_NOT_APPLICABLE = "gnome_bridge_not_applicable"
 INTROSPECT_ERROR_DENIED = "gnome_introspect_denied"
 INTROSPECT_ERROR_UNAVAILABLE = "gnome_introspect_unavailable"
+INTROSPECT_ERROR_NOT_NEEDED = "gnome_introspect_not_needed"
 gnome_shell_activity_log = ActivityLog("GnomeShellDBus")
 
 
@@ -322,11 +324,13 @@ gnome_shell_introspect = GnomeShellIntrospect()
 
 
 __all__ = [
+    "BRIDGE_ERROR_NOT_APPLICABLE",
     "BRIDGE_ERROR_NOT_GNOME",
     "BRIDGE_STATE_ACTIVE",
     "BRIDGE_UUID",
     "BridgeWindow",
     "INTROSPECT_ERROR_DENIED",
+    "INTROSPECT_ERROR_NOT_NEEDED",
     "gnome_shell_bridge",
     "gnome_shell_introspect",
 ]

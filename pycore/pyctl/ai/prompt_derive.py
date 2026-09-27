@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List
 
+from pycore.pyctl.agent_history.ai_sources import AI_SOURCE_PROMPT_DERIVE, AI_SOURCE_PROMPT_REWRITE
 from pycore.pyctl.ai.ai_free_text import free_text_chat, resolve_free_text_model
 from pycore.pyctl.ai.ai_gateway_state import EXHAUSTED_ERROR_MARKERS, is_exhausted_error
 
@@ -125,7 +126,7 @@ def _transform(
 def derive_prompt_en(
     text: str,
     config: Dict[str, Any] | None = None,
-    source: str = "prompt_derive_en",
+    source: str = AI_SOURCE_PROMPT_DERIVE,
 ) -> Dict[str, Any]:
     """Derive one raw prompt into standard English (single user message)."""
     return _transform(
@@ -139,7 +140,7 @@ def derive_prompt_en(
 def rewrite_prompt_en(
     text: str,
     config: Dict[str, Any] | None = None,
-    source: str = "prompt_rewrite_en",
+    source: str = AI_SOURCE_PROMPT_REWRITE,
 ) -> Dict[str, Any]:
     """Rewrite one raw prompt into standard English, code replaced by short
     descriptions (preset system prompt + raw prompt as the user message)."""

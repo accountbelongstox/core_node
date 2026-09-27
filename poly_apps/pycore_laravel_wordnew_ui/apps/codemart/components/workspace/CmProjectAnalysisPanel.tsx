@@ -4,6 +4,7 @@ import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { cmApi } from '../../api/CmApi';
 import type { CmProjectAnalysis, CmProjectDetail } from '../../api/CmApiTypes';
 import { cmErrorMessage } from '../../api/cmErrors';
+import { useCmIdempotencyKey } from '../../api/useCmIdempotencyKey';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { CmStatusBadge } from './CmStatusBadge';
 import { cmFormatNumber, useCmFormat } from './cmWorkspaceFormat';
@@ -33,6 +34,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const notice = useCmNotice();
+  const idempotency = useCmIdempotencyKey();
   const [data, setData] = useState<CmProjectAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -84,6 +86,12 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   }, [load]);
 
   const analysis = data?.analysis ?? null;
+  const analysisId = analysis?.analysis_id ?? null;
+
+  useEffect(() => {
+    idempotency.reset();
+  }, [analysisId, idempotency.reset]);
+
   const active = ACTIVE_ANALYSIS_STATUSES.has(analysis?.status ?? '');
   const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active;
   const canRevise = isOwner && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
@@ -103,9 +111,10 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
     if (!analysis) return;
     setBusy(true);
     notice.clear();
-    const response = await cmApi.acceptAnalysis(analysis.analysis_id);
+    const response = await cmApi.acceptAnalysis(analysis.analysis_id, idempotency.current());
     setBusy(false);
     if (response.success) {
+      idempotency.reset();
       notice.success(t('analysis.acceptedWithAmount', { amount: format.money(response.data?.funding_amount ?? '', project.currency) }));
       await load();
       await onProjectChanged();

@@ -1,2 +1,3 @@
-- [Remote role messaging](remote_role_messaging.md) — laravel-remote needs RC on both ends; lead /remote-control if started before enable; server / not 0777
-- [Opus everywhere](feedback_opus_everywhere.md) — all roles/agents on claude-opus-5-5; built-in agent types default to Haiku, pass model 'opus'
+- [Remote role messaging](remote_role_messaging.md) — RC on both ends; code to remote hosts via pyservice CodeSync, never git; server / not 0777
+- [Model policy](feedback_opus_everywhere.md) — latest only: opus for thinking roles, sonnet for coders; built-ins default to old Haiku, pass model
+- [Parallel user sessions](project_parallel_sessions.md) — core-node-* peers and CodeHeaderCleaner edit the repo too; check before blaming a role

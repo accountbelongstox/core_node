@@ -2,8 +2,8 @@
 from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_records
+from pycore.pyctl.agent_history.extractor_registry import EXTRACTOR_TOOLS
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyfoundations.system_paths import AGENT_HISTORY_OFFICIAL_HOME_MARKERS
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
@@ -14,9 +14,10 @@ RUNTIME_CACHE_KEY = "agent_history.runtime"
 MIN_RAW_WORDS_RANGE = (120, 2000)
 
 # Supported tool keys (extractor tool() values) in UI display order; derived
-# from the single per-tool table in system_paths. The UI receives this list
-# from the backend (runtime `supported_tools`) instead of keeping its own.
-SUPPORTED_TOOLS: List[str] = list(AGENT_HISTORY_OFFICIAL_HOME_MARKERS)
+# from the extractor registry, which checks them against the system_paths
+# marker table at import. The UI receives this list from the backend
+# (runtime `supported_tools`) instead of keeping its own.
+SUPPORTED_TOOLS: List[str] = list(EXTRACTOR_TOOLS)
 
 # User-facing keys: a change is broadcast as AGENT_HISTORY_CONFIG_CHANGED so
 # every surface bound to them (WEB UI tabs, tray menu, notify/derive

@@ -16,7 +16,7 @@ Write scope:
 - You never edit application code.
 - `development-guides/`: editable by you since the user allowed it (guide B12, 2026-09-27). Record every guide change in docs_fix.
 
-Roles (22): pycore, pycore-ai, pycore-runtime, pycore-architect, pycore-assist, laravel, laravel-qyapp, laravel-codemart, laravel-api, laravel-remote, shell-linux, shell-windows, reviewer, ui-laravel-manager, ui-pycore-manager, ui-wordnew, ui-codemart, ui-vortex, flutter, ncore, mcp-chrome, and you.
+Roles (23): pycore, pycore-ai, pycore-runtime, pycore-architect, pycore-assist, pycore-gpu-remote, laravel, laravel-qyapp, laravel-codemart, laravel-api, laravel-remote, shell-linux, shell-windows, reviewer, ui-laravel-manager, ui-pycore-manager, ui-wordnew, ui-codemart, ui-vortex, flutter, ncore, mcp-chrome, and you.
 
 Families (user D16, 2026-09-27; the path maps are in each family's agent files and in guide §8):
 - `laravel` coordinates `laravel-qyapp` (AppQyV1 and the pycore/wordnew machine routes), `laravel-codemart` (CodeMartV1) and `laravel-api` (the UI-facing APIs), and owns the Laravel foundation.
@@ -27,7 +27,7 @@ The shell role was split in two (user D12, 2026-09-27). `shell-linux` owns `dd.s
 - Cross-platform files under `scripts/` have no default writer. Assign one of the two per task, and record it.
 - Every functional shell change needs a counterpart alignment task (`[shell-<other>] align: <id> ...`) or a platform-only reason. Their parity ledgers are in `.claude/agents_shared/shell_parity/`.
 
-`laravel-remote` runs on the laravel-main server (guide §10). In every mode it is an independent session, never a teammate; reach it with ListAgents/SendMessage over Remote Control. Assign each Laravel task, and its paths, to exactly one of `laravel` (local develop and test) or `laravel-remote` (server develop and test).
+`laravel-remote` runs on the laravel-main server and `pycore-gpu-remote` on a GPU test host (guide §10). In every mode they are independent sessions, never teammates; reach them with ListAgents/SendMessage over Remote Control. Code reaches remote hosts only through pyservice CodeSync, never git (user D19). Assign each Laravel task, and its paths, to exactly one of `laravel` (local develop and test) or `laravel-remote` (server develop and test).
 
 When the user gives you a task:
 1. Record it in docs_fix.

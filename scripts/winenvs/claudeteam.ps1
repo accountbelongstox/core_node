@@ -1,28 +1,30 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
-    Launches Claude Code with multiple roles (experimental agent teams) always on.
+    Launches Claude Code with multiple roles (experimental agent teams) always on,
+    or runs one role pane of the claudeagents / claudeteamup team window.
 
 .DESCRIPTION
-    Always sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 for the current session
-    (multiple roles). The model is the account default (Opus 5.5 since v2.1.280), so no
-    model is pinned. Any script arguments are appended to the command line.
+    Standalone: sets CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 and the catalog
+    session_env (all, windows, lead) for the current session, then runs claude
+    with --teammate-mode in-process --permission-mode auto. Any script arguments
+    are appended to the command line.
+
+    Role pane (started by claudeagents.ps1 / claudeteamup.ps1):
+        claudeteam.ps1 --team-pane <sessions|team> --agent <role> --name <session>
+    writes %LOCALAPPDATA%\core_node\claude_team\<session>.pid first, then runs
+    claude --agent <role> --name <session> --effort <frontmatter effort>
+    --permission-mode auto <kickoff> with session_env.all + windows (+ lead for the
+    orchestrator, with --remote-control when a remote role is enabled). The
+    kickoff is expanded here from config/claude_team_roles.json, so the wt
+    command lines stay short. A remote role pane keeps the ssh loop to its server
+    tmux session instead. --team-no-kickoff and --team-roles <csv> are launcher
+    options and are not passed to claude.
 
 .EXAMPLE
     .\claudeteam.ps1
     .\claudeteam.ps1 -xx
     .\claudeteam.ps1 --resume session-id
+    .\claudeteam.ps1 --team-pane sessions --agent reviewer --name ct-reviewer
 #>
 
 Set-StrictMode -Version Latest
@@ -35,10 +37,24 @@ $winCommonDirPath = $null
 $aiCliProvisionCommonScript = $null
 $claudeOfficialRestoreCommonScript = $null
 $windowsPathFunctionScript = $null
-$teammateMode = $null
-$claudeArgs = $null
+$claudeTeamCommonScript = $null
+$teammateMode = "in-process"
+$claudeArgs = @()
+$claudeDisplayArgs = @()
+$forwardArgs = @()
+$paneExtraArgs = @()
+$argumentIndex = 0
+$argumentText = ""
+$hasValue = $false
+$paneMode = $null
+$paneRole = ""
+$paneNoKickoff = $false
+$paneRoles = @()
+$paneRow = $null
+$kickoff = ""
+$kickoffDisplay = ""
+$sessionEnvironment = $null
 $exitCode = 0
-$claudeInvokeDisplayArgs = $null
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -49,59 +65,107 @@ $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$claudeOfficialRestoreCommonScript = Join-Path $winCommonDirPath "ClaudeOfficialRestoreCommon.ps1"
+$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
+$claudeTeamCommonScript = Join-Path $winCommonDirPath "ClaudeTeamCommon.ps1"
+. $claudeTeamCommonScript
+
+# Launcher-only pane options are consumed here; in a role pane --agent, --name and
+# --remote-control are rebuilt from the role registry, every other token is
+# forwarded to claude unchanged.
+for ($argumentIndex = 0; $argumentIndex -lt $args.Count; $argumentIndex++) {
+    $argumentText = [string]$args[$argumentIndex]
+    $hasValue = (($argumentIndex + 1) -lt $args.Count)
+    if (($argumentText -eq $ClaudeTeamPaneFlag) -and $hasValue) {
+        $paneMode = [string]$args[$argumentIndex + 1]
+        $argumentIndex++
+        continue
+    }
+    if ($argumentText -eq $ClaudeTeamPaneNoKickoffFlag) {
+        $paneNoKickoff = $true
+        continue
+    }
+    if (($argumentText -eq $ClaudeTeamPaneRolesFlag) -and $hasValue) {
+        $paneRoles = @(([string]$args[$argumentIndex + 1]).Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        $argumentIndex++
+        continue
+    }
+    $forwardArgs += $args[$argumentIndex]
+    if (($argumentText -in @("--agent", "--name", "-n", "--remote-control")) -and $hasValue) {
+        if ($argumentText -eq "--agent") {
+            $paneRole = [string]$args[$argumentIndex + 1]
+        }
+        $forwardArgs += $args[$argumentIndex + 1]
+        $argumentIndex++
+        continue
+    }
+    $paneExtraArgs += $args[$argumentIndex]
+}
+
+if ($paneMode) {
+    $paneRow = Initialize-ClaudeTeamPane -Mode $paneMode -Role $paneRole -NoKickoff $paneNoKickoff -Roles $paneRoles
+    if (($null -ne $paneRow) -and $paneRow.Remote) {
+        Invoke-ClaudeTeamRemoteLoop -Row $paneRow
+        return
+    }
+}
+
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 
-$claudeOfficialRestoreCommonScript = Join-Path $winCommonDirPath "ClaudeOfficialRestoreCommon.ps1"
 . $claudeOfficialRestoreCommonScript
 Invoke-ClaudeOfficialRestore
 
 # Idempotent AI CLI provisioning: install Claude Code with the official native
 # installer when the command is missing, then offer an upgrade (default N,
 # auto-skip after 5 seconds) only when a newer version is published.
-$aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 . $aiCliProvisionCommonScript
 Invoke-AiCliProvision -Tool "claude"
 
-$env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
-$env:CLAUDE_AGENTS_SESSION = "1"
-
-# Windows default: run experimental agent teams in-process.
-$teammateMode = 'in-process'
-
-# Build the claude argument list. --teammate-mode in-process and --permission-mode
-# auto are the defaults; teammates inherit the lead's mode.
-# The model is the account default (Opus 5.5 since v2.1.280), so no model is pinned.
-$claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "auto")
-
-$claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
-
-$claudeInvokeDisplayArgs = if ($args.Count -gt 0) {
-    [string]::Format(" {0}", ($args -join " "))
+# The session environment is applied after Invoke-ClaudeOfficialRestore, which
+# clears some CLAUDE_CODE_* and ANTHROPIC_* values.
+if ($null -ne $paneRow) {
+    $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $paneRow
+    $claudeArgs = @(Get-ClaudeTeamRoleClaudeArguments -Row $paneRow)
+    $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
+    $claudeArgs += $paneExtraArgs
+    $claudeDisplayArgs = $claudeArgs
+    if (-not $paneNoKickoff) {
+        $kickoff = Get-ClaudeTeamKickoff -Role $paneRow.Role
+        $claudeArgs += $kickoff
+        $kickoffDisplay = (" <kickoff {0} chars>" -f $kickoff.Length)
+    }
 } else {
-    ""
+    $env:CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+    $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $null
+    $claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", $ClaudeTeamPermissionMode)
+    $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudeteam")
+    $claudeArgs += $forwardArgs
+    $claudeDisplayArgs = $claudeArgs
 }
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "claudeteam.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "[INFO] CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (session, multiple roles)" -ForegroundColor Green
-Write-Host "[INFO] Teammate mode: $teammateMode (Windows default)" -ForegroundColor Green
-Write-Host "[INFO] Invoking: claude $($claudeArgs -join ' ')$claudeInvokeDisplayArgs" -ForegroundColor Green
-if ($args.Count -gt 0) {
-    Write-Host "[INFO] Extra arguments ($($args.Count)): $($args -join ' ')" -ForegroundColor DarkGray
+if ($null -ne $paneRow) {
+    Write-Host ("[INFO] Role pane {0} ({1}), launcher mode {2}, model {3} (agent definition), effort {4}" -f $paneRow.Role, $paneRow.Session, $paneMode, $paneRow.Model, $paneRow.Effort) -ForegroundColor Green
 } else {
-    Write-Host "[INFO] No extra arguments." -ForegroundColor DarkGray
+    Write-Host ("[INFO] {0}=1 (session, multiple roles); teammate mode {1} (Windows default)" -f $ClaudeTeamAgentTeamsVariable, $teammateMode) -ForegroundColor Green
 }
+Write-Host ("[INFO] Session env: {0}=1 {1}" -f $ClaudeTeamSessionMarkerVariable, ((@($sessionEnvironment.Keys) | ForEach-Object { "{0}={1}" -f $_, $sessionEnvironment[$_] }) -join " ")) -ForegroundColor Green
+Write-Host ("[INFO] Invoking: claude {0}{1}" -f ($claudeDisplayArgs -join " "), $kickoffDisplay) -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Invoke claude with the argument list built above (honors --teammate-mode + --permission-mode).
-& claude @claudeArgs @args
+& claude @claudeArgs
 $exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) {
     $exitCode = 0
 }
 
+# A role pane keeps its shell (-NoExit) so the pane stays open after claude ends.
+if ($null -ne $paneRow) {
+    return
+}
 exit $exitCode

@@ -52,7 +52,6 @@ use Illuminate\Support\Facades\Storage;
  */
 class CodeMartV1DemoSeeder
 {
-    public const DEMO_PASSWORD = 'Codemart#2026';
     public const DEMO_EMAIL_DOMAIN = 'codemart.local';
     private const SEED_KEY_PREFIX = 'seed-';
     private const ADMIN_ROLE_LEVEL = 10;
@@ -735,13 +734,31 @@ class CodeMartV1DemoSeeder
 
     private ?CodeMartV1AdminFinanceService $adminFinanceService = null;
 
+    /** Secret file override (codemart_admin_password); null uses the contract path. */
+    private ?string $passwordFile = null;
+
+    public function __construct(?string $passwordFile = null)
+    {
+        $this->passwordFile = $passwordFile;
+    }
+
+    /** Usernames of every account this seeder creates (the codemart:admin-password scope). */
+    public static function seededUsernames(): array
+    {
+        return array_values(array_map(static fn (array $account): string => $account['username'], self::ACCOUNTS));
+    }
+
     public function seed(?callable $log = null): array
     {
         $this->log = $log;
         $this->adminService = app(CodeMartV1AdminService::class);
         $this->adminFinanceService = new CodeMartV1AdminFinanceService();
+        $secret = CodeMartV1AdminPassword::ensure($this->passwordFile);
+        if ($secret['generated']) {
+            $this->log(__('codemart.cli.seed.password_generated', ['password' => $secret['password'], 'path' => $secret['path']]));
+        }
 
-        $this->seedAccounts();
+        $this->seedAccounts($secret['password']);
         $this->seedProfiles();
         $this->seedRolesAndDeposits();
         $this->seedKyc();
@@ -761,8 +778,10 @@ class CodeMartV1DemoSeeder
         app(CodeMartV1PublicHomeService::class)->forget();
 
         return [
-            'accounts' => array_map(static fn (array $account): string => $account['username'], self::ACCOUNTS),
-            'password' => self::DEMO_PASSWORD,
+            'accounts' => self::seededUsernames(),
+            'password' => $secret['password'],
+            'password_file' => $secret['path'],
+            'password_generated' => $secret['generated'],
             'counts' => $this->tableCounts(),
         ];
     }
@@ -822,7 +841,8 @@ class CodeMartV1DemoSeeder
         );
     }
 
-    private function seedAccounts(): void
+    /** New accounts get $password; existing hashes are left to codemart:admin-password. */
+    private function seedAccounts(string $password): void
     {
         foreach (self::ACCOUNTS as $key => $account) {
             $user = CodeMartV1UserModel::query()->firstOrNew(['username' => $account['username']]);
@@ -832,8 +852,8 @@ class CodeMartV1DemoSeeder
                 'rolename' => $account['rolename'],
                 'rolelevel' => $account['rolelevel'] ?? 0,
             ]);
-            if (!$user->exists || !Hash::check(self::DEMO_PASSWORD, (string) $user->password)) {
-                $user->password = Hash::make(self::DEMO_PASSWORD);
+            if (!$user->exists) {
+                $user->password = Hash::make($password);
             }
             $user->save();
             $this->users[$key] = (int) $user->id;

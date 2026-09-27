@@ -6,6 +6,8 @@
  * Values are route suffixes relative to the AppQyV1 base (`/api/app_qy_v1`),
  * verified against the backend routers (routes/AppQyV1Router/*.php).
  */
+import queueCenterContract from '../../../../config/queue_center_contract.json';
+
 export const APPQYV1_API_BASE = '/api/app_qy_v1';
 
 export const APPQYV1_AI_TOOLS_ROUTES = {
@@ -24,5 +26,5 @@ export const APPQYV1_LIBRARY_COVER_ROUTES = {
   tasks: '/vocabulary/libraries/cover/tasks',
 } as const;
 
-/** Upper bound of library ids accepted per cover-task request. */
-export const APPQYV1_LIBRARY_COVER_MAX_IDS = 200;
+/** Upper bound of library ids accepted per cover-task request (queue_center_contract.json library_cover.max_ids). */
+export const APPQYV1_LIBRARY_COVER_MAX_IDS: number = queueCenterContract.library_cover.max_ids;

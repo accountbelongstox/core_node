@@ -20,6 +20,8 @@
  *   - identical pending entries (endpoint + method + body + owner) are deduped.
  */
 
+import { createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
+
 /** Hard cap on persisted entries; the OLDEST entry is dropped past this. */
 export const QUEUE_MAX_ENTRIES = 100;
 
@@ -42,13 +44,6 @@ export interface QueuedRequestEntry {
   createdAt: number;
   attempts: number;
 }
-
-export const generateEntryId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-};
 
 const isValidEntry = (e: any): e is QueuedRequestEntry =>
   !!e &&
@@ -102,7 +97,7 @@ export class RequestQueue {
 
     const entry: QueuedRequestEntry = {
       ...input,
-      id: generateEntryId(),
+      id: createIdempotencyKey(),
       createdAt: Date.now(),
       attempts: 0,
     };

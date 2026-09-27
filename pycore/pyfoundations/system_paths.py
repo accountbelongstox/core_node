@@ -68,27 +68,28 @@ AGENT_SLOT_ROOT_PROGRAMING = 'programing'
 AGENT_SLOT_ROOT_TMP = 'tmp'
 AGENT_SLOT_ROOT_KIMI_FALLBACK = 'kimi_fallback'
 AGENT_SLOT_ROOT_OPENAI_TMP = 'openai_tmp'
-AGENT_SLOT_USERS_ROOTS = {
+AGENT_SLOT_DATA_ROOT_TOKEN = '<data>'
+AGENT_SLOT_HOME_ROOT_TOKEN = '~'
+AGENT_SLOT_ROOT_TEMPLATES = {
     AGENT_SLOT_ROOT_PROGRAMING: {
-        'win32': (_WINDOWS_PROGRAMING_USERS_DIR,),
-        'linux': ('<data>/' + _USERS_DIR_NAME,),
+        'win32': _WINDOWS_PROGRAMING_USERS_DIR,
+        'linux': AGENT_SLOT_DATA_ROOT_TOKEN + '/' + _USERS_DIR_NAME,
     },
     AGENT_SLOT_ROOT_TMP: {
-        'win32': (_WINDOWS_TMP_USERS_DIR,),
-        'linux': (_LEGACY_LINUX_USERS_DIR,),
+        'win32': _WINDOWS_TMP_USERS_DIR,
+        'linux': _LEGACY_LINUX_USERS_DIR,
     },
     AGENT_SLOT_ROOT_KIMI_FALLBACK: {
-        'win32': (),
-        'linux': ('~/.kimi_slots',),
+        'linux': AGENT_SLOT_HOME_ROOT_TOKEN + '/.kimi_slots',
     },
     AGENT_SLOT_ROOT_OPENAI_TMP: {
-        'win32': (),
-        'linux': ('/tmp/Users',),
+        'linux': '/tmp/Users',
     },
 }
 # OS-level user roots (real accounts), scanned on every host.
+AGENT_HISTORY_ROOT_USER_HOME = '/root'
 AGENT_HISTORY_USERS_ROOTS_WINDOWS = ('C:/Users',)
-AGENT_HISTORY_USERS_ROOTS_LINUX = ('/home', '/root')
+AGENT_HISTORY_USERS_ROOTS_LINUX = ('/home', AGENT_HISTORY_ROOT_USER_HOME)
 
 # Non-human accounts are never scanned as agent users. Linux: an account is
 # human when uid == 0 or (uid >= AGENT_HISTORY_HUMAN_UID_MIN, login.defs
@@ -119,7 +120,7 @@ AGENT_HISTORY_ROOT_SPOOL_STALE_S = 60
 # Launcher -> isolated profile. (script stem, tool, {platform: root key}, slot)
 # slot ending in '*' is a numbered family (MyBest1..N, auto-created by the
 # script). Verified against scripts/winenvs/*.ps1 + scripts/linuxenvs/*.sh and
-# GlobalVars.ps1 / gvar_system_common.sh on 2026-09-26. Scripts that keep the
+# GlobalVars.ps1 / gvar_system_common.sh on 2026-09-27. Scripts that keep the
 # real home (claude1-5, claudeteam, claude<vendor>, codexyolo, kimiyolo,
 # agyyolo, ssh*) are covered by the OS-level user roots.
 _P = AGENT_SLOT_ROOT_PROGRAMING
@@ -128,10 +129,9 @@ AGENT_LAUNCHER_SLOT_PROFILES = (
     ('kimi1', 'kimi', {'win32': _T, 'linux': _T}, 'Kimi1'),
     ('kimi2', 'kimi', {'win32': _T, 'linux': _T}, 'Kimi2'),
     ('codex1', 'codex', {'win32': _P, 'linux': _T}, 'Codex1'),
-    ('codex2', 'codex', {'win32': _T, 'linux': _T}, 'MyBest*'),
-    ('claude6', 'claude', {'win32': _T, 'linux': _T}, 'MyBest*'),
-    ('claude9', 'claude', {'win32': _T, 'linux': _T}, 'MyBest*'),
-    ('ark1-7', 'claude', {'win32': _P, 'linux': _T}, 'ark*'),
+    ('codex2', 'codex', {'win32': _P, 'linux': _T}, 'Codex2'),
+    ('ark1-7', 'claude', {'win32': _P}, 'ark*'),
+    ('ark1-2', 'claude', {'linux': _T}, 'ark*'),
     ('openai1', 'codex', {'linux': AGENT_SLOT_ROOT_OPENAI_TMP}, '<timestamp>'),
     ('piyolo/piark*', 'pi', {'win32': _P, 'linux': _P}, 'PiYolo'),
     ('pikimiyolo', 'pi', {'win32': _P, 'linux': _P}, 'PiKimi'),
@@ -142,6 +142,16 @@ AGENT_LAUNCHER_SLOT_PROFILES = (
     ('kimi1/kimi2 fallback', 'kimi', {'linux': AGENT_SLOT_ROOT_KIMI_FALLBACK}, 'Kimi*'),
 )
 del _P, _T
+# Scanned users-roots: the distinct {root key: {platform: (template,)}} the
+# profiles above use, in AGENT_SLOT_ROOT_TEMPLATES order.
+AGENT_SLOT_USERS_ROOTS = {
+    root_key: {
+        platform_key: (template,)
+        for platform_key, template in templates.items()
+        if any(profile[2].get(platform_key) == root_key for profile in AGENT_LAUNCHER_SLOT_PROFILES)
+    }
+    for root_key, templates in AGENT_SLOT_ROOT_TEMPLATES.items()
+}
 
 # Per-tool official home spec + support matrix (one table, no second list).
 # Key order is the UI display order (pipeline SUPPORTED_TOOLS derives from it).
@@ -1035,6 +1045,7 @@ __all__ = [
     'AI_OLD_SHARED_DIR',
     'AI_LEGACY_DIR',
     'AGENT_HISTORY_USERS_ROOTS_ENV',
+    'AGENT_HISTORY_ROOT_USER_HOME',
     'AGENT_HISTORY_USERS_ROOTS_WINDOWS',
     'AGENT_HISTORY_USERS_ROOTS_LINUX',
     'AGENT_HISTORY_OFFICIAL_HOME_MARKERS',
@@ -1044,6 +1055,9 @@ __all__ = [
     'AGENT_HISTORY_NOLOGIN_SHELLS',
     'AGENT_HISTORY_NON_HUMAN_USERS',
     'AGENT_HISTORY_NON_HUMAN_SUFFIXES',
+    'AGENT_SLOT_DATA_ROOT_TOKEN',
+    'AGENT_SLOT_HOME_ROOT_TOKEN',
+    'AGENT_SLOT_ROOT_TEMPLATES',
     'AGENT_SLOT_USERS_ROOTS',
     'AGENT_LAUNCHER_SLOT_PROFILES',
 ]

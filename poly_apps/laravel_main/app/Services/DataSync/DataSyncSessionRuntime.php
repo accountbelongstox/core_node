@@ -12,7 +12,8 @@ final class DataSyncSessionRuntime
 {
     public function __construct(
         private readonly DataSyncStateStore $store,
-        private readonly DataSyncSessionLock $sessionLock
+        private readonly DataSyncSessionLock $sessionLock,
+        private readonly DataSyncPeerClient $peer
     ) {}
 
     /**
@@ -71,16 +72,18 @@ final class DataSyncSessionRuntime
 
     public function isActive(array $job): bool
     {
-        return in_array($job['status'] ?? null, DataSyncProtocol::ACTIVE_STATUSES, true);
+        return in_array($job['status'] ?? null, DataSyncProtocol::activeStatuses(), true);
     }
 
     /**
      * Moves a session into a terminal status; the running step records the
-     * reason and every untouched step stays pending.
+     * reason and every untouched step stays pending. A driver that ends
+     * without completing also cancels its peer session.
      */
     public function finish(array $job, string $status, ?string $error = null): array
     {
         $index = (int) ($job['current_step'] ?? 0);
+        $activeJob = $job;
 
         if ($status !== 'completed' && isset($job['steps'][$index])) {
             $job['steps'][$index]['status'] = 'failed';
@@ -89,7 +92,33 @@ final class DataSyncSessionRuntime
         $job['status'] = $status;
         $job['error'] = $status === 'completed' ? null : $error;
         $job['completed_at'] = now()->toIso8601String();
+        $job = $this->store->save($job);
 
-        return $this->store->save($job);
+        if ($status !== 'completed') {
+            $this->cancelPeer($activeJob);
+        }
+        return $job;
+    }
+
+    /**
+     * Token-authenticated peer cancel. It takes the job as it was before the
+     * terminal save, whose compact summary drops the peer session id, base
+     * path and token.
+     */
+    private function cancelPeer(array $job): void
+    {
+        if (
+            !in_array($job['role'] ?? null, DataSyncProtocol::driverRoles(), true)
+            || empty($job['context']['peer_session_id'])
+            || empty($job['context']['peer_token'])
+            || in_array($job['context']['receiver']['status'] ?? null, DataSyncProtocol::terminalStatuses(), true)
+        ) {
+            return;
+        }
+        try {
+            $this->peer->call($job, 'POST', '/cancel');
+        } catch (\Throwable) {
+            // The passive side also ends itself once the driver stays idle.
+        }
     }
 }

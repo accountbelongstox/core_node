@@ -36,7 +36,7 @@ final class DataSyncPeerClient
         // reverse-proxied domain such as https://api.example.com).
         $port = (int) ($parts['port'] ?? ($explicitScheme
             ? ($scheme === 'https' ? 443 : 80)
-            : DataSyncProtocol::DEFAULT_PORT));
+            : DataSyncProtocol::defaultPort()));
         $path = (string) ($parts['path'] ?? '');
 
         if (

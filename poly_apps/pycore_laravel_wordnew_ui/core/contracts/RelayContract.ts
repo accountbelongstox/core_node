@@ -1,6 +1,8 @@
 import relayContract from '../../../../config/pycore_relay_contract.json';
 
 export type RelayEndpointName = keyof typeof relayContract.endpoints;
+export type RelayEventName = keyof typeof relayContract.events;
+export type RelayRoutePolicyProfileName = keyof typeof relayContract.route_policy_profiles;
 export type RelayOperationState = typeof relayContract.operation_states[number];
 
 export interface RelayDevice {
@@ -69,6 +71,16 @@ export interface RelayOperationAdmission {
 }
 
 export const RELAY_CONTRACT = relayContract;
+
+/** Wire type of one contract relay event (for example `agent_history.config.changed`). */
+export function relayEventType(name: RelayEventName): string {
+  return String(relayContract.events[name]);
+}
+
+/** Client-side timeout of one relay route policy profile. */
+export function relayRoutePolicyTimeoutMs(profile: RelayRoutePolicyProfileName): number {
+  return relayContract.route_policy_profiles[profile].timeout_seconds * 1000;
+}
 
 export function relayEndpoint(
   name: RelayEndpointName,

@@ -27,6 +27,8 @@ export const LARAVEL_API_ROUTE = {
     login: '/login',
     register: '/register',
     logout: '/logout',
+    forgotPassword: '/forgot-password',
+    resetPassword: '/reset-password',
     currentUser: '/user',
     profile: '/user/profile',
     password: '/user/change-password',

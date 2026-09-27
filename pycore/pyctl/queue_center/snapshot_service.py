@@ -45,6 +45,7 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_REALTIME_HEAD_KEYS,
     audio_dedup_key,
     queue_center_endpoint,
+    realtime_head_key_valid,
 )
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
@@ -57,8 +58,11 @@ from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 
 QUEUE_CENTER_SNAPSHOT_TOPIC = "queue_center.snapshot.changed"
 QUEUE_CENTER_EVENTS_PATH = queue_center_endpoint("queue_center_events")
+# The one priority queue whose heads are global tasks (task.priority);
+# cover and poster heads are library and media rows.
+QUEUE_CENTER_TASK_PRIORITY_QUEUE = "word_translation"
 QUEUE_CENTER_PRIORITY_EVENTS = {
-    QUEUE_CENTER_REALTIME_EVENTS["task_priority"]: "word_translation",
+    QUEUE_CENTER_REALTIME_EVENTS["task_priority"]: QUEUE_CENTER_TASK_PRIORITY_QUEUE,
     QUEUE_CENTER_REALTIME_EVENTS["cover_priority"]: "cover",
     QUEUE_CENTER_REALTIME_EVENTS["poster_priority"]: "poster",
 }
@@ -434,22 +438,7 @@ class _QueueCenterSnapshotService:
         move_to_head = bump_action in ("bumped", "head", "queue")
         old_priority = payload.get("old_priority")
         old_priority = int(old_priority) if isinstance(old_priority, (int, float)) else None
-        batch_items = payload.get("items")
-        if not task_id and isinstance(batch_items, list):
-            for batch_item in batch_items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]:
-                if not isinstance(batch_item, dict):
-                    continue
-                batch_task_id = str(batch_item.get("task_id") or "").strip()
-                if not batch_task_id:
-                    continue
-                batch_priority = int(batch_item.get("priority") or priority)
-                self._set_worker_priority(
-                    queue,
-                    batch_task_id,
-                    batch_priority,
-                    move_to_head,
-                )
-        if task_id:
+        if queue == QUEUE_CENTER_TASK_PRIORITY_QUEUE and task_id:
             self._set_worker_priority(queue, task_id, priority, move_to_head)
         head_entries = self._head_entries(QUEUE_CENTER_PRIORITY_ROLES.get(event_name, ""), payload)
         if move_to_head:
@@ -498,7 +487,7 @@ class _QueueCenterSnapshotService:
             snapshot["cache"] = cache
             snapshot["generatedAt"] = _utc_now()
             snapshot["laravelReachable"] = True
-            if queue == "word_translation" and task_id:
+            if queue == QUEUE_CENTER_TASK_PRIORITY_QUEUE and task_id:
                 snapshot["translation"] = self._update_translation_row(
                     snapshot.get("translation"),
                     task_id,
@@ -611,18 +600,20 @@ class _QueueCenterSnapshotService:
     @staticmethod
     def _head_entries(role: str, payload: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
         """(head key, source row) pairs of one priority event, read at the
-        contract path of its role; an event without keys adds no head."""
+        contract path of its role and kept only in the contract key format;
+        an event without keys adds no head."""
         path = QUEUE_CENTER_REALTIME_HEAD_KEYS.get(role, "")
         if path.startswith(QUEUE_CENTER_HEAD_ITEMS_PREFIX):
             field = path[len(QUEUE_CENTER_HEAD_ITEMS_PREFIX):]
             items = payload.get("items") if isinstance(payload.get("items"), list) else []
-            return [
-                (str(item.get(field)).strip(), item)
+            entries = [
+                (str(item.get(field) or "").strip(), item)
                 for item in items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]
-                if isinstance(item, dict) and str(item.get(field) or "").strip()
+                if isinstance(item, dict)
             ]
-        key = str(payload.get(path) or "").strip() if path else ""
-        return [(key, payload)] if key else []
+        else:
+            entries = [(str(payload.get(path) or "").strip() if path else "", payload)]
+        return [(key, source) for key, source in entries if realtime_head_key_valid(role, key)]
 
     @staticmethod
     def _priority_label(payload: Dict[str, Any], task_id: str, queue: str) -> str:

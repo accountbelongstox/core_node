@@ -2,8 +2,8 @@
 """Agent home directory scan center (base library).
 
 Single source of truth for "which user homes may hold local AI agent history".
-Roots come ONLY from system_paths: AGENT_SLOT_USERS_ROOTS (per-launcher slot
-roots, see AGENT_LAUNCHER_SLOT_PROFILES) plus the OS-level user roots.
+Roots come ONLY from system_paths: AGENT_SLOT_USERS_ROOTS (the distinct slot
+roots derived from AGENT_LAUNCHER_SLOT_PROFILES) plus the OS-level user roots.
 
 Supported hosts: Windows 10/11 (native roots) and Linux (Ubuntu / Debian /
 Kali, incl. WSL and dual-boot NTFS data disks via get_shared_windows_users_roots).
@@ -36,9 +36,12 @@ from pycore.pyfoundations.system_paths import (
     AGENT_HISTORY_NON_HUMAN_SUFFIXES,
     AGENT_HISTORY_NON_HUMAN_USERS,
     AGENT_HISTORY_OFFICIAL_HOME_MARKERS,
+    AGENT_HISTORY_ROOT_USER_HOME,
     AGENT_HISTORY_USERS_ROOTS_ENV,
     AGENT_HISTORY_USERS_ROOTS_LINUX,
     AGENT_HISTORY_USERS_ROOTS_WINDOWS,
+    AGENT_SLOT_DATA_ROOT_TOKEN,
+    AGENT_SLOT_HOME_ROOT_TOKEN,
     AGENT_SLOT_USERS_ROOTS,
     get_shared_windows_users_roots,
 )
@@ -58,10 +61,10 @@ def path_identity(path: str) -> Tuple[int, int] | str:
 
 
 def _expand_root(template: str) -> Path:
-    if template.startswith("<data>"):
-        return get_core_node_data_dir() / template[len("<data>/"):]
-    if template.startswith("~"):
-        return Path.home() / template[2:]
+    if template.startswith(AGENT_SLOT_DATA_ROOT_TOKEN):
+        return get_core_node_data_dir() / template[len(AGENT_SLOT_DATA_ROOT_TOKEN) + 1:]
+    if template.startswith(AGENT_SLOT_HOME_ROOT_TOKEN):
+        return Path.home() / template[len(AGENT_SLOT_HOME_ROOT_TOKEN) + 1:]
     return Path(template)
 
 
@@ -112,7 +115,7 @@ def _readable_dir(path: Path) -> bool:
 
 def _is_home_root(root: Path) -> bool:
     """A root that itself carries agent markers (or is /root) is a home."""
-    if str(root) == "/root":
+    if str(root) == AGENT_HISTORY_ROOT_USER_HOME:
         return True
     return any(os.path.exists(root / marker) for marker in _all_marker_dirs())
 

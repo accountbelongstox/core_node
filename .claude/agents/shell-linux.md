@@ -40,6 +40,7 @@ Parity with shell-windows (binding; user D12, 2026-09-27):
 
 Rules:
 - Shell scripts are in English. Declare variables at the file top.
+- The user's `CodeHeaderCleaner.py` strips the leading AI rules header blocks from files, the user's own tool and decision. Never re-add a stripped header block, and never treat its removal as your change.
 - Installers are idempotent at the finest grain: repair only missing binaries, files or pip packages, detected by existence.
 - Callers trust resolved PS1/SH references. Do not use exit codes as return values.
 - Heavy runs (models, containers): one at a time. Stop the container you started as soon as its test ends, and keep the image so the next run is idempotent. Check free memory and disk before each run; if the budget is short, skip and record the reason.

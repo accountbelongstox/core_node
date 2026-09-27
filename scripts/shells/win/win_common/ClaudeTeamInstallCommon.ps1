@@ -1,25 +1,16 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # =============================================================================
 # Shared idempotent Claude team setup (Windows / PowerShell)
 # =============================================================================
 # One implementation called by dd.ps1 (Step21, ClaudeCode PostInstallCallbacks) and
 # by the claudeteamup/claudeagents launchers (ClaudeTeamCommon.ps1) on every run.
 # Linux counterpart: claude_team_install in scripts/ai_shtools/claude_code_install.sh
-# Each item is checked and repaired on its own: node (git guard hook), Windows
-# Terminal (positioned role windows), the team state dir, the shared data dir, and
-# the core_node PATH entries (winenvs makes claudeteam/claudeteamup/claudeagents
-# commands). -CheckOnly reports [SKIP]/[MISSING] without changing anything.
+# Each item is checked and repaired on its own: node (project hooks), git (Git
+# Bash), Windows Terminal (the named team window; warns below 1.21), python (the
+# secret reader of remote roles), the team state/shared/reports/reviews/memory
+# dirs, the core_node PATH entries, and the catalog user_settings_merge keys in
+# the user settings (added only when absent, never overwritten). The Remote
+# Control environment check only reports. -CheckOnly reports [SKIP]/[MISSING]
+# without changing anything.
 # =============================================================================
 
 $ClaudeTeamInstallWinCommonDir = $PSScriptRoot
@@ -29,17 +20,36 @@ $ClaudeTeamInstallScriptsDir = Split-Path $ClaudeTeamInstallShellsDir -Parent
 $ClaudeTeamInstallRootDir = Split-Path $ClaudeTeamInstallScriptsDir -Parent
 $ClaudeTeamInstallClaudeDir = Join-Path $ClaudeTeamInstallRootDir ".claude"
 $ClaudeTeamInstallSharedDir = Join-Path $ClaudeTeamInstallClaudeDir "agents_shared"
+$ClaudeTeamInstallConfigDir = Join-Path $ClaudeTeamInstallRootDir "config"
+$ClaudeTeamInstallCatalogPath = Join-Path $ClaudeTeamInstallConfigDir "claude_team_roles.json"
 $ClaudeTeamInstallStateBaseDir = Join-Path $env:LOCALAPPDATA "core_node"
 $ClaudeTeamInstallStateDir = Join-Path $ClaudeTeamInstallStateBaseDir "claude_team"
 $ClaudeTeamInstallWinEnvsDir = Join-Path $ClaudeTeamInstallScriptsDir "winenvs"
+$ClaudeTeamInstallStoreAliasDir = Join-Path (Join-Path $env:LOCALAPPDATA "Microsoft") "WindowsApps"
 $ClaudeTeamInstallBinaries = @(
-    @{ Command = "node.exe"; WingetId = "OpenJS.NodeJS.LTS"; Purpose = "project hooks .claude/hooks/*.mjs" },
-    @{ Command = "git.exe"; WingetId = "Git.Git"; Purpose = "Git for Windows: official recommendation, enables the Bash tool (Git Bash)" },
-    @{ Command = "wt.exe"; WingetId = "Microsoft.WindowsTerminal"; Purpose = "positioned role windows (console fallback without it)" }
+    @{ Commands = @("node.exe"); WingetId = "OpenJS.NodeJS.LTS"; SkipStoreAlias = $false; Purpose = "project hooks .claude/hooks/*.mjs" },
+    @{ Commands = @("git.exe"); WingetId = "Git.Git"; SkipStoreAlias = $false; Purpose = "Git for Windows: official recommendation, enables the Bash tool (Git Bash)" },
+    @{ Commands = @("wt.exe"); WingetId = "Microsoft.WindowsTerminal"; SkipStoreAlias = $false; Purpose = "the named team window with packed tabs (console fallback without it)" },
+    @{ Commands = @("python.exe", "py.exe"); WingetId = "Python.Python.3.13"; SkipStoreAlias = $true; Purpose = "secret store reader for remote roles (scripts/pytools)" }
 )
 $ClaudeTeamInstallAgentMemoryDir = Join-Path $ClaudeTeamInstallClaudeDir "agent-memory"
 $ClaudeTeamInstallReportsDir = Join-Path $ClaudeTeamInstallSharedDir "reports"
 $ClaudeTeamInstallReviewsDir = Join-Path $ClaudeTeamInstallSharedDir "reviews"
+$ClaudeTeamInstallUserClaudeDir = Join-Path $env:USERPROFILE ".claude"
+$ClaudeTeamInstallUserSettingsPath = Join-Path $ClaudeTeamInstallUserClaudeDir "settings.json"
+$ClaudeTeamInstallWtPackageName = "Microsoft.WindowsTerminal*"
+$ClaudeTeamInstallWtMinVersion = [version]"1.21"
+$ClaudeTeamInstallRemoteControlEnvBlockers = @(
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+    "DISABLE_GROWTHBOOK",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLAUDE_CODE_USE_FOUNDRY"
+)
+$ClaudeTeamInstallRemoteControlSettingBlockers = @("isolatePeerMachines", "disableRemoteControl")
+$ClaudeTeamInstallOfficialBaseUrl = "https://api.anthropic.com"
+$ClaudeTeamInstallJsonIndent = "  "
+$ClaudeTeamInstallUtf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 function Write-ClaudeTeamInstallLog {
     param([string]$Level, [string]$Message)
@@ -54,30 +64,88 @@ function Write-ClaudeTeamInstallLog {
     Write-Host ("  [{0}] {1}" -f $Level, $Message) -ForegroundColor $color
 }
 
+# First command found on PATH; the Microsoft Store python stubs in WindowsApps
+# open the Store instead of running, so they do not count for python.
+function Resolve-ClaudeTeamInstallCommand {
+    param([string[]]$Names, [switch]$SkipStoreAlias)
+    $name = $null
+    $command = $null
+    $aliasDir = $ClaudeTeamInstallStoreAliasDir.TrimEnd("\")
+    foreach ($name in $Names) {
+        foreach ($command in @(Get-Command $name -All -CommandType Application -ErrorAction SilentlyContinue)) {
+            if ($SkipStoreAlias -and ((Split-Path $command.Source -Parent).TrimEnd("\") -eq $aliasDir)) {
+                continue
+            }
+            return $command.Source
+        }
+    }
+    return $null
+}
+
 function Install-ClaudeTeamBinary {
     param([hashtable]$Item, [bool]$CheckOnly)
-    $command = Get-Command $Item.Command -ErrorAction SilentlyContinue
+    $commandPath = Resolve-ClaudeTeamInstallCommand -Names $Item["Commands"] -SkipStoreAlias:([bool]$Item["SkipStoreAlias"])
+    $label = $Item["Commands"][0]
     $wingetCommand = $null
-    if ($command) {
-        Write-ClaudeTeamInstallLog "SKIP" ("{0} present: {1} ({2})" -f $Item.Command, $command.Source, $Item.Purpose)
+    if ($commandPath) {
+        Write-ClaudeTeamInstallLog "SKIP" ("{0} present: {1} ({2})" -f $label, $commandPath, $Item["Purpose"])
         return
     }
     if ($CheckOnly) {
-        Write-ClaudeTeamInstallLog "MISSING" ("{0} (winget {1}; {2})" -f $Item.Command, $Item.WingetId, $Item.Purpose)
+        Write-ClaudeTeamInstallLog "MISSING" ("{0} (winget {1}; {2})" -f $label, $Item["WingetId"], $Item["Purpose"])
         return
     }
     $wingetCommand = Get-Command "winget.exe" -ErrorAction SilentlyContinue
     if ($null -eq $wingetCommand) {
-        Write-ClaudeTeamInstallLog "WARN" ("{0} missing and winget unavailable; install {1} manually" -f $Item.Command, $Item.WingetId)
+        Write-ClaudeTeamInstallLog "WARN" ("{0} missing and winget unavailable; install {1} manually" -f $label, $Item["WingetId"])
         return
     }
-    Write-ClaudeTeamInstallLog "INSTALL" ("{0} missing; winget install --id {1} ({2})" -f $Item.Command, $Item.WingetId, $Item.Purpose)
-    & $wingetCommand.Source install --id $Item.WingetId --exact --silent --accept-source-agreements --accept-package-agreements | Out-Host
-    $command = Get-Command $Item.Command -ErrorAction SilentlyContinue
-    if ($command) {
-        Write-ClaudeTeamInstallLog "OK" ("{0} installed: {1}" -f $Item.Command, $command.Source)
+    Write-ClaudeTeamInstallLog "INSTALL" ("{0} missing; winget install --id {1} ({2})" -f $label, $Item["WingetId"], $Item["Purpose"])
+    & $wingetCommand.Source install --id $Item["WingetId"] --exact --silent --accept-source-agreements --accept-package-agreements | Out-Host
+    $commandPath = Resolve-ClaudeTeamInstallCommand -Names $Item["Commands"] -SkipStoreAlias:([bool]$Item["SkipStoreAlias"])
+    if ($commandPath) {
+        Write-ClaudeTeamInstallLog "OK" ("{0} installed: {1}" -f $label, $commandPath)
     } else {
-        Write-ClaudeTeamInstallLog "WARN" ("{0} not on PATH yet; open a new shell after the install" -f $Item.Command)
+        Write-ClaudeTeamInstallLog "WARN" ("{0} not on PATH yet; open a new shell after the install" -f $label)
+    }
+}
+
+# Newest installed Windows Terminal package version, or $null when WT is not an
+# Appx install (portable/scoop) or the Appx module is unavailable.
+function Get-ClaudeTeamWindowsTerminalVersion {
+    $packages = @()
+    $package = $null
+    $candidate = $null
+    $best = $null
+    try {
+        $packages = @(Get-AppxPackage -Name $ClaudeTeamInstallWtPackageName -ErrorAction Stop)
+    } catch {
+        return $null
+    }
+    foreach ($package in $packages) {
+        $candidate = $null
+        if ([version]::TryParse([string]$package.Version, [ref]$candidate)) {
+            if (($null -eq $best) -or ($candidate -gt $best)) {
+                $best = $candidate
+            }
+        }
+    }
+    return $best
+}
+
+function Test-ClaudeTeamWindowsTerminalVersion {
+    $wtPath = Resolve-ClaudeTeamInstallCommand -Names @("wt.exe")
+    $version = $null
+    if (-not $wtPath) {
+        return
+    }
+    $version = Get-ClaudeTeamWindowsTerminalVersion
+    if ($null -eq $version) {
+        Write-ClaudeTeamInstallLog "WARN" ("Windows Terminal version unknown (not an Appx install); named windows, -M and focus-pane need {0}+" -f $ClaudeTeamInstallWtMinVersion)
+    } elseif ($version -lt $ClaudeTeamInstallWtMinVersion) {
+        Write-ClaudeTeamInstallLog "WARN" ("Windows Terminal {0} is older than {1}; run winget upgrade --id Microsoft.WindowsTerminal" -f $version, $ClaudeTeamInstallWtMinVersion)
+    } else {
+        Write-ClaudeTeamInstallLog "SKIP" ("Windows Terminal {0} (>= {1})" -f $version, $ClaudeTeamInstallWtMinVersion)
     }
 }
 
@@ -110,16 +178,181 @@ function Install-ClaudeTeamPathEntry {
     Write-ClaudeTeamInstallLog "OK" ("PATH ensured for {0}" -f $ClaudeTeamInstallWinEnvsDir)
 }
 
+# Parsed user settings: Exists, Text, Settings (PSCustomObject or $null), Valid.
+function Read-ClaudeTeamUserSettings {
+    $text = ""
+    $settings = $null
+    if (-not (Test-Path -LiteralPath $ClaudeTeamInstallUserSettingsPath -PathType Leaf)) {
+        return [pscustomobject]@{ Exists = $false; Text = ""; Settings = $null; Valid = $true }
+    }
+    $text = [System.IO.File]::ReadAllText($ClaudeTeamInstallUserSettingsPath)
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return [pscustomobject]@{ Exists = $true; Text = ""; Settings = $null; Valid = $true }
+    }
+    try {
+        $settings = $text | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        return [pscustomobject]@{ Exists = $true; Text = $text; Settings = $null; Valid = $false }
+    }
+    if (($null -eq $settings) -or ($settings -isnot [System.Management.Automation.PSCustomObject])) {
+        return [pscustomobject]@{ Exists = $true; Text = $text; Settings = $null; Valid = $false }
+    }
+    return [pscustomobject]@{ Exists = $true; Text = $text; Settings = $settings; Valid = $true }
+}
+
+function Test-ClaudeTeamSettingPresent {
+    param($Settings, [string]$Key)
+    if ($null -eq $Settings) {
+        return $false
+    }
+    return ($null -ne $Settings.PSObject.Properties[$Key])
+}
+
+function Get-ClaudeTeamUserSettingsMerge {
+    $catalog = $null
+    if (-not (Test-Path -LiteralPath $ClaudeTeamInstallCatalogPath -PathType Leaf)) {
+        return @()
+    }
+    $catalog = Get-Content -LiteralPath $ClaudeTeamInstallCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($null -eq $catalog.PSObject.Properties["user_settings_merge"]) {
+        return @()
+    }
+    return @($catalog.user_settings_merge.PSObject.Properties | ForEach-Object { [pscustomobject]@{ Key = $_.Name; Value = $_.Value } })
+}
+
+function ConvertTo-ClaudeTeamJsonValue {
+    param($Value)
+    return (ConvertTo-Json -InputObject $Value -Compress -Depth 20)
+}
+
+# The catalog user_settings_merge keys go into the user settings only when a key
+# is absent; an existing value is never overwritten. The keys are inserted as
+# text after the opening brace, so the rest of the file stays byte-for-byte.
+function Install-ClaudeTeamUserSettings {
+    param([bool]$CheckOnly)
+    $mergeItems = @(Get-ClaudeTeamUserSettingsMerge)
+    $current = $null
+    $missingItems = @()
+    $item = $null
+    $wantedJson = ""
+    $currentJson = ""
+    $entryText = ""
+    $openIndex = -1
+    $headText = ""
+    $tailText = ""
+    $newText = ""
+    $validated = $null
+    $newLine = [Environment]::NewLine
+
+    if ($mergeItems.Count -eq 0) {
+        Write-ClaudeTeamInstallLog "SKIP" ("no user_settings_merge keys in {0}" -f $ClaudeTeamInstallCatalogPath)
+        return
+    }
+    $current = Read-ClaudeTeamUserSettings
+    if (-not $current.Valid) {
+        Write-ClaudeTeamInstallLog "WARN" ("{0} is not a valid JSON object; user settings not merged" -f $ClaudeTeamInstallUserSettingsPath)
+        return
+    }
+    foreach ($item in $mergeItems) {
+        if (-not (Test-ClaudeTeamSettingPresent -Settings $current.Settings -Key $item.Key)) {
+            $missingItems += $item
+            continue
+        }
+        $wantedJson = ConvertTo-ClaudeTeamJsonValue -Value $item.Value
+        $currentJson = ConvertTo-ClaudeTeamJsonValue -Value $current.Settings.PSObject.Properties[$item.Key].Value
+        if ($currentJson -ceq $wantedJson) {
+            Write-ClaudeTeamInstallLog "SKIP" ("user setting {0}={1} present" -f $item.Key, $wantedJson)
+        } else {
+            Write-ClaudeTeamInstallLog "WARN" ("user setting {0}={1} kept (never overwritten); the team expects {2}" -f $item.Key, $currentJson, $wantedJson)
+        }
+    }
+    if ($missingItems.Count -eq 0) {
+        return
+    }
+    if ($CheckOnly) {
+        foreach ($item in $missingItems) {
+            Write-ClaudeTeamInstallLog "MISSING" ("user setting {0}={1} in {2}" -f $item.Key, (ConvertTo-ClaudeTeamJsonValue -Value $item.Value), $ClaudeTeamInstallUserSettingsPath)
+        }
+        return
+    }
+    $entryText = (@($missingItems | ForEach-Object { '{0}"{1}": {2}' -f $ClaudeTeamInstallJsonIndent, $_.Key, (ConvertTo-ClaudeTeamJsonValue -Value $_.Value) })) -join (",{0}" -f $newLine)
+    $openIndex = $current.Text.IndexOf("{")
+    if (($null -eq $current.Settings) -or ($openIndex -lt 0)) {
+        $newText = "{{{0}{1}{0}}}{0}" -f $newLine, $entryText
+    } else {
+        $headText = $current.Text.Substring(0, $openIndex + 1)
+        $tailText = $current.Text.Substring($openIndex + 1)
+        if ($tailText.TrimStart().StartsWith("}")) {
+            $newText = "{0}{1}{2}{1}{3}" -f $headText, $newLine, $entryText, $tailText.TrimStart()
+        } else {
+            $newText = "{0}{1}{2},{3}" -f $headText, $newLine, $entryText, $tailText
+        }
+    }
+    try {
+        $validated = $newText | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        Write-ClaudeTeamInstallLog "WARN" ("merged user settings would not be valid JSON; {0} left unchanged" -f $ClaudeTeamInstallUserSettingsPath)
+        return
+    }
+    if (-not (Test-Path -LiteralPath $ClaudeTeamInstallUserClaudeDir)) {
+        New-Item -ItemType Directory -Path $ClaudeTeamInstallUserClaudeDir -Force | Out-Null
+    }
+    [System.IO.File]::WriteAllText($ClaudeTeamInstallUserSettingsPath, $newText, $ClaudeTeamInstallUtf8NoBom)
+    foreach ($item in $missingItems) {
+        if (Test-ClaudeTeamSettingPresent -Settings $validated -Key $item.Key) {
+            Write-ClaudeTeamInstallLog "OK" ("user setting {0}={1} added to {2}" -f $item.Key, (ConvertTo-ClaudeTeamJsonValue -Value $item.Value), $ClaudeTeamInstallUserSettingsPath)
+        }
+    }
+}
+
+# Report-only mirror of cci_check_remote_control_env (Linux): variables and user
+# settings that disable Remote Control, so cross-machine SendMessage cannot work.
+function Test-ClaudeTeamRemoteControlEnvironment {
+    $blocked = $false
+    $name = $null
+    $value = $null
+    $baseUrl = [Environment]::GetEnvironmentVariable("ANTHROPIC_BASE_URL", "Process")
+    $current = Read-ClaudeTeamUserSettings
+    $property = $null
+
+    foreach ($name in $ClaudeTeamInstallRemoteControlEnvBlockers) {
+        $value = [Environment]::GetEnvironmentVariable($name, "Process")
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            Write-ClaudeTeamInstallLog "WARN" ("{0} is set in this environment: Remote Control (cross-machine messaging) is unavailable" -f $name)
+            $blocked = $true
+        }
+    }
+    if ((-not [string]::IsNullOrWhiteSpace($baseUrl)) -and ($baseUrl.TrimEnd("/") -ne $ClaudeTeamInstallOfficialBaseUrl)) {
+        Write-ClaudeTeamInstallLog "WARN" "ANTHROPIC_BASE_URL points away from api.anthropic.com: Remote Control is unavailable"
+        $blocked = $true
+    }
+    if ($null -ne $current.Settings) {
+        foreach ($name in $ClaudeTeamInstallRemoteControlSettingBlockers) {
+            $property = $current.Settings.PSObject.Properties[$name]
+            if (($null -ne $property) -and ($property.Value -eq $true)) {
+                Write-ClaudeTeamInstallLog "WARN" ("user setting {0}=true in {1} blocks cross-machine role messaging; remove it" -f $name, $ClaudeTeamInstallUserSettingsPath)
+                $blocked = $true
+            }
+        }
+    }
+    if (-not $blocked) {
+        Write-ClaudeTeamInstallLog "SKIP" "no variable or user setting blocks Remote Control"
+    }
+}
+
 function Invoke-ClaudeTeamInstall {
     param([switch]$CheckOnly)
     $item = $null
     foreach ($item in $ClaudeTeamInstallBinaries) {
         Install-ClaudeTeamBinary -Item $item -CheckOnly ([bool]$CheckOnly)
     }
+    Test-ClaudeTeamWindowsTerminalVersion
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallStateDir -Purpose "role PID files" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallSharedDir -Purpose "shared data between roles" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReportsDir -Purpose "role handoff reports (TeammateIdle gate)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReviewsDir -Purpose "reviewer verdicts (TaskCompleted gate)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallAgentMemoryDir -Purpose "per-role agent memory (memory: project)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamPathEntry -CheckOnly ([bool]$CheckOnly)
+    Install-ClaudeTeamUserSettings -CheckOnly ([bool]$CheckOnly)
+    Test-ClaudeTeamRemoteControlEnvironment
 }

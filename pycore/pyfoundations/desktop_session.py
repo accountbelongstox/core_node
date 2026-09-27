@@ -11,7 +11,7 @@ from typing import Dict, Optional, Tuple
 
 PLATFORM_NAME = platform.system()
 OS_RELEASE_PATH = Path("/etc/os-release")
-RUNTIME_ROOT = Path("/run/user")
+RUN_USER_ROOT = Path("/run/user")
 SESSION_X11 = "x11"
 SESSION_WAYLAND = "wayland"
 SESSION_TTY = "tty"
@@ -22,6 +22,16 @@ DESKTOP_KDE = "kde"
 DESKTOP_UNKNOWN = "unknown"
 XWAYLAND_AUTH_PATTERNS = (".mutter-Xwaylandauth.*", "xauth_*", ".Xauthority")
 SESSION_BUS_SOCKET = "bus"
+BUS_ADDRESS_FORMAT = "unix:path={path}"
+BUS_ADDRESS_ENV = "DBUS_SESSION_BUS_ADDRESS"
+RUNTIME_DIR_ENV = "XDG_RUNTIME_DIR"
+DISPLAY_ENV = "DISPLAY"
+WAYLAND_DISPLAY_ENV = "WAYLAND_DISPLAY"
+XAUTHORITY_ENV = "XAUTHORITY"
+WAYLAND_SOCKET_GLOB = "wayland-[0-9]*"
+X11_SOCKET_DIR = Path("/tmp/.X11-unix")
+DEFAULT_X11_DISPLAY = ":0"
+DEFAULT_X11_SOCKET = "X0"
 FORCE_GUI_ENV = "PYCORE_FORCE_GUI"
 FORCE_HEADLESS_ENV = "PYCORE_HEADLESS"
 SUPPORTED_DESKTOP_PROFILES = frozenset({
@@ -37,6 +47,7 @@ class LinuxDistro:
     version_major: str = ""
     id_like: Tuple[str, ...] = ()
     codename: str = ""
+    detected: bool = False
 
     def is_like(self, family: str) -> bool:
         return self.distro_id == family or family in self.id_like
@@ -107,7 +118,16 @@ class DesktopSession:
         }
 
 
-def _parse_os_release(path: Path = OS_RELEASE_PATH) -> LinuxDistro:
+@dataclass(frozen=True)
+class UserSessionEndpoints:
+    uid: int
+    runtime_dir: str
+    bus_address: str
+    wayland_display: str
+    x11_display: str
+
+
+def parse_os_release(path: Path = OS_RELEASE_PATH) -> LinuxDistro:
     if not path.is_file():
         return LinuxDistro()
     values: Dict[str, str] = {}
@@ -122,19 +142,49 @@ def _parse_os_release(path: Path = OS_RELEASE_PATH) -> LinuxDistro:
         version_major=version_id.split(".", 1)[0],
         id_like=tuple(values.get("ID_LIKE", "").lower().split()),
         codename=values.get("VERSION_CODENAME", "").lower(),
+        detected=bool(values.get("ID")),
     )
 
 
-LINUX_DISTRO = _parse_os_release() if PLATFORM_NAME == "Linux" else LinuxDistro()
+LINUX_DISTRO = parse_os_release() if PLATFORM_NAME == "Linux" else LinuxDistro()
+
+
+def bus_address_for(runtime_dir: Path) -> str:
+    return BUS_ADDRESS_FORMAT.format(path=runtime_dir / SESSION_BUS_SOCKET)
+
+
+def first_wayland_socket(runtime_dir: Path) -> str:
+    for candidate in sorted(runtime_dir.glob(WAYLAND_SOCKET_GLOB)):
+        if candidate.is_socket():
+            return candidate.name
+    return ""
+
+
+def default_x11_display() -> str:
+    return DEFAULT_X11_DISPLAY if (X11_SOCKET_DIR / DEFAULT_X11_SOCKET).exists() else ""
+
+
+def user_session_endpoints(uid: int) -> Optional[UserSessionEndpoints]:
+    """Login-session endpoints of *uid* for a root launcher; None off Linux."""
+    if PLATFORM_NAME != "Linux":
+        return None
+    runtime_dir = RUN_USER_ROOT / str(uid)
+    return UserSessionEndpoints(
+        uid=uid,
+        runtime_dir=str(runtime_dir),
+        bus_address=bus_address_for(runtime_dir),
+        wayland_display=first_wayland_socket(runtime_dir),
+        x11_display=default_x11_display(),
+    )
 
 
 def _user_runtime_dir() -> str:
-    configured = os.environ.get("XDG_RUNTIME_DIR", "")
+    configured = os.environ.get(RUNTIME_DIR_ENV, "")
     if configured:
         return configured
     if PLATFORM_NAME != "Linux":
         return ""
-    candidate = RUNTIME_ROOT / str(os.getuid())
+    candidate = RUN_USER_ROOT / str(os.getuid())
     return str(candidate) if candidate.is_dir() else ""
 
 
@@ -160,7 +210,7 @@ def xauthority_candidates(runtime_dir: str) -> Tuple[str, ...]:
 
 
 def _resolve_xauthority(runtime_dir: str) -> str:
-    configured = os.environ.get("XAUTHORITY", "")
+    configured = os.environ.get(XAUTHORITY_ENV, "")
     if configured:
         return configured
     candidates = xauthority_candidates(runtime_dir)
@@ -168,11 +218,11 @@ def _resolve_xauthority(runtime_dir: str) -> str:
 
 
 def _resolve_dbus_address(runtime_dir: str) -> str:
-    configured = os.environ.get("DBUS_SESSION_BUS_ADDRESS", "")
+    configured = os.environ.get(BUS_ADDRESS_ENV, "")
     if configured:
         return configured
     if runtime_dir and (Path(runtime_dir) / SESSION_BUS_SOCKET).exists():
-        return f"unix:path={Path(runtime_dir) / SESSION_BUS_SOCKET}"
+        return bus_address_for(Path(runtime_dir))
     return ""
 
 
@@ -204,8 +254,8 @@ def _resolve_desktop() -> Tuple[str, Tuple[str, ...]]:
 
 def current_desktop_session() -> DesktopSession:
     runtime_dir = _user_runtime_dir()
-    display = os.environ.get("DISPLAY", "")
-    wayland_display = os.environ.get("WAYLAND_DISPLAY", "")
+    display = os.environ.get(DISPLAY_ENV, "")
+    wayland_display = os.environ.get(WAYLAND_DISPLAY_ENV, "")
     desktop, desktop_names = _resolve_desktop()
     return DesktopSession(
         platform=PLATFORM_NAME,
@@ -223,12 +273,12 @@ def current_desktop_session() -> DesktopSession:
 
 def ensure_session_environment(session: Optional[DesktopSession] = None) -> DesktopSession:
     resolved = session or current_desktop_session()
-    if resolved.xauthority and not os.environ.get("XAUTHORITY"):
-        os.environ["XAUTHORITY"] = resolved.xauthority
-    if resolved.dbus_address and not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
-        os.environ["DBUS_SESSION_BUS_ADDRESS"] = resolved.dbus_address
-    if resolved.runtime_dir and not os.environ.get("XDG_RUNTIME_DIR"):
-        os.environ["XDG_RUNTIME_DIR"] = resolved.runtime_dir
+    if resolved.xauthority and not os.environ.get(XAUTHORITY_ENV):
+        os.environ[XAUTHORITY_ENV] = resolved.xauthority
+    if resolved.dbus_address and not os.environ.get(BUS_ADDRESS_ENV):
+        os.environ[BUS_ADDRESS_ENV] = resolved.dbus_address
+    if resolved.runtime_dir and not os.environ.get(RUNTIME_DIR_ENV):
+        os.environ[RUNTIME_DIR_ENV] = resolved.runtime_dir
     return resolved
 
 
@@ -247,17 +297,32 @@ def is_headless_linux() -> bool:
 
 
 __all__ = [
+    "BUS_ADDRESS_ENV",
+    "BUS_ADDRESS_FORMAT",
+    "DEFAULT_X11_DISPLAY",
     "DESKTOP_GNOME",
     "DESKTOP_KDE",
+    "DISPLAY_ENV",
     "DesktopSession",
     "LINUX_DISTRO",
     "LinuxDistro",
+    "RUNTIME_DIR_ENV",
+    "RUN_USER_ROOT",
+    "SESSION_BUS_SOCKET",
     "SESSION_TTY",
     "SESSION_UNKNOWN",
     "SESSION_WAYLAND",
     "SESSION_WIN32",
     "SESSION_X11",
+    "UserSessionEndpoints",
+    "WAYLAND_DISPLAY_ENV",
+    "XAUTHORITY_ENV",
+    "bus_address_for",
     "current_desktop_session",
+    "default_x11_display",
+    "first_wayland_socket",
+    "parse_os_release",
+    "user_session_endpoints",
     "xauthority_candidates",
     "ensure_session_environment",
     "has_graphical_display",

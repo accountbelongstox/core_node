@@ -83,6 +83,7 @@ export {
   deliverThroughLaravelRelay, designateLaravelRelayDevice,
   clearLaravelRelayDevice, laravelRelayDeviceId,
   subscribeLaravelRelayDevice, isLaravelRelayReady, isPycoreRelayError,
+  bridgeRelayDeviceEvent,
 } from './PycoreLaravelRelayTransport';
 export type {
   PycoreRelayError,

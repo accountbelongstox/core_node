@@ -420,11 +420,23 @@ def register_event_handlers(
     register_runtime_workers()
 
 
-def _run_audio_lane_boot_chain() -> None:
+def _run_audio_lane_boot_chain(assist_settings: dict) -> None:
+    """Run the boot chain, then apply the assist runtime transition.
+
+    ``apply_assist_runtime`` runs on THIS thread, after the audio-lane cache
+    restore, never on the main thread in parallel with it: it drives the
+    lane lifecycle (``worker.request_start`` -> an immediate remote-first
+    pull) for word_audio/sentence_audio too, and the cache-before-remote-
+    access invariant (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN R6)
+    would otherwise depend on which thread happens to run first. The
+    ``finally`` (no ``except``) keeps translation/stt starting even when the
+    audio-lane step fails, without swallowing that failure: it still
+    propagates to the bus-task thread boundary instead of being hidden here.
+    """
     try:
         _start_audio_lane_boot_chain()
-    except Exception as exc:
-        ColorPrint.red(f"[EventHandlers] Runtime step audio_lane_boot_chain failed: {exc}")
+    finally:
+        apply_assist_runtime(assist_settings)
 
 
 def _start_audio_lane_boot_chain() -> None:
@@ -434,7 +446,9 @@ def _start_audio_lane_boot_chain() -> None:
     is ON: (a) restore the lane's whole Queue from the local cache, (b) start
     the full pull of the server backlog in the background, (c) wake the
     drain. The local word-audio cache index loads in full in the background
-    regardless of the switches (orchestration uses it too).
+    regardless of the switches (orchestration uses it too). Both steps run
+    to completion on the calling thread before this function returns, so a
+    caller that runs afterward on the SAME thread never races the restore.
     """
     word_audio_cache_index.start_background_load()
     activate_enabled_audio_lanes()
@@ -482,11 +496,19 @@ def register_runtime_workers() -> None:
         try:
             # Background: restoring 10^5+ cached tasks must never delay the
             # HTTP server bind or the tray (restart looked like a dead port).
-            start_bus_task(_run_audio_lane_boot_chain, thread_name="AudioLaneBootChainThread")
+            # apply_assist_runtime (translation/stt/audio-lane lifecycle,
+            # incl. the immediate remote-first pull) runs at the END of this
+            # SAME thread, after the cache restore, so it never races the
+            # restore on the main thread (cache-before-remote-access, R6).
+            start_bus_task(
+                _run_audio_lane_boot_chain,
+                assist_settings,
+                thread_name="AudioLaneBootChainThread",
+            )
             _RUNTIME_STEPS_COMPLETED.add("audio_lane_boot_chain")
         except Exception as exc:
             ColorPrint.red(f"[EventHandlers] Runtime step audio_lane_boot_chain failed: {exc}")
-    apply_assist_runtime(assist_settings)
+            apply_assist_runtime(assist_settings)
     service_steps = (
         ("queue_center_snapshot", queue_center_snapshot_service.start),
         ("audio_lane_state_publisher", audio_lane_state.start),

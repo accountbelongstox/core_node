@@ -1,12 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Http\EnvironmentApiInfo;
 
@@ -174,7 +166,7 @@ class CommonApiInfo
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync',
-                'feature' => 'auth_required:dashboard.auth/GET|List the active and recently finished machine synchronization sessions|DataSyncController|response:sessions(array,Sessions with counterpart endpoint/session snapshots),machine_code(string,This node machine code for same-machine detection),protocol_version(int,Protocol version ' . DataSyncProtocol::VERSION . ')|tags:system,database,sync'
+                'feature' => 'auth_required:dashboard.auth/GET|List the active and recently finished machine synchronization sessions|DataSyncController|response:sessions(array,Sessions with counterpart endpoint/session snapshots),machine_code(string,This node machine code for same-machine detection),protocol_version(int,Protocol version ' . DataSyncProtocol::version() . '),terminal_retention(int,Number of finished sessions kept)|tags:system,database,sync'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync',
@@ -210,11 +202,11 @@ class CommonApiInfo
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/health',
-                'feature' => 'no_auth_required/GET|Probe Laravel 13 machine synchronization capability|DataSyncController|response:protocol_version(int,Protocol version ' . DataSyncProtocol::VERSION . '),compression_available(boolean,System 7-Zip availability),default_port(int,Default peer port),machine_code(string,Machine code for same-machine detection)|tags:system,sync,peer'
+                'feature' => 'no_auth_required/GET|Probe Laravel 13 machine synchronization capability|DataSyncController|response:protocol_version(int,Protocol version ' . DataSyncProtocol::version() . '),compression_available(boolean,System 7-Zip availability),default_port(int,Default peer port),machine_code(string,Machine code for same-machine detection)|tags:system,sync,peer'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/prepare',
-                'feature' => 'no_auth_required/POST|Create automatic receiver session and start pre-transfer backups|DataSyncController|params:source_job_id(string,required,source-session-id),prepare_token(string,required,64-character-retry-secret),options(object,required,{"databases":true,"resources":true,"compression":false})|response:id(string,Receiver session ID),protocol_version(int,Protocol version ' . DataSyncProtocol::VERSION . '),token(string,Session token),backup_directory(string,Mapped backup directory)|tags:system,sync,peer'
+                'feature' => 'no_auth_required/POST|Create automatic receiver session and start pre-transfer backups|DataSyncController|params:source_job_id(string,required,source-session-id),prepare_token(string,required,64-character-retry-secret),options(object,required,{"databases":true,"resources":true,"compression":false})|response:id(string,Receiver session ID),protocol_version(int,Protocol version ' . DataSyncProtocol::version() . '),token(string,Session token),backup_directory(string,Mapped backup directory)|tags:system,sync,peer'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}',

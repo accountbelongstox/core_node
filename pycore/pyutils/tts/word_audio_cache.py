@@ -198,13 +198,18 @@ class WordAudioCacheIndex:
 
     @serialized_method
     def note_stored(self, path: str) -> None:
-        """Keep a loaded language current after a store."""
+        """Keep the index current after a store. Creates the language's
+        mapping lazily (never bails out on a missing one) so this covers a
+        language directory created after boot (its first store starts the
+        entry) and a store that lands while ``load_all`` is still scanning
+        that language: the in-progress mapping this writes into survives
+        ``_install``'s newest-wins merge with the scan result."""
         target = Path(path)
         safe_lang = target.parent.name
-        mapping = self._index.get(safe_lang)
         key = _name_word_key(target.name)
-        if mapping is None or not key:
+        if not key:
             return
+        mapping = self._index.setdefault(safe_lang, {})
         stamp = target.stat().st_mtime_ns if target.is_file() else 0
         previous = mapping.get(key)
         if previous is None or stamp >= previous[0]:
@@ -226,7 +231,7 @@ class WordAudioCacheIndex:
 word_audio_cache_index = WordAudioCacheIndex()
 
 
-def save_to_cache(word: str, language: str, provider: str, tmp_path: str) -> None:
+def save_to_cache(word: str, language: str, provider: str, tmp_path: str, md5: str = "") -> None:
     cache_path = get_cache_path(word, language, provider)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
     try:
@@ -234,7 +239,7 @@ def save_to_cache(word: str, language: str, provider: str, tmp_path: str) -> Non
     except Exception:
         return
     word_audio_cache_index.note_stored(cache_path)
-    audio_resource_ledger.record("word", language, word, cache_path, provider)
+    audio_resource_ledger.record("word", language, word, cache_path, provider, md5=md5)
 
 
 def find_cached(word: str, language: str) -> Path | None:

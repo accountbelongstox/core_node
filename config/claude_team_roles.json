@@ -77,6 +77,17 @@
       }
     },
     {
+      "name": "pycore-gpu-remote",
+      "enabled": false,
+      "remote": {
+        "ssh_secret": "SSH_CONNECTION_GPU_1",
+        "os": "auto",
+        "root_linux": "/www/programing/core_node",
+        "root_windows": "D:\\programing\\core_node",
+        "purpose": "GPU test-end: runs pyservice on the GPU host and tests pycore features; test-only"
+      }
+    },
+    {
       "name": "shell-linux",
       "enabled": true
     },
@@ -123,7 +134,9 @@
   ],
   "remote": {
     "reconnect_seconds": 5,
-    "kickoff": "You are the {role} role, session {session}, running on the laravel-main server over SSH with Remote Control on. Your binding guide is {guide} (section 8 for boundaries). Develop in this server checkout and test directly on this server. Run ListAgents, tell {lead} (another machine; cross-session messaging through Remote Control) that you are ready, and wait for its tasks. Report with SendMessage including the changed-file list, and write {shared}/reports/{role}.md before going idle. Never ask the user questions: take the recommended option, record the choice, and continue."
+    "kickoff": "You are the {role} role, session {session}, running on the laravel-main server over SSH with Remote Control on. Your binding guide is {guide} (section 8 for boundaries). Develop in this server checkout and test directly on this server. Run ListAgents, tell {lead} (another machine; cross-session messaging through Remote Control) that you are ready, and wait for its tasks. Report with SendMessage including the changed-file list, and write {shared}/reports/{role}.md before going idle. Never ask the user questions: take the recommended option, record the choice, and continue.",
+    "code_distribution": "pyservice CodeSync only (docs_fix/CODESYNC_AI_COMMUNICATION_API.md): DEV pushes signed file versions to the remote host's CodeSync client; never git",
+    "enable_rule": "a remote role starts only when its ssh_secret resolves; os auto = probe `uname -s || ver` and use the Linux (bash/tmux/claudeteam.sh) or Windows (powershell/claudeteam.ps1) remote command"
   },
   "role_source": {
     "agents_dir": ".claude/agents",

@@ -303,3 +303,8 @@ UI_QWEN_SYNTHESIS_STATUS = "ui/qwen/synthesis/status"
 UI_QWEN_SYNTHESIS_CANCEL = "ui/qwen/synthesis/cancel"
 UI_QWEN_OPERATION_SNAPSHOT = "ui/qwen/operation/snapshot"
 UI_QWEN_OPERATION_EVENTS = "ui/qwen/operation/events"
+
+# Stable error codes of route handler failures ({"success": False,
+# "error_code": ...}); the UI localizes them by code.
+ROUTE_ERROR_AUDIO_LANE_UNKNOWN = "AUDIO_LANE_UNKNOWN"
+ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED = "QUEUE_HEAD_ITEMS_REQUIRED"

@@ -1,13 +1,6 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
+use App\Constants\LaravelConfig;
 
 return [
 
@@ -24,14 +17,14 @@ return [
     */
 
     'codemart_bank_transfer' => [
-        'bank_name' => env('CODEMART_BANK_NAME'),
-        'account_name' => env('CODEMART_BANK_ACCOUNT_NAME'),
-        'account_number' => env('CODEMART_BANK_ACCOUNT_NUMBER'),
-        'branch' => env('CODEMART_BANK_BRANCH'),
-        'swift_code' => env('CODEMART_BANK_SWIFT_CODE'),
+        'bank_name' => null,
+        'account_name' => null,
+        'account_number' => null,
+        'branch' => null,
+        'swift_code' => null,
     ],
 
-    'codemart_seed_demo' => env('CODEMART_SEED_DEMO'),
+    'codemart_seed_demo' => LaravelConfig::CODEMART_SEED_DEMO,
 
     'workos' => [
         'api_key' => null,

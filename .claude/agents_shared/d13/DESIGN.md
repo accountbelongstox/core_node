@@ -77,6 +77,19 @@ Linux (tmux official docs; Debian 13 ships tmux 3.5a, Ubuntu 26.04 ships 3.6):
   - headless: `tmux attach` in the current tty.
 - No teammate split panes are needed, because the roles are sessions. `team.teammate_mode_linux: tmux` stays for ad-hoc teammates.
 
+### 3.1 Shared packing rule (orchestrator ruling after the r1 reviews, about 17:5x; binding on both OSes)
+- One rule, in this order:
+  1. **max area**: choose the grid (columns x rows per tab) that gives each role pane the largest area while keeping every pane at or above `min_role`, and the lead at or above `min_lead`;
+  2. **column fill**: fill panes column by column;
+  3. **lead-top fallback**: when the lead cannot get a full-height column at `min_lead`, it takes the top row of its tab.
+- Windows records it in SPW-025 (switch from the previous rule), Linux in SPL-107 (add the lead-top fallback).
+- Tab counts may still differ between the OSes for the same screen. Windows Terminal's pane chrome (borders, tab row, scrollbar) costs cells that tmux does not. That is platform-only: SPW-024 records it, with that reason.
+
+### 3.2 One lead (both OSes)
+- Only one orchestrator lead runs at a time. If the other launcher's lead is live (`ca-orchestrator` for claudeagents, `ct-orchestrator` for claudeteamup), the second launcher marks it `other-lead`, starts no second lead, and starts only the missing role sessions.
+- A role counts as live only when its claude/node process is alive. A pane's `-NoExit` shell or a bash shell alone does not count. The PID file is removed when claude exits, and the launcher reopens roles that are not live.
+- Linux records it in SPL-110 (aligned); Windows keeps its existing check.
+
 ## 4. Prerequisites (idempotent, repair only what is missing)
 - Windows (`Invoke-ClaudeTeamInstall`):
   - node, git (Git Bash), Windows Terminal (winget; warn when older than 1.21), python;
