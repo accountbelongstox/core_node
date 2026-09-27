@@ -7,7 +7,6 @@ import { useCmBootstrap } from '../../contexts/CmBootstrapContext';
 import { CM_PROTECTED_ROUTE } from '../public-home/cmPublicRoutes';
 import { CmAccessNotice, type CmAccessAction } from './CmAccessNotice';
 
-const DEPOSIT_ROLES: readonly CmAccessRole[] = ['developer'];
 const APPLICATION_ROLES: readonly CmAccessRole[] = ['reviewer', 'architect'];
 
 /**
@@ -49,7 +48,8 @@ export const CmCapabilityGate: React.FC<{ page: CmPageDef; children: React.React
   if (hasCapability('onboarding.read')) {
     actions.push({ key: 'verification', to: CM_PROTECTED_ROUTE.verification, label: t('access.actions.verification'), Icon: ShieldCheck, primary: true });
   }
-  if (role && DEPOSIT_ROLES.includes(role) && hasCapability('finance.read')) {
+  const depositAmount = role ? Number(bootstrap.vocabulary.policy.deposit_amounts?.[role] ?? 0) : 0;
+  if (depositAmount > 0 && hasCapability('finance.read')) {
     actions.push({ key: 'wallet', to: CM_PROTECTED_ROUTE.wallet, label: t('access.actions.deposit'), Icon: WalletCards });
   }
 

@@ -142,7 +142,7 @@ final class AppQyV1OrchAudioService
             return ['error_code' => self::ERROR_SEGMENT_HASH_MISMATCH, 'http' => 409];
         }
 
-        $destination = $this->audioPath($audioSha256);
+        $destination = self::segmentAudioPath($audioSha256);
         if ($segment->isReady() || is_file($destination)) {
             return ['data' => $this->completeSegment(
                 $taskKey,
@@ -561,7 +561,7 @@ final class AppQyV1OrchAudioService
         return self::SEGMENT_AUDIO_SUBDIR . '/' . substr($sha256, 0, 2) . '/' . $sha256 . self::AUDIO_EXTENSION;
     }
 
-    private function audioPath(string $sha256): string
+    public static function segmentAudioPath(string $sha256): string
     {
         return PathMapper::getAppQyV1AudioBaseDir(self::segmentAudioRelative($sha256));
     }

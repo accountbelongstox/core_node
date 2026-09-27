@@ -54,7 +54,7 @@ class CodeMartV1PublicHomeCtl extends Controller
         if ($validator->fails()) {
             return $this->errorWithCode(
                 CodeMartV1Constants::ERROR_VALIDATION_FAILED,
-                'Validation failed',
+                __('codemart.messages.validation_failed'),
                 422,
                 $validator->errors()
             );

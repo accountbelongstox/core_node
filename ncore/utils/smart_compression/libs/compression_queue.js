@@ -37,15 +37,18 @@ class CompressionQueue extends EventEmitter {
         } = options;
 
         if (!type || !['compression', 'extraction'].includes(type)) {
-            throw new Error('Invalid task type. Must be "compression" or "extraction"');
+            logger.error('Invalid task type. Must be "compression" or "extraction"');
+            return null;
         }
 
         if (type === 'compression' && !sourcePath) {
-            throw new Error('sourcePath is required for compression tasks');
+            logger.error('sourcePath is required for compression tasks');
+            return null;
         }
 
         if (type === 'extraction' && !archivePath) {
-            throw new Error('archivePath is required for extraction tasks');
+            logger.error('archivePath is required for extraction tasks');
+            return null;
         }
 
         const taskId = this.generateTaskId();

@@ -1,4 +1,5 @@
 import type { CmNotification } from '../../api/CmApiTypes';
+import { CM_PROTECTED_ROUTE, cmProjectPath, cmTaskPath } from '../public-home/cmPublicRoutes';
 
 type CmTranslate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -21,19 +22,16 @@ export function cmNotificationLink(notification: CmNotification): string | null 
   const params = notification.params;
   const projectId = numericParam(params, 'project_id');
   const taskId = numericParam(params, 'task_id');
-  if (PROJECT_RESOURCES.has(type) && notification.resource_id) return `/codemart/projects/${notification.resource_id}`;
-  if (TASK_RESOURCES.has(type)) {
-    const id = type === 'task' ? notification.resource_id : taskId;
-    return id ? `/codemart/tasks?task=${id}` : '/codemart/tasks';
-  }
+  if (PROJECT_RESOURCES.has(type) && notification.resource_id) return cmProjectPath(notification.resource_id);
+  if (TASK_RESOURCES.has(type)) return cmTaskPath(type === 'task' ? notification.resource_id : taskId);
   if (PROJECT_SCOPED_RESOURCES.has(type)) {
-    if (projectId) return `/codemart/projects/${projectId}`;
-    return taskId ? `/codemart/tasks?task=${taskId}` : null;
+    if (projectId) return cmProjectPath(projectId);
+    return taskId ? cmTaskPath(taskId) : null;
   }
-  if (WALLET_RESOURCES.has(type)) return '/codemart/wallet';
-  if (VERIFICATION_RESOURCES.has(type)) return '/codemart/verification';
-  if (REVIEW_RESOURCES.has(type)) return '/codemart/reviews';
-  return projectId ? `/codemart/projects/${projectId}` : null;
+  if (WALLET_RESOURCES.has(type)) return CM_PROTECTED_ROUTE.wallet;
+  if (VERIFICATION_RESOURCES.has(type)) return CM_PROTECTED_ROUTE.verification;
+  if (REVIEW_RESOURCES.has(type)) return CM_PROTECTED_ROUTE.reviews;
+  return projectId ? cmProjectPath(projectId) : null;
 }
 
 function stateNamespace(resourceType: string | null): string {

@@ -120,7 +120,16 @@ class WordAudioCacheIndex:
 
     def __init__(self) -> None:
         self._index: Dict[str, Dict[str, Tuple[int, str]]] = {}
+        # Stores for a language ``_install`` has not published into
+        # ``_index`` yet (still being scanned, or not reached yet by the
+        # current ``load_all`` pass). Kept separate so ``_lookup`` keeps
+        # returning None (not-loaded) for that language instead of a
+        # partial live mapping.
+        self._pending: Dict[str, Dict[str, Tuple[int, str]]] = {}
         self._loading = False
+        # Set once ``load_all`` has completed (never reset - it runs once
+        # at boot); a store after this point always goes live immediately.
+        self._load_finished = False
         init_serialized_owner(self, "tts.word_audio_cache_index", "WordAudioCacheIndexState")
 
     @staticmethod
@@ -155,16 +164,31 @@ class WordAudioCacheIndex:
 
     @serialized_method
     def _install(self, safe_lang: str, mapping: Dict[str, Tuple[int, str]]) -> None:
-        current = self._index.get(safe_lang) or {}
-        # Stores that landed during the scan are newer than the scan result.
-        for key, value in current.items():
-            if key not in mapping or value[0] > mapping[key][0]:
-                mapping[key] = value
+        """Publish one language's scan result as the live mapping, merged
+        with any stores ``note_stored`` queued to ``_pending`` while this
+        language was still being scanned (newest wins)."""
+        pending = self._pending.pop(safe_lang, None)
+        if pending:
+            for key, value in pending.items():
+                if key not in mapping or value[0] > mapping[key][0]:
+                    mapping[key] = value
         self._index[safe_lang] = mapping
 
     @serialized_method
     def _finish_load(self) -> None:
+        # A language a store touched but this pass never scanned (its
+        # directory appeared after the boot snapshot) has no other language
+        # id to be installed by; from here on every store goes live directly
+        # (see note_stored), so fold whatever it queued in now.
+        for safe_lang, mapping in self._pending.items():
+            current = self._index.get(safe_lang) or {}
+            for key, value in current.items():
+                if key not in mapping or value[0] > mapping[key][0]:
+                    mapping[key] = value
+            self._index[safe_lang] = mapping
+        self._pending.clear()
         self._loading = False
+        self._load_finished = True
 
     def load_all(self) -> None:
         """Full boot load of every language directory (background thread)."""
@@ -198,19 +222,27 @@ class WordAudioCacheIndex:
 
     @serialized_method
     def note_stored(self, path: str) -> None:
-        """Keep the index current after a store. Creates the language's
-        mapping lazily (never bails out on a missing one) so this covers a
-        language directory created after boot (its first store starts the
-        entry) and a store that lands while ``load_all`` is still scanning
-        that language: the in-progress mapping this writes into survives
-        ``_install``'s newest-wins merge with the scan result."""
+        """Keep the index current after a store.
+
+        A language ``_install`` has already published (or any language once
+        ``load_all`` has fully finished - covers a directory created after
+        boot, whose first store starts its live entry) is updated live,
+        lazily creating its mapping. A language still awaiting its turn in
+        the current ``load_all`` pass is NOT: writing into ``_index`` there
+        would make ``_lookup`` treat it as loaded and report every other
+        cached word of that language as a miss instead of falling back to
+        the directory scan. Such a store queues into ``_pending`` instead;
+        ``_install`` merges it in (newest wins) when that language's scan
+        completes, and ``_finish_load`` folds in anything left over.
+        """
         target = Path(path)
         safe_lang = target.parent.name
         key = _name_word_key(target.name)
         if not key:
             return
-        mapping = self._index.setdefault(safe_lang, {})
         stamp = target.stat().st_mtime_ns if target.is_file() else 0
+        live = self._load_finished or safe_lang in self._index
+        mapping = self._index.setdefault(safe_lang, {}) if live else self._pending.setdefault(safe_lang, {})
         previous = mapping.get(key)
         if previous is None or stamp >= previous[0]:
             mapping[key] = (stamp, str(target))

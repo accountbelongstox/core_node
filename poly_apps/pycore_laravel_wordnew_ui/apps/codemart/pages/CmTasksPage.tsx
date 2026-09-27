@@ -14,8 +14,8 @@ import { CmSubmissionsPanel } from '../components/workspace/CmSubmissionsPanel';
 import { CmTransitionBar } from '../components/workspace/CmTransitionBar';
 import { cmSplitList, cmTotalPages, cmUserLabel, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList } from '../components/workspace/useCmPagedList';
+import { CM_PROTECTED_ROUTE, CM_TASK_QUERY_PARAM, cmProjectPath } from '../components/public-home/cmPublicRoutes';
 
-const TASK_QUERY_PARAM = 'task';
 const BLOCKED_STATUS = 'blocked';
 const REVIEW_STATUS = 'review';
 const IN_PROGRESS_STATUS = 'in_progress';
@@ -206,7 +206,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
               <ul className="cm-chip-list">{(task.required_skills ?? []).map((skill) => <li key={skill}>{skill}</li>)}</ul>
             )}
             {task.project && (
-              <Link className="cm-workspace-link" to={`/codemart/projects/${task.project.id}`}>
+              <Link className="cm-workspace-link" to={cmProjectPath(task.project.id)}>
                 <ExternalLink aria-hidden="true" /> {t('tasks.projectLink', { title: task.project.title })}
               </Link>
             )}
@@ -275,12 +275,12 @@ export const CmTasksPage: React.FC = () => {
   const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
   const [searchParams, setSearchParams] = useSearchParams();
   const list = useCmPagedList(fetchTasks, extractTasks, 'tasks.loadFailed');
-  const selectedId = Number.parseInt(searchParams.get(TASK_QUERY_PARAM) ?? '', 10);
+  const selectedId = Number.parseInt(searchParams.get(CM_TASK_QUERY_PARAM) ?? '', 10);
 
   const openTask = useCallback((taskId: number | null): void => {
     const next = new URLSearchParams(searchParams);
-    if (taskId === null) next.delete(TASK_QUERY_PARAM);
-    else next.set(TASK_QUERY_PARAM, String(taskId));
+    if (taskId === null) next.delete(CM_TASK_QUERY_PARAM);
+    else next.set(CM_TASK_QUERY_PARAM, String(taskId));
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
   const closeTask = useCallback(() => openTask(null), [openTask]);
@@ -301,7 +301,7 @@ export const CmTasksPage: React.FC = () => {
             <button type="button" className="cm-workspace-button" onClick={() => void list.reload()} disabled={list.loading}>
               <RefreshCw aria-hidden="true" /> {t('common.refresh')}
             </button>
-            <Link to="/codemart/marketplace" className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('tasks.findWork')}</Link>
+            <Link to={CM_PROTECTED_ROUTE.marketplace} className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('tasks.findWork')}</Link>
           </>
         )}
       />
@@ -313,7 +313,7 @@ export const CmTasksPage: React.FC = () => {
         <CmEmptyState
           title={t('tasks.emptyTitle')}
           body={t('tasks.emptyBody')}
-          action={<Link to="/codemart/marketplace" className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('tasks.findWork')}</Link>}
+          action={<Link to={CM_PROTECTED_ROUTE.marketplace} className="cm-workspace-button is-primary"><Store aria-hidden="true" /> {t('tasks.findWork')}</Link>}
         />
       ) : (
         <section className="cm-card-list" aria-label={t('nav.tasks')}>

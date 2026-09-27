@@ -1,10 +1,11 @@
 /**
- * SimpleWorkerBase
+ * SimpleWorkerRuntimeBase
  *
- * Shared base for the lightweight unified-task workers that run inside the
- * extension (e.g. the web-AI translate worker). It owns the boring parts of
- * being a laravel_main worker — registration, heartbeat, immediate pull,
- * fast-lane re-poll, queue-ordered dispatch and result submission — and leaves each
+ * Shared runtime for the unified-task workers that run inside the extension
+ * (SimpleWorkerBase workers such as the web-AI translate worker, and the Bing
+ * dictionary worker). It owns the boring parts of being a laravel_main worker —
+ * registration, heartbeat, immediate pull, fast-lane re-poll, repoint — and
+ * SimpleWorkerBase adds queue-ordered dispatch and result submission, leaving each
  * subclass to declare only:
  *   - which capabilities it advertises (`capabilities`)
  *   - which task_type(s) it handles (`handlesTaskType`)
@@ -71,6 +72,10 @@ export interface SimpleWorkerConfig {
   batchSize?: number;
 }
 
+/** A normalized config: the shared fields plus a worker's own, all filled. */
+export type SimpleWorkerSettings<TConfig extends SimpleWorkerConfig = SimpleWorkerConfig> =
+  Required<SimpleWorkerConfig> & Required<TConfig>;
+
 export interface SimpleWorkerStats extends ProcessorStats {
   // Fast-lane bookkeeping — the only fields beyond the canonical ProcessorStats
   // shape (the base pending/translated/failed/... live in ProcessorStats).
@@ -103,8 +108,10 @@ export const REGISTRATION_RETRY_MS = 3000;
 export const QUEUE_DIFF_POLL_MS = Math.max(250, Number(DIFF_DELIVERY.poll_interval_ms || 1000));
 export const QUEUE_HEAD_RESERVE = Math.max(1, Math.floor(Number(DIFF_DELIVERY.head_reserve || 1)));
 
-export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase {
-  protected config: Required<SimpleWorkerConfig> | null = null;
+export abstract class SimpleWorkerRuntimeBase<
+  TConfig extends SimpleWorkerConfig = SimpleWorkerConfig,
+> extends LaravelWorkerLifecycleBase {
+  protected config: SimpleWorkerSettings<TConfig> | null = null;
   protected isRunning = false;
 
   protected pollLoopActive = false;
@@ -249,11 +256,24 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
     return [];
   }
 
+  /** Extra registration metadata beyond version/extension/processor. */
+  protected get registrationMetadata(): Record<string, unknown> {
+    return {};
+  }
+
+  /**
+   * Rotate the pull order across task types so none starves; a worker whose
+   * declared order is a priority turns this off.
+   */
+  protected get rotatesPullTaskTypes(): boolean {
+    return true;
+  }
+
   // ------------------------------------------------------------------
   // Lifecycle
   // ------------------------------------------------------------------
 
-  async start(config: SimpleWorkerConfig): Promise<void> {
+  async start(config: TConfig): Promise<void> {
     if (this.isRunning) {
       logger.warn(this.workerLabel, 'Worker already running');
       return;
@@ -269,19 +289,12 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
       await this.delay(50);
     }
 
-    this.config = {
-      apiUrl: config.apiUrl.trim().replace(/\/+$/, ''),
-      workerName: config.workerName || `MCP Chrome ${this.processorKey} Worker`,
-      pollWait: config.pollWait ?? TASK_LIMITS.long_poll_seconds,
-      heartbeatInterval: config.heartbeatInterval ?? TASK_CENTER_DEFAULTS.heartbeatInterval,
-      batchSize: config.batchSize ?? TASK_LIMITS.worker_pull_default,
-    };
+    this.config = this.normalizeConfig(config);
 
     this.isRunning = true;
     this.connectWorkerApi(this.config.apiUrl);
     try {
-      await this.register();
-      this.activateRegisteredWorker();
+      await this.completeRegistration();
     } catch (error) {
       if (!this.isTransientRegistrationError(error)) {
         this.isRunning = false;
@@ -291,6 +304,28 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
       this.scheduleRegistrationRetry();
     }
   }
+
+  /** Fill the shared defaults; a worker with extra settings extends this. */
+  protected normalizeConfig(config: TConfig): SimpleWorkerSettings<TConfig> {
+    return {
+      ...config,
+      apiUrl: config.apiUrl.trim().replace(/\/+$/, ''),
+      workerName: config.workerName || `MCP Chrome ${this.processorKey} Worker`,
+      pollWait: config.pollWait ?? TASK_LIMITS.long_poll_seconds,
+      heartbeatInterval: config.heartbeatInterval ?? TASK_CENTER_DEFAULTS.heartbeatInterval,
+      batchSize: config.batchSize ?? TASK_LIMITS.worker_pull_default,
+    } as SimpleWorkerSettings<TConfig>;
+  }
+
+  /** Register, run the worker's pre-activation step, then start the loops. */
+  protected async completeRegistration(): Promise<void> {
+    await this.register();
+    await this.prepareActivation();
+    this.activateRegisteredWorker();
+  }
+
+  /** Runs after registration, before the heartbeat, wake and poll loops. */
+  protected async prepareActivation(): Promise<void> {}
 
   stop(): void {
     const workerId = this.stats.workerId;
@@ -375,8 +410,7 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
       if (!this.isRunning) return;
       this.registrationPending = true;
       try {
-        await this.register();
-        this.activateRegisteredWorker();
+        await this.completeRegistration();
       } catch (error) {
         if (!this.isTransientRegistrationError(error)) {
           this.isRunning = false;
@@ -487,6 +521,7 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
           version: chrome.runtime.getManifest().version,
           extensionId: chrome.runtime.id,
           processor: this.processorKey,
+          ...this.registrationMetadata,
         },
       });
     } catch (error) {
@@ -532,6 +567,13 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
     };
     beat();
     this.heartbeatPolling.start(() => void beat(), this.config.heartbeatInterval * 1000);
+  }
+
+  /** Re-arm a running heartbeat on the current config interval. */
+  protected restartHeartbeat(): void {
+    if (!this.heartbeatPolling.isRunning) return;
+    this.heartbeatPolling.stop();
+    this.startHeartbeat();
   }
 
   // ------------------------------------------------------------------
@@ -625,7 +667,7 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
     const types = sourceTypes.filter(
       (taskType) => declaredTypes.has(taskType) && typeof taskType === 'string' && taskType.length > 0,
     );
-    if (types.length > 1) {
+    if (this.rotatesPullTaskTypes && types.length > 1) {
       const offset = this.pullTaskTypeCursor % types.length;
       this.pullTaskTypeCursor = (offset + 1) % types.length;
       types.push(...types.splice(0, offset));
@@ -691,14 +733,74 @@ export abstract class SimpleWorkerRuntimeBase extends LaravelWorkerLifecycleBase
     return wait(ms);
   }
 
-  protected abstract cycle(): Promise<void>;
-  // Pull-cycle scheduling hooks owned by SimpleWorkerBase.
-  protected abstract applyHeadSignal(signal?: QueueCenterWakeSignal): void;
-  protected abstract scheduleFastRepoll(): void;
-  protected abstract noteFastSignals(pendingUrgent?: number, pendingFast?: number): void;
-  protected abstract updateQueueProgress(
+  protected applyHeadSignal(signal?: QueueCenterWakeSignal): void {
+    if (signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.word_audio_head
+      && signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head) return;
+    const rawItems = signal.payload?.items;
+    const items = Array.isArray(rawItems) ? rawItems : [];
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
+      const taskId = String((item as any).task_id || '').trim();
+      const queuePosition = Number((item as any).queue_position || 0);
+      if (!taskId) continue;
+      this.headPositions.set(taskId, queuePosition);
+      void diffTaskSegmentStore.moveToHead(taskId, queuePosition);
+    }
+  }
+
+  protected updateQueueProgress(
     taskType: string,
     progress?: { completed?: number; total?: number } | null,
-  ): void;
+  ): void {
+    if (!progress) return;
+    this.queueProgressByTaskType.set(taskType, {
+      completed: Number(progress.completed || 0),
+      total: Number(progress.total || 0),
+    });
+    let completed = 0;
+    let total = 0;
+    for (const item of this.queueProgressByTaskType.values()) {
+      completed += item.completed;
+      total += item.total;
+    }
+    this.stats.progressCompleted = completed;
+    this.stats.progressTotal = total;
+  }
+
+  /**
+   * Record fast/urgent backlog signals and trigger a fast re-poll burst when
+   * the backend says there is fast-tier work waiting. The burst is jittered and
+   * coalesced (only one scheduled at a time) so concurrent workers don't
+   * stampede the pull endpoint.
+   */
+  protected noteFastSignals(pendingUrgent?: number, pendingFast?: number): void {
+    this.stats.pendingUrgent = pendingUrgent ?? 0;
+    this.stats.pendingFast = pendingFast ?? 0;
+    if ((pendingFast ?? 0) > 0) {
+      this.scheduleFastRepoll();
+    }
+  }
+
+  protected scheduleFastRepoll(): void {
+    if (!this.isRunning) return;
+    // Ensure the next poll-loop iteration drains the fast tier immediately,
+    // even if the immediate cycle below no-ops because a cycle is in flight.
+    this.needsFastRepoll = true;
+    if (this.fastRepollTimeout.isScheduled) return; // coalesce - one burst in flight
+    const jitter = Math.floor(Math.random() * FAST_REPOLL_JITTER_MS);
+    this.fastRepollTimeout.schedule(() => {
+      if (!this.isRunning) return;
+      // Drain whatever fast-tier work matched our capabilities now.
+      // cycle()'s cycleInFlight guard prevents overlap with an in-flight cycle;
+      // needsFastRepoll (set above) guarantees the poll loop re-drains if this
+      // no-opped because a cycle was in flight.
+      this.cycle().catch((error) =>
+        logger.warn(this.workerLabel, 'Fast re-poll failed', error),
+      );
+    }, FAST_REPOLL_BASE_MS + jitter);
+  }
+
+  /** One pull+dispatch round; implementations guard re-entry with cycleInFlight. */
+  protected abstract cycle(): Promise<void>;
 }
 

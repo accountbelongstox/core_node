@@ -82,7 +82,7 @@
             <div class="flex items-center gap-1.5 min-w-0">
               <span :class="['w-2 h-2 rounded-full shrink-0', dotClass(endpoint.id)]"></span>
               <span class="text-[10px] font-medium truncate" style="color: var(--text)">
-                {{ endpoint.description }}
+                {{ getEndpointLabel(endpoint) }}
               </span>
               <span v-if="!autoMode && isCurrentEndpoint(endpoint.id)" class="text-[9px] shrink-0 text-indigo-400">✓</span>
             </div>
@@ -174,6 +174,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useEndpointSelection } from '@/composables/useEndpointSelection';
+import { getEndpointLabel } from '@/config/api-endpoints';
 import { getMessage as t } from '@/utils/i18n';
 
 const {
@@ -207,9 +208,9 @@ const {
 const selectedLabel = computed(() => {
   const ep = currentEndpoint.value;
   if (autoMode.value) {
-    return ep ? `${t('apiAutoMode')} · ${ep.description}` : t('apiAutoMode');
+    return ep ? `${t('apiAutoMode')} · ${getEndpointLabel(ep)}` : t('apiAutoMode');
   }
-  return ep ? ep.description : t('apiNone');
+  return ep ? getEndpointLabel(ep) : t('apiNone');
 });
 </script>
 

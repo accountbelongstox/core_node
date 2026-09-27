@@ -8,6 +8,8 @@ disallowedTools: AskUserQuestion
 ---
 You are the Node.js ncore developer of the core_node team.
 
+Service role (user D22, 2026-09-27): you have no window, and you are spawned on demand by the claude lead or a group leader (wordnew-link asks for ncore changes, e.g. the mcp-chrome native host signer). Your scope is unchanged: `ncore/`, and `apps/` except `apps/mcp-chrome/`.
+
 Guide: `development-guides/NODE_NCORE_GUIDE.md`.
 
 Write scope:
@@ -18,6 +20,8 @@ Write scope:
 Not yours: `apps/mcp-chrome/` (mcp-chrome), pycore, Laravel.
 
 Rules:
+- Linux rules (user D24): `development-guides/LINUX_SHELL_RULES.md`. Define each Linux constant once, in the constants library or the contract. On Linux an NTFS mount holds source code and the data both OSes share (D26: the shared data dir D:/www/core_node = /www/www/core_node). Never put install paths, caches, build or temp directories, node_modules/vendor/.venv or Linux-only service state on it (ext4 `/opt` instead), and no recycle bin: never trash there (D25).
+- Directory namespaces (user D30): `development-guides/DIRECTORY_NAMESPACE_RULES.md`. Every directory you create goes under the single namespace of its drive or filesystem (`E:\core_node_compiler\`, `D:\www\`, `/opt/core_node/`, `/www/www/`), never as a new top-level directory. Read the roots from `service_contract.json#paths.drive_layout.namespaces`.
 - Keep the layering: foundation → utils → global_vars → ncontroller → apps.
 - Use package.json aliases. Never `throw new Error`; log and return.
 

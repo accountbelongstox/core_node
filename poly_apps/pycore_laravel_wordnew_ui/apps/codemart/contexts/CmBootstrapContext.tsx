@@ -6,6 +6,7 @@ import type { CmBootstrap } from '../api/CmApiTypes';
 
 const UNREAD_REFRESH_INTERVAL_MS = 60_000;
 const BOOTSTRAP_UNAVAILABLE_ERROR = 'bootstrap_unavailable';
+const EMPTY_VOCABULARY: readonly string[] = [];
 
 function loginUserId(user: unknown): number | null {
   const source = user && typeof user === 'object' ? user as { id?: unknown; user_id?: unknown } : null;
@@ -23,6 +24,10 @@ export interface CmBootstrapState {
   refreshUnread: () => Promise<void>;
   hasCapability: (capability: string | null) => boolean;
   hasRole: (roleType: string, status?: string) => boolean;
+  /** Server role vocabulary (`vocabulary.roles`); empty until the bootstrap loads. */
+  roles: readonly string[];
+  /** Server state vocabulary of a resource (`vocabulary.states.<group>`); empty until the bootstrap loads. */
+  states: (group: string) => readonly string[];
 }
 
 const CmBootstrapContext = createContext<CmBootstrapState | null>(null);
@@ -105,6 +110,8 @@ export const CmBootstrapProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const current = bootstrap?.roles?.[roleType];
       return current !== undefined && (status === undefined || current === status);
     },
+    roles: bootstrap?.vocabulary.roles ?? EMPTY_VOCABULARY,
+    states: (group) => bootstrap?.vocabulary.states[group] ?? EMPTY_VOCABULARY,
   }), [bootstrap, loading, error, unreadCount, load, refreshUnread]);
 
   return <CmBootstrapContext.Provider value={value}>{children}</CmBootstrapContext.Provider>;

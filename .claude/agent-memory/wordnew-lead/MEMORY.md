@@ -1,0 +1,2 @@
+- [Windows tooling pitfalls](windows-tooling-pitfalls.md) — bun lint needs typescript/bin/tsc; Edit normalizes mixed EOLs; count CR with perl/tr, not MSYS grep/awk
+- [mcp-chrome package manager](mcp-chrome-package-manager.md) — bun workspaces; pnpm-workspace.yaml removed on purpose; lockfiles git-ignored; rebuild before pruning deps the stale dist needs

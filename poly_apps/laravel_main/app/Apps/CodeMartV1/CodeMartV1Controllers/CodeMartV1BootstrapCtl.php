@@ -31,7 +31,7 @@ class CodeMartV1BootstrapCtl extends Controller
 
         $payload = $this->bootstrapService->buildForUser((int) $user->id);
         if ($payload === null) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('codemart.messages.user_not_found'));
         }
 
         return $this->success($payload);

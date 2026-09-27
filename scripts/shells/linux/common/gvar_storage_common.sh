@@ -1,12 +1,64 @@
 #!/bin/bash
 
-# Return largest NTFS device and its size (bytes), output "size device"
+# Program-drive PARTUUID (contract paths.drive_layout.program_partuuid): the
+# GUID of the Windows-only program drive (E:), recorded per machine in the
+# global var store once E: is adopted (Windows side, P2). Empty means no
+# exclusion is configured yet -- every NTFS candidate below stays eligible,
+# unchanged from before this dual-boot hardening. Read directly from the
+# on-disk var-store file (not through get_var) because this file's own
+# detect_desktop_windows_drives() call further down runs BEFORE
+# global_var_store.sh is sourced by gvar_common.sh; GLOBAL_VAR_DIR/OS_VAR_TAG
+# (gvar_system_common.sh / runtime_environment.sh) are already available at
+# that point, so the same lookup works before and after get_var exists.
+get_program_drive_partuuid() {
+    local candidate="" raw="" normalized=""
+    if declare -F get_var >/dev/null 2>&1; then
+        raw="$(get_var "CN_PROGRAM_PARTUUID" "" 2>/dev/null)" || raw=""
+    elif [ -n "${GLOBAL_VAR_DIR:-}" ]; then
+        for candidate in "$GLOBAL_VAR_DIR/${OS_VAR_TAG:-UNKNOWN}_CN_PROGRAM_PARTUUID" "$GLOBAL_VAR_DIR/CN_PROGRAM_PARTUUID"; do
+            if [ -f "$candidate" ]; then
+                raw="$(head -n1 "$candidate" 2>/dev/null)"
+                break
+            fi
+        done
+    fi
+    [ -n "$raw" ] || return 0
+
+    # Normalize before ANY consumer compares/embeds this value: the global var
+    # store is world-writable (0777, ensure_core_state_roots) and this same
+    # string is later interpolated into a root-owned udev rule
+    # (mount_common.sh ensure_program_drive_udev_exclusion), so only a value
+    # that matches the shape of a real PARTUUID is ever returned -- anything
+    # else (quotes, another rule line, shell/udev metacharacters) is dropped
+    # here instead of reaching /etc/udev/rules.d. Also strips the cosmetic
+    # differences a Windows writer would record (braces, uppercase, CR/BOM)
+    # so the value actually matches blkid/udev's lowercase, brace-free form.
+    normalized="$(printf '%s' "$raw" | tr -d '\r\n{} \t' | sed '1s/^\xef\xbb\xbf//' | tr '[:upper:]' '[:lower:]')"
+    if [[ "$normalized" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] \
+        || [[ "$normalized" =~ ^[0-9a-f]{8}-[0-9a-f]{2}$ ]]; then
+        printf '%s' "$normalized"
+    else
+        echo "[gvar-storage] CN_PROGRAM_PARTUUID does not look like a PARTUUID after normalization; ignoring it (no E: exclusion applied)." >&2
+    fi
+    return 0
+}
+
+# Return largest NTFS device and its size (bytes), output "size device".
+# Skips the program-drive PARTUUID (get_program_drive_partuuid) when one is
+# recorded, so the Windows-only program drive (E:) is never adopted as the
+# Linux web/data base.
 get_largest_ntfs_with_size() {
     local best_device=""
     local best_size=0
     local device size
+    local excluded_partuuid dev_partuuid
+    excluded_partuuid="$(get_program_drive_partuuid)"
     while IFS= read -r device; do
         [ -z "$device" ] && continue
+        if [ -n "$excluded_partuuid" ]; then
+            dev_partuuid=$($USE_SUDO blkid -s PARTUUID -o value "$device" 2>/dev/null)
+            [ -n "$dev_partuuid" ] && [ "$dev_partuuid" = "$excluded_partuuid" ] && continue
+        fi
         size=$($USE_SUDO blockdev --getsize64 "$device" 2>/dev/null || echo 0)
         if [ -n "$size" ] && [ "$size" -gt "$best_size" ] 2>/dev/null; then
             best_size="$size"
@@ -289,39 +341,42 @@ persist_base_data_directory() {
 # Development-tooling base directory: where the per-distro dev tree
 # <base>/_${SYSTEM_NAME}_${major} (node, py, etc.) is installed. Mirrors
 # PHP App\Providers\PathMapper::getDevCompileParts() and Python system_paths.py so
-# all three resolve to the SAME directory.
+# all three resolve to the SAME directory (contract paths.drive_layout.tool_root.linux:
+# /opt/_<os>_<ver>).
 #
-# Selection (non-WSL):
-#   1. STICKY /opt: if /opt/_${name}_${ver} already exists, keep using /opt forever
-#      -- even if root (/) later drops below the free-space threshold. Once /opt is
-#      chosen, all subsequent installs stay on /opt.
-#   2. Else prefer /opt when root (/) has MORE THAN DEV_ROOT_MIN_FREE_GB free
-#      (default 50 GB). This replaces the old "always use the largest secondary
-#      disk" behaviour.
-#   3. Else fall back to the largest secondary disk (get_base_data_directory).
-# WSL keeps its data-disk design (root / is the ephemeral vhdx).
+# Tools are ALWAYS installed on ext4 under /opt -- on WSL too, since WSL2's own
+# root filesystem is genuine ext4 (backed by a vhdx, but presented to Linux as
+# ext4), unlike /mnt/<drive> (drvfs/NTFS). /opt is NEVER swapped for the
+# NTFS-backed web/data base (get_base_data_directory): a symlinked/hard-linked
+# toolchain tree (node_modules, the Bun cache, the pnpm store) on NTFS is the
+# documented root cause of the D: dirty-volume corruption loop (see
+# docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2).
+#
+# Selection:
+#   1. STICKY /opt: if /opt/_${name}_${ver} already exists, keep using /opt
+#      forever -- even if it later drops below the free-space threshold.
+#   2. Else /opt still wins; a low free-space reading only prints an English
+#      warning (never a silent fallback to NTFS, and never a hard failure --
+#      the actual install step reports its own out-of-space error if /opt truly
+#      cannot fit it).
 get_dev_compile_base() {
-    local suffix root_free min_gb min_bytes
+    local suffix opt_free min_gb min_bytes
     suffix="$SYS_DIR"
     min_gb="${DEV_ROOT_MIN_FREE_GB:-50}"
 
-    if [ "${IS_WSL:-false}" != "true" ]; then
-        # 1. Sticky: an existing /opt dev dir wins regardless of current free space.
-        if [ -d "/opt/$suffix" ]; then
-            echo "/opt"
-            return 0
-        fi
-        # 2. Prefer /opt when root (/) has more than min_gb free (precise bytes).
-        root_free="$(df -B1 --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')"
-        min_bytes=$(( min_gb * 1024 * 1024 * 1024 ))
-        if [ -n "$root_free" ] && [ "$root_free" -gt "$min_bytes" ]; then
-            echo "/opt"
-            return 0
-        fi
+    # 1. Sticky: an existing /opt dev dir wins regardless of current free space.
+    if [ -d "/opt/$suffix" ]; then
+        echo "/opt"
+        return 0
     fi
 
-    # 3. Fallback: largest secondary disk (or /www).
-    get_base_data_directory
+    # 2. Advisory free-space check only: /opt wins either way.
+    opt_free="$(df -B1 --output=avail /opt 2>/dev/null | tail -1 | tr -dc '0-9')"
+    min_bytes=$(( min_gb * 1024 * 1024 * 1024 ))
+    if [ -z "$opt_free" ] || [ "$opt_free" -le "$min_bytes" ] 2>/dev/null; then
+        echo "[WARNING] /opt has less than ${min_gb}GB free; installing the dev toolchain there anyway -- the tool root never falls back to the NTFS web/data base." >&2
+    fi
+    echo "/opt"
 }
 
 # Function to detect if system has NTFS disks
@@ -449,23 +504,35 @@ detect_desktop_windows_drives() {
     fi
 }
 
-# Function to determine the largest Windows drive
+# Function to determine the largest Windows drive. Skips the program-drive
+# PARTUUID (get_program_drive_partuuid) when one is recorded, so a triple-boot
+# /media/$USER/<letter> mount of the Windows-only program drive (E:) is never
+# adopted as the Linux web/data base (get_base_data_directory Priority 4).
 determine_largest_windows_drive() {
     local largest_drive=""
     local largest_size=0
-    
+    local excluded_partuuid drive drive_path drive_size drive_device drive_partuuid
+
+    excluded_partuuid="$(get_program_drive_partuuid)"
     for drive in $DESKTOP_WINDOWS_DRIVES; do
-        local drive_path="$DESKTOP_WINDOWS_MOUNT_PATH/$drive"
+        drive_path="$DESKTOP_WINDOWS_MOUNT_PATH/$drive"
         if [ -d "$drive_path" ]; then
+            if [ -n "$excluded_partuuid" ]; then
+                drive_device=$(findmnt -n -o SOURCE --target "$drive_path" 2>/dev/null) || drive_device=""
+                if [ -n "$drive_device" ]; then
+                    drive_partuuid=$($USE_SUDO blkid -s PARTUUID -o value "$drive_device" 2>/dev/null) || drive_partuuid=""
+                    [ -n "$drive_partuuid" ] && [ "$drive_partuuid" = "$excluded_partuuid" ] && continue
+                fi
+            fi
             # Get drive size using df
-            local drive_size=$(df "$drive_path" 2>/dev/null | awk 'NR==2 {print $2}' | sed 's/[^0-9]//g')
+            drive_size=$(df "$drive_path" 2>/dev/null | awk 'NR==2 {print $2}' | sed 's/[^0-9]//g')
             if [ -n "$drive_size" ] && [ "$drive_size" -gt "$largest_size" ]; then
                 largest_size="$drive_size"
                 largest_drive="$drive"
             fi
         fi
     done
-    
+
     if [ -n "$largest_drive" ]; then
         export DESKTOP_LARGEST_WINDOWS_DRIVE="$largest_drive"
         export DESKTOP_LARGEST_WINDOWS_PATH="$DESKTOP_WINDOWS_MOUNT_PATH/$largest_drive"

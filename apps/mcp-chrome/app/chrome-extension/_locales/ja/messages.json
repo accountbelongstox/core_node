@@ -79,6 +79,30 @@
   "apiCustomEndpointDescription": {
     "message": "カスタム: {0}"
   },
+  "apiEndpointProduction": {
+    "message": "本番クラウドサーバー"
+  },
+  "apiEndpointLocalhost": {
+    "message": "ローカル開発サーバー"
+  },
+  "apiEndpointLoopback": {
+    "message": "ローカルループバックサーバー"
+  },
+  "apiEndpointLanBackup": {
+    "message": "LAN バックアップサーバー"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "LAN プライマリサーバー"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "リモート Laravel メイン"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet Nuul サーバー"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet API サーバー"
+  },
   "httpStatusError": {
     "message": "{0} (HTTP {1})"
   },

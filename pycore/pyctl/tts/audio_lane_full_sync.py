@@ -29,7 +29,10 @@ from pycore.pyutils.laravel.client import (
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
-from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyutils.tts.audio_queue_center import (
+    AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
+    audio_queue_center,
+)
 
 
 class AudioLaneFullSync:
@@ -42,8 +45,8 @@ class AudioLaneFullSync:
     PAGE_LIMIT = 1000
     REQUEST_TIMEOUT_SECONDS = 30
     # Safety bound on the lane's cache-first restore wait below (R6/§5.4):
-    # loading even a large local snapshot takes seconds, not minutes.
-    RESTORE_WAIT_TIMEOUT_SECONDS = 180.0
+    # ONE shared definition in audio_queue_center, next to wait_for_restore.
+    RESTORE_WAIT_TIMEOUT_SECONDS = AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS
 
     def __init__(self) -> None:
         self._running = SerializedValue(False, f"{type(self).__name__}RunningState")
@@ -118,7 +121,12 @@ class AudioLaneFullSync:
             return {"success": False, "running": False, "error": self.DISABLED_CODE, "status": self.get_status()}
         if not self._running.compare_and_set(False, True):
             return {"success": True, "running": True, "status": self.get_status()}
-        audio_queue_center.wait_for_restore(self.LANE, timeout=self.RESTORE_WAIT_TIMEOUT_SECONDS)
+        restored = audio_queue_center.wait_for_restore(self.LANE, timeout=self.RESTORE_WAIT_TIMEOUT_SECONDS)
+        if not restored:
+            ColorPrint.yellow(
+                f"{self.LOG_PREFIX} {self.LANE} cache-first restore did not signal within "
+                f"{self.RESTORE_WAIT_TIMEOUT_SECONDS:.0f}s; starting the full pull anyway"
+            )
         audio_queue_center.note_state_change(self.LANE, "full_sync_started")
         try:
             result = self._pull_all(base_url or laravel_endpoint_manager.get_active_base_url())

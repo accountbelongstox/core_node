@@ -7,7 +7,6 @@ import { cmHandleUnauthorized } from '../auth/cmAuthSession';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { setAuthToken } from '../../../core/auth/AuthSession';
 import type {
-  CmAiAnalysis,
   CmArchitectEligibility,
   CmArchitectTasks,
   CmAttachment,
@@ -16,8 +15,6 @@ import type {
   CmDepositCreateResult,
   CmDepositInfo,
   CmDepositRecord,
-  CmEstimateInput,
-  CmEstimateResult,
   CmFundResult,
   CmInvoice,
   CmListPage,
@@ -223,10 +220,6 @@ export class CmApi extends BaseAPI {
     return this.post(`ai-analysis/projects/${projectId}/analyze`, {});
   }
 
-  async getAnalysis(analysisId: number): Promise<APIResponse<CmAiAnalysis>> {
-    return this.get<CmAiAnalysis>(`ai-analysis/${analysisId}`);
-  }
-
   async acceptAnalysis(analysisId: number, idempotencyKey: string): Promise<APIResponse<{ project_status: string; funding_amount: string }>> {
     return this.postIdempotent(`ai-analysis/${analysisId}/accept`, {}, idempotencyKey);
   }
@@ -275,10 +268,6 @@ export class CmApi extends BaseAPI {
     return this.get('payments', { page });
   }
 
-  async createPayment(payload: Record<string, unknown>, idempotencyKey: string): Promise<APIResponse<CmPayment>> {
-    return this.postIdempotent<CmPayment>('payments', payload, idempotencyKey);
-  }
-
   async getInvoices(page = 1): Promise<APIResponse<CmListPage<CmInvoice>>> {
     return this.get('invoices', { page });
   }
@@ -301,10 +290,6 @@ export class CmApi extends BaseAPI {
 
   async requestWithdrawal(payload: { amount: number; method: string; account_info: Record<string, string> }, idempotencyKey: string): Promise<APIResponse<CmWithdrawal>> {
     return this.postIdempotent<CmWithdrawal>('withdrawals', payload, idempotencyKey);
-  }
-
-  async estimate(input: CmEstimateInput): Promise<APIResponse<CmEstimateResult>> {
-    return this.post<CmEstimateResult>('public/estimate', input);
   }
 
   async getNotifications(page = 1): Promise<APIResponse<CmPage<CmNotification>>> {

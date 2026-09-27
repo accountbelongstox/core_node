@@ -1,0 +1,243 @@
+[
+ {
+  "old_role": "laravel-qyapp",
+  "task_id": "laravel-qyapp-D7",
+  "items": [
+   {
+    "item_id": "srv-07",
+    "requirement": "Merged: srv-07, USER175-13. AppQyV1TtsEngineConfigModel::seedDefaults (:108-117) inserts only missing engine rows. It never updates priority_order or any other operator-chosen value, and it counts only inserted rows.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Models/AppQyV1TtsEngineConfigModel.php"
+    ],
+    "verify": "php -l passes. Inside a rolled-back PG transaction: change one engine's priority_order, call seedDefaults, and confirm the value is unchanged and the count reported 0 updated. Delete one row, call again, and confirm it is re-inserted. Roll back."
+   },
+   {
+    "item_id": "LDRI-11",
+    "requirement": "Merged: LDRI-11, CKA-22, and the X4 part of d9-02b. Depends on contract word_identity.fallback_when_md5_absent and on laravel contract-readers. parseMediaKey (AppQyV1ResourceIndexService.php:44,544-555) accepts the contract key '<lang>:text:<cleaned_word>'. The DeliveryBatchService register() keeps cleaned_word in the manifest state (:86-97), and storeWord (:250-258) resolves the row by lang + cleaned_word when no md5 is given. word/audio/upload (AppQyV1WordMediaController.php:152-210) resolves by cleaned_word when md5 is absent. A word not in the dictionary is rejected with a stable code, and no row is created. The literal messages at :164, :175 and :203 become lang keys (lang/*/app_qy_v1.php, laravel assigns the temporary writer).",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1ResourceIndexService.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1DeliveryBatchService.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1Delivery/AppQyV1DeliveryCtl.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1WordQurey/AppQyV1WordMediaController.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1DictionaryTTSCoordinator.php"
+    ],
+    "verify": "php -l passes. route:list --json still shows client.key on the delivery and word upload routes. In-process HTTP kernel, inside a rolled-back transaction, with the client-key verifier seeded by reflection: a delivery diff with 'en:text:<existing word>' resolves the row, 'en:text:<unknown word>' returns the reject code, and the sentence/word row counts are unchanged."
+   },
+   {
+    "item_id": "LDRI-35-php",
+    "requirement": "Depends on the contract delivery section and on contract-readers. AppQyV1DeliveryDiffService (:19-26) and AppQyV1DeliveryBatchService (:22-44, RETENTION_SECONDS :52) read the route paths, limits, error codes, batch states and retention from QueueCenterContract instead of class literals. The Python half is deferred to phase 2.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1DeliveryDiffService.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1DeliveryBatchService.php"
+    ],
+    "verify": "php -l passes. An in-process script asserts that each service value equals the contract value. route:list --json lists the 5 delivery routes unchanged."
+   },
+   {
+    "item_id": "MCHR-22-php",
+    "requirement": "AppQyV1LibraryCoverTaskService::MAX_IDS (:28) reads library_cover.max_ids from the contract. It depends on the contract change and on contract-readers.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/Services/AppQyV1LibraryCoverTaskService.php"
+    ],
+    "verify": "php -l passes. In-process: the limit equals 200 from the contract. Through the in-process HTTP kernel, POST vocabulary/libraries/cover/tasks with 201 ids returns the validation error code."
+   },
+   {
+    "item_id": "LDRI-32",
+    "requirement": "Keep one public absolute segment-path helper on AppQyV1OrchAudioService, replacing the private audioPath (:564-567), and call it from AppQyV1ResourceIndexService::orchSegmentPath (:564-567) instead of duplicating the body.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1OrchAudioService.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1ResourceIndexService.php"
+    ],
+    "verify": "php -l passes. A grep shows one path builder body. In-process: for a sample task and segment, both services return the same absolute path as before."
+   },
+   {
+    "item_id": "LDRI-28",
+    "requirement": "Call recordStaticFile (AppQyV1ResourceIndexService.php:109-112) from every static-file store and delete path, so the index is maintained on each write and not only by rebuild or self-heal. Record the remaining Laravel-side EdgeTTS/Bing writes that bypass markWordCompleted as a hook, or as a known risk in reports/laravel-qyapp.md.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1ResourceIndexService.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1CoverImageService.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/Services/AppQyV1VocabularyCoverService.php"
+    ],
+    "verify": "php -l passes. A grep shows at least one caller of recordStaticFile per static store path. In-process, with the redis index unavailable locally, the calls are no-ops and do not error (DB fallback)."
+   },
+   {
+    "item_id": "LDRI-22",
+    "requirement": "Done delivery batches are purged even when no new manifest arrives. Add an Octane timer task (app/Services/TimerTasks/, laravel assigns laravel-qyapp as temporary writer) that calls purgeExpired, and select done batches by state and age rather than by file mtime alone (AppQyV1DeliveryBatchService.php:78-80, :328-337).",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/AppQyV1DeliveryBatchService.php",
+     "poly_apps/laravel_main/app/Services/TimerTasks/"
+    ],
+    "verify": "php -l passes. The in-process OctaneTimerService task list includes the new task with background execution. In a scratchpad temp batch dir, purgeExpired removes a done state older than the retention and keeps a running one."
+   },
+   {
+    "item_id": "MCHR-27",
+    "requirement": "Library list rows use the side-effect-free presentCover() (AppQyV1VocabularyCoverService.php:87-109) instead of getCoverData() (AppQyV1VocabularyLibraryPublicController.php:815), so a list GET issues no UPDATE. getCoverData keeps the demand timestamp only on the single-library read path.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/Services/AppQyV1VocabularyCoverService.php",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1Vocabulary/AppQyV1VocabularyLibraryPublicController.php"
+    ],
+    "verify": "php -l passes. Through the in-process HTTP kernel, GET the library list with DB::listen capturing queries: no UPDATE or INSERT statement. The response rows still carry cover_task and the ?v= cover URL."
+   },
+   {
+    "item_id": "AOQSD-09",
+    "requirement": "Replace the six copies of the inline validation-failure block in AppQyV1SentenceAudioController (:77, :147, :277, :331, :369, :421) with one shared helper that returns an i18n message and a stable code. Reuse an existing AppQyV1 response helper if one exists. No hardcoded 'Validation failed: ' text remains.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1SentenceAudioController.php",
+     "poly_apps/laravel_main/lang"
+    ],
+    "verify": "php -l passes. A grep for 'Validation failed' in the controller finds nothing. Through the in-process HTTP kernel, GET tts/sentence/without_audio?limit=abc returns the shared error shape with a zh_CN message when Accept-Language is zh."
+   },
+   {
+    "item_id": "MCHR-21",
+    "requirement": "AppQyV1VocabularyCoverTaskCtl.php:69: the hardcoded 'Query parameter ids is required…' becomes a lang key.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1Vocabulary/AppQyV1VocabularyCoverTaskCtl.php",
+     "poly_apps/laravel_main/lang/en/app_qy_v1.php",
+     "poly_apps/laravel_main/lang/zh_CN/app_qy_v1.php"
+    ],
+    "verify": "php -l passes. Through the in-process HTTP kernel, GET cover/tasks without ids returns the localized message in en and zh_CN."
+   },
+   {
+    "item_id": "LDRI-29",
+    "requirement": "The operator output of AppQyV1ResourceIndexCommand (:38, :43, :48, :56, :61-69, :73) goes through lang keys. The single machine marker line resource_index_built=yes|no stays literal, because it is a machine contract.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Commands/AppQyV1ResourceIndexCommand.php",
+     "poly_apps/laravel_main/lang/en/app_qy_v1.php",
+     "poly_apps/laravel_main/lang/zh_CN/app_qy_v1.php"
+    ],
+    "verify": "php -l passes. php artisan app_qy_v1:resource-index status runs read-only and prints localized lines plus exactly one resource_index_built= line (no = locally, because there is no phpredis)."
+   },
+   {
+    "item_id": "CKA-26",
+    "requirement": "LB-034 remainder in laravel-qyapp paths (about 284 sites): AppQyV1ImageFileProcessor, AppQyV1Initializer, AppQyV1AuthenticationLoginController, AppQyV1AudioFileProcessor, AppQyV1SentenceAudioController, AppQyV1AssistController, AppQyV1StudyGenController, AppQyV1AssistRequestController and the rest. message/error literals become __() keys in lang/*/app_qy_v1.php.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/AppQyV1",
+     "poly_apps/laravel_main/lang"
+    ],
+    "verify": "Re-run the audit literal scan on app/Apps/AppQyV1 and the qyapp controllers/services: 0 hits. php -l passes on the changed files. The in-process en/zh_CN key resolution script passes."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "ui-wordnew",
+  "task_id": "ui-wordnew-D7",
+  "items": [
+   {
+    "item_id": "CKA-12",
+    "requirement": "B2 writer of core/network/api-client/. MasterApiClient.ts:423 mints Idempotency-Keys with BaseAPI.createIdempotencyKey() (BaseAPI.ts:21-25). RequestQueue.generateEntryId (RequestQueue.ts:46-51) reuses the shared generator, and the second UUID generator is removed.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/network/api-client/MasterApiClient.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/core/network/api-client/RequestQueue.ts"
+    ],
+    "verify": "bun run lint passes. A grep shows one random-id implementation (createIdempotencyKey) and no generateEntryId import in MasterApiClient.ts."
+   },
+   {
+    "item_id": "MCHR-31-wn",
+    "requirement": "Depends on ui-pycore-manager MCHR-31. WfNewAdminLibraries.tsx:195-213 uses the shared/library-cover presenter and waiting-status set instead of its own COVER_WAITING_STATUSES.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/components/admin/WfNewAdminLibraries.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no COVER_WAITING_STATUSES in the wordnew app."
+   }
+  ],
+  "shared_layer_paths": [
+   "poly_apps/pycore_laravel_wordnew_ui/core/network/api-client/"
+  ],
+  "done_before_outage_unreviewed": true
+ },
+ {
+  "old_role": "mcp-chrome",
+  "task_id": "mcp-chrome-D7",
+  "items": [
+   {
+    "item_id": "CKA-01",
+    "requirement": "Merged: CKA-01, CKA-02. Remove the unused @fastify/cors from app/native-server/package.json:36 and from both lockfiles (pnpm-lock.yaml, bun.lock) through the package manager. Then run the scripted build order: build:shared, then native, then extension (package.json:16, :20). D7 allows installs.",
+    "files": [
+     "apps/mcp-chrome/app/native-server/package.json",
+     "apps/mcp-chrome/pnpm-lock.yaml",
+     "apps/mcp-chrome/bun.lock"
+    ],
+    "verify": "A grep for fastify/cors in package.json and both lockfiles finds nothing. bun run build completes with output in build_output/build_extension (new build-stamp.json)."
+   },
+   {
+    "item_id": "MCHR-05",
+    "requirement": "Merged: MCHR-05, MCHR-44 (Windows second run / uninstall acceptance). The start.ps1 -ServiceRun branch (:203-209) tracks service_supervisor.py as its owner: it passes --parent-pid, the way dev-watch does, and restarts a crashed supervisor. Stop-UserLogonTask/-UninstallService then ends the whole process set, matching Linux start.sh:123-130.",
+    "files": [
+     "apps/mcp-chrome/scripts/start.ps1",
+     "apps/mcp-chrome/scripts/service_supervisor.py"
+    ],
+    "verify": "PowerShell parse check: 0 errors. python -m py_compile service_supervisor.py passes. A static read shows the supervisor exits when the parent PID is gone. The live second-run and uninstall check runs only on the user's request."
+   },
+   {
+    "item_id": "MCHR-15",
+    "requirement": "The --wake CLI path (service_supervisor.py:435-437) checks extension_is_connected() first, so a one-time build (start.sh:654, start.ps1:486) does not open a reconnect tab while the extension is connected.",
+    "files": [
+     "apps/mcp-chrome/scripts/service_supervisor.py"
+    ],
+    "verify": "py_compile passes. A static read shows that wake_extension(force=True) is reached only when the extension is disconnected."
+   },
+   {
+    "item_id": "MCHR-32",
+    "requirement": "Remove the dead storage keys (storage-keys.ts:24, :32, :33). Keep one native-host registration implementation: register:dev uses scripts/native-host-common.cjs (or the reverse), not both browser path and registry tables. Remove cli.ts:129-156 'update-port' writing config/service_contract.json (B4: contracts change only through the orchestrator).",
+    "files": [
+     "apps/mcp-chrome/app/chrome-extension/utils/storage-keys.ts",
+     "apps/mcp-chrome/scripts/native-host-common.cjs",
+     "apps/mcp-chrome/scripts/register-local-dev.cjs",
+     "apps/mcp-chrome/app/native-server/src/scripts/browser-config.ts",
+     "apps/mcp-chrome/app/native-server/src/scripts/utils.ts",
+     "apps/mcp-chrome/app/native-server/src/cli.ts"
+    ],
+    "verify": "tsc --noEmit in app/native-server and vue-tsc --noEmit in app/chrome-extension report no new errors. A grep shows one per-browser manifest path table and no writeFile to service_contract.json."
+   },
+   {
+    "item_id": "MCHR-33",
+    "requirement": "The endpoint labels in config/api-endpoints.ts:29-37,47 become _locales message keys, rendered via i18n in ApiSettings.vue:85,210-212 and EndpointDropdown.vue:64.",
+    "files": [
+     "apps/mcp-chrome/app/chrome-extension/config/api-endpoints.ts",
+     "apps/mcp-chrome/app/chrome-extension/entrypoints/popup/components/ApiSettings.vue",
+     "apps/mcp-chrome/app/chrome-extension/entrypoints/popup/components/EndpointDropdown.vue"
+    ],
+    "verify": "vue-tsc --noEmit reports no new errors. A grep finds no 'Production Cloud Server' literal. The keys exist in every _locales/*/messages.json."
+   },
+   {
+    "item_id": "MCHR-36",
+    "requirement": "bing-dictionary-worker-runtime.ts (:177-189, :312, :545-605, :774-790) builds on SimpleWorkerRuntimeBase instead of re-implementing the poll, heartbeat and repoint loop.",
+    "files": [
+     "apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/bing-dictionary-worker-runtime.ts",
+     "apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/task-center/SimpleWorkerRuntimeBase.ts"
+    ],
+    "verify": "vue-tsc --noEmit reports no new errors. A grep finds no own heartbeatPolling or taskPolling in the bing runtime."
+   },
+   {
+    "item_id": "MCHR-37",
+    "requirement": "The interactive chrome_gemini_image tool (tools/browser/gemini-image.ts:79) acquires the shared generationMutex from gemini-image-generate.ts:13-35 before driving the Gemini tab.",
+    "files": [
+     "apps/mcp-chrome/app/chrome-extension/entrypoints/background/tools/browser/gemini-image.ts",
+     "apps/mcp-chrome/app/chrome-extension/entrypoints/background/services/gemini-image-generate.ts"
+    ],
+    "verify": "vue-tsc --noEmit reports no new errors. A static read shows execute() wrapped in the same mutex."
+   },
+   {
+    "item_id": "MCHR-43",
+    "requirement": "B11-style launcher parity. start.ps1 (:249-259) asks the same 'Enable development watch mode? [Y/n]' question as start.sh:228-240, using the shared Read-YesNoDefaultYes after shell-windows MCHR-02 (non-interactive runs take the default). MCP_CHROME_WATCH_MODE still pre-answers.",
+    "files": [
+     "apps/mcp-chrome/scripts/start.ps1"
+    ],
+    "verify": "PowerShell parse check: 0 errors. With stdin redirected, MCP_CHROME_WATCH_MODE unset and DD_AUTO_CONTINUE=1, a dry path check shows the default is taken without blocking (static read)."
+   },
+   {
+    "item_id": "MCHR-45",
+    "requirement": "Final verify phase for mcp-chrome after this lane's changes: the extension, shared and native typechecks, plus php -l on the Laravel cover-task files this feature touches (read-only).",
+    "files": [
+     "apps/mcp-chrome/app/chrome-extension",
+     "apps/mcp-chrome/app/native-server",
+     "poly_apps/laravel_main/app/Apps/AppQyV1/Services/AppQyV1LibraryCoverTaskService.php"
+    ],
+    "verify": "vue-tsc --noEmit (extension) and tsc --noEmit (shared, native) report 0 errors. php -l AppQyV1LibraryCoverTaskService.php passes. The results are recorded in reports/mcp-chrome.md."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ }
+]

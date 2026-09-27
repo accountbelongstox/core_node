@@ -1,0 +1,56 @@
+{
+  "task_id": "pycore-runtime-D7",
+  "role": "pycore-runtime",
+  "reviewer": "pycore-lead",
+  "verdict": "approved",
+  "scope": "The pre-outage D7 delta of pycore-runtime is f4f223414..HEAD (5bbb23682, the user's commit) on the 8 files in merge_meta.json unreviewed_impls_before_outage['impl:pycore-runtime-D7']. The working tree equals HEAD for all 8 files. The other hunks against 74e7770 come from the foreign capture commit f4f223414 and are not part of this task: the xdg_desktop_portal.py _drop_connection/remove_match rework, the laravel_relay_agent_service.py 13-line change and the 6 route_names.py lines removed there. The X4 _MD5_RE/_sanitize_item_md5 hunk in local_queue_head_routes.py (:30, :43-48, :57) is reviewed under pycore-runtime-D7P2.",
+  "findings": {
+    "LTCW-12-consts": {
+      "status": "confirmed",
+      "detail": "gnome_shell_dbus.py:58 BRIDGE_ERROR_NOT_APPLICABLE = 'gnome_bridge_not_applicable' and :61 INTROSPECT_ERROR_NOT_NEEDED = 'gnome_introspect_not_needed' are exported in __all__ at :327 and :333. xdg_desktop_portal.py:64 PORTAL_ERROR_NOT_APPLICABLE = 'portal_not_applicable' is exported at :414. They follow the modules' BRIDGE_ERROR_*/INTROSPECT_ERROR_*/PORTAL_ERROR_* families. The values equal the literals still in linux_terminal_backend.py:291/:296/:301 and the PcTerminalPage.tsx:93/:96/:103 keys, so the consumer half (LTCW-12) is a pure import swap."
+    },
+    "AOQSD-21": {
+      "status": "confirmed",
+      "detail": "_KIND_LANES is gone (grep over pycore finds nothing). local_queue_head_routes.py:20/:39 uses AUDIO_QUEUE_LANE_BY_KIND, imported from pycore.pyutils.tts.audio_queue_center; that file is in flight and was imported only, not edited. The map at audio_queue_center.py:75 gives {word: word_audio, sentence: sentence_audio}, the same as the removed literal. The failures are {success: False, error_code} with no 'error' key: local_queue_head_routes.py:62 QUEUE_HEAD_ITEMS_REQUIRED, :65 AUDIO_LANE_UNKNOWN, and word_audio_full_sync_routes.py:27 AUDIO_LANE_UNKNOWN. The codes are defined once for callmodule at route_names.py:307-310, and route_names.py still has no imports. 'success' is the key every route and UI caller uses; the item's verify text says 'ok'."
+    },
+    "LDRI-53": {
+      "status": "confirmed",
+      "detail": "local_task_center_routes.py:19 reads DELIVERY_ERROR_KIND_UNSUPPORTED once at the file top from QUEUE_CENTER_DELIVERY['error_codes']['kind_unsupported'] (config/queue_center_contract.json:346, 'DELIVERY_KIND_UNSUPPORTED'). :85 returns {success: False, error_code: DELIVERY_KIND_UNSUPPORTED}. A grep for 'unknown delivery kind' over pycore finds nothing. Reusing the contract code instead of adding a new literal is accepted, as the recommended option. delivery_diff.py:41-51 reads the same section the same way."
+    },
+    "AHSC-35-py": {
+      "status": "confirmed",
+      "detail": "relay_contract.py:109 adds agent_history_config_changed to RELAY_REQUIRED_EVENTS, and the contract has the event (config/pycore_relay_contract.json:111, profile :122). RelayContract() loads with digest 498009...eb93. laravel_relay_agent_service.py registers BusSignals.AGENT_HISTORY_CONFIG_CHANGED in start() at :111-114, beside AGENT_HISTORY_PROMPT_DERIVED, and unregisters it in stop() at :182-185. :618-619 _publish_config_changed_device_event forwards through _publish_agent_history_event('agent_history_config_changed', payload, 'config'). The bus payload (agent_history/pipeline/config.py:204-208) carries only USER_CONFIG_KEYS, which hold no secrets. With default settings it is far below device_event_payload_bytes 65536."
+    },
+    "CKA-10-routes": {
+      "status": "deferred_correctly",
+      "detail": "The facade is still absent: there is no pycore/pyctl/okx, route_names.py has 0 okx entries, and pycore and pyapps have no handler for the 15 VORTEX_PYCORE_HTTP_ROUTES names. Registering names or stub handlers with no facade would add dead or broken routes, so deferring is correct. Under the D22 path map, both the facade (pycore/pyctl/okx, 'every other path under pycore/') and the routes are pycore-runtime scope, so CKA-10 plus CKA-10-routes stay open as one pycore-runtime follow-up (G-assignment), and ui-vortex keeps the panels hidden."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "laravel_relay_agent_service.py:622-626: the _publish_agent_history_event docstring still lists only 'prompts' and 'item' as container keys. 'config' carries no ts, and _post_device_event (:647) allocates the device revision anyway, so the revision computed at :628-633 is dead code (pre-existing). Update the docstring, or drop the dead revision computation, on the next touch of this file (pycore-runtime).",
+    "End-to-end delivery of agent_history.config.changed waits on pycore-laravel AHSC-35-relay. RelayDeviceService.php:60-64 still hardcodes three events, and RelayContract.php:553-561 $requiredEvents lacks the new one. Until that lands, every agent-history config change makes Laravel answer 422 device_event_invalid, and pycore logs device.event.publish.failed and carries on. The item's 'add it only if a hardcoded list exists' condition is met, so pycore-laravel must add it.",
+    "The literal 'AUDIO_LANE_UNKNOWN' also appears inline at pycore/pyctl/tts/audio_lane_activation.py:45, which is frozen. Phase 2 (pycore-ai with pycore-runtime) should define one constant next to AUDIO_QUEUE_LANES in audio_queue_center.py, import it in both routes and in audio_lane_activation.py, and then drop ROUTE_ERROR_AUDIO_LANE_UNKNOWN from route_names.py:309.",
+    "The full-sync routes still pass through bare 'error' codes from audio_lane_full_sync.py:118/:140/:142 (AUDIO_LANE_DISABLED / WORD_AUDIO_DISABLED / LARAVEL_ENDPOINT_UNKNOWN). They also pass through English 'unknown lane' text from audio_queue_center.py:404/:481/:760, which the route guards make unreachable. Both files are frozen, so these become phase-2 items for pycore-ai. Until then, pycore-ui p4-01 should read error_code first and fall back to error.",
+    "For pycore-ui p4-01: the new codes are QUEUE_HEAD_ITEMS_REQUIRED and DELIVERY_KIND_UNSUPPORTED (en and zh). AUDIO_LANE_UNKNOWN already exists at PcEnCore.ts:22 and PcZhCore.ts:22. The callers still read response.error: PcAudioLaneFullSyncRow.tsx:40-41, PcDeliveryOutboxStatus.tsx:61 and OrchManifestPanel.tsx:100-105. They detect failure by 'success', so no failure is misread as success. Until p4-01 switches them to error_code, they show their localized generic message, and AUDIO_LANE_UNKNOWN loses its specific text.",
+    "local_task_center_routes.py still returns English for 'control_name is required', 'task_id is required' and 'lane must be word or sentence'. These are outside LDRI-53. They are a follow-up for pycore-runtime, and pycore-ui then localizes the codes.",
+    "local_task_center_routes.py:12 depends on QUEUE_CENTER_DELIVERY, which is the phase-2 addition to the frozen queue_center_contract.py. It is absent at 74e7770 and f4f223414 and present at HEAD. Keep it through the pycore-runtime-D7P2 review, or this module stops importing.",
+    "pycore-runtime memory: .claude/agent-memory/pycore-runtime/MEMORY.md lists project_pycore_pitfalls.md twice (lines 2-3). Merge the two index lines."
+  ],
+  "checks": [
+    "Free RAM was 6.65 GB before the import and handler checks.",
+    "EOL: numstat equals --ignore-space-at-eol for all 8 files, against both 74e7770 and HEAD. Byte counts: relay_contract.py 620/620 and laravel_relay_agent_service.py 688/688 CRLF (base 619/619 and 666/666); the other 6 files are pure LF, as at base; there is no BOM. git ls-files --eol matches (i/crlf w/crlf, i/lf w/lf).",
+    "Added lines are ASCII only, with no new try/except, no tests and no hardcoded user-facing text. The one new module-level value (local_task_center_routes.py:19) is at the file top.",
+    "Layering (PYTHON_PYCORE.md §2): callmodule imports pyutils/tts, pyutils/common and pyctl (allowed), and pyctl/relay imports pyfoundations BusSignals (allowed). No sideways import was added.",
+    "Scope (D22 map): every file is under pycore/callmodule/, pycore/pyutils/common/ or pycore/pyctl/relay/, all pycore-runtime scope. No frozen file was edited: audio_queue_center.py and queue_center_contract.py are imported only.",
+    "python -B -m py_compile on the 8 files: rc=0.",
+    "Import check: the 4 reason constants print gnome_bridge_not_applicable, gnome_introspect_not_needed, portal_not_applicable and x11_display_unset.",
+    "RelayContract() loads. 'agent_history_config_changed' in RELAY_REQUIRED_EVENTS is True, and relay_contract.event() returns agent_history.config.changed.",
+    "Direct handler calls (scratch d7_route_errors.py) all passed ('ALL OK'), with no 'error' key and no English text: promote_local_head no items / items not a list -> QUEUE_HEAD_ITEMS_REQUIRED; bad kind / bad queue -> AUDIO_LANE_UNKNOWN; audio_lane_full_sync bogus / missing lane -> AUDIO_LANE_UNKNOWN; laravel_delivery/retry kind=bogus -> DELIVERY_KIND_UNSUPPORTED.",
+    "An isolated _publish_config_changed_device_event({'changed':['enabled'],'config':{'enabled':True}}) call, with _post_device_event stubbed, produced ('agent_history_config_changed', 'agent_history.config.changed', payload, revision).",
+    "Combined start chain: pycore, pycore.callmodule, callmodule.config, register_http_routes, callmodule_main and pycore_module_caller all import OK, and so do the 8 changed modules. register_http_routes into an unstarted HttpServer registers 293 routes with 0 duplicates, and route_names has no duplicate values. A second run registered only the 3 changed registrars and lists /api/ui/queue_center/{promote_local_head,word_audio_full_sync,audio_lane_full_sync} and /api/ui/laravel_delivery/retry. No pip install ran.",
+    "Side effect of the combined check (my own, recorded): the full register_http_routes call ran orch_service.resume_interrupted_generations(). It started the 19 'generating' orchestration tasks in D:/www/core_node/data/audio_orchestration/tasks for about 1 s before os._exit, and their task JSONs were rewritten at about 20:04. pycore was not running (:59000 not listening), so nothing ran twice. All 20 tasks are still 'generating', and the next pycore start resumes them as usual."
+  ],
+  "notes": "pycore-runtime-D7 approved: LTCW-12-consts, AOQSD-21, LDRI-53 and AHSC-35-py pass their verify steps and the AGENTS.md and PYTHON_PYCORE.md rules. CKA-10-routes was deferred correctly. This releases pycore-runtime-G3 and pycore-ui p4-01. The follow-ups above are non-blocking and owned by pycore-laravel (AHSC-35-relay), pycore-ai (phase-2 full-sync and lane codes), pycore-ui (p4-01) and pycore-runtime (CKA-10 plus routes, remaining English in local_task_center_routes.py, relay docstring).",
+  "checked_at": "2026-09-27"
+}

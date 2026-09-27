@@ -3,6 +3,7 @@ const Base = require('#@base');
     const fs = require('fs');
     const path = require('path');
     const { execSync } = require('child_process');
+    const logger = require('#@logger');
 
     class FileTool extends Base {
         constructor() {
@@ -11,7 +12,8 @@ const Base = require('#@base');
 
         copyFilesRecursively(srcPath, destPath, overwrite = false) {
             if (!fs.existsSync(srcPath)) {
-                throw new Error(`Source path does not exist: ${srcPath}`);
+                logger.error(`Source path does not exist: ${srcPath}`);
+                return false;
             }
 
             if (!fs.existsSync(destPath)) {
@@ -30,21 +32,25 @@ const Base = require('#@base');
                     }
                 }
             });
+            return true;
         }
 
         copyAndReplaceFile(srcFile, destFile, overwrite = false) {
             if (!fs.existsSync(srcFile)) {
-                throw new Error(`Source file does not exist: ${srcFile}`);
+                logger.error(`Source file does not exist: ${srcFile}`);
+                return false;
             }
 
             if (overwrite || !fs.existsSync(destFile)) {
                 fs.copyFileSync(srcFile, destFile);
             }
+            return true;
         }
 
         copyFilesToContainer(srcPath, containerName, containerPath, overwrite = false) {
             if (!fs.existsSync(srcPath)) {
-                throw new Error(`Source path does not exist: ${srcPath}`);
+                logger.error(`Source path does not exist: ${srcPath}`);
+                return false;
             }
 
             const command = `docker cp ${srcPath} ${containerName}:${containerPath}`;
@@ -53,11 +59,13 @@ const Base = require('#@base');
             if (overwrite) {
                 // Docker `cp` command will overwrite files if they already exist in the container.
             }
+            return true;
         }
 
         copyFileToContainer(srcFile, containerName, containerPath, overwrite = false) {
             if (!fs.existsSync(srcFile)) {
-                throw new Error(`Source file does not exist: ${srcFile}`);
+                logger.error(`Source file does not exist: ${srcFile}`);
+                return false;
             }
 
             const command = `docker cp ${srcFile} ${containerName}:${containerPath}`;
@@ -66,6 +74,7 @@ const Base = require('#@base');
             if (overwrite) {
                 // Docker `cp` command will overwrite files if they already exist in the container.
             }
+            return true;
         }
 
         removeFileOrFolderFromContainer(srcPath, containerName) {

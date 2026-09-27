@@ -812,7 +812,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      */
     private function transformLibrary(AppQyV1VocabularyLibraryModel $library, array $coverTasks = []): array
     {
-        $cover = $this->coverService->getCoverData($library);
+        $cover = $this->coverService->presentCover($library);
         if (!is_array($cover)) {
             $cover = [];
         }

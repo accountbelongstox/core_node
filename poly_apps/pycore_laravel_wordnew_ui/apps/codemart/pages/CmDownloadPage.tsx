@@ -110,7 +110,6 @@ const CmDownloadPage: React.FC = () => {
       <CmPublicSection tone="muted">
         <CmPublicSplit
           image="download-devices"
-          altKey="downloadPage.features.alt"
           eyebrowKey="downloadPage.features.eyebrow"
           titleKey="downloadPage.features.title"
           bodyKeys={['downloadPage.features.body']}

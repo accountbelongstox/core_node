@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, RefreshCw, X } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { CM_WORKSPACE_IMAGES } from './cmWorkspaceImages';
+import { CmImage } from '../CmImage';
 
 export type CmNoticeTone = 'success' | 'error' | 'info';
 
@@ -88,10 +88,9 @@ interface CmEmptyStateProps {
 }
 
 export const CmEmptyState: React.FC<CmEmptyStateProps> = ({ title, body, action, compact = false }) => {
-  const image = CM_WORKSPACE_IMAGES.emptyWorkspace;
   return (
     <section className={`cm-state cm-state--empty ${compact ? 'is-compact' : ''}`}>
-      {!compact && <img src={image.src} width={image.width} height={image.height} alt="" loading="lazy" decoding="async" />}
+      {!compact && <CmImage name="empty-workspace" />}
       <div>
         <h2>{title}</h2>
         {body && <p>{body}</p>}

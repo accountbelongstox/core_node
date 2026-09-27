@@ -175,7 +175,7 @@ class CodeMartV1ArchitectCtl extends Controller
         });
 
         return $this->success([
-            'message' => 'Architect application submitted. Please pay additional deposit to complete.',
+            'message' => __('codemart.messages.architect_application_submitted'),
             'required_deposit' => $requiredDeposit,
             'deposit' => CodeMartV1DepositModel::policyForRole($userId, CodeMartV1Constants::ROLE_ARCHITECT),
         ]);
@@ -231,7 +231,7 @@ class CodeMartV1ArchitectCtl extends Controller
             ['architect_id' => (int) $user->id]
         );
 
-        return $this->success(['message' => 'Project accepted. You can now create tasks for developers.']);
+        return $this->success(['message' => __('codemart.messages.architect_project_accepted')]);
     }
 
     public function completeArchitectDeposit(Request $request): JsonResponse

@@ -48,7 +48,10 @@ file, or architecture descriptions.
   five projects across the delivery states, milestones, marketplace
   tasks, and approved testimonials. Seeding is idempotent and runs only
   through the 175 deployment script, which asks whether to initialize the
-  CodeMart demo data (default: no). Status: done, verified live.
+  CodeMart demo data (default: no). Status: superseded by D17. Seeding now
+  runs in the system initialization by default and is switched off only in
+  the configuration files, and the system generates the account password
+  (`PROGRESS_20260927_CODEMART_GAP_COMPLETION.md` 8.1, row D01).
 
 ## Server corrections applied in this continuation
 
@@ -73,7 +76,8 @@ file, or architecture descriptions.
 - Demo dataset: every demo account signs in and exercises its role
   surface (client projects, developer marketplace and wallet, architect
   project acceptance, reviewer queue), and the deployment-script seed is
-  idempotent across repeated runs.
+  idempotent across repeated runs. The deployment-script seed is superseded
+  by D17 (see the demo dataset entry above).
 
 ## Documentation
 

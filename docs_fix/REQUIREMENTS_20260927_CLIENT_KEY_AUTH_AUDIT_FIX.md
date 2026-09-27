@@ -212,6 +212,108 @@ Source list: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`
     - shell-windows-8 + shell-linux-8: the dd secrets submenu, in parity, after D20;
     - the user runs the submenu, because the password is the user's;
     - shell-*-6 (tunnel/59000/unit limits): cancelled.
+- D22 (verbatim, about 18:xx): "修改角色编排 按小组划分 可以使用角色的前级或后缀来划分组每个组有一个小组长，改为pycore pyservice的前后端全栈组 5成员负责pyservice pycoer - laravel pycore relay API - poly apps pycore ui的多端联动开发 和pyservice的的前置shell脚本开发（特别是本地模型的初始化），pycore 代码小组长 负责审计所有有关pycore成员的开发和合并 需要符合规范，wordnew全栈开发组 5成员组长和下面的任务自动分配 负责poly apps pycore ui -wordnew -laravel qyappv1 - 前置shell脚本- capocitor编译-pycore 辅助联动 - mcp-chrome辅助联动开发，shell单独开发组 2成员 组长兼开发+开发 windows liunx负责dd.cmd dd.sh流和安装流程的开发和适配系统工作，codemart 3成员，组长兼开发+2开发，claude lead 1 同时兼claude脚色编排，"
+  - 16 roster roles in 5 groups. The name prefix is the group. The full path map is in each group file (e.g. `.claude/agents/pycore-lead.md`); guide §8 and B14 have the summary.
+    - claude: orchestrator (the claude lead);
+    - pycore: pycore-lead (leader and code leader), pycore-ai (models and local model init scripts), pycore-runtime (the pyservice backend and its prerequisite scripts), pycore-laravel (the Laravel pycore/relay/UI API and the foundation), pycore-ui (pycore-manager, laravel-manager, vortex, pdd-manager, and the shared UI layer by default);
+    - wordnew: wordnew-lead (leader; assigns tasks automatically), wordnew-ui, wordnew-laravel (AppQyV1), wordnew-native (pre-shell scripts and the Capacitor build), wordnew-link (mcp-chrome and pycore linkage);
+    - shell: shell-windows (leader and developer), shell-linux;
+    - codemart: codemart-lead (leader and developer; owns docs_fix/codemart_docs/), codemart-ui, codemart-laravel.
+  - Also kept: the remote roles laravel-remote and pycore-gpu-remote (the pycore group's tester), and the service roles reviewer, ncore and flutter (catalog window:false, on demand).
+  - Retired, with memories merged into the successors: pycore, pycore-architect, pycore-assist, laravel, laravel-api, laravel-qyapp, laravel-codemart, ui-pycore-manager, ui-laravel-manager, ui-vortex, ui-wordnew, ui-codemart, mcp-chrome.
+  - Readings (B9):
+    - the claude lead stays named `orchestrator`, which avoids renaming the launchers, sessions and memory;
+    - leaders write their members' verdicts, and the `reviewer` service verifies each leader's own work, so every change still gets an independent check;
+    - ncore and flutter are on-demand services, because the user listed no group for them;
+    - the local-model init scripts move from shell to pycore-ai, the pyservice prerequisite scripts to pycore-runtime, and the wordnew build scripts to wordnew-native. The shell group keeps the dd flows and the generic install and system-adaptation work.
+  - Catalog schema 7: groups[] with leaders, the roles with window:false for services, and layout.tab_groups by group (the claude lead shares a tab with the shell group).
+- Outage (about 17:3x-18:xx): the API was unreachable (ENOTFOUND) and the usage limit was hit, so most in-flight agents failed.
+  - Lost: all D5/D7/D9 lanes, D7 phase 2, the D13 fix rounds, D20, D21-cs1, D12's shell-linux-3 and model tests, and the D7 pycore:up-d8 step.
+  - Kept:
+    - the D5/D7/D9 audit and merge (the lanes per group are in `.claude/agents_shared/d22/items_<group>.json`, the metadata in `merge_meta.json`);
+    - the contracts stage (applied);
+    - four implementations done but unreviewed: pycore-ai-D7, pycore-runtime-D7, ui-vortex-D7, ui-wordnew-D7;
+    - the local Laravel (FrankenPHP, started by WMI with a hidden console; `.claude/agents_shared/d7/laravel_local.md`);
+    - D12a (Windows and Linux, approved) and D12b on Windows.
+  - Local Laravel TLS: the new mkcert CA is in no trust store, and importing it into the Windows Root store was refused by the permission classifier.
+    - Ruling (B9, reversible, no code change): pycore uses a combined CA bundle (certifi plus the local mkcert root) through its process environment (REQUESTS_CA_BUNDLE/SSL_CERT_FILE) for D8 https://127.0.0.1.
+    - Trusting the CA system-wide stays a user decision (user-5).
+  - The relaunch runs per group under the leaders (D22), at a paced concurrency so the usage limit is not hit again.
+- D23 (verbatim, about 19:4x): "继续所有任务，如果证书不方便，可以使用一个在解密目录里的加密字符串"
+  - Continue every task.
+  - Ruling: for local tests, pycore's Laravel endpoint is `http://127.0.0.1:9000` (loopback, no TLS), and machine calls are authenticated by `CORE_NODE_CLIENT_KEY_1` (K3) from the decrypted secret store. The note is in `.claude/agents_shared/d7/D23_endpoint.md`.
+  - This replaces D8's `https://127.0.0.1` for pycore → Laravel. The process-level CA bundle and user-5 (trusting the CA system-wide) are withdrawn.
+- D24 (verbatim, about 20:2x): "通知角色 ，liunx端的常量库不要重复定义如果挂载ntfs不要在上面写任何编程语言的安装路径，上在只存放代码，不再作为其他使用，更新到文档，liunx shell规范。"
+  - The Linux constants library defines each constant once.
+  - On Linux an NTFS mount stores source code only, with no other use. No language or tool install paths, caches, build or temp directories, node_modules/vendor/.venv, data, logs or model weights go on it.
+  - Docs:
+    - a new `development-guides/LINUX_SHELL_RULES.md` supplements the shell guide. `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` stays untouched, because its name forbids AI edits;
+    - guide B15;
+    - a pointer line in 13 role files.
+  - Contract (orchestrator): `service_contract.json#paths.linux_ntfs_policy = code_only`.
+    - `linux_data_dir_candidates` no longer lists the NTFS `/www/www` entry: Linux data goes to `/www/core_node` only when `/www` is not NTFS, else `/var/_core_node`, else `~/core_node`.
+    - `linux_ntfs_nested_www_root` is kept for detection only.
+  - Readings (B9):
+    - "上在只存放代码，不再作为其他使用" also covers runtime data and model weights on Linux, not only install paths;
+    - Windows keeps D: as its data drive (the rule is Linux-side).
+    - Existing Linux data on the NTFS mount is neither moved nor deleted by scripts; copying it to ext4 is user-6.
+  - Notified: the role files (new spawns read them), core-node-e9 (its drive layout said "keep model data on D:", which D24 now forbids on Linux), and laravel-remote.
+- D25 (verbatim, about 20:3x): "在liuxx端也不允许在ntfs上使用回收站，如果有脚本创建，通知角色幂等修正回去。"
+  - On Linux there is no recycle bin on an NTFS mount. Scripts and programs never trash there. The mount setup blocks per-volume `.Trash-<uid>` idempotently with an empty root-owned `.Trash-<uid>` blocker file, placed only when no trash exists. A script that creates an NTFS trash is corrected idempotently by its owner.
+  - Docs: `LINUX_SHELL_RULES.md` §2, guide B15, `service_contract.json#paths.linux_ntfs_policy`, and the role pointer lines.
+  - Emptying the existing dual-boot `.Trash-1000` (about 73 GB, seen by core-node-e9) is irreversible, so it stays a user decision (user-7). Scripts only stop new trash creation and may remove an empty trash dir they created.
+  - The read-only audit workflow `d25-ntfs-trash-audit` (about 20:3x) finds every trash use or creation on Linux (scripts, pycore, other code). Fixes go to the owners by the path map. `mount_common.sh` is fenced to core-node-e9, which is asked to add the blocker in its mount work.
+- D26 (verbatim, about 20:4x): "两端的共享数据可以放在ntfs盘。这样两盘才能读得到，这个映射是可以的如，通知角色 。"
+  - Data both OSes share may live on the NTFS disk, because that is how both boots can read it, and the D: ↔ `/www/www` mapping is intended.
+  - Revises the D24 reading. The contract `linux_data_dir_candidates` is restored: the shared NTFS `/www/www/core_node` comes first on the dual-boot desktop. `linux_ntfs_policy = code_and_shared_data`.
+  - Still never on NTFS: install paths, package caches/stores, build output, temp dirs, node_modules/vendor/.venv, Linux-only service state (e.g. PostgreSQL clusters), and recycle bins (D25).
+  - user-6 (copying Linux data off NTFS) is withdrawn.
+  - Notified: the role files (`LINUX_SHELL_RULES.md` §2, guide B15, the pointer lines), core-node-e9 (its "keep model data on D:" holds again for data both OSes read), and laravel-remote.
+  - Implementers who read the D24 contract in between are corrected at review time: the leaders check against the current contract.
+- D27 (verbatim, about 20:5x): "/opt/core_node_trees/www/core_node_trees这个目录是干什么用的，查看项目中，如果没什么用去掉。"
+  - Finding. `core_node_trees` came from core-node-e9's dual-boot drive layout (§10 of its record):
+    - Windows: `<program drive>\core_node_trees` would hold per-project node_modules/vendor/.venv through junctions, plus the toolchain caches;
+    - Linux: ext4 `/opt/core_node_trees` would be bind-mounted onto an empty NTFS mount point, `/www/core_node_trees`, so the Windows junctions resolve to ext4.
+    - Neither directory exists on disk: this machine has only C: and D:, so no E: program drive. Only e9's in-progress code references it: `SharedCacheEnv.ps1`, `mount_common.sh` (`ensure_tree_root_bind_mount`), `shared_cache_env.sh`, plus the contract keys.
+  - Without E:, the Windows side would fall back to `D:\core_node_trees` on the same NTFS disk as the code, which gains nothing. The Linux bind trick exists only to serve those junctions, and it puts a directory on the NTFS share.
+  - Ruling: remove `core_node_trees` everywhere.
+    - Contract `paths.drive_layout`: `tree_subdir`, `tree_root`, `tree_cache_root` and `tree_cache_subdirs` are removed. They are replaced by `cache_root = <tool_root>/cache` with `cache_subdirs`, and by `trees_root` (Linux `<tool_root>/trees`) with `trees_rule`: per-project Linux dirs are bind-mounted from ext4 over the plain in-repo directories at use time, and Windows keeps them in the repo as normal directories, with no junctions.
+    - The D24 mount-point exception in `LINUX_SHELL_RULES.md` is withdrawn.
+    - core-node-e9 updates its fenced code accordingly (asked about 20:5x). There is nothing on disk to delete.
+- D28 (user, given in session core-node-e9 and relayed verbatim about 21:0x): "联接到 E: 现在代码就要直接重构，在没有分好E秀前可以提示。"
+  - The user was told there that node_modules/vendor/.venv cannot be shared across OSes (native addons, .bin shims, pnpm links), and asked for this.
+  - Windows junctions these dirs to the E: program drive now, in code. While E: is absent, the code warns and keeps the normal in-repo dirs, so this machine (C:/D: only) is unchanged today.
+  - This revises the Windows part of D27. The orchestrator adopted it because it is the user's latest wording and it only changes the orchestrator's own contract and rules; the user can overrule it here.
+  - Contract `paths.drive_layout`:
+    - `trees_root.windows = <program_drive>\core_node_trees`, only when E: qualifies, never on the D: fallback;
+    - `trees_root.linux = <tool_root>/trees` (ext4);
+    - `trees_mount_linux = /www/core_node_trees`, a single empty NTFS mount point that is bind-mounted, restored with the `mountpoint -q` condition;
+    - `trees_rule` describes both OSes and requires the junction translation to be proven on the real dual-boot Linux first.
+  - `LINUX_SHELL_RULES.md` §2 has the exception again.
+  - core-node-e9 runs the D28 round: `win_common/ProjectTreeCommon.ps1` (junction ensure plus the E: warning), the `SharedCacheEnv.ps1` keys, and the single bind in `mount_common.sh`. Start-script integration (P4) goes to the start-script owners through the orchestrator.
+- D29 (verbatim, about 21:1x): "dd.cmd sh中的菜单中的liunx/windows管理中加入tailscale的管理，如果本机安装，则添加重记服务，打开面板，显示所有devices IP状态等等，搜索官方文档。加入公共脚本直接调用。"
+  - Tailscale management goes into the Windows and Linux management menus of dd.
+  - When Tailscale is installed, the menu offers: status; every device with name, IPv4/IPv6, OS, online state, last seen, exit node and direct/relay; restart the service; and open the panel (the admin console, plus the local web UI where supported). The commands come from the official docs.
+  - The logic lives in shared common scripts that can also be called directly: `win_common/TailscaleCommon.ps1 -Action Status|Devices|Restart|Panel|Help` and `linux/common/tailscale_common.sh status|devices|restart|panel|help`.
+  - Reading (B9): "重记服务" = restart the service.
+  - Workflow `d29-tailscale-management`:
+    1. research on the official docs;
+    2. shell-windows-10 and shell-linux-11 in parallel, reusing `97_install_tailscale.sh` and the existing network helpers;
+    3. shell-windows reviews shell-linux, and the reviewer service reviews shell-windows.
+  - Tailscale is not restarted during the task. The main dd menu files owned by the running shell plan are not touched; if only they fit, the hook-in is queued.
+- D30 (verbatim, about 21:2x): "加入目录使用规范，在windows上必须 有一一个总的命名空间，比如E秀需要在在E:/core_node_compiler或其他目录下使用所有目录，不要建一堆目录。D盘也是一样，liunx也是一样。"
+  - One namespace directory per drive or filesystem for everything the project creates. The new guide `development-guides/DIRECTORY_NAMESPACE_RULES.md` covers both OSes, plus guide B16, `LINUX_SHELL_RULES.md` §5 and the role pointer lines.
+  - Namespaces:
+    - E: `E:\core_node_compiler\`, holding `.dev_<sys>`, `trees` and `cache`;
+    - D: the existing `D:\www\`, holding the data dir `core_node`, `frankenphp` and, on the D: fallback, `.dev_<sys>` and `cache`;
+    - Linux ext4 `/opt/core_node/`, holding `_<os>_<ver>`, `trees` and `cache`;
+    - Linux NTFS `/www/www/` for shared data, and `/www/core_node_compiler/trees` as the single empty bind mount point.
+  - Contract `paths.drive_layout`: new `namespaces`; `tool_root`, `cache_root`, `trees_root`, `trees_mount_linux` and `toolchain_env_file` are moved under them.
+  - Readings (B9):
+    - the user's code checkout (`D:\programing\core_node`) is user-managed and outside the rule;
+    - the D: namespace is the existing `D:\www`, so the data dir does not move;
+    - legacy top-level dirs made by earlier scripts (`D:\.dev_win10`, `/www/_debian_12`, `/www/_debian_13`, `.dev_debian13`, `.dev_linux`) stay in place and keep being read. Moving them is user-8.
+  - A read-only audit (`d30-namespace-audit`) lists every script or program that creates a top-level directory. Fixes go to the owners after their current items; core-node-e9's drive-layout code follows the new contract keys.
 - D14 (verbatim, about 15:3x): "允许 你修改 改 development-guides/".
   - The orchestrator may now edit `development-guides/` (guide B12). Every guide change is recorded here.
   - First use, about 15:3x, in `CLAUDE_CODE_AGENTS_GUIDE.md`:
@@ -408,6 +510,12 @@ Until then, machine calls fail closed with `client_key_missing`.
 - K1/K3 clarifications (reviewer notes):
   - key names are `CORE_NODE_CLIENT_KEY_1.._5` only, and a bare `CORE_NODE_CLIENT_KEY` is ignored on every end;
   - the signed path is the full path sent on the wire, including any base path. Laravel verifies `getBaseUrl().getPathInfo()`.
+- flutter backlog, won't-fix under D6 and kept for when flutter is reopened (flutter-G1, a read-only re-check about 20:1x; report `.claude/agents_shared/reports/flutter.md`):
+  - F-FL-1 still applies: app_qy calls `/api/dict/v1/*`, which laravel_main does not have.
+  - F-FL-3 still applies: dead ttsBatch/translate constants.
+  - **New F-FL-4 (high):** the live routed screens `course_ielts_screen_app_qy.dart`, `word_book_screen_app_qy.dart` and `home_search_screen_app_qy.dart` call `/api/v1/courses*`, `/api/v1/words/*` and `/api/v1/learning/*` through CourseService, WordService and LearningService with the real ApiServiceAppQy. None of these paths exist in laravel_main (the only `v1/*` group is `v1/auth`). This root cause is independent of F-FL-1.
+  - Dead code in app_qy: a second AuthService/AuthControllerAppQy, profile/social/settings services, the shared `laravel_endpoints.dart`, and most ApiServiceAppQy methods.
+  - No flutter call hits the 09-26/27 changes (client-key machine routes, delivery diff routes, X4, cover tasks).
 - D6 (user, verbatim): "flutter任务停止，并标记为不用修复。" The flutter teammate is stopped. flutter-1, flutter-2 and F-FL-1/2/3 are won't fix; nothing flutter-related goes to D5, and the reviewer drops flutter-1.
   - The flutter-1 edits already on disk were left in place, unreviewed, because the user did not ask for a revert. The files are in `poly_apps/flutter_bloom/lib/apps/app_qy/`: `services_app_qy/api_service_app_qy.dart`, `main_app_qy.dart`, `localization_app_qy/en_app_qy.dart`, `localization_app_qy/zh_app_qy.dart`.
 

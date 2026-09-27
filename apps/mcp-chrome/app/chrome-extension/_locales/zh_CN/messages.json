@@ -766,6 +766,30 @@
   "apiCustomEndpointDescription": {
     "message": "自定义：{0}"
   },
+  "apiEndpointProduction": {
+    "message": "生产云服务器"
+  },
+  "apiEndpointLocalhost": {
+    "message": "本地开发服务器"
+  },
+  "apiEndpointLoopback": {
+    "message": "本地回环服务器"
+  },
+  "apiEndpointLanBackup": {
+    "message": "局域网备用服务器"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "局域网主服务器"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "远程 Laravel 主服务"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet Nuul 服务器"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet API 服务器"
+  },
   "httpStatusError": {
     "message": "{0}（HTTP {1}）"
   },

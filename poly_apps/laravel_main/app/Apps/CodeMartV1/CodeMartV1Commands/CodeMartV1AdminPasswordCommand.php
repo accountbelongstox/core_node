@@ -9,7 +9,8 @@ use Symfony\Component\Console\Input\InputOption;
 /**
  * codemart:admin-password --file <path>: applies the password in the secret
  * file (config/service_contract.json#codemart_admin_password) to every
- * account the CodeMart seeder creates. The only rotator of those hashes.
+ * account the CodeMart seeder creates. The rotator of those hashes; the seeder
+ * reuses the same applier only when it creates a missing file.
  */
 class CodeMartV1AdminPasswordCommand extends Command
 {

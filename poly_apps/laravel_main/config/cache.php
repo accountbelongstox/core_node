@@ -59,6 +59,11 @@ return [
             'lock_connection' => 'default',
         ],
 
+        'failover' => [
+            'driver' => 'failover',
+            'stores' => LaravelConfig::CACHE_FAILOVER_STORES,
+        ],
+
         'octane' => [
             'driver' => 'octane',
         ],

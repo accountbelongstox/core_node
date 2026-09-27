@@ -6,6 +6,8 @@ Main design: `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`
 > Revision 2026-09-27: a full audit found several functions below missing or
 > broken; statuses marked `superseded` are tracked in
 > `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`, which is authoritative.
+> D9 reconciliation 2026-09-27: every `superseded (ID)` below is matched to
+> the code in section 8.1 of that record.
 
 This record describes only which user-facing functions the CodeMart
 interface provides and their status. It contains no code, file, or
@@ -72,6 +74,7 @@ and is reachable only with administrator authorization.
 - Standalone app build support through Capacitor (Android and iOS build
   flavor). Status: done.
 - Every visible text comes from language resources; no hardcoded interface
-  strings. Status: done.
+  strings. Status: done, except the wallet ledger descriptions, which wait
+  on CKA-28-ui (GAP_COMPLETION 8.1, row U31).
 - Registration and login through the shared account, including the optional
   installation super code that grants administrator rights. Status: superseded (P01, P02: CodeMart registration with role selection was not wired).

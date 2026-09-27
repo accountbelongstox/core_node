@@ -16,8 +16,17 @@ $script:FrankenPhpRoot = Join-Path $script:FrankenPhpWebRoot $script:FrankenPhpR
 $script:FrankenPhpBinDirectory = Join-Path $script:FrankenPhpRoot 'bin'
 $script:FrankenPhpBinaryPath = Join-Path $script:FrankenPhpBinDirectory 'frankenphp.exe'
 $script:FrankenPhpPhpPath = Join-Path $script:FrankenPhpBinDirectory 'php.exe'
+$script:FrankenPhpExtensionDirectory = Join-Path $script:FrankenPhpBinDirectory 'ext'
 $script:FrankenPhpConfigDirectory = Join-Path $script:FrankenPhpRoot 'php-conf.d'
 $script:FrankenPhpPhpIniPath = Join-Path $script:FrankenPhpConfigDirectory '99-core-node.ini'
+# Extensions Laravel needs from the embedded PHP payload (the archive ships no php.ini, so
+# none load by default). One definition, filtered below to whatever php_<name>.dll the
+# payload actually shipped (e.g. bcmath is compiled in, so it never has a DLL here and is
+# skipped automatically). Mirrors the extension set hand-written for D7 local testing in
+# D:\www\frankenphp\php-conf.d\50-d7-local-extensions.ini.
+$script:FrankenPhpRequiredExtensions = @(
+    'pdo_pgsql', 'pgsql', 'mbstring', 'openssl', 'intl', 'gd', 'zip', 'bcmath', 'curl', 'fileinfo', 'sodium'
+)
 $script:FrankenPhpDataDirectory = Join-Path $script:FrankenPhpRoot 'data'
 $script:FrankenPhpCaddyConfigDirectory = Join-Path $script:FrankenPhpRoot 'config'
 $script:FrankenPhpCertificateDirectory = Join-Path $script:FrankenPhpRoot 'certs'
@@ -254,6 +263,21 @@ function Ensure-FrankenPhpPhpConfiguration {
     $postSize = [string](Get-ServiceContractValue -ContractPath 'php_runtime.post_max_size')
     $executionTime = [int](Get-ServiceContractValue -ContractPath 'php_runtime.max_execution_time_seconds')
     $inputTime = [int](Get-ServiceContractValue -ContractPath 'php_runtime.max_input_time_seconds')
+    $extensionDirLine = ''
+    $extensionLines = @()
+    $extensionName = ''
+    $extensionDllPath = ''
+    $content = ''
+
+    if (Test-Path -LiteralPath $script:FrankenPhpExtensionDirectory -PathType Container) {
+        $extensionDirLine = 'extension_dir = "{0}"' -f $script:FrankenPhpExtensionDirectory
+        foreach ($extensionName in $script:FrankenPhpRequiredExtensions) {
+            $extensionDllPath = Join-Path $script:FrankenPhpExtensionDirectory ('php_{0}.dll' -f $extensionName)
+            if (Test-Path -LiteralPath $extensionDllPath -PathType Leaf) {
+                $extensionLines = @($extensionLines) + @('extension={0}' -f $extensionName)
+            }
+        }
+    }
     $content = @"
 ; Managed by core_node FrankenPhpManager.ps1
 memory_limit = 512M
@@ -262,6 +286,8 @@ post_max_size = $postSize
 max_execution_time = $executionTime
 max_input_time = $inputTime
 variables_order = EGPCS
+$extensionDirLine
+$($extensionLines -join "`n")
 "@
 
     Ensure-FrankenPhpDirectory -Path $script:FrankenPhpConfigDirectory | Out-Null
@@ -785,7 +811,8 @@ function Ensure-FrankenPhpLanLocalRoute {
         $blocks = @($blocks) + @(@"
 
 https://$tsDnsName`:$httpsPort {
-$tsTlsLine$apiHandlers}
+$tsTlsLine$apiHandlers
+}
 
 http://$tsDnsName`:$httpPort {
 	redir https://$tsDnsName{uri} permanent
@@ -796,7 +823,8 @@ http://$tsDnsName`:$httpPort {
         $blocks = @($blocks) + @(@"
 
 https://127.0.0.1`:$httpsPort {
-$mkcertTlsLine$apiHandlers}
+$mkcertTlsLine$apiHandlers
+}
 "@)
     }
     $content = "# managed-by: frankenphp_domain_common lan=local_lan ts=$(if ([string]::IsNullOrWhiteSpace($tsDnsName)) { 'none' } else { $tsDnsName })" + ($blocks -join '')
@@ -821,10 +849,17 @@ function Get-FrankenPhpExpectedRoutePaths {
     $paths = @()
     $domain = ''
 
-    foreach ($domain in @($access.Domains)) {
-        $domain = ([string]$domain).Trim().ToLowerInvariant()
-        if (-not [string]::IsNullOrWhiteSpace($domain)) {
-            $paths = @($paths) + @(Join-Path $script:FrankenPhpLaravelRoutesDirectory ("{0}.caddy" -f $domain))
+    # Per-domain (production) routes are expected only on the production host;
+    # a LAN/desktop host has no certificate for the public domains and would
+    # otherwise sit there triggering failing ACME attempts (see
+    # Ensure-FrankenPhpDomainRoutes). The stale-route sweep removes any
+    # leftover domain file when a host stops being production.
+    if (-not (Test-FrankenPhpLanOnlyHost)) {
+        foreach ($domain in @($access.Domains)) {
+            $domain = ([string]$domain).Trim().ToLowerInvariant()
+            if (-not [string]::IsNullOrWhiteSpace($domain)) {
+                $paths = @($paths) + @(Join-Path $script:FrankenPhpLaravelRoutesDirectory ("{0}.caddy" -f $domain))
+            }
         }
     }
     # The LAN local route is expected exactly when local certificate material
@@ -897,29 +932,40 @@ function Ensure-FrankenPhpDomainRoutes {
     $routePath = ''
     $ready = $true
     $domainValue = $null
+    # Production public domains (12gm.com, gm15.com, ...) only ever have a
+    # real certificate on the production host. On a LAN/desktop host, skip
+    # generating these routes entirely (reusing the same host/role detection
+    # Step175 already uses for LAN certificate provisioning): a route with no
+    # tls line falls back to Caddy's automatic HTTPS, which keeps retrying
+    # (and failing) ACME issuance for domains this host cannot prove control
+    # of. LAN/desktop access already has its own site: Ensure-FrankenPhpLanLocalRoute.
+    $isLanOnlyHost = Test-FrankenPhpLanOnlyHost
 
     Ensure-FrankenPhpDirectory -Path $script:FrankenPhpLaravelRoutesDirectory | Out-Null
-    foreach ($domainValue in $domains) {
-        $domain = ([string]$domainValue).Trim().ToLowerInvariant()
-        if ([string]::IsNullOrWhiteSpace($domain)) {
-            continue
-        }
-        $apiHost = 'api.{0}.{1}' -f $prefix, $domain
-        $certificateDirectory = Join-Path $script:FrankenPhpCertificateDirectory $domain
-        $certificatePath = Join-Path $certificateDirectory 'fullchain.pem'
-        $keyPath = Join-Path $certificateDirectory 'key.pem'
-        $tlsLine = ''
-        if ((Test-Path -LiteralPath $certificatePath -PathType Leaf) -and (Test-Path -LiteralPath $keyPath -PathType Leaf)) {
-            $tlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path $certificatePath), (ConvertTo-FrankenPhpCaddyPath -Path $keyPath)
-        }
-        $content = @"
+    if (-not $isLanOnlyHost) {
+        foreach ($domainValue in $domains) {
+            $domain = ([string]$domainValue).Trim().ToLowerInvariant()
+            if ([string]::IsNullOrWhiteSpace($domain)) {
+                continue
+            }
+            $apiHost = 'api.{0}.{1}' -f $prefix, $domain
+            $certificateDirectory = Join-Path $script:FrankenPhpCertificateDirectory $domain
+            $certificatePath = Join-Path $certificateDirectory 'fullchain.pem'
+            $keyPath = Join-Path $certificateDirectory 'key.pem'
+            $tlsLine = ''
+            if ((Test-Path -LiteralPath $certificatePath -PathType Leaf) -and (Test-Path -LiteralPath $keyPath -PathType Leaf)) {
+                $tlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path $certificatePath), (ConvertTo-FrankenPhpCaddyPath -Path $keyPath)
+            }
+            $content = @"
 # managed-by: frankenphp_domain_common domain=$domain prefix=$prefix
 
 $apiHost`:$httpsPort {
-$tlsLine$apiHandlers}
+$tlsLine$apiHandlers
+}
 
 $domain`:$httpsPort, www.$domain`:$httpsPort, $prefix.$domain`:$httpsPort, www.$prefix.$domain`:$httpsPort {
-$tlsLine$uiHandlers}
+$tlsLine$uiHandlers
+}
 
 http://$apiHost`:$httpPort {
 	redir https://$apiHost{uri} permanent
@@ -929,10 +975,11 @@ http://$domain`:$httpPort, http://www.$domain`:$httpPort, http://$prefix.$domain
 	redir https://{host}{uri} permanent
 }
 "@
-        $routePath = Join-Path $script:FrankenPhpLaravelRoutesDirectory ("{0}.caddy" -f $domain)
-        Set-FrankenPhpFileContent -Path $routePath -Content $content | Out-Null
-        if (-not (Test-Path -LiteralPath $routePath -PathType Leaf)) {
-            $ready = $false
+            $routePath = Join-Path $script:FrankenPhpLaravelRoutesDirectory ("{0}.caddy" -f $domain)
+            Set-FrankenPhpFileContent -Path $routePath -Content $content | Out-Null
+            if (-not (Test-Path -LiteralPath $routePath -PathType Leaf)) {
+                $ready = $false
+            }
         }
     }
     Remove-FrankenPhpStaleDomainRoutes
@@ -981,6 +1028,7 @@ function Ensure-FrankenPhpCaddyfile {
 {
 	admin localhost:$adminPort
 	auto_https disable_redirects
+	skip_install_trust
 	grace_period 10s
 	default_bind $anyHost
 	servers $anyHost`:$backendPort {

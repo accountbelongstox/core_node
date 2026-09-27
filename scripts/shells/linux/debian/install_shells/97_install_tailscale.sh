@@ -36,6 +36,9 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+# TAILSCALE_SERVICE + is_tailscale_installed() (single definition, shared with
+# the Tailscale management menu / tailscale_common.sh dispatcher).
+source "$PARENT_DIR_LEVEL_2/common/tailscale_common.sh"
 
 # Initialize global variables
 init_global_vars
@@ -49,7 +52,7 @@ TAILSCALE_ADVERTISE_ROUTES=$(get_var "TAILSCALE_ADVERTISE_ROUTES")
 
 # Tailscale configuration
 TAILSCALE_INSTALL_URL="https://tailscale.com/install.sh"
-TAILSCALE_SERVICE="tailscaled"
+# TAILSCALE_SERVICE is defined once in common/tailscale_common.sh (sourced above).
 # GNOME Shell quick-settings toggle (extensions.gnome.org pk / uuid).
 TAILSCALE_GS_EXTENSION_PK="9193"
 TAILSCALE_GS_EXTENSION_UUID="tailscale-gnome-qs@tailscale-qs.github.io"
@@ -66,13 +69,7 @@ fi
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-# Check if Tailscale is already installed
-is_tailscale_installed() {
-    if command -v tailscale >/dev/null 2>&1; then
-        return 0  # Installed
-    fi
-    return 1  # Not installed
-}
+# is_tailscale_installed() is defined once in common/tailscale_common.sh (sourced above).
 
 # Ensure curl is present (required by the official installer)
 ensure_curl() {

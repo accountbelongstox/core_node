@@ -687,6 +687,7 @@ class AppQyV1WordTranslationWriteback
                 @unlink($fullPath);
                 continue;
             }
+            app(AppQyV1ResourceIndexService::class)->recordStaticPath($fullPath);
 
             $relativePaths[] = $relative;
             $index++;

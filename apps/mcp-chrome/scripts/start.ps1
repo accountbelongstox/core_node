@@ -70,6 +70,9 @@ $ServiceExe = $null
 $ServiceArguments = $null
 $NativeHostName = $null
 $DevWatchScript = $null
+$DevWatchArguments = @()
+$DevWatchProcess = $null
+$NodeExe = $null
 $ServiceRestartSeconds = 5
 
 function Get-LocalizedMessage {
@@ -186,12 +189,25 @@ $SupervisorArguments = @(
     "--recover-on-start"
 )
 
-# Logon-task run: recovery supervisor plus the WXT/tsup/nodemon watchers; a
-# watcher exit restarts the set after a short pause.
+# Logon-task run: this host owns the recovery supervisor and the WXT/tsup/nodemon
+# watchers. Both track it through --parent-pid, so stopping the task (converge or
+# -UninstallService) ends the whole set; either one exiting is restarted after a
+# short pause.
 if ($ServiceRun) {
-    Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden | Out-Null
+    $NodeExe = (Get-Command node).Source
+    $SupervisorArguments += @("--parent-pid", [string]$PID)
+    $DevWatchArguments = @(
+        [string]::Concat('"', $DevWatchScript, '"'),
+        "--parent-pid",
+        [string]$PID
+    )
     while ($true) {
-        & node $DevWatchScript --parent-pid $PID
+        if ((-not $SupervisorProcess) -or $SupervisorProcess.HasExited) {
+            $SupervisorProcess = Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden -PassThru
+        }
+        if ((-not $DevWatchProcess) -or $DevWatchProcess.HasExited) {
+            $DevWatchProcess = Start-Process -FilePath $NodeExe -ArgumentList $DevWatchArguments -NoNewWindow -PassThru
+        }
         Start-Sleep -Seconds $ServiceRestartSeconds
     }
 }

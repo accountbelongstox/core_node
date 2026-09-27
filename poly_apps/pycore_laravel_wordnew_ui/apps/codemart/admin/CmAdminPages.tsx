@@ -22,7 +22,8 @@ import {
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
 import { cmFormatPercent } from '../components/workspace/cmWorkspaceFormat';
-import adminConsoleImage from '../assets/images/admin-console.webp';
+import { CmImage } from '../components/CmImage';
+import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmListState, CmLoadingState, CmNotice } from '../components/workspace/CmStateViews';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
@@ -54,9 +55,6 @@ import {
   type CmAdminPolicy,
 } from './CmAdminTypes';
 
-const ADMIN_BASE = '/codemart/admin';
-const BANNER_WIDTH = 1280;
-const BANNER_HEIGHT = 720;
 const GLOSSARY_TERMS = ['deposit', 'escrow', 'dispute', 'refund', 'withdrawal', 'kyc', 'roleStatus', 'reviewer', 'testimonial'] as const;
 
 type CmAdminQueue = {
@@ -68,13 +66,13 @@ type CmAdminQueue = {
 
 function queuesFor(overview: CmAdminOverviewData): CmAdminQueue[] {
   return [
-    { id: 'kyc', count: overview.kyc_pending, to: `${ADMIN_BASE}/kyc?status=pending`, Icon: ShieldCheck },
-    { id: 'deposits', count: overview.deposits_pending, to: `${ADMIN_BASE}/deposits?status=pending`, Icon: WalletCards },
-    { id: 'refunds', count: overview.refunds_pending, to: `${ADMIN_BASE}/refunds?status=pending`, Icon: RotateCcw },
-    { id: 'withdrawals', count: overview.withdrawals_pending, to: `${ADMIN_BASE}/withdrawals?status=pending`, Icon: Banknote },
-    { id: 'roles', count: overview.roles_pending, to: `${ADMIN_BASE}/users?status=pending`, Icon: UserCog },
-    { id: 'testimonials', count: overview.testimonials_pending, to: `${ADMIN_BASE}/testimonials?status=pending`, Icon: MessageSquareQuote },
-    { id: 'contact', count: overview.contact_messages_new, to: `${ADMIN_BASE}/contact-messages?status=new`, Icon: Inbox },
+    { id: 'kyc', count: overview.kyc_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.kyc, { status: 'pending' }), Icon: ShieldCheck },
+    { id: 'deposits', count: overview.deposits_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.deposits, { status: 'pending' }), Icon: WalletCards },
+    { id: 'refunds', count: overview.refunds_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.refunds, { status: 'pending' }), Icon: RotateCcw },
+    { id: 'withdrawals', count: overview.withdrawals_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.withdrawals, { status: 'pending' }), Icon: Banknote },
+    { id: 'roles', count: overview.roles_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.users, { status: 'pending' }), Icon: UserCog },
+    { id: 'testimonials', count: overview.testimonials_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.testimonials, { status: 'pending' }), Icon: MessageSquareQuote },
+    { id: 'contact', count: overview.contact_messages_new, to: cmRouteWithQuery(CM_ADMIN_ROUTE.contactMessages, { status: 'new' }), Icon: Inbox },
   ];
 }
 
@@ -115,11 +113,11 @@ export const CmAdminOverviewPage: React.FC = () => {
   ];
 
   const totals = overview ? [
-    { key: 'users', value: overview.users_total, to: `${ADMIN_BASE}/users`, Icon: Users },
-    { key: 'roleHolders', value: overview.codeMart_role_holders, to: `${ADMIN_BASE}/users?status=active`, Icon: UserCog },
-    { key: 'projects', value: overview.projects_total, to: `${ADMIN_BASE}/projects`, Icon: BriefcaseBusiness },
+    { key: 'users', value: overview.users_total, to: CM_ADMIN_ROUTE.users, Icon: Users },
+    { key: 'roleHolders', value: overview.codeMart_role_holders, to: cmRouteWithQuery(CM_ADMIN_ROUTE.users, { status: 'active' }), Icon: UserCog },
+    { key: 'projects', value: overview.projects_total, to: CM_ADMIN_ROUTE.projects, Icon: BriefcaseBusiness },
     { key: 'tasks', value: overview.tasks_total, to: null, Icon: ListChecks },
-    { key: 'reviewersPassed', value: overview.reviewer_applications_passed, to: `${ADMIN_BASE}/reviewer-applications?status=passed`, Icon: BadgeCheck },
+    { key: 'reviewersPassed', value: overview.reviewer_applications_passed, to: cmRouteWithQuery(CM_ADMIN_ROUTE.reviewerApplications, { status: 'passed' }), Icon: BadgeCheck },
   ] : [];
 
   return (
@@ -129,16 +127,7 @@ export const CmAdminOverviewPage: React.FC = () => {
         titleKey="admin.nav.overview"
         purposeKey="admin.purpose.overview"
         onRefresh={() => void load()}
-        aside={(
-          <img
-            className="cm-admin-heading__image"
-            src={adminConsoleImage}
-            alt=""
-            width={BANNER_WIDTH}
-            height={BANNER_HEIGHT}
-            decoding="async"
-          />
-        )}
+        aside={<CmImage name="admin-console" className="cm-admin-heading__image" />}
       />
       {loading ? (
         <CmLoadingState />
@@ -209,7 +198,7 @@ export const CmAdminOverviewPage: React.FC = () => {
             ) : (
               <div className="cm-admin-status-strip">
                 {projectStatuses.map((status) => (
-                  <Link key={status} to={`${ADMIN_BASE}/projects?status=${status}`} className="cm-admin-status-chip">
+                  <Link key={status} to={cmRouteWithQuery(CM_ADMIN_ROUTE.projects, { status })} className="cm-admin-status-chip">
                     <CmStatusBadge status={status} prefix="states.project" />
                     <strong>{format.number(projectCounts[status] ?? 0)}</strong>
                   </Link>

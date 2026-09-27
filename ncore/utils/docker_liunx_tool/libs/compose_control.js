@@ -3,6 +3,7 @@ const Base = require('#@base');
     const fs = require('fs');
     const path = require('path');
     const { execSync } = require('child_process');
+    const logger = require('#@logger');
 
     class ComposeControl extends Base {
         constructor() {
@@ -17,9 +18,10 @@ const Base = require('#@base');
         setComposeDir(dirPath) {
             if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
                 this.composeDir = dirPath;
-            } else {
-                throw new Error(`Invalid directory path: ${dirPath}`);
+                return true;
             }
+            logger.error(`Invalid directory path: ${dirPath}`);
+            return false;
         }
 
         /**
@@ -27,20 +29,24 @@ const Base = require('#@base');
          */
         compileCompose() {
             if (!this.composeDir) {
-                throw new Error('Compose directory is not set.');
+                logger.error('Compose directory is not set.');
+                return false;
             }
 
             const composeFilePath = path.join(this.composeDir, 'compose-template.yaml');
 
             if (!fs.existsSync(composeFilePath)) {
-                throw new Error(`docker-compose.yaml file not found in directory: ${this.composeDir}`);
+                logger.error(`docker-compose.yaml file not found in directory: ${this.composeDir}`);
+                return false;
             }
 
             try {
                 // 使用 docker-compose 编译 compose.yaml
                 execSync(`docker-compose -f ${composeFilePath} config`, { stdio: 'inherit' });
+                return true;
             } catch (error) {
-                throw new Error(`Error compiling docker-compose.yaml: ${error.message}`);
+                logger.error(`Error compiling docker-compose.yaml: ${error.message}`);
+                return false;
             }
         }
     }

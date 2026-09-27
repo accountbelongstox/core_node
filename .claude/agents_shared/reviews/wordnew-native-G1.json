@@ -1,0 +1,62 @@
+{
+  "task_id": "wordnew-native-G1",
+  "role": "wordnew-native",
+  "reviewer": "wordnew-lead",
+  "verdict": "approved",
+  "base": "74e7770",
+  "findings": {
+    "WNN-01": {
+      "status": "confirmed",
+      "detail": "The report has one row per required area, each with file:line evidence and a status, plus a Windows/Linux parity table. Spot-checks all held. capacitor.config.json is written by flavor_build.py:47-66, and the current file has appId com.corenode.wordnew, webDir dist and android.path native/wordnew/android; it is ignored by UI/.gitignore:27. @capacitor/cli, core and android are all 8.5.1. AndroidBuildEnv.ps1:15-17 and android_build_env.sh:20-22 both give JDK 21, API 36 and build-tools 36.0.0. The build-tools blocks are at Step62:119-125 and 187:114-119. The python step names are wrong: start_build.ps1:66 names Step8_InstallPython.ps1, but the file is Step8_InstallDefaultPython.ps1; start_build.sh:35 names 13_ensure_python.sh, but the file is 13_install_default_python.sh (F4 confirmed). build_app.ps1:109-147 -Sync is a parallel flow (npx vite, unpinned @capacitor/assets, a failed sync only warns), so F3 is confirmed. capacitor.settings.gradle:3 points at node_modules/.pnpm/...@8.4.2, and node_modules/.pnpm does not exist (F2 confirmed). At 74e7770, app/build.gradle:19-23 has a release block with no signingConfig. git check-ignore puts both wrapper files on .gitignore:445. The proposed negation lines were checked in a throwaway scratch repo carrying the real .gitignore: both wrapper files become visible, and android/.gradle/ stays ignored."
+    },
+    "WNN-02": {
+      "status": "confirmed_with_handoff",
+      "detail": "app/build.gradle is +29/-2 against 74e7770. CRLF and mode 100755 are kept, and the file is already in HEAD through the user's sweep commit 2f31f9cd3. :5-11 reads the four CORE_NODE_ANDROID_SIGNING_* values with providers.environmentVariable. :33-42 defines signingConfigs.release only when all four are non-empty, and :47-49 applies it only then. Debug is untouched, and there is no secret literal. The build_apk.py part is correctly handed to pycore-ui as a diff, because no B2 temporary writer is assigned (REQUIREMENTS §6 table; guide B2). Re-verified on a scratch copy: the diff applies with patch --binary and gives sha256 7681c09e…, CRLF on 375/375 lines. py_compile passes on Windows 3.13.14 and on Debian 3.13.5. `--build-type release --non-interactive --assets no --clean no --open no` with no secrets exits 2 on Windows. It prints no 'Running:' line, names all four WORDNEW_ANDROID_*_1 secrets and the dd decrypt step, and leaves the capacitor.config.json mtime unchanged. On Debian it prints no 'Running:' line either. Throwaway PKCS12 and JKS keystores in the scratchpad, fed through the reader's env fallback, gave these results. A full keystore is OK. The temp file is in the system temp dir, outside the repo, byte-identical, and the env has 4 keys. The temp file is removed after a SystemExit inside the block. A single missing alias is named on its own. A multi-line value is rejected, and a truncated PKCS12 is rejected. The secrets are read only through the existing pycore.pyfoundations.secret_manager.get_secret_key. Nothing generates a keystore."
+    },
+    "WNN-03": {
+      "status": "confirmed_with_handoff",
+      "detail": "ensure_gradle_wrapper is in the handoff diff: patched build_apk.py :160-178, called before gradle_command. It was re-run on a scratch copy of native/wordnew/android with gradle/wrapper removed. Both files were restored byte-identical to the android-template.tar.gz entries. A second run left the mtime and sha256 unchanged. With only the properties removed, the jar's mtime stayed unchanged and the properties file came back byte-identical. With the template absent, it exits 2 with an English message naming the missing file. The real wrapper files kept mtime 1784050294 and sha256 7d3a4ac4…/9a479a85…. The 'xb' open mode makes an overwrite impossible."
+    },
+    "WNN-04": {
+      "status": "confirmed_with_handoff",
+      "detail": "app/build.gradle has no `versionCode 1` or `versionName \"1.0\"` literal. It applies versionCode and versionName only from the -PcoreNodeVersionCode and -PcoreNodeVersionName properties (:3-4, :20-25). In the diff, resolve_app_version reads the flavor.json version, must be strictly MAJOR.MINOR.PATCH, and derives MAJOR*1000000 + MINOR*1000 + PATCH with bounds. The derivation is documented in the --version-info help. Re-run on Windows and Debian: `--app wordnew --version-info` prints `wordnew versionName=1.0.0 versionCode=1000000`, exit 0. Without --app it also lists codemart as 1.0.0/1000000. The APK artifact name uses the same resolved version."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "Interim state (tracked, not a member defect): build.gradle is in HEAD (2f31f9cd3), but build_apk.py is not patched yet. So APKs built now carry no versionCode or versionName (before: 1 and \"1.0\"), and release APKs stay unsigned as they were before. This closes when pycore-ui applies .claude/agents_shared/reports/wordnew-native-build_apk.diff. The orchestrator should assign that B2 writer soon, because the build_apk.py halves of WNN-02/03/04 are open until then.",
+    "The keystore completeness guard (diff keystore_is_complete) checks only the 4-byte magic for JKS/JCEKS. Re-run: the first 76-char base64 line of a JKS decodes to 57 bytes and is accepted. Gradle would then fail at validateSigningRelease, after vite and sync; no bad APK is produced. So the report claim that a truncated keystore is rejected holds only for PKCS12, which is keytool's default. Optional fix when the diff is applied: accept PKCS12 only, or state the JKS limit in the report.",
+    "The reader convention in secret_manager.py:315-331 is that callers do not hardcode an index (get_secret_key_indexed). The diff reads fixed `_1` names with get_secret_key. I accept this: the task names the `_1` secrets (B9), and the four signing values must come from one consistent index, while an indexed lookup per value could mix indexes.",
+    "Centralization nit: in the diff, SECRET_STORE_RAW_DIR ('.secret_keys/.secret_ignore') repeats secret_manager.get_secret_directories()['RAW_DIR'] (secret_manager.py:37-61). It is used only in messages, so the reader's value could be reused there.",
+    "The message constant SECRET_DECRYPT_STEP names `ensure_secret_keys_ready`. That is the Linux function (dd_helper/secret_functions.sh:437, dd.sh:52). The Windows dd.cmd path is SecretDecryptionCheck.ps1, so the wording is approximate on Windows.",
+    "Hardening option, not required: a Gradle daemon that the release assemble spawns inherits the CORE_NODE_ANDROID_SIGNING_* passwords in its process environment for its idle lifetime, visible to the same user. Consider `--no-daemon` for release builds or `gradlew --stop` afterwards.",
+    "The signing and version contract lives only in native/wordnew/android/app/build.gradle. A flavor that later gets a native project from `cap add android` (codemart lists android in flavors/codemart/flavor.json:9) would need secrets that its template build.gradle ignores, and would keep versionCode 1. Separately, codemart's appId `com.core-node.codemart` (flavor.json:5) contains a hyphen, which is invalid as an Android applicationId (codemart-ui scope).",
+    "F5 wording: 92_install_java.sh:44-46 and 187_install_android_sdk.sh:36-37 do print the skip reason (INSTALL_JAVA / INSTALL_ANDROID_SDK false). The actual gap is that start_build.sh's final error does not mention the gvar gate."
+  ],
+  "cross_scope": [
+    "pycore-ui (B2 writer for UI/scripts/flavor/build_apk.py, or the orchestrator assigns wordnew-native): apply .claude/agents_shared/reports/wordnew-native-build_apk.diff (patch --binary; expected sha256 7681c09e…, CRLF).",
+    "orchestrator: assign a writer for root .gitignore and add after :446 `!poly_apps/pycore_laravel_wordnew_ui/native/*/android/gradle/` and `!poly_apps/pycore_laravel_wordnew_ui/native/*/android/gradle/wrapper/gradle-wrapper.jar` (verified in a scratch repo); then the user commits the wrapper (WNN-03-commit).",
+    "B2 writer for UI/scripts: fix F4 on both sides, start_build.ps1:66 (and the comment at :7) to Step8_InstallDefaultPython.ps1 and start_build.sh:35 to 13_install_default_python.sh.",
+    "pycore-ui or an assigned writer: retire build_app.ps1 -Sync (:109-147), or delegate it to build_apk.py (F3).",
+    "wordnew-native follow-up (native/ scope): pin buildToolsVersion to the central 36.0.0 (F1).",
+    "user: WNN-signing-key (keystore plus the four WORDNEW_ANDROID_*_1 secrets, with the keystore as single-line base64, PKCS12 recommended); F2 capacitor.settings.gradle commit after the next cap sync."
+  ],
+  "checks": [
+    "git diff 74e7770 -- native/wordnew/android/app/build.gradle: +29/-2, CRLF kept, mode 100755 at base and now, identical to HEAD (no working-tree change).",
+    "git status: the only wordnew-native outputs are the untracked report and .diff; scripts/flavor/build_apk.py is unchanged (sha256 258faada…); the fenced core-node-e9 Linux files are untouched. SharedCacheEnv.ps1 is modified by the fenced session, not by this task.",
+    "The handoff diff applies to a scratch copy: sha256 7681c09e… as claimed, 375 lines, all CRLF.",
+    "py_compile of the patched copy: OK on Windows Python 3.13.14 and on Debian 13 WSL Python 3.13.5.",
+    "--version-info: wordnew 1.0.0/1000000 (Windows and Debian); all flavors lists codemart and wordnew.",
+    "Release build without secrets: exit 2 before any subprocess, names all four secrets, capacitor.config.json mtime unchanged (Windows); no 'Running:' line on Debian.",
+    "Signing functions with scratch throwaway PKCS12 and JKS through the env fallback: full keystore OK; temp keystore outside the repo, byte-identical, removed after a failure; missing alias named; wrapped or multi-line value rejected; truncated JKS accepted (non_blocking).",
+    "Wrapper repair on a scratch android copy: restore byte-identical, idempotent (mtime and sha unchanged), partial repair leaves the existing jar alone, missing template exits 2; the real wrapper mtime and sha unchanged.",
+    "Proposed .gitignore negation checked in a throwaway scratch repo with the real rules: wrapper jar and properties become visible, android/.gradle stays ignored.",
+    "grep: no keystore, password or alias literal in the build.gradle diff, the handoff diff or the report.",
+    "Static read of build.gradle: signingConfigs.release is created and applied only when all four env values are non-empty (Groovy truthiness), and there is no version literal.",
+    "No Gradle run by the lead: the static read suffices, and the member's Gradle run (scratch, offline, trimmed plugins) matches the code.",
+    "Combined Capacitor config sanity: capacitor.config.json appId, webDir and android.path match flavors/wordnew/flavor.json and native/wordnew/android.",
+    "AGENTS.md: English code and logs (matching the existing file), constants at the file top, no tests added, no git writes, no destructive action. The report is in scope, and build_apk.py was correctly not edited under B2."
+  ],
+  "notes": "All three build_apk.py items are 'done' as a verified handoff diff, which is the outcome the task foresaw when no B2 writer exists. They close fully only after pycore-ui (or an assigned writer) applies the diff; until then the interim versionCode gap in non_blocking[0] stands. The lead's scratch artifacts (patched copy, throwaway keystores, wrapper copy) are only in the lead session scratchpad.",
+  "checked_at": "2026-09-27T20:51:28+10:00"
+}

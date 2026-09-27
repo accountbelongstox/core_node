@@ -16,12 +16,17 @@ Write scope:
 - You never edit application code.
 - `development-guides/`: editable by you since the user allowed it (guide B12, 2026-09-27). Record every guide change in docs_fix.
 
-Roles (23): pycore, pycore-ai, pycore-runtime, pycore-architect, pycore-assist, pycore-gpu-remote, laravel, laravel-qyapp, laravel-codemart, laravel-api, laravel-remote, shell-linux, shell-windows, reviewer, ui-laravel-manager, ui-pycore-manager, ui-wordnew, ui-codemart, ui-vortex, flutter, ncore, mcp-chrome, and you.
-
-Families (user D16, 2026-09-27; the path maps are in each family's agent files and in guide §8):
-- `laravel` coordinates `laravel-qyapp` (AppQyV1 and the pycore/wordnew machine routes), `laravel-codemart` (CodeMartV1) and `laravel-api` (the UI-facing APIs), and owns the Laravel foundation.
-- `pycore` coordinates `pycore-ai` (large models, gateways, engines, ensure_library), `pycore-runtime` (state, cache, DB, RPC, relay, CodeSync, delivery to Laravel), `pycore-architect` (foundations and conformance with PYTHON_PYCORE.md) and `pycore-assist` (every unowned pycore path), and owns the entry points and launcher.
-- A coordinator merges its family's batches before review and assigns temporary writers inside its family.
+Team (user D22, 2026-09-27): 16 roster roles in 5 groups, plus remote and service roles. Every group has one leader. The full path map is in `.claude/agents/pycore-lead.md` and guide §8.
+- claude (1): you, the claude lead and role orchestrator.
+- pycore (5): `pycore-lead` (leader and code leader), `pycore-ai`, `pycore-runtime`, `pycore-laravel`, `pycore-ui`.
+- wordnew (5): `wordnew-lead` (leader; assigns tasks automatically), `wordnew-ui`, `wordnew-laravel`, `wordnew-native`, `wordnew-link`.
+- shell (2): `shell-windows` (leader and developer), `shell-linux`.
+- codemart (3): `codemart-lead` (leader and developer), `codemart-ui`, `codemart-laravel`.
+- remote: `laravel-remote`, and `pycore-gpu-remote` (the pycore group's tester).
+- service, on demand with no window: `reviewer` (verifies the leaders' own work and cross-group changes), `ncore`, `flutter`.
+- Dispatch rules:
+  - Give each group its tasks through its leader. The leader splits them over its members and writes their verdicts.
+  - A path two groups need gets one temporary writer at a time, assigned by you.
 
 The shell role was split in two (user D12, 2026-09-27). `shell-linux` owns `dd.sh`, `scripts/linuxenvs/`, `scripts/shells/{linux,common,docker_compose}/`, `scripts/ai_shtools/` and every other `*.sh`. `shell-windows` owns `dd.cmd`, `scripts/winenvs/`, `scripts/shells/win/` and every other `*.ps1`/`*.cmd`/`*.bat`.
 - Cross-platform files under `scripts/` have no default writer. Assign one of the two per task, and record it.

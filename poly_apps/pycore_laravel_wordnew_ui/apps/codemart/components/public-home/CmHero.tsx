@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { CmPublicIllustration } from './CmPublicBlocks';
-import type { CmPublicImageName } from './cmPublicImages';
+import type { CmImageName } from '../../assets/cmImageRegistry';
 
 const HERO_ROTATION_MS = 7000;
-const HERO_SLIDES: ReadonlyArray<{ titleKey: string; subtitleKey: string; altKey: string; variant: string; image: CmPublicImageName }> = [
-  { titleKey: 'publicHome.hero.slide1Title', subtitleKey: 'publicHome.hero.slide1Subtitle', altKey: 'publicHome.hero.slide1Alt', variant: 'delivery', image: 'hero-delivery' },
-  { titleKey: 'publicHome.hero.slide2Title', subtitleKey: 'publicHome.hero.slide2Subtitle', altKey: 'publicHome.hero.slide2Alt', variant: 'milestones', image: 'hero-marketplace' },
-  { titleKey: 'publicHome.hero.slide3Title', subtitleKey: 'publicHome.hero.slide3Subtitle', altKey: 'publicHome.hero.slide3Alt', variant: 'specialists', image: 'hero-escrow' },
+const HERO_SLIDES: ReadonlyArray<{ titleKey: string; subtitleKey: string; variant: string; image: CmImageName }> = [
+  { titleKey: 'publicHome.hero.slide1Title', subtitleKey: 'publicHome.hero.slide1Subtitle', variant: 'delivery', image: 'hero-delivery' },
+  { titleKey: 'publicHome.hero.slide2Title', subtitleKey: 'publicHome.hero.slide2Subtitle', variant: 'milestones', image: 'hero-marketplace' },
+  { titleKey: 'publicHome.hero.slide3Title', subtitleKey: 'publicHome.hero.slide3Subtitle', variant: 'specialists', image: 'hero-escrow' },
 ];
 
 export interface CmHeroProps {
@@ -91,7 +91,7 @@ export const CmHero: React.FC<CmHeroProps> = ({ onPrimaryAction, onSecondaryActi
           </div>
         </div>
         <div className="cm-hero__media" key={`${activeIndex}-media`}>
-          <CmPublicIllustration name={activeSlide.image} altKey={activeSlide.altKey} eager />
+          <CmPublicIllustration name={activeSlide.image} />
         </div>
       </div>
       <button type="button" className="cm-hero__arrow cm-hero__arrow--next" onClick={showNext} aria-label={t('common.next')}>

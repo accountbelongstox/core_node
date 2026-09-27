@@ -26,21 +26,27 @@ $ClaudeTeamWinDir = Split-Path $ClaudeTeamCommonDir -Parent
 $ClaudeTeamShellsDir = Split-Path $ClaudeTeamWinDir -Parent
 $ClaudeTeamScriptsDir = Split-Path $ClaudeTeamShellsDir -Parent
 $ClaudeTeamRootDir = Split-Path $ClaudeTeamScriptsDir -Parent
-$ClaudeTeamConfigDir = Join-Path $ClaudeTeamRootDir "config"
-$ClaudeTeamCatalogPath = Join-Path $ClaudeTeamConfigDir "claude_team_roles.json"
 $ClaudeTeamWinEnvsDir = Join-Path $ClaudeTeamScriptsDir "winenvs"
 $ClaudeTeamLauncherPath = Join-Path $ClaudeTeamWinEnvsDir "claudeteam.ps1"
 $ClaudeTeamInstallCommonScript = Join-Path $ClaudeTeamCommonDir "ClaudeTeamInstallCommon.ps1"
+# ClaudeTeamInstallCommon.ps1 is also dot-sourced standalone (dd.ps1's Step21
+# ApplicationsList callback), so it owns the catalog/user-settings paths and the
+# state dir; loaded early here so the rest of this file reuses
+# $ClaudeTeamInstallCatalogPath / $ClaudeTeamInstallUserClaudeDir instead of
+# redeclaring its own copies.
+. $ClaudeTeamInstallCommonScript
+$ClaudeTeamStateDir = $ClaudeTeamInstallStateDir
 $ClaudeTeamDefaultAgentsDir = Join-Path (Join-Path $ClaudeTeamRootDir ".claude") "agents"
 $ClaudeTeamSecretReader = Join-Path (Join-Path (Join-Path $ClaudeTeamScriptsDir "pytools") "special_software_env_manager") "secret_read.py"
-$ClaudeTeamUserClaudeDir = Join-Path $env:USERPROFILE ".claude"
-$ClaudeTeamUserTeamsDir = Join-Path $ClaudeTeamUserClaudeDir "teams"
-$ClaudeTeamUserTasksDir = Join-Path $ClaudeTeamUserClaudeDir "tasks"
+$ClaudeTeamUserTeamsDir = Join-Path $ClaudeTeamInstallUserClaudeDir "teams"
+$ClaudeTeamUserTasksDir = Join-Path $ClaudeTeamInstallUserClaudeDir "tasks"
 $ClaudeTeamTotalSteps = 9
 $ClaudeTeamPidWaitMilliseconds = 60000
 $ClaudeTeamReopenWaitMilliseconds = 20000
 $ClaudeTeamPollMilliseconds = 250
 $ClaudeTeamShellNames = @("pwsh", "powershell")
+$ClaudeTeamClaudeProcessNames = @("claude.exe", "node.exe")
+$ClaudeTeamShellProcessNames = @("powershell.exe", "pwsh.exe")
 $ClaudeTeamNamedProcessFilter = "Name='claude.exe' OR Name='node.exe' OR Name='powershell.exe' OR Name='pwsh.exe'"
 $ClaudeTeamNameFlags = @("--name", "-n")
 $ClaudeTeamLeadRole = "orchestrator"
@@ -63,7 +69,6 @@ $ClaudeTeamCellHeightPx = 19
 $ClaudeTeamWindowChromeHeightPx = 40
 $ClaudeTeamPaneChromeWidthPx = 34
 $ClaudeTeamPaneChromeHeightPx = 18
-$ClaudeTeamTargetPaneAspect = 2.5
 $ClaudeTeamDefaultMinLead = @{ cols = 100; rows = 30 }
 $ClaudeTeamDefaultMinRole = @{ cols = 60; rows = 15 }
 $ClaudeTeamFractionFormat = "0.####"
@@ -122,9 +127,6 @@ public static class ClaudeTeamDisplayApi {
     }
 }
 "@
-
-. $ClaudeTeamInstallCommonScript
-$ClaudeTeamStateDir = $ClaudeTeamInstallStateDir
 
 $script:ClaudeTeamMode = "sessions"
 $script:ClaudeTeamOptStatus = $false
@@ -296,6 +298,14 @@ function Get-ClaudeTeamRemoteConfig {
     return $null
 }
 
+# A role's catalog "window" flag (default true, schema_version 7 role_source
+# .catalog_roles_are): false marks a service role that is a valid row for
+# messaging/tasks but gets no packed pane/tab and no session at launcher start.
+function Get-ClaudeTeamRoleWindowFlag {
+    param([string]$Role)
+    return [bool](Get-ClaudeTeamProperty -Object (Get-ClaudeTeamCatalogRole -Role $Role) -Name "window" -Default $true)
+}
+
 function Get-ClaudeTeamSessionPrefix {
     return [string](Get-ClaudeTeamProperty -Object (Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "sessions" -Default $null) -Name "session_prefix" -Default "ct-")
 }
@@ -327,6 +337,25 @@ function Get-ClaudeTeamWindowName {
 function Get-ClaudeTeamPidPath {
     param([string]$Session)
     return (Join-Path $ClaudeTeamStateDir ("{0}.pid" -f $Session))
+}
+
+# Removes <session>.pid when it still names this process: called after `claude`
+# exits in a role pane, so the idle -NoExit shell left behind is not mistaken for
+# a running role (DESIGN §3.2). A file already replaced by a newer PID (a rerun
+# reopened the role while this shell was still exiting) is left alone.
+function Remove-ClaudeTeamPidFile {
+    param([string]$Session)
+    $path = Get-ClaudeTeamPidPath -Session $Session
+    $pidText = $null
+    $pidValue = 0
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return
+    }
+    $pidText = (Get-Content -LiteralPath $path -Raw -ErrorAction SilentlyContinue)
+    if ([string]::IsNullOrWhiteSpace($pidText) -or (-not [int]::TryParse($pidText.Trim(), [ref]$pidValue)) -or ($pidValue -ne $PID)) {
+        return
+    }
+    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
 }
 
 # The session PID file first, then the pre-D13 <mode>-<role>.pid files of the
@@ -389,22 +418,31 @@ function Get-ClaudeTeamLiveProcess {
     return $null
 }
 
-# A role is alive when a PID file names its live shell, or a process runs with
-# its --name (Get-ClaudeTeamNamedProcessMap); $null otherwise.
+# A role is alive when a PID file names its live shell, or a claude.exe/node.exe
+# process runs with its --name (Get-ClaudeTeamNamedClaudeProcess); $null
+# otherwise. A lone powershell.exe/pwsh.exe --name match is the pane's idle
+# -NoExit shell after claude already exited (DESIGN §3.2), not a live role.
 function Get-ClaudeTeamLivePid {
     param([string]$Role, [string]$Session, [hashtable]$NamedProcesses)
     $process = Get-ClaudeTeamLiveProcess -Role $Role -Session $Session
+    $namedProcess = $null
     if ($process) {
         return $process.Id
     }
-    if (($null -ne $NamedProcesses) -and $NamedProcesses.ContainsKey($Session)) {
-        return $NamedProcesses[$Session].ProcessId
+    $namedProcess = Get-ClaudeTeamNamedClaudeProcess -NamedProcesses $NamedProcesses -Session $Session
+    if ($null -ne $namedProcess) {
+        return $namedProcess.ProcessId
     }
     return $null
 }
 
-# Ordered role groups from layout.tab_groups; known roles missing from every group
-# are appended to the last group (layout.unlisted_roles).
+# Ordered role groups from layout.tab_groups; known roles missing from every
+# listed group are appended to the last group (layout.unlisted_roles). A role
+# whose catalog row sets window:false (schema_version 7: a service role, valid
+# for messaging/tasks but with no window/session at start) is excluded from
+# every group and from the unlisted-roles fallback -- even one a config mistake
+# lists explicitly -- so it never gets a packed pane/tab. Import-ClaudeTeamCatalog
+# adds it as its own non-packing row instead.
 function Get-ClaudeTeamLayoutGroups {
     param([string[]]$KnownRoles)
     $groups = New-Object System.Collections.Generic.List[object]
@@ -413,10 +451,11 @@ function Get-ClaudeTeamLayoutGroups {
     $members = $null
     $name = $null
     $unlisted = @()
+    $packableRoles = @($KnownRoles | Where-Object { Get-ClaudeTeamRoleWindowFlag -Role $_ })
     foreach ($group in @(Get-ClaudeTeamProperty -Object (Get-ClaudeTeamLayout) -Name "tab_groups" -Default @())) {
         $members = New-Object System.Collections.Generic.List[string]
         foreach ($name in @($group)) {
-            if (($KnownRoles -contains [string]$name) -and (-not $placed.ContainsKey([string]$name))) {
+            if (($packableRoles -contains [string]$name) -and (-not $placed.ContainsKey([string]$name))) {
                 $members.Add([string]$name)
                 $placed[[string]$name] = $true
             }
@@ -425,7 +464,7 @@ function Get-ClaudeTeamLayoutGroups {
             $groups.Add($members)
         }
     }
-    $unlisted = @($KnownRoles | Where-Object { -not $placed.ContainsKey($_) })
+    $unlisted = @($packableRoles | Where-Object { -not $placed.ContainsKey($_) })
     if ($unlisted.Count -gt 0) {
         if ($groups.Count -eq 0) {
             $groups.Add((New-Object System.Collections.Generic.List[string]))
@@ -437,11 +476,34 @@ function Get-ClaudeTeamLayoutGroups {
     return ,$groups
 }
 
+# Disabled / not-selected / no-agent-file state for a role, shared by packable
+# and window:false rows; logs the reason and returns the state name, or $null
+# when none applies (the role is ready to run). The lead role is exempt from
+# -Roles filtering in "team" mode, since its pane always starts the window.
+function Get-ClaudeTeamRoleBlockedState {
+    param([string]$Role, $CatalogRole, $Agent)
+    $leadExempt = (($script:ClaudeTeamMode -eq "team") -and ($Role -eq $ClaudeTeamLeadRole))
+    if ((Get-ClaudeTeamProperty -Object $CatalogRole -Name "enabled" -Default $true) -eq $false) {
+        Write-ClaudeTeamLog "SKIP" ("Role {0} disabled in the catalog" -f $Role)
+        return "disabled"
+    }
+    if (($script:ClaudeTeamOptRoles.Count -gt 0) -and ($script:ClaudeTeamOptRoles -notcontains $Role) -and (-not $leadExempt)) {
+        Write-ClaudeTeamLog "SKIP" ("Role {0} not in -Roles" -f $Role)
+        return "not-selected"
+    }
+    if ($null -eq $Agent) {
+        Write-ClaudeTeamLog "WARN" ("Role {0} has a catalog row but no agent definition in {1}" -f $Role, $script:ClaudeTeamAgentsDir)
+        return "no-agent-file"
+    }
+    return $null
+}
+
 function Import-ClaudeTeamCatalog {
     $agents = @()
     $agentByName = @{}
     $agent = $null
     $knownRoles = @()
+    $noWindowRoles = @()
     $groups = $null
     $groupIndex = 0
     $role = $null
@@ -453,10 +515,10 @@ function Import-ClaudeTeamCatalog {
     $docPath = $null
     $unknownRole = $null
 
-    $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamInstallCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $script:ClaudeTeamAgentsDir = [System.IO.Path]::GetFullPath((Join-Path $ClaudeTeamRootDir ([string](Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "agents_dir" -Default ".claude/agents"))))
     $script:ClaudeTeamRemoteAny = $false
-    Write-ClaudeTeamLog "OK" ("Catalog (launcher data and role overrides): {0}" -f $ClaudeTeamCatalogPath)
+    Write-ClaudeTeamLog "OK" ("Catalog (launcher data and role overrides): {0}" -f $ClaudeTeamInstallCatalogPath)
     foreach ($docRelative in @(Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "guide_doc" -Default @())) {
         $docPath = Join-Path $ClaudeTeamRootDir $docRelative
         if (Test-Path -LiteralPath $docPath) {
@@ -477,7 +539,12 @@ function Import-ClaudeTeamCatalog {
         Write-ClaudeTeamLog "WARN" ("-Roles names an unknown role: {0}" -f $unknownRole)
     }
 
+    # Get-ClaudeTeamLayoutGroups already excludes window:false roles from every
+    # group and from the unlisted-roles fallback, so $groups only ever holds
+    # packable roles; window:false roles are added below as their own
+    # non-packing rows (schema_version 7 role_source.catalog_roles_are).
     $groups = Get-ClaudeTeamLayoutGroups -KnownRoles $knownRoles
+    $noWindowRoles = @($knownRoles | Where-Object { -not (Get-ClaudeTeamRoleWindowFlag -Role $_) })
     $script:ClaudeTeamRows = @()
     for ($groupIndex = 0; $groupIndex -lt $groups.Count; $groupIndex++) {
         foreach ($role in $groups[$groupIndex]) {
@@ -488,21 +555,15 @@ function Import-ClaudeTeamCatalog {
             if ($agentByName.ContainsKey($role)) {
                 $agent = $agentByName[$role]
             }
-            $state = "enabled"
-            if ((Get-ClaudeTeamProperty -Object $catalogRole -Name "enabled" -Default $true) -eq $false) {
-                $state = "disabled"
-                Write-ClaudeTeamLog "SKIP" ("Role {0} disabled in the catalog" -f $role)
-            } elseif (($script:ClaudeTeamOptRoles.Count -gt 0) -and ($script:ClaudeTeamOptRoles -notcontains $role) -and (($script:ClaudeTeamMode -eq "sessions") -or ($role -ne $ClaudeTeamLeadRole))) {
-                $state = "not-selected"
-                Write-ClaudeTeamLog "SKIP" ("Role {0} not in -Roles" -f $role)
-            } elseif ($null -eq $agent) {
-                $state = "no-agent-file"
-                Write-ClaudeTeamLog "WARN" ("Role {0} has a catalog row but no agent definition in {1}" -f $role, $script:ClaudeTeamAgentsDir)
-            } elseif ($null -ne $remote) {
-                $script:ClaudeTeamRemoteAny = $true
-                Write-ClaudeTeamLog "OK" ("Remote role {0}: ssh <secret {1}> -> tmux {2} in {3} (model {4}, effort {5}, Remote Control on)" -f $role, [string]$remote.ssh_secret, $session, [string]$remote.root, $agent.Model, $agent.Effort)
-            } else {
-                Write-ClaudeTeamLog "OK" ("Session role {0}: {1} (model {2}, effort {3}, group {4})" -f $role, $session, $agent.Model, $agent.Effort, ($groupIndex + 1))
+            $state = Get-ClaudeTeamRoleBlockedState -Role $role -CatalogRole $catalogRole -Agent $agent
+            if ($null -eq $state) {
+                $state = "enabled"
+                if ($null -ne $remote) {
+                    $script:ClaudeTeamRemoteAny = $true
+                    Write-ClaudeTeamLog "OK" ("Remote role {0}: ssh <secret {1}> -> tmux {2} in {3} (model {4}, effort {5}, Remote Control on)" -f $role, [string]$remote.ssh_secret, $session, [string]$remote.root, $agent.Model, $agent.Effort)
+                } else {
+                    Write-ClaudeTeamLog "OK" ("Session role {0}: {1} (model {2}, effort {3}, group {4})" -f $role, $session, $agent.Model, $agent.Effort, ($groupIndex + 1))
+                }
             }
             $script:ClaudeTeamRows += [pscustomobject]@{
                 Role      = $role
@@ -511,6 +572,7 @@ function Import-ClaudeTeamCatalog {
                 Effort    = $(if ($agent) { $agent.Effort } else { "" })
                 AgentPath = $(if ($agent) { $agent.Path } else { "" })
                 Group     = $groupIndex
+                Window    = $true
                 IsLead    = ($role -eq $ClaudeTeamLeadRole)
                 Remote    = ($null -ne $remote)
                 Enabled   = ($state -eq "enabled")
@@ -522,10 +584,41 @@ function Import-ClaudeTeamCatalog {
             }
         }
     }
+    foreach ($role in $noWindowRoles) {
+        $catalogRole = Get-ClaudeTeamCatalogRole -Role $role
+        $remote = Get-ClaudeTeamRemoteConfig -Role $role
+        $session = Get-ClaudeTeamSessionName -Role $role
+        $agent = $null
+        if ($agentByName.ContainsKey($role)) {
+            $agent = $agentByName[$role]
+        }
+        $state = Get-ClaudeTeamRoleBlockedState -Role $role -CatalogRole $catalogRole -Agent $agent
+        if ($null -eq $state) {
+            $state = "no-window"
+            Write-ClaudeTeamLog "OK" ("Service role {0}: {1} (model {2}, effort {3}, no window; messaging/tasks only)" -f $role, $session, $agent.Model, $agent.Effort)
+        }
+        $script:ClaudeTeamRows += [pscustomobject]@{
+            Role      = $role
+            Session   = $session
+            Model     = $(if ($agent) { $agent.Model } else { "" })
+            Effort    = $(if ($agent) { $agent.Effort } else { "" })
+            AgentPath = $(if ($agent) { $agent.Path } else { "" })
+            Group     = -1
+            Window    = $false
+            IsLead    = ($role -eq $ClaudeTeamLeadRole)
+            Remote    = ($null -ne $remote)
+            Enabled   = ($state -eq "no-window")
+            State     = $state
+            Tab       = "-"
+            Pane      = "-"
+            Pid       = "-"
+            Cells     = "-"
+        }
+    }
 }
 
 function Get-ClaudeTeamOtherRoles {
-    return ((@($script:ClaudeTeamRows | Where-Object { $_.Enabled -and (-not $_.IsLead) }) | ForEach-Object { $_.Role }) -join ", ")
+    return ((@($script:ClaudeTeamRows | Where-Object { $_.Enabled -and (-not $_.IsLead) -and $_.Window }) | ForEach-Object { $_.Role }) -join ", ")
 }
 
 # session_env blocks merged in order (later blocks win): all, windows, lead, remote.
@@ -856,8 +949,11 @@ function Get-ClaudeTeamTabCapacity {
     return [int][Math]::Max(1, $script:ClaudeTeamBudget.MaxCols * $script:ClaudeTeamBudget.MaxRows)
 }
 
-# Columns of an equal grid for Count panes: the pane shape closest to
-# $ClaudeTeamTargetPaneAspect (cols/rows), within the column and row limits.
+# Columns of an equal grid for Count panes: the max-area rule (DESIGN §3.1),
+# same score as claude_team_tab_grid on Linux (pane_cols * pane_rows) -- the
+# columns count that gives each pane the largest area within the column and row
+# limits. Ties (equal area) keep the smaller column count, since columns are
+# tried low to high and only a strictly larger score replaces the best one.
 function Select-ClaudeTeamGrid {
     param([int]$Count, [double]$RegionWidth, [double]$RegionHeight, [int]$MaxCols, [int]$MaxRows)
     $budget = $script:ClaudeTeamBudget
@@ -868,7 +964,7 @@ function Select-ClaudeTeamGrid {
     $paneRows = 0.0
     $score = 0.0
     $bestColumns = $limit
-    $bestScore = [double]::MaxValue
+    $bestScore = -1.0
     for ($columns = 1; $columns -le $limit; $columns++) {
         $rows = [int][Math]::Ceiling($Count / $columns)
         if ($rows -gt [Math]::Max(1, $MaxRows)) {
@@ -879,8 +975,8 @@ function Select-ClaudeTeamGrid {
         if (($paneCols -le 0) -or ($paneRows -le 0)) {
             continue
         }
-        $score = [Math]::Abs([Math]::Log(($paneCols / $paneRows) / $ClaudeTeamTargetPaneAspect)) + ((($columns * $rows) - $Count) * 0.01)
-        if ($score -lt $bestScore) {
+        $score = $paneCols * $paneRows
+        if ($score -gt $bestScore) {
             $bestScore = $score
             $bestColumns = $columns
         }
@@ -1008,7 +1104,8 @@ function Get-ClaudeTeamCellText {
 # Equal grid of one tab. Build order (pane ids follow it): the tab's first pane
 # (the lead, or the grid's top-left role), the lead split, the column heads
 # (split-pane -V (c-j)/(c-j+1)), then per column focus-pane -t <head> and its
-# rows (split-pane -H (r-i)/(r-i+1)). Roles fill the grid row by row.
+# rows (split-pane -H (r-i)/(r-i+1)). Roles fill the grid column by column
+# (DESIGN §3.1).
 function Set-ClaudeTeamTabLayout {
     param($Tab)
     $budget = $script:ClaudeTeamBudget
@@ -1036,6 +1133,9 @@ function Set-ClaudeTeamTabLayout {
     $firstRow = $null
     $rowCount = 0
     $step = 0
+    $perColumn = 0
+    $extra = 0
+    $take = 0
 
     foreach ($row in $Tab.Rows) {
         if ($Tab.HasLead -and $row.IsLead -and ($null -eq $lead)) {
@@ -1073,12 +1173,28 @@ function Set-ClaudeTeamTabLayout {
     $Tab.GridCols = $(if ($count -gt 0) { $columns } else { 0 })
     $Tab.LeadFraction = $leadFraction
 
+    # Column-major fill (DESIGN §3.1): column 0 fills top to bottom before column
+    # 1 starts, and the leading columns take the extra pane when the count does
+    # not divide evenly -- the same distribution claude_team_tab_grid uses on
+    # Linux (per_column, plus one for each of the first `extra` columns).
     $columnRows = New-Object int[] ([Math]::Max(1, $columns))
-    for ($index = 0; $index -lt $count; $index++) {
-        $gridRow = [int][Math]::Floor($index / $columns)
-        $gridColumn = $index % $columns
-        $cellMap[("{0},{1}" -f $gridRow, $gridColumn)] = $gridRows[$index]
-        $columnRows[$gridColumn] = $columnRows[$gridColumn] + 1
+    if ($count -gt 0) {
+        $perColumn = [int][Math]::Floor($count / $columns)
+        $extra = $count % $columns
+        $index = 0
+        for ($gridColumn = 0; $gridColumn -lt $columns; $gridColumn++) {
+            $take = $perColumn
+            if ($gridColumn -lt $extra) {
+                $take = $take + 1
+            }
+            $columnRows[$gridColumn] = $take
+            for ($gridRow = 0; $gridRow -lt $take; $gridRow++) {
+                $cellMap[("{0},{1}" -f $gridRow, $gridColumn)] = $gridRows[$index]
+                $gridRows[$index].Tab = $Tab.Index
+                $gridRows[$index].Cells = Get-ClaudeTeamCellText -WidthPx ($regionWidth / $columns) -HeightPx ($regionHeight / $take)
+                $index = $index + 1
+            }
+        }
     }
 
     $Tab.Segments.Clear()
@@ -1124,11 +1240,6 @@ function Set-ClaudeTeamTabLayout {
             $cellMap[("{0},{1}" -f $step, $gridColumn)].Pane = $nextPane
             $nextPane++
         }
-    }
-    for ($index = 0; $index -lt $count; $index++) {
-        $gridColumn = $index % $columns
-        $gridRows[$index].Tab = $Tab.Index
-        $gridRows[$index].Cells = Get-ClaudeTeamCellText -WidthPx ($regionWidth / $columns) -HeightPx ($regionHeight / $columnRows[$gridColumn])
     }
 }
 
@@ -1253,16 +1364,21 @@ function Start-ClaudeTeamWtCall {
     Start-Process -FilePath $script:ClaudeTeamWtPath -ArgumentList $Arguments | Out-Null
 }
 
-# Session name -> live process started with --name <session> (-n <session>) by
-# any launcher: a role shell of the team window or a claude process. A live name
-# makes a new session get a variant, so such a role is not started again.
+# Session name -> live processes started with --name <session> (-n <session>) by
+# any launcher in this Windows session (Terminal Services SessionId; DESIGN
+# §3.2/blocker 4), whether a role shell of the team window or a claude/node
+# process. Several processes can share a --name (the pane shell and its claude
+# child both carry it), so every match is kept; Get-ClaudeTeamNamedClaudeProcess
+# and Get-ClaudeTeamNamedShellProcess pick the one each caller cares about.
 function Get-ClaudeTeamNamedProcessMap {
     $map = @{}
     $process = $null
     $tokens = @()
     $index = 0
     $name = ""
-    foreach ($process in @(Get-CimInstance -ClassName Win32_Process -Filter $ClaudeTeamNamedProcessFilter -ErrorAction SilentlyContinue)) {
+    $sessionId = (Get-Process -Id $PID).SessionId
+    $filter = "({0}) AND SessionId={1}" -f $ClaudeTeamNamedProcessFilter, $sessionId
+    foreach ($process in @(Get-CimInstance -ClassName Win32_Process -Filter $filter -ErrorAction SilentlyContinue)) {
         $tokens = @(([string]$process.CommandLine).Split(" ") | Where-Object { $_ })
         for ($index = 0; $index -lt ($tokens.Count - 1); $index++) {
             if ($ClaudeTeamNameFlags -notcontains $tokens[$index]) {
@@ -1270,17 +1386,42 @@ function Get-ClaudeTeamNamedProcessMap {
             }
             $name = $tokens[$index + 1].Trim('"', "'")
             if (-not $map.ContainsKey($name)) {
-                $map[$name] = $process
+                $map[$name] = New-Object System.Collections.Generic.List[object]
             }
+            $map[$name].Add([pscustomobject]@{ ProcessId = $process.ProcessId; ProcessName = $process.Name; CreatedAt = $process.CreationDate })
         }
     }
     return $map
 }
 
+# The first claude.exe/node.exe process matching --name <session>: the only
+# process kind that counts as an "already running" role (DESIGN §3.2).
+function Get-ClaudeTeamNamedClaudeProcess {
+    param([hashtable]$NamedProcesses, [string]$Session)
+    if (($null -eq $NamedProcesses) -or (-not $NamedProcesses.ContainsKey($Session))) {
+        return $null
+    }
+    return (@($NamedProcesses[$Session] | Where-Object { $ClaudeTeamClaudeProcessNames -contains $_.ProcessName }) | Select-Object -First 1)
+}
+
+# The newest pwsh.exe/powershell.exe process matching --name <session> created at
+# or after $AfterTime: a pane still starting up, whose PID file is not written
+# yet. An older shell match is an idle pane whose claude already exited, so it
+# does not count and the role is reopened instead of waited on.
+function Get-ClaudeTeamNamedShellProcess {
+    param([hashtable]$NamedProcesses, [string]$Session, [datetime]$AfterTime)
+    if (($null -eq $NamedProcesses) -or (-not $NamedProcesses.ContainsKey($Session))) {
+        return $null
+    }
+    return (@($NamedProcesses[$Session] | Where-Object { ($ClaudeTeamShellProcessNames -contains $_.ProcessName) -and ($null -ne $_.CreatedAt) -and ($_.CreatedAt -ge $AfterTime.AddSeconds(-1)) }) | Sort-Object CreatedAt -Descending | Select-Object -First 1)
+}
+
 # A missing role is reopened as its own tab of the named window (a split without
-# room is dropped silently by WT). A role whose session name is alive (a pane that
-# is still starting and has not written its PID file) is not reopened, so no
-# session gets a duplicate name.
+# room is dropped silently by WT). A role whose session name is alive with a
+# claude.exe/node.exe process, or with a shell that started after this launch
+# (still starting, PID not written yet), is not reopened, so no session gets a
+# duplicate name. An older idle shell (its claude already exited) does not
+# count, so the role is reopened.
 function Open-ClaudeTeamMissingRoles {
     param([object[]]$Rows)
     $row = $null
@@ -1288,16 +1429,16 @@ function Open-ClaudeTeamMissingRoles {
     $paneProcess = $null
     $namedProcesses = Get-ClaudeTeamNamedProcessMap
     foreach ($row in $Rows) {
-        $paneProcess = $null
-        if ($namedProcesses.ContainsKey($row.Session)) {
-            $paneProcess = $namedProcesses[$row.Session]
+        $paneProcess = Get-ClaudeTeamNamedClaudeProcess -NamedProcesses $namedProcesses -Session $row.Session
+        if ($null -eq $paneProcess) {
+            $paneProcess = Get-ClaudeTeamNamedShellProcess -NamedProcesses $namedProcesses -Session $row.Session -AfterTime $script:ClaudeTeamLaunchTime
         }
         if ($null -ne $paneProcess) {
             Wait-ClaudeTeamPids -Rows @($row) -LaunchTime $script:ClaudeTeamLaunchTime -TimeoutMilliseconds $ClaudeTeamReopenWaitMilliseconds
             if ([string]$row.Pid -eq "-") {
                 $row.Pid = $paneProcess.ProcessId
                 $row.State = "starting"
-                Write-ClaudeTeamLog "WARN" ("Role {0}: {1} PID {2} runs with --name {3} but {4} is not written yet; not reopened" -f $row.Role, $paneProcess.Name, $paneProcess.ProcessId, $row.Session, (Get-ClaudeTeamPidPath -Session $row.Session))
+                Write-ClaudeTeamLog "WARN" ("Role {0}: {1} PID {2} runs with --name {3} but {4} is not written yet; not reopened" -f $row.Role, $paneProcess.ProcessName, $paneProcess.ProcessId, $row.Session, (Get-ClaudeTeamPidPath -Session $row.Session))
             } else {
                 $row.State = "started"
                 Write-ClaudeTeamLog "OK" ("Role {0} shell PID {1} recorded in {2}" -f $row.Role, $row.Pid, (Get-ClaudeTeamPidPath -Session $row.Session))
@@ -1339,7 +1480,7 @@ function Start-ClaudeTeamRoles {
     $missingRows = @()
 
     $namedProcesses = Get-ClaudeTeamNamedProcessMap
-    foreach ($row in @($script:ClaudeTeamRows | Where-Object { $_.Enabled })) {
+    foreach ($row in @($script:ClaudeTeamRows | Where-Object { $_.Enabled -and $_.Window })) {
         $livePid = Get-ClaudeTeamLivePid -Role $row.Role -Session $row.Session -NamedProcesses $namedProcesses
         if ($null -ne $livePid) {
             $row.State = "running"
@@ -1507,7 +1648,7 @@ function Invoke-ClaudeTeamUp {
     Write-ClaudeTeamStep -Number 6 -Title "Monitors and cell budget (Per-Monitor-V2 rcWork + DPI)"
     Get-ClaudeTeamDisplay
     Write-ClaudeTeamStep -Number 7 -Title "Role liveness (PID files)"
-    Write-ClaudeTeamLog "OK" ("Checking {0} enabled roles" -f @($script:ClaudeTeamRows | Where-Object { $_.Enabled }).Count)
+    Write-ClaudeTeamLog "OK" ("Checking {0} enabled roles ({1} no-window service roles excluded)" -f @($script:ClaudeTeamRows | Where-Object { $_.Enabled -and $_.Window }).Count, @($script:ClaudeTeamRows | Where-Object { $_.Enabled -and (-not $_.Window) }).Count)
     Write-ClaudeTeamStep -Number 8 -Title ("Layout and panes (mode {0}, window {1})" -f $script:ClaudeTeamMode, (Get-ClaudeTeamWindowName))
     Start-ClaudeTeamRoles
     Write-ClaudeTeamStep -Number 9 -Title "Summary"
@@ -1544,22 +1685,49 @@ function Initialize-ClaudeTeamPane {
     return $row
 }
 
+# Standalone `claudeteam --agent <role>` (no --team-pane): looks up Role in the
+# registry so the session gets that role's env kinds and effort instead of
+# always running as the agent-teams lead. Writes no PID file (there is no pane
+# to verify). $null when Role is blank or not an enabled registry role, so the
+# caller falls back to the plain agent-teams-lead behavior.
+function Get-ClaudeTeamStandaloneRow {
+    param([string]$Role)
+    $row = $null
+    if ([string]::IsNullOrWhiteSpace($Role)) {
+        return $null
+    }
+    $script:ClaudeTeamQuiet = $true
+    Import-ClaudeTeamCatalog
+    $script:ClaudeTeamQuiet = $false
+    $row = Get-ClaudeTeamRow -Role $Role
+    if (($null -eq $row) -or (-not $row.Enabled)) {
+        return $null
+    }
+    return $row
+}
+
 # Applies the session environment after Invoke-ClaudeOfficialRestore: the role
 # marker for the project hooks, session_env.all + windows, and session_env.lead
-# for the lead only (a non-lead session must not become an agent-teams lead).
-# $null Row = standalone claudeteam, which always runs as a lead.
+# for the lead only. A non-lead session must not become an agent-teams lead, so
+# every key of session_env.lead (not just CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS)
+# is cleared for it, even one a future catalog edit adds. $null Row = standalone
+# claudeteam with no resolved role, which always runs as a lead.
 function Set-ClaudeTeamSessionEnvironment {
     param($Row)
     $kinds = @("all", "windows", "lead")
     $environment = $null
+    $leadEnvironment = $null
     $key = $null
     [Environment]::SetEnvironmentVariable($ClaudeTeamSessionMarkerVariable, "1", "Process")
+    if ($null -eq $script:ClaudeTeamCatalog) {
+        $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamInstallCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
     if (($null -ne $Row) -and (-not $Row.IsLead)) {
         $kinds = Get-ClaudeTeamRoleEnvironmentKinds -Row $Row
-        [Environment]::SetEnvironmentVariable($ClaudeTeamAgentTeamsVariable, $null, "Process")
-    }
-    if ($null -eq $script:ClaudeTeamCatalog) {
-        $script:ClaudeTeamCatalog = Get-Content -LiteralPath $ClaudeTeamCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $leadEnvironment = Get-ClaudeTeamSessionEnvironment -Kinds @("lead")
+        foreach ($key in $leadEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($key, $null, "Process")
+        }
     }
     $environment = Get-ClaudeTeamSessionEnvironment -Kinds $kinds
     foreach ($key in $environment.Keys) {

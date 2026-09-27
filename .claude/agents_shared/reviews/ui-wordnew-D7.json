@@ -1,0 +1,35 @@
+{
+  "task_id": "ui-wordnew-D7",
+  "role": "ui-wordnew (now wordnew-ui)",
+  "reviewer": "wordnew-lead",
+  "verdict": "approved",
+  "findings": {
+    "CKA-12": {
+      "status": "confirmed",
+      "detail": "MasterApiClient.ts:423 withIdempotencyKey mints the key with createIdempotencyKey() (BaseAPI.ts:21-25). MasterApiClient.ts:47 no longer imports generateEntryId, and :49 adds createIdempotencyKey to the existing IDEMPOTENCY_KEY_HEADER import. RequestQueue.ts:23 imports createIdempotencyKey, :100 assigns id: createIdempotencyKey(), and the second generator (exported generateEntryId, crypto.randomUUID plus a Math.random fallback, D1 lines 46-51) is removed. The D7 hunks are exactly f4f223414..5bbb23682: MasterApiClient.ts +3/-3, RequestQueue.ts +3/-8. The rest of the diff against 74e7770 is the approved D1 FU-031 work and was not re-reviewed."
+    },
+    "MCHR-31-wn": {
+      "status": "deferred_no_change",
+      "detail": "No file changed (WfNewAdminLibraries.tsx has the same content in f4f223414, 5bbb23682, HEAD and the working tree). The item is re-planned outside this verdict. shared/library-cover/LibraryCoverTaskModel.ts:31-35 now exports LIBRARY_COVER_WAITING_STATUSES (a ReadonlySet of pending, retry, processing), but it still has no cover presenter. WfNewAdminLibraries.tsx:59 still holds its own COVER_WAITING_STATUSES array, used at :210."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "MCHR-31-wn re-plan (wordnew-ui): the waiting set can be adopted now. Import LIBRARY_COVER_WAITING_STATUSES from shared/library-cover, delete WfNewAdminLibraries.tsx:59, and use .has() at :210 (it is a Set, not an array). The coverBadge precedence at :194-214 (active > failed > waiting) moves to the shared presenter only after ui-pycore-manager (B2 writer of shared/library-cover/) adds it. Verify: tsc 0 errors, and grep -rn COVER_WAITING_STATUSES apps/wordnew returns only the import/use of LIBRARY_COVER_WAITING_STATUSES.",
+    "Behavior delta, accepted: createIdempotencyKey (BaseAPI.ts:21-25) has no typeof crypto guard and no Math.random fallback, unlike the removed generator. Every target runtime (browser, Capacitor WebView, bun) has globalThis.crypto, and the getRandomValues branch covers insecure contexts that lack randomUUID, so the ids are stronger. Queue entry ids change from UUID or q_* to UUID or 32-hex. isValidEntry (RequestQueue.ts:48-55) only needs a string id, so persisted entries still load. The Laravel IdempotentRequest middleware hashes the key and puts no format limit on it.",
+    "RequestQueue.ts now depends on the Laravel transport module BaseAPI.ts, whose imports include logStore, AuthSession and persistence. There is no cycle, and MasterApiClient already imported BaseAPI in D1, so the bundle gains no module. A later move of IDEMPOTENCY_KEY_HEADER and createIdempotencyKey into a transport-neutral leaf module (for example under core/network/) would decouple the end-agnostic api-client layer from the Laravel transport. CKA-12 does not require it.",
+    "Remaining duplicate random-id generators outside this lane's B2 assignment: core/network/ProtocolFetch.ts:140-141 (writer to be assigned by the orchestrator), core/integrations/pycore/PycoreClient.ts:251-252 and core/integrations/pycore/PycoreLaravelRelayTransport.ts:166-167 (a verbatim copy of createIdempotencyKey; the member's report cites :162) (B2 writer ui-pycore-manager). Inside wordnew-ui scope, apps/wordnew/services/WordNewRecitationCenter.ts:34-40 is a direct idempotency-key duplicate and is a follow-up candidate. WordNewSentenceWordTable.ts:80, utils/WordNewClientIdentity.ts:37 and DailyReadingPlaybackModel.ts:81 build prefixed local ids.",
+    "bun run lint cannot run on Windows: package.json:10 'tsc --noEmit' gives 'bun: command not found: tsc' with exit 1, because node_modules/.bin/tsc is a POSIX shim. The root package.json is shared layer, so a script change (for example 'bun node_modules/typescript/bin/tsc --noEmit') needs an orchestrator-assigned writer. Until then, verification uses the direct tsc invocation."
+  ],
+  "checks": [
+    "Diff split: git diff 74e7770 --stat shows MasterApiClient.ts 120 lines and RequestQueue.ts 27. The D1 FU-031 state is capture commit f4f223414. git diff f4f223414 5bbb23682 shows only the D7 hunks: MasterApiClient.ts :47, :49, :423 and RequestQueue.ts :23-24, removed old :46-52, :100. HEAD b20962b4f has the same blobs as 5bbb23682 (a97b08607, 08423141a), and git status is clean for core/network/api-client/.",
+    "Line endings, byte scan: MasterApiClient.ts has 473 lines, no BOM, and LF-only lines [47, 48, 49, 365, 366, 367], identical in f4f223414, 5bbb23682, HEAD and the working tree. Changed lines 47 and 49 stayed LF, and :423 stayed CRLF, so there is no EOL churn. RequestQueue.ts has 161 lines and 0 LF-only lines in every revision, and the new :23-24 are CRLF. (74e7770 had LF-only [39, 40, 321, 322, 323]; D1 moved them, not D7.)",
+    "Import cycle: the transitive relative-import closure of core/integrations/laravel/transport/BaseAPI.ts is 17 modules (transport/*, auth/{AuthRequestCenter,AuthSession,AuthStorageKeys}, logstore/logStore, network/{ProtocolFetch,RequestCoordinator}, persistence/*). None of them is under core/network/api-client/, and the only bare import is @capacitor/core. The member's claim holds.",
+    "Grep: generateEntryId in every .ts/.tsx of the UI gives 0 hits. randomUUID|getRandomValues|Math.random|generateEntryId in core/network/api-client/ gives 0 hits. createIdempotencyKey is defined only at BaseAPI.ts:21 and used at MasterApiClient.ts:423 and RequestQueue.ts:100, plus the existing codemart useCmIdempotencyKey.ts:11 and laravel-manager LmBaseAPI.ts:44. The api-client/index.ts barrel never exported generateEntryId.",
+    "Type-check: free RAM was 6.49 GB (guard 3 GB). bun node_modules/typescript/bin/tsc --noEmit in poly_apps/pycore_laravel_wordnew_ui exited 0 with 0 'error TS' lines (about 30 s). bun run lint gave 'bun: command not found: tsc' with exit 1, which confirms the member's note.",
+    "Scope (section 8, B2): the changed files are core/network/api-client/{MasterApiClient,RequestQueue}.ts (the ui-wordnew B2 assignment) and reports/ui-wordnew.md. There are no out-of-scope writes, no config/ or contract change, and no service restart is needed.",
+    "AGENTS.md: English only, no user-facing text, imports at file top, the duplicate generator removed in favour of the central one, no tests touched, and no AI rules header re-added."
+  ],
+  "notes": "CKA-12 approved. core/network/api-client/ is released for wordnew-ui-G1. MCHR-31-wn had no change and is re-planned; the shared waiting set now exists, but the presenter does not.",
+  "checked_at": "2026-09-27"
+}

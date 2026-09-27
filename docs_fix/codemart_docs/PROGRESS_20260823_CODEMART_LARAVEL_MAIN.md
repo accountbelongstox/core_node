@@ -6,6 +6,8 @@ Main design: `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`
 > Revision 2026-09-27: a full audit found several functions below missing or
 > broken; statuses marked `superseded` are tracked in
 > `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`, which is authoritative.
+> D9 reconciliation 2026-09-27: every `superseded (ID)` below is matched to
+> the code in section 8.1 of that record.
 
 This record describes only which business functions the CodeMart server
 provides and their status. It contains no code, file, or architecture
@@ -50,7 +52,8 @@ descriptions; the implementation is the authority for those.
   claim an open task). Status: done.
 - Developer submissions with pending review, approved, needs revision, and
   rejected states. Status: done.
-- Reviewer queue and review decisions. Status: superseded (U05, U06).
+- Reviewer queue and review decisions. Status: superseded (U05, U06: the
+  reviewer review is advisory and the client decides).
 
 ## Money and trust
 
@@ -62,9 +65,11 @@ descriptions; the implementation is the authority for those.
   Status: done.
 - All finance mutations and task acceptance are idempotent: repeated
   requests with the same idempotency key return the prior result.
-  Status: superseded (U30).
+  Status: superseded (U30: done except analysis accept, which is missing,
+  cmgap-U30).
 - Identity documents are private and authorized, never public paths.
-  Status: superseded (G10).
+  Status: superseded (G10: new uploads are private; legacy public rows wait
+  on CMDES-08).
 
 ## Notifications
 

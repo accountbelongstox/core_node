@@ -49,6 +49,6 @@ class CodeMartV1FundingCtl extends Controller
                 'remaining_amount' => $escrow->remainingAmount(),
             ],
             'idempotent_replay' => $result['replayed'],
-        ], 'Project funded', $result['replayed'] ? 200 : 201);
+        ], __('codemart.messages.project_funded'), $result['replayed'] ? 200 : 201);
     }
 }

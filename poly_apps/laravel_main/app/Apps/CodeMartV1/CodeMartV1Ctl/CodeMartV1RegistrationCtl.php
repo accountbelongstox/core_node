@@ -46,7 +46,7 @@ class CodeMartV1RegistrationCtl extends Controller
             'username' => 'required|string|unique:users|min:3|max:50',
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role_type' => 'required|in:developer,client',
+            'role_type' => 'required|in:' . implode(',', CodeMartV1RoleRequestService::SELF_SERVICE_ROLES),
             'real_name' => 'required|string|max:100',
             'registration_code' => 'nullable|string|max:255',
         ]);
@@ -67,7 +67,7 @@ class CodeMartV1RegistrationCtl extends Controller
             if ($accessCode === '' || !hash_equals($accessCode, $registrationCode)) {
                 return $this->errorWithCode(
                     CodeMartV1Constants::ERROR_INVALID_REGISTRATION_CODE,
-                    'Invalid registration code',
+                    __('codemart.errors.invalid_registration_code'),
                     422
                 );
             }
@@ -202,12 +202,12 @@ class CodeMartV1RegistrationCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'identity_type' => 'required|in:ID_CARD,PASSPORT,DRIVING_LICENSE',
+            'identity_type' => 'required|in:' . implode(',', CodeMartV1Constants::IDENTITY_TYPES),
             'identity_number' => 'required|string|unique:codemartv1.codemart_v1_kyc_verifications',
             'real_name' => 'required|string|max:100',
             'date_of_birth' => 'required|date|before:today',
             'id_front_image' => 'required|file|image',
-            'id_back_image' => 'required_if:identity_type,ID_CARD|file|image',
+            'id_back_image' => 'required_if:identity_type,' . CodeMartV1Constants::IDENTITY_TYPE_ID_CARD . '|file|image',
             'selfie_image' => 'required|file|image',
         ]);
 
@@ -247,7 +247,7 @@ class CodeMartV1RegistrationCtl extends Controller
                 'id_front_image_path' => $idFrontPath,
                 'id_back_image_path' => $idBackPath,
                 'selfie_image_path' => $selfiePath,
-                'verification_status' => 'pending',
+                'verification_status' => CodeMartV1Constants::KYC_STATUS_PENDING,
             ]);
         });
 
@@ -262,7 +262,7 @@ class CodeMartV1RegistrationCtl extends Controller
 
         return $this->success([
             'kyc_id' => $kycVerification->id,
-            'verification_status' => 'pending',
+            'verification_status' => CodeMartV1Constants::KYC_STATUS_PENDING,
             'next_step' => 'deposit_payment',
         ], __('codemart.messages.kyc_documents_uploaded_awaiting_manual_verification'), 201);
     }

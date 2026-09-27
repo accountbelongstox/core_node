@@ -7,6 +7,7 @@ import { useCmSignOut } from './auth/useCmSignOut';
 import { CmBootstrapRefreshNotice } from './components/access/CmBootstrapRefreshNotice';
 import { CmBrand } from './components/CmBrand';
 import { CmChromeControls } from './components/CmChromeControls';
+import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE, cmWorkspacePath } from './components/public-home/cmPublicRoutes';
 import { useCmBootstrap } from './contexts/CmBootstrapContext';
 import { CM_PAGES, type CmPageDef } from './cmPages';
 
@@ -41,7 +42,7 @@ export const CmLayout: React.FC = () => {
 
   const bellLink = hasCapability('notification.read') ? (
     <Link
-      to="/codemart/notifications"
+      to={CM_PROTECTED_ROUTE.notifications}
       className="cm-topbar-bell"
       aria-label={t('notifications.unreadCount', { count: unreadCount })}
     >
@@ -59,7 +60,7 @@ export const CmLayout: React.FC = () => {
     return (
       <NavLink
         key={page.id}
-        to={`/codemart/${page.path}`}
+        to={cmWorkspacePath(page.path)}
         className={linkClassName}
         onClick={() => setMenuOpen(false)}
       >
@@ -77,7 +78,7 @@ export const CmLayout: React.FC = () => {
   return (
     <div className="cm-workspace" data-end="codemart">
       <header className="cm-workspace-mobile-header">
-        <Link to="/codemart"><CmBrand compact /></Link>
+        <Link to={CM_PUBLIC_ROUTE.home}><CmBrand compact /></Link>
         <div className="cm-workspace-mobile-header__controls">
           {bellLink}
           <CmChromeControls />
@@ -93,14 +94,14 @@ export const CmLayout: React.FC = () => {
       </header>
       {menuOpen && <button type="button" className="cm-workspace-backdrop" aria-label={t('common.closeMenu')} onClick={() => setMenuOpen(false)} />}
       <aside className={`cm-workspace-sidebar ${menuOpen ? 'is-open' : ''}`}>
-        <Link to="/codemart" className="cm-workspace-sidebar__brand" onClick={() => setMenuOpen(false)}>
+        <Link to={CM_PUBLIC_ROUTE.home} className="cm-workspace-sidebar__brand" onClick={() => setMenuOpen(false)}>
           <CmBrand />
         </Link>
         <nav className="cm-workspace-nav" aria-label={t('workspace.navLabel')}>
           <div>{primaryPages.map(renderLink)}</div>
           <div className="cm-workspace-nav__account">
             {bootstrap?.is_admin && (
-              <NavLink to="/codemart/admin" className={linkClassName} onClick={() => setMenuOpen(false)}>
+              <NavLink to={CM_ADMIN_ROUTE.home} className={linkClassName} onClick={() => setMenuOpen(false)}>
                 <ShieldCheck aria-hidden="true" />
                 <span>{t('admin.badge')}</span>
               </NavLink>

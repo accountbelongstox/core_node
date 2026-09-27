@@ -124,6 +124,7 @@ class AppQyV1CoverImageService
 
             imagepng($mainImage, $mainFilePath);
             imagedestroy($mainImage);
+            app(AppQyV1ResourceIndexService::class)->recordStaticPath($mainFilePath);
 
             $result = [
                 'success' => true,
@@ -150,6 +151,7 @@ class AppQyV1CoverImageService
                     self::THUMBNAIL_HEIGHT,
                     $thumbnailPath
                 );
+                app(AppQyV1ResourceIndexService::class)->recordStaticPath($thumbnailPath);
 
                 $result['thumbnail'] = [
                     'filename' => $thumbnailFilename,

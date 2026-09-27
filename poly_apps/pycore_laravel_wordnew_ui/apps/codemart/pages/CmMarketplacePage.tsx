@@ -8,6 +8,7 @@ import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
+import { cmTaskPath } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
@@ -148,7 +149,7 @@ export const CmMarketplacePage: React.FC = () => {
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
       {acceptedId !== null && (
         <p className="cm-inline-action">
-          <Link to={`/codemart/tasks?task=${acceptedId}`} className="cm-workspace-button"><ListTodo aria-hidden="true" /> {t('marketplace.openAccepted')}</Link>
+          <Link to={cmTaskPath(acceptedId)} className="cm-workspace-button"><ListTodo aria-hidden="true" /> {t('marketplace.openAccepted')}</Link>
         </p>
       )}
       {list.loading ? (

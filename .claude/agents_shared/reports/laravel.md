@@ -269,3 +269,90 @@ All earlier rulings are applied (B9: LB-008, LB-019, LB-033, X4, RV-007, LB-035)
 - laravel-remote: laravel-T11 server steps after code sync.
 - shell: laravel-T11 note on the `sys:init` exit status in 175.
 - laravel (follow-up): LB-034 remainder (173 interpolated calls, 737 `'message'|'error' => '...'` entries).
+
+## D7 family merge
+
+Coordinator merge check (B13), about 18:3x, for laravel-D7.1/.2, laravel-qyapp-D7.1/.2, laravel-codemart-D7.1/.2, laravel-api-D7.1/.2.
+
+Input. All eight batches arrived with `verdict: null` and `changed: null`. No lane report exists for laravel-qyapp, laravel-codemart or laravel-api. The workflow logs of this period show ENOTFOUND API failures. I attributed the changes myself, by the path map and file mtimes (17:14-17:38), diffing `f4f223414` against the working tree. Header-block removals (D18) are ignored. Result: 28 files changed in substance.
+
+| Role | Changed (under `poly_apps/laravel_main/`) | What |
+|---|---|---|
+| laravel | `app/Constants/LaravelConfig.php`, `config/logging.php`, `config/services.php`, `app/Providers/RuntimeConfigurationServiceProvider.php`, new `app/Support/ContractDocument.php`, `app/Support/ServiceContract.php` | no-env: `LOG_LEVEL` and `CODEMART_SEED_DEMO` constants, `CODEMART_BANK_*` from the runtime store. No `env()` read is left in config/app/routes/bootstrap. ServiceContract delegates its typed reads to ContractDocument and gains data-dir readers, which nothing calls yet (the §8.0 PathMapper switch never landed; scratch `d71/edit_pathmapper.py` was never applied) |
+| laravel-api | `app/Services/DataSync/{DataSyncProtocol,DataSyncService,DataSyncStateStore,DataSyncPeerClient,DataSyncSessionRuntime,DataSyncPassiveService,DataSyncDriverService,ResourceSyncService}.php`, `app/Http/Controllers/Dashboard/DataSyncController.php`, `app/Http/EnvironmentApiInfo/CommonApiInfo.php` | protocol values from `service_contract.json#data_sync`; archive extraction is staged and checked per file against the plan manifest; the peer cancel moved into `DataSyncSessionRuntime::finish`; one active session per node; the index adds `terminal_retention` |
+| laravel-qyapp | `app/Apps/AppQyV1/AppQyV1Models/AppQyV1TtsEngineConfigModel.php` | srv-07: `seedDefaults` only inserts missing rows (`insertOrIgnore`) and never updates one |
+| laravel-codemart | new `CodeMartV1Utils/CodeMartV1AdminPassword.php`, new `CodeMartV1Commands/CodeMartV1AdminPasswordCommand.php`; `CodeMartV1DemoSeeder`, `CodeMartV1Initializer`, `CodeMartV1Constants`, `CodeMartV1WalletModel`, `CodeMartV1WalletTransactionModel`, `CodeMartV1PaymentCtl`, `CodeMartV1{AdminFinance,Escrow,Finance}Service` | srv-05: the password comes from the contract secret file (no hardcoded password), `codemart:admin-password --file`; ledger rows store `description_code` + params, translated when read; bootstrap vocabulary gains `capability_roles`, `terminal_states` and withdrawal policy; additive contract columns |
+
+Conflicts fixed in coordinator paths (the review files):
+1. `codemart:admin-password` was never registered. `artisan list codemart` gave "There are no commands defined in the codemart namespace", so the contract's apply command (175/Step175) would fail. It is now registered in `app/Providers/AppServiceProvider.php`.
+2. 25 lang keys were missing in both locales: `codemart.cli.admin_password.*` (8), `codemart.cli.seed.*` (4) and `codemart.ledger.*` (all 13 `LEDGER_*` codes). Without them, sys:init, the command and every new wallet ledger description would show raw keys. The keys are now in `lang/en/codemart.php` and `lang/zh_CN/codemart.php`.
+3. The `app/Support/ContractDocument.php` docblock said QueueCenterContract uses the class. It does not, so the docblock is corrected.
+
+Temporary writers. A lane wrote the foundation edits (the LaravelConfig `CODEMART_SEED_DEMO` switch, the `config/services.php` codemart keys, the RuntimeConfigurationServiceProvider `CODEMART_BANK_*` map) without a temporary-writer record. I accepted them because they follow the no-env ruling (D17). Ownership stays with laravel, and no assignment is open.
+
+Fit checks:
+- routes and middleware: 1086 routes, the same as the D7 bring-up; this run changed no route file.
+- migrations: 0 pending, and this run added no migration.
+- schedule: unchanged.
+- shared services and DI: `DataSyncSessionRuntime` now takes `DataSyncPeerClient`, which has no constructor, so there is no cycle. Every `DataSyncProtocol::` reference resolves (the removed constants have no callers left).
+- initializers: startup and sys:init order are unchanged. The new ledger columns come from the CodeMart `align_contract_tables` step.
+- thread-bus and RPC do not apply to Laravel; the realtime names were unchanged in this run.
+
+Verification (local; scratch scripts in `scratchpad/d7merge`; no test files; service not started):
+- `php -l`: 31 PHP files (the 28 plus my 3), no errors.
+- lang: 76 keys used by the changed files resolve in en and zh_CN (25 were missing before the fix).
+- `artisan list codemart` shows the command.
+- The command without `--file` exits 2; with an unreadable file it exits 1.
+- `codemart:admin-password --file <scratch file>`, inside a rolled-back transaction on `main`: run 1 gave 7 updated, run 2 gave 7 unchanged. After the rollback, the hashes are unchanged.
+- `CodeMartV1AdminPassword::ensure(<scratch>)`: the first call generated 24 characters, the second reused the file.
+- Ledger accessor: en `Payment 5 to user 7`, zh_CN `付款 5 给用户 7`; a legacy row keeps its stored text.
+- TTS `seedDefaults`, rolled back: a converged table gives 0/0. An operator-edited edge row (99, disabled) is kept, and a deleted kokoro row is restored.
+- The invite-code path, rolled back, returns the admin code (`exists`), so sys:init keeps printing it.
+- Contract readers: data_sync v5, port 9000, retention 5.
+- In-process HTTP kernel: `GET /api/dashboard/db-manager/sync-peer/health` gives 200 (`protocol_version` 5, `default_port` 9000); `GET /api/codemart/v1/public/home` gives 200.
+- Not run: a full `sys:init`. It would create the real CodeMart secret file, which is the 175 step's job, and its changed steps were run above one by one.
+
+Side effect, recorded:
+- My probe opened its rollback on `main`, because `CodeMartV1UserModel` uses `main`. `CodeMartV1Initializer` aligns on `codemartv1`, so that align ran live.
+- The local `code_mart_v1_database` gained three additive nullable columns (Laravel log, 08:25:48 UTC). This is the same change sys:init's ensure step makes:
+  - `codemart_v1_wallet_transactions.description_code`
+  - `codemart_v1_wallet_transactions.description_params`
+  - `codemart_v1_ai_analyses.accept_idempotency_key`
+- No row changed. The columns were not reverted, because a revert would drop columns.
+
+Open items (owner: fix):
+- laravel-codemart, blocking for D17's "立即同步到系统": when `CodeMartV1DemoSeeder::seed()` generates the secret file (`$secret['generated']`), apply it to the existing seeded accounts as well (`CodeMartV1AdminPassword::apply($secret['password'])` after `seedAccounts`).
+  - Otherwise sys:init and sys:codemartinit print a password that the existing accounts reject, and the removed hardcoded password stays valid.
+  - Local evidence: 7/7 seeded accounts still accept it.
+- laravel-codemart, non-blocking:
+  - do not hand the generated password to the seeder `$log` callback, which the initializer wires to `Log::info`; keep it in the returned summary only;
+  - `codemart_v1_ai_analyses.accept_idempotency_key` has no reader or writer yet.
+- laravel, own lane: srv-06 part 2 did not land. `McpV1Initializer::initialize` skips steps on the status file alone. Remove the `completed_steps` skip; every step already checks real state (`hasTable`, `file_exists`). A missing `placeholder_images` table is then repaired, which is the server's daily `mcpv1:placeholder-cleanup` failure.
+  - Also: either switch PathMapper to `service_contract.json#paths` (§8.0) or drop the unused ServiceContract data-dir readers and `dataSync()`.
+- laravel-qyapp:
+  - `AppQyV1TtsVariantSpecModel::seedDefaults` still upserts `accent`, `gender` and `is_primary` on existing default specs at every sys:init. Make it insert-only like the engine config if those fields are operator-editable;
+  - the X4 Laravel half (resolve by `cleaned_word`) is not in this run's changes.
+- shell-linux (srv-04) and shell-windows (Step175 parity): not landed. 175 still:
+  - has no `--list-steps`, `--check` or `--step`;
+  - has no `codemart-admin-password` step;
+  - ignores the exit status of `sys:init` (:647);
+  - mentions `CODEMART_SEED_DEMO` as an env key in its comments.
+  - The Laravel side is ready: `php artisan codemart:admin-password --file <absolute path>` exits 2 without `--file`, 1 when the file is unreadable, and 0 otherwise; it is idempotent.
+
+laravel-remote, after CodeSync. The sync must include `config/service_contract.json`; without its `data_sync` block, DataSync health throws. Report counts only, never the password.
+1. `php artisan list codemart` shows `codemart:admin-password`.
+2. Run `php artisan sys:init` at once, before any wallet write, because ledger inserts now need `description_code`. Expect:
+   - `Added missing column` warnings for the three columns above;
+   - `CodeMartV1: OK`;
+   - on the first run, the generated-password line with its file path;
+   - the admin invite code;
+   - `TTS engine config: 0 created, 0 updated` on a converged server, with operator `priority_order`/`enabled` kept.
+3. Run the 175 `codemart-admin-password` step (after srv-04), or `php artisan codemart:admin-password --file <laravel_db>/.core_node_secrets/CODEMART_ADMIN_PASSWORD`:
+   - run 1: N updated;
+   - run 2: all unchanged;
+   - afterwards no seeded account accepts the removed hardcoded password.
+4. `GET https://api.si.12gm.com/api/dashboard/db-manager/sync-peer/health` gives 200 with `protocol_version` 5 and `default_port` 9000.
+5. `GET https://api.si.12gm.com/api/codemart/v1/public/home` gives 200.
+6. A second `sys:init` prints no `Added missing column` lines.
+
+Review: `poly_apps/laravel_main/app/Providers/AppServiceProvider.php`, `app/Support/ContractDocument.php`, `lang/en/codemart.php`, `lang/zh_CN/codemart.php`. Status: in progress until the reviewer approves.

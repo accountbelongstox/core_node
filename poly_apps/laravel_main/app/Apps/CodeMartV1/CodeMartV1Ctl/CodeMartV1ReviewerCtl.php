@@ -33,7 +33,7 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->error(__('codemart.messages.you_are_already_a_reviewer'));
         }
 
-        $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, 7);
+        $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, CodeMartV1Constants::REVIEWER_RETRY_DAYS);
 
         if ($recentApplication) {
             return $this->error(__('codemart.messages.you_can_only_apply_once_every_7'));
@@ -52,7 +52,11 @@ class CodeMartV1ReviewerCtl extends Controller
         return $this->success([
             'application_id' => $application->id,
             'test_cases' => $testCases,
-            'instructions' => 'Please review and rate the following 3 code snippets on quality, readability, and efficiency. Each rating should be 1-5.',
+            'instructions' => __('codemart.messages.reviewer_test_instructions', [
+                'count' => count($testCases),
+                'min' => CodeMartV1Constants::MIN_RATING,
+                'max' => CodeMartV1Constants::MAX_RATING,
+            ]),
         ]);
     }
 
@@ -117,8 +121,8 @@ class CodeMartV1ReviewerCtl extends Controller
             'status' => $application->status,
             'similarity_score' => $similarity,
             'message' => $similarity >= 85
-                ? 'Congratulations! You passed the test and are now a reviewer.'
-                : 'Test failed. You can retry in 7 days.',
+                ? __('codemart.messages.reviewer_test_passed')
+                : __('codemart.messages.reviewer_test_failed', ['days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS]),
         ]);
     }
 
@@ -258,7 +262,7 @@ class CodeMartV1ReviewerCtl extends Controller
             'review_id' => $review->id,
             'recommendation' => $recommendation,
             'code_score' => $codeScore,
-            'message' => 'Review submitted successfully',
+            'message' => __('codemart.messages.review_submitted_successfully'),
         ]);
     }
 

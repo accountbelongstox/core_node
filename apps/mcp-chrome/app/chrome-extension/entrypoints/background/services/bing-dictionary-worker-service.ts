@@ -2,7 +2,7 @@ import { WorkerApiClient, Task } from '../api/WorkerApiClient';
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
 import { logger } from '@/utils/logger';
 import { isRecoverableTabError } from './bing-tab-pool';
-import { DIFF_DELIVERY, TASK_CAPABILITY_BY_ROLE, TASK_STATUS_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import { DIFF_DELIVERY, TASK_CAPABILITY_BY_ROLE, TASK_STATUS_BY_ROLE } from '@/utils/queue-center-contract';
 import { classify, buildEntry, type ResultEntry } from './bing-result';
 import { type NormalizedWord } from '@/utils/task-words';
 import { howtopronouncePronunciationSource } from './howtopronounce-pronunciation-source';
@@ -11,39 +11,37 @@ import { initBingWorkerLifecycle as _initLifecycle } from './bing-worker-lifecyc
 import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 import { delay as waitForDelay } from '@/utils/async';
 import { tabController } from './tab-controller';
-import { queueCenterWakeService } from './task-center/QueueCenterWakeService';
 import { getMessage } from '@/utils/i18n';
 import {
   BingDictionaryWorkerRuntimeBase,
   LOG, NONDICT_ATTEMPTS, ANTISCRAPE_ABORT_THRESHOLD, ANTISCRAPE_COOLDOWN_MS,
   OUTAGE_PAUSE_MS, OUTAGE_MAX_PROBES, LONG_OUTAGE_PAUSE_MS,
-  LOOKUP_DELAY_BASE_MS, LOOKUP_DELAY_JITTER_MS,
-  FAST_REPOLL_BASE_MS, FAST_REPOLL_JITTER_MS, IDLE_DISCARD_MS,
+  LOOKUP_DELAY_BASE_MS, LOOKUP_DELAY_JITTER_MS, IDLE_DISCARD_MS,
   DICTIONARY_TASK_TYPES, HANDLED_TASK_TYPES,
-  type WorkerConfig,
 } from './bing-dictionary-worker-runtime';
-
-const PULL_TASK_TYPES = [
-  TASK_TYPE_KEYS.dictionary_explanation,
-  TASK_TYPE_KEYS.dictionary_explanation_demo,
-  TASK_TYPE_KEYS.word_translation,
-];
 
 export type { WorkerConfig, WorkerStats } from './bing-dictionary-worker-runtime';
 export const initBingWorkerLifecycle = () => _initLifecycle(() => bingDictionaryWorkerService.resume());
 
 class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
-  protected async pollAndProcessTasks(): Promise<void> {
-    if (this.polling || this.reconfiguring) return;
-    this.polling = true;
+  /**
+   * One pull+crawl round of the base poll loop (also the fast re-poll). The
+   * cycleInFlight guard keeps a realtime wake or fast re-poll from racing a
+   * slow batch (a 5-word/3-tab crawl takes 20s+) on the shared tab pool, whose
+   * unserialized pool.ensure/healUnreachable would clobber tab ids and leak
+   * orphaned bing.com/dict tabs; the running round drains the work.
+   */
+  protected async cycle(): Promise<void> {
+    if (this.cycleInFlight) return;
+    this.cycleInFlight = true;
     try {
-      await this.pollAndProcessTasksInner();
+      await this.pullAndProcessTasks();
     } finally {
-      this.polling = false;
+      this.cycleInFlight = false;
     }
   }
 
-  private async pollAndProcessTasksInner(): Promise<void> {
+  private async pullAndProcessTasks(): Promise<void> {
     if (!this.workerClient || !this.config) return;
 
     if (this.isWorkerPaused()) {
@@ -108,30 +106,31 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
     try {
       this.stats.lastRun = Date.now();
 
+      // Queue-head tasks claimed early by a realtime wake or queue diff come
+      // first; the typed pull fills the rest of the batch.
+      const prefetched = this.takePrefetchedHeadTasks();
       const response = await this.pullTasksAcrossTypes({
-        limit: this.config.batchSize,
+        limit: Math.max(0, this.config.batchSize - prefetched.length),
       });
+      const pulled = response.success && response.data ? response.data.tasks : [];
 
-      if (!response.success || !response.data || response.data.count === 0) {
+      // B3: react to the fast-tier backlog signal — the base schedules a
+      // jittered, coalesced re-poll so fast translate work is drained promptly.
+      if (response.success && response.data) {
+        this.noteFastSignals(response.data.pending_urgent, response.data.pending_fast);
+      }
+
+      if (prefetched.length + pulled.length === 0) {
         this.stats.newTasks = 0;
         this.stats.duplicateTasks = 0;
-        // No tasks now, but the backend may still report fast-tier backlog —
-        // schedule an immediate re-poll so we don't wait a full interval.
-        if (response.success && response.data) {
-          this.noteFastSignals(response.data.pending_fast);
-        }
         // Idle with nothing to do -> free the Bing renderers (keeps Chrome snappy).
         this.maybeDiscardIdleTabs();
         return;
       }
 
-      // B3: react to the fast-tier backlog signal — schedule a jittered
-      // re-poll burst so newly-bumped fast translate tasks are drained promptly.
-      this.noteFastSignals(response.data.pending_fast);
-
       // B3: highest priority first, so a bumped (fast-tier) task is processed
       // ahead of the rest of the claimed batch.
-      const tasks = [...response.data.tasks].sort(
+      const tasks = [...prefetched, ...pulled].sort(
         (a, b) => (b.priority ?? 0) - (a.priority ?? 0),
       );
       let newTaskCount = 0;
@@ -149,32 +148,41 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
 
       this.stats.newTasks = newTaskCount;
       this.stats.duplicateTasks = duplicateCount;
-      this.stats.queueTotal = this.taskQueue.length;
-      this.stats.pending = this.taskQueue.length;
+      this.updateQueuedStats();
 
       // One task at a time, but the words WITHIN a task run in parallel across
-      // the tab pool.
-      while (this.taskQueue.length > 0) {
+      // the tab pool. A Stop (or re-point) ends the batch after the current task.
+      while (this.taskQueue.length > 0 && this.isRunning) {
         const task = this.taskQueue.shift();
+        this.updateQueuedStats();
         if (task) {
-          await this.processTask(task);
-          this.stats.queueTotal = this.taskQueue.length;
-          this.stats.pending = this.taskQueue.length;
+          await this.executeTask(task);
         }
       }
     } catch (error) {
       logger.error(LOG, 'Polling error', error);
+    } finally {
+      await this.releaseUndispatchedTasks();
     }
   }
 
-  /**
-   * B3: schedule a fast re-poll burst when the backend signals fast-tier work is
-   * waiting. The burst is jittered and coalesced (only one in flight) so it does
-   * not stampede the pull endpoint.
-   */
-  private noteFastSignals(pendingFast?: number): void {
-    if ((pendingFast ?? 0) > 0) {
-      this.scheduleFastRepoll();
+  private updateQueuedStats(): void {
+    this.bufferedTaskCount = this.taskQueue.length;
+    this.stats.queueTotal = this.taskQueue.length;
+    this.stats.pending = this.taskQueue.length;
+  }
+
+  /** Hand claimed-but-unstarted tasks back so another worker can take them. */
+  private async releaseUndispatchedTasks(): Promise<void> {
+    const remaining = this.taskQueue.splice(0);
+
+    this.updateQueuedStats();
+    if (remaining.length === 0 || !this.workerClient) return;
+    remaining.forEach((task) => this.taskCache.delete(task.task_id));
+    try {
+      await this.workerClient.releaseTasks(remaining);
+    } catch (error) {
+      logger.warn(LOG, 'Failed to release undispatched Bing tasks', error);
     }
   }
 
@@ -198,43 +206,11 @@ class BingDictionaryWorkerService extends BingDictionaryWorkerRuntimeBase {
     this.pool.discardIdle().catch(() => undefined);
   }
 
-  private scheduleFastRepoll(): void {
-    if (!this.isRunning) return;
-    if (this.fastRepollTimeout.isScheduled) return; // coalesce — one burst in flight
-    const jitter = Math.floor(Math.random() * FAST_REPOLL_JITTER_MS);
-    this.fastRepollTimeout.schedule(() => {
-      if (!this.isRunning) return;
-      // Drain whatever fast-tier work matched our capabilities now.
-      this.pollAndProcessTasks().catch((error) =>
-        logger.warn(LOG, 'Fast re-poll failed', error),
-      );
-    }, FAST_REPOLL_BASE_MS + jitter);
-  }
-
   // ------------------------------------------------------------------
   // Task processing
   // ------------------------------------------------------------------
 
-  /**
-   * Pull across the dictionary/translate task types via the typed pull route
-   * (/api/worker/tasks/{taskType}/pull). word_translation LAST: the
-   * routes. Each type is queried immediately so no Laravel request worker is
-   * retained while the browser waits for work.
-   */
-  private pullTasksAcrossTypes(options: { limit: number }) {
-    return this.pullAcrossTaskTypes(PULL_TASK_TYPES, options.limit);
-  }
-
-  protected subscribeRealtimeWake(): void {
-    if (!this.config) return;
-    if (this.wakeUnsubscribe) this.wakeUnsubscribe();
-    this.wakeUnsubscribe = queueCenterWakeService.subscribe(
-      this.config.apiUrl,
-      () => this.scheduleFastRepoll(),
-    );
-  }
-
-  private async processTask(task: Task): Promise<void> {
+  protected async executeTask(task: Task): Promise<void> {
     if (!this.workerClient || !this.config) return;
 
     const workerId = this.stats.workerId!;

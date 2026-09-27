@@ -128,7 +128,7 @@ class CodeMartV1ProfileCtl extends Controller
         if ($validator->fails()) {
             return $this->errorWithCode(
                 CodeMartV1Constants::ERROR_INVALID_ROLE_TYPE,
-                'Validation failed',
+                __('codemart.messages.validation_failed'),
                 422,
                 $validator->errors()
             );

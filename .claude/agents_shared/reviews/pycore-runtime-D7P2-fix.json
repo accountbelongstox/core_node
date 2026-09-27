@@ -1,0 +1,110 @@
+{
+  "task_id": "pycore-runtime-D7P2-fix",
+  "role": "pycore-ui",
+  "reviewer": "pycore-lead",
+  "round": 3,
+  "verdict": "changes_requested",
+  "base": "74e7770",
+  "head": "2f31f9cd3 (user commit 'win0.0.1', 20:31:48). No commit since. The working tree equals HEAD for every B1-B5 code file and for serialized_worker.py.",
+  "scope_reviewed": "Round 3 of the six blocking items of pycore-runtime-D7P2.json, dispatched to pycore-ui a third time. The member deferred every item again as out of scope. The only changed file is .claude/agents_shared/reports/pycore-ui.md (uncommitted, 20:43:24, +40/-25 against HEAD).",
+  "summary": "The member acted correctly a third time. B1-B6 are pycore-runtime paths (F-1 is pycore-lead's), no record makes pycore-ui their writer, and pycore-ui wrote only its own report. The round-2 wording note was applied. The task is still not done: all six defects are present at HEAD 2f31f9cd3, so approving would close pycore-runtime-D7P2-fix with B1-B6 open. The orchestrator has now recorded the re-route (client_key_auth/TASKS.md row 'reroute-pending', 20:42:38: '[pycore-runtime] pycore-runtime-D7P2-fix ... re-route after their current loops end (avoid two writers)'). The remaining work belongs to that re-routed run, not to pycore-ui.",
+  "findings": {
+    "pycore-runtime-D7P2-B1": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/callmodule/rpc_routes/local_queue_head_routes.py:30 still has _MD5_RE = re.compile(r\"^[0-9a-fA-F]{32}$\"), used at :46. _sanitize_item_md5 (:43-48) pops a bad md5 but never lower-cases a valid upper-case one.",
+        "pycore/pyutils/common/queue_center_contract.py:596 still builds f\"text:{str(text or '').strip().lower()}\". The docstring clause 'matching ``build_local_task`` and ``audio_resource_ledger.resource_key``' is at :585-586, as the member reported (it wraps a line).",
+        "grep over pycore/ and pyapps/ (*.py): no word_identity_md5 or word_identity_content. fallback_when_md5_absent appears only in comments (local_queue_head_routes.py:28, queue_center_contract.py:583) and in the rejection_code comment at pyctl/tts/audio_resource_delivery.py:60. Nothing reads key_format.",
+        "The hand-built fallbacks are still at pyutils/tts/audio_resource_ledger.py:42 (parser docstring at :50) and pyutils/tts/audio_queue_center.py:146. pycore-ai adopts the helpers after B1 lands.",
+        "The member's UI claim holds: OrchManifestPanel.tsx:100-104 sends items [{kind, language, text}] with no md5, so the lower-case normalization needs no UI change."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B2": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/callmodule/rpc_routes/local_queue_head_routes.py:57 still forwards _sanitize_item_md5(dict(item)) whole, 'task' and '_laravel_base_url' included, to audio_queue_center.promote_local_head (:66-71).",
+        "The member's UI contract claim holds. PycoreApiLocal.ts:429-434 types items as Array<{ kind?: 'word' | 'sentence'; language: string; text: string }>, and OrchManifestPanel.tsx:100-104 is the only caller.",
+        "orch_promote.py:60 appends {language, text, task}, and :64 calls promote_local_head in-process. That path keeps its 'task' support; B2 changes only how the RPC route builds its items."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B3": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/pyctl/queue_center/snapshot_service.py:549-550 'if applied: worker.request_pull(prefer_remote=True)' has no gate. grep -c restore_complete on the file gives 0.",
+        "wake_workers (:361-371) checks only shared_heartbeat_system.is_callback_enabled; there is no shared wake-gate helper."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B4": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/pyfoundations/serialized_worker.py:42-43 '_publish_response: if not response_signal: return'. BusTaskThread.run (:124-146) turns the exception into _error_response(exc) and prints nothing. The file is unchanged since 15:50:36, so F-1 is not done.",
+        "pycore/pyctl/runtime/event_handlers.py:431-434 docstring still says the failure 'still propagates to the bus-task thread boundary instead of being hidden here'; try/finally with no except at :436-439."
+      ],
+      "owner": "pycore-lead (F-1), then pycore-runtime (docstring and red-line re-check)"
+    },
+    "pycore-runtime-D7P2-B5": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        "pycore/pyutils/laravel/delivery_diff.py:257 f\"{DELIVERY_BATCH_PATH}/{batch_id}/content\" and :274 f\"{DELIVERY_BATCH_PATH}/{batch_id}\" still suffix the batch path. No *.py under pycore/ or pyapps/ reads routes.batch_content or routes.batch_status; the two hits are the 'batch_status' outcome key (audio_resource_delivery.py:314) and the batch_content_mismatch error code (delivery_diff.py:58). The templates are at config/queue_center_contract.json:294-295.",
+        "History comments are still present: delivery_diff.py:39-40 ('this module used to keep its own copy') and queue_center_contract.py:220-222 ('which used to keep their own copies')."
+      ],
+      "owner": "pycore-runtime"
+    },
+    "pycore-runtime-D7P2-B6": {
+      "claimed": "deferred",
+      "result": "deferral confirmed; item open",
+      "evidence": [
+        ".claude/agents_shared/reports/pycore-runtime.md (uncommitted +104, 20:32:48, the pycore-assist-D7-fix section) has sections '## pycore-assist-D7-fix' (:3) and '## pycore-runtime-D7' (:107) only. grep 'D7P2' finds nothing. It is pycore-runtime's own report, so pycore-ui was right not to write it."
+      ],
+      "owner": "pycore-runtime"
+    }
+  },
+  "issues": [
+    "B1 open (pycore-runtime): queue_center_contract.py:596 and :585-586, local_queue_head_routes.py:26-30 and :43-48. Add word_identity_md5/word_identity_content, built from word_identity.fallback_when_md5_absent.key_format read once at the file top. Use them in audio_dedup_key and _sanitize_item_md5 (normalize '5D41...' to lower case). Remove _MD5_RE and the 'matching build_local_task' clause.",
+    "B2 open (pycore-runtime): local_queue_head_routes.py:54-60. Build each RPC item only from language/text/kind/content_id plus the sanitized md5, and drop 'task' (and any other key). Keep promote_local_head's in-process 'task' support for orch_promote.py:60-64.",
+    "B3 open (pycore-runtime): snapshot_service.py:549-550. Add one wake-gate helper (heartbeat callback enabled and audio_queue_center.restore_complete(lane)), shared by apply_head_event and wake_workers (:361-371).",
+    "B4 open: pycore-lead does F-1 first (serialized_worker.py:124-146: ColorPrint.red with thread name, error type, message and traceback when a callback without response_signal fails). Then pycore-runtime rewrites event_handlers.py:431-434 and runs the red-line re-check.",
+    "B5 open (pycore-runtime): delivery_diff.py:257 and :274 must use routes.batch_content/batch_status ({batch_id}). Remove the history comments at delivery_diff.py:39-40 and queue_center_contract.py:220-222.",
+    "B6 open (pycore-runtime): after B1-B5, write the pycore-runtime-D7P2 section in reports/pycore-runtime.md (items, changed files, per-file EOL, B1-B5 verification output).",
+    "Dispatch (orchestrator/workflow): round 3 went to pycore-ui again. The re-route is now recorded as TASKS.md 'reroute-pending' ([pycore-runtime] pycore-runtime-D7P2-fix, after the current loop ends). End this loop on pycore-ui. A fourth round on pycore-ui would get the same verdict. Run F-1 as its own [pycore-lead] task verified by the reviewer service, before the B4 docstring rewrite."
+  ],
+  "non_blocking": [
+    "Member conduct is correct. B1 §8 (one writer per path) and the pycore-ui scope forbid these edits. The record (REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md through D30, client_key_auth/TASKS.md, d22) gives pycore-ui no temporary-writer assignment. TASKS.md now names pycore-runtime as the writer explicitly.",
+    "The round-2 note is resolved: the stale 'working-tree changes in progress' wording is gone, and the report says those changes are committed in 2f31f9cd3.",
+    "Report EOL: reports/pycore-ui.md is LF (Python bytes: crlf=0, lf=69, lone CR=0, no BOM, ends with LF), matching the member's claim.",
+    "Every line reference in the round-3 report was checked and is exact (local_queue_head_routes.py:30/:43-48/:46/:57, queue_center_contract.py:585-586/:596/:220-222, snapshot_service.py:549-550/:362-371, serialized_worker.py:42-43/:124-146, event_handlers.py:431-434, delivery_diff.py:39-40/:257/:274, queue_center_contract.json:294-295, OrchManifestPanel.tsx:100-104/:105, PycoreApiLocal.ts:429-434, orch_promote.py:60-64, audio_resource_ledger.py:42, audio_queue_center.py:146, pycore-runtime.md :3/:107). One nit: wake_workers starts at :361 with @staticmethod, so :362-371 covers the def and its body. That is acceptable.",
+    "pycore-ui backlog stays open (own scope, after B2): OrchManifestPanel.tsx:105 reads response.error, but the route returns error_code (local_queue_head_routes.py:62, :65). Map error_code to an i18n message."
+  ],
+  "checks": [
+    "git log: HEAD is still 2f31f9cd3 (20:31:48). git diff --stat HEAD on queue_center_contract.py, local_queue_head_routes.py, snapshot_service.py, event_handlers.py, delivery_diff.py, serialized_worker.py, pycore/pyctl/audio_orchestration and pycore/pyutils/common: empty. Only reports/pycore-runtime.md (+104, pycore-assist-D7-fix) and reports/pycore-ui.md (+40/-25, this round) differ. The code files keep mtimes of 15:50:36-17:17:57.",
+    "git diff HEAD on reports/pycore-ui.md: read in full. The content is the round-3 status, the state check, the per-item table, checks, backlog and escalation only. No code and no other role's file.",
+    "Re-ran each defect probe with grep/sed at the current tree (lines in findings): all six defects are present and F-1 is absent.",
+    "python -m py_compile on the six code files: OK (sanity only, since they are unchanged).",
+    "Boundary: git status --untracked-files=all over poly_apps/pycore_laravel_wordnew_ui, pycore and pyapps shows only codemart changes (another group). pycore-manager, laravel-manager, vortex, pdd-manager, flavors/vortex, core/, pycore/ and pyapps/ are clean. The fenced SharedCacheEnv.ps1 (20:35:13) and claude_team_common.sh (20:32:44) changed before round 3 began (the round-2 verdict was written at 20:37:47). Neither is a pycore-ui path, and the member reports not touching them.",
+    "No build, type-check, test or service run: the member changed no code (the RAM guard does not apply). No Laravel change, so no FrankenPHP restart. The reviewer ran no git write command."
+  ],
+  "decisions": [
+    "changes_requested instead of approved (recommended option): an approved verdict completes the task, and B1-B6 are all still open. The requested changes go to the owners in the recorded re-route; pycore-ui has no further action on this task.",
+    "pycore-lead again does not implement F-1 inside a member review. It is separate foundation work, verified by the reviewer service, and it must land before the B4 docstring rewrite.",
+    "No new escalation text beyond the round-2 one: TASKS.md 'reroute-pending' (20:42:38) shows the orchestrator has taken it up. This verdict points to that row."
+  ],
+  "previous_rounds": [
+    "Round 1 (checked 20:30, HEAD 4ddb4be8e): changes_requested. Deferral confirmed, B1-B6 open. Notes: the report was CRLF, two line references had drifted, and the UI error_code backlog.",
+    "Round 2 (checked 20:36, HEAD 2f31f9cd3): changes_requested. Deferral confirmed, B1-B6 open. Round-1 notes resolved. Stale 'in progress' wording in the report. Escalation to re-dispatch to the owners."
+  ],
+  "next_owner": [
+    "orchestrator (end the pycore-ui loop; run the recorded re-route with role pycore-runtime)",
+    "pycore-lead (F-1, verified by the reviewer service)",
+    "pycore-runtime (B1, B2, B3, B5, the B4 docstring, then B6)",
+    "pycore-ai (adopt the B1 helpers at audio_resource_ledger.py:42/:50 and audio_queue_center.py:146 after B1)"
+  ],
+  "checked_at": "2026-09-27T20:47:00+10:00"
+}

@@ -754,11 +754,12 @@ class CodeMartV1DemoSeeder
         $this->adminService = app(CodeMartV1AdminService::class);
         $this->adminFinanceService = new CodeMartV1AdminFinanceService();
         $secret = CodeMartV1AdminPassword::ensure($this->passwordFile);
-        if ($secret['generated']) {
-            $this->log(__('codemart.cli.seed.password_generated', ['password' => $secret['password'], 'path' => $secret['path']]));
-        }
 
         $this->seedAccounts($secret['password']);
+        if ($secret['generated']) {
+            CodeMartV1AdminPassword::apply($secret['password']);
+            $this->log(__('codemart.cli.seed.password_file', ['path' => $secret['path']]));
+        }
         $this->seedProfiles();
         $this->seedRolesAndDeposits();
         $this->seedKyc();
@@ -798,11 +799,16 @@ class CodeMartV1DemoSeeder
         return $this->users['admin'];
     }
 
-    private function warnOnFailure(string $context, mixed $result): void
+    private function warnOnFailure(string $step, mixed $result, int|string $ref = ''): void
     {
         if (is_array($result) && isset($result['error_code'])) {
-            $this->log("Warning: {$context} returned {$result['error_code']}");
+            $this->warnStep($step, $ref, (string) $result['error_code']);
         }
+    }
+
+    private function warnStep(string $step, int|string $ref, string $code): void
+    {
+        $this->log(__('codemart.cli.seed.step_failed', ['step' => $step, 'ref' => (string) $ref, 'code' => $code]));
     }
 
     private function emitOnce(
@@ -858,7 +864,7 @@ class CodeMartV1DemoSeeder
             $user->save();
             $this->users[$key] = (int) $user->id;
         }
-        $this->log('Accounts: ' . count($this->users));
+        $this->log(__('codemart.cli.seed.accounts', ['count' => count($this->users)]));
     }
 
     private function seedProfiles(): void
@@ -890,7 +896,7 @@ class CodeMartV1DemoSeeder
 
         foreach (['developer', 'architect', 'newdev'] as $key) {
             if (!CodeMartV1UserRoleModel::forUserAndType($this->users[$key], CodeMartV1Constants::ROLE_DEVELOPER)) {
-                $this->warnOnFailure('role request', $roleRequests->request($this->users[$key], CodeMartV1Constants::ROLE_DEVELOPER));
+                $this->warnOnFailure('role_request', $roleRequests->request($this->users[$key], CodeMartV1Constants::ROLE_DEVELOPER), $this->users[$key]);
             }
         }
         if (!CodeMartV1UserRoleModel::forUserAndType($this->users['architect'], CodeMartV1Constants::ROLE_ARCHITECT)) {
@@ -943,7 +949,7 @@ class CodeMartV1DemoSeeder
 
         if ($deposit->status === CodeMartV1Constants::DEPOSIT_STATUS_PENDING) {
             if ($definition['target'] === CodeMartV1Constants::DEPOSIT_STATUS_PAID) {
-                $this->warnOnFailure('deposit confirm', $this->adminService->confirmDeposit((int) $deposit->id, $this->adminId()));
+                $this->warnOnFailure('deposit_confirm', $this->adminService->confirmDeposit((int) $deposit->id, $this->adminId()), (int) $deposit->id);
             } elseif ($definition['target'] === CodeMartV1Constants::DEPOSIT_STATUS_REJECTED) {
                 $this->adminFinanceService->rejectDeposit((int) $deposit->id, $this->adminId(), $definition['notes']);
             }
@@ -971,7 +977,7 @@ class CodeMartV1DemoSeeder
 
             if ($definition['target'] === CodeMartV1Constants::KYC_STATUS_APPROVED
                 && $kyc->verification_status === CodeMartV1Constants::KYC_STATUS_PENDING) {
-                $this->warnOnFailure('kyc review', $this->adminService->reviewKyc((int) $kyc->id, true, null, $this->adminId()));
+                $this->warnOnFailure('kyc_review', $this->adminService->reviewKyc((int) $kyc->id, true, null, $this->adminId()), (int) $kyc->id);
             }
         }
     }
@@ -1047,12 +1053,12 @@ class CodeMartV1DemoSeeder
                         'type' => CodeMartV1Constants::WALLET_TX_DEPOSIT,
                         'amount' => (string) $wallet->balance,
                         'balance_after' => (string) $wallet->balance,
-                        'description' => 'Opening balance',
+                        'description_code' => CodeMartV1Constants::LEDGER_OPENING_BALANCE,
                         'metadata' => ['seed_key' => self::SEED_KEY_PREFIX . 'wallet-opening-' . $key, 'direction' => 'in'],
                         'status' => CodeMartV1Constants::WALLET_TX_STATUS_SUCCESS,
                     ]);
                 }
-                $wallet->credit($amount, CodeMartV1Constants::WALLET_TX_DEPOSIT, 'Wallet top-up', ['seed_key' => $seedKey, 'kind' => 'top_up']);
+                $wallet->credit($amount, CodeMartV1Constants::WALLET_TX_DEPOSIT, CodeMartV1Constants::LEDGER_WALLET_TOP_UP, [], ['seed_key' => $seedKey, 'kind' => 'top_up']);
             });
         }
     }
@@ -1235,7 +1241,7 @@ class CodeMartV1DemoSeeder
             try {
                 $escrow = CodeMartV1EscrowService::fundProject((int) $project->id, $clientId, $this->fundingKey($project))['escrow'];
             } catch (CodeMartV1FinanceException $e) {
-                $this->log("Warning: funding project {$project->id} failed: {$e->errorCode}");
+                $this->warnStep('project_funding', (int) $project->id, $e->errorCode);
                 return;
             }
             $project->refresh();
@@ -1388,7 +1394,7 @@ class CodeMartV1DemoSeeder
         if ($status === CodeMartV1Constants::TASK_STATUS_COMPLETED && $assigneeId !== null) {
             $release = CodeMartV1EscrowService::releaseForTask($task, (int) $project->client_id);
             if (!$release['released']) {
-                $this->log("Warning: escrow release for task {$task->id} failed: {$release['error_code']}");
+                $this->warnStep('task_escrow_release', (int) $task->id, (string) $release['error_code']);
             }
         }
     }
@@ -1546,15 +1552,15 @@ class CodeMartV1DemoSeeder
                         'idempotency_key' => $definition['key'],
                     ]);
                     $meta = ['payment_id' => $payment->id];
-                    if (!$wallets[$payerId]->debit($definition['amount'], CodeMartV1Constants::WALLET_TX_PAYMENT, "Payment {$payment->id} to user {$payeeId}", $meta)) {
-                        throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
+                    if (!$wallets[$payerId]->debit($definition['amount'], CodeMartV1Constants::WALLET_TX_PAYMENT, CodeMartV1Constants::LEDGER_PAYMENT_SENT, ['payment_id' => $payment->id, 'user_id' => $payeeId], $meta)) {
+                        throw new CodeMartV1FinanceException('insufficient_balance', __('codemart.errors.insufficient_balance'), 422);
                     }
-                    $wallets[$payeeId]->credit($definition['amount'], CodeMartV1Constants::WALLET_TX_EARNING, "Payment {$payment->id} from user {$payerId}", $meta);
+                    $wallets[$payeeId]->credit($definition['amount'], CodeMartV1Constants::WALLET_TX_EARNING, CodeMartV1Constants::LEDGER_PAYMENT_RECEIVED, ['payment_id' => $payment->id, 'user_id' => $payerId], $meta);
 
                     return [$payment, false];
                 });
             } catch (CodeMartV1FinanceException $e) {
-                $this->log("Warning: payment {$definition['key']} failed: {$e->errorCode}");
+                $this->warnStep('payment', $definition['key'], $e->errorCode);
                 continue;
             }
 
@@ -1687,11 +1693,12 @@ class CodeMartV1DemoSeeder
                         $ledger = $wallet->freeze(
                             $definition['amount'],
                             CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                            "Withdrawal {$withdrawal->id} requested",
+                            CodeMartV1Constants::LEDGER_WITHDRAWAL_REQUESTED,
+                            ['withdrawal_id' => $withdrawal->id],
                             ['withdrawal_id' => $withdrawal->id, 'phase' => 'freeze']
                         );
                         if (!$ledger) {
-                            throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
+                            throw new CodeMartV1FinanceException('insufficient_balance', __('codemart.errors.insufficient_balance'), 422);
                         }
 
                         return $withdrawal;
@@ -1712,7 +1719,7 @@ class CodeMartV1DemoSeeder
                     $this->adminFinanceService->payWithdrawal((int) $withdrawal->id, $this->adminId(), $definition['notes']);
                 }
             } catch (CodeMartV1FinanceException $e) {
-                $this->log("Warning: withdrawal {$definition['key']} failed: {$e->errorCode}");
+                $this->warnStep('withdrawal', $definition['key'], $e->errorCode);
             }
         }
     }
@@ -1746,13 +1753,13 @@ class CodeMartV1DemoSeeder
             if ($exists) {
                 continue;
             }
-            $this->warnOnFailure('testimonial submit', $testimonialService->submit($userId, [
+            $this->warnOnFailure('testimonial_submit', $testimonialService->submit($userId, [
                 'quotes' => $definition['quotes'],
                 'role_labels' => $definition['role_labels'],
                 'author_label' => $definition['author_label'],
                 'role_label' => $definition['role_label'],
                 'project_id' => $projectId,
-            ], self::DEMO_LOCALE));
+            ], self::DEMO_LOCALE), $projectId);
         }
     }
 

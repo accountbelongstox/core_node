@@ -1,0 +1,58 @@
+{
+  "task_id": "laravel-api-D7-fix",
+  "role": "pycore-laravel (implementer of app/Utils; the task was dispatched through pycore-lead)",
+  "reviewer": "pycore-lead",
+  "round": 2,
+  "verdict": "approved",
+  "base": "74e7770",
+  "head": "24674d1a6. The fix hunk landed in the user capture commit 0b6f362e3 (20:52:26; file mtime 20:43:42). git status is clean for poly_apps/laravel_main/app/Utils.",
+  "scope_reviewed": "The leader re-review requested by round 1 (reviewer service, 20:37): poly_apps/laravel_main/app/Utils/FileSystemManager.php delete() Windows branch (:610-612), deleteNative (:643-664) and removeNativeEntry (:666-676). pycore-laravel's verification is in reports/pycore-laravel.md 'laravel-api-D7-fix' (21:11).",
+  "summary": "B1 is resolved. delete() now branches to a native, junction-safe delete on Windows, exactly as specified in reports/pycore-lead.md 'laravel-api-D7-fix', including the round-1 refinement (after chmod the retry is unlink||rmdir). The POSIX sudo path is unchanged. The leader's independent in-process run passed 42 of 42 checks: file, read-only file and dir, junctions and symlinks at the top level and nested (every *_created flag true, every target intact), the internal concatenateFiles delete, a scratch terminal save, completeArchive staging and .7z.part cleanup, and pruneTerminal with back-dated scratch sessions. The 4 real sessions are byte-identical. The owner restarted the workers, and health returns 200.",
+  "findings": {
+    "laravel-api-D7-B1": {
+      "claimed": "implemented (pycore-laravel)",
+      "result": "resolved",
+      "evidence": [
+        "Diff vs 74e7770: only the header-cleaner strip (ignored), the earlier writeFileAtomic hunk (5bbb23682), and this fix: +4 lines at :610-613 (if PathMapper::isWindows() return self::deleteNative($mappedPath)) and +35 lines at :643-676. The sudo branch at :614-640 is byte-identical to the base.",
+        "deleteNative: $iterator is declared at the top. The CHILD_FIRST RecursiveDirectoryIterator walk (SKIP_DOTS) runs only when @filetype($path)==='dir', inside try/catch UnexpectedValueException that logs through SafeLogger (same namespace, English). It removes the root entry and returns !file_exists($path).",
+        "removeNativeEntry: unlink||rmdir, then chmod 0666, then unlink||rmdir again (round-1 non_blocking #2 is folded in).",
+        "Style: LF kept (0 CR at 74e7770, HEAD and working tree). No comments added, no hardcoded user text, and the AI rules header was not re-added.",
+        "Reuse: Illuminate Filesystem::deleteDirectory (vendor/laravel/framework/src/Illuminate/Filesystem/Filesystem.php:751) recurses on isDir() && !isLink(), and PHP 8.5 reports a junction as is_link=false, so reusing it would walk through junctions into their targets (proved by the leader's first prototype). No safe native helper exists in app/, so the dedicated walk does not duplicate anything.",
+        "Stated checks, in-process on CLI PHP 8.5.2 (scratchpad d7fix2/verify.php, tag d7fx26a8b6385), 42/42 PASS: fsm file, readonly_file, readonly_dir (attrib +R), top junction, top dir symlink and top file symlink (each created, removed and target intact), nested tree with a read-only dir, a nested junction, a dir symlink and a file symlink (all created, tree removed, targets intact), missing path returns true.",
+        "Internal callers: concatenateFiles with a stale '<dest>.assembling' directory. The :460 self::delete now removes it, and the concatenation succeeds ('alphabeta'). On the base code fopen would hit the directory and fail.",
+        "DataSync: a scratch terminal save removed artifacts, receipts, incoming, archives and plans for the session, plus its cancel and activity locks (7 seeded, 0 left). The compact summary was kept, and no real session was pruned (4 real + 1 scratch = retention 5).",
+        "completeArchive with a real 7z and a manifest that matches nothing: complete, files 0, skipped 2. The static.extract staging and the static.7z.part are both removed, the live static root is untouched, and forgetSession leaves nothing.",
+        "pruneTerminal: two scratch terminal sessions were written with updated_at 2026-09-20T01:00:00+00:00 and 2026-09-20T01:00:01+00:00, older than the oldest real session (2026-09-26T15:04:41+00:00) and in the same ISO '+00:00' form, so the arsort string order evicts only them. With 7 terminal sessions, both back-dated ones were pruned along with their job, summary, locks and artifact dirs. An orphan scratch lock was swept, and the newest scratch session was kept.",
+        "Real state: the SHA-256 of the 16 real entries (4 jobs + 4 summaries + 4 locks + 4 manifest-cache) is byte-identical before and after. The script aborts all DataSync steps unless jobs/ holds exactly the 4 known ids, all terminal, protocol 5 and retention 5 (guard PASS). No scratch leftovers remain.",
+        "Owner verification (reports/pycore-laravel.md:204-224): php -l clean, 28/28 scratch checks, and worker restart POST :2019/frankenphp/workers/restart returned 200 with health 200. The leader's read-only GET http://127.0.0.1:9000/api/health returned 200 at re-review time."
+      ],
+      "owner": "pycore-laravel (done)"
+    }
+  },
+  "round1_non_blocking_disposition": [
+    "Internal self::delete at :408, :460, :471, :480: covered. :460 is exercised in-process. :471 and :480 act on the same '<dest>.assembling' sibling, and :408 on the '<path>.<pid>.<rand>.tmp' staging file, so none can point outside the caller's own temporary name.",
+    "The rmdir retry after chmod is implemented (:672-675), and the read-only dir cases pass.",
+    "The reason for not reusing Illuminate is recorded above.",
+    "The prune cap deviation is recorded: back-dating replaces the item's 'retention minus 4' cap, which cannot trigger a prune. At most 3 scratch terminal sessions existed at once, and each back-dated one is strictly older than every real one.",
+    "Every *_created flag is printed, and all are true (Developer Mode symlinks and mklink /J junctions).",
+    "The ContractDocument.php and QueueCenterContract.php review is its own task (TASKS.md 'review-pending', pycore group G1 review), not this one."
+  ],
+  "issues": [],
+  "non_blocking": [
+    "FileSystemManager.php:673-675: the second 'if (@unlink($path) || @rmdir($path)) { return; }' is the last statement of a void method. '@unlink($path) || @rmdir($path);' says the same thing. Fold it into the next edit of the file.",
+    "Parity note (pre-existing, both OSes): delete() returns true early when file_exists() is false (:606-608), so a dangling junction or symlink (missing target) is reported deleted but stays. Linux rm has the same outcome through this early return. It is not a regression.",
+    "FileSystemManager::rename() (:527-600) is still sudo cp+rm with no Windows branch. It is already in the pycore-laravel backlog (reviews/laravel-api-D7.json non_blocking), and DataSync does not use it.",
+    "Informational for pycore-laravel: File::deleteDirectory callers (Providers/GlobalVar.php:165, Http/EnvironmentApiInfo/ClipboardController.php:104, :109) share the Windows junction walk-through hazard of Illuminate's isDir()&&!isLink() guard.",
+    "The leader's run left the empty app-owned parent directories D:/www/backup/data-sync/archives and plans (created by PathMapper::getBackupDir at 21:09:41; each holds 0 entries). The permission classifier denied the rmdir. The application creates both on its first real session, so they are harmless, and the user may remove them."
+  ],
+  "checks": [
+    "git log/diff/status (read-only): HEAD 24674d1a6. The FileSystemManager.php fix is in 0b6f362e3, and the working tree is clean for app/Utils and the DataSync lane.",
+    "php -l app/Utils/FileSystemManager.php (PHP 8.5.2): no syntax errors.",
+    "Free RAM was 3.78 GB (>= 3 GB), so the in-process run was allowed. Nothing was built, and no test file was created or changed. The scratch script lives in the session scratchpad (d7fix2/verify.php, output out_cli.json).",
+    "grep: 45 FileSystemManager::delete( calls in 17 files, plus the internal :408/:460/:471/:480. The user-facing StaticResourceController.php:505 is guarded by isPathSafe (:485), and the CodeBrowser backup rotation paths match Linux behavior.",
+    "D:/www/backup/data-sync after the run: jobs/ has the 4 real ids (8 files), locks/ has the 4 real locks, and artifacts/incoming/receipts/archives/plans are empty.",
+    "Not run: the FrankenPHP php-cli variant (the permission classifier denied access to D:/www/frankenphp in this session). The round-1 reviewer's read-only probe already showed identical link semantics on FrankenPHP php-cli 8.5.11, and the owner's restart puts the code on the live workers.",
+    "No git writes. The leader did not restart the workers, because the owner had already done so after the change."
+  ],
+  "checked_at": "2026-09-27T21:15:00+10:00"
+}

@@ -6,6 +6,7 @@ import { cmApi } from '../../api/CmApi';
 import type { CmProjectDetail, CmWallet } from '../../api/CmApiTypes';
 import { cmErrorCode, cmErrorMessage } from '../../api/cmErrors';
 import { useCmIdempotencyKey } from '../../api/useCmIdempotencyKey';
+import { CM_PROTECTED_ROUTE } from '../public-home/cmPublicRoutes';
 import { CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { useCmFormat } from './cmWorkspaceFormat';
 
@@ -94,7 +95,7 @@ export const CmProjectFundPanel: React.FC<CmProjectFundPanelProps> = ({ project,
                 <button type="button" className="cm-workspace-button" disabled={busy} onClick={() => setConfirming(false)}>{t('common.cancel')}</button>
               </>
             )}
-            <Link to="/codemart/wallet" className="cm-workspace-button">
+            <Link to={CM_PROTECTED_ROUTE.wallet} className="cm-workspace-button">
               <WalletCards aria-hidden="true" /> {t('funding.openWallet')}
             </Link>
           </div>

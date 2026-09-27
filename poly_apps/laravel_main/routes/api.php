@@ -30,7 +30,7 @@ Route::withoutMiddleware([
 
     return $response
         ->header('Cache-Control', 'no-store, max-age=0')
-        ->header(ServerIdentityHeader::HEADER, LaravelServerIdentity::id())
+        ->header(ServerIdentityHeader::header(), LaravelServerIdentity::id())
         ->header('X-Go-Version', 'go1.21')
         ->header('X-Framework', 'Gin')
         ->header('X-Response-Time', number_format($responseTime, 10) . 'ms')

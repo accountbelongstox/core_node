@@ -607,6 +607,10 @@ class FileSystemManager
             return true;
         }
 
+        if (\App\Providers\PathMapper::isWindows()) {
+            return self::deleteNative($mappedPath);
+        }
+
         $userInfo = self::$cachedUserInfo;
         if ($userInfo === null) {
             $userInfo = SystemUserDetector::getActualUser();
@@ -634,6 +638,41 @@ class FileSystemManager
         }
 
         return !file_exists($mappedPath);
+    }
+
+    private static function deleteNative(string $path): bool
+    {
+        $iterator = null;
+
+        if (@filetype($path) === 'dir') {
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::CHILD_FIRST
+                );
+                foreach ($iterator as $entry) {
+                    self::removeNativeEntry($entry->getPathname());
+                }
+            } catch (\UnexpectedValueException $e) {
+                SafeLogger::error('[FileSystemManager] Native walk failed for: ' . $path . ' - ' . $e->getMessage());
+            }
+        }
+
+        self::removeNativeEntry($path);
+
+        return !file_exists($path);
+    }
+
+    private static function removeNativeEntry(string $path): void
+    {
+        if (@unlink($path) || @rmdir($path)) {
+            return;
+        }
+
+        @chmod($path, 0666);
+        if (@unlink($path) || @rmdir($path)) {
+            return;
+        }
     }
 
     public static function exists(string $path): bool

@@ -132,15 +132,61 @@
         "home_data_dir_fallback": "~/core_node",
         "ntfs_fs_types": ["ntfs", "ntfs3", "fuseblk", "ntfs-3g"],
         "linux_www_ntfs_root_rule": "linux_ntfs_nested_www_root is a directory and the linux_www_root mount has an FSTYPE in ntfs_fs_types and a SOURCE different from the / mount SOURCE",
-        "linux_data_dir_candidates": [
-            {"path": "linux_ntfs_nested_www_root", "join": "core_node_data_dir_name", "when": "linux_www_ntfs_root_rule"},
-            {"path": "linux_www_root", "join": "core_node_data_dir_name", "when": "not linux_www_ntfs_root_rule"},
-            {"path": "legacy_linux_data_dir"},
-            {"path": "home_data_dir_fallback"}
-        ],
+        "linux_ntfs_policy": "code_and_shared_data: on Linux an NTFS mount (FSTYPE in ntfs_fs_types) holds source code and the data both OSes share (the shared data dir linux_ntfs_nested_www_root/core_node_data_dir_name = D:/www/core_node, and shared files both OSes read; user D26). Never on NTFS: install paths, package caches/stores, build output, compile bases, temp dirs, node_modules/vendor/.venv, Linux-only service state (e.g. database clusters), and no recycle bin (user D25): nothing is sent to a trash on an NTFS mount and per-volume .Trash-<uid> creation is blocked idempotently (development-guides/LINUX_SHELL_RULES.md).",
+        "linux_data_dir_candidates": [{"path": "linux_ntfs_nested_www_root", "join": "core_node_data_dir_name", "when": "linux_www_ntfs_root_rule"}, {"path": "linux_www_root", "join": "core_node_data_dir_name", "when": "not linux_www_ntfs_root_rule"}, {"path": "legacy_linux_data_dir"}, {"path": "home_data_dir_fallback"}],
         "linux_data_dir_selection": "an exported CORE_NODE_DATA_DIR wins; otherwise the first applicable candidate that exists or can be created and is writable; path and join name sibling paths keys; home_data_dir_fallback is used without a writability test",
         "frankenphp_root_posix": "/www/programing/frankenphp",
-        "frankenphp_root_windows_subpath": "frankenphp"
+        "frankenphp_root_windows_subpath": "frankenphp",
+        "drive_layout": {
+            "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 3.3): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27, D28 and D30 (one namespace directory per drive/filesystem: development-guides/DIRECTORY_NAMESPACE_RULES.md).",
+            "namespaces": {
+                "windows_program_drive": "core_node_compiler",
+                "windows_data_drive": "www",
+                "linux_ext4": "/opt/core_node",
+                "linux_ntfs_shared_data": "/www/www",
+                "linux_ntfs_trees_mount_parent": "/www/core_node_compiler",
+                "rule": "every directory the project creates lives under one namespace per drive/filesystem; no other new top-level dirs; legacy top-level dirs stay until a user-approved migration"
+            },
+            "program_drive_primary": "E:",
+            "program_drive_fallback": "D:",
+            "program_partuuid": null,
+            "program_partuuid_source": "detected per machine (the E: NTFS volume PARTUUID), stored in global vars, never committed",
+            "linux_mounts_program_drive": false,
+            "tool_root": {
+                "windows": "<program_drive>\\core_node_compiler\\.dev_<sys>",
+                "windows_d_fallback": "D:\\www\\.dev_<sys>",
+                "linux": "/opt/core_node/_<os>_<ver>"
+            },
+            "cache_root": {
+                "windows": "<program_drive>\\core_node_compiler\\cache",
+                "windows_d_fallback": "D:\\www\\cache",
+                "linux": "/opt/core_node/cache"
+            },
+            "cache_subdirs": [
+                "pnpm-store",
+                "bun",
+                "npm",
+                "composer",
+                "uv",
+                "corepack"
+            ],
+            "trees_root": {
+                "windows": "<program_drive>\\core_node_compiler\\trees",
+                "linux": "/opt/core_node/trees"
+            },
+            "trees_mount_linux": "/www/core_node_compiler/trees",
+            "trees_rule": "Windows (D28): when the E: program drive qualifies, node_modules/vendor/.venv of each project are junctions from the repo to <trees_root.windows>/<ns>/<dir>; never created on the D: fallback: while E: is absent the code warns and keeps the normal in-repo directories. Linux: ext4 <trees_root.linux> is bind-mounted once onto the single EMPTY mount point trees_mount_linux (under the namespace /www/core_node_compiler) on the NTFS share (mountpoint -q before any write; unmounted it stays empty) so translated junctions resolve to ext4; for a project whose entry is a plain directory (Windows without E:), a per-project runtime bind from <trees_root.linux>/<ns>/<dir> over the in-repo directory is used. Linux makes zero writes and no reparse points on NTFS. The junction translation must be proven on the real dual-boot Linux (ntfs3/ntfs-3g) before it is relied on.",
+            "link_dirs": [
+                "node_modules",
+                "vendor",
+                ".venv"
+            ],
+            "tree_namespace_rule": "repo-relative path, '/' -> '__', lowercase",
+            "toolchain_env_file": {
+                "windows": "<tool_root>\\bin\\toolchain.env",
+                "linux": "/opt/core_node/toolchain.env"
+            }
+        }
     },
     "files": {
         "web_access_config": "web_access_config.json"

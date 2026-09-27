@@ -68,7 +68,7 @@ class CodeMartV1TaskCtl extends Controller
     {
         return $this->codedError(
             (string) $result['error_code'],
-            (string) ($result['message'] ?? 'Request failed'),
+            (string) ($result['message'] ?? __('codemart.errors.request_failed')),
             $result['details'] ?? null,
             (int) ($result['http_status'] ?? 400)
         );
@@ -174,7 +174,7 @@ class CodeMartV1TaskCtl extends Controller
             'milestone_id' => 'required|integer',
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'priority' => 'required|in:low,medium,high,urgent',
+            'priority' => 'required|in:' . implode(',', CodeMartV1Constants::TASK_PRIORITIES),
             'due_date' => 'nullable|date|after:today',
             'deliverables' => 'nullable|array',
             'budget_allocation' => 'nullable|numeric|min:0',
@@ -303,7 +303,7 @@ class CodeMartV1TaskCtl extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
-            'priority' => 'sometimes|in:low,medium,high,urgent',
+            'priority' => 'sometimes|in:' . implode(',', CodeMartV1Constants::TASK_PRIORITIES),
             'due_date' => 'sometimes|nullable|date',
             'deliverables' => 'sometimes|nullable|array',
             'budget_allocation' => 'sometimes|nullable|numeric|min:0',
@@ -682,7 +682,7 @@ class CodeMartV1TaskCtl extends Controller
                     'ok' => false,
                     'error_code' => CodeMartV1Constants::ERROR_SUBMISSION_INVALID_STATE,
                     'http_status' => 409,
-                    'message' => 'The submission is not awaiting review',
+                    'message' => __('codemart.messages.the_submission_is_not_awaiting_review'),
                     'details' => ['status' => $locked?->status],
                 ];
             }
@@ -691,7 +691,7 @@ class CodeMartV1TaskCtl extends Controller
                     'ok' => false,
                     'error_code' => CodeMartV1Constants::ERROR_TASK_INVALID_STATE,
                     'http_status' => 409,
-                    'message' => 'The task is not under review',
+                    'message' => __('codemart.errors.task_not_under_review'),
                     'details' => ['status' => $task->status],
                 ];
             }

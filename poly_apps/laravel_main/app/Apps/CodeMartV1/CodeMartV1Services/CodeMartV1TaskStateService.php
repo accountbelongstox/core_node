@@ -56,17 +56,17 @@ class CodeMartV1TaskStateService
         $fromStatus = (string) $task->status;
 
         if ($roles === []) {
-            return self::failure(CodeMartV1Constants::ERROR_ACCESS_DENIED, 403, 'You are not a party of this task');
+            return self::failure(CodeMartV1Constants::ERROR_ACCESS_DENIED, 403, __('codemart.errors.task_party_only'));
         }
         if (array_intersect($roles, CodeMartV1Constants::taskTransitionActors($fromStatus, $toStatus)) === []) {
-            return self::failure(CodeMartV1Constants::ERROR_INVALID_TASK_TRANSITION, 409, 'Task status transition is not allowed', [
+            return self::failure(CodeMartV1Constants::ERROR_INVALID_TASK_TRANSITION, 409, __('codemart.errors.task_transition_not_allowed'), [
                 'from' => $fromStatus,
                 'to' => $toStatus,
                 'allowed' => self::allowedTargets($fromStatus, $roles),
             ]);
         }
         if ($toStatus === CodeMartV1Constants::TASK_STATUS_IN_PROGRESS && (!$project || !$project->acceptsWork())) {
-            return self::failure(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, 409, 'The project does not accept work in its current status', [
+            return self::failure(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, 409, __('codemart.errors.project_not_accepting_work'), [
                 'project_status' => $project?->status,
             ]);
         }
@@ -96,7 +96,7 @@ class CodeMartV1TaskStateService
         $fromStatus = (string) $task->status;
 
         if (!in_array(CodeMartV1Constants::TRANSITION_ACTOR_SYSTEM, CodeMartV1Constants::taskTransitionActors($fromStatus, $toStatus), true)) {
-            return self::failure(CodeMartV1Constants::ERROR_INVALID_TASK_TRANSITION, 409, 'Task status transition is not allowed', [
+            return self::failure(CodeMartV1Constants::ERROR_INVALID_TASK_TRANSITION, 409, __('codemart.errors.task_transition_not_allowed'), [
                 'from' => $fromStatus,
                 'to' => $toStatus,
             ]);
@@ -119,7 +119,7 @@ class CodeMartV1TaskStateService
         $previousAssignee = $task->assigned_to !== null ? (int) $task->assigned_to : 0;
 
         if (!CodeMartV1TaskModel::compareAndSetStatus((int) $task->id, $fromStatus, $toStatus, $extra)) {
-            return self::failure(CodeMartV1Constants::ERROR_STATE_CONFLICT, 409, 'The task changed state concurrently', [
+            return self::failure(CodeMartV1Constants::ERROR_STATE_CONFLICT, 409, __('codemart.errors.task_state_conflict'), [
                 'expected' => $fromStatus,
             ]);
         }

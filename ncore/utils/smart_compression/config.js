@@ -1,4 +1,5 @@
 const os = require('os');
+const logger = require('#@logger');
 
 class SmartCompressionConfig {
     constructor() {
@@ -223,14 +224,16 @@ class SmartCompressionConfig {
 
     importConfiguration(configData) {
         if (!configData || !configData.configuration) {
-            throw new Error('Invalid configuration data');
+            logger.error('Invalid configuration data');
+            return false;
         }
-        
+
         const validation = this.validateConfiguration();
         if (!validation.isValid) {
-            throw new Error(`Configuration validation failed: ${validation.errors.join(', ')}`);
+            logger.error(`Configuration validation failed: ${validation.errors.join(', ')}`);
+            return false;
         }
-        
+
         this.update(configData.configuration);
         return true;
     }

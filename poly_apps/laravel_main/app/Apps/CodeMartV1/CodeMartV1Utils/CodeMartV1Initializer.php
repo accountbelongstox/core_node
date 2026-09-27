@@ -22,11 +22,14 @@ class CodeMartV1Initializer implements AppInitializerInterface
 {
     private ?string $statusFile = null;
 
+    private const LANG_PREFIX = 'codemart.cli.init.';
+
+    // Step descriptions resolve through codemart.cli.init.steps.<step>.
     private const INITIALIZATION_STEPS = [
-        'align_contract_tables' => 'Align additive contract tables and columns',
-        'align_status_constraints' => 'Align check constraints with the contract status sets',
-        'verify_tables' => 'Verify all CodeMart tables exist',
-        'seed_demo_data' => 'Seed CodeMart demo dataset',
+        'align_contract_tables',
+        'align_status_constraints',
+        'verify_tables',
+        'seed_demo_data',
     ];
 
     private const REQUIRED_TABLES = [
@@ -87,9 +90,11 @@ class CodeMartV1Initializer implements AppInitializerInterface
     {
         $results = [];
         $allSuccess = true;
+        $description = '';
 
-        foreach (self::INITIALIZATION_STEPS as $step => $description) {
-            Log::info("[CodeMartV1Init] Running step: {$step} - {$description}");
+        foreach (self::INITIALIZATION_STEPS as $step) {
+            $description = __(self::LANG_PREFIX . 'steps.' . $step);
+            Log::info("[CodeMartV1Init] Running step: {$step}");
 
             try {
                 $result = $this->executeStep($step);
@@ -135,7 +140,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
             'align_status_constraints' => $this->alignStatusConstraints(),
             'verify_tables' => $this->verifyTables(),
             'seed_demo_data' => $this->seedDemoData(),
-            default => ['status' => 'error', 'message' => "Unknown step: {$step}"],
+            default => ['status' => 'error', 'message' => __(self::LANG_PREFIX . 'unknown_step', ['step' => $step])],
         };
     }
 
@@ -174,7 +179,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
 
         return [
             'status' => 'success',
-            'message' => 'Aligned ' . count($aligned) . ' contract tables/columns',
+            'message' => __(self::LANG_PREFIX . 'contract_tables_aligned', ['count' => count($aligned)]),
             'tables' => $aligned,
         ];
     }
@@ -198,22 +203,8 @@ class CodeMartV1Initializer implements AppInitializerInterface
             ['table' => $projectsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllProjectStatuses()],
             ['table' => $depositsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllDepositStatuses()],
             ['table' => $tasksTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllTaskStatuses()],
-            ['table' => $submissionsTable, 'column' => 'status', 'values' => [
-                CodeMartV1Constants::SUBMISSION_STATUS_PENDING,
-                CodeMartV1Constants::SUBMISSION_STATUS_PENDING_REVIEW,
-                CodeMartV1Constants::SUBMISSION_STATUS_APPROVED,
-                CodeMartV1Constants::SUBMISSION_STATUS_NEEDS_REVISION,
-                CodeMartV1Constants::SUBMISSION_STATUS_REJECTED,
-            ]],
-            ['table' => $paymentsTable, 'column' => 'status', 'values' => [
-                CodeMartV1Constants::PAYMENT_STATUS_PENDING,
-                CodeMartV1Constants::PAYMENT_STATUS_PROCESSING,
-                CodeMartV1Constants::PAYMENT_STATUS_COMPLETED,
-                CodeMartV1Constants::PAYMENT_STATUS_FAILED,
-                CodeMartV1Constants::PAYMENT_STATUS_CANCELLED,
-                CodeMartV1Constants::PAYMENT_STATUS_DISPUTED,
-                CodeMartV1Constants::PAYMENT_STATUS_REFUNDED,
-            ]],
+            ['table' => $submissionsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllSubmissionStatuses()],
+            ['table' => $paymentsTable, 'column' => 'status', 'values' => CodeMartV1Constants::getAllPaymentStatuses()],
         ];
 
         $aligned = [];
@@ -234,7 +225,7 @@ class CodeMartV1Initializer implements AppInitializerInterface
 
         return [
             'status' => 'success',
-            'message' => 'Aligned ' . count($aligned) . ' check constraints',
+            'message' => __(self::LANG_PREFIX . 'constraints_aligned', ['count' => count($aligned)]),
             'constraints' => $aligned,
         ];
     }
@@ -411,10 +402,17 @@ class CodeMartV1Initializer implements AppInitializerInterface
                     'global_task_id' => ['type' => 'bigInteger', 'nullable' => true],
                     'revision' => ['type' => 'integer', 'nullable' => false, 'default' => 1],
                     'idempotency_key' => ['type' => 'string', 'nullable' => true],
+                    'accept_idempotency_key' => ['type' => 'string', 'nullable' => true],
                 ],
                 'indexes' => [
                     ['columns' => ['idempotency_key']],
                     ['columns' => ['global_task_id']],
+                ],
+            ],
+            'codemart_v1_wallet_transactions' => [
+                'columns' => [
+                    'description_code' => ['type' => 'string', 'nullable' => true],
+                    'description_params' => ['type' => 'json', 'nullable' => true],
                 ],
             ],
             'codemart_v1_payments' => [
@@ -522,14 +520,14 @@ class CodeMartV1Initializer implements AppInitializerInterface
         if ($missing !== []) {
             return [
                 'status' => 'error',
-                'message' => 'Missing tables: ' . implode(', ', $missing),
+                'message' => __(self::LANG_PREFIX . 'tables_missing', ['tables' => implode(', ', $missing)]),
                 'missing_tables' => $missing,
             ];
         }
 
         return [
             'status' => 'success',
-            'message' => 'All ' . count(self::REQUIRED_TABLES) . ' tables verified',
+            'message' => __(self::LANG_PREFIX . 'tables_verified', ['count' => count(self::REQUIRED_TABLES)]),
         ];
     }
 
@@ -537,8 +535,9 @@ class CodeMartV1Initializer implements AppInitializerInterface
      * Idempotent demo dataset (upserts only), re-applied on every sys:init.
      * On by default; the config file switch services.codemart_seed_demo
      * (LaravelConfig, never .env) set to false turns it off. Account passwords
-     * come from the codemart_admin_password secret file, which is created and
-     * printed here only when missing; codemart:admin-password rotates them.
+     * come from the codemart_admin_password secret file, which is created,
+     * applied and printed here only when missing (never logged);
+     * codemart:admin-password rotates them.
      */
     private function seedDemoData(): array
     {
@@ -589,13 +588,13 @@ class CodeMartV1Initializer implements AppInitializerInterface
 
             return [
                 'success' => true,
-                'message' => 'Initialization status reset successfully',
+                'message' => __(self::LANG_PREFIX . 'status_reset'),
                 'app' => $this->getAppName(),
             ];
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'error' => 'Failed to reset status: ' . $e->getMessage(),
+                'error' => __(self::LANG_PREFIX . 'status_reset_failed', ['error' => $e->getMessage()]),
             ];
         }
     }

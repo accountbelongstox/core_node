@@ -23,5 +23,20 @@
     "AGENTS.md: the change is in English, adds no user-facing text, puts the import at the top of the file, adds no duplicate constant (it reuses the central ids) and adds no tests."
   ],
   "notes": "PRAO-07 approved. prompt_derive.py:129 and :143 now default to the central ai_sources ids. The remaining literal grep hits at :31 and :45 are the config-key constants, which stay. The derive id is not in OPENROUTER_ATTEMPT_SOURCES, which is a panel decision outside this scope (pycore-assist).",
-  "checked_at": "2026-09-27"
+  "checked_at": "2026-09-27",
+  "lead_confirmation": {
+    "by": "pycore-lead",
+    "at": "2026-09-27",
+    "scope": "Confirm only (done_before_outage_unreviewed); no re-review.",
+    "result": "approved stands",
+    "checks": [
+      "prompt_derive.py mtime 17:09 precedes the 17:30 verdict; git diff 74e7770 --numstat equals --ignore-space-at-eol (3 2); i/lf w/lf, 0 CR bytes.",
+      "The change is now in HEAD 5bbb23682 (user commit 'win0.0.1', 17:33); working tree equals HEAD for the file.",
+      "python -B -m py_compile pycore/pyctl/ai/prompt_derive.py: rc=0.",
+      "inspect.signature defaults: agent_history_prompt_derive == AI_SOURCE_PROMPT_DERIVE, agent_history_prompt_rewrite == AI_SOURCE_PROMPT_REWRITE.",
+      "Literal grep hits only :31 CONFIG_KEY_PROMPT_DERIVE_EN and :45 CONFIG_KEY_PROMPT_REWRITE_EN (config keys, not source ids).",
+      "merge_meta changed files: prompt_derive.py (pycore-ai scope) and reports/pycore-ai.md; no out-of-scope writes."
+    ],
+    "deferred_to_orchestrator": "AI_SOURCE_PROMPT_DERIVE missing from OPENROUTER_ATTEMPT_SOURCES (ai_sources.py:15-19); owner of pyctl/agent_history decides."
+  }
 }

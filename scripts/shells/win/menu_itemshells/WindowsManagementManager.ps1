@@ -20,6 +20,8 @@ $script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager
 $script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
 $script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
+$script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
+$script:TAILSCALE_ACTIONS = @{ "status" = "Status"; "devices" = "Devices"; "restart" = "Restart"; "panel" = "Panel" }
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -226,6 +228,23 @@ function Show-WindowsManagementSubMenu {
                 Write-ColorMessage -Message "Desktop icon organizer: $desktopIconAction" -Type "Info"
                 Write-Host ""
                 & powershell -NoProfile -ExecutionPolicy Bypass -File $script:DESKTOP_ICON_MANAGER_SCRIPT -DesktopIconAction $desktopIconAction
+            }
+        },
+        @{
+            Text = "Tailscale (mesh VPN status / devices / restart / panel)";
+            Values = @("status", "devices", "restart", "panel");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $tailscaleMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
+                $tailscaleAction = $script:TAILSCALE_ACTIONS[$tailscaleMode]
+                if (-not (Test-Path -LiteralPath $script:TAILSCALE_COMMON_SCRIPT)) {
+                    Write-ColorMessage -Message "TailscaleCommon.ps1 not found: $script:TAILSCALE_COMMON_SCRIPT" -Type "Error"
+                } else {
+                    Write-ColorMessage -Message "Tailscale: $tailscaleAction" -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:TAILSCALE_COMMON_SCRIPT -Action $tailscaleAction
+                }
             }
         },
         @{

@@ -11,7 +11,9 @@ Earlier records marked several of these functions as done; this audit
 supersedes those statuses.
 
 Status legend: `open` not started, `wip` in progress, `done` implemented,
-`verified` tested live on the local installation.
+`verified` tested live on the local installation, `missing` not in the
+code yet (owner task named), `superseded` replaced by a later ruling.
+Section 8 reconciles every open row with the code (D9, 2026-09-27).
 
 Work packages: S1 server money and trust, S2 server delivery flow,
 S3 server administration and public, U1 user workspace interface,
@@ -38,7 +40,7 @@ U2 administration interface, U3 public interface, D1 data seeding.
 | G07 | Wallet-to-wallet payment holds funds and then withdraws again (fails or double-deducts, frozen funds stuck) | S1 | verified |
 | G08 | Task creation, update, submission, and submission review never check the caller's relation to the project/task | S2 | verified |
 | G09 | Deliverable files are stored from the wrong request source | S2 | done |
-| G10 | Identity (KYC) documents are stored on public storage | S3 | done |
+| G10 | Identity (KYC) documents are stored on public storage | S3 | done for new uploads; legacy rows missing (CMDES-08, see 8.1) |
 | G11 | Public estimate and registration have no rate limiting | S3 | done |
 | G12 | A wrong administrator super code is silently ignored at registration | S3 | verified |
 
@@ -51,7 +53,7 @@ U2 administration interface, U3 public interface, D1 data seeding.
 | U03 | Proposal review state set when analysis completes; accept only from proposal review | n/a | missing | S2 | done |
 | U04 | Latest AI analysis per project retrievable from the server (no local-only tracking) | partial | missing | S2+U1 | done |
 | U05 | Client reviews submissions per task (approve / needs revision / reject) with notes | missing | exists | U1 | verified |
-| U06 | Reviewer decision drives the submission and task state | n/a | broken | S2 | verified |
+| U06 | Reviewer review is advisory: scores and a recommendation shown to the client, who decides the submission and task state | n/a | broken | S2 | verified (advisory, see 8.1) |
 | U07 | Task transitions: start work, block, unblock, cancel (state-checked) | missing | missing | S2+U1 | verified |
 | U08 | Task panel shows comment thread and last review notes for resubmission | missing | exists | U1 | verified |
 | U09 | Project transitions: pause, resume, cancel, complete, archive (state-checked) | missing | missing | S2+U1 | verified |
@@ -73,10 +75,10 @@ U2 administration interface, U3 public interface, D1 data seeding.
 | U25 | Architect eligibility shows client satisfaction; assignments link to project detail | broken | exists | U1 | done |
 | U26 | Reviewer / architect application entry visible to eligible developers | missing | exists | U1 | done |
 | U27 | Role request for existing accounts (become developer / client) | missing | missing | S3+U1 | done |
-| U28 | Email verification resend and registration status on the verification page | missing | exists | U1 | done (verify with token and status; the server has no resend endpoint) |
+| U28 | Email verification resend and registration status on the verification page | missing | exists | U1 | done for verify and status; resend missing (cmgap-R1, see 8.1) |
 | U29 | Profile edits send only the blocks of held roles; client company fields | partial | exists | U1 | done |
-| U30 | Idempotency key honored for deposits, payments, funding, analysis accept, refunds | missing | missing | S1+U1 | verified |
-| U31 | Translated wallet transaction types, milestone states, server error codes | partial | n/a | U1 | done |
+| U30 | Idempotency key honored for deposits, payments, funding, analysis accept, refunds | missing | missing | S1+U1 | verified except analysis accept, which is missing (cmgap-U30, see 8.1) |
+| U31 | Translated wallet transaction types, milestone states, server error codes | partial | n/a | U1 | done; ledger description codes are open in the UI (CKA-28-ui, see 8.1) |
 | U32 | Milestone deliverables stored as structured data | n/a | bug | S2 | done |
 
 ## 3. Administration console
@@ -121,7 +123,7 @@ U2 administration interface, U3 public interface, D1 data seeding.
 
 | ID | Function | Pkg | Status |
 | --- | --- | --- | --- |
-| D01 | System initialization seeds the CodeMart dataset idempotently (accounts, roles, wallets, deposits, projects in every state, milestones, tasks, submissions, reviews, escrows, payments, refunds, withdrawals, notifications, testimonials in both languages, reviewer application) | D1 | verified |
+| D01 | System initialization seeds the CodeMart dataset idempotently (accounts, roles, wallets, deposits, projects in every state, milestones, tasks, submissions, reviews, escrows, payments, refunds, withdrawals, notifications, testimonials in both languages, reviewer application) | D1 | superseded by D17 for the password and the switch (see 8.1); the dataset itself stays verified |
 | D02 | Seeded data exercises every new function above | D1 | verified |
 
 ## 6. Verification log
@@ -141,9 +143,10 @@ Entries are appended as functions are verified live.
   on `http://127.0.0.1:13054/codemart` calls `http://127.0.0.1:9000`.
 - 2026-09-27: data seeding moved into the CodeMart system initialization
   step (runs on every system initialization, idempotent) in every
-  environment, production included; only `CODEMART_SEED_DEMO=false` turns
-  it off. The deployment-script prompt remains as a forced seed.
-  Seven demo accounts (password `Codemart#2026`): client, developer,
+  environment, production included. The switch and the password in this
+  entry are superseded by D17 (see 8.1): the switch is the config file
+  value `services.codemart_seed_demo`, and the password is generated.
+  Seven demo accounts: client, developer,
   architect, reviewer, admin, newdev (pending role/deposit/KYC), client2
   (completed project, pending testimonial). Ten projects cover every project
   state; escrows, payments, refunds, invoices, withdrawals, notifications,
@@ -187,7 +190,73 @@ Entries are appended as functions are verified live.
 ## 7. Remaining items
 
 - Email verification resend needs a server endpoint (currently verify with
-  token and registration status only).
+  token and registration status only). Status: missing, in progress as
+  cmgap-R1 (codemart-laravel) and cmgap-R1-ui (codemart-ui).
 - The return path after the shared sign-in is kept in memory only.
+  Status: done (PAGE_POLISH K1: query parameter plus tab session storage,
+  `auth/cmAuthSession.ts:26-38`, read back in `pages/CmLoginPage.tsx:52`).
 - Deposit and refund rows in the administration console show user ids,
-  not usernames.
+  not usernames. Status: done (PAGE_POLISH K4: `userSummaries`,
+  `CodeMartV1AdminService.php:103`, used by `refundsPage` :625-642 and
+  `depositsPage` :661-678).
+
+## 8. D9 reconciliation (2026-09-27, codemart-lead G1)
+
+Every open row, remaining item and `superseded (ID)` reference in
+`docs_fix/codemart_docs/` is matched to the code below. Line numbers are
+from this check; codemart-laravel and codemart-ui edit the same files in
+G1, so they drift.
+
+### 8.1 Rows
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| 7 resend (U28) | missing | `routes/CodeMartV1Router/api.php:49` has only the phone verification request; tasks cmgap-R1 and cmgap-R1-ui (G1) |
+| 7 return path | done | `apps/codemart/auth/cmAuthSession.ts:26-38`, `pages/CmLoginPage.tsx:52` |
+| 7 deposit and refund usernames | done | `CodeMartV1AdminService.php:103`, :625-642, :661-678 |
+| U06 reviewer review | done, advisory | `CodeMartV1ReviewerCtl.php:153-156`: scores plus an optional recommendation shown to the client; the review never changes the submission or task state and never releases money; the client decides |
+| U05 client review of submissions | verified | `CodeMartV1TaskCtl.php:615` (`reviewSubmission`): the client decision drives the submission and task state |
+| U30 analysis accept idempotency | missing | `CodeMartV1AIAnalysisCtl.php:210` (`acceptProposal`) reads no Idempotency-Key; the column exists (`CodeMartV1Initializer.php:408`, `accept_idempotency_key`); tasks cmgap-U30 (codemart-laravel) and cmgap-U30-ui (UI side approved in ui-codemart-D7) |
+| U30 other mutations | done | deposits `CodeMartV1DepositCtl.php:136`, payments `CodeMartV1PaymentCtl.php:111`, refunds :310, withdrawals :429, funding `CodeMartV1EscrowService.php:45-50` |
+| Bootstrap vocabulary as the only copy (INTEGRATION "no local copy") | server done, UI missing | the bootstrap carries `terminal_states`, `capability_roles` and `policy.withdrawal_methods` (`CodeMartV1Constants.php:799,812,842`); the UI still keeps local lists (`admin/CmAdminTypes.ts:3-21`, `pages/CmWalletPage.tsx:30`, `pages/CmDashboardPage.tsx:30-31`); task cmdesign-03 (codemart-ui) |
+| U31 ledger text | server done, UI open | ledger message codes confirmed in review laravel-codemart-D7 (CKA-28; that verdict is changes_requested for other items); CKA-28-ui renders them through cm-locales |
+| G10 KYC documents | done for new uploads, legacy missing | `CodeMartV1Constants.php:297` private disk; `CodeMartV1FileUploadService.php:50` still reads the legacy public disk; the migration is CMDES-08 (codemart-laravel) |
+| G04-G07, U01, U02, U19 money rows | done or verified | section 1 and 2 rows; funding and escrow release take row locks (8.2) |
+| U22 notifications | verified | section 2 row U22 |
+| A01 refunds | verified | section 3 row A01 |
+| P01, P02 registration and reset | verified, done | section 4 rows P01, P02 |
+| D01 password and switch | superseded (D17) | the password is generated per the contract `config/service_contract.json#codemart_admin_password` and applied by `codemart:admin-password` (`CodeMartV1AdminPasswordCommand.php:20`, `CodeMartV1AdminPassword.php:23`); no password is written in any document. The seeding switch is `services.codemart_seed_demo` (`config/services.php:27`, `LaravelConfig.php:58`, read at `CodeMartV1Initializer.php:547`), never `.env`. The seeder applies a newly generated password to the existing seeded accounts at once (review laravel-codemart-D7-fix, approved) |
+| 0919 demo data text ("175 asks, default no") | superseded (D17) | seeding runs in the CodeMart system initialization step by default (D01 row) |
+
+### 8.2 Backend Redis (D9 item 5)
+
+Audit of `app/Apps/CodeMartV1` and `routes/CodeMartV1Router`:
+`grep -rnE "Cache::store|Redis::|RateLimiter::for|->lock\(|cache\(\)->store"` finds nothing.
+CodeMart names no cache store, driver, Redis call or cache lock:
+- `CodeMartV1PublicHomeService.php:54-62` uses `Cache::remember` and `Cache::forget` on the default store.
+- `THROTTLE_PUBLIC`, `THROTTLE_REGISTER` and `THROTTLE_CONTACT` (`CodeMartV1Constants.php:327-329`, used at `api.php:29,36,40`) use the default limiter store.
+- Money operations keep `lockForUpdate` inside transactions: wallet `CodeMartV1WalletModel.php:77`, escrow `CodeMartV1EscrowService.php:52,142,176,278`, admin finance `CodeMartV1AdminFinanceService.php:65,254`, and the deposit, payment, refund, withdrawal, submission, milestone and project row locks.
+- No queue use; the queue connection stays `sync` (D9-06).
+
+Per ruling D9-01/CKA-35 no Redis lock is added: the database row locks stay
+the correctness boundary, and phpredis is missing on the server. CodeMart
+reaches Redis only through the project default cache store, which
+pycore-laravel moves to the failover store [redis, database] (D9-01). The
+audit finds no CodeMart code change, so there is no codemart-laravel
+follow-up.
+
+Degradation check on this host (in-process, every change rolled back on the
+`main` and `codemartv1` connections):
+- Baseline before D9-01 (G1): `cache.default` = `database` (no failover store yet), `queue.default` = `sync`, `php -m` shows no redis and `extension_loaded('redis')` is false. public/home answers 200 through the HTTP kernel and is cached afterwards; a second call shows `X-RateLimit-Remaining` 119 then 118 of 120 (the `codemart_public` hit is counted); `CodeMartV1EscrowService::fundProject` on the seeded funding_pending project funds its escrow and takes the wallet row lock (`select * from "codemart_v1_wallets" where "user_id" = ? limit 1 for update`).
+- After D9-01: pending on pycore-laravel. D9-01 has not landed (`config/cache.php:18` is still `LaravelConfig::CACHE_STORE`, `database`, and there is no failover store). The same probe re-runs in G3 and must show `cache.default` as the failover store with the same three results.
+
+### 8.3 D22 choices (recorded, no questions asked)
+
+- The pre-outage D7 work is reviewed first (ui-codemart-D7 approved; laravel-codemart-D7 changes requested, then laravel-codemart-D7-fix approved), then the G1 items.
+- Icons: the single generator `generate_cm_images.py` with the Laravel gateway as its default (B9 d9-01b, no second generator); the pycore gateway stays as the second path.
+- d9-02a and cmpolreq-13 are no longer deferred, because the local Laravel is up.
+- The D17 password flow is applied locally (generated secret, `codemart:admin-password`).
+- Redis follows D9-01 (8.2).
+- CKA-28-ui renders the ledger codes through cm-locales.
+- The temporary writer of the lang files is requested from the claude lead.
+- The `docs_fix/` root copies of the CodeMart documents get their superseded marks from the orchestrator.

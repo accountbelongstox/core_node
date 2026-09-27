@@ -6,6 +6,8 @@ Main design: `DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md`
 > Revision 2026-09-27: a full audit found several functions below missing or
 > broken; statuses marked `superseded` are tracked in
 > `PROGRESS_20260927_CODEMART_GAP_COMPLETION.md`, which is authoritative.
+> D9 reconciliation 2026-09-27: every `superseded (ID)` below is matched to
+> the code in section 8.1 of that record.
 
 This record describes the functional alignment between the CodeMart
 interface and the CodeMart server. It contains no code, file, or
@@ -15,7 +17,9 @@ architecture descriptions; the implementation is the authority for those.
 
 - The interface consumes the single server bootstrap projection (account,
   roles, capabilities, state vocabulary, policy, onboarding truth) and
-  keeps no local copy of server-owned defaults. Status: aligned.
+  keeps no local copy of server-owned defaults. Status: partial: the server
+  side is done, and the interface still keeps local status lists and the
+  withdrawal methods (cmdesign-03, GAP_COMPLETION 8.1).
 - Canonical state vocabulary (roles, AI analysis, projects, tasks,
   submissions, payments) is owned by the server; legacy state values are
   mapped server-side. Status: aligned.
@@ -34,7 +38,8 @@ architecture descriptions; the implementation is the authority for those.
   interface never calculates financial truth locally. Status: aligned.
 - Repeated mutations (task acceptance, deposit confirmation, finance
   transitions) carry a stable idempotency key; the server returns the
-  prior successful result or a precise conflict. Status: superseded (U30).
+  prior successful result or a precise conflict. Status: superseded (U30:
+  done except analysis accept, which is missing, cmgap-U30).
 - The administration console uses the dedicated administration functions
   (overview, users, KYC review, deposits, refunds, projects) and is a
   separate interface from the user workspace. Status: aligned.

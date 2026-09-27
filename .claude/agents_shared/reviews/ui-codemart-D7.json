@@ -1,0 +1,59 @@
+{
+  "task_id": "ui-codemart-D7",
+  "role": "codemart-lead",
+  "member": "codemart-ui",
+  "verdict": "approved",
+  "closes": ["cmpui-07", "cmgap-A14", "cmgap-U30-ui"],
+  "still_open": ["cmdesign-03 (partial in the working tree; moves to codemart-ui-G1)"],
+  "diff_base": "74e7770; D7 part = f4f223414..5bbb23682 plus the working tree (codemart-1..7 excluded, approved earlier)",
+  "findings": {
+    "cmpui-07": {
+      "status": "done",
+      "notes": [
+        "UI/core/integrations/laravel/transport/ApiContract.ts:30-31 adds LARAVEL_API_ROUTE.auth.forgotPassword and resetPassword (B2 writer ui-codemart under D7; only these 2 lines changed).",
+        "UI/apps/codemart/auth/CmAuthApi.ts:10-18 builds CM_ACCOUNT_ROUTE from LARAVEL_API_PREFIX.common + LARAVEL_API_ROUTE.auth; :43 and :52 use it. buildURL(root) resolves '/api/login' to the same <base>/api/login as the old 'api/login'.",
+        "UI/apps/codemart/api/CmPublicApi.ts:7, :297, :301 use CM_ACCOUNT_ROUTE; the local FORGOT/RESET path constants are gone. No import cycle (CmAuthApi -> cmAuthSession -> cmPublicRoutes).",
+        "Laravel routes exist: routes/api/auth.php:16-17 POST /forgot-password and /reset-password."
+      ]
+    },
+    "cmgap-A14": {
+      "status": "done",
+      "notes": [
+        "Pager: CmPager.tsx is the single pager with variants workspace/admin/public (CSS classes cm-pager/cm-admin-pager/cm-showcase-pager); CmAdminPager and CmShowcasePager deleted; admin summary moved to common.pageSummary (en, zh).",
+        "State views: CmStateViews.tsx:104-121 CmListState replaces CmAdminListState; admin overview/user detail use CmLoadingState/CmErrorState/CmEmptyState; .cm-admin-state CSS removed.",
+        "Notice: CmAdminNotice and CmAdminNoticeState deleted; CmNotice/CmNoticeState used everywhere including the admin dialog (cm-workspace.css dialog override); .cm-admin-notice CSS removed.",
+        "Status badge: CmAdminStatus deleted; CmStatusBadge takes prefix or group and falls back to cmHumanize. The only nullable status (reviewer_role_status, CmAdminTypes.ts:272) stays guarded at CmAdminModerationPages.tsx:228.",
+        "Paged list: CmAdminShared.tsx:68-77 useCmAdminList is a thin filter adapter on useCmPagedList (fetchPage memoized on the filter key, extractAdminPage stable), so a filter change restarts at page 1 and the stale-response guard is shared; useCmPagedList.ts gained total.",
+        "Page header: CmAdminPageHeader deleted; CmPageHeader.tsx has variant workspace/admin with optional eyebrow, onRefresh, aside; admin markup and classes are unchanged.",
+        "Formatting: useCmAdminFormat (CmAdminShared.tsx:51-65) delegates to cmFormatDate/cmFormatDateTime/cmFormatTime/cmFormatNumber; the reviewer score (CmAdminModerationPages.tsx:188) uses format.number(value, SCORE_FRACTION_DIGITS). cmAdminHumanize moved to cmWorkspaceFormat.cmHumanize.",
+        "Dead locale keys (admin.pager.*, admin.dismiss, admin.retry, showcase.pagination, showcase.pageOf) were removed from both en.ts and zh.ts; no remaining reference."
+      ]
+    },
+    "cmgap-U30-ui": {
+      "status": "done",
+      "notes": [
+        "UI/apps/codemart/api/CmApi.ts:230-232 acceptAnalysis(analysisId, idempotencyKey) posts through postIdempotent (CmApi.ts:68-70), which sets the BaseAPI IDEMPOTENCY_KEY_HEADER.",
+        "CmProjectAnalysisPanel.tsx:37 useCmIdempotencyKey; :91-93 resets the key when analysis_id changes; :114 sends idempotency.current(); :117 resets after success, so a retry after a failure reuses the key."
+      ]
+    },
+    "cmdesign-03 (partial, working tree, not closed here)": {
+      "status": "partial, correct so far",
+      "notes": [
+        "CmBootstrapContext.tsx:9, :28-30, :113-114 add roles and states(group) from bootstrap.vocabulary with a stable empty fallback.",
+        "CmCapabilityGate.tsx:51-54 derives the deposit action from policy.deposit_amounts[role] > 0 (DEPOSIT_ROLES removed). This now also offers the wallet deposit on architect-gated pages; that matches the server policy (architect deposit = developer + additional, CodeMartV1Constants getDepositAmount).",
+        "CmDashboardPage.tsx:150 uses the server role vocabulary (ROLE_ORDER removed). Role chips now follow getAllRoles() order (developer, client, architect, reviewer) instead of client first.",
+        "Still local: the status lists in CmAdminTypes.ts:2-21, CmDashboardPage.tsx:29-30, CmProjectAnalysisPanel.tsx:13, CmMilestoneCard, CmSubmissionsPanel, the capability-to-role map in cmPageAccess.ts, and WITHDRAWAL_METHODS in CmWalletPage.tsx:30."
+      ]
+    }
+  },
+  "blocking_issues": [],
+  "non_blocking": [
+    "useCmPagedList.ts:59-61: a failed load keeps the previous items and total, so after a filter change whose request fails, the admin CmPager (total path) still shows the previous filter's 'Page x of y, n records' under the error state. The old useCmAdminList cleared total and hid the pager. Suggested G1 fix: on failure set total to 0 (or have CmPager hide when error is set) without dropping the stale-response guard.",
+    "useCmAdminFormat (CmAdminShared.tsx:51-65) and useCmFormat (cmWorkspaceFormat.ts:151-161) are two formatter hooks over the same helpers; the admin one adds only the bootstrap default currency and the date(withTime, calendar)/time signature. Candidate for one hook with a currency default in G1.",
+    "CmShowcasePage.tsx:31-59 useShowcaseSection is a public paged-section hook that parallels useCmPagedList; it was outside the A14 pager scope and is left as is.",
+    "cmgap-U30-ui is UI-complete, but the server side (codemart-laravel cmgap-U30, CodeMartV1AIAnalysisCtl acceptProposal) does not read Idempotency-Key yet, so the end-to-end replay guarantee waits on that item.",
+    "CmStatusBadge.tsx: group and prefix are both optional; a union prop type would make a missing namespace a type error. Cosmetic."
+  ],
+  "checks": "Free RAM 6.57 GB (>= 3 GB). 'bun run lint' fails on this Windows checkout with 'bun: command not found: tsc' (known POSIX .bin shims); the same script run as 'node node_modules/typescript/bin/tsc --noEmit' in poly_apps/pycore_laravel_wordnew_ui exits 0 with 0 errors (whole UI project, current tree). grep apps/codemart: no 'api/login', 'api/logout', 'api/forgot-password' or 'api/reset-password'; no CmAdminPager, CmShowcasePager, CmAdminListState, CmAdminNotice, CmAdminStatus, CmAdminPageHeader or cmAdminHumanize; no 'new Intl.' under apps/codemart/admin; no reference to the removed locale keys or CSS classes. Static read: the accept request carries Idempotency-Key. Line endings: every changed codemart file and ApiContract.ts is CRLF at 74e7770 and all-CRLF now. No tests were added or changed.",
+  "checked_at": "2026-09-27T20:05:15+10:00"
+}

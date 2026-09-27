@@ -12,6 +12,7 @@ use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostImageModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostLikeModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ResourceIndexService;
 
 /**
  * Social Center post media uploads (Social Center expansion §POSTS images/video).
@@ -124,6 +125,7 @@ class AppQyV1PostMediaController extends Controller
                 $seq--;
                 continue;
             }
+            app(AppQyV1ResourceIndexService::class)->recordStaticPath($fullPath);
 
             $relativeUrl = self::POST_IMAGES_URL_PREFIX . '/' . $id . '/' . $seq . '.jpg';
             $imageRows[] = [
@@ -201,6 +203,7 @@ class AppQyV1PostMediaController extends Controller
                 return $this->error(__('app_qy_v1.messages.failed_to_store_uploaded_video'), 500);
             }
         }
+        app(AppQyV1ResourceIndexService::class)->recordStaticPath($fullPath);
 
         $relativeUrl = self::POST_VIDEOS_URL_PREFIX . '/' . $myId . '/' . $id . '.mp4';
 

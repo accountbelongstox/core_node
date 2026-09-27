@@ -5,12 +5,12 @@ namespace App\Support;
 use RuntimeException;
 
 /**
- * Typed dotted-path reads over a decoded contract document, shared by
- * ServiceContract and QueueCenterContract. A missing or mistyped key throws.
+ * Typed dotted-path reads over a decoded contract document (ServiceContract,
+ * QueueCenterContract). Every public reader throws on a missing or mistyped key.
  */
 final class ContractDocument
 {
-    public static function value(array $document, string $path): mixed
+    private static function value(array $document, string $path): mixed
     {
         $value = $document;
 
