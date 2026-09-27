@@ -46,7 +46,7 @@ class CodeMartV1RegistrationCtl extends Controller
             'username' => 'required|string|unique:users|min:3|max:50',
             'email' => 'required|email|unique:users',
             'password' => 'required|string|min:8|confirmed',
-            'role_type' => 'required|in:developer,client',
+            'role_type' => 'required|in:' . implode(',', CodeMartV1RoleRequestService::SELF_SERVICE_ROLES),
             'real_name' => 'required|string|max:100',
             'registration_code' => 'nullable|string|max:255',
         ]);
@@ -247,7 +247,7 @@ class CodeMartV1RegistrationCtl extends Controller
                 'id_front_image_path' => $idFrontPath,
                 'id_back_image_path' => $idBackPath,
                 'selfie_image_path' => $selfiePath,
-                'verification_status' => 'pending',
+                'verification_status' => CodeMartV1Constants::KYC_STATUS_PENDING,
             ]);
         });
 
@@ -262,7 +262,7 @@ class CodeMartV1RegistrationCtl extends Controller
 
         return $this->success([
             'kyc_id' => $kycVerification->id,
-            'verification_status' => 'pending',
+            'verification_status' => CodeMartV1Constants::KYC_STATUS_PENDING,
             'next_step' => 'deposit_payment',
         ], __('codemart.messages.kyc_documents_uploaded_awaiting_manual_verification'), 201);
     }

@@ -18,9 +18,9 @@ class CodeMartV1EmailService
         try {
             $verificationUrl = $this->buildVerificationUrl($token);
 
-            Mail::raw("Please verify your email by clicking the link: {$verificationUrl}", function ($message) use ($email) {
+            Mail::raw(__('codemart.mail.verification_body', ['url' => $verificationUrl]), function ($message) use ($email) {
                 $message->to($email)
-                    ->subject('CodeMart Email Verification')
+                    ->subject(__('codemart.mail.verification_subject'))
                     ->from(Config::get('mail.from.address'));
             });
 

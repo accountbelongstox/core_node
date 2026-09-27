@@ -477,14 +477,13 @@ Both the Windows implementation and its Linux counterpart already existed in the
 Read shell-linux's already-committed counterpart (`scripts/shells/linux/common/tailscale_common.sh`, `scripts/shells/linux/menu_itemshells/tailscale_menu.sh`, and the `dd_helper/linux_management.sh` wiring) function by function against the Windows code and the spec, rather than assuming either "pending-linux" or "aligned" from the task text alone (the task text predates the discovery that Linux had already built its side).
 
 - **SPW-037** (`aligned`): the core feature -- install detection (CLI + service both present), `Status`, `Devices`, `Restart` (with elevation on Windows / `sudo` on Linux), `Panel` (admin console always, local web UI conditionally), never installs and never touches login state -- is already symmetric: Linux's `is_tailscale_installed`/`ts_service_unit_exists`/`ts_backend_state`/`ts_show_status`/`ts_show_devices`/`ts_restart_service`/`ts_show_panel`/`ts_show_help` mirror the Windows functions one for one, cite the same official-doc sources, and are wired into the "Linux Management" menu the same way `WindowsManagementManager.ps1` wires the Windows entry. No alignment task needed for this row.
-- **SPW-038** (`pending-linux`): Windows's device table has a `LastSeen` column (SPW-037); Linux's `ts_show_devices` python formatter (`tailscale_common.sh` ~208-229) does not print one. Counterpart request: add a `LAST SEEN` column reading `peer.get("LastSeen") or ""` verbatim (so the zero-time case prints the same as Windows) to the `row_fmt`/print loop.
-- **SPW-039** (`pending-linux`): Windows's `Show-TailscalePanel` opens the local Quad100 web UI only when `BackendState` is `Running` (per the device-web-interface doc); Linux's `ts_show_panel` opens both URLs unconditionally whenever a desktop session + `xdg-open` are present, with no backend-state check. Counterpart request: gate the `ts_open_url "$TAILSCALE_LOCAL_WEB_URL"` call on `[ "$(ts_backend_state)" = "Running" ]`, printing a one-line skip message naming the actual state otherwise.
+- **SPW-038 / SPW-039**: first read of Linux's `tailscale_common.sh` found two real, narrow content gaps against the Windows side -- no `LastSeen` column in `ts_show_devices`, and `ts_show_panel` opening the local Quad100 URL unconditionally instead of gating it on `BackendState=Running`. Before this report was written up, a second read of the same file (shell-linux's own write scope, uncommitted working-tree changes, `bash -n`-clean) showed both already fixed: `ts_show_devices`'s `row_fmt` now has a `LAST SEEN` column (`peer.get("LastSeen", "") or "-"`), and `ts_show_panel` now checks `ts_backend_state = Running` before opening the local URL and prints a skip message naming the actual state otherwise, matching Windows almost line for line (down to the same kind of skip-message wording). `linux_management.sh` also gained the "Linux System Tools > Tailscale Management" menu entry in the same window. Recorded both rows `aligned`, crediting shell-linux; no alignment task needed.
 
-No live `shell-linux` teammate or `ct-shell-linux` session was reachable via `ListAgents` (only `core-node-e9` and `ct-laravel-remote` were listed as peers), so SPW-038/SPW-039 are recorded here per the parity protocol's third option, for the orchestrator to open as `[shell-linux] align: SPW-038 ts_show_devices LastSeen column` and `[shell-linux] align: SPW-039 ts_show_panel backend-state gate`.
+No live `shell-linux` teammate or `ct-shell-linux` session was reachable via `ListAgents` (only `core-node-e9` and `ct-laravel-remote` were listed as peers) to confirm this directly, but the working-tree diff is unambiguous and self-consistent, so this is recorded as done rather than left open.
 
 ### Choices made (no questions asked)
 
-- Recorded SPW-037 as `aligned` rather than following the task text's "pending-linux with the exact counterpart request" literally for the whole feature: the task text was written before either side's ledger recorded this work, but the Linux counterpart was already fully built and committed by the time this task ran, so a blanket `pending-linux` on the whole feature would have been factually wrong. Split out the two real, narrow content gaps actually found (SPW-038, SPW-039) as `pending-linux` instead, each with its own exact counterpart request, which is what the "no blanket pending-* without a real alignment need" spirit of the parity rules calls for.
+- Recorded SPW-037 as `aligned` rather than following the task text's "pending-linux with the exact counterpart request" literally for the whole feature: the task text was written before either side's ledger recorded this work, but the Linux counterpart was already fully built and (as of this task) fully caught up by the time this ledger entry was closed out, so a blanket `pending-linux` on the whole feature, or even on SPW-038/SPW-039 by the end of this task, would have been stale and factually wrong. Recorded exactly what the code shows instead.
 - Did not exercise `-Action Panel` or `-Action Restart` against the real installed Tailscale, per the task's explicit "never restart Tailscale or change its login" instruction and its narrower verification scope (parsers, `--help`/usage, read-only status calls); both were verified by code review instead.
 
 ### Changed files
@@ -492,11 +491,74 @@ No live `shell-linux` teammate or `ct-shell-linux` session was reachable via `Li
 - `.claude/agents_shared/shell_parity/windows.md` (SPW-037, SPW-038, SPW-039).
 - `.claude/agents_shared/reports/shell-windows.md` (this section and its table row).
 - No changes to `TailscaleCommon.ps1` or `WindowsManagementManager.ps1`: both were already correct and complete.
+- Not this task's writes, observed only: `scripts/shells/linux/common/tailscale_common.sh`, `scripts/shells/linux/dd_helper/linux_management.sh`, and the new `scripts/shells/linux/menu_itemshells/tailscale_menu.sh` (shell-linux's write scope; already closing out SPW-038/SPW-039 by the time this report was written).
 
 ### Blockers
 
-None. SPW-038/SPW-039 need `[shell-linux] align: ...` tasks from the orchestrator before they can move from `pending-linux` to `aligned`.
+None.
 
 ### Next owner
 
-Reviewer, for `shell-windows-10 (D29)`. Then shell-linux for the SPW-038/SPW-039 alignment (two small content additions to an already-working file).
+Reviewer, for `shell-windows-10 (D29)`. No shell-linux alignment task needed: SPW-038/SPW-039 were already closed out in shell-linux's own working tree by the time this report was written.
+
+## amend-windows-d28d30: D28/D30 SharedCacheEnv.ps1 + ProjectTreeCommon.ps1 lane
+
+Fenced files: `scripts/shells/win/win_common/SharedCacheEnv.ps1`, `scripts/shells/win/win_common/ProjectTreeCommon.ps1`, `.claude/agents_shared/shell_parity/windows.md` (row SPW-035).
+
+### Finding: both fenced .ps1 files were already fully D28/D30-compliant
+
+Read the current contract (`config/service_contract.json#paths.drive_layout`, confirmed `tree_subdir`/`tree_root`/`tree_cache_root`/`tree_cache_subdirs` are gone and `tool_root`/`cache_root`/`trees_root`/`toolchain_env_file` are per-OS objects), `DIRECTORY_NAMESPACE_RULES.md`, `LINUX_SHELL_RULES.md`, and `docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md` §1 (D1-D30). `git log`/`git diff` showed the fenced files were last touched by an already-committed `win0.0.1` commit (`0b6f362e3`, today 20:52) with a clean working tree -- no stopped-workflow partial edits to reconcile. Checked point by point against the task's amendment list:
+
+1. `SharedCacheEnv.ps1` already reads `namespaces.windows_program_drive`, `tool_root.windows`/`windows_d_fallback`, `cache_root.windows`/`windows_d_fallback`, `cache_subdirs`, `trees_root.windows`, `toolchain_env_file.windows`, each exactly once (`$__scc*Template` variables near line 285-294); `<program_drive>` and `<sys>` are each resolved once (`$__sccEffectiveProgramDriveLetter`, `$__sccSystemName`) and reused for every template substitution. All the required globals exist with one definition each: `CN_TOOL_ROOT`, `CN_CACHE_ROOT`, `CN_CACHE_SUBDIR_NAMES`, `CN_TREES_ROOT` (empty string on the D: fallback, D28), `CN_TOOLCHAIN_ENV_FILE`, plus the pre-existing drive-role globals. No load-time writes happen on the program-drive/tool/cache/trees path (the file's own header comment states this and the code matches: `Register-CnProgramDriveAdoption` and `New-CnNamespaceDirectory` are both installer-only, never called from top-level file scope). Confirmed no literal re-declares a contract value (grepped for hardcoded `core_node_compiler`/drive-letter logic in the code body; only comments mention them).
+2. `Write-ProgramDriveFallbackWarning` (lines 256-266) already states, in explicit English, that programs/toolchains/build files and project heavy directories belong under the program-drive namespace, names the namespace root (e.g. `E:\core_node_compiler` via `$Global:CN_PROGRAM_DRIVE_NAMESPACE_ROOT`), says the drive is unavailable, and says the caller continues at the original location; a `CN_PROGRAM_DRIVE_FALLBACK_WARNED` guard makes it print at most once per process, and grep confirmed `SharedCacheEnv.ps1` itself never calls it (only `ProjectTreeCommon.ps1` does).
+3. `ProjectTreeCommon.ps1` already integrates with `$Global:CN_TREES_ROOT` and `Write-ProgramDriveFallbackWarning` (`Invoke-ProjectTreeLinks`), is load-side-effect free (no dot-source-time code outside function/class definitions), never creates anything on the D: fallback (`Restore-ProjectTreeLocalDirectory` only ever unlinks), and routes namespace-root creation through the one `New-CnNamespaceDirectory` helper from `SharedCacheEnv.ps1` (`Set-ProjectTreeJunction` line ~185).
+4. No new cache environment variables were exported anywhere in either file (P3 confirmed still deferred).
+5. Confirmed `scripts/shells/win/main_powershells/WinScriptsInstaller.ps1`'s `$FILES` array (lines 2-52) does **not** include `ProjectTreeCommon.ps1` -- see Follow-up below.
+
+### Verification: re-ran the 7-state junction scratch test
+
+Parsed both files with `[System.Management.Automation.Language.Parser]::ParseFile` (no errors). Then wrote a standalone scratch harness (`D:\.tmp\claude\...\scratchpad\ptc_test\run_7state_test.ps1`, deleted with the rest of the scratchpad; junctions created and destroyed only inside a `wksp` subdirectory of the scratch dir, link-only deletes first then `[IO.Directory]::Delete($dir,$true)`) that dot-sources only `ProjectTreeCommon.ps1` (stubbing `Write-ColorMessage`/`New-CnNamespaceDirectory`/`Write-ProgramDriveFallbackWarning`/`$Global:CN_TREES_ROOT` locally, so the probe never dot-sources the real `SharedCacheEnv.ps1` and its unrelated D:\www\cache\* directory-creation side effects), under `Set-StrictMode -Version Latest` + `$ErrorActionPreference = 'Stop'`. All 7 states plus the `Invoke-ProjectTreeLinks` wrapper (E:-qualifies path and D:-fallback path) passed with no strict-mode errors:
+
+- missing -> `Created`, junction verified, marker reachable through the link;
+- rerun (same target already linked) -> `Linked`, target directory's own mtime unchanged (no filesystem touch);
+- foreign link (junction pointing elsewhere) -> old link removed, replaced, new junction verified, the stale foreign target directory itself untouched;
+- empty directory -> removed, replaced with a verified junction;
+- directory with content -> quarantined to `<name>.pre_program_drive.<timestamp>` with its file intact, then replaced with a verified junction;
+- regular file -> `Skipped` with a warning, left as a plain file (no junction attempted, no target created);
+- fallback unlink (`Restore-ProjectTreeLocalDirectory`) -> removes an existing link and returns `Unlinked`; called again on the now-missing path returns `Local` with no filesystem change; target directory itself stays intact (only the link is removed);
+- `Invoke-ProjectTreeLinks` wrapper: with `$Global:CN_TREES_ROOT` set, creates a real junction; with it cleared and `$Global:WINDOWS_PROGRAM_DRIVE_IS_FALLBACK = $true`, takes the local/no-junction path and fires the fallback warning exactly once.
+
+No code defects found; no edits were made to either `.ps1` file.
+
+### Parity ledger update (`.claude/agents_shared/shell_parity/windows.md`, row SPW-035)
+
+The existing SPW-035 row was stale: it still described the D27-only state (no `CN_TREES_ROOT`, no junction logic, `cache_root` defined as `<tool_root>/cache`) and carried a "Note for ca-orchestrator" saying the D28 trees-root/junction work needed its own fenced task. That fenced task is this one, and the code already implements it, so the row was rewritten to describe the current D28/D30 implementation (globals, `CN_TREES_ROOT` semantics, `ProjectTreeCommon.ps1`'s state machine and today's re-verification), replacing the obsolete note with the concrete `WinScriptsInstaller.ps1` follow-up. Status stays `pending-linux`, now itemized as two separate gaps:
+
+1. `scripts/shells/linux/common/shared_cache_env.sh:33-35,84-115,162-165` still reads the removed contract keys `tree_root.linux`/`tree_root.linux_backing`/`tree_cache_root` (each `sc_get` already keeps its `|| var=""` guard, but the keys themselves no longer exist in the contract, so that cache tier silently resolves empty) -- needs the rename to `tool_root.linux`/`cache_root.linux`/`cache_subdirs`.
+2. Linux has not implemented `trees_root.linux` + the `trees_mount_linux` bind (the single empty `/www/core_node_compiler/trees` mount point, `mountpoint -q` gated, zero writes while unmounted) nor the per-project runtime bind `trees_rule` describes for a plain-directory repo entry -- needed so a live Windows junction (real now that E: qualifies triggers real junctions) still resolves through to ext4 when the same repo is opened on Linux, and to prove the junction translation on real dual-boot Linux (ntfs3/ntfs-3g) per `trees_rule`.
+
+No live `shell-linux` teammate or `ct-shell-linux` session was reachable via `ListAgents` (only `ca-orchestrator` was listed as a peer), so both gaps are recorded in the ledger and here per the parity protocol's report option, for the orchestrator to open as `[shell-linux] align: SPW-035 shared_cache_env.sh key rename (tree_root/tree_cache_root -> tool_root/cache_root/cache_subdirs)` and `[shell-linux] align: SPW-035 trees_root.linux + trees_mount_linux bind mount`.
+
+### Follow-up for ca-orchestrator (not this lane's write scope)
+
+`scripts/shells/win/main_powershells/WinScriptsInstaller.ps1`'s `$FILES` list dot-sources `SharedCacheEnv.ps1` (line 17) but not `ProjectTreeCommon.ps1`, so a fresh install would not have `Invoke-ProjectTreeLinks`/`Invoke-ProjectTreeLink`/etc. available. `WinScriptsInstaller.ps1` is not a shell-windows-owned path per this lane's fence; needs its own task to add the `ProjectTreeCommon.ps1` entry (naturally right after the `SharedCacheEnv.ps1` line, since it depends on that file's globals).
+
+### Choices made (no questions asked)
+
+- Made no code changes to either `.ps1` file after confirming, by static review and by an empirical scratch-dir re-run of all 7 states plus both `Invoke-ProjectTreeLinks` branches, that both already satisfy every point of the task's amendment list. Per the idempotent/repair-only-missing shell rule, editing already-correct code would only add risk.
+- Ran the 7-state scratch test against a hand-stubbed `Write-ColorMessage`/`New-CnNamespaceDirectory`/`Write-ProgramDriveFallbackWarning`/`$Global:CN_TREES_ROOT` rather than dot-sourcing the real `SharedCacheEnv.ps1`, because that file's load also creates real `D:\www\cache\*` subdirectories as a documented pre-existing side effect (the shared HF/pip/torch/pycore cache tier, unrelated to this lane) -- dot-sourcing it would have written outside the scratch dir, beyond the "harmless scratch probe" safety allowance.
+- Rewrote the SPW-035 row instead of adding a new SPW-0xx id, since the task named this row explicitly and the change is a continuation/correction of the same feature, not a new one.
+
+### Changed files
+
+- `.claude/agents_shared/shell_parity/windows.md` (SPW-035 row rewritten; lines shifted because two unrelated rows, SPW-036 through SPW-039, were added by other lanes between my read and my write -- re-read after the edit to confirm it applied cleanly and the table is still well-formed).
+- `.claude/agents_shared/reports/shell-windows.md` (this section and its table row).
+- No changes to `SharedCacheEnv.ps1` or `ProjectTreeCommon.ps1`: both were already correct and complete for D28/D30.
+
+### Blockers
+
+None for this lane. The two SPW-035 `pending-linux` items need `[shell-linux] align: ...` tasks from the orchestrator.
+
+### Next owner
+
+Reviewer, for `amend-windows-d28d30`. Then shell-linux for the two SPW-035 alignment items (contract-key rename in `shared_cache_env.sh`, and the `trees_root.linux`/`trees_mount_linux` bind-mount implementation). ca-orchestrator for the `WinScriptsInstaller.ps1` `$FILES` follow-up (add `ProjectTreeCommon.ps1`).

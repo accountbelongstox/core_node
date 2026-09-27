@@ -68,20 +68,25 @@ WORD_NOT_FOUND_REJECTION_CODE = "WORD_NOT_FOUND"
 RETRYABLE_4XX_HTTP_STATUSES = (408, 409, 425, 429)
 
 
-def is_terminal_delivery_rejection(detail: str = "", status_code: Optional[int] = None) -> bool:
+def is_terminal_delivery_rejection(
+    detail: str = "", status_code: Optional[int] = None, error_code: str = "",
+) -> bool:
     """ONE shared 4xx-terminal rule for Laravel delivery rejections (used by
     the domain-report path in ``laravel_audio_delivery`` and the word-audio
     single upload below): a rejection that retrying can never resolve, so it
     must settle terminal instead of retry-poisoning the delivery row
     forever. Excludes throttling/conflict codes (408/409/425/429).
 
-    Accepts either a failure ``detail`` string (``"server validation
-    rejected: ..."``, ``"unknown task on server (404)"``, ``"HTTP 4xx:
-    ..."``) or a raw ``status_code`` when only that is available (a plain
-    4xx body with no such prefix, e.g. word/audio/upload's "md5, lang and
-    audio_base64 are required" for an md5-less word - the contract
-    WORD_NOT_FOUND case: the server has no row to resolve by lang +
-    cleaned_word)."""
+    Accepts a failure ``detail`` string (``"server validation rejected:
+    ..."``, ``"unknown task on server (404)"``, ``"HTTP 4xx: ..."``), a raw
+    ``status_code`` when only that is available (a plain 4xx body with no
+    such prefix, e.g. word/audio/upload's "md5, lang and audio_base64 are
+    required" for an md5-less word), and/or the contract rejection code
+    (``word_identity.fallback_when_md5_absent.rejection_code``), which
+    settles terminal on its own regardless of the HTTP status the response
+    carried it with."""
+    if str(error_code or "") == WORD_NOT_FOUND_REJECTION_CODE:
+        return True
     normalized = str(detail or "").lower()
     if normalized.startswith("server validation rejected"):
         return True

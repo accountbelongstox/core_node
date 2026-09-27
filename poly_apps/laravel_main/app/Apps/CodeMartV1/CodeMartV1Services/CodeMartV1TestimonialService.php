@@ -36,7 +36,7 @@ class CodeMartV1TestimonialService
             return CodeMartV1AdminService::failure(
                 CodeMartV1Constants::ERROR_TESTIMONIAL_NOT_ELIGIBLE,
                 403,
-                'Only clients with a completed project can submit a testimonial'
+                __('codemart.errors.testimonial_not_eligible')
             );
         }
 
@@ -49,7 +49,7 @@ class CodeMartV1TestimonialService
             return CodeMartV1AdminService::failure(
                 CodeMartV1Constants::ERROR_TESTIMONIAL_NOT_ELIGIBLE,
                 403,
-                'The project is not a completed project of this client'
+                __('codemart.errors.testimonial_project_not_completed')
             );
         }
 
@@ -62,7 +62,7 @@ class CodeMartV1TestimonialService
             return CodeMartV1AdminService::failure(
                 CodeMartV1Constants::ERROR_TESTIMONIAL_ALREADY_SUBMITTED,
                 409,
-                'A testimonial for this project was already submitted'
+                __('codemart.errors.testimonial_already_submitted')
             );
         }
 

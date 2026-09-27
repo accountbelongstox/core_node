@@ -385,20 +385,67 @@
 
 ## Review pycore-ai-D7P2-fix (round 1, member pycore-ai)
 
-- Verdict: approved. File: `.claude/agents_shared/reviews/pycore-ai-D7P2-fix.json`. Base 74e7770. The fix hunks are 5bbb23682..HEAD: B1 is in 4ddb4be8e and B2-B4 are in 2f31f9cd3. HEAD is 0b6f362e3, and the working tree is clean for pycore-ai paths.
-- B1: `laravel_audio_worker_state.py:572,592` makes md5 required only for Laravel-sourced tasks. A local md5-less task normalizes with md5 '' and keys as 'en:text:hello'. A Laravel task without md5 still errors.
-- B2: `audio_resource_delivery.py:64-95` adds one shared rule, `is_terminal_delivery_rejection`, and `laravel_audio_delivery.py:61-64` delegates to it (the truth table is unchanged). In `_deliver_resource` (:364-379), an md5-less 4xx now settles DONE/WORD_NOT_FOUND, except 408/409/425/429. It was verified through the real `_deliver_resource` with the upload patched (the LDRI-11 400 body and the 404 errorWithCode shape).
-- B3: `word_audio_cache.py` adds a `_pending` map and a `_load_finished` flag. The unloaded-language false-miss regression is gone: lookup_many returns None and the directory scan finds all words. The install merge, the mid-load new language and the post-load new language all behave correctly.
-- B4: the constant is defined once, `audio_queue_center.py:94` AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS, which is also the default of `wait_for_restore`. `capability_sync.py:34-39` and `audio_lane_full_sync.py:124-129` import it and log a timeout.
+- Verdict: changes_requested. This supersedes the approved draft of 20:59. File: `.claude/agents_shared/reviews/pycore-ai-D7P2-fix.json`. Base 74e7770. The fix hunks are 5bbb23682..HEAD: B1 is in 4ddb4be8e and B2-B4 are in 2f31f9cd3. HEAD is 24674d1a6, and the working tree is clean for pycore.
+- B1 is confirmed. `laravel_audio_worker_state.py:572,592` requires md5 only for tasks that are not local. A local md5-less task normalizes with md5 '', keys as 'en:text:hello' and has an empty delivery identity. A Laravel task without md5 still errors.
+- B2 is partial.
+  - Done: the shared rule `audio_resource_delivery.py:71-95` works, and `laravel_audio_delivery.py:61-64` delegates to it with an unchanged truth table. An md5-less 4xx settles DONE/WORD_NOT_FOUND, except 408/409/425/429.
+  - Not done: the clause "include the contract rejection_code WORD_NOT_FOUND". The code is only the skip label. A WORD_NOT_FOUND rejection without a 4xx status raises and retries forever (probe). The contract and LDRI-11 do not pin the status.
+  - Fix: add an error_code argument to the helper, and treat error_code or data.status WORD_NOT_FOUND as terminal (:366-368).
+- B3 is confirmed. The real `load_all` ran on a gated thread: a concurrent store during a language's scan keeps that language None and the lookup falls back to the scan. The merge at install, the mid-load new language, the fold at finish and the post-load live write all behave correctly.
+- B4 is confirmed, with a cleanup: the one constant is at `audio_queue_center.py:94` and is also the default, and both sites log a timeout. `audio_lane_full_sync.py:49` still keeps a class alias.
+- Round-2 cleanup, comments and alias only:
+  - The non-ASCII section sign at `audio_queue_center.py:89`.
+  - The history or transient notes at `audio_queue_center.py:91-93` and `audio_resource_delivery.py:370`.
+  - Drop the alias and use the shared constant at `audio_lane_full_sync.py:124,128`.
 - Non-blocking (recorded in the verdict):
-  - Recognize error_code WORD_NOT_FOUND independent of the HTTP status.
-  - Replace the local WORD_NOT_FOUND literal with a contract accessor (needs pycore-runtime).
-  - 401/403 count as terminal in the shared rule; decide this as a group item.
+  - 401/403 count as terminal (a group decision).
+  - The contract accessor for the rejection code (needs pycore-runtime).
+  - RETRYABLE_4XX_HTTP_STATUSES repeats the qwen/client.py:608 tuple.
   - B1 checks _local_source only.
-  - `_install` no longer merges a live mapping, which matters only if load_all runs again.
-  - The class alias in `audio_lane_full_sync.py:47-49`, and the constant is not in `__all__`.
-  - `audio_queue_center.py:89` adds a non-ASCII section sign, and there are history notes at :92-93 and `audio_resource_delivery.py:370`.
-- Checks: ast/py_compile on all 7 files. The EOL gate is clean (100% CRLF at every revision, and numstat matches with and without --ignore-space-at-eol). Boundaries are clean. The probe `scratchpad/d7p2_fix_probe.py` ran in-process at 3.23 GB free RAM, with the network patched and a temporary cache dir: 33/33 PASS, and no python.exe was left running. Nothing was built, tested or restarted, and no git writes were made.
-- Decision: approved rather than changes_requested, because every stated behavior is met and probed. The open points are cleanups whose failure modes do not occur with the current producers.
+  - A second load_all.
+  - `__all__`.
+- Checks:
+  - ast/py_compile on all 7 files, and no try block was added.
+  - The EOL gate is clean (100% CRLF at every revision, and numstat matches with and without --ignore-space-at-eol). Boundaries are clean.
+  - The probe `scratchpad/d7p2_fix_lead_probe.py` ran at 4.41 GB free RAM, with the network patched and a temporary cache dir: 47/47 PASS. No python.exe was left running.
+  - Nothing was built, tested or restarted, and no git writes were made.
+- Decision: the approved draft had treated WORD_NOT_FOUND recognition as non-blocking. The item text and the source issue ("the contract rejection WORD_NOT_FOUND must also end the row") make it required, so the "done" is refuted for that clause. The cleanup rides along because the member is going back anyway.
 - Changed files (this task): the verdict file and this report only.
-- Blockers: none. Next owner: pycore-lead (group merge). The follow-ups ride with pycore-ai-G1 and the pycore-runtime queue_center_contract export.
+- Blockers: issues[0] (B2 WORD_NOT_FOUND) and issues[1] (cleanup). Next owner: pycore-ai (round 2), then a pycore-lead re-review.
+
+## Review pycore-laravel-G1 (round 1, member pycore-laravel)
+
+- Verdict: approved. File: `.claude/agents_shared/reviews/pycore-laravel-G1.json`. Base 74e7770. The G1 hunks are 4ddb4be8e..HEAD (2f31f9cd3 and 0b6f362e3), HEAD is 24674d1a6, and the working tree is clean for laravel_main and config/.
+- All six items are confirmed: contract-readers, CKA-08, DRIVE-LAYOUT-php, D9-01, USER175-11 and AHSC-35-relay.
+  - The in-process probe `scratchpad/g1_review.php` passes 39 of 40 checks. The one miss was my own wrong probe (codemart_public is a throttle prefix), and a live X-Ratelimit check replaced it.
+  - The 4ddb4be8e PathMapper, loaded under a scratch namespace, gives 33 values identical to the current class.
+  - The program-drive var probe passes, route:list shows all 7 machine routes with ServerIdentityHeader and ClientKeyOnly, and live health returns 200 with the header.
+- Accepted deviation: three '/opt' code literals remain in PathMapper (:182, :183, :844). None is the tool root, and removing them needs an orchestrator contract key.
+- Non-blocking, with owners:
+  - Linux tool-root lockstep: PHP follows the D30 `/opt/core_node/_<os>_<ver>`. `system_paths.py:214-238` (mine) and the fenced `gvar_storage_common.sh:362-380` (core-node-e9/shell-linux) still use `/opt`.
+  - `linuxToolBase()` takes the template's dirname; resolving the placeholders would be more robust.
+  - The Windows `<drive>\_win{ver}` matches neither contract tool_root.windows nor the installed `D:\.dev_win10`. This needs an orchestrator ruling.
+  - The `WINDOWS_PROGRAM_DRIVE_ROOT` key should become a contract key. Its writer is shell-windows.
+  - The TaskManagerService.php:53-56 comment is stale. The Redis cache timeout hardening is optional.
+  - Process: the member ran a `git update-index --refresh` (outside the read-only git forms).
+- Announcement: no wordnew-lead or codemart-lead session is reachable (ListAgents). The accessor list travels in the G1 cross_scope for the orchestrator to route.
+- Checks: `php -l` on 14 files, the EOL gate (all LF, 0 CR at base and HEAD), boundaries (all in pycore-laravel scope, no contract or fenced-file edits), greps and vendor reading (FailoverStore and PhpRedisConnector: a stopped loopback Redis fails over fast). Laravel was booted only at 5.36 and 4.93 GB free RAM. No git writes, and no worker restart (no code changed in this review).
+- Changed files (this task): the verdict file and this report only.
+- Blockers: none. Next owners:
+  - pycore-lead: the `system_paths.py` lockstep.
+  - Orchestrator: the D24 data-dir ruling, the contract keys for the App Manager log roots and the program-drive var key, and the tool_root.windows ruling.
+  - shell-windows: persist `WINDOWS_PROGRAM_DRIVE_ROOT`.
+  - core-node-e9/shell-linux: `get_dev_compile_base`.
+
+## Review pycore-assist-D7-fix (round 2, member pycore-runtime)
+
+- Verdict: approved. File: `.claude/agents_shared/reviews/pycore-assist-D7-fix.json` (round 2). Base 74e7770. The round-2 delta is in snapshot commit 0b6f362e3, HEAD is 6ecff3401, and the working tree equals HEAD for agent_history.
+- B1 is unchanged and still accepted. The AST attribute check gives 0 problems in 95 references, and the negative control on the base file flags only `agent_history_service.py:415`.
+- B2: round-1 issues[0] is fixed as a pure extraction. `agent_history_txt.restrict_mode` (:45-57) is now the single public helper with 3 call sites. `prompt_archive.py:117-118` calls it, and the unused os/ColorPrint imports are dropped. There is no 0o666, and the modes come from root_spool.
+- Checks: free RAM was 5.06 GB, so both functional probes ran. On Windows there were no exceptions and the nt skip works. On WSL Debian: ordinary 0644, root-only 0640 and never widened, store/sessions 0750, state.txt 0640, and a chmod failure logs the errno. py_compile is OK, and the EOL gate is clean (txt CRLF 456/456, archive LF 127/127).
+- Non-blocking (optional, pycore-runtime):
+  - Adopt the st_uid guard in restrict_mode, and chmod before os.replace in _atomic_write.
+  - prompt_new_cache/prompt_transform_cache files under the store use the umask default. The 0750 store dir contains them.
+  - Cross-scope, for shell-linux via the orchestrator (carried forward): `scan_shared_cache.sh:169-170`.
+- Changed files (this task): the verdict file and this report only. No git writes, and no services were touched.
+- Blockers: none. Next owner: none for this task.

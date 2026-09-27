@@ -236,7 +236,7 @@ class CodeMartV1AdminService
     {
         $user = CodeMartV1UserModel::findRegistration($userId);
         if (!$user) {
-            return self::failure(CodeMartV1Constants::ERROR_USER_NOT_FOUND, 404, 'User not found');
+            return self::failure(CodeMartV1Constants::ERROR_USER_NOT_FOUND, 404, __('codemart.messages.user_not_found'));
         }
 
         $developerProfile = CodeMartV1DeveloperProfileModel::query()->where('user_id', $userId)->first();
@@ -378,12 +378,12 @@ class CodeMartV1AdminService
         $reason = $reason !== null ? trim($reason) : null;
 
         if (!in_array($roleType, CodeMartV1Constants::getAllRoles(), true)) {
-            return self::failure(CodeMartV1Constants::ERROR_INVALID_ROLE_TYPE, 422, 'Unknown role type');
+            return self::failure(CodeMartV1Constants::ERROR_INVALID_ROLE_TYPE, 422, __('codemart.errors.unknown_role_type'));
         }
 
         $role = CodeMartV1UserRoleModel::forUserAndType($userId, $roleType);
         if (!$role) {
-            return self::failure(CodeMartV1Constants::ERROR_ROLE_NOT_FOUND, 404, 'Role assignment not found');
+            return self::failure(CodeMartV1Constants::ERROR_ROLE_NOT_FOUND, 404, __('codemart.errors.role_not_found'));
         }
 
         $fromStatus = (string) $role->role_status;
@@ -400,12 +400,12 @@ class CodeMartV1AdminService
             return self::failure(
                 CodeMartV1Constants::ERROR_INVALID_ROLE_TRANSITION,
                 409,
-                'Role status transition is not allowed'
+                __('codemart.errors.role_transition_not_allowed')
             );
         }
 
         if (in_array($status, CodeMartV1Constants::ROLE_STATUS_REASON_REQUIRED, true) && ($reason === null || $reason === '')) {
-            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, 'A reason is required');
+            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, __('codemart.errors.reason_required'));
         }
 
         $attributes = ['role_status' => $status];
@@ -440,15 +440,15 @@ class CodeMartV1AdminService
     public function grantRole(int $userId, string $roleType, string $status, ?string $reason, int $adminId): array
     {
         if (!in_array($roleType, CodeMartV1Constants::getAllRoles(), true)) {
-            return self::failure(CodeMartV1Constants::ERROR_INVALID_ROLE_TYPE, 422, 'Unknown role type');
+            return self::failure(CodeMartV1Constants::ERROR_INVALID_ROLE_TYPE, 422, __('codemart.errors.unknown_role_type'));
         }
 
         if (!CodeMartV1UserModel::query()->whereKey($userId)->exists()) {
-            return self::failure(CodeMartV1Constants::ERROR_USER_NOT_FOUND, 404, 'User not found');
+            return self::failure(CodeMartV1Constants::ERROR_USER_NOT_FOUND, 404, __('codemart.messages.user_not_found'));
         }
 
         if (CodeMartV1UserRoleModel::forUserAndType($userId, $roleType)) {
-            return self::failure(CodeMartV1Constants::ERROR_ROLE_ALREADY_EXISTS, 409, 'Role assignment already exists');
+            return self::failure(CodeMartV1Constants::ERROR_ROLE_ALREADY_EXISTS, 409, __('codemart.errors.role_already_exists'));
         }
 
         $role = CodeMartV1UserRoleModel::createRecord([
@@ -549,15 +549,15 @@ class CodeMartV1AdminService
 
         $kyc = CodeMartV1KycVerificationModel::findById($kycId);
         if (!$kyc) {
-            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_FOUND, 404, 'KYC submission not found');
+            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_FOUND, 404, __('codemart.errors.kyc_not_found'));
         }
 
         if ($kyc->verification_status !== CodeMartV1Constants::KYC_STATUS_PENDING) {
-            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_PENDING, 409, 'KYC submission is not pending');
+            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_PENDING, 409, __('codemart.errors.kyc_not_pending'));
         }
 
         if (!$approved && ($notes === null || $notes === '')) {
-            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, 'Rejection notes are required');
+            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, __('codemart.errors.rejection_notes_required'));
         }
 
         $status = $approved
@@ -576,7 +576,7 @@ class CodeMartV1AdminService
             ]);
 
         if ($updated === 0) {
-            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_PENDING, 409, 'KYC submission is not pending');
+            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_PENDING, 409, __('codemart.errors.kyc_not_pending'));
         }
 
         CodeMartV1DomainEventService::emit(
@@ -606,17 +606,17 @@ class CodeMartV1AdminService
     {
         $column = CodeMartV1Constants::KYC_FILE_COLUMNS[$type] ?? null;
         if ($column === null) {
-            return self::failure(CodeMartV1Constants::ERROR_KYC_FILE_NOT_FOUND, 404, 'Unknown KYC document type');
+            return self::failure(CodeMartV1Constants::ERROR_KYC_FILE_NOT_FOUND, 404, __('codemart.errors.kyc_document_type_unknown'));
         }
 
         $kyc = CodeMartV1KycVerificationModel::findById($kycId);
         if (!$kyc) {
-            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_FOUND, 404, 'KYC submission not found');
+            return self::failure(CodeMartV1Constants::ERROR_KYC_NOT_FOUND, 404, __('codemart.errors.kyc_not_found'));
         }
 
         $location = $this->fileUploadService->locateKycFile($kyc->{$column});
         if ($location === null) {
-            return self::failure(CodeMartV1Constants::ERROR_KYC_FILE_NOT_FOUND, 404, 'KYC document not found');
+            return self::failure(CodeMartV1Constants::ERROR_KYC_FILE_NOT_FOUND, 404, __('codemart.errors.kyc_document_not_found'));
         }
 
         return $location;
@@ -694,7 +694,7 @@ class CodeMartV1AdminService
     {
         $deposit = CodeMartV1DepositModel::findById($depositId);
         if (!$deposit) {
-            return self::failure('deposit_not_found', 404, 'Deposit not found');
+            return self::failure('deposit_not_found', 404, __('codemart.messages.deposit_not_found'));
         }
 
         if ($deposit->status === CodeMartV1Constants::DEPOSIT_STATUS_PAID) {
@@ -752,7 +752,7 @@ class CodeMartV1AdminService
         });
 
         if ($outcome['error'] === true) {
-            return self::failure('deposit_invalid_state', 409, 'Only pending deposits can be confirmed');
+            return self::failure('deposit_invalid_state', 409, __('codemart.errors.deposit_not_confirmable'));
         }
 
         $fresh = $outcome['deposit'];
@@ -859,18 +859,18 @@ class CodeMartV1AdminService
 
         $project = CodeMartV1ProjectModel::findById($projectId);
         if (!$project) {
-            return self::failure(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 404, 'Project not found');
+            return self::failure(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 404, __('codemart.messages.project_not_found'));
         }
 
         if ($reason === null || $reason === '') {
-            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, 'A reason is required');
+            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, __('codemart.errors.reason_required'));
         }
 
         if (!in_array($toStatus, CodeMartV1Constants::ADMIN_PROJECT_TARGET_STATUSES, true)) {
             return self::failure(
                 CodeMartV1Constants::ERROR_INVALID_PROJECT_TRANSITION,
                 409,
-                'Project status transition is not allowed'
+                __('codemart.errors.project_transition_not_allowed')
             );
         }
 
@@ -879,7 +879,7 @@ class CodeMartV1AdminService
             return self::failure(
                 (string) ($result['error_code'] ?? CodeMartV1Constants::ERROR_INVALID_PROJECT_TRANSITION),
                 (int) ($result['http_status'] ?? 409),
-                (string) ($result['message'] ?? 'Project status transition is not allowed')
+                (string) ($result['message'] ?? __('codemart.errors.project_transition_not_allowed'))
             );
         }
 
@@ -942,7 +942,7 @@ class CodeMartV1AdminService
     {
         $testimonial = CodeMartV1TestimonialModel::findById($testimonialId);
         if (!$testimonial) {
-            return self::failure(CodeMartV1Constants::ERROR_TESTIMONIAL_NOT_FOUND, 404, 'Testimonial not found');
+            return self::failure(CodeMartV1Constants::ERROR_TESTIMONIAL_NOT_FOUND, 404, __('codemart.errors.testimonial_not_found'));
         }
 
         $fromStatus = $testimonial->effectiveStatus();
@@ -980,7 +980,7 @@ class CodeMartV1AdminService
     {
         $testimonial = CodeMartV1TestimonialModel::findById($testimonialId);
         if (!$testimonial) {
-            return self::failure(CodeMartV1Constants::ERROR_TESTIMONIAL_NOT_FOUND, 404, 'Testimonial not found');
+            return self::failure(CodeMartV1Constants::ERROR_TESTIMONIAL_NOT_FOUND, 404, __('codemart.errors.testimonial_not_found'));
         }
 
         $changes = [];
@@ -1066,7 +1066,7 @@ class CodeMartV1AdminService
     {
         $reason = $reason !== null ? trim($reason) : null;
         if ($reason === null || $reason === '') {
-            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, 'A reason is required');
+            return self::failure(CodeMartV1Constants::ERROR_REASON_REQUIRED, 422, __('codemart.errors.reason_required'));
         }
 
         $application = CodeMartV1ReviewerApplicationModel::findById($applicationId);
@@ -1074,7 +1074,7 @@ class CodeMartV1AdminService
             return self::failure(
                 CodeMartV1Constants::ERROR_REVIEWER_APPLICATION_NOT_FOUND,
                 404,
-                'Reviewer application not found'
+                __('codemart.errors.reviewer_application_not_found')
             );
         }
 
@@ -1241,7 +1241,7 @@ class CodeMartV1AdminService
     {
         $message = CodeMartV1ContactMessageModel::findById($messageId);
         if (!$message) {
-            return self::failure(CodeMartV1Constants::ERROR_CONTACT_MESSAGE_NOT_FOUND, 404, 'Contact message not found');
+            return self::failure(CodeMartV1Constants::ERROR_CONTACT_MESSAGE_NOT_FOUND, 404, __('codemart.errors.contact_message_not_found'));
         }
 
         $fromStatus = (string) $message->status;
