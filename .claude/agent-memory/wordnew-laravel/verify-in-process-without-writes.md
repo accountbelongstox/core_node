@@ -15,6 +15,10 @@ When a task forbids tests, servers and builds, laravel_main changes can still be
 - HTTP without a running server: create the `Request` first, `$app->instance('request', $request)`, then `$httpKernel->bootstrap()` and `handle()`. Bootstrapping the HTTP kernel before a request is bound crashes in the UrlGenerator.
 - Capture log lines in the script with `Event::listen(MessageLogged::class, ...)`. The daily channel runs at `warning`, so `info` never reaches the log file.
 - `laravel_db/*_init_status.json` "fully_initialized" is not proof that the schema was applied (the file is written outside the DB). Compare the declared structures with `information_schema` instead.
+- Some AppQyV1 files carry an "AI editing rules" header that forbids compile/run/test: `Utils/AppQyV1SystemInit/{AppQyV1BookSeedImporter,AppQyV1DailyReadingLibraryDefaults,AppQyV1AiPromptDefaults}.php`. For those, skip `php -l`, and parse them statically with `vendor/nikic/php-parser` (`ParserFactory::createForNewestSupportedVersion()->parse()`).
+- `Artisan::output()` on Windows ends lines with CRLF, so anchor marker regexes with `\r?$`.
+- In Git Bash, `$[` inside a double-quoted grep pattern is bash arithmetic. Keep regexes containing `\$[...]` in single quotes.
+- For i18n sweeps, use a scratchpad exact-match replacer that aborts if any old string's count differs from the expected count, plus `keys_verify` (en/zh key-set equality, same `:placeholders` per key, and every `app_qy_v1.messages.*` referenced under `app/` resolves in both locales).
 
 **Why:** In the 2026-09-27 sessions the user ruled out tests and services (the local FrankenPHP service was disabled). These checks caught a missing lang path that `php -l` could not, and a duplicate-index idempotency bug in SafeMigrationHelper.
 

@@ -38,7 +38,7 @@ if (os.platform() === 'win32') {
     DATA_DRIVER = fs.existsSync('/mnt/d') ? '/mnt/d' : null;
     DATA_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `wwwroot`) : null;
     if (!DATA_DRIVER) {
-        DATA_DRIVER = fs.existsSync('/www') ? '/www' : null;
+        DATA_DRIVER = fs.existsSync(systemPaths.LINUX_WWW_ROOT) ? systemPaths.LINUX_WWW_ROOT : null;
         // wwwroot sits under the NTFS-aware WWW base (/www/www on dual-boot).
         DATA_DIR = DATA_DRIVER ? mapWebPath('wwwroot') : null;
     }

@@ -4,14 +4,16 @@
 |---|---|---|
 | shell-windows-2 | D12a desktop icon organizer: scan, upgrade, real run, idempotency, undo | review round 1 fixed (2 blocking + 3 non-blocking in scope), awaiting reviewer |
 | shell-windows-3 | D12b Windows side: WSL2 + Debian 13 ensure, Docker model runner delegation, Step55/56 wiring | done, awaiting reviewer; model runs wait for shell-linux's runner |
-| shell-windows-9 | Windows FrankenPHP bugs found bringing up local Laravel (merged route braces, no PHP extensions, no skip_install_trust, LAN ACME retries) | done, awaiting reviewer |
+| shell-windows-9 | Windows FrankenPHP bugs found bringing up local Laravel (merged route braces, no PHP extensions, no skip_install_trust, LAN ACME retries) | review round 1 fixed (B1 confirmed opened by orchestrator, B2 fixed -- ledger/report text only, no code defect), awaiting reviewer |
 | p2-windows | Dual-boot P2: adjudicated 15 review findings on `SharedCacheEnv.ps1`'s Windows 3-drive layout constants (7 fixed, rest rejected/deferred with reasons) | done, awaiting reviewer |
 | shell-windows-G1 | D13 group task: fixed the 6 reviews/shell-windows-1.json blockers (idle-shell liveness, session_env.lead clear, standalone `--agent` role spec, `--name` session filter, max-area/column-fill grid, duplicate constants) and D22 schema-7 `window:false` service-role support | done, awaiting reviewer |
 | amend-windows | D27 amendment: dual-boot layout dropped the tree root/subdir on both OSes; `SharedCacheEnv.ps1` re-worked to `CN_CACHE_ROOT`/`CN_CACHE_SUBDIR_NAMES` under `CN_TOOL_ROOT`, `.cn_volume` marker relocated to the drive root, no junction logic on Windows | done, awaiting reviewer |
 | shell-windows-10 | Answer the D27 question ("/opt/core_node_trees/www/core_node_trees, what is it for, remove if useless") for the Windows side; re-verify shell-windows-9 was not regressed | done (investigation only; no code changes needed on the Windows side) |
-| shell-windows-10 (D29) | Tailscale management: common library + Windows Management menu entry (status/devices/restart/panel), verified live against the running install, parity checked against shell-linux's own already-built counterpart | done, awaiting reviewer |
-| shell-linux-11 (leader review) | Reviewed shell-linux's D29 Tailscale task (round 2 re-verification submission) | changes_requested: device-table field parity gap (ExitNodeOption/Owner) |
+| shell-windows-10 (D29) | Tailscale management: common library + Windows Management menu entry (status/devices/restart/panel), verified live against the running install, parity checked against shell-linux's own already-built counterpart | review round 1 fixed (4 blocking + 6 non-blocking in scope: AllowNull, DNSName column, FrankenPhpManager dedup, menu Test-Path removal, restart -Wait, help-on-direct-run, panel other-commands text, status up-hint, not-installed gating, quoted-path parsing), awaiting reviewer |
+| shell-linux-11 (leader review) | Reviewed shell-linux's D29 Tailscale task, round 1 (re-verification submission) | changes_requested: device-table field parity gap (ExitNodeOption/Owner) |
+| shell-linux-11 (leader review, round 2) | Reviewed shell-linux's fix for the round-1 device-field gap (Owner/ExitNodeOption in `ts_show_devices`) | approved |
 | amend-windows-d28d30 | D28/D30 lane: verified `SharedCacheEnv.ps1` + new `ProjectTreeCommon.ps1` against the current contract (namespaces/tool_root/cache_root/trees_root/toolchain_env_file), re-ran the 7-state junction scratch test, updated the stale SPW-035 ledger row | done, awaiting reviewer (no code changes needed -- files were already correct) |
+| shell-linux-G1 (leader review) | Reviewed shell-linux's D13-LIN-BLOCKERS (7 sub-fixes) + D13-LIN-CATALOG (`window:false` role exclusion) round | approved |
 
 ## shell-windows-2: D12a desktop icon organizer
 
@@ -222,6 +224,8 @@ Blockers: none. Next owner: reviewer (shell-windows-2 review), then shell-linux 
 
 ## shell-windows-9: Windows FrankenPHP generator bugs (from the D7 local Laravel bring-up)
 
+Note on this round's relayed user message: same harness quirk already recorded under `shell-windows-10` above -- the relayed "user request" text was the D27 `/opt/core_node_trees` question again, not this computed FrankenPHP-fix task, even though the actual dispatched task is `shell-windows-9` review-round-1 fixes. Re-checked rather than assumed: `grep -rn "core_node_trees" scripts/shells/win scripts/winenvs` -- zero hits, matching the `shell-windows-10` finding that the Windows side has no leftovers and the remaining gap is Linux-only (`shared_cache_env.sh`, `mount_common.sh`, tracked as `SPW-035` / `shell-linux-align-SPW-035`). No new investigation or code change needed here; this task's real work is the review-round-1 fix below.
+
 Source: `.claude/agents_shared/d7/laravel_local.md` blockers/`for shell-windows` section. All four defects fixed in `scripts/shells/win/win_common/FrankenPhpManager.ps1`. The live D7 instance and its config (`D:\www\frankenphp\**`, `D:\www\core_node\global_var\web_access_config.json`, `poly_apps/laravel_main/storage/frankenphp/**`) were never touched: verification ran the generator functions against script-scope path variables redirected to a scratch directory (dot-source the manager, then reassign `$script:FrankenPhp*` output paths before calling the `Ensure-*` functions), confirmed by comparing file mtimes before/after (all predate this session).
 
 ### (a) Merged route-file closing brace (`Step175` invalid config)
@@ -265,16 +269,36 @@ Verified in a scratch dir: pass 1 (real detection on this LAN dev machine) gener
 
 - SPW-031 (brace fix): `platform-only` - the bug was purely in the Windows here-string template; `frankenphp_domain_common.sh::fm_domain_render_route` and `fm_domain_lan_site_render` already put the closing brace on its own line.
 - SPW-032 (PHP extensions ini): `platform-only` - Linux enables its extensions through `php-zts-*` apt packages (`frankenphp_install_modes.sh` `FRANKENPHP_APT_PACKAGES`); mbstring/curl/openssl/fileinfo/sodium are compiled into that static build already.
-- SPW-033 (`skip_install_trust`): `pending-linux`. **Alignment request for shell-linux** (no live `shell-linux` teammate/session was reachable from this run - `ListAgents` showed none - so recording it here for the orchestrator to open `[shell-linux] align: SPW-033 skip_install_trust`): add `skip_install_trust` to the global options block in `scripts/shells/linux/common/frankenphp_runtime_common.sh::fm_caddyfile_render` (around line 713-718, the `{ admin ... auto_https disable_redirects ... }` block), same as Windows.
-- SPW-034 (LAN ACME gating): `pending-linux`. **Alignment request for shell-linux** (same reachability note as above; `[shell-linux] align: SPW-034 LAN-only hosts skip production domain routes`): `scripts/shells/linux/common/frankenphp_domain_common.sh::fm_domain_render_route` / `fm_domain_enable_ui_binding` generate the same no-tls-line per-domain route files unconditionally (called from `scripts/shells/linux/debian/debian_com/175_laravel_main_start_frankenphp.sh:67` with no host-role check), so a Linux LAN/dev box hits the identical failing-ACME retry storm. Recommended fix: reuse `net_env_detect`'s `NET_ENV_IS_LAN` (`scripts/shells/linux/common/network_detect_common.sh`) to skip `fm_domain_ensure_route_file` per domain (and clean up stale per-domain files) exactly the way `Ensure-FrankenPhpDomainRoutes` now does, keeping the same "production host only" choice for parity rather than `tls internal`.
+- SPW-033 (`skip_install_trust`): `pending-linux`. Alignment request unchanged from round 1 (reviewer confirmed it accurate): add `skip_install_trust` to the global options block in `scripts/shells/linux/common/frankenphp_runtime_common.sh::fm_caddyfile_render` (around line 714-725, the `{ admin ... auto_https disable_redirects ... }` block), same as Windows. Align task now queued: `client_key_auth/TASKS.md` `shell-linux-align-SPW-033`.
+- SPW-034 (LAN ACME gating): `pending-linux`. The round-1 counterpart request was wrong (see "Review round 1: fixes" below for the corrected text and how it was verified); `windows.md:38` now carries the fix. Align task now queued: `client_key_auth/TASKS.md` `shell-linux-align-SPW-034`, already worded with the corrected request.
+
+### Review round 1: fixes (reviews/shell-windows-9.json)
+
+Verdict was `changes_requested`. All four code fixes (a)-(d) above were re-verified and found correct with no code changes needed (`frankenphp validate` still passes on LAN/production/production-to-LAN outputs, `php -m` still loads the exact extension set, PS parser 0 errors, LF-only, live instance untouched). The two blocking findings were both ledger/report defects, not code defects:
+
+- **B1 (orchestrator's action item, verified done).** SPW-033 and SPW-034 were `pending-linux` with no `[shell-linux] align` task anywhere (`client_key_auth/TASKS.md`, `d22/items_shell.json`, `docs_fix`). Confirmed by reading the current working-tree `TASKS.md` that the orchestrator has since opened both: `shell-linux-align-SPW-033` and `shell-linux-align-SPW-034` (both `queued`). `TASKS.md` is not this task's write scope, so this section only verifies the rows exist and match; it did not create them.
+- **B2 (this task's fix).** The SPW-034 counterpart request in `windows.md:38` and this report (the old SPW-034 bullet above) told shell-linux the identical gap was in `fm_domain_render_route`/`fm_domain_enable_ui_binding` and to gate on raw `net_env_detect`'s `NET_ENV_IS_LAN`. That was wrong, confirmed by re-reading the actual Linux source rather than trusting the earlier citation:
+  - `fm_domain_install_all` (`scripts/shells/linux/common/frankenphp_domain_common.sh:457-458`) already calls `domain_setup_detect_environment` and branches on `DOMAIN_ENV_LAN_MODE` before it ever touches per-domain routes -- it is **not** missing a gate.
+  - `domain_setup_detect_environment` (`scripts/shells/linux/common/domain_setup_common.sh:212-231`) honors `DOMAIN_SETUP_NET_MODE=server` first and only falls back to `net_env_detect`'s `NET_ENV_IS_LAN` in `auto` mode; `scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh:671-680` sets `DOMAIN_SETUP_NET_MODE=server` whenever the persisted `HAS_PUBLIC_IP` constant reads `yes`. A shell-linux fix that followed the original (wrong) request literally -- gate on raw `NET_ENV_IS_LAN` -- would have bypassed that override and dropped a NAT-ed production VPS's domain routes.
+  - The real gap is `fm_domain_enable_ui_binding` (`frankenphp_domain_common.sh:241-270`), called unconditionally from the ui-binding mode (`scripts/shells/linux/debian/debian_com/175_laravel_main_start_frankenphp.sh:67`): it never calls `domain_setup_detect_environment` at all, and it never calls `fm_domain_cleanup_stale_routes` (today that only runs at `frankenphp_domain_common.sh:506`, inside `fm_domain_install_all`'s non-LAN/server branch).
+  - Fixed: rewrote the SPW-034 counterpart request in `windows.md:38` (and the Parity bullet above) to ask shell-linux to reuse `domain_setup_detect_environment`/`DOMAIN_ENV_LAN_MODE` inside `fm_domain_enable_ui_binding`, and to also call `fm_domain_cleanup_stale_routes` in the LAN branch. This matches the wording already queued in `TASKS.md`'s `shell-linux-align-SPW-034` row.
+
+No `FrankenPhpManager.ps1` behavior changed for B1/B2 (ledger/report text only). While the file was open, also took one non-blocking cleanup the reviewer listed: dropped the stale "mirrors the D7 hand ini path" sentence from the `$script:FrankenPhpRequiredExtensions` comment (history-in-source, per AGENTS.md "code is documentation" -- the payload/DLL-filtering rule text is unchanged and still accurate). Re-ran the PS 5.1 parser after this edit: 0 errors; the file is still ASCII with 0 CR bytes (LF-only).
+
+Remaining non-blocking items from `reviews/shell-windows-9.json`, not fixed this round because each needs its own logic change and test, not a text fix -- left as follow-ups for a future task if the orchestrator opens one:
+
+- `Test-FrankenPhpLanOnlyHost` (`FrankenPhpManager.ps1:510-533`) has no `HAS_PUBLIC_IP`/server-mode override; since SPW-034 this check also drives the stale-route sweep (`:857`, `:985`), so a Windows host behind cloud 1:1 NAT would be classed as LAN and lose its public routes. Needs a `Get-GlobalVar HAS_PUBLIC_IP` (or equivalent) check ahead of the ipify probe, mirroring Linux's `DOMAIN_SETUP_NET_MODE=server` override.
+- `Test-FrankenPhpLanOnlyHost` runs redundantly (3x per `Ensure-FrankenPhpDomainRoutes`, 5x per full Step175 run) for a result its own ipify call cannot change mid-run; should be evaluated once per run and threaded through as a parameter.
+- Handoff for the user: once Step96 next regenerates the live `99-core-node.ini`, the hand-written `D:\www\frankenphp\php-conf.d\50-d7-local-extensions.ini` will double-load 8 of the same extensions ("already loaded" warnings on every PHP start). The user should delete that D7 hand ini at that point; no role may touch the live directory to do it now.
+- The embedded PHP has no CA bundle (`openssl.cafile`/`curl.cainfo` both empty via `php -r`). codemart-lead's report already routes this to shell-windows through `Ensure-FrankenPhpPhpConfiguration`; it needs its own task (outside this task's (a)-(d) list).
 
 ### Blockers
 
-None for this task. SPW-033/034 need a `[shell-linux] align: ...]` task from the orchestrator (see Parity above) before they can move from `pending-linux` to `aligned`.
+None for this task. SPW-033/034 stay `pending-linux` until shell-linux completes its queued align tasks (`shell-linux-align-SPW-033`, `shell-linux-align-SPW-034`); both now exist, so there is nothing further for the orchestrator to open here.
 
 ### Next owner
 
-Reviewer (shell-windows-9), then shell-linux for the SPW-033/034 alignment tasks.
+Reviewer (shell-windows-9, round 2), then shell-linux for the queued SPW-033/034 alignment tasks.
 
 ## p2-windows: dual-boot drive layout P2, review-findings fix pass
 
@@ -502,6 +526,66 @@ None.
 
 Reviewer, for `shell-windows-10 (D29)`. No shell-linux alignment task needed: SPW-038/SPW-039 were already closed out in shell-linux's own working tree by the time this report was written.
 
+## shell-windows-10 (D29): review round 1 fixes (reviews/shell-windows-10.json)
+
+This id was reused for the D27 investigation, the original D29 Tailscale write-up above, and now this round-1 review fix -- same reuse note as before, not asking about it.
+
+### Blocking, fixed
+
+1. **`TailscaleCommon.ps1:147` `Get-TailscaleJsonProperty`'s `$Object` param was `[Parameter(Mandatory = $true)]` with no `[AllowNull()]`.** `GlobalVars.ps1` sets `$ErrorActionPreference = 'Stop'`, so binding `$null` to a mandatory, non-`[AllowNull()]` param throws and ends the script -- `Get-TailscaleStatusSummary` passes `$status`/`$currentTailnet` as `$null` exactly when the daemon is stopped or the node is logged out, so `-Action Status`/`-Action Panel` crashed in those states and the `NeedsLogin`/skip-message lines never ran. Fix: added `[AllowNull()]` next to the `[Parameter(Mandatory = $true)]` attribute. Verified by reading the null-guard at the top of the function (`if ($null -eq $Object) { return $Default }`) is now reachable, and by PS 5.1 `Parser::ParseFile` (0 errors); did not run a live NeedsLogin/Stopped state (the real machine's Tailscale stayed `Running` throughout, per the "one heavy thing at a time" rule and the task's read-only-verification scope).
+2. **Device table missing `DNSName`.** `Get-TailscaleDeviceRow` already computed it; `Show-TailscaleDevices`'s `$columns` did not print it, while Linux's `ts_show_devices` already had a `DNS NAME` column. Added `'DNSName'` to `$columns` (after `HostName`, before `Owner`). Separately, Linux was found (on re-read) to have *also* added an `Owner` and an `ExitNodeOption`-distinct `EXIT NODE` column since round 1 of the D29 task (`owner_login()`/`exit_node_label()`, ledger row SPL-120) -- this closes the exact gap I had flagged as `shell-windows`'s leader-review verdict on `shell-linux-11` (round 1, `changes_requested`). Re-verified that fix (bash -n, a Python `compile()` check on both `python3 -c` heredocs in the file, and a read of the diff) and re-issued the `shell-linux-11` verdict as round 2 `approved` (`.claude/agents_shared/reviews/shell-linux-11.json`) -- a leader duty, done here because it directly decides whether SPW-037's device field set can be marked `aligned` (it now can; both sides carry the identical field set, so no `pending-linux` row was needed for this).
+3. **Duplicate Tailscale exe-detection/status-parsing in `FrankenPhpManager.ps1`.** It had its own `$script:FrankenPhpTailscaleDefaultExePath` constant, its own PATH-then-default-dir exe lookup in `Ensure-FrankenPhpLanLocalCertificates` (the opposite order from `TailscaleCommon.ps1`'s `Find-TailscaleExecutable`), and its own `& $TailscaleExe status --json | ConvertFrom-Json` parse in `Get-FrankenPhpTailscaleDnsName`. `FrankenPhpManager.ps1` is not in this task's protected-files list, so fixed it directly rather than queuing it: `FrankenPhpManager.ps1` now dot-sources `TailscaleCommon.ps1` (safe -- its trailing dispatcher only acts on a non-empty `-Action`, never passed here, and further guarded this round by the direct-run-only help fix below) and both functions now call `Find-TailscaleExecutable`/`Get-TailscaleStatusJson`/`Get-TailscaleJsonProperty` instead of their own copies. No behavior change (same detection order as the rest of the codebase now, same JSON fields), just removes the duplicate per AGENTS.md's reuse/centralize-constants rule. Verified with PS 5.1 `Parser::ParseFile` (0 errors) and a full read of both changed functions; `FrankenPhpManager.ps1`'s live FrankenPHP service was not touched.
+4. **`WindowsManagementManager.ps1:241-243` `Test-Path` existence check on the resolved `TailscaleCommon.ps1` path.** Violates "callers trust resolved PS1/SH references without existence/status checks." Removed it; the Tailscale menu action now calls the script directly, matching the Desktop Icon Organizer entry's style right above it.
+
+### Non-blocking, fixed (in scope, low risk)
+
+- Elevated `Restart-TailscaleServiceElevated` now uses `Start-Process -Verb RunAs -Wait` and re-reads/prints `Get-Service` status afterward, instead of leaving the caller to "check the elevated window for the result" (a window that closed immediately).
+- A direct run with no `-Action` now shows help (`$MyInvocation.InvocationName -ne '.'`, which is `false` when the file is dot-sourced -- verified against a scratch two-file dot-source-vs-direct-run test on this machine), matching Linux's default-to-help dispatcher.
+- `Show-TailscalePanel` now prints the three other documented panel commands (`status --web --listen 127.0.0.1:8384`, `web --listen localhost:8088`, `set --webclient`) after the admin-console/local-UI handling, matching Linux's pre-existing `ts_show_panel` trailing block.
+- Added the `NeedsLogin`/`Stopped` "tailscale up" hint to `Show-TailscaleStatus`, matching Linux's pre-existing `ts_show_status` case branch (Windows drops the `sudo` Linux uses, since `tailscale up` needs no elevation on Windows).
+- `Restart-TailscaleServiceElevated` and `Show-TailscalePanel` now both check `Get-TailscaleInstallInfo.Installed` first and call `Show-TailscaleNotInstalledMessage` instead of, respectively, only warning "service not found" and still opening the admin console when Tailscale is absent.
+- `Find-TailscaleExecutable`'s `Win32_Service.PathName` fallback now parses the (possibly quoted, possibly followed by arguments) image-path token explicitly (`Get-ServiceImageExecutablePath`) instead of a blind `Trim('"')`, which broke whenever arguments followed the closing quote.
+- Not fixed (out of my write scope, informational only): the reviewer's note that `tailscale_menu.sh` has the same kind of existence checks against resolved references -- `shell-linux`'s file, flagged in Parity below, not edited here.
+- Not fixed (correctly out of scope, per the reviewer's own note): the task-id-collision aside and the "record the chosen Status/Devices field set in SPW-037" instruction -- done via the SPW-037 rewrite in Parity below, not a code change.
+
+### Verification
+
+- PS 5.1 `[System.Management.Automation.Language.Parser]::ParseFile`: 0 errors on `TailscaleCommon.ps1`, `FrankenPhpManager.ps1`, `WindowsManagementManager.ps1`.
+- All three files remain ASCII with LF-only line endings (0 `\r` bytes; `LC_ALL=C grep` for non-ASCII bytes: 0 lines), matching the base the reviewer checked.
+- `grep` confirms no leftover reference to the removed `$script:FrankenPhpTailscaleDefaultExePath` constant or the removed `$tailscaleCommand` local variable anywhere in `FrankenPhpManager.ps1`.
+- Tailscale was not installed, uninstalled, restarted, or logged in/out by this fix round; no `tailscale up/down/set/restart`, no `net start/stop`, no `Restart-Service` was run. The only read against the live install was via the code paths already exercised in the original D29 verification (this round changed code, not the machine's Tailscale state).
+
+### Parity (ledger: `.claude/agents_shared/shell_parity/windows.md`)
+
+- **SPW-037** (`aligned`, rewritten): now names the exact shared device field set (HostName/DNSName/Owner/OS/IPv4/IPv6/Online/LastSeen/ExitNode(+Option)/Connection, matching Linux field-for-field after SPL-120) and records TailnetName/PeerCount/AuthURL/Health as Windows-only informational extras (not required for parity, trivially available from the same JSON Linux already parses, so no alignment task opened for those). Also records the `FrankenPhpManager.ps1` dedup (implementation-only, no user-facing behavior change, so no separate parity row).
+- **SPW-040** (new, `aligned`): Panel's "other documented panel commands" text, aligning Windows to Linux's pre-existing `ts_show_panel` block.
+- **SPW-041** (new, `aligned`): Status's `NeedsLogin`/`Stopped` "tailscale up" hint, aligning Windows to Linux's pre-existing `ts_show_status` case branch.
+- **SPW-042** (new, `platform-only`): the elevation-wait, direct-run-help-default, and quoted-service-path-parsing fixes -- Windows-only correctness fixes for this action's own elevation/dispatch/parsing model; Linux's `ts_restart_service` already blocks synchronously via `eval`, its dispatcher already defaults to help, and its service-unit path has no quoting/arguments ambiguity, so no Linux counterpart is needed.
+- No new `pending-linux` row was left open by this fix round.
+
+As leader, also re-reviewed `shell-linux-11` (the task where I had requested the Owner/ExitNodeOption device-field fix) now that the working tree shows it fixed: re-issued the verdict as round 2 `approved` in `.claude/agents_shared/reviews/shell-linux-11.json`. This is not part of my own `shell-windows-10` review scope, but it is the direct justification for marking SPW-037's device fields `aligned` rather than `pending-linux`, and it is a leader duty ("write the verdict for shell-linux's tasks after checking them").
+
+### Changed files
+
+- `scripts/shells/win/win_common/TailscaleCommon.ps1`
+- `scripts/shells/win/win_common/FrankenPhpManager.ps1`
+- `scripts/shells/win/menu_itemshells/WindowsManagementManager.ps1`
+- `.claude/agents_shared/shell_parity/windows.md` (SPW-037 rewritten; SPW-040, SPW-041, SPW-042 added)
+- `.claude/agents_shared/reports/shell-windows.md` (this section and its table row)
+- `.claude/agents_shared/reviews/shell-linux-11.json` (leader re-verdict, round 2 `approved`; not a `shell-windows-10` file, listed for transparency)
+
+### Queued items
+
+None new. The `FrankenPhpManager.ps1` dedup was queued as a possibility in the review's own wording ("if that file is fenced by another lane, record the refactor as a queued item") but it was not fenced, so it was fixed directly instead of queued.
+
+### Blockers
+
+None.
+
+### Next owner
+
+Reviewer, for this round's fix to `shell-windows-10 (D29)`.
+
 ## amend-windows-d28d30: D28/D30 SharedCacheEnv.ps1 + ProjectTreeCommon.ps1 lane
 
 Fenced files: `scripts/shells/win/win_common/SharedCacheEnv.ps1`, `scripts/shells/win/win_common/ProjectTreeCommon.ps1`, `.claude/agents_shared/shell_parity/windows.md` (row SPW-035).
@@ -603,3 +687,171 @@ None for shell-windows. shell-linux-11 stays open until the device-field gap is 
 ### Next owner
 
 ca-orchestrator: relay the alignment request to shell-linux (fix `ts_show_devices` field parity, correct `SPL-118`), since no direct session/teammate to shell-linux was reachable from here.
+
+## shell-linux-11: leader review, round 2 (verdict: approved)
+
+Note: the section above is titled "round 2" but its body is actually the round-1 review (verdict `changes_requested`, written when the prior `shell-linux-11.json` still had `"round": 1`) -- a title typo from that earlier pass, left as-is rather than rewritten, since its content is accurate for round 1. This section is the real round-2 review, after shell-linux applied the fix.
+
+Re-reviewed shell-linux's fix for the round-1 blocking finding (missing `Owner`/`ExitNodeOption` device-table columns in `ts_show_devices`). Verdict written to `.claude/agents_shared/reviews/shell-linux-11.json`: **approved**.
+
+### What checked out
+
+- Diff scope (git diff, working tree vs HEAD) is exactly `scripts/shells/linux/common/tailscale_common.sh` (`ts_show_devices`'s doc comment + its `status --json` python heredoc: new `owner_login()`/`exit_node_label()`, widened `row_fmt`, new `OWNER` column, `EXIT` -> `EXIT NODE` tri-state) and `.claude/agents_shared/shell_parity/linux.md` (`SPL-118` text corrected, new `SPL-120` row) -- nothing else in the file changed; `ts_show_status`/`ts_restart_service`/`ts_show_panel`/`ts_open_url`/the service-state helpers/the dispatcher are byte-identical to the already-partially-approved round 1 version.
+- `bash -n` clean on all four Tailscale `.sh` files; `tailscale_common.sh` is 0 CR bytes.
+- Extracted the exact `status --json` parsing heredoc (byte-level slice of the second `python3 -c '...'` block, not the earlier `ts_backend_state` one) and ran `compile()` on it with Windows Python 3.13 (`D:\.dev_win10\python313\python.exe`) -- compiles clean, defines `split_ips`/`owner_login`/`exit_node_label`/`connection_label`.
+- Ran that heredoc end-to-end against a synthetic `status --json` payload covering every branch: two distinct `UserID`s resolved to `LoginName`, a `UserID` absent from the `User` map (`Owner` correctly `-`), a peer with no `UserID` (`Owner` correctly `-`), `ExitNode:true`+`ExitNodeOption:true` (correctly `in-use`, `ExitNode` wins), `ExitNodeOption:true`-only (correctly `offered`), neither (correctly `-`), the documented zero-time `LastSeen` printed verbatim, and all three connection-label branches (direct/relay/peer-relay). Every value matched the documented precedence and the Windows counterpart's semantics.
+- Re-read `TailscaleCommon.ps1` in full: `Show-TailscaleDevices`'s actual displayed `Format-Table` column already collapses `ExitNode`/`ExitNodeOption` into one three-state column (`in-use`/`offered`/blank) -- so the Linux fix now matches not just the underlying JSON fields but the exact displayed table shape Windows renders. Column order differs cosmetically (Windows prints `Owner` before `OS`; Linux prints `OS` before `OWNER`) -- same field set, not blocking.
+- `PowerShell Parser::ParseFile` on `TailscaleCommon.ps1`: 0 errors (re-checked as the parity counterpart, itself unchanged this round).
+- Protected lane: `git diff`/`git diff --cached` on `dd.sh` and `dd_helper/permissions_repair_menu.sh` both completely empty. `dd_helper/menu_display.sh` has an unrelated staged mode-only change (100644 -> 100755, zero content diff, no `tailscale` hits) -- not in shell-linux's round-2 changed-files list, most likely Windows/WSL checkout filemode drift from another lane; recorded as a non-blocking aside, not a rule violation since no content changed.
+- No `tailscale`/`systemctl`/`net start|stop` command or WSL distro boot was run by this review; `wsl.exe -l -v` still shows both distros `Stopped`, unchanged from before the review.
+- Ledger: `SPL-118`'s overclaim is fixed; `SPL-120` is a new, non-duplicate id (correctly avoided the concurrently-claimed `SPL-119`) and correctly cites `SPW-037`/`SPW-038`/`SPW-039`. No `pending-*` row left dangling, so no new alignment task is needed from either side for this fix.
+
+### Parity ledger
+
+No Windows-side code changed by this review or by shell-linux's fix. `SPW-037/038/039` in `windows.md` already document the Windows fields this fix now matches; no new `SPW-###` row needed.
+
+### Changed files
+
+- `.claude/agents_shared/reviews/shell-linux-11.json` (updated in place; verdict `approved`, round 2).
+- `.claude/agents_shared/reports/shell-windows.md` (this section).
+- No changes to any file in shell-linux's or shell-windows's write scope.
+
+### Blockers
+
+None. `shell-linux-11` closes as approved.
+
+### Next owner
+
+Orchestrator / shell-linux: task closes as approved.
+
+## shell-linux-G1 (leader review): close the 7 shell-linux-1 review blockers + window:false exclusion
+
+Reviewed shell-linux's `scripts/shells/linux/common/claude_team_common.sh` / `scripts/ai_shtools/claude_code_install.sh` / `.claude/agents_shared/shell_parity/linux.md` against diff base `74e7770`; wrote `.claude/agents_shared/reviews/shell-linux-G1.json` with verdict `approved`.
+
+### What checked out
+
+All 7 `D13-LIN-BLOCKERS` sub-fixes and the `D13-LIN-CATALOG` item were confirmed genuine (each bug reproduced at the pre-fix commit `5bbb23682`, then confirmed fixed at HEAD) and correctly implemented, with several verified live in WSL Debian (no tmux there, consistent with prior sessions) rather than by inspection alone:
+
+1. `claude_team_scan_live` one-lead-at-a-time (new `claude_team_other_lead_session`): checked before legacy/idle/stopped, sets `state=other-lead` with empty `ROW_ACTION`, confirmed a no-op for `claude_team_place_order`/`claude_team_respawn_roles` (both gate on `ROW_ACTION`).
+2. `claude_team_print_report` gained MODEL/EFFORT columns in the documented order.
+3. `claude_team_named_pid` matches `--name`/`-n` -- live-verified against two real background processes (a wrapper script + `wait` was needed to stop bash's tail-call exec from erasing the argv before it could be checked).
+4. `claude_team_load_catalog`'s python heredoc uses `utf-8-sig` and first-wins+WARN on a duplicate frontmatter name -- live-verified by extracting the exact heredoc and running it against a scratch catalog with a BOM'd agent file and two files sharing one name.
+5. `claude_team_tab_grid`'s lead-top fallback (new `claude_team_best_grid`, plus `claude_team_build_tab`/`claude_team_regrid` updates for the new shape) -- hand-recomputed the claimed 161x52 example against the literal algorithm and it matches exactly (shape=top, lead 161x30, roles 2x80x20); reasoned the unaffected 213x52 case cannot regress since the fix only changes behavior for candidates that were already being clamped.
+6. `claude_team_common.sh`'s `CLAUDE_TEAM_CATALOG_PATH` now reuses `claude_code_install.sh`'s `CCI_TEAM_CATALOG_PATH` instead of an independent literal (confirmed `claude_code_install.sh` itself has zero diff since `5bbb23682`, matching the claim it needed no edit).
+7. `D13-LIN-CATALOG`: live-sourced the real file against the real `config/claude_team_roles.json` and confirmed `reviewer`/`ncore`/`flutter` (the catalog's `window:false` rows) resolve to `state=no-window`/empty action and are absent from `CLAUDE_TEAM_PLACE_ORDER` and every `CLAUDE_TEAM_PACK_GROUPS` entry.
+
+Also independently verified (not just trusting `windows.md`'s prose) that the Windows counterparts this task relies on to skip creating shell-windows align tasks (`SPW-023`, `SPW-025`, `SPW-036`) are actually implemented in `ClaudeTeamCommon.ps1` (`Select-ClaudeTeamGrid`, `Get-ClaudeTeamLeadShape`, `Get-ClaudeTeamRoleWindowFlag`), all three carrying task id `shell-windows-G1` -- the same round as this Linux task, so no `[shell-windows] align: ...]` task is needed. `bash -n` clean on both shell files, 0 CR (LF-only). Boundaries respected: only `claude_team_common.sh`, `linux.md` and the shell-linux report were touched; `claude_code_install.sh`, `config/claude_team_roles.json`, `.claude/agents`, `.claude/hooks`, `.claude/settings.json` and every core-node-e9-fenced file were untouched by this task.
+
+### Non-blocking note
+
+shell-linux's report attributes "no shell-windows align task needed for SPL-107/SPW-025" to "the review's explicit note", but `shell-linux-1.json`'s explicit "do NOT create an align task" instruction was scoped to `SPL-110` only -- for `SPL-107`/`SPW-025` that review had actually asked for an align task. The substance is still correct (shell-windows closed `SPW-025` in this same G1 round), so this is a prose attribution nit, not a functional gap; not blocking.
+
+### Parity ledger
+
+No Windows-side code changed by this review. `windows.md`'s `SPW-023`/`SPW-025`/`SPW-036` rows were read (not written) to cross-check the Linux claims and found accurate.
+
+### Changed files
+
+- `.claude/agents_shared/reviews/shell-linux-G1.json` (new; verdict `approved`).
+- `.claude/agents_shared/reports/shell-windows.md` (this section and its table row).
+- No changes to any file in shell-linux's write scope.
+
+### Blockers
+
+None.
+
+### Next owner
+
+Orchestrator / shell-linux: task closes as approved.
+
+## shell-windows-G2 (D20): `dd` syncgit / help + shared GitHub-SSH-origin
+
+Diff base `74e7770`. AGENTS/D20 rule observed throughout: no git write command (`add`/`commit`/`pull`/`push`/`remote set-url`) was ever actually run by this task; every live check used `-DryRun`/`--dry-run` with a stub `git.exe` call-logger on PATH, or PowerShell's `Parser::ParseFile`. No `git add`/`commit` was run on this task's own changes either (read-only git only, per the session's AGENTS.md override).
+
+### D20-WIN-SHARED -- shared syncgit function + winenvs quick command
+
+Status: done.
+
+Files: `scripts/shells/win/win_common/GitSyncCommon.ps1` (new), `scripts/winenvs/syncgit.ps1` (new).
+
+- `Get-GitSyncRepoRoot`: resolves the repo root from the script's own location (walk up 4 levels from `win_common`, verified against a `dd.cmd`-existence check; `git rev-parse --show-toplevel` fallback only if that walk ever lands elsewhere) -- never a hardcoded path.
+- `Get-GitSyncGitHubSshUrl`: reads the `github=` line from `scripts/git/git_remotes.conf` with a plain first-`=` split (no regex), matching the existing key already there (`git@github.com:accountbelongstox/core_node.git`) -- no new URL constant.
+- `Set-GitSyncRemoteUrl` (unconditional write) / `Set-GitSyncRemoteIfDifferent` (idempotent: `git remote get-url` compare, then set-url/add only on a diff) / `Invoke-GitSyncEnsureGitHubSshOrigin`.
+- `Get-GitSyncCommitMessage`: `<systemname><version>up<yyyyMMdd-HHmmss>`, systemname `win` (see D20-WIN-VERSION for the version source).
+- `Invoke-GitSyncRun`: ensure origin -> `git add .` -> commit (skipped when nothing is staged) -> `git pull origin main` (on a conflict or non-zero exit: stops, prints conflicted paths via `git diff --name-only --diff-filter=U` and the next manual step, never pushes, never auto-resolves/forces) -> `git push origin main`.
+- `scripts/winenvs/syncgit.ps1`: thin wrapper, PowerShell-idiomatic `-DryRun` switch (no `.cmd` shim -- confirmed no other `scripts/winenvs/*.ps1` command has one).
+- Self-contained on purpose: does not dot-source `CommonFunc.ps1`/`GlobalVars.ps1`, so dot-sourcing it has no side effects (no StrictMode leak into the caller, no global-var-store touch) -- can be sourced from `dd.ps1`, the winenvs script, or `gitput_unified.ps1` alike.
+- **DryRun makes zero calls to git.exe at all** (stricter than "no writes"): verified with a stub `git.cmd` call-logger prepended to PATH -- `scripts\winenvs\syncgit.ps1 -DryRun` produced 0 logged invocations while still printing the real computed remote (`git@github.com:accountbelongstox/core_node.git`) and commit message (`win1.0.0up20260927-...`).
+
+Verify: `Parser::ParseFile` on both files -> 0 errors (re-checked after every subsequent edit). Live run of `scripts\winenvs\syncgit.ps1 -DryRun` with the stub git on PATH: 0 real invocations, correct repo root (`D:\programing\core_node`), correct remote and message printed.
+
+### D20-WIN-DISPATCH -- `dd.cmd`/`dd.ps1` minimal dispatch
+
+Status: done.
+
+Files: `dd.cmd`, `scripts/shells/win/dd.ps1`.
+
+- `dd.cmd`: both `powershell ... -File "%local_dd%"` and `... -File "%downloaded_dd%"` invocations now append ` %*` (previously forwarded no arguments at all).
+- `dd.ps1`: param block gained one `[string[]]$Arguments` (`Position=0, ValueFromRemainingArguments=$true`) alongside the existing `-SkipInitialization` switch. A two-param split (`[string]$Command` + remaining) was tried first and rejected: empirically, PowerShell 5.1 routes a leading `-h`/`--help` token straight into a `ValueFromRemainingArguments` catch-all instead of binding it to a typed `[string]$Command` at Position 0, so a two-param design would have silently missed `-h`/`--help` (verified with a scratch script before touching `dd.ps1`). The single-array design binds every case correctly (`help`, `-h`, `--help`, `syncgit --dry-run`, `-SkipInitialization`, `-SkipInitialization syncgit --dry-run`, no args) -- all six tested directly.
+- Early-CLI-dispatch block sits right after the param block/doc-comment, before `Set-ExecutionPolicy`, `Import GlobalVars.ps1`, or anything else: `help`/`-h`/`--help` prints `Show-DdCliHelp`'s table (name, one-line purpose, example, from one `$script:DdCliParamTable`) and `return`s; `syncgit` parses `--dry-run` from the remaining args and calls `GitSyncCommon.ps1`'s `Invoke-GitSyncRun`, then `return`s. An unrecognized first token prints a hint and falls through unchanged into the existing no-argument interactive-menu path (so existing behavior is preserved, not just for zero args).
+- No exit codes used as return values anywhere in the new dispatch (`return`, not `exit`, stops the script for `help`/`syncgit`).
+
+Verify: `Parser::ParseFile` on `dd.ps1` -> 0 errors. Static trace: both `help` and `syncgit` branches `return` before the file reaches `Import GlobalVars.ps1` (let alone `Invoke-InteractiveMenu`, defined ~1100 lines later). Live-verified (not just statically) with a timed background job and a 15-20s timeout: `dd.cmd help` (via `cmd.exe`) prints the table and the job completes in under a second, with none of `Initialize-Environment`'s log lines; `dd.cmd syncgit --dry-run` with the stub git.exe on PATH prints the same dry-run output as the winenvs command and the call-logger recorded 0 invocations. Ran both through `dd.cmd` itself (not just `dd.ps1` directly), confirming `%*` forwarding actually works end to end.
+
+### D20-WIN-VERSION -- version source for the commit message
+
+Status: done (decision recorded, per spec S1.4; no code needed beyond D20-WIN-SHARED's `Get-GitSyncProjectVersion`).
+
+Files: `scripts/git/git_remotes.conf` (not touched), `scripts/git/gitput_unified_modules/config.py` (not touched).
+
+- Confirmed by search: no dd/core_node version constant exists in `dd.sh`, `dd.ps1` or any `gitput_unified*` module -- only the runtime `$SYSTEM_VERSION`/`SYSTEM_VERSION` platform-detection variables (Windows_x64/WSL_.../Docker_Windows on the PS1 side; empty-then-detected on the sh side), which are not a project version.
+- **Decision**: root `package.json`'s `"version"` field (currently `"1.0.0"`, confirmed by grep) is the version source, read via `ConvertFrom-Json` (no regex) in `Get-GitSyncProjectVersion`. Falls back to `"0.0.0"` if the file or field is ever missing.
+- `git_remotes.conf` already had a `github=git@github.com:accountbelongstox/core_node.git` line, so no key needed to be added and `git diff` on that file is empty; `gitput_unified_modules/config.py`'s `load_remote_configs()` was left untouched (still the one Python-side reader) since the temporary writer grant only applied if a key had to be added.
+
+Verify: `git diff --stat` on both files is empty (confirmed). `python -m py_compile` not run since `config.py` was not touched (the verify text's "if touched" condition does not apply).
+
+### D20-WIN-LINKAGE -- gitput_unified.ps1 reuse + parity rows
+
+Status: done.
+
+Files: `scripts/git/gitput_unified.ps1`, `.claude/agents_shared/shell_parity/windows.md`.
+
+- `gitput_unified.ps1` now dot-sources `GitSyncCommon.ps1` (right after the existing `github_host_refresh.ps1`/`gitee_host_refresh.ps1` dot-sources, reusing the already-defined `$winCommonDir`).
+- `Get-DefaultRemote`: now calls `Get-GitSyncGitHubSshUrl -RepoRoot $coreNodeDir` instead of hardcoding `"git@github.com:accountbelongstox/$ProjectName.git"`; that literal is kept only as a last-resort fallback (with a `Write-Host` warning -- not `Write-ColorText`, which is defined ~70 lines later in the file and would have thrown at this call site if the fallback ever actually fired) when the conf key is missing.
+- `Set-RemoteUrl`: now calls `Set-GitSyncRemoteUrl -RemoteName "origin" -TargetUrl $RemoteUrl` instead of its own inline `git remote set-url origin $RemoteUrl`. Its signature, its callers (the github/gitee/local remote-rotation-and-restore push flow), and its try/catch/throw behavior are all unchanged -- only the actual git write is delegated.
+- Verified by grep across both files: the only remaining literal `git remote set-url`/`git remote add` invocations are the two inside `Set-GitSyncRemoteUrl` (`GitSyncCommon.ps1`); `gitput_unified.ps1` has none left (only a comment mentioning the pattern).
+- Isolated sanity check (dot-sourcing just `GitSyncCommon.ps1` and calling `Get-GitSyncGitHubSshUrl -RepoRoot "D:\programing\core_node"`) returned exactly `git@github.com:accountbelongstox/core_node.git`, matching `git_remotes.conf`. The full `gitput_unified.ps1` was **not** executed (it prompts interactively and would perform real git/remote operations -- out of bounds for this task); verification is `Parser::ParseFile` (0 errors) + this isolated function check + manual review of definition-vs-call ordering.
+- **ID collision avoided**: `windows.md` had grown (another concurrent shell-windows session, task id `shell-windows-10`, is actively expanding `SPW-037` with "review-round-2" Tailscale content) between my first read and my append; that session's `SPW-037` text explicitly reserves `SPW-040`/`SPW-041` for two upcoming rows of its own ("tracked as its own row SPW-041"/"SPW-040"). My first draft had used exactly those two ids for unrelated syncgit/help content, so I renumbered my three new rows to `SPW-043`/`SPW-044`/`SPW-045` before finishing, re-reading the file twice more (it kept changing on disk from the other session's concurrent edits) to confirm no id is duplicated and my rows are intact at the tail.
+- Rows added, all marked **`aligned`** (not `pending-linux`): the computed task text assumed shell-linux's D20 side was still to come, but reading the actual current files (`scripts/shells/linux/common/git_sync_common.sh`, `scripts/shells/linux/dd_helper/main_execution.sh`, `scripts/linuxenvs/syncgit.sh` -- present in the working tree, staged (`git status` shows `M`) though not yet in a separate commit) shows shell-linux has already implemented the matching repo-root/origin/commit/pull/push contract, the same `dd_register_param`/`show_cli_help` table shape, and the identical package.json-version-source reasoning (documented almost verbatim in that file's own comments). Per the "derive the correct state from the current code, not stale docs" rule, I recorded `aligned` with the actual Linux file/function names rather than leaving a `pending-linux` row the reviewer would then require an alignment task for.
+  - `SPW-043`: `syncgit` shared function + `dd`/winenvs entry points.
+  - `SPW-044`: `help`/`-h`/`--help` dispatch table.
+  - `SPW-045`: GitHub-SSH-origin one-write-function reuse (`gitput_unified.ps1` + `GitSyncCommon.ps1`) + the version-source decision.
+
+Verify: `Parser::ParseFile` on `gitput_unified.ps1` -> 0 errors. `grep -n "git remote set-url\|git remote add"` across both files -> matches only inside `GitSyncCommon.ps1`'s `Set-GitSyncRemoteUrl`.
+
+### Cross-scope / message to shell-linux
+
+No `shell-linux` teammate or session was reachable via `ListAgents` in this session (only `core-node-e9` and `ct-laravel-remote` were listed as peers), so this note is the "write it in your result" alternative the protocol allows.
+
+One behavioral difference worth shell-linux's attention, not filed as a `pending-*` row since it is a testing-strictness nuance rather than a user-facing feature gap: Windows's `syncgit -DryRun`/`--dry-run` makes **zero** calls to `git.exe` at all (verified against a stub call-logger), including skipping the `git remote get-url`/`git status --porcelain` reads that Linux's `git_sync_common.sh` dry-run path still performs. Both report the same commands and reach the same PASS/behavior; Windows's version is just stricter about not touching git at all in dry-run, which is what let it be verified with a bare stub-and-count-calls test. Not requesting a change, just flagging it in case shell-linux's own dry-run review expected (or already assumed) the same zero-call guarantee.
+
+Also worth a look when shell-linux next touches `.claude/agents_shared/shell_parity/linux.md`: no `SPL-###` row for this D20 work exists there yet (checked; only `SPL-001..SPL-006`, `SPL-101..SPL-120` cover unrelated features), even though the Linux-side files are already present and staged. Not blocking this task, just noted since the parity ledger is meant to be kept in step by both sides.
+
+### Changed files
+
+- `scripts/shells/win/win_common/GitSyncCommon.ps1` (new)
+- `scripts/winenvs/syncgit.ps1` (new)
+- `dd.cmd`
+- `scripts/shells/win/dd.ps1`
+- `scripts/git/gitput_unified.ps1`
+- `.claude/agents_shared/shell_parity/windows.md` (`SPW-043`, `SPW-044`, `SPW-045`, all `aligned`)
+- `.claude/agents_shared/reports/shell-windows.md` (this section)
+- Not touched (considered, not needed): `scripts/git/git_remotes.conf`, `scripts/git/gitput_unified_modules/config.py`
+
+### Blockers
+
+None. No `pending-*` row was left dangling, so no `[shell-linux] align: ...` follow-up task is needed from this round.
+
+### Next owner
+
+Reviewer, against diff base `74e7770`. Orchestrator: consider whether the concurrent `shell-windows-10` (Tailscale review-round-2) session's upcoming `SPW-040`/`SPW-041` rows should be checked against this section's `SPW-043`/`SPW-044`/`SPW-045` once both land, since both sessions were editing `windows.md` at the same time.

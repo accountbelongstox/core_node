@@ -359,6 +359,33 @@
   - Decision (recommended option): verify and record, with no leader edit. This keeps the one-writer-per-path rule, and the owner's write already satisfies the blocking fix.
   - Changed files (round 2): this report only.
   - Blockers: none. Next owner: none for this task. `rename()` (sudo-only) and the `:673-675` redundant final `if` stay in pycore-laravel's backlog.
+- Round 3 (reply to the reviewer's round-2 changes_requested, `reviews/laravel-api-D7-fix.json` 21:40):
+  - Status: deferred to the owner with a validated patch. Both files are pycore-laravel's scope (`app/Apps/ServerManagerV1/`, `app/Utils/`), the issue itself says "pycore-laravel scope only", and TASKS.md:168 routes any remainder to ct-pycore-laravel. ListAgents shows no pycore-laravel session (only core-node-e9 and ct-laravel-remote), so this report is the dispatch.
+  - The reviewer is right, and I withdraw my round-2 claims "no second native recursive delete exists" and "no junction-safe helper exists in app/". My grep for `CHILD_FIRST|filetype(` could not match nativeRmdir's scandir walk.
+  - Refinement of the hazard, from traces on PHP 8.5.2 CLI and FrankenPHP php-cli 8.5.11 (`scratchpad/d7fix3/{isdir_probe,trace_h}.php`):
+    - On a Windows junction, `is_dir()` depends on the stat cache. It is true when called first on a fresh path, and false after any lstat (`is_link`/`filetype`) of the same path.
+    - nativeRmdir's loop (:257) calls `is_dir` first, so it sees a nested junction as a real directory and recurses into it. Only the recursive call's leading `is_link` (:241) masks the next `is_dir`, so the call returns true without deleting anything.
+    - The observed result today: a nested junction makes the purge fail with a 500 after the site is partly deleted (index.html gone, junction and parents left). A top-level junction returns a false success and deletes nothing. The target's contents survive only because of that cache quirk.
+    - FileSystemManager::deleteNative uses lstat at the top (`filetype`) and `RecursiveDirectoryIterator::hasChildren` (lstat, no FOLLOW_SYMLINKS) below. It does not depend on the cache order.
+  - Patch for pycore-laravel (both files are LF with 0 CR; keep LF; no comments). `scratchpad/` below is `D:/.tmp/claude/D--programing-core-node/59362416-9b59-4a9b-b284-e4b3d83daf06/scratchpad`. The diffs are at `scratchpad/d7fix3/{ea.diff,fsm.diff}`, and full patched copies are in `scratchpad/d7fix3/patched/`:
+    - `ServerManagerV1ElevatedAccess.php:202`: `$ok = self::nativeRmdir($path);` becomes `$ok = \App\Utils\FileSystemManager::delete($path);`.
+    - `ServerManagerV1ElevatedAccess.php:238-263`: delete the nativeRmdir docblock, the method and the blank line after it (333 lines become 306). No other reference exists in the repo.
+    - `FileSystemManager.php:673-675`: `if (@unlink($path) || @rmdir($path)) { return; }` becomes `@unlink($path) || @rmdir($path);` (899 lines become 897).
+  - Verification (free RAM 6.58 GB; scratch only, no repo or data-dir writes):
+    - `build_patch.php` applies each replacement with an exactly-one-match assertion. The patched copies have 0 CR and 0 `nativeRmdir` hits. `php -l` is clean on both patched files and on the three class-renamed test copies.
+    - `verify_r3.php` boots Laravel in-process and calls `deletePathWithSudo(<scratch>, '')` with the stat cache cleared before each call. It tests two variants: P, the literal patch with the real FileSystemManager, and F, the patch plus the fold (`FileSystemManagerR3`).
+    - Each variant covers: a site dir holding a nested junction, a nested dir symlink, a nested file symlink, a loop junction to the site, a read-only file and a read-only dir; a top-level junction; a top-level dir symlink; a single read-only file; a missing path (success, 200); and '' and '/' (refused, 400).
+    - Result: 26/26 PASS on both CLI 8.5.2 (`out_cli.json`) and FrankenPHP php-cli 8.5.11 (`out_frankenphp.json`). Every site and link is gone, and every target is hash-identical. All 17 `*_created`/attr flags are true, stderr is 0 bytes, and the sandbox was removed.
+    - The same run on the current code gives h1 (nested junction) `{success:false, code:500}` with the site left, and h2 (top-level junction) `{success:true, code:200}` with the junction left.
+  - Member verification after the edit (pycore-laravel): `php -l` on both files; `grep -rn nativeRmdir app/` finds nothing; then run `php scratchpad/d7fix3/verify_r3.php` unchanged (do not re-run `build_patch.php`, whose old-text assertions abort once the edit lands). Its h1/h2 block then exercises the edited real class, and must read h1 `{success:true, code:200}` with `h1_current_site_gone` and `h1_current_target_intact` true, and h2 success with `h2_current_junction_gone` and `h2_current_target_intact` true. Then restart the workers and check health 200.
+  - Non-blocking notes for the re-review:
+    - `mapExternalPath` is the identity for web roots only when the raw nginx root string does not start with `getCoreNodeDir()`. The purge guard compares realpaths, so a raw root under core_node that resolves into wwwroot through a junction would be mapped to `storage/external/...` and report a false success. This is contrived and not reachable with the current layout (wwwroot is outside core_node).
+    - On non-Linux, non-Windows hosts (macOS) the branch now reaches the sudo `rm` path. The project supports only Windows and Linux (AGENTS.md).
+    - Widened reuse grep (`rmdir(` together with `scandir(`, DirectoryIterator or `glob(`): no other recursive native delete exists in app/. The AiGateway hits remove one empty dir each.
+    - Cross-scope (informational; for wordnew-laravel via the orchestrator): besides the pycore-laravel backlog callers (GlobalVar.php:165, ClipboardController.php:104/:109), four AppQyV1 `File::deleteDirectory` callers share the same Windows `isDir()&&!isLink()` junction walk-through: AppQyV1ExternalDataMigrator.php:101, AppQyV1AudioFileProcessor.php:51, AppQyV1BookSeedImporter.php:195 and AppQyV1ImageFileProcessor.php:52. All of them delete app-created temp or old data dirs.
+  - Decision (recommended option): defer with a validated patch rather than make a leader edit, for the same reason as round 1 (B1, one writer per path; the task says "write scope only"). The reviewer called the round-1 deferral correct.
+  - Changed files (round 3): this report and the pycore-lead agent memory. No repo code changed, so there was no worker restart.
+  - Blockers: the owner's edit. Next owner: pycore-laravel (apply the patch, run the member verification, restart the workers). Then the reviewer service re-reviews and writes `reviews/laravel-api-D7-fix.json`.
 
 ## Review pycore-runtime-D7P2-fix round 1 (dispatched to member pycore-ui)
 
@@ -529,3 +556,14 @@
 - Effect on other callers: every `start_bus_task` without response_signal (AudioLaneBootChainThread, AudioLaneRestoreGate.*, AiProbeStartupThread, the worker pull tasks, codesync `start_bus_task`) now reports a raised failure. `await_bus_task` catches inside its worker and stays silent. Every `submit_coroutine_via_bus` caller uses wait=True (`pyutils/device/port_pool.py:210-240`), so none changes.
 - Changed files (this task): `pycore/pyfoundations/serialized_worker.py` and this report section. No git writes.
 - Blockers: none. Next owners: the reviewer service (verdict `pycore-lead-F1.json`), then pycore-runtime (pycore-runtime-D7P2-fix B4): rewrite the `event_handlers.py:431-434` docstring to name this report, keep try/finally with no except, and run the re-review probe (`_start_audio_lane_boot_chain` raises, one red block names AudioLaneBootChainThread, and apply_assist_runtime still runs).
+
+## pycore-ai-D7P2-fix round 2 review (verdict: approved)
+
+- Verdict file: `.claude/agents_shared/reviews/pycore-ai-D7P2-fix.json` (round 2, base 74e7770, head ab566fdf7).
+- Round-2 hunks (24674d1a6..HEAD): `audio_resource_delivery.py`, `audio_lane_full_sync.py` and `audio_queue_center.py`, all in pycore-ai's map entry. B1 and B3 files, capability_sync.py and laravel_audio_delivery.py are unchanged since round 1.
+- B2 (round-1 blocker) is fixed. `is_terminal_delivery_rejection(..., error_code='')` returns True for WORD_NOT_FOUND (:88-89), and the md5-less gate (:368-386) also accepts data.status WORD_NOT_FOUND. The domain-report truth table is unchanged. B4 cleanup: the alias is removed, the constant is in `__all__`, and the round-2 lines are ASCII.
+- Probe `d7p2_fix_lead_round2_probe.py`: 48/48 PASS (free RAM 5.66 GB, no services, tests or builds). EOL: all task files are 100% CRLF, and numstat equals ignore-space-at-eol. compile() and ast.parse pass on all seven files.
+- Non-blocking items recorded: (1) section signs remain at audio_queue_center.py:828 and capability_sync.py:31/:51; they are from the D7P2 hunks, not pre-base as the member's report says. (2) The error_code annotation should be Optional[str]. (3) Round-1 carry-overs: the contract accessor, a shared home for RETRYABLE_4XX, the B1 exemption key and the B3 reload gap. (4) The index has staged mode-only changes repo-wide (557 files 644 to 755 plus 16 re-added agent files); this was not the member's doing and is flagged to the claude lead.
+- Decision: 401/403 stay terminal (accepted the member's group decision; it is the requirement's literal rule).
+- Changed files (this task): the verdict file and this report section. No git writes.
+- Blockers: none. Next owner: orchestrator (the task can complete).

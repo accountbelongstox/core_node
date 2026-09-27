@@ -132,3 +132,138 @@ Scratch scripts (not in the repo), in `D:\.tmp\claude\D--programing-core-node\59
 - Blockers: none. Next owners:
   - wordnew-lead: re-review round 1; decide on LDRI-28 risk (a) and the srv-07b per-language ensure note;
   - pycore-laravel: LDRI-22-timer, committing the FileSystemManager `deleteNative`, the MoviePoster/WordGemini index hooks, and the stale CoverGenerationTask comments.
+
+## wordnew-laravel-G2
+
+Status: all 5 items done and verified locally (AOQSD-09, MCHR-21, LDRI-29, CKA-26a, CKA-26b). I ran no git writes. The user's sweep commit `ab566fdf7` (21:31:31, "win0.0.1") holds all 33 of my files. Review them with `git diff 24674d1a6 ab566fdf7 -- <paths below>` (33 files, +529/-229). The working tree matches HEAD in content for these files. Four of them show only a 100644→100755 mode change, which another writer staged, not me. All 33 files are LF with 0 CR bytes, and no file was converted. The AI rules headers in `AppQyV1BookSeedImporter.php` and `AppQyV1DailyReadingLibraryDefaults.php` are unchanged. Free RAM was 6.41 GB before the in-process checks (after waiting; it was 1.25 GB at first, so until then I ran static checks only).
+
+Changed files (all under `poly_apps/laravel_main/`):
+- AOQSD-09: `app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1SentenceAudioController.php`
+- MCHR-21: `app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1Vocabulary/AppQyV1VocabularyCoverTaskCtl.php`
+- LDRI-29: `app/Apps/AppQyV1/AppQyV1Commands/AppQyV1ResourceIndexCommand.php`
+- CKA-26a (`app/Apps/AppQyV1/Utils/`):
+  - `AppQyV1Initializer.php`, `AppQyV1VocabularyImporter.php`, `AppQyV1AITools/AppQyV1TranslationService.php`;
+  - `AppQyV1SystemInit/{AppQyV1ImageFileProcessor,AppQyV1AudioFileProcessor,AppQyV1BookSeedImporter,AppQyV1DailyReadingLibraryDefaults}.php`.
+- CKA-26b (`app/Apps/AppQyV1/`):
+  - `AppQyV1Controllers/AppQyV1UserAuth/`: `AppQyV1AuthenticationLoginController.php`, `AppQyV1AuthenticationRegistrationController.php`, `AppQyV1AuthenticationPasswordConfirmationController.php`, and the three `AppQyV1AuthenticationEmailVerification*Controller.php` files;
+  - `AppQyV1Controllers/AppQyV1User/AppQyV1UserInitializationController.php`;
+  - `AppQyV1Controllers/AppQyV1System/`: `AppQyV1SystemInitializationController.php`, `AppQyV1ProcessingCapabilityController.php`, `AppQyV1SystemInitComplianceCtl.php`;
+  - `AppQyV1Controllers/AppQyV1ClientAuth/AppQyV1ResourceAccessController.php`;
+  - `AppQyV1Controllers/AppQyV1PersonDict/`: `AppQyV1PersonalDictionaryCreationController.php`, `AppQyV1PersonalDictionaryDeletionController.php`;
+  - `AppQyV1Controllers/AppQyV1Group/`: `AppQyV1WordGroup{Creation,Deletion,Language,Library,Management,MediaSource,Query}Controller.php`;
+  - `AppQyV1Middleware/AppQyV1ClientAuth/AppQyV1ResourceAccessAuth.php`.
+- Lang, all items: `lang/en/app_qy_v1.php` and `lang/zh_CN/app_qy_v1.php`. Both files got the same 143 new `messages.*` keys in the same order, and 2 existing keys (`unknown_action`, `unknown_kind`) were parameterized. Each locale now has 339 keys.
+
+Scratch scripts (not in the repo), in `D:\.tmp\claude\D--programing-core-node\59362416-9b59-4a9b-b284-e4b3d83daf06\scratchpad\wnl_g2\`:
+- `scan.sh`: the audit literal scan;
+- `keys_verify.php`: key resolution;
+- `http_verify.php`: in-process HTTP and Utils checks;
+- `ldri29_verify.php`: in-process artisan run under zh_CN and en;
+- `static_parse.php`: AST parse without compiling;
+- `apply_php.php` and `apply_lang.php`: exact-match replacers. Each one aborts before writing if any old string's count differs from the expected count.
+
+### Gate and decisions (B9, recommended options)
+- **AOQSD-09 gate (lang temporary writer).** I treated the gate as cleared, for two reasons:
+  - the recorded B13 ruling (`.claude/agents_shared/d22/merge_meta.json:184`) assigns the `app_qy_v1` lang file to laravel-qyapp, and wordnew-laravel succeeds that role under D22/B14;
+  - the G2 dispatch lists `lang/{en,zh_CN}/app_qy_v1.php` in every item.
+
+  Before writing I confirmed that both files were clean, with no other writer. The writer role now goes back to pycore-laravel.
+- **AOQSD-09 helper.** No AppQyV1-specific validation helper is shared across controllers. So I reused the `App\Traits\ApiResponse::codedError` envelope in the same way `AppQyV1DeliveryCtl` and `AppQyV1OrchAudioCtl` do: one private `validationFailed(Validator)` in the controller, with the stable code `SENTENCE_AUDIO_VALIDATION_FAILED` (`private const ERROR_VALIDATION_FAILED`).
+  - The message is `app_qy_v1.messages.sentence_audio_validation_failed` with `:detail`, which is the validator's first error.
+  - The existing keys `success` (false) and `error` stay, and HTTP stays 422.
+  - Added keys: `error_code`, `message`, `data`/`details` (`{errors}`), `code` and `status`.
+  - pycore checks the status code before it reads the body (`progress_upload.py:258`, `sentence_audio_full_sync.py:48`), so the added keys are safe.
+- **CKA-26 scope.** I converted:
+  - every `message`/`error`/`errors` value (plain literal, concatenated, interpolated, sprintf and ternary);
+  - the message arguments of `success/error/notFound/forbidden/unauthorized`, including multi-line `success(..., 'Text')` arguments that the one-line audit pattern misses;
+  - the `$errors[] = "Failed to process {$file}: ..."` interpolations.
+
+  Log messages and log context keys, machine codes (`INVALID_CODE`, `LANGUAGE_MISMATCH`, `status` values) and `resource_index_built=yes|no` stay literal.
+- **Reused keys:** `invalid_credentials`, `user_not_found`, `username_already_exists`, `group_not_found`, `authentication_required`, `unauthorized`. The image and audio processors share the `archive_*` keys.
+- **Text changes (message only):**
+  - the login `errors` text "must be required username and password or user-auth-token" is now the grammatical "Username and password, or a user-auth-token, are required";
+  - the UserInitialization `errors.native_language` now names the code ("Unsupported language code: xx").
+- **Files with an AI rules header.** `AppQyV1BookSeedImporter.php` and `AppQyV1DailyReadingLibraryDefaults.php` carry "do NOT compile, run, test". So I did not run `php -l` on them or execute them. Instead, a static AST parse with `nikic/php-parser` passed for both (`PARSE OK`), and I checked their `__()` keys through the lang files.
+
+### AOQSD-09: done
+- The 6 inline blocks (formerly at :77, :147, :277, :331, :369, :421) are now `return $this->validationFailed($validator);`. A grep for `Validation failed` in the controller finds 0 hits, and `validationFailed($validator)` has 6 call sites.
+- `php -l` passes.
+- In-process HTTP kernel, `GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio?limit=abc`:
+  - `Accept-Language: zh` returns 422 with `{"success":false,...,"error":"参数校验失败：The limit field must be an integer.","message":"(same)","error_code":"SENTENCE_AUDIO_VALIDATION_FAILED","code":422,"status":"error"}` and `details.errors.limit`. PASS;
+  - `Accept-Language: en` returns 422 with `"error":"Validation failed: The limit field must be an integer."` and the same code. PASS.
+- The same request through the restarted FrankenPHP worker also returned 422 with the zh message and the code.
+- Note: the validator detail stays English because `lang/zh_CN/validation.php` does not exist (see Cross-scope).
+
+### MCHR-21: done
+- `'ids.required' => __('app_qy_v1.messages.cover_task_ids_required')`. `php -l` passes.
+- In-process `GET /api/app_qy_v1/vocabulary/libraries/cover/tasks` without ids:
+  - zh returns 422 with `message` and `errors.ids` = "缺少查询参数 ids（以逗号分隔的词库 ID）". PASS;
+  - en returns 422 with "Query parameter ids is required (comma-separated library ids)". PASS. The live worker returns the same.
+
+### LDRI-29: done
+- Changes:
+  - :38 and :43 are now `unknown_action`/`unknown_kind` with `:action`/`:kind` and `:expected`. The action list is now `private const ACTIONS`;
+  - :48 → `resource_index_redis_unavailable`;
+  - :56 → `resource_index_kind_rebuilt` (`:seconds` keeps `%.1f`);
+  - :61-69 → `resource_index_reconcile_summary`, with `:completed` from `answer_yes`/`answer_no`;
+  - :73 → `resource_index_kind_status`, with `resource_index_never_built`.
+
+  Both `BUILT_YES`/`BUILT_NO` marker lines stay literal. `php -l` passes.
+- `php artisan app_qy_v1:resource-index status` (read-only, no phpredis) exited 0 and printed the localized warning plus `resource_index_built=no`.
+- In-process `Artisan::call` under zh_CN printed "Redis 不可达（resource_index 连接或 phpredis 缺失）；差异比对改用数据库/磁盘回退。" and `resource_index_built=no`, with markers=1. The en run also had markers=1.
+- Invalid input exits 2:
+  - `bogus` prints "Unknown action: bogus (expected rebuild, reconcile, status).";
+  - `--kind=bogus` prints "Unknown kind: bogus (expected word_audio, sentence_audio, orch_segment, article, static_file).".
+
+### CKA-26a: done
+- Audit literal scan over `app/Apps/AppQyV1/Utils`: HEAD `24674d1a6` had 80 hits, and the working tree has **0**. The scan has three patterns:
+  - a `'message'|'error'` key with a capitalized literal;
+  - the LB-034 call pattern;
+  - an interpolated double-quoted string in a message/error/`$errors[]` position.
+- `php -l` passes on the 5 non-header files. The 2 header files pass the static AST parse.
+- `keys_verify.php` (in-process) reports **PASS**:
+  - the en and zh_CN key sets are equal (339/339);
+  - every placeholder set matches per key;
+  - all 338 `app_qy_v1.messages.*` keys referenced under `app/` resolve in both locales. The unreferenced key is the pre-existing `cover_regenerated`.
+- Samples in-process (read-only, missing temp path):
+  - `validateAudioArchive` gives "压缩包文件不存在" / "Archive file does not exist";
+  - `processAudioArchive` gives "未找到音频压缩包" / "Audio archive not found";
+  - `VocabularyImporter::importVocabularyFile` gives "文件不存在：<path>" / "File not found: <path>". PASS.
+
+### CKA-26b: done
+- The audit literal scan finds **0** hits in the 6 controller dirs and in `AppQyV1Middleware`; HEAD had 52 (UserAuth 25, User 4, System 3, ClientAuth 2, PersonDict 3, Group 15, Middleware 2). An extended scan for `notFound/forbidden/unauthorized(...)`, `'errors' => '...'`, `$errorMessage = '...'` and multi-line `], 'Text')` also finds 0. `php -l` passes on all 21 files, and the key script passes (above). Response keys and HTTP statuses are unchanged.
+- Login failure through the in-process HTTP kernel, `POST /api/app_qy_v1/login`:
+  - no credentials: zh returns 422 `{"message":"凭证无效","errors":"需要提供用户名和密码，或 user-auth-token"}` and en returns 422 `{"message":"Invalid credentials","errors":"Username and password, or a user-auth-token, are required"}`. The keys are still exactly `message, errors`. PASS;
+  - unknown account: 422 "账号不存在" / "Account does not exist". PASS.
+- FrankenPHP: `POST http://localhost:2019/frankenphp/workers/restart` returned 200, and `GET http://127.0.0.1:9000/api/health` returned **200**. Live login (zh) returned 422 with the zh message.
+
+### Deferred (not in the G2 items; recorded for a later CKA-26 part)
+- Non-message display texts in the touched files stay English. They are not `message`/`error` values:
+  - `SystemInitComplianceCtl` section `name`/`summary`/`detail` (about 15);
+  - `ProcessingCapabilityController` `reason` texts (6);
+  - `ResourceAccessController::getAccessInfo` `description` (2);
+  - `WordGroupMediaSourceController` `note` (2);
+  - `AppQyV1Initializer` step `description`/`note` strings and its `INITIALIZATION_STEPS` constant;
+  - internal exception messages.
+- The rest of the audit scan in `app/Apps/AppQyV1` (140 hits) is outside G2:
+  - AppQyV1AITools 52, including 10 in `AppQyV1SentenceAudioController` outside the six validation blocks;
+  - Learning 15, StudyGen 12, WordQurey 10, Vocabulary 9;
+  - Services 42.
+- The image and audio file processors duplicate the whole archive-extraction code. They now share lang keys, but merging the code is a refactor outside this i18n item.
+
+### Cross-scope notes (route through wordnew-lead / claude lead)
+- **pycore-laravel (lang):** hand-back of `lang/{en,zh_CN}/app_qy_v1.php`. There is no `lang/zh_CN/validation.php`, so validator details (and every `validationError($errors, $errors->first())` message) stay English under zh. Adding that file would localize them.
+- **pycore-laravel (`app/Traits/ApiResponse.php`):** these English defaults reach AppQyV1 responses:
+  - `unauthorized()`, `forbidden()`, `notFound()` and `validationError()`;
+  - the interpolated `languageMismatch()` text.
+
+  One example is `$this->unauthorized()` in the Group controllers.
+- **pycore-laravel (`UnifiedAuthService`):** `AppQyV1AuthenticationRegistrationController:163` still matches the English substring 'already exists' in that service's error. A stable error code there would remove the text match.
+
+### Handoff
+- Task: wordnew-laravel-G2 (AOQSD-09, MCHR-21, LDRI-29, CKA-26a, CKA-26b).
+- Status: done. The code is in HEAD (`ab566fdf7`, user sweep). The verdict is due from wordnew-lead (`.claude/agents_shared/reviews/wordnew-laravel-G2.json`).
+- Blockers: none. Next owners:
+  - wordnew-lead: review G2;
+  - claude lead: confirm the lang writer hand-back to pycore-laravel;
+  - pycore-laravel: the cross-scope notes above.

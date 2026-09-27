@@ -7,21 +7,32 @@ use Illuminate\Console\Command;
 
 class CodeMartV1SeedDemoData extends Command
 {
+    private const LANG_PREFIX = 'codemart.cli.seed.';
+
     protected $signature = 'sys:codemartinit';
 
-    protected $description = 'Seed CodeMart demo accounts, projects, milestones, tasks, deposits, wallets and testimonials (idempotent)';
+    protected function configure(): void
+    {
+        $this->setDescription(__(self::LANG_PREFIX . 'description'));
+    }
 
     public function handle(): int
     {
         $summary = (new CodeMartV1DemoSeeder())->seed(fn (string $message) => $this->line($message));
 
-        $this->info('CodeMart demo data initialized.');
-        $this->line('Demo accounts (password: ' . $summary['password'] . '):');
-        $this->line('  ' . implode(' / ', $summary['accounts']));
+        $this->info(__(self::LANG_PREFIX . 'initialized'));
+        $this->displayPassword($summary);
+        $this->line(__(self::LANG_PREFIX . 'account_list', ['accounts' => implode(' / ', $summary['accounts'])]));
         foreach ($summary['counts'] as $table => $count) {
             $this->line("  {$table}: {$count}");
         }
 
         return self::SUCCESS;
+    }
+
+    private function displayPassword(array $summary): void
+    {
+        $this->line(__(self::LANG_PREFIX . 'password_file', ['path' => $summary['password_file']]));
+        $this->line(__(self::LANG_PREFIX . 'password_current', ['password' => $summary['password']]));
     }
 }

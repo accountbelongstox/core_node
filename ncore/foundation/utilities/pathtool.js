@@ -3,6 +3,8 @@
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const { LEGACY_LINUX_DATA_DIR } = require('../common/system_paths.js');
+const LEGACY_LINUX_SHARED_DOWNLOADS_DIR = path.join(LEGACY_LINUX_DATA_DIR, 'shared_downloads');
 
 class PathUtil {
 
@@ -35,7 +37,7 @@ class PathUtil {
 
     _getLinuxSharedDownloadDir() {
         const sharedPaths = [
-            '/var/_core_node/shared_downloads',
+            LEGACY_LINUX_SHARED_DOWNLOADS_DIR,
             '/var/tmp/downloads',
             '/opt/downloads'
         ];
@@ -51,9 +53,9 @@ class PathUtil {
             }
         }
 
-        const defaultShared = '/var/_core_node/shared_downloads';
+        const defaultShared = LEGACY_LINUX_SHARED_DOWNLOADS_DIR;
         try {
-            const baseDir = '/var/_core_node';
+            const baseDir = LEGACY_LINUX_DATA_DIR;
             if (!fs.existsSync(baseDir)) {
                 fs.mkdirSync(baseDir, { recursive: true, mode: 0o777 });
                 fs.chmodSync(baseDir, 0o777);
@@ -127,7 +129,7 @@ class PathUtil {
 
     _getLinuxUserDownloadDirs() {
         const dirs = [
-            '/var/_core_node/shared_downloads'
+            LEGACY_LINUX_SHARED_DOWNLOADS_DIR
         ];
 
         try {

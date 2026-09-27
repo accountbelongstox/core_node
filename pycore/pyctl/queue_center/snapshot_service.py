@@ -54,6 +54,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
 
 
 QUEUE_CENTER_SNAPSHOT_TOPIC = "queue_center.snapshot.changed"
@@ -101,6 +102,21 @@ def _response_data(response: Any) -> Dict[str, Any]:
         raise TypeError("Laravel Queue Center response must be an object")
     data = payload.get("data")
     return dict(data) if isinstance(data, dict) else dict(payload)
+
+
+def _lane_wake_ready(control: str) -> bool:
+    """True when a lane's worker may be woken: its heartbeat callback is
+    enabled and, for an audio lane, its cache restore has completed.
+    Shared by ``wake_workers`` and ``apply_head_event``.
+    """
+    entry = LANE_REGISTRY.get(str(control or ""))
+    if entry is None or not shared_heartbeat_system.is_callback_enabled(
+        entry["heartbeat_callback"]
+    ):
+        return False
+    if control in AUDIO_QUEUE_LANES and not audio_queue_center.restore_complete(control):
+        return False
+    return True
 
 
 class _QueueCenterTokenProvider:
@@ -361,10 +377,7 @@ class _QueueCenterSnapshotService:
     @staticmethod
     def wake_workers() -> None:
         for control in LANE_REGISTRY:
-            entry = LANE_REGISTRY[control]
-            if not shared_heartbeat_system.is_callback_enabled(
-                entry["heartbeat_callback"]
-            ):
+            if not _lane_wake_ready(control):
                 continue
             worker = lane_worker(control)
             if worker is not None:
@@ -518,15 +531,14 @@ class _QueueCenterSnapshotService:
             else [dict(payload)]
         )
         items = items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]
+        lane = "sentence_audio" if queue == "sentence_audio" else "word_audio"
         applied: list[Dict[str, Any]] = []
         for item in items:
             task_id = str(item.get("task_id") or "").strip()
             if not task_id:
                 continue
             queue_position = int(item.get("queue_position") or 0)
-            worker = lane_worker(
-                "sentence_audio" if queue == "sentence_audio" else "word_audio"
-            )
+            worker = lane_worker(lane)
             if worker is None:
                 continue
             dedup_key = audio_dedup_key(
@@ -546,7 +558,7 @@ class _QueueCenterSnapshotService:
                 "task_id": task_id,
                 "queue_position": queue_position,
             })
-        if applied:
+        if applied and _lane_wake_ready(lane):
             worker.request_pull(prefer_remote=True)
 
         def updater(snapshot: Dict[str, Any]) -> Dict[str, Any]:

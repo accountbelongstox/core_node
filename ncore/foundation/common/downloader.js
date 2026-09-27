@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 const logger = require('#@logger');
+const { WINDOWS_DATA_DRIVE_ROOT } = require('./system_paths.js');
 const http = require('http');
 const https = require('https');
 const isWindows = os.platform() === 'win32';
@@ -29,7 +30,7 @@ const osVersion = (() => {
 
 let DATA_DRIVER;
 if (os.platform() === 'win32') {
-    DATA_DRIVER = fs.existsSync('D:\\') ? 'D:\\' : 'C:\\';
+    DATA_DRIVER = fs.existsSync(WINDOWS_DATA_DRIVE_ROOT) ? WINDOWS_DATA_DRIVE_ROOT : 'C:\\';
 } else {
     DATA_DRIVER = fs.existsSync('/mnt/d') ? '/mnt/d' : os.homedir();
 }

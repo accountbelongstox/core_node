@@ -17,6 +17,16 @@ buildscript {
 
 apply from: "variables.gradle"
 
+// Every Android module (app, capacitor-android, plugins) builds with the one
+// build-tools revision from variables.gradle, the revision the SDK steps install.
+subprojects { androidModule ->
+    ['com.android.application', 'com.android.library'].each { androidPluginId ->
+        androidModule.plugins.withId(androidPluginId) {
+            androidModule.android.buildToolsVersion = rootProject.ext.buildToolsVersion
+        }
+    }
+}
+
 allprojects {
     repositories {
         google()

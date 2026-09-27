@@ -1,7 +1,10 @@
 # Parameter declaration
 param(
     [Parameter(Mandatory=$false)]
-    [switch]$SkipInitialization
+    [switch]$SkipInitialization,
+
+    [Parameter(Mandatory=$false, Position=0, ValueFromRemainingArguments=$true)]
+    [string[]]$Arguments
 )
 
 $global:SharedGlobalVarKeys = @()
@@ -19,6 +22,12 @@ $global:SharedGlobalVarKeys = @()
     This parameter is used when returning from other scripts (like unified_manager_windows.ps1) to avoid redundant processing
     and provide faster menu display.
 
+.PARAMETER Arguments
+    Named CLI parameter (D20). The first token selects a named parameter (see the
+    table below); anything after it is that parameter's own arguments. Unrecognized
+    first tokens fall through to the normal interactive menu, so existing
+    no-argument usage is unchanged.
+
 .EXAMPLE
     .\dd.ps1
     Runs the script with full initialization
@@ -26,7 +35,79 @@ $global:SharedGlobalVarKeys = @()
 .EXAMPLE
     .\dd.ps1 -SkipInitialization
     Runs the script skipping initialization operations (used when returning from sub-menus)
+
+.EXAMPLE
+    .\dd.ps1 help
+    Prints every supported parameter (name, purpose, example) and exits
+
+.EXAMPLE
+    .\dd.ps1 syncgit --dry-run
+    Prints the syncgit commands that would run (repo root, GitHub SSH origin,
+    add/commit/pull/push) and executes none
 #>
+
+# =============================================================================
+# EARLY CLI DISPATCH (D20): help / syncgit exit here, before any other
+# initialization (GlobalVars.ps1, CommonFunc.ps1, ...) and before the
+# interactive menu. Unrecognized first tokens fall through unchanged.
+# =============================================================================
+$script:DdCliCommand = $null
+$script:DdCliCommandArgs = @()
+if ($Arguments -and $Arguments.Count -gt 0) {
+    $script:DdCliCommand = $Arguments[0]
+    if ($Arguments.Count -gt 1) {
+        $script:DdCliCommandArgs = $Arguments[1..($Arguments.Count - 1)]
+    }
+}
+
+$script:DdCliParamTable = @(
+    [PSCustomObject]@{ Name = "(no arguments)"; Purpose = "Interactive menu mode"; Example = "dd.cmd" },
+    [PSCustomObject]@{ Name = "-SkipInitialization"; Purpose = "Skip Process-Directories/Process-PsFiles init (used when returning from a sub-menu)"; Example = "dd.cmd -SkipInitialization" },
+    [PSCustomObject]@{ Name = "syncgit"; Purpose = "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main"; Example = "dd.cmd syncgit --dry-run" },
+    [PSCustomObject]@{ Name = "help"; Purpose = "Show this help and exit (no other action runs)"; Example = "dd.cmd help" },
+    [PSCustomObject]@{ Name = "-h"; Purpose = "Same as 'help'"; Example = "dd.cmd -h" },
+    [PSCustomObject]@{ Name = "--help"; Purpose = "Same as 'help'"; Example = "dd.cmd --help" }
+)
+
+function Show-DdCliHelp {
+    Write-Host ""
+    Write-Host "dd.cmd / dd.ps1 - Core Node Management Script for Windows" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Usage: dd.cmd [PARAMETER] [ARGS...]"
+    Write-Host ""
+    Write-Host "Parameters:"
+    foreach ($paramRow in $script:DdCliParamTable) {
+        Write-Host ("  {0,-20} {1}" -f $paramRow.Name, $paramRow.Purpose)
+        Write-Host ("  {0,-20} Example: {1}" -f "", $paramRow.Example)
+    }
+    Write-Host ""
+}
+
+if ($script:DdCliCommand -in @("help", "-h", "--help")) {
+    Show-DdCliHelp
+    return
+}
+
+if ($script:DdCliCommand -eq "syncgit") {
+    $script:GitSyncCommonPath = Join-Path $PSScriptRoot "win_common\GitSyncCommon.ps1"
+    . $script:GitSyncCommonPath
+    $script:DdSyncgitDryRun = $false
+    foreach ($syncgitArg in $script:DdCliCommandArgs) {
+        if ($syncgitArg -eq "--dry-run") {
+            $script:DdSyncgitDryRun = $true
+        } else {
+            Write-Host "[syncgit] Unknown option ignored: $syncgitArg"
+        }
+    }
+    $script:DdSyncgitRepoRoot = Get-GitSyncRepoRoot
+    $null = Invoke-GitSyncRun -RepoRoot $script:DdSyncgitRepoRoot -DryRun $script:DdSyncgitDryRun
+    return
+}
+
+if ($script:DdCliCommand) {
+    Write-Host "Unknown parameter: $($script:DdCliCommand). Run 'dd.cmd help' for usage. Continuing with the interactive menu..." -ForegroundColor Yellow
+}
+
 try{
     & Set-ExecutionPolicy Bypass -Scope LocalMachine -Force
 }

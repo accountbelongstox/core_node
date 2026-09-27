@@ -113,7 +113,7 @@ const OrchTaskEditor: React.FC<{
         ? await pycoreApi.orchTaskUpdate(savedTaskId, payload)
         : await pycoreApi.orchTaskCreate(payload);
       if (!r.success || !r.task) {
-        setError(String(r.error || ORCH_L.saveFailed));
+        setError(orchErrorMessage(r, ORCH_L.saveFailed));
         return null;
       }
       setSavedTaskId(String(r.task.task_id));

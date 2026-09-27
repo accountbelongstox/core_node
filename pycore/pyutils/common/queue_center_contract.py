@@ -24,6 +24,20 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _CONTRACT_PATH = _PROJECT_ROOT / "config" / "queue_center_contract.json"
 _CONTRACT_DOCUMENT: Dict[str, Any] = json.loads(_CONTRACT_PATH.read_text(encoding="utf-8"))
 _TASK_CONTRACT: Dict[str, Any] = _CONTRACT_DOCUMENT["task_contract"]
+_WORD_IDENTITY: Dict[str, Any] = _CONTRACT_DOCUMENT["word_identity"]
+_WORD_IDENTITY_LANG_TOKEN = "<lang>:"
+_WORD_IDENTITY_FALLBACK_KEY_FORMAT: str = str(
+    _WORD_IDENTITY["fallback_when_md5_absent"]["key_format"]
+)
+if not _WORD_IDENTITY_FALLBACK_KEY_FORMAT.startswith(_WORD_IDENTITY_LANG_TOKEN):
+    raise RuntimeError(
+        "Queue Center word_identity.fallback_when_md5_absent.key_format must "
+        "start with <lang>:"
+    )
+_WORD_IDENTITY_FALLBACK_CONTENT_TEMPLATE: str = _WORD_IDENTITY_FALLBACK_KEY_FORMAT[
+    len(_WORD_IDENTITY_LANG_TOKEN):
+]
+_WORD_IDENTITY_MD5_RE = re.compile(r"^[0-9a-fA-F]{32}$")
 
 QueueCenterScope = str
 QueueCenterSectionLifecycle = Literal["off", "starting", "on", "stopping", "error"]
@@ -219,7 +233,7 @@ QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_deliv
 QUEUE_CENTER_DIFF_SYNC_LOG_KEYS = ("staged", "vanished", "ordered", "reordered")
 # W7 pycore -> Laravel resource delivery (server identity, diff, offset-v1
 # batch upload); the one source for pyutils/laravel/identity.py and
-# delivery_diff.py, which used to keep their own copies of these values.
+# delivery_diff.py.
 QUEUE_CENTER_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["delivery"])
 QUEUE_CENTER_ENDPOINTS: Dict[str, str] = {
     str(key): str(value)
@@ -569,6 +583,30 @@ def task_language_tier_rank(task: Mapping[str, Any], fallback_task_type: object 
     return 0 if language in tiers else 1
 
 
+def word_identity_md5(value: object) -> str:
+    """Normalize a caller-supplied value to the Laravel word identity md5
+    (lower-case 32 hex chars, contract ``word_identity.rule``); anything
+    else returns "".
+    """
+    normalized = str(value or "").strip().lower()
+    return normalized if _WORD_IDENTITY_MD5_RE.fullmatch(normalized) else ""
+
+
+def word_identity_content(md5: object, text: object) -> str:
+    """Canonical word-identity content: the md5 when valid, else the
+    ``word_identity.fallback_when_md5_absent.key_format`` content for the
+    cleaned word (Laravel resolves the row by lang + cleaned_word; pycore
+    never invents a stand-in md5). "" when neither is available.
+    """
+    normalized_md5 = word_identity_md5(md5)
+    if normalized_md5:
+        return normalized_md5
+    cleaned_word = str(text or "").strip().lower()
+    if not cleaned_word:
+        return ""
+    return _WORD_IDENTITY_FALLBACK_CONTENT_TEMPLATE.replace("<cleaned_word>", cleaned_word)
+
+
 def audio_dedup_key(
     queue: object,
     language: object,
@@ -582,8 +620,7 @@ def audio_dedup_key(
     word md5 (contract ``word_identity``); a word without one falls back to
     the contract ``word_identity.fallback_when_md5_absent`` key format
     ``<lang>:text:<cleaned_word>`` (Laravel resolves the row by lang +
-    cleaned_word; pycore never invents a stand-in md5), matching
-    ``build_local_task`` and ``audio_resource_ledger.resource_key``.
+    cleaned_word; pycore never invents a stand-in md5).
     ``sentence_audio`` uses the media content id. ONE implementation for the
     audio queue heap resolver, audio orchestration, and the queue-center RPC
     controllers — never re-implemented elsewhere.
@@ -593,7 +630,7 @@ def audio_dedup_key(
     if queue_key == "sentence_audio":
         content = str(content_id or "").strip() or media_content_id(str(text or ""))
     else:
-        content = str(md5 or "").strip() or f"text:{str(text or '').strip().lower()}"
+        content = word_identity_content(md5, text)
     return f"{lang}:{content}"
 
 
@@ -811,4 +848,6 @@ __all__ = [
     "task_type_claimants",
     "task_types_for_claimant",
     "task_types_for_execution",
+    "word_identity_content",
+    "word_identity_md5",
 ]

@@ -12,10 +12,11 @@
     Folder scanned recursively. Default: D:\.tmp\BaiduNetdiskDownload
 
 .PARAMETER Cq
-    NVENC constant-quality level (lower = better quality, larger file). 0 = per-container default (30, or 28 for mkv/rmvb).
+    NVENC constant-quality level (lower = better quality, larger file). 0 = automatic: sources whose short side is above 720
+    are scaled to 720 and use 30 (28 for mkv/rmvb); smaller sources use 36 and re-encode audio above 64k to 64k AAC.
 
 .PARAMETER Preset
-    NVENC preset p1 (fastest) .. p7 (smallest output). Default p5.
+    NVENC preset p1 (fastest) .. p7 (smallest output). Default p4 (p5 and above add a quarter-resolution multipass).
 
 .PARAMETER Jobs
     Number of files processed in parallel. Default 2.
@@ -37,7 +38,7 @@
 param(
     [string]$Root = 'D:\.tmp\BaiduNetdiskDownload',
     [ValidateRange(0, 51)] [int]$Cq = 0,
-    [ValidateSet('p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7')] [string]$Preset = 'p5',
+    [ValidateSet('p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7')] [string]$Preset = 'p4',
     [ValidateRange(1, 8)] [int]$Jobs = 2,
     [ValidateRange(0, [int]::MaxValue)] [int]$Limit = 0,
     [switch]$DryRun
@@ -53,8 +54,14 @@ $script:MUXER_BY_EXTENSION = @{ '.mp4' = 'mp4'; '.m4v' = 'mp4'; '.mov' = 'mov'; 
 $script:CONVERT_TARGET_EXTENSION = '.mp4'
 $script:MATROSKA_EXTENSION = '.mkv'
 $script:DEFAULT_CQ = 30
+$script:SMALL_SOURCE_CQ = 36
+$script:TARGET_SHORT_SIDE = 720
+$script:AGGRESSIVE_AUDIO_KBPS = 64
+$script:AUDIO_REENCODE_MARGIN = 1.2
+$script:MULTIPASS_PRESETS = @('p5', 'p6', 'p7')
 $script:HIGH_MOTION_CQ = 28
 $script:HIGH_MOTION_EXTENSIONS = @('.mkv', '.rmvb', '.rm')
+$script:NVDEC_CODECS = @('h264', 'hevc', 'mpeg1video', 'mpeg2video', 'mpeg4', 'vc1', 'wmv3', 'vp8', 'vp9', 'av1', 'mjpeg')
 $script:MAX_RATIO_SAME_CONTAINER = 0.85
 $script:MAX_RATIO_NEW_CONTAINER = 0.95
 $script:DURATION_TOLERANCE_SECONDS = 1.0
@@ -80,6 +87,8 @@ $script:MIB = 1MB
 
 $script:Ffmpeg = $null
 $script:LogPath = Join-Path $Root $script:LOG_FILE_NAME
+$script:KeptSizes = @{}
+$script:SettingsTag = '[{0} cq{1} s{2} a{3}]' -f $Preset, $(if ($Cq -gt 0) { $Cq } else { 'auto' }), $script:TARGET_SHORT_SIDE, $script:AGGRESSIVE_AUDIO_KBPS
 $script:Stats = [ordered]@{ Compressed = 0; Kept = 0; Skipped = 0; Failed = 0; BytesBefore = [int64]0; BytesAfter = [int64]0 }
 #endregion
 
@@ -206,13 +215,15 @@ function Remove-TempFile {
 function Get-AudioArguments {
     param(
         [Parameter(Mandatory = $true)] [object[]]$AudioStreams,
-        [Parameter(Mandatory = $true)] [string]$Muxer
+        [Parameter(Mandatory = $true)] [string]$Muxer,
+        [Parameter()] [int]$TargetKbps = 0
     )
 
     if ($AudioStreams.Count -eq 0) {
         return @()
     }
     $copyable = $true
+    $overTarget = $false
     $maxKbps = 0
     foreach ($stream in $AudioStreams) {
         $codec = [string](Get-JsonValue -Object $stream -Names @('codec_name'))
@@ -220,15 +231,21 @@ function Get-AudioArguments {
         $bitRate = ConvertTo-Seconds (Get-JsonValue -Object $stream -Names @('bit_rate'))
         $streamKbps = if ($null -ne $bitRate) { [math]::Round(($bitRate / 1000) * $script:AUDIO_BITRATE_FACTOR) } else { $script:AUDIO_DEFAULT_KBPS }
         $maxKbps = [math]::Max($maxKbps, $streamKbps)
+        if ($TargetKbps -gt 0 -and $null -ne $bitRate -and ($bitRate / 1000) -gt ($TargetKbps * $script:AUDIO_REENCODE_MARGIN)) {
+            $overTarget = $true
+        }
         $isCopyable = ($script:COPY_AUDIO_CODECS -contains $codec) -and -not ($codec -eq 'mp3' -and $sampleRate -lt $script:MP3_MIN_SAMPLE_RATE)
         if ($Muxer -ne 'matroska' -and -not $isCopyable) {
             $copyable = $false
         }
     }
-    if ($copyable) {
+    if ($copyable -and -not $overTarget) {
         return @('-c:a', 'copy')
     }
     $kbps = [math]::Min($script:AUDIO_MAX_KBPS, [math]::Max($script:AUDIO_MIN_KBPS, $maxKbps))
+    if ($TargetKbps -gt 0) {
+        $kbps = [math]::Min($kbps, $TargetKbps)
+    }
     return @('-c:a', 'aac', '-b:a', ('{0}k' -f $kbps))
 }
 
@@ -251,6 +268,9 @@ function New-CompressPlan {
     if ($comment.StartsWith($script:MARKER_PREFIX)) {
         return [PSCustomObject]@{ Skip = 'already compressed' }
     }
+    if ($script:KeptSizes.ContainsKey($File.FullName) -and $script:KeptSizes[$File.FullName] -eq [math]::Round($File.Length / $script:MIB, 2)) {
+        return [PSCustomObject]@{ Skip = 'kept in an earlier run (no saving)' }
+    }
 
     $sourceExtension = $File.Extension.ToLowerInvariant()
     $audioStreams = @(Get-MediaStreams -Info $info -Type 'audio')
@@ -270,11 +290,20 @@ function New-CompressPlan {
         return [PSCustomObject]@{ Skip = ('target name already exists: {0}' -f $targetPath) }
     }
 
-    $cqValue = if ($Cq -gt 0) { $Cq } elseif ($script:HIGH_MOTION_EXTENSIONS -contains $sourceExtension) { $script:HIGH_MOTION_CQ } else { $script:DEFAULT_CQ }
+    $width = [int](ConvertTo-Seconds (Get-JsonValue -Object $videoStreams[0] -Names @('width')))
+    $height = [int](ConvertTo-Seconds (Get-JsonValue -Object $videoStreams[0] -Names @('height')))
+    $shortSide = [math]::Min($width, $height)
+    $downscale = $shortSide -gt $script:TARGET_SHORT_SIDE
+    $scaleSize = if ($height -gt $width) { '{0}:-2' -f $script:TARGET_SHORT_SIDE } else { '-2:{0}' -f $script:TARGET_SHORT_SIDE }
+    $cqValue = if ($Cq -gt 0) { $Cq } elseif (-not $downscale) { $script:SMALL_SOURCE_CQ } elseif ($script:HIGH_MOTION_EXTENSIONS -contains $sourceExtension) { $script:HIGH_MOTION_CQ } else { $script:DEFAULT_CQ }
+    $audioTargetKbps = if ($downscale) { 0 } else { $script:AGGRESSIVE_AUDIO_KBPS }
     $pixelFormat = [string](Get-JsonValue -Object $videoStreams[0] -Names @('pix_fmt'))
-    $gpuFrames = $script:GPU_SAFE_PIXEL_FORMATS -contains $pixelFormat
+    $hwDecode = $script:NVDEC_CODECS -contains $videoCodec
+    $gpuFrames = $hwDecode -and ($script:GPU_SAFE_PIXEL_FORMATS -contains $pixelFormat)
     $marker = '{0}_cq{1}_{2}' -f $script:MARKER_PREFIX, $cqValue, $Preset
+    $audioArgs = @(Get-AudioArguments -AudioStreams $audioStreams -Muxer $muxer -TargetKbps $audioTargetKbps)
     $lookahead = if ($Preset -eq 'p7' -or $Preset -eq 'p6') { '32' } else { '20' }
+    $multipass = if ($script:MULTIPASS_PRESETS -contains $Preset) { 'qres' } else { 'disabled' }
 
     $inputArgs = @(if ($sourceExtension -eq '.avi') { '-fflags'; '+genpts' })
     $mapArgs = @('-map', '0:V:0', '-map', '0:a?', '-map_metadata', '0', '-map_chapters', '0')
@@ -284,11 +313,8 @@ function New-CompressPlan {
         $mapArgs += @('-map', '0:s?', '-c:s', 'mov_text')
     }
     $videoArgs = @('-c:v', 'hevc_nvenc', '-preset', $Preset, '-tune', 'hq', '-rc', 'vbr', '-cq', [string]$cqValue, '-b:v', '0',
-        '-multipass', 'qres', '-rc-lookahead', $lookahead, '-spatial-aq', '1', '-temporal-aq', '1', '-aq-strength', '8',
+        '-multipass', $multipass, '-rc-lookahead', $lookahead, '-spatial-aq', '1', '-temporal-aq', '1', '-aq-strength', '8',
         '-b_ref_mode', 'middle', '-bf', '4', '-profile:v', 'main')
-    if (-not $gpuFrames) {
-        $videoArgs += @('-pix_fmt', 'yuv420p')
-    }
     $tailArgs = @('-metadata', ('comment={0}' -f $marker))
     if ($muxer -ne 'matroska') {
         $tailArgs += @('-tag:v', 'hvc1', '-movflags', '+faststart')
@@ -305,14 +331,17 @@ function New-CompressPlan {
         Muxer            = $muxer
         Marker           = $marker
         GpuFrames        = $gpuFrames
+        HwDecode         = $hwDecode
+        ScaleGpu         = $(if ($downscale) { 'scale_cuda={0}' -f $scaleSize } else { '' })
+        ScaleCpu         = $(if ($downscale) { 'scale={0}' -f $scaleSize } else { '' })
         AudioCount       = $audioStreams.Count
         Duration         = Get-MediaDuration -Info $info
         InputArgs        = $inputArgs
         MapArgs          = $mapArgs
         VideoArgs        = $videoArgs
-        AudioArgs        = @(Get-AudioArguments -AudioStreams $audioStreams -Muxer $muxer)
+        AudioArgs        = $audioArgs
         TailArgs         = $tailArgs
-        Summary          = ('{0} {1} -> {2} cq{3} {4} audio:{5}' -f $videoCodec, $pixelFormat, $targetExtension, $cqValue, $Preset, ((@(Get-AudioArguments -AudioStreams $audioStreams -Muxer $muxer)) -join ' '))
+        Summary          = ('{0} {1} {2}x{3}{4} -> {5} cq{6} {7} audio:{8}' -f $videoCodec, $pixelFormat, $width, $height, $(if ($downscale) { (' scaled to {0}' -f $scaleSize) } else { '' }), $targetExtension, $cqValue, $Preset, ($audioArgs -join ' '))
     }
 }
 #endregion
@@ -339,13 +368,21 @@ function Start-EncodePhase {
 
     $plan = $Job.Plan
     Remove-TempFile -Path $plan.TempPath
-    $decodeArgs = if ($Job.Attempt -eq 1) {
-        if ($plan.GpuFrames) { @('-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda') } else { @('-hwaccel', 'cuda') }
+    $fullGpu = ($Job.Attempt -eq 1) -and $plan.GpuFrames
+    $decodeArgs = if ($fullGpu) {
+        @('-hwaccel', 'cuda', '-hwaccel_output_format', 'cuda')
+    } elseif ($Job.Attempt -eq 1 -and $plan.HwDecode) {
+        @('-hwaccel', 'cuda')
     } else {
         @()
     }
+    $filterArgs = if ($fullGpu) {
+        @(if ($plan.ScaleGpu) { '-vf'; $plan.ScaleGpu })
+    } else {
+        @(if ($plan.ScaleCpu) { '-vf'; $plan.ScaleCpu }) + @('-pix_fmt', 'yuv420p')
+    }
     $arguments = @('-hide_banner', '-nostdin', '-y', '-v', 'error') + $plan.InputArgs + $decodeArgs + @('-i', $plan.Source) +
-        $plan.MapArgs + $plan.VideoArgs + $plan.AudioArgs + $plan.TailArgs + @($plan.TempPath)
+        $plan.MapArgs + $filterArgs + $plan.VideoArgs + $plan.AudioArgs + $plan.TailArgs + @($plan.TempPath)
     $started = Start-FfmpegProcess -Arguments $arguments -LogName ('job{0}_encode{1}' -f $Job.Id, $Job.Attempt)
     $Job.Phase = 'encode'
     $Job.Handle = $started
@@ -453,7 +490,7 @@ function Complete-Job {
     if ($newBytes -gt ($plan.SourceBytes * $maxRatio)) {
         Remove-TempFile -Path $plan.TempPath
         $script:Stats.Kept++
-        Write-CompressLog -Status 'kept' -Source $plan.Source -OriginalBytes $plan.SourceBytes -NewBytes $newBytes -Detail 'saving below threshold, original kept'
+        Write-CompressLog -Status 'kept' -Source $plan.Source -OriginalBytes $plan.SourceBytes -NewBytes $newBytes -Detail ('saving below threshold, original kept {0}' -f $script:SettingsTag)
         return $true
     }
 
@@ -479,6 +516,11 @@ function Invoke-VideoCompression {
         throw ('Folder not found: {0}' -f $Root)
     }
     New-Item -ItemType Directory -Force -Path $script:JOB_LOG_DIR | Out-Null
+    if ([System.IO.File]::Exists($script:LogPath)) {
+        Import-Csv -LiteralPath $script:LogPath | Where-Object { $_.Status -eq 'kept' -and $_.Detail.EndsWith($script:SettingsTag) } | ForEach-Object {
+            $script:KeptSizes[$_.Source] = [double]::Parse($_.OriginalMB, $script:INVARIANT)
+        }
+    }
 
     $queue = New-Object System.Collections.Generic.Queue[System.IO.FileInfo]
     $tempMarker = '.{0}.' -f $script:TEMP_TAG

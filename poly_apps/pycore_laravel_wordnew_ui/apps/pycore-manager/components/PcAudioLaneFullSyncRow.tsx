@@ -9,7 +9,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AudioLaneKey, AudioLaneFullSyncStatus } from '@/apps/pycore-manager/api';
-import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
+import { pcFailureMessage } from '../utils/pcErrorCodes';
 
 export function PcAudioLaneFullSyncRow({
   lane,
@@ -24,11 +24,7 @@ export function PcAudioLaneFullSyncRow({
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const failed = status?.last_result?.success === false;
-  const resultError = failed
-    ? pcErrorCodeMessage(status?.last_result?.error_code, status?.last_result?.detail)
-      || pcErrorCodeMessage(status?.last_result?.error)
-      || t('queueCenter.audioLane.fullSync.failed')
-    : null;
+  const resultError = failed ? pcFailureMessage(status?.last_result, t('queueCenter.audioLane.fullSync.failed')) : null;
   const word = lane === 'word_audio';
 
   const run = useCallback(async () => {
@@ -37,11 +33,9 @@ export function PcAudioLaneFullSyncRow({
     setActionError(null);
     try {
       const response = await pycoreApi.audioLaneFullSync(lane);
-      if (!response.success) {
-        throw new Error(pcErrorCodeMessage(response.error) || t('queueCenter.audioLane.fullSync.failed'));
-      }
-    } catch (error: unknown) {
-      setActionError(error instanceof Error && error.message ? error.message : t('queueCenter.audioLane.fullSync.failed'));
+      if (!response.success) setActionError(pcFailureMessage(response, t('queueCenter.audioLane.fullSync.failed')));
+    } catch {
+      setActionError(t('queueCenter.audioLane.fullSync.failed'));
     } finally {
       setBusy(false);
     }

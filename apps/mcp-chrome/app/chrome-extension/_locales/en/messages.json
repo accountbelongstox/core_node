@@ -1373,7 +1373,7 @@
     "message": "  Chrome MCP Server - Windows"
   },
   "startWatchPrompt": {
-    "message": "Enable development watch mode? [Y/n]"
+    "message": "Enable development watch mode?"
   },
   "startWatchOnceSelected": {
     "message": "  One-time build selected."

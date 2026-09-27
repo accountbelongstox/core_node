@@ -50,10 +50,42 @@ $script:TailscaleInstallDocUrl = 'https://tailscale.com/kb/1189/install-windows-
 $script:TailscaleWingetId = 'Tailscale.Tailscale'
 $script:TailscaleRunningState = 'Running'
 $script:TailscaleNeedsLoginState = 'NeedsLogin'
+$script:TailscaleStoppedState = 'Stopped'
+$script:TailscaleStatusWebListen = '127.0.0.1:8384'
+$script:TailscaleWebListenDefault = 'localhost:8088'
 
 # ---------------------------------------------------------------------------
 # Install / service detection
 # ---------------------------------------------------------------------------
+
+# Win32_Service.PathName ("ImagePath") is either a quoted executable path
+# optionally followed by arguments (`"C:\Program Files\Tailscale\tailscaled.exe" --foo`)
+# or, for a path with no spaces, an unquoted executable optionally followed by
+# arguments. A plain Trim('"') breaks the quoted case whenever arguments follow
+# the closing quote, so the quoted token is parsed out explicitly.
+function Get-ServiceImageExecutablePath {
+    param([Parameter(Mandatory = $true)][string]$ImagePath)
+    $trimmed = ''
+    $closingQuoteIndex = -1
+    $spaceIndex = -1
+
+    $trimmed = $ImagePath.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed)) {
+        return ''
+    }
+    if ($trimmed.StartsWith('"')) {
+        $closingQuoteIndex = $trimmed.IndexOf('"', 1)
+        if ($closingQuoteIndex -gt 0) {
+            return $trimmed.Substring(1, $closingQuoteIndex - 1)
+        }
+        return $trimmed.Trim('"')
+    }
+    $spaceIndex = $trimmed.IndexOf(' ')
+    if ($spaceIndex -gt 0) {
+        return $trimmed.Substring(0, $spaceIndex)
+    }
+    return $trimmed
+}
 
 # Resolve tailscale.exe: documented default install dir -> PATH -> the Tailscale
 # service's own binary directory (tailscaled.exe sits next to tailscale.exe).
@@ -80,7 +112,7 @@ function Find-TailscaleExecutable {
         $serviceInfo = $null
     }
     if ($null -ne $serviceInfo -and -not [string]::IsNullOrWhiteSpace([string]$serviceInfo.PathName)) {
-        $daemonPath = ([string]$serviceInfo.PathName).Trim('"')
+        $daemonPath = Get-ServiceImageExecutablePath -ImagePath ([string]$serviceInfo.PathName)
         $daemonDir = Split-Path -Path $daemonPath -Parent
         if (-not [string]::IsNullOrWhiteSpace($daemonDir)) {
             $siblingExe = Join-Path $daemonDir 'tailscale.exe'
@@ -144,7 +176,7 @@ function Get-TailscaleInstallInfo {
 # Set-StrictMode Latest, so a plain $obj.Field on a missing field would throw.
 function Get-TailscaleJsonProperty {
     param(
-        [Parameter(Mandatory = $true)]$Object,
+        [Parameter(Mandatory = $true)][AllowNull()]$Object,
         [Parameter(Mandatory = $true)][string]$Name,
         $Default = $null
     )
@@ -345,8 +377,13 @@ function Show-TailscaleStatus {
         Write-ColorMessage -Message "This node's Tailscale IPs: $($summary.TailscaleIPs -join ', ')" -Type 'Info'
     }
     Write-ColorMessage -Message "Peers on tailnet: $($summary.PeerCount)" -Type 'Info'
-    if ($summary.BackendState -eq $script:TailscaleNeedsLoginState -and -not [string]::IsNullOrWhiteSpace($summary.AuthURL)) {
-        Write-ColorMessage -Message "Login required: $($summary.AuthURL)" -Type 'Warning'
+    if ($summary.BackendState -eq $script:TailscaleNeedsLoginState) {
+        if (-not [string]::IsNullOrWhiteSpace($summary.AuthURL)) {
+            Write-ColorMessage -Message "Login required: $($summary.AuthURL)" -Type 'Warning'
+        }
+        Write-ColorMessage -Message 'Node is not authenticated. Connect with: tailscale up' -Type 'Warning'
+    } elseif ($summary.BackendState -eq $script:TailscaleStoppedState) {
+        Write-ColorMessage -Message 'Node is stopped. Reconnect with: tailscale up' -Type 'Warning'
     }
     foreach ($warningLine in @($summary.Health)) {
         Write-ColorMessage -Message "Health: $warningLine" -Type 'Warning'
@@ -374,6 +411,7 @@ function Show-TailscaleDevices {
     $columns = @(
         @{ Label = 'Self'; Expression = { if ($_.Self) { '*' } else { '' } } },
         'HostName',
+        'DNSName',
         'Owner',
         'OS',
         'IPv4',
@@ -404,18 +442,19 @@ function Restart-TailscaleServiceElevated {
     $afterStatus = $null
 
     $installInfo = Get-TailscaleInstallInfo
-    if (-not $installInfo.ServiceInfo.Present) {
-        Write-ColorMessage -Message "Tailscale service '$script:TailscaleServiceName' was not found; nothing to restart." -Type 'Warning'
+    if (-not $installInfo.Installed) {
+        Show-TailscaleNotInstalledMessage
         return $false
     }
 
     if (-not $Global:IS_RUN_ADMIN) {
         Write-ColorMessage -Message 'Administrator rights are required to restart the Tailscale service; relaunching elevated...' -Type 'Warning'
         try {
-            Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList @(
+            Start-Process -FilePath 'powershell.exe' -Verb RunAs -Wait -ArgumentList @(
                 '-NoProfile', '-Command', "Restart-Service -Name '$script:TailscaleServiceName'"
             ) | Out-Null
-            Write-ColorMessage -Message 'Elevated restart requested; check the elevated window for the result.' -Type 'Info'
+            $afterStatus = Get-Service -Name $script:TailscaleServiceName -ErrorAction SilentlyContinue
+            Write-ColorMessage -Message "Elevated restart finished (Status: $($afterStatus.Status))." -Type 'Success'
             return $true
         } catch {
             Write-ColorMessage -Message "Elevation declined or failed: $($_.Exception.Message)" -Type 'Error'
@@ -441,10 +480,19 @@ function Restart-TailscaleServiceElevated {
 # Admin console (cloud, every tailnet device) always opens; the local device
 # web interface (Quad100, this device only) opens only once the daemon is
 # Running/connected, per https://tailscale.com/kb/1325/device-web-interface.
+# Not installed -> only the not-installed message (mirrors Show-TailscaleStatus
+# / Show-TailscaleDevices; matches the Linux counterpart's ts_show_panel, which
+# still prints the panel URLs but gates opening them the same way).
 function Show-TailscalePanel {
     param([ValidateSet('Admin', 'Local', 'Both')][string]$PanelTarget = 'Both')
     $installInfo = $null
     $backendState = 'Unknown'
+
+    $installInfo = Get-TailscaleInstallInfo
+    if (-not $installInfo.Installed) {
+        Show-TailscaleNotInstalledMessage
+        return
+    }
 
     if ($PanelTarget -eq 'Admin' -or $PanelTarget -eq 'Both') {
         Write-ColorMessage -Message "Opening the admin console (all tailnet devices): $script:TailscaleAdminConsoleUrl" -Type 'Info'
@@ -456,10 +504,7 @@ function Show-TailscalePanel {
     }
 
     if ($PanelTarget -eq 'Local' -or $PanelTarget -eq 'Both') {
-        $installInfo = Get-TailscaleInstallInfo
-        if ($installInfo.Installed) {
-            $backendState = (Get-TailscaleStatusSummary -TailscaleExe $installInfo.ExePath).BackendState
-        }
+        $backendState = (Get-TailscaleStatusSummary -TailscaleExe $installInfo.ExePath).BackendState
         if ($backendState -eq $script:TailscaleRunningState) {
             Write-ColorMessage -Message "Opening the local device web interface: $script:TailscaleLocalWebUrl" -Type 'Info'
             try {
@@ -471,6 +516,11 @@ function Show-TailscalePanel {
             Write-ColorMessage -Message "Local device web interface needs the daemon connected (state: $backendState); skipped. It serves $script:TailscaleLocalWebUrl once Tailscale is Running (v1.56.0+)." -Type 'Warning'
         }
     }
+
+    Write-ColorMessage -Message 'Other panels documented by Tailscale:' -Type 'Info'
+    Write-ColorMessage -Message "  tailscale.exe status --web --listen $script:TailscaleStatusWebListen   (local read-only HTML status page)" -Type 'Info'
+    Write-ColorMessage -Message "  tailscale.exe web --listen $script:TailscaleWebListenDefault           (foreground web UI; Ctrl+C to stop)" -Type 'Info'
+    Write-ColorMessage -Message '  tailscale.exe set --webclient                                          (expose the web UI at <TailscaleIP>:5252)' -Type 'Info'
 }
 
 # ---------------------------------------------------------------------------
@@ -486,7 +536,7 @@ function Show-TailscaleHelp {
 }
 
 switch ($Action) {
-    '' { }
+    '' { if ($MyInvocation.InvocationName -ne '.') { Show-TailscaleHelp } }
     'Status'  { Show-TailscaleStatus }
     'Devices' { Show-TailscaleDevices }
     'Restart' { [void](Restart-TailscaleServiceElevated) }

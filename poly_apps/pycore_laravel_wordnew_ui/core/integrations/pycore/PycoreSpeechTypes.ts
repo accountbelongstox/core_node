@@ -100,6 +100,9 @@ export interface TtsEngine {
   version?: string | null;
   /** Why this engine is off (e.g. missing STREAMELEMENTS_API_KEY). */
   disabled_reason?: string;
+  /** Stable code + params of `disabled_reason` (pycore tts_reason_codes; the UI localizes it). */
+  disabled_reason_code?: string;
+  disabled_reason_params?: Record<string, unknown>;
   /** Seconds left on this engine's failure cooldown (edge / streamelements). */
   cooldown_remaining?: number;
   /** edge only: live synth probe result (may differ from package installed). */
@@ -159,6 +162,9 @@ export interface TtsTestResponse {
   /** Size of the produced mp3 (0 on failure). */
   bytes: number;
   error: string | null;
+  /** Stable code + params of `error` (pycore tts_reason_codes; the UI localizes it). */
+  error_code?: string | null;
+  error_params?: Record<string, unknown>;
   /** The text that was synthesized. */
   text?: string;
   /** Recognition / synth language used. */

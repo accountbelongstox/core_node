@@ -1,10 +1,12 @@
 - [UI review patterns](ui_review_patterns.md) — per-hunk coverage when tasks share files, CRLF churn, sequence-ref stale guards, B2 assignment checks
 - [Client key review checklist](client_key_review_checklist.md) — vector reproduction, verifier/route-auth checks, K7 wrapper reuse, mass-move resolver, shell secret pitfalls
 - [pycore line-ending gate](pycore_line_ending_gate.md) — per-line EOL must match base before pycore approval; after a foreign tree-capture commit, diff the parent
-- [pycore review patterns](pycore_review_patterns.md) — RPC-param file names, constants copied into TTS servers, "complete/every call" claims, python -B
+- [pycore review patterns](pycore_review_patterns.md) — RPC-param file names, TTS const copies, "every call" claims, base-blob side-by-side probe, re-pass verdicts
 - [Laravel schema review checklist](laravel_schema_review_checklist.md) — sys:init/SafeMigrationHelper path, read-only DB + in-process GET probes, index-dup patterns
-- [shell-windows review checklist](shell_windows_review_checklist.md) — undo flags, path appends, copy ping-pong, preview drift, +1000 mtime checks, TASKS.md align tasks
+- [shell-windows review checklist](shell_windows_review_checklist.md) — undo flags, path appends, copy ping-pong, +1000 mtimes, align tasks, AST scratch render + validate, LAN gate
+
 - [shell-linux review checklist](shell_linux_review_checklist.md) — root rm/mv in user homes, root-by-name recursion, 0-entry manifests, keyword re-diff, CR count via tr
 - [Laravel Windows file ops](laravel_windows_fileops_review.md) — junction = filetype 'unknown', unsafe isDir&&!isLink (Illuminate too), all-deferred fix task -> changes_requested
 - [Docs reconciliation review](docs_reconciliation_review.md) — lead doc rows stale after concurrent landings, Vite 4 KB inline vs hashed names, re-dispatched verdicts
+- [ncore review patterns](ncore_review_patterns.md) — throw->return skipping catch cleanup, ignored booleans, module-load validators, #paths literal sweep, proxy callers
 - [Launcher parity checklist](launcher_parity_checklist.md) — claudeteam PS1/SH B11: PID = shell vs claude, one-lead rule, stale pending rows, env/flag/table/grid drift, CCI_* dup consts

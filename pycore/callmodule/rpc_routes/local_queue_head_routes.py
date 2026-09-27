@@ -8,7 +8,6 @@ NEVER notifies Laravel — wordnew is the sole actor that notifies Laravel of
 head moves (the Part2 fill path).
 """
 
-import re
 from typing import Any, Dict, List
 
 from pycore.callmodule.rpc_routes.route_names import (
@@ -16,6 +15,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED,
     UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD,
 )
+from pycore.pyutils.common.queue_center_contract import word_identity_md5
 from pycore.pyutils.tts.audio_queue_center import (
     AUDIO_QUEUE_LANE_BY_KIND,
     AUDIO_QUEUE_LANES,
@@ -23,11 +23,12 @@ from pycore.pyutils.tts.audio_queue_center import (
     audio_queue_center,
 )
 
-# X4: the only Laravel word identity is a 32-hex md5 (word_identity.rule); a
-# caller-supplied value that does not match it is dropped here so the item
-# falls back to the contract's word_identity.fallback_when_md5_absent key
-# (<lang>:text:<cleaned_word>) instead of being uploaded under a foreign md5.
-_MD5_RE = re.compile(r"^[0-9a-fA-F]{32}$")
+# X4: the only Laravel word identity is a 32-hex md5 (word_identity.rule);
+# an item's md5 is normalized to it (case-insensitive) or dropped, so the
+# item falls back to the contract's word_identity.fallback_when_md5_absent
+# key (<lang>:text:<cleaned_word>) instead of being uploaded under a
+# mismatched-case or foreign md5.
+_RPC_ITEM_FIELDS = ("language", "text", "kind", "content_id")
 
 
 def _resolve_lane(params: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
@@ -41,11 +42,28 @@ def _resolve_lane(params: Dict[str, Any], items: List[Dict[str, Any]]) -> str:
 
 
 def _sanitize_item_md5(item: Dict[str, Any]) -> Dict[str, Any]:
-    """Drop ``md5`` when it is not a 32-hex Laravel word identity (X4)."""
+    """Normalize ``md5`` to the Laravel word identity, or drop it (X4)."""
     raw_md5 = item.get("md5")
-    if raw_md5 is not None and not _MD5_RE.fullmatch(str(raw_md5)):
+    if raw_md5 is None:
+        return item
+    normalized = word_identity_md5(raw_md5)
+    if normalized:
+        item["md5"] = normalized
+    else:
         item.pop("md5", None)
     return item
+
+
+def _build_rpc_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Build one manual-promote RPC item: language/text/kind/content_id plus
+    the sanitized md5 only. Every other caller-supplied key, ``task``
+    included, is dropped.
+    """
+    built = {field: item[field] for field in _RPC_ITEM_FIELDS if field in item}
+    sanitized = _sanitize_item_md5(dict(item))
+    if "md5" in sanitized:
+        built["md5"] = sanitized["md5"]
+    return built
 
 
 def register_local_queue_head_routes(server) -> None:
@@ -54,7 +72,7 @@ def register_local_queue_head_routes(server) -> None:
     def promote_handler(params, _request_id, _context):
         raw_items = params.get("items")
         items = (
-            [_sanitize_item_md5(dict(item)) for item in raw_items if isinstance(item, dict)]
+            [_build_rpc_item(item) for item in raw_items if isinstance(item, dict)]
             if isinstance(raw_items, list)
             else []
         )

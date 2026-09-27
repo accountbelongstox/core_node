@@ -28,5 +28,13 @@ Checks that paid off on shell-windows tasks (first seen on shell-windows-2, 2026
 - **Per-column device and table parity.** Ledger rows list different field sets for each side and still say "aligned". Compare the printed columns, not the function names.
 - **Align tasks** are listed in `.claude/agents_shared/client_key_auth/TASKS.md` (for example shell-linux-2 for D12a). Grep there before flagging "no align task".
 
+- **Generator (FrankenPHP/Caddy) tasks: re-render without touching live state** (shell-windows-9, 2026-09-27).
+  - Extract the generator functions from the file with the PowerShell AST (`FindAll FunctionDefinitionAst` + `. [scriptblock]::Create`).
+  - Stub the contract readers (read config/service_contract.json directly), the LAN probe, and the certificate-material lookup; point every `$script:*` output path at the scratchpad.
+  - Then run `frankenphp.exe validate --adapter caddyfile` with XDG_DATA_HOME/XDG_CONFIG_HOME in scratch. Run the same harness on `git show <base>:file` as a negative control.
+  - `php.exe -m` with PHP_INI_SCAN_DIR set to the scratch conf.d checks the ini. Also combine it with any hand-made ini in the live conf.d: a duplicate `extension=` gives "Module already loaded".
+- **LAN/production gating counterpart requests.** Linux gates on `domain_setup_detect_environment`/`DOMAIN_ENV_LAN_MODE`, not raw `net_env_detect`. That function honors `DOMAIN_SETUP_NET_MODE=server` and HAS_PUBLIC_IP (NAT-ed VPS). A request that says "reuse NET_ENV_IS_LAN" would regress production. Also check whether Linux already gates the main path (`fm_domain_install_all`) before accepting "identical gap".
+- **Live-file mtimes.** A live file newer than the task can come from a bulk rewrite. Compare with its siblings' mtimes (all of global_var had the same second) before blaming the owner.
+
 **Why:** these were the defects the owner's own report missed, even though it claimed a sandbox undo test passed.
 **How to apply:** use this list on every shell-windows review. See [[ui-review-patterns]] for per-hunk coverage in shared files.

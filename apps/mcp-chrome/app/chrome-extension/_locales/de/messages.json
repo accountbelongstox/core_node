@@ -1864,7 +1864,7 @@
     "message": "  Einmaliger Build ausgewählt."
   },
   "startWatchPrompt": {
-    "message": "Entwicklungs-Überwachungsmodus aktivieren? [J/n]"
+    "message": "Entwicklungs-Überwachungsmodus aktivieren?"
   },
   "stateLabel": {
     "message": "Zustand"

@@ -297,3 +297,23 @@ UI below means `poly_apps/pycore_laravel_wordnew_ui/`. Diff base 74e7770. The us
     - codemart-G3, the reviewer's five follow-ups on codemart-lead-G1.
   - I then split them over ct-codemart-ui and ct-codemart-laravel.
 - D23 withdrew the FrankenPHP CA bundle item. Local tests use http://127.0.0.1:9000 with K3, so it is no longer my blocker.
+
+## codemart-ui-G1 review (workflow, round 1)
+
+- Verdict: approved, 0 blocking and 8 non-blocking notes, in `.claude/agents_shared/reviews/codemart-ui-G1.json` (base 74e7770; the G1-only diff was read as 8f95a2a24..HEAD).
+- Items: d9-03, cmpolreq-07, cmdesign-13, CKA-28-ui and cmpolish-IMG-01 are all confirmed.
+  - The d9-03 THEME_IDS part is deferred until pycore-ui exports SHELL_THEME_IDS; the request goes to pycore-ui through the claude lead.
+- Checks I re-ran:
+  - tsc: exit 0, 0 errors;
+  - the route, dead-code, zh, version, Braces and .webp greps: 0 hits;
+  - ledger parity: 13 = 13 = 13;
+  - registry sizes: 16/16 match the real files;
+  - a read-only tinker probe of the ledger fields;
+  - line endings: every file keeps its ending.
+- Items to route:
+  - server `lang/zh_CN/codemart.php` still has 审核员 x6 and 您 x20 → its owner, through the claude lead;
+  - d9-01-ui → `?no-inline` on the icon glob, and fill CM_ICON_SPECS;
+  - cmdesign-03 → one currency constant;
+  - G3 → exercise a coded ledger row.
+- Changed files: `.claude/agents_shared/reviews/codemart-ui-G1.json` and this report.
+- Blockers: none. Next owner: ca-orchestrator.

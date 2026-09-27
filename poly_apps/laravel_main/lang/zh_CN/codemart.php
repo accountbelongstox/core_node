@@ -243,6 +243,10 @@ return [
             'password_file' => 'CodeMart 账户密码保存在 :path。',
             'accounts' => '账户：:count',
             'step_failed' => '警告：:step :ref 失败：:code',
+            'description' => '填充 CodeMart 演示账户、项目、里程碑、任务、保证金、钱包和评价（幂等）',
+            'initialized' => 'CodeMart 演示数据已初始化。',
+            'password_current' => '当前 CodeMart 账户密码（所有填充账户）：:password',
+            'account_list' => '已填充账户：:accounts',
         ],
         'init' => [
             'steps' => [

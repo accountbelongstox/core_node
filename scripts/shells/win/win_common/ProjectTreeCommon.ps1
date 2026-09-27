@@ -261,6 +261,18 @@ function Invoke-ProjectTreeLinks {
         [Parameter()] [AllowEmptyString()] [string]$TreesRoot
     )
 
+    # Resolved to absolute paths once, here, before anything below reads them:
+    # the .NET calls this function's helpers make (GetFullPath, GetAttributes,
+    # Directory.Delete/Move) resolve a relative path against
+    # [Environment]::CurrentDirectory, while cmd.exe (Set-ProjectTreeJunction's
+    # mklink) resolves one against this process's own working directory --
+    # two different notions of "current directory" that a relative caller
+    # argument would otherwise split between (AGENTS.md: resolved absolute
+    # paths in PowerShell). GetUnresolvedProviderPathFromPSPath needs neither
+    # path to exist yet and touches no filesystem state.
+    $RepoRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($RepoRoot)
+    $ProjectDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ProjectDir)
+
     if (-not $PSBoundParameters.ContainsKey('TreesRoot')) {
         $TreesRoot = if (Test-Path Variable:Global:CN_TREES_ROOT) { [string]$Global:CN_TREES_ROOT } else { '' }
     }

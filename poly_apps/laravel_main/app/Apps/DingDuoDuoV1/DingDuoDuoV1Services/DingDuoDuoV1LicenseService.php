@@ -43,18 +43,7 @@ class DingDuoDuoV1LicenseService
                 return self::lockedPayload($token);
             }
 
-            return [
-                'mode' => DingDuoDuoV1LicenseMode::Super->value,
-                'tier' => is_string($payload['tier'] ?? null) && $payload['tier'] !== ''
-                    ? $payload['tier']
-                    : DingDuoDuoV1Constants::TIER_UNLIMITED,
-                'features' => is_array($payload['features'] ?? null) ? array_values($payload['features']) : ['*'],
-                'max_binds' => (int) ($payload['maxBinds'] ?? 0),
-                'expires_at' => (int) $payload['exp'],
-                'label' => null,
-                'token' => $token,
-                'member_id' => null,
-            ];
+            return self::superPayload($token, $payload);
         }
 
         // 2) Member token: a Sanctum personal access token whose owning global
@@ -77,6 +66,28 @@ class DingDuoDuoV1LicenseService
 
         // 3) Nothing matched -> locked.
         return self::lockedPayload($token);
+    }
+
+    /**
+     * The payload of a verified v2 super code. label is null, as in the
+     * locked payload: the extension localizes the super mode itself.
+     *
+     * @return array{mode:string,tier:string,features:array,max_binds:int,expires_at:int,label:null,token:string,member_id:null}
+     */
+    private static function superPayload(string $token, array $payload): array
+    {
+        return [
+            'mode' => DingDuoDuoV1LicenseMode::Super->value,
+            'tier' => is_string($payload['tier'] ?? null) && $payload['tier'] !== ''
+                ? $payload['tier']
+                : DingDuoDuoV1Constants::TIER_UNLIMITED,
+            'features' => is_array($payload['features'] ?? null) ? array_values($payload['features']) : ['*'],
+            'max_binds' => (int) ($payload['maxBinds'] ?? 0),
+            'expires_at' => (int) $payload['exp'],
+            'label' => null,
+            'token' => $token,
+            'member_id' => null,
+        ];
     }
 
     /**

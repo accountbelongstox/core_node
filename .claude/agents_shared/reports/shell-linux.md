@@ -409,3 +409,76 @@ The task listed `dd_helper/menu_display.sh` and `dd_helper/permissions_repair_me
 
 - None.
 - Next owner: the reviewer (shell-linux-11 verdict).
+
+### Review round 1 fix (blocking finding resolved)
+
+- Blocking finding: `ts_show_devices` (`tailscale_common.sh:215-229` at review time) was missing an `ExitNodeOption` ("offers exit node", distinct from `ExitNode` "in-use") column and an Owner (`.User[UserID].LoginName`) column that the already-approved Windows counterpart (`TailscaleCommon.ps1` `Get-TailscaleDeviceRow`/`Show-TailscaleDevices`) has, and `SPL-118` claimed `aligned` despite the gap.
+- Fix: `ts_show_devices`'s python heredoc gained `owner_login(peer, user_map)` (reads `.User[str(UserID)].LoginName`, `-` when absent) and `exit_node_label(peer)` (`in-use` when `ExitNode`, `offered` when only `ExitNodeOption`, else `-` -- same precedence as the Windows column). Table gained an `OWNER` column (after `OS`, matching Windows's Self/HostName/Owner/OS.../ order for the new field) and the `EXIT` column was renamed `EXIT NODE` with the tri-state value instead of yes/no. No other function changed.
+- Ledger: `SPL-118`'s field list corrected (was a false "aligned" claim); a new dedicated row `SPL-120` tracks this specific gap and its fix (mirroring the `SPW-038`/`SPW-039` precedent in `windows.md` of one row per tracked device-table-completeness gap on this feature). Note: `SPL-119` was already claimed concurrently by `shell-linux-12` (`project_tree_common.sh`) by the time this fix landed, so this row is `SPL-120`, not `SPL-119`.
+- Verification: `bash -n` (host and WSL Debian) on `tailscale_common.sh`; `python3 -m py_compile` on the extracted heredoc (WSL Debian, Python 3.13.5); ran the heredoc, then the full sourced library's `ts_show_status`/`ts_show_devices` (via a stubbed `tailscale` binary on `PATH`, WSL Debian) against a synthetic `status --json` payload covering: an owner resolved via two different UserIDs, a peer with no `UserID` (Owner correctly `-`), one `ExitNode:true` peer (`in-use`), one `ExitNodeOption:true`-only peer (`offered`), one peer with neither (`-`). All four cases rendered correctly. WSL Debian still has no live Tailscale install, so no real `tailscale` binary was exercised (consistent with the original round's finding); no `tailscale up`/`down`/`set`/`restart` was run.
+- Files touched this round: `scripts/shells/linux/common/tailscale_common.sh` (`ts_show_devices` only), `.claude/agents_shared/shell_parity/linux.md` (`SPL-118` text, new `SPL-120` row).
+- Status: fix applied, awaiting reviewer round 2.
+
+## shell-linux-12: Linux project_tree_common.sh (P1b group G11 ext4 per-project bind)
+
+- Status: done, awaiting reviewer.
+- Source: `docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md` §8, group G11, and the "User decision (2026-09-27)" note right after the group table (the per-project runtime bind applies immediately, before P6, for plain in-repo directories); plan `.claude/agents_shared/reports/p1b_linux_ntfs_audit.md`. Rules: `development-guides/LINUX_SHELL_RULES.md`, `development-guides/DIRECTORY_NAMESPACE_RULES.md`, `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Contract `config/service_contract.json#paths.drive_layout` (frozen, read-only). Windows counterpart `scripts/shells/win/win_common/ProjectTreeCommon.ps1` (owned by the user's session `core-node-e9`, fenced, read-only).
+
+### Changed files
+
+- `scripts/shells/linux/common/project_tree_common.sh` (new)
+- `.claude/agents_shared/shell_parity/linux.md` (new row `SPL-119`)
+
+Not touched, verified by reading only: `mount_common.sh`, `shared_cache_env.sh`, `gvar_common.sh`, `gvar_storage_common.sh`, `pyservice_entry.sh`, `SharedCacheEnv.ps1`, `ProjectTreeCommon.ps1` (all fenced/owned by the running shell group plan or `core-node-e9`). No wiring into any start script, `dd.sh` step, or composer/vendor helper -- the task explicitly places that hook-in at P4, later. No git writes.
+
+### What the script does
+
+`project_tree_common.sh` is a new common library + CLI. It reads exactly three contract keys once, through `service_contract_common.sh`'s `sc_get`/`sc_list` (never redeclares them as a literal, per `LINUX_SHELL_RULES.md` #1): `paths.drive_layout.trees_root.linux`, `paths.drive_layout.link_dirs`, `paths.drive_layout.tree_namespace_rule`. For a given project directory (default: the repo root) and each link dir (`node_modules`, `vendor`, `.venv`):
+
+- **missing** in-repo entry -> skipped, never created (never writes to the NTFS share);
+- **symlink** (a native Linux symlink and a Windows junction translated by ntfs3 6.2+ are indistinguishable from userspace) -> skipped, left for the P6 junction-translation proof;
+- **plain directory** -> the ext4 directory `<trees_root.linux>/<ns>/<link_dir>` is created idempotently (with a `.cn_link` marker file, mirroring `ProjectTreeCommon.ps1`'s own marker) and best-effort chowned to the project dir's owner on first creation only (so a later non-root `npm install`/`composer install` does not immediately hit EACCES from a root-created directory -- not asked for by the task text explicitly, but needed for the feature to actually work once wired in; self-contained, no new heavy dependency); then bound with `mount --bind`, guarded by `mountpoint -q` so an already-correct bind is a no-op. Existing directory CONTENT is never quarantined or moved (the Windows `DirectoryWithContent` handling has no Linux equivalent here) -- it is only ever hidden behind the bind, which is a pure VFS overlay and never touches NTFS data, matching "never write, delete or create anything on the NTFS share" even for a populated `node_modules`.
+
+`<ns>` mirrors `ProjectTreeCommon.ps1`'s `Get-ProjectTreeNamespace` byte for byte (read, not edited, to confirm this): the repo root itself is the literal `root`; any other project directory is its repo-relative path with `/` replaced by `__`, lowercased.
+
+CLI: `ensure|status|release|help` (exactly the four names the task asked for) plus `--check`/`--dry-run` (combinable with any action; for `ensure`/`release` it previews with no `mkdir`/`mount`/`umount`). `release` only ever unmounts when the current bind is device+inode-identical (`stat -c '%d:%i'`) to the exact ext4 directory `ensure` would also target for that project+dir -- a foreign bind, or one pointing at something else, is left alone with a warning. `status` is read-only. Contract-unreadable is a hard refusal (prints a warning, touches nothing) rather than a guessed literal, matching the pattern already used by `mount_common.sh`/`shared_cache_env.sh` for their own unreadable-contract cases.
+
+Env overrides for testing (and for a future caller that already knows the paths): `PROJECT_TREE_REPO_ROOT_OVERRIDE`, `PROJECT_TREE_TREES_ROOT_OVERRIDE`, `PROJECT_TREE_LINK_DIRS_OVERRIDE`. `USE_SUDO` is read from the caller's environment when already set (e.g. by `gvar_common.sh`), otherwise a load-time-side-effect-free guarded fallback identical in spirit to the one already in `apt_repository_backup.sh`/`pycore_service.sh` -- this file never sources the heavy `gvar_common.sh` hub itself, so it stays cheap enough for a future per-start-script call (P4).
+
+### A real bug found and fixed during verification
+
+The first cut compared `findmnt -n -o SOURCE --target "$link_path"` against the constructed ext4 path to decide "is this already bound to the right place". Live testing in WSL Debian showed `findmnt` reports a bind mount's source as `<device>[<subpath-on-that-device>]` (observed: `tmpfs[/sl12_trees/root/node_modules]` for a bind under this WSL's tmpfs `/tmp`), which never string-equals the plain absolute path passed to `mount --bind`. That made `status`/`ensure`'s idempotency check permanently think every already-correct bind was "bound to a DIFFERENT source" (so a second `ensure` run kept unmounting and rebinding instead of no-op'ing), and made `release`'s "only unmount a bind we own" safety check refuse to unmount the script's own legitimate binds. Fixed by dropping the `findmnt` SOURCE comparison entirely and comparing device+inode identity instead (`project_tree_same_directory`, `stat -c '%d:%i'` on both paths), which is correct regardless of the backing fstype or mount topology and needs no string parsing. Re-verified: second `ensure` now correctly prints "already bound" with no unmount/remount, and `release` correctly unmounts its own bind while leaving a manually pre-existing foreign bind at the same path untouched.
+
+### Verification
+
+- `bash -n scripts/shells/linux/common/project_tree_common.sh` passes; 0 CR (LF-only, checked with `tr -cd '\r' | wc -c` per this repo's own CRLF pitfall, not `grep -c`).
+- No `shellcheck` in this WSL Debian (per prior sessions' memory), so skipped, consistent with earlier shell-linux reports.
+- WSL Debian (`wsl.exe -d Debian`, default user root so `USE_SUDO=""`; this image has no `node`/`php`, so `sc_get`/`sc_list` cannot read the real contract there -- the override env vars exist precisely for this), scratch repo + scratch trees root both under `/tmp` (WSL2's own root filesystem, genuinely ext4, not the NTFS-backed `/mnt/d`):
+  - `ensure` on a populated plain `node_modules` (pre-existing `marker.txt`) and an empty plain `vendor`: both bound; `ls` on the bound path showed only the fresh ext4 dir's `.cn_link` marker (original content correctly hidden, not deleted); a missing `.venv` was skipped with the "never created on the NTFS share" message.
+  - `status` after `ensure`: `bound -> <ext4 dir>` for both; `absent` for `.venv`.
+  - Idempotency: a second `ensure` printed `already bound` for both, with no unmount/remount (confirmed only after the findmnt-vs-stat fix above).
+  - A nested project dir (`sub/`) with `node_modules` replaced by a dangling symlink (simulating a translated junction) and a plain `vendor`: namespace correctly resolved to `sub`; `ensure` skipped the symlinked `node_modules` ("already a symlink/junction ... waits for the P6 junction proof") and bound `vendor` normally; `status` reflected both states correctly.
+  - `--check`/`--dry-run` on a fresh plain `vendor`: `ensure ... --check` printed the planned create+bind and created/mounted nothing (`mountpoint -q` false, ext4 dir absent afterward); the real `ensure` afterward still worked; `release ... --dry-run` on the now-bound dir printed the planned unmount and left it mounted; the real `release` then unmounted it.
+  - Foreign-bind safety: a `mount --bind` of an unrelated directory placed directly (not through this script) onto one of the two already-`ensure`d link dirs; `status` reported it as "bound to a DIFFERENT source"; `release` correctly unmounted the OTHER (legitimately owned) dir while leaving the foreign one mounted with a "bound to something other than ... -- leaving it alone" warning; manually unmounted afterward to clean up.
+  - `release` of the legitimately bound dirs: unmounted; original content (`marker.txt`) resurfaced; the ext4 directory itself was kept on disk (for an idempotent re-`ensure`), confirmed still present afterward.
+  - Outside-the-repo project dir (`/tmp`, not under the scratch repo): `status` printed "project directory is outside the repository" and exited 1 -- no crash, no partial action.
+  - Missing/unreadable contract (overrides unset, and this WSL has no node/php): printed the refusal warning and exited 1, touching nothing.
+  - Against the REAL repo path (`/mnt/d/programing/core_node`, this file's own on-disk location used as the default repo root, no `PROJECT_TREE_REPO_ROOT_OVERRIDE`), `ensure --check`: with no contract available in this WSL it correctly refused (same warning as above, real repo untouched, confirmed via `mountpoint` on the real `node_modules`). Re-run with only `PROJECT_TREE_TREES_ROOT_OVERRIDE`/`PROJECT_TREE_LINK_DIRS_OVERRIDE` set to a scratch path (repo root left as the real, un-overridden default) to exercise the actual dry-run planning logic against the real repo's real entries: it correctly reported "would create ... and bind" for the real repo's actual `node_modules` (which exists there) and "absent" for `vendor`/`.venv` (which do not exist at the repo root) -- and created/mounted nothing (`mountpoint` false afterward, and the scratch trees-root directory itself was never created by the dry run).
+  - Scratch dirs and every scratch mount were cleaned up at the end of the run; a final `mountpoint`/`findmnt` sweep showed nothing left mounted under `/tmp/sl12_*`.
+
+### Decisions (no questions asked)
+
+1. Parity status `aligned`, not `pending-windows`: `ProjectTreeCommon.ps1` already handles the "E: absent" case correctly on its own (it keeps `node_modules`/`vendor`/`.venv` fully local, no linking at all, via `Restore-ProjectTreeLocalDirectory`) -- plain-file NTFS writes from Windows itself were never the D: corruption source (docs section 2 traces it to Linux's ntfs3/ntfs-3g hard-link/reparse writes specifically), so there is nothing for shell-windows to change. Sent an FYI message to `core-node-e9` (queued; that session was busy) noting the `<ns>`/`link_dirs` alignment and the "aligned, not pending" reasoning, since they own the file this was checked against -- no alignment task is being requested from the orchestrator.
+2. Best-effort ownership chown on first creation of an ext4 directory (see "What the script does") -- a correctness addition beyond the literal task text, kept minimal (one `stat`+`chown`, never fatal, no new constant).
+3. `release`'s "do I own this bind" check uses device+inode identity, not a path/prefix compare against `findmnt -o SOURCE`, for the reason in "A real bug found and fixed" above.
+4. No wiring into `mount_common.sh`, `shared_cache_env.sh`, dd.sh steps, or any start/composer/vendor script -- out of scope for this task (P4) and those files are fenced/owned elsewhere.
+
+### Parity
+
+- New row `SPL-119` in `linux.md`: `aligned` against `ProjectTreeCommon.ps1` (read only). No `pending-windows` row was left, so no `[shell-windows] align: ...` task is being requested.
+- `ListAgents`: `core-node-e9` (busy) and `ct-laravel-remote` (idle) -- no `shell-windows`/`ct-shell-windows` peer in this session, consistent with what shell-linux-11/G1 already noted about this environment. Sent the FYI above to `core-node-e9` directly since they are the named counterpart session for this task.
+
+### Blockers
+
+- None.
+- Next owner: the reviewer (shell-linux-12 verdict).

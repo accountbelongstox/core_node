@@ -1,0 +1,68 @@
+{
+  "task_id": "shell-linux-12",
+  "role": "shell-linux",
+  "reviewer": "shell-windows",
+  "round": 1,
+  "verdict": "changes_requested",
+  "base": "ab566fdf7",
+  "notes": "New scripts/shells/linux/common/project_tree_common.sh (P1b G11) is well built overall: zero NTFS writes on every path, correct missing/symlink skips, correct <ns> parity with ProjectTreeCommon.ps1's Get-ProjectTreeNamespace, no re-declared contract constants, bash -n clean, LF-only. One real gap blocks approval: project_tree_ensure_dir's handling of an already-mounted-but-different link path (bind_rc==2) force-unmounts and takes over that mount unconditionally, which both contradicts the task's own stated guard ('bind only when not already a mountpoint') and LINUX_SHELL_RULES.md #3 ('skip whatever is already initialized, and never reset'). This is also the one code path the verification run never actually exercised (the foreign-bind test only exercised status/release, not ensure). Also updated the stale SPW-035 pending-linux note in .claude/agents_shared/shell_parity/windows.md during this review: item (1) (shared_cache_env.sh key renames) was already resolved in the current code, and item (2) is now half-closed by this task's project_tree_common.sh (SPL-119) -- only the trees_mount_linux single-mountpoint bind and the junction-translation proof remain open on the Linux side. This ledger edit is mine to make (windows.md write scope) and does not require shell-linux to act.",
+  "findings": {
+    "NTFS-SAFETY": {
+      "status": "confirmed",
+      "detail": "No path -- success or failure -- writes, deletes or creates anything under the in-repo (potentially NTFS) directory. project_tree_ensure_dir only ever mkdir/chown/tee's under $PROJECT_TREE_TREES_ROOT_LINUX (ext4, contract paths.drive_layout.trees_root.linux = /opt/core_node/trees), and mount --bind is a VFS overlay that never touches the mountpoint directory's own on-disk NTFS entry or content. release() only umounts, never writes. Verified by full read of project_tree_common.sh:216-332 and the verification log's live WSL testing (populated node_modules content resurfaced intact after unmount)."
+    },
+    "SYMLINK-JUNCTION-SKIP": {
+      "status": "confirmed",
+      "detail": "project_tree_entry_kind (:164-175) classifies via -L before -d, so a native symlink and an ntfs3-translated junction (indistinguishable from userspace per the file's own comment) are both 'symlink' and skipped untouched in ensure (:228-230), release (:305-309, kind != 'directory' skip), and reported descriptively in status (:284)."
+    },
+    "MOUNTPOINT-GUARD": {
+      "status": "changes_requested",
+      "detail": "project_tree_ensure_dir (:238-257): when the link path IS already a mountpoint but bound to something other than the expected ext4_dir (project_tree_bind_state returns 2), the non-dry-run path unconditionally runs `$USE_SUDO umount \"$link_path\"` and then proceeds to bind the correct ext4_dir over it -- with no check of whether the existing mount is this script's own stale bind or a completely unrelated one. This: (a) contradicts the task's explicit instruction 'bind only when not already a mountpoint (mountpoint -q guard)', which reads as skip-if-already-mounted, not take-over-if-mounted-to-something-else; (b) contradicts LINUX_SHELL_RULES.md #3 ('Scripts repair or initialize only what is missing, skip whatever is already initialized, and never reset') -- an existing mount at that path is not 'missing'; (c) is inconsistent with this same file's own release_dir (:299-332), which uses a device+inode identity check specifically so a foreign/unrecognized bind is left alone with a warning instead of being touched -- ensure has no equivalent ownership check before its umount. The verification log's 'Foreign-bind safety' test only exercised status and release against a manually pre-bound foreign mount; it never called ensure on that same link path to see whether ensure's bind_rc==2 branch would silently evict it -- so this exact behavior is unverified as well as undesired. Fix: either skip-and-warn on bind_rc==2 (matching release's posture and the plain reading of the task's guard), or add the same project_tree_same_directory-based recognition release uses before deciding a mismatched mount is safe to replace."
+    },
+    "IDEMPOTENCY": {
+      "status": "confirmed",
+      "detail": "Correctly-bound state (bind_rc==0) short-circuits to 'already bound', no mkdir/mount re-run. mkdir -p and the .cn_link marker write are both existence-guarded. chown only runs when created=true (first creation only). A second ensure after release (ext4 dir + marker kept on disk) re-binds without re-creating or re-chowning. This holds independent of the MOUNTPOINT-GUARD finding above, which is about a different (mismatched-target) state."
+    },
+    "CONTRACT-KEYS": {
+      "status": "confirmed",
+      "detail": "Exactly three contract reads, each once, via sc_get/sc_list from service_contract_common.sh: paths.drive_layout.trees_root.linux, paths.drive_layout.link_dirs, paths.drive_layout.tree_namespace_rule (:120-133). No link-dir name, trees_root, or /opt/core_node literal appears anywhere in the file as an operative value (grep-confirmed; 'node_modules'/'vendor'/'.venv'/'/opt/core_node' occur only in prose comments and the --help text). The USE_SUDO guarded fallback (:68-74) matches the identical established pattern already in apt_repository_backup.sh and pycore_service.sh, so it is not a second definition of that constant."
+    },
+    "NAMESPACE-PARITY": {
+      "status": "confirmed",
+      "detail": "project_tree_namespace (:144-158) matches ProjectTreeCommon.ps1's Get-ProjectTreeNamespace byte for byte: repo root -> literal 'root'; otherwise the repo-relative path with '/' -> '__', lowercased. Both take a single (RepoRoot, ProjectDir) pair per call rather than enumerating the repo's projects themselves, so 'ensure/status/release' operating on one project_dir at a time (default: repo root) matches Invoke-ProjectTreeLinks's own per-call design -- a future caller (P4) is expected to loop over projects on both sides, which is consistent with the task's explicit 'not wired into any start script yet' scoping."
+    },
+    "ACTION-NAME-PARITY": {
+      "status": "confirmed",
+      "detail": "ProjectTreeCommon.ps1 has no CLI/action-verb layer at all today (no ensure/status/release/help wrapper anywhere in scripts/shells/win, confirmed by grep) -- it is invoked only as a function library (Invoke-ProjectTreeLinks, Restore-ProjectTreeLocalDirectory). There is therefore nothing named on the Windows side for the Linux ensure|status|release|help CLI to diverge from; this is a pre-existing Windows gap (also P4, later), not a defect introduced by this task."
+    },
+    "DIRECTORY-NAMESPACE-RULE": {
+      "status": "confirmed",
+      "detail": "ext4_dir = <trees_root.linux>/<ns>/<link_dir> = /opt/core_node/trees/<ns>/<link_dir>, matching DIRECTORY_NAMESPACE_RULES.md's table row for Linux ext4 ('trees/<ns>/'). No new top-level directory is created; the namespace root itself (/opt/core_node/trees) is not created by a dedicated single helper, but the codebase has no such helper for Linux beyond the established guarded mkdir -p + USE_SUDO idiom used throughout scripts/shells/linux/common (verified: shared_cache_env.sh, apt_repository_backup.sh use the same idiom), so this is consistent with existing practice, not a gap."
+    },
+    "SCRIPT-SYNTAX": {
+      "status": "confirmed",
+      "detail": "bash -n scripts/shells/linux/common/project_tree_common.sh: OK. 0 CR bytes (tr -cd '\\r' | wc -c). shellcheck not installed in this environment (consistent with prior shell-linux/shell-windows sessions), so it could not be run here either."
+    }
+  },
+  "issues": [
+    "scripts/shells/linux/common/project_tree_common.sh:254-257 (project_tree_ensure_dir): on finding the link path already mounted to something other than the computed ext4_dir, ensure force-unmounts it and takes over unconditionally, with no ownership/identity check -- unlike release_dir's device+inode check a few lines below in the same file. This both contradicts the task's stated 'bind only when not already a mountpoint (mountpoint -q guard)' requirement and LINUX_SHELL_RULES.md #3 ('skip whatever is already initialized ... never reset'), and this exact branch was not exercised by the verification run's foreign-bind test (which only checked status/release, not ensure)."
+  ],
+  "non_blocking": [
+    "PROJECT_TREE_NAMESPACE_RULE (paths.drive_layout.tree_namespace_rule) is fetched (:124) but not included in the contract-readiness gate (:135) and never checked for emptiness or used programmatically -- the namespace algorithm itself is hardcoded to match Windows instead. Harmless today (the contract value is descriptive English text, not machine-executable), but if that key were ever removed the script would not notice.",
+    "Updated .claude/agents_shared/shell_parity/windows.md SPW-035's pending-linux cell (my own ledger, shell-windows write scope): item (1) was already resolved in the current shared_cache_env.sh (tool_root.linux/cache_root.linux/cache_subdirs are read by their current names, confirmed by reading the file) and item (2) is now half-closed by this task's project_tree_common.sh; only the trees_mount_linux single-mountpoint bind and the junction-translation proof remain open. No action needed from shell-linux for this; noted for the orchestrator's awareness."
+  ],
+  "checks": [
+    "bash -n scripts/shells/linux/common/project_tree_common.sh: OK.",
+    "tr -cd '\\r' < project_tree_common.sh | wc -c: 0 (LF-only).",
+    "shellcheck: not installed in this environment; skipped.",
+    "grep for hardcoded 'node_modules'/'vendor'/'.venv'/'/opt/core_node' as operative values: none found (comments and --help text only).",
+    "Read of config/service_contract.json#paths.drive_layout: trees_root.linux=/opt/core_node/trees, link_dirs=[node_modules,vendor,.venv], tree_namespace_rule=\"repo-relative path, '/' -> '__', lowercase\" -- matches the three sc_get/sc_list calls in the script.",
+    "Read of scripts/shells/win/win_common/ProjectTreeCommon.ps1 (fenced, read-only): Get-ProjectTreeNamespace (:156-171) confirmed byte-for-byte equivalent to project_tree_namespace; no ensure/status/release/help CLI exists there to compare action names against.",
+    "Read of scripts/shells/linux/common/service_contract_common.sh: sc_get/sc_list are the shared, single-definition contract accessors used correctly.",
+    "Read of scripts/shells/linux/common/shared_cache_env.sh:83-89 (fenced, read-only): confirms tool_root.linux/cache_root.linux/cache_subdirs/trees_root.linux/trees_mount_linux/toolchain_env_file.linux are already read by current names (basis for the SPW-035 ledger fix) and confirms CN_TREES_MOUNT/CN_TREES_MOUNT_PARENT are read but never mounted anywhere in scripts/shells/linux/ (grep across the directory).",
+    "development-guides/LINUX_SHELL_RULES.md and development-guides/DIRECTORY_NAMESPACE_RULES.md re-read in full for this review; #1 (one definition per constant), #2/NTFS+no-recycle-bin, #3 (idempotent, never-reset) and the namespace table were checked against the script's actual code paths, not just its comments.",
+    "git: HEAD ab566fdf7 already contains the new file and the linux.md row (matches the report's note about the repo's own auto-commit process); no git write performed by this review.",
+    "No destructive command was run by this reviewer: only bash -n, grep, and file reads; no mount/umount/mkdir was executed against any real or scratch path."
+  ],
+  "checked_at": "2026-09-27"
+}

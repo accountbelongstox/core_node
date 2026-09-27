@@ -242,18 +242,21 @@ project_tree_ensure_dir() {
         return 0
     fi
 
-    if [ "$PROJECT_TREE_DRY_RUN" = true ]; then
-        if [ "$bind_rc" -eq 2 ]; then
-            project_tree_log "[dry-run] would rebind $link_path -> $ext4_dir"
-        else
-            project_tree_log "[dry-run] would create $ext4_dir and bind $link_path -> $ext4_dir"
-        fi
+    # bind_rc 2: already a mountpoint, but bound to something other than
+    # ext4_dir. Mirrors release_dir's own posture exactly (same
+    # project_tree_same_directory identity check): a foreign/unrecognized
+    # bind is left alone, never force-unmounted and taken over. Matches the
+    # task's own "bind only when not already a mountpoint" guard and
+    # LINUX_SHELL_RULES.md #3 ("skip whatever is already initialized, never
+    # reset").
+    if [ "$bind_rc" -eq 2 ]; then
+        project_tree_warn "skip $link_path: already a mountpoint bound to something other than $ext4_dir -- leaving it alone"
         return 0
     fi
 
-    if [ "$bind_rc" -eq 2 ]; then
-        project_tree_log "unbinding stale mount at $link_path before rebinding"
-        $USE_SUDO umount "$link_path" 2>/dev/null || { project_tree_err "could not unmount $link_path"; return 1; }
+    if [ "$PROJECT_TREE_DRY_RUN" = true ]; then
+        project_tree_log "[dry-run] would create $ext4_dir and bind $link_path -> $ext4_dir"
+        return 0
     fi
 
     if [ ! -d "$ext4_dir" ]; then
@@ -376,8 +379,10 @@ Windows counterpart: scripts/shells/win/win_common/ProjectTreeCommon.ps1.
                  its ext4 directory (<trees_root.linux>/<ns>/<dir>). Skips a
                  dir that is missing, a symlink/junction, or not a directory.
                  Creates the ext4 directory idempotently; binds only when not
-                 already a mountpoint of it (mountpoint -q guard). Uses sudo
-                 when the caller is not root.
+                 already a mountpoint (mountpoint -q guard). A dir already
+                 mounted from something other than its ext4 directory is left
+                 alone (skip + warn), never force-unmounted or taken over.
+                 Uses sudo when the caller is not root.
   status [dir]   Report the current state of every link dir. Read-only.
   release [dir]  Unmount a bind, but only when it is currently bound to
                  exactly the ext4 directory ensure would also target for that

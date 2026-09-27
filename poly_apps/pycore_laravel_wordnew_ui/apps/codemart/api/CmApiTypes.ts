@@ -79,6 +79,40 @@ export interface CmCounters {
   unread_notifications: number;
 }
 
+export type CmPolicyListKey =
+  | 'supported_currencies'
+  | 'deposit_payment_methods'
+  | 'withdrawal_methods'
+  | 'payment_types'
+  | 'payment_creatable_types'
+  | 'identity_types'
+  | 'kyc_document_slots'
+  | 'dispute_resolutions'
+  | 'supported_locales'
+  | 'task_priorities'
+  | 'complexities'
+  | 'budget_types';
+
+export type CmBootstrapPolicy = {
+  currency: string;
+  deposit_amounts: Record<string, number>;
+  platform_commission_rate: number;
+  default_page_size: number;
+  max_page_size: number;
+  withdrawal_min_amount?: number;
+  [key: string]: unknown;
+} & Partial<Record<CmPolicyListKey, string[]>>;
+
+export interface CmVocabulary {
+  states: Record<string, string[]>;
+  terminal_states?: Record<string, string[]>;
+  state_rules?: Record<string, string[]>;
+  capability_roles?: Record<string, string>;
+  roles: string[];
+  transitions?: Record<string, Record<string, Record<string, string[]>>>;
+  policy: CmBootstrapPolicy;
+}
+
 export interface CmBootstrap {
   contract_version: string;
   min_supported_ui_version: string;
@@ -89,21 +123,7 @@ export interface CmBootstrap {
   capabilities: string[];
   onboarding: CmOnboarding;
   profile: CmProfileData | null;
-  vocabulary: {
-    states: Record<string, string[]>;
-    roles: string[];
-    transitions?: Record<string, Record<string, Record<string, string[]>>>;
-    policy: {
-      currency: string;
-      supported_currencies: string[];
-      deposit_amounts: Record<string, number>;
-      platform_commission_rate: number;
-      default_page_size: number;
-      max_page_size: number;
-      deposit_payment_methods?: string[];
-      [key: string]: unknown;
-    };
-  };
+  vocabulary: CmVocabulary;
   counters: CmCounters;
 }
 

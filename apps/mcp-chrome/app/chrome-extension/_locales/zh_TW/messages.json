@@ -1864,7 +1864,7 @@
     "message": "  已選擇單次建置。"
   },
   "startWatchPrompt": {
-    "message": "是否啟用開發監看模式？[Y/n]"
+    "message": "是否啟用開發監看模式？"
   },
   "stateLabel": {
     "message": "狀態"

@@ -502,8 +502,9 @@ function Invoke-DockerModelRunner {
     .SYNOPSIS
         Ensure WSL2 + Debian 13, then run docker_model_runner.sh <Action> <Model>
         <staging> inside the distro. Returns $true only on RESULT PASS.
-        test (and up -Release) always run down and terminate the distro;
-        ensure/status/down terminate the distro when this call started it.
+        test (and up -Release) always run the runner's down; every action
+        terminates the distro only when this call started it (a distro that
+        was already running before this call is left running, and logged).
     #>
     param(
         [Parameter(Mandatory = $true)][string]$Model,
@@ -530,7 +531,7 @@ function Invoke-DockerModelRunner {
         Write-DockerModelResult -Action $Action -Model $Model -Status 'FAIL' -Reason ('platform_{0}' -f (Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown'))
         return $false
     }
-    $terminateAfter = $releaseAfter -or (($runningBefore -notcontains $distroName) -and $Action -ne 'up')
+    $terminateAfter = ($runningBefore -notcontains $distroName) -and ($releaseAfter -or $Action -ne 'up')
 
     try {
         if (-not $StagingDir) { $StagingDir = Get-PycoreLocalDataSubDir -SubDir $Model }
@@ -553,9 +554,13 @@ function Invoke-DockerModelRunner {
         $actionStarted = $true
         $passed = Invoke-DockerModelRunnerAction -Distro $distroName -RunnerPath $runnerPath -Action $Action -Model $Model -WslStaging $wslStaging -Prefix $Prefix
         if ($Action -eq 'ensure' -and $script:DockerBridgeRestartRequired) {
-            Write-Host "$Prefix systemd was just enabled in '$distroName'; terminating it once and re-running ensure." -ForegroundColor Yellow
-            Stop-DockerModelWslDistro -Distro $distroName -Prefix $Prefix
-            $passed = Invoke-DockerModelRunnerAction -Distro $distroName -RunnerPath $runnerPath -Action $Action -Model $Model -WslStaging $wslStaging -Prefix $Prefix
+            if ($runningBefore -contains $distroName) {
+                Write-Host "$Prefix [!] SKIP restart-required: WSL distro '$distroName' was already running before this call, so it was not terminated. Run 'wsl --terminate $distroName' yourself, then re-run this step." -ForegroundColor DarkYellow
+            } else {
+                Write-Host "$Prefix systemd was just enabled in '$distroName'; terminating it once and re-running ensure." -ForegroundColor Yellow
+                Stop-DockerModelWslDistro -Distro $distroName -Prefix $Prefix
+                $passed = Invoke-DockerModelRunnerAction -Distro $distroName -RunnerPath $runnerPath -Action $Action -Model $Model -WslStaging $wslStaging -Prefix $Prefix
+            }
         }
         if ($Action -eq 'ensure' -or $Action -eq 'up' -or $Action -eq 'test') {
             Set-DockerBridgeVarIfChanged -Key 'TTS_DOCKER_PROVIDER_STATE' -Value $(if ($passed) { 'ready' } else { ('wsl_engine_{0}_failed' -f $Action) })
@@ -567,6 +572,8 @@ function Invoke-DockerModelRunner {
         }
         if ($terminateAfter) {
             Stop-DockerModelWslDistro -Distro $distroName -Prefix $Prefix
+        } elseif ($releaseAfter -and $actionStarted) {
+            Write-Host "$Prefix WSL distro '$distroName' was already running before this call; leaving it running." -ForegroundColor DarkGray
         }
     }
 }

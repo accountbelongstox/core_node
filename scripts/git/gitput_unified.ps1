@@ -47,6 +47,11 @@ $githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
 . $githubHostRefreshScript
 $giteeHostRefreshScript = Join-Path $scriptPath "gitee_host_refresh.ps1"
 . $giteeHostRefreshScript
+# D20: shared GitHub-SSH-origin read/write, so gitput_unified.ps1 and syncgit
+# (dd.cmd/dd.ps1, scripts/winenvs/syncgit.ps1) have one behavior for the
+# "origin" step instead of a second definition here.
+$gitSyncCommonScript = Join-Path $winCommonDir "GitSyncCommon.ps1"
+. $gitSyncCommonScript
 if (-not $Global:GLOBAL_VAR_DIR) {
     . $globalVarsPath
 }
@@ -394,10 +399,20 @@ function Create-WorkingBackup {
     }
 }
 
-# Function to determine default remote (GitHub first; used for execution order and restore)
+# Function to determine default remote (GitHub first; used for execution order and restore).
+# Reads the URL from git_remotes.conf via GitSyncCommon.ps1 (D20) -- the same
+# single definition syncgit reads -- instead of a second hardcoded constant.
 function Get-DefaultRemote {
     param([string]$ProjectName)
-    
+
+    $githubSshUrl = Get-GitSyncGitHubSshUrl -RepoRoot $coreNodeDir
+    if (-not [string]::IsNullOrWhiteSpace($githubSshUrl)) {
+        return $githubSshUrl
+    }
+
+    # Write-ColorText is defined later in this file, so a plain Write-Host is
+    # used here: Get-DefaultRemote runs before that point in the script.
+    Write-Host "Warning: no 'github=' entry in git_remotes.conf; falling back to the default GitHub SSH URL pattern" -ForegroundColor Yellow
     return "git@github.com:accountbelongstox/$ProjectName.git"
 }
 
@@ -479,13 +494,15 @@ function Get-CurrentRemote {
     }
 }
 
-# Function to set remote URL
+# Function to set remote URL. Delegates the actual git write to
+# Set-GitSyncRemoteUrl (GitSyncCommon.ps1, D20) -- the one function that runs
+# `git remote set-url`/`git remote add`, shared with syncgit -- instead of a
+# second copy of that git command here.
 function Set-RemoteUrl {
     param([string]$RemoteUrl)
-    
+
     try {
-        Write-ColorText "Executing: git remote set-url origin $RemoteUrl" -ForegroundColor DarkGray
-        git remote set-url origin $RemoteUrl
+        Set-GitSyncRemoteUrl -RemoteName "origin" -TargetUrl $RemoteUrl
         Write-ColorText "Remote set to: $RemoteUrl" -ForegroundColor Green
     } catch {
         Write-ColorText "Failed to set remote: $_" -ForegroundColor Red

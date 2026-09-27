@@ -404,6 +404,7 @@ export interface QueueCenterControlResponse {
   requested_by?: string | null;
   graceful_stop?: boolean;
   error?: string;
+  error_code?: string;
   result?: unknown;
   /** Audio lanes: authoritative post-transition lane state (apply, never guess). */
   lane_state?: AudioLaneStatePayload;
@@ -491,6 +492,7 @@ export interface AudioLaneStatePayload {
   wordAudio?: unknown;
   sentenceAudio?: unknown;
   error?: string;
+  error_code?: string;
 }
 
 export interface PcQueueOverview {

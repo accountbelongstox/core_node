@@ -292,6 +292,12 @@ $__sccCacheRootFallbackTemplate = [string](Get-ServiceContractValue -ContractPat
 $__sccCacheSubdirs = @(Get-ServiceContractValue -ContractPath 'paths.drive_layout.cache_subdirs')
 $__sccTreesRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.trees_root.windows')
 $__sccToolchainEnvTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.toolchain_env_file.windows')
+# Read once here rather than hard-coded below (DIRECTORY_NAMESPACE_RULES.md:
+# "Scripts read them from the contract ... They never write a literal"); both
+# resolve to the same strings the D: fallback literals used to spell out, so
+# this is a definition-source change only, not a path change.
+$__sccDataDriveNamespace = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.namespaces.windows_data_drive')
+$__sccCoreNodeDataDirName = [string](Get-ServiceContractValue -ContractPath 'paths.core_node_data_dir_name')
 $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL = $__sccProgramDrivePrimary
 
 # [Environment]::SystemDirectory (e.g. C:\Windows\System32) does not depend on
@@ -357,9 +363,9 @@ $Global:CN_TOOLCHAIN_ENV_FILE = Resolve-CnDriveLayoutPath -Template $__sccToolch
 
 $Global:WINDOWS_PROGRAMING_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'programing'
 $Global:WINDOWS_PROGRAMING_USERS_DIR = Join-Path $Global:WINDOWS_PROGRAMING_DIR 'Users'
-$Global:WWW_BASE_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'www'
+$Global:WWW_BASE_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT $__sccDataDriveNamespace
 $Global:WWW_CACHE_DIR = Join-Path $Global:WWW_BASE_DIR 'cache'
-$Global:CORE_NODE_DATA_DIR = Join-Path $Global:WWW_BASE_DIR 'core_node'
+$Global:CORE_NODE_DATA_DIR = Join-Path $Global:WWW_BASE_DIR $__sccCoreNodeDataDirName
 $Global:CORE_NODE_RUNTIME_CACHE_DIR = Join-Path $Global:CORE_NODE_DATA_DIR 'cache'
 $Global:CORE_NODE_RUNTIME_DATA_DIR = Join-Path $Global:CORE_NODE_DATA_DIR 'data'
 # Canonical cache-root Global consumed by ~20 install_*.ps1 steps and by
@@ -509,6 +515,6 @@ Remove-Variable -Name __sccSubDirs, __sccDir, __sccPath, __sccHfHubCache, __sccL
     __sccServiceContractPath, __sccServiceContractModule, __sccContractDataDriveRoot, __sccProgramDriveNamespace, `
     __sccProgramDrivePrimary, __sccProgramDriveFallback, __sccToolRootTemplate, __sccToolRootFallbackTemplate, `
     __sccCacheRootTemplate, __sccCacheRootFallbackTemplate, __sccCacheSubdirs, __sccTreesRootTemplate, `
-    __sccToolchainEnvTemplate, __sccSystemDriveSpec, `
+    __sccToolchainEnvTemplate, __sccDataDriveNamespace, __sccCoreNodeDataDirName, __sccSystemDriveSpec, `
     __sccProgramDrivePrimaryRoot, __sccProgramDriveFallbackRoot, __sccProgramDriveQualifies, `
     __sccEffectiveProgramDriveLetter, __sccSystemName -ErrorAction SilentlyContinue

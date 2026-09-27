@@ -6,8 +6,15 @@ $script:FrankenPhpGlobalVarsPath = Join-Path $script:FrankenPhpCommonDirectory '
 $script:FrankenPhpServiceContractPath = Join-Path $script:FrankenPhpCommonDirectory 'ServiceContract.ps1'
 $script:FrankenPhpWindowsPathPath = Join-Path $script:FrankenPhpCommonDirectory 'WindowsPathFunction.ps1'
 $script:FrankenPhpWinswManagerPath = Join-Path $script:FrankenPhpCommonDirectory 'WinswServiceManager.ps1'
+# Tailscale exe/service detection and status --json parsing are centralized in
+# TailscaleCommon.ps1 (Find-TailscaleExecutable, Get-TailscaleStatusJson,
+# Get-TailscaleJsonProperty); this file reuses them instead of keeping its own
+# copies. Dot-sourcing it is safe: its trailing dispatcher only acts on a
+# non-empty -Action, which is never passed here.
+$script:FrankenPhpTailscaleCommonPath = Join-Path $script:FrankenPhpCommonDirectory 'TailscaleCommon.ps1'
 . $script:FrankenPhpGlobalVarsPath
 . $script:FrankenPhpServiceContractPath
+. $script:FrankenPhpTailscaleCommonPath
 
 $script:FrankenPhpRepositoryRoot = [System.IO.Path]::GetFullPath([string]$Global:PROJECT_DIR)
 $script:FrankenPhpWebRoot = 'D:\www'
@@ -22,8 +29,7 @@ $script:FrankenPhpPhpIniPath = Join-Path $script:FrankenPhpConfigDirectory '99-c
 # Extensions Laravel needs from the embedded PHP payload (the archive ships no php.ini, so
 # none load by default). One definition, filtered below to whatever php_<name>.dll the
 # payload actually shipped (e.g. bcmath is compiled in, so it never has a DLL here and is
-# skipped automatically). Mirrors the extension set hand-written for D7 local testing in
-# D:\www\frankenphp\php-conf.d\50-d7-local-extensions.ini.
+# skipped automatically).
 $script:FrankenPhpRequiredExtensions = @(
     'pdo_pgsql', 'pgsql', 'mbstring', 'openssl', 'intl', 'gd', 'zip', 'bcmath', 'curl', 'fileinfo', 'sodium'
 )
@@ -65,7 +71,8 @@ $script:FrankenPhpMkcertArchiveName = 'mkcert-{0}-windows-amd64.exe' -f $script:
 $script:FrankenPhpMkcertDownloadUrl = 'https://github.com/FiloSottile/mkcert/releases/latest/download/{0}' -f $script:FrankenPhpMkcertArchiveName
 $script:FrankenPhpMkcertToolPath = Join-Path $script:FrankenPhpBinDirectory 'mkcert.exe'
 $script:FrankenPhpTailscaleDomainSecretName = 'TAILSCALE_DOMAIN_1'
-$script:FrankenPhpTailscaleDefaultExePath = 'C:\Program Files\Tailscale\tailscale.exe'
+# Tailscale exe detection: reuses TailscaleCommon.ps1's Find-TailscaleExecutable
+# and its $script:TailscaleDefaultExePath constant (no local copy here).
 
 function Write-FrankenPhpLog {
     param(
@@ -555,17 +562,17 @@ function Get-FrankenPhpTailscaleDnsName {
     )
     $dnsName = ''
     $status = $null
+    $selfNode = $null
 
     if ([string]::IsNullOrWhiteSpace($TailscaleExe)) {
         return ''
     }
-    try {
-        $status = (& $TailscaleExe 'status' '--json' | ConvertFrom-Json)
-        $dnsName = ([string]$status.Self.DNSName).TrimEnd('.')
-    }
-    catch {
-        $dnsName = ''
-    }
+    # Reuses TailscaleCommon.ps1's Get-TailscaleStatusJson (never throws) and
+    # Get-TailscaleJsonProperty (strict-mode-safe) instead of a second
+    # `status --json` parse.
+    $status = Get-TailscaleStatusJson -TailscaleExe $TailscaleExe
+    $selfNode = Get-TailscaleJsonProperty -Object $status -Name 'Self' -Default $null
+    $dnsName = ([string](Get-TailscaleJsonProperty -Object $selfNode -Name 'DNSName' -Default '')).TrimEnd('.')
     if (-not [string]::IsNullOrWhiteSpace($dnsName) -and -not [string]::IsNullOrWhiteSpace($TailnetDomain)) {
         if (-not ($dnsName.EndsWith('.' + $TailnetDomain) -or $dnsName -eq $TailnetDomain)) {
             Write-FrankenPhpLog -Message "Machine DNS name '$dnsName' is outside the configured tailnet '$TailnetDomain'; refusing it" -Type 'Warning'
@@ -711,7 +718,6 @@ function Ensure-FrankenPhpLanLocalCertificates {
     $tailscaleExe = ''
     $tailnetDomain = ''
     $dnsName = ''
-    $tailscaleCommand = $null
 
     Ensure-FrankenPhpDirectory -Path $certDir | Out-Null
 
@@ -731,13 +737,10 @@ function Ensure-FrankenPhpLanLocalCertificates {
         Write-FrankenPhpLog -Message '[MANUAL] mkcert unavailable; install it (choco install mkcert / scoop install mkcert / GitHub release), then run: mkcert -install; mkcert 127.0.0.1 localhost ::1' -Type 'Warning'
     }
 
-    $tailscaleCommand = Get-Command tailscale -ErrorAction SilentlyContinue
-    if ($null -ne $tailscaleCommand) {
-        $tailscaleExe = [string]$tailscaleCommand.Source
-    }
-    elseif (Test-Path -LiteralPath $script:FrankenPhpTailscaleDefaultExePath -PathType Leaf) {
-        $tailscaleExe = $script:FrankenPhpTailscaleDefaultExePath
-    }
+    # Reuses TailscaleCommon.ps1's Find-TailscaleExecutable (documented default
+    # install dir -> PATH -> the Tailscale service's own binary directory)
+    # instead of a second, differently-ordered detection here.
+    $tailscaleExe = [string](Find-TailscaleExecutable)
     $tailnetDomain = Get-FrankenPhpTailscaleDomainConstant
 
     if ([string]::IsNullOrWhiteSpace($tailscaleExe)) {

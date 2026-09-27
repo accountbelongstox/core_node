@@ -1732,7 +1732,7 @@
     "message": "  1回限りのビルドを選択しました。"
   },
   "startWatchPrompt": {
-    "message": "開発監視モードを有効にしますか？ [Y/n]"
+    "message": "開発監視モードを有効にしますか？"
   },
   "stateLabel": {
     "message": "州"

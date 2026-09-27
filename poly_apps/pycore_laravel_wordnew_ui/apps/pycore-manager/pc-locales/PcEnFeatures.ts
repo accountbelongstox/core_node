@@ -1,7 +1,26 @@
-import { orchEn } from './OrchLocales';
+import { orchEn, orchMessagesEn, orchMessageValuesEn } from './OrchLocales';
 /** Pycore Manager locale resource fragment. */
 export const pcEnFeatures = {
-audioOrchestration: orchEn,
+audioOrchestration: { ...orchEn, messages: orchMessagesEn, messageValues: orchMessageValuesEn },
+ttsReasons: {
+    tts_not_installed: 'Not installed — run {{installer}}',
+    tts_venv_not_built: '{{engine}} isolated venv is not built — run {{installer}}',
+    tts_venv_not_built_base_ready: '{{engine}} isolated venv is not built; base Python {{python_version}} is ready — run {{installer}}',
+    tts_base_python_unavailable: '{{engine}} base Python is unavailable: {{detail}}',
+    tts_model_weights_missing: '{{engine}} model weights are missing or incomplete — run {{installer}}',
+    tts_model_not_found: '{{engine}} model not found — run {{installer}}',
+    tts_server_not_running: '{{engine}} API server is not running ({{url}})',
+    tts_server_model_not_ready: '{{engine}} server is reachable but its model is not ready',
+    tts_setting_required: 'Set {{setting}}',
+    tts_secret_required: 'Set {{secrets}} in .secret_keys',
+    tts_package_missing: '{{package}} package is not installed',
+    tts_fishspeech_source_required: 'Start the Fish Speech server ({{url}}) or set FISH_API_KEY with fish-audio-sdk',
+    tts_fishspeech_bridge_not_ready: 'The Fish Speech bridge is up but cannot synthesize — set FISH_API_KEY or FISHSPEECH_UPSTREAM, or start fish-speech tools/api_server.py',
+    tts_auth_cooldown: '{{engine}} auth failure cooldown ({{seconds}}s remaining)',
+    tts_edge_init_failed: 'The edge-tts client failed to initialize (check the package and the network)',
+    tts_memory_gate: 'Masked by the memory gate: {{detail}}',
+    tts_engine_unavailable: '{{engine}} is unavailable',
+  },
 subtitlePage: {
     title: 'Subtitle Search',
     subtitle: 'Search and download movie & TV subtitles by title via OpenSubtitles, with a shared search history.',

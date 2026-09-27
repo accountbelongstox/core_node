@@ -15,6 +15,8 @@ Recurring pycore defects found in review (pycore-2 AT-006, pycore-4 AT-034 and A
 
 **How to apply:**
 - For every "fixed" id that adds file writes, subprocesses or constants, grep the source of each input and each literal, and grep all sibling call sites.
+- For a "behavior unchanged" claim in pyfoundations (for example pycore-lead-F1 in serialized_worker.py), load the base blob from `git show <base>:path` in the scratchpad with importlib `spec_from_file_location`. Compare the old and new outputs side by side, and capture ColorPrint output through `_color_print_callback.register` with `_mcp_mode=True`.
+- A verdict file may already exist from an earlier pass of the same workflow step. Re-verify independently, then overwrite it and add a note to the existing reviewer.md row. Do not add a duplicate row.
 - Run pure-function checks with `python -B` from the scratchpad. Running python inside `pycore/tts_install_assets/` rewrites its gitignored `__pycache__`.
 
 Related: [[pycore-line-ending-gate]], [[client-key-review-checklist]].

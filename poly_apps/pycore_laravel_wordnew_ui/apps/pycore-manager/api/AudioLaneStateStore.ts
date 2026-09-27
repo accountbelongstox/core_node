@@ -14,7 +14,8 @@
  * they never keep a second copy.
  *
  * Owner views (one orchestration task's missing words/sentences) are fetched
- * on demand and re-fetched when the lane revision moves.
+ * on demand and re-fetched when the lane revision moves. `error` holds a
+ * pycore error code; views localize it and never render raw text.
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
@@ -27,6 +28,7 @@ import type {
   AudioLaneQueueView,
   AudioLaneStatePayload,
 } from '../../../core/contracts/QueueCenterTypes';
+import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
 
 /** Relay mode has no pycore SSE stream: poll the (small) lane state instead. */
 const RELAY_POLL_MS = 5_000;
@@ -56,6 +58,17 @@ function setState(next: AudioLaneStoreState): void {
   emit();
 }
 
+function laneFailureCode(payload: AudioLaneStatePayload | null | undefined): string {
+  return pcFailureCode(payload) || PC_REQUEST_FAILED_CODE;
+}
+
+/** Identity of both lane Queues' state: it moves on every Part1/Part2 change of either lane. */
+export function audioLaneRevisionKey(payload: AudioLaneStatePayload | null | undefined): string {
+  const word = payload?.lanes?.word_audio?.queue?.revision ?? 0;
+  const sentence = payload?.lanes?.sentence_audio?.queue?.revision ?? 0;
+  return `${payload?.instance ?? ''}:${word}:${sentence}`;
+}
+
 export function getAudioLaneStoreState(): AudioLaneStoreState {
   return state;
 }
@@ -83,11 +96,11 @@ export function refreshAudioLaneState(): Promise<void> {
   fetchInFlight = pycoreApi.audioLaneState()
     .then((payload) => {
       if (!applyAudioLaneState(payload) && payload?.success === false) {
-        setState({ ...state, loading: false, error: payload.error || null });
+        setState({ ...state, loading: false, error: laneFailureCode(payload) });
       }
     })
-    .catch((error: unknown) => {
-      setState({ ...state, loading: false, error: error instanceof Error ? error.message : String(error) });
+    .catch(() => {
+      setState({ ...state, loading: false, error: PC_REQUEST_FAILED_CODE });
     })
     .finally(() => {
       fetchInFlight = null;
@@ -139,26 +152,38 @@ export interface AudioLaneOwnerViews {
 /**
  * One owner's (orchestration task's) Part1/Part2/Queue views of BOTH lanes:
  * its missing words in the word_audio Queue, its missing sentences in the
- * sentence_audio Queue. Re-fetched when the lane revision moves.
+ * sentence_audio Queue. Re-fetched when the lane revision moves; a move that
+ * arrives while a fetch is in flight schedules one trailing fetch, and every
+ * fetch exit (also after the effect was cleaned up) ends the loading state.
  */
 export function useAudioLaneOwnerViews(owner: string, active: boolean): AudioLaneOwnerViews {
   const lanes = useAudioLaneState();
   const [result, setResult] = useState<AudioLaneOwnerViews>({ views: {}, loading: false, error: null });
+  const [trailingTick, setTrailingTick] = useState(0);
   const inFlight = useRef(false);
-  const revisionKey = `${lanes.payload?.instance ?? ''}:${lanes.payload?.lanes?.word_audio?.queue?.revision ?? 0}:${lanes.payload?.lanes?.sentence_audio?.queue?.revision ?? 0}`;
+  const trailingFetch = useRef(false);
+  const revisionKey = audioLaneRevisionKey(lanes.payload);
+
+  useEffect(() => {
+    setResult({ views: {}, loading: false, error: null });
+  }, [owner]);
 
   useEffect(() => {
     if (!active || !owner) return undefined;
     let cancelled = false;
     const timer = setTimeout(() => {
-      if (inFlight.current) return;
+      if (inFlight.current) {
+        trailingFetch.current = true;
+        return;
+      }
       inFlight.current = true;
+      trailingFetch.current = false;
       setResult((previous) => ({ ...previous, loading: Object.keys(previous.views).length === 0 }));
       pycoreApi.audioLaneState(owner, OWNER_ITEM_LIMIT)
         .then((payload) => {
           if (cancelled) return;
           if (!payload?.lanes) {
-            setResult((previous) => ({ ...previous, loading: false, error: payload?.error || null }));
+            setResult((previous) => ({ ...previous, error: laneFailureCode(payload) }));
             return;
           }
           setResult({
@@ -170,22 +195,23 @@ export function useAudioLaneOwnerViews(owner: string, active: boolean): AudioLan
             error: null,
           });
         })
-        .catch((error: unknown) => {
-          if (!cancelled) {
-            setResult((previous) => ({
-              ...previous,
-              loading: false,
-              error: error instanceof Error ? error.message : String(error),
-            }));
-          }
+        .catch(() => {
+          if (!cancelled) setResult((previous) => ({ ...previous, error: PC_REQUEST_FAILED_CODE }));
         })
-        .finally(() => { inFlight.current = false; });
+        .finally(() => {
+          inFlight.current = false;
+          setResult((previous) => (previous.loading ? { ...previous, loading: false } : previous));
+          if (trailingFetch.current) {
+            trailingFetch.current = false;
+            setTrailingTick((tick) => tick + 1);
+          }
+        });
     }, OWNER_REFETCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [owner, active, revisionKey]);
+  }, [owner, active, revisionKey, trailingTick]);
 
   return result;
 }

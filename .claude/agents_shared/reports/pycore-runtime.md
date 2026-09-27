@@ -346,3 +346,184 @@ Blockers: CKA-10-routes waits for pycore-assist CKA-10. Next owners:
 - pycore-assist (LTCW-12 import, CKA-10 facade);
 - laravel-api (RelayDeviceService allowlist and `$requiredEvents`);
 - pycore-ai (full-sync `error_code`, the `AUDIO_LANE_UNKNOWN` constant).
+
+## pycore-runtime-D7P2-fix (part 1)
+
+Re-routed by the orchestrator after three rounds mis-assigned this task to
+pycore-ui (which correctly deferred every item each time). This session took
+the round-3 verdict's open items B1, B2, B3, B5 exactly as stated in
+`.claude/agents_shared/reviews/pycore-runtime-D7P2-fix.json` (reviewer
+pycore-lead) and the underlying `.claude/agents_shared/reviews/pycore-runtime-D7P2.json`
+blocking issues. B4 (pycore-lead's foundation fix in `serialized_worker.py`,
+plus the docstring rewrite that depends on it) and B6 (this section) are
+explicitly out of scope for part 1 per the task split; B6 is written here now
+that B1/B2/B3/B5 are done.
+
+Concurrency: the pycore group workflow was still running during this task
+(other pycore-runtime and pycore-ai lanes on their own files, per the task's
+concurrency note). None of B1/B2/B3/B5's files overlapped those lanes. Each
+file was re-read immediately before its edit.
+
+### B1 (word identity, one owner): done (awaiting review)
+
+- Files: `pycore/pyutils/common/queue_center_contract.py`,
+  `pycore/callmodule/rpc_routes/local_queue_head_routes.py`.
+- `queue_center_contract.py`: reads `_CONTRACT_DOCUMENT["word_identity"]` once
+  at the file top (right after `_TASK_CONTRACT`), derives
+  `_WORD_IDENTITY_FALLBACK_CONTENT_TEMPLATE` from
+  `word_identity.fallback_when_md5_absent.key_format` by stripping the
+  `<lang>:` prefix (no `"text:"` literal anywhere), and adds two exported
+  helpers: `word_identity_md5(value)` (strip/lower, `""` unless the result is
+  32 hex chars) and `word_identity_content(md5, text)` (the normalized md5,
+  else the fallback content for the cleaned word, else `""`). `audio_dedup_key`
+  now calls `word_identity_content` instead of building `f"text:{...}"`
+  inline, and its docstring drops the "matching ``build_local_task`` and
+  ``audio_resource_ledger.resource_key``" clause. Both helpers are added to
+  `__all__`.
+- `local_queue_head_routes.py`: `_MD5_RE` is removed; `_sanitize_item_md5`
+  now calls the contract's `word_identity_md5` and stores the normalized
+  value on the item (so an upper-case md5 becomes lower-case instead of
+  surviving as a second identity) or drops the key when it does not resolve
+  to 32 hex chars.
+- Verification:
+  - `python -m py_compile` on both files: OK.
+  - `word_identity_md5("5D41402ABC4B2A76B9719D911017C592")` ->
+    `"5d41402abc4b2a76b9719d911017c592"`; on `"not-a-md5"` and `None` -> `""`.
+  - `audio_dedup_key("word_audio", "en", "hello")` -> `"en:text:hello"`;
+    with `md5="5D41402ABC4B2A76B9719D911017C592"` -> the lower-case md5 key,
+    matching the review's exact verify values.
+  - `grep -rn 'f"text:' pycore/pyutils/common pycore/callmodule` -> empty (the
+    two remaining hits repo-wide are pycore-ai's `audio_resource_ledger.py`
+    and `audio_queue_center.py`, explicitly out of this assignment).
+  - `grep -rn _MD5_RE pycore` -> empty (only the new, differently-named
+    `_WORD_IDENTITY_MD5_RE` exists, inside the contract module).
+
+### B2 (RPC item whitelist): done (awaiting review)
+
+- File: `pycore/callmodule/rpc_routes/local_queue_head_routes.py`.
+- `promote_handler` now builds each item with the new `_build_rpc_item`
+  helper instead of forwarding the caller's dict verbatim: only
+  `language`/`text`/`kind`/`content_id` are copied, plus the sanitized `md5`
+  when it resolves. `task`, `_laravel_base_url`, `owner` and any other
+  caller-supplied key are dropped before the item reaches
+  `audio_queue_center.promote_local_head`. `_sanitize_item_md5` is unchanged
+  in shape (still used by `_build_rpc_item`) and still X4-normalizes the
+  identity.
+- In-process callers are unaffected: `orch_promote.py:57-64` calls
+  `audio_queue_center.promote_local_head` directly (not through this RPC
+  route) and keeps passing `task` in its own items; `promote_local_head`
+  itself was not touched (pycore-ai's file).
+- Verification (scratch script, `audio_queue_center` stubbed, no
+  `register_http_routes` call, as the review specified):
+  - `_build_rpc_item({..., "task": {...}, "_laravel_base_url": "http://evil", "owner": "x"})`
+    keeps only `language`/`text`/`kind`/`content_id`/`md5`.
+  - A direct `promote_handler` call with
+    `items=[{language:'en', text:'hello', kind:'word', task:{task_id:'x', task_type:'word_audio', payload:{md5:'zz'}, _laravel_base_url:'http://evil'}}]`
+    reaches the stubbed `promote_local_head` with an item dict that has no
+    `task` key.
+
+### B3 (wake-gate helper): done (awaiting review)
+
+- File: `pycore/pyctl/queue_center/snapshot_service.py`.
+- New module-level `_lane_wake_ready(control)`: true only when the lane's
+  heartbeat callback is enabled (`LANE_REGISTRY[control]["heartbeat_callback"]`,
+  the same check `wake_workers` already made) and, for an audio lane
+  (`control in AUDIO_QUEUE_LANES`), `audio_queue_center.restore_complete(control)`
+  is also true. `wake_workers` now calls this helper instead of its inline
+  check. `apply_head_event` computes the target `lane` once
+  (`"sentence_audio"` or `"word_audio"`, same logic as before, only hoisted
+  out of the per-item loop) and gates its `worker.request_pull(prefer_remote=True)`
+  on `_lane_wake_ready(lane)`. `set_cached_task_head` and the snapshot/cache
+  update stay unconditional, so a replayed head ticket is still recorded; only
+  the remote pull is gated, closing the boot-time race where a Mercure replay
+  could pull remotely before the audio-lane cache restore finished.
+- New import: `from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center`
+  (no cycle: `audio_queue_center.py` does not import from `pyctl.queue_center`).
+- Verification: `python -m py_compile` OK; read-through of both call sites
+  confirms `set_cached_task_head` is still called unconditionally per item,
+  and `activate_audio_lane`'s post-restore `request_pull(prefer_remote=True)`
+  (`audio_lane_activation.py`) is untouched, so no wake is lost for a lane
+  whose restore has actually completed.
+
+### B5 (delivery batch URL templates + history comments): done (awaiting review)
+
+- Files: `pycore/pyutils/laravel/delivery_diff.py`,
+  `pycore/pyutils/common/queue_center_contract.py`.
+- `delivery_diff.py`: adds `DELIVERY_BATCH_CONTENT_PATH` /
+  `DELIVERY_BATCH_STATUS_PATH` read from the existing `_DELIVERY_ROUTES`
+  reader (`_DELIVERY_ROUTES["batch_content"]` /
+  `_DELIVERY_ROUTES["batch_status"]`). The batch-content upload
+  (`_upload_batch_once`) and the batch-status poll (`_await_batch`) now
+  build their URL with `<PATH>.replace("{batch_id}", batch_id)` instead of
+  suffixing `DELIVERY_BATCH_PATH` by hand.
+- History phrasing removed: `delivery_diff.py:39-40` ("this module used to
+  keep its own copy of every one of them") and
+  `queue_center_contract.py:220-222` ("which used to keep their own copies of
+  these values"); the surrounding factual comment (what the block is / where
+  it is used) is kept.
+- Verification:
+  - `python -m py_compile` on both files: OK.
+  - `DELIVERY_BATCH_CONTENT_PATH.replace("{batch_id}", "b1")` ->
+    `"/api/app_qy_v1/delivery/batch/b1/content"`;
+    `DELIVERY_BATCH_STATUS_PATH.replace("{batch_id}", "b1")` ->
+    `"/api/app_qy_v1/delivery/batch/b1"` (same URLs the old suffixing built).
+  - `grep -rn "used to keep" pycore/pyutils/laravel/delivery_diff.py pycore/pyutils/common/queue_center_contract.py` -> empty.
+
+### Cross-checks and static verification (all four files)
+
+- `python -m py_compile` on all four changed files together: OK.
+- Import check (`PYTHONDONTWRITEBYTECODE=1`, `PIP_NO_INDEX=1`): `pycore.callmodule`,
+  `pycore.pyutils.common.queue_center_contract`,
+  `pycore.callmodule.rpc_routes.local_queue_head_routes`,
+  `pycore.pyctl.queue_center.snapshot_service` and
+  `pycore.pyutils.laravel.delivery_diff` all import cleanly (no new
+  third-party auto-install beyond pycore's normal startup package check).
+- `git diff --numstat` equals `--ignore-space-at-eol` for all four files (no
+  line-ending churn):
+  - `pycore/pyutils/common/queue_center_contract.py`: CRLF, 853/853 lines
+    (was 814/814 at HEAD; the file's own convention, matching the prior
+    pycore-6 CRLF restore recorded for this file).
+  - `pycore/callmodule/rpc_routes/local_queue_head_routes.py`: LF, 91/91
+    lines (was 73/73 at HEAD).
+  - `pycore/pyctl/queue_center/snapshot_service.py`: LF, 863/863 lines (was
+    851/851 at HEAD).
+  - `pycore/pyutils/laravel/delivery_diff.py`: LF, 316/316 lines (was
+    315/315 at HEAD).
+- Note on a transient EOL flip observed mid-task, not caused by this session:
+  partway through this task, `git status` showed a large number of unrelated
+  `pycore/**` files (dozens, none touched by this task) as modified against
+  HEAD, and `pycore/pyutils/laravel/delivery_diff.py` itself was momentarily
+  found on disk as all-CRLF (with text otherwise byte-identical to HEAD once
+  normalized) even though this session had not yet edited it. `core.autocrlf`
+  is `true` repo-wide and `.gitattributes` sets no `eol` for `*.py`, so any
+  concurrent checkout/reset/stash by another process in this shared working
+  tree re-materializes Python files as CRLF regardless of their committed
+  (LF) convention. This session built its `delivery_diff.py` edit directly
+  from `git cat-file -p HEAD:...` (confirmed LF, and confirmed
+  content-identical to the transient on-disk copy once EOL-normalized) so the
+  final file is a clean LF diff with no churn. This is worth the orchestrator's
+  attention if it recurs, since it affects files no lane is meant to touch.
+
+### Services and restarts
+
+No pycore or Laravel service was started, stopped or restarted for this
+task. No test was added or run beyond the static checks above (none was
+asked for).
+
+Changed files (part 1):
+- `pycore/pyutils/common/queue_center_contract.py` (CRLF)
+- `pycore/callmodule/rpc_routes/local_queue_head_routes.py` (LF)
+- `pycore/pyctl/queue_center/snapshot_service.py` (LF)
+- `pycore/pyutils/laravel/delivery_diff.py` (LF)
+
+Blockers: none for B1/B2/B3/B5. B4 still waits on pycore-lead's F-1
+(`pyfoundations/serialized_worker.py` `BusTaskThread.run`, verified by the
+reviewer service) before pycore-runtime can rewrite
+`pyctl/runtime/event_handlers.py:431-434`'s docstring and re-check the
+red-line. Next owners:
+- reviewer / pycore-lead, for this part-1 verdict on B1/B2/B3/B5;
+- pycore-lead, for F-1 (foundation fix backing B4);
+- pycore-runtime (a later task), for the B4 docstring rewrite once F-1 lands;
+- pycore-ai, to adopt `word_identity_md5`/`word_identity_content` in
+  `audio_resource_ledger.py:42/:52` and `audio_queue_center.py:139-140`
+  (non-blocking follow-up recorded in both prior reviews).

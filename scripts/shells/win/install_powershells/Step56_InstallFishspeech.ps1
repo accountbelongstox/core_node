@@ -23,7 +23,9 @@ $ErrorActionPreference = 'Stop'
 
 $SCRIPT_INDEX   = '[Step56-Fishspeech]'
 $DOCKER_MODEL   = 'fishspeech'
+$dockerBackendKey = "TTS_$($DOCKER_MODEL.ToUpperInvariant())_BACKEND"
 $doDockerTest   = ($Test -or $env:DOCKER_MODEL_TEST -eq '1')
+$dockerOptInNote = 'opt-in; use -Full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1'
 $REPO_URL       = 'https://github.com/fishaudio/fish-speech.git'
 $serverUrl      = if ($env:FISHSPEECH_URL) { $env:FISHSPEECH_URL.TrimEnd('/') } else { 'http://127.0.0.1:8080' }
 $stagingDefault = $null
@@ -86,6 +88,13 @@ $installMethod = Select-TtsInstallMethod -Engine fishspeech `
     -DefaultBackend 'docker' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
 if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
 if ($installMethod -eq 'docker') {
+    if (-not $doFull -and -not $Force) {
+        Write-Host ("$SCRIPT_INDEX  saved backend        : {0}" -f (Get-GlobalVar -key $dockerBackendKey -defaultValue 'none')) -ForegroundColor DarkGray
+        Write-Host ("$SCRIPT_INDEX  docker provider state: {0}" -f (Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown')) -ForegroundColor DarkGray
+        Write-Host "$SCRIPT_INDEX [i] $dockerOptInNote -> NOT ensuring the docker backend (no WSL call)." -ForegroundColor DarkGray
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote $dockerOptInNote
+        return
+    }
     . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
     if (-not (Invoke-DockerModelRunner -Model $DOCKER_MODEL -Action ensure -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
         Write-Host "$SCRIPT_INDEX [!] docker backend is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown')); the RESULT line above names the phase." -ForegroundColor DarkYellow

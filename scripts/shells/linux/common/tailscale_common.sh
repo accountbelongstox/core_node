@@ -158,10 +158,12 @@ ts_show_status() {
 }
 
 # Every tailnet device: the official table, then a parsed detail listing
-# (HostName, DNSName, OS, Owner, IPv4/IPv6, Online, ExitNode/ExitNodeOption,
-# connection path) from `status --json` (.Self + .Peer, ipn/ipnstate.PeerStatus
-# fields, .User[UserID].LoginName for Owner) -- same fields as the Windows
-# counterpart's Get-TailscaleDeviceRow/Show-TailscaleDevices.
+# (HostName, DNSName, OS, Owner, IPv4/IPv6, Online, LastSeen, ExitNode
+# in-use/offered/-, connection path) from `status --json` (.Self + .Peer,
+# ipn/ipnstate.PeerStatus fields; Owner from .User[UserID].LoginName) --
+# same column set as the Windows counterpart's Get-TailscaleDeviceRow /
+# Show-TailscaleDevices (ExitNode distinguishes ExitNode="in-use" from the
+# mere ExitNodeOption="offered", not just a yes/no).
 ts_show_devices() {
     if ! is_tailscale_installed; then
         echo "Tailscale is not installed; no devices to list."
@@ -192,6 +194,25 @@ def split_ips(peer):
     return v4, v6
 
 
+def owner_login(peer, user_map):
+    user_id = peer.get("UserID")
+    if user_id is None:
+        return ""
+    entry = user_map.get(str(user_id)) or {}
+    return entry.get("LoginName") or ""
+
+
+def exit_node_label(peer):
+    # Distinguishes the exit node currently in use (ExitNode) from a peer
+    # that merely offers itself as one (ExitNodeOption) -- same distinction
+    # as the Windows counterpart column (in-use / offered / -).
+    if peer.get("ExitNode"):
+        return "in-use"
+    if peer.get("ExitNodeOption"):
+        return "offered"
+    return "-"
+
+
 def connection_label(peer):
     if peer.get("CurAddr"):
         return "direct " + peer["CurAddr"]
@@ -207,6 +228,7 @@ except Exception as exc:
     print("Could not parse status --json: %s" % exc)
     sys.exit(0)
 
+user_map = data.get("User") or {}
 nodes = []
 self_node = data.get("Self")
 if self_node:
@@ -214,19 +236,20 @@ if self_node:
 for peer in (data.get("Peer") or {}).values():
     nodes.append(peer)
 
-row_fmt = "%-18s %-32s %-8s %-15s %-26s %-7s %-20s %-5s %s"
-print(row_fmt % ("HOSTNAME", "DNS NAME", "OS", "IPV4", "IPV6", "ONLINE", "LAST SEEN", "EXIT", "CONNECTION"))
+row_fmt = "%-18s %-32s %-8s %-24s %-15s %-26s %-7s %-20s %-9s %s"
+print(row_fmt % ("HOSTNAME", "DNS NAME", "OS", "OWNER", "IPV4", "IPV6", "ONLINE", "LAST SEEN", "EXIT NODE", "CONNECTION"))
 for peer in nodes:
     v4, v6 = split_ips(peer)
     print(row_fmt % (
         peer.get("HostName", "") or "",
         (peer.get("DNSName", "") or "").rstrip("."),
         peer.get("OS", "") or "",
+        owner_login(peer, user_map) or "-",
         v4 or "-",
         v6 or "-",
         "yes" if peer.get("Online") else "no",
         peer.get("LastSeen", "") or "-",
-        "yes" if peer.get("ExitNode") else "no",
+        exit_node_label(peer),
         connection_label(peer),
     ))
 ' 2>/dev/null || echo "Could not parse status --json output."

@@ -40,6 +40,7 @@ import {
   QC_SECTION_DEFS, isQcSection, qcSectionAnchor,
 } from '../utils/pcQueueCenterTypes';
 import { StorageManager } from '../../../core/persistence';
+import { pcCaughtErrorMessage } from '../utils/pcErrorCodes';
 
 const HIGHLIGHT_MS = 2500;
 
@@ -202,18 +203,21 @@ const QueueCenterBody: React.FC = () => {
    */
   const [busyScope, setBusyScope] = useState<Partial<Record<QcSectionScope, boolean>>>({});
   const [toggleError, setToggleError] = useState<string | null>(null);
-  const runToggle = useCallback(async (scope: QcSectionScope, caller: string, fn: () => Promise<unknown>) => {
+  const runToggle = useCallback(async (scope: QcSectionScope, section: QcSection, fn: () => Promise<unknown>) => {
     if (busyScope[scope]) return;
     setBusyScope((current) => ({ ...current, [scope]: true }));
     setToggleError(null);
     try {
       await fn();
-    } catch (e: any) {
-      if (mounted.current) setToggleError(`${caller}: ${e?.message || 'control update failed'}`);
+    } catch (error: unknown) {
+      if (mounted.current) {
+        const reason = pcCaughtErrorMessage(error, t('queueCenter.errors.controlFailed'));
+        setToggleError(`${t(`queueCenter.sections.${section}` as const)}: ${reason}`);
+      }
     } finally {
       if (mounted.current) setBusyScope((current) => ({ ...current, [scope]: false }));
     }
-  }, [busyScope]);
+  }, [busyScope, t]);
 
   const sentenceContract = sectionContracts.sentence_audio;
   const wordAudioContract = sectionContracts.word_audio;

@@ -3,14 +3,19 @@
 # and repaired only when missing:
 #   1. SDK root      : reuse first valid existing root, else create canonical root
 #   2. cmdline-tools : <root>\cmdline-tools\latest\bin\sdkmanager.bat
-#   3. licenses      : accepted via sdkmanager --licenses
+#   3. licenses      : <root>\licenses\android-sdk-license (sdkmanager --licenses)
 #   4. platform-tools: <root>\platform-tools\adb.exe
 #   5. platform      : <root>\platforms\android-36\android.jar
 #   6. build-tools   : <root>\build-tools\36.0.0
+# -Check reports every detail and changes nothing (Linux: 187_install_android_sdk.sh --check).
 # Constants and detectors are CENTRALIZED in win_common/AndroidBuildEnv.ps1
 # (shared with start_build.ps1). Requires a JDK 21
 # (Step21_InstallApplications.ps1 -ExactPackageName Java, or the JDK bundled with
 # Android Studio).
+
+param(
+    [switch]$Check
+)
 
 . (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
 . (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
@@ -33,6 +38,68 @@ $YesContent = @()
 $SdkCmdLine = ""
 $PlatformJar = $null
 $BuildToolsDir = $null
+$LicenseFile = $null
+$AdbPath = $null
+$MissingDetails = @()
+
+# Report one detail of the -Check pass.
+function Write-StepCheckDetail {
+    param([string]$Detail, [bool]$Ready, [string]$Evidence)
+    if ($Ready) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] check: $Detail ready: $Evidence" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] check: $Detail missing: $Evidence" -Type "Warning"
+    }
+}
+
+# Report-only pass: evaluates the same binary gates as the install pass and
+# changes nothing (no download, no sdkmanager, no environment write).
+function Step62_CheckAndroidSdkPackages {
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] Android SDK build packages check (report only)..." -Type "Info"
+    $MissingDetails = @()
+
+    Resolve-AndroidBuildJavaHome
+    if (Test-AndroidBuildJavaReady) {
+        Write-StepCheckDetail -Detail "JDK $($Global:ANDROID_BUILD_REQUIRED_JAVA_MAJOR)+" -Ready $true -Evidence $Global:ANDROID_BUILD_JAVA_HOME
+    } else {
+        Write-StepCheckDetail -Detail "JDK $($Global:ANDROID_BUILD_REQUIRED_JAVA_MAJOR)+" -Ready $false -Evidence "install it with Step21_InstallApplications.ps1 -ExactPackageName Java"
+        $MissingDetails += "jdk"
+    }
+
+    Resolve-AndroidBuildSdkRoot
+    $SdkRoot = $Global:ANDROID_BUILD_SDK_ROOT
+    Write-ColorMessage -Message "[Step $STEP_NUMBER] check: SDK root: $SdkRoot" -Type "Info"
+
+    $SdkManager = Get-AndroidBuildSdkManagerPath -RootDir $SdkRoot
+    Write-StepCheckDetail -Detail "cmdline-tools" -Ready ([bool]$SdkManager) -Evidence (Join-Path $SdkRoot "cmdline-tools\latest\bin\sdkmanager.bat")
+    if (-not $SdkManager) { $MissingDetails += "cmdline-tools" }
+
+    $LicenseFile = Join-Path $SdkRoot $Global:ANDROID_BUILD_LICENSE_FILE
+    Write-StepCheckDetail -Detail "licenses" -Ready (Test-AndroidBuildSdkLicensesReady) -Evidence $LicenseFile
+    if (-not (Test-AndroidBuildSdkLicensesReady)) { $MissingDetails += "licenses" }
+
+    $AdbPath = Join-Path $SdkRoot "platform-tools\adb.exe"
+    Write-StepCheckDetail -Detail "platform-tools" -Ready (Test-Path -LiteralPath $AdbPath) -Evidence $AdbPath
+    if (-not (Test-Path -LiteralPath $AdbPath)) { $MissingDetails += "platform-tools" }
+
+    $PlatformJar = Join-Path $SdkRoot ("platforms\android-$($Global:ANDROID_BUILD_API)\android.jar")
+    Write-StepCheckDetail -Detail "platform android-$($Global:ANDROID_BUILD_API)" -Ready (Test-Path -LiteralPath $PlatformJar) -Evidence $PlatformJar
+    if (-not (Test-Path -LiteralPath $PlatformJar)) { $MissingDetails += "platform" }
+
+    $BuildToolsDir = Join-Path $SdkRoot ("build-tools\$($Global:ANDROID_BUILD_TOOLS)")
+    Write-StepCheckDetail -Detail "build-tools $($Global:ANDROID_BUILD_TOOLS)" -Ready (Test-Path -LiteralPath $BuildToolsDir) -Evidence $BuildToolsDir
+    if (-not (Test-Path -LiteralPath $BuildToolsDir)) { $MissingDetails += "build-tools" }
+
+    Write-StepCheckDetail -Detail "ANDROID_HOME" -Ready ($env:ANDROID_HOME -eq $SdkRoot) -Evidence "ANDROID_HOME=$($env:ANDROID_HOME)"
+    if ($env:ANDROID_HOME -ne $SdkRoot) { $MissingDetails += "env" }
+
+    if ($MissingDetails.Count -eq 0) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] check: all details ready." -Type "Success"
+    } else {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] check: missing: $($MissingDetails -join ','). Run without -Check to repair them." -Type "Warning"
+    }
+    Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
+}
 
 # Run sdkmanager with a stdin "yes" stream (license prompts). All inputs are
 # parameters - no caller-scope dependencies.
@@ -95,9 +162,13 @@ function Step62_InstallAndroidSdkPackages {
     $YesContent = @("y") * 20
     $YesContent | Set-Content -LiteralPath $YesFile -Encoding ascii
 
-    # --- Detail: licenses (cheap, always accepted; sdkmanager keeps them recorded) ---
-    Write-ColorMessage -Message "[Step $STEP_NUMBER] Accepting Android SDK licenses..." -Type "Info"
-    [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "--licenses")
+    # --- Detail: licenses (file gate: licenses\android-sdk-license; package installs below also accept inline) ---
+    if (Test-AndroidBuildSdkLicensesReady) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Android SDK licenses already accepted." -Type "Success"
+    } else {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Accepting Android SDK licenses..." -Type "Info"
+        [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "--licenses")
+    }
 
     # --- Detail: platform-tools (binary gate: adb.exe) ---
     if (Test-Path -LiteralPath (Join-Path $SdkRoot "platform-tools\adb.exe")) {
@@ -138,4 +209,8 @@ function Step62_InstallAndroidSdkPackages {
     Write-ColorMessage -Message "----------------------------------------------------------------" -Type "Info"
 }
 
-Step62_InstallAndroidSdkPackages
+if ($Check) {
+    Step62_CheckAndroidSdkPackages
+} else {
+    Step62_InstallAndroidSdkPackages
+}

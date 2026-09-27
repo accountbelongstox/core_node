@@ -314,6 +314,22 @@ Source list: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`
     - the D: namespace is the existing `D:\www`, so the data dir does not move;
     - legacy top-level dirs made by earlier scripts (`D:\.dev_win10`, `/www/_debian_12`, `/www/_debian_13`, `.dev_debian13`, `.dev_linux`) stay in place and keep being read. Moving them is user-8.
   - A read-only audit (`d30-namespace-audit`) lists every script or program that creates a top-level directory. Fixes go to the owners after their current items; core-node-e9's drive-layout code follows the new contract keys.
+  - Audit result (about 21:5x): 124 findings, in `.claude/agents_shared/d30/audit_by_owner.md`. The audit made no writes, checked against its agent transcripts.
+    - B6 writer assignments for cross-platform scripts with no D22 owner:
+      - shell-windows: `scripts/pytools/pybackup/*` (its caller is BackupManager.ps1), `scripts/slim_c_disk/`, `scripts/pytools/media_compressor/`, and the launcher generator `scripts/pytools/special_software_env_manager/script_sections/` (shell-linux aligns the Linux template);
+      - pycore-ai: `scripts/utilities/generate_tts.py`;
+      - ncore: `scripts/nodetools/gvar_common.js`.
+    - The fixes wait for the contract keys (legacy tool root, temp_root, app_root, backups, the ext4 Linux-only data root). The orchestrator adds those when the drive_layout freeze lifts.
+    - Stray top-level dirs with no creator in the tree are listed for the user (user-10).
+- D31 (verbatim, about 21:3x, with a pasted dialog from the new role panes: "Teach auto mode about your environment? Auto mode works better when it knows your environment. Takes about a minute. 1. Yes 2. Not now 3. Don't show again"): "新的编排脚本claude agetns需要全部自动auto模型，跳过所有提示和询问。"
+  - Every session that claudeagents starts must run unattended in auto mode: no first-run, onboarding or auto-mode dialogs and no questions.
+  - Readings (B9):
+    - This means only the official settings, flags and env vars that pre-answer interactive dialogs. Auto mode's permission classifier stays on. Bypass mode and disabling safety checks are not in scope (the user asked for auto mode).
+    - The orchestrator's attempt to read the CLI binary for the dialog's flag was denied by the auto-mode classifier. It was dropped, and only the official docs are used.
+  - Plan:
+    - Workflow d31-unattended-auto-sessions (Opus, docs only): list every dialog a fresh `claude --agent <role> --name ct-<role> --permission-mode auto` session can show on Windows and Linux, with the official setting, flag or env var that pre-answers each one, each claim refutation-checked.
+    - Then the settings go into catalog `user_settings_merge` (orchestrator), plus any launcher or installer change (shell-windows and shell-linux, with parity).
+    - Then the idle role sessions are restarted.
 - D14 (verbatim, about 15:3x): "允许 你修改 改 development-guides/".
   - The orchestrator may now edit `development-guides/` (guide B12). Every guide change is recorded here.
   - First use, about 15:3x, in `CLAUDE_CODE_AGENTS_GUIDE.md`:
@@ -994,3 +1010,24 @@ Rulings (B9):
   - §10: the remote block fields and the remote command's `--effort` and tmux `-e` env;
   - B7 points at B12; B10 is superseded by B14.
 - Next: delete the legacy catalog `grid` key once shell-linux-G1 is approved, then launch every role window with the new launcher.
+
+### 12.4 Incident: a pull merged stale Debian commits (about 21:31, open)
+- At 21:31:31 a user terminal (PowerShell PID 17432) ran `git add . ; git commit -m "win0.0.1"` (ab566fdf7) and then `git pull origin main`. The pull merged two GitHub commits, `debian0.1` 937239e18 and 36b72cd55 (21:19–21:20, author prop-dev, the Linux checkout).
+  - The merge waits in vim on `.git/MERGE_MSG` (PID 29116). MERGE_HEAD is 36b72cd55; the base is 7bed0a953.
+- The incoming commits contain:
+  - 557 mode changes to 100755, from a checkout on NTFS with `core.fileMode` on;
+  - the 13 agent files retired by D22, re-created (laravel, laravel-api, laravel-codemart, laravel-qyapp, pycore, pycore-architect, pycore-assist, mcp-chrome, ui-codemart, ui-laravel-manager, ui-pycore-manager, ui-vortex, ui-wordnew);
+  - 3 other created files (apps/mcp-chrome/pnpm-workspace.yaml, codemart cmPublicImages.ts, cmWorkspaceImages.ts).
+  - The Debian `git add .` picked up untracked stale copies there.
+- Effects:
+  - The merge rewrote 10 current role files, changing only their mode (content equal to HEAD). The Claude Code agent registry then dropped those 10 types (reviewer, ncore, flutter, orchestrator, pycore-ai, pycore-runtime, shell-linux, shell-windows, laravel-remote, pycore-gpu-remote) and re-offered the retired ui-*/mcp-chrome types.
+  - The launchers read `.claude/agents`, so they would also start the retired roles again.
+- The orchestrator tried to delete the 13 re-created files and to rewrite the 10 files with their committed bytes. The auto-mode classifier denied both as irreversible local destruction during the merge. Nothing was changed; this decision is the user's.
+- Recommended for the user:
+  1. finish the merge in the vim window (`:wq`); the chain then pushes;
+  2. delete the 13 retired agent files, or allow the orchestrator to delete them;
+  3. in a git session, restore mode 100644 on the 557 files;
+  4. on the Debian checkout, set `git config core.fileMode false` and remove its stale untracked copies before its next `git add .`.
+- Follow-up for the D20 syncgit scripts (shell-windows and shell-linux):
+  - `git pull --no-edit`: both implementations capture the pull output, so a merge editor would hang invisibly;
+  - a repo-local `core.fileMode false` when the checkout is on NTFS (Linux, through the library NTFS check).

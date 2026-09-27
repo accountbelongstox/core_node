@@ -90,20 +90,7 @@ class InitializeApps extends Command
 
         $this->info('Creating invite code tables...');
         $inviteCodeResults = \App\Services\InviteCodeInitializer::ensureTablesExist();
-        foreach (['invite_codes', 'invite_code_usage', 'default_codes'] as $key) {
-            if (isset($inviteCodeResults[$key])) {
-                $status = $inviteCodeResults[$key];
-                $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
-                $this->line("  {$icon} {$key}: {$status}");
-            }
-        }
-
-        if (isset($inviteCodeResults['codes'])) {
-            $this->line("  <fg=cyan>Generated Invite Codes:</>");
-            foreach ($inviteCodeResults['codes'] as $type => $code) {
-                $this->line("    • {$type}: {$code}");
-            }
-        }
+        $this->displayInviteCodeResults($inviteCodeResults);
 
         if (isset($inviteCodeResults['error'])) {
             $this->error("  ❌ Error: {$inviteCodeResults['error']}");
@@ -604,6 +591,26 @@ class InitializeApps extends Command
 
         $this->error('❌ System initialization failed');
         return Command::FAILURE;
+    }
+
+    private function displayInviteCodeResults(array $inviteCodeResults): void
+    {
+        foreach (['invite_codes', 'invite_code_usage', 'default_codes'] as $key) {
+            if (isset($inviteCodeResults[$key])) {
+                $status = $inviteCodeResults[$key];
+                $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
+                $this->line("  {$icon} {$key}: {$status}");
+            }
+        }
+
+        if (!empty($inviteCodeResults['codes'])) {
+            $this->line("  <fg=cyan>Generated Invite Codes:</>");
+            foreach ($inviteCodeResults['codes'] as $type => $code) {
+                $this->line("    • {$type}: {$code}");
+            }
+        } elseif (isset($inviteCodeResults['codes'])) {
+            $this->warn('  ' . __('runtime.invite_code_none_active'));
+        }
     }
 
     private function initializationStatusesSucceeded(

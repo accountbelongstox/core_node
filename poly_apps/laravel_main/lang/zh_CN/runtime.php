@@ -7,4 +7,5 @@ return [
     'frankenphp_service_action_unsupported' => '不支持该 FrankenPHP 服务操作。',
     'frankenphp_service_postcondition_failed' => 'FrankenPHP 服务未达到预期状态。',
     'frankenphp_certificate_postcondition_failed' => 'Windows 证书未达到预期状态。',
+    'invite_code_none_active' => '没有处于启用状态且未过期的管理员邀请码。',
 ];

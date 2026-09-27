@@ -4,6 +4,7 @@ import { GitCompare, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { pycoreApi } from '@/apps/pycore-manager/api';
+import { pcFailureMessage } from '../utils/pcErrorCodes';
 import type {
   LaravelDeliveryKindStatus,
   LaravelDeliveryNamespaceStatus,
@@ -58,10 +59,13 @@ export function PcDeliveryOutboxStatus({
     setError('');
     try {
       const result = await pycoreApi.retryLaravelDelivery(kind, reconcile, namespace);
-      if (!result.success) throw new Error(result.error || t('queueCenter.deliveryOutbox.retryFailed'));
+      if (!result.success) {
+        setError(pcFailureMessage(result, t('queueCenter.deliveryOutbox.retryFailed')));
+        return;
+      }
       await onChanged();
-    } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : t('queueCenter.deliveryOutbox.retryFailed'));
+    } catch {
+      setError(t('queueCenter.deliveryOutbox.retryFailed'));
     } finally {
       setBusy('');
     }

@@ -238,13 +238,9 @@ function Show-WindowsManagementSubMenu {
             Action = {
                 $tailscaleMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
                 $tailscaleAction = $script:TAILSCALE_ACTIONS[$tailscaleMode]
-                if (-not (Test-Path -LiteralPath $script:TAILSCALE_COMMON_SCRIPT)) {
-                    Write-ColorMessage -Message "TailscaleCommon.ps1 not found: $script:TAILSCALE_COMMON_SCRIPT" -Type "Error"
-                } else {
-                    Write-ColorMessage -Message "Tailscale: $tailscaleAction" -Type "Info"
-                    Write-Host ""
-                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:TAILSCALE_COMMON_SCRIPT -Action $tailscaleAction
-                }
+                Write-ColorMessage -Message "Tailscale: $tailscaleAction" -Type "Info"
+                Write-Host ""
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:TAILSCALE_COMMON_SCRIPT -Action $tailscaleAction
             }
         },
         @{

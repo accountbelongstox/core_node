@@ -43,9 +43,17 @@ done
 SERVER_URL="${SERVER_URL%/}"
 [[ "${FISHSPEECH_INSTALL:-0}" == "1" || "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
 
-# Docker backend: runner ensure (no container left running), then an optional
-# bounded test (DOCKER_MODEL_TEST=1). Failures print a message and return.
+# Docker backend: opt-in only (--full, FISHSPEECH_INSTALL=1, or
+# NEURAL_TTS_INSTALL=1), so an unattended boot never spends minutes on the
+# runner unrequested. Then runner ensure (no container left running), then an
+# optional bounded test (DOCKER_MODEL_TEST=1). Failures print a message and
+# return.
 fishspeech_docker_backend() {
+    if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
+        echo "[install_fishspeech] saved backend: $(get_var "$(_install_method_key "$DOCKER_MODEL" BACKEND)" "none")"
+        echo "[install_fishspeech] [i] opt-in only -> NOT ensuring the docker backend (no runner call). Pass --full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1."
+        return 0
+    fi
     if ! bash "$DOCKER_RUNNER" ensure "$DOCKER_MODEL" "$TARGET_DIR"; then
         echo "[install_fishspeech] [!] docker backend is not ready; the RESULT line above names the phase." >&2
         return 1

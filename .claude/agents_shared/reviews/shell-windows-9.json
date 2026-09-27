@@ -1,0 +1,49 @@
+{
+  "task_id": "shell-windows-9",
+  "role": "shell-windows",
+  "reviewer": "reviewer",
+  "round": 1,
+  "verdict": "changes_requested",
+  "base": "74e7770",
+  "base_note": "Diff base 74e7770. All shell-windows-9 code is in backup commit 4ddb4be8e (20:24:56); 5bbb23682 only strips the AI header from FrankenPhpManager.ps1 (ignored). Working tree equals HEAD (ab566fdf7) for FrankenPhpManager.ps1.",
+  "checked_at": "2026-09-27T21:40:00+10:00",
+  "notes": "The code is correct and verified; the parity ledger is not. (1) .claude/agents_shared/shell_parity/windows.md:37-38: SPW-033 and SPW-034 are pending-linux, but no [shell-linux] align task exists (not in client_key_auth/TASKS.md, d22/items_shell.json or docs_fix) -> orchestrator opens '[shell-linux] align: SPW-033 skip_install_trust in fm_caddyfile_render' and '[shell-linux] align: SPW-034 LAN hosts emit no production domain routes'. (2) windows.md:38 and reports/shell-windows.md:268, SPW-034 counterpart request: it says Linux has the identical gap and should gate on net_env_detect's NET_ENV_IS_LAN. But Linux fm_domain_install_all already skips per-domain routes on LAN (frankenphp_domain_common.sh:457-470), through domain_setup_detect_environment/DOMAIN_ENV_LAN_MODE. That path honors DOMAIN_SETUP_NET_MODE=server and the HAS_PUBLIC_IP probe (175_laravel_main_start.sh:675-680). A shell-linux fix that follows the text literally would bypass that override, and a NAT-ed production VPS would lose its domain routes -> rewrite the request: reuse domain_setup_detect_environment/DOMAIN_ENV_LAN_MODE; gate fm_domain_enable_ui_binding (:241-270, called by the ui-binding mode at 175_laravel_main_start_frankenphp.sh:67); run fm_domain_cleanup_stale_routes in the LAN branch too (today only :506 in the server branch).",
+  "findings": {
+    "(a) route brace": {
+      "status": "verified",
+      "detail": "FrankenPhpManager.ps1:814-815, 826-827, 963-964 and 967-968 now put the site's closing brace on its own line after $apiHandlers/$uiHandlers (Get-FrankenPhpReverseProxyHandlers:483-492 ends in a tab and a brace, with no newline). I re-rendered in the reviewer scratchpad: the functions were extracted by AST from the working-tree file, the contract was read from config/service_contract.json, and a throwaway self-signed cert was used. No '}}' appears in any generated route file. frankenphp.exe validate --adapter caddyfile printed 'Valid configuration' with exit 0 for the LAN, forced-production and production-to-LAN outputs. Negative control, the same harness on the 74e7770 generators: '}}' on 6 lines and 'unexpected EOF, at ...local_lan.caddy:25'."
+    },
+    "(b) embedded PHP extensions": {
+      "status": "verified",
+      "detail": "One list at the file top (:27-29). Ensure-FrankenPhpPhpConfiguration (:266-291) writes extension_dir plus extension=<name> only for the php_<name>.dll files that exist in the payload. The scratch output lists pdo_pgsql pgsql mbstring openssl intl gd zip curl fileinfo sodium; the payload has no php_bcmath.dll, and bcmath is built in. The second run is idempotent: same content and same mtime. php.exe -m with PHP_INI_SCAN_DIR set to the scratch ini loads all of them, with an empty stderr and no 'already loaded' warning, although pdo_pgsql and pgsql are both listed. The config/*_contract.json files hold no extension list, so this is not a duplicate constant."
+    },
+    "(c) skip_install_trust": {
+      "status": "verified",
+      "detail": "Ensure-FrankenPhpCaddyfile global block :1031. It is present in the generated Caddyfile, and validate passes."
+    },
+    "(d) LAN ACME": {
+      "status": "verified_with_notes",
+      "detail": "Recommended option taken and recorded (report :246): production routes are emitted only on a non-LAN host, with no 'tls internal'. Ensure-FrankenPhpDomainRoutes (:942-984) and Get-FrankenPhpExpectedRoutePaths (:857) both gate on Test-FrankenPhpLanOnlyHost. The scratch runs matched the report: LAN gives local_lan.caddy only; production gives 12gm.com.caddy, gm15.com.caddy and local_lan.caddy; a production-to-LAN rerun sweeps the managed per-domain files."
+    },
+    "live instance": {
+      "status": "untouched",
+      "detail": "D:\\www\\frankenphp\\php-conf.d\\99-core-node.ini is at 16:57 with the old content (no extension lines), and 50-d7-local-extensions.ini is at 16:58. poly_apps/laravel_main/storage/frankenphp/Caddyfile is at 17:00:20 and routes/*.caddy at 17:00:41. D:\\www\\core_node\\global_var\\web_access_config.json is at 20:25:26.2, but every file in global_var got that same second (a bulk rewrite of the directory), so the generator did not write it. The reviewer's own checks ran only frankenphp validate and php.exe -m against scratch files."
+    },
+    "boundaries and rules": {
+      "status": "ok",
+      "detail": "The owner changed only FrankenPhpManager.ps1, shell_parity/windows.md and reports/shell-windows.md. Step175, start.ps1 and the Linux FrankenPHP files were not changed by this task. Their diffs are header strips, shell's IS-002 Step96 '${STEP_NUMBER}' fix, start.ps1 from another lane in 5bbb23682, and shell-linux's stderr redirects. The PS 5.1 parser reports 0 errors. The file is LF-only in both the base and now (0 CR). Code and comments are English, new variables are at the file or function top, and paths are built with Join-Path."
+    },
+    "parity": {
+      "status": "changes_requested",
+      "detail": "SPW-031 platform-only is correct: the Linux fm_domain_render_route:139-157 and fm_domain_lan_site_render:372-391 already put the brace on its own line. SPW-032 platform-only is accepted, because Linux uses apt php-zts packages. SPW-033 pending-linux is accurate: the frankenphp_runtime_common.sh:714-725 global block has no skip_install_trust. SPW-034's request is wrong, see notes (2). Neither pending row has an align task."
+    }
+  },
+  "non_blocking": [
+    "FrankenPhpManager.ps1:510-533 Test-FrankenPhpLanOnlyHost has no server-mode override. Linux has DOMAIN_SETUP_NET_MODE and the HAS_PUBLIC_IP probe. Since SPW-034, this check also decides the stale sweep (:857, :985), so a Windows server behind cloud 1:1 NAT would be classed as LAN and lose its public routes. -> Honor Get-GlobalVar HAS_PUBLIC_IP or an equivalent override first; record it with SPW-034.",
+    "Test-FrankenPhpLanOnlyHost now runs 3 times per Ensure-FrankenPhpDomainRoutes (counted in scratch) and 5 times per full Step175 run. Each run makes an api.ipify.org call with a 4 s timeout. That call never changes the result, because a locally bound public IP already fails the private-range loop at :527-531. -> Evaluate once per run and pass the result down.",
+    "When Step96 next regenerates the live 99-core-node.ini, the D7 hand-written D:\\www\\frankenphp\\php-conf.d\\50-d7-local-extensions.ini loads 8 of the same extensions again. Reproduced in scratch: 'Warning: Module \"pdo_pgsql\"/mbstring/openssl/intl/gd/zip... is already loaded' on every PHP start. -> Add a handoff in the report: the user (roles must not touch the live dir) deletes the hand ini when Step96 is re-run.",
+    "FrankenPhpManager.ps1:22-26: the comment cites the transient D7 hand ini path. That is history in source, and it goes stale once the file is removed. -> Keep only the rule (payload has no php.ini; list filtered by the DLLs present).",
+    "The embedded PHP has no CA bundle: php -r shows openssl.cafile and curl.cainfo empty. codemart-lead's report :200 routes this to shell-windows via Ensure-FrankenPhpPhpConfiguration. It is out of this task's list and needs its own task."
+  ],
+  "user_request_note": "The relayed user question (D27, core_node_trees) was answered under shell-windows-10, and it is accurate. No Windows file references core_node_trees, CN_TREE_* or tree_root. The leftovers are only in the Linux files shared_cache_env.sh:33-165 and mount_common.sh:1042-1101 (shell-linux scope). They need the SPW-035 [shell-linux] align task."
+}

@@ -243,6 +243,10 @@ return [
             'password_file' => 'The CodeMart account password is stored in :path.',
             'accounts' => 'Accounts: :count',
             'step_failed' => 'Warning: :step :ref failed: :code',
+            'description' => 'Seed CodeMart demo accounts, projects, milestones, tasks, deposits, wallets and testimonials (idempotent)',
+            'initialized' => 'CodeMart demo data initialized.',
+            'password_current' => 'Current CodeMart account password (every seeded account): :password',
+            'account_list' => 'Seeded accounts: :accounts',
         ],
         'init' => [
             'steps' => [

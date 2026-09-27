@@ -7,6 +7,11 @@ MOUNT_USE_SUDO="${USE_SUDO:-sudo}"
 MOUNT_LOG_PREFIX="${MOUNT_LOG_PREFIX:-[MOUNT]}"
 # Single definition of the standardized mount base (was duplicated in 3_setting_base.sh).
 DEFAULT_MOUNT_BASE="/mnt"
+# Single definition of the per-volume NTFS trash-blocker filename prefix
+# (LINUX_SHELL_RULES.md #2, user D25) and the boot-time convergence unit path
+# (D3b); see ensure_ntfs_trash_blocker / ensure_ntfs_boot_convergence_unit below.
+NTFS_TRASH_DIR_PREFIX=".Trash-"
+NTFS_BOOT_CONVERGE_UNIT_FILE="/etc/systemd/system/core-node-ntfs-converge.service"
 
 # Single definition of the NTFS-family fstype set and its fsck pass, reused by
 # mount_fstab_ensure_single_entry, update_fstab and ensure_tree_root_bind_mount
@@ -28,6 +33,59 @@ mount_fsck_pass_for_type() {
     else
         echo "2"
     fi
+}
+
+# =============================================================================
+# NTFS recycle-bin blocker (user D25, LINUX_SHELL_RULES.md #2)
+# =============================================================================
+#
+# Idempotently blocks the GVfs/desktop per-volume trash at the root of an NTFS
+# mount ($1 = mount point): a NON-writable, root-owned, empty regular file
+# named "${NTFS_TRASH_DIR_PREFIX}<uid>" for uid 0 (root) and the detected login
+# user stops "gio trash"/Nautilus/Dolphin from creating a real trash directory
+# there, so GIO deletes permanently instead. No-op when $1 does not currently
+# resolve to an NTFS-family mount (mount_is_ntfs_fstype, the single fstype
+# helper above -- never a second fstype list). Never touches an EXISTING trash
+# DIRECTORY (only reports it) and never empties or deletes anything -- that
+# needs the user's explicit approval (LINUX_SHELL_RULES.md #2). Best-effort:
+# chown/chmod failures (ntfs3/ntfs-3g have fixed uid/gid/fmask from the mount
+# options and may reject chown) are logged, never fatal. Call this on every
+# code path that ends with an NTFS volume mounted (mount_disk, handle_ntfs_disk,
+# ensure_www_base_mount, mount_common_boot_converge below).
+ensure_ntfs_trash_blocker() {
+    local mount_root="$1"
+    local fstype="" login_user="" login_uid="" uid_list="0" u="" target=""
+
+    [ -n "$mount_root" ] && [ -d "$mount_root" ] || return 0
+    command -v findmnt >/dev/null 2>&1 || return 0
+    fstype="$(findmnt -no FSTYPE -M "$mount_root" 2>/dev/null)"
+    mount_is_ntfs_fstype "$fstype" || return 0
+
+    # resolve_desktop_user (desktop_system_policy.sh) may not be loaded by
+    # every caller; the same tolerant "call it, discard stderr" pattern this
+    # file already uses in ntfs_owner_opts applies here too.
+    login_user="$(resolve_desktop_user "" 2>/dev/null)"
+    login_uid="$(id -u "$login_user" 2>/dev/null)"
+    [ -n "$login_uid" ] && [ "$login_uid" != "0" ] && uid_list="0 $login_uid"
+
+    for u in $uid_list; do
+        target="$mount_root/${NTFS_TRASH_DIR_PREFIX}${u}"
+        if [ -d "$target" ]; then
+            echo "$MOUNT_LOG_PREFIX WARNING: an existing trash directory $target was found; leaving it in place (emptying/removing it needs explicit user approval)." >&2
+            continue
+        fi
+        if [ -e "$target" ]; then
+            continue
+        fi
+        if $MOUNT_USE_SUDO touch "$target" 2>/dev/null; then
+            $MOUNT_USE_SUDO chown root:root "$target" 2>/dev/null \
+                || echo "$MOUNT_LOG_PREFIX NOTE: chown root:root failed for $target (NTFS ignores ownership); the mount's uid/gid option still applies." >&2
+            $MOUNT_USE_SUDO chmod 0444 "$target" 2>/dev/null \
+                || echo "$MOUNT_LOG_PREFIX NOTE: chmod 0444 failed for $target (NTFS ignores permissions); relying on the mount's umask/windows_names instead." >&2
+            echo "$MOUNT_LOG_PREFIX Placed trash blocker: $target"
+        fi
+    done
+    return 0
 }
 
 # Prompt helpers (read_default): single definition in prompt_common.sh.
@@ -70,6 +128,31 @@ mount_fstab_ensure_single_entry() {
     $MOUNT_USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab
     echo "$MOUNT_LOG_PREFIX echo \"\$entry\" | $MOUNT_USE_SUDO tee -a /etc/fstab"
     echo "$entry" | $MOUNT_USE_SUDO tee -a /etc/fstab >/dev/null
+    return 0
+}
+
+# Ensure exactly one fstab entry for a BIND mount point (no UUID to key on,
+# unlike mount_fstab_ensure_single_entry above): backup, remove every line
+# whose mount-point field is $1 (whitespace-bounded, so "/www" never matches
+# "/wwwroot"), append $2 verbatim. Single definition reused by
+# ensure_www_base_mount's /www bind and ensure_tree_root_bind_mount's trees
+# bind, replacing what used to be two hand-rolled copies of this same
+# grep/sed/tee sequence.
+# Usage: mount_fstab_ensure_single_bind_entry <mount_point> <full_entry_line>
+mount_fstab_ensure_single_bind_entry() {
+    local mount_point="$1"
+    local entry="$2"
+    if [ -z "$mount_point" ] || [ -z "$entry" ]; then
+        return 1
+    fi
+    if grep -Fxq "$entry" /etc/fstab 2>/dev/null; then
+        echo "$MOUNT_LOG_PREFIX fstab bind entry already correct for $mount_point; skipping."
+        return 0
+    fi
+    $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.core_node.bak 2>/dev/null || true
+    $MOUNT_USE_SUDO sed -i "\|[[:space:]]${mount_point}[[:space:]]|d" /etc/fstab 2>/dev/null || true
+    echo "$entry" | $MOUNT_USE_SUDO tee -a /etc/fstab >/dev/null
+    echo "$MOUNT_LOG_PREFIX Added fstab bind entry: $entry"
     return 0
 }
 
@@ -221,7 +304,7 @@ ensure_program_drive_udev_exclusion() {
     # always-non-empty string key first lets an empty
     # linux_mounts_program_drive read below be treated as the boolean false it
     # actually is, instead of permanently skipping this rule on such hosts.
-    contract_probe="$(sc_get paths.drive_layout.tree_subdir)" || contract_probe=""
+    contract_probe="$(sc_get paths.drive_layout.namespaces.linux_ext4)" || contract_probe=""
     if [ -z "$contract_probe" ]; then
         echo "$MOUNT_LOG_PREFIX Service contract unreadable (no node/php yet?); skipping the udev exclusion rule." >&2
         return 0
@@ -404,14 +487,17 @@ ntfs3_supports_windows_names() {
 }
 
 # Single definition of the NTFS mount options string (uid=/gid= + umask +
-# windows_names when supported), reused by mount_disk and handle_ntfs_disk
-# instead of each building it separately. $1 is the fstab type that will
-# actually be used ("ntfs3" or "ntfs"/ntfs-3g); windows_names is gated on the
-# running kernel ONLY when that type is "ntfs3" (see
+# windows_names when supported + x-gvfs-notrash), reused by mount_disk and
+# handle_ntfs_disk instead of each building it separately. $1 is the fstab
+# type that will actually be used ("ntfs3" or "ntfs"/ntfs-3g); windows_names
+# is gated on the running kernel ONLY when that type is "ntfs3" (see
 # ntfs3_supports_windows_names) -- the ntfs-3g driver always gets it.
+# x-gvfs-notrash is the LINUX_SHELL_RULES.md #2 "second layer": GLib 2.66+
+# refuses to trash on a mount carrying this option, backing up
+# ensure_ntfs_trash_blocker's per-uid file blocker.
 ntfs_mount_options() {
     local fstab_type="$1" opts
-    opts="defaults,nofail,x-systemd.device-timeout=10,$(ntfs_owner_opts),umask=0022"
+    opts="defaults,nofail,x-systemd.device-timeout=10,$(ntfs_owner_opts),umask=0022,x-gvfs-notrash"
     if [ "$fstab_type" != "ntfs3" ] || ntfs3_supports_windows_names; then
         opts="$opts,windows_names"
     fi
@@ -472,6 +558,7 @@ mount_disk() {
         log "Successfully mounted $device to $mount_point"
         echo "[2] $USE_SUDO chmod 755 $mount_point"
         $USE_SUDO chmod 755 "$mount_point"
+        ensure_ntfs_trash_blocker "$mount_point"
         return 0
     elif [ "$fstab_type" = "ntfs3" ]; then
         # ntfs3 (in-kernel) refused the volume -- almost always an unclean
@@ -489,6 +576,7 @@ mount_disk() {
             log "Successfully mounted $device to $mount_point (ntfs-3g, runtime-only fallback)"
             echo "[2] $USE_SUDO chmod 755 $mount_point"
             $USE_SUDO chmod 755 "$mount_point"
+            ensure_ntfs_trash_blocker "$mount_point"
             warn_ntfs_dirty_windows_repair "$device"
             return 0
         fi
@@ -579,6 +667,7 @@ handle_ntfs_disk() {
             echo "$device" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_DEVICE" >/dev/null
         fi
 
+        ensure_ntfs_trash_blocker "$mount_point"
         return 0
     fi
 
@@ -684,6 +773,7 @@ handle_ntfs_disk() {
             fi
             echo "[2] $USE_SUDO chmod 755 $mount_point"
             $USE_SUDO chmod 755 "$mount_point"
+            ensure_ntfs_trash_blocker "$mount_point"
             if [ -n "$GLOBAL_VAR_DIR" ]; then
                 echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
                 echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
@@ -700,6 +790,7 @@ handle_ntfs_disk() {
     if [ "$current_mount" != "$mount_point" ]; then
         if mount_remount_to_target "$device" "$current_mount" "$mount_point" "$ntfs_type" "$mount_options"; then
             log "Remounted $device to $mount_point (effective immediately)"
+            ensure_ntfs_trash_blocker "$mount_point"
             if [ -n "$GLOBAL_VAR_DIR" ]; then
                 echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
                 echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
@@ -709,6 +800,7 @@ handle_ntfs_disk() {
             return 0
         fi
         warning "Could not unmount $current_mount (e.g. in use). Using current path until reboot."
+        ensure_ntfs_trash_blocker "$current_mount"
         if [ -n "$GLOBAL_VAR_DIR" ]; then
             echo "[2] echo \"\$current_mount\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
             echo "$current_mount" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
@@ -717,6 +809,7 @@ handle_ntfs_disk() {
         fi
         return 0
     fi
+    ensure_ntfs_trash_blocker "$mount_point"
     if [ -n "$GLOBAL_VAR_DIR" ]; then
         echo "[2] echo \"\$mount_point\" | $USE_SUDO tee $GLOBAL_VAR_DIR/NTFS_MOUNT_POINT"
         echo "$mount_point" | $USE_SUDO tee "$GLOBAL_VAR_DIR/NTFS_MOUNT_POINT" >/dev/null
@@ -1012,15 +1105,14 @@ ensure_www_base_mount() {
                 return 1
             fi
         fi
-        # fstab: exactly one bind entry for /www (survives reboot). The sed
-        # pattern requires whitespace after /www, so /wwwroot lines never match.
+        # fstab: exactly one bind entry for /www (survives reboot), through the
+        # single bind-entry helper (also used by ensure_tree_root_bind_mount).
         entry="$base_dir /www none bind,nofail 0 0"
-        if ! grep -Fxq "$entry" /etc/fstab 2>/dev/null; then
-            $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.core_node.bak 2>/dev/null || true
-            $MOUNT_USE_SUDO sed -i '\|[[:space:]]/www[[:space:]]|d' /etc/fstab 2>/dev/null || true
-            echo "$entry" | $MOUNT_USE_SUDO tee -a /etc/fstab >/dev/null
-            echo "$MOUNT_LOG_PREFIX Added fstab entry: $entry"
-        fi
+        mount_fstab_ensure_single_bind_entry "/www" "$entry"
+        # D25/LINUX_SHELL_RULES.md #2: block the per-volume desktop trash at
+        # the root of /www when it is actually backed by an NTFS volume
+        # (no-op otherwise -- e.g. an ext4/xfs data disk base_dir).
+        ensure_ntfs_trash_blocker /www
         # The cross-platform WWW root (Windows D:\www == Linux /www/www) lives
         # on the shared disk; create it so map_web_path can prefer the stable
         # /www/www spelling over the device-bound "$base_dir/www".
@@ -1039,27 +1131,31 @@ ensure_www_base_mount() {
 }
 
 # =============================================================================
-# Dual-boot project tree root bind (contract paths.drive_layout.tree_root)
+# Dual-boot project tree root bind (contract paths.drive_layout.trees_root /
+# trees_mount_linux / namespaces.linux_ntfs_trees_mount_parent)
 # =============================================================================
 
-# Idempotent fstab bind for the dual-boot project tree root: binds the ext4
-# backing store (CN_TREE_BACKING, contract tree_root.linux_backing, single
-# definition in shared_cache_env.sh) onto the mountpoint under the NTFS /www
-# share (CN_TREE_MNT, contract tree_root.linux), so Windows sees
-# D:\core_node_trees while the data itself stays on ext4/opt. No-op unless the
-# /www NTFS dual-boot share is actually configured -- on a Linux-only machine
-# there is nothing to bind under, and CN_TREE_CACHE_ROOT (shared_cache_env.sh)
-# already resolves straight to the ext4 backing directory in that case.
+# Idempotent fstab bind for the dual-boot project trees root: binds the ext4
+# trees root (CN_TREES_ROOT, contract trees_root.linux, /opt/core_node/trees --
+# single definition in shared_cache_env.sh) onto the single EMPTY mount point
+# CN_TREES_MOUNT (contract trees_mount_linux, /www/core_node_compiler/trees)
+# under its namespace parent CN_TREES_MOUNT_PARENT (namespaces.
+# linux_ntfs_trees_mount_parent, /www/core_node_compiler -- the only new
+# top-level dir this function ever creates on the NTFS share,
+# DIRECTORY_NAMESPACE_RULES.md #2), so a Windows junction into that same
+# namespace resolves to ext4 on Linux (LINUX_SHELL_RULES.md #2). No-op unless
+# the /www NTFS dual-boot share is actually configured -- on a Linux-only
+# machine there is nothing to bind under, and CN_TREES_ROOT is used directly.
 ensure_tree_root_bind_mount() {
     local ntfs_configured=false
     local entry="" shared_cache_env_script=""
 
-    if [ -z "${CN_TREE_MNT:-}" ] || [ -z "${CN_TREE_BACKING:-}" ]; then
+    if [ -z "${CN_TREES_ROOT:-}" ] || [ -z "${CN_TREES_MOUNT:-}" ] || [ -z "${CN_TREES_MOUNT_PARENT:-}" ]; then
         shared_cache_env_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared_cache_env.sh"
         [ -f "$shared_cache_env_script" ] && source "$shared_cache_env_script"
     fi
-    if [ -z "${CN_TREE_MNT:-}" ] || [ -z "${CN_TREE_BACKING:-}" ]; then
-        echo "$MOUNT_LOG_PREFIX Tree-root contract values (paths.drive_layout.tree_root) unreadable; skipping the tree-root bind." >&2
+    if [ -z "${CN_TREES_ROOT:-}" ] || [ -z "${CN_TREES_MOUNT:-}" ] || [ -z "${CN_TREES_MOUNT_PARENT:-}" ]; then
+        echo "$MOUNT_LOG_PREFIX Trees contract values (paths.drive_layout.trees_root / trees_mount_linux) unreadable; skipping the trees bind." >&2
         return 0
     fi
 
@@ -1075,30 +1171,123 @@ ensure_tree_root_bind_mount() {
         www_ntfs_root_mounted && ntfs_configured=true
     fi
     if [ "$ntfs_configured" != true ]; then
-        echo "$MOUNT_LOG_PREFIX /www is not the NTFS dual-boot share; the tree root stays on $CN_TREE_BACKING directly (no bind needed)." >&2
+        echo "$MOUNT_LOG_PREFIX /www is not the NTFS dual-boot share; the trees root stays on $CN_TREES_ROOT directly (no bind needed)." >&2
         return 0
     fi
 
-    [ -d "$CN_TREE_BACKING" ] || $MOUNT_USE_SUDO mkdir -p "$CN_TREE_BACKING"
-    # A plain mount-point directory only -- never a Windows reparse point.
-    [ -d "$CN_TREE_MNT" ] || $MOUNT_USE_SUDO mkdir -p "$CN_TREE_MNT"
+    [ -d "$CN_TREES_ROOT" ] || $MOUNT_USE_SUDO mkdir -p "$CN_TREES_ROOT"
+    # Namespace mount parent, then the single EMPTY mount point under it --
+    # plain directories only, never a Windows reparse point, and no other new
+    # top-level dir on the NTFS share (DIRECTORY_NAMESPACE_RULES.md #2).
+    [ -d "$CN_TREES_MOUNT_PARENT" ] || $MOUNT_USE_SUDO mkdir -p "$CN_TREES_MOUNT_PARENT"
+    [ -d "$CN_TREES_MOUNT" ] || $MOUNT_USE_SUDO mkdir -p "$CN_TREES_MOUNT"
 
-    entry="$CN_TREE_BACKING $CN_TREE_MNT none bind,nofail,x-systemd.requires-mounts-for=/www 0 0"
-    if grep -Fxq "$entry" /etc/fstab 2>/dev/null; then
-        echo "$MOUNT_LOG_PREFIX Tree-root bind fstab entry already correct."
-    else
-        $MOUNT_USE_SUDO cp /etc/fstab /etc/fstab.core_node.bak 2>/dev/null || true
-        $MOUNT_USE_SUDO sed -i "\|[[:space:]]${CN_TREE_MNT}[[:space:]]|d" /etc/fstab 2>/dev/null || true
-        echo "$entry" | $MOUNT_USE_SUDO tee -a /etc/fstab >/dev/null
-        echo "$MOUNT_LOG_PREFIX Added tree-root bind fstab entry: $entry"
-    fi
+    entry="$CN_TREES_ROOT $CN_TREES_MOUNT none bind,nofail,x-systemd.requires-mounts-for=/www 0 0"
+    mount_fstab_ensure_single_bind_entry "$CN_TREES_MOUNT" "$entry"
 
-    if mountpoint -q "$CN_TREE_MNT" 2>/dev/null; then
-        echo "$MOUNT_LOG_PREFIX $CN_TREE_MNT already mounted."
-    elif $MOUNT_USE_SUDO mount --bind "$CN_TREE_BACKING" "$CN_TREE_MNT" 2>/dev/null; then
-        echo "$MOUNT_LOG_PREFIX Bound $CN_TREE_MNT -> $CN_TREE_BACKING"
+    if mountpoint -q "$CN_TREES_MOUNT" 2>/dev/null; then
+        echo "$MOUNT_LOG_PREFIX $CN_TREES_MOUNT already mounted."
+    elif $MOUNT_USE_SUDO mount --bind "$CN_TREES_ROOT" "$CN_TREES_MOUNT" 2>/dev/null; then
+        echo "$MOUNT_LOG_PREFIX Bound $CN_TREES_MOUNT -> $CN_TREES_ROOT"
     else
-        echo "$MOUNT_LOG_PREFIX WARNING: could not bind $CN_TREE_MNT now; fstab will apply it on next boot."
+        echo "$MOUNT_LOG_PREFIX WARNING: could not bind $CN_TREES_MOUNT now; fstab will apply it on next boot."
     fi
+    return 0
+}
+
+# The per-project runtime bind for a PLAIN in-repo directory (contract
+# trees_rule: node_modules/vendor/.venv onto <trees_root.linux>/<ns>/<dir>)
+# already exists as its own reusable library, project_tree_common.sh
+# (project_tree_ensure/status/release), with a namespace resolver, dry-run,
+# foreign-bind detection and a CLI -- reused here rather than duplicated
+# (AGENTS.md "reuse before creating"); it is outside this task's fenced files.
+# It is likewise not wired into any start script yet (P4, later).
+
+# =============================================================================
+# Boot-time NTFS convergence (user D3b: "make the disk setup a per-run
+# convergence" -- docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
+# section 3.6). The firmware boots this machine's Linux first, so a volume
+# that ntfs3 refused as dirty and that only got the ntfs-3g runtime-only
+# fallback (mount_disk / handle_ntfs_disk above) must not stay silently
+# unmounted for the rest of THIS boot if that fallback itself never ran (e.g.
+# the disk-setup step that calls mount_disk/handle_ntfs_disk did not run this
+# boot at all). This unit gives every managed NTFS fstab entry one more
+# convergence pass, late, after local-fs.target.
+# =============================================================================
+
+# Boot-time convergence entry point (what the systemd unit below runs): for
+# every NTFS-family fstab entry not currently mounted at its target, mount it
+# read-write with ntfs-3g (windows_names via ntfs_mount_options), then run the
+# trash blocker; already-mounted entries just get the trash blocker (idempotent
+# repair). Finishes with the trees bind, since it depends on /www being
+# mounted. Never uses ntfs3's force option and never runs ntfsfix -- Windows
+# chkdsk remains the only real repair (warn_ntfs_dirty_windows_repair already
+# covers the "please boot Windows" messaging at normal mount time).
+mount_common_boot_converge() {
+    local line uuid target fstype options mounted_target
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        uuid="$(echo "$line" | awk '{print $1}')"
+        uuid="${uuid#UUID=}"
+        target="$(echo "$line" | awk '{print $2}')"
+        fstype="$(echo "$line" | awk '{print $3}')"
+        [ -n "$uuid" ] && [ -n "$target" ] || continue
+        mount_is_ntfs_fstype "$fstype" || continue
+        mounted_target="$(findmnt -n -o TARGET "UUID=$uuid" 2>/dev/null | head -n1)"
+        if [ "$mounted_target" = "$target" ]; then
+            ensure_ntfs_trash_blocker "$target"
+            continue
+        fi
+        options="$(ntfs_mount_options "ntfs-3g")"
+        echo "$MOUNT_LOG_PREFIX Boot convergence: $target not mounted; mounting UUID=$uuid read-write with ntfs-3g."
+        if mount -t ntfs-3g -o "$options" "UUID=$uuid" "$target" 2>/dev/null; then
+            chmod 755 "$target" 2>/dev/null || true
+            ensure_ntfs_trash_blocker "$target"
+        else
+            echo "$MOUNT_LOG_PREFIX WARNING: boot convergence could not mount UUID=$uuid at $target." >&2
+        fi
+    done < <(grep -E '^[[:space:]]*UUID=' /etc/fstab 2>/dev/null)
+    if declare -F ensure_tree_root_bind_mount >/dev/null 2>&1; then
+        ensure_tree_root_bind_mount
+    fi
+    return 0
+}
+
+# Idempotently write (only if content differs) the boot-time convergence unit
+# that runs mount_common_boot_converge after local-fs.target, then registers
+# it for the NEXT boot (systemctl enable, no --now: this call never starts or
+# mounts anything on the machine running it right now). This function only
+# writes the unit and enables it; it never runs daemon-reload/enable itself
+# unless called, and the caller decides when that happens.
+ensure_ntfs_boot_convergence_unit() {
+    local mount_common_path="" desired="" current=""
+    mount_common_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mount_common.sh"
+    # No trailing newline in $desired: `echo` below adds exactly one when
+    # writing the file, and "$(cat ...)" below strips exactly one when reading
+    # it back, so the two sides of the comparison stay symmetric (same idiom
+    # ensure_program_drive_udev_exclusion already uses for its rule file).
+    desired="[Unit]
+Description=Core Node: converge dirty-NTFS dual-boot volumes left unmounted at boot
+After=local-fs.target
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'source \"$mount_common_path\" >/dev/null 2>&1; mount_common_boot_converge'
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target"
+    current=""
+    [ -f "$NTFS_BOOT_CONVERGE_UNIT_FILE" ] && current="$($MOUNT_USE_SUDO cat "$NTFS_BOOT_CONVERGE_UNIT_FILE" 2>/dev/null)"
+    if [ "$current" = "$desired" ]; then
+        echo "$MOUNT_LOG_PREFIX Boot convergence unit already correct."
+    else
+        echo "$desired" | $MOUNT_USE_SUDO tee "$NTFS_BOOT_CONVERGE_UNIT_FILE" >/dev/null
+        echo "$MOUNT_LOG_PREFIX Wrote $NTFS_BOOT_CONVERGE_UNIT_FILE"
+        $MOUNT_USE_SUDO systemctl daemon-reload 2>/dev/null || true
+    fi
+    $MOUNT_USE_SUDO systemctl enable core-node-ntfs-converge.service 2>/dev/null \
+        || echo "$MOUNT_LOG_PREFIX WARNING: could not enable core-node-ntfs-converge.service (systemctl unavailable or non-systemd init)." >&2
     return 0
 }

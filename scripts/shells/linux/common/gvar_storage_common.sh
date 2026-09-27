@@ -342,7 +342,7 @@ persist_base_data_directory() {
 # <base>/_${SYSTEM_NAME}_${major} (node, py, etc.) is installed. Mirrors
 # PHP App\Providers\PathMapper::getDevCompileParts() and Python system_paths.py so
 # all three resolve to the SAME directory (contract paths.drive_layout.tool_root.linux:
-# /opt/_<os>_<ver>).
+# /opt/core_node/_<os>_<ver>, DIRECTORY_NAMESPACE_RULES.md #1).
 #
 # Tools are ALWAYS installed on ext4 under /opt -- on WSL too, since WSL2's own
 # root filesystem is genuine ext4 (backed by a vhdx, but presented to Linux as
@@ -353,30 +353,48 @@ persist_base_data_directory() {
 # docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2).
 #
 # Selection:
-#   1. STICKY /opt: if /opt/_${name}_${ver} already exists, keep using /opt
-#      forever -- even if it later drops below the free-space threshold.
-#   2. Else /opt still wins; a low free-space reading only prints an English
-#      warning (never a silent fallback to NTFS, and never a hard failure --
-#      the actual install step reports its own out-of-space error if /opt truly
-#      cannot fit it).
+#   1. LEGACY (DIRECTORY_NAMESPACE_RULES.md #2): a pre-namespace /opt/$SYS_DIR
+#      install already exists -- keep using it forever, even if it later drops
+#      below the free-space threshold. Moving it into the namespace root is a
+#      migration that needs the user's explicit approval; this function never
+#      does it on its own.
+#   2. Otherwise the namespace root CN_LINUX_NAMESPACE_ROOT (contract
+#      namespaces.linux_ext4, /opt/core_node -- single definition in
+#      shared_cache_env.sh, the ONLY new top-level dir this function ever
+#      selects under /opt) wins; a low free-space reading only prints an
+#      English warning (never a silent fallback to NTFS, and never a hard
+#      failure -- the actual install step reports its own out-of-space error
+#      if /opt truly cannot fit it).
 get_dev_compile_base() {
-    local suffix opt_free min_gb min_bytes
+    local suffix legacy_dir namespace_root opt_free min_gb min_bytes shared_cache_env_script
     suffix="$SYS_DIR"
     min_gb="${DEV_ROOT_MIN_FREE_GB:-50}"
+    legacy_dir="/opt/$suffix"
 
-    # 1. Sticky: an existing /opt dev dir wins regardless of current free space.
-    if [ -d "/opt/$suffix" ]; then
+    # 1. LEGACY: an existing pre-namespace /opt/$SYS_DIR install wins forever.
+    if [ -d "$legacy_dir" ]; then
         echo "/opt"
         return 0
     fi
 
-    # 2. Advisory free-space check only: /opt wins either way.
+    # 2. Namespace root: reuse the single definition from shared_cache_env.sh
+    # (already sourced by the time this file loads through the normal
+    # gvar_common.sh chain -- gvar_system_common.sh sources shared_cache_env.sh
+    # before sourcing this file). Re-source defensively if this file is ever
+    # loaded standalone.
+    if [ -z "${CN_LINUX_NAMESPACE_ROOT:-}" ]; then
+        shared_cache_env_script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/shared_cache_env.sh"
+        [ -f "$shared_cache_env_script" ] && source "$shared_cache_env_script"
+    fi
+    namespace_root="${CN_LINUX_NAMESPACE_ROOT:-/opt/core_node}"
+
+    # Advisory free-space check only: the namespace root wins either way.
     opt_free="$(df -B1 --output=avail /opt 2>/dev/null | tail -1 | tr -dc '0-9')"
     min_bytes=$(( min_gb * 1024 * 1024 * 1024 ))
     if [ -z "$opt_free" ] || [ "$opt_free" -le "$min_bytes" ] 2>/dev/null; then
         echo "[WARNING] /opt has less than ${min_gb}GB free; installing the dev toolchain there anyway -- the tool root never falls back to the NTFS web/data base." >&2
     fi
-    echo "/opt"
+    echo "$namespace_root"
 }
 
 # Function to detect if system has NTFS disks

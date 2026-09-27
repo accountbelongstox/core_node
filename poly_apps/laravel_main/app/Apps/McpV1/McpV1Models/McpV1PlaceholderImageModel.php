@@ -2,9 +2,9 @@
 
 namespace App\Apps\McpV1\McpV1Models;
 
-use App\Models\AppModel;
+use Illuminate\Support\Facades\Schema;
 
-class McpV1PlaceholderImageModel extends AppModel
+class McpV1PlaceholderImageModel extends McpV1Model
 {
     protected $table = 'placeholder_images';
 
@@ -30,6 +30,48 @@ class McpV1PlaceholderImageModel extends AppModel
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    /**
+     * Table structure shared by the migration and the McpV1 initializer's
+     * schema ensure (SafeMigrationHelper, add-only).
+     */
+    public static function tableStructure(): array
+    {
+        return [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'uuid' => ['type' => 'string', 'length' => 36, 'nullable' => false, 'unique' => true, 'index' => true],
+                'filename' => ['type' => 'string', 'nullable' => false],
+                'width' => ['type' => 'integer', 'nullable' => false],
+                'height' => ['type' => 'integer', 'nullable' => false],
+                'text' => ['type' => 'text', 'nullable' => true],
+                'type' => ['type' => 'string', 'length' => 50, 'nullable' => false, 'default' => 'simple'],
+                'file_path' => ['type' => 'string', 'nullable' => false],
+                'file_size' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                'downloaded' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
+                'downloaded_at' => ['type' => 'timestamp', 'nullable' => true],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['downloaded', 'created_at']],
+            ],
+        ];
+    }
+
+    /**
+     * Whether the table and every declared column exist on the McpV1 connection.
+     */
+    public static function schemaReady(): bool
+    {
+        $model = new static();
+
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable())
+            && Schema::connection($model->getConnectionName())->hasColumns(
+                $model->getTable(),
+                array_keys(static::tableStructure()['columns'])
+            );
+    }
 
     public static function findByUuid(string $uuid): ?self
     {

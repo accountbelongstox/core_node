@@ -6,6 +6,7 @@ use App\Models\Concerns\UsesMainConnection;
 use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 class InviteCode extends Model
@@ -33,11 +34,7 @@ class InviteCode extends Model
 
     public static function publicCodes(int $limit): EloquentCollection
     {
-        return self::query()
-            ->where('is_active', true)
-            ->where(function ($query): void {
-                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
-            })
+        return self::activeUnexpiredQuery()
             ->whereColumn('used_count', '<', 'max_uses')
             ->select(['id', 'code', 'type', 'max_uses', 'used_count', 'expires_at', 'is_active', 'created_at'])
             ->latest('created_at')
@@ -61,9 +58,26 @@ class InviteCode extends Model
         return true;
     }
 
-    public static function codesByType(string $type): array
+    /**
+     * The newest active, unexpired code of a type, keyed by type ([] when none).
+     */
+    public static function activeCodesByType(string $type): array
     {
-        return self::query()->where('type', $type)->pluck('code', 'type')->all();
+        return self::activeUnexpiredQuery()
+            ->where('type', $type)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->pluck('code', 'type')
+            ->all();
+    }
+
+    private static function activeUnexpiredQuery(): Builder
+    {
+        return self::query()
+            ->where('is_active', true)
+            ->where(function ($query): void {
+                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+            });
     }
 
     public static function initializationStats(): array

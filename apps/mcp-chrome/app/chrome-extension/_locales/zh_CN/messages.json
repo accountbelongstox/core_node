@@ -1373,7 +1373,7 @@
     "message": "  Chrome MCP 服务器 - Windows"
   },
   "startWatchPrompt": {
-    "message": "是否启用开发监视模式？[Y/n]"
+    "message": "是否启用开发监视模式？"
   },
   "startWatchOnceSelected": {
     "message": "  已选择单次构建。"

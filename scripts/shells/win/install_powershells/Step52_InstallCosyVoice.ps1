@@ -75,14 +75,14 @@ $installMethod = Select-TtsInstallMethod -Engine cosyvoice `
 if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
 if ($installMethod -eq 'docker') {
     . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
-    if (-not (Invoke-TtsDockerEnsure -Engine cosyvoice -Prefix $SCRIPT_INDEX)) {
+    if (-not (Invoke-TtsDockerEnsure -Engine cosyvoice -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
         Write-Host "$SCRIPT_INDEX [!] docker platform is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown'))." -ForegroundColor DarkYellow
-        exit 1
+        return
     }
     Save-TtsInstallBackend -Engine cosyvoice -Backend docker
     if (-not (Invoke-TtsDockerApply -Engine cosyvoice -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
         Write-Host "$SCRIPT_INDEX [!] docker compose apply failed (phase above); docker backend is not ready." -ForegroundColor DarkYellow
-        exit 1
+        return
     }
     Write-Host "$SCRIPT_INDEX [OK] docker compose service converged (project pycore-tts-cosyvoice)." -ForegroundColor Green
     return

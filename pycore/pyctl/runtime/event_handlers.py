@@ -430,8 +430,12 @@ def _run_audio_lane_boot_chain(assist_settings: dict) -> None:
     access invariant (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN R6)
     would otherwise depend on which thread happens to run first. The
     ``finally`` (no ``except``) keeps translation/stt starting even when the
-    audio-lane step fails, without swallowing that failure: it still
-    propagates to the bus-task thread boundary instead of being hidden here.
+    audio-lane step fails, without swallowing that failure: this callback
+    carries no ``response_signal``, so ``BusTaskThread.run`` catches the
+    failure itself and reports it with one ``ColorPrint.red`` line naming
+    the thread, the error type, the message and the traceback
+    (``pyfoundations.serialized_worker._report_unobserved_failure``),
+    instead of hiding it here or re-raising it to any caller.
     """
     try:
         _start_audio_lane_boot_chain()

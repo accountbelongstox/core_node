@@ -1,7 +1,26 @@
-import { orchZh } from './OrchLocales';
+import { orchZh, orchMessagesZh, orchMessageValuesZh } from './OrchLocales';
 /** Pycore Manager locale resource fragment. */
 export const pcZhFeatures = {
-audioOrchestration: orchZh,
+audioOrchestration: { ...orchZh, messages: orchMessagesZh, messageValues: orchMessageValuesZh },
+ttsReasons: {
+    tts_not_installed: '未安装 — 请运行 {{installer}}',
+    tts_venv_not_built: '{{engine}} 独立虚拟环境未构建 — 请运行 {{installer}}',
+    tts_venv_not_built_base_ready: '{{engine}} 独立虚拟环境未构建；基础 Python {{python_version}} 已就绪 — 请运行 {{installer}}',
+    tts_base_python_unavailable: '{{engine}} 基础 Python 不可用：{{detail}}',
+    tts_model_weights_missing: '{{engine}} 模型权重缺失或不完整 — 请运行 {{installer}}',
+    tts_model_not_found: '未找到 {{engine}} 模型 — 请运行 {{installer}}',
+    tts_server_not_running: '{{engine}} API 服务未运行（{{url}}）',
+    tts_server_model_not_ready: '{{engine}} 服务可访问，但模型尚未就绪',
+    tts_setting_required: '请设置 {{setting}}',
+    tts_secret_required: '请在 .secret_keys 中设置 {{secrets}}',
+    tts_package_missing: '未安装 {{package}} 包',
+    tts_fishspeech_source_required: '请启动 Fish Speech 服务（{{url}}），或配合 fish-audio-sdk 设置 FISH_API_KEY',
+    tts_fishspeech_bridge_not_ready: 'Fish Speech 桥接已启动但无法合成 — 请设置 FISH_API_KEY 或 FISHSPEECH_UPSTREAM，或启动 fish-speech tools/api_server.py',
+    tts_auth_cooldown: '{{engine}} 认证失败冷却中（剩余 {{seconds}} 秒）',
+    tts_edge_init_failed: 'edge-tts 客户端初始化失败（请检查依赖包和网络）',
+    tts_memory_gate: '已被内存门控屏蔽：{{detail}}',
+    tts_engine_unavailable: '{{engine}} 不可用',
+  },
 subtitlePage: {
     title: '字幕搜索',
     subtitle: '通过 OpenSubtitles 按片名搜索并下载电影与剧集字幕，并保留共享的搜索历史。',

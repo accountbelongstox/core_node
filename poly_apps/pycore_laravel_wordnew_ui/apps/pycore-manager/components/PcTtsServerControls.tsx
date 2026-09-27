@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { Loader2, Power, PowerOff } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { TtsEngine, TtsSettings } from '@/apps/pycore-manager/api';
+import { pcTtsReasonText } from '../utils/pcErrorCodes';
 
 // Fallback class-C (isolated HTTP server) engine names for backends that omit the
 // `server_engine` flag. Mirrors the dev-spec §1 class-C set so melotts/gptsovits/qwen3tts
@@ -133,7 +134,7 @@ export const PcTtsServerControls: React.FC<Props> = ({ engines, onChanged }) => 
             <div
               key={name}
               className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border border-slate-300/40 dark:border-white/10 bg-white/50 dark:bg-white/5 text-[10px]"
-              title={row?.disabled_reason || name}>
+              title={pcTtsReasonText(row.disabled_reason_code, row.disabled_reason_params, row.disabled_reason) || name}>
               <span className="font-mono font-bold text-slate-700 dark:text-slate-200">{name}</span>
               <label className="inline-flex items-center gap-1 cursor-pointer text-slate-500">
                 <input

@@ -254,6 +254,12 @@ $WatchChoice = $env:MCP_CHROME_WATCH_MODE
 if ($ServiceMode -ne "none") {
     $WatchChoice = "once"
 }
+if ([string]::IsNullOrWhiteSpace($WatchChoice)) {
+    $WatchChoice = "dev"
+    if (-not (Read-YesNoDefaultYes (Get-LocalizedMessage -Key "startWatchPrompt"))) {
+        $WatchChoice = "once"
+    }
+}
 if ($WatchChoice -match "^(n|no|once)$") {
     $WatchMode = "once"
     Write-Host (Get-LocalizedMessage -Key "startWatchOnceSelected") -ForegroundColor Yellow

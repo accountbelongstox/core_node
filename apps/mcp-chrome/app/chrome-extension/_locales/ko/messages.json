@@ -1864,7 +1864,7 @@
     "message": "  일회성 빌드를 선택했습니다."
   },
   "startWatchPrompt": {
-    "message": "개발 감시 모드를 사용하시겠습니까? [Y/n]"
+    "message": "개발 감시 모드를 사용하시겠습니까?"
   },
   "stateLabel": {
     "message": "상태"

@@ -28,7 +28,7 @@ echo "> Script dir:   %script_dir%"
 
 if exist "%local_dd%" (
   echo "+ Found local dd.ps1; executing..."
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%local_dd%"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%local_dd%" %*
   goto :restore
 )
 
@@ -50,7 +50,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%installer_dl%" -LocalDataD
 
 if exist "%downloaded_dd%" (
   echo "> Executing downloaded dd.ps1: %downloaded_dd%"
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%downloaded_dd%"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%downloaded_dd%" %*
 ) else (
   echo "x Installer finished but dd.ps1 missing at: %downloaded_dd%"
 )

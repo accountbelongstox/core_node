@@ -131,6 +131,14 @@ export interface OrchTextSentence {
 
 export type OrchGenerationPhase = 'sync' | 'manifest' | 'resources' | 'assemble';
 
+/** One coded task log line (pycore `orch_messages`); `message` is its English rendering. */
+export interface OrchTaskEvent {
+  ts: number;
+  code?: string;
+  params?: Record<string, unknown>;
+  message: string;
+}
+
 export interface OrchTiming {
   started_at?: number | null;
   finished_at?: number | null;
@@ -153,7 +161,9 @@ export interface OrchTaskSummary {
   segments_done?: number;
   segments_total?: number;
   progress?: {
-    message?: string; segment_index?: number; item_index?: number; item_total?: number;
+    /** English rendering of `message_code` (fallback only); the UI localizes the code. */
+    message?: string; message_code?: string; message_params?: Record<string, unknown>;
+    segment_index?: number; item_index?: number; item_total?: number;
     output_dir?: string; current_item?: string;
     phase?: OrchGenerationPhase | 'done';
     resource_index?: number; resource_total?: number;
@@ -180,7 +190,7 @@ export interface OrchTask extends OrchTaskSummary {
   virtual_read?: string[];
   sentences?: OrchTextSentence[];
   segments?: OrchSegment[];
-  events?: Array<{ ts: number; message: string }>;
+  events?: OrchTaskEvent[];
 }
 
 export interface OrchSystemStatus {
@@ -226,6 +236,7 @@ export interface OrchManifestItem {
 export interface OrchManifestPageResponse {
   success: boolean;
   error?: string;
+  error_code?: string;
   items: OrchManifestItem[];
   total: number;
   page: number;
@@ -280,7 +291,7 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskProgress, { task_id: taskId }) as Promise<{
       success: boolean; error?: string; status?: string; running?: boolean;
       progress?: Record<string, unknown>; segments?: OrchSegment[];
-      events?: Array<{ ts: number; message: string }>;
+      events?: OrchTaskEvent[];
     }>,
 
   // --- pycore system status (cached ffmpeg probe) + generated files -------- #

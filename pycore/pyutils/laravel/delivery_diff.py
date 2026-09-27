@@ -36,14 +36,15 @@ from pycore.pyutils.common.client_key_auth import get_pycore_machine_id
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 
 
-# W7 contract values (config/queue_center_contract.json #delivery); this
-# module used to keep its own copy of every one of them.
+# W7 contract values (config/queue_center_contract.json #delivery).
 _DELIVERY_ROUTES = QUEUE_CENTER_DELIVERY["routes"]
 _DELIVERY_ERROR_CODES = QUEUE_CENTER_DELIVERY["error_codes"]
 _DELIVERY_BATCH_LIMITS = QUEUE_CENTER_DELIVERY["batch_limits"]
 DELIVERY_INFO_PATH = str(_DELIVERY_ROUTES["info"])
 DELIVERY_DIFF_PATH = str(_DELIVERY_ROUTES["diff"])
 DELIVERY_BATCH_PATH = str(_DELIVERY_ROUTES["batch"])
+DELIVERY_BATCH_CONTENT_PATH = str(_DELIVERY_ROUTES["batch_content"])
+DELIVERY_BATCH_STATUS_PATH = str(_DELIVERY_ROUTES["batch_status"])
 DIFF_KIND_WORD_AUDIO = "word_audio"
 DIFF_KIND_SENTENCE_AUDIO = "sentence_audio"
 DIFF_KIND_ORCH_OUTPUT = "orch_output"
@@ -254,7 +255,7 @@ class LaravelDeliveryDiffClient:
             return {"success": False, "error": "delivery batch response has no batch_id"}
         if str(batch.get("state") or "") == BATCH_STATE_AWAITING_CONTENT:
             receipt = laravel_progress_uploader.upload(
-                f"{DELIVERY_BATCH_PATH}/{batch_id}/content", content,
+                DELIVERY_BATCH_CONTENT_PATH.replace("{batch_id}", batch_id), content,
                 base_url=base_url, params={"machine_id": machine_id},
                 progress_callback=progress, reason=f"delivery_batch_{kind}",
             )
@@ -271,7 +272,7 @@ class LaravelDeliveryDiffClient:
         try:
             while not THREAD_BUS.is_shutdown_requested():
                 response = laravel_client.get(
-                    f"{DELIVERY_BATCH_PATH}/{batch_id}", base_url=base_url,
+                    DELIVERY_BATCH_STATUS_PATH.replace("{batch_id}", batch_id), base_url=base_url,
                     params={"machine_id": machine_id}, activity_timeout=contract, log_line=False,
                 )
                 body = laravel_envelope(response)

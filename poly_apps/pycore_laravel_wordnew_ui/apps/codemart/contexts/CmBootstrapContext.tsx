@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { useAuthSession } from '../../../core/auth/useAuthSession';
 import { subscribeAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
 import { cmApi } from '../api/CmApi';
-import type { CmBootstrap } from '../api/CmApiTypes';
+import type { CmBootstrap, CmPolicyListKey } from '../api/CmApiTypes';
 
 const UNREAD_REFRESH_INTERVAL_MS = 60_000;
 const BOOTSTRAP_UNAVAILABLE_ERROR = 'bootstrap_unavailable';
@@ -15,6 +15,10 @@ function loginUserId(user: unknown): number | null {
   return Number.isFinite(id) ? id : null;
 }
 
+function vocabularyList(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value as readonly string[] : EMPTY_VOCABULARY;
+}
+
 export interface CmBootstrapState {
   bootstrap: CmBootstrap | null;
   loading: boolean;
@@ -24,10 +28,13 @@ export interface CmBootstrapState {
   refreshUnread: () => Promise<void>;
   hasCapability: (capability: string | null) => boolean;
   hasRole: (roleType: string, status?: string) => boolean;
-  /** Server role vocabulary (`vocabulary.roles`); empty until the bootstrap loads. */
   roles: readonly string[];
-  /** Server state vocabulary of a resource (`vocabulary.states.<group>`); empty until the bootstrap loads. */
   states: (group: string) => readonly string[];
+  terminalStates: (group: string) => readonly string[];
+  openStates: (group: string) => readonly string[];
+  stateRule: (rule: string) => readonly string[];
+  policyList: (key: CmPolicyListKey) => readonly string[];
+  roleForCapability: (capability: string | null) => string | null;
 }
 
 const CmBootstrapContext = createContext<CmBootstrapState | null>(null);
@@ -94,25 +101,38 @@ export const CmBootstrapProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return () => window.clearInterval(timer);
   }, [authenticated, bootstrap, refreshUnread]);
 
-  const value = useMemo<CmBootstrapState>(() => ({
-    bootstrap,
-    loading,
-    error,
-    unreadCount,
-    refresh: load,
-    refreshUnread,
-    hasCapability: (capability) => {
-      if (capability === null) return true;
-      if (!bootstrap) return false;
-      return bootstrap.capabilities.includes(capability);
-    },
-    hasRole: (roleType, status) => {
-      const current = bootstrap?.roles?.[roleType];
-      return current !== undefined && (status === undefined || current === status);
-    },
-    roles: bootstrap?.vocabulary.roles ?? EMPTY_VOCABULARY,
-    states: (group) => bootstrap?.vocabulary.states[group] ?? EMPTY_VOCABULARY,
-  }), [bootstrap, loading, error, unreadCount, load, refreshUnread]);
+  const value = useMemo<CmBootstrapState>(() => {
+    const vocabulary = bootstrap?.vocabulary;
+    const states = (group: string): readonly string[] => vocabularyList(vocabulary?.states?.[group]);
+    const terminalStates = (group: string): readonly string[] => vocabularyList(vocabulary?.terminal_states?.[group]);
+    return {
+      bootstrap,
+      loading,
+      error,
+      unreadCount,
+      refresh: load,
+      refreshUnread,
+      hasCapability: (capability) => {
+        if (capability === null) return true;
+        if (!bootstrap) return false;
+        return bootstrap.capabilities.includes(capability);
+      },
+      hasRole: (roleType, status) => {
+        const current = bootstrap?.roles?.[roleType];
+        return current !== undefined && (status === undefined || current === status);
+      },
+      roles: vocabularyList(vocabulary?.roles),
+      states,
+      terminalStates,
+      openStates: (group) => {
+        const terminal = terminalStates(group);
+        return states(group).filter((state) => !terminal.includes(state));
+      },
+      stateRule: (rule) => vocabularyList(vocabulary?.state_rules?.[rule]),
+      policyList: (key) => vocabularyList(vocabulary?.policy?.[key]),
+      roleForCapability: (capability) => (capability ? vocabulary?.capability_roles?.[capability] ?? null : null),
+    };
+  }, [bootstrap, loading, error, unreadCount, load, refreshUnread]);
 
   return <CmBootstrapContext.Provider value={value}>{children}</CmBootstrapContext.Provider>;
 };

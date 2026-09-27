@@ -46,6 +46,7 @@ $ErrorActionPreference = 'Stop'
 
 $SCRIPT_INDEX     = '[Step55-MeloTts]'
 $DOCKER_MODEL     = 'melotts'
+$dockerBackendKey = "TTS_$($DOCKER_MODEL.ToUpperInvariant())_BACKEND"
 $doDockerTest     = ($Test -or $env:DOCKER_MODEL_TEST -eq '1')
 $coreNodeRoot     = $null
 $stagingDefault   = $null
@@ -110,6 +111,13 @@ $installMethod = Select-TtsInstallMethod -Engine melotts `
     -DefaultBackend 'docker' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
 if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
 if ($installMethod -eq 'docker') {
+    if (-not $doFull -and -not $Force) {
+        Write-Host ("$SCRIPT_INDEX  saved backend        : {0}" -f (Get-GlobalVar -key $dockerBackendKey -defaultValue 'none')) -ForegroundColor DarkGray
+        Write-Host ("$SCRIPT_INDEX  docker provider state: {0}" -f (Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown')) -ForegroundColor DarkGray
+        Write-Host "$SCRIPT_INDEX [i] $optInNote -> NOT ensuring the docker backend (no WSL call)." -ForegroundColor DarkGray
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote $optInNote
+        return
+    }
     . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
     if (-not (Invoke-DockerModelRunner -Model $DOCKER_MODEL -Action ensure -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
         Write-Host "$SCRIPT_INDEX [!] docker backend is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown')); the RESULT line above names the phase." -ForegroundColor DarkYellow

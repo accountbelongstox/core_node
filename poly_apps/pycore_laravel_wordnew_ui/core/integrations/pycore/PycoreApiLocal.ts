@@ -408,6 +408,7 @@ export const pycoreApiLocal = {
       retried?: Record<string, number>;
       data?: LaravelDeliveryStatus;
       error?: string;
+      error_code?: string;
     }>,
   /**
    * Pycore-owned state of both audio lanes (word_audio / sentence_audio, each
@@ -436,6 +437,7 @@ export const pycoreApiLocal = {
       success: boolean;
       data?: { promoted?: number; claimed?: number };
       error?: string;
+      error_code?: string;
     }>,
 
   /**
@@ -450,6 +452,7 @@ export const pycoreApiLocal = {
       running?: boolean;
       status?: AudioLaneFullSyncStatus;
       error?: string;
+      error_code?: string;
     }>,
 
   getTaskCapabilityChains: () =>

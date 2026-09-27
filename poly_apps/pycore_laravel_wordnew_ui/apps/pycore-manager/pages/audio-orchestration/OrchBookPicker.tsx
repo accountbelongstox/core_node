@@ -33,7 +33,7 @@ const OrchBookPicker: React.FC<{
       // until the book lands in cached_sentence_books.
       const r = await pycoreApi.orchBookSentences(book.source_key, refresh);
       if (!r.success) {
-        setSyncError(String(r.error || ORCH_L.loadFailed));
+        setSyncError(orchErrorMessage(r, ORCH_L.loadFailed));
         return;
       }
       if (r.syncing) onSyncStarted(book.source_key);

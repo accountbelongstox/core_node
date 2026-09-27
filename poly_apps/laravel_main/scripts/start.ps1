@@ -115,6 +115,12 @@ $Argument = $null
 $HelpRequested = $false
 $ShowSuperCode = $false
 $StoredSuperCode = $null
+$ShowCodemartPassword = $false
+$CodemartPasswordFile = $null
+# Laravel Redis resource index (parity with 175 ensure_laravel_redis_index): built only
+# when phpredis is loaded; otherwise the delivery diff uses the database path.
+$ResourceIndexCommand = "app_qy_v1:resource-index"
+$ResourceIndexBuiltPattern = '(?m)^resource_index_built=yes\s*$'
 # Laravel runtime directories that MUST exist and be writable. Git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails
 # with "bootstrap/cache directory must be present and writable".
@@ -137,6 +143,8 @@ function Show-Usage {
     Write-Host "Options:"
     Write-Host "  --help, -h          Show this help message and exit."
     Write-Host "  --show-super-code   Show the last generated super code and exit."
+    Write-Host "  --show-codemart-password"
+    Write-Host "                      Show the saved CodeMart account password and its file, then exit (read-only)."
     Write-Host "  --status            Print the runtime service state (running|stopped|absent) and exit."
     Write-Host "  --service           Non-interactive: install/start the FrankenPHP Windows service via Step175"
     Write-Host "                      (elevated; no restart when already running). Same as AS_SERVICE=yes."
@@ -206,7 +214,7 @@ function Get-StoredInstallationAccessCode {
         [Parameter(Mandatory = $true)][string]$AutoloadPath,
         [Parameter(Mandatory = $true)][string]$BootstrapPath
     )
-    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; require $bootstrap; $value = \App\Support\RuntimeConfigurationStore::get("INSTALLATION_ACCESS_CODE"); if ($value !== null) { echo $value; }'
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; require $bootstrap; $value = \App\Support\RuntimeConfigurationStore::get(''INSTALLATION_ACCESS_CODE''); if ($value !== null) { echo $value; }'
     $output = & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath
     $exitCode = $LASTEXITCODE
     $accessCode = ($output | Out-String).Trim()
@@ -217,11 +225,46 @@ function Get-StoredInstallationAccessCode {
     return $accessCode
 }
 
+# Contract path of the CodeMart account password file (service_contract.json
+# codemart_admin_password), resolved by Laravel itself. Read-only.
+function Get-CodemartAdminPasswordFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath
+    )
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; $app = require $bootstrap; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); echo PHP_EOL, \App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1AdminPassword::defaultPath();'
+    $output = & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath
+    $exitCode = $LASTEXITCODE
+    $secretFile = (@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) | Select-Object -Last 1)
+
+    if (($exitCode -ne 0) -or [string]::IsNullOrWhiteSpace($secretFile)) {
+        throw "CodeMart account password file path could not be resolved."
+    }
+    return $secretFile.Trim()
+}
+
+function Show-CodemartAdminPassword {
+    param([Parameter(Mandatory = $true)][string]$SecretFile)
+    $password = ""
+    if (Test-Path -LiteralPath $SecretFile -PathType Leaf) {
+        $password = ((Get-Content -LiteralPath $SecretFile -Raw) | Out-String).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($password)) {
+        Write-Host "CodeMart account password not generated yet (file: $SecretFile)." -ForegroundColor Yellow
+        Write-Host "  sys:init creates it on the next full start." -ForegroundColor DarkGray
+        return
+    }
+    Write-Host "CodeMart account password file: $SecretFile" -ForegroundColor DarkGray
+    Write-Host "CodeMart account password: $password" -ForegroundColor Yellow
+}
+
 foreach ($Argument in $args) {
     switch ($Argument) {
         "--help" { $HelpRequested = $true }
         "-h" { $HelpRequested = $true }
         "--show-super-code" { $ShowSuperCode = $true }
+        "--show-codemart-password" { $ShowCodemartPassword = $true }
         "--status" { $StatusRequested = $true }
         "--service" { $ServiceFlag = "yes" }
         "--no-service" { $ServiceFlag = "no" }
@@ -248,6 +291,22 @@ if ($ShowSuperCode) {
     try {
         $StoredSuperCode = Get-StoredInstallationAccessCode -PhpExecutable $phpCmd.Path -AutoloadPath $VendorAutoload -BootstrapPath $BootstrapApp
         Write-Host "Super code: $StoredSuperCode" -ForegroundColor Yellow
+        exit 0
+    } catch {
+        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+}
+
+if ($ShowCodemartPassword) {
+    $phpCmd = Get-Command php -ErrorAction SilentlyContinue
+    if (-not $phpCmd) {
+        Write-Host "ERROR: php not found; cannot resolve the CodeMart account password file." -ForegroundColor Red
+        exit 1
+    }
+    try {
+        $CodemartPasswordFile = Get-CodemartAdminPasswordFile -PhpExecutable $phpCmd.Path -AutoloadPath $VendorAutoload -BootstrapPath $BootstrapApp
+        Show-CodemartAdminPassword -SecretFile $CodemartPasswordFile
         exit 0
     } catch {
         Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
@@ -348,7 +407,7 @@ function New-SecureRuntimeValue {
     $exitCode = 0
 
     switch ($Type) {
-        "app-key" { $phpCode = 'echo "base64:".base64_encode(random_bytes(32));' }
+        "app-key" { $phpCode = 'echo ''base64:''.base64_encode(random_bytes(32));' }
         "reverb-key" { $phpCode = 'echo bin2hex(random_bytes(16));' }
         "reverb-secret" { $phpCode = 'echo bin2hex(random_bytes(32));' }
     }
@@ -402,6 +461,31 @@ function Initialize-RuntimeConfigurationStore {
     }
 
     return $directory
+}
+
+# Build the Laravel Redis resource index once when it is absent (parity with the Linux
+# 175 ensure_laravel_redis_index). The status probe is the single truth; without
+# phpredis the index cannot exist and the delivery diff uses the database path.
+function Invoke-LaravelResourceIndexEnsure {
+    $phpModules = php -m
+    $indexState = ""
+
+    if (-not (($phpModules | Out-String) -match '(?im)^\s*redis\s*$')) {
+        Write-Host "  phpredis not loaded; Laravel Redis features (resource index) fall back to the database path." -ForegroundColor Yellow
+        return
+    }
+    Write-Host "PHP redis extension (phpredis) ready." -ForegroundColor Green
+    $indexState = (php artisan $ResourceIndexCommand status | Out-String)
+    if ($indexState -match $ResourceIndexBuiltPattern) {
+        Write-Host "Laravel Redis resource index present." -ForegroundColor Green
+        return
+    }
+    Write-Host "Building Laravel Redis resource index (php artisan $ResourceIndexCommand rebuild)..." -ForegroundColor Yellow
+    php artisan $ResourceIndexCommand rebuild
+    $indexState = (php artisan $ResourceIndexCommand status | Out-String)
+    if ($indexState -notmatch $ResourceIndexBuiltPattern) {
+        Write-Host "  Warning: Redis resource index not confirmed; diffs use the database path until it is rebuilt." -ForegroundColor Yellow
+    }
 }
 
 $FrankenPhpRuntime = Get-FrankenPhpRuntimeProfile
@@ -634,6 +718,8 @@ try {
         Write-Host "ERROR: sys:init failed; Laravel runtime startup stopped." -ForegroundColor Red
         exit 1
     }
+
+    Invoke-LaravelResourceIndexEnsure
 
     Write-Host "Detecting local IPs (excluding loopback)..." -ForegroundColor Yellow
     try {

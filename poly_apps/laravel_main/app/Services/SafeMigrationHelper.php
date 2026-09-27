@@ -62,7 +62,7 @@ class SafeMigrationHelper
 
     private const PRIMARY_KEY_COLUMN_TYPES = ['increments', 'bigIncrements', 'id'];
 
-    private const COMPOSITE_COLUMN_TYPES = ['timestamps', 'morphs', 'softDeletes', 'softDeletesTz'];
+    private const COMPOSITE_COLUMN_TYPES = ['timestamps', 'softDeletes', 'softDeletesTz'];
 
     /**
      * Safely create a table (if it does not exist)
@@ -273,7 +273,7 @@ class SafeMigrationHelper
             }
             $indexName = self::generateIndexName($tableName, $columns);
         }
-
+        
         // Check if index exists — a name-only match is NOT enough: the existing
         // index must also match in uniqueness and columns. A drifted index
         // (e.g. created non-unique under the same name) is reconciled in place
@@ -652,20 +652,63 @@ class SafeMigrationHelper
      * _unique), not generateIndexName(), so a name-only probe would add a
      * duplicate index on every table on the run after its creation. Column
      * order must match exactly: a composite index with another leading column
-     * serves different queries.
+     * serves different queries. A pgsql partial (WHERE) index covers only part
+     * of the rows, so it never satisfies a full-table requirement.
      */
     private static function findEquivalentIndex(string $connection, string $tableName, $columns, bool $requireUnique): ?array
     {
-        $expectedColumns = array_map('strtolower', array_map('strval', is_array($columns) ? $columns : [$columns]));
+        $expectedColumns = self::normalizeIndexColumns($columns);
+        $partialIndexNames = self::pgPartialIndexNames($connection, $tableName);
 
         foreach (Schema::connection($connection)->getIndexes($tableName) as $index) {
-            $actualColumns = array_map('strtolower', array_map('strval', $index['columns'] ?? []));
+            if (in_array(strtolower((string) ($index['name'] ?? '')), $partialIndexNames, true)) {
+                continue;
+            }
+            $actualColumns = self::normalizeIndexColumns($index['columns'] ?? []);
             if ($actualColumns === $expectedColumns && (!$requireUnique || !empty($index['unique']))) {
                 return $index;
             }
         }
 
         return null;
+    }
+
+    /**
+     * Index column list as lower-case strings, in declared order.
+     *
+     * @param string|array $columns
+     * @return array<int, string>
+     */
+    private static function normalizeIndexColumns($columns): array
+    {
+        return array_map('strtolower', array_map('strval', is_array($columns) ? $columns : [$columns]));
+    }
+
+    /**
+     * Lower-case names of the table's pgsql partial (WHERE) indexes. getIndexes()
+     * carries no predicate, so pg_index.indpred is read directly; other drivers
+     * return [].
+     *
+     * @return array<int, string>
+     */
+    private static function pgPartialIndexNames(string $connection, string $tableName): array
+    {
+        $db = DB::connection($connection);
+
+        if ($db->getDriverName() !== 'pgsql') {
+            return [];
+        }
+
+        $rows = $db->selectFromWriteConnection(
+            'select ic.relname as name from pg_index i '
+            . 'join pg_class tc on tc.oid = i.indrelid '
+            . 'join pg_namespace tn on tn.oid = tc.relnamespace '
+            . 'join pg_class ic on ic.oid = i.indexrelid '
+            . 'where tc.relname = ? and tn.nspname = current_schema() and i.indpred is not null',
+            [$db->getTablePrefix() . $tableName]
+        );
+
+        return array_map(static fn ($row): string => strtolower((string) $row->name), $rows);
     }
 
     /**
@@ -682,8 +725,8 @@ class SafeMigrationHelper
      */
     private static function indexMatches(array $index, $columns, bool $requireUnique): bool
     {
-        $expectedColumns = array_map('strtolower', array_map('strval', is_array($columns) ? $columns : [$columns]));
-        $actualColumns = array_map('strtolower', array_map('strval', $index['columns'] ?? []));
+        $expectedColumns = self::normalizeIndexColumns($columns);
+        $actualColumns = self::normalizeIndexColumns($index['columns'] ?? []);
         sort($expectedColumns);
         sort($actualColumns);
         if ($expectedColumns !== $actualColumns) {
@@ -837,7 +880,7 @@ class SafeMigrationHelper
             $actions,
             self::addMissingColumns($connection, $tableName, $expectedStructure['columns'], $currentColumns)
         );
-
+        
         // Step 5: drop extra columns (if enabled)
         if ($shrinkColumns) {
             $extraColumns = array_diff($currentColumns, array_keys($expectedStructure['columns']));
@@ -1131,8 +1174,13 @@ class SafeMigrationHelper
                 $column = $table->macAddress($columnName);
                 break;
             case 'morphs':
-                // Special case: morphs() creates tokenable_type and tokenable_id
-                $table->morphs($columnName);
+                // Special case: morphs() creates tokenable_type and tokenable_id;
+                // the NOT NULL relax of addMissingColumns() maps to nullableMorphs().
+                if (!empty($columnDef['nullable'])) {
+                    $table->nullableMorphs($columnName);
+                } else {
+                    $table->morphs($columnName);
+                }
                 return;
             case 'foreignId':
                 $column = $table->foreignId($columnName);
@@ -1475,7 +1523,7 @@ class SafeMigrationHelper
             $actions,
             self::addMissingColumns($connection, $tableName, $expectedStructure['columns'], $currentColumns)
         );
-
+        
         // Step 4: drop extra columns (if enabled)
         $shrinkColumns = $options['shrink_columns'] ?? false;
         if ($shrinkColumns) {
