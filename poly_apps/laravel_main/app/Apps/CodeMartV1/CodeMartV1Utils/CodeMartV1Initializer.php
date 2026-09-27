@@ -411,10 +411,17 @@ class CodeMartV1Initializer implements AppInitializerInterface
                     'global_task_id' => ['type' => 'bigInteger', 'nullable' => true],
                     'revision' => ['type' => 'integer', 'nullable' => false, 'default' => 1],
                     'idempotency_key' => ['type' => 'string', 'nullable' => true],
+                    'accept_idempotency_key' => ['type' => 'string', 'nullable' => true],
                 ],
                 'indexes' => [
                     ['columns' => ['idempotency_key']],
                     ['columns' => ['global_task_id']],
+                ],
+            ],
+            'codemart_v1_wallet_transactions' => [
+                'columns' => [
+                    'description_code' => ['type' => 'string', 'nullable' => true],
+                    'description_params' => ['type' => 'json', 'nullable' => true],
                 ],
             ],
             'codemart_v1_payments' => [

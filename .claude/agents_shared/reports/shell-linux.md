@@ -1,5 +1,64 @@
 # shell-linux handoff report
 
+## p1-linux: dual-boot drive layout, P1 Linux safety
+
+- Status: implemented, awaiting reviewer (SAFETY constraints forbade running installers/mount/fstab/udev/grub; verified with `bash -n` and read-only greps only).
+- Record: `docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md` sections 2, 3, 4 (phase P1). Contract: `config/service_contract.json` `paths.drive_layout`.
+- Fenced files edited (only these): `scripts/shells/linux/common/gvar_storage_common.sh`, `scripts/shells/linux/common/shared_cache_env.sh`, `scripts/shells/linux/common/mount_common.sh`, `scripts/shells/linux/common/pyservice_entry.sh`. `gvar_common.sh` was fenced but left unmodified: everything it needs (CN_TREE_MNT/CN_TREE_BACKING/CN_TREE_CACHE_ROOT and the 5 toolchain cache vars) already reaches it for free, since `gvar_system_common.sh` sources `shared_cache_env.sh` before `gvar_common.sh` reaches its own directory-variable section -- adding a second definition there would have violated the "one definition" rule.
+
+### Changed files (line ranges are post-edit)
+
+- `scripts/shells/linux/common/gvar_storage_common.sh`
+  - L3-28: new `get_program_drive_partuuid()`. Reads the program-drive PARTUUID (contract `program_partuuid`) from the global var store under key `CN_PROGRAM_PARTUUID`. Uses `get_var` when defined; otherwise reads the on-disk var-store file directly (`$GLOBAL_VAR_DIR/${OS_VAR_TAG}_CN_PROGRAM_PARTUUID` then the bare name), because this file's own `detect_desktop_windows_drives()` call (L620, unchanged call site) runs at source time BEFORE `global_var_store.sh` is sourced by `gvar_common.sh` -- the direct-file read keeps the exclusion effective even at that early point.
+  - L30-53: `get_largest_ntfs_with_size` now excludes the device whose `blkid -s PARTUUID` matches the program-drive PARTUUID.
+  - L318-364 (function body L346-364): `get_dev_compile_base` rewritten per requirement 1 -- always `/opt` (sticky check kept as-is), free-space check is now advisory-only (English warning, never a fallback), and the `IS_WSL` branch plus the `get_base_data_directory` (NTFS) fallback are both removed.
+  - L491-524 (function body L495-524): `determine_largest_windows_drive` (feeds `get_base_data_directory` priority 4) now skips the drive whose underlying device (`findmnt -o SOURCE` on the `/media/$USER/<letter>` mountpoint) matches the excluded PARTUUID.
+  - Left for another lane: the pycore (`pyfoundations/system_paths.py:204-231`) and Laravel (`PathMapper.php:690-708`) mirrors of the `get_dev_compile_base` change, per the requirements doc's own note that they "must change in lockstep."
+
+- `scripts/shells/linux/common/shared_cache_env.sh`
+  - L23-42: new declarations `CN_TREE_MNT`, `CN_TREE_BACKING`, `CN_TREE_CACHE_ROOT`, `BUN_INSTALL_CACHE_DIR`, `npm_config_cache`, `UV_CACHE_DIR`, `COMPOSER_CACHE_DIR`, `COREPACK_HOME` plus scratch vars, all declared empty at top per the file's existing "variable declarations" convention.
+  - L48-105: new block. Sources `service_contract_common.sh` if `sc_get` isn't already defined, reads `paths.drive_layout.tree_root.{linux,linux_backing}`; on an unreadable contract (fresh machine, no node/php) logs one English line and stops (never guesses/falls back to NTFS). Resolves `CN_TREE_CACHE_ROOT` to `CN_TREE_MNT/cache` only when `findmnt -no FSTYPE -M "$CN_TREE_MNT"` reports ext2/3/4, else `CN_TREE_BACKING/cache`. mkdirs the 5 cache subdirs (bun/npm/uv/composer/corepack) best-effort (same `mkdir || sudo -n mkdir` pattern already used elsewhere in this file, not `$USE_SUDO`, since this file must stay usable when sourced directly by `pyservice_entry.sh` without `gvar_common.sh`/`USE_SUDO` ever having been set). Exports the 5 cache vars via `: "${VAR:=...}"` (respects a caller override, still outranks each tool's own `XDG_CACHE_HOME` default). `XDG_CACHE_HOME` itself: unchanged, per the task's explicit instruction. pnpm store: untouched, per the task's explicit instruction (noted for P3).
+
+- `scripts/shells/linux/common/mount_common.sh`
+  - L19-56 (new logic L29-35): `mount_fstab_ensure_single_entry` now writes fsck pass 0 for `ntfs|ntfs3|fuseblk|ntfs-3g`, pass 2 unchanged for everything else.
+  - L124-156: `detect_ntfs_disks` skips the excluded PARTUUID device (same helper/lookup as `get_largest_ntfs_with_size`).
+  - L158-217: new `PROGRAM_DRIVE_UDEV_RULE_FILE` constant (L162) and `ensure_program_drive_udev_exclusion()` (L173-217) (writes `/etc/udev/rules.d/99-core-node-ignore-program-drive.rules` only when content differs; no-ops gracefully when the PARTUUID is unknown, the contract is unreadable, or `linux_mounts_program_drive` isn't `false`).
+  - L219-262: new `warn_ntfs_dirty_windows_repair()` (English warning + `grub-reboot` gated on `GRUB_DEFAULT=saved` and a discovered Windows `menuentry`, else a manual-step message). **Neither this nor `ensure_program_drive_udev_exclusion` is called from anywhere in this task's fenced files** -- both are left for the lane that owns `3_setting_base.sh` to wire in (the latter is also called by `mount_disk`/`handle_ntfs_disk` below on the dirty-volume path).
+  - L349-360: `update_fstab`'s log line now reports the real fsck pass instead of a hardcoded "0 2".
+  - L383, L566 (post-edit; the two `mount_options=` assignments in `mount_disk` and `handle_ntfs_disk`): `windows_names` added to both NTFS mount-option strings.
+  - `mount_disk` (L362-425, fallback L400-419) and `handle_ntfs_disk` (L431-638, fallback L566-609): the ntfs3-dirty-volume fallback no longer persists the fallback type into fstab (this was the documented root cause of the dirty-volume loop). It now mounts explicitly with `-t ntfs-3g` for that boot only, calls `warn_ntfs_dirty_windows_repair`, and fstab keeps `ntfs3`. `handle_ntfs_disk`'s old `_tries` retry loop is replaced with an explicit two-step (try `ntfs3`, on failure try `ntfs-3g`) so the fallback type is never looped back into `ntfs_type`/persisted.
+  - L953-1011: new `ensure_tree_root_bind_mount()` (idempotent fstab bind `<backing> <mnt> none bind,nofail,x-systemd.requires-mounts-for=/www 0 0`, only when `/www` is the NTFS dual-boot share; mkdir of the plain mountpoint only). **Not called anywhere in this task's fenced files** -- left for the `3_setting_base.sh` lane.
+
+- `scripts/shells/linux/common/pyservice_entry.sh`
+  - `build_worker_env_args` (L710-724), forwarding list at L717-722: gains exactly `BUN_INSTALL_CACHE_DIR npm_config_cache UV_CACHE_DIR COMPOSER_CACHE_DIR COREPACK_HOME`. This is the ONLY edit made to this file, per the fence note that the rest of it belongs to another role.
+
+### Verification (SAFETY: no installers/mount/umount/fstab/udev/grub commands were run)
+
+- `bash -n` passes on all 5 fenced files.
+- CR count is 0 on all 5 (LF-only, unchanged).
+- `git diff --stat`: `gvar_storage_common.sh` +/-, `mount_common.sh` +/-, `shared_cache_env.sh` +, `pyservice_entry.sh` 1-line change, `gvar_common.sh` untouched (0 diff).
+- Greps confirm: `windows_names` appears exactly twice (both NTFS mount-option strings); no `force`/`ntfsfix` introduced (only the two comments that say "never use/run" them); the four historical `0 2` fsck literals are now `0 $fsck_pass` (x2), `0 0` (handle_ntfs_disk, always NTFS) and one untouched `0 2` (handle_data_disk, non-NTFS, correctly left alone).
+
+### Known limitation (flagged, not fixed here -- would require restructuring gvar_common.sh's load order, out of this fence)
+
+- `gvar_storage_common.sh`'s own top-level `detect_desktop_windows_drives()` call runs during sourcing, before `global_var_store.sh` defines `get_var`. `get_program_drive_partuuid` works around this for its own callers by reading the var-store file directly, so `get_largest_ntfs_with_size` / `get_base_data_directory` priority 3 are correctly exclusion-aware whenever actually invoked later. Priority 4's `DESKTOP_LARGEST_WINDOWS_PATH`, however, is computed ONCE at that early top-level call and cached in an exported variable; if `GLOBAL_VAR_DIR`/`OS_VAR_TAG` were for some reason not yet set at that exact point either, the very first sourcing pass could miss the exclusion for that specific rare priority-4 path (multi-boot desktop with Windows drives auto-mounted under `/media/$USER`). This does not affect the primary dual-boot scenario (priority 3), which is correctly fixed.
+- `CN_PROGRAM_PARTUUID` is currently an OS-tagged var-store key (via `get_var`'s default behavior), not a cross-OS shared key, because making it shared requires adding it to `CORE_NODE_SHARED_GVAR_KEYS` in `runtime_environment.sh` (not fenced for this lane) and to the Windows mirror `$script:SharedGlobalVarKeys` in `CommonFunc.ps1` (shell-windows). Until P2 wires up Windows recording `program_partuuid` on first E: adoption, `get_program_drive_partuuid` simply returns empty everywhere (no exclusion active), which is the correct, safe default for today.
+
+### Parity (binding; ledger at `.claude/agents_shared/shell_parity/linux.md`)
+
+- New rows: SPL-113 (get_dev_compile_base hard-pin), SPL-114 (PARTUUID exclusion hooks + udev rule), SPL-115 (tree-root constants + fstab bind), SPL-116 (toolchain caches off NTFS + pyservice_entry.sh forwarding) -- all `pending-windows`, referencing the requirements doc's own phase P2 ("Windows 3-drive keys with E: detection and fallback; Linux tree/tool roots; contract keys"), which is where `program_partuuid` actually gets recorded on the Windows side and where the Windows program-drive/tree-root/toolchain-cache counterparts belong.
+- SPL-117 (mount_common.sh NTFS mount hardening: windows_names, fsck pass 0, dirty-volume ntfs-3g runtime fallback, grub-reboot) is `platform-only`: no Windows analog (Windows owns NTFS natively; its chkdsk/readiness flow is shell-windows' existing DiskRepairManager.ps1 / DualBootReadinessManager.ps1 from D1/D2).
+- Alignment requests for the orchestrator to file for shell-windows (no live shell-windows/ct-shell-windows session was reachable via ListAgents at the time of this task -- only `ca-orchestrator` was live -- so this is written here per the workflow's "or in a workflow write it in your result" rule):
+  - `[shell-windows] align: SPL-113 tool-root hard-pin (E: primary/D: fallback for tools, never silently NTFS-agnostic) -- P2 scope`
+  - `[shell-windows] align: SPL-114 record program_partuuid on first E: adoption + Windows-side program-drive exclusion -- P2 scope`
+  - `[shell-windows] align: SPL-115 Windows tree_root consumption (<program_drive>\core_node_trees) -- P2 scope`
+  - `[shell-windows] align: SPL-116 Windows toolchain cache vars under tree_cache_root -- P2/P3 scope`
+
+### Blockers
+
+- None for this lane's own fenced files. Wiring `ensure_program_drive_udev_exclusion` and `ensure_tree_root_bind_mount` into an actual convergence step (`3_setting_base.sh` or a new step) is out of this fence and left for whichever lane owns that file next.
+- Next owner: the reviewer (p1-linux verdict), then the P2 lanes (shell-windows, shell-linux, orchestrator for contract) per the phase table.
+
 ## shell-linux-3: D12b Linux side (docker model runner, model definitions, Debian 13 WSL ensure)
 
 - Status: in progress (runs below), awaiting reviewer.

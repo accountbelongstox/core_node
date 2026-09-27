@@ -1,0 +1,225 @@
+{
+ "deferred": [
+  {
+   "item_id": "RESTARTTRAY-03",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "Merged: RESTARTTRAY-03, AOQSD-19, AOQSD-41. The cache-first boot gate (a per-lane restore-complete gate, or lane starts at the end of the boot chain) touches audio_queue_center.py, audio_lane_activation.py and laravel_audio_worker.py, which are in flight, plus event_handlers.py, capability_sync.py and worker_base.py. Owner: the pycore coordinator with pycore-runtime and pycore-ai."
+  },
+  {
+   "item_id": "RESTARTTRAY-05",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "pycore/pyutils/tts/runtime_profile.py is under the in-flight pyutils/tts directory. The fix is docstring-only (pycore-ai)."
+  },
+  {
+   "item_id": "RESTARTTRAY-09",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "The Windows port close-to-open and tray-restart measurement is a heavy live-service run. It is meaningful only on the settled tree after D1, and it needs the user's request to run services."
+  },
+  {
+   "item_id": "AOQSD-16",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "word_audio_cache.py is in flight (git diff --stat). Fix: index language directories created after boot, and files stored during load_all."
+  },
+  {
+   "item_id": "AOQSD-29",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "Merged: AOQSD-29, AOQSD-38. The per-item 'synced to Laravel' tracker state and the owner lost on restore (owner '' at audio_queue_center.py:751-760) live in audio_queue_center.py and orch_service.py, which are in flight. ui-pycore-manager then renders the synced stage in PcAudioLaneQueueView and relaxes the total>0 gate in OrchTaskList.tsx:172-174."
+  },
+  {
+   "item_id": "AOQSD-36",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "The try/except sites are in audio_lane_full_sync.py, orch_books.py, orch_resources.py and word_audio_cache.py (in flight), plus event_handlers.py (the boot chain changed with RESTARTTRAY-03)."
+  },
+  {
+   "item_id": "LDRI-12",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "Merged: LDRI-12, CKA-23, and the pycore-5 fourth site queue_center_contract.py audio_dedup_key. All four md5(lower(strip)) fallbacks are in in-flight files (audio_resource_ledger.py, audio_resource_delivery.py, audio_queue_center.py, queue_center_contract.py). It follows contract word_identity.fallback_when_md5_absent and laravel-qyapp LDRI-11 (pycore-ai with pycore-runtime)."
+  },
+  {
+   "item_id": "LDRI-35-py",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "The Python half of LDRI-35 (delivery_diff.py:36-56, identity.py:9-12 reading the new contract delivery section) needs an accessor in pycore/pyutils/common/queue_center_contract.py, which is in flight (pycore-runtime)."
+  },
+  {
+   "item_id": "LDRI-55",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "pycore/pyutils/tts/engine_policy.py:305-306 (the normalize_tts_language pass-through) is under the in-flight pyutils/tts directory (pycore-ai)."
+  },
+  {
+   "item_id": "p4-04",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "memory_gate.py (nvidia-smi timeout) and pyctl/tts/qwen (in-progress counting) are in flight. _torch_cuda.py:132 (pycore-architect), the dead azure_speech_client.py:209 add_to_queue, and AT-049 (one engine-test schema: pycore-ai plus pycore-manager PcTestEngineProfiles.ts) go together."
+  },
+  {
+   "item_id": "p4-03-pycore",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "After contract RV-010 adds the three endpoint roles, word_audio_full_sync.py and sentence_audio_full_sync.py (pyctl/tts, in flight) switch to queue_center_endpoint(...)."
+  },
+  {
+   "item_id": "PRAO-38",
+   "to": "pycore D7 phase 2 (after D1 closeout)",
+   "reason": "This is the D7 audio long run: rewrite, then submit_text, then generation, then exactly-once ingest into the local Laravel, then the wordnew listing. It runs on the in-flight audio lanes and needs services running on the user's request (D8: local Laravel)."
+  },
+  {
+   "item_id": "USER175-14",
+   "to": "user",
+   "reason": "Merged: USER175-14, CKA-30, LDRI-44, MCHR-40, PRAO-32, CMINT-02, and the server part of cmcont-11. Server convergence on api.si.12gm.com needs the user's code sync (the server is at 74e7770bda27) and an explicit request before laravel-remote runs anything. The plan after sync: 175 --list-steps and single --step runs; --check; the codemart-admin-password rotate and --show; sys:init runs the 2 pending AppQyV1 migrations to 'CodeMartV1: OK'; a second sys:init changes nothing; the invite-code print; GET public/home returns 200; Redis active and phpredis loaded in FrankenPHP via the srv-04 path; resource-index rebuild; CORE_NODE_CLIENT_KEY_1 present; read the daily laravel.log, not syslog (CKA-40)."
+  },
+  {
+   "item_id": "MDSR-19",
+   "to": "user",
+   "reason": "The final DataSync acceptance (pull api.si.12gm.com to local, then a second run with only 'unchanged' rows) needs the server code sync, CORE_NODE_CLIENT_KEY_1 on the server, and a running local Laravel. ncore-laravel-main is stopped and must not be started without the user's request."
+  },
+  {
+   "item_id": "MCHR-39",
+   "to": "user",
+   "reason": "Untracking apps/mcp-chrome/app/chrome-extension/key.pem (git rm --cached plus an ignore entry) is a git write and needs the user's own request. The key must stay local, because the extension ID depends on it."
+  },
+  {
+   "item_id": "MCHR-41",
+   "to": "user",
+   "reason": "The runtime tick check of appqyv1_library_cover_fallback needs the local Octane/FrankenPHP service running. The code side is closed in laravel srv-01."
+  },
+  {
+   "item_id": "MCHR-42",
+   "to": "user",
+   "reason": "Loading build_output/build_extension unpacked in Chrome is a user action. Removing the stale apps/mcp-chrome/.output/build_extension is a deletion that needs the user's approval."
+  },
+  {
+   "item_id": "MCHR-46",
+   "to": "user",
+   "reason": "The cover-task end-to-end run (Chrome claims, then the Laravel AI fallback, then the UI phases) needs the loaded extension (MCHR-42) and the running local Laravel (D8)."
+  },
+  {
+   "item_id": "LTCW-31",
+   "to": "user",
+   "reason": "Exercising portal input and capture needs the user to grant the XDG portal consent dialog and to re-login so the real-session GNOME bridge is active."
+  },
+  {
+   "item_id": "cmpolreq-13",
+   "to": "user",
+   "reason": "Merged: cmpolreq-13, cmpolreq-12, and the crawl part of cmpolish-K3-02..13. The headless crawl as each of the 7 accounts in en and zh, and the 390/1000/1280 px layout checks, need the UI dev server and the local Laravel running, and the seeded password from srv-05."
+  },
+  {
+   "item_id": "d9-02a",
+   "to": "user",
+   "reason": "End-to-end UI calibration of every CodeMart feature against the local Laravel needs the running services. The backend defects it would find are already scheduled: CKA-28, cmgap-U30, cmgap-R1, USER175-11, cmcont-11."
+  },
+  {
+   "item_id": "cmdesign-13-build",
+   "to": "user",
+   "reason": "The Capacitor native/codemart project and the published APK/App Store artifacts need the user's build request. The code dedupe is in ui-codemart cmdesign-13."
+  },
+  {
+   "item_id": "CKA-20-express",
+   "to": "user",
+   "reason": "The foundation/express_utils global_vars imports (config/index.js:144, RouterFinal.js:17, RouterManager.js:19, StaticServer.js:18, UploadTools.js:18) wait on the user's NC-034 ruling on the guide conflict."
+  },
+  {
+   "item_id": "CKA-17",
+   "to": "D13",
+   "reason": "First-use verification of the regenerated claude1-5 launchers and AiCliProvisionCommon.ps1, which are in-flight D13 files."
+  },
+  {
+   "item_id": "CKA-18",
+   "to": "D13",
+   "reason": "First-use check of the codex1-2/kimi1-2 Windows launchers depends on the shared AiCliProvisionCommon.ps1, which is in flight under D13."
+  },
+  {
+   "item_id": "CKA-19",
+   "to": "D13",
+   "reason": "First-use check of the codex1-2/kimi1-2 Linux launchers (the shared ai_cli_provision section) waits for D13. The ledger part is merged into shell-linux DDSH-37."
+  },
+  {
+   "item_id": "d9-04",
+   "to": "orchestrator (docs_fix record)",
+   "reason": "Merged: d9-04, cmcont-12, cmpolish-REC-01, the record part of cmpolish-K3-01..13, and cmgap-U06. These are doc-only corrections in orchestrator scope. Update the PAGE_POLISH K3 rows and changed files. Reword U06 and the DESIGN reviewer flow as advisory. Mark GAP D01 and the 0919 demo-data text as superseded by D17. Mark the 6 identical docs_fix root copies as superseded by codemart_docs/. Record the d9-01 icon prompts."
+  },
+  {
+   "item_id": "LDRI-58",
+   "to": "orchestrator (docs_fix record)",
+   "reason": "Merged: LDRI-58, LDRI-04, LDRI-05, LDRI-10. In REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, correct lines 67-70 (client.key and client_key_auth.py machine id), :98 (X4 stored dictionary md5) and :377-378 (the risk is now client.key). In PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md:462, drop 'probe'. No code change."
+  },
+  {
+   "item_id": "PRAO-27",
+   "to": "orchestrator (docs_fix record)",
+   "reason": "Merged: PRAO-27, PRAO-15, PRAO-31. In REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md: the W4 kind table and retry route follow W8; retention deletes the output directory per AT-014; the W5 auth text follows K1-K5 client.key. The code already follows the newer rulings."
+  },
+  {
+   "item_id": "LTCW-32",
+   "to": "orchestrator (docs_fix record)",
+   "reason": "The §5.2 windows_terminal_backend record is corrected to PR-035 (Ctrl+Shift+V in WT, WM_COMMAND 0xFFF1 in a classic console). The UI hint follows in ui-pycore-manager LTCW-14."
+  },
+  {
+   "item_id": "DDSH-30",
+   "to": "orchestrator (docs_fix record)",
+   "reason": "Merged: DDSH-30, DDSH-26. In REQUIREMENTS_20260927_DD_SH_STARTUP_REFACTOR.md, §5's startup order drops 'unwanted paths' (IS-026 moved it to Slim & Disk Cleanup), and §3 line 51 is aligned to §5's $CORE_NODE_INSTALLER_STATE_DIR/dd_startup/permissions.log. No code change."
+  },
+  {
+   "item_id": "CKA-33",
+   "to": "not applicable (ruling D9-06)",
+   "reason": "Merged: CKA-33, CKA-34, D9-06. No ShouldQueue job or queue dispatch exists in app/; heavy work runs in Octane timers. The queue stays sync and 175 registers no queue worker until a queued job exists. Scheduled tasks are already aligned (schedule:work in laravel_runtime_frankenphp.sh, heartbeat plus background lane)."
+  }
+ ],
+ "rulings": [
+  "D17 (user, newest): 175_laravel_main_start.sh and every step it calls is an idempotent ENSURE script: repair only what is missing, never reset, smallest change. The work is split into srv-04-steps/-frankenphp/-redis/-pg/-dns-mkcert/-sysinit/-codemart-password, merging USER175-01..05, CKA-31, CKA-36, D9-02, D9-05 and D9-07. Windows parity: USER175-08 and srv-04-win.",
+  "D17: the CodeMart password follows config/service_contract.json#codemart_admin_password. The contract is already present at lines 197-213, so no contract change is needed. The seeder never hardcodes a password; codemart:admin-password --file applies it. This supersedes GAP §6 D01 (fixed Codemart#2026), 0919 cmcont-10/CMCONT-02 (175 prompt, default no) and cmpolreq-01.",
+  "D17 over §10.4 srv-05 'never in production': the demo-seeding switch moves to LaravelConfig and keeps the current default (seed on). The generated per-install password removes the risk the older ruling addressed (a published hardcoded password). The user's request to rotate and sync the password on every 175 run assumes the seeded accounts exist on the server.",
+  "D17: Laravel reads only config files (LaravelConfig, config/*.php), never .env. Rejected: CKA-39's '175 converges .env keys' and D9-03's '175 aligns the environment keys'. 175 writes no .env keys. The env() reads for CODEMART_BANK_*, CODEMART_SEED_DEMO and LOG_LEVEL move to config (USER175-11, merging CMGAP-U21/cmgap-U21 and CKA-40). The tracked .env is not deleted, because other scripts parse it and deletion is destructive; its shell readers switch to LaravelConfig (CKA-39, CKA-39-win).",
+  "D17 over the §10.4 srv-06 removal: sys:init keeps printing the admin invite code (D9-10), filtered to active, unexpired codes. What survives of srv-06 is the McpV1 real-schema check (merged srv-02, USER175-12).",
+  "Password generator reuse (contract B4 vs the USER175-05 'one PHP generator' note): per the contract, the 175/Step175 step generates. Each end reuses its existing random helper: sh uses the NEXU access-code generator in laravel_main_runtime_common.sh, PowerShell uses the existing Windows access-code helper in one win_common function shared by Step175 and start.ps1, and the PHP seeder fallback uses InstallationAccessCode. No new generator implementation.",
+  "The codemart:admin-password command class lives in app/Apps/CodeMartV1/CodeMartV1Commands/ (laravel-codemart). Registration in AppServiceProvider and the sys:codemartinit change in app/Console are laravel's (USER175-07), following the AppQyV1Commands pattern.",
+  "laravel-T11 is approved (reviews/laravel-T11.json), so CodeMartV1Initializer.php and SafeMigrationHelper.php are released and T12, srv-05, CKA-28 and CMDES-08 may edit them. laravel-remote is not a lane in this run: every server item goes to the user (code sync plus an explicit request).",
+  "D8: all Laravel verification is local, through the in-process HTTP kernel, array cache and rolled-back PG transactions. ncore-laravel-main stays stopped. Checks that need a running service (MCHR-41, MCHR-46, cmpolreq-13, d9-02a, MDSR-19) are deferred to the user.",
+  "K1-K5 and the §5 surface table (client.key) supersede the LDRI W7 'no login' trust level and the PRAO W5 auth text (LDRI-04, PRAO-31). K3/K4 moved the machine id to client_key_auth.py (LDRI-05). Only the docs change.",
+  "X4 (§7.2): word identity is the stored dictionary md5 produced by Laravel (LDRI-10, doc only). md5-less words use contract word_identity.fallback_when_md5_absent '<lang>:text:<cleaned_word>'. Merged: LDRI-11 with CKA-22, LDRI-12 with CKA-23, LDRI-13 with CKA-24.",
+  "W8 supersedes the W4 delivery specifics (PRAO-27). AT-014 supersedes the PRAO retention 'mp3 kept' text (PRAO-15). PR-035 supersedes the LTCW §5.2 right-click paste (LTCW-32), and the UI hint follows (LTCW-14). IS-026 supersedes the DDSH §5 'unwanted paths' at startup (DDSH-30). The §5 log path supersedes §3 (DDSH-26).",
+  "K7a: remote browsers reach pycore only through the Laravel relay. Hence the contract relay event agent_history_config_changed (AHSC-35) and the general_read route policies for prompt_rewritten, manifest_page and audio_lane_state (PRAO-23, RV-009). The okx monitor binds loopback (K7, CKA-10).",
+  "CLIENT_KEY §6 FU-020 supersedes the MCHR doc's 'model in laravel-manager': the cover model and the new presenter live in shared/library-cover, with B2 writer ui-pycore-manager (MCHR-31 absorbs MCHR-29). laravel-manager and wordnew adopt the presenter.",
+  "D9-06 (B9): no queue worker, and the queue stays sync, until a ShouldQueue job exists (CKA-33, CKA-34 not applicable). D9-01 (B9): the cache moves to the failover store [redis, database], and CodeMart money operations keep DB row locks inside transactions (merged CKA-35).",
+  "B9 cmgap-U06: the reviewer stays advisory, matching the code (CodeMartV1ReviewerCtl.php:153-156) and DESIGN §8. The U06 row wording is corrected (orchestrator doc).",
+  "B9 d9-01b: extend the single CodeMart generator generate_cm_images.py (pycore gateway) with an icon group instead of adding a second generator on Laravel AiGateway. The prompts are recorded in the PAGE_POLISH progress doc.",
+  "B9 CKA-10: pycore exposes okx/* over the existing pyapps/okx_price_monitor services. pycore-assist builds the pyctl/okx facade, and pycore-runtime registers the routes in callmodule. ui-vortex hides only routes that are still unserved.",
+  "B9 AHSC-21: keep AGENT_LAUNCHER_SLOT_PROFILES as the single source (the §10 requirement), correct its stale rows, and derive AGENT_SLOT_USERS_ROOTS from it, instead of trimming it.",
+  "B13 temporary writers: the laravel coordinator assigns each family lane as the writer of its own app lang file, one at a time (app_qy_v1 to laravel-qyapp, codemart to laravel-codemart, data_sync.php to laravel-api), and of app/Services/TimerTasks/ to laravel-qyapp for LDRI-22 and of app/Utils/SystemArchiveManager.php to laravel-api only if MDSR-17 needs a target-dir parameter. The pycore coordinator writes event_handlers.py for AHSC-16 and assigns pycore-assist to clipboard_text.py if LTCW-29 needs it.",
+  "Re-assignment by the laravel.md path map: the DataSync items (MDSR-01, 03, 07, 09, 12, 17, 18, 24, 26) go to laravel-api (app/Services/DataSync, Dashboard controllers), not laravel. poly_apps/laravel_main/scripts/{start.ps1, deploy.sh, deploy.ps1} are unlisted Laravel paths and belong to laravel (USER175-09, D9-09), not shell-windows. app/Apps/Relay/RelayContract.php belongs to laravel-api. app/Http/Middleware/ServerIdentityHeader.php and app/Support/*Contract.php belong to laravel (contract-readers).",
+  "B2 shared-layer writers for this run. ui-pycore-manager: core/contracts/{QueueCenterContract, QueueCenterTypes, RelayContract, AppQyV1AiToolsContract}.ts, core/integrations/pycore/, shared/library-cover/, shared/vocabulary/. ui-laravel-manager: vite.config.ts, core/contracts/ServiceContract.ts. ui-wordnew: core/network/api-client/. ui-codemart: core/integrations/laravel/transport/ApiContract.ts. Any other shared-layer need is routed to the orchestrator for a new assignment.",
+  "B6: scripts/pytools/special_software_env_manager and scripts/pytools/ai_tools are assigned to shell-linux for this run (AHSC-38, LTCW-23). shell-windows adds its global and regenerates the Windows launchers with the updated generator (AHSC-37).",
+  "The pycore in-flight gate (D1 closeout). pycore/pyutils/tts/, pycore/pyctl/tts/, pycore/pyctl/audio_orchestration/, pycore/pyctl/queue_center/, serialized_files.py, serialized_worker.py, secret_manager.py, user_data*, delivery_outbox.py and the 10 files in 'git diff --stat' (including pyutils/common/queue_center_contract.py) are frozen, so items touching them go to phase 2. Other pycore files changed since 74e7770 (e.g. thread_bus_constants.py, desktop_session.py, terminal_service.py, agent_history/*) are edited only after the pycore coordinator confirms that the pycore-6 CRLF restore of that file has landed, and edits keep per-line endings.",
+  "D12: shell-linux-3 already created .claude/agents_shared/shell_parity/linux.md (SPL-001..006), so DDSH-37 (with LTCW-33) only appends rows. B11: every shell-linux D7 item names its shell-windows counterpart or a platform-only reason (srv-03, CKA-38, LTCW-19, MCHR-38: POSIX/systemd/X11).",
+  "Contract ordering: every contract change lands before the lanes, except the RV-004 deletion of task_contract.stream_events, which waits until ui-pycore-manager p4-02 removes the last TS reader. The relay event lands before pycore-runtime adds it to RELAY_REQUIRED_EVENTS (the loader validates required events).",
+  "srv-01 is already fixed in code (OctaneTimerService.php:339,362,374; bootstrap/app.php:70-77), so it closes with static verification. The runtime tick (MCHR-41) goes to the user.",
+  "Dedupe merges (the kept item_id lists the merged ids): AHSC-36 split into AHSC-11 (system_notification) and AHSC-28 (prompt_archive); AOQSD-40 into AOQSD-25; AOQSD-42 into AOQSD-37; AOQSD-38 into AOQSD-29; MCHR-44 into MCHR-05; CKA-02 into CKA-01; T12 with CKA-32; srv-03 with CKA-37 and D9-08; srv-06 with srv-02, USER175-12 and D9-10; srv-07 with USER175-13; CKA-28 with cmdesign-12, cmpui-06, cmgap-U31, CMGAP-U31, CMDES-09 and cmpolreq-08; cmgap-R1 with cmgap-U28, CMGAP-U28 and CMGAP-R01; CMDES-08 with CMGAP-G10; cmpui-07 with cmgap-P02, cmpolish-K1-01 and cmpolreq-02; cmgap-A14 with cmpolreq-09, cmpolreq-11 and part of d9-03; USER175-14 with CKA-30, LDRI-44, MCHR-40, PRAO-32 and CMINT-02; d9-02b spread across CKA-28, cmgap-U30, cmgap-R1, USER175-11 and cmcont-11."
+ ],
+ "contracts_applied": true,
+ "unreviewed_impls_before_outage": {
+  "impl:pycore-ai-D7": [
+   "D:\\programing\\core_node\\pycore\\pyctl\\ai\\prompt_derive.py",
+   "D:\\programing\\core_node\\.claude\\agents_shared\\reports\\pycore-ai.md"
+  ],
+  "impl:ui-wordnew-D7": [
+   "D:\\programing\\core_node\\poly_apps\\pycore_laravel_wordnew_ui\\core\\network\\api-client\\MasterApiClient.ts",
+   "D:\\programing\\core_node\\poly_apps\\pycore_laravel_wordnew_ui\\core\\network\\api-client\\RequestQueue.ts",
+   "D:\\programing\\core_node\\.claude\\agents_shared\\reports\\ui-wordnew.md"
+  ],
+  "impl:ui-vortex-D7": [
+   "D:\\programing\\core_node\\poly_apps\\pycore_laravel_wordnew_ui\\apps\\vortex\\api\\VortexPycoreContract.ts",
+   "D:\\programing\\core_node\\poly_apps\\pycore_laravel_wordnew_ui\\apps\\vortex\\api\\index.ts",
+   "D:\\programing\\core_node\\poly_apps\\pycore_laravel_wordnew_ui\\apps\\vortex\\VortexApp.tsx",
+   "D:\\programing\\core_node\\.claude\\agents_shared\\reports\\ui-vortex.md"
+  ],
+  "impl:pycore-runtime-D7": [
+   "D:\\programing\\core_node\\pycore\\pyutils\\common\\gnome_shell_dbus.py",
+   "D:\\programing\\core_node\\pycore\\pyutils\\common\\xdg_desktop_portal.py",
+   "D:\\programing\\core_node\\pycore\\callmodule\\rpc_routes\\route_names.py",
+   "D:\\programing\\core_node\\pycore\\callmodule\\rpc_routes\\local_queue_head_routes.py",
+   "D:\\programing\\core_node\\pycore\\callmodule\\rpc_routes\\word_audio_full_sync_routes.py",
+   "D:\\programing\\core_node\\pycore\\callmodule\\rpc_routes\\local_task_center_routes.py",
+   "D:\\programing\\core_node\\pycore\\pyutils\\common\\relay_contract.py",
+   "D:\\programing\\core_node\\pycore\\pyctl\\relay\\laravel_relay_agent_service.py",
+   "D:\\programing\\core_node\\.claude\\agents_shared\\reports\\pycore-runtime.md",
+   "D:\\programing\\core_node\\.claude\\agent-memory\\pycore-runtime\\project_pycore_pitfalls.md",
+   "D:\\programing\\core_node\\.claude\\agent-memory\\pycore-runtime\\MEMORY.md"
+  ]
+ }
+}

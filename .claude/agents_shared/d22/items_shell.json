@@ -1,0 +1,345 @@
+[
+ {
+  "old_role": "shell-linux",
+  "task_id": "shell-linux-D7",
+  "items": [
+   {
+    "item_id": "srv-03",
+    "requirement": "Merged: srv-03, CKA-37, D9-08. URGENT. Every 777 walker prunes PostgreSQL data directories before chmod or chown: any directory containing PG_VERSION, plus the configured PG data dirs (gvar_common.sh:338). This covers fs_perm_helpers.sh repair_owned_tree_777 (:195-202, :340-350), permissions_fixer_lib.sh fix_permissions_wwwroot_dir (:124-130) and fix_permissions_all (:199), dd_helper/webpath_permissions.sh (:163-202), pyservice_www_permissions.sh (:95-101) and permissions_repair_menu.sh (:35-41). Ledger: platform-only (POSIX modes).",
+    "files": [
+     "scripts/shells/linux/common/fs_perm_helpers.sh",
+     "scripts/shells/linux/common/permissions_fixer_lib.sh",
+     "scripts/shells/linux/dd_helper/webpath_permissions.sh",
+     "scripts/shells/linux/common/pyservice_www_permissions.sh",
+     "scripts/shells/linux/dd_helper/permissions_repair_menu.sh"
+    ],
+    "verify": "bash -n passes on each file. In Debian 13 WSL2, on a scratchpad tree containing pg/data/PG_VERSION with mode 0700 and a sibling dir, run repair_owned_tree_777 and the pyservice walk against the scratch root: pg/data stays 0700 and the sibling becomes 777. shellcheck -S warning shows no new warnings."
+   },
+   {
+    "item_id": "CKA-38",
+    "requirement": "fs_perm_helpers.sh private-file handling (:22-27) includes Laravel .env files, so the walks (permissions_repair_menu.sh:37, smart_permissions.sh:58, pyservice_www_permissions.sh:97) never chmod poly_apps/laravel_main/.env to 777. Ledger: platform-only.",
+    "files": [
+     "scripts/shells/linux/common/fs_perm_helpers.sh"
+    ],
+    "verify": "bash -n passes. A scratch tree with a .env at 0600 keeps 0600 after repair_owned_tree_777."
+   },
+   {
+    "item_id": "srv-04-steps",
+    "requirement": "Merged: srv-04 (9), USER175-03. The small 175 step interface: --list-steps, --check (report only, no changes), --step <name> [--show]. It is parsed in laravel_main_runtime_common.sh (:86-103, print_usage :48-65). The inline blocks (PG :417-510, 7z :558-590, node :604-636, sys:init and CodeMart :646-666) are wrapped into named functions, and laravel_main_run dispatches to them after resolve_php. There is no other restructuring. Parity: shell-windows USER175-08.",
+    "files": [
+     "scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh",
+     "scripts/shells/linux/common/laravel_main_runtime_common.sh"
+    ],
+    "verify": "bash -n passes on both files. In Debian 13 WSL2: 175 --list-steps prints each step name and exits without side effects (checked with a mtime snapshot of /etc and the data dir). --check prints a per-step state line. --step node --check reports only that step."
+   },
+   {
+    "item_id": "srv-04-frankenphp",
+    "requirement": "Merged: srv-04 (1)(2)(4), USER175-01, and the safety part of D9-02. fm_unlink_frankenphp_runtime (frankenphp_runtime_common.sh:484-498) exempts the plane's own unit: names ncore-laravel-* and any ExecStart that runs 175_laravel_main_service_*. It unlinks only when the FrankenPHP variant actually changes (frankenphp_install_modes.sh:445-454). Installing a missing extension such as php-zts-redis never triggers a variant commit, and reloads through the zero-downtime Caddy /load plus workers path (175:760-762), not disable plus restart. A trap restores the unit on any return between an unlink and 175:748, and on a failed final restart (:776).",
+    "files": [
+     "scripts/shells/linux/common/frankenphp_runtime_common.sh",
+     "scripts/shells/linux/common/frankenphp_install_modes.sh",
+     "scripts/shells/linux/common/laravel_main_runtime_common.sh",
+     "scripts/shells/linux/debian/install_shells/93_install_frankenphp.sh",
+     "scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh"
+    ],
+    "verify": "bash -n passes. In WSL, a subshell sources frankenphp_runtime_common.sh with systemctl stubbed as a function that logs its calls, and a fake unit whose ExecStart is 'bash .../175_laravel_main_service_frankenphp.sh'. The unlink predicate reports it exempt, and no 'disable --now' is logged. With the variant unchanged, fm_unlink is never called."
+   },
+   {
+    "item_id": "srv-04-redis",
+    "requirement": "Merged: srv-04 (3), CKA-36. redis_endpoint_common.sh (:329-343) writes START_REDIS=true only after the endpoint answers PING. A failed start leaves redis-server disabled, as it was before. A running store is reused and never restarted. ensure_php_redis (laravel_main_runtime_common.sh:238-270) installs a missing extension without a variant commit (see srv-04-frankenphp).",
+    "files": [
+     "scripts/shells/linux/common/redis_endpoint_common.sh",
+     "scripts/shells/linux/common/laravel_main_runtime_common.sh"
+    ],
+    "verify": "bash -n passes. A WSL subshell with redis-cli and systemctl stubbed: when the PING stub fails, the gvar store has no START_REDIS=true and the systemctl log has no 'enable'. When PING succeeds on an already running store, no restart is logged."
+   },
+   {
+    "item_id": "LDRI-38",
+    "requirement": "redis_endpoint_config_ensure (redis_endpoint_common.sh:42-47, :291-311) also probes bind (loopback), requirepass (none) and databases (>= 3, because the resource index uses db 2). It converges only the directive that is missing or wrong, and logs it. Parity: shell-windows LDRI-43.",
+    "files": [
+     "scripts/shells/linux/common/redis_endpoint_common.sh"
+    ],
+    "verify": "bash -n passes. On a scratch redis.conf copy with databases 2 and a requirepass line, the converge function edits only those two directives. On a conforming copy it changes nothing (checksum unchanged)."
+   },
+   {
+    "item_id": "srv-04-pg",
+    "requirement": "Merged: srv-04 (5), USER175-02, and the PG part of D9-07. 75_install_postgresql.sh as an ensure. An installed server gets started, never reinstalled. A running cluster is never stopped (no 'pg_service stop' meta-unit at :198 when a cluster serves). pg_data_dir_drifted (:628-639) uses the same data-dir mapping as configure_postgresql, and pg_keep_existing_cluster (:596-608) accepts the serving cluster. A cluster is never created or enabled on a data dir whose PG_VERSION differs from its major. ALTER USER plus reload (:306, :696) and apply_postgresql_cpu_limit (:728) run only on drift. The password stays off argv, and the mirror stays 0600/0700.",
+    "files": [
+     "scripts/shells/linux/debian/install_shells/75_install_postgresql.sh",
+     "scripts/shells/linux/common/postgresql_install_common.sh",
+     "scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh"
+    ],
+    "verify": "bash -n passes. A WSL subshell stubs pg_lsclusters, pg_ctlcluster, systemctl and psql as logging functions, with the server layout (15/main online on /www/_debian_12/postgresql/data, target dir PG_VERSION 15). One ensure run logs no stop, createcluster or ALTER USER. A second run logs the same. 175 --step postgresql --check reports 'running'."
+   },
+   {
+    "item_id": "srv-04-dns-mkcert",
+    "requirement": "Merged: srv-04 (6)(7), and the DNS/mkcert part of D9-07. 9_fix_dns.sh --detect-public-ip (:525, :617-622, :667-680) never stops the production plane on :80: it skips the probe while the plane service owns :80. It caches a negative result as well. domain_setup_common.sh:426-427 uses the existing CAROOT, runs 'mkcert -install' only when the CA is missing, and re-issues the 127.0.0.1 certificate only when it is missing or expiring.",
+    "files": [
+     "scripts/shells/linux/debian/install_shells/9_fix_dns.sh",
+     "scripts/shells/linux/common/domain_setup_common.sh"
+    ],
+    "verify": "bash -n passes. A WSL subshell with ss, curl and mkcert stubbed and :80 owned by ncore-laravel-frankenphp: public_ip_probe_stop_port80 is not called. A cached negative result prevents the probe on a second run. With the cert present and valid, mkcert is not invoked."
+   },
+   {
+    "item_id": "srv-04-sysinit",
+    "requirement": "Merged: srv-04 (8), USER175-04, CKA-31, and the comment part of D9-05. 175 (:646-658) stops loudly when 'artisan sys:init' fails, like start.ps1:640-645: it logs an error and skips the redis-index, CodeMart and runtime-start steps, without using the exit code as a return value. The wrong comment at 175:651-654/660-664 is fixed. 175 writes no .env keys (D17).",
+    "files": [
+     "scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh"
+    ],
+    "verify": "bash -n passes. In WSL, with PHP_BIN stubbed to a script that fails for sys:init, 175 --step sys-init logs the failure, and a full-flow dry run under stubs does not reach the service start. A grep finds no '.env' write in 175."
+   },
+   {
+    "item_id": "srv-04-codemart-password",
+    "requirement": "Merged: srv-04 (10), USER175-05, and the prompt part of D9-05. Depends on laravel-codemart srv-05 and laravel USER175-07. The codemart-admin-password step follows config/service_contract.json#codemart_admin_password (read with sc_get). It replaces the demo-seed prompt at 175:650-666. When the secret file exists, it asks the [Y/n] question through ask_default_yes (default Y, timed; non-interactive means Y). It generates length 24 base64url by reusing the NEXU access-code generator (laravel_main_runtime_common.sh:116-123, generalized), with no new generator. It writes <laravel_db>/.core_node_secrets/CODEMART_ADMIN_PASSWORD with mode 0600, applies it at once with 'php artisan codemart:admin-password --file <path>', and prints the path and the password in the exit summary (cleanup_runtime :27-46). --step codemart-admin-password --show and --show-codemart-password print the current password read-only.",
+    "files": [
+     "scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh",
+     "scripts/shells/linux/common/laravel_main_runtime_common.sh",
+     "scripts/shells/linux/common/runtime_config_common.sh"
+    ],
+    "verify": "bash -n passes. In WSL, with PHP_BIN stubbed to log its args and the laravel_db dir pointed at a scratchpad dir: a first run creates a 24-char base64url file at mode 0600 and calls artisan codemart:admin-password --file <abs path>. A second run with stdin redirected regenerates (default Y). --show prints the stored value, writes nothing and calls no artisan."
+   },
+   {
+    "item_id": "CKA-6",
+    "requirement": "CKA-06. After the contract paths change, runtime_environment.sh (:18, :28, :38, :43) reads the data-dir bases through sc_get. The inline fallbacks in web_access_common.sh:26, domain_setup_common.sh:54 and scripts/unified_manager/utils/global_variables.sh:80-84 reuse runtime_environment.sh instead of '${CORE_NODE_DATA_DIR:-/www/core_node}'. Parity: shell-windows CKA-7.",
+    "files": [
+     "scripts/shells/linux/common/runtime_environment.sh",
+     "scripts/shells/linux/common/web_access_common.sh",
+     "scripts/shells/linux/common/domain_setup_common.sh",
+     "scripts/unified_manager/utils/global_variables.sh"
+    ],
+    "verify": "bash -n passes on all four files. In WSL, sourcing runtime_environment.sh prints the same CORE_NODE_DATA_DIR as before on a plain /www and on a simulated NTFS /www (fstype stub). A grep finds no '/var/_core_node' or '/www/core_node' literal outside runtime_environment.sh."
+   },
+   {
+    "item_id": "AHSC-38",
+    "requirement": "Define the legacy Linux users root once in gvar_system_common.sh (mirroring core_node_dirs.LEGACY_LINUX_USERS_DIR). B6: shell-linux is the writer of the generator scripts/pytools/special_software_env_manager for this run. It emits references to the Linux variable and to the Windows TMP users global from shell-windows AHSC-37. Regenerate kimi1/2.sh, ark1.sh and codex1/2.sh (:104, :135, :85) so they reference the variable. claude*.sh are excluded (D13). Parity: shell-windows AHSC-37.",
+    "files": [
+     "scripts/shells/linux/common/gvar_system_common.sh",
+     "scripts/pytools/special_software_env_manager/",
+     "scripts/linuxenvs/kimi1.sh",
+     "scripts/linuxenvs/kimi2.sh",
+     "scripts/linuxenvs/ark1.sh",
+     "scripts/linuxenvs/codex1.sh",
+     "scripts/linuxenvs/codex2.sh"
+    ],
+    "verify": "bash -n passes on the launchers. python -m py_compile passes on the generator modules. A grep of scripts/linuxenvs/{kimi,ark,codex}*.sh finds no '/var/_core_node/Users' literal, and the generator run leaves no diff beyond the variable references."
+   },
+   {
+    "item_id": "LTCW-23",
+    "requirement": "B6 writer: shell-linux. scripts/pytools/ai_tools/ai_tools_common.py:286-291 and special_software_env_manager/utils/common_utils.py:207 delegate to pycore desktop_session when importable. Otherwise they count WAYLAND_DISPLAY and XDG_SESSION_TYPE=wayland as desktop, so a Wayland-only session is detected.",
+    "files": [
+     "scripts/pytools/ai_tools/ai_tools_common.py",
+     "scripts/pytools/special_software_env_manager/utils/common_utils.py"
+    ],
+    "verify": "python -m py_compile passes on both files. A scratch call with env WAYLAND_DISPLAY=wayland-0, XDG_SESSION_TYPE=wayland and no DISPLAY returns desktop=True from both functions."
+   },
+   {
+    "item_id": "LTCW-19",
+    "requirement": "119_install_launcher.sh no longer installs or documents wmctrl and xdotool (:13-14, :68, :73), because no consumer remains. Ledger: platform-only (Windows never installed them).",
+    "files": [
+     "scripts/shells/linux/debian/install_shells/119_install_launcher.sh"
+    ],
+    "verify": "bash -n passes. A grep of 119 finds no wmctrl or xdotool. A repo-wide grep of .py and .sh finds no consumer."
+   },
+   {
+    "item_id": "MCHR-38",
+    "requirement": "nexus-dash convergence (laravel_main_runtime_common.sh:577-620) reuses converge_systemd_service (systemd_service_manager.sh:806-845) instead of its own read, write and converge flow. Ledger: platform-only (systemd).",
+    "files": [
+     "scripts/shells/linux/common/laravel_main_runtime_common.sh",
+     "scripts/shells/linux/common/systemd_service_manager.sh"
+    ],
+    "verify": "bash -n passes. A grep finds no nexus_dash_write_unit or nexus_dash_read_current_exec_start definition. A WSL subshell with systemctl stubbed: converge runs once and a second call logs 'unchanged'."
+   },
+   {
+    "item_id": "CKA-39",
+    "requirement": "Per ruling D17 (Laravel uses no env), scripts/app_manager/linux_sh/core/app_scanner.sh:41 and scripts/unified_manager/lib/core_lib.sh:227 classify laravel_main debug mode from app/Constants/LaravelConfig.php (APP_DEBUG) instead of the inert .env. Parity: shell-windows CKA-39-win.",
+    "files": [
+     "scripts/app_manager/linux_sh/core/app_scanner.sh",
+     "scripts/unified_manager/lib/core_lib.sh"
+    ],
+    "verify": "bash -n passes. Running the scanner function on the repo reports laravel_main as non-debug (LaravelConfig APP_DEBUG=false). A grep finds no '.env' read for APP_ENV or APP_DEBUG in the two files."
+   },
+   {
+    "item_id": "DDSH-02",
+    "requirement": "Fold main_functions.sh away: remove the constants re-source (:19) and the unused determine_global_var_dir (:21-24), and drop it from DD_MENU_FILES (dd.sh:82) if it becomes empty. Remove the redundant re-sources in permissions_repair_menu.sh:12-14 when it is sourced by dd.sh.",
+    "files": [
+     "scripts/shells/linux/dd_helper/main_functions.sh",
+     "scripts/shells/linux/dd_helper/permissions_repair_menu.sh",
+     "dd.sh"
+    ],
+    "verify": "bash -n dd.sh passes. A grep shows determine_global_var_dir has no definition and no caller. dd.sh sourced with DD_NO_MENU in WSL reaches the menu load without a missing-file error."
+   },
+   {
+    "item_id": "DDSH-06",
+    "requirement": "selector_common.sh:376-411 sources natgateway_helper.sh and calls manage_natgateway. It keeps only its menu-return behavior, so the third launcher copy is gone.",
+    "files": [
+     "scripts/shells/linux/common/selector_common.sh",
+     "scripts/shells/linux/dd_helper/natgateway_helper.sh"
+    ],
+    "verify": "bash -n passes. A grep shows one '113_natgateway.sh' launcher body."
+   },
+   {
+    "item_id": "DDSH-07",
+    "requirement": "Replace the hand-rolled countdown loops in menu_display.sh:32-54 and scripts/shells/linux/dd.sh:67-88 with prompt_countdown_read (prompt_common.sh:72-103), or drop the menu_display pause because dd.sh has already counted down.",
+    "files": [
+     "scripts/shells/linux/dd_helper/menu_display.sh",
+     "scripts/shells/linux/dd.sh"
+    ],
+    "verify": "bash -n passes. A grep finds no 'read -t 1 -n 1' countdown loop in the two files."
+   },
+   {
+    "item_id": "DDSH-08",
+    "requirement": "The fallback menu Exit (menu_display.sh:64) goes through handle_menu_action 'exit_script' (menu_functions.sh:118-121), or an existing exit function, instead of the undefined exit_script command.",
+    "files": [
+     "scripts/shells/linux/dd_helper/menu_display.sh"
+    ],
+    "verify": "bash -n passes. A grep shows no bare exit_script call without a definition. A static trace confirms that Exit leaves the loop."
+   },
+   {
+    "item_id": "DDSH-09",
+    "requirement": "GITHUB_BASE_URL/GITEE_BASE_URL and the three required-file paths are defined once. constants.sh (:38-39, :64-66) derives them from dd.sh (:44-45, :50-52), or dd.sh derives its absolute paths from one relative list.",
+    "files": [
+     "dd.sh",
+     "scripts/shells/linux/dd_helper/constants.sh"
+    ],
+    "verify": "bash -n passes on both files. A grep shows one definition of each URL and of the required-file list."
+   },
+   {
+    "item_id": "DDSH-10",
+    "requirement": "Remove the file_cache and behavior_cache pairs from LEGACY_INSTALLER_CACHE_PAIRS (cache_functions.sh:24-30), so startup no longer writes those obsolete dirs or walks their sources.",
+    "files": [
+     "scripts/shells/linux/dd_helper/cache_functions.sh"
+    ],
+    "verify": "bash -n passes. A grep finds no file_cache or behavior_cache in cache_functions.sh. In WSL, sourcing it with the legacy dirs present creates no installer/file_cache."
+   },
+   {
+    "item_id": "DDSH-14",
+    "requirement": "The startup FILE CHECK repair path uses the stored SELECTED_REGION, or Global, without show_region_selection_menu (dd.sh:359-361, file_download.sh:242-261), so startup never blocks or clears the screen. gvar_common.sh is covered by the repair: load_dd_helpers (dd.sh:249-252, called at :412) runs after FILE CHECK, or FILE CHECK runs before it is sourced. Parity: the Windows startup queue is DDSH-38.",
+    "files": [
+     "dd.sh",
+     "scripts/shells/linux/dd_helper/file_download.sh"
+    ],
+    "verify": "bash -n passes. In WSL, with one required file removed and stdin redirected, dd.sh startup downloads through the stub region without calling arrow_menu_select (stubbed to fail loudly)."
+   },
+   {
+    "item_id": "DDSH-33",
+    "requirement": "file_download.sh download_file (:19-212) reuses dd.sh download_with_progress and the DOWNLOAD_READY flag (dd.sh:92-105). It keeps only its region, temp-file and backup handling, and stops reporting success through the exit status (:231).",
+    "files": [
+     "scripts/shells/linux/dd_helper/file_download.sh",
+     "dd.sh"
+    ],
+    "verify": "bash -n passes. A grep shows one curl/wget progress implementation and no 'if download_file'."
+   },
+   {
+    "item_id": "DDSH-37",
+    "requirement": "Merged: DDSH-37, LTCW-33, and the ledger part of CKA-19. .claude/agents_shared/shell_parity/linux.md now exists (shell-linux-3, D12). Append SPL rows for this lane: the dd startup confirmation queue, secret decrypt/re-encrypt queued, validator defer/restore, the flock permission worker, the Slim & Disk Cleanup items, batched .sh processing (platform-only); 119 X11/Wayland tools and the wmctrl removal (platform-only); srv-03 and CKA-38 (platform-only: POSIX modes); every srv-04 item and CKA-6/AHSC-38/LDRI-38/CKA-39 with its Windows status. Each pending-windows row carries its [shell-windows] align task.",
+    "files": [
+     ".claude/agents_shared/shell_parity/linux.md"
+    ],
+    "verify": "Every changed shell file from this lane appears in at least one SPL row. Every pending-windows row names the shell-windows item_id. The row format matches 'id | feature | files | status | task'."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "shell-windows",
+  "task_id": "shell-windows-D7",
+  "items": [
+   {
+    "item_id": "MCHR-02",
+    "requirement": "Shared Read-YesNoDefaultNo/Read-YesNoDefaultYes (NssmServiceManager.ps1:146-151) take the default when input is redirected, when running -NonInteractive, or with DD_AUTO_CONTINUE, and time out (30 s, matching Linux prompt_read_default). This is fixed once in the shared helper, not in callers. Ledger: aligned with Linux.",
+    "files": [
+     "scripts/shells/win/win_common/NssmServiceManager.ps1"
+    ],
+    "verify": "PowerShell parse: 0 errors. 'powershell -NonInteractive -Command \". <helper>; Read-YesNoDefaultYes ''q''\" < NUL' returns the default without throwing or blocking."
+   },
+   {
+    "item_id": "MCHR-04",
+    "requirement": "Register-UserLogonTask (StartupManager.ps1:279-331) also compares the trigger, principal and settings. It re-enables a Disabled task (Enable-ScheduledTask) before Start-ScheduledTask, and reports the status. Ledger: aligned (systemd enable on Linux).",
+    "files": [
+     "scripts/shells/win/win_common/StartupManager.ps1"
+    ],
+    "verify": "PowerShell parse: 0 errors. Static read: the drift check covers all four parts, and Enable-ScheduledTask precedes Start-ScheduledTask. A live task check runs only on the user's request."
+   },
+   {
+    "item_id": "USER175-08",
+    "requirement": "Parity with shell-linux srv-04-steps and srv-04-codemart-password. Depends on laravel USER175-07. Step175_LaravelMainStart.ps1 gains the same step interface (-ListSteps, -Check, -Step <name> [-Show]) around its existing Ensure-* calls. The codemart-admin-password step (contract codemart_admin_password: [Y/n] via Read-YesNoDefaultYes, 24-char base64url from the existing Windows access-code helper, secret file 0600-equivalent ACL for the current user, then php artisan codemart:admin-password --file, then print) lives in one win_common helper that start.ps1 (laravel USER175-09) also calls. It replaces the forced demo-seed prompt (:20-22, :89-115) and $env:CODEMART_INIT.",
+    "files": [
+     "scripts/shells/win/install_powershells/Step175_LaravelMainStart.ps1",
+     "scripts/shells/win/win_common/"
+    ],
+    "verify": "PowerShell parse: 0 errors. Step175 -ListSteps prints the names and changes nothing. With php stubbed by a fake artisan path and the secret dir pointed at the scratchpad: -Step codemart-admin-password creates the file (ACL owner-only) and calls artisan --file <abs>. -Show prints it read-only."
+   },
+   {
+    "item_id": "srv-04-win",
+    "requirement": "B11 counterpart of the srv-04 ensure semantics. Audit Step175 for the same rules: an installed service (NSSM ncore-laravel-main, the PG Windows service) is started, never reinstalled; a serving PG is never stopped; the FrankenPHP service is not unlinked when only an extension is missing; the mkcert CA is reused. Fix any gap with the smallest change, and record each srv-04 sub-item in windows.md as aligned or platform-only.",
+    "files": [
+     "scripts/shells/win/install_powershells/Step175_LaravelMainStart.ps1",
+     ".claude/agents_shared/shell_parity/windows.md"
+    ],
+    "verify": "PowerShell parse: 0 errors. windows.md has an SPW row for each srv-04 sub-item (1)-(10) with status and task. A static read confirms that no Stop-Service or reinstall runs on an existing, running service."
+   },
+   {
+    "item_id": "LDRI-43",
+    "requirement": "W9 Windows counterpart. Step175 ensures Redis by reusing Step45_InstallRedis.ps1 (start if installed, install only if missing) and ensures the php_redis extension for the local PHP when it is available. Otherwise it logs the database fallback. Ledger rows in windows.md. The start.ps1 index call is laravel USER175-09.",
+    "files": [
+     "scripts/shells/win/install_powershells/Step175_LaravelMainStart.ps1",
+     "scripts/shells/win/install_powershells/Step45_InstallRedis.ps1",
+     ".claude/agents_shared/shell_parity/windows.md"
+    ],
+    "verify": "PowerShell parse: 0 errors. Step175 -Check reports the Redis and phpredis state read-only on this host (php -m has no redis, so it reports the fallback)."
+   },
+   {
+    "item_id": "CKA-7",
+    "requirement": "CKA-07. After the contract paths change, SharedCacheEnv.ps1 (:20-25) and GlobalVars.ps1 (:167-169) read the drive root, the www dir and the data dir name through ServiceContract.ps1 (Join-Path, no string appends). Parity: shell-linux CKA-6.",
+    "files": [
+     "scripts/shells/win/win_common/SharedCacheEnv.ps1",
+     "scripts/shells/win/win_common/GlobalVars.ps1",
+     "scripts/shells/win/win_common/ServiceContract.ps1"
+    ],
+    "verify": "PowerShell parse: 0 errors. Dot-sourcing GlobalVars.ps1 prints the same CORE_NODE_DATA_DIR (D:/www/core_node) as before. A grep finds no \"'www'\" or \"'core_node'\" literal in the two files."
+   },
+   {
+    "item_id": "AHSC-37",
+    "requirement": "Add a TMP users global (D:/.tmp/Users) beside PROGRAMING_USERS_DIR in GlobalVars.ps1 (:164-175). After shell-linux updates the generator (AHSC-38), regenerate kimi1/2.ps1, ark1.ps1 and codex1/2.ps1 (:36, :147, :89) so they reference the globals. claude*.ps1 are excluded (D13). Parity: shell-linux AHSC-38.",
+    "files": [
+     "scripts/shells/win/win_common/GlobalVars.ps1",
+     "scripts/winenvs/kimi1.ps1",
+     "scripts/winenvs/kimi2.ps1",
+     "scripts/winenvs/ark1.ps1",
+     "scripts/winenvs/codex1.ps1",
+     "scripts/winenvs/codex2.ps1"
+    ],
+    "verify": "PowerShell parse: 0 errors on the six files. A grep of scripts/winenvs/{kimi,ark,codex}*.ps1 finds no 'D:\\\\.tmp\\\\Users' or 'D:\\\\programing\\\\Users' literal."
+   },
+   {
+    "item_id": "DDSH-38",
+    "requirement": "B11 parity for dd startup. dd.ps1 (:1017-1049, :1187-1193) has no blocking Read-Host at startup. SecretDecryptionCheck and SecretEncryptionCheck (:116, :118, :131, :139) are queued, and one stacked confirmation with auto-continue runs before the menu, with the password prompts after acceptance. Record the platform-only rows (tree-permission worker, .sh processing).",
+    "files": [
+     "scripts/shells/win/dd.ps1",
+     "scripts/shells/win/win_common/SecretDecryptionCheck.ps1",
+     "scripts/shells/win/win_common/SecretEncryptionCheck.ps1"
+    ],
+    "verify": "PowerShell parse: 0 errors. A static read shows no Read-Host reachable before the queue prompt. With stdin redirected, a dry trace reaches the menu load after the countdown default."
+   },
+   {
+    "item_id": "CKA-39-win",
+    "requirement": "Counterpart check of CKA-39. If unified_manager.ps1 or the Windows app manager reads laravel_main .env APP_ENV/APP_DEBUG, switch it to LaravelConfig.php. Otherwise record platform-only or not-applicable in windows.md.",
+    "files": [
+     "scripts/unified_manager/unified_manager.ps1"
+    ],
+    "verify": "A grep of the Windows managers for '.env' APP_DEBUG/APP_ENV reads gives 0 hits after the change, or the windows.md row records that there was nothing to change. PowerShell parse passes if edited."
+   },
+   {
+    "item_id": "B11-windows-ledger",
+    "requirement": "windows.md has an SPW row for every Windows change in this lane, and the counterpart status for each shell-linux D7 row (aligned, pending, or platform-only with a reason).",
+    "files": [
+     ".claude/agents_shared/shell_parity/windows.md"
+    ],
+    "verify": "Every changed file in this lane appears in an SPW row. Every shell-linux D7 row id is referenced from windows.md or marked platform-only in linux.md."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ }
+]

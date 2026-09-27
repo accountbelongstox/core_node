@@ -1,0 +1,65 @@
+[
+ {
+  "old_role": "ncore",
+  "task_id": "ncore-D7",
+  "items": [
+   {
+    "item_id": "CKA-5",
+    "requirement": "CKA-05. After the contract paths change, ncore/foundation/common/system_paths.js (:38-49, :92-105, :293-301) reads the data-dir bases and NTFS types from '#@/config/service_contract.js', the way client_key_auth.js:20 does.",
+    "files": [
+     "ncore/foundation/common/system_paths.js"
+    ],
+    "verify": "node --check system_paths.js passes. A scratch node script imports the module and prints the resolved data dir on this host (unchanged, D:/www/core_node). A grep finds no '/var/_core_node' or 'ntfs3' literal."
+   },
+   {
+    "item_id": "CKA-14",
+    "requirement": "Depends on laravel CKA-13. In apps/dingdoudou/lib/backendClient.ts, :39 keeps the 'super' mode instead of mapping it to 'member', and :45 no longer prefers dto.label. Popup.tsx:348 renders the localized text.super or text.superLicense from uiI18n.ts:165,182.",
+    "files": [
+     "apps/dingdoudou/lib/backendClient.ts",
+     "apps/dingdoudou/entrypoints/popup/Popup.tsx",
+     "apps/dingdoudou/lib/uiI18n.ts"
+    ],
+    "verify": "tsc --noEmit in apps/dingdoudou reports no new errors. A static read shows the mode mapping keeps super."
+   },
+   {
+    "item_id": "CKA-20",
+    "requirement": "Foundation layering (NC-035 remainder): fwriter.js (:49-53, :152-153) and sequelize_db.js (:15, :26, :40-41) take their app dirs from the caller or config, and stop requiring '#@global_vars' or '#@global_dir'. foundation/express_utils waits on the NC-034 user ruling (deferred).",
+    "files": [
+     "ncore/foundation/utilities/filetoollibs/fwriter.js",
+     "ncore/foundation/db_utils/sequelize_db.js"
+    ],
+    "verify": "node --check passes on both files. A grep of the two files finds no require of global_vars or global_dir. The callers (grep) pass the dir explicitly."
+   },
+   {
+    "item_id": "CKA-21",
+    "requirement": "NC-036 remainder: replace the 'throw new Error' sites with log-and-return, module by module (utils/ittools 172, puppeteer_spider_v2 106, flutter_icon_tool 23, smart_compression 14, rpc 13, ai_translator 13, docker_liunx_tool 10, the rest, plus apps: dingdoudou 8, DocumentOffline 4, VoiceClientAndCaddy 2, WebLocalAreaNetwork 1). The 17 RPC client-side promise rejections stay by design. Callers are updated to check the returned result.",
+    "files": [
+     "ncore/utils/ittools",
+     "ncore/utils/puppeteer_spider_v2",
+     "ncore/utils/flutter_icon_tool"
+    ],
+    "verify": "node --check passes on every changed file. A grep count of 'throw new Error' under ncore/ and apps/ (excluding mcp-chrome and bundles) falls to the 17 kept rejections. The count per module is recorded in reports/ncore.md."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "flutter",
+  "task_id": "flutter-D7",
+  "items": [
+   {
+    "item_id": "flutter-consumer-check",
+    "requirement": "Read-only. Check every Laravel call in poly_apps/flutter_bloom against the current route table (.claude/agents_shared/client_key_auth/laravel_route_auth.md) and the 09-26/27 API changes: client.key machine routes, the delivery/diff routes, X4 word identity, the cover-task routes, removed or renamed endpoints. Report only; no code changes (the D6 won't-fix stands).",
+    "files": [
+     "poly_apps/flutter_bloom",
+     ".claude/agents_shared/client_key_auth/laravel_route_auth.md",
+     ".claude/agents_shared/reports/flutter.md"
+    ],
+    "verify": "reports/flutter.md lists each Flutter endpoint constant (file:line) with its matching route, auth middleware and status (ok, changed or removed). Nothing under poly_apps/flutter_bloom is modified (git status)."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ }
+]

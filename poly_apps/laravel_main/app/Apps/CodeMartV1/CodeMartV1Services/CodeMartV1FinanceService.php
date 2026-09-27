@@ -138,7 +138,8 @@ class CodeMartV1FinanceService
             } elseif (!$wallets[$payeeId]->debit(
                 $amount,
                 CodeMartV1Constants::WALLET_TX_REFUND,
-                "Refund debit for payment {$payment->id}",
+                CodeMartV1Constants::LEDGER_REFUND_DEBIT,
+                ['payment_id' => $payment->id],
                 $ledgerMeta
             )) {
                 throw new CodeMartV1FinanceException('payee_insufficient_balance', 'Payee available balance is insufficient for this refund', 409);
@@ -147,7 +148,8 @@ class CodeMartV1FinanceService
             $wallets[$payerId]->credit(
                 $amount,
                 CodeMartV1Constants::WALLET_TX_REFUND,
-                "Refund credit for payment {$payment->id}",
+                CodeMartV1Constants::LEDGER_REFUND_CREDIT,
+                ['payment_id' => $payment->id],
                 $ledgerMeta
             );
 

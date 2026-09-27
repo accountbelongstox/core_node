@@ -17,6 +17,8 @@ K3 vectors: all 3 signatures and canonical strings reproduce (scratchpad `k3_vec
 | pycore-3 | [pycore] runtime, Windows and process fixes | PR-004..PR-013, PR-015..PR-020, PR-022..PR-024, PR-026, PR-027, PR-032..PR-036 | approved (reviews/pycore-3.json) |
 | pycore-4 | [pycore] audio/TTS and queue fixes | AT-001..AT-050 (AT-015 withdrawn), X2, X6, X8, RV-001, RV-002, RV-006, RV-008, RV-009, RV-010 | approved, round 2 (reviews/pycore-4.json) |
 | pycore-5 | [pycore] rulings: RV-007, X4, RV-004 | RV-007, X4, RV-004 | submitted, waiting for review (D10) |
+| pycore-D7 | [pycore] D7 lane, coordinator paths (tray agent-history state, linux_desktop_user on desktop_session) | see "D7 family merge" | the lane returned no report; the merge verified its files; waiting for review |
+| D7-merge | [pycore] D7 family merge (pycore, pycore-ai, pycore-runtime, pycore-architect, pycore-assist) | see "D7 family merge" | done; one blocker for pycore-assist (M-1) |
 
 ## pycore-1: K3 signer (PR-014, PR-003)
 
@@ -440,3 +442,110 @@ pycore-4 is approved in round 2. Next owner: the orchestrator, for the cross-sco
 - The qwen submit counts only `running` items as in flight, so a re-submit between `start_bus_task` and `start_item` can start a second `_run`.
 
 AT-037 deletions (user question, 2026-09-27): read-only explanation in `.claude/agents_shared/reports/pycore-AT-037-deletions.md`. Nothing was restored.
+
+## D7 family merge
+
+Date: 2026-09-27, about 18:1x-18:3x. Workflow `d5-d7-d9-all-roles-lanes`, lanes: pycore-D7, pycore-ai-D7, pycore-runtime-D7, pycore-architect-D7.1/.2, pycore-assist-D7.1/.2.
+
+Result: the family fits together, except for one runtime break in the pycore-assist output (M-1, a blocker). No file was edited by the merge; there was no conflict in the coordinator paths.
+
+### Base and scope
+
+- The pycore working tree is clean. The user's commits `5bbb23682` (17:33) and `b20962b4f` (17:36) captured every lane change. The run window is therefore `f4f223414..HEAD`: 44 files under pycore/pyapps, 43 of them `.py`. Reviewers still diff against `74e7770`.
+- Only pycore-ai-D7 and pycore-runtime-D7 returned changed-file lists and wrote reports. pycore-D7, pycore-architect-D7.1/.2 and pycore-assist-D7.1/.2 returned `changed: null` and wrote no report. Their edits are on HEAD, so they are attributed by path owner:
+
+| Owner | Files in the window | Items (from the lane scratch checks) |
+|---|---|---|
+| pycore (coordinator lane pycore-D7) | `pycore_module_caller.py`, `pylauncher/tray_menu.py`, `pyutils/launcher/linux_desktop_user.py` | tray agent-history flags via the bus (pylauncher no longer imports pyctl); linux_desktop_user uses the shared desktop_session resolvers |
+| pycore-architect | `pyfoundations/{desktop_session,core_node_dirs,service_contract,system_paths,agent_home_scanner,python_package_policy,thread_bus_constants}.py`, `pyfoundations/third_party/{_cache,_dep_check,_deps}.py` | arch-bus-signals, LTCW-02, LTCW-03-exports, the §8.0 data-dir bases read from `service_contract.json#paths`, Linux-only packages |
+| pycore-assist | `pyctl/agent_history/{agent_history_service,extractor_registry,ui_service}.py`, `pyctl/agent_history/pipeline/config.py`, `pyapps/matrix/build_config.ini` (header removal from the user's header cleaner) | one extractor registry as the tool list; archive root-only flag (incomplete, M-1) |
+| pycore-ai | `pyctl/ai/prompt_derive.py` (PRAO-07, approved) | |
+| pycore-runtime | the 8 files in `reports/pycore-runtime.md` | LTCW-12-consts, AOQSD-21, LDRI-53, AHSC-35-py |
+| D1/D7 phase 2 (in flight, not this merge's lanes) | `pyctl/tts/*`, `pyutils/tts/*`, `pyctl/queue_center/snapshot_service.py`, `pyutils/common/queue_center_contract.py`, `pyutils/laravel/{delivery_diff,identity}.py`, `pyctl/runtime/event_handlers.py`, `pyctl/assist/capability_sync.py`, the X4 part of `local_queue_head_routes.py` | static checks only; not edited |
+
+### Checks (static; one start-chain import)
+
+Scratch scripts are in the session scratchpad: `d7_family_static.py`, `d7_start_chain.py` and `d7_attr_check.py`.
+
+- ast + py_compile (cfile in the scratchpad) on all 43 changed `.py` files: 43 ok.
+- symtable undefined globals on the changed files: 0.
+- Import resolution over the whole package (1516 files; every `from pycore… import X` and `import pycore…`, lazy imports included):
+  - 0 new problems against `f4f223414`;
+  - 21 pre-existing problems remain, all listed under "Pre-existing issues" above (`callmodule/__main__.py` `launch_windows_tray`, `device/connection_manager.py` `VideoCodec`, `pyapps/matrix/*`, `pyapps/okx_price_monitor/lib/models.py`);
+  - no new syntax errors (the 3 pre-existing ones are in pyapps/d3-check and matrix).
+- Module-level import cycles: 0 in the tree (1513 modules, 3922 edges; a synthetic cycle was detected, so the detector works).
+- Module-attribute check (`alias.NAME` on an imported pycore module): 1 new problem, M-1 below. The 3 other hits already exist at the base (one false positive: the `pyctl/relay` package rebinds the name to the instance).
+- EOL: `git diff --numstat` equals `--ignore-space-at-eol` for 42 of 43 files. The exception is `pyutils/common/queue_center_contract.py` (47/15 vs 40/8, 7 flipped lines). That file is in flight; pycore-6 covers it with its CRLF restore. The reviewer of pycore-ai-D7 noted the same.
+- Start-chain import (subprocess, `PYTHONDONTWRITEBYTECODE=1`, `PIP_NO_INDEX=1`, pip runner stubbed, 0 installs attempted):
+  - ok: `pycore`, `pycore.callmodule`, `pycore.callmodule.config`, `pycore.callmodule.rpc_routes.register_http_routes`, `pycore.callmodule.callmodule_main`, `pycore.pycore_module_caller`;
+  - all 43 changed modules import ok;
+  - the Windows start chain does not load `xdg_desktop_portal`, `gnome_shell_dbus`, `jeepney` or `Xlib`.
+- RPC registration: `register_http_routes` on an unstarted `HttpServer` gave 293 routes with no duplicate path. The D7 routes (`ui/queue_center/promote_local_head`, `audio_lane_full_sync`, `word_audio_full_sync`, `ui/laravel_delivery/retry`) are registered by their registrars. `route_names.py` has no duplicate values.
+- Side effect of that check: registering the audio-orchestration routes runs `orch_service.resume_interrupted_generations()`, a startup hook. The check process therefore resumed the 20 tasks that were already in `generating` in `D:\www\core_node\data\audio_orchestration\tasks`, and it was killed with `os._exit` about a second later.
+  - Effect: those 20 task files were rewritten at 18:20:59-18:21:00 (progress phase, timestamps). Their status is still `generating`, as it was before.
+  - Nothing else in the data dir changed (only the terminal_windows sqlite `-shm`). No pycore was listening on 59000.
+  - The next pycore start resumes these tasks, the same as it would after a crash. Future merge checks will not call `register_http_routes`.
+- Runtime facts:
+  - `RELAY_REQUIRED_EVENTS` contains `agent_history_config_changed`, which maps to `agent_history.config.changed`;
+  - `audio_queue_center.wait_for_restore` exists; `AUDIO_QUEUE_LANE_BY_KIND` = {word: word_audio, sentence: sentence_audio};
+  - `SUPPORTED_TOOLS == EXTRACTOR_TOOLS` (9 tools; the registry vs `system_paths` marker check passes at import);
+  - `service_contract.json#paths` has all 9 keys `core_node_dirs` reads (`WINDOWS_CORE_NODE_DATA_DIR` = `D:\www\core_node`, os tag WIN10);
+  - `core_node_dirs` → `service_contract` / `desktop_session` are stdlib-only, so there is no cycle with `pygvar`.
+
+### Fit-together review
+
+- Thread bus, AGENT_HISTORY_CONFIG_CHANGED: `pipeline/config.py` triggers it async with `{changed, config}`. There are three handlers:
+  - the tray keep handler (`pycore_module_caller`, priority 10), which stores the flags in the signal store under the same name. That is a separate channel from `trigger_event`, so nothing recurses and no other listener sees the stored flags;
+  - the tray refresh (`event_handlers`, 100). The registry runs one handler snapshot in priority order on one dispatch thread, so the flags are stored before the menu rebuild;
+  - the relay device event (new, pycore-runtime).
+  
+  The RPC thread-bus listener is unchanged. Both tray builders in `callmodule/config.py` run only from `pycore_module_caller.main`, after the step-0 injection. A probe confirmed that `prompt_new_notify=False` shows `[ ]` and a payload without `config` is ignored.
+- Imports across areas:
+  - `local_queue_head_routes` → `audio_queue_center.AUDIO_QUEUE_LANE_BY_KIND` and `local_task_center_routes` → `queue_center_contract.QUEUE_CENTER_DELIVERY` both resolve on HEAD;
+  - `linux_desktop_user` → `desktop_session` resolves; nothing else used the removed `DesktopUser.runtime_dir` / `bus_address` or the renamed `RUNTIME_ROOT` / `_parse_os_release` (grep over pycore, pyapps and scripts).
+- Package policy: `Xlib` and `jeepney` moved to `LINUX_ONLY_PACKAGES`. The shell installers use `package_rows("installer", <platform>)`, which now yields them on Linux, so nothing is lost for them.
+- Startup order: `apply_assist_runtime` now runs at the end of the audio-lane boot-chain thread (event_handlers, phase 2), and `capability_sync` gates each audio-lane start on `wait_for_restore`. At boot these agree. See M-4 for the non-boot path.
+
+### Findings (owner and fix; nothing edited here)
+
+- **M-1 (blocker, pycore-assist; `pycore/pyctl/agent_history/`).**
+  - Defect: `agent_history_service.py:415` writes `prompt_archive.ARCHIVE_ROOT_ONLY_FIELD: bool(info.get("spool"))` into every archive entry. `pycore/pyctl/agent_history/prompt_archive.py` does not define that name (`hasattr` is False at runtime; the file is unchanged since `d0ed5d5e9`).
+  - Impact: every extraction that parses a changed source with at least one prompt raises AttributeError inside `_extract`. The whole extract then fails ("[AgentHistory] Extract failed", summary `error`). Agent-history extraction and prompt-new events are therefore broken on HEAD. The symbol came in with `5bbb23682`.
+  - Fix:
+    1. In `prompt_archive.py`, declare `ARCHIVE_ROOT_ONLY_FIELD` at the top and export it in `__all__`.
+    2. Make `archive_prompts` honor it: entries from the root spool must not land in a `0o666` file, so write them root-only (0600), for example in a separate `<tool>.root.jsonl`, or skip the world-writable chmod. The rule is PR-024 and the root-spool rule 0750/0640 in `FIX_20260926_AGENT_HISTORY_SCAN_CENTER_MONITOR_TRAY_NOTIFY.md` §15.3.
+    3. Keep the flag out of the dedupe key.
+  - Writer: pycore-assist is the one writer of `prompt_archive.py` until this is approved. pycore-6 (PR-024 remainder) must not touch `prompt_archive.py` meanwhile.
+- **M-2 (pycore-assist, duplicate constant; arch-bus-signals follow-up).** pycore-architect added `BusSignals.TRAY_SHOW_NOTIFICATION = "tray.show_notification"`, but nothing uses it. The literal is still declared in three places:
+  - `pyutils/desktop/system_notification.py:33` (`TRAY_SHOW_NOTIFICATION_EVENT`, plus `__all__`);
+  - `pyutils/native_ui/step6_tray/win32_system_tray.py:508`;
+  - `pyutils/native_ui/step5_main_ui/pyside6/thread_bus_bridge.py:115`.
+  
+  Fix: import `BusSignals.TRAY_SHOW_NOTIFICATION` at all three sites and drop `TRAY_SHOW_NOTIFICATION_EVENT` (no other importer). Also, `pyutils/native_ui/step1_config/tray_config.py:270` `TRAY_SHOW_MESSAGE = "ui.tray.show_message"` has no reader; remove it with the BusSignals removal.
+- **M-3 (pycore-assist, LTCW-12 consumer half).** `pyutils/window/linux_terminal_backend.py:286-301` still has the four literals (`x11_display_unset`, `gnome_bridge_not_applicable`, `gnome_introspect_not_needed`, `portal_not_applicable`). Import `X11_ERROR_DISPLAY_UNSET`, `BRIDGE_ERROR_NOT_APPLICABLE`, `INTROSPECT_ERROR_NOT_NEEDED` and `PORTAL_ERROR_NOT_APPLICABLE` instead (the pycore-runtime report has the details).
+- **M-4 (pycore-ai, `pyctl/assist/capability_sync.py`; D7 phase 2, in flight; watch item).**
+  - Defect: `_apply_lane_lifecycle(want=True)` for an audio lane now waits up to 180 s for `wait_for_restore(lane)`. Only `activate_audio_lane` performs that restore.
+  - Paths: `task_center_service` calls `activate_audio_lane` before `apply_assist_runtime`, so it is fine. `pyctl/assist/service.py:assist_config` (the assist settings route) calls `apply_assist_runtime` with no activation. A lane that was OFF at boot and is enabled there starts its pull only after the 180 s timeout, and still without a cache restore.
+  - Fix (the one ON transition in `audio_lane_activation`'s docstring): in `assist_config`, call `activate_audio_lane(lane)` for each audio lane that turns on, before `apply_assist_runtime`, as `task_center_service` does.
+- **M-5 (cross-family, laravel-api; already reported by pycore-runtime).** `RelayDeviceService::event` and `RelayContract.php $requiredEvents` lack `agent_history_config_changed`. Until they have it, Laravel answers pycore's new device event with 422.
+- Non-blocking notes:
+  - `third_party/_cache._lazy_import` still maps `LINUX_ONLY_PACKAGES` on Windows, so a Windows import of a Linux-only getter would still pip-install it. No Windows start-chain module does that today (pycore-architect).
+  - `third_party/api.py` re-exports `WINDOWS_ONLY_PACKAGES` but not `LINUX_ONLY_PACKAGES` (pycore-architect).
+  - The pycore-ai reviewer note about `AI_SOURCE_PROMPT_DERIVE` not being in `OPENROUTER_ATTEMPT_SOURCES` stays an orchestrator decision (pycore-assist would write it).
+
+### Temporary-writer record
+
+- `pycore/pyctl/agent_history/prompt_archive.py`: pycore-assist (M-1). pycore-6 waits for it.
+- No other shared path needed a writer in this merge.
+
+### Handoff
+
+- Changed files (this merge): `.claude/agents_shared/reports/pycore.md` only.
+- Status: merge done. pycore-ai-D7 is approved. pycore-runtime-D7 and pycore-D7 wait for review. pycore-architect-D7.1/.2 and pycore-assist-D7.1/.2 have no report and no review; their owners should submit, and pycore-assist should submit together with M-1..M-3.
+- Blockers: M-1.
+- Next owners:
+  - pycore-assist: M-1, M-2, M-3;
+  - pycore-ai: M-4, after phase 2 releases `pyctl/assist`;
+  - laravel-api: M-5;
+  - reviewer: pycore-runtime-D7 and pycore-D7 (coordinator files `pycore_module_caller.py`, `pylauncher/tray_menu.py`, `pyutils/launcher/linux_desktop_user.py`; per-line EOL kept: LF, CRLF, LF);
+  - orchestrator: the missing lane reports.

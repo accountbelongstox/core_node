@@ -30,10 +30,79 @@ SHARED_CACHE_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SHARED_CACHE_RUNTIME_ENV="$SHARED_CACHE_ENV_DIR/runtime_environment.sh"
 __scc_d=""
 __scc_candidate=""
+CN_TREE_MNT=""
+CN_TREE_BACKING=""
+CN_TREE_CACHE_ROOT=""
+BUN_INSTALL_CACHE_DIR=""
+npm_config_cache=""
+UV_CACHE_DIR=""
+COMPOSER_CACHE_DIR=""
+COREPACK_HOME=""
+__scc_sc_common=""
+__scc_tree_fstype=""
 
 if [ -z "${IS_HEADLESS_SERVER+x}" ] || [ -z "${CORE_NODE_DATA_DIR:-}" ] || [ -z "${CORE_NODE_WWW_BASE:-}" ]; then
     source "$SHARED_CACHE_RUNTIME_ENV"
 fi
+
+# ---- dual-boot tree root + toolchain caches (contract paths.drive_layout) --
+# CN_TREE_MNT / CN_TREE_BACKING are the ONE definition of the project tree
+# root for every Linux consumer: this file loads earliest in both call paths
+# (gvar_common.sh, via gvar_system_common.sh; and pyservice_entry.sh, which
+# sources it directly), so gvar_common.sh and mount_common.sh simply reuse
+# these exported values instead of re-deriving them. The cache root resolves
+# to CN_TREE_MNT/cache ONLY when CN_TREE_MNT is itself a mounted ext4
+# filesystem (the bind mount_common.sh's ensure_tree_root_bind_mount sets up
+# under the /www NTFS share); otherwise CN_TREE_BACKING/cache -- the ext4
+# backing store under /opt -- is used directly, NEVER the NTFS share itself.
+#
+# Toolchain install-family caches (bun, npm, uv, composer, corepack) are
+# pinned under that ext4 cache root so they never hard-link a cache tree onto
+# NTFS (the D: dirty-volume root cause in
+# docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2). These
+# explicit vars OUTRANK each tool's own XDG_CACHE_HOME-derived default;
+# XDG_CACHE_HOME itself is intentionally left UNCHANGED here (Whisper/model
+# data still keys off it -- decoupling that is a pycore follow-up, not this
+# file's job). The pnpm store location is intentionally NOT touched here: it
+# already lives on ext4 inside the Node tree, and moving it would break
+# existing installs (ERR_PNPM_UNEXPECTED_STORE); P3 (wrap-type toolchains)
+# revisits it.
+if ! command -v sc_get >/dev/null 2>&1; then
+    __scc_sc_common="$SHARED_CACHE_ENV_DIR/service_contract_common.sh"
+    [ -f "$__scc_sc_common" ] && source "$__scc_sc_common"
+fi
+if command -v sc_get >/dev/null 2>&1; then
+    CN_TREE_MNT="$(sc_get paths.drive_layout.tree_root.linux)"
+    CN_TREE_BACKING="$(sc_get paths.drive_layout.tree_root.linux_backing)"
+fi
+if [ -z "$CN_TREE_MNT" ] || [ -z "$CN_TREE_BACKING" ]; then
+    echo "[shared-cache-env] Service contract unreadable for paths.drive_layout.tree_root (no node/php yet?); toolchain cache roots stay at their per-tool defaults." >&2
+else
+    if [ -d "$CN_TREE_MNT" ] && command -v findmnt >/dev/null 2>&1; then
+        __scc_tree_fstype="$(findmnt -no FSTYPE -M "$CN_TREE_MNT" 2>/dev/null)"
+    fi
+    case "$__scc_tree_fstype" in
+        ext2|ext3|ext4) CN_TREE_CACHE_ROOT="$CN_TREE_MNT/cache" ;;
+        *)              CN_TREE_CACHE_ROOT="$CN_TREE_BACKING/cache" ;;
+    esac
+
+    for __scc_d in "$CN_TREE_CACHE_ROOT" "$CN_TREE_CACHE_ROOT/bun" "$CN_TREE_CACHE_ROOT/npm" \
+                   "$CN_TREE_CACHE_ROOT/uv" "$CN_TREE_CACHE_ROOT/composer" "$CN_TREE_CACHE_ROOT/corepack"; do
+        [ -d "$__scc_d" ] && continue
+        mkdir -p "$__scc_d" 2>/dev/null \
+            || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__scc_d" 2>/dev/null; } || true
+    done
+
+    : "${BUN_INSTALL_CACHE_DIR:=$CN_TREE_CACHE_ROOT/bun}";   export BUN_INSTALL_CACHE_DIR
+    : "${npm_config_cache:=$CN_TREE_CACHE_ROOT/npm}";        export npm_config_cache
+    : "${UV_CACHE_DIR:=$CN_TREE_CACHE_ROOT/uv}";             export UV_CACHE_DIR
+    : "${COMPOSER_CACHE_DIR:=$CN_TREE_CACHE_ROOT/composer}"; export COMPOSER_CACHE_DIR
+    : "${COREPACK_HOME:=$CN_TREE_CACHE_ROOT/corepack}";      export COREPACK_HOME
+fi
+export CN_TREE_MNT
+export CN_TREE_BACKING
+export CN_TREE_CACHE_ROOT
+unset __scc_sc_common __scc_tree_fstype
 
 # Native shared MODEL-cache root. Pinned to the legacy native base
 # /var/_core_node ON PURPOSE: the unified runtime data root moved to

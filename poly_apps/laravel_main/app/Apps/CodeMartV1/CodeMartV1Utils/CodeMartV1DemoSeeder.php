@@ -1047,12 +1047,12 @@ class CodeMartV1DemoSeeder
                         'type' => CodeMartV1Constants::WALLET_TX_DEPOSIT,
                         'amount' => (string) $wallet->balance,
                         'balance_after' => (string) $wallet->balance,
-                        'description' => 'Opening balance',
+                        'description_code' => CodeMartV1Constants::LEDGER_OPENING_BALANCE,
                         'metadata' => ['seed_key' => self::SEED_KEY_PREFIX . 'wallet-opening-' . $key, 'direction' => 'in'],
                         'status' => CodeMartV1Constants::WALLET_TX_STATUS_SUCCESS,
                     ]);
                 }
-                $wallet->credit($amount, CodeMartV1Constants::WALLET_TX_DEPOSIT, 'Wallet top-up', ['seed_key' => $seedKey, 'kind' => 'top_up']);
+                $wallet->credit($amount, CodeMartV1Constants::WALLET_TX_DEPOSIT, CodeMartV1Constants::LEDGER_WALLET_TOP_UP, [], ['seed_key' => $seedKey, 'kind' => 'top_up']);
             });
         }
     }
@@ -1546,10 +1546,10 @@ class CodeMartV1DemoSeeder
                         'idempotency_key' => $definition['key'],
                     ]);
                     $meta = ['payment_id' => $payment->id];
-                    if (!$wallets[$payerId]->debit($definition['amount'], CodeMartV1Constants::WALLET_TX_PAYMENT, "Payment {$payment->id} to user {$payeeId}", $meta)) {
+                    if (!$wallets[$payerId]->debit($definition['amount'], CodeMartV1Constants::WALLET_TX_PAYMENT, CodeMartV1Constants::LEDGER_PAYMENT_SENT, ['payment_id' => $payment->id, 'user_id' => $payeeId], $meta)) {
                         throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
                     }
-                    $wallets[$payeeId]->credit($definition['amount'], CodeMartV1Constants::WALLET_TX_EARNING, "Payment {$payment->id} from user {$payerId}", $meta);
+                    $wallets[$payeeId]->credit($definition['amount'], CodeMartV1Constants::WALLET_TX_EARNING, CodeMartV1Constants::LEDGER_PAYMENT_RECEIVED, ['payment_id' => $payment->id, 'user_id' => $payerId], $meta);
 
                     return [$payment, false];
                 });
@@ -1687,7 +1687,8 @@ class CodeMartV1DemoSeeder
                         $ledger = $wallet->freeze(
                             $definition['amount'],
                             CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                            "Withdrawal {$withdrawal->id} requested",
+                            CodeMartV1Constants::LEDGER_WITHDRAWAL_REQUESTED,
+                            ['withdrawal_id' => $withdrawal->id],
                             ['withdrawal_id' => $withdrawal->id, 'phase' => 'freeze']
                         );
                         if (!$ledger) {

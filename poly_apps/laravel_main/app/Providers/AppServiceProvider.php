@@ -27,6 +27,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1PolyApps
 use App\Console\Commands\CheckCertbotCommand;
 use App\Console\Commands\NuxtServiceRefreshCommand;
 use App\Apps\AppQyV1\AppQyV1Commands\AppQyV1ResourceIndexCommand;
+use App\Apps\CodeMartV1\CodeMartV1Commands\CodeMartV1AdminPasswordCommand;
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -100,6 +101,7 @@ class AppServiceProvider extends ServiceProvider
                 CheckCertbotCommand::class,
                 NuxtServiceRefreshCommand::class,
                 AppQyV1ResourceIndexCommand::class,
+                CodeMartV1AdminPasswordCommand::class,
             ]);
         }
     }

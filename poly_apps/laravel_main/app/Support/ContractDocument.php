@@ -5,8 +5,8 @@ namespace App\Support;
 use RuntimeException;
 
 /**
- * Typed dotted-path reads over a decoded contract document, shared by
- * ServiceContract and QueueCenterContract. A missing or mistyped key throws.
+ * Typed dotted-path reads over a decoded contract document (ServiceContract).
+ * A missing or mistyped key throws.
  */
 final class ContractDocument
 {

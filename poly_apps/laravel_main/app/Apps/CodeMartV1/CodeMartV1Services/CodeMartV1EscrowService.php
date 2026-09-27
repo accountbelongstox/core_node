@@ -68,7 +68,8 @@ class CodeMartV1EscrowService
             $ledger = $wallet->debit(
                 $amount,
                 CodeMartV1Constants::WALLET_TX_ESCROW_HOLD,
-                "Project {$project->id} funding into escrow",
+                CodeMartV1Constants::LEDGER_PROJECT_FUNDING,
+                ['project_id' => $project->id],
                 ['project_id' => $project->id]
             );
             if (!$ledger) {
@@ -223,7 +224,8 @@ class CodeMartV1EscrowService
         CodeMartV1WalletModel::lockForUser((int) $escrow->payer_id)->credit(
             $remaining,
             CodeMartV1Constants::WALLET_TX_REFUND,
-            "Project {$escrow->project_id} escrow remainder refund",
+            CodeMartV1Constants::LEDGER_ESCROW_REMAINDER_REFUND,
+            ['project_id' => $escrow->project_id],
             ['project_id' => $escrow->project_id, 'escrow_id' => $escrow->id, 'reason' => $reason]
         );
         $escrow->recordRefund($remaining, $reason);
@@ -300,7 +302,7 @@ class CodeMartV1EscrowService
                 ];
 
                 $wallet = CodeMartV1WalletModel::lockForUser($developerId);
-                $wallet->credit($net, CodeMartV1Constants::WALLET_TX_ESCROW_RELEASE, "Task {$task->id} escrow release", $meta);
+                $wallet->credit($net, CodeMartV1Constants::WALLET_TX_ESCROW_RELEASE, CodeMartV1Constants::LEDGER_TASK_ESCROW_RELEASE, ['task_id' => $task->id], $meta);
                 $escrow->recordRelease($amount, $businessRef);
 
                 $payment = CodeMartV1PaymentModel::createRecord([

@@ -1,6 +1,6 @@
 {
-  "granted_at": "2026-09-27T07:12:56.234Z",
-  "expires_at": "2026-09-27T09:12:56.234Z",
+  "granted_at": "2026-09-27T07:57:57.516Z",
+  "expires_at": "2026-09-27T09:57:57.517Z",
   "session_id": "59362416-9b59-4a9b-b284-e4b3d83daf06",
-  "prompt_excerpt": "<cross-session-message from=\"bridge:session_015M3JUrARvfiJ3ehQ7BM8ys\" from-name=\"ct-laravel-remote\" from-mode=\"prompting\">\nlaravel-remote-4 (read-only): can this server receive CodeSync pushes right n"
+  "prompt_excerpt": "<task-notification>\n<task-id>wlhtf4i70</task-id>\n<tool-use-id>toolu_01S84NnMiZadeHmPebeoW8P2</tool-use-id>\n<output-file>D:\\.tmp\\claude\\D--programing-core-node\\59362416-9b59-4a9b-b284-e4b3d83daf06\\task"
 }

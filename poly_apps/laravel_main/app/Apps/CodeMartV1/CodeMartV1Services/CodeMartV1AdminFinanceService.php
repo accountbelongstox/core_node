@@ -376,7 +376,8 @@ class CodeMartV1AdminFinanceService
             $wallet->credit(
                 CodeMartV1FinanceService::money($deposit->amount),
                 CodeMartV1Constants::WALLET_TX_DEPOSIT,
-                "Deposit {$deposit->id} refunded",
+                CodeMartV1Constants::LEDGER_DEPOSIT_REFUNDED,
+                ['deposit_id' => $deposit->id],
                 ['deposit_id' => $deposit->id, 'kind' => 'deposit_refund', 'role_type' => $deposit->role_type]
             );
 
@@ -477,7 +478,8 @@ class CodeMartV1AdminFinanceService
             $ledger = $wallet->unfreeze(
                 CodeMartV1FinanceService::money($withdrawal->amount),
                 CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                "Withdrawal {$withdrawal->id} rejected",
+                CodeMartV1Constants::LEDGER_WITHDRAWAL_REJECTED,
+                ['withdrawal_id' => $withdrawal->id],
                 ['withdrawal_id' => $withdrawal->id, 'phase' => 'unfreeze']
             );
             if (!$ledger) {
@@ -509,7 +511,8 @@ class CodeMartV1AdminFinanceService
             $ledger = $wallet->settleFrozen(
                 CodeMartV1FinanceService::money($withdrawal->amount),
                 CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                "Withdrawal {$withdrawal->id} paid",
+                CodeMartV1Constants::LEDGER_WITHDRAWAL_PAID,
+                ['withdrawal_id' => $withdrawal->id],
                 ['withdrawal_id' => $withdrawal->id, 'phase' => 'settle', 'method' => $withdrawal->method]
             );
             if (!$ledger) {

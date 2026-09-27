@@ -130,10 +130,10 @@ class CodeMartV1PaymentCtl extends Controller
 
                 if ($isWallet) {
                     $meta = ['payment_id' => $payment->id];
-                    if (!$wallets[$payerId]->debit($amount, CodeMartV1Constants::WALLET_TX_PAYMENT, "Payment {$payment->id} to user {$payeeId}", $meta)) {
+                    if (!$wallets[$payerId]->debit($amount, CodeMartV1Constants::WALLET_TX_PAYMENT, CodeMartV1Constants::LEDGER_PAYMENT_SENT, ['payment_id' => $payment->id, 'user_id' => $payeeId], $meta)) {
                         throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
                     }
-                    $wallets[$payeeId]->credit($amount, CodeMartV1Constants::WALLET_TX_EARNING, "Payment {$payment->id} from user {$payerId}", $meta);
+                    $wallets[$payeeId]->credit($amount, CodeMartV1Constants::WALLET_TX_EARNING, CodeMartV1Constants::LEDGER_PAYMENT_RECEIVED, ['payment_id' => $payment->id, 'user_id' => $payerId], $meta);
                 }
 
                 return [$payment, false];
@@ -442,7 +442,8 @@ class CodeMartV1PaymentCtl extends Controller
                     $ledger = $wallet->freeze(
                         $amount,
                         CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                        "Withdrawal {$withdrawal->id} requested",
+                        CodeMartV1Constants::LEDGER_WITHDRAWAL_REQUESTED,
+                        ['withdrawal_id' => $withdrawal->id],
                         ['withdrawal_id' => $withdrawal->id, 'phase' => 'freeze']
                     );
                     if (!$ledger) {

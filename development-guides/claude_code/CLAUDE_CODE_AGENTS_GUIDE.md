@@ -91,35 +91,33 @@ It runs from dd.sh step 171, from dd.ps1 Step21 (the ClaudeCode callback), and a
 | bubblewrap, socat | required only for the Bash sandbox (Linux/WSL2; native Windows unsupported) | installed; the sandbox stays off unless enabled |
 | python3, xrandr, a geometry-capable terminal / Windows Terminal | project launchers | installed |
 
-## 8. Roles, scopes and boundaries (23 roles)
+## 8. Roles, scopes and boundaries (user D22, 2026-09-27: 16 roster roles in 5 groups, plus remote and service roles)
 
-UI root: `poly_apps/pycore_laravel_wordnew_ui` (written as `UI/` below).
+UI root: `poly_apps/pycore_laravel_wordnew_ui` (written as `UI/` below). A role's name prefix is its group. The exact path map is in `.claude/agents/pycore-lead.md`, identical in every group role file.
 
-| Role | Guide | Write scope |
+| Group | Role | Write scope (summary) |
 |---|---|---|
-| orchestrator | this guide | `docs_fix/`, `config/*.json`, `.claude/agents/`, `.claude/agents_shared/` |
-| pycore | `PYTHON_PYCORE.md` | coordinator: `pymain.py`, `pyservice.*`, `pycore/{__init__,__main__,pycore_module_caller}.py`, `pycore/pylauncher/`, `pycore/pyutils/{launcher,pyservice_cli,python_env}/`, `pycore/pyctl/{management,pyservice_cli}/`; merges the pycore family; temporary writer of any pycore path the orchestrator assigns |
-| pycore-ai | `PYTHON_PYCORE.md` | large models: `pycore/pyctl/{ai,assist,tts,stt,translation}/`, `pycore/pyutils/{llm,ai_cluster,tts,edge_tts,azure_speech,stt,whisper_stt,ocr_cluster,translator,ultralytics,image_tools,document_processing,ensure_library,external_apis,audio_utils,media_processing}/`, `pycore/tts_install_assets/` |
-| pycore-runtime | `PYTHON_PYCORE.md` | state, cache, API/RPC, relay, Laravel link: `pycore/callmodule/`, `pycore/database/`, `pycore/pyutils/{common,rpc_v2,wsrpc,laravel,codesync}/`, `pycore/pyctl/{relay,runtime,queue_center,laravel,audio_orchestration,task_history,upload,client}/` |
-| pycore-architect | `PYTHON_PYCORE.md` | foundations and conformance: `pycore/pyfoundations/`, `pycore/pythreadpool/`, `pycore/pyheartbeat/`; audits all pycore against the guide and routes fixes to owners |
-| pycore-assist | `PYTHON_PYCORE.md` | every other path under `pycore/` and `pyapps/` (agent history, terminal, desktop/window/input, browser automation, MCP control, device, native UI, ...), and unbounded pycore work |
-| laravel | `LARAVEL_GUIDE.md` | coordinator and foundation of local `poly_apps/laravel_main/`: bootstrap, config, database, lang, middleware, providers, shared services (SafeMigrationHelper, initializers, ClientKey, Auth, OctaneTimer, AI gateway, ...), root routes, the unassigned apps (AChat, Clash, DingDuoDuo, ItTools, Mcp, PddTool) and every Laravel path no other role owns; merges the Laravel family. Develops and tests **locally** |
-| laravel-qyapp | `LARAVEL_GUIDE.md` | `app/Apps/AppQyV1/`, its router and migrations, and the machine routes pycore/mcp-chrome/flutter call (worker, internal/pycore, ingest, orch-audio, agent-history, delivery, QueueCenter services). Local |
-| laravel-codemart | `LARAVEL_GUIDE.md` | `app/Apps/CodeMartV1/`, its router and migrations. Local |
-| laravel-api | `LARAVEL_GUIDE.md` | the APIs the UI apps call: Dashboard/Settings/Auth controllers, queue-center and task-center views, server manager, data sync, realtime, relay, media browse. Local |
-| laravel-remote | `LARAVEL_GUIDE.md` | the same `poly_apps/laravel_main/` in the laravel-main **server** checkout, over SSH (§10). Develops and tests **directly on the server** |
-| pycore-gpu-remote | `PYTHON_PYCORE.md` | test-only remote role on a Linux or Windows GPU test host (§10): runs pyservice there, tests pycore features (GPU engines, orchestration, RPC/relay, CodeSync) and reports to the team; writes no code (reports, its memory, pyservice-managed runtime settings only) |
-| shell-linux | `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` | `dd.sh`, `scripts/linuxenvs/`, `scripts/shells/{linux,common,docker_compose}/`, `scripts/ai_shtools/`, every other `*.sh`/`*.bash` under `scripts/`. Debian 13 and Ubuntu 26.04 first, Kali compatible; the Debian WSL2 side of Windows delegation |
-| shell-windows | `DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md` | `dd.cmd`, `scripts/winenvs/`, `scripts/shells/win/`, every other `*.ps1`/`*.psm1`/`*.psd1`/`*.cmd`/`*.bat`/`*.reg`/`*.vbs` under `scripts/` |
-| reviewer | all guides | verdict files and its own report only |
-| ui-laravel-manager | UI conventions | `UI/apps/laravel-manager/` |
-| ui-pycore-manager | UI conventions | `UI/apps/pycore-manager/` |
-| ui-wordnew | UI conventions, `UI/apps/wordnew/docs/` | `UI/apps/wordnew/`, `UI/flavors/wordnew/`, `UI/native/wordnew/` |
-| ui-codemart | UI conventions | `UI/apps/codemart/`, `UI/flavors/codemart/` |
-| ui-vortex | UI conventions | `UI/apps/vortex/`, `UI/flavors/vortex/`: the pycore UI sub-app "Vortex Sandbox" |
-| flutter | `FLUTTER_GUIDE.md` | `poly_apps/flutter_bloom/` |
-| ncore | `NODE_NCORE_GUIDE.md` | `ncore/`, `apps/` except `apps/mcp-chrome/`, `main.js`, `ncore_module_caller.js`, `public/` |
-| mcp-chrome | `MCP_CHROME_GUIDE.md` | `apps/mcp-chrome/` |
+| claude (1) | orchestrator (claude lead and role orchestrator) | `docs_fix/`, `config/*.json`, `.claude/agents/`, `.claude/agents_shared/`, `development-guides/` (B12) |
+| pycore (5) | **pycore-lead** (leader, code leader) | pycore entry points, launcher and foundations. Audits and merges all pycore-group work against `PYTHON_PYCORE.md` |
+| | pycore-ai | large models (pyctl/pyutils ai, tts, stt, llm, ocr, translation, ensure_library), `pycore/tts_install_assets/`, and the local model init scripts on both OSes (`Step{9,11,12,36-39,42,43,46,47,51-61}`, `DockerWslBridge.ps1`, Linux tts/docker model scripts, `docker_compose/tts/`) |
+| | pycore-runtime | pyservice backend (callmodule, database, common, rpc_v2, laravel link, codesync, relay, queue center, audio orchestration, every other pycore path, `pyapps/`) and the pyservice prerequisite scripts (`pyservice_entry.sh`, `pyservice_www_permissions.sh`, `codesync_service.sh` and their Windows counterparts) |
+| | pycore-laravel | Laravel foundation and shared services, machine routes, relay, UI APIs, unassigned Laravel apps: every `poly_apps/laravel_main/` path not owned by wordnew-laravel or codemart-laravel |
+| | pycore-ui | `UI/apps/{pycore-manager,laravel-manager,vortex,pdd-manager}/`, `UI/flavors/vortex/`. Default writer of the shared UI layer (B2) |
+| wordnew (5) | **wordnew-lead** (leader; assigns tasks automatically) | `UI/apps/wordnew/docs/`, and any wordnew path it assigns itself |
+| | wordnew-ui | `UI/apps/wordnew/` (except docs), `UI/flavors/wordnew/` |
+| | wordnew-laravel | Laravel AppQyV1: `app/Apps/AppQyV1/`, its router and migrations, the AppQyV1 services and controllers |
+| | wordnew-native | `UI/native/wordnew/` (Capacitor), the wordnew build and prerequisite scripts |
+| | wordnew-link | `apps/mcp-chrome/`, plus pycore and mcp-chrome linkage glue |
+| shell (2) | **shell-windows** (leader and developer) | `dd.cmd`, `scripts/winenvs/`, `scripts/shells/win/`, other Windows scripts, except the pycore/wordnew-native scripts above |
+| | shell-linux | `dd.sh`, `scripts/linuxenvs/`, `scripts/shells/{linux,common,docker_compose}/`, `scripts/ai_shtools/`, other `*.sh`, except the pycore/wordnew-native scripts above |
+| codemart (3) | **codemart-lead** (leader and developer) | `docs_fix/codemart_docs/`, cross-cutting CodeMart items, any codemart path it assigns itself |
+| | codemart-ui | `UI/apps/codemart/`, `UI/flavors/codemart/` |
+| | codemart-laravel | `app/Apps/CodeMartV1/`, its router and migrations |
+| remote | laravel-remote | the laravel-main server checkout (§10) |
+| remote | pycore-gpu-remote | test-only on a GPU host (§10); the pycore group's tester |
+| service | reviewer | verdict files for the leaders' own work and for cross-group changes, plus its own report |
+| service | ncore | `ncore/`, and `apps/` except `apps/mcp-chrome/`. On demand |
+| service | flutter | `poly_apps/flutter_bloom/`. On demand (D6 won't-fix) |
 
 Boundaries:
 - B1 **One writer per path.** Out-of-scope changes go to the owner through the orchestrator.
@@ -140,7 +138,13 @@ Boundaries:
   - every catalog kickoff repeats the rule;
   - when a choice comes up, the session takes the recommended option and records the choice and the reason: the orchestrator in docs_fix, a role in its report.
 - B10 **UI role names** (user, 2026-09-27). The five Web UI roles carry the `ui-` prefix: `ui-laravel-manager`, `ui-pycore-manager`, `ui-wordnew`, `ui-codemart`, `ui-vortex`. `flutter` and `mcp-chrome` keep their names.
-- B13 **Role families** (user, 2026-09-27). `laravel` and `pycore` coordinate their families. A coordinator merges its family's batches before review, runs the combined checks, and assigns one temporary writer at a time to a path shared inside the family, recording it in its report. The full path maps are in `.claude/agents/laravel.md` and `.claude/agents/pycore.md`; a path not listed belongs to the `laravel` coordinator or to `pycore-assist`.
+- B13 (superseded by B14) **Role families**: the laravel/pycore coordinator families of D16.
+- B14 **Groups and leaders** (user D22, 2026-09-27).
+  - Every group has one leader. The claude lead (orchestrator) gives each group its tasks through the leader. The leader splits them over its members by the path map, one writer per path, then checks each member task and writes its verdict.
+  - A leader's own development and cross-group changes are verified by the `reviewer` service.
+  - Service roles (`window: false` in the catalog) are valid task tags that get no window at start.
+  - The pycore leader is also the code leader: every pycore-group change is audited against `PYTHON_PYCORE.md`.
+  - Launcher tabs follow the groups (`config/claude_team_roles.json#layout.tab_groups`).
 - B11 **Shell parity** (user, 2026-09-27). The shell role is split into `shell-linux` and `shell-windows`. Each agent file names its counterpart.
   - Every functional change on one side has a counterpart change or a platform-only reason.
   - Each role keeps its own ledger, `.claude/agents_shared/shell_parity/<linux|windows>.md`. Rows are `id | feature | files | status | task`, with ids `SPL-###`/`SPW-###` and status `aligned`, `pending-<other>` or `platform-only: <reason>`.
@@ -179,6 +183,6 @@ Boundaries:
   - Git is never used to move code between machines. A remote role checks arrival by file SHA-256, never by git HEAD.
 - **Remote roles:**
   - `laravel-remote` develops and tests on the laravel-main server;
-  - `pycore-gpu-remote` is a test-only GPU host, Linux or Windows. Its catalog `remote.os` is `auto`, and it starts only when its `ssh_secret` resolves.
+  - `pycore-gpu-remote` is a test-only GPU host, Linux or Windows, and the pycore group's tester. Its catalog `remote.os` is `auto`, and it starts only when its `ssh_secret` resolves.
 - **Reports and verdicts:** the remote role sends its changed-file list, verification output and handoff report by message. The reviewer and the verdict files stay on the local machine.
 

@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "guide_doc": "development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md",
   "record_dir": "docs_fix",
   "agents_dir": ".claude/agents",
@@ -33,7 +33,7 @@
       "enabled": true
     },
     {
-      "name": "pycore",
+      "name": "pycore-lead",
       "enabled": true
     },
     {
@@ -45,27 +45,51 @@
       "enabled": true
     },
     {
-      "name": "pycore-architect",
+      "name": "pycore-laravel",
       "enabled": true
     },
     {
-      "name": "pycore-assist",
+      "name": "pycore-ui",
       "enabled": true
     },
     {
-      "name": "laravel",
+      "name": "wordnew-lead",
       "enabled": true
     },
     {
-      "name": "laravel-qyapp",
+      "name": "wordnew-ui",
       "enabled": true
     },
     {
-      "name": "laravel-codemart",
+      "name": "wordnew-laravel",
       "enabled": true
     },
     {
-      "name": "laravel-api",
+      "name": "wordnew-native",
+      "enabled": true
+    },
+    {
+      "name": "wordnew-link",
+      "enabled": true
+    },
+    {
+      "name": "shell-windows",
+      "enabled": true
+    },
+    {
+      "name": "shell-linux",
+      "enabled": true
+    },
+    {
+      "name": "codemart-lead",
+      "enabled": true
+    },
+    {
+      "name": "codemart-ui",
+      "enabled": true
+    },
+    {
+      "name": "codemart-laravel",
       "enabled": true
     },
     {
@@ -88,48 +112,19 @@
       }
     },
     {
-      "name": "shell-linux",
-      "enabled": true
-    },
-    {
-      "name": "shell-windows",
-      "enabled": true
-    },
-    {
       "name": "reviewer",
-      "enabled": true
-    },
-    {
-      "name": "ui-laravel-manager",
-      "enabled": true
-    },
-    {
-      "name": "ui-pycore-manager",
-      "enabled": true
-    },
-    {
-      "name": "ui-wordnew",
-      "enabled": true
-    },
-    {
-      "name": "ui-codemart",
-      "enabled": true
-    },
-    {
-      "name": "ui-vortex",
-      "enabled": true
-    },
-    {
-      "name": "flutter",
-      "enabled": true
+      "enabled": true,
+      "window": false
     },
     {
       "name": "ncore",
-      "enabled": true
+      "enabled": true,
+      "window": false
     },
     {
-      "name": "mcp-chrome",
-      "enabled": true
+      "name": "flutter",
+      "enabled": true,
+      "window": false
     }
   ],
   "remote": {
@@ -143,7 +138,7 @@
     "name_from": "frontmatter name",
     "model_from": "frontmatter model (alias, latest: opus = Opus 5.5 for thinking roles, sonnet = Sonnet 5 for coding roles)",
     "effort_from": "frontmatter effort, passed to role sessions as --effort",
-    "catalog_roles_are": "overrides only (enabled, remote); an agent file without a catalog row is enabled"
+    "catalog_roles_are": "overrides only (enabled, remote, window); an agent file without a catalog row is enabled; window:false = service role, valid task tag, no window/session at start"
   },
   "session_env": {
     "all": {
@@ -180,38 +175,99 @@
     "tab_groups": [
       [
         "orchestrator",
-        "reviewer",
-        "laravel",
-        "pycore",
         "shell-windows",
         "shell-linux"
       ],
       [
-        "laravel-qyapp",
-        "laravel-codemart",
-        "laravel-api",
-        "laravel-remote"
-      ],
-      [
+        "pycore-lead",
         "pycore-ai",
         "pycore-runtime",
-        "pycore-architect",
-        "pycore-assist"
+        "pycore-laravel",
+        "pycore-ui"
       ],
       [
-        "ui-laravel-manager",
-        "ui-pycore-manager",
-        "ui-wordnew",
-        "ui-codemart",
-        "ui-vortex"
+        "wordnew-lead",
+        "wordnew-ui",
+        "wordnew-laravel",
+        "wordnew-native",
+        "wordnew-link"
       ],
       [
-        "ncore",
-        "mcp-chrome",
-        "flutter"
+        "codemart-lead",
+        "codemart-ui",
+        "codemart-laravel"
       ]
     ],
     "merge_groups_when_room": true,
-    "unlisted_roles": "appended to the last tab group"
-  }
+    "unlisted_roles": "appended to the last tab group",
+    "group_source": "groups[] (user D22): one tab group per team group; the claude lead shares its tab with the 2-member shell group"
+  },
+  "groups": [
+    {
+      "name": "claude",
+      "leader": "orchestrator",
+      "members": [
+        "orchestrator"
+      ]
+    },
+    {
+      "name": "pycore",
+      "leader": "pycore-lead",
+      "members": [
+        "pycore-lead",
+        "pycore-ai",
+        "pycore-runtime",
+        "pycore-laravel",
+        "pycore-ui"
+      ],
+      "remote_members": [
+        "pycore-gpu-remote"
+      ]
+    },
+    {
+      "name": "wordnew",
+      "leader": "wordnew-lead",
+      "members": [
+        "wordnew-lead",
+        "wordnew-ui",
+        "wordnew-laravel",
+        "wordnew-native",
+        "wordnew-link"
+      ]
+    },
+    {
+      "name": "shell",
+      "leader": "shell-windows",
+      "members": [
+        "shell-windows",
+        "shell-linux"
+      ]
+    },
+    {
+      "name": "codemart",
+      "leader": "codemart-lead",
+      "members": [
+        "codemart-lead",
+        "codemart-ui",
+        "codemart-laravel"
+      ]
+    },
+    {
+      "name": "remote",
+      "leader": "orchestrator",
+      "members": [
+        "laravel-remote"
+      ]
+    },
+    {
+      "name": "service",
+      "leader": "orchestrator",
+      "members": [
+        "reviewer",
+        "ncore",
+        "flutter"
+      ],
+      "window": false
+    }
+  ]
 }

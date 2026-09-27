@@ -1,0 +1,2 @@
+- [Mixed line endings](mixed-line-endings.md) — mcp-chrome files keep CRLF/mixed bytes; scripted edits normalize them; restore from HEAD per line
+- [Native host stdio and shared dist](native-host-stdio-and-shared-dist.md) — host stdout is native messaging (ncore logs need MCP_MODE); chrome-mcp-shared type-checks against dist

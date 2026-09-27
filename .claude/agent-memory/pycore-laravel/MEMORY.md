@@ -1,0 +1,5 @@
+- [Verify in-process without writes](verify-in-process-without-writes.md) — scratchpad kernel boot, array cache, lang keys, rolled-back PG DDL, in-process HTTP
+- [Laravel route auth model](laravel-route-auth-model.md) — client.key / client.key_or_dashboard / dashboard.auth levels since 2026-09-27
+- [No env in Laravel](feedback-laravel-no-env.md) — user ruling: config files + RuntimeConfigurationStore, never env()/.env
+- [175 ensure semantics](feedback-175-ensure-semantics.md) — 175/sys:init repair not reset, skip initialized, step-testable, small changes
+- [Windows local runtime](windows-local-runtime.md) — dual-boot shared files, PS 5.1 quoting, FrankenPHP ext ini, WMI detach, no trust-store edits

@@ -1,0 +1,884 @@
+[
+ {
+  "old_role": "laravel",
+  "task_id": "laravel-D7",
+  "items": [
+   {
+    "item_id": "USER175-11",
+    "requirement": "Merged: USER175-11, CMGAP-U21, cmgap-U21, CKA-40, D9-03, and the env part of d9-02b. Laravel reads no process env (D17). Replace the remaining env() reads with config-file values. config/services.php:17-23 CODEMART_BANK_* becomes codemart_bank_transfer, read from RuntimeConfigurationStore per-install keys with empty defaults. services.php:25 CODEMART_SEED_DEMO becomes LaravelConfig::CODEMART_SEED_DEMO = true (the current default). config/logging.php:70,83 LOG_LEVEL becomes LaravelConfig::LOG_LEVEL. Keep the config keys services.codemart_bank_transfer and services.codemart_seed_demo, so CodeMart code does not change. Add no .env keys. Do not delete the tracked .env: shell readers still parse it, and CKA-39 moves them. In reports/laravel.md, record that errors land in the daily file PathMapper::mapWebPath('logs','laravel.log'), not syslog (the LOG_CHANNEL key is inert), for the laravel-remote handoff.",
+    "files": [
+     "poly_apps/laravel_main/config/services.php",
+     "poly_apps/laravel_main/config/logging.php",
+     "poly_apps/laravel_main/app/Constants/LaravelConfig.php",
+     "poly_apps/laravel_main/app/Support/RuntimeConfigurationStore.php"
+    ],
+    "verify": "A grep for 'env(' under poly_apps/laravel_main/config and app finds no process-env read. php -l passes on the three files. A scratchpad in-process script (array cache, per the verify-in-process memory) prints config('services.codemart_seed_demo') === true, the codemart_bank_transfer shape, and the daily channel level. php artisan config:show services matches, read-only."
+   },
+   {
+    "item_id": "contract-readers",
+    "requirement": "After the contracts land, extend the shared readers so the family lanes read the new keys without literals. App\\Support\\QueueCenterContract gets word_identity.fallback_when_md5_absent, the delivery section and library_cover.max_ids. App\\Support\\ServiceContract gets the data_sync block and the paths bases. app/Http/Middleware/ServerIdentityHeader.php takes its header name from the delivery section. Announce the accessors to laravel-qyapp, laravel-api and laravel-codemart.",
+    "files": [
+     "poly_apps/laravel_main/app/Support/QueueCenterContract.php",
+     "poly_apps/laravel_main/app/Support/ServiceContract.php",
+     "poly_apps/laravel_main/app/Http/Middleware/ServerIdentityHeader.php"
+    ],
+    "verify": "php -l passes. An in-process script prints every new accessor and asserts it equals the raw json_decode of the contract file. php artisan route:list --json still resolves ServerIdentityHeader and client.key on the delivery and orch-audio routes."
+   },
+   {
+    "item_id": "CKA-08",
+    "requirement": "PathMapper takes WINDOWS_DATA_DRIVE_ROOT, WWW_DIR_NAME, LINUX_WWW_ROOT, CORE_NODE_DATA_DIR_NAME, LEGACY_LINUX_DATA_DIR and NTFS_FILE_SYSTEMS from service_contract.json#paths (via ServiceContract) instead of constants (PathMapper.php:52-77, 283-306). Behavior stays the same.",
+    "files": [
+     "poly_apps/laravel_main/app/Providers/PathMapper.php",
+     "poly_apps/laravel_main/app/Support/ServiceContract.php"
+    ],
+    "verify": "php -l passes. An in-process script prints getCoreNodeRuntimeDir() and the laravel_db/web path mappings before and after the change (identical on this Windows host: D:/www/core_node...). A grep of PathMapper.php finds no '/var/_core_node' or 'ntfs3' literal."
+   },
+   {
+    "item_id": "srv-06",
+    "requirement": "Merged: srv-06, srv-02, USER175-12, D9-10. McpV1Initializer (McpV1Initializer.php:51-58) no longer skips a step on completed_steps alone. For each step it verifies the real schema (Schema::hasTable/hasColumns, including placeholder_images) and re-runs a step whose schema is missing. mcpv1:placeholder-cleanup skips with a log line when the feature table is absent. sys:init keeps printing the admin invite code (InitializeApps.php:101-106, user D17) and prints only active, unexpired codes (InviteCodeInitializer). Any env() read in the touched files moves to config.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/McpV1/McpV1Utils/McpV1Initializer.php",
+     "poly_apps/laravel_main/app/Apps/McpV1/",
+     "poly_apps/laravel_main/app/Console/Commands/InitializeApps.php",
+     "poly_apps/laravel_main/app/Services/InviteCodeInitializer.php"
+    ],
+    "verify": "php -l passes. Inside a rolled-back PG transaction (beginTransaction … rollBack), McpV1Initializer lists placeholder_images as created when it is missing, and a second call in the same transaction reports no change. The cleanup command, run in-process inside the rolled-back transaction with the table absent, returns 0 with a skip log. The InitializeApps output still contains the invite-code line. php artisan schedule:list still lists the cleanup."
+   },
+   {
+    "item_id": "T12",
+    "requirement": "Merged: T12, CKA-32. laravel-T11 is approved (reviews/laravel-T11.json), so SafeMigrationHelper is released. Extract one normalizeIndexColumns() used by findEquivalentIndex and indexMatches (:659, :685-686). Skip pgsql partial (WHERE) indexes in findEquivalentIndex (:661). Handle 'morphs' in COMPOSITE_COLUMN_TYPES (:65) with the NOT NULL relax, or drop it. Add the duplicate idx_* on codemart_v1_projects and codemart_v1_code_reviews to the report's residue list. Revert the whitespace-only churn (:280, :843, :1482).",
+    "files": [
+     "poly_apps/laravel_main/app/Services/SafeMigrationHelper.php"
+    ],
+    "verify": "php -l passes. In a rolled-back PG transaction, the CodeMartV1 and AppQyV1 alignment (alignTableStructureFromArray via the initializers) reports zero changes on the aligned local schema and creates no duplicate idx_*. git diff --ignore-space-at-eol shows no whitespace-only hunks."
+   },
+   {
+    "item_id": "srv-01",
+    "requirement": "Close-out. The code already has the fix: OctaneTimerService.php:339 and :362 call writeHeartbeatSnapshot, :374 routes EXECUTION_BACKGROUND tasks to the background lane, and bootstrap/app.php:70-77 has the heartbeat withoutOverlapping(1) and the background lane withoutOverlapping(5). Confirm this, and change code only if the tick can still exceed the overlap expiry. The runtime tick check (MCHR-41) is deferred to the user.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/OctaneTimerService.php",
+     "poly_apps/laravel_main/bootstrap/app.php"
+    ],
+    "verify": "php artisan schedule:list shows octane-timer-heartbeat (every second) and octane-timer-background. A static read confirms that tick() writes the snapshot on every path and that no background-mode task runs inline. Record the result in reports/laravel.md."
+   },
+   {
+    "item_id": "D9-01",
+    "requirement": "Merged: D9-01, CKA-35. LaravelConfig::CACHE_STORE switches to the Laravel failover store [redis, database] (config/cache.php already defines redis, line 56). SESSION_DRIVER stays database. CodeMart money operations keep their DB row locks (lockForUpdate) inside transactions. No second cache abstraction.",
+    "files": [
+     "poly_apps/laravel_main/app/Constants/LaravelConfig.php",
+     "poly_apps/laravel_main/config/cache.php"
+    ],
+    "verify": "php -l passes. In-process: config('cache.default') is 'failover'. Inside a rolled-back PG transaction, Cache::put/get works on this host where php -m shows no redis (it falls back to database), and the rate limiter used by CodeMart throttle resolves."
+   },
+   {
+    "item_id": "CKA-13",
+    "requirement": "DingDuoDuoV1LicenseService.php:62: the super-code payload returns label null (as lockedPayload does at :103). The extension localizes from mode 'super'. Remove the now-unused lang keys only if nothing else reads them. ncore CKA-14 depends on this item.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/DingDuoDuoV1/DingDuoDuoV1Services/DingDuoDuoV1LicenseService.php",
+     "poly_apps/laravel_main/lang/en/ding_duo_duo.php",
+     "poly_apps/laravel_main/lang/zh_CN/ding_duo_duo.php"
+    ],
+    "verify": "php -l passes. An in-process call of the super payload builder returns mode 'super' with label null. A grep for super_code_label shows no dangling reader."
+   },
+   {
+    "item_id": "USER175-07",
+    "requirement": "Depends on laravel-codemart srv-05. Register the CodeMart command class codemart:admin-password (in app/Apps/CodeMartV1/CodeMartV1Commands/, the same pattern as AppQyV1Commands) in app/Providers/AppServiceProvider.php. sys:codemartinit (app/Console/Commands/CodeMartV1SeedDemoData.php:19) no longer prints the constant password. It prints the secret file path and the current password from the contract secret file, through lang keys.",
+    "files": [
+     "poly_apps/laravel_main/app/Providers/AppServiceProvider.php",
+     "poly_apps/laravel_main/app/Console/Commands/CodeMartV1SeedDemoData.php",
+     "poly_apps/laravel_main/lang/en",
+     "poly_apps/laravel_main/lang/zh_CN"
+    ],
+    "verify": "php artisan list shows codemart:admin-password, and php artisan codemart:admin-password --help shows --file. php -l passes. A grep for 'Codemart#2026' across poly_apps/laravel_main finds nothing. The new __() keys resolve in en and zh_CN (in-process)."
+   },
+   {
+    "item_id": "USER175-09",
+    "requirement": "Depends on shell-windows USER175-08. poly_apps/laravel_main/scripts/start.ps1 (a laravel path) matches the contract flow. After sys:init (:631-645) it dot-sources and calls the shared shell-windows codemart-admin-password helper, instead of a second implementation. It adds --show-codemart-password next to --show-super-code (:224, :242-250), as a read-only early exit. It runs the resource-index ensure only when phpredis is loaded, otherwise it logs the DB fallback (the LDRI-43 Windows half).",
+    "files": [
+     "poly_apps/laravel_main/scripts/start.ps1"
+    ],
+    "verify": "The PowerShell parser (System.Management.Automation.Language.Parser::ParseFile) reports 0 errors. start.ps1 --show-codemart-password prints the saved password or a not-generated notice, and starts no service or sys:init. Grep shows a single generator (the shared helper) on Windows."
+   },
+   {
+    "item_id": "D9-09",
+    "requirement": "poly_apps/laravel_main/scripts/deploy.sh (:343-355) and deploy.ps1 (:924-925) stop running their own sys:init provisioning and delegate to the canonical 175_laravel_main_start.sh (the way start.sh:14-16 does) and to start.ps1. Discovery by systemd_service_manager.sh:208 and unified_manager.ps1:83 keeps working.",
+    "files": [
+     "poly_apps/laravel_main/scripts/deploy.sh",
+     "poly_apps/laravel_main/scripts/deploy.ps1"
+    ],
+    "verify": "bash -n deploy.sh and a PowerShell parse of deploy.ps1 both pass. A grep for 'sys:init' in deploy.* finds nothing. Both scripts reference 175_laravel_main_start.sh / start.ps1."
+   },
+   {
+    "item_id": "CKA-25",
+    "requirement": "LB-034 remainder in laravel-owned paths (about 275 sites). Covered: McpV1 (McpV1TaskDispatchCtl, McpV1ScreenshotCtl, VoiceSubtitleV1MainController), DingDuoDuoV1Initializer, PddToolV1Initializer, GeminiClient, routes/web.php:238,250,256, app/Utils/SystemArchiveManager.php:95-113 (the MDSR-24 archive errors), and SafeMigrationHelper (after T12). message/error literals and interpolated texts become __() keys with parameters in lang/en and lang/zh_CN.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/McpV1",
+     "poly_apps/laravel_main/app/Services",
+     "poly_apps/laravel_main/app/Utils/SystemArchiveManager.php",
+     "poly_apps/laravel_main/routes/web.php",
+     "poly_apps/laravel_main/lang"
+    ],
+    "verify": "Re-run the audit scan (\"'message'|'error' => '<Capitalized literal>'\" plus interpolated messages) over the laravel-owned paths: 0 hits. php -l passes on the changed files. An in-process script asserts that every new key resolves in en and zh_CN."
+   },
+   {
+    "item_id": "laravel-merge",
+    "requirement": "Merge check of every Laravel-family change from this run (laravel, laravel-qyapp, laravel-codemart, laravel-api): shared services, route and middleware order, migrations and initializers, lang keys (no duplicate or colliding keys; temporary-writer assignments recorded), contract readers. Send the orchestrator the list of local changes that laravel-remote must verify after the user's code sync.",
+    "files": [
+     "poly_apps/laravel_main"
+    ],
+    "verify": "php -l on every changed PHP file (git diff --name-only 74e7770 -- poly_apps/laravel_main). php artisan route:list --json with no errors, diffed against the pre-run snapshot. php artisan list and schedule:list. A rolled-back sys:init initializer pass (in-process, array cache) reports no pending change after the family's schema edits. The in-process HTTP kernel returns 200 for GET public/home and for the codemart bootstrap. A lang parity script checks en against zh_CN."
+   }
+  ],
+  "shared_layer_paths": [
+   "poly_apps/laravel_main/bootstrap/",
+   "poly_apps/laravel_main/config/",
+   "poly_apps/laravel_main/lang/",
+   "poly_apps/laravel_main/app/Support/",
+   "poly_apps/laravel_main/app/Providers/",
+   "poly_apps/laravel_main/app/Constants/",
+   "poly_apps/laravel_main/app/Http/Middleware/",
+   "poly_apps/laravel_main/app/Services/TimerTasks/",
+   "poly_apps/laravel_main/app/Console/",
+   "poly_apps/laravel_main/scripts/"
+  ],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "laravel-api",
+  "task_id": "laravel-api-D7",
+  "items": [
+   {
+    "item_id": "MDSR-03",
+    "requirement": "Driver cancel, failure and keepalive failure send the token-authenticated peer cancel. Call cancelPeer with the job captured before runtime->finish() (DataSyncDriverService.php:75-80, 115-120, 132), so that peer_session_id, peer_base_path and peer_token are not stripped by the summary() compaction.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncDriverService.php",
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncSessionRuntime.php"
+    ],
+    "verify": "php -l passes. In-process with Http::fake capturing requests, inside a rolled-back transaction and a scratch state dir: create a driver session with peer context, then call cancel. Exactly one POST to <peer>/sync-peer/.../cancel carries the token. Repeat for the failure path."
+   },
+   {
+    "item_id": "MDSR-01",
+    "requirement": "assertNoConflictingLocalSession (DataSyncPassiveService.php:604-613) treats every DRIVER_ROLE, and the other passive role, as conflicting when either passive role is prepared. At most one session is active per node.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncPassiveService.php"
+    ],
+    "verify": "php -l passes. In-process with a scratch state store: with an active local 'source' session, export-prepare returns the busy code and the session count stays 1."
+   },
+   {
+    "item_id": "MDSR-09",
+    "requirement": "exportArchive (DataSyncPassiveService.php:133) stores the fetcher's path list as a DataSyncArtifactStore artifact and keeps only a flag and the artifact key in context.pending_archives. The timer reads the artifact. forgetSession removes it.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncPassiveService.php",
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncArtifactStore.php"
+    ],
+    "verify": "php -l passes. In-process with a scratch store: an exportArchive with 50k paths leaves the session JSON under 10 KB, and the artifact file holds the list. A terminal save deletes it."
+   },
+   {
+    "item_id": "MDSR-17",
+    "requirement": "7z mode extracts into the session incoming directory, checks each file's SHA-256 against the plan manifest, then moves it into the live root. Mismatches are skipped and reported (ResourceSyncService.php:309-314). If SystemArchiveManager::extract7z (app/Utils, laravel) lacks a target-dir parameter, laravel assigns laravel-api as its temporary writer for that one signature change.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/ResourceSyncService.php",
+     "poly_apps/laravel_main/app/Utils/SystemArchiveManager.php"
+    ],
+    "verify": "php -l passes. In-process with scratch dirs and a 7z built in the scratchpad (skip if 7z is absent and record that): one tampered file is not committed and is reported, the others land with matching hashes, and the live root is untouched until verification."
+   },
+   {
+    "item_id": "MDSR-12",
+    "requirement": "DataSyncProtocol::DEFAULT_PORT (DataSyncProtocol.php:8) is removed. normalizeAddress uses App\\Support\\ServiceContract::port('laravel_api_backend') (service_contract.json ports.laravel_api_backend = 9000).",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncProtocol.php",
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncPeerClient.php"
+    ],
+    "verify": "php -l passes. In-process: normalizeAddress('1.2.3.4') gives http://1.2.3.4:9000, normalizeAddress('::1') gives http://[::1]:9000, and 'https://h' gives :443. A grep finds no 9000 literal in DataSync."
+   },
+   {
+    "item_id": "MDSR-26-php",
+    "requirement": "Depends on the contract data_sync block and laravel contract-readers. DataSyncProtocol takes VERSION, the status and role lists, and TERMINAL_RETENTION from ServiceContract. The sessions index response (DataSyncController.php:30-37) exposes terminal_retention for MDSR-11.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncProtocol.php",
+     "poly_apps/laravel_main/app/Http/Controllers/Dashboard/DataSyncController.php"
+    ],
+    "verify": "php -l passes. An in-process assert shows the constants equal the contract values. The in-process GET of the sync sessions index contains terminal_retention 5."
+   },
+   {
+    "item_id": "MDSR-18",
+    "requirement": "/sync-peer/health keeps protocol_version 5 and adds a code revision field: the git HEAD short sha read from the repo .git files without shelling out, or a build stamp. It lets a remote test confirm that the server runs the new code.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncService.php"
+    ],
+    "verify": "php -l passes. The in-process GET /api/dashboard/db-manager/sync-peer/health (client.key seeded by reflection) returns protocol_version 5 and a non-empty code_revision matching git rev-parse --short HEAD."
+   },
+   {
+    "item_id": "MDSR-24",
+    "requirement": "DataSync step details, skip reasons and errors become stable detail_code/reason_code values with params. The UI localizes them. This covers DataSyncDriverService (the lines listed in MDSR-24, skip reasons at :389-393 and :505), DataSyncBusyException:13, DataSyncService:168 and DataSyncController:365. The server-side fallback text uses lang/*/data_sync.php (laravel assigns laravel-api as temporary writer). Row-conflict samples move out of database_results.skipped into their own list (MDSR-15 point 2).",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncDriverService.php",
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncBusyException.php",
+     "poly_apps/laravel_main/app/Services/DataSync/DataSyncService.php",
+     "poly_apps/laravel_main/app/Http/Controllers/Dashboard/DataSyncController.php",
+     "poly_apps/laravel_main/lang/en/data_sync.php",
+     "poly_apps/laravel_main/lang/zh_CN/data_sync.php"
+    ],
+    "verify": "php -l passes. A grep of DataSync for capitalized English literals in detail/reason/message finds nothing. An in-process driver run on a scratch session shows steps carrying detail_code and params. Every data_sync key resolves in en and zh_CN."
+   },
+   {
+    "item_id": "MDSR-07",
+    "requirement": "Extract one shared PostgreSQL catalog service (bulk pg_attribute/pg_index/pg_constraint queries plus one query_to_xml count per connection, 60 s cache) from DatabaseSyncService::catalog/exactRowCounts (:331-440). Use it for DatabaseManagerService::tables() and structure() (:187-260) instead of per-table COUNT and Schema::getColumns/getIndexes.",
+    "files": [
+     "poly_apps/laravel_main/app/Services/DataSync/DatabaseSyncService.php",
+     "poly_apps/laravel_main/app/Services/Dashboard/DatabaseManagerService.php"
+    ],
+    "verify": "php -l passes. In-process on the local PG: dashboard tables() and structure() for 3 tables return the same data as before (diff the JSON), and DB::listen counts O(connections) queries rather than O(tables)."
+   },
+   {
+    "item_id": "AHSC-35-relay",
+    "requirement": "After the contract adds the agent_history_config_changed relay event, confirm that app/Apps/Relay/RelayServices/RelayContract.php and the relay event forwarder accept and forward it. Add it only if a hardcoded event list exists; otherwise make no code change.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/Relay/RelayServices/RelayContract.php"
+    ],
+    "verify": "In-process: RelayContract loads the contract and lists agent_history_config_changed among its events. php -l passes if a change was made."
+   },
+   {
+    "item_id": "CKA-27",
+    "requirement": "LB-034 remainder in laravel-api paths (about 260 sites): EnvironmentApiInfo (CodeBrowserFileOpsController, StaticResourceController, ClipboardController, CodeBrowserController, ChunkedUploadController), StaticServer/StaticFileController, ServerManagerV1DomainManager, ServerManagerV1NginxManagerCtl. Literals become lang keys.",
+    "files": [
+     "poly_apps/laravel_main/app/Http/EnvironmentApiInfo",
+     "poly_apps/laravel_main/app/Http/StaticServer",
+     "poly_apps/laravel_main/app/Apps/ServerManagerV1",
+     "poly_apps/laravel_main/lang"
+    ],
+    "verify": "Re-run the literal scan on the laravel-api paths: 0 hits. php -l passes on the changed files. The en/zh_CN resolution script passes."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "pycore",
+  "task_id": "pycore-D7",
+  "items": [
+   {
+    "item_id": "AHSC-16",
+    "requirement": "The tray state getters in pycore/pylauncher/tray_menu.py (:199, :230) stop importing pyctl.agent_history.pipeline.config (PYTHON_PYCORE.md §2). pyctl publishes the flags on AGENT_HISTORY_CONFIG_CHANGED, and event_handlers injects the initial state at start. The tray keeps the last payload. The event_handlers.py half is written by the pycore coordinator as temporary writer (B13, recorded). It uses the BusSignals entry from pycore-architect.",
+    "files": [
+     "pycore/pylauncher/tray_menu.py",
+     "pycore/pyctl/runtime/event_handlers.py"
+    ],
+    "verify": "A grep of pycore/pylauncher for 'pyctl' finds nothing. python -m py_compile passes on both files. python -c 'import pycore.pylauncher.tray_menu' imports without pulling pyctl: check that 'pycore.pyctl' is not in sys.modules after the import."
+   },
+   {
+    "item_id": "LTCW-03",
+    "requirement": "Depends on pycore-architect LTCW-03-exports. pycore/pyutils/launcher/linux_desktop_user.py (:29-37, :176-177, :241-249) imports RUN_USER_ROOT, SESSION_BUS_SOCKET, BUS_ADDRESS_FORMAT and the per-user resolver from desktop_session, and drops its own copies.",
+    "files": [
+     "pycore/pyutils/launcher/linux_desktop_user.py"
+    ],
+    "verify": "A grep finds no '/run/user' or 'unix:path=' literal in linux_desktop_user.py. py_compile passes. The import succeeds on Windows (the module guards Linux-only calls)."
+   },
+   {
+    "item_id": "pycore-merge",
+    "requirement": "Merge check of every pycore-family change from this run (pycore, pycore-ai, pycore-runtime, pycore-architect, pycore-assist). Check import resolution across pycore, layering (no pylauncher->pyctl, no pyfoundations->pyutils/pyctl), that no in-flight file was touched, and CRLF/LF per-line endings preserved (git diff --ignore-space-at-eol shows only functional hunks).",
+    "files": [
+     "pycore"
+    ],
+    "verify": "python -m compileall -q on the changed files. A scratch script imports every changed module (importlib.import_module for each dotted path from git diff --name-only 74e7770 -- pycore minus the in-flight list) and reports 0 failures. git diff --stat against the 10 in-flight files is unchanged by this lane."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "pycore-ai",
+  "task_id": "pycore-ai-D7",
+  "items": [
+   {
+    "item_id": "PRAO-07",
+    "requirement": "In pycore/pyctl/ai/prompt_derive.py (:128, :142), the default source parameters use the central ids AI_SOURCE_PROMPT_DERIVE and AI_SOURCE_PROMPT_REWRITE from pycore/pyctl/agent_history/ai_sources.py (or source becomes required), so a caller that omits source still lands under an id the attempts panel lists.",
+    "files": [
+     "pycore/pyctl/ai/prompt_derive.py"
+    ],
+    "verify": "py_compile passes. A grep finds no '\"prompt_derive_en\"' or '\"prompt_rewrite_en\"' literal in prompt_derive.py. python -c imports prompt_derive and asserts that the defaults (inspect.signature) equal the ai_sources constants."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": true
+ },
+ {
+  "old_role": "pycore-runtime",
+  "task_id": "pycore-runtime-D7",
+  "items": [
+   {
+    "item_id": "LTCW-12-consts",
+    "requirement": "Owner half of LTCW-12. gnome_shell_dbus.py and xdg_desktop_portal.py export the reason codes gnome_bridge_not_applicable, gnome_introspect_not_needed and portal_not_applicable as constants, next to x11_display.X11_ERROR_DISPLAY_UNSET, for pycore-assist to import.",
+    "files": [
+     "pycore/pyutils/common/gnome_shell_dbus.py",
+     "pycore/pyutils/common/xdg_desktop_portal.py"
+    ],
+    "verify": "py_compile passes. python -c imports the constants from both modules."
+   },
+   {
+    "item_id": "AOQSD-21",
+    "requirement": "local_queue_head_routes.py:20 _KIND_LANES is removed; the module imports AUDIO_QUEUE_LANE_BY_KIND from pycore.pyutils.tts.audio_queue_center (import only; that file is in flight and is not edited). Failures return a stable error_code instead of raw text or a bare 'error' key: local_queue_head_routes.py:45, word_audio_full_sync_routes.py:27. The codes are listed for ui-pycore-manager p4-01.",
+    "files": [
+     "pycore/callmodule/rpc_routes/local_queue_head_routes.py",
+     "pycore/callmodule/rpc_routes/word_audio_full_sync_routes.py",
+     "pycore/callmodule/rpc_routes/route_names.py"
+    ],
+    "verify": "py_compile passes. A grep finds no _KIND_LANES. A scratch script calls the route handlers directly with bad input and asserts {ok: false, error_code: ...} without English text."
+   },
+   {
+    "item_id": "LDRI-53",
+    "requirement": "The ui/laravel_delivery/retry unknown-kind path (local_task_center_routes.py:81-82) returns a stable error_code, not 'unknown delivery kind'.",
+    "files": [
+     "pycore/callmodule/rpc_routes/local_task_center_routes.py"
+    ],
+    "verify": "py_compile passes. A direct handler call with kind='bogus' returns the error_code, and the English text is gone (grep)."
+   },
+   {
+    "item_id": "AHSC-35-py",
+    "requirement": "After the contract adds the event: add agent_history_config_changed to RELAY_REQUIRED_EVENTS (relay_contract.py:99-108), and have laravel_relay_agent_service.py subscribe to BusSignals.AGENT_HISTORY_CONFIG_CHANGED and publish it through _publish_agent_history_event.",
+    "files": [
+     "pycore/pyutils/common/relay_contract.py",
+     "pycore/pyctl/relay/laravel_relay_agent_service.py"
+    ],
+    "verify": "py_compile passes. python -c 'from pycore.pyutils.common.relay_contract import RelayContract; RelayContract()' loads without a missing-event error. A grep shows the subscription beside AGENT_HISTORY_PROMPT_DERIVED (:104-108, :171-175)."
+   },
+   {
+    "item_id": "CKA-10-routes",
+    "requirement": "Depends on pycore-assist CKA-10. Register the 15 okx/* pycore RPC routes named in apps/vortex/api/VortexPycoreContract.ts:2-16 (route_names.py plus one okx routes module in callmodule/rpc_routes) on top of the pycore-assist okx facade.",
+    "files": [
+     "pycore/callmodule/rpc_routes/route_names.py",
+     "pycore/callmodule/rpc_routes/"
+    ],
+    "verify": "py_compile passes. A scratch script lists the registered route names and diffs them against the 15 names parsed from VortexPycoreContract.ts: 0 missing."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": true
+ },
+ {
+  "old_role": "pycore-architect",
+  "task_id": "pycore-architect-D7",
+  "items": [
+   {
+    "item_id": "arch-bus-signals",
+    "requirement": "Architect half of AHSC-11 and AHSC-16. BusSignals gets one TRAY_SHOW_NOTIFICATION = 'tray.show_notification' entry and drops the unused TRAY_SHOW_MESSAGE 'ui.tray.show_message' (thread_bus_constants.py:83). Confirm that AGENT_HISTORY_CONFIG_CHANGED exists for the tray-state push. Edit only after the pycore coordinator confirms that the pycore-6 CRLF restore has landed for thread_bus_constants.py.",
+    "files": [
+     "pycore/pyfoundations/thread_bus_constants.py"
+    ],
+    "verify": "py_compile passes. python -c asserts BusSignals.TRAY_SHOW_NOTIFICATION == 'tray.show_notification'. A grep for 'ui.tray.show_message' shows only the tray_config.py duplicate, which pycore-assist removes."
+   },
+   {
+    "item_id": "LTCW-03-exports",
+    "requirement": "desktop_session.py exports RUN_USER_ROOT, SESSION_BUS_SOCKET, BUS_ADDRESS_FORMAT, the DISPLAY/WAYLAND_DISPLAY env names and a per-user resolver (uid to bus address, Wayland socket, default X display) for the root-launcher case. linux_desktop_user.py (pycore) then imports them.",
+    "files": [
+     "pycore/pyfoundations/desktop_session.py"
+    ],
+    "verify": "py_compile passes. python -c imports the new names. On Windows, the resolver returns None without raising."
+   },
+   {
+    "item_id": "LTCW-02",
+    "requirement": "core_node_dirs.py (:266-276) stops parsing /etc/os-release itself. It uses desktop_session.LINUX_DISTRO (distro_id/version_major), or both use one shared parser in pyfoundations, keeping the OS var tag unchanged.",
+    "files": [
+     "pycore/pyfoundations/core_node_dirs.py",
+     "pycore/pyfoundations/desktop_session.py"
+    ],
+    "verify": "A grep shows one os-release reader in pyfoundations. py_compile passes. A scratch script feeds a sample os-release (debian 13, ubuntu 26.04) to the shared parser and asserts the same var tag as before."
+   },
+   {
+    "item_id": "CKA-04",
+    "requirement": "Depends on the contract paths change. core_node_dirs.py (:44-49, :63, :121-123) reads the data-dir names, the www bases, the legacy dir and the NTFS types from service_contract.json#paths through pycore/pyfoundations/service_contract.py. Resolution is unchanged.",
+    "files": [
+     "pycore/pyfoundations/core_node_dirs.py",
+     "pycore/pyfoundations/service_contract.py"
+    ],
+    "verify": "A grep finds no '/var/_core_node', '/www/www' or 'D:/' literal in core_node_dirs.py. A scratch script prints the resolved data dir on this host (D:/www/core_node) before and after: identical."
+   },
+   {
+    "item_id": "AHSC-21",
+    "requirement": "AGENT_LAUNCHER_SLOT_PROFILES (system_paths.py:119-144) becomes the single source. Correct its stale rows: no claude6 or claude9; codex2 uses slot Codex2 under the PROGRAMING users dir (D:/programing/Users, /var/_core_node/Users); Linux has only ark1 and ark2. Derive AGENT_SLOT_USERS_ROOTS (:71-88), and the agent_home_scanner roots, from its distinct roots, so the comments at system_paths.py:56-60 and agent_home_scanner.py:5-6 become true. agent_home_scanner.py:115 takes '/root' from the OS-roots constant (:90-91).",
+    "files": [
+     "pycore/pyfoundations/system_paths.py",
+     "pycore/pyfoundations/agent_home_scanner.py"
+    ],
+    "verify": "py_compile passes. python -c asserts that the set of AGENT_SLOT_USERS_ROOTS equals the set of profile roots. A grep finds no '/root' literal in agent_home_scanner.py. Scanning a scratch tree yields the same homes as before."
+   },
+   {
+    "item_id": "LTCW-20",
+    "requirement": "python_package_policy.py gets a LINUX_ONLY_PACKAGES table that mirrors WINDOWS_ONLY_PACKAGES (:100-112) and holds python-xlib and jeepney. installer_packages (:168-184) excludes them for windows.",
+    "files": [
+     "pycore/pyfoundations/python_package_policy.py"
+    ],
+    "verify": "python -c: installer_packages('windows') has no python-xlib or jeepney, and installer_packages('linux') has both. Read-only check that scripts/shells/win/win_common/PythonDependencyMapInstallCommon.ps1:27 passes the windows platform; if it does not, raise a shell-windows item."
+   },
+   {
+    "item_id": "arch-audit",
+    "requirement": "Read-only conformance audit of all pycore against development-guides/PYTHON_PYCORE.md: layering, try/except that hides errors, threads only as Thread subclasses via THREAD_BUS, shared instances in their defining module, variables at the top, i18n, duplicates. Write the findings (file:line, rule, fix, owner) to .claude/agents_shared/reports/pycore-architect.md. Fix only inside pycore/pyfoundations, pycore/pythreadpool and pycore/pyheartbeat, and only in files that are not in flight (not serialized_worker.py or secret_manager.py, and nothing in the D1 list). Route everything else to its owner.",
+    "files": [
+     "pycore/pyfoundations/",
+     "pycore/pythreadpool/",
+     "pycore/pyheartbeat/",
+     ".claude/agents_shared/reports/pycore-architect.md"
+    ],
+    "verify": "The report exists with one row per finding and an owner from the pycore.md path map. py_compile passes on every file the lane fixed. git diff --stat shows no change to the in-flight files."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "pycore-assist",
+  "task_id": "pycore-assist-D7",
+  "items": [
+   {
+    "item_id": "AHSC-04",
+    "requirement": "One source for the agent-history tool set. pipeline/config.py SUPPORTED_TOOLS (:19, :46-51) derives from the extractor registry (extractor_registry.py:20-31). The registry asserts at import time that its tools equal the system_paths marker table (system_paths.py:153); on a mismatch it raises with both sets printed, not via try/except. ui_service runtime_get and the tick_service monitor gating then follow automatically.",
+    "files": [
+     "pycore/pyctl/agent_history/extractor_registry.py",
+     "pycore/pyctl/agent_history/pipeline/config.py",
+     "pycore/pyctl/agent_history/agent_history_service.py",
+     "pycore/pyctl/agent_history/ui_service.py"
+    ],
+    "verify": "py_compile passes. python -c imports pipeline.config and asserts SUPPORTED_TOOLS equals the set of registry tools (9 tools). A scratch monkeypatch that adds a fake extractor raises at import with a clear message."
+   },
+   {
+    "item_id": "AHSC-11",
+    "requirement": "Merged: AHSC-11 and the system_notification.py part of AHSC-36. Depends on arch-bus-signals. win32_system_tray.py:508 and thread_bus_bridge.py:115 use BusSignals.TRAY_SHOW_NOTIFICATION. system_notification.py:33 TRAY_SHOW_NOTIFICATION_EVENT and the tray_config.py:270 duplicate are removed. When UI_ENABLE_TRAY is true, system_notification (:106-115) checks that a tray backend registered the handler, and otherwise falls back to the toast. The 'except Exception: pass' is removed, and failures are logged.",
+    "files": [
+     "pycore/pyutils/desktop/system_notification.py",
+     "pycore/pyutils/native_ui/step6_tray/win32_system_tray.py",
+     "pycore/pyutils/native_ui/step5_main_ui/pyside6/thread_bus_bridge.py",
+     "pycore/pyutils/native_ui/step1_config/tray_config.py"
+    ],
+    "verify": "A grep for the 'tray.show_notification' and 'ui.tray.show_message' literals outside thread_bus_constants.py finds nothing. py_compile passes. A scratch script with no tray handler registered calls show_system_notification and observes the toast fallback path (monkeypatched toast), with no silent return."
+   },
+   {
+    "item_id": "LTCW-05",
+    "requirement": "system_notification.py:44-65 stops running `gdbus call --session`. It calls session_dbus.call_session_method for org.freedesktop.Notifications, with the address resolved by desktop_session instead of the raw DBUS_SESSION_BUS_ADDRESS (:47).",
+    "files": [
+     "pycore/pyutils/desktop/system_notification.py"
+    ],
+    "verify": "A grep finds no 'gdbus' in system_notification.py. py_compile passes. The import succeeds on Windows. A static read confirms that a DBusReply error falls through to notify-send and then the toast."
+   },
+   {
+    "item_id": "AHSC-29",
+    "requirement": "The Linux EN-derive notification (prompt_derive_service.py:31, :36-48) goes through show_system_notification with copy_text, instead of calling toast_stack directly. One desktop notification path remains.",
+    "files": [
+     "pycore/pyctl/agent_history/prompt_derive_service.py"
+    ],
+    "verify": "A grep of pycore/pyctl finds no toast_stack import. py_compile passes. python -c imports prompt_derive_service."
+   },
+   {
+    "item_id": "AHSC-28",
+    "requirement": "Merged: AHSC-28 and the prompt_archive.py part of AHSC-36. Archive files no longer get chmod 0666 (prompt_archive.py:35, :107-111). They follow the spool policy: root-only sessions are written root:<worker gid> 0640, and other files use the owner's default. The txt store (agent_history_txt.py:39-48) is created with the same restricted modes. The 'except OSError: pass' is replaced by a logged failure.",
+    "files": [
+     "pycore/pyctl/agent_history/prompt_archive.py",
+     "pycore/pyctl/agent_history/agent_history_txt.py"
+    ],
+    "verify": "A grep finds no 0o666 in agent_history. py_compile passes. A scratch run with a temp dir on WSL Debian asserts the mode is 0640 for a root-only sample; on Windows the chmod is skipped without error."
+   },
+   {
+    "item_id": "AHSC-36",
+    "requirement": "Remaining AHSC-36 part: agent_history_service.py:170-173 no longer wraps prompt_new_cache.append_new_prompts in 'except Exception: pass'. Errors propagate, or are logged with enough context to fix them.",
+    "files": [
+     "pycore/pyctl/agent_history/agent_history_service.py"
+    ],
+    "verify": "A grep in agent_history_service.py finds no bare 'except Exception:' followed by pass. py_compile passes."
+   },
+   {
+    "item_id": "AHSC-33-py",
+    "requirement": "Backend half of AHSC-33. runtime_get (ui_service.py:426-452) serves min_raw_words_range from MIN_RAW_WORDS_RANGE (pipeline/config.py:14) and the default from config/agent_history.settings.json, for ui-pycore-manager to read.",
+    "files": [
+     "pycore/pyctl/agent_history/ui_service.py"
+    ],
+    "verify": "py_compile passes. A direct runtime_get call returns min_raw_words_range [120, 2000] and min_raw_words_default 200."
+   },
+   {
+    "item_id": "LTCW-12",
+    "requirement": "Depends on pycore-runtime LTCW-12-consts. linux_terminal_backend.py imports the reason codes (x11_display.X11_ERROR_DISPLAY_UNSET and the new constants) instead of literals (:286, :291, :296, :301). It adds an 'xorg_session_suggested' notice_code to _notice_code (:340-352) when the session is GNOME Wayland without a working bridge (the §1 Debian 13 case). ui-pycore-manager localizes it in LTCW-14.",
+    "files": [
+     "pycore/pyutils/window/linux_terminal_backend.py"
+    ],
+    "verify": "A grep finds no reason-code string literal in linux_terminal_backend.py. py_compile passes. A scratch call of _notice_code with stubbed capabilities returns xorg_session_suggested."
+   },
+   {
+    "item_id": "LTCW-29",
+    "requirement": "terminal_service.py backs up and restores the PRIMARY selection as well as CLIPBOARD around a submission (:236-264), so the prompt does not linger in PRIMARY. If clipboard_text.py (pycore-runtime) needs a PRIMARY read helper, the pycore coordinator assigns pycore-assist as its temporary writer (B13). Edit terminal_service.py only after the pycore-6 CRLF restore of that file is confirmed.",
+    "files": [
+     "pycore/pyctl/terminal/terminal_service.py",
+     "pycore/pyutils/common/clipboard_text.py",
+     "pycore/pyutils/clipboard/clipboard_manager.py"
+    ],
+    "verify": "py_compile passes. A scratch script with a stubbed clipboard backend records the backup and restore calls for PRIMARY and CLIPBOARD, in order, around one submission."
+   },
+   {
+    "item_id": "PRAO-08",
+    "requirement": "prompt_transform_service.py no longer drops prompts beyond TRANSFORM_PROMPTS_PER_EVENT_CAP=3 (:31, :76-79). The surplus waits in a state-driven pending queue (no timer polling), drained on the next event or when the worker frees. A failed transform (quota or network, :91-96) stays pending for a bounded number of retries, and the reason is logged.",
+    "files": [
+     "pycore/pyctl/agent_history/prompt_transform_service.py",
+     "pycore/pyctl/agent_history/prompt_rewrite_service.py"
+    ],
+    "verify": "py_compile passes. A scratch script with a stubbed transform: one event with 7 prompts transforms all 7 across drains; a failing stub retries up to the bound and then logs. No threading.Timer or sleep loop (grep)."
+   },
+   {
+    "item_id": "CKA-10",
+    "requirement": "B9 recommended option. pycore exposes the okx/* routes that Vortex declares, built on the existing pyapps/okx_price_monitor services (lib/okx_client.py, services/backtest_engine.py, foundation/coin_provider.py, lib/history_fetcher.py). Add a pycore/pyctl/okx facade and do not add a second implementation. pycore-runtime registers the routes (CKA-10-routes). K7 fix: okx_price_monitor_main.py:132 and :136 bind loopback, not 0.0.0.0, with no '*' origin.",
+    "files": [
+     "pyapps/okx_price_monitor/okx_price_monitor_main.py",
+     "pyapps/okx_price_monitor/api/monitor_api.py",
+     "pycore/pyctl/okx/"
+    ],
+    "verify": "py_compile passes. python -c imports the facade and calls a read handler (coins/status) with network access stubbed. A grep of okx_price_monitor_main.py finds no '0.0.0.0' and no allow-origins '*'."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "ui-pycore-manager",
+  "task_id": "ui-pycore-manager-D7",
+  "items": [
+   {
+    "item_id": "p4-02",
+    "requirement": "Shared layer (B2 writer). Add the 'stopping' lifecycle state to core/contracts/QueueCenterTypes.ts and QueueCenterContract.ts (RV-008). Remove the dead wordAudioFetchYoudao constant (PycoreHttpRoutes.ts:248). Remove the stream_events type (:132) and GLOBAL_TASK_STREAM_EVENTS_BY_ROLE (:283) so the orchestrator can delete task_contract.stream_events (RV-004).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterTypes.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterContract.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/core/integrations/pycore/PycoreHttpRoutes.ts"
+    ],
+    "verify": "In poly_apps/pycore_laravel_wordnew_ui, bun run lint (tsc --noEmit) reports no error in the touched files and a total count no higher than the pre-change baseline. A grep finds no wordAudioFetchYoudao or GLOBAL_TASK_STREAM_EVENTS_BY_ROLE."
+   },
+   {
+    "item_id": "AOQSD-27",
+    "requirement": "Rename the shared lane-generic status: normalizeWordAudioFullSyncStatus becomes normalizeAudioLaneFullSyncStatus, and QueueCenterWordAudioFullSyncStatus becomes AudioLaneFullSyncStatus (QueueCenterContract.ts:475, B2), with all importers updated. Move the section-contract fallback into one shared helper, used by both PcWordAudioPanel.tsx:41 and PcSentenceQueuePanel.tsx:253.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterContract.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcAudioLaneFullSyncRow.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcWordAudioPanel.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/PcSentenceQueuePanel.tsx"
+    ],
+    "verify": "bun run lint: no new errors. A grep across poly_apps/pycore_laravel_wordnew_ui for the old names finds nothing."
+   },
+   {
+    "item_id": "LTCW-17",
+    "requirement": "PycoreApiTerminal.ts:11 no longer hardcodes TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS = 150_000. It derives the timeout from the relay contract profile terminal_integration through core/contracts/RelayContract.ts (B2).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/integrations/pycore/PycoreApiTerminal.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/RelayContract.ts"
+    ],
+    "verify": "bun run lint passes for these files. A grep finds no 150_000 or 150000 in core/integrations/pycore."
+   },
+   {
+    "item_id": "AHSC-35-ui",
+    "requirement": "After the contract change: RelayContract.ts exposes the agent_history.config.changed relay event. PcAgentHistoryPage.tsx (:66-68, :381-390) and AgentHistoryRuntimeStore.ts bridge it in relay mode the way prompt.new is bridged, so tray and other-tab switch changes apply without a refetch.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/RelayContract.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/PcAgentHistoryPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/api/AgentHistoryRuntimeStore.ts"
+    ],
+    "verify": "bun run lint: no new errors. A grep shows the relay subscription for the config.changed event next to prompt.new."
+   },
+   {
+    "item_id": "MCHR-22-ts",
+    "requirement": "APPQYV1_LIBRARY_COVER_MAX_IDS (core/contracts/AppQyV1AiToolsContract.ts:28) is read from queue_center_contract.json library_cover.max_ids (B2).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/AppQyV1AiToolsContract.ts"
+    ],
+    "verify": "bun run lint passes. A grep finds no literal 200 for the cover limit in core/contracts."
+   },
+   {
+    "item_id": "MCHR-31",
+    "requirement": "Merged: MCHR-31, MCHR-29. Add one cover presenter (phase/handler/status to labelKey, tone) in shared/library-cover, next to LibraryCoverTaskModel.ts (B2 writer per FU-020). pycore-manager VocabLibrariesTab.tsx (:54-79, including the raw cover_status at :70-76) uses it. ui-laravel-manager and ui-wordnew adopt it afterwards (MCHR-31-lm, MCHR-31-wn).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/shared/library-cover/LibraryCoverTaskModel.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/vocabulary/VocabLibrariesTab.tsx"
+    ],
+    "verify": "bun run lint: no new errors. The en and zh locale files contain every label key the presenter returns. A grep finds no raw {cover.coverStatus} render in VocabLibrariesTab.tsx."
+   },
+   {
+    "item_id": "PRAO-21",
+    "requirement": "B2. orchTaskGenerate (PycoreApiOrchestration.ts:273-276) gets a source-aware no-account option. For input === 'text' tasks, AudioOrchWorkspace.tsx (:284-293) skips orchAccountSession.requireSynced() and sends use_qy_account=false, so a QY sync error never blocks a prompt_rewrite regenerate.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/integrations/pycore/PycoreApiOrchestration.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/core/integrations/pycore/OrchAccountSession.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/AudioOrchWorkspace.tsx"
+    ],
+    "verify": "bun run lint: no new errors. A static read shows the text path never awaits requireSynced."
+   },
+   {
+    "item_id": "CKA-16",
+    "requirement": "B2. shared/vocabulary/EcdictLookupPanel.tsx replaces its inline English labels (const D at :26-51) with i18n keys through the t system. The zh text moves from comments into the locale files that both managers load.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/shared/vocabulary/EcdictLookupPanel.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no 'Self-contained inline labels' and no English label object. The keys exist in the en and zh locale resources used by laravel-manager and pycore-manager."
+   },
+   {
+    "item_id": "AHSC-33-ui",
+    "requirement": "Depends on pycore-assist AHSC-33-py. PcAgentHistoryConfigPanel.tsx (:54, :63, :214) reads the min_raw_words range and default from the runtime store instead of 120/2000/200 literals.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/agent-history/PcAgentHistoryConfigPanel.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no 120, 2000 or 200 literal for min_raw_words in the panel."
+   },
+   {
+    "item_id": "AHSC-34",
+    "requirement": "i18n on the agent-history panels. Route TOOL_LABELS (presentation.tsx:8-18, including 'Local Agent'), the ROLE_STYLE labels (:32-39), the 'extract failed' fallback (PcAgentHistoryToolCheckboxes.tsx:44), the support-matrix tooltip (:143-145) and backend error codes through PcEn/PcZhFeatures keys. Take the tool list from the backend runtime list instead of a second table.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/agent-history/presentation.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/agent-history/PcAgentHistoryToolCheckboxes.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/PcEnFeatures.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/PcZhFeatures.ts"
+    ],
+    "verify": "bun run lint passes. A JSX-text scan of the two files finds no English literal. Every new key exists in both the en and zh locale files."
+   },
+   {
+    "item_id": "AOQSD-06",
+    "requirement": "AudioOrchWorkspace.tsx:109: a user Refresh (refresh=true) is never swallowed by the single-flight guard while a background poll is in flight. It is queued, or it supersedes the poll, so orchBooksList(true) is always sent.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/AudioOrchWorkspace.tsx"
+    ],
+    "verify": "bun run lint passes. A static read: the refresh path cannot return early on requestsRef.current.books."
+   },
+   {
+    "item_id": "AOQSD-25",
+    "requirement": "Merged: AOQSD-25, AOQSD-40. useQueueCenterHub.tsx:385 drops the optimistic patchSectionEnabled before the RPC. The switch shows pending, and only the returned lane_state is applied (:396). Raw response.error text (:394) becomes a localized code message (see AOQSD-37).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/hooks/useQueueCenterHub.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no patchSectionEnabled call before the await, and no throw of response.error text."
+   },
+   {
+    "item_id": "AOQSD-28",
+    "requirement": "AudioLaneStateStore.ts:150-181: a revision change that arrives while a fetch is in flight schedules a follow-up fetch, and loading resets on every exit, including a cleaned-up effect, so the owner views in OrchTaskLaneProgress never stall or spin forever.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/api/AudioLaneStateStore.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchTaskLaneProgress.tsx"
+    ],
+    "verify": "bun run lint passes. A static read confirms a trailing refetch flag and a loading reset in finally for the owner path."
+   },
+   {
+    "item_id": "AOQSD-30",
+    "requirement": "OrchManifestPanel.tsx refreshes from the lane push/revision (the AudioLaneStateStore subscription) instead of the 5 s setInterval (:123-128). It removes the local promotedIds set (:75, :106) and renders only pycore's queue_state.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchManifestPanel.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no setInterval or promotedIds in OrchManifestPanel.tsx."
+   },
+   {
+    "item_id": "AOQSD-37",
+    "requirement": "Merged: AOQSD-37, AOQSD-42 (acceptance: every loading state ends in data, an empty state or a localized error). No raw pycore or JS error text reaches the UI. PcAudioLaneQueueView.tsx:109, AudioLaneStateStore.ts:86, :91, :161 and :168-175, useQueueCenterHub.tsx:394 and orchShared.ts:32 map error_code to i18n keys, with a generic localized fallback.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcAudioLaneQueueView.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/api/AudioLaneStateStore.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/hooks/useQueueCenterHub.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/orchShared.ts"
+    ],
+    "verify": "bun run lint passes. A grep finds no '.message' or 'payload.error' rendered directly in these files. The fallback key exists in en and zh."
+   },
+   {
+    "item_id": "AOQSD-43",
+    "requirement": "PcAudioLaneFullSyncRow.tsx (:59-72) shows Laravel's without_audio totals (full_sync.languages[].without_audio, already collected at audio_lane_full_sync.py:158) next to the mirrored Part2 count, so a count match can be checked. The word panel's 'Laravel backlog' uses the same listing value.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcAudioLaneFullSyncRow.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcWordAudioPanel.tsx"
+    ],
+    "verify": "bun run lint passes. A static read shows both counts rendered from one payload, with the labels in en and zh."
+   },
+   {
+    "item_id": "LTCW-14",
+    "requirement": "Follows ruling PR-035 (LTCW-32). Replace terminal.inputSequence and terminal.rightClickHint (PcTerminalPage.tsx:1657-1662; PcEn/ZhFeatures.ts:315-316) with per-platform hints: Linux Shift+Insert; Windows Terminal Ctrl+Shift+V; classic console WM_COMMAND paste. Add the notice text for the new xorg_session_suggested code (LTCW-12).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/PcTerminalPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/PcEnFeatures.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/PcZhFeatures.ts"
+    ],
+    "verify": "bun run lint passes. A grep finds no 'right-click' or '右键' in the terminal keys, and the new keys exist in en and zh."
+   },
+   {
+    "item_id": "PRAO-03",
+    "requirement": "Move one m:ss clock formatter and one duration formatter into utils/pcFormat.ts, replacing orchShared.ts:52-57 formatDuration and PcVideoExtractPage.tsx:104-119 fmtDur/fmtClock. Use pcFormat.absoluteTime for every unix-seconds label (OrchTaskList.tsx:98, :201; OrchSourceDetail.tsx:14; OrchDeliveryStatus.tsx:43). Add one segment-label helper in orchShared.ts (OrchRunTiming.tsx:52, OrchTaskEditor.tsx:323).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/utils/pcFormat.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/orchShared.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/PcVideoExtractPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchTaskList.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchSourceDetail.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchDeliveryStatus.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchRunTiming.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchTaskEditor.tsx"
+    ],
+    "verify": "bun run lint passes. A grep in apps/pycore-manager finds no 'toLocaleString()' on unix seconds and no fmtDur, fmtClock or formatDuration definitions outside pcFormat.ts."
+   },
+   {
+    "item_id": "PRAO-11",
+    "requirement": "Extract one copy-button hook or component for the prompt cards, replacing PcAgentHistoryPromptRewrite.tsx:47-56 and PcAgentHistoryPromptItem.tsx:18-26. The rewrite card then shows the copied label.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/agent-history/PcAgentHistoryPromptRewrite.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/agent-history/PcAgentHistoryPromptItem.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/agent-history/presentation.tsx"
+    ],
+    "verify": "bun run lint passes. A grep shows one navigator.clipboard.writeText site for the agent-history cards."
+   },
+   {
+    "item_id": "PRAO-18",
+    "requirement": "Add one page-path helper (END_META path plus page id) in pcPages.tsx. Use it in PcAgentHistoryConfigPanel.tsx:236 instead of '/pycore-manager/audio-orchestration', and in PcLegacyTabRedirect.tsx:16.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pcPages.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/agent-history/PcAgentHistoryConfigPanel.tsx"
+    ],
+    "verify": "bun run lint passes. A grep for '/pycore-manager/' literals in pages finds nothing."
+   },
+   {
+    "item_id": "PRAO-20",
+    "requirement": "OrchSourceDetail.tsx (:14, :20-25) uses i18n labels for the known source_ref keys (prompt_id, tool, os_user, session_id, ts), falling back to the raw key for unknown ones. It uses absoluteTime and shows the task's source_text next to the rewrite.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/audio-orchestration/OrchSourceDetail.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/OrchLocales.ts"
+    ],
+    "verify": "bun run lint passes. The keys exist in the en and zh sections of OrchLocales.ts."
+   },
+   {
+    "item_id": "CKA-15",
+    "requirement": "Replace the inline English in pycore-manager with i18n keys: PcSettingsPage.tsx :303, :344, :367, :386, :397, :436, :505, :524, :546, :551, :570, plus PcAiCapabilityView, PcAssistStrip, PcPipelineStatusPanels, PcRecordsPanel, PcTopBar, PcWordAudioLog, PcCodeSyncPage, PcRecentTasksPanel and PcWindowAutomationPage (about 30 lines).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/PcSettingsPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcTopBar.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pages/PcCodeSyncPage.tsx"
+    ],
+    "verify": "bun run lint passes. Re-running the JSX-text scan over apps/pycore-manager finds 0 English literals. The new keys exist in en and zh."
+   },
+   {
+    "item_id": "p4-01",
+    "requirement": "Localize the pycore codes surfaced to pycore-manager: the AT-039/AT-050 orchestration message_code with message_params, the qwen codes unsupported_format and audio_store_failed, and the new route error_codes from pycore-runtime AOQSD-21 and LDRI-53 (en and zh). No raw text.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/OrchLocales.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/PcEnFeatures.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/pc-locales/PcZhFeatures.ts"
+    ],
+    "verify": "bun run lint passes. A scratch script compares the code list grepped from the pycore sources (CodedMessage codes, error_code values) against the locale keys: 0 missing in en or zh."
+   }
+  ],
+  "shared_layer_paths": [
+   "poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterContract.ts",
+   "poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterTypes.ts",
+   "poly_apps/pycore_laravel_wordnew_ui/core/contracts/RelayContract.ts",
+   "poly_apps/pycore_laravel_wordnew_ui/core/contracts/AppQyV1AiToolsContract.ts",
+   "poly_apps/pycore_laravel_wordnew_ui/core/integrations/pycore/",
+   "poly_apps/pycore_laravel_wordnew_ui/shared/library-cover/",
+   "poly_apps/pycore_laravel_wordnew_ui/shared/vocabulary/"
+  ],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "ui-laravel-manager",
+  "task_id": "ui-laravel-manager-D7",
+  "items": [
+   {
+    "item_id": "MDSR-26-ts",
+    "requirement": "B2 writer of core/contracts/ServiceContract.ts. After the contract adds the data_sync block, export the data_sync constants (protocol version, statuses, roles, terminal_retention). DataSyncModel.ts:24, DataSyncTab.tsx:22-25 and the DatabaseManagerAPI.ts:91,105 unions derive from them.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/ServiceContract.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/models/DataSyncModel.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/components/views/database-manager/DataSyncTab.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/api/modules/DatabaseManagerAPI.ts"
+    ],
+    "verify": "bun run lint: no new errors. A grep finds no DATA_SYNC_PROTOCOL_VERSION = 5, ACTIVE_STATUSES or DRIVER_ROLES literal arrays in the laravel-manager app."
+   },
+   {
+    "item_id": "MDSR-11",
+    "requirement": "Depends on MDSR-26-ts and laravel-api MDSR-26-php. HISTORY_LIMIT (DataSyncTab.tsx:22) becomes 1 active plus terminal_retention per node, read from the index response, so each node's retained terminal sessions are listed.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/components/views/database-manager/DataSyncTab.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/models/DataSyncModel.ts"
+    ],
+    "verify": "bun run lint passes. A grep finds no HISTORY_LIMIT constant. A static read shows the per-node limit."
+   },
+   {
+    "item_id": "MDSR-02",
+    "requirement": "Remove the hard Start block (DataSyncTab.tsx:247-261, 624, 661-663). Show an inline warning that names the session or sessions Start will cancel, and let the backend supersede them (Req 1, LmEnCore.ts:53).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/components/views/database-manager/DataSyncTab.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/locales/LmEnCore.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/locales/LmZhCore.ts"
+    ],
+    "verify": "bun run lint passes. A static read shows that Start's disabled condition no longer depends on writer or draft presence, and the warning keys exist in en and zh."
+   },
+   {
+    "item_id": "MDSR-13",
+    "requirement": "Drop the second normalization rule in TypeScript. resolveNewServer uses the backend-normalized target returned by the probe endpoint (DataSyncService.php:46-47), which fixes bare IPv6 such as '::1' (DataSyncModel.ts:444-467).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/models/DataSyncModel.ts"
+    ],
+    "verify": "bun run lint passes. A grep finds no normalizeAdhocAddress. A static read shows that the probe response target is used."
+   },
+   {
+    "item_id": "MDSR-25",
+    "requirement": "Depends on laravel-api MDSR-24. The UI renders step detail_code and params through dbSync.* keys (DataSyncTab.tsx:96). It removes the English 'Login failed' fallback (DataSyncModel.ts:212). It maps DATA_SYNC_SOURCE_ENDPOINT_NOT_FOUND (:472) to a key. It drops the roughly 20 dead dbSync.steps.* keys that DataSyncStepCatalog.php does not have, and makes counterpartPending/Offline and targetPending role-neutral for pull mode.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/components/views/database-manager/DataSyncTab.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/models/DataSyncModel.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/locales/LmEnCore.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/locales/LmZhCore.ts"
+    ],
+    "verify": "bun run lint passes. A script diffs the dbSync.steps.* keys against the step ids in DataSyncStepCatalog.php: 0 extra, 0 missing. A grep finds no 'Login failed'."
+   },
+   {
+    "item_id": "MDSR-15",
+    "requirement": "Depends on MDSR-24. SyncResultsPanel (DataSyncTab.tsx:111-152) renders skip reasons through dbSync.skipReasons.* codes. It shows row-conflict samples separately and does not count them as skipped tables. It adds resource_results.skipped_roots and database_results.failed_tables to the types (DatabaseManagerAPI.ts:131-150) and to the display.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/components/views/database-manager/DataSyncTab.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/api/modules/DatabaseManagerAPI.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/locales/LmEnCore.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/locales/LmZhCore.ts"
+    ],
+    "verify": "bun run lint passes. A grep finds no `${item.table}: ${item.reason}`. The skipReasons keys cover every reason_code emitted by DataSyncDriverService (script diff)."
+   },
+   {
+    "item_id": "MCHR-28",
+    "requirement": "VocabularyCoverManagerMenu.tsx:96-240 uses i18n for its action labels, toasts, title and 'Manage'. The stale 'Covers are generated by pycore (pull-only)' hint is replaced by the current chrome-first, then Laravel AI flow text.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/components/vocabulary/VocabularyCoverManagerMenu.tsx"
+    ],
+    "verify": "bun run lint passes. The JSX-text scan of the file finds 0 English literals, and the keys exist in en and zh."
+   },
+   {
+    "item_id": "MCHR-31-lm",
+    "requirement": "Depends on ui-pycore-manager MCHR-31. LibraryCoverTaskBadge (LibraryCoverTaskControls.tsx:41-70) uses the shared/library-cover presenter instead of its own phase/handler-to-label/tone mapping.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/components/vocabulary/LibraryCoverTaskControls.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no local phase-to-tone map in the file."
+   },
+   {
+    "item_id": "CKA-9",
+    "requirement": "CKA-09. B2 writer of vite.config.ts and core/contracts/ServiceContract.ts. After the contract paths change, ServiceContract.ts exports the www bases, the legacy dir and the NTFS types. vite.config.ts (:31-36, :40-71) reads them instead of literals and keeps one mount-detection routine.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/vite.config.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/core/contracts/ServiceContract.ts"
+    ],
+    "verify": "bun run lint passes (vite.config.ts is included in the tsconfig, or checked with tsc --noEmit on the file). A grep of vite.config.ts finds no '/var/_core_node', '/www/www' or 'ntfs3' literal. A scratch node evaluation of the resolver prints the same data dir as before on this host."
+   }
+  ],
+  "shared_layer_paths": [
+   "poly_apps/pycore_laravel_wordnew_ui/vite.config.ts",
+   "poly_apps/pycore_laravel_wordnew_ui/core/contracts/ServiceContract.ts"
+  ],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "ui-vortex",
+  "task_id": "ui-vortex-D7",
+  "items": [
+   {
+    "item_id": "CKA-10-ui",
+    "requirement": "Depends on pycore-assist CKA-10 and pycore-runtime CKA-10-routes. Align apps/vortex/api/VortexPycoreContract.ts:2-16 with the served okx/* route names and shapes. Hide only the panels whose route is still not served.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/vortex/api/VortexPycoreContract.ts"
+    ],
+    "verify": "bun run lint passes. A scratch diff of the declared route names against the pycore route_names.py okx entries gives 0 unserved routes, or each unserved one has a hidden panel."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": true
+ }
+]

@@ -212,6 +212,37 @@ Source list: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`
     - shell-windows-8 + shell-linux-8: the dd secrets submenu, in parity, after D20;
     - the user runs the submenu, because the password is the user's;
     - shell-*-6 (tunnel/59000/unit limits): cancelled.
+- D22 (verbatim, about 18:xx): "修改角色编排 按小组划分 可以使用角色的前级或后缀来划分组每个组有一个小组长，改为pycore pyservice的前后端全栈组 5成员负责pyservice pycoer - laravel pycore relay API - poly apps pycore ui的多端联动开发 和pyservice的的前置shell脚本开发（特别是本地模型的初始化），pycore 代码小组长 负责审计所有有关pycore成员的开发和合并 需要符合规范，wordnew全栈开发组 5成员组长和下面的任务自动分配 负责poly apps pycore ui -wordnew -laravel qyappv1 - 前置shell脚本- capocitor编译-pycore 辅助联动 - mcp-chrome辅助联动开发，shell单独开发组 2成员 组长兼开发+开发 windows liunx负责dd.cmd dd.sh流和安装流程的开发和适配系统工作，codemart 3成员，组长兼开发+2开发，claude lead 1 同时兼claude脚色编排，"
+  - 16 roster roles in 5 groups. The name prefix is the group. The full path map is in each group file (e.g. `.claude/agents/pycore-lead.md`); guide §8 and B14 have the summary.
+    - claude: orchestrator (the claude lead);
+    - pycore: pycore-lead (leader and code leader), pycore-ai (models and local model init scripts), pycore-runtime (the pyservice backend and its prerequisite scripts), pycore-laravel (the Laravel pycore/relay/UI API and the foundation), pycore-ui (pycore-manager, laravel-manager, vortex, pdd-manager, and the shared UI layer by default);
+    - wordnew: wordnew-lead (leader; assigns tasks automatically), wordnew-ui, wordnew-laravel (AppQyV1), wordnew-native (pre-shell scripts and the Capacitor build), wordnew-link (mcp-chrome and pycore linkage);
+    - shell: shell-windows (leader and developer), shell-linux;
+    - codemart: codemart-lead (leader and developer; owns docs_fix/codemart_docs/), codemart-ui, codemart-laravel.
+  - Also kept: the remote roles laravel-remote and pycore-gpu-remote (the pycore group's tester), and the service roles reviewer, ncore and flutter (catalog window:false, on demand).
+  - Retired, with memories merged into the successors: pycore, pycore-architect, pycore-assist, laravel, laravel-api, laravel-qyapp, laravel-codemart, ui-pycore-manager, ui-laravel-manager, ui-vortex, ui-wordnew, ui-codemart, mcp-chrome.
+  - Readings (B9):
+    - the claude lead stays named `orchestrator`, which avoids renaming the launchers, sessions and memory;
+    - leaders write their members' verdicts, and the `reviewer` service verifies each leader's own work, so every change still gets an independent check;
+    - ncore and flutter are on-demand services, because the user listed no group for them;
+    - the local-model init scripts move from shell to pycore-ai, the pyservice prerequisite scripts to pycore-runtime, and the wordnew build scripts to wordnew-native. The shell group keeps the dd flows and the generic install and system-adaptation work.
+  - Catalog schema 7: groups[] with leaders, the roles with window:false for services, and layout.tab_groups by group (the claude lead shares a tab with the shell group).
+- Outage (about 17:3x-18:xx): the API was unreachable (ENOTFOUND) and the usage limit was hit, so most in-flight agents failed.
+  - Lost: all D5/D7/D9 lanes, D7 phase 2, the D13 fix rounds, D20, D21-cs1, D12's shell-linux-3 and model tests, and the D7 pycore:up-d8 step.
+  - Kept:
+    - the D5/D7/D9 audit and merge (the lanes per group are in `.claude/agents_shared/d22/items_<group>.json`, the metadata in `merge_meta.json`);
+    - the contracts stage (applied);
+    - four implementations done but unreviewed: pycore-ai-D7, pycore-runtime-D7, ui-vortex-D7, ui-wordnew-D7;
+    - the local Laravel (FrankenPHP, started by WMI with a hidden console; `.claude/agents_shared/d7/laravel_local.md`);
+    - D12a (Windows and Linux, approved) and D12b on Windows.
+  - Local Laravel TLS: the new mkcert CA is in no trust store, and importing it into the Windows Root store was refused by the permission classifier.
+    - Ruling (B9, reversible, no code change): pycore uses a combined CA bundle (certifi plus the local mkcert root) through its process environment (REQUESTS_CA_BUNDLE/SSL_CERT_FILE) for D8 https://127.0.0.1.
+    - Trusting the CA system-wide stays a user decision (user-5).
+  - The relaunch runs per group under the leaders (D22), at a paced concurrency so the usage limit is not hit again.
+- D23 (verbatim, about 19:4x): "继续所有任务，如果证书不方便，可以使用一个在解密目录里的加密字符串"
+  - Continue every task.
+  - Ruling: for local tests, pycore's Laravel endpoint is `http://127.0.0.1:9000` (loopback, no TLS), and machine calls are authenticated by `CORE_NODE_CLIENT_KEY_1` (K3) from the decrypted secret store. The note is in `.claude/agents_shared/d7/D23_endpoint.md`.
+  - This replaces D8's `https://127.0.0.1` for pycore → Laravel. The process-level CA bundle and user-5 (trusting the CA system-wide) are withdrawn.
 - D14 (verbatim, about 15:3x): "允许 你修改 改 development-guides/".
   - The orchestrator may now edit `development-guides/` (guide B12). Every guide change is recorded here.
   - First use, about 15:3x, in `CLAUDE_CODE_AGENTS_GUIDE.md`:

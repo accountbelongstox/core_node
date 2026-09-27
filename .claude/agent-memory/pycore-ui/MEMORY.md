@@ -1,0 +1,2 @@
+- [UI lint on Windows](ui-lint-on-windows.md) — bun run lint cannot find tsc (POSIX .bin symlinks); use node node_modules/typescript/bin/tsc --noEmit
+- [okx/* routes not served](okx-routes-not-served.md) — pycore has no okx/* server; okx_price_monitor is monitor/*; panels gated by served list in contract

@@ -25,7 +25,6 @@ import { cmNotificationLink, cmNotificationParams } from '../components/workspac
 import { useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedSlice } from '../components/workspace/useCmPagedList';
 
-const ROLE_ORDER = ['client', 'developer', 'architect', 'reviewer'] as const;
 const PREVIEW_SIZE = 5;
 const CLOSED_PROJECT_STATUSES = new Set(['completed', 'cancelled', 'archived']);
 const CLOSED_TASK_STATUSES = new Set(['completed', 'cancelled']);
@@ -145,10 +144,10 @@ const extractNotifications = (data: { items: CmNotification[] }): CmPagedSlice<C
 const CmDashboardPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
-  const { bootstrap, loading, error, refresh, hasCapability, hasRole } = useCmBootstrap();
+  const { bootstrap, loading, error, refresh, hasCapability, hasRole, roles } = useCmBootstrap();
   const retryBootstrap = useCallback(() => { void refresh(); }, [refresh]);
 
-  const heldRoles = ROLE_ORDER.filter((role) => hasRole(role));
+  const heldRoles = roles.filter((role) => hasRole(role));
   const showProjects = hasCapability('project.read') && (hasRole('client') || hasRole('architect'));
   const showTasks = hasCapability('task.read');
   const showReviews = hasCapability('review.read') && hasRole('reviewer', 'active');

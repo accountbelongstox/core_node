@@ -5,8 +5,240 @@
 # Mirrors linux/common/shared_cache_env.sh: idempotent, respects caller overrides,
 # sets HF_HOME / HF_HUB_CACHE / TORCH_HOME / PIP_CACHE_DIR / XDG_CACHE_HOME env vars.
 # Does NOT set deprecated TRANSFORMERS_CACHE (transformers v5 uses HF_HOME only).
+#
+# P2 dual-boot drive layout (docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
+# sections 3.1/3.3): declares the Windows 3-drive constants (system/data/program) read
+# from config/service_contract.json paths.drive_layout. Detection/computation only at
+# load time -- never creates directories or writes anything on the program drive here;
+# first-adoption (writing the E: marker) is a separate installer-only helper below.
 
-$Global:WINDOWS_DATA_DRIVE_ROOT = 'D:\'
+$__sccServiceContractPath = Join-Path $PSScriptRoot 'ServiceContract.ps1'
+. $__sccServiceContractPath
+
+# Mirrors the system-name branches GlobalVars.ps1 computes inline for
+# $Global:LANG_COMPILER_DIR ("win11"/"win10"/"win_8"/"win_7"/"win" from
+# Win32_OperatingSystem). Duplicated here (same CIM source, same thresholds)
+# only because GlobalVars.ps1 dot-sources this file before it computes its own
+# value, so CN_TOOL_ROOT cannot read it back from there. Do not edit GlobalVars.ps1.
+function Get-CnWindowsSystemName {
+    $cnSystemName = 'win'
+    try {
+        $cnOsInfo = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+        $cnWinVersion = [string]$cnOsInfo.Version
+        $cnWinBuildNumber = [int]$cnOsInfo.BuildNumber
+        if ($cnWinBuildNumber -ge 22000) {
+            $cnSystemName = 'win11'
+        }
+        elseif ($cnWinVersion.StartsWith('10.0')) {
+            $cnSystemName = 'win10'
+        }
+        elseif ($cnWinVersion.StartsWith('6.3')) {
+            $cnSystemName = 'win_8'
+        }
+        elseif ($cnWinVersion.StartsWith('6.2')) {
+            $cnSystemName = 'win_8'
+        }
+        elseif ($cnWinVersion.StartsWith('6.1')) {
+            $cnSystemName = 'win_7'
+        }
+        else {
+            $cnSystemName = 'win'
+        }
+    }
+    catch {
+        $cnSystemName = 'win'
+    }
+
+    return $cnSystemName
+}
+
+# Resolves a paths.drive_layout template (e.g. "<program_drive>\.dev_<sys>")
+# against a set of literal replacements, then normalizes it. Every replacement
+# value is already fully qualified (a drive root or a previously resolved
+# path), so GetFullPath only normalizes -- it never touches the filesystem.
+function Resolve-CnDriveLayoutPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Template,
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Replacements
+    )
+
+    $cnResolvedPath = $Template
+    foreach ($cnPlaceholder in $Replacements.Keys) {
+        $cnResolvedPath = $cnResolvedPath.Replace($cnPlaceholder, [string]$Replacements[$cnPlaceholder])
+    }
+
+    return [System.IO.Path]::GetFullPath($cnResolvedPath)
+}
+
+# .NET's Path.GetFullPath honors a hidden per-drive "current directory" for a
+# bare drive letter (e.g. "D:" resolves against wherever the process last cd'd
+# on D:, not the drive root). DriveInfo.RootDirectory is unaffected by that and
+# always returns the true root, whether or not the drive is even present.
+function Get-CnDriveRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DriveSpec
+    )
+
+    return [System.IO.DriveInfo]::new($DriveSpec).RootDirectory.FullName
+}
+
+function Get-CnProgramDrivePartitionGuid {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DriveLetter
+    )
+
+    $cnPartitionGuid = ''
+    try {
+        $cnPartition = Get-Partition -DriveLetter $DriveLetter -ErrorAction Stop
+        $cnPartitionGuid = [string]$cnPartition.Guid
+    }
+    catch {
+        $cnPartitionGuid = ''
+    }
+
+    return $cnPartitionGuid
+}
+
+# Language-independent E: qualification (docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md
+# section 3.1): ready + Fixed + NTFS/ReFS, and, when the tree-subdir marker
+# already exists, its content must match the drive's current partition GUID.
+# A qualifying drive with no marker yet is the first-adoption case (still
+# qualifies here; Register-CnProgramDriveAdoption below writes the marker
+# later, from an installer, never from this load-time check).
+function Test-CnProgramDriveQualifies {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DriveRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$DriveLetter,
+        [Parameter(Mandatory = $true)]
+        [string]$TreeSubdir
+    )
+
+    $cnStructurallyReady = $false
+    try {
+        $cnDriveInfo = [System.IO.DriveInfo]::new($DriveRoot)
+        if ($cnDriveInfo.IsReady -and $cnDriveInfo.DriveType -eq [System.IO.DriveType]::Fixed -and
+            ($cnDriveInfo.DriveFormat -eq 'NTFS' -or $cnDriveInfo.DriveFormat -eq 'ReFS')) {
+            $cnStructurallyReady = $true
+        }
+    }
+    catch {
+        $cnStructurallyReady = $false
+    }
+
+    if (-not $cnStructurallyReady) {
+        return $false
+    }
+
+    $cnPartitionGuid = Get-CnProgramDrivePartitionGuid -DriveLetter $DriveLetter
+    if (-not $cnPartitionGuid) {
+        return $false
+    }
+
+    $cnMarkerPath = Join-Path (Join-Path $DriveRoot $TreeSubdir) '.cn_volume'
+    if (-not (Test-Path -LiteralPath $cnMarkerPath -PathType Leaf)) {
+        return $true
+    }
+
+    $cnMarkerContent = ''
+    try {
+        $cnMarkerContent = (Get-Content -LiteralPath $cnMarkerPath -Raw -ErrorAction Stop).Trim()
+    }
+    catch {
+        return $false
+    }
+
+    return $cnMarkerContent -eq $cnPartitionGuid
+}
+
+# Installer-only: writes the first-adoption marker (drive partition GUID) under
+# <DriveRoot>\<TreeSubdir>\.cn_volume. Never called at load time; the caller is
+# always an installer/ensure step, once it has decided to adopt this drive.
+function Register-CnProgramDriveAdoption {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DriveRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$DriveLetter,
+        [Parameter(Mandatory = $true)]
+        [string]$TreeSubdir
+    )
+
+    $cnPartitionGuid = Get-CnProgramDrivePartitionGuid -DriveLetter $DriveLetter
+    if (-not $cnPartitionGuid) {
+        throw "Cannot resolve the partition GUID for drive letter $DriveLetter to adopt it as the program drive."
+    }
+
+    $cnTreeSubdirPath = Join-Path $DriveRoot $TreeSubdir
+    if (-not (Test-Path -LiteralPath $cnTreeSubdirPath)) {
+        New-Item -ItemType Directory -Path $cnTreeSubdirPath -Force | Out-Null
+    }
+
+    $cnMarkerPath = Join-Path $cnTreeSubdirPath '.cn_volume'
+    Set-Content -LiteralPath $cnMarkerPath -Value $cnPartitionGuid -Encoding ascii -NoNewline
+
+    return $cnPartitionGuid
+}
+
+# Re-run safe: this file can be dot-sourced more than once per process (several
+# win_common scripts dot-source it directly, not only through GlobalVars.ps1's
+# once-guard), so only seed the flag the first time it is missing.
+if (-not (Test-Path Variable:Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED)) {
+    $Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED = $false
+}
+
+# Called by installers/ensure functions, never at load time. Prints once per
+# process when the program drive fell back (E: absent or disqualified).
+function Write-ProgramDriveFallbackWarning {
+    if (-not $Global:WINDOWS_PROGRAM_DRIVE_IS_FALLBACK) {
+        return
+    }
+    if ($Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED) {
+        return
+    }
+
+    Write-Warning ("Program drive E: not found; using the original location {0}" -f $Global:WINDOWS_PROGRAM_DRIVE_ROOT)
+    $Global:CN_PROGRAM_DRIVE_FALLBACK_WARNED = $true
+}
+
+$__sccContractDataDriveRoot = [string](Get-ServiceContractValue -ContractPath 'paths.windows_data_drive_root')
+$__sccProgramDrivePrimary = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_primary')
+$__sccProgramDriveFallback = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_fallback')
+$__sccTreeSubdir = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_subdir')
+$__sccTreeRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tree_root.windows')
+$__sccToolRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tool_root.windows')
+$__sccToolchainEnvTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.toolchain_env_file.windows')
+
+$Global:WINDOWS_SYSTEM_DRIVE_ROOT = Get-CnDriveRoot -DriveSpec $env:SystemDrive
+$Global:WINDOWS_DATA_DRIVE_ROOT = Get-CnDriveRoot -DriveSpec $__sccContractDataDriveRoot
+
+$__sccProgramDrivePrimaryRoot = Get-CnDriveRoot -DriveSpec $__sccProgramDrivePrimary
+$__sccProgramDriveFallbackRoot = Get-CnDriveRoot -DriveSpec $__sccProgramDriveFallback
+$__sccProgramDriveQualifies = Test-CnProgramDriveQualifies -DriveRoot $__sccProgramDrivePrimaryRoot -DriveLetter $__sccProgramDrivePrimary[0] -TreeSubdir $__sccTreeSubdir
+
+if ($__sccProgramDriveQualifies) {
+    $Global:WINDOWS_PROGRAM_DRIVE_ROOT = $__sccProgramDrivePrimaryRoot
+    $Global:WINDOWS_PROGRAM_DRIVE_IS_FALLBACK = $false
+    $__sccEffectiveProgramDriveLetter = $__sccProgramDrivePrimary
+}
+else {
+    $Global:WINDOWS_PROGRAM_DRIVE_ROOT = $__sccProgramDriveFallbackRoot
+    $Global:WINDOWS_PROGRAM_DRIVE_IS_FALLBACK = $true
+    $__sccEffectiveProgramDriveLetter = $__sccProgramDriveFallback
+}
+
+$__sccSystemName = Get-CnWindowsSystemName
+
+$Global:CN_TREE_ROOT = Resolve-CnDriveLayoutPath -Template $__sccTreeRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter }
+$Global:CN_TREE_CACHE_ROOT = Join-Path $Global:CN_TREE_ROOT 'cache'
+$Global:CN_TOOL_ROOT = Resolve-CnDriveLayoutPath -Template $__sccToolRootTemplate -Replacements @{ '<program_drive>' = $__sccEffectiveProgramDriveLetter; '<sys>' = $__sccSystemName }
+$Global:CN_TOOLCHAIN_ENV_FILE = Resolve-CnDriveLayoutPath -Template $__sccToolchainEnvTemplate -Replacements @{ '<tool_root>' = $Global:CN_TOOL_ROOT }
+
 $Global:WINDOWS_PROGRAMING_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'programing'
 $Global:WINDOWS_PROGRAMING_USERS_DIR = Join-Path $Global:WINDOWS_PROGRAMING_DIR 'Users'
 $Global:WWW_BASE_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'www'
@@ -157,4 +389,8 @@ function Ensure-PipCacheDirConfigured {
     }
 }
 
-Remove-Variable -Name __sccSubDirs, __sccDir, __sccPath, __sccHfHubCache, __sccLegacyResolved, __sccHubResolved -ErrorAction SilentlyContinue
+Remove-Variable -Name __sccSubDirs, __sccDir, __sccPath, __sccHfHubCache, __sccLegacyResolved, __sccHubResolved, `
+    __sccServiceContractPath, __sccContractDataDriveRoot, __sccProgramDrivePrimary, __sccProgramDriveFallback, `
+    __sccTreeSubdir, __sccTreeRootTemplate, __sccToolRootTemplate, __sccToolchainEnvTemplate, `
+    __sccProgramDrivePrimaryRoot, __sccProgramDriveFallbackRoot, __sccProgramDriveQualifies, `
+    __sccEffectiveProgramDriveLetter, __sccSystemName -ErrorAction SilentlyContinue
