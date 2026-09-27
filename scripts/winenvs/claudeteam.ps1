@@ -40,7 +40,6 @@ $scriptsDirPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $aiCliProvisionCommonScript = $null
-$claudeOfficialRestoreCommonScript = $null
 $windowsPathFunctionScript = $null
 $claudeTeamCommonScript = $null
 $claudeArgs = @()
@@ -70,7 +69,6 @@ $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
-$claudeOfficialRestoreCommonScript = Join-Path $winCommonDirPath "ClaudeOfficialRestoreCommon.ps1"
 $aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 $claudeTeamCommonScript = Join-Path $winCommonDirPath "ClaudeTeamCommon.ps1"
 . $claudeTeamCommonScript
@@ -126,17 +124,14 @@ try {
         . $windowsPathFunctionScript
         Set-CoreNodePaths
 
-        . $claudeOfficialRestoreCommonScript
-        Invoke-ClaudeOfficialRestore
-
         # Idempotent AI CLI provisioning: install Claude Code with the official native
         # installer when the command is missing, then offer an upgrade (default N,
         # auto-skip after 5 seconds) only when a newer version is published.
         . $aiCliProvisionCommonScript
         Invoke-AiCliProvision -Tool "claude"
 
-        # The session environment is applied after Invoke-ClaudeOfficialRestore, which
-        # clears some CLAUDE_CODE_* and ANTHROPIC_* values.
+        # Apply only the team-specific variables on top of the caller's Claude
+        # authentication context.
         if ($null -ne $paneRow) {
             $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $paneRow
             $claudeArgs = @(Get-ClaudeTeamRoleClaudeArguments -Row $paneRow)

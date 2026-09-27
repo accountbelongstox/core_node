@@ -33,7 +33,12 @@ $ClaudeTeamInstallBinaries = @(
     @{ Commands = @("python.exe", "py.exe"); WingetId = "Python.Python.3.13"; SkipStoreAlias = $true; Purpose = "secret store reader for remote roles (scripts/pytools)" }
 )
 $ClaudeTeamInstallAgentMemoryDir = Join-Path $ClaudeTeamInstallClaudeDir "agent-memory"
-$ClaudeTeamInstallUserClaudeDir = Join-Path $env:USERPROFILE ".claude"
+$ClaudeTeamInstallUserClaudeDir = [Environment]::GetEnvironmentVariable("CLAUDE_CONFIG_DIR", "Process")
+if ([string]::IsNullOrWhiteSpace($ClaudeTeamInstallUserClaudeDir)) {
+    $ClaudeTeamInstallUserClaudeDir = Join-Path $env:USERPROFILE ".claude"
+} else {
+    $ClaudeTeamInstallUserClaudeDir = [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($ClaudeTeamInstallUserClaudeDir))
+}
 $ClaudeTeamInstallUserSettingsPath = Join-Path $ClaudeTeamInstallUserClaudeDir "settings.json"
 $ClaudeTeamInstallWtPackageName = "Microsoft.WindowsTerminal*"
 $ClaudeTeamInstallWtMinVersion = [version]"1.21"

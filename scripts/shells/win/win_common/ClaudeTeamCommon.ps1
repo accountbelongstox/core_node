@@ -761,6 +761,7 @@ function Show-ClaudeTeamPlatform {
     Write-ClaudeTeamLog "OK" ("User: {0}\{1}" -f $env:USERDOMAIN, $env:USERNAME)
     Write-ClaudeTeamLog "OK" ("Mode: {0} (lead {1}); project root: {2}" -f $script:ClaudeTeamMode, (Get-ClaudeTeamLeadSessionName -Mode $script:ClaudeTeamMode), $ClaudeTeamRootDir)
     Write-ClaudeTeamLog "OK" ("State dir: {0}" -f $ClaudeTeamStateDir)
+    Write-ClaudeTeamLog "OK" ("Claude config: {0} (same settings and credentials as this shell)" -f $ClaudeTeamInstallUserClaudeDir)
 }
 
 function Resolve-ClaudeTeamWindowsTerminal {

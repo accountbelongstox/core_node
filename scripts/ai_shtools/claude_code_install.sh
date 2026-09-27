@@ -38,10 +38,12 @@ CCI_AGENTS_SRC="$CCI_LINUXENVS_DIR/claudeagents.sh"
 CCI_SHARED_DIR="$CCI_CORE_NODE_DIR/.claude/agents_shared"
 CCI_AGENT_MEMORY_DIR="$CCI_CORE_NODE_DIR/.claude/agent-memory"
 CCI_TEAM_CATALOG_PATH="$CCI_CORE_NODE_DIR/config/claude_team_roles.json"
+CCI_USER_CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # Role PID files (Windows: %LOCALAPPDATA%\core_node\claude_team).
 CCI_TEAM_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/core_node/claude_team"
 # User settings of the account that runs the role sessions (root included).
-CCI_USER_SETTINGS_PATH="$HOME/.claude/settings.json"
+# CLAUDE_CONFIG_DIR is the official override for settings and credentials.
+CCI_USER_SETTINGS_PATH="$CCI_USER_CLAUDE_DIR/settings.json"
 CCI_CA_BUNDLE_PATH="/etc/ssl/certs/ca-certificates.crt"
 # Distro tmux on Debian 13 (3.5a) and Ubuntu 26.04 (3.6): -l % splits, allow-passthrough
 # all, extended-keys. Older versions are reported, never replaced.
@@ -640,48 +642,6 @@ cci_ensure_team_settings() {
     cci_check_remote_control_env
 }
 
-# Report-only: this account must be past first-run onboarding and logged in before
-# a team lead is spawned, or its session stalls on the theme/login
-# screen instead of running its kickoff (each pane's PID stays alive, so a
-# liveness check alone reports "running" for a session that never started work).
-cci_check_claude_login() {
-    local exec_path=""
-    local status_json=""
-    local logged_in=""
-
-    exec_path="$(command -v "$CCI_EXEC" 2>/dev/null || true)"
-    if [ -z "$exec_path" ]; then
-        exec_path="$CCI_BIN_DIR/$CCI_EXEC"
-    fi
-    if [ ! -x "$exec_path" ]; then
-        echo "[SKIP] claude login check: $exec_path not installed yet"
-        return 0
-    fi
-
-    status_json="$(timeout "$CCI_VERSION_TIMEOUT_SECONDS" "$exec_path" auth status --json 2>/dev/null || true)"
-    logged_in="$(python3 - "$status_json" <<'PY'
-import json
-import sys
-
-raw = sys.argv[1]
-try:
-    data = json.loads(raw) if raw else {}
-except ValueError:
-    print("UNKNOWN")
-    sys.exit(0)
-if not isinstance(data, dict):
-    print("UNKNOWN")
-    sys.exit(0)
-print("YES" if data.get("loggedIn") else "NO")
-PY
-)"
-    case "$logged_in" in
-        YES) echo "[OK] Claude Code is logged in: the team lead can run its kickoff" ;;
-        NO) echo "[WARN] Claude Code is not logged in: the team lead will stall on first-run setup. Run 'claude' once interactively (or 'claude setup-token'), then re-run this launcher." ;;
-        *) echo "[WARN] Could not read claude auth status ($exec_path auth status --json); the team lead may stall on first-run setup" ;;
-    esac
-}
-
 # Shared team setup used by claude_code_install (dd.sh step 171), by the
 # claudeteamup/claudeagents launchers and on the server of a remote role:
 # prerequisites, directories, user settings, launcher links.
@@ -691,7 +651,6 @@ claude_team_install() {
     cci_ensure_dir "$CCI_SHARED_DIR" "shared data between roles"
     cci_ensure_dir "$CCI_AGENT_MEMORY_DIR" "per-role agent memory (memory: project)"
     cci_ensure_team_settings
-    cci_check_claude_login
     cci_setup_claudeteam || true
 }
 

@@ -39,10 +39,20 @@ CLAUDE_TEAM_ATTACH_WAIT_SECONDS="10"
 CLAUDE_TEAM_PID_WAIT_SECONDS="10"
 CLAUDE_TEAM_LEAD_ROLE="orchestrator"
 CLAUDE_TEAM_GIT_GUARD_ENV="CLAUDE_AGENTS_SESSION=1"
-CLAUDE_TEAM_USER_TEAMS_DIR="$HOME/.claude/teams"
-CLAUDE_TEAM_USER_TASKS_DIR="$HOME/.claude/tasks"
+CLAUDE_TEAM_USER_CONFIG_DIR="$CCI_USER_CLAUDE_DIR"
+CLAUDE_TEAM_USER_TEAMS_DIR="$CLAUDE_TEAM_USER_CONFIG_DIR/teams"
+CLAUDE_TEAM_USER_TASKS_DIR="$CLAUDE_TEAM_USER_CONFIG_DIR/tasks"
 CLAUDE_TEAM_SECRET_READER="$CLAUDE_TEAM_ROOT_DIR/scripts/pytools/special_software_env_manager/secret_read.py"
 CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=30" "-o" "ServerAliveCountMax=4" "-o" "StrictHostKeyChecking=accept-new")
+CLAUDE_TEAM_AUTH_ENV_NAMES=(
+    HOME USER LOGNAME PATH CLAUDE_CONFIG_DIR XDG_CONFIG_HOME
+    ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY
+    CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+    CLAUDE_CODE_USE_ANTHROPIC_AWS CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX
+    CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_USE_MANTLE ANTHROPIC_PROFILE
+    ANTHROPIC_FEDERATION_RULE_ID ANTHROPIC_ORGANIZATION_ID
+    ANTHROPIC_IDENTITY_TOKEN_FILE
+)
 # claudeteam.sh pane options (same names as claudeteam.ps1): --team-pane <team|sessions>
 # marks a role pane of this launcher; the other two are launcher-only, never passed on.
 CLAUDE_TEAM_PANE_FLAG="--team-pane"
@@ -215,6 +225,25 @@ claude_team_tmux() {
     tmux -L "$CLAUDE_TEAM_TMUX_SOCKET" "$@"
 }
 
+# An existing tmux server keeps the environment from the launch that created it.
+# Synchronize only Claude's documented authentication selectors and the user paths
+# before starting or respawning panes, so a team session uses the same identity as
+# `claude` in the invoking shell. Values are never printed.
+claude_team_sync_tmux_auth_environment() {
+    local name=""
+    if ! claude_team_tmux list-sessions >/dev/null 2>&1 </dev/null; then
+        return 0
+    fi
+    for name in "${CLAUDE_TEAM_AUTH_ENV_NAMES[@]}"; do
+        if [[ -v $name ]]; then
+            claude_team_tmux set-environment -g "$name" "${!name}" >/dev/null 2>&1 </dev/null
+        else
+            claude_team_tmux set-environment -gu "$name" >/dev/null 2>&1 </dev/null || true
+        fi
+    done
+    claude_team_log OK "tmux Claude identity synchronized with the invoking shell (config $CLAUDE_TEAM_USER_CONFIG_DIR)"
+}
+
 # A tmux change: printed as a plan line under --status, run otherwise.
 claude_team_tmux_do() {
     if [ "$CLAUDE_TEAM_DRY_RUN" = "1" ]; then
@@ -326,6 +355,7 @@ claude_team_detect_platform() {
     claude_team_log OK "OS: $CLAUDE_TEAM_OS_NAME$([ "$CLAUDE_TEAM_IS_WSL" = "1" ] && printf ' (WSL2)')"
     claude_team_log OK "User: $(id -un) (uid $(id -u)); session: $CLAUDE_TEAM_SESSION_TYPE; DISPLAY=${DISPLAY:-<none>}; WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-<none>}"
     claude_team_log OK "Mode: $CLAUDE_TEAM_MODE; project root: $CLAUDE_TEAM_ROOT_DIR; state dir: $CLAUDE_TEAM_STATE_DIR"
+    claude_team_log OK "Claude config: $CLAUDE_TEAM_USER_CONFIG_DIR (same settings and credentials as this shell)"
     if [ "$CLAUDE_TEAM_IS_WAYLAND" = "1" ]; then
         claude_team_log OK "Wayland: windows cannot be positioned; one maximized terminal holds the tmux grid"
     fi
@@ -1859,6 +1889,9 @@ claude_team_layout() {
     if [ "$CLAUDE_TEAM_OPT_STATUS" = "1" ]; then
         CLAUDE_TEAM_DRY_RUN="1"
         claude_team_log OK "--status: dry run; the plan below changes nothing"
+    fi
+    if [ "$CLAUDE_TEAM_DRY_RUN" = "0" ] && [ $((place_count + respawn_count)) -gt 0 ]; then
+        claude_team_sync_tmux_auth_environment
     fi
     claude_team_place_order
     claude_team_log OK "Roles to start: $place_count (${CLAUDE_TEAM_PLACE_ORDER[*]:-none}); to respawn in place: $respawn_count"
