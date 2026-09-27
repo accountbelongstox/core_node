@@ -186,3 +186,29 @@
 - Blockers: none. Next owners:
   - orchestrator: confirm the lang hand-back and route the pycore-laravel items;
   - wordnew-lead: schedule the next CKA-26 part, covering the remainder and the validation_failed consolidation.
+
+## Review wordnew-link-G2 (round 1)
+
+- Verdict: approved, with issues []. File: `.claude/agents_shared/reviews/wordnew-link-G2.json`.
+- Items: WNL-01, WNL-02, MCHR-43, CKA-01 and MCHR-45 are confirmed. WNL-01 is in the sweep `ab566fdf7`, and the MCHR-43 lines are in the merge `93f8de054`. The working tree equals HEAD (`22ea5b992`) for every G2 path.
+- MCHR-43: the non-interactive sub-check stays gated on shell-windows MCHR-02, as the item says. Under `-NonInteractive`, the current helper throws. `shell-windows-G2` is changes_requested.
+- Re-run checks:
+  - UI tsc (4.49 GB free): 0 errors under apps/wordnew. The only 2 errors are in apps/codemart/cm-locales/zh.ts, from codemart's in-flight work.
+  - mcp-chrome in WSL (4.83 GB free): tsc shared, tsc native and vue-tsc extension, 0 errors each.
+  - php -l on the cover-task service: OK.
+  - Parser on start.ps1: 0 errors. The watch-prompt dry run uses the real helper.
+  - Relay contract: 69 policies, none matching the capability_status routes.
+  - Line endings unchanged.
+- Decisions (recommended options):
+  - `apps/mcp-chrome/pnpm-workspace.yaml` stays. The user's merge brought it back, and deleting it needs the user.
+  - The Windows/Linux DD_AUTO_CONTINUE watch-mode difference (start.sh forces once; start.ps1 takes default dev after MCHR-02) is kept as the item orders. It is a follow-up question for the orchestrator/shell-windows, not a blocker.
+- Forwarded requests:
+  - orchestrator: `config/pycore_relay_contract.json`, add exact POST route_policies `ui/capability_status/get_capability_settings` → general_read and `ui/capability_status/post_capability_settings` → general_write.
+  - shell-windows: MCHR-02, then wordnew-link re-runs the MCHR-43 non-interactive check.
+  - user: MCHR-05-live and the pnpm-workspace.yaml choice.
+- Non-blocking:
+  - a thrown save clears the reorder;
+  - the en 'on port {ports}' wording;
+  - the redundant service-prompt guard at start.ps1:242 once MCHR-02 lands.
+- Changed files (mine): the verdict file and this report section. Scratch outputs are in `scratchpad/wnlead_g2_link/` and `scratchpad/wl_g2_dry.ps1`.
+- Blockers: none. Next owners: orchestrator (the relay policies), shell-windows (MCHR-02), wordnew-link (the MCHR-43 re-check after MCHR-02).

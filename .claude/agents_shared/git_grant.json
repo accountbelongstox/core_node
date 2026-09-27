@@ -1,6 +1,6 @@
 {
-  "granted_at": "2026-09-27T12:01:30.020Z",
-  "expires_at": "2026-09-27T14:01:30.021Z",
+  "granted_at": "2026-09-27T12:26:05.946Z",
+  "expires_at": "2026-09-27T14:26:05.946Z",
   "session_id": "59362416-9b59-4a9b-b284-e4b3d83daf06",
-  "prompt_excerpt": "<task-notification>\n<task-id>wvsf6x1oo</task-id>\n<tool-use-id>toolu_013mGXhXS6CFNUEjmWoReCTQ</tool-use-id>\n<output-file>D:\\.tmp\\claude\\D--programing-core-node\\59362416-9b59-4a9b-b284-e4b3d83daf06\\task"
+  "prompt_excerpt": "<task-notification>\n<task-id>wnphnmtqk</task-id>\n<tool-use-id>toolu_01Lp1cAGGArF9iWhuqbqMhv7</tool-use-id>\n<output-file>D:\\.tmp\\claude\\D--programing-core-node\\59362416-9b59-4a9b-b284-e4b3d83daf06\\task"
 }
