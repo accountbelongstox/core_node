@@ -1,0 +1,26 @@
+{
+  "task_id": "shell-4",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "IS-014": {"status": "fixed", "reason": "claude6/claude9 (.sh/.ps1) are deleted (the generator produces claude{N} only for existing _N secrets, and every committed claude6.sh failed bash -n); their create_symlinks.sh blocks are removed; linuxenvs_sync prunes /usr/local/bin links that point into linuxenvs but resolve to nothing (only dangling links into that dir)."},
+    "IS-015": {"status": "fixed", "reason": "Corrupted strings are rewritten in ASCII English; the caddy_scanner.js shebang is moved to line 1; the U+FFFD banners in the three .ps1 files are replaced with ASCII."},
+    "IS-016": {"status": "fixed", "reason": "fm_dnspod_candidate_install logs to stderr; stdout carries only the path."},
+    "IS-017": {"status": "fixed", "reason": "${USE_SUDO:-} is added to the opposite-plane stop/disable/rm/daemon-reload in 175_laravel_main_start.sh."},
+    "IS-018": {"status": "fixed", "reason": "Add-AiCliUserPath reads HKCU\\Environment Path with DoNotExpandEnvironmentNames, writes it back as ExpandString, and broadcasts WM_SETTINGCHANGE (Send-AiCliEnvironmentChange)."},
+    "IS-019": {"status": "fixed", "reason": "Get-AiCliUltracodeArgs writes only when the content differs, falling back to a per-PID file on an IOException from a parallel writer."},
+    "IS-020": {"status": "fixed", "reason": "--daemon refuses when PID_FILE holds a live resource_watchdog.sh (/proc cmdline check), --stop uses the same check, and an unwritable LOG_DIR fails once with a message. The log relocation is refuted_ok: docs_fix/RESOURCE_WATCHDOG_FRANKENPHP_FREEZE.md (2026-09-25 user requirement) fixes /logs."},
+    "IS-021": {"status": "fixed", "reason": "The unused mount_additional_disk (mkfs without a prompt, fstab without nofail) is removed; no callers."},
+    "IS-023": {"status": "fixed", "reason": "unified_core.py logs ', '.join(domains)."},
+    "IS-024": {"status": "fixed", "reason": "import sys added to launch_multiple_terminals.py."},
+    "IS-025": {"status": "fixed", "reason": "Step34 uses the shared WindowsPathFunction 'add' form already used in the same file."},
+    "IS-026": {"status": "fixed", "reason": "dd.sh startup no longer deletes /usr/local/qcloud; the cleanup is a Slim & Disk Cleanup menu item behind a y/N prompt that first disables --now every .service unit referencing the path, then runs daemon-reload."},
+    "IS-027": {"status": "fixed", "reason": "119_install_launcher filters NEED through apt-cache show and installs only the available packages, reporting skipped names; new variables are declared at the top (set -u)."},
+    "IS-028": {"status": "fixed", "reason": "17_install_node_toolchain_26 only reports other Node trees; nginx_manager stops and disables Caddy and removes the package only on a y/N (default n) prompt, never deleting /etc/caddy, /var/lib/caddy or /var/log/caddy."},
+    "IS-029": {"status": "fixed", "reason": "Get-ClaudeTeamLiveProcess also requires the process StartTime <= the pid file's LastWriteTime + 1 s, so a reused stale PID is not taken as the running role."},
+    "IS-030": {"status": "fixed", "reason": "In scripts: the catalog permission_mode is no longer parsed or logged (the mode stays auto per roles V2 B8); removing the key from config/claude_team_roles.json is the orchestrator's."}
+  },
+  "issues": [],
+  "checks": "Spot-checked the destructive-risk diffs (linuxenvs_sync prune, dev_cache_cleanup menu and unit disable, nginx_manager Caddy handling, the 17_install_node_toolchain removal path) and the report's per-finding rationale; the owner ran bash -n/node --check/ast/pwsh parser on all 79 files.",
+  "checked_at": "2026-09-27T04:40:32+10:00"
+}

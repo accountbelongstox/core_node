@@ -1,17 +1,5 @@
 #!/bin/bash
 
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Firewall Manager Library for Linux
 # Provides unified interface for managing firewall rules across different firewall systems
 # Supports: UFW, firewalld, iptables
@@ -26,7 +14,9 @@ FIREWALLD_AVAILABLE=false
 IPTABLES_AVAILABLE=false
 
 # Check and set sudo
-if command -v sudo >/dev/null 2>&1; then
+if [ -n "${USE_SUDO+x}" ]; then
+    :
+elif [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
     USE_SUDO=""
@@ -43,15 +33,16 @@ detect_firewall() {
     # Check UFW (Uncomplicated Firewall - Ubuntu/Debian default)
     if command -v ufw >/dev/null 2>&1; then
         UFW_AVAILABLE=true
+        FIREWALL_DETECTED=true
+        FIREWALL_TYPE="ufw"
         if $USE_SUDO ufw status 2>/dev/null | grep -q "Status: active"; then
-            FIREWALL_DETECTED=true
             FIREWALL_ACTIVE=true
-            FIREWALL_TYPE="ufw"
             [[ "$verbose" == "true" ]] && echo "[INFO] Active firewall detected: UFW"
-            return 0
         else
-            [[ "$verbose" == "true" ]] && echo "[INFO] UFW installed but inactive"
+            FIREWALL_ACTIVE=false
+            [[ "$verbose" == "true" ]] && echo "[INFO] UFW installed but inactive (rules will be added for when UFW is enabled)"
         fi
+        return 0
     fi
 
     # Check firewalld (CentOS/RHEL/Fedora)
@@ -124,6 +115,10 @@ firewall_allow_port() {
     fi
 
     if [[ "$FIREWALL_ACTIVE" == false ]]; then
+        if [[ "$FIREWALL_TYPE" == "ufw" ]] && [[ "$UFW_AVAILABLE" == true ]]; then
+            _ufw_allow_port "$port" "$protocol" "$comment"
+            return $?
+        fi
         echo "[INFO] No active firewall detected, port $port is already accessible"
         return 0
     fi
@@ -190,6 +185,10 @@ firewall_allow_port_range() {
     fi
 
     if [[ "$FIREWALL_ACTIVE" == false ]]; then
+        if [[ "$FIREWALL_TYPE" == "ufw" ]] && [[ "$UFW_AVAILABLE" == true ]]; then
+            _ufw_allow_port_range "$start_port" "$end_port" "$protocol" "$comment"
+            return $?
+        fi
         echo "[INFO] No active firewall detected, ports $start_port-$end_port are already accessible"
         return 0
     fi

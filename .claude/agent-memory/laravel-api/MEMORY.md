@@ -1,0 +1,3 @@
+- [Verify in-process without writes](verify-in-process-without-writes.md) — scratchpad kernel boot, array cache, lang keys, rolled-back PG DDL, in-process HTTP
+- [Laravel route auth model](laravel-route-auth-model.md) — client.key / client.key_or_dashboard / dashboard.auth levels since 2026-09-27
+- [Role status post-D22](role-status-post-d22.md) — alias-in-reserve since D22; pycore-laravel is default writer for my paths (R2, 2026-09-28)

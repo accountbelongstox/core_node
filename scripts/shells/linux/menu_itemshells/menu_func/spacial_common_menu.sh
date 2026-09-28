@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Common Functions Module for Special Software Environment Manager
 # Contains all shared functions and utilities used by AI tool menu modules
@@ -19,6 +8,12 @@ declare -g SECRET_MANAGER_PASSWORD=""
 declare -gA AUTO_FILLED_VARIABLES=()
 declare -gA USER_INPUT_VALUES=()
 declare -gA INPUT_TYPE_INDEX_TRACKER=()
+
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+if [ -z "${CORE_NODE_DATA_DIR:-}" ]; then
+    SPACIAL_MENU_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "$SPACIAL_MENU_DIR/../../common/runtime_environment.sh"
+fi
 
 # Helper Functions
 
@@ -52,17 +47,21 @@ test_admin_privileges() {
 }
 
 get_node_absolute_path() {
-    if [ -n "${NODE_BIN:-}" ] && [ -f "$NODE_BIN" ]; then
-        echo "$NODE_BIN"
+    # /usr/local/bin link first, then PATH, gvar constant, var center; the
+    # NODE_INSTALL_DIR find survives a version bump the constants miss.
+    local resolved=""
+    resolved="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
+    if [ -n "$resolved" ]; then
+        echo "$resolved"
     elif [ -n "${NODE_INSTALL_DIR:-}" ] && [ -d "$NODE_INSTALL_DIR" ]; then
         local found_node=$(find "$NODE_INSTALL_DIR" -name "node" -type f -executable 2>/dev/null | head -n 1)
         if [ -n "$found_node" ]; then
             echo "$found_node"
         else
-            command -v node 2>/dev/null || echo "node"
+            echo "node"
         fi
     else
-        command -v node 2>/dev/null || echo "node"
+        echo "node"
     fi
 }
 
@@ -85,7 +84,7 @@ set_environment_variable() {
         unset "$variable_name"
         $USE_SUDO sed -i "/^export ${variable_name}=/d" /etc/environment 2>/dev/null || true
     else
-        export "$variable_name=$variable_value"
+"$variable_name=$variable_value"
 
         if grep -q "^export ${variable_name}=" /etc/environment 2>/dev/null; then
             $USE_SUDO sed -i "s|^export ${variable_name}=.*|export ${variable_name}=\"${variable_value}\"|" /etc/environment
@@ -629,7 +628,7 @@ generate_global_command() {
     CURRENT_FILE_NUMBER=1
 
     if [ -z "$GLOBAL_SCRIPTS_DIR" ]; then
-        GLOBAL_SCRIPTS_DIR="/var/_core_node/gloe/ai_tools"
+        GLOBAL_SCRIPTS_DIR="${CORE_NODE_DATA_DIR}/gloe/ai_tools"
     fi
 
     $USE_SUDO mkdir -p "$GLOBAL_SCRIPTS_DIR" 2>/dev/null || true

@@ -1,16 +1,7 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
+use App\Constants\LaravelConfig;
+use App\Support\ServiceContract;
 
 return [
 
@@ -25,7 +16,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Application'),
+    'name' => LaravelConfig::APP_NAME,
 
     /*
     |--------------------------------------------------------------------------
@@ -34,11 +25,11 @@ return [
     |
     | This value determines the "environment" your application is currently
     | running in. This may determine how you prefer to configure various
-    | services the application utilizes. Set this in your ".env" file.
+    | services the application utilizes. This project fixes the value in code.
     |
     */
 
-    'env' => env('APP_ENV', 'production'),
+    'env' => LaravelConfig::APP_ENVIRONMENT,
 
     /*
     |--------------------------------------------------------------------------
@@ -51,7 +42,7 @@ return [
     |
     */
 
-    'debug' => (bool) env('APP_DEBUG', false),
+    'debug' => LaravelConfig::APP_DEBUG,
 
     /*
     |--------------------------------------------------------------------------
@@ -64,7 +55,7 @@ return [
     |
     */
 
-    'url' => env('APP_URL', 'http://localhost'),
+    'url' => ServiceContract::laravelApiBackendUrl(),
 
     /*
     |--------------------------------------------------------------------------
@@ -77,7 +68,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => LaravelConfig::APP_TIMEZONE,
 
     /*
     |--------------------------------------------------------------------------
@@ -90,11 +81,11 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    'locale' => LaravelConfig::APP_LOCALE,
 
-    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'fallback_locale' => LaravelConfig::APP_FALLBACK_LOCALE,
 
-    'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
+    'faker_locale' => LaravelConfig::APP_FAKER_LOCALE,
 
     /*
     |--------------------------------------------------------------------------
@@ -109,13 +100,10 @@ return [
 
     'cipher' => 'AES-256-CBC',
 
-    'key' => env('APP_KEY'),
+    // Injected by RuntimeConfigurationServiceProvider from the Shell-owned store.
+    'key' => null,
 
-    'previous_keys' => [
-        ...array_filter(
-            explode(',', env('APP_PREVIOUS_KEYS', ''))
-        ),
-    ],
+    'previous_keys' => [],
 
     /*
     |--------------------------------------------------------------------------
@@ -131,11 +119,15 @@ return [
     */
 
     'maintenance' => [
-        'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
-        'store' => env('APP_MAINTENANCE_STORE', 'database'),
+        'driver' => 'file',
+        'store' => LaravelConfig::CACHE_STORE,
     ],
 
-    'asset_url' => env('ASSET_URL'),
+    'asset_url' => null,
+
+    'frontend_url' => 'http://'.ServiceContract::host('loopback'),
+
+    'server_manager_api_key' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -143,8 +135,8 @@ return [
     |--------------------------------------------------------------------------
     */
     'server_headers' => [
-        'Server' => env('SERVER_HEADER', 'nginx'),
-        'X-Powered-By' => env('POWERED_BY_HEADER', ''),
+        'Server' => 'nginx',
+        'X-Powered-By' => '',
     ],
 
 ];

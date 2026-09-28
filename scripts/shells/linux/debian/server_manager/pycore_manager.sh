@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Declare all variables at the beginning of the file
-# 6. For Bash scripts: Use absolute paths resolved from script location
-# 7. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -17,11 +6,13 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
+source "$PARENT_DIR_LEVEL_2/common/runtime_service_policy.sh"
 
-SERVICE_NAME="pycore-module-caller"
+SERVICE_NAME="$CORE_RUNTIME_PYCORE_SERVICE"
 SERVICE_PORT=59000
-SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore_module_caller.py"
+SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pyservice.sh"
 PYCORE_ROOT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore"
 
 COLOR_RESET="\033[0m"
@@ -35,13 +26,13 @@ check_pycore_installed() {
     if [ ! -f "$SERVICE_SCRIPT" ]; then
         echo -e "${COLOR_RED}Pycore HTTP service is not installed!${COLOR_RESET}"
         echo "Service script not found: $SERVICE_SCRIPT"
-        echo "Please run installation script first: 150_install_pycore_http_service.sh"
+        echo "Please run installation script first: 189_install_pycore_http_service.sh"
         return 1
     fi
 
     if ! systemctl list-unit-files | grep -q "^$SERVICE_NAME.service"; then
         echo -e "${COLOR_RED}Pycore HTTP service is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 150_install_pycore_http_service.sh"
+        echo "Please run installation script first: 189_install_pycore_http_service.sh"
         return 1
     fi
 
@@ -82,10 +73,10 @@ show_service_info() {
     if systemctl is-active --quiet $SERVICE_NAME; then
         echo -e "${COLOR_CYAN}Health Check:${COLOR_RESET}"
         if curl -s "http://127.0.0.1:$SERVICE_PORT/health" >/dev/null 2>&1; then
-            echo -e "${COLOR_GREEN}�?Service is healthy${COLOR_RESET}"
+            echo -e "${COLOR_GREEN}Service is healthy${COLOR_RESET}"
             curl -s "http://127.0.0.1:$SERVICE_PORT/health"
         else
-            echo -e "${COLOR_RED}�?Health check failed${COLOR_RESET}"
+            echo -e "${COLOR_RED}Health check failed${COLOR_RESET}"
         fi
         echo ""
     fi
@@ -97,7 +88,11 @@ start_service() {
     show_header
     echo -e "${COLOR_BLUE}=== Starting Pycore HTTP Service ===${COLOR_RESET}"
 
-    if systemctl is-active --quiet $SERVICE_NAME; then
+    runtime_service_policy_classify_unit "$SERVICE_NAME"
+    if [ "$RUNTIME_SERVICE_POLICY_BLOCKED" = true ]; then
+        runtime_service_policy_converge_pycore
+        echo -e "${COLOR_YELLOW}Pycore is disabled on headless servers.${COLOR_RESET}"
+    elif systemctl is-active --quiet $SERVICE_NAME; then
         echo -e "${COLOR_YELLOW}Pycore HTTP service is already running${COLOR_RESET}"
     else
         echo "Starting Pycore HTTP service..."
@@ -110,9 +105,9 @@ start_service() {
             sleep 2
 
             if curl -s "http://127.0.0.1:$SERVICE_PORT/health" >/dev/null 2>&1; then
-                echo -e "${COLOR_GREEN}�?Health check passed${COLOR_RESET}"
+                echo -e "${COLOR_GREEN}Health check passed${COLOR_RESET}"
             else
-                echo -e "${COLOR_YELLOW}�?Health check failed - service may still be starting${COLOR_RESET}"
+                echo -e "${COLOR_YELLOW}Health check failed - service may still be starting${COLOR_RESET}"
             fi
         else
             echo -e "${COLOR_RED}Failed to start Pycore HTTP service${COLOR_RESET}"
@@ -150,6 +145,16 @@ restart_service() {
     show_header
     echo -e "${COLOR_BLUE}=== Restarting Pycore HTTP Service ===${COLOR_RESET}"
 
+    runtime_service_policy_classify_unit "$SERVICE_NAME"
+    if [ "$RUNTIME_SERVICE_POLICY_BLOCKED" = true ]; then
+        runtime_service_policy_converge_pycore
+        echo -e "${COLOR_YELLOW}Pycore is disabled on headless servers.${COLOR_RESET}"
+        echo ""
+        show_service_status
+        read -p "Press Enter to continue..."
+        return
+    fi
+
     echo "Restarting Pycore HTTP service..."
     $USE_SUDO systemctl restart $SERVICE_NAME
 
@@ -159,9 +164,9 @@ restart_service() {
         sleep 2
 
         if curl -s "http://127.0.0.1:$SERVICE_PORT/health" >/dev/null 2>&1; then
-            echo -e "${COLOR_GREEN}�?Health check passed${COLOR_RESET}"
+            echo -e "${COLOR_GREEN}Health check passed${COLOR_RESET}"
         else
-            echo -e "${COLOR_YELLOW}�?Health check failed - service may still be starting${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}Health check failed - service may still be starting${COLOR_RESET}"
         fi
     else
         echo -e "${COLOR_RED}Failed to restart Pycore HTTP service${COLOR_RESET}"
@@ -189,13 +194,13 @@ test_health() {
     response=$(curl -s "http://127.0.0.1:$SERVICE_PORT/health")
 
     if [ $? -eq 0 ]; then
-        echo -e "${COLOR_GREEN}�?Health check passed${COLOR_RESET}"
+        echo -e "${COLOR_GREEN}Health check passed${COLOR_RESET}"
         echo ""
         echo "Response:"
         # Use python (venv) instead of python3 (system)
         echo "$response" | python -m json.tool 2>/dev/null || echo "$response"
     else
-        echo -e "${COLOR_RED}�?Health check failed${COLOR_RESET}"
+        echo -e "${COLOR_RED}Health check failed${COLOR_RESET}"
     fi
 
     echo ""
@@ -203,18 +208,19 @@ test_health() {
 }
 
 view_logs() {
-    show_header
-    echo -e "${COLOR_BLUE}=== Pycore HTTP Service Logs ===${COLOR_RESET}"
-    echo ""
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "View last 50 lines"
+        "View last 100 lines"
+        "View last 200 lines"
+        "Follow logs (real-time)"
+        "Back to Pycore HTTP Service Manager"
+    )
 
-    echo "1) View last 50 lines"
-    echo "2) View last 100 lines"
-    echo "3) View last 200 lines"
-    echo "4) Follow logs (real-time)"
-    echo "0) Back to main menu"
-    echo ""
-
-    read -p "Select option: " choice
+    arrow_menu_select "Pycore HTTP Service Logs" menu_items 0 4
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    choice=$((selected_index + 1))
 
     case $choice in
         1)
@@ -279,20 +285,24 @@ show_resource_usage() {
 }
 
 show_menu() {
-    show_header
-    show_service_status
+    local menu_items=(
+        "Start Service"
+        "Stop Service"
+        "Restart Service"
+        "Show Service Information"
+        "Test Health Endpoint"
+        "Show Resource Usage"
+        "View Service Logs"
+        "View Service File"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start Service"
-    echo "  2) Stop Service"
-    echo "  3) Restart Service"
-    echo "  4) Show Service Information"
-    echo "  5) Test Health Endpoint"
-    echo "  6) Show Resource Usage"
-    echo "  7) View Service Logs"
-    echo "  8) View Service File"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "Pycore HTTP Service Manager" menu_items 0 8 show_service_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 8 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -302,7 +312,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_service ;;

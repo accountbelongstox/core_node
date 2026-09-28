@@ -1,0 +1,25 @@
+# Project-managed compose service for the VoxCPM2 class-C server.
+# restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
+services:
+  voxcpm2:
+    build:
+      context: .
+      args:
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+    image: pycore-tts-voxcpm2:local
+    container_name: pycore-tts-voxcpm2
+    restart: "no"
+    ports:
+      - "127.0.0.1:${TTS_PORT:-57214}:57214"
+    volumes:
+      - ${TTS_STAGING}:/data
+    environment:
+      VOXCPM2_DEVICE: ${TTS_DEVICE:-cpu}
+      VOXCPM2_MODEL: ${VOXCPM2_MODEL:-openbmb/VoxCPM2}
+      VOXCPM2_CFG: ${VOXCPM2_CFG:-2.0}
+      VOXCPM2_TIMESTEPS: ${VOXCPM2_TIMESTEPS:-10}
+      VOXCPM2_PROMPT_WAV: ${VOXCPM2_PROMPT_WAV:-}
+      VOXCPM2_PROMPT_TEXT: ${VOXCPM2_PROMPT_TEXT:-}
+    labels:
+      pycore.managed: "true"
+      pycore.engine: "voxcpm2"

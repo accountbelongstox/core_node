@@ -1,18 +1,8 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\StaticServer;
+
+use App\Http\Controllers\Controller;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -22,160 +12,16 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use App\Utils\FileReader;
 
-class StaticFileController
+class StaticFileController extends Controller
 {
     private $basePath;
 
-    // Directory list to be filtered (only for non-logged-in users)
-    private $excludedDirectories = [
-        '.git',
-        'node_modules',
-        'vendor',
-        'storage',
-        'tests',
-        '.idea',
-        '.vscode'
-    ];
-
-    // File extensions to be filtered (only for non-logged-in users)
-    private $excludedExtensions = [
-        '.exe',
-        '.dll',
-        '.so',
-        '.dylib',
-        '.zip',
-        '.db',
-        '.sqlite',
-    ];
-
-    // Search rules configuration
-    private $searchRules = [
-        // Directories to skip (including subdirectories)
-        'skipDirectories' => [
-            'node_modules',
-            'vendor',
-            '.git',
-            'storage',
-            'public/build',
-            'public/hot',
-            'bootstrap/cache',
-            '.idea',
-            '.vscode',
-            '__pycache__',
-            'dist',
-            'build',
-            'coverage',
-            '.backup',
-            '.cache',
-            '.out',
-            '.log',
-            '.tmp',
-            '.pid',
-        ],
-        // Files to skip
-        'skipFiles' => [
-            '.DS_Store',
-            'Thumbs.db',
-            '.gitignore',
-            '.env',
-            '*.log',
-            '*.lock',
-            '*.cache',
-            '*.pid',
-            '*.out',
-            '*.tmp',
-            '*.backup',
-            '*.cache',
-            '*.log',
-            '*.pid',
-            '*.out',
-            '*.tmp',
-            '*.backup',
-
-            // 图片格式
-            '*.jpg',
-            '*.jpeg',
-            '*.png',
-            '*.gif',
-            '*.bmp',
-            '*.svg',
-            '*.webp',
-            '*.tiff',
-            '*.ico',
-
-            // 视频格式
-            '*.mp4',
-            '*.mkv',
-            '*.avi',
-            '*.mov',
-            '*.flv',
-            '*.wmv',
-            '*.webm',
-            '*.mpg',
-            '*.mpeg',
-            '*.3gp',
-
-            // 音频格式
-            '*.mp3',
-            '*.wav',
-            '*.aac',
-            '*.flac',
-            '*.ogg',
-            '*.m4a',
-            '*.wma',
-            '*.alac',
-            '*.aiff',
-
-        ],
-        // Supported file extensions for search
-        'supportedExtensions' => [
-            // Text files
-            'txt',
-            'md',
-            'markdown',
-            // Code files
-            // 'php',
-            // 'js',
-            // 'jsx',
-            // 'ts',
-            // 'tsx',
-            // 'vue',
-            // 'html',
-            // 'htm',
-            // 'css',
-            // 'scss',
-            // 'less',
-            // 'sass',
-            // 'py',
-            // 'rb',
-            // 'java',
-            // 'c',
-            // 'cpp',
-            // 'h',
-            // 'hpp',
-            // 'cs',
-            // 'go',
-            // 'rs',
-            // 'swift',
-            // // Configuration files
-            // 'json',
-            // 'xml',
-            // 'yaml',
-            // 'yml',
-            // 'ini',
-            // 'conf',
-            // 'config',
-            // // Other text files
-            // 'sql',
-            // 'sh',
-            // 'bash',
-            // 'env.example'
-        ]
-    ];
-
-    private $maxEditableFileSize = 10 * 1024 * 1024; // 10MB
-    private $maxSearchableFileSize = 5 * 1024 * 1024; // 5MB limit for searchable files
-    private $searchTimeout = 30; // Search timeout in seconds
+    private $excludedDirectories = StaticFileSearchConfig::EXCLUDED_DIRECTORIES;
+    private $excludedExtensions = StaticFileSearchConfig::EXCLUDED_EXTENSIONS;
+    private $searchRules = StaticFileSearchConfig::SEARCH_RULES;
+    private $maxEditableFileSize = StaticFileSearchConfig::MAX_EDITABLE_FILE_SIZE;
+    private $maxSearchableFileSize = StaticFileSearchConfig::MAX_SEARCHABLE_FILE_SIZE;
+    private $searchTimeout = StaticFileSearchConfig::SEARCH_TIMEOUT_SECONDS;
     private $searchFlagFile; // Search flag file path
     private $searchStartTime; // Search start time
     private $searchedDirs = []; // Searched directories
@@ -345,7 +191,7 @@ class StaticFileController
             return response()->json(['error' => 'File is not writable'], 403);
         }
 
-        // 检查是否需要确认
+        // Check whether confirmation is required
         if ($this->needsConfirmation($fullPath) && $confirmationCount < 3) {
             return response()->json([
                 'needsConfirmation' => true,
@@ -354,20 +200,18 @@ class StaticFileController
             ], 200);
         }
 
-        try {
-            // 创建备份
-            $backupPath = $this->createBackup($fullPath);
+        // No controller-level try/catch (LARAVEL_GUIDE: trust the framework
+        // exception handler). Existence/writability validated above.
+        // Create a backup
+        $backupPath = $this->createBackup($fullPath);
 
-            // 保存新内容
-            file_put_contents($fullPath, $content);
+        // Save the new content
+        file_put_contents($fullPath, $content);
 
-            return response()->json([
-                'message' => 'File saved successfully',
-                'backup' => basename($backupPath)
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+        return response()->json([
+            'message' => 'File saved successfully',
+            'backup' => basename($backupPath)
+        ]);
     }
 
     /**
@@ -637,21 +481,21 @@ class StaticFileController
             ]);
         }
 
-        // 更新搜索标志和开始时间
+        // Update search flag and start time
         $this->searchStartTime = time();
         $this->updateSearchFlag();
 
-        // 重置搜索统计
+        // Reset search statistics
         $this->searchedDirs = [];
         $this->searchedFiles = [];
 
         $pathMatches = [];
         $contentMatches = [];
 
-        // 搜索文件和目录名
+        // Search file and directory names
         $this->searchInDirectory($this->basePath, $searchTerm, $pathMatches, $contentMatches);
 
-        // 检查是否因超时而停止
+        // Check whether stopped due to timeout
         $wasTimeout = time() - $this->searchStartTime >= $this->searchTimeout;
 
         return response()->json([

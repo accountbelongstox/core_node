@@ -1,41 +1,58 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\Utils\AppQyV1ArticleTextParser;
-use App\Services\TaskManagerService;
+use App\Services\BookTextStatsService;
+use App\Services\MediaIngestService;
 use App\Models\GlobalTask;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWordModel as AppQyV1ArticleWord;
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1WorkerArticleSubmitRequest;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AgentHistoryArticleSubmissionService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AgentHistoryAudioWritebackService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
+use Illuminate\Support\Facades\Log;
 
-class AppQyV1ArticleController
+class AppQyV1ArticleController extends Controller
 {
     use ApiResponse;
 
-    protected $taskManager;
+    protected BookTextStatsService $stats;
 
-    public function __construct(TaskManagerService $taskManager)
-    {
-        $this->taskManager = $taskManager;
+    protected MediaIngestService $ingestService;
+
+    protected AppQyV1DailyReadingService $dailyReadingService;
+
+    protected AppQyV1ArticleSentenceAudioService $articleAudioService;
+
+    protected AppQyV1AgentHistoryArticleSubmissionService $agentHistorySubmissionService;
+
+    protected AppQyV1AgentHistoryAudioWritebackService $agentHistoryAudioWritebackService;
+
+    public function __construct(
+        BookTextStatsService $stats,
+        MediaIngestService $ingestService,
+        AppQyV1DailyReadingService $dailyReadingService,
+        AppQyV1ArticleSentenceAudioService $articleAudioService,
+        AppQyV1AgentHistoryArticleSubmissionService $agentHistorySubmissionService,
+        AppQyV1AgentHistoryAudioWritebackService $agentHistoryAudioWritebackService
+    ) {
+        $this->stats = $stats;
+        $this->ingestService = $ingestService;
+        $this->dailyReadingService = $dailyReadingService;
+        $this->articleAudioService = $articleAudioService;
+        $this->agentHistorySubmissionService = $agentHistorySubmissionService;
+        $this->agentHistoryAudioWritebackService = $agentHistoryAudioWritebackService;
     }
 
     /**
@@ -65,9 +82,14 @@ class AppQyV1ArticleController
      */
     public function submitArticle(Request $request): JsonResponse
     {
+        // §2: language is a CODE; validate against the canonical supported set
+        // (the edge_tts codes that back the per-language tables) so the rule stays
+        // auto-synced and never drifts from a hardcoded list.
+        $languageRule = 'nullable|string|in:' . implode(',', AppQyV1TableMaps::getSupportedLanguages());
+
         $validator = Validator::make($request->all(), [
             'article_text' => 'required|string|min:10|max:50000',
-            'language' => 'nullable|string|in:english,chinese,spanish,french,german,japanese,korean',
+            'language' => $languageRule,
             'generate_sentence_audio' => 'nullable|boolean',
             'generate_word_audio' => 'nullable|boolean',
             'title' => 'nullable|string|max:255',
@@ -87,7 +109,9 @@ class AppQyV1ArticleController
         }
 
         $articleText = $request->input('article_text');
-        $language = 'english';
+        // §2: language is a CODE. Default to the primary 'en'; the normalizer
+        // (AppQyV1TableMaps::normalizeLangCode) remains a safety net downstream.
+        $language = 'en';
         if ($request->has('language')) {
             $language = $request->input('language');
         }
@@ -108,19 +132,21 @@ class AppQyV1ArticleController
         $userId = $request->user()->id;
 
         $article = null;
-        $task = null;
+        $taskId = null;
 
         try {
-        DB::transaction(function () use (
+        AppQyV1Article::runInTransaction(function () use (
                 $articleId,
                 $userId,
                 $request,
                 $articleText,
                 $language,
                 $parsedResult,
+                $generateSentenceAudio,
+                $generateWordAudio,
                 &$article
             ) {
-                $article = AppQyV1Article::create([
+                $article = AppQyV1Article::createRecord([
                     'article_id' => $articleId,
                     'user_id' => $userId,
                     'title' => $request->input('title'),
@@ -150,47 +176,20 @@ class AppQyV1ArticleController
                 );
             });
 
+            // §1.1/§13.2: map the finalized article body into the ONE shared
+            // multi-language sentence library (sentences_{lang} by content_id) via
+            // source_sentences slots (source_type='article'). The articles row
+            // keeps `content` unchanged. Never let a mapping failure fail the save
+            // (the article + its TTS task still proceed).
+            $this->mapArticleToLibrary($articleId, $articleText, $language);
+
             if ($generateSentenceAudio || $generateWordAudio) {
-                $timeoutSeconds = 120 + (count($parsedResult['sentences']) * 5) + (count($parsedResult['words']) * 2);
-                if ($timeoutSeconds > 3600) {
-                    $timeoutSeconds = 3600;
+                $queueResult = $this->articleAudioService->enqueueArticle($article);
+                if (!($queueResult['ok'] ?? false) || empty($queueResult['task_id'])) {
+                    throw new \RuntimeException('Queue Center article audio enqueue failed');
                 }
-
-                $task = $this->taskManager->createTask(
-                    'AppQyV1',
-                    'article_tts_generation',
-                    GlobalTask::EXECUTION_LOCAL_TIMER,
-                    [
-                        'article_id' => $articleId,
-                        'language' => $language,
-                        'generate_sentence_audio' => $generateSentenceAudio,
-                        'generate_word_audio' => $generateWordAudio,
-                    ],
-                    $timeoutSeconds,
-                    50,
-                    3
-                );
-
-                $article->update(['task_id' => $task->task_id]);
-
-                $cacheKey = "article_task:{$task->task_id}";
-                Cache::put($cacheKey, [
-                    'article_id' => $articleId,
-                    'user_id' => $userId,
-                    'article_text' => $articleText,
-                    'language' => $language,
-                    'sentences' => $parsedResult['sentences'],
-                    'sentences_with_md5' => $parsedResult['sentences_with_md5'],
-                    'words' => $parsedResult['words'],
-                    'word_frequency' => $parsedResult['word_frequency'],
-                    'total_sentences' => $parsedResult['total_sentences'],
-                    'total_words' => $parsedResult['total_words'],
-                    'unique_words' => $parsedResult['unique_words'],
-                    'generate_sentence_audio' => $generateSentenceAudio,
-                    'generate_word_audio' => $generateWordAudio,
-                    'sentence_audio_urls' => [],
-                    'word_audio_urls' => [],
-                ], 3600);
+                $taskId = (string) $queueResult['task_id'];
+                $article->updateRecord(['task_id' => $taskId]);
             }
 
             $sentencesData = array_map(function($sentence) {
@@ -212,8 +211,8 @@ class AppQyV1ArticleController
 
             return $this->success([
                 'article_id' => $articleId,
-                'task_id' => $task ? $task->task_id : null,
-                'tts_status' => $task ? 'processing' : 'not_requested',
+                'task_id' => $taskId,
+                'tts_status' => $taskId !== null ? 'pending' : 'not_requested',
                 'article' => [
                     'title' => $article->title,
                     'language' => $language,
@@ -224,10 +223,10 @@ class AppQyV1ArticleController
                 ],
                 'sentences' => $generateSentenceAudio ? $sentencesData : [],
                 'words' => $generateWordAudio ? $wordsData : [],
-            ], 'Article saved successfully. TTS generation in progress.');
+            ], __('app_qy_v1.messages.article_saved_successfully_tts_generation_in_progress'));
 
         } catch (\Throwable $e) {
-            return $this->error('Failed to save article: ' . $e->getMessage(), 500);
+            return $this->error(__('app_qy_v1.messages.failed_to_save_article') . $e->getMessage(), 500);
         }
     }
 
@@ -243,78 +242,45 @@ class AppQyV1ArticleController
      *         "task_id": "uuid",
      *         "status": "completed|processing|pending|failed",
      *         "progress": 75.5,
-     *         "article_data": {
-     *             "article_text": "...",
-     *             "sentences": [...],
-     *             "words": [...],
-     *             "sentence_audio_urls": [...],
-     *             "word_audio_urls": [...]
-     *         }
+     *         "article_id": "article_uuid",
+     *         "audio_url": "/static/app_qy_v1/audio/..."
      *     }
      * }
      */
     public function getTaskStatus(string $taskId): JsonResponse
     {
-        $task = GlobalTask::where('task_id', $taskId)->first();
+        $task = GlobalTask::findByTaskId($taskId);
 
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('app_qy_v1.messages.task_not_found'));
         }
 
-        $cacheKey = "article_task:{$taskId}";
-        $articleData = Cache::get($cacheKey);
-
-        $article = null;
-        if (!$articleData) {
-            $article = AppQyV1Article::where('task_id', $taskId)->first();
-            if (!$article) {
-                return $this->error('Article data not found', 404);
-            }
+        $article = AppQyV1Article::findByTaskId($taskId);
+        if (!$article) {
+            return $this->error(__('app_qy_v1.messages.article_data_not_found'), 404);
         }
+        $metadata = is_array($article->metadata) ? $article->metadata : [];
 
         $responseData = [
             'task_id' => $task->task_id,
-            'article_id' => $task->result['article_id'] ?? ($articleData['article_id'] ?? $article?->article_id),
+            'article_id' => $task->payload['article_id'] ?? $article->article_id,
             'status' => $task->status,
             'progress' => $task->progress,
             'error' => null,
+            'total_sentences' => (int) $article->sentence_count,
+            'total_words' => (int) $article->word_count,
+            'unique_words' => (int) $article->unique_word_count,
         ];
 
         if ($task->error) {
             $responseData['error'] = $task->error;
         }
 
-        if ($task->status === GlobalTask::STATUS_COMPLETED) {
-            if ($articleData) {
-                $responseData['sentences'] = array_map(function($item) {
-                    return [
-                        'text' => $item['sentence'],
-                        'audio_url' => $item['audio_url'],
-                        'status' => 'completed',
-                    ];
-                }, $articleData['sentence_audio_urls'] ?? []);
-
-                $responseData['words'] = array_map(function($item) {
-                    return [
-                        'word' => $item['word'],
-                        'audio_url' => $item['audio_url'],
-                        'status' => 'completed',
-                    ];
-                }, $articleData['word_audio_urls'] ?? []);
-            } else {
-                $responseData['sentences'] = [];
-                $responseData['words'] = [];
-                $responseData['note'] = 'TTS data cached expired, query article directly for audio URLs';
-            }
-        } else {
-            if ($articleData) {
-                $responseData['total_sentences'] = $articleData['total_sentences'];
-                $responseData['total_words'] = $articleData['total_words'];
-                $responseData['unique_words'] = $articleData['unique_words'];
-            }
+        if ($task->status === GlobalTask::status('completed')) {
+            $responseData['audio_url'] = $metadata['audio_url'] ?? null;
         }
 
-        return $this->success($responseData, 'Task status retrieved successfully');
+        return $this->success($responseData, __('app_qy_v1.messages.task_status_retrieved_successfully'));
     }
 
     /**
@@ -343,9 +309,12 @@ class AppQyV1ArticleController
      */
     public function previewParsing(Request $request): JsonResponse
     {
+        // §2: validate language against the canonical supported set (auto-synced).
+        $languageRule = 'nullable|string|in:' . implode(',', AppQyV1TableMaps::getSupportedLanguages());
+
         $validator = Validator::make($request->all(), [
             'article_text' => 'required|string|min:10|max:50000',
-            'language' => 'nullable|string|in:english,chinese,spanish,french,german,japanese,korean',
+            'language' => $languageRule,
         ]);
 
         if ($validator->fails()) {
@@ -357,7 +326,9 @@ class AppQyV1ArticleController
         }
 
         $articleText = $request->input('article_text');
-        $language = 'english';
+        // §2: language is a CODE. Default to the primary 'en'; the normalizer
+        // (AppQyV1TableMaps::normalizeLangCode) remains a safety net downstream.
+        $language = 'en';
         if ($request->has('language')) {
             $language = $request->input('language');
         }
@@ -371,6 +342,312 @@ class AppQyV1ArticleController
             'total_sentences' => $parsedResult['total_sentences'],
             'total_words' => $parsedResult['total_words'],
             'unique_words' => $parsedResult['unique_words'],
-        ], 'Article parsed successfully');
+        ], __('app_qy_v1.messages.article_parsed_successfully'));
     }
+
+    /**
+     * Idempotent backfill: map an EXISTING article's body into the shared
+     * multi-language sentence library (§1.1/§13.2). Safe to call repeatedly —
+     * MediaIngestService::ingest is fill-missing/never-clobber. Maps every
+     * article in the table when no article_id is given.
+     *
+     * POST /api/app_qy_v1/ai_tools/article/backfill-library  { article_id? }
+     */
+    public function backfillLibrary(Request $request): JsonResponse
+    {
+        $articleId = $request->input('article_id');
+
+        $mapped = 0;
+        $failed = 0;
+        AppQyV1Article::chunkForLibraryBackfill(
+            is_string($articleId) ? $articleId : null,
+            function ($articles) use (&$mapped, &$failed): void {
+                foreach ($articles as $article) {
+                    $content = (string) $article->content;
+                    if (trim($content) === '') {
+                        continue;
+                    }
+                    if ($this->mapArticleToLibrary((string) $article->article_id, $content, (string) $article->language)) {
+                        $mapped++;
+                    } else {
+                        $failed++;
+                    }
+                }
+            }
+        );
+
+        return $this->success([
+            'mapped' => $mapped,
+            'failed' => $failed,
+        ], __('app_qy_v1.messages.article_library_backfill_completed'));
+    }
+
+    /**
+     * Segment an article body into BOTH grains (cue/sentence) via
+     * BookTextStatsService and ingest it into the ONE shared per-language
+     * sentence library through the v3 MediaIngestService path (§1.1/§13.2).
+     *
+     * source_key = the article's stable id (already 'article_<uuid>'). The PHP
+     * parser yields one detected language per slot; selected_languages = the
+     * primary code plus every detected slot language (multilingual articles fill
+     * several langs; monolingual fills only the primary, others null). Codes only.
+     * Never throws — a mapping failure must not fail article creation.
+     *
+     * @return bool True when the ingest ran without error.
+     */
+    private function mapArticleToLibrary(string $articleId, string $content, string $language): bool
+    {
+        try {
+            if (trim($content) === '') {
+                return false;
+            }
+
+            $primaryCode = AppQyV1TableMaps::normalizeLangCode($language);
+            if ($primaryCode === '') {
+                $primaryCode = 'en';
+            }
+
+            // Both-grain segmentation + per-slot language detection (reused from
+            // the books pipeline). Articles use a single default chapter.
+            $tree = $this->stats->analyzeChapters($content, $primaryCode);
+            $cachedSlots = isset($tree['slots']) && is_array($tree['slots']) ? $tree['slots'] : [];
+            if (count($cachedSlots) === 0) {
+                return false;
+            }
+
+            // selected_languages = primary + every detected slot language (codes).
+            $selected = [$primaryCode];
+            foreach ($cachedSlots as $slot) {
+                $code = AppQyV1TableMaps::normalizeLangCode((string) ($slot['language'] ?? ''));
+                if ($code !== '' && !in_array($code, $selected, true)) {
+                    $selected[] = $code;
+                }
+            }
+
+            $sourceKey = $articleId; // already 'article_<uuid>', stable + prefixed.
+
+            // Build v3 slots: each detected language fills its own text; the other
+            // selected languages stay null (留空), exactly like a book sentence.
+            $slots = [];
+            foreach ($cachedSlots as $slot) {
+                $grain = isset($slot['grain']) ? (string) $slot['grain'] : 'sentence';
+                $seq = isset($slot['seq']) ? (int) $slot['seq'] : 0;
+                $text = isset($slot['text']) ? (string) $slot['text'] : '';
+                if (trim($text) === '') {
+                    continue;
+                }
+                $slotLang = AppQyV1TableMaps::normalizeLangCode((string) ($slot['language'] ?? ''));
+                if ($slotLang === '') {
+                    $slotLang = $primaryCode;
+                }
+
+                $langs = [];
+                foreach ($selected as $code) {
+                    $langs[$code] = ($code === $slotLang) ? $text : null;
+                }
+
+                $slots[] = [
+                    'chapter_index' => 0,
+                    'grain' => $grain,
+                    'seq' => $seq,
+                    'corr_id' => MediaIngestService::computeCorrId($sourceKey, $grain, $seq),
+                    'primary_language' => $primaryCode,
+                    'langs' => $langs,
+                    'seg_index' => null,
+                    'sub_idx' => null,
+                    'start_sec' => null,
+                    'end_sec' => null,
+                ];
+            }
+
+            if (count($slots) === 0) {
+                return false;
+            }
+
+            $payload = [
+                'source_type' => 'article',
+                'model_version' => 3,
+                'source' => [
+                    'source_key' => $sourceKey,
+                    'language' => $primaryCode,
+                    'selected_languages' => $selected,
+                    'full_content' => $content,
+                    'metadata' => ['source' => 'article', 'article_id' => $articleId],
+                ],
+                // Single default chapter (per selected language, title null/留空).
+                'chapters' => [
+                    ['chapter_index' => 0, 'sentence_count' => count($slots), 'titles' => []],
+                ],
+                'slots' => $slots,
+            ];
+
+            $this->ingestService->ingest($payload);
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning('[AppQyV1Article] Library mapping failed', [
+                'article_id' => $articleId,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * List articles. When type/article_type=short, delegates to the file-backed
+     * daily-sentence store (formerly GET /api/app_qy_v1/daily-sentences/list).
+     *
+     * GET /api/app_qy_v1/ai_tools/article/list?type=short
+     */
+    public function listArticles(Request $request): JsonResponse
+    {
+        $type = strtolower(trim((string) (
+            $request->query('type', $request->query('article_type', ''))
+        )));
+
+        if ($type === 'short' || $type === 'daily_short') {
+            $limit = (int) $request->query('limit', $request->query('pageSize', 50));
+            $page = (int) $request->query('page', 0);
+            $offset = $page > 0 ? ($page - 1) * max(1, $limit) : (int) $request->query('offset', 0);
+            $data = (new AppQyV1DailySentenceService())->list($limit, $offset);
+            $data['article_type'] = 'short';
+            $data['deprecated_notice'] = 'Short sentences live under article/list?type=short; /daily-sentences/list is deprecated.';
+            return $this->success($data, __('app_qy_v1.messages.short_articles_daily_sentences'));
+        }
+
+        return $this->error(__('app_qy_v1.messages.unsupported_article_list_type_use_type_short'), 400, [
+            'supported_types' => ['short'],
+        ]);
+    }
+
+    /**
+     * Recommend one article. type=short → daily-sentence recommend.
+     *
+     * GET /api/app_qy_v1/ai_tools/article/recommend?type=short
+     */
+    public function recommendArticle(Request $request): JsonResponse
+    {
+        $type = strtolower(trim((string) (
+            $request->query('type', $request->query('article_type', 'short'))
+        )));
+
+        if ($type === 'short' || $type === 'daily_short') {
+            $item = (new AppQyV1DailySentenceService())->recommend();
+            return $this->success([
+                'item' => $item,
+                'article_type' => 'short',
+                'deprecated_notice' => 'Short sentences live under article/recommend?type=short; /daily-sentences/recommend is deprecated.',
+            ], 'Short article recommendation');
+        }
+
+        return $this->error(__('app_qy_v1.messages.unsupported_article_recommend_type_use_type_short'), 400, [
+            'supported_types' => ['short'],
+        ]);
+    }
+
+    /**
+     * Stream stored TTS audio for a short/daily sentence (thin alias of
+     * daily-sentences/audio/{id}). Prefer metadata.audio_url when present.
+     *
+     * GET /api/app_qy_v1/ai_tools/article/audio/{id}
+     */
+    public function shortAudio(string $id)
+    {
+        $path = (new AppQyV1DailySentenceService())->audioFile($id);
+        if (!is_file($path)) {
+            return $this->notFound(__('app_qy_v1.messages.audio_not_found'));
+        }
+        return response()->file($path, [
+            'Content-Type' => 'audio/mpeg',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
+    /**
+     * Worker-facing article submit (no auth — pycore Agent History pipeline).
+     *
+     * POST /api/app_qy_v1/ai_tools/article/worker/submit
+     */
+    public function workerSubmit(AppQyV1WorkerArticleSubmitRequest $request): JsonResponse
+    {
+        $result = $this->agentHistorySubmissionService->submit($request->validated());
+
+        return $this->success($result, __('article.worker_stored'));
+    }
+
+    /**
+     * Worker-facing durable audio replacement receipt (no auth — pycore Agent
+     * History rebuild lane). The request persists one content-addressed audio
+     * artifact and a per-article writeback marker before returning. Publication
+     * is finalized after the response and recovered by the Octane timer.
+     *
+     * POST /api/app_qy_v1/ai_tools/article/worker/replace-audio
+     */
+    public function workerReplaceAudio(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'article_id' => 'nullable|string|max:100|required_without:source_record_id',
+            'source_record_id' => 'nullable|string|max:255|required_without:article_id',
+            'upload_protocol' => 'required|string|in:offset-v1',
+            'upload_offset' => 'required|integer|min:0',
+            'upload_length' => 'required|integer|min:128',
+            'audio_sha256' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'chunk_sha256' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'tts_engine' => 'nullable|string|max:100',
+            'tts_model' => 'nullable|string|max:200',
+            'tts_chunked' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        $articleId = trim((string) $request->input('article_id', ''));
+        $sourceRecordId = trim((string) $request->input('source_record_id', ''));
+
+        $receipt = $this->agentHistoryAudioWritebackService->receiveChunk(
+            $articleId,
+            $sourceRecordId,
+            (string) $request->getContent(),
+            (int) $request->input('upload_offset'),
+            (int) $request->input('upload_length'),
+            (string) $request->input('audio_sha256'),
+            (string) $request->input('chunk_sha256'),
+            [
+                'tts_engine' => $request->input('tts_engine'),
+                'tts_model' => $request->input('tts_model'),
+                'tts_chunked' => (bool) $request->input('tts_chunked', false),
+                'source_record_id' => $sourceRecordId,
+                'audio_rebuild' => true,
+            ]
+        );
+        if ($receipt === null) {
+            return $this->error(__('article.worker_audio_store_failed'), 500);
+        }
+
+        return $this->success($receipt, __('article.worker_audio_received'));
+    }
+
+    /**
+     * Recent daily-reading articles for wordnew / pycore polling.
+     *
+     * GET /api/app_qy_v1/ai_tools/article/worker/recent
+     */
+    public function workerRecent(Request $request): JsonResponse
+    {
+        $limit = (int) $request->input('limit', 30);
+        if ($limit < 1) {
+            $limit = 30;
+        }
+        if ($limit > 100) {
+            $limit = 100;
+        }
+
+        $data = $this->dailyReadingService->list($limit, 0);
+
+        return $this->success([
+            'items' => $data['items'],
+            'total' => $data['total'],
+        ], __('app_qy_v1.messages.recent_daily_reading_articles'));
+    }
+
 }

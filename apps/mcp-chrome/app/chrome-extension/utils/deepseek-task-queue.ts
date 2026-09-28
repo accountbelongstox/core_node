@@ -3,6 +3,8 @@
  * Manages tasks for automated DeepSeek interactions
  */
 
+import { STORAGE_KEYS as SK } from './storage-keys';
+
 /**
  * Task status enum
  */
@@ -19,7 +21,7 @@ export enum TaskStatus {
 /**
  * Task result interface
  */
-export interface TaskResult {
+export interface DeepSeekTaskResult {
   content: string; // The AI response text
   conversationUrl: string; // URL to the conversation
   extractedAt: number; // Timestamp when result was extracted
@@ -51,7 +53,9 @@ export interface DeepSeekTask {
   updatedAt: number; // Timestamp (ms)
   tabId?: number; // Chrome tab ID where task is running
   conversationId?: string; // DeepSeek conversation ID
-  result?: TaskResult; // Result data when completed
+  responseBaseline?: number; // Assistant response count before this prompt
+  responseBaselineKey?: string; // Last assistant response fingerprint before this prompt
+  result?: DeepSeekTaskResult; // Result data when completed
   error?: string; // Error message if failed
   metadata?: {
     attachments?: string[]; // File paths/URLs of attachments
@@ -81,9 +85,9 @@ export type TaskEventListener = (task: DeepSeekTask, eventType: TaskEventType) =
 /**
  * Storage keys
  */
-const STORAGE_KEYS = {
-  TASKS: 'deepseek_tasks',
-  CONFIG: 'deepseek_config',
+const DEEPSEEK_STORAGE_KEYS = {
+  TASKS: SK.DEEPSEEK_TASKS,
+  CONFIG: SK.DEEPSEEK_CONFIG,
 } as const;
 
 /**
@@ -114,8 +118,8 @@ export class TaskQueueManager {
     if (this.initialized) return;
 
     // Load tasks from storage
-    const result = await chrome.storage.local.get(STORAGE_KEYS.TASKS);
-    const storedTasks = result[STORAGE_KEYS.TASKS] as Record<string, DeepSeekTask> | undefined;
+    const result = await chrome.storage.local.get(DEEPSEEK_STORAGE_KEYS.TASKS);
+    const storedTasks = result[DEEPSEEK_STORAGE_KEYS.TASKS] as Record<string, DeepSeekTask> | undefined;
     if (storedTasks) {
       Object.entries(storedTasks).forEach(([id, task]) => {
         this.tasks.set(id, task);
@@ -123,16 +127,20 @@ export class TaskQueueManager {
     }
 
     // Load configuration
-    const configResult = await chrome.storage.local.get(STORAGE_KEYS.CONFIG);
-    const storedConfig = configResult[STORAGE_KEYS.CONFIG] as typeof DEFAULT_CONFIG | undefined;
+    const configResult = await chrome.storage.local.get(DEEPSEEK_STORAGE_KEYS.CONFIG);
+    const storedConfig = configResult[DEEPSEEK_STORAGE_KEYS.CONFIG] as typeof DEFAULT_CONFIG | undefined;
     if (storedConfig) {
       this.config = { ...DEFAULT_CONFIG, ...storedConfig };
     }
 
+    // Mark initialized BEFORE cleanup so cleanupOldTasks()'s ensureInitialized()
+    // guard does not re-enter initialize() (previously this caused an infinite
+    // async recursion: initialize → cleanupOldTasks → ensureInitialized → initialize).
+    this.initialized = true;
+
     // Clean up old tasks
     await this.cleanupOldTasks();
 
-    this.initialized = true;
     console.log(`TaskQueueManager initialized with ${this.tasks.size} tasks`);
   }
 
@@ -160,7 +168,7 @@ export class TaskQueueManager {
     this.tasks.forEach((task, id) => {
       tasksObject[id] = task;
     });
-    await chrome.storage.local.set({ [STORAGE_KEYS.TASKS]: tasksObject });
+    await chrome.storage.local.set({ [DEEPSEEK_STORAGE_KEYS.TASKS]: tasksObject });
   }
 
   /**
@@ -372,7 +380,7 @@ export class TaskQueueManager {
    */
   async updateConfig(config: Partial<typeof DEFAULT_CONFIG>): Promise<void> {
     this.config = { ...this.config, ...config };
-    await chrome.storage.local.set({ [STORAGE_KEYS.CONFIG]: this.config });
+    await chrome.storage.local.set({ [DEEPSEEK_STORAGE_KEYS.CONFIG]: this.config });
     console.log('Updated configuration:', this.config);
   }
 

@@ -1,0 +1,37 @@
+{
+  "task_id": "laravel-T9",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "LB-033": {
+      "status": "fixed",
+      "reason": "Per the ruling: scripts/start.ps1 stops a php.exe artisan lane only when its command line carries this project's resolved artisan path (ArtisanPathPattern, built from the Join-Path'd artisan path with escaped segments and a separator class, :83/:691), and artisan serve is started with the absolute path (:827), so another project's lanes are never stopped."
+    },
+    "RV-007": {
+      "status": "fixed",
+      "reason": "Cover and poster priority events carry items[].resource_key (library:<id>, <media_type>:<id>), matching queue_center_contract.json realtime.head_keys and the requirements section 7.2 record; event names come from the contract (T4). pycore dropping its synthetic heads is pycore-4's."
+    },
+    "RV-004": {
+      "status": "fixed",
+      "reason": "The QueueCenterContract::taskStreamEvent accessor was already removed in T4."
+    },
+    "LB-007": {
+      "status": "fixed",
+      "reason": "The admin ai-regenerate now enqueues a MODE_GENERATE cover task (202 with the task; an existing live task is returned) instead of running synchronously with set_time_limit(300), with prompt max validation. No UI, mcp-chrome or pycore caller of the old synchronous response exists (grep)."
+    },
+    "X4": {
+      "status": "fixed",
+      "reason": "Field names recorded (payload.md5, payload.words[].md5, upload body.md5, delivery key <lang>:<md5>[:<variant>]), and the contract rule is in requirements section 7.2; pycore-4 must use them without recomputing."
+    },
+    "T5 note (IdempotentRequest)": {
+      "status": "fixed",
+      "reason": "Only 2xx and 400/404/410/422 responses are stored (IdempotentRequest.php:30,66); 409/429/5xx are never stored, and the in-progress marker is always released."
+    }
+  },
+  "issues": [
+    "(cross-end, still open, owner laravel) NC-008 laravel half: DingDuoDuoV1SuperCodeService.php:22-53 still ships MASTER_CODES, SUPER_SALT and the v1 FNV mint, although the contract now has dingdoudou.super_code_public_key and super_code_signing_secret. The extension (ncore-5) accepts only DDK2 codes, so the v1 mint is useless; the master codes must also stop working as member tokens. Not part of T7-T9. Submit it as the next laravel task."
+  ],
+  "checks": "start.ps1 pattern and match lines read; AssistController resource_key lines and the contract head_keys read; the ai-regenerate controller diff read and callers grepped; IdempotentRequest stored-status constant checked.",
+  "checked_at": "2026-09-27T04:53:09+10:00",
+  "cross_end": "Contract check: queue_center_contract.json word_identity (rule md5-of-exact-stored-dictionary-content, producer laravel, consumers_recompute false, fields payload.md5 / payload.words[].md5 / body.md5 / <lang>:<md5>[:<variant>]) matches the fields Laravel emits (DictLaneCatalog, QueueHeadNotificationService, WordAudioGateway). realtime.head_keys and resource_key_formats (library:<library_id>, <media_type>:<media_id>) match AssistController:43/:304/:345. service_contract.json#dingdoudou.super_code_public_key decodes to 32 bytes."
+}

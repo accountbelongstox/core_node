@@ -1,0 +1,405 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
+
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+/**
+ * Dictionary WORD MANAGEMENT (dashboard mutations).
+ *
+ * The read/drill-down side lives in AppQyV1VocabularyStatsController; this is the
+ * write side the Words management UI needs: create / update / delete a single
+ * word and run batch actions over a set of md5s. Per-language tables are reached
+ * via AppQyV1LangDictionaryModel::forLanguage($code); create/update go through a
+ * loaded model instance so JSON-cast columns (translations, word_details) are
+ * encoded correctly (a bulk query-builder update would not cast them).
+ *
+ * Posture mirrors the sibling dictionary endpoints: public, validated, no user
+ * data. Cache is invalidated via the model's forgetMetricsCache on every write.
+ */
+class AppQyV1DictionaryWordManagementController extends Controller
+{
+    use ApiResponse;
+
+    /** Resolve + guard the language table; returns [code, modelHasTable]. */
+    private function resolveLanguage(string $language): array
+    {
+        $code = AppQyV1DictionaryService::getLanguageCode($language);
+        $hasTable = AppQyV1LangDictionaryModel::languageTableExists($code);
+        return [$code, $hasTable];
+    }
+
+    /** Consistent row shape (matches AppQyV1VocabularyStatsController::dictionaryWords). */
+    private function shapeRow(AppQyV1LangDictionaryModel $row): array
+    {
+        $entry = AppQyV1VocabularyLibraryPublicController::buildWordEntryFromDictionaryRow($row);
+
+        // File-first audio path/size: same canonical PathMapper base + first-existing
+        // tts_file the URL builder uses, so the displayed SERVER PATH + SIZE match the
+        // file audio_url serves. Kept in parity with the list controller's row map.
+        $audioPath = null;
+        $audioSize = null;
+        if (!empty($row->tts_files)) {
+            $audioBaseAbs = \App\Providers\PathMapper::getAppQyV1AudioBaseDir() . '/';
+            $wwwRoot = rtrim(\App\Providers\PathMapper::mapWebPath('www'), '/');
+            foreach ($row->tts_files as $ttsFile) {
+                if (isset($ttsFile['path'])) {
+                    $fullPath = $audioBaseAbs . $ttsFile['path'];
+                    if (is_file($fullPath)) {
+                        $audioPath = str_starts_with($fullPath, $wwwRoot)
+                            ? substr($fullPath, strlen($wwwRoot))
+                            : $fullPath;
+                        $size = @filesize($fullPath);
+                        $audioSize = $size === false ? null : (int) $size;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return [
+            'id' => (int) $row->id,
+            'content' => $row->content,
+            'md5' => $row->md5,
+            'has_translation' => (bool) $row->has_translation || !empty($entry['has_translation']),
+            'has_audio' => (bool) $row->has_audio,
+            'is_valid' => (bool) $row->is_valid,
+            'translations' => $entry['translations'],
+            'us_phonetic' => $row->us_phonetic,
+            'uk_phonetic' => $row->uk_phonetic,
+            'phonetic' => $row->phonetic,
+            'query_count' => (int) $row->query_count,
+            'audio_url' => $entry['audio_url'],
+            'audio_available' => (bool) ($entry['audio_available'] ?? false),
+            'audio_path' => $audioPath,
+            'audio_size' => $audioSize,
+            'word_details' => $row->word_details,
+            'image_files' => is_array($row->image_files) ? $row->image_files : null,
+            'tts_status' => $row->tts_status,
+            'tts_attempts' => (int) ($row->tts_attempts ?? 0),
+            'tts_error' => $row->tts_error,
+            'validity_note' => $row->validity_note,
+            'validity_source' => $row->validity_source,
+            'validity_checked_at' => $row->validity_checked_at,
+            'last_modified' => $row->last_modified,
+        ];
+    }
+
+    /**
+     * Apply the editable fields from $data onto a loaded model instance. Only
+     * keys actually present are touched (partial update). JSON-cast columns are
+     * set as arrays so Eloquent encodes them on save().
+     */
+    private function applyEditable(AppQyV1LangDictionaryModel $row, array $data): void
+    {
+        if (array_key_exists('translations', $data)) {
+            $list = is_array($data['translations'])
+                ? array_values(array_filter(array_map('trim', $data['translations']), fn ($t) => $t !== ''))
+                : [];
+            $row->translations = $list;
+            $row->has_translation = count($list) > 0;
+        }
+        if (array_key_exists('us_phonetic', $data)) {
+            $row->us_phonetic = $data['us_phonetic'] !== null ? (string) $data['us_phonetic'] : null;
+        }
+        if (array_key_exists('uk_phonetic', $data)) {
+            $row->uk_phonetic = $data['uk_phonetic'] !== null ? (string) $data['uk_phonetic'] : null;
+        }
+        if (array_key_exists('phonetic', $data)) {
+            $row->phonetic = $data['phonetic'] !== null ? (string) $data['phonetic'] : null;
+        }
+        if (array_key_exists('word_details', $data)) {
+            $row->word_details = $data['word_details'];   // JSON-cast column
+        }
+        if (array_key_exists('is_valid', $data)) {
+            $row->is_valid = (bool) $data['is_valid'];
+            $row->validity_checked_at = now();
+            $row->validity_source = 'dashboard';
+            if (array_key_exists('validity_note', $data)) {
+                $row->validity_note = $data['validity_note'] !== null ? (string) $data['validity_note'] : null;
+            }
+        } elseif (array_key_exists('validity_note', $data)) {
+            $row->validity_note = $data['validity_note'] !== null ? (string) $data['validity_note'] : null;
+        }
+    }
+
+    private array $editableRules = [
+        'translations' => 'sometimes|array',
+        'translations.*' => 'string',
+        'us_phonetic' => 'sometimes|nullable|string|max:255',
+        'uk_phonetic' => 'sometimes|nullable|string|max:255',
+        'phonetic' => 'sometimes|nullable|string|max:255',
+        'word_details' => 'sometimes|nullable',
+        'is_valid' => 'sometimes|boolean',
+        'validity_note' => 'sometimes|nullable|string|max:2000',
+    ];
+
+    /**
+     * POST /api/app_qy_v1/dictionary/words
+     * Body: { language, content, translations?[], us_phonetic?, uk_phonetic?,
+     *         phonetic?, word_details?, is_valid?, validity_note? }
+     * Creates (or finds) the word, applies the given fields, returns the row.
+     */
+    public function create(Request $request): JsonResponse
+    {
+        $validated = $request->validate(array_merge([
+            'language' => 'required|string',
+            'content' => 'required|string|max:512',
+        ], $this->editableRules));
+
+        $content = trim((string) $validated['content']);
+        if ($content === '') {
+            return response()->json(['success' => false, 'message' => 'content is required'], 422);
+        }
+
+        [$code, $hasTable] = $this->resolveLanguage($validated['language']);
+        if (!$hasTable) {
+            return response()->json(['success' => false, 'message' => 'No dictionary for this language'], 404);
+        }
+
+        $row = AppQyV1LangDictionaryModel::createOrFind($code, $content);
+        $this->applyEditable($row, $validated);
+        $row->saveRecord();
+        AppQyV1LangDictionaryModel::forgetMetricsCache($code);
+
+        return $this->success(['word' => $this->shapeRow($row)], __('app_qy_v1.messages.word_saved'));
+    }
+
+    /**
+     * PUT /api/app_qy_v1/dictionary/words/{md5}
+     * Body: { language, ...editable fields }
+     */
+    public function update(Request $request, string $md5): JsonResponse
+    {
+        $validated = $request->validate(array_merge([
+            'language' => 'required|string',
+        ], $this->editableRules));
+
+        [$code, $hasTable] = $this->resolveLanguage($validated['language']);
+        if (!$hasTable) {
+            return response()->json(['success' => false, 'message' => 'No dictionary for this language'], 404);
+        }
+
+        $row = AppQyV1LangDictionaryModel::findByMd5($code, $md5);
+        if (!$row) {
+            return response()->json(['success' => false, 'message' => 'Word not found'], 404);
+        }
+
+        $this->applyEditable($row, $validated);
+        $row->saveRecord();
+        AppQyV1LangDictionaryModel::forgetMetricsCache($code);
+
+        return $this->success(['word' => $this->shapeRow($row)], __('app_qy_v1.messages.word_updated'));
+    }
+
+    /**
+     * DELETE /api/app_qy_v1/dictionary/words/{md5}?language=
+     */
+    public function destroy(Request $request, string $md5): JsonResponse
+    {
+        $validated = $request->validate(['language' => 'required|string']);
+        [$code, $hasTable] = $this->resolveLanguage($validated['language']);
+        if (!$hasTable) {
+            return response()->json(['success' => false, 'message' => 'No dictionary for this language'], 404);
+        }
+
+        $deleted = AppQyV1LangDictionaryModel::deleteByMd5($code, $md5);
+        if ($deleted > 0) {
+            AppQyV1LangDictionaryModel::forgetMetricsCache($code);
+        }
+
+        return $this->success(['deleted' => (int) $deleted], $deleted > 0 ? 'Word deleted' : 'Word not found');
+    }
+
+    /**
+     * POST /api/app_qy_v1/dictionary/words/batch
+     * Body: { language, md5s:[], action: delete|mark_valid|mark_invalid|requeue_tts }
+     *
+     * Batch management over a selection. requeue_tts resets the per-row TTS state
+     * (has_audio=false, status=pending, attempts=0, error cleared) so the unified
+     * TTS coordinator regenerates the audio.
+     */
+    public function batch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'language' => 'required|string',
+            'md5s' => 'required|array|min:1|max:1000',
+            'md5s.*' => 'string',
+            'action' => 'required|string|in:delete,mark_valid,mark_invalid,requeue_tts',
+        ]);
+
+        [$code, $hasTable] = $this->resolveLanguage($validated['language']);
+        if (!$hasTable) {
+            return response()->json(['success' => false, 'message' => 'No dictionary for this language'], 404);
+        }
+
+        $md5s = array_values(array_unique(array_filter($validated['md5s'], fn ($m) => is_string($m) && $m !== '')));
+        if (empty($md5s)) {
+            return response()->json(['success' => false, 'message' => 'No valid md5s provided'], 422);
+        }
+
+        $affected = AppQyV1LangDictionaryModel::applyBatchAction($code, $md5s, $validated['action']);
+
+        AppQyV1LangDictionaryModel::forgetMetricsCache($code);
+
+        return $this->success([
+            'action' => $validated['action'],
+            'requested' => count($md5s),
+            'affected' => $affected,
+        ], __('app_qy_v1.messages.batch_action_applied'));
+    }
+
+    // ------------------------------------------------------------------ //
+    // One-click cleanup: invalid words / invalid translations              //
+    // The id set is computed once per language (cached 10 min) so the      //
+    // paginated preview and the purge share the exact same server-side     //
+    // rule evaluation — the client never decides WHAT is invalid.          //
+    // ------------------------------------------------------------------ //
+
+    private const CLEANUP_CACHE_TTL = 600;
+    private const CLEANUP_CONFIRM_TOKEN = 'delete';
+
+    private function cleanupCacheKey(string $code, string $kind): string
+    {
+        return 'appqyv1:dict_cleanup:' . $code . ':' . $kind;
+    }
+
+    /** Id set (+ per-id reason) for one cleanup kind, cached briefly. */
+    private function cleanupIdSet(string $code, string $kind): array
+    {
+        return \Illuminate\Support\Facades\Cache::remember(
+            $this->cleanupCacheKey($code, $kind),
+            self::CLEANUP_CACHE_TTL,
+            static function () use ($code, $kind): array {
+                if ($kind === 'words') {
+                    return array_fill_keys(AppQyV1LangDictionaryModel::invalidWordIds($code), 'invalid_content');
+                }
+                return AppQyV1LangDictionaryModel::invalidTranslationIds($code);
+            }
+        );
+    }
+
+    /**
+     * GET /api/app_qy_v1/dictionary/invalid-words?language=&start=&limit=
+     * GET /api/app_qy_v1/dictionary/invalid-translations?language=&start=&limit=
+     * Paginated preview of the rows the purge would touch.
+     */
+    public function invalidWordsPreview(Request $request): JsonResponse
+    {
+        return $this->cleanupPreview($request, 'words');
+    }
+
+    public function invalidTranslationsPreview(Request $request): JsonResponse
+    {
+        return $this->cleanupPreview($request, 'translations');
+    }
+
+    private function cleanupPreview(Request $request, string $kind): JsonResponse
+    {
+        // The first scan of a large language table is a one-pass SQL + PHP
+        // confirm over the whole dictionary (tens of seconds on 200k+ rows);
+        // the result is cached for CLEANUP_CACHE_TTL so paging is instant.
+        set_time_limit(300);
+        $validated = $request->validate([
+            'language' => 'required|string',
+            'start' => 'sometimes|integer|min:0',
+            'limit' => 'sometimes|integer|min:1|max:200',
+        ]);
+        [$code, $hasTable] = $this->resolveLanguage($validated['language']);
+        if (!$hasTable) {
+            return response()->json(['success' => false, 'message' => 'No dictionary for this language'], 404);
+        }
+
+        $idSet = $this->cleanupIdSet($code, $kind);
+        $ids = array_keys($idSet);
+        $start = (int) ($validated['start'] ?? 0);
+        $limit = (int) ($validated['limit'] ?? 50);
+        $pageIds = array_slice($ids, $start, $limit);
+
+        $rows = [];
+        if ($pageIds !== []) {
+            $positions = array_flip($pageIds);
+            $rows = AppQyV1LangDictionaryModel::rowsByIds($code, $pageIds)
+                ->sortBy(static fn ($row): int => $positions[(int) $row->id] ?? PHP_INT_MAX)
+                ->map(static function ($row) use ($idSet): array {
+                    return [
+                        'id' => (int) $row->id,
+                        'content' => (string) $row->content,
+                        'md5' => (string) $row->md5,
+                        'translations' => is_array($row->translations) ? $row->translations : null,
+                        'reason' => $idSet[(int) $row->id] ?? 'invalid',
+                    ];
+                })
+                ->values()
+                ->all();
+        }
+
+        return $this->success([
+            'language' => $code,
+            'total' => count($ids),
+            'start' => $start,
+            'limit' => $limit,
+            'rows' => $rows,
+        ], __('app_qy_v1.messages.cleanup_preview'));
+    }
+
+    /**
+     * POST /api/app_qy_v1/dictionary/invalid-words/purge
+     * POST /api/app_qy_v1/dictionary/invalid-translations/purge
+     * Body: { language, confirm: "delete" }
+     * Invalid words: the whole row is deleted. Invalid translations: only the
+     * translations field is cleared (the entry stays, has_translation=false).
+     */
+    public function purgeInvalidWords(Request $request): JsonResponse
+    {
+        return $this->cleanupPurge($request, 'words');
+    }
+
+    public function purgeInvalidTranslations(Request $request): JsonResponse
+    {
+        return $this->cleanupPurge($request, 'translations');
+    }
+
+    private function cleanupPurge(Request $request, string $kind): JsonResponse
+    {
+        set_time_limit(300);
+        $validated = $request->validate([
+            'language' => 'required|string',
+            'confirm' => 'required|string',
+        ]);
+        [$code, $hasTable] = $this->resolveLanguage($validated['language']);
+        if (!$hasTable) {
+            return response()->json(['success' => false, 'message' => 'No dictionary for this language'], 404);
+        }
+        if (strtolower(trim((string) $validated['confirm'])) !== self::CLEANUP_CONFIRM_TOKEN) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Type "delete" to confirm the purge',
+            ], 422);
+        }
+
+        $ids = array_keys($this->cleanupIdSet($code, $kind));
+        if ($ids === []) {
+            return $this->success(['language' => $code, 'affected' => 0], __('app_qy_v1.messages.nothing_to_clean'));
+        }
+
+        if ($kind === 'words') {
+            $affected = AppQyV1LangDictionaryModel::deleteByIds($code, $ids);
+        } else {
+            $affected = AppQyV1LangDictionaryModel::clearTranslationsByIds($code, $ids);
+        }
+
+        \Illuminate\Support\Facades\Cache::forget($this->cleanupCacheKey($code, $kind));
+        AppQyV1LangDictionaryModel::forgetMetricsCache($code);
+
+        return $this->success([
+            'language' => $code,
+            'affected' => $affected,
+        ], $kind === 'words' ? 'Invalid words deleted' : 'Invalid translations cleared');
+    }
+}

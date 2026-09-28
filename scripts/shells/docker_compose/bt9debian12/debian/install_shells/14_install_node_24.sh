@@ -1,15 +1,5 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
+SCRIPT_INDEX="14"
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -200,11 +190,11 @@ setup_environment() {
 # Node.js Environment Setup
 export NODE_HOME=$NODE_INSTALL_DIR/node-$NODE_VERSION
 export PATH=\$NODE_HOME/bin:\$PATH
-export NODE_PATH=\$NODE_HOME/lib/node_modules
+NODE_PATH=\$NODE_HOME/lib/node_modules
 # Add npm global directory to PATH
 export PATH=$COMPILE_DIR/npm-global/bin:\$PATH
 # Add COMPILE_DIR to environment
-export COMPILE_DIR=$COMPILE_DIR
+COMPILE_DIR=$COMPILE_DIR
 EOF
     
     sudo chmod 755 "$env_script"

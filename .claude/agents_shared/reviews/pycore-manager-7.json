@@ -1,0 +1,11 @@
+{
+  "task_id": "pycore-manager-7",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "shared-layer follow-ups (grants in requirements section 6)": {"status": "fixed", "reason": "pycoreTarget/index.ts drop the dead PNA helpers (pnaBlockedReason, isPycoreSecureContext, pycoreLocalConnectionHint, the private isSandbox; no callers left) and export the K7a helpers used through the api barrel. LaravelRequest.requestLaravel (the shared-session path) now calls requestGlobalLogin on 401, as BaseAPI.send does, and rethrows 403 with the i18n common.laravel_admin_required while keeping status/code/path/payload. Applying it only to the session path is the accepted deviation recorded in requirements section 7 (the Qy login, relay and cloud-clipboard 401s mean wrong credentials or device auth). shellTranslations gets the one granted key in en/zh. In pycore-manager, pcLaravelErrorMessage no longer duplicates the login request or the 403 mapping, and a pycore 401 shows pycoreTarget.relayOnly (lead K7a ruling)."}
+  },
+  "issues": [],
+  "checks": "LaravelRequest.ts and shellTranslations.ts diffs read; grants confirmed in requirements section 6 (lines 138, 141) and the deviation at line 255; grep confirms no callers of the removed helpers.",
+  "checked_at": "2026-09-27T04:56:27+10:00"
+}

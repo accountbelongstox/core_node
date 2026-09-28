@@ -1,0 +1,557 @@
+# -*- coding: utf-8 -*-
+"""Persistent TTS priority, cooldown, and display-command policy (canonical: pyutils.tts)."""
+
+import hashlib
+import os
+import shlex
+import time
+from contextvars import ContextVar, Token
+from pathlib import Path
+from typing import Any, Callable, Dict, Optional, Tuple
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.text_parsing import normalize_language_code
+from pycore.pyfoundations.serialized_worker import (
+    SerializedValue,
+    SerializedWorkerThread,
+    call_serialized,
+)
+from pycore.pyutils.common.user_data_store import (
+    USER_DATA_SECTION_CAPABILITY_PRIORITIES,
+    USER_DATA_SECTION_SENTENCE_AUDIO_AUTO,
+    USER_DATA_SECTION_TASK_CAPABILITY_CHAINS,
+    user_data_store,
+)
+from pycore.pyutils.common.engine_registry import (
+    merge_engine_priority,
+    parse_engine_priority,
+)
+from pycore.pyutils.tts.edge.command import build_edge_tts_command
+from pycore.pyutils.tts.qwen.config import default_speed as qwen_default_speed
+from pycore.pyutils.tts.runtime_profile import pinned_chain as _pinned_chain
+
+_USER_FRONT_ORDER = (
+    "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
+)
+_REMAINING_ENGINES = (
+    "chattts", "cosyvoice", "fishspeech", "qwen3tts", "bark", "parler",
+    "voxcpm2", "kokoro", "f5tts",
+)
+_DEFAULT_PRIORITY = _USER_FRONT_ORDER + _REMAINING_ENGINES
+_KNOWN_ENGINES = _DEFAULT_PRIORITY
+_SENTENCE_FRONT_ORDER = ("qwen3tts",)
+_SENTENCE_BACK_ORDER = ("edge",)
+_DEFAULT_SENTENCE_PRIORITY = _SENTENCE_FRONT_ORDER + tuple(
+    engine for engine in _DEFAULT_PRIORITY
+    if engine not in _SENTENCE_FRONT_ORDER and engine not in _SENTENCE_BACK_ORDER
+) + _SENTENCE_BACK_ORDER
+_WORD_FRONT_ORDER = ("edge", "streamelements", "gtts_web")
+_WORD_EXCLUDED = ("qwen3tts",)
+_DEFAULT_WORD_PRIORITY = _WORD_FRONT_ORDER + tuple(
+    engine for engine in _DEFAULT_PRIORITY
+    if engine not in _WORD_FRONT_ORDER and engine not in _WORD_EXCLUDED
+)
+# Agent History articles: local engines only — never edge / cloud TTS.
+CLOUD_TTS_ENGINES = frozenset({"edge", "streamelements", "gtts_web", "azure"})
+# Agent-history article audio is PINNED to the local Qwen3-TTS multi-sentence
+# pipeline. Long single-shot synthesis degrades on every autoregressive TTS
+# (QwenLM/Qwen3-TTS#258 - second-half noise; 2noise/ChatTTS#113 - one
+# generation <=30s, best <=25s; SWivid/F5-TTS - 30s per generation), and only
+# the Qwen server implements the sentence-chunk pipeline. A single-engine
+# order means NO fallback: a failed synthesis retries the pipeline item
+# instead of silently publishing degraded single-shot audio from the next
+# engine in the chain (the pre-pin fallback era produced ChattTS-sourced
+# articles with degraded audio).
+_AGENT_HISTORY_PINNED_TTS = ("qwen3tts",)
+
+# Sentence/short-text TTS is also pinned to Qwen3-TTS (single-engine contract): the
+# five word-capable engines (CosyVoice, Fish Speech, VoxCPM2, GPT-SoVITS, MeloTTS)
+# serve WORD generation only, and a sentence fallback chain would silently publish
+# degraded audio instead of surfacing that the Qwen server is unavailable.
+_SENTENCE_PINNED_TTS = ("qwen3tts",)
+_LEGACY_SAVED_ORDERS: Tuple[Tuple[str, ...], ...] = (
+    ("edge", "sherpa", "melotts", "gptsovits", "azure"),
+    ("edge", "sherpa", "melotts", "gptsovits", "gtts_web", "azure"),
+    ("edge", "streamelements", "sherpa", "melotts", "gptsovits", "gtts_web", "azure"),
+)
+_LOCALE_BY_LANG = {
+    "en": "en-US",
+    "zh": "zh-CN",
+    "ja": "ja-JP",
+    "ko": "ko-KR",
+    "es": "es-ES",
+    "fr": "fr-FR",
+    "de": "de-DE",
+    "it": "it-IT",
+    "pt": "pt-PT",
+    "ru": "ru-RU",
+    "ar": "ar-SA",
+    "hi": "hi-IN",
+    "th": "th-TH",
+    "vi": "vi-VN",
+    "lo": "lo-LA",
+}
+_LANGUAGES_BY_ENGINE = {
+    "edge": frozenset(_LOCALE_BY_LANG),
+    "azure": frozenset(_LOCALE_BY_LANG),
+    "gtts_web": frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
+    "streamelements": frozenset({"en"}),
+    "sherpa": frozenset({"en", "zh"}),
+    "kokoro": frozenset({"en", "zh"}),
+    "melotts": frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
+    "chattts": frozenset({"en", "zh"}),
+    "cosyvoice": frozenset({"en", "zh", "ja", "ko", "yue"}),
+    "fishspeech": frozenset({"en", "zh", "ja"}),
+    "qwen3tts": frozenset({"en", "zh", "ja", "ko"}),
+    "gptsovits": frozenset({"en", "zh", "ja", "ko", "yue"}),
+    "bark": frozenset({
+        "en", "de", "es", "fr", "hi", "it", "ja", "ko", "pl", "pt", "ru", "tr", "zh",
+    }),
+    "parler": frozenset({"en"}),
+    "voxcpm2": frozenset({"en", "zh"}),
+    "f5tts": frozenset({"en", "zh"}),
+}
+_ACCENT_AWARE_ENGINES = ("edge", "streamelements")
+# UI engine-test extras -> the engine setting (environment name) they override.
+# The override is request-scoped (engine_setting), never written to os.environ,
+# so concurrent lane or orchestration work keeps the configured values. qwen3tts
+# is absent on purpose: its speaker/instruct travel in TTSSynthesisRequest.
+_ENGINE_ENV_OVERRIDES: Dict[str, Dict[str, str]] = {
+    "parler": {"PARLER_DESCRIPTION": "description"},
+    "voxcpm2": {"VOXCPM2_CFG": "cfg_value", "VOXCPM2_TIMESTEPS": "timesteps"},
+    "cosyvoice": {"COSYVOICE_INSTRUCT": "instruct", "COSYVOICE_SPK_ID": "speaker_id"},
+    "gptsovits": {"GPTSOVITS_PROMPT_TEXT": "prompt_text", "GPTSOVITS_PROMPT_LANG": "prompt_lang"},
+    "chattts": {"CHATTTS_VOICE": "voice"},
+}
+_ENGINE_SETTING_OVERRIDES: ContextVar[Dict[str, str]] = ContextVar(
+    "tts_engine_setting_overrides", default={},
+)
+# user_data sentence_audio_auto key of the sentence lane speaker.
+SENTENCE_LANE_SPEAKER_KEY = "speaker"
+_CAP_SECTION = USER_DATA_SECTION_CAPABILITY_PRIORITIES
+_CHAIN_SECTION = USER_DATA_SECTION_TASK_CAPABILITY_CHAINS
+_ORCHESTRATOR_STATE_QUEUE = "tts.orchestrator.state"
+_orchestrator_state: Dict[str, Any] = {
+    "startup_reported": False,
+    "edge_cooldown_s": float(os.environ.get("TTS_EDGE_COOLDOWN_S", "60") or "60"),
+    "edge_cooldown_until": 0.0,
+    "last_engine_synth_error": None,
+}
+_ORCHESTRATOR_STATE_WORKER = SerializedWorkerThread(
+    _ORCHESTRATOR_STATE_QUEUE,
+    "TTSOrchestratorStateThread",
+)
+TTS_ENGINE_PRIORITY: tuple[str, ...] = _DEFAULT_PRIORITY
+TTS_SENTENCE_PRIORITY: tuple[str, ...] = _DEFAULT_SENTENCE_PRIORITY
+TTS_WORD_PRIORITY: tuple[str, ...] = _DEFAULT_WORD_PRIORITY
+_TTS_PRIORITY_STATE = SerializedValue(
+    (TTS_ENGINE_PRIORITY, TTS_SENTENCE_PRIORITY, TTS_WORD_PRIORITY),
+    "TTSPriorityStateThread",
+)
+_ORCHESTRATOR_STATE_WORKER.start()
+
+
+def _get_orchestrator_state(key: str) -> Any:
+    return _orchestrator_state.get(key)
+
+
+def _set_orchestrator_state(key: str, value: Any) -> Any:
+    _orchestrator_state[key] = value
+    return value
+
+
+def claim_tts_startup_report() -> bool:
+    if _orchestrator_state["startup_reported"]:
+        return False
+    _orchestrator_state["startup_reported"] = True
+    return True
+
+
+def default_tts_engine_priority() -> tuple[str, ...]:
+    return _DEFAULT_PRIORITY
+
+
+def default_sentence_tts_priority() -> tuple[str, ...]:
+    return _DEFAULT_SENTENCE_PRIORITY
+
+
+def default_word_tts_priority() -> tuple[str, ...]:
+    return _DEFAULT_WORD_PRIORITY
+
+
+def _is_legacy_tts_order(saved: tuple[str, ...]) -> bool:
+    """Only the exact shipped legacy defaults migrate; a user order that
+    merely starts with edge/chattts is a real choice and is kept."""
+    return bool(saved) and saved in _LEGACY_SAVED_ORDERS
+
+
+def _persist_tts_order(order: tuple[str, ...]) -> None:
+    try:
+        store = user_data_store
+        capabilities = dict(store.get_section(_CAP_SECTION) or {})
+        capabilities["tts"] = list(order)
+        store.set_section(_CAP_SECTION, capabilities)
+        chains = dict(store.get_section(_CHAIN_SECTION) or {})
+        chains["voice_tts"] = list(order)
+        store.set_section(_CHAIN_SECTION, chains)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _migrate_legacy_tts_order(saved: tuple[str, ...]) -> tuple[str, ...]:
+    if not _is_legacy_tts_order(saved):
+        return saved
+    _persist_tts_order(_DEFAULT_PRIORITY)
+    ColorPrint.blue("[TTS] Migrated legacy engine priority to gptsovits-first default")
+    return _DEFAULT_PRIORITY
+
+
+def _read_persisted_profile(capability: str) -> Optional[tuple[str, ...]]:
+    try:
+        store = user_data_store
+        value = (store.get_section(_CAP_SECTION) or {}).get(capability)
+        if isinstance(value, list) and value:
+            saved = tuple(str(item).strip() for item in value if str(item).strip())
+            return _migrate_legacy_tts_order(saved) if capability == "tts" else saved
+        if capability == "tts":
+            legacy = (store.get_section(_CHAIN_SECTION) or {}).get("voice_tts")
+            if isinstance(legacy, list) and legacy:
+                saved = tuple(str(item).strip() for item in legacy if str(item).strip())
+                return _migrate_legacy_tts_order(saved)
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _merge_engine_order(saved: Optional[tuple[str, ...]]) -> tuple[str, ...]:
+    return merge_engine_priority(_KNOWN_ENGINES, saved)
+
+
+def _load_profile(
+    environment_key: str,
+    capability: str,
+    default: tuple[str, ...],
+) -> tuple[str, ...]:
+    raw = (os.environ.get(environment_key) or "").strip()
+    if raw:
+        parts = parse_engine_priority(raw)
+        if parts:
+            return _merge_engine_order(parts)
+    return _merge_engine_order(_read_persisted_profile(capability) or default)
+
+
+def reload_tts_priority() -> tuple[str, ...]:
+    # The sentence profile is pinned to Qwen3-TTS (see _SENTENCE_PINNED_TTS), so
+    # its persisted chain is intentionally not loaded here.
+    default = _load_profile("TTS_ENGINE_PRIORITY", "tts", _DEFAULT_PRIORITY)
+    word = _load_profile("TTS_WORD_PRIORITY", "word_tts", _DEFAULT_WORD_PRIORITY)
+    _TTS_PRIORITY_STATE.set((default, _SENTENCE_PINNED_TTS, word))
+    return default
+
+
+def configured_tts_priority(profile: str = "default") -> tuple[str, ...]:
+    # The startup-pinned runtime profile (pyutils.tts.runtime_profile) replaces
+    # every persisted chain when enabled: word/sentence/long-text synthesis is
+    # restricted to the pinned models, and non-pinned engines are never
+    # auto-scheduled (explicit UI tests only, through the RAM/VRAM gateway).
+    pinned = _pinned_chain(profile)
+    if pinned:
+        return pinned
+    default, sentence, word = _TTS_PRIORITY_STATE.get()
+    if profile == "sentence":
+        # Pinned single-engine contract - see _SENTENCE_PINNED_TTS.
+        return _SENTENCE_PINNED_TTS
+    if profile == "word":
+        return tuple(engine for engine in word if engine not in _WORD_EXCLUDED)
+    if profile == "agent_history":
+        # Pinned single-engine contract - see _AGENT_HISTORY_PINNED_TTS.
+        return _AGENT_HISTORY_PINNED_TTS
+    return default
+
+
+def profile_engine_order(profile: str, language: Optional[str]) -> tuple[str, ...]:
+    """Configured engine chain for one profile, filtered to `language`."""
+    return tuple(
+        name
+        for name in configured_tts_priority(profile)
+        if tts_engine_supports_language(name, language)
+    )
+
+
+def rotated_engine_exclusions(
+    profile: str,
+    language: Optional[str],
+    seed: Any,
+) -> tuple[str, ...]:
+    """Deterministic rotation of the engine chain for `seed`.
+
+    Returns the engines BEFORE the rotated start offset as an exclusion tuple,
+    so parallel workers given different seeds begin synthesis on DIFFERENT
+    engines (several local models produce audio concurrently) while every
+    worker still falls through the full chain on failure."""
+    order = profile_engine_order(profile, language)
+    if len(order) < 2:
+        return ()
+    digest = hashlib.sha256(str(seed).encode("utf-8")).hexdigest()
+    offset = int(digest, 16) % len(order)
+    return tuple(order[:offset])
+
+
+def is_word_text(text: str) -> bool:
+    cleaned = (text or "").strip()
+    return bool(cleaned) and all(char not in cleaned for char in (" ", "\t", "\n"))
+
+
+def normalize_tts_language(language: Optional[str]) -> str:
+    return normalize_language_code(language)
+
+
+def tts_locale(language: Optional[str]) -> str:
+    return _LOCALE_BY_LANG.get(normalize_tts_language(language), "")
+
+
+def tts_engine_supports_language(engine: str, language: Optional[str]) -> bool:
+    supported = _LANGUAGES_BY_ENGINE.get((engine or "").strip().lower())
+    return supported is not None and normalize_tts_language(language) in supported
+
+
+def edge_in_cooldown() -> bool:
+    until = call_serialized(
+        _ORCHESTRATOR_STATE_QUEUE,
+        _get_orchestrator_state,
+        "edge_cooldown_until",
+    )
+    return time.monotonic() < float(until or 0.0)
+
+
+def mark_edge_cooldown() -> float:
+    cooldown = get_edge_cooldown_seconds()
+    call_serialized(
+        _ORCHESTRATOR_STATE_QUEUE,
+        _set_orchestrator_state,
+        "edge_cooldown_until",
+        time.monotonic() + cooldown,
+    )
+    return cooldown
+
+
+def edge_cooldown_remaining() -> float:
+    until = call_serialized(
+        _ORCHESTRATOR_STATE_QUEUE,
+        _get_orchestrator_state,
+        "edge_cooldown_until",
+    )
+    remaining = float(until or 0.0) - time.monotonic()
+    return round(remaining, 1) if remaining > 0 else 0.0
+
+
+def clear_edge_cooldown() -> None:
+    """End the edge cooldown NOW (the recovery probe proved edge is back)."""
+    call_serialized(
+        _ORCHESTRATOR_STATE_QUEUE,
+        _set_orchestrator_state,
+        "edge_cooldown_until",
+        0.0,
+    )
+
+
+def get_edge_cooldown_seconds() -> float:
+    return float(call_serialized(
+        _ORCHESTRATOR_STATE_QUEUE,
+        _get_orchestrator_state,
+        "edge_cooldown_s",
+    ))
+
+
+def set_edge_cooldown_seconds(seconds: Any) -> float:
+    value = get_edge_cooldown_seconds()
+    try:
+        value = max(0.0, min(3600.0, float(seconds)))
+    except (TypeError, ValueError):
+        pass
+    return float(call_serialized(
+        _ORCHESTRATOR_STATE_QUEUE,
+        _set_orchestrator_state,
+        "edge_cooldown_s",
+        value,
+    ))
+
+
+def normalize_tts_accent(accent: Optional[str]) -> Optional[str]:
+    value = (accent or "").strip().lower()
+    return value if value in ("us", "uk") else None
+
+
+def engine_setting(env_key: str, default: str = "") -> str:
+    """One engine setting: the request-scoped UI test override when present,
+    else the process environment."""
+    overrides = _ENGINE_SETTING_OVERRIDES.get()
+    if env_key in overrides:
+        return overrides[env_key]
+    return os.environ.get(env_key, default)
+
+
+def apply_tts_engine_extra_params(
+    engine: str,
+    extra_params: Dict[str, Any],
+) -> Token:
+    """Scope the engine-test extras to the calling context (restore with
+    ``restore_tts_engine_extra_params``); the process environment is never
+    changed."""
+    overrides: Dict[str, str] = {}
+    for env_key, param_key in _ENGINE_ENV_OVERRIDES.get(engine, {}).items():
+        value = extra_params.get(param_key)
+        if value is None:
+            continue
+        overrides[env_key] = str(value)
+        ColorPrint.blue(f"[tts] {engine} override {env_key}={value}")
+    return _ENGINE_SETTING_OVERRIDES.set(overrides)
+
+
+def restore_tts_engine_extra_params(applied: Token) -> None:
+    _ENGINE_SETTING_OVERRIDES.reset(applied)
+
+
+def tts_engine_actual_accent(
+    engine: str,
+    language: Optional[str],
+    accent: Optional[str],
+) -> str:
+    if not (language or "en").strip().lower().startswith("en"):
+        return "unknown"
+    if engine in _ACCENT_AWARE_ENGINES:
+        return "uk" if accent == "uk" else "us"
+    return "us" if engine == "azure" else "unknown"
+
+
+def tts_rate_to_speed(rate: Optional[str]) -> float:
+    if not rate:
+        return 1.0
+    value = str(rate).strip()
+    try:
+        if value.endswith("%"):
+            return max(0.25, 1.0 + float(value[:-1]) / 100.0)
+        return max(0.25, float(value))
+    except ValueError:
+        return 1.0
+
+
+def sentence_lane_speaker() -> str:
+    """The sentence lane's selected speaker (persisted UI setting; '' = the
+    engine default). Every sentence producer that shares the central cache
+    (lane, audio orchestration) synthesizes and caches with this voice."""
+    section = user_data_store.get_section(USER_DATA_SECTION_SENTENCE_AUDIO_AUTO) or {}
+    return str(section.get(SENTENCE_LANE_SPEAKER_KEY) or "").strip()
+
+
+def sentence_tts_cache_identity(
+    accent: Optional[str],
+    gender: Optional[str],
+    rate: Optional[str] = None,
+    speaker: Optional[str] = None,
+    instruct: Optional[str] = None,
+) -> Tuple[str, str, str, str]:
+    """The ONE sentence-cache identity (speaker, instruct, model, speed): an
+    explicit request speaker/instruct replaces the environment defaults."""
+    default_speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
+    voice = f"{accent or 'any'}:{gender or 'female'}"
+    speaker_field = (
+        str(speaker).strip()
+        if (speaker or "").strip()
+        else f"{default_speaker}|{voice}" if default_speaker else voice
+    )
+    instruct = str(instruct).strip() if (instruct or "").strip() else (os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
+    model = (os.environ.get("QWEN3TTS_MODEL") or "").strip()
+    # Speed changes the produced audio (qwen time-stretches by default), so it
+    # is part of the cache key: explicit rate -> its factor, no rate -> the
+    # qwen server default (QWEN3TTS_SPEED), mirroring the wire contract.
+    explicit_rate = (rate or "").strip()
+    speed = (
+        f"{tts_rate_to_speed(explicit_rate):g}"
+        if explicit_rate
+        else f"{qwen_default_speed():g}"
+    )
+    return speaker_field, instruct, model, speed
+
+
+def tts_variant_result(
+    variant: Dict[str, Any],
+    output_path: Path,
+    success: bool,
+    provider: str,
+    error: str = "",
+    synth_command: str = "",
+) -> Dict[str, Any]:
+    accent = variant.get("accent")
+    return {
+        "variant_key": (variant.get("key") or "").strip(),
+        "path": str(output_path) if success else "",
+        "success": bool(success),
+        "provider": provider or "none",
+        "accent": accent if accent else None,
+        "gender": variant.get("gender") or "female",
+        "error": error or None,
+        "synth_command": synth_command,
+    }
+
+
+_SYNTH_COMMAND_TEXT_LIMIT = 160
+
+
+def truncate_command_text(text: str) -> str:
+    """Synth-command lines are diagnostics; cap embedded text so an article-sized
+    payload cannot flood the log on every engine attempt."""
+    value = text or ""
+    if len(value) <= _SYNTH_COMMAND_TEXT_LIMIT:
+        return value
+    return f"{value[:_SYNTH_COMMAND_TEXT_LIMIT]}…(+{len(value) - _SYNTH_COMMAND_TEXT_LIMIT} chars)"
+
+
+def format_tts_synth_command(
+    engine: str,
+    text: str,
+    language: Optional[str] = None,
+    output_path: Optional[Path] = None,
+    accent: Optional[str] = None,
+    rate: Optional[str] = None,
+    gender: Optional[str] = None,
+    edge_voice: Optional[Callable[[Optional[str], Optional[str], Optional[str]], str]] = None,
+) -> str:
+    language_value = (language or "en").strip() or "en"
+    output = str(output_path) if output_path else "<output.mp3>"
+    text_value = truncate_command_text(text)
+    engine_value = (engine or "unknown").strip().lower()
+    accent_value = normalize_tts_accent(accent)
+    if engine_value == "edge" and edge_voice is not None:
+        voice = edge_voice(language_value, accent_value, gender)
+        proxy = (os.environ.get("EDGE_TTS_PROXY") or "").strip()
+        command = build_edge_tts_command(
+            "edge-tts",
+            voice,
+            text_value,
+            Path(output),
+            proxy=proxy or None,
+        )
+        return shlex.join(command)
+    templates = {
+        "streamelements": f'streamelements TTS voice={"Amy" if accent_value == "uk" else "Joanna"} lang={language_value}',
+        "sherpa": f'sherpa-onnx OfflineTts.generate(lang={language_value}, speed={tts_rate_to_speed(rate)})',
+        "melotts": f'melotts synthesize(lang={language_value}, speed={tts_rate_to_speed(rate)})',
+        "chattts": f'chattts POST /v1/audio/speech lang={language_value}',
+        "cosyvoice": f'cosyvoice POST /inference_sft lang={language_value}',
+        "f5tts": f'f5tts POST /process lang={language_value}',
+        "fishspeech": f'fishspeech POST /v1/tts lang={language_value}',
+        "qwen3tts": f'qwen3tts POST /queue/submit lang={language_value}',
+        "bark": f'bark BarkModel.generate(lang={language_value})',
+        "parler": "parler_tts.generate(description=PARLER_DESCRIPTION)",
+        "voxcpm2": f'voxcpm2.generate(lang={language_value}, speed={tts_rate_to_speed(rate)})',
+        "kokoro": f'kokoro sherpa-onnx OfflineTts.generate(lang={language_value}, speed={tts_rate_to_speed(rate)})',
+        "gptsovits": f'gptsovits POST /tts lang={language_value}',
+        "gtts_web": f'gTTS(lang={language_value[:2]})',
+        "azure": f'azure-cognitiveservices speech lang={language_value} rate={rate or "+0%"}',
+    }
+    prefix = templates.get(engine_value, f'{engine_value} synthesize(lang={language_value}, accent={accent_value or "any"})')
+    return f'{prefix} text={shlex.quote(text_value)} -> {shlex.quote(output)}'
+
+
+reload_tts_priority()

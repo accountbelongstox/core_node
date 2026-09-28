@@ -1,0 +1,41 @@
+{
+  "task_id": "pycore-3",
+  "role": "pycore",
+  "verdict": "approved",
+  "findings": {
+    "PR-004": {"status": "fixed", "reason": "Commander._prepare_command runs a list as an argv without a shell (display via list2cmdline/shlex.join); only an explicit string goes through the shell (/bin/bash on Linux, cmd on Windows without overriding executable). Paths with spaces and shell metacharacters in list commands no longer break or inject. Current list callers pass full executable paths (ffmpeg, python -m pip)."},
+    "PR-005": {"status": "fixed", "reason": "terminal_service's activate/click/history/scroll/input/enter run on one serialized owner (TerminalInputThread) shared by the RPC routes and the scheduler, so two inputs can no longer swap clipboard or focus."},
+    "PR-006": {"status": "fixed", "reason": "Private WinDLL handles with 64-bit prototypes (c_void_p for HGLOBAL/HANDLE) for GlobalAlloc/Lock/Unlock/Free, OpenClipboard, EmptyClipboard, SetClipboardData and CloseClipboard; EmptyClipboard is checked and frees the handle on failure."},
+    "PR-007": {"status": "fixed", "reason": "exec_silent honours timeout via communicate (return code 124); streaming mode merges stderr into stdout, so no pipe deadlock."},
+    "PR-008": {"status": "fixed", "reason": "A dispatch exception completes as terminal_dispatch_failed and the scheduler thread survives."},
+    "PR-009": {"status": "fixed", "reason": "The offline window skips only progress pings; terminal results always run their retry budget and defer."},
+    "PR-010": {"status": "fixed", "reason": "A selection generation guards _resolved (invalidate bumps it, _finish_select and resolve adopt only their own generation), and the offline edge of the cached winner clears it."},
+    "PR-011": {"status": "fixed", "reason": "One X11 attempt without a cookie (XAUTHORITY=os.devnull), with XAUTHORITY restored on failure."},
+    "PR-012": {"status": "fixed", "reason": "pyservice.ps1 keeps the UI server when the worker exits 3 (handoff/yield)."},
+    "PR-013": {"status": "fixed", "reason": "The planner and worker save only the cursor keys they own (save_cursor_state)."},
+    "PR-015": {"status": "fixed", "reason": "Portal requests always remove their match rule; a broken transport returns session_bus_unavailable and drops the cached connection."},
+    "PR-016": {"status": "fixed", "reason": "Vanished cookie files are skipped."},
+    "PR-017": {"status": "fixed", "reason": "The PowerShell clipboard fallbacks set UTF-8 input/output encoding."},
+    "PR-018": {"status": "fixed", "reason": "A non-text clipboard is not overwritten with an empty string."},
+    "PR-019": {"status": "fixed", "reason": "pymain.py exits 1 on failure."},
+    "PR-020": {"status": "fixed", "reason": "CodeSync uses the shared start_bus_task and machine id; the replicas are removed."},
+    "PR-022": {"status": "fixed", "reason": "FileLockManager holds an OS lock (fcntl.flock / msvcrt.locking) on one lock file through a per-call descriptor, so the lock is exclusive between processes and between threads, and the kernel releases it when the holder dies."},
+    "PR-023": {"status": "fixed", "reason": "pg_sync_adapter treats psql errors as failure (ON_ERROR_STOP), so a failed restore is not reported complete."},
+    "PR-024": {"status": "fixed", "reason": "Partly, with the deferral recorded: the root-sourced grid rc is written per UID (dir 0700, file 0600, O_NOFOLLOW, ownership verified), which closes the run-as-root scenario. user_data.json and the prompt archive stay 0666 by design (root service and desktop user share them); tightening them needs a group-based installer design."},
+    "PR-026": {"status": "fixed", "reason": "The hot-reload baseline keeps future-mtime files, and CodeSync clamps received mtimes to now."},
+    "PR-027": {"status": "fixed", "reason": "Partly, with the deferral recorded: only root-owned sources are spooled, so other human users' sessions are no longer exposed; a dedicated worker-only spool group is deferred."},
+    "PR-032": {"status": "fixed", "reason": "pygvar falls back to <system temp>/core_node_tmp when the preferred root cannot be created; the TTS servers take the exported CORE_NODE_TMP_DIR."},
+    "PR-033": {"status": "fixed", "reason": "Unique temp name per write; index read-modify-writes run on the index file's serialized owner."},
+    "PR-034": {"status": "fixed", "reason": "pycore half: inside pycore.service the uninstall runs via systemd-run --scope; the script order was fixed in shell-5."},
+    "PR-035": {"status": "fixed", "reason": "Windows terminal paste avoids the classic-console selection path (keyboard paste / WM_COMMAND via post_window_message), per the report."},
+    "PR-036": {"status": "fixed", "reason": "External API keys are redacted from logged exception text (redacted_http_error) in the word-audio, poster and image-search clients."}
+  },
+  "issues": [
+    "pycore/pyfoundations/pybasecommon/commander.py (non-blocking) list commands now run without a shell. On Windows a list whose first item is a bare name of a .cmd/.bat shim (npm, pnpm, npx) will not resolve without shell. No current caller does this; keep list callers on full paths or use the string form for shims.",
+    "pycore/pyfoundations/file_lock.py (non-blocking) the lock file is created 0600. If root and the desktop user lock the same target, the second user gets EACCES from os.open. Consider 0660 with the shared group, the same design question as the deferred PR-024 settings.",
+    "(non-blocking, follow-up) user_data.json stays 0666. With K7a, system_settings.rpcLanBind lives there, so any local user can switch pycore to a LAN bind. LAN callers still need K3, so this is exposure, not an auth bypass. Include it in the deferred PR-024 group design.",
+    "Line-ending churn (CRLF->LF across whole files, e.g. file_lock.py, pygvar.py, terminal_scheduler.py, window/ops.py, http_client.py) is the same as in pycore-1/-2; restore per-line endings. This review used --ignore-space-at-eol."
+  ],
+  "checks": "Diffs (ignore-space-at-eol) of commander.py, clipboard_text.py, terminal_service.py and file_lock.py read; the other files taken from the report's per-finding notes plus diffstat; Commander list callers grepped (ffmpeg_installer, _pip_runner).",
+  "checked_at": "2026-09-27T04:43:22+10:00"
+}

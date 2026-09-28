@@ -3,12 +3,14 @@
 namespace App\Apps\ItToolsV1\ItToolsV1MathCtl;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
-use App\Apps\ItToolsV1\ItToolsV1Utils\ResponseHelper;
-use App\Apps\ItToolsV1\ItToolsV1Gvar\Constants;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
 
 class ItToolsV1MathCtl extends Controller
 {
+    use ApiResponse;
+
     public function evaluate(Request $request)
     {
         $request->validate([
@@ -29,13 +31,13 @@ class ItToolsV1MathCtl extends Controller
                 $result = round($result, $precision);
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'result' => $result,
                 'expression' => $request->input('expression')
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 'Invalid expression: ' . $e->getMessage(),
                 null,
                 500
@@ -76,13 +78,13 @@ class ItToolsV1MathCtl extends Controller
                     throw new \Exception('Invalid operation');
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'result' => round($result, 2),
                 'formula' => $formula
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -116,15 +118,15 @@ class ItToolsV1MathCtl extends Controller
 
             $estimatedCompletion = now()->addSeconds((int)$remainingTime)->toIso8601String();
 
-            return ResponseHelper::success([
+            return $this->success([
                 'eta' => round($eta, 2),
                 'remainingTime' => round($remainingTime, 2),
                 'estimatedCompletion' => $estimatedCompletion,
                 'itemsPerSecond' => round($itemsPerSecond, 4)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -179,7 +181,7 @@ class ItToolsV1MathCtl extends Controller
             $memoryUsed = $endMemory - $startMemory;
             $opsPerSecond = $iterations / ($endTime - $startTime);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'operation' => $operation,
                 'iterations' => $iterations,
                 'executionTimeMs' => round($executionTime, 2),
@@ -190,8 +192,8 @@ class ItToolsV1MathCtl extends Controller
                 'avgTimePerOp' => round($executionTime / $iterations, 6)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500

@@ -1,20 +1,10 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
 use App\Http\EnvironmentApiInfo\DebugIndex;
 use App\Http\EnvironmentApiInfo\ApiInfoIndex;
 use App\Http\EnvironmentApiInfo\ApiParamsCache;
+use App\Http\EnvironmentApiInfo\DashboardAuthController;
 use App\Http\EnvironmentApiInfo\ClipboardController;
 use App\Http\EnvironmentApiInfo\CodeBrowserController;
 use App\Http\EnvironmentApiInfo\CodeBrowserFileOpsController;
@@ -42,24 +32,48 @@ use App\Http\Controllers\Auth\SsoController;
 // Root route displays a complete HTML debugging interface (MUST be first to avoid conflicts)
 Route::get('/', [DebugIndex::class, 'index']);
 
-// SSO routes
+// SSO routes (single sign-on). Auth mutations are rate limited; docs is public.
 Route::prefix('sso')->group(function () {
     Route::get('/', [SsoController::class, 'index']);
-    Route::post('/authorize', [SsoController::class, 'getAuthorizationUrl']);
-    Route::post('/authenticate', [SsoController::class, 'authenticate']);
+    Route::get('/docs', [SsoController::class, 'docs']);
+    Route::post('/authorize', [SsoController::class, 'getAuthorizationUrl'])->middleware('throttle:dashboard-auth');
+    Route::post('/authenticate', [SsoController::class, 'authenticate'])->middleware('throttle:dashboard-auth');
     Route::get('/callback', [SsoController::class, 'callback']);
     Route::get('/user', [SsoController::class, 'getUser']);
     Route::post('/logout', [SsoController::class, 'logout']);
 });
 
+// Dashboard authentication: login wall for the debug dashboard, top-right user
+// menu, registration + super-code elevation, and the management page data.
+// status/user are public state queries (always 200); mutations are rate limited;
+// elevate/users/logout reuse the dashboard.auth gate (loopback debug bypass OR
+// Sanctum bearer) so same-machine development stays friction-free.
+Route::prefix('auth')->group(function () {
+    Route::get('/status', [DashboardAuthController::class, 'status']);
+    Route::get('/user', [DashboardAuthController::class, 'user']);
+    Route::post('/login', [DashboardAuthController::class, 'login'])->middleware('throttle:dashboard-auth');
+    Route::post('/register', [DashboardAuthController::class, 'register'])->middleware('throttle:dashboard-auth');
+    Route::middleware('dashboard.auth')->group(function () {
+        Route::post('/elevate', [DashboardAuthController::class, 'elevate'])->middleware('throttle:dashboard-auth');
+        Route::get('/users', [DashboardAuthController::class, 'users']);
+        Route::post('/profile', [DashboardAuthController::class, 'updateProfile'])->middleware('throttle:dashboard-auth');
+        Route::post('/logout', [DashboardAuthController::class, 'logout']);
+    });
+});
+
 // This route is the single web entry point for debugging and must not be modified.
 // It points to the ApiInfoIndex class which is responsible for gathering all information.
-Route::get('/api_info', [ApiInfoIndex::class, 'index']);
+// dashboard.auth enforces the API Testing login wall on the server side: remote
+// guests are rejected even when hitting the endpoints directly, while loopback
+// development keeps the login-free debug bypass.
+Route::get('/api_info', [ApiInfoIndex::class, 'index'])->middleware('dashboard.auth');
 
-// API parameters cache routes
-Route::post('/api_params_cache/save', [ApiParamsCache::class, 'save']);
-Route::get('/api_params_cache/load', [ApiParamsCache::class, 'load']);
-Route::get('/api_params_cache/list', [ApiParamsCache::class, 'listByApp']);
+// API parameters cache routes (same server-side login wall as /api_info)
+Route::middleware('dashboard.auth')->group(function () {
+    Route::post('/api_params_cache/save', [ApiParamsCache::class, 'save']);
+    Route::get('/api_params_cache/load', [ApiParamsCache::class, 'load']);
+    Route::get('/api_params_cache/list', [ApiParamsCache::class, 'listByApp']);
+});
 
 // Debug assets serving routes
 Route::get('/debug-assets/css/{file}', function ($file) {
@@ -144,7 +158,12 @@ Route::get('/csrf-token', function () {
     return response()->json(['csrf_token' => csrf_token()]);
 });
 
-Route::prefix('code-browser')->group(function () {
+// ALL code access (browse + read + edit + file ops + prompts) requires login.
+// dashboard.auth = loopback debug bypass OR Sanctum bearer, so same-machine dev
+// stays frictionless while remote callers must authenticate. Unlike the media
+// static-resources (view-open), the project's own source is never exposed
+// read-only to remote visitors.
+Route::prefix('code-browser')->middleware('dashboard.auth')->group(function () {
     Route::get('/auth-check', [CodeBrowserController::class, 'checkAuth']);
     Route::get('/file-tree', [CodeBrowserController::class, 'getFileTree']);
     Route::get('/read-file', [CodeBrowserController::class, 'readFile']);
@@ -251,6 +270,7 @@ Route::prefix('api/mcp/v1/task-dispatch')->group(function () {
     Route::get('/queue/{categoryId}/has-latest', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'hasLatestTask']);
     Route::get('/queue/{categoryId}/search', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'searchTasks']);
     Route::put('/queue/{categoryId}/tasks/{taskId}/status', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'updateTaskStatus']);
+    Route::delete('/queue/{categoryId}/tasks/{taskId}', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'deleteTask']);
     Route::get('/queue/{categoryId}/stats', [\App\Apps\McpV1\McpV1Controllers\McpV1TaskDispatchCtl::class, 'getQueueStats']);
 
     // Prompt Mappings
@@ -292,20 +312,28 @@ Route::prefix('api/mcp/v1/placeholders')->group(function () {
 });
 
 Route::prefix('static-resources')->group(function () {
+    // READ-ONLY: open (no login). Browsing / reading / streaming a resource
+    // never requires authentication.
     Route::get('/file-tree', [StaticResourceController::class, 'getFileTree']);
     Route::get('/read-file', [StaticResourceController::class, 'readFile']);
     Route::get('/stream-file', [StaticResourceController::class, 'streamFile']);
-    Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
-    Route::post('/rename', [StaticResourceController::class, 'renameItem']);
-    Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
-    Route::post('/delete-preview', [StaticResourceController::class, 'previewDelete']);
-    Route::post('/delete', [StaticResourceController::class, 'deleteItem']);
 
-    Route::post('/chunked-upload/init', [ChunkedUploadController::class, 'initUpload']);
-    Route::post('/chunked-upload/chunk', [ChunkedUploadController::class, 'uploadChunk']);
-    Route::post('/chunked-upload/check', [ChunkedUploadController::class, 'checkProgress']);
-    Route::post('/chunked-upload/merge', [ChunkedUploadController::class, 'mergeChunks']);
-    Route::post('/chunked-upload/cancel', [ChunkedUploadController::class, 'cancelUpload']);
+    // MUTATIONS: require login (loopback debug bypass OR Sanctum bearer token).
+    // Same-machine dev stays frictionless; remote callers must send a token.
+    Route::middleware('dashboard.auth')->group(function () {
+        Route::post('/upload', [StaticResourceController::class, 'uploadFiles']);
+        Route::post('/rename', [StaticResourceController::class, 'renameItem']);
+        Route::post('/create-directory', [StaticResourceController::class, 'createDirectory']);
+        Route::post('/delete-preview', [StaticResourceController::class, 'previewDelete']);
+        Route::post('/delete', [StaticResourceController::class, 'deleteItem']);
+        Route::post('/write-file', [StaticResourceController::class, 'writeFile']);
+
+        Route::post('/chunked-upload/init', [ChunkedUploadController::class, 'initUpload']);
+        Route::post('/chunked-upload/chunk', [ChunkedUploadController::class, 'uploadChunk']);
+        Route::post('/chunked-upload/check', [ChunkedUploadController::class, 'checkProgress']);
+        Route::post('/chunked-upload/merge', [ChunkedUploadController::class, 'mergeChunks']);
+        Route::post('/chunked-upload/cancel', [ChunkedUploadController::class, 'cancelUpload']);
+    });
 });
 
 Route::prefix('startup-monitor')->group(function () {

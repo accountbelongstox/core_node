@@ -4,10 +4,14 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ReviewerApplicationModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1CodeReviewModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskSubmissionModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperStatsModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -16,43 +20,43 @@ class CodeMartV1ReviewerCtl extends Controller
 {
     use ApiResponse;
 
+    private const ACTION_REVIEWER_REVIEW_RECORDED = 'reviewer_review_recorded';
+
     public function startReviewerApplication(Request $request): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $existingRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'reviewer')
-            ->first();
+        $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
 
         if ($existingRole && $existingRole->role_status === 'active') {
-            return $this->error('You are already a reviewer');
+            return $this->error(__('codemart.messages.you_are_already_a_reviewer'));
         }
 
-        $recentApplication = CodeMartV1ReviewerApplicationModel::where('user_id', $user->id)
-            ->where('created_at', '>', now()->subDays(7))
-            ->first();
+        $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, CodeMartV1Constants::REVIEWER_RETRY_DAYS);
 
         if ($recentApplication) {
-            return $this->error('You can only apply once every 7 days');
+            return $this->error(__('codemart.messages.you_can_only_apply_once_every_7'));
         }
 
         $testCases = $this->generateTestCases();
 
-        DB::beginTransaction();
-
-        $application = CodeMartV1ReviewerApplicationModel::create([
-            'user_id' => $user->id,
-            'status' => 'in_progress',
-            'test_cases' => json_encode($testCases),
-        ]);
-
-        DB::commit();
+        $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($user, $testCases) {
+            return CodeMartV1ReviewerApplicationModel::createRecord([
+                'user_id' => $user->id,
+                'status' => 'in_progress',
+                'test_cases' => json_encode($testCases),
+            ]);
+        });
 
         return $this->success([
             'application_id' => $application->id,
             'test_cases' => $testCases,
-            'instructions' => 'Please review and rate the following 3 code snippets on quality, readability, and efficiency. Each rating should be 1-5.',
+            'instructions' => __('codemart.messages.reviewer_test_instructions', [
+                'count' => count($testCases),
+                'min' => CodeMartV1Constants::MIN_RATING,
+                'max' => CodeMartV1Constants::MAX_RATING,
+            ]),
         ]);
     }
 
@@ -71,16 +75,16 @@ class CodeMartV1ReviewerCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
         }
 
-        $application = CodeMartV1ReviewerApplicationModel::where('id', $applicationId)
-            ->where('user_id', $user->id)
-            ->where('status', 'in_progress')
-            ->first();
+        $application = CodeMartV1ReviewerApplicationModel::findOwnedInProgress(
+            (int) $applicationId,
+            (int) $user->id
+        );
 
         if (!$application) {
-            return $this->notFound('Application not found or already processed');
+            return $this->notFound(__('codemart.messages.application_not_found_or_already_processed'));
         }
 
         $testCases = json_decode($application->test_cases, true);
@@ -88,39 +92,37 @@ class CodeMartV1ReviewerCtl extends Controller
 
         $similarity = $this->calculateReviewSimilarity($testCases, $userReviews);
 
-        DB::beginTransaction();
+        $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($application, $userReviews, $similarity, $user) {
+            $application->updateRecord([
+                'status' => $similarity >= 85 ? 'passed' : 'failed',
+                'user_reviews' => json_encode($userReviews),
+                'similarity_score' => $similarity,
+                'completed_at' => now(),
+            ]);
 
-        $application->update([
-            'status' => $similarity >= 85 ? 'passed' : 'failed',
-            'user_reviews' => json_encode($userReviews),
-            'similarity_score' => $similarity,
-            'completed_at' => now(),
-        ]);
+            if ($similarity >= 85) {
+                $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
 
-        if ($similarity >= 85) {
-            $existingRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-                ->where('role_type', 'reviewer')
-                ->first();
-
-            if ($existingRole) {
-                $existingRole->update(['role_status' => 'active']);
-            } else {
-                CodeMartV1UserRoleModel::create([
-                    'user_id' => $user->id,
-                    'role_type' => 'reviewer',
-                    'role_status' => 'active',
-                ]);
+                if ($existingRole) {
+                    $existingRole->updateRecord(['role_status' => 'active']);
+                } else {
+                    CodeMartV1UserRoleModel::createRecord([
+                        'user_id' => $user->id,
+                        'role_type' => 'reviewer',
+                        'role_status' => 'active',
+                    ]);
+                }
             }
-        }
 
-        DB::commit();
+            return $application;
+        });
 
         return $this->success([
             'status' => $application->status,
             'similarity_score' => $similarity,
             'message' => $similarity >= 85
-                ? 'Congratulations! You passed the test and are now a reviewer.'
-                : 'Test failed. You can retry in 7 days.',
+                ? __('codemart.messages.reviewer_test_passed')
+                : __('codemart.messages.reviewer_test_failed', ['days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS]),
         ]);
     }
 
@@ -129,81 +131,138 @@ class CodeMartV1ReviewerCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $reviewerRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'reviewer')
-            ->where('role_status', 'active')
-            ->first();
+        $reviewerRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, CodeMartV1Constants::ROLE_REVIEWER, CodeMartV1Constants::ROLE_STATUS_ACTIVE);
 
         if (!$reviewerRole) {
-            return $this->forbidden('Only active reviewers can access review tasks');
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ROLE_REQUIRED, __('codemart.messages.only_active_reviewers_can_access_review_tasks'), null, 403);
         }
 
-        $model = new CodeMartV1TaskSubmissionModel();
-        $dbConnection = $model->getConnection();
-        $pendingReviews = $dbConnection
-            ->table('codemart_v1_code_submissions')
-            ->whereNotExists(function ($query) use ($user, $dbConnection) {
-                $query->select(\DB::raw(1))
-                    ->from('codemart_v1_code_reviews')
-                    ->whereColumn('codemart_v1_code_reviews.submission_id', 'codemart_v1_code_submissions.id')
-                    ->where('codemart_v1_code_reviews.reviewer_id', $user->id);
-            })
-            ->where('status', 'completed')
-            ->limit(10)
-            ->get();
+        $page = max(1, (int) $request->get('page', 1));
+        $pageSize = max(1, min(CodeMartV1Constants::MAX_PAGE_SIZE, (int) $request->get('pageSize', CodeMartV1Constants::DEFAULT_PAGE_SIZE)));
+        $result = CodeMartV1TaskSubmissionModel::pendingReviewPage((int) $user->id, $page, $pageSize);
+        $total = (int) $result['total'];
 
-        return $this->success(['pending_reviews' => $pendingReviews]);
+        return $this->success([
+            'pending_reviews' => $result['submissions']->items(),
+            'pagination' => [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'total' => $total,
+                'totalPages' => (int) ceil($total / $pageSize),
+            ],
+        ]);
     }
 
+    /**
+     * Advisory reviewer review: dimensional scores plus an optional
+     * recommendation shown to the client. It never changes the submission
+     * or task state and never releases money; the client decides.
+     */
     public function submitCodeReview(Request $request, $submissionId): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
+        $ratingRule = 'integer|min:' . CodeMartV1Constants::MIN_RATING . '|max:' . CodeMartV1Constants::MAX_RATING;
         $validator = Validator::make($request->all(), [
-            'quality_rating' => 'required|integer|min:1|max:5',
-            'readability_rating' => 'required|integer|min:1|max:5',
-            'efficiency_rating' => 'required|integer|min:1|max:5',
-            'comments' => 'required|string|min:20',
+            'quality_rating' => 'required|' . $ratingRule,
+            'readability_rating' => 'required|' . $ratingRule,
+            'efficiency_rating' => 'required|' . $ratingRule,
+            'security_rating' => 'nullable|' . $ratingRule,
+            'comments' => 'required|string|min:' . CodeMartV1Constants::REVIEWER_COMMENT_MIN_LENGTH,
+            'recommendation' => 'nullable|in:' . implode(',', CodeMartV1Constants::REVIEW_RECOMMENDATIONS),
+            'line_comments' => 'nullable|array',
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed', 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
-        $reviewerRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'reviewer')
-            ->where('role_status', 'active')
-            ->first();
-
+        $reviewerRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, CodeMartV1Constants::ROLE_REVIEWER, CodeMartV1Constants::ROLE_STATUS_ACTIVE);
         if (!$reviewerRole) {
-            return $this->forbidden('Only active reviewers can submit reviews');
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ROLE_REQUIRED, __('codemart.messages.only_active_reviewers_can_submit_reviews'), null, 403);
         }
 
-        $existingReview = CodeMartV1CodeReviewModel::where('submission_id', $submissionId)
-            ->where('reviewer_id', $user->id)
-            ->first();
-
-        if ($existingReview) {
-            return $this->error('You have already reviewed this submission');
+        $submission = CodeMartV1TaskSubmissionModel::findById((int) $submissionId);
+        $task = $submission ? CodeMartV1TaskModel::findById((int) $submission->task_id) : null;
+        if (!$submission || !$task) {
+            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_NOT_FOUND, __('codemart.messages.submission_not_found'), null, 404);
+        }
+        if (!$submission->isReviewable()) {
+            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_INVALID_STATE, __('codemart.messages.the_submission_is_not_awaiting_review'), [
+                'status' => $submission->status,
+            ], 409);
         }
 
-        DB::beginTransaction();
+        $project = $task->resolveProject();
+        if ((int) $submission->submitted_by === (int) $user->id || ($project && $project->isManagedBy((int) $user->id))) {
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEW_CONFLICT_OF_INTEREST, __('codemart.messages.you_cannot_review_your_own_work_or'), null, 403);
+        }
 
-        $review = CodeMartV1CodeReviewModel::create([
-            'submission_id' => $submissionId,
-            'reviewer_id' => $user->id,
-            'quality_rating' => $request->quality_rating,
-            'readability_rating' => $request->readability_rating,
-            'efficiency_rating' => $request->efficiency_rating,
-            'comments' => $request->comments,
-        ]);
+        if (CodeMartV1CodeReviewModel::findForSubmissionReviewer((int) $submission->id, (int) $user->id)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEW_DUPLICATE, __('codemart.messages.you_have_already_reviewed_this_submission'), null, 409);
+        }
 
-        DB::commit();
+        $ratings = [
+            (int) $request->quality_rating,
+            (int) $request->readability_rating,
+            (int) $request->efficiency_rating,
+            $request->security_rating !== null ? (int) $request->security_rating : null,
+        ];
+        $recommendation = $request->input('recommendation') ?: CodeMartV1CodeReviewModel::derivedRecommendation($ratings);
+        $codeScore = CodeMartV1CodeReviewModel::codeScoreFromRatings($ratings);
+        $presentRatings = array_values(array_filter($ratings, static fn ($value): bool => $value !== null));
+        $meanRating = (int) round(array_sum($presentRatings) / count($presentRatings));
+
+        $review = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($submission, $task, $project, $user, $request, $meanRating, $recommendation, $codeScore) {
+            $review = CodeMartV1CodeReviewModel::createRecord([
+                'task_submission_id' => $submission->id,
+                'reviewer_id' => $user->id,
+                'review_kind' => CodeMartV1Constants::REVIEW_KIND_REVIEWER,
+                'status' => $recommendation,
+                'recommendation' => $recommendation,
+                'review_notes' => $request->comments,
+                'rating' => $meanRating,
+                'quality_rating' => $request->quality_rating,
+                'readability_rating' => $request->readability_rating,
+                'efficiency_rating' => $request->efficiency_rating,
+                'security_rating' => $request->security_rating,
+                'code_score' => $codeScore,
+                'comments' => $request->comments,
+                'line_comments' => $request->line_comments,
+            ]);
+
+            CodeMartV1DeveloperStatsModel::recalculateForUser((int) $submission->submitted_by);
+
+            CodeMartV1DomainEventService::emit(
+                (int) $user->id,
+                CodeMartV1Constants::RESOURCE_SUBMISSION,
+                (int) $submission->id,
+                self::ACTION_REVIEWER_REVIEW_RECORDED,
+                null,
+                null,
+                $project ? $project->managerIds() : [],
+                CodeMartV1Constants::NOTIFICATION_TYPE_REVIEW,
+                CodeMartV1Constants::NOTIFY_REVIEWER_REVIEW_RECORDED,
+                CodeMartV1Constants::NOTIFY_REVIEWER_REVIEW_RECORDED_BODY,
+                [
+                    'task_id' => (int) $task->id,
+                    'task_title' => (string) $task->title,
+                    'project_id' => $project ? (int) $project->id : null,
+                    'review_id' => (int) $review->id,
+                    'recommendation' => $recommendation,
+                    'code_score' => $codeScore,
+                ]
+            );
+
+            return $review;
+        });
 
         return $this->success([
             'review_id' => $review->id,
-            'message' => 'Review submitted successfully',
+            'recommendation' => $recommendation,
+            'code_score' => $codeScore,
+            'message' => __('codemart.messages.review_submitted_successfully'),
         ]);
     }
 

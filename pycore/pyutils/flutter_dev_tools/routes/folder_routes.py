@@ -8,8 +8,8 @@ from http import HTTPStatus
 from pathlib import Path
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
-from pycore.pyutils.flutter_dev_tools.api import folder_opener
-from pycore.pyutils.flutter_dev_tools.utils import path_utils
+import pycore.pyutils.flutter_dev_tools.api.folder_opener as folder_opener
+import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
 
 
 class FolderRoutesHandler(BaseHandler):

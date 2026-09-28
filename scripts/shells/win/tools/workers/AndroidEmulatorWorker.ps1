@@ -1,22 +1,13 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 #region Variable Declarations
 $script:WORKER_DIR = Split-Path -Path $MyInvocation.MyCommand.Path -Parent
 $script:TOOLS_DIR = Split-Path -Path $script:WORKER_DIR -Parent
 $script:WIN_DIR = Split-Path -Path $script:TOOLS_DIR -Parent
+$script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR 'win_common'
+$script:SHARED_CACHE_ENV_PATH = Join-Path $script:WIN_COMMON_DIR 'SharedCacheEnv.ps1'
+. $script:SHARED_CACHE_ENV_PATH
 $script:INSTALL_DIR = Join-Path $script:WIN_DIR "install_powershells"
-$script:STUDIO_INSTALLER = Join-Path $script:INSTALL_DIR "Step60_InstallAndroidStudio.ps1"
-$script:PLATFORM_INSTALLER = Join-Path $script:INSTALL_DIR "Step61_InstallAndroidPlatformTools.ps1"
+$script:STUDIO_INSTALLER = Join-Path $script:INSTALL_DIR "Step26_InstallAndroidStudio.ps1"
+$script:PLATFORM_INSTALLER = Join-Path $script:INSTALL_DIR "Step27_InstallAndroidPlatformTools.ps1"
 $script:DEVICE_WAIT_SECONDS = 120
 $script:POLL_SECONDS = 5
 $script:DEVICE_POLL_LOG = 5
@@ -72,7 +63,7 @@ $script:SCAN_ROOTS = @()
 $script:ALL_DRIVE_ROOTS = @()
 $script:SDK_ROOTS = @()
 $script:AVD_DIRS = @()
-$script:CACHE_DIR = Join-Path $env:LOCALAPPDATA ".core_node\cache\emu_worker"
+$script:CACHE_DIR = Join-Path $Global:CORE_NODE_RUNTIME_CACHE_DIR 'emu_worker'
 $script:CACHE_ADB = Join-Path $script:CACHE_DIR "adb_path.txt"
 $script:CACHE_EMU = Join-Path $script:CACHE_DIR "emu_path.txt"
 $script:CACHE_AVD = Join-Path $script:CACHE_DIR "avd_list.txt"

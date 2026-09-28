@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
 const mime = require('mime');
@@ -335,13 +323,19 @@ class FileQuery {
         // Create GET handler for file download
         const getHandler = async (req, res, next) => {
             try {
-                let filePath = await this.resolveFilePath(filePathOrHandler, req, res, next);
-                
+                const filePath = await this.resolveFilePath(filePathOrHandler, req, res, next);
+
+                // The path handler may already have answered (403/404)
+                if (res.headersSent) {
+                    return;
+                }
+
                 // Validate file path
-                const validation = this.validateFilePath(filePath);
+                const validation = filePath ? this.validateFilePath(filePath) : { valid: false, error: 'no_file' };
                 if (!validation.valid) {
                     logger.warn(`Download file validation failed: ${validation.error} - ${validation.path || 'N/A'}`);
-                    return res.status(404).send('File not found or invalid');
+                    res.sendStatus(404);
+                    return;
                 }
                 
                 // Handle the download
@@ -349,20 +343,27 @@ class FileQuery {
                 
             } catch (error) {
                 logger.error(`Error in download handler: ${error.message}`);
-                res.status(500).send('Download error');
+                if (!res.headersSent) {
+                    res.sendStatus(500);
+                }
             }
         };
 
         // Create HEAD handler for file info
         const headHandler = async (req, res, next) => {
             try {
-                let filePath = await this.resolveFilePath(filePathOrHandler, req, res, next);
-                
+                const filePath = await this.resolveFilePath(filePathOrHandler, req, res, next);
+
+                if (res.headersSent) {
+                    return;
+                }
+
                 // Validate file path
-                const validation = this.validateFilePath(filePath);
+                const validation = filePath ? this.validateFilePath(filePath) : { valid: false, error: 'no_file' };
                 if (!validation.valid) {
                     logger.warn(`Download HEAD file validation failed: ${validation.error} - ${validation.path || 'N/A'}`);
-                    return res.status(404).end();
+                    res.status(404).end();
+                    return;
                 }
                 
                 // Handle the HEAD request
@@ -370,7 +371,9 @@ class FileQuery {
                 
             } catch (error) {
                 logger.error(`Error in download HEAD handler: ${error.message}`);
-                res.status(500).end();
+                if (!res.headersSent) {
+                    res.status(500).end();
+                }
             }
         };
 
@@ -387,27 +390,23 @@ class FileQuery {
      */
     async resolveFilePath(filePathOrHandler, req, res, next) {
         if (typeof filePathOrHandler === 'function') {
-            // Call the handler function to get file path
+            // Call the handler function to get file path; null means the handler rejected (and usually answered)
             const result = await filePathOrHandler(req, res, next);
-            
-            // Check if handler returned null (validation failed)
-            if (result === null) {
-                throw new Error('File validation failed - handler returned null');
+
+            if (result === null || result === undefined) {
+                return null;
             }
-            
-            // Validate the returned result
-            if (!result || typeof result !== 'string') {
+            if (typeof result !== 'string' || !result) {
                 logger.error(`Download handler returned invalid result: ${result}`);
-                throw new Error('Invalid file path returned by handler');
+                return null;
             }
-            
             return result;
-        } else if (typeof filePathOrHandler === 'string') {
-            return filePathOrHandler;
-        } else {
-            logger.error(`Download method received invalid parameter: ${typeof filePathOrHandler}`);
-            throw new Error('Invalid download configuration');
         }
+        if (typeof filePathOrHandler === 'string') {
+            return filePathOrHandler;
+        }
+        logger.error(`Download method received invalid parameter: ${typeof filePathOrHandler}`);
+        return null;
     }
 }
 

@@ -6,9 +6,11 @@ use Illuminate\Console\Command;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxConfigBuilder;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PHPConfigFixer;
+use App\Support\ServiceContract;
 use App\Providers\PathMapper;
-use Illuminate\Support\Facades\Log;
 
 abstract class ServerManagerV1BaseCommand extends Command
 {
@@ -21,57 +23,22 @@ abstract class ServerManagerV1BaseCommand extends Command
      * operations. It calls ServerManagerV1PHPConfigFixer to fix open_basedir
      * restrictions that might prevent Laravel files from being accessed.
      *
-     * It also checks Octane/Swoole compatibility and applies patches if needed.
-     * Swoole 6.x compatibility patch for Laravel Octane v2.13.x is applied automatically.
-     *
      * This is a PRE-REQUISITE that runs at runtime.
      *
-     * See: ../../../../../../scripts/shells/linux/debian/install_shells/32_configure_php85.sh
+     * See: ../../../../../../scripts/shells/linux/debian/install_shells/34_configure_php85.sh
      */
     protected function initializeCommand(): void
     {
         // Fix PHP configuration before any operations
         // This ensures open_basedir restrictions are removed/configured correctly
-        // based on current path mapping (matches 32_configure_php84.sh behavior)
+        // based on current path mapping (matches 34_configure_php85.sh behavior)
         ServerManagerV1PHPConfigFixer::fixPHPConfiguration();
-
-        // Fix Octane/Swoole compatibility (Swoole 6.x patch for Laravel Octane v2.13.x)
-        // Issue: Swoole 6.x changed task event signature (breaking change)
-        // - Swoole 5.x: task(Server $server, int $taskId, int $fromWorkerId, $data)
-        // - Swoole 6.x: task(Server $server, Server\Task $task)
-        // This patch makes vendor/laravel/octane/bin/swoole-server compatible with both versions
-        $this->fixOctaneSwooleCompatibility();
     }
 
-    /**
-     * Fix Octane/Swoole compatibility
-     *
-     * Applies a patch to make Laravel Octane v2.13.x compatible with Swoole 6.x
-     * The patch is idempotent (safe to run multiple times)
-     */
-    private function fixOctaneSwooleCompatibility(): void
-    {
-        if (!is_dir(base_path('vendor/laravel/octane'))) {
-            return;
-        }
-
-        try {
-            $fixer = new \App\Support\OctaneSwooleCompatFixer(base_path());
-            $result = $fixer->run();
-
-            // Only show message if patch was actually applied (not for already-fixed or compatible)
-            if ($result['status'] === 'fixed') {
-                $this->line("[OCTANE] Compatibility patch applied (Swoole {$result['swoole_version']})");
-            }
-        } catch (\Exception $e) {
-            // Silently continue if patch fails (non-critical)
-            Log::warning('Octane compatibility check failed', ['error' => $e->getMessage()]);
-        }
-    }
     /**
      * Execute system command with proper logging
      */
-    protected function executeCommand(string $command, array $arguments = [], int $timeout = null): array
+    protected function executeCommand(string $command, array $arguments = [], ?int $timeout = null): array
     {
         $this->info("Executing: $command " . implode(' ', $arguments));
         
@@ -154,24 +121,33 @@ abstract class ServerManagerV1BaseCommand extends Command
     }
     
     /**
-     * Create nginx configuration from template
+     * Create nginx configuration through the shared
+     * ServerManagerV1NginxConfigBuilder (single source of truth for the
+     * modern HTTP/3 + TLS 1.3 early-data stanza). Certificates that do not
+     * exist yet yield a plain port-80 vhost; re-running after certificate
+     * issuance upgrades the same file to the full HTTPS/QUIC vhost.
      */
     protected function createNginxConfig(string $domain, string $template, array $variables): bool
     {
-        $templatePath = app_path("Apps/ServerManagerV1/ServerManagerV1CLI/Templates/$template.nginx");
-        
-        if (!file_exists($templatePath)) {
-            $this->error("Template not found: $template");
+        $wwwDir = $variables['WWW_DIR'] ?? '';
+        $phpVersion = $variables['PHP_VERSION'] ?? '8.4';
+        $portNumber = $variables['PORT_NUMBER'] ?? null;
+
+        $content = match ($template) {
+            'laravel' => ServerManagerV1NginxConfigBuilder::buildLaravel($domain, $wwwDir, $phpVersion),
+            'static' => ServerManagerV1NginxConfigBuilder::buildStatic($domain, $wwwDir),
+            'proxy' => ServerManagerV1NginxConfigBuilder::buildProxy(
+                $domain,
+                '127.0.0.1:' . ($portNumber ?? self::defaultProxyPort($domain))
+            ),
+            default => null,
+        };
+
+        if ($content === null) {
+            $this->error("Unsupported nginx template: $template");
             return false;
         }
-        
-        $content = file_get_contents($templatePath);
-        
-        // Replace variables in template
-        foreach ($variables as $key => $value) {
-            $content = str_replace("{{$key}}", $value, $content);
-        }
-        
+
         $nginxPaths = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader::getNginxPaths();
         $configPath = $nginxPaths['config_path'] . "/$domain";
 
@@ -179,11 +155,26 @@ abstract class ServerManagerV1BaseCommand extends Command
             $this->error("Failed to write nginx configuration: $configPath");
             return false;
         }
-        
+
         $this->info("Created nginx configuration: $configPath");
         return true;
     }
     
+    /**
+     * Canonical backend port for proxy sites rendered without an explicit
+     * PORT_NUMBER: api.* domains always reach the laravel_main API on 9000
+     * (never :80, which would loop back into nginx itself). The api/apex
+     * rule itself lives once in the builder (isApiDomain); mirrors
+     * DOMAIN_API_BACKEND_URL in domain_setup_common.sh (SYNC CONTRACT,
+     * see common/nginx_manager.sh).
+     */
+    private static function defaultProxyPort(string $domain): string
+    {
+        return ServerManagerV1NginxConfigBuilder::isApiDomain($domain)
+            ? (string) ServiceContract::port('laravel_api_backend')
+            : '80';
+    }
+
     /**
      * Enable nginx site
      */
@@ -516,7 +507,7 @@ abstract class ServerManagerV1BaseCommand extends Command
             $this->warn("To install certbot, run the following command:");
             $coreNodePath = \App\Providers\PathMapper::getCoreNodeDir();
             if ($coreNodePath) {
-                $this->info("  bash $coreNodePath/scripts/shells/linux/debian/install_shells/26_install_certbot.sh");
+                $this->info("  bash $coreNodePath/scripts/shells/linux/debian/install_shells/35_install_certbot.sh");
             }
             $this->warn("Or install manually:");
             $this->info("  sudo apt update && sudo apt install -y certbot python3-certbot-nginx");
@@ -575,87 +566,17 @@ abstract class ServerManagerV1BaseCommand extends Command
      */
     protected function generateDNSPodCertificate(string $domain): bool
     {
-        try {
-            // Get DNSPod credentials from secret storage (same as getDNSCredentials)
-            $email = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
-            $apiToken = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
-
-            if (!$email || !$apiToken) {
-                $this->error("Failed to get DNSPod credentials from secret storage");
-                return false;
-            }
-
-            // Parse DNSPod API token format: "id,token"
-            $tokenParts = explode(',', $apiToken, 2);
-            if (count($tokenParts) !== 2) {
-                $this->error("Invalid DNSPod API token format. Expected: 'id,token'");
-                return false;
-            }
-
-            $apiId = trim($tokenParts[0]);
-            $apiTokenValue = trim($tokenParts[1]);
-
-            // Create DNSPod credentials file
-            // Standard dns-dnspod plugin requires email and api-token (full "id,token" format)
-            // certbot automatically prefixes with "dns_dnspod_" for the credentials file
-            // Use quotes to prevent configobj from parsing comma-separated value as a list
-            $credentialsPath = PathMapper::getLaravelTmpDir() . '/dnspod-credentials.ini';
-            $apiToken = $apiId . ',' . $apiTokenValue;
-            $credentialsContent = "dns_dnspod_email = {$email}\n";
-            $credentialsContent .= "dns_dnspod_api_token = \"{$apiToken}\"\n";
-
-            if (file_put_contents($credentialsPath, $credentialsContent) === false) {
-                $this->error("Failed to create DNSPod credentials file");
-                return false;
-            }
-
-            chmod($credentialsPath, 0600);
-
-            // Get custom certificate directory
-            $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
-            $configDir = $letsEncryptDir;
-            $workDir = $letsEncryptDir . '/work';
-            $logsDir = $letsEncryptDir . '/logs';
-
-            // Ensure directories exist
-            if (!is_dir($configDir)) {
-                mkdir($configDir, 0755, true);
-            }
-            if (!is_dir($workDir)) {
-                mkdir($workDir, 0755, true);
-            }
-            if (!is_dir($logsDir)) {
-                mkdir($logsDir, 0755, true);
-            }
-
-            $args = [
-                'certonly',
-                '--config-dir', $configDir,
-                '--work-dir', $workDir,
-                '--logs-dir', $logsDir,
-                '--authenticator', 'dns-dnspod',
-                '--dns-dnspod-credentials', $credentialsPath,
-                '-d', $domain,
-                '--email', ServerManagerV1SSLConfigReader::getDefaultEmail(),
-                '--agree-tos',
-                '--non-interactive'
-            ];
-
-            if (ServerManagerV1SSLConfigReader::isStagingMode()) {
-                $args[] = '--staging';
-            }
-
-            $result = $this->executeCommand('certbot', $args);
-
-            // Clean up credentials file
-            unlink($credentialsPath);
-
-            return $result['success'];
-
-        } catch (\Exception $e) {
-            $this->error("DNSPod certificate generation failed: " . $e->getMessage());
+        // Single canonical path (CertificateManager): working certbot-dnspod
+        // authenticator, persistent credentials file, propagation wait. The
+        // legacy inline implementation (dead dns-dnspod plugin, temporary
+        // credentials file) is removed — it broke every later renewal.
+        $extraArgs = ServerManagerV1SSLConfigReader::isStagingMode() ? ['--staging'] : [];
+        $result = ServerManagerV1CertificateManager::runDNSPodCertbot([$domain], $extraArgs);
+        if (!$result['success']) {
+            $this->error("DNSPod certificate generation failed: " . ($result['error'] ?? 'unknown'));
             return false;
         }
+        return true;
     }
 
     /**

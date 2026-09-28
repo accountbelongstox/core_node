@@ -20,12 +20,14 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
-from pycore.pyutils.native_ui.step0_i18n import i18n
-from pycore.pyheartbeat import get_heartbeat_system
-from pycore.pyutils.shortcut_manager import ShortcutManager
-from pycore.pyutils.appusermodelid_manager import set_app_user_model_id, get_recommended_app_id
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
+from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyfoundations.shortcut_manager import ShortcutManager
+from pycore.pyfoundations.app_user_model_id import set_app_user_model_id, get_recommended_app_id
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.adb_device_manager.adb_heartbeat_service import get_adb_heartbeat_service
 
@@ -162,7 +164,7 @@ def rpc_init_callback(rpc_server):
     It registers all Matrix routes to the RPC v2 server instance.
 
     Args:
-        rpc_server: RPC v2 server instance (FastAPIRPCServer)
+        rpc_server: RpcServer instance
     """
     global _rpc_server
 

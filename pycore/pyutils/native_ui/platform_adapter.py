@@ -7,7 +7,8 @@ Provides centralized platform detection and adaptation logic for Native UI.
 
 Features:
 - Platform detection (Windows/Linux/macOS)
-- X11 display detection (Linux)
+- Display server detection (X11 or Wayland, Linux — Debian 13 / Ubuntu 26.04
+  default to Wayland sessions)
 - Tray backend auto-selection
 - Windows-specific configuration (AppUserModelID)
 - QtWebEngine sandbox handling (root user)
@@ -42,7 +43,12 @@ from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 from pathlib import Path
 
-from pycore import ColorPrint
+from pycore.pyfoundations.desktop_session import current_desktop_session
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
+
+import ctypes
+
 
 
 # ============================================================
@@ -59,9 +65,10 @@ class Platform(Enum):
 
 class TrayBackend(Enum):
     """Tray backend types"""
-    PYSTRAY = "pystray"      # Tkinter + pystray (cross-platform)
-    PYSIDE6 = "pyside6"      # Qt system tray
-    NONE = "none"            # No tray support
+    PYSTRAY = "pystray"         # Tkinter + pystray (cross-platform)
+    PYSIDE6 = "pyside6"        # Qt system tray
+    APPINDICATOR = "appindicator"  # AppIndicator3 (native Ubuntu/GNOME)
+    NONE = "none"              # No tray support
 
 
 # ============================================================
@@ -72,7 +79,7 @@ class TrayBackend(Enum):
 class PlatformCapabilities:
     """Platform-specific capabilities"""
     has_gui: bool = True                # GUI support available
-    has_x11: bool = False               # X11 display available (Linux)
+    has_x11: bool = False               # Display server available (X11 or Wayland, Linux)
     can_use_tray: bool = True           # System tray available
     can_use_notifications: bool = True  # System notifications available
     needs_sandbox_disable: bool = False # QtWebEngine needs --no-sandbox
@@ -93,7 +100,7 @@ class PlatformAdapter:
 
         ColorPrint.blue(f"[PlatformAdapter] Initialized for {self._platform.value}")
         ColorPrint.blue(f"[PlatformAdapter] GUI: {self._capabilities.has_gui}, "
-                       f"X11: {self._capabilities.has_x11}, "
+                       f"Display: {self._capabilities.has_x11}, "
                        f"Tray: {self._capabilities.can_use_tray}")
 
     # ========================================
@@ -113,20 +120,25 @@ class PlatformAdapter:
             return Platform.UNKNOWN
 
     @staticmethod
-    def _detect_x11_display() -> bool:
+    def _detect_display() -> bool:
         """
-        Detect if X11 display is available (Linux only)
+        Detect a usable display server (Linux only).
+
+        Debian 13 / Ubuntu 26.04 default to Wayland sessions: WAYLAND_DISPLAY
+        (or XDG_SESSION_TYPE=wayland) is set while DISPLAY may be absent when
+        Xwayland is disabled. AppIndicator/StatusNotifierItem is D-Bus based
+        and works natively under Wayland, so either server enables tray/GUI.
 
         Returns:
-            True if DISPLAY environment variable is set
+            True if an X11 or Wayland display is available
         """
-        display = os.environ.get('DISPLAY')
-        if display:
-            ColorPrint.blue(f"[PlatformAdapter] X11 display detected: {display}")
+        session = current_desktop_session()
+        if session.has_display:
+            ColorPrint.blue(
+                f"[PlatformAdapter] Display session detected: {session.session_type}")
             return True
-        else:
-            ColorPrint.yellow("[PlatformAdapter] No X11 display detected (headless mode)")
-            return False
+        ColorPrint.yellow("[PlatformAdapter] No display server detected (headless mode)")
+        return False
 
     @staticmethod
     def _is_running_as_root() -> bool:
@@ -137,7 +149,6 @@ class PlatformAdapter:
         else:
             # Windows: check admin privileges
             try:
-                import ctypes
                 return ctypes.windll.shell32.IsUserAnAdmin() != 0
             except:
                 return False
@@ -147,11 +158,21 @@ class PlatformAdapter:
         caps = PlatformCapabilities()
 
         if self._platform == Platform.LINUX:
-            # Linux: check X11 for GUI/tray support
-            caps.has_x11 = self._detect_x11_display()
+            # Linux: a display server (X11 or Wayland) enables GUI/tray support
+            caps.has_x11 = self._detect_display()
             caps.has_gui = caps.has_x11
             caps.can_use_tray = caps.has_x11
-            caps.recommended_tray_backend = TrayBackend.PYSTRAY if caps.has_x11 else TrayBackend.NONE
+            if caps.has_x11:
+                # Prefer AppIndicator on Ubuntu/GNOME desktop for native tray
+                # (Ubuntu 26.04 ships the appindicator extension by default;
+                # Debian 13 GNOME needs gnome-shell-extension-appindicator).
+                session = current_desktop_session()
+                if session.is_gnome or 'ubuntu' in session.desktop_names:
+                    caps.recommended_tray_backend = TrayBackend.APPINDICATOR
+                else:
+                    caps.recommended_tray_backend = TrayBackend.PYSTRAY
+            else:
+                caps.recommended_tray_backend = TrayBackend.NONE
 
             # Check if running as root (needs --no-sandbox for QtWebEngine)
             if self._is_running_as_root():
@@ -205,7 +226,7 @@ class PlatformAdapter:
 
     @property
     def has_x11(self) -> bool:
-        """Check if X11 display is available (Linux)"""
+        """Check if a display server is available (Linux: X11 or Wayland)"""
         return self._capabilities.has_x11
 
     def can_use_tray(self) -> bool:
@@ -229,8 +250,9 @@ class PlatformAdapter:
         Get recommended tray backend for current platform
 
         Returns:
-            TrayBackend.PYSTRAY - For lightweight tray (Linux with X11)
-            TrayBackend.PYSIDE6 - For Qt-integrated tray (Windows/macOS)
+            TrayBackend.APPINDICATOR - Ubuntu/GNOME desktop (Linux + X11)
+            TrayBackend.PYSTRAY - Other Linux with X11
+            TrayBackend.PYSIDE6 - Windows/macOS
             TrayBackend.NONE - If tray not available
         """
         return self._capabilities.recommended_tray_backend
@@ -264,6 +286,11 @@ class PlatformAdapter:
             return TrayBackend.PYSTRAY
         elif preferred == "pyside6":
             return TrayBackend.PYSIDE6
+        elif preferred == "appindicator":
+            if not self.is_linux or not self.has_x11:
+                ColorPrint.yellow("[PlatformAdapter] appindicator is Linux/X11 only, falling back to recommended")
+                return self.get_recommended_tray_backend()
+            return TrayBackend.APPINDICATOR
         else:
             ColorPrint.yellow(f"[PlatformAdapter] Unknown backend '{preferred}', using recommended")
             return self.get_recommended_tray_backend()
@@ -289,48 +316,56 @@ class PlatformAdapter:
         Returns:
             Space-separated Chromium flags string
         """
+        # All --enable-features values must be collapsed into ONE flag (Chromium
+        # honors only the last --enable-features), else WebCodecs is silently dropped.
+        enabled_features = []
         flags = []
 
-        # Common flags
         if enable_webcodecs:
-            flags.append("--enable-features=WebCodecs")
+            enabled_features.append("WebCodecs")
 
         if enable_hardware_acceleration:
+            # Safe, cross-platform acceleration baseline. Deliberately NO
+            # --enable-hardware-overlays / --enable-native-gpu-memory-buffers /
+            # --ignore-gpu-blocklist / --enable-webgl2-compute-context (removed from
+            # Chromium): those force the fragile Windows DirectComposition overlay
+            # path that crashes hybrid laptop GPUs (IDCompositionDevice4 failure).
             flags.extend([
                 "--enable-gpu",
                 "--enable-gpu-rasterization",
-                "--enable-accelerated-video-decode",
                 "--enable-accelerated-2d-canvas",
                 "--enable-webgl",
-                "--enable-webgl2-compute-context",
-                "--ignore-gpu-blocklist",
-                "--ignore-gpu-blacklist",
-                "--enable-hardware-overlays",
-                "--enable-zero-copy",
-                "--enable-native-gpu-memory-buffers"
             ])
 
-        # Linux-specific flags
-        if self.is_linux:
-            if enable_hardware_acceleration:
-                flags.extend([
-                    "--enable-features=AcceleratedVideoDecodeLinuxGL,VaapiVideoDecodeLinuxGL,VaapiVideoEncoder",
-                    "--disable-features=UseChromeOSDirectVideoDecoder"
+            if self.is_linux:
+                enabled_features.extend([
+                    "AcceleratedVideoDecodeLinuxGL",
+                    "VaapiVideoDecodeLinuxGL",
+                    "VaapiVideoEncoder",
                 ])
-
-            # Disable sandbox if running as root
-            if self.needs_sandbox_disable():
-                flags.append("--no-sandbox")
-                flags.append("--disable-gpu-sandbox")
-                ColorPrint.yellow("[PlatformAdapter] Added --no-sandbox flag (running as root)")
-
-        # Windows-specific flags
-        elif self.is_windows:
-            if enable_hardware_acceleration:
                 flags.extend([
-                    "--enable-features=D3D11VideoDecoder",
-                    "--enable-direct-composition"
+                    "--enable-accelerated-video-decode",
+                    "--enable-native-gpu-memory-buffers",  # Linux-scoped (GBM)
+                    "--enable-zero-copy",
+                    "--ignore-gpu-blocklist",
+                    "--disable-features=UseChromeOSDirectVideoDecoder",
                 ])
+                # Disable sandbox only if running as root
+                if self.needs_sandbox_disable():
+                    flags.append("--no-sandbox")
+                    flags.append("--disable-gpu-sandbox")
+                    ColorPrint.yellow("[PlatformAdapter] Added --no-sandbox flag (running as root)")
+            elif self.is_windows:
+                # Default ANGLE->D3D11 + DirectComposition already gives WebGL2 +
+                # D3D11 video; add only the safe HW-video feature + zero-copy.
+                enabled_features.append("D3D11VideoDecoder")
+                flags.append("--enable-zero-copy")
+            elif self.is_macos:
+                flags.append("--enable-zero-copy")
+
+        # Single, de-duplicated --enable-features flag
+        if enabled_features:
+            flags.insert(0, "--enable-features=" + ",".join(dict.fromkeys(enabled_features)))
 
         # Remote debugging
         if enable_remote_debugging:
@@ -376,7 +411,6 @@ class PlatformAdapter:
             return False
 
         try:
-            import ctypes
             myappid = self.get_windows_appusermodelid(app_id, app_name)
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             ColorPrint.green(f"[PlatformAdapter] Set Windows AppUserModelID: {myappid}")
@@ -466,7 +500,11 @@ class PlatformAdapter:
 # Singleton Instance
 # ============================================================
 
-_platform_adapter_instance: Optional[PlatformAdapter] = None
+_PLATFORM_ADAPTER_PROVIDER = SerializedSingletonProvider(
+    PlatformAdapter,
+    "native_ui.platform_adapter.provider",
+    "PlatformAdapterProvider",
+)
 
 
 def get_platform_adapter() -> PlatformAdapter:
@@ -476,12 +514,7 @@ def get_platform_adapter() -> PlatformAdapter:
     Returns:
         PlatformAdapter singleton
     """
-    global _platform_adapter_instance
-
-    if _platform_adapter_instance is None:
-        _platform_adapter_instance = PlatformAdapter()
-
-    return _platform_adapter_instance
+    return _PLATFORM_ADAPTER_PROVIDER.get()
 
 
 # ============================================================

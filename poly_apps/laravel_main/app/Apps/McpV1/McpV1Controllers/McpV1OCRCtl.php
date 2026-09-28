@@ -24,7 +24,8 @@ class McpV1OCRCtl extends Controller
     public function recognize(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'image_path' => 'required|string',
+            'image_path' => 'required_without:image|string',
+            'image' => 'required_without:image_path|file',
             'model_type' => 'sometimes|string|in:general,scene,doc,number,english,chinese_traditional',
             'engine' => 'sometimes|string|in:free,paddle,cnocr'
         ]);
@@ -37,7 +38,12 @@ class McpV1OCRCtl extends Controller
             ], 400);
         }
 
-        $imagePath = $request->input('image_path');
+        // Accept either a server-side path or a direct file upload. The uploaded
+        // file's PHP temp path is valid for the duration of this request, which
+        // is all OCRUtil::recognizeImage needs (it reads the file synchronously).
+        $imagePath = $request->hasFile('image')
+            ? $request->file('image')->getPathname()
+            : $request->input('image_path');
         $modelType = $request->input('model_type', 'general');
 
         Log::info('McpV1: OCR recognize', [
@@ -58,7 +64,8 @@ class McpV1OCRCtl extends Controller
     public function smartRecognize(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'file_path' => 'required|string',
+            'file_path' => 'required_without:image|string',
+            'image' => 'required_without:file_path|file',
             'content_type' => 'sometimes|string',
             'priority' => 'sometimes|string|in:high,normal,low'
         ]);
@@ -71,7 +78,9 @@ class McpV1OCRCtl extends Controller
             ], 400);
         }
 
-        $filePath = $request->input('file_path');
+        $filePath = $request->hasFile('image')
+            ? $request->file('image')->getPathname()
+            : $request->input('file_path');
         $contentType = $request->input('content_type', 'general');
 
         // Determine best model based on content type
@@ -97,8 +106,10 @@ class McpV1OCRCtl extends Controller
     public function batch(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'image_paths' => 'required|array',
+            'image_paths' => 'required_without:images|array',
             'image_paths.*' => 'string',
+            'images' => 'required_without:image_paths|array',
+            'images.*' => 'file',
             'model_type' => 'sometimes|string'
         ]);
 
@@ -110,7 +121,9 @@ class McpV1OCRCtl extends Controller
             ], 400);
         }
 
-        $imagePaths = $request->input('image_paths');
+        $imagePaths = $request->hasFile('images')
+            ? array_map(static fn($f) => $f->getPathname(), $request->file('images'))
+            : $request->input('image_paths');
         $modelType = $request->input('model_type', 'general');
 
         Log::info('McpV1: Batch OCR', [

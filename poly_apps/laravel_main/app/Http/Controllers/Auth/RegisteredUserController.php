@@ -1,22 +1,11 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\InviteCode;
+use App\Support\InstallationAccessCode;
 use App\Constants\AppKeys;
 use App\Constants\InviteCodes;
 use App\Services\UserSyncService;
@@ -28,7 +17,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules;
 use Illuminate\Http\JsonResponse;
-use App\Http\Controllers\Auth\AvatarPublic;
+use App\Http\Common\CommonAuthService;
 use App\Traits\ApiResponse;
 
 /**
@@ -55,7 +44,7 @@ class RegisteredUserController extends Controller
         ]);
 
         if ($this->checkUsernameIsExist($request->username)) {
-            return $this->error('Username already exists', 400);
+            return $this->error(__('api.messages.username_already_exists'), 400);
         }
 
         $roleLevel = 0;
@@ -64,8 +53,16 @@ class RegisteredUserController extends Controller
         $invite = null;
 
         if ($inviteCode) {
-            // Check for fixed constant APPQY2025 (legacy support)
-            if ($inviteCode === InviteCodes::APPQY2025) {
+            $canonicalAccessCode = trim((string) InstallationAccessCode::value());
+            if ($canonicalAccessCode !== '' && hash_equals($canonicalAccessCode, trim((string) $inviteCode))) {
+                $roleLevel = 100;
+                $roleName = 'Super Administrator';
+                Log::info('[Registration] Using start-generated super code', [
+                    'username' => $request->username,
+                    'role_level' => $roleLevel,
+                    'role_name' => $roleName,
+                ]);
+            } elseif ($inviteCode === InviteCodes::APPQY2025) {
                 // Fixed code grants regular user role (rolelevel 0)
                 // This is for backward compatibility with the old AppQyV1 registration system
                 Log::info('[Registration] Using fixed invite code APPQY2025', [
@@ -76,7 +73,7 @@ class RegisteredUserController extends Controller
                 ]);
             } else {
                 // Check database for invite code
-                $invite = InviteCode::where('code', $inviteCode)->first();
+                $invite = InviteCode::findByCode($inviteCode);
 
                 if (!$invite) {
                     Log::warning('[Registration] Invalid invite code', [
@@ -85,7 +82,7 @@ class RegisteredUserController extends Controller
                     ]);
                     return $this->validationError(
                         ['registration_code' => ['Invalid invite code. Please check your code and try again.']],
-                        'Invalid invite code'
+                        __('api.messages.invalid_invite_code')
                     );
                 }
 
@@ -100,7 +97,7 @@ class RegisteredUserController extends Controller
                     ]);
                     return $this->validationError(
                         ['registration_code' => ['Invite code is expired or already used.']],
-                        'Invite code is expired or already used'
+                        __('api.messages.invite_code_is_expired_or_already_used')
                     );
                 }
 
@@ -117,7 +114,7 @@ class RegisteredUserController extends Controller
             }
         }
 
-        $user = User::create([
+        $user = User::createRecord([
             'username' => $request->username,
             'nickname' => $request->nickname,
             'name' => $request->name,
@@ -136,22 +133,22 @@ class RegisteredUserController extends Controller
             ]);
         }
 
-        $user = AvatarPublic::createAvatar($user);
+        $session = CommonAuthService::issueLoginToken($user);
+        $user = $session['user'];
         event(new Registered($user));
 
-        $token = $user->createToken('auth_token')->plainTextToken;
         return $this->success([
-            'token' => $token,
-            'token_type' => 'Bearer',
-            'expiration' => config('sanctum.expiration'),
+            'token' => $session['token'],
+            'token_type' => $session['token_type'],
+            'expiration' => $session['expiration'],
             'uid' => $user->id,
             'user' => $user,
-        ], 'User registered successfully');
+        ], __('api.messages.user_registered_successfully'));
     }
 
     public function checkUsernameIsExist($username)
     {
-        $user = User::where('username', $username)->first();
+        $user = User::findByUsername($username);
         if ($user) {
             return true;
         }
@@ -182,7 +179,7 @@ class RegisteredUserController extends Controller
             }
 
             if ($request->invitation_code !== $validCode) {
-                return $this->validationError(['invitation_code' => ['Invalid invitation code']], 'Invalid invitation code');
+                return $this->validationError(['invitation_code' => ['Invalid invitation code']], __('api.messages.invalid_invitation_code_2'));
             }
         }
         
@@ -213,7 +210,7 @@ class RegisteredUserController extends Controller
         Auth::login($user);
 
         if ($request->wantsJson()) {
-            return $this->success(['user' => $user], 'Registration successful');
+            return $this->success(['user' => $user], __('api.messages.registration_successful'));
         }
 
         return response()->noContent();

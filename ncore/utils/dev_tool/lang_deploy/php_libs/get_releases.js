@@ -1,21 +1,10 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const https = require('https');
     const { Buffer } = require('buffer');
     const zlib = require('zlib');
     const fs = require('fs');
     const path = require('path');
     const os = require('os');
+    const { getXdgCacheHome } = require('../../../../foundation/common/system_paths');
     const { request_headers } = require('#@global_vars');
     // const { execCmd } = require('#@commander');
 
@@ -29,9 +18,9 @@ const https = require('https');
 
         _getCacheFilePath() {
             const isWin = process.platform === 'win32';
-            const cacheDir = isWin ? 
+            const cacheDir = isWin ?
                 path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'PhpReleases') :
-                path.join(os.homedir(), '.cache', 'php-releases');
+                path.join(getXdgCacheHome(), 'php-releases');
 
             if (!fs.existsSync(cacheDir)) {
                 fs.mkdirSync(cacheDir, { recursive: true });

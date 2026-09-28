@@ -2,25 +2,17 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
+use App\Utils\RunsModelTransactions;
 
-class AppQyV1UserSelectedLibraryModel extends Model
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+class AppQyV1UserSelectedLibraryModel extends AppQyV1Model
 {
+    use RunsModelTransactions;
     use HasFactory;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('USER_SELECTED_LIBRARIES');
-    }
+    protected ?string $appTableMapKey = 'USER_SELECTED_LIBRARIES';
 
     protected $fillable = [
         'user_id',
@@ -30,21 +22,29 @@ class AppQyV1UserSelectedLibraryModel extends Model
         'selected_at',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'collection_id' => 'integer',
-        'is_active' => 'boolean',
-        'selected_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
-
-    public function collection()
+    protected function casts(): array
     {
-        return $this->belongsTo(AppQyV1VocabularyCollectionModel::class, 'collection_id', 'id');
+        return [
+            'user_id' => 'integer',
+            'collection_id' => 'integer',
+            'is_active' => 'boolean',
+            'selected_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
     }
 
-    public static function getUserSelectedLibraries(int $userId, string $langCode = null, bool $activeOnly = true)
+    /**
+     * Selected library. The column name collection_id is historical: it
+     * stores a vocabulary_libraries id (vocabulary_collections was merged
+     * into vocabulary_libraries by the Wave A/B consolidation and dropped).
+     */
+    public function collection()
+    {
+        return $this->belongsTo(AppQyV1VocabularyLibraryModel::class, 'collection_id', 'id');
+    }
+
+    public static function getUserSelectedLibraries(int $userId, ?string $langCode = null, bool $activeOnly = true)
     {
         $query = self::with('collection')
             ->where('user_id', $userId);
@@ -80,5 +80,15 @@ class AppQyV1UserSelectedLibraryModel extends Model
         return self::where('user_id', $userId)
             ->where('collection_id', $collectionId)
             ->update(['is_active' => false]);
+    }
+
+    public static function activeLibraryIds(int $userId): array
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('is_active', true)
+            ->pluck('collection_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 }

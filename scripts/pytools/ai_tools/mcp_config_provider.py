@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 """
 Common MCP Configuration Provider
@@ -20,7 +9,7 @@ consistency across all tools.
 
 Supported MCP Servers:
 - Context7: Context-aware code completion (HTTP transport)
-- MCPUnifiedServer: Unified MCP server (stdio transport)
+- Chrome: Chrome MCP server (HTTP transport)
 """
 
 import importlib.util
@@ -31,6 +20,12 @@ from typing import Dict, List, Optional
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyfoundations.service_contract import build_url, host, port
+
+CHROME_MCP_URL = build_url("http", host("loopback"), port("mcp_chrome"), "mcp")
 SECRET_MANAGER_PATH = SCRIPT_DIR / "secret_manager.py"
 SECRET_SPEC = importlib.util.spec_from_file_location(
     "ai_tools_secret_manager",
@@ -108,39 +103,12 @@ class MCPConfigProvider:
         )
 
     @staticmethod
-    def get_unified_server_config() -> MCPConfig:
-        """
-        Get MCPUnifiedServer configuration (stdio transport with relative path)
-
-        Reference: _prompt/mcpUbuntoDesktopTemplate.json
-        Command: python3 /www/programing/core_node/pymain.py app=mcp
-
-        Returns:
-            MCPConfig with relative path configuration
-        """
-        import sys
-
-        # Use current Python interpreter path
-        python_executable = sys.executable
-
-        # Use relative path for pymain.py (will be resolved to absolute by claude_sync_mcp_servers.py)
-        pymain_relative = "pymain.py"
-
-        return MCPConfig(
-            name="unified",
-            transport_type="stdio",
-            command=python_executable,
-            args=[pymain_relative, "app=mcp"],
-            env={"MCP_ALLOW_ALL_PATHS": "true"}
-        )
-
-    @staticmethod
     def get_chrome_mcp_config() -> MCPConfig:
         """
         Get Chrome MCP Server configuration (HTTP transport)
 
         Reference: _prompt/mcpWindowsTemplate.json
-        URL: http://127.0.0.1:12306/mcp
+        URL: resolved from the central service contract
 
         Returns:
             MCPConfig with HTTP transport configuration
@@ -148,7 +116,7 @@ class MCPConfigProvider:
         return MCPConfig(
             name="chrome",
             transport_type="http",
-            url="http://127.0.0.1:12306/mcp"
+            url=CHROME_MCP_URL
         )
 
     @classmethod
@@ -171,10 +139,6 @@ class MCPConfigProvider:
         context7_config = cls.get_context7_config(target)
         if context7_config:
             configs.append(context7_config)
-
-        # MCPUnifiedServer (stdio transport)
-        unified_config = cls.get_unified_server_config()
-        configs.append(unified_config)
 
         # Chrome MCP Server (HTTP transport)
         chrome_config = cls.get_chrome_mcp_config()
@@ -203,15 +167,15 @@ class MCPConfigProvider:
         # Can be extended in the future for tool-specific configurations
         filters = {
             'claude': {
-                'include': ['context7', 'unified', 'chrome'],
+                'include': ['context7', 'chrome'],
                 'exclude': []
             },
             'codex': {
-                'include': ['context7', 'unified', 'chrome'],
+                'include': ['context7', 'chrome'],
                 'exclude': []
             },
             'droid': {
-                'include': ['context7', 'unified', 'chrome'],
+                'include': ['context7', 'chrome'],
                 'exclude': []
             }
         }

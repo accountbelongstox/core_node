@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
@@ -96,8 +85,8 @@ get_installation_scripts() {
             fi
         done < <(find "$install_shells_dir" -maxdepth 1 -name "*.sh" -print0)
 
-        # Sort scripts by numeric prefix
-        IFS=$'\n' sorted=($(sort -n -t: -k1 <<<"${scripts[*]}"))
+        # Sort by numeric step, then filename for deterministic same-step ordering.
+        IFS=$'\n' sorted=($(sort -t: -k1,1n -k2,2 <<<"${scripts[*]}"))
         unset IFS
 
         # Extract just the file paths
@@ -134,7 +123,8 @@ execute_installation_scripts() {
         if [ ! -x "$script" ]; then
             chmod +x "$script"
         fi
-        "$script" 
+        # Unattended chain: prompt_read_default calls return defaults immediately.
+        DD_AUTO_CONTINUE=true "$script"
     done
 }
 
@@ -150,6 +140,14 @@ execute_selection() {
             # Run selector to get configuration
             echo "Running configuration selector..."
             "${SCRIPT_DIR}/selector_common.sh"
+            local selector_status=$?
+
+            if [ $selector_status -ne 0 ]; then
+                echo "Server configuration cancelled."
+                echo "Press any key to return to menu..."
+                read -n 1
+                return
+            fi
             
             # Get the selected mode after selector runs
             local install_mode=$(get_var "INSTALL_MODE")
@@ -157,13 +155,17 @@ execute_selection() {
             echo "  Installation mode: $install_mode"
             echo
             
-            # Set installation variables for services (always install, START_* controls whether to start)
+            # Set installation variables for services from the user's toggles.
+            # A service the user switched OFF must not be installed at all - the
+            # repo manager (3_setting_base.sh) keys off INSTALL_MYSQL and would
+            # otherwise add the MariaDB repo even when MySQL was deselected.
             echo "Setting up installation variables for services..."
-            set_var "INSTALL_MYSQL" "true"
-            set_var "INSTALL_REDIS" "true"
-            set_var "INSTALL_POSTGRESQL" "true"
-            set_var "INSTALL_DOCKER" "true"
-            set_var "INSTALL_NGINX" "true"
+            set_var "INSTALL_MYSQL" "$(get_var "START_MYSQL" "false")"
+            set_var "INSTALL_REDIS" "$(get_var "START_REDIS" "false")"
+            set_var "INSTALL_POSTGRESQL" "$(get_var "START_POSTGRESQL" "false")"
+            set_var "INSTALL_DOCKER" "$(get_var "START_DOCKER" "false")"
+            # Web server enablement is owned by the [W] plane mutex constant
+            # (START_WEB_SERVER); the legacy INSTALL_NGINX key is retired.
 
             # Execute installation scripts
             local shells_dir="$(dirname "$SCRIPT_DIR")"

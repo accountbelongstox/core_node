@@ -1,0 +1,905 @@
+# -*- coding: utf-8 -*-
+"""
+Managed lifecycle for local TTS services - the TTS-category facade over the
+unified `managed_services` manager (pycore/pyutils/common/managed_service.py).
+Implements the TTS view of the shared contract in
+development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md (§3-§5).
+
+Covers TWO kinds of TTS services under category "tts":
+  - kind="server" : subprocess HTTP API servers (chattts, cosyvoice, fishspeech,
+                    gptsovits, f5tts, qwen3tts, melotts, voxcpm2). start = Popen +
+                    HTTP health; stop = terminate. Single-active applies ONLY
+                    among these servers (class C, spec §1). qwen3tts, melotts,
+                    gptsovits, cosyvoice, fishspeech and voxcpm2 are
+                    ISOLATED-VENV class-C servers (Bucket B): their api server
+                    runs under a DEDICATED per-engine venv resolved by
+                    isolated_venv - because each pins a transformers (or a Python
+                    ABI window) that cannot coexist with the main interpreter.
+                    PYTHONPATH/PYTHONHOME are stripped so the venv's packages are
+                    never shadowed. Per-engine venv dirs + ports: qwen3tts
+                    py_venv_qwen3tts_<ver> :57210, melotts py_venv_melotts_<ver>
+                    :57212, gptsovits py_venv_gptsovits_<ver> :9880 (existing
+                    GPTSOVITS_URL bind), voxcpm2 py_venv_voxcpm2_3.12 :57214
+                    (self-contained, dedicated base Python 3.10).
+  - kind="model"  : in-process model engines (bark, kokoro, sherpa).
+                    load on first synth; parallel OK; each idle-unloads
+                    independently (class B, spec §1).
+
+Unified contract (enforced by managed_services):
+  - idempotent start and ownership on call (`managed_services.lease`).
+  - default no memory: auto-stop after `server_idle_shutdown_s` idle (default 180s).
+  - single-active: starting one SERVER stops other TTS servers (not models).
+  - busy protection: a service with an in-flight call is never stopped/unloaded.
+
+Settings persist in user_data.json section "tts" (legacy `server_*` keys, kept
+for router/UI compatibility): server_auto_manage / server_single_active /
+server_idle_shutdown_s / server_enabled (per-service map, servers + models).
+"""
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
+
+from pycore.pyfoundations.network_constants import (
+    CHATTTS_HTTP_PORT,
+    CHATTTS_MIN_FREE_VRAM_MB,
+    COSYVOICE_HTTP_PORT,
+    F5TTS_HTTP_PORT,
+    FISHSPEECH_HTTP_PORT,
+    HTTP_LOOPBACK_HOST,
+    MELOTTS_HTTP_PORT,
+    VOXCPM2_HTTP_PORT,
+)
+from pycore.pyfoundations.pygvar import PROJECT_ROOT
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.python_env.isolated_venv import (
+    resolve_python as resolve_isolated_python,
+)
+from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_third_package_requests
+from pycore.pyutils.common.managed_service import ServiceSpec
+from pycore.pyutils.common.managed_service_facade import ManagedServiceFacade
+from pycore.pyutils.common.model_tiers import runtime_engine_model
+import pycore.pyutils.common.hf_local_weights as hf_local_weights
+from pycore.pyutils.common.port_utils import is_port_in_use
+from pycore.pyutils.tts import memory_gate
+from pycore.pyutils.tts import runtime_profile
+from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
+from pycore.pyutils.tts.engine_registry import tts_engine_registry
+import pycore.pyutils.tts.qwen.engine as qwen_engine
+import pycore.pyutils.tts.qwen.events as qwen_events
+import pycore.pyutils.tts.qwen.weights as qwen_weights
+from pycore.pyutils.tts.qwen.config import (
+    DEFAULT_PORT as QWEN_DEFAULT_PORT,
+    ENGINE_NAME as QWEN_ENGINE_NAME,
+    api_server_path as qwen_api_server_path,
+)
+
+
+# Parler is disabled because it pins an older transformers release. qwen3tts,
+# melotts and gptsovits are class-C API servers running in DEDICATED per-engine
+# venvs (Bucket B), never in-process - their pinned transformers conflicts with
+# the main interpreter's shared pin.
+_MELOTTS_API_SERVER = "melotts_api_server.py"
+_TTS_SERVICE_FACADE = ManagedServiceFacade("tts", "server_")
+_ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
+_PYFOUNDATIONS_DIR = Path(__file__).resolve().parents[2] / "pyfoundations"
+_NETWORK_CONSTANTS_SOURCE = _PYFOUNDATIONS_DIR / "network_constants.py"
+_SERVICE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR / "service_contract.py"
+_HTTP_SSE_SOURCE = _PYFOUNDATIONS_DIR / "http_sse.py"
+_HTTP_EVENT_SERVICE_SOURCE = Path(__file__).resolve().parents[1] / "rpc_v2" / "http" / "event_service.py"
+
+# Free-VRAM floors (MiB) for launching a class-C server onto the GPU. When a
+# busy peer legitimately holds the card (single-active never interrupts an
+# in-flight service), the newcomer starts on CPU instead of dying inside
+# model load with a CUDA OOM. ChatTTS floor follows its official FAQ
+# ("at least 4GB of GPU memory"). Before the qwen3tts device decision the
+# opt-in reclaim (QWEN3TTS_VRAM_RECLAIM=1) stops pycore-started GPU processes
+# when free VRAM is below the recommended floor
+# (memory_gate.QWEN3TTS_RECOMMENDED_FREE_VRAM_MB, 6 GB), then the launcher
+# applies the 800 MB minimum free-VRAM floor (memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB)
+# and falls back to CPU below it.
+# Env overrides: CHATTTS_MIN_FREE_VRAM_MB / QWEN3TTS_MIN_FREE_VRAM_MB /
+# QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=1.
+_CHATTTS_MIN_FREE_VRAM_MB = CHATTTS_MIN_FREE_VRAM_MB
+_MIB = 1024 ** 2
+
+
+def _env_int(name: str) -> Optional[int]:
+    raw = (os.environ.get(name) or "").strip()
+    return int(raw) if raw.isdigit() else None
+
+
+def _gpu_device_or_fallback(
+    engine: str,
+    required_mb: int,
+    device_index: Optional[int] = None,
+) -> str:
+    """"cuda" when the target GPU has >= required_mb free, else "cpu".
+    Unknown readings (no GPU / no driver) keep the engine's own auto logic,
+    so the fallback is "cuda" - the server re-checks free VRAM itself."""
+    free_bytes = memory_gate.free_vram_bytes(device_index)
+    if free_bytes is None:
+        return "cuda"
+    free_mb = int(free_bytes) // _MIB
+    if free_mb >= required_mb:
+        return "cuda"
+    ColorPrint.yellow(
+        f"[tts-service] {engine}: {free_mb} MiB VRAM free on GPU "
+        f"{device_index if device_index is not None else 0} < {required_mb} MiB "
+        "required; starting on cpu (a busy peer is holding the card)"
+    )
+    return "cpu"
+
+
+# --------------------------------------------------------------------------- #
+# Server specs (subprocess HTTP API servers)                                   #
+# --------------------------------------------------------------------------- #
+def _parse_port(url: str, default: int) -> int:
+    try:
+        parsed = urlparse(url)
+        if parsed.port:
+            return int(parsed.port)
+    except Exception:  # noqa: BLE001
+        pass
+    return default
+
+def _python_exe() -> str:
+    """Interpreter for same-interpreter servers (chattts, f5tts): the RUNNING
+    interpreter, which is the exact target the installers pip into (on Linux the
+    project venv python3_venv; on Windows the shared python313). sys.executable
+    keeps the venv's site-packages; the venv's base interpreter (e.g.
+    /usr/bin/python3.13) does not see venv-installed packages like ChatTTS."""
+    return sys.executable
+
+
+def _sync_server_script(staging: Path, filename: str) -> None:
+    """Keep staging api server aligned with pycore/tts_install_assets template."""
+    src = Path(__file__).resolve().parents[2] / "tts_install_assets" / filename
+    dst = staging / filename
+    if src.is_file():
+        try:
+            shutil.copy2(src, dst)
+        except OSError:
+            pass
+
+
+def _server_scripts(engine: str) -> List[Path]:
+    """Launch script set of one owned class-C server - the identity source of
+    the managed code-identity contract (managed_service.service_script_code_id).
+
+    qwen3tts and melotts launch straight from tts_install_assets; chattts,
+    fishspeech and f5tts launch a staging copy that _start_command re-syncs
+    from the SAME template right before every launch, so hashing the template
+    hashes exactly what a fresh start would run. Engines whose server code
+    pycore does not own (cosyvoice, gptsovits run cloned repositories) return
+    [] and stay off the contract. An engine also needs a get_status probe
+    (engine lifecycle probe) before registration activates it."""
+    if engine == "qwen3tts":
+        # Every module the server imports or loads from source at start
+        # (qwen3tts_synthesis imports tts_text_chunking and tts_audio_assembly;
+        # the api server loads network_constants with its service_contract
+        # import, http_sse and the shared rpc_v2 event service by path).
+        return [
+            _ASSETS_DIR / "qwen3tts_api_server.py",
+            _ASSETS_DIR / "qwen3tts_capabilities.py",
+            _ASSETS_DIR / "qwen3tts_synthesis.py",
+            _ASSETS_DIR / "qwen3tts_queue.py",
+            _ASSETS_DIR / "qwen3tts_gpu.py",
+            _ASSETS_DIR / "qwen3tts_web.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_audio_assembly.py",
+            _ASSETS_DIR / "tts_server_common.py",
+            _NETWORK_CONSTANTS_SOURCE,
+            _SERVICE_CONTRACT_SOURCE,
+            _HTTP_SSE_SOURCE,
+            _HTTP_EVENT_SERVICE_SOURCE,
+        ]
+    if engine == "chattts":
+        return [
+            _ASSETS_DIR / "chattts_api_server.py",
+            _ASSETS_DIR / "tts_server_common.py",
+        ]
+    if engine == "fishspeech":
+        return [
+            _ASSETS_DIR / "fishspeech_api_server.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_server_common.py",
+        ]
+    if engine == "f5tts":
+        return [
+            _ASSETS_DIR / "f5tts_api_server.py",
+            _ASSETS_DIR / "tts_server_common.py",
+        ]
+    if engine == "melotts":
+        return [
+            _ASSETS_DIR / "melotts_api_server.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_server_common.py",
+        ]
+    if engine == "voxcpm2":
+        return [
+            _ASSETS_DIR / "voxcpm2_api_server.py",
+            _ASSETS_DIR / "tts_text_chunking.py",
+            _ASSETS_DIR / "tts_audio_assembly.py",
+            _ASSETS_DIR / "tts_server_common.py",
+        ]
+    return []
+
+
+def _start_command(engine: str) -> Optional[Tuple]:
+    """Return (cwd, argv) for same-interpreter servers, or (cwd, argv, env) for
+    servers that need a custom environment (qwen3tts runs under its isolated venv)."""
+    staging = staging_dir(engine)
+    py = _python_exe()
+    if engine == "chattts":
+        _sync_server_script(staging, "chattts_api_server.py")
+        _sync_server_script(staging, "tts_server_common.py")
+        script = staging / "chattts_api_server.py"
+        if not script.is_file():
+            return None
+        adapter = tts_engine_registry.get(engine)
+        model_path = adapter.model_path() if adapter is not None else None
+        if model_path is None:
+            return None
+        parsed = urlparse(adapter.base_url() if adapter else "")
+        env = dict(os.environ)
+        env["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
+        env["CHATTTS_HOST"] = parsed.hostname or HTTP_LOOPBACK_HOST
+        env["CHATTTS_PORT"] = str(parsed.port or CHATTTS_HTTP_PORT)
+        env["CHATTTS_MODEL_DIR"] = str(model_path)
+        env["HF_HUB_OFFLINE"] = "1"
+        env["TRANSFORMERS_OFFLINE"] = "1"
+        # PyTorch official anti-fragmentation setting (docs.pytorch.org
+        # docs/stable/notes/cuda.html); explicit opt-out wins.
+        env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+        # Device decided HERE from live free VRAM: single-active never stops a
+        # busy peer, so an occupied card must degrade chattts to cpu instead of
+        # letting it crash with a CUDA OOM inside model load. An explicit
+        # CHATTTS_DEVICE in the environment wins over the probe.
+        if not (os.environ.get("CHATTTS_DEVICE") or "").strip():
+            required_mb = _env_int("CHATTTS_MIN_FREE_VRAM_MB") or _CHATTTS_MIN_FREE_VRAM_MB
+            env["CHATTTS_DEVICE"] = _gpu_device_or_fallback("chattts", required_mb)
+        return staging, [py, str(script)], env
+    if engine == "cosyvoice":
+        script = staging / "runtime" / "python" / "fastapi" / "server.py"
+        if not script.is_file():
+            return None
+        venv_python = resolve_isolated_python("cosyvoice")
+        if not venv_python:
+            return None
+        adapter = tts_engine_registry.get(engine)
+        port = _parse_port(adapter.base_url() if adapter else "", COSYVOICE_HTTP_PORT)
+        model = runtime_engine_model("cosyvoice") or "iic/CosyVoice2-0.5B"
+        return (
+            staging,
+            [venv_python, str(script), "--port", str(port), "--model_dir", model],
+            _isolated_env({}),
+        )
+    if engine == "fishspeech":
+        _sync_server_script(staging, "fishspeech_api_server.py")
+        _sync_server_script(staging, "tts_text_chunking.py")
+        _sync_server_script(staging, "tts_server_common.py")
+        venv_python = resolve_isolated_python("fishspeech")
+        if not venv_python:
+            return None
+        adapter = tts_engine_registry.get(engine)
+        parsed = urlparse(adapter.base_url() if adapter else "")
+        host = parsed.hostname or HTTP_LOOPBACK_HOST
+        port = parsed.port or FISHSPEECH_HTTP_PORT
+        extra: Dict[str, str] = {"FISHSPEECH_HOST": host, "FISHSPEECH_PORT": str(port)}
+        for key in (
+            "FISHSPEECH_UPSTREAM",
+            "FISHSPEECH_REFERENCE_ID",
+            "FISH_API_KEY",
+        ):
+            value = (os.environ.get(key) or "").strip()
+            if value:
+                extra[key] = value
+        # Local inference mode: the cloned repo's official api_server plus
+        # downloaded checkpoint weights (fishaudio/s1-mini).
+        local_server = staging / "tools" / "api_server.py"
+        checkpoint = _fishspeech_checkpoint_dir(staging)
+        if local_server.is_file() and checkpoint is not None:
+            return (
+                staging,
+                [
+                    venv_python,
+                    str(local_server),
+                    "--listen",
+                    f"{host}:{port}",
+                    "--checkpoint-path",
+                    str(checkpoint),
+                ],
+                _isolated_env(extra),
+            )
+        # Bridge mode: our asset proxies to FISHSPEECH_UPSTREAM or the cloud SDK.
+        script = staging / "fishspeech_api_server.py"
+        if not script.is_file():
+            return None
+        return staging, [venv_python, str(script)], _isolated_env(extra)
+    if engine == "gptsovits":
+        return _gptsovits_start_command(staging)
+    if engine == "f5tts":
+        _sync_server_script(staging, "f5tts_api_server.py")
+        _sync_server_script(staging, "tts_server_common.py")
+        script = staging / "f5tts_api_server.py"
+        if not script.is_file():
+            return None
+        adapter = tts_engine_registry.get(engine)
+        parsed = urlparse(adapter.base_url() if adapter else "")
+        env = dict(os.environ)
+        env["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
+        env["F5TTS_HOST"] = parsed.hostname or HTTP_LOOPBACK_HOST
+        env["F5TTS_PORT"] = str(parsed.port or F5TTS_HTTP_PORT)
+        return staging, [py, str(script)], env
+    if engine == "qwen3tts":
+        return _qwen3tts_start_command(staging)
+    if engine == "melotts":
+        return _melotts_start_command(staging)
+    if engine == "voxcpm2":
+        return _voxcpm2_start_command(staging)
+    return None
+
+
+def _fishspeech_checkpoint_dir(staging: Path) -> Optional[Path]:
+    """Local fish-speech checkpoint directory, when fully downloaded.
+
+    The name comes from FISHSPEECH_CHECKPOINT or the runtime model tier
+    (fishaudio/s1-mini); readiness is the official config.json,
+    not directory existence."""
+    name = (os.environ.get("FISHSPEECH_CHECKPOINT") or "").strip()
+    if not name:
+        try:
+            name = str(runtime_engine_model("fishspeech") or "")
+        except Exception:  # noqa: BLE001
+            name = ""
+    name = name.rsplit("/", 1)[-1]
+    if not name:
+        return None
+    candidate = staging / "checkpoints" / name
+    return candidate if (candidate / "config.json").is_file() else None
+
+
+def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
+    """Base environment for a class-C server run under an ISOLATED per-engine venv:
+    inherit os.environ, strip PYTHONPATH/PYTHONHOME (so the main interpreter's
+    site-packages cannot shadow the venv's pinned packages), force unbuffered
+    stdout, then apply the engine-specific overrides."""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    env["PYTHONUNBUFFERED"] = "1"
+    # hf_xet (the Rust xet downloader used by huggingface_hub) has been seen
+    # hard-crashing its host process (BEX64) on Windows; plain HTTP chunk
+    # downloads are the stable path. setdefault so an explicit opt-out wins.
+    env.setdefault("HF_HUB_DISABLE_XET", "1")
+    # PyTorch official anti-fragmentation setting (docs.pytorch.org
+    # docs/stable/notes/cuda.html); setdefault so an explicit opt-out wins.
+    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+    env.setdefault("PYCORE_PROJECT_ROOT", str(PROJECT_ROOT))
+    env.update(extra)
+    return env
+
+
+def _ensure_torchcodec_ffmpeg_dlls(venv_python: str) -> None:
+    """Windows-only self-heal: torchcodec's libtorchcodec_core*.dll links against
+    UNHASHED FFmpeg DLL names (avcodec-62.dll ...), while PyAV's av.libs ships the
+    same FFmpeg build with delvewheel-hashed names (avcodec-62-<hash>.dll) and the
+    FFmpeg DLLs reference each other by hashed name. Copy both namings (missing
+    only) next to libtorchcodec so its own directory satisfies both lookups."""
+    if os.name != "nt":
+        return
+    site_packages = Path(venv_python).resolve().parents[1] / "Lib" / "site-packages"
+    torchcodec_dir = site_packages / "torchcodec"
+    av_libs = site_packages / "av.libs"
+    if not torchcodec_dir.is_dir() or not av_libs.is_dir():
+        return
+    if not list(torchcodec_dir.glob("libtorchcodec_core*.dll")):
+        return
+    copied = 0
+    for dll in av_libs.glob("*.dll"):
+        unhashed = re.sub(r"-[0-9a-f]{16,}\.dll$", ".dll", dll.name)
+        for target_name in {dll.name, unhashed}:
+            target = torchcodec_dir / target_name
+            if not target.exists():
+                shutil.copy2(dll, target)
+                copied += 1
+    if copied:
+        ColorPrint.blue(f"[tts-service] torchcodec FFmpeg DLL self-heal: copied {copied} into {torchcodec_dir}")
+
+
+GPTSOVITS_NLTK_RESOURCES = (
+    ("taggers", "averaged_perceptron_tagger_eng"),
+    ("corpora", "cmudict"),
+)
+
+
+def _ensure_gptsovits_nltk_data(venv_python: str) -> None:
+    """Missing-only self-heal: GPT-SoVITS's English G2P needs NLTK data
+    (pos_tag -> averaged_perceptron_tagger_eng, g2p_en -> cmudict) or every /tts
+    call fails with a 400. NLTK searches <sys.prefix>/nltk_data, so download into
+    the isolated venv's own nltk_data."""
+    venv_root = Path(venv_python).resolve().parents[1]
+    nltk_data = venv_root / "nltk_data"
+    missing = [
+        name
+        for category, name in GPTSOVITS_NLTK_RESOURCES
+        if not (nltk_data / category / name).exists() and not (nltk_data / category / f"{name}.zip").exists()
+    ]
+    if not missing:
+        return
+    ColorPrint.blue(f"[tts-service] gptsovits NLTK self-heal: downloading {', '.join(missing)} into {nltk_data}")
+    try:
+        subprocess.run(
+            [venv_python, "-m", "nltk.downloader", "-d", str(nltk_data), *missing],
+            check=False,
+            timeout=300,
+        )
+    except Exception as exc:
+        ColorPrint.yellow(f"[tts-service] gptsovits NLTK self-heal failed: {exc}")
+
+
+def _gptsovits_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for gptsovits: launch its api_v2.py under the ISOLATED
+    per-engine venv (never the main interpreter, whose transformers pin conflicts
+    with GPT-SoVITS's). RUNTIME only RESOLVES the pre-built venv - a missing venv
+    -> no start (the installer provisions it via isolated_venv.ensure_venv)."""
+    script = staging / "api_v2.py"
+    if not script.is_file():
+        return None
+    venv_python = resolve_isolated_python("gptsovits")
+    if not venv_python:
+        return None
+    _ensure_torchcodec_ffmpeg_dlls(venv_python)
+    _ensure_gptsovits_nltk_data(venv_python)
+    return staging, [venv_python, str(script)], _isolated_env({})
+
+
+def _melotts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for melotts: launch the api server under the ISOLATED
+    per-engine venv (never the main interpreter, which lacks - and must not gain -
+    MeloTTS's old transformers pin). Mirrors _qwen3tts_start_command; PYTHONPATH/
+    PYTHONHOME are stripped so the venv's packages are not shadowed.
+
+    RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
+    at start time; a missing venv -> no start (the installer provisions it)."""
+    venv_python = resolve_isolated_python("melotts")
+    if not venv_python:
+        return None
+    api_server = Path(__file__).resolve().parents[2] / "tts_install_assets" / _MELOTTS_API_SERVER
+    if not api_server.is_file():
+        return None
+    adapter = tts_engine_registry.get("melotts")
+    parsed = urlparse(adapter.base_url() if adapter else "")
+    host = parsed.hostname or HTTP_LOOPBACK_HOST
+    port = parsed.port or MELOTTS_HTTP_PORT
+    extra: Dict[str, str] = {"MELOTTS_HOST": host, "MELOTTS_PORT": str(port)}
+    model = (os.environ.get("MELOTTS_MODEL") or "").strip()
+    if model:
+        extra["MELOTTS_MODEL"] = model
+    device = (os.environ.get("MELOTTS_DEVICE") or "").strip()
+    if device:
+        extra["MELOTTS_DEVICE"] = device
+    return staging, [venv_python, str(api_server)], _isolated_env(extra)
+
+
+def _voxcpm2_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for voxcpm2: launch the api server under the
+    ISOLATED self-contained per-engine venv (base Python 3.10; never the main
+    3.13 interpreter, which is outside VoxCPM2's official 3.10-3.12 window).
+    Mirrors _melotts_start_command.
+
+    RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never
+    builds/pips at start time; a missing venv -> no start (the installer
+    provisions it via isolated_venv.ensure_venv)."""
+    venv_python = resolve_isolated_python("voxcpm2")
+    if not venv_python:
+        return None
+    api_server = _ASSETS_DIR / "voxcpm2_api_server.py"
+    if not api_server.is_file():
+        return None
+    adapter = tts_engine_registry.get("voxcpm2")
+    parsed = urlparse(adapter.base_url() if adapter else "")
+    host = parsed.hostname or HTTP_LOOPBACK_HOST
+    port = parsed.port or VOXCPM2_HTTP_PORT
+    extra: Dict[str, str] = {"VOXCPM2_HOST": host, "VOXCPM2_PORT": str(port)}
+    model = (os.environ.get("VOXCPM2_MODEL") or "").strip()
+    if not model:
+        try:
+            tier = runtime_engine_model("voxcpm2") or "openbmb/VoxCPM2"
+        except Exception:  # noqa: BLE001
+            tier = "openbmb/VoxCPM2"
+        model = hf_local_weights.resolve_model_id("VOXCPM2_DIR", "voxcpm2", tier)
+    extra["VOXCPM2_MODEL"] = model
+    for key in (
+        "VOXCPM2_DEVICE",
+        "VOXCPM2_CFG",
+        "VOXCPM2_TIMESTEPS",
+        "VOXCPM2_PROMPT_WAV",
+        "VOXCPM2_PROMPT_TEXT",
+    ):
+        value = (os.environ.get(key) or "").strip()
+        if value:
+            extra[key] = value
+    return staging, [venv_python, str(api_server)], _isolated_env(extra)
+
+
+def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Dict[str, str]]]:
+    """Class-C start command for qwen3tts: launch the api server under the ISOLATED
+    venv (never the main interpreter, which lacks the required transformers pin).
+    PYTHONPATH/PYTHONHOME are stripped so the
+    venv's pinned transformers is not shadowed by the main interpreter.
+
+    qwen.weights.resolve_model_id() converts a matching verified HF repo id
+    to staging/weights. The venv is package-only and must never own or download
+    another managed model copy.
+
+    RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
+    at start time. Provisioning is done idempotently by the install scripts
+    (Step61_InstallQwen3Tts.ps1 / 183_install_qwen3tts.sh) that pyservice runs; a
+    missing venv -> no start + disabled_reason points at the installer."""
+    venv_python = resolve_isolated_python(QWEN_ENGINE_NAME)
+    model_id = qwen_weights.resolve_model_id(allow_remote=False)
+    if not venv_python or not model_id:
+        return None
+    api_server = qwen_api_server_path()
+    if not api_server.is_file():
+        return None
+    base = qwen_engine.base_url()
+    parsed = urlparse(base)
+    host = parsed.hostname or HTTP_LOOPBACK_HOST
+    port = parsed.port or QWEN_DEFAULT_PORT
+    extra: Dict[str, str] = {
+        "QWEN3TTS_HOST": host,
+        "QWEN3TTS_PORT": str(port),
+        "QWEN3TTS_MODEL": model_id,
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
+    }
+    device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip().lower()
+    runtime_model = str(runtime_engine_model(QWEN_ENGINE_NAME) or "")
+    installed_model = str(qwen_weights.sentinel_model_id() or runtime_model)
+    extra["QWEN3TTS_MODEL_VARIANT"] = (
+        "0.6B" if "0.6b" in installed_model.lower() else "1.7B"
+    )
+    gpu_tier = "1.7b" in runtime_model.lower()
+    if not device:
+        # qwen3tts is the only GPU consumer by design: first RECLAIM the card
+        # from foreign processes when free VRAM is below the recommended
+        # floor (6 GB), then apply the 800 MB minimum free-VRAM floor — an
+        # under-provisioned GPU start still degrades to cpu instead of dying
+        # inside from_pretrained with a CUDA OOM. An explicit QWEN3TTS_DEVICE
+        # pin skips both (it always wins).
+        required_mb = (
+            _env_int(memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB_ENV)
+            or memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB
+        )
+        index_raw = (os.environ.get("QWEN3TTS_GPU_INDEX") or "").strip()
+        device_suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
+        probe_index = (
+            int(index_raw) if index_raw.isdigit()
+            else int(device_suffix) if device_suffix.isdigit()
+            else 0
+        )
+        memory_gate.reclaim_vram(probe_index)
+        if _gpu_device_or_fallback(QWEN_ENGINE_NAME, required_mb, probe_index) == "cpu":
+            device = "cpu"
+    if device == "cpu":
+        extra["QWEN3TTS_DEVICE"] = "cpu"
+    elif device.startswith("cuda") or gpu_tier:
+        configured_index = (os.environ.get("QWEN3TTS_GPU_INDEX") or "").strip()
+        device_suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
+        physical_index = (
+            configured_index
+            if configured_index.isdigit()
+            else device_suffix if device_suffix.isdigit() else "0"
+        )
+        extra["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        extra["CUDA_VISIBLE_DEVICES"] = physical_index
+        extra["QWEN3TTS_PHYSICAL_GPU_INDEX"] = physical_index
+        extra["QWEN3TTS_DEVICE"] = "cuda:0"
+    elif device:
+        extra["QWEN3TTS_DEVICE"] = device
+    return staging, [venv_python, str(api_server)], _isolated_env(extra)
+
+
+def _http_healthy(engine: str) -> bool:
+    adapter = tts_engine_registry.get(engine)
+    if adapter is None or not adapter.health_paths:
+        return False
+    if adapter.health_probe is not None:
+        return adapter.healthy()
+    requests = get_third_package_requests()
+    if requests is None:
+        return False
+    base = adapter.base_url()
+    for path in adapter.health_paths:
+        try:
+            resp = requests.get(f"{base}{path}", timeout=(1.0, 2.0))
+            if resp.status_code < 500:
+                return True
+        except requests.exceptions.ConnectionError:
+            # Port not answering (refused / connect timeout) - other paths on the
+            # same port will fail identically, skip them.
+            return False
+        except Exception:  # noqa: BLE001
+            continue
+    return False
+
+
+def invalidate_server_engine_cache(engine: str) -> None:
+    """Reset the server engine module's 30s availability cache (after start/stop)."""
+    adapter = tts_engine_registry.get(engine)
+    if adapter is not None:
+        adapter.invalidate_availability()
+
+
+def _on_server_started(engine: str) -> None:
+    invalidate_server_engine_cache(engine)
+    if engine == "qwen3tts":
+        qwen_events.start_qwen3tts_http_events()
+
+
+def _on_server_stopped(engine: str) -> None:
+    invalidate_server_engine_cache(engine)
+    if engine == "qwen3tts":
+        qwen_events.stop_qwen3tts_http_events()
+
+
+# --------------------------------------------------------------------------- #
+# Registration into the unified manager                                        #
+# --------------------------------------------------------------------------- #
+def _listener_pids(psutil: Any, port: int) -> List[int]:
+    """Return process IDs currently listening on one TCP port."""
+    pids = set()
+    for conn in psutil.net_connections(kind="tcp"):
+        local_address = getattr(conn, "laddr", None)
+        if not local_address or getattr(local_address, "port", None) != port:
+            continue
+        if conn.status == psutil.CONN_LISTEN and conn.pid:
+            pids.add(int(conn.pid))
+    return sorted(pids)
+
+
+def _launched_by_pycore(psutil: Any, pid: int, engine: str) -> bool:
+    """True when the process runs a pycore launch of ``engine``: its command
+    line or working directory lies in the engine staging dir or the pycore TTS
+    assets dir (every start_command launches from there)."""
+    roots = (str(staging_dir(engine).resolve()), str(_ASSETS_DIR.resolve()))
+    proc = psutil.Process(pid)
+    locations = [str(part) for part in proc.cmdline()] + [str(Path(proc.cwd()).resolve())]
+    return any(location.startswith(root) for location in locations for root in roots)
+
+
+def _foreign_listener_pids(engine: str) -> Optional[List[int]]:
+    adapter = tts_engine_registry.get(engine)
+    if adapter is None:
+        return None
+    port = _parse_port(adapter.base_url(), 0)
+    if not port:
+        return None
+    try:
+        psutil = get_third_package_psutil()
+        return _listener_pids(psutil, port)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _foreign_server_present(engine: str) -> Optional[bool]:
+    adapter = tts_engine_registry.get(engine)
+    if adapter is None:
+        return None
+    port = _parse_port(adapter.base_url(), 0)
+    if not port:
+        return None
+    return is_port_in_use(port)
+
+
+def _stop_foreign_server(engine: str) -> Optional[bool]:
+    """Terminate a stale pycore-launched server that this process does not own
+    and that is LISTENING on this engine's port - an orphan from a previous
+    pycore run (its stdout pipe is dead, so every synth request 500s instantly
+    while /health keeps passing). A listener pycore did not launch is never
+    touched. Returns True when reclaimed, False when a listener remains, and
+    None when listener ownership cannot be inspected. An already-free port is
+    success."""
+    adapter = tts_engine_registry.get(engine)
+    if adapter is None:
+        return False
+    port = _parse_port(adapter.base_url(), 0)
+    if not port:
+        return False
+    listener_pids = _foreign_listener_pids(engine)
+    if listener_pids is None:
+        return None
+    if not listener_pids:
+        return True
+    try:
+        psutil = get_third_package_psutil()
+        if os.getpid() in listener_pids:
+            ColorPrint.yellow(
+                f"[tts] refusing to reclaim {engine} port {port} from this process"
+            )
+            return False
+        not_ours = [pid for pid in listener_pids if not _launched_by_pycore(psutil, pid, engine)]
+        if not_ours:
+            ColorPrint.yellow(
+                f"[tts] {engine} port {port} is held by a process pycore did not "
+                f"launch (pid={not_ours}); leaving it running"
+            )
+            return False
+        for pid in listener_pids:
+            try:
+                proc = psutil.Process(pid)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=8)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=8)
+            except psutil.NoSuchProcess:
+                pass
+            except Exception as exc:  # noqa: BLE001
+                ColorPrint.yellow(
+                    f"[tts] failed to stop foreign {engine} server "
+                    f"(pid={pid}, port={port}): {exc}"
+                )
+        remaining = _listener_pids(psutil, port)
+        if remaining:
+            ColorPrint.yellow(
+                f"[tts] foreign {engine} listener still owns port {port}: {remaining}"
+            )
+            return False
+        for pid in listener_pids:
+            ColorPrint.yellow(
+                f"[tts] stopped foreign {engine} server "
+                f"(pid={pid}) on port {port}"
+            )
+    except Exception:  # noqa: BLE001
+        return None
+    return True
+
+
+def _register_services() -> None:
+    for adapter in tts_engine_registry.values("server"):
+        engine = adapter.name
+        # Code-identity contract activates only when BOTH halves exist: the
+        # launch script set (identity of what a start runs) and one canonical
+        # lifecycle probe (health plus code identity). Engines missing either
+        # half keep the plain adoption/reclaim behavior.
+        status_capable = adapter.service_probe is not None
+        script_set = _server_scripts(engine)
+        code_scripts = (
+            (lambda e=engine: _server_scripts(e))
+            if script_set and status_capable
+            else None
+        )
+        _TTS_SERVICE_FACADE.register(ServiceSpec(
+            name=engine, category="tts", kind="server",
+            installed=lambda engine=engine, adapter=adapter: (
+                engine_installed(engine)
+                or (engine == "chattts" and adapter.healthy())
+            ),
+            config_ready=lambda engine=engine, adapter=adapter: (
+                adapter.config_ready()
+                or (engine == "chattts" and adapter.healthy())
+            ),
+            start_command=lambda engine=engine: _start_command(engine),
+            health=lambda engine=engine: _http_healthy(engine),
+            on_started=lambda engine=engine: _on_server_started(engine),
+            on_stopped=lambda engine=engine: _on_server_stopped(engine),
+            on_acquired=adapter.invalidate_availability,
+            foreign_present=lambda engine=engine: _foreign_server_present(engine),
+            stop_foreign=lambda engine=engine: _stop_foreign_server(engine),
+            server_scripts=code_scripts,
+            status_report=(
+                adapter.service_report
+                if status_capable
+                else None
+            ),
+            ready_without_process=adapter.ready_without_process,
+        ))
+    for adapter in tts_engine_registry.values("model"):
+        _TTS_SERVICE_FACADE.register(ServiceSpec(
+            name=adapter.name,
+            category="tts",
+            kind="model",
+            installed=adapter.available,
+            unload=adapter.unload_model,
+            is_loaded=adapter.is_model_loaded,
+        ))
+
+
+_register_services()
+
+
+# --------------------------------------------------------------------------- #
+# Public facade (delegates to managed_services; keeps the legacy API shape)    #
+# --------------------------------------------------------------------------- #
+def is_server_engine(name: str) -> bool:
+    """True for any managed TTS service (server OR model). The orchestrator uses
+    this to give model engines the same lifecycle lease as server engines."""
+    return _TTS_SERVICE_FACADE.contains(name)
+
+
+def is_server_running(engine: str) -> bool:
+    """Reachability: server HTTP health (cached) or model loaded."""
+    return _TTS_SERVICE_FACADE.is_running(engine)
+
+
+def start_server(engine: str) -> Dict[str, Any]:
+    """Manual start (UI button). Force-starts bypassing auto_manage/enabled,
+    still honouring single-active. Models load on use, so this is a no-op marker.
+
+    The explicit UI start is the ONLY way a non-pinned engine may run; it must
+    still pass the RAM/VRAM scheduling gateway (runtime_profile consults
+    memory_gate) before any weights are touched."""
+    allowed, reason = runtime_profile.engine_start_allowed(engine, explicit=True)
+    if not allowed:
+        ColorPrint.yellow(
+            f"[tts-service] {engine}: start denied by the scheduling gateway ({reason})"
+        )
+        return {"success": False, "engine": engine, "error": reason}
+    return _TTS_SERVICE_FACADE.start(engine)
+
+
+def stop_server(engine: str) -> Dict[str, Any]:
+    result = _TTS_SERVICE_FACADE.stop(engine)
+    invalidate_server_engine_cache(engine)
+    return result
+
+
+def set_engine_enabled(engine: str, enabled: bool, *, start_now: bool = False) -> Dict[str, Any]:
+    return _TTS_SERVICE_FACADE.set_enabled(
+        engine,
+        enabled,
+        start_now=start_now,
+    )
+
+
+def get_server_settings() -> Dict[str, Any]:
+    return _TTS_SERVICE_FACADE.settings(refresh=False)
+
+
+def apply_server_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
+    return _TTS_SERVICE_FACADE.apply_settings(patch)
+
+
+def server_runtime_status(engine: str, refresh: bool = True) -> Dict[str, Any]:
+    """Per-engine runtime state for the status payload. Server engines keep the
+    legacy `server_*` fields (UI controls); model engines report `model_loaded`
+    + `model_idle_remaining_s` with `server_engine=False` (no controls)."""
+    status = _TTS_SERVICE_FACADE.runtime_status(engine, refresh=refresh)
+    if engine == "qwen3tts" and status.get("server_running") and refresh:
+        status["server_url"] = status.get("server_url") or qwen_engine.base_url()
+        queue = qwen_engine.get_status()
+        if queue is not None:
+            status["queue"] = queue
+    return status
+
+
+def all_server_runtime_status() -> Dict[str, Dict[str, Any]]:
+    names = (
+        tts_engine_registry.names("server")
+        + tts_engine_registry.names("model")
+    )
+    return {name: server_runtime_status(name) for name in names}
+
+
+__all__ = [
+    "is_server_engine",
+    "is_server_running",
+    "get_server_settings",
+    "apply_server_settings",
+    "start_server",
+    "stop_server",
+    "set_engine_enabled",
+    "invalidate_server_engine_cache",
+    "server_runtime_status",
+    "all_server_runtime_status",
+]

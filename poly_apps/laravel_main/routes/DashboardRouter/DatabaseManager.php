@@ -1,0 +1,87 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Dashboard\DatabaseManagerController;
+use App\Http\Controllers\Dashboard\DebugAuthController;
+use App\Http\Controllers\Dashboard\DataSyncController;
+
+// Open endpoint: lets the dashboard frontend learn whether the same-machine
+// (loopback) debug login bypass applies, so it can skip its login gate locally.
+Route::get('dashboard/auth/debug-status', [DebugAuthController::class, 'status']);
+
+// Database Manager: every endpoint requires EITHER a loopback debug session OR a
+// Sanctum admin (the `dashboard.auth` middleware decides); writes that replace
+// data or credentials require a super admin.
+Route::prefix('dashboard/db-manager')->middleware('dashboard.auth')->group(function () {
+    Route::get('/connections', [DatabaseManagerController::class, 'connections']);
+    Route::get('/status', [DatabaseManagerController::class, 'status']);
+    Route::get('/tables', [DatabaseManagerController::class, 'tables']);
+    Route::get('/tables/{table}/structure', [DatabaseManagerController::class, 'structure']);
+    Route::get('/tables/{table}/data', [DatabaseManagerController::class, 'data']);
+    Route::get('/tables/{table}/export', [DatabaseManagerController::class, 'export']);
+    Route::post('/tables/{table}/import', [DatabaseManagerController::class, 'import'])
+        ->middleware('dashboard.auth:super_admin');
+    Route::post('/backup', [DatabaseManagerController::class, 'backup'])->middleware('idempotent');
+    Route::get('/backups', [DatabaseManagerController::class, 'backups']);
+    Route::post('/backups/{id}/restore', [DatabaseManagerController::class, 'restore'])
+        ->middleware(['dashboard.auth:super_admin', 'idempotent']);
+    Route::delete('/backups/{id}', [DatabaseManagerController::class, 'deleteBackup']);
+    Route::get('/backups/{id}/download', [DatabaseManagerController::class, 'downloadBackup']);
+    Route::get('/sync', [DataSyncController::class, 'index']);
+    Route::post('/sync', [DataSyncController::class, 'start']);
+    Route::post('/sync/probe', [DataSyncController::class, 'probe']);
+    Route::post('/sync/fetch', [DataSyncController::class, 'startFetch'])
+        ->middleware('dashboard.auth:super_admin');
+    Route::get('/sync/{id}', [DataSyncController::class, 'show']);
+    Route::post('/sync/{id}/target', [DataSyncController::class, 'setTarget']);
+    Route::post('/sync/{id}/pause', [DataSyncController::class, 'pause']);
+    Route::post('/sync/{id}/resume', [DataSyncController::class, 'resume']);
+    Route::post('/sync/{id}/cancel', [DataSyncController::class, 'cancel']);
+
+    // Credential management (driver-aware; pgsql/mysql only — sqlite has no
+    // accounts). Changing the CONFIGURED superuser's password re-syncs it into
+    // Laravel's own credential store; other accounts never touch the store.
+    Route::get('/credentials', [DatabaseManagerController::class, 'credentials']);
+    Route::middleware('dashboard.auth:super_admin')->group(function () {
+        Route::post('/credentials/change', [DatabaseManagerController::class, 'changePassword']);
+        Route::post('/credentials/reset', [DatabaseManagerController::class, 'resetPassword']);
+        Route::post('/credentials/users', [DatabaseManagerController::class, 'createUser']);
+        Route::delete('/credentials/users/{username}', [DatabaseManagerController::class, 'dropUser']);
+    });
+});
+
+// Peer routes: the calling Laravel signs every request as client `laravel_peer`
+// with the shared client key; the per-session token stays a second check.
+// Only the reachability probe is open.
+Route::prefix('dashboard/db-manager/sync-peer')->group(function () {
+    Route::get('/health', [DataSyncController::class, 'peerHealth']);
+    Route::post('/prepare', [DataSyncController::class, 'peerPrepare'])->middleware(['throttle:10,1', 'client.key']);
+    Route::post('/export-prepare', [DataSyncController::class, 'peerExportPrepare'])->middleware(['throttle:10,1', 'client.key']);
+    Route::middleware(['throttle:6000,1', 'client.key'])->group(function () {
+        // Push mode: the source uploads into this node's receiver session.
+        Route::get('/sessions/{id}', [DataSyncController::class, 'peerStatus']);
+        Route::post('/sessions/{id}/cancel', [DataSyncController::class, 'peerCancel']);
+        Route::get('/sessions/{id}/database-inventory', [DataSyncController::class, 'peerDatabaseInventory']);
+        Route::get('/sessions/{id}/database-counts', [DataSyncController::class, 'peerDatabaseCounts']);
+        Route::post('/sessions/{id}/database-chunks', [DataSyncController::class, 'peerDatabaseChunk']);
+        Route::post('/sessions/{id}/database-sequences', [DataSyncController::class, 'peerDatabaseSequence']);
+        Route::post('/sessions/{id}/database-complete', [DataSyncController::class, 'peerDatabaseComplete']);
+        Route::get('/sessions/{id}/resources/{key}/manifest', [DataSyncController::class, 'peerResourceManifest']);
+        Route::post('/sessions/{id}/resource-file-batch', [DataSyncController::class, 'peerResourceFileBatch']);
+        Route::post('/sessions/{id}/resource-file-chunks', [DataSyncController::class, 'peerResourceFileChunk']);
+        Route::post('/sessions/{id}/resource-chunks', [DataSyncController::class, 'peerResourceChunk']);
+        Route::post('/sessions/{id}/finalize', [DataSyncController::class, 'peerFinalize']);
+
+        // Pull mode: this node's exporter session serves an unreachable fetcher.
+        Route::get('/export-sessions/{id}', [DataSyncController::class, 'peerStatus']);
+        Route::post('/export-sessions/{id}/cancel', [DataSyncController::class, 'peerCancel']);
+        Route::get('/export-sessions/{id}/database-inventory', [DataSyncController::class, 'peerDatabaseInventory']);
+        Route::get('/export-sessions/{id}/database-chunks', [DataSyncController::class, 'peerExportDatabaseChunk']);
+        Route::get('/export-sessions/{id}/resources/{key}/manifest', [DataSyncController::class, 'peerResourceManifest']);
+        Route::post('/export-sessions/{id}/resource-file-batch', [DataSyncController::class, 'peerExportResourceFileBatch']);
+        Route::get('/export-sessions/{id}/resource-file-chunks', [DataSyncController::class, 'peerExportResourceFileChunk']);
+        Route::post('/export-sessions/{id}/resource-archives', [DataSyncController::class, 'peerExportResourceArchive']);
+        Route::get('/export-sessions/{id}/resource-archive-chunks', [DataSyncController::class, 'peerExportResourceArchiveChunk']);
+        Route::post('/export-sessions/{id}/finalize', [DataSyncController::class, 'peerFinalize']);
+    });
+});

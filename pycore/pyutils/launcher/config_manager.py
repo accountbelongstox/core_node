@@ -8,6 +8,24 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.launcher.grid_profile import (
+    DEFAULT_AUTO_GRID,
+    DEFAULT_GRID_COLUMNS,
+    DEFAULT_GRID_ROWS,
+    DEFAULT_TOGGLE,
+    TERMINAL_TOGGLE_GRIDS,
+    normalize_toggle,
+)
+from pycore.pyutils.common.user_data_store import user_data_store
+
+_SECTION = "launcher"
+SERVICES_SECTION = 'services'
+SERVICES_PROMPT_ENABLED_KEY = 'prompt_enabled'
+SERVICES_PROMPT_TIMEOUT_KEY = 'prompt_timeout_sec'
+DEFAULT_SERVICES_PROMPT_ENABLED = True
+DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC = 5
 
 class ConfigManager:
     """Manage launcher configuration"""
@@ -19,7 +37,8 @@ class ConfigManager:
         Args:
             config_path: Path to config file (default: launcher directory / config.json)
         """
-        if config_path is None:
+        self._uses_unified_store = config_path is None
+        if self._uses_unified_store:
             config_path = Path(__file__).parent / 'config.json'
         
         self.config_path = Path(config_path)
@@ -28,7 +47,6 @@ class ConfigManager:
     def _get_applications_defaults(self):
         """Get default applications configuration from APP_DEFINITIONS"""
         # Import here to avoid circular import
-        from pycore.pyutils.launcher.app_finder import AppFinder
         
         defaults = {}
         app_definitions = AppFinder.APP_DEFINITIONS
@@ -48,9 +66,10 @@ class ConfigManager:
                     'enabled': False  # Disabled by default
                 }
             else:
-                # Default enabled state: only cursor enabled by default
+                # Default enabled state: the code-editor slot (cursor, then codex) and
+                # the system default text editor are enabled; antigravity is no longer launched by default
                 defaults[app_name] = {
-                    'enabled': True if app_name == 'cursor' else False
+                    'enabled': True if app_name in ('cursor', 'codex', 'texteditor') else False
                 }
         
         return defaults
@@ -60,39 +79,87 @@ class ConfigManager:
         default_config = {
             'terminal': {
                 'enabled': True,
-                'columns': 3,
-                'rows': 2,
-                'toggle': 'X6'  # X4, X6, X8, DISABLE
+                'columns': DEFAULT_GRID_COLUMNS,
+                'rows': DEFAULT_GRID_ROWS,
+                'toggle': DEFAULT_TOGGLE,
+                # Resolution grid: 2K screens use 5x3, 4K use 6x3; smaller
+                # screens keep columns/rows above.
+                'auto_grid': DEFAULT_AUTO_GRID
+            },
+            # Background services offered after the window layout
+            # (laravel_main, mcp-chrome watcher, nexus-dash UI): each prompt
+            # auto-answers Yes after prompt_timeout_sec.
+            SERVICES_SECTION: {
+                SERVICES_PROMPT_ENABLED_KEY: DEFAULT_SERVICES_PROMPT_ENABLED,
+                SERVICES_PROMPT_TIMEOUT_KEY: DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC
             },
             'measurements': {
                 'columns': 67,
                 'columns_width_px': 510,
-                'rows': 164,
+                'rows': 32,
                 'rows_height_px': 485
             },
             'calibration': {
                 'actual_height_px': 485,
-                'term_rows': 270
+                'term_rows': 32
+            },
+            # Reserve pixels for WT window chrome + safety so content fits in grid cell (avoids overlap)
+            'window_chrome': {
+                'title_bar_plus_padding_px': 56,
+                'horizontal_padding_px': 24,
+                'content_scale': 0.78,
+                # Inter-cell gaps (px) so adjacent terminal windows never touch
+                # ("squeezed together"). Subtracted from the screen before grid
+                # division, then re-added as a step between cell origins.
+                'gap_horizontal_px': 16,
+                'gap_vertical_px': 24
             },
             'applications': self._get_applications_defaults()
         }
         
+        if self._uses_unified_store:
+            personalized = user_data_store.get_personalized_section(_SECTION)
+            if not personalized and self.config_path.exists():
+                try:
+                    with open(self.config_path, 'r', encoding='utf-8') as f:
+                        legacy_config = json.load(f)
+                    if isinstance(legacy_config, dict):
+                        user_data_store.set_section(_SECTION, legacy_config)
+                except Exception as e:
+                    ColorPrint.plain(f"Warning: Failed to migrate launcher config: {e}")
+            user_config = user_data_store.get_section(_SECTION)
+            self._merge_config(default_config, user_config)
+            self._migrate_legacy_toggle(default_config)
+            self._ensure_all_apps_in_config(default_config)
+            self._remove_paths_from_config(default_config)
+            return default_config
+
         if self.config_path.exists():
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
                     user_config = json.load(f)
                     # Merge with defaults
                     self._merge_config(default_config, user_config)
+                    self._migrate_legacy_toggle(default_config)
                     # Ensure all apps from APP_DEFINITIONS are in config
                     self._ensure_all_apps_in_config(default_config)
                     # Remove all 'path' fields from applications (paths belong in cache, not config)
                     self._remove_paths_from_config(default_config)
                     return default_config
             except Exception as e:
-                print(f"Warning: Failed to load config, using defaults: {e}")
+                ColorPrint.plain(f"Warning: Failed to load config, using defaults: {e}")
         
         return default_config
     
+    @staticmethod
+    def _migrate_legacy_toggle(config):
+        """Map a retired toggle (X16) to its replacement preset and grid size."""
+        term = config.get('terminal', {})
+        toggle = normalize_toggle(term.get('toggle', DEFAULT_TOGGLE))
+        if toggle != term.get('toggle') and toggle in TERMINAL_TOGGLE_GRIDS:
+            term['toggle'] = toggle
+            term['columns'], term['rows'] = TERMINAL_TOGGLE_GRIDS[toggle]
+
     def _merge_config(self, default, user):
         """Merge user config into default config"""
         for key, value in user.items():
@@ -109,11 +176,14 @@ class ConfigManager:
             config_to_save = json.loads(json.dumps(self.config))  # Deep copy
             self._remove_paths_from_config(config_to_save)
             
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(config_to_save, f, indent=2, ensure_ascii=False)
+            if self._uses_unified_store:
+                user_data_store.set_section(_SECTION, config_to_save)
+            else:
+                with open(self.config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config_to_save, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            print(f"Error: Failed to save config: {e}")
+            ColorPrint.plain(f"Error: Failed to save config: {e}")
             return False
     
     def get(self, key_path, default=None):
@@ -164,6 +234,10 @@ class ConfigManager:
         """Get specific application configuration"""
         return self.config.get('applications', {}).get(app_name, {})
     
+    def get_services_config(self):
+        """Get background-service prompt configuration"""
+        return self.config.get(SERVICES_SECTION, {})
+
     def get_measurements_config(self):
         """Get measurements configuration"""
         return self.config.get('measurements', {})
@@ -175,7 +249,6 @@ class ConfigManager:
     def _ensure_all_apps_in_config(self, config):
         """Ensure all apps from APP_DEFINITIONS are in config"""
         # Import here to avoid circular import
-        from pycore.pyutils.launcher.app_finder import AppFinder
         
         app_defaults = self._get_applications_defaults()
         if 'applications' not in config:

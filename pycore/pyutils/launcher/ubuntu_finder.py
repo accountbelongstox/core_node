@@ -5,13 +5,16 @@ Finds Ubuntu shortcuts in Windows Start Menu
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import List, Dict, Optional
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 try:
     import win32com.client
     HAS_WIN32COM = True
 except ImportError:
+    win32com = None
     HAS_WIN32COM = False
 
 
@@ -38,11 +41,15 @@ class UbuntuFinder:
             }
         """
         if not HAS_WIN32COM:
-            print("Warning: win32com not available, cannot read shortcuts")
+            # win32com (pywin32) is Windows-only and this reads the Windows Start Menu, so on
+            # Linux/macOS this finder is simply a no-op. Warn only on Windows (where pywin32
+            # should be installed) to avoid noise on every other platform.
+            if sys.platform == "win32":
+                ColorPrint.plain("Warning: win32com not available, cannot read shortcuts")
             return []
         
         if not self.start_menu_path.exists():
-            print(f"Warning: Start Menu path not found: {self.start_menu_path}")
+            ColorPrint.plain(f"Warning: Start Menu path not found: {self.start_menu_path}")
             return []
         
         found_shortcuts = []
@@ -57,9 +64,9 @@ class UbuntuFinder:
                         if shortcut_info:
                             found_shortcuts.append(shortcut_info)
                     except Exception as e:
-                        print(f"Warning: Error reading shortcut {shortcut_path}: {e}")
+                        ColorPrint.plain(f"Warning: Error reading shortcut {shortcut_path}: {e}")
         except Exception as e:
-            print(f"Warning: Error searching for shortcuts: {e}")
+            ColorPrint.plain(f"Warning: Error searching for shortcuts: {e}")
         
         return found_shortcuts
     
@@ -92,7 +99,7 @@ class UbuntuFinder:
                 'full_command': full_command
             }
         except Exception as e:
-            print(f"Warning: Failed to read shortcut {shortcut_path}: {e}")
+            ColorPrint.plain(f"Warning: Failed to read shortcut {shortcut_path}: {e}")
             return None
     
     def get_first_ubuntu_shortcut(self) -> Optional[Dict[str, str]]:

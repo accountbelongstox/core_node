@@ -6,7 +6,7 @@ use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
 {
-    protected $connection = 'sqlite';
+    protected $connection = 'main';
     protected $tableName = 'personal_access_tokens';
 
     public function up(): void

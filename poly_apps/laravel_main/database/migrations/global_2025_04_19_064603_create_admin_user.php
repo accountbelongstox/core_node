@@ -10,7 +10,7 @@ use App\Utils\StrTool;
 
 return new class extends Migration
 {
-    protected $connection = 'sqlite';
+    protected $connection = 'main';
     protected $tableName = 'users';
 
     public function up(): void
@@ -58,14 +58,22 @@ return new class extends Migration
             $userData = [
                 'nickname' => 'Administrator',
                 'username' => $username,
-                'rolelevel' => 1,
-                'rolename' => 'admin',
+                'rolelevel' => 100,
+                'rolename' => 'Super Administrator',
                 'email' => 'accountbelongstox@163.com',
                 'password' => Hash::make('12345678'),
                 'created_at' => now(),
                 'updated_at' => now(),
                 'user_token' => StrTool::genUserTokenByTimeAndUUID(),
             ];
+            if (Schema::hasColumn($this->tableName, 'preferences')) {
+                $userData['preferences'] = json_encode([
+                    'theme' => 'dark',
+                    'language' => 'en',
+                    'favorites' => [],
+                    'recentTools' => [],
+                ]);
+            }
             if (Schema::hasColumn($this->tableName, 'email_verified_at')) {
                 $userData['email_verified_at'] = now();
             }

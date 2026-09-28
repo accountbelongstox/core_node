@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>DotApps.d3check.Core</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\dotcore\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
+    <ProjectReference Include="..\..\..\dotcore\DotCore.Utils\DotCore.Utils.csproj" />
+    <ProjectReference Include="..\..\..\dotcore\DotCore.UITheme\DotCore.UITheme.csproj" />
+    <ProjectReference Include="..\..\..\dotcore\DotCore.UIInspect\DotCore.UIInspect.csproj" />
+    <ProjectReference Include="..\..\..\dotcore\DotCore.ScreenCapture\DotCore.ScreenCapture.csproj" />
+    <ProjectReference Include="..\..\..\dotcore\DotCore.TemplateMatcher\DotCore.TemplateMatcher.csproj" />
+  </ItemGroup>
+</Project>

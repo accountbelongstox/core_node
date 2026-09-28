@@ -1,23 +1,11 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Node.js Post-Installation Processor
 # Handles pnpm and yarn installation, npm configuration
 # Enhanced with automatic repair and validation
 
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
 
 function Install-PnpmAndYarn {
     param (
@@ -62,6 +50,31 @@ function Install-PnpmAndYarn {
         Write-Host "$LogPrefix Running pnpm setup..." -ForegroundColor Yellow
         Write-Host "Y" | & $pnpmPath setup
         Write-Host "$LogPrefix pnpm setup completed" -ForegroundColor Green
+
+        # Always ensure pnpm global bin directory is in PATH (repair step)
+        # Add-Path function handles duplicate checking internally
+        try {
+            $pnpmGlobalBinDir = & $pnpmPath config get global-bin-dir 2>&1 | Select-Object -First 1
+            if (-not [string]::IsNullOrEmpty($pnpmGlobalBinDir) -and $pnpmGlobalBinDir -ne "undefined") {
+                if (Test-Path $pnpmGlobalBinDir) {
+                    $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+                    $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
+                    if (Test-Path $windowsPathFunctionPath) {
+                        . $windowsPathFunctionPath
+                        Write-Host "$LogPrefix Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -ForegroundColor Yellow
+                        Add-Path -newPath $pnpmGlobalBinDir
+                        Write-Host "$LogPrefix pnpm global bin directory PATH check completed" -ForegroundColor Green
+                    } else {
+                        Write-Host "$LogPrefix Warning: WindowsPathFunction.ps1 not found, cannot add pnpm bin to PATH" -ForegroundColor Yellow
+                    }
+                } else {
+                    Write-Host "$LogPrefix Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -ForegroundColor Yellow
+                    Write-Host "$LogPrefix Will be added to PATH when directory is created" -ForegroundColor Cyan
+                }
+            }
+        } catch {
+            Write-Host "$LogPrefix Warning: Failed to ensure pnpm bin in PATH: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
     }
 
     # Install yarn
@@ -94,7 +107,7 @@ function Test-NodeConfiguration {
     try {
         # Test Node.js version
         $versionOutput = & $NodePath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$versionOutput)) {
             Write-Host "$LogPrefix Node.js version: $versionOutput" -ForegroundColor Green
         } else {
             Write-Host "$LogPrefix Node.js version check failed: $versionOutput" -ForegroundColor Red
@@ -105,7 +118,7 @@ function Test-NodeConfiguration {
         $npmPath = Join-Path (Split-Path -Parent $NodePath) "npm.cmd"
         if (Test-Path $npmPath) {
             $npmVersion = & $npmPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$npmVersion)) {
                 Write-Host "$LogPrefix npm version: $npmVersion" -ForegroundColor Green
             }
         }
@@ -114,7 +127,7 @@ function Test-NodeConfiguration {
         $pnpmPath = Join-Path (Split-Path -Parent $NodePath) "pnpm.cmd"
         if (Test-Path $pnpmPath) {
             $pnpmVersion = & $pnpmPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$pnpmVersion)) {
                 Write-Host "$LogPrefix pnpm version: $pnpmVersion" -ForegroundColor Green
             }
         } else {
@@ -125,7 +138,7 @@ function Test-NodeConfiguration {
         $yarnPath = Join-Path (Split-Path -Parent $NodePath) "yarn.cmd"
         if (Test-Path $yarnPath) {
             $yarnVersion = & $yarnPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$yarnVersion)) {
                 Write-Host "$LogPrefix yarn version: $yarnVersion" -ForegroundColor Green
             }
         } else {

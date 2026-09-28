@@ -1,0 +1,140 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
+
+use App\Http\Controllers\Controller;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1PosterPriorityService;
+use App\Services\MoviePoster\MoviePosterStore;
+use App\Traits\ApiResponse;
+
+/**
+ * Movie/TV poster queue status and priority endpoint.
+ *
+ * POST /api/app_qy_v1/media/poster/fetch { type:'book'|'subtitle', id?|source_key? }
+ *   -> load the row -> reset its mcp submission marker -> move it to the queue
+ *      head. apps/mcp-chrome owns search, download and submission.
+ *
+ * No authentication (mirrors the local media ingest / browse endpoints).
+ */
+class AppQyV1MoviePosterController extends Controller
+{
+    use ApiResponse;
+
+    private AppQyV1PosterPriorityService $priority;
+    private MoviePosterStore $store;
+
+    public function __construct(AppQyV1PosterPriorityService $priority, MoviePosterStore $store)
+    {
+        $this->priority = $priority;
+        $this->store = $store;
+    }
+
+    /**
+     * GET /api/app_qy_v1/media/poster/status
+     *
+     * Cheap, no-auth management snapshot of the mcp-chrome poster queue for
+     * the laravel-manager dashboard. Reports per media type (book / subtitle):
+     * the poster_status
+     *     distribution (pending / ready / failed / none) + total, from a single
+     *     GROUP BY poster_status query each. Guarded: a missing poster_status
+     *     column (pre-migration) yields zeroed counts instead of throwing.
+     *
+     * Never throws — every section is independently guarded so a partial
+     * failure still returns a usable snapshot. Cached a few seconds to keep
+     * repeated dashboard polls cheap.
+     */
+    public function status(Request $request): JsonResponse
+    {
+        $payload = [
+            'providers' => [
+                [
+                    'name' => 'mcp-chrome',
+                    'configured' => true,
+                ],
+            ],
+            'keys' => [],
+            'owner' => 'mcp-chrome',
+            'source' => 'search-engine',
+            'counts' => [
+                'book' => Book::posterStatusCounts(),
+                'subtitle' => Subtitle::posterStatusCounts(),
+            ],
+        ];
+
+        return $this->success($payload, 'mcp-chrome poster queue status');
+    }
+
+    /**
+     * POST /api/app_qy_v1/media/poster/fetch
+     */
+    public function fetch(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'type' => 'required|string|in:book,subtitle',
+            'id' => 'nullable|integer',
+            'source_key' => 'nullable|string',
+        ]);
+
+        $type = $validated['type'];
+        $id = isset($validated['id']) ? (int) $validated['id'] : null;
+        $sourceKey = isset($validated['source_key']) ? (string) $validated['source_key'] : null;
+
+        if ($id === null && ($sourceKey === null || $sourceKey === '')) {
+            return $this->error(__('app_qy_v1.messages.either_id_or_source_key_is_required'), 422);
+        }
+
+        $model = $this->resolveModel($type, $id, $sourceKey);
+        if (!$model) {
+            return $this->notFound(ucfirst($type) . ' not found');
+        }
+
+        $alreadySubmitted = $model->getAttribute('poster_mcp_submitted_at') !== null;
+        if ($model->getAttribute('poster_status') === 'ready' && $alreadySubmitted) {
+            return $this->success([
+                'image_url' => $this->store->imageUrlFor($model),
+                'poster_status' => 'ready',
+                'provider' => 'mcp-chrome',
+                'already_done' => true,
+                'queued' => false,
+            ], __('app_qy_v1.messages.poster_already_submitted_by_mcp_chrome'));
+        }
+
+        try {
+            $promoted = $this->priority->promote([[
+                'media_type' => $type,
+                'id' => (int) $model->getKey(),
+            ]]);
+        } catch (\Throwable $e) {
+            Log::error('[MoviePoster] mcp-chrome queue promotion failed', [
+                'type' => $type,
+                'id' => $model->getKey(),
+                'error' => $e->getMessage(),
+            ]);
+            return $this->error(__('app_qy_v1.messages.failed_to_queue_poster_for_mcp_chrome'), 500);
+        }
+
+        return $this->success([
+            'image_url' => $this->store->imageUrlFor($model),
+            'poster_status' => 'pending',
+            'provider' => 'mcp-chrome',
+            'already_done' => false,
+            'queued' => $promoted > 0,
+        ], __('app_qy_v1.messages.poster_queued_for_mcp_chrome_search'));
+    }
+
+    /**
+     * Load the Book / Subtitle row by id (preferred) or source_key.
+     */
+    private function resolveModel(string $type, ?int $id, ?string $sourceKey): ?Model
+    {
+        return $type === 'book'
+            ? Book::findByIdOrSourceKey($id, $sourceKey)
+            : Subtitle::findByIdOrSourceKey($id, $sourceKey);
+    }
+
+}

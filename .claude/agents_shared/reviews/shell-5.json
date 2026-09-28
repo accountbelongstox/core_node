@@ -1,0 +1,15 @@
+{
+  "task_id": "shell-5",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "PR-034 (script half)": {"status": "fixed", "reason": "pycore_service_uninstall runs disable -> rm unit -> daemon-reload -> stop --no-block last, so an uninstall started inside the pycore unit leaves nothing enabled even if the stop kills the script. pycore owns the systemd-run --scope half."},
+    "requirements section 2: server / at 0777": {"status": "fixed", "reason": "The cause was not found in code (no path chmods a literal /), so the helpers are hardened. fs_perm_target_safety checks both the literal path and readlink -f against the system-path list, and repair_owned_tree_777, ensure_owned_tree_777 and repair_owned_entry_777 use it, so //, /., /www/.. and a symlink to / are refused (owner probe). The suggested read-only server check (ls -ld /www, readlink -f /www, stat of /) is recorded for the user."},
+    "requirements section 2: /remote-control hint and remote command: line": {"status": "fixed", "reason": "Both launchers print 'run /remote-control <lead> in the lead once' when a remote role is configured and the running lead lacks --remote-control, and remote rows log the ssh form with the secret NAME (the target is never resolved or printed)."}
+  },
+  "issues": [
+    "scripts/shells/linux/common/fs_perm_helpers.sh:160 (non-blocking) the refused list covers / /usr /etc /bin /sbin /lib and exact /var, but not /home, /root, /boot, /opt, /srv, /mnt, /media, /tmp, /run, /proc, /sys, /dev, /lib64, /var/lib or /var/log. A misconfigured symlink to /home would still make every home dir 0777. Extend the list to those exact paths; /var/lib and /var/log also with subpaths, while keeping /var/_core_node allowed."
+  ],
+  "checks": "fs_perm_target_safety and its three call sites read; the pycore_service.sh uninstall order read; the claude_team_common.sh / ClaudeTeamCommon.ps1 hint and log-line changes checked against the report; IS-029/IS-030 hunks in the same files are covered by shell-4.",
+  "checked_at": "2026-09-27T04:40:32+10:00"
+}

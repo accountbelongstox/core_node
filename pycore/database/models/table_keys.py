@@ -11,7 +11,7 @@ Example:
 - util_cache.items -> Cache utility items table
 
 Usage:
-    from pycore.database.models import TableKeys
+    from pycore.database.models.table_keys import TableKeys
     table = database_manager.get_table(TableKeys.COMMON_CONFIG)
 """
 
@@ -31,6 +31,7 @@ class TableKeys:
     # ===== Common Tables =====
     COMMON_CONFIG = f"{TableNamespaces.COMMON}.config"
     COMMON_LOGS = f"{TableNamespaces.COMMON}.logs"
+    TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
 
     # ===== Example App Tables =====
     EXAMPLE_USERS = f"{TableNamespaces.APP_EXAMPLE}.users"
@@ -45,9 +46,19 @@ class TableKeys:
     SPEECH_STT_CACHE = f"{TableNamespaces.UTIL_SPEECH}.stt_cache"
     SPEECH_STT_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.stt_config"
     SPEECH_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.config"  # Unified speech config
+    # Ledger of every local word/sentence clip (pyutils/tts/audio_resource_ledger.py).
+    SPEECH_AUDIO_RESOURCES = f"{TableNamespaces.UTIL_SPEECH}.audio_resources"
 
     # ===== Util Clipboard Tables =====
     CLIPBOARD_HISTORY = f"{TableNamespaces.UTIL_CLIPBOARD}.history"
+
+    # ===== Util Laravel Delivery Tables (pyutils/laravel/delivery_outbox.py) =====
+    LARAVEL_DELIVERIES = f"{TableNamespaces.UTIL_LARAVEL}.deliveries"
+    # Schema v1 receipts table; only read (and dropped) by the v2 migration.
+    LARAVEL_DELIVERY_RECEIPTS = f"{TableNamespaces.UTIL_LARAVEL}.delivery_receipts"
+    LARAVEL_DELIVERY_STATE = f"{TableNamespaces.UTIL_LARAVEL}.delivery_state"
+    LARAVEL_DELIVERY_METRICS = f"{TableNamespaces.UTIL_LARAVEL}.delivery_metrics"
+    LARAVEL_DELIVERY_META = f"{TableNamespaces.UTIL_LARAVEL}.delivery_meta"
 
     # ===== Voice App Tables =====
     VOICE_DICTIONARIES = f"{TableNamespaces.APP_VOICE}.dictionaries"

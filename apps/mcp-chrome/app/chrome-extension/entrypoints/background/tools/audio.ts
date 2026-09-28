@@ -1,6 +1,16 @@
 // Audio Recording Tool Handlers
 // Manages audio recording via offscreen documents and tab capture
 
+// Firefox provides neither chrome.tabCapture nor offscreen documents, so the
+// whole audio capture feature is unavailable there
+import { localStorage } from '@/services/ExtensionStorage';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { respondAsync } from '@/utils/runtime-message';
+import { delay as waitForDelay } from '@/utils/async';
+
+export const FIREFOX_AUDIO_UNSUPPORTED_ERROR =
+  'Audio recording is not supported on Firefox: chrome.tabCapture and offscreen documents are unavailable.';
+
 interface AudioConfig {
   tabId?: number;
   includeMicrophone?: boolean;
@@ -26,12 +36,29 @@ interface AudioStatus {
   chunkCount: number;
 }
 
+interface StoredAudioConfig {
+  apiServers?: AudioConfig['apiServers'];
+  recordingSettings?: {
+    includeMicrophone?: boolean;
+    saveLocal?: boolean;
+    enableAutoStop?: boolean;
+    silenceDuration?: number;
+    maxDuration?: number;
+  };
+  sessionMetadata?: AudioConfig['sessionMetadata'];
+}
+
 // Track current recording state
 let currentRecordingStatus: AudioStatus = {
   isRecording: false,
   duration: 0,
   chunkCount: 0,
 };
+
+// Wall-clock time the current recording started, captured in the background so
+// handleAudioStop can recompute an accurate final duration. The offscreen's
+// periodic 1s status tick floors duration and is up to ~1s stale by stop time.
+let recordingStartTime: number | null = null;
 
 // Track background streaming state
 let backgroundStreamingEnabled = false;
@@ -65,6 +92,10 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
   data?: any;
 }> {
   try {
+    if (import.meta.env.FIREFOX) {
+      return { success: false, error: FIREFOX_AUDIO_UNSUPPORTED_ERROR };
+    }
+
     console.log('[Audio Tools] Starting audio recording with params:', params);
 
     // Check if already recording
@@ -116,18 +147,27 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
       });
 
       // Wait a bit for offscreen to initialize
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await waitForDelay(500);
     }
 
     // Get stream ID for tab capture
     console.log('[Audio Tools] Getting media stream ID for tab:', targetTab.id);
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: targetTab.id,
+    const streamId = await new Promise<string>((resolve, reject) => {
+      chrome.tabCapture.getMediaStreamId({ targetTabId: targetTab.id }, (resolvedStreamId) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message));
+          return;
+        }
+        resolve(resolvedStreamId);
+      });
     });
 
     // Load audio config from storage or use defaults
-    const storedConfig = await chrome.storage.local.get(['audioRecordingConfig']);
-    const audioConfig = storedConfig.audioRecordingConfig || {};
+    const audioConfig = await localStorage.get<StoredAudioConfig>(
+      STORAGE_KEYS.AUDIO_RECORDING_CONFIG,
+      {},
+    );
 
     // Merge with MCP params
     const selectedServers = (params.apiServers?.length ? params.apiServers : audioConfig.apiServers) || [];
@@ -174,6 +214,7 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
       currentRecordingStatus.isRecording = true;
       currentRecordingStatus.duration = 0;
       currentRecordingStatus.chunkCount = 0;
+      recordingStartTime = Date.now();
 
       return {
         success: true,
@@ -200,6 +241,35 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
 }
 
 /**
+ * Wait briefly for the offscreen's final recording-status update after a stop.
+ * The offscreen's stopRecording responds before the final MediaRecorder
+ * ondataavailable (which carries the last chunk) fires, so the periodic status
+ * tick is stale by up to 1s and may miss the final chunk. The first post-stop
+ * status update carries isRecording=false and the final chunkCount; resolve on
+ * it, falling back to the last known status after timeoutMs.
+ */
+function waitForFinalRecordingStatus(timeoutMs: number): Promise<AudioStatus> {
+  return new Promise((resolve) => {
+    const baselineChunks = currentRecordingStatus.chunkCount;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handler = (message: any) => {
+      if (message?.type !== 'audio_recording_status_update') return;
+      const status = message.status as AudioStatus;
+      if (!status.isRecording || status.chunkCount > baselineChunks) {
+        if (timer) clearTimeout(timer);
+        chrome.runtime.onMessage.removeListener(handler);
+        resolve(status);
+      }
+    };
+    chrome.runtime.onMessage.addListener(handler);
+    timer = setTimeout(() => {
+      chrome.runtime.onMessage.removeListener(handler);
+      resolve({ ...currentRecordingStatus });
+    }, timeoutMs);
+  });
+}
+
+/**
  * Handle chrome_audio_stop tool request
  */
 export async function handleAudioStop(params?: {
@@ -210,6 +280,10 @@ export async function handleAudioStop(params?: {
   data?: any;
 }> {
   try {
+    if (import.meta.env.FIREFOX) {
+      return { success: false, error: FIREFOX_AUDIO_UNSUPPORTED_ERROR };
+    }
+
     console.log('[Audio Tools] Stopping audio recording');
 
     if (!currentRecordingStatus.isRecording) {
@@ -225,16 +299,26 @@ export async function handleAudioStop(params?: {
     });
 
     if (response && response.success !== false) {
-      const finalStatus = { ...currentRecordingStatus };
+      // The offscreen's stopRecording responds before the final MediaRecorder
+      // ondataavailable fires, so the periodic status tick backing
+      // currentRecordingStatus is stale by up to 1s and may miss the final
+      // chunk. Wait briefly for the offscreen's final status update before
+      // snapshotting chunkCount, and recompute duration from the start time.
+      const finalStatus = await waitForFinalRecordingStatus(1500);
+      const finalDuration =
+        recordingStartTime !== null
+          ? Math.floor((Date.now() - recordingStartTime) / 1000)
+          : finalStatus.duration;
       currentRecordingStatus.isRecording = false;
       currentRecordingStatus.duration = 0;
       currentRecordingStatus.chunkCount = 0;
+      recordingStartTime = null;
 
       return {
         success: true,
         data: {
           stopped: true,
-          finalDuration: finalStatus.duration,
+          finalDuration,
           totalChunks: finalStatus.chunkCount,
         },
       };
@@ -383,31 +467,19 @@ export function setupAudioStatusListener() {
 
     // Handle messages from popup
     if (message.type === 'audio_start_recording') {
-      handleAudioStart(message.config)
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true; // Keep channel open for async response
+      return respondAsync(sendResponse, handleAudioStart(message.config));
     }
 
     if (message.type === 'audio_stop_recording') {
-      handleAudioStop()
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true;
+      return respondAsync(sendResponse, handleAudioStop());
     }
 
     if (message.type === 'audio_toggle_background_streaming') {
-      handleBackgroundStreamingToggle(message)
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true;
+      return respondAsync(sendResponse, handleBackgroundStreamingToggle(message));
     }
 
     if (message.type === 'audio_get_recording_status') {
-      handleAudioStatus()
-        .then((result) => sendResponse(result))
-        .catch((error) => sendResponse({ success: false, error: error.message }));
-      return true;
+      return respondAsync(sendResponse, handleAudioStatus());
     }
   });
 }
@@ -416,6 +488,11 @@ export function setupAudioStatusListener() {
  * Cleanup offscreen document on extension shutdown
  */
 export async function cleanupAudioResources() {
+  if (import.meta.env.FIREFOX) {
+    // No offscreen documents exist on Firefox; nothing to clean up
+    return;
+  }
+
   try {
     const hasOffscreen = await chrome.offscreen.hasDocument();
     if (hasOffscreen) {

@@ -3,6 +3,12 @@
 Unified App Manager Core
 Cross-platform application management system
 
+DEPRECATED: This Python core is deprecated.
+New implementations (no Python dependency):
+  Windows: scripts/app_manager/windows_ps1/app_manager.ps1
+  Linux:   scripts/app_manager/linux_sh/app_manager.sh
+dd.ps1 and dd.sh launch the new scripts; this module is kept for backward compatibility.
+
 This module provides the main logic for the unified app manager,
 communicating with shell/PowerShell through global variables.
 """
@@ -674,7 +680,7 @@ class UnifiedAppManager:
                         menu.clear_screen()
                         menu.log_header("Creating Service with Domain Proxy")
                         menu.log_info(f"App: {app.name}")
-                        menu.log_info(f"Domain: {domain}")
+                        menu.log_info(f"Domains: {', '.join(domains)}")
                         print()
                         menu.log_success("Proxy creation command prepared")
                         print()

@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# Core_node Project Restore - NON-DESTRUCTIVE.
+# Extracts a core_node backup into a NEW timestamped directory next to the project.
+# It NEVER moves, overwrites or deletes the live checkout (which also hosts this
+# running script) -- the operator inspects the extracted copy and swaps it in by hand.
+
+RESTORE_CORE_NODE_VERSION="1.0.0"
+
+# Load common functions if not already loaded
+if [[ -z "$GVAR_COMMON_LOADED" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
+    source "$COMMON_DIR/gvar_common.sh"
+    source "$COMMON_DIR/common_functions.sh"
+fi
+
+# Reuse the core module's config (CORE_NODE_ROOT_DIR_RESOLVED, verify_backup, ...).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/backup_core_node_core.sh"
+
+# Restore (extract) a core_node backup into a fresh directory. $1 = backup file.
+restore_core_node() {
+    local backup_file="$1"
+    local base_name parent_dir restore_dir confirm
+
+    print_header_from_common_functions "Core_node Restore (non-destructive)"
+
+    if [[ -z "$backup_file" ]] || [[ ! -e "$backup_file" ]]; then
+        print_error_from_common_functions "Backup not found: $backup_file"
+        return 1
+    fi
+
+    # A backup is either a .tar.gz archive (verify integrity) or a plain dir copy.
+    if [[ -f "$backup_file" ]]; then
+        if ! verify_backup "$backup_file"; then
+            print_error_from_common_functions "Backup integrity check failed; not restoring."
+            return 1
+        fi
+    elif [[ ! -d "$backup_file" ]]; then
+        print_error_from_common_functions "Backup is neither a file nor a directory: $backup_file"
+        return 1
+    fi
+
+    base_name="$(basename "$CORE_NODE_ROOT_DIR_RESOLVED")"
+    parent_dir="$(dirname "$CORE_NODE_ROOT_DIR_RESOLVED")"
+    restore_dir="$parent_dir/${base_name}_restored_$(date +%Y%m%d-%H%M%S)"
+
+    print_info_from_common_functions "Backup file: $(basename "$backup_file")"
+    print_warning_from_common_functions "NON-DESTRUCTIVE: extracts to a NEW directory; the live checkout at"
+    print_warning_from_common_functions "  $CORE_NODE_ROOT_DIR_RESOLVED  is NOT moved, overwritten or deleted."
+    print_info_from_common_functions "Extract destination: $restore_dir"
+    echo ""
+    echo -n "Proceed with extraction? (yes/no): "
+    read -r confirm
+    if [[ "$confirm" != "yes" ]]; then
+        print_info_from_common_functions "Restore cancelled"
+        return 0
+    fi
+
+    if ! $USE_SUDO mkdir -p "$restore_dir"; then
+        print_error_from_common_functions "Cannot create destination: $restore_dir"
+        return 1
+    fi
+
+    print_step_from_common_functions "Restoring into $restore_dir ..."
+    local restore_rc=0
+    if [[ -d "$backup_file" ]]; then
+        # Directory-copy backup: replicate its contents into restore_dir.
+        if command -v rsync >/dev/null 2>&1; then
+            $USE_SUDO rsync -a "$backup_file/" "$restore_dir/"; restore_rc=$?
+        else
+            $USE_SUDO cp -a "$backup_file/." "$restore_dir/"; restore_rc=$?
+        fi
+    else
+        # .tar.gz archive: extract, dropping the leading "<base_name>/".
+        $USE_SUDO tar -xzf "$backup_file" -C "$restore_dir" --strip-components=1 2>/dev/null; restore_rc=$?
+    fi
+    if [[ "$restore_rc" -eq 0 ]]; then
+        echo ""
+        print_success_from_common_functions "Restored a clean copy to: $restore_dir"
+        print_info_from_common_functions "Inspect it, then swap it in MANUALLY if you want it to become the live checkout."
+        print_info_from_common_functions "Dependency/cache/build dirs were not in the backup -- reinstall (npm/pip/composer/cargo/...) as needed."
+    else
+        print_error_from_common_functions "Extraction failed"
+        $USE_SUDO rmdir "$restore_dir" 2>/dev/null || true
+        return 1
+    fi
+    return 0
+}

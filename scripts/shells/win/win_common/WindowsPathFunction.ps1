@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 param (
     [string]$action,
     [string]$param1,
@@ -22,6 +10,8 @@ $systemName = "win"
 $osInfo = Get-CimInstance Win32_OperatingSystem
 $winVer = $osInfo.Version
 $winBuild = [int]$osInfo.BuildNumber
+$windowsPathInitializationState = Get-Variable -Name 'PycoreWindowsPathInitialized' -Scope Global -ErrorAction SilentlyContinue
+$windowsPathInitializationRequired = (-not $SkipInit) -and (($null -eq $windowsPathInitializationState) -or (-not [bool]$windowsPathInitializationState.Value) -or ($action -eq 'init'))
 
 $Global:HAS_ADMIN_RIGHTS = $false
 try {
@@ -31,12 +21,14 @@ try {
     $Global:HAS_ADMIN_RIGHTS = $false
 }
 
-if (-not $Global:HAS_ADMIN_RIGHTS) {
-    Write-Log "ERROR: This script requires Administrator privileges" -color "Red"
-    Write-Log "Please run PowerShell as Administrator and try again" -color "Yellow"
-    Write-Log "Right-click PowerShell -> Run as Administrator" -color "Yellow"
-    exit 1
+function Write-Log {
+    param (
+        [string]$message,
+        [string]$color = "White"
+    )
+    Write-Host $message -ForegroundColor $color
 }
+
 
 if ($winBuild -ge 22000) {
     $systemName = "win11"
@@ -70,19 +62,11 @@ $Global:WINENVS_DIR = ".winenvs"
 # Load GlobalVars.ps1 to get PROJECT_DIR and INLINE_WINENVS_DIR
 # This is needed when WindowsPathFunction.ps1 is called as a standalone script
 $scriptDir = $PSScriptRoot
-if ($scriptDir) {
-    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
-    if (Test-Path $globalVarsPath) {
-        . $globalVarsPath
-    }
-}
-
-function Write-Log {
-    param (
-        [string]$message,
-        [string]$color = "White"
-    )
-    Write-Host $message -ForegroundColor $color
+$globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+$globalVarsLoaded = Get-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -ErrorAction SilentlyContinue
+if ($null -eq $globalVarsLoaded -or -not [bool]$globalVarsLoaded.Value) {
+    . $globalVarsPath
+    Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 }
 
 function Test-IsExecutableFile {
@@ -237,7 +221,7 @@ function Normalize-WindowsPath {
 function Backup-Environment {
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $backupDir = "D:\.tmp\.GlobalEnv"
-    $backupFile = "$backupDir\path_$timestamp.bak"
+    $backupFile = Join-Path $backupDir ("path_{0}.bak" -f $timestamp)
 
     try {
         if (-not (Test-Path $backupDir)) {
@@ -266,6 +250,7 @@ function Backup-Environment {
 
 function Add-Path {
     param (
+        [Alias('PathToAdd')]
         [string]$newPath
     )
 
@@ -278,10 +263,23 @@ function Add-Path {
         }
     }
 
+    $newPath = Normalize-WindowsPath $newPath
+    if (-not $newPath) { return }
+
+    if (-not $Global:HAS_ADMIN_RIGHTS) {
+        $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+        $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+        $combinedPath = if ($userPath) { "$userPath;$machinePath" } else { $machinePath }
+        if ($combinedPath -notlike "*$newPath*") {
+            [Environment]::SetEnvironmentVariable("Path", "$newPath;$combinedPath", "Process")
+        }
+        Write-Log "Session PATH updated (admin required for permanent Machine PATH): $newPath" -color "Yellow"
+        return
+    }
+
     try {
         $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
         $paths = $currentPath -split ';'
-        $newPath = Normalize-WindowsPath $newPath
         $pathsNormalized = $paths | ForEach-Object { Normalize-WindowsPath $_ } | Where-Object { $_ }
 
         if (-not ($pathsNormalized -contains $newPath)) {
@@ -292,6 +290,17 @@ function Add-Path {
             Write-Log "Added $newPath to PATH" -color "Green"
         } else {
             Write-Log "Path $newPath already exists" -color "Yellow"
+        }
+
+        # Always refresh current process PATH to ensure consistency (idempotent repair step)
+        # This ensures that commands executed immediately after Add-Path can access the new PATH
+        try {
+            $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+            $combinedPath = if ($userPath) { "$userPath;$machinePath" } else { $machinePath }
+            [Environment]::SetEnvironmentVariable("Path", $combinedPath, "Process")
+        } catch {
+            Write-Log "Warning: Failed to refresh current process PATH: $($_.Exception.Message)" -color "Yellow"
         }
     } catch {
         Write-Log "ERROR: Failed to add $newPath to PATH: $($_.Exception.Message)" -color "Red"
@@ -739,36 +748,39 @@ function Sync-InlineToGlobal {
 
 # Ensure .winenvs exists in Machine PATH before executing any action (after all functions are defined)
 # Only run initialization if -SkipInit is not specified
-if (-not $SkipInit) {
+if ($windowsPathInitializationRequired) {
     Write-Log "Initializing WindowsPathFunction..." -color "Cyan"
 
-    try {
-        $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
-        $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
-        if ($winEnvsNormGuard) {
-            Add-Path -newPath $winEnvsNormGuard
+    if (-not $Global:HAS_ADMIN_RIGHTS) {
+        Write-Log "WindowsPathFunction initialization complete (session only; admin required for Machine PATH)" -color "Yellow"
+    } else {
+        try {
+            $winEnvsDirGuard = Join-Path $Global:LANG_COMPILER_DIR $Global:WINENVS_DIR
+            $winEnvsNormGuard = Normalize-WindowsPath $winEnvsDirGuard
+            if ($winEnvsNormGuard) {
+                Add-Path -newPath $winEnvsNormGuard
+            }
+        } catch {
+            Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
         }
-    } catch {
-        Write-Log "Failed to add .winenvs to PATH: $($_.Exception.Message)" -color "Red"
-    }
 
-    # Ensure inline winenvs exists in Machine PATH before executing any action (after all functions are defined)
-    try {
-        $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
-        $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
-        if ($inlineWinEnvsNormGuard) {
-            Add-Path -newPath $inlineWinEnvsNormGuard
+        try {
+            $inlineWinEnvsDirGuard = $Global:INLINE_WINENVS_DIR
+            $inlineWinEnvsNormGuard = Normalize-WindowsPath $inlineWinEnvsDirGuard
+            if ($inlineWinEnvsNormGuard) {
+                Add-Path -newPath $inlineWinEnvsNormGuard
+            }
+        } catch {
+            Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
         }
-    } catch {
-        Write-Log "Failed to add inline winenvs to PATH: $($_.Exception.Message)" -color "Red"
-    }
 
-    Write-Log "WindowsPathFunction initialization complete" -color "Green"
-} else {
-    Write-Log "WindowsPathFunction initialization skipped (SkipInit flag)" -color "Gray"
+        Write-Log "WindowsPathFunction initialization complete" -color "Green"
+    }
+    Set-Variable -Name 'PycoreWindowsPathInitialized' -Scope Global -Value $true
 }
 
-# Main logic
+# Main logic (skip when dot-sourced without an explicit action)
+if (-not [string]::IsNullOrWhiteSpace($action)) {
 switch ($action) {
     "init" {
         # Explicit initialization action
@@ -964,5 +976,4 @@ switch ($action) {
         Write-Log "Use WindowsPathFunction.ps1 v1.0.0; help ?" -color "Green"
     }
 }
-
-
+}

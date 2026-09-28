@@ -32,6 +32,26 @@ class EnvironmentVariableManager:
         self.raw_dir = self.path_config.raw_secret_dir
         self.file_number_manager = file_number_manager or FileNumberManager(project_root)
 
+    @staticmethod
+    def _normalize_secret_value(var_name: str, var_value: str) -> str:
+        """Normalize values before save / session set (e.g. strip trailing / on ARKCLI_API)."""
+        if not var_value:
+            return var_value
+        if var_name == 'ARKCLI_API':
+            value = var_value.rstrip('/')
+            # Claude Code expects Anthropic-compatible root, not OpenAI chat path.
+            for suffix in (
+                '/v1/chat/completions',
+                '/chat/completions',
+                '/v1/messages',
+                '/messages',
+            ):
+                if value.lower().endswith(suffix):
+                    value = value[: -len(suffix)].rstrip('/')
+                    break
+            return value
+        return var_value
+
     def set_environment_variables(self, config_name: str, config: Dict[str, Any]):
         """Set environment variables for the specified configuration"""
         clear_screen()
@@ -39,10 +59,10 @@ class EnvironmentVariableManager:
         ColorMessage.write("=" * len(config['DisplayName']), 'info')
         print()
 
-        if not is_admin():
-            ColorMessage.write("This operation requires administrator/root privileges.", 'error')
-            ColorMessage.write("Please run this script as administrator/root.", 'warning')
-            input("Press any key to continue...")
+        if platform.system() == 'Windows' and not is_admin():
+            ColorMessage.write("This operation requires administrator privileges (Windows system env vars).", 'error')
+            ColorMessage.write("Please run as administrator.", 'warning')
+            input("Press Enter to continue...")
             return
 
         ColorMessage.write("Current environment variable status:", 'info')
@@ -56,7 +76,23 @@ class EnvironmentVariableManager:
 
         print()
         ColorMessage.write("Enter new values for each variable.", 'info')
-        ColorMessage.write("Press Enter to skip or keep current value.", 'info')
+        ColorMessage.write("Press Enter to keep current value.", 'info')
+        ColorMessage.write(
+            "For a value already set: type a single Space then confirm [N/y] to reset to [Not set].",
+            'info'
+        )
+        if config.get('ScriptOnlyLauncher', False) or (config.get('CommandPrefix') or '').lower() == 'ark':
+            ColorMessage.write(
+                "Tip: leave all fields empty to use native arkcli interactive "
+                "profile / model / MCP selection at launch.",
+                'info'
+            )
+            ColorMessage.write(
+                "Tip: set ARKCLI_API_KEY to skip arkcli and use plain Claude "
+                "under the isolated arkN user directory (Claude data/config "
+                "stay in that custom profile). Pair with ARKCLI_API for BASE_URL.",
+                'info'
+            )
         print()
 
         new_values = {}
@@ -68,15 +104,38 @@ class EnvironmentVariableManager:
             if description:
                 ColorMessage.write(f"{display_name}: {description}", 'info')
 
+            hints = var.get('Hints') or []
+            if hints:
+                ColorMessage.write("URL hints:", 'info')
+                for hint in hints:
+                    label = hint.get('Label', '')
+                    value = hint.get('Value', '')
+                    if label and value:
+                        ColorMessage.write(f"  [{label}] {value}", 'success')
+
             if current_value:
-                prompt = f"{display_name} (current: ***hidden***): "
+                prompt = f"{display_name} (Enter=keep; Space=clear to Not set): "
             else:
                 prompt = f"{display_name} (not set): "
 
-            user_input = input(prompt).strip()
+            raw = input(prompt)
+            if current_value and raw == " ":
+                ColorMessage.write(
+                    f"Clear {display_name} to [Not set]? [N/y]: ",
+                    'warning',
+                    no_newline=True,
+                )
+                confirm = input().strip().lower()
+                if confirm == "y":
+                    new_values[var['Name']] = ""
+                    ColorMessage.write(f"Will clear {display_name} to [Not set]", 'success')
+                else:
+                    ColorMessage.write(f"Keeping current value for {display_name}", 'info')
+                continue
 
+            user_input = raw.strip()
             if user_input:
-                new_values[var['Name']] = user_input
+                new_values[var['Name']] = self._normalize_secret_value(var['Name'], user_input)
                 ColorMessage.write(f"Will set {display_name}", 'success')
             elif current_value:
                 ColorMessage.write(f"Keeping current value for {display_name}", 'info')
@@ -92,8 +151,12 @@ class EnvironmentVariableManager:
                 ColorMessage.write("For now, setting variables in current session only", 'info')
 
             for var_name, var_value in new_values.items():
-                os.environ[var_name] = var_value
-                ColorMessage.write(f"Set {var_name} in current session", 'success')
+                if var_value == "":
+                    os.environ.pop(var_name, None)
+                    ColorMessage.write(f"Cleared {var_name} in current session", 'success')
+                else:
+                    os.environ[var_name] = var_value
+                    ColorMessage.write(f"Set {var_name} in current session", 'success')
 
             print()
             ColorMessage.write("Environment variables updated in current session", 'success')
@@ -111,25 +174,42 @@ class EnvironmentVariableManager:
         input("Press Enter to continue...")
 
     def save_environment_variables_only(self, config_name: str, config: Dict[str, Any], file_number: int, user_inputs: Dict[str, str]):
-        """Save environment variables to encrypted storage only (no script generation)"""
+        """Save environment variables to encrypted storage only (no script generation).
+
+        Empty-string values clear the secret file (reset to [Not set]).
+        """
         if not self.raw_dir.exists():
             self.raw_dir.mkdir(parents=True, exist_ok=True)
 
         saved_count = 0
+        cleared_count = 0
         for var_name, var_value in user_inputs.items():
             secret_key_name = f"{var_name}_{file_number}"
             secret_file = self.raw_dir / secret_key_name
 
             try:
+                if var_value == "" or var_value is None:
+                    if secret_file.exists():
+                        secret_file.unlink()
+                    # Also drop session env if present.
+                    if var_name in os.environ:
+                        os.environ.pop(var_name, None)
+                    ColorMessage.write(f"[OK] Cleared {secret_key_name} to [Not set] ({secret_file})", 'success')
+                    cleared_count += 1
+                    continue
+
+                var_value = self._normalize_secret_value(var_name, var_value)
                 safe_write_secret(secret_file, var_value)
-                ColorMessage.write(f"[OK] Saved {var_name} to .secret_ignore", 'success')
+                ColorMessage.write(f"[OK] Saved {secret_key_name} -> {secret_file}", 'success')
                 saved_count += 1
             except Exception as e:
-                ColorMessage.write(f"[X] Error saving {var_name}: {e}", 'warning')
+                ColorMessage.write(f"[X] Error saving {secret_key_name}: {e}", 'warning')
 
         if saved_count > 0:
             ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} secrets to .secret_ignore", 'success')
             ColorMessage.write(f"Location: {self.raw_dir}", 'info')
+        if cleared_count > 0:
+            ColorMessage.write(f"Cleared {cleared_count} secret(s) to [Not set]", 'success')
 
     def view_environment_variables(self, config_name: str, config: Dict[str, Any]):
         """View environment variables from .secret_ignore directory for the specified configuration"""
@@ -171,7 +251,10 @@ class EnvironmentVariableManager:
         print()
 
         ColorMessage.write(f"Reading from: {self.raw_dir}", 'info')
-        ColorMessage.write(f"File number: {file_number}", 'info')
+        ColorMessage.write("Key files:", 'info')
+        for var in config['Variables']:
+            secret_key_name = f"{var['Name']}_{file_number}"
+            ColorMessage.write(f"  {secret_key_name} -> {self.raw_dir / secret_key_name}", 'info')
         print()
 
         found_count = 0
@@ -179,16 +262,12 @@ class EnvironmentVariableManager:
             display_name = var.get('DisplayName', var['Name'])
             var_name = var['Name']
             secret_key_name = f"{var_name}_{file_number}"
-            
+
             value = resolve_secret_value(secret_key_name)
 
-            ColorMessage.write(f"{display_name}: ", 'info', no_newline=True)
+            ColorMessage.write(f"{display_name} ({secret_key_name}): ", 'info', no_newline=True)
             if value:
-                if len(value) > 70:
-                    preview = value[:67] + "..."
-                else:
-                    preview = value
-                ColorMessage.write(preview, 'success')
+                ColorMessage.write(value, 'success')
                 found_count += 1
             else:
                 ColorMessage.write("[Not set]", 'warning')
@@ -291,7 +370,7 @@ class EnvironmentVariableManager:
             print()
             ColorMessage.write("Environment variables in backup:", 'info')
             for var_name, var_value in env_vars.items():
-                ColorMessage.write(f"  {var_name}: ***hidden***", 'info')
+                ColorMessage.write(f"  {var_name}: {var_value}", 'info')
 
             print()
             ColorMessage.write("Do you want to restore these variables? (y/N): ", 'warning', no_newline=True)
@@ -466,4 +545,3 @@ if ($currentUserPath -notlike "*$newPath*") {{
 
 
 __all__ = ['EnvironmentVariableManager']
-

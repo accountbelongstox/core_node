@@ -1,17 +1,5 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
 
 # Get WindowsPathFunction.ps1 path
 $windowsPathFunctionPath = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common\WindowsPathFunction.ps1"
@@ -227,7 +215,7 @@ function PringInstallResult {
 
     try {
         $gitVersion = & $GIT_EXE_PATH --version 2>&1
-        if ($LASTEXITCODE -eq 0 -and $gitVersion) {
+        if (("$gitVersion").Contains('git version')) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Git version: $gitVersion" -Type "Success"
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Git installation path: $GIT_EXE_PATH" -Type "Success"
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Current Git configuration:" -Type "Info"
@@ -278,7 +266,7 @@ function Ensure-GitContextMenu {
 
     foreach ($context in $contextPaths.GetEnumerator()) {
         $regPath = $context.Value.Path
-        $commandPath = "$regPath\command"
+        $commandPath = Join-Path $regPath "command"
         $contextType = $context.Value.Type
         $commandArg = $context.Value.Command
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PySide6.QtCore import QUrlQuery
 """
 PySide6 WebView - Web Content Display Widget
 
@@ -11,9 +12,20 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
 from PySide6.QtGui import QColor
+import time
 
 from typing import Optional
 from pathlib import Path
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
+
+try:
+    _QURLQUERY_AVAILABLE = True
+except ImportError:
+    QUrlQuery = None
+    _QURLQUERY_AVAILABLE = False
+
 
 
 class PySide6WebView(QWidget):
@@ -95,7 +107,6 @@ class PySide6WebView(QWidget):
 
         # CRITICAL: Apply Tier 3 QtWebEngine configuration for WebCodecs/WebGL support
         # This is the final redundant layer after Tier 1 (env) and Tier 2 (qputenv)
-        from .webengine_config import configure_webengine_tier3_settings
         configure_webengine_tier3_settings(settings)
 
         # Connect signals
@@ -104,6 +115,15 @@ class PySide6WebView(QWidget):
         self.web_view.loadProgress.connect(self.load_progress.emit)
         self.web_view.urlChanged.connect(self.url_changed.emit)
         self.web_view.titleChanged.connect(self.title_changed.emit)
+        # Recover from a Chromium render/GPU process crash (e.g. the
+        # DirectComposition / IDCompositionDevice4 GPU-init failure seen on some
+        # drivers). Without this the view goes permanently blank; here we auto-
+        # reload once, bounded by a counter so a crash-loop can't spin forever.
+        self.web_view.renderProcessTerminated.connect(self._on_render_process_terminated)
+        self._render_crash_count = 0
+        self._load_retry_count = 0
+        self._requested_url: Optional[str] = None
+        self._active_tray_timing = None
 
         # Create loading widget
         self._create_loading_widget()
@@ -147,6 +167,9 @@ class PySide6WebView(QWidget):
             show_loading: Show loading animation while loading (default: True)
             loading_style: Loading animation style (1-14, default: 1)
         """
+        self._requested_url = url
+        self._load_retry_count = 0
+
         # Show loading page first
         if show_loading:
             self._show_default_loading_page(loading_style)
@@ -160,6 +183,27 @@ class PySide6WebView(QWidget):
             self.web_view.load(file_url)
         else:
             self.web_view.load(QUrl(url))
+
+    def on_window_shown(self, timing=None):
+        """Refresh an abandoned or uninitialized page after the window is shown."""
+        self._active_tray_timing = timing
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} webview_window_shown "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
+        current_url = self.get_url()
+        if not self._requested_url:
+            return
+        if not current_url or self._load_retry_count > 5:
+            ColorPrint.yellow(
+                "[PySide6WebView] Window shown with an unavailable page; "
+                "resetting load retries and reloading the requested URL"
+            )
+            self.load_url(self._requested_url)
+            return
+        self._load_retry_count = 0
 
     def load_html(self, html: str, base_url: Optional[str] = None, show_loading: bool = True, loading_style: int = 1):
         """
@@ -260,7 +304,6 @@ class PySide6WebView(QWidget):
             # Build URL with query parameters
             url = QUrl.fromLocalFile(str(file_path.absolute()))
             # Add query parameters
-            from PySide6.QtCore import QUrlQuery
             query = QUrlQuery()
             query.addQueryItem("style", str(style))
             query.addQueryItem("text", text)
@@ -374,11 +417,61 @@ class PySide6WebView(QWidget):
     @Slot(bool)
     def _on_load_finished(self, success: bool):
         """Handle load finished."""
+        timing = self._active_tray_timing
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            level = "green" if success else "yellow"
+            log_method = getattr(ColorPrint, level)
+            log_method(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} webview_load_finished "
+                f"success={success} wall={time.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"elapsed={elapsed_ms:.3f}ms"
+            )
         if success:
             # Hide loading page immediately (no delay needed with QStackedWidget)
             self.hide_loading_page()
+            self._load_retry_count = 0
+        else:
+            # A failed/aborted load (e.g. ERR_CONNECTION_REFUSED while the UI dev
+            # server at :13054 is briefly unavailable during a singleton takeover /
+            # dev-server restart). Auto-retry a bounded number of times before
+            # giving up, so a transient gap doesn't strand the webview blank.
+            self._load_retry_count += 1
+            if self._load_retry_count <= 5:
+                ColorPrint.yellow(
+                    f"[PySide6WebView] Load failed (attempt {self._load_retry_count}/5): "
+                    f"{self.get_url()} — retrying in 1s")
+                QTimer.singleShot(1000, self.web_view.reload)
+            else:
+                ColorPrint.red(f"[PySide6WebView] Load failed after 5 retries: {self.get_url()}")
+                self.hide_loading_page()
 
         self.load_finished.emit(success)
+
+    def _on_render_process_terminated(self, status, exit_code):
+        """
+        Handle a Chromium render-process termination (crash / killed / GPU loss).
+
+        A terminated render process leaves the page blank but does NOT exit the
+        host app (the Qt loop keeps running). We attempt a single auto-reload to
+        recover transient GPU/compositor crashes; a small cap prevents a reload
+        crash-loop from hammering a genuinely broken renderer.
+        """
+        self._render_crash_count += 1
+        ColorPrint.yellow(
+            f"[PySide6WebView] Render process terminated "
+            f"(status={status}, exit_code={exit_code}, "
+            f"attempt={self._render_crash_count}) url={self.get_url()}")
+        if self._render_crash_count <= 3:
+            ColorPrint.yellow("[PySide6WebView] Scheduling webview reload to recover...")
+            QTimer.singleShot(1500, self.web_view.reload)
+        else:
+            # Repeated render crashes usually mean the GPU/compositor path is broken
+            # on this driver. Persist a software-rendering request so the NEXT launch
+            # comes up on the safe path instead of crash-looping the GPU.
+            ColorPrint.red("[PySide6WebView] Render process crashed repeatedly; "
+                           "persisting software-rendering fallback for next launch.")
+            mark_gpu_fallback(f"renderProcessTerminated x{self._render_crash_count}")
 
     def get_url(self) -> str:
         """Get current URL."""

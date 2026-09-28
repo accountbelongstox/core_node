@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Flutter Global Variables and Constants System
 # Cross-platform variable exchange between PowerShell and Python
 # Author: Development Script System
@@ -24,7 +12,7 @@ $Global:BUILD_DIR = "D:\programing\.build_dir"
 $Global:FLUTTER_PROJECT_DIR = $Global:SCRIPT_ROOT_DIR
 
 # FTemp Directory Configuration - Using user home .core_node cache
-$Global:CORE_NODE_USER_CACHE = Join-Path $env:USERPROFILE ".core_node\.flutter_build\.cache"
+$Global:CORE_NODE_USER_CACHE = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\.flutter_build\.cache"
 $Global:FTEMP_FLUTTER_DIR = Join-Path $Global:CORE_NODE_USER_CACHE "flutter_bloom"
 
 # Use home directory for cross-session cache
@@ -39,7 +27,7 @@ $Global:ASSETS_INTERNAL_PLUGIN_DIR_TEMPLATE = "$Global:FLUTTER_PROJECT_DIR\asset
 $Global:DEBUG_MODE = $false
 
 # Gvar Exchange Directory - Updated to use .core_node directory
-$Global:CORE_NODE_BASE_DIR = Join-Path $env:USERPROFILE ".core_node"
+$Global:CORE_NODE_BASE_DIR = "D:\programing\Users\$env:USERNAME\.core_node"
 $Global:FLUTTER_BUILD_BASE_DIR = Join-Path $Global:CORE_NODE_BASE_DIR ".flutter_build"
 $Global:GVAR_EXCHANGE_DIR = Join-Path $Global:FLUTTER_BUILD_BASE_DIR "global_vars"
 
@@ -47,7 +35,7 @@ $Global:GVAR_EXCHANGE_DIR = Join-Path $Global:FLUTTER_BUILD_BASE_DIR "global_var
 $Global:TEMP_BUILD_DIR_FILE = "temp_build_dir.txt"
 
 # Logging system directory constants
-$Global:LOG_BASE_DIR = Join-Path $env:USERPROFILE ".core_node\.flutter_build\logs"
+$Global:LOG_BASE_DIR = Join-Path "D:\programing\Users\$env:USERNAME\.core_node\.flutter_build\logs"
 
 # Step 4 extended shared variables for complete image processing information
 $Global:STEP4_PROCESSED_PATH_PREFIX = "STEP4_PROCESSED_PATH_"

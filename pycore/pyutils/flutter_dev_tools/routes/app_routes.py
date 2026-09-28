@@ -8,8 +8,9 @@ from http import HTTPStatus
 from pathlib import Path
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
-from pycore.pyutils.flutter_dev_tools.api import app_checker, file_tree
-from pycore.pyutils.flutter_dev_tools.utils import path_utils
+import pycore.pyutils.flutter_dev_tools.api.app_checker as app_checker
+import pycore.pyutils.flutter_dev_tools.api.file_tree as file_tree
+import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
 
 
 class AppRoutesHandler(BaseHandler):

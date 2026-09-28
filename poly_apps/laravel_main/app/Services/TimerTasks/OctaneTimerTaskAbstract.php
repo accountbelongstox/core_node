@@ -36,6 +36,11 @@ abstract class OctaneTimerTaskAbstract implements OctaneTimerTaskInterface
         return true;
     }
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_INLINE;
+    }
+
     /**
      * Log info message
      *

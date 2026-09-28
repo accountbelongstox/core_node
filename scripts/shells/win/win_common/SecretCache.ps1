@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of functions.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Enhanced Secret Cache Management for Windows PowerShell
@@ -21,7 +9,7 @@
     3. Cache cleanup - removes expired cache entries
 
     Cache Structure:
-        %UserProfile%\.core_node\cache\secret_cache\
+        D:\www\cache\secret_cache\
         ├── decryption_timestamps\    # Decryption timestamp cache
         │   ├── filename1.decrypt_time
         │   └── filename2.decrypt_time
@@ -42,17 +30,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # Import GlobalVars.ps1 if not already loaded
-if (-not (Get-Variable -Name "Global:CORE_NODE_DIR" -ErrorAction SilentlyContinue)) {
-    $scriptDir = $PSScriptRoot
-    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
-
-    if (Test-Path $globalVarsPath) {
-        . $globalVarsPath
-    } else {
-        Write-Error "ERROR: GlobalVars.ps1 not found. Cannot determine cache directory."
-        exit 1
-    }
-}
+$scriptDir = $PSScriptRoot
+$globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+. $globalVarsPath
 
 <#
 .SYNOPSIS
@@ -62,10 +42,10 @@ if (-not (Get-Variable -Name "Global:CORE_NODE_DIR" -ErrorAction SilentlyContinu
     Returns the base directory for secret cache storage
 #>
 function Get-SecretCacheBaseDir {
-    $cacheDir = if ($Global:USER_CACHE_DIR) {
-        $Global:USER_CACHE_DIR
+    $cacheDir = if ($Global:CORE_NODE_CACHE_DIR) {
+        $Global:CORE_NODE_CACHE_DIR
     } else {
-        Join-Path $env:USERPROFILE ".core_node\cache"
+        $Global:WWW_CACHE_DIR
     }
 
     return Join-Path $cacheDir "secret_cache"
@@ -241,6 +221,94 @@ function Test-EncryptedContentChanged {
 
 <#
 .SYNOPSIS
+    Store raw (decrypted) file content hash as the encryption baseline
+
+.DESCRIPTION
+    Records the SHA256 hash of a raw secret file at the moment it is encrypted.
+    The reverse-direction check (Get-FilesNeedingReEncryption) uses this baseline
+    to tell a real content change apart from a mere timestamp bump caused by bulk
+    file operations (copy / restore / sync), which would otherwise trigger a
+    false "needs re-encryption" prompt.
+
+.PARAMETER FileName
+    Name of the file (without extension)
+
+.PARAMETER RawFile
+    Path to the raw (decrypted) file
+
+.EXAMPLE
+    Set-RawContentHashCache -FileName "API_KEY_1" -RawFile "C:\path\API_KEY_1"
+#>
+function Set-RawContentHashCache {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FileName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RawFile
+    )
+
+    $cacheDir = ""
+    $cacheFile = ""
+    $fileHash = $null
+
+    $cacheDir = Join-Path (Get-SecretCacheBaseDir) "raw_content_hash"
+
+    if (-not (Test-Path $cacheDir)) {
+        New-Item -ItemType Directory -Path $cacheDir -Force | Out-Null
+    }
+
+    $cacheFile = Join-Path $cacheDir "$FileName.raw_hash"
+
+    if (Test-Path $RawFile) {
+        $fileHash = Get-FileHash -Path $RawFile -Algorithm SHA256 -ErrorAction SilentlyContinue
+        if ($fileHash) {
+            Set-Content -Path $cacheFile -Value $fileHash.Hash -Force
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    Get the cached raw-content baseline hash for a file
+
+.PARAMETER FileName
+    Name of the file (without extension)
+
+.RETURNS
+    The cached SHA256 hash string, or $null if no baseline is recorded
+
+.EXAMPLE
+    $baseline = Get-CachedRawContentHash -FileName "API_KEY_1"
+#>
+function Get-CachedRawContentHash {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FileName
+    )
+
+    $cacheDir = ""
+    $cacheFile = ""
+    $cachedHash = ""
+
+    $cacheDir = Join-Path (Get-SecretCacheBaseDir) "raw_content_hash"
+    $cacheFile = Join-Path $cacheDir "$FileName.raw_hash"
+
+    if (-not (Test-Path $cacheFile)) {
+        return $null
+    }
+
+    $cachedHash = Get-Content -Path $cacheFile -ErrorAction SilentlyContinue
+
+    if ([string]::IsNullOrWhiteSpace($cachedHash)) {
+        return $null
+    }
+
+    return $cachedHash.Trim()
+}
+
+<#
+.SYNOPSIS
     Get list of encrypted files that need re-decryption due to content changes
 
 .PARAMETER EncryptedDir
@@ -256,6 +324,21 @@ function Test-EncryptedContentChanged {
 .EXAMPLE
     $needsRedecryption = Get-EncryptedFilesNeedingRedecryption -EncryptedDir "C:\encrypted" -RawDir "C:\raw"
 #>
+function Test-EncryptedContentBaselineExists {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FileName
+    )
+
+    $cacheDir = ""
+    $cacheFile = ""
+
+    $cacheDir = Join-Path (Get-SecretCacheBaseDir) "encrypted_content_hash"
+    $cacheFile = Join-Path $cacheDir "$FileName.enc_hash"
+
+    return (Test-Path $cacheFile)
+}
+
 function Get-EncryptedFilesNeedingRedecryption {
     param(
         [Parameter(Mandatory = $true)]
@@ -277,12 +360,24 @@ function Get-EncryptedFilesNeedingRedecryption {
         $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encFile.Name)
         $rawFile = Join-Path $RawDir $baseName
 
-        # Check if encrypted content changed
+        # Only consider files we have already decrypted locally. First-time decryption
+        # (raw file missing) is handled by the separate missing-files flow.
+        if (-not (Test-Path $rawFile)) {
+            continue
+        }
+
+        # A missing baseline is NOT evidence of a content change (e.g. fresh install or a
+        # cleared cache dir). Seed it from the current encrypted file and treat it as up to
+        # date, so we never raise a phantom "all files changed" prompt. Real changes are
+        # detected only when a baseline EXISTS and its hash no longer matches.
+        if (-not (Test-EncryptedContentBaselineExists -FileName $baseName)) {
+            Set-EncryptedContentHashCache -FileName $baseName -EncryptedFile $encFile.FullName
+            continue
+        }
+
+        # Baseline exists: a hash mismatch means the encrypted content actually changed.
         if (Test-EncryptedContentChanged -FileName $baseName -EncryptedFile $encFile.FullName) {
-            # Check if corresponding raw file exists
-            if (Test-Path $rawFile) {
-                $changedFiles += $baseName
-            }
+            $changedFiles += $baseName
         }
     }
 
@@ -383,19 +478,12 @@ function Clear-ExpiredSecretCache {
         }
     }
 
-    # Cleanup encrypted content hash cache
-    $hashCacheDir = Join-Path $cacheBaseDir "encrypted_content_hash"
-    if (Test-Path $hashCacheDir) {
-        $cacheFiles = Get-ChildItem -Path $hashCacheDir -Filter "*.enc_hash" -File -ErrorAction SilentlyContinue
-
-        foreach ($cacheFile in $cacheFiles) {
-            $fileAge = $currentTime - $cacheFile.LastWriteTime
-            if ($fileAge.TotalSeconds -gt $cacheExpirySeconds) {
-                Remove-Item -Path $cacheFile.FullName -Force -ErrorAction SilentlyContinue
-                $cleanedFiles++
-            }
-        }
-    }
+    # NOTE: encrypted_content_hash\*.enc_hash files are deliberately NOT expired here.
+    # They are persistent content-change baselines, not throwaway cache. Deleting them on
+    # a timer makes Test-EncryptedContentChanged see no baseline and report EVERY encrypted
+    # file as "changed", producing a phantom "Found N encrypted file(s) with content changes"
+    # prompt on the first run after expiry. The baselines are refreshed on encrypt/decrypt
+    # and stay valid until the encrypted content actually changes.
 
     if ($cleanedFiles -gt 0) {
         Write-Host "[SECRET CACHE CLEANUP] Removed $cleanedFiles expired secret cache entries" -ForegroundColor Yellow

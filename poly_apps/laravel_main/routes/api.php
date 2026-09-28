@@ -1,32 +1,36 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\JsonResponse;
+use App\Http\Middleware\GoLatency;
+use App\Support\LaravelServerIdentity;
+use App\Http\Middleware\ServerIdentityHeader;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
-// Health Check Endpoint (for Nuxt API endpoints monitoring)
-Route::get('/health', function (): JsonResponse {
+// Health Check Endpoint (for Nuxt API endpoints monitoring).
+// Liveness-only: no DB, no auth. Heavy prepended middleware (Sanctum stateful
+// boot, GoLatency) are stripped so probing stays cheap and cannot hang.
+Route::withoutMiddleware([
+    EnsureFrontendRequestsAreStateful::class,
+    GoLatency::class,
+])->get('/health', function (): JsonResponse {
     $startTime = microtime(true);
     $response = response()->json([
         'status' => 'healthy',
         'service' => 'Laravel API',
+        'api_role' => 'primary',
+        'ui_direct' => true,
         'timestamp' => now()->toIso8601String(),
-        'version' => app()->version()
+        'server_time_unix' => microtime(true),
+        'version' => app()->version(),
+        'server_id' => LaravelServerIdentity::id(),
     ]);
 
     $responseTime = (microtime(true) - $startTime) * 1000;
 
     return $response
+        ->header('Cache-Control', 'no-store, max-age=0')
+        ->header(ServerIdentityHeader::header(), LaravelServerIdentity::id())
         ->header('X-Go-Version', 'go1.21')
         ->header('X-Framework', 'Gin')
         ->header('X-Response-Time', number_format($responseTime, 10) . 'ms')
@@ -37,6 +41,7 @@ Route::get('/health', function (): JsonResponse {
 require_once __DIR__ . '/api/auth.php';
 require_once __DIR__ . '/api/system.php';
 require_once __DIR__ . '/api/public_api.php';
+require_once __DIR__ . '/CloudClipboardRouter/CloudClipboardApi.php';
 require_once __DIR__ . '/files.php';
 
 // Octane Timer Status API Routes
@@ -45,30 +50,30 @@ require_once __DIR__ . '/api/octane_timer.php';
 // OCR API Routes (for MCP bridge)
 require_once __DIR__ . '/api_ocr.php';
 
+// Local AI Gateway Routes (unified multi-provider AI; keys + rate shared with pycore)
+require_once __DIR__ . '/api/ai_local.php';
+
+// Local Word Audio Routes (real pronunciation chain: free_dictionary_api + forvo)
+require_once __DIR__ . '/api/word_audio_local.php';
+
 // McpV1 Routes
 require_once __DIR__ . '/McpV1Router/api.php';
 
-// AwyV0 Routes
-require_once __DIR__ . '/AwyV0Router/AwyV0Auth.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0User.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Friend.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Device.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Chat.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Search.php';
-require_once __DIR__ . '/AwyV0Router/AwyV0Dashboard.php';
+// Dashboard DB Viewer (auth required)
+require_once __DIR__ . '/DashboardRouter/DatabaseViewer.php';
+
+// Dashboard Database Manager (loopback debug bypass OR Sanctum) + debug-status
+require_once __DIR__ . '/DashboardRouter/DatabaseManager.php';
+
+// Dashboard code-last-modified probe (laravel-manager header)
+require_once __DIR__ . '/DashboardRouter/CodeUpdate.php';
 
 // InviteCode Controller
 use App\Http\Controllers\InviteCodeController;
 
-// Invite Code Routes
+// Registration invite-code validation and start-generated super-code redemption.
 Route::get('/invite-codes/public', [InviteCodeController::class, 'listPublic']);
 Route::post('/invite-codes/validate', [InviteCodeController::class, 'validate']);
-
-Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
-    Route::get('/invite-codes', [InviteCodeController::class, 'index']);
-    Route::post('/invite-codes', [InviteCodeController::class, 'create']);
-    Route::post('/invite-codes/{id}/deactivate', [InviteCodeController::class, 'deactivate']);
-});
 
 // ServerManagerV1 Routes
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1SystemInfoCtl;
@@ -76,22 +81,25 @@ use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1ApiInfoCt
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1FileManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CodeExecutorCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1NginxManagerCtl;
+use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1FrankenPhpManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1UnifiedManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CertificateManagerCtl;
 
 // ServerManagerV1 API Routes
 Route::prefix('servermanager/v1')->group(function () {
 
-    // API Information Route (Public)
+    // API Information Route
     Route::get('info', [ServerManagerV1ApiInfoCtl::class, 'getApiInfo']);
 
-    // System Information Routes (Public for basic info, protected for sensitive ops)
+    // System Information Routes (authenticated by the controller in production)
     Route::prefix('system')->group(function () {
         Route::get('info', [ServerManagerV1SystemInfoCtl::class, 'getSystemInfo']);
         Route::get('processes', [ServerManagerV1SystemInfoCtl::class, 'getProcesses']);
         Route::get('services', [ServerManagerV1SystemInfoCtl::class, 'getServices']);
         Route::get('permissions', [ServerManagerV1SystemInfoCtl::class, 'getPermissions']);
         Route::get('storage', [ServerManagerV1SystemInfoCtl::class, 'getStorage']);
+        Route::get('static-resources', [ServerManagerV1SystemInfoCtl::class, 'getStaticResources']);
+        Route::get('static-resources/files', [ServerManagerV1SystemInfoCtl::class, 'listStaticResourceFiles']);
     });
 
     // File Management Routes
@@ -100,6 +108,9 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('download', [ServerManagerV1FileManagerCtl::class, 'download']);
         Route::get('info', [ServerManagerV1FileManagerCtl::class, 'getFileInfo']);
         Route::get('preview', [ServerManagerV1FileManagerCtl::class, 'preview']);
+        Route::post('write', [ServerManagerV1FileManagerCtl::class, 'write']);
+        Route::post('elevated-auth', [ServerManagerV1FileManagerCtl::class, 'elevatedAuth']);
+        Route::delete('elevated-auth', [ServerManagerV1FileManagerCtl::class, 'revokeElevatedAuth']);
     });
 
     // Code Execution Routes
@@ -121,6 +132,42 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('disable', [ServerManagerV1NginxManagerCtl::class, 'disableSite']);
         Route::post('test', [ServerManagerV1NginxManagerCtl::class, 'testConfig']);
         Route::post('reload', [ServerManagerV1NginxManagerCtl::class, 'reloadNginx']);
+        Route::get('status', [ServerManagerV1NginxManagerCtl::class, 'statusOverview']);
+        Route::post('service', [ServerManagerV1NginxManagerCtl::class, 'serviceControl']);
+        Route::get('logs', [ServerManagerV1NginxManagerCtl::class, 'logs']);
+        Route::post('install', [ServerManagerV1NginxManagerCtl::class, 'install']);
+        Route::get('backups', [ServerManagerV1NginxManagerCtl::class, 'listBackups']);
+        Route::post('backups/restore', [ServerManagerV1NginxManagerCtl::class, 'restoreBackup']);
+        Route::get('main-config', [ServerManagerV1NginxManagerCtl::class, 'mainConfig']);
+        Route::get('port-check', [ServerManagerV1NginxManagerCtl::class, 'portCheck']);
+        Route::get('metrics', [ServerManagerV1NginxManagerCtl::class, 'metrics']);
+        Route::post('sites/batch', [ServerManagerV1NginxManagerCtl::class, 'batchSites']);
+        // Purge a site's web-root files (root password + "delete" confirm, core_node protected).
+        Route::post('sites/{site_name}/delete-files', [ServerManagerV1NginxManagerCtl::class, 'deleteSiteFiles']);
+        // Idempotently repair + reset all nginx config (ensure log/run dirs, quarantine broken sites, reload).
+        Route::post('repair', [ServerManagerV1NginxManagerCtl::class, 'repairConfig']);
+    });
+
+    // FrankenPHP plane management Routes (DESIGN_20260817_2115 PART_0):
+    // binary + canonical Caddyfile + plane record for the frankenphp
+    // web-server plane. Octane worker lifecycle stays in unified/octane/*.
+    Route::prefix('frankenphp')->group(function () {
+        Route::get('status', [ServerManagerV1FrankenPhpManagerCtl::class, 'statusOverview']);
+        Route::get('sites', [ServerManagerV1FrankenPhpManagerCtl::class, 'listSites']);
+        Route::post('sites', [ServerManagerV1FrankenPhpManagerCtl::class, 'createSite']);
+        Route::get('sites/{site_name}', [ServerManagerV1FrankenPhpManagerCtl::class, 'site']);
+        Route::put('sites/{site_name}', [ServerManagerV1FrankenPhpManagerCtl::class, 'updateSite']);
+        Route::delete('sites/{site_name}', [ServerManagerV1FrankenPhpManagerCtl::class, 'deleteSite']);
+        Route::post('sites/{site_name}/enable', [ServerManagerV1FrankenPhpManagerCtl::class, 'enableSite']);
+        Route::post('sites/{site_name}/disable', [ServerManagerV1FrankenPhpManagerCtl::class, 'disableSite']);
+        Route::post('reload', [ServerManagerV1FrankenPhpManagerCtl::class, 'reload']);
+        Route::get('reloads/{job_id}', [ServerManagerV1FrankenPhpManagerCtl::class, 'reloadJob']);
+        Route::post('service', [ServerManagerV1FrankenPhpManagerCtl::class, 'serviceControl']);
+        Route::post('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'ensureCaddyfile']);
+        Route::get('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'caddyfile']);
+        Route::post('test', [ServerManagerV1FrankenPhpManagerCtl::class, 'testConfig']);
+        Route::post('plane', [ServerManagerV1FrankenPhpManagerCtl::class, 'adoptPlane']);
+        Route::post('dnspod-token', [ServerManagerV1FrankenPhpManagerCtl::class, 'storeDnsPodToken']);
     });
 
     // Unified Manager Routes
@@ -147,8 +194,12 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('generate', [ServerManagerV1CertificateManagerCtl::class, 'generateCertificate']);
         Route::post('renew', [ServerManagerV1CertificateManagerCtl::class, 'renewCertificates']);
         Route::get('status', [ServerManagerV1CertificateManagerCtl::class, 'getCertificateStatus']);
+        Route::get('dns-provider', [ServerManagerV1CertificateManagerCtl::class, 'dnsProviderStatus']);
         Route::post('install-certbot', [ServerManagerV1CertificateManagerCtl::class, 'installCertbot']);
         Route::get('detect-certbot', [ServerManagerV1CertificateManagerCtl::class, 'detectCertbot']);
+        // Idempotent: generate if missing, renew if present (5m cooldown). Runs certbot async; poll progress/{id} for output.
+        Route::post('ensure', [ServerManagerV1CertificateManagerCtl::class, 'ensureCertificate']);
+        Route::get('progress/{request_id}', [ServerManagerV1CertificateManagerCtl::class, 'certificateProgress']);
     });
 
 });
@@ -164,12 +215,6 @@ Route::prefix('achat/v1')->group(function () {
     require_once __DIR__ . '/achat_v1/api_info.php';
 });
 
-// VipClubV1 Routes
-require_once __DIR__ . '/VipClubV1Router/api.php';
-
-// BankV1 Routes
-require_once __DIR__ . '/BankV1Router/BankV1Router.php';
-
 // AppQyV1 routes - app_qy vocabulary learning app
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Auth.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1System.php';
@@ -180,32 +225,128 @@ require_once __DIR__ . '/AppQyV1Router/AppQyV1User.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Vocabulary.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1Learning.php';
 require_once __DIR__ . '/AppQyV1Router/AppQyV1AITools.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Assist.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1OrchAudio.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Delivery.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1StudyGen.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1PersonDict.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Social.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1MediaContent.php';
+require_once __DIR__ . '/AppQyV1Router/AppQyV1Client.php';
 
-// McpV1 routes - MCP application
-require_once __DIR__ . '/McpV1Router/api.php';
+// DingDuoDuoV1 (订多多) extension backend - no-super-code member/license surface
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1License.php';
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1Member.php';
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1Recharge.php';
+require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1Admin.php';
+
+// PddToolV1 (订多多) admin console routes (/api/pdd/admin/*)
+require_once __DIR__ . '/PddToolV1Router/PddToolV1Admin.php';
 
 // Global Task System Routes
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\WorkerController;
-use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
+// Authentication per .claude/agents_shared/client_key_auth/laravel_route_auth.md:
+// machine-only routes take `client.key`; routes the UIs also call take
+// `client.key_or_dashboard`; operator-only routes take `dashboard.auth`.
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () {
     Route::prefix('task')->group(function () {
-        Route::post('create', [TaskController::class, 'create']);
-        Route::get('{taskId}/status', [TaskController::class, 'status']);
-        Route::get('list', [TaskController::class, 'list']);
-        Route::get('stats', [TaskController::class, 'stats']);
-        Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
-        Route::post('reset-assigned', [TaskController::class, 'resetAssigned']);
+        Route::middleware('client.key_or_dashboard')->group(function () {
+            Route::post('create', [TaskController::class, 'create']);
+            Route::get('{taskId}/status', [TaskController::class, 'status']);
+            Route::post('{taskId}/cancel', [TaskController::class, 'cancel']);
+            // Fast lane + live drilldown control plane.
+            Route::post('{taskId}/bump', [TaskController::class, 'bump']);
+            Route::get('{taskId}/detail', [TaskController::class, 'detail']);
+            Route::get('list', [TaskController::class, 'list']);
+            Route::get('stats', [TaskController::class, 'stats']);
+        });
+        Route::middleware('dashboard.auth')->group(function () {
+            Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
+            Route::post('reset-assigned', [TaskController::class, 'resetAssigned']);
+        });
     });
 
     Route::prefix('worker')->group(function () {
-        Route::post('register', [WorkerController::class, 'register']);
-        Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
-        Route::get('tasks/pull', [WorkerController::class, 'pullTasks']);
-        Route::post('tasks/result', [WorkerController::class, 'submitResult']);
-        Route::get('list', [WorkerController::class, 'list']);
-        Route::get('stats', [WorkerController::class, 'stats']);
+        // Paths mirror config/queue_center_contract.json `endpoints` (worker_*);
+        // that block is the single source pycore / mcp-chrome / the UIs render.
+        // The browser queue pump registers and accepts, so those two also take a login.
+        Route::middleware('client.key_or_dashboard')->group(function () {
+            Route::post('register', [WorkerController::class, 'register']);
+            Route::post('tasks/{taskType}/accept', [WorkerController::class, 'acceptTask']);
+            Route::get('list', [WorkerController::class, 'list']);
+            Route::get('stats', [WorkerController::class, 'stats']);
+        });
+        // Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}.
+        // {taskType} must be a key from config/queue_center_contract.json
+        // task_types (validated in the controller).
+        Route::middleware('client.key')->group(function () {
+            Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
+            Route::post('unregister', [WorkerController::class, 'unregister']);
+            Route::post('tasks/{taskType}/pull', [WorkerController::class, 'pullTasks']);
+            Route::post('tasks/{taskType}/result', [WorkerController::class, 'submitResult']);
+            Route::post('tasks/{taskType}/release', [WorkerController::class, 'releaseTasks']);
+        });
+    });
+
+    // Unified Task Center — one aggregate over BOTH task layers (scheduler +
+    // queue + workers + their relations) for the dashboard's Task Center page.
+    Route::middleware('client.key_or_dashboard')->group(function () {
+        Route::get('task-center/overview', [\App\Http\Controllers\TaskCenterController::class, 'overview']);
+        Route::get('task-center/completed', [\App\Http\Controllers\TaskCenterController::class, 'completed']);
+        Route::get('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'getSettings']);
+    });
+    Route::post('task-center/settings', [\App\Http\Controllers\TaskCenterController::class, 'updateSettings'])
+        ->middleware('dashboard.auth');
+
+    // AppQyV1 media ingestion (pycore / mcp-chrome machine callers)
+    Route::prefix('app_qy_v1/media')->group(function () {
+        Route::middleware('client.key')->group(function () {
+            Route::post('ingest', [\App\Http\Controllers\MediaIngestController::class, 'ingest']);
+            Route::post('ingest-clip', [\App\Http\Controllers\MediaIngestController::class, 'ingestClip']);
+            // Claim-free, idempotent bulk sentence-audio upload (CoreBook §5.2): pycore
+            // pushes a locally-generated mp3 keyed by content_id+language (fill-missing).
+            Route::post('audio', [\App\Http\Controllers\MediaIngestController::class, 'audio']);
+            // AI web-chat reply audio (ChatGPT/Gemini read-aloud) captured + uploaded
+            // as a binary by the mcp-chrome extension; idempotent fill-missing.
+            Route::post('ai-audio', [\App\Http\Controllers\MediaIngestController::class, 'aiAudio']);
+        });
+        Route::post('enrich', [\App\Http\Controllers\MediaIngestController::class, 'enrich'])
+            ->middleware('client.key_or_dashboard');
+
+        // READ-ONLY browse + media-file serving (dashboard movies/books browser)
+        Route::get('subtitles', [\App\Http\Controllers\MediaBrowseController::class, 'subtitles']);
+        Route::get('books', [\App\Http\Controllers\MediaBrowseController::class, 'books']);
+        // User-scoped uploaded documents (optional auth; empty when unauthenticated).
+        Route::get('documents', [\App\Http\Controllers\MediaBrowseController::class, 'documents']);
+        // Reader detail for one uploaded document (owner-scoped; sentences from the
+        // shared `doc_{id}` source-sentence store, empty until sentence-extracted).
+        Route::get('documents/{id}', [\App\Http\Controllers\MediaBrowseController::class, 'documentDetail']);
+        Route::get('subtitles/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'subtitleDetail']);
+        // Books v3.1: ordered chapter list (book -> chapter -> verses navigation).
+        Route::get('books/{source_key}/chapters', [\App\Http\Controllers\MediaBrowseController::class, 'bookChapters']);
+        // Per-chapter text + audio ingest progress (public, idempotent importers).
+        // Query: langs, variant_key, include_slots, include_text
+        Route::get('books/{source_key}/ingest-status', [\App\Http\Controllers\MediaBrowseController::class, 'bookIngestStatus']);
+        Route::get('books/{source_key}', [\App\Http\Controllers\MediaBrowseController::class, 'bookDetail']);
+        Route::get('clip/{source_key}/{name}', [\App\Http\Controllers\MediaBrowseController::class, 'clip'])
+            ->where('name', '.*');
+    });
+
+    // AppQyV1 Books document pipeline (dashboard upload -> parse -> ingest).
+    // upload + ingest are user MUTATIONS gated by dashboard.auth (loopback debug
+    // bypass OR Sanctum bearer) so same-machine dev stays tokenless while remote
+    // callers must log in; list + supported-formats stay open (read-only). PHP
+    // parses uploaded documents, computes stats, and on demand ingests
+    // sentences/words into the shared library via the v2 MediaIngestService path.
+    Route::prefix('app_qy_v1/books')->group(function () {
+        Route::middleware('dashboard.auth')->group(function () {
+            Route::post('upload', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'upload']);
+            Route::post('ingest', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'ingest']);
+        });
+        Route::post('list', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'list']);
+        Route::get('supported-formats', [\App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Books\AppQyV1BooksController::class, 'supportedFormats']);
     });
 });
 
@@ -216,20 +357,76 @@ Route::prefix('config')->group(function () {
     Route::get('paths', [PathConfigController::class, 'getPaths']);
     Route::get('paths/{name}', [PathConfigController::class, 'getPathMapping']);
     
-    // System configuration (admin only)
-    Route::middleware('auth:sanctum')->group(function () {
+    // System configuration (admin only; loopback debug bypass OR Sanctum)
+    Route::middleware('dashboard.auth')->group(function () {
         Route::get('server', [SystemConfigController::class, 'getConfig']);
         Route::put('server', [SystemConfigController::class, 'updateConfig']);
         Route::get('environment', [SystemConfigController::class, 'getEnvironment']);
     });
 });
 
-// Server Manager Routes (localhost only)
-use App\Http\Controllers\ServerManagerController;
+// Developer AI-tool history (Claude/Codex/Gemini/Cursor) — read-only, localhost only.
+use App\Http\Controllers\DevHistoryController;
 
-Route::post('server-manager/restart', [ServerManagerController::class, 'restartCurrent']);
+Route::prefix('dev-history')->middleware('local.only')->group(function () {
+    Route::get('index', [DevHistoryController::class, 'index']);
+    Route::get('prompts', [DevHistoryController::class, 'prompts']);
+    Route::get('sessions/{id}', [DevHistoryController::class, 'session']);
+    Route::post('refresh', [DevHistoryController::class, 'refresh']);
+    Route::post('prompts/update', [DevHistoryController::class, 'updatePrompt']);
+    Route::get('assist', [DevHistoryController::class, 'assist']);
+    Route::post('assist/scan', [DevHistoryController::class, 'assistScan']);
+});
+
+// Daily short-sentence center (DEPRECATED — prefer ai_tools/article/*?type=short).
+// Kept as thin wrappers over AppQyV1DailySentenceService; both old and new paths work.
+use App\Http\Controllers\AppQyV1DailySentenceController;
+
+Route::prefix('app_qy_v1/daily-sentences')->group(function () {
+    Route::get('list', [AppQyV1DailySentenceController::class, 'list']);
+    Route::get('recommend', [AppQyV1DailySentenceController::class, 'recommend']);
+    Route::get('audio/{id}', [AppQyV1DailySentenceController::class, 'audio']);
+});
 
 // Debug route - test if api routes are loaded
 Route::get('debug/test', function () {
     return response()->json(['message' => 'API routes loaded successfully']);
+});
+
+// Internal Pycore Log Mirror Route
+use App\Http\Controllers\Internal\PycoreLogController;
+
+Route::prefix('internal/pycore')->middleware('client.key')->group(function () {
+    Route::get('logs/latest', [PycoreLogController::class, 'getLatestLogs']);
+});
+
+// Relay control plane shared by the dashboard, Pycore and mcp-chrome clients.
+Route::post('queue-center/mercure-authorization', [\App\Http\Controllers\QueueCenterController::class, 'hubAuthorization'])
+    ->middleware('client.key_or_dashboard');
+
+// Relay plane (Mercure notifications plus authoritative HTTP data plane).
+require_once __DIR__ . '/RelayRouter/RelayApi.php';
+
+// Queue Center - centralized audio queues (word_audio, sentence_audio) over
+// global_tasks. Operators and machines share the control plane; the lane diff
+// is machine-only.
+use App\Http\Controllers\QueueCenterController;
+
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->prefix('queue-center')->group(function () {
+    // Paths mirror config/queue_center_contract.json `endpoints` (queue_center_*);
+    // keep both in lockstep so every end renders the same URLs.
+    Route::middleware('client.key_or_dashboard')->group(function () {
+        Route::get('overview', [QueueCenterController::class, 'overview']);
+        Route::get('events', [QueueCenterController::class, 'events']);
+        Route::get('receipts', [QueueCenterController::class, 'receipts']);
+        Route::get('queues/{queue}/items', [QueueCenterController::class, 'items']);
+        // UI pump reads: high-water ID page table + lazy page data materialization.
+        Route::get('queues/{queue}/id-pages', [QueueCenterController::class, 'idPages']);
+        Route::get('queues/{queue}/page-data', [QueueCenterController::class, 'pageData']);
+        Route::post('queues/{queue}/head', [QueueCenterController::class, 'moveToHead']);
+        Route::post('queues/{queue}/head/batch', [QueueCenterController::class, 'moveToHeadBatch']);
+        Route::post('tasks/{taskId}/cancel', [QueueCenterController::class, 'cancel']);
+        Route::post('tasks/{taskId}/retry', [QueueCenterController::class, 'retry']);
+    });
+    Route::get('queues/{queue}/diff', [QueueCenterController::class, 'diff'])->middleware('client.key');
 });

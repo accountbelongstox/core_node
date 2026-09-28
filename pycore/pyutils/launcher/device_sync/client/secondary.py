@@ -8,19 +8,21 @@ Uses global_config for shared state.
 
 import os
 import time
-import threading
 import json
 import urllib.request
 import urllib.error
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Any, Optional, Dict, List
 
-from ..core.config import get_global_config, DEFAULT_SYNC_INTERVAL
-from ..core.scanner import SimpleDeviceScanner
-from ..core.logging import setup_logging
-from ..core.database import get_sync_database
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
-logger = setup_logging(__name__)
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_SYNC_INTERVAL
+from pycore.pyutils.launcher.device_sync.core.scanner import SimpleDeviceScanner
+import pycore.pyutils.launcher.device_sync.routes as routes
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
+from pycore.pyutils.launcher.device_sync.sse_protocol import consume_sync_events
 
 
 class SimpleClient:
@@ -35,7 +37,9 @@ class SimpleClient:
         """Initialize simple client"""
         self.config = get_global_config()
         self.running = False
-        self.sync_thread: Optional[threading.Thread] = None
+        self.sync_thread: Optional[Any] = None
+        self._running_signal = f"device_sync.secondary.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Sync statistics
         self.last_sync_time: Optional[float] = None
@@ -48,49 +52,53 @@ class SimpleClient:
     def start(self):
         """Start sync client"""
         if self.running:
-            logger.warning("Client already running")
+            ColorPrint.warning("Client already running")
             return
 
         if not self.config.sync_enabled:
-            logger.warning("Sync is not enabled")
+            ColorPrint.warning("Sync is not enabled")
             return
 
         if self.config.isPrimaryServer:
-            logger.error("Cannot start client: This is PRIMARY server")
+            ColorPrint.error("Cannot start client: This is PRIMARY server")
             return
 
-        logger.info("Starting sync client...")
+        ColorPrint.info("Starting sync client...")
 
         # Discover PRIMARY server if not set
         if not self.config.primary_server_ip:
             if not self._discover_primary():
-                logger.error("Failed to discover PRIMARY server")
+                ColorPrint.error("Failed to discover PRIMARY server")
                 return
 
         # Start sync thread
         self.running = True
-        self.sync_thread = threading.Thread(target=self._sync_loop, daemon=True)
-        self.sync_thread.start()
+        THREAD_BUS.signal(self._running_signal, True)
+        self.sync_thread = start_bus_task(
+            self._sync_loop,
+            thread_name="SecondarySyncClientThread",
+        )
 
         self.config.client_running = True
 
-        logger.info(f"✓ Sync client started (syncing from {self.config.primary_server_ip}:{self.config.primary_server_port})")
+        ColorPrint.info(f"✓ Sync client started (syncing from {self.config.primary_server_ip}:{self.config.primary_server_port})")
 
     def stop(self):
         """Stop sync client"""
         if not self.running:
             return
 
-        logger.info("Stopping sync client...")
+        ColorPrint.info("Stopping sync client...")
 
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.sync_thread and self.sync_thread.is_alive():
             self.sync_thread.join(timeout=DEFAULT_SYNC_INTERVAL + 1)
 
         self.config.client_running = False
 
-        logger.info("Sync client stopped")
+        ColorPrint.info("Sync client stopped")
 
     def sync_now(self) -> bool:
         """
@@ -100,28 +108,28 @@ class SimpleClient:
             True if sync successful
         """
         if not self.config.sync_enabled:
-            logger.debug("Sync is disabled, skipping")
+            ColorPrint.debug("Sync is disabled, skipping")
             return False
 
         if not self.config.primary_server_ip:
-            logger.warning("No primary server set")
+            ColorPrint.warning("No primary server set")
             return False
 
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         # Create sync session
-        self.current_session_id = db.create_session('client', self.config.device_id)
+        self.current_session_id = record_store.create_session('client', self.config.device_id)
 
         try:
             # Get file list from primary
             file_list = self._fetch_file_list()
             if not file_list:
                 # Update session as failed
-                db.update_session(self.current_session_id, 'failed', error_message='Failed to fetch file list')
+                record_store.update_session(self.current_session_id, 'failed', error_message='Failed to fetch file list')
                 return False
 
             # Record scan
-            db.record_scan(
+            record_store.record_scan(
                 scan_type='incremental',
                 files_found=len(file_list),
                 duration_seconds=0,
@@ -132,15 +140,15 @@ class SimpleClient:
             changed_files = self._find_changed_files(file_list)
 
             if changed_files:
-                logger.info(f"Syncing {len(changed_files)} files...")
+                ColorPrint.info(f"Syncing {len(changed_files)} files...")
                 self._download_files(changed_files)
             else:
-                logger.debug("No files to sync")
+                ColorPrint.debug("No files to sync")
 
             self.last_sync_time = time.time()
 
             # Update session as completed
-            db.update_session(
+            record_store.update_session(
                 self.current_session_id,
                 'completed',
                 files_scanned=len(file_list),
@@ -151,21 +159,31 @@ class SimpleClient:
             return True
 
         except Exception as e:
-            logger.error(f"Sync error: {e}", exc_info=True)
+            ColorPrint.error(f"Sync error: {e}")
             # Update session as failed
-            db.update_session(self.current_session_id, 'failed', error_message=str(e))
+            record_store.update_session(self.current_session_id, 'failed', error_message=str(e))
             return False
 
     def _sync_loop(self):
-        """Auto sync loop (runs in background thread)"""
-        while self.running:
-            if self.config.sync_enabled:
-                self.sync_now()
-
-            # Sleep interval
-            for _ in range(DEFAULT_SYNC_INTERVAL * 10):
-                if not self.running:
-                    break
+        """Hold the PRIMARY SSE stream and sync when it emits a notification."""
+        while THREAD_BUS.get_signal(self._running_signal, False):
+            if not self.config.sync_enabled:
+                time.sleep(0.5)
+                continue
+            try:
+                consume_sync_events(
+                    self.config.primary_server_ip,
+                    self.config.primary_server_port,
+                    lambda: bool(THREAD_BUS.get_signal(self._running_signal, False)),
+                    self.sync_now,
+                )
+            except urllib.error.URLError as e:
+                ColorPrint.warning(f"Sync SSE unavailable: {e}")
+            except Exception as e:
+                ColorPrint.error(f"Sync SSE error: {e}")
+            for _ in range(10):
+                if not THREAD_BUS.get_signal(self._running_signal, False):
+                    return
                 time.sleep(0.1)
 
     def _discover_primary(self) -> bool:
@@ -175,7 +193,7 @@ class SimpleClient:
         Returns:
             True if primary found
         """
-        logger.info("Discovering PRIMARY server...")
+        ColorPrint.info("Discovering PRIMARY server...")
 
         scanner = SimpleDeviceScanner(port=self.config.http_port)
         primary = scanner.find_primary_device()
@@ -183,10 +201,10 @@ class SimpleClient:
         if primary:
             self.config.primary_server_ip = primary['ip']
             self.config.primary_server_port = primary['http_port']
-            logger.info(f"Found PRIMARY server: {self.config.primary_server_ip}:{self.config.primary_server_port}")
+            ColorPrint.info(f"Found PRIMARY server: {self.config.primary_server_ip}:{self.config.primary_server_port}")
             return True
         else:
-            logger.warning("No PRIMARY server found on network")
+            ColorPrint.warning("No PRIMARY server found on network")
             return False
 
     def _fetch_file_list(self) -> Optional[List[Dict]]:
@@ -196,7 +214,10 @@ class SimpleClient:
         Returns:
             List of file metadata dicts
         """
-        url = f"http://{self.config.primary_server_ip}:{self.config.primary_server_port}/api/files"
+        url = (
+            f"http://{self.config.primary_server_ip}:"
+            f"{self.config.primary_server_port}{routes.FILES_PATH}"
+        )
 
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
@@ -206,14 +227,14 @@ class SimpleClient:
                 if result.get('status') == 'ok':
                     return result.get('files', [])
                 else:
-                    logger.error(f"Failed to fetch file list: {result}")
+                    ColorPrint.error(f"Failed to fetch file list: {result}")
                     return None
 
         except urllib.error.URLError as e:
-            logger.error(f"Failed to fetch file list: {e}")
+            ColorPrint.error(f"Failed to fetch file list: {e}")
             return None
         except Exception as e:
-            logger.error(f"Error fetching file list: {e}", exc_info=True)
+            ColorPrint.error(f"Error fetching file list: {e}")
             return None
 
     def _find_changed_files(self, remote_files: List[Dict]) -> List[Dict]:
@@ -258,11 +279,11 @@ class SimpleClient:
         Args:
             files: List of files to download
         """
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         for file_info in files:
             path = file_info['path']
-            logger.info(f"Downloading: {path}")
+            ColorPrint.info(f"Downloading: {path}")
 
             content = self._download_file(path)
             if content:
@@ -271,7 +292,7 @@ class SimpleClient:
 
                 if success:
                     # Record successful transfer
-                    db.record_transfer(
+                    record_store.record_transfer(
                         session_id=self.current_session_id,
                         operation='upload',  # From client perspective, receiving = upload
                         file_path=path,
@@ -284,7 +305,7 @@ class SimpleClient:
                     self.total_downloaded += len(content)
                 else:
                     # Record failed transfer
-                    db.record_transfer(
+                    record_store.record_transfer(
                         session_id=self.current_session_id,
                         operation='upload',
                         file_path=path,
@@ -295,7 +316,7 @@ class SimpleClient:
                     )
             else:
                 # Record failed download
-                db.record_transfer(
+                record_store.record_transfer(
                     session_id=self.current_session_id,
                     operation='upload',
                     file_path=path,
@@ -316,18 +337,21 @@ class SimpleClient:
             File content bytes
         """
         # URL encode file path
-        encoded_path = urllib.parse.quote(file_path)
-        url = f"http://{self.config.primary_server_ip}:{self.config.primary_server_port}/api/file/{encoded_path}"
+        path = routes.file_download_path(file_path)
+        url = (
+            f"http://{self.config.primary_server_ip}:"
+            f"{self.config.primary_server_port}{path}"
+        )
 
         try:
             with urllib.request.urlopen(url, timeout=30) as response:
                 return response.read()
 
         except urllib.error.URLError as e:
-            logger.error(f"Failed to download {file_path}: {e}")
+            ColorPrint.error(f"Failed to download {file_path}: {e}")
             return None
         except Exception as e:
-            logger.error(f"Error downloading {file_path}: {e}", exc_info=True)
+            ColorPrint.error(f"Error downloading {file_path}: {e}")
             return None
 
     def _save_file(self, file_path: str, content: bytes, mtime: float) -> bool:
@@ -358,12 +382,12 @@ class SimpleClient:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to save file {file_path}: {e}")
+            ColorPrint.error(f"Failed to save file {file_path}: {e}")
             return False
 
     def is_running(self) -> bool:
         """Check if client is running"""
-        return self.running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
     def get_stats(self) -> Dict:
         """
@@ -373,7 +397,7 @@ class SimpleClient:
             Stats dict
         """
         return {
-            'running': self.running,
+            'running': bool(THREAD_BUS.get_signal(self._running_signal, False)),
             'sync_enabled': self.config.sync_enabled,
             'primary_server_ip': self.config.primary_server_ip,
             'last_sync': self.last_sync_time,

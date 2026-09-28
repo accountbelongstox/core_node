@@ -1,11 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Tampermonkey Utils Package
-
-Exports Tampermonkey server integration
-"""
-
-from pycore.pyutils.pybrowser.utils.tampermonkey.tampermonkey_server import TampermonkeyServer
-
-__all__ = ['TampermonkeyServer']
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

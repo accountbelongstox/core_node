@@ -1,0 +1,784 @@
+{
+  "schema_version": 2,
+  "protocol_version": "2",
+  "signature_profile": {
+    "algorithm": "ed25519",
+    "canonical_version": "pycore-relay",
+    "canonicalization": {
+      "method": "uppercase-ascii",
+      "path": "utf8-percent-decode-then-rfc3986-reencode",
+      "path_safe_characters": "/-._~",
+      "path_leading_slash": "exactly-one",
+      "path_query_fragment": "forbidden",
+      "path_multiple_leading_slashes": "forbidden",
+      "path_backslash": "forbidden",
+      "path_encoded_separator": "forbidden-percent-2f-and-percent-5c",
+      "path_percent_triplets": "required-valid-hex",
+      "path_control_characters": "forbidden",
+      "query": "sorted-string-pairs-form-urlencoded-utf8",
+      "query_key_and_value_types": "string-or-repeated-string-values-only",
+      "query_duplicate_values": "expand-then-sort-by-key-and-value",
+      "query_empty_value": "key-equals",
+      "query_space": "plus",
+      "query_existing_percent": "encode-as-percent-25",
+      "unicode": "utf8-no-normalization",
+      "body": "exact-transmitted-bytes"
+    },
+    "headers": {
+      "protocol": "X-Pycore-Relay-Protocol",
+      "device_id": "X-Pycore-Relay-Device-ID",
+      "credential_id": "X-Pycore-Relay-Credential-ID",
+      "credential_version": "X-Pycore-Relay-Credential-Version",
+      "timestamp": "X-Pycore-Relay-Timestamp",
+      "nonce": "X-Pycore-Relay-Nonce",
+      "content_sha256": "X-Pycore-Relay-Content-SHA256",
+      "signature": "X-Pycore-Relay-Signature"
+    }
+  },
+  "request_digest_profile": {
+    "algorithm": "sha256",
+    "serialization": "canonical-json-utf8",
+    "path": "signature_profile.canonicalization.path",
+    "query": "signature_profile.canonicalization.query",
+    "headers": "allowed-lowercase-string-map",
+    "fields": [
+      "method",
+      "path",
+      "query",
+      "headers",
+      "body_present",
+      "body_sha256",
+      "body_length"
+    ]
+  },
+  "response_digest_profile": {
+    "algorithm": "sha256",
+    "serialization": "canonical-json-utf8",
+    "fields": [
+      "status",
+      "headers",
+      "body_present",
+      "body_sha256",
+      "body_length"
+    ]
+  },
+  "endpoints": {
+    "enrollment_create": "/api/relay/device-enrollments",
+    "enrollment_status": "/api/relay/device-enrollments/{enrollment_id}",
+    "device_heartbeat": "/api/relay/device/heartbeat",
+    "device_event": "/api/relay/device/events",
+    "device_hub_authorization": "/api/relay/device/mercure-authorization",
+    "operation_claim": "/api/relay/device/operations/claim",
+    "operation_execution_start": "/api/relay/device/operations/{operation_id}/execution-start",
+    "operation_lease_renew": "/api/relay/device/operations/{operation_id}/lease",
+    "operation_result": "/api/relay/device/operations/{operation_id}/result",
+    "device_request_blob_download": "/api/relay/device/blobs/{blob_id}",
+    "device_response_blob_allocate": "/api/relay/device/operations/{operation_id}/response-blobs",
+    "device_response_blob_chunk": "/api/relay/device/blobs/{blob_id}/chunks/{chunk_index}",
+    "device_response_blob_finalize": "/api/relay/device/blobs/{blob_id}/finalize",
+    "owner_enrollment_claim": "/api/relay/device-enrollments/claim",
+    "owner_device_roster": "/api/relay/devices",
+    "owner_pairing_create": "/api/relay/pairings",
+    "owner_pairing_renew": "/api/relay/pairings/{pairingId}/renew",
+    "owner_pairing_revoke": "/api/relay/pairings/{pairingId}",
+    "owner_hub_authorization": "/api/relay/mercure-authorization",
+    "owner_operation_admit": "/api/relay/operations",
+    "owner_operation_status": "/api/relay/operations/{operationId}",
+    "owner_operation_cancel": "/api/relay/operations/{operationId}/cancel",
+    "owner_request_blob_allocate": "/api/relay/request-blobs",
+    "owner_request_blob_chunk": "/api/relay/blobs/{blobId}/chunks/{chunkIndex}",
+    "owner_request_blob_finalize": "/api/relay/blobs/{blobId}/finalize",
+    "owner_response_blob_download": "/api/relay/blobs/{blobId}"
+  },
+  "public_urls": {
+    "laravel_api_origin": "https://api.si.12gm.com",
+    "mercure_hub": "https://api.si.12gm.com/.well-known/mercure"
+  },
+  "topics": {
+    "device_wake": "{laravel_api_origin}/.well-known/relay/devices/{device_id}",
+    "owner_roster": "{laravel_api_origin}/.well-known/relay/owners/{owner_topic_token}",
+    "pairing_operation": "{laravel_api_origin}/.well-known/relay/pairings/{pairing_topic_token}"
+  },
+  "events": {
+    "operation_available": "relay.operation.available",
+    "operation_status": "relay.operation.status",
+    "pairing_changed": "relay.pairing.changed",
+    "credential_revoked": "relay.credential.revoked",
+    "device_presence": "relay.device.presence",
+    "terminal_changed": "terminal.changed",
+    "agent_history_prompt_new": "agent_history.prompt.new",
+    "agent_history_prompt_derived": "agent_history.prompt.derived",
+    "agent_history_config_changed": "agent_history.config.changed"
+  },
+  "event_payload_profiles": {
+    "operation_available": ["operation_id", "revision", "state"],
+    "operation_status": ["operation_id", "revision", "state"],
+    "pairing_changed": ["pairing_id", "revision", "state"],
+    "credential_revoked": ["device_id", "credential_id", "credential_version"],
+    "device_presence": ["device_id", "online", "device", "recommended_device_id", "selection_reason"],
+    "terminal_changed": ["pairing_id", "device_id", "revision", "metadata"],
+    "agent_history_prompt_new": ["pairing_id", "device_id", "revision", "metadata"],
+    "agent_history_prompt_derived": ["pairing_id", "device_id", "revision", "metadata"],
+    "agent_history_config_changed": ["pairing_id", "device_id", "revision", "metadata"]
+  },
+  "claim_generation_profile": {
+    "fields": ["operation_revision", "claim_epoch", "lease_owner"],
+    "query_bound_endpoints": ["device_request_blob_download", "device_response_blob_chunk"]
+  },
+  "mercure_profile": {
+    "hub_runtime": "mercure.rocks-0.24.2-embedded-frankenphp",
+    "transport": "server-sent-events",
+    "hub_path": "/.well-known/mercure",
+    "subscription_query_parameter": "topic",
+    "subscription_query_cardinality": "repeated",
+    "authorization": "bearer-private-subscriber-jwt",
+    "initial_cursor_query_parameter": "lastEventID",
+    "resume_header": "Last-Event-ID",
+    "redirects": "forbidden",
+    "updates": "notification-identifiers-and-revisions-only",
+    "history_is_authoritative": false,
+    "reconciliation_required": true
+  },
+  "lease_profile": {
+    "timestamp_format": "rfc3339-with-required-offset",
+    "execution_start_response_fields": [
+      "state",
+      "revision",
+      "claim_epoch",
+      "server_time",
+      "lease_expires_at"
+    ],
+    "renew_response_fields": [
+      "state",
+      "revision",
+      "claim_epoch",
+      "server_time",
+      "lease_expires_at"
+    ],
+    "local_deadline_source": "server-time-to-expiry-duration-on-monotonic-clock"
+  },
+  "durations": {
+    "heartbeat_seconds": 20,
+    "presence_timeout_seconds": 65,
+    "roster_reconciliation_seconds": 60,
+    "recovery_claim_seconds": 15,
+    "enrollment_poll_seconds": 5,
+    "request_timeout_seconds": 30,
+    "claim_timeout_seconds": 15,
+    "execution_timeout_seconds": 50,
+    "operation_lease_seconds": 90,
+    "operation_lease_renew_seconds": 20,
+    "operation_lease_expiry_guard_seconds": 2,
+    "operation_lease_shutdown_wait_seconds": 2,
+    "signature_clock_skew_seconds": 60,
+    "nonce_retention_seconds": 300,
+    "enrollment_retention_seconds": 600,
+    "subscriber_token_seconds": 300,
+    "credential_lifetime_seconds": 2592000,
+    "pairing_lease_seconds": 86400,
+    "operation_retention_seconds": 86400,
+    "blob_retention_seconds": 3600,
+    "outbox_retention_seconds": 86400,
+    "outbox_retry_max_seconds": 300,
+    "terminal_screenshot_freshness_seconds": 2,
+    "terminal_screenshot_capture_lease_seconds": 10,
+    "terminal_viewer_demand_lease_seconds": 15,
+    "terminal_screenshot_resource_retention_seconds": 120,
+    "subscriber_token_refresh_margin_seconds": 60,
+    "subscriber_connect_timeout_seconds": 10,
+    "subscriber_read_timeout_seconds": 90,
+    "subscriber_reconnect_min_seconds": 1,
+    "subscriber_reconnect_max_seconds": 30
+  },
+  "limits": {
+    "claim_batch": 8,
+    "inline_body_bytes": 262144,
+    "blob_chunk_bytes": 4194304,
+    "request_body_bytes": 67108864,
+    "response_body_bytes": 67108864,
+    "header_value_bytes": 8192,
+    "owner_blob_bytes": 1073741824,
+    "owner_pending_operations": 100,
+    "device_active_leases": 8,
+    "device_event_payload_bytes": 65536,
+    "outbox_publish_batch": 100,
+    "outbox_publish_attempts": 10,
+    "maintenance_row_batch": 100,
+    "maintenance_blob_batch": 20,
+    "terminal_viewer_windows": 64,
+    "terminal_viewers": 128,
+    "terminal_screenshot_resources": 256,
+    "terminal_screenshot_capture_batch": 8,
+    "terminal_screenshot_max_width": 640,
+    "terminal_screenshot_max_height": 360,
+    "terminal_screenshot_png_compression": 1
+  },
+  "rate_limits": {
+    "device_requests_per_minute": 240,
+    "owner_requests_per_minute": 120,
+    "enrollment_claims_per_minute": 10
+  },
+  "headers": {
+    "request_allow": [
+      "accept",
+      "accept-language",
+      "content-type",
+      "if-match",
+      "if-none-match",
+      "range",
+      "x-request-id"
+    ],
+    "response_allow": [
+      "accept-ranges",
+      "cache-control",
+      "content-disposition",
+      "content-length",
+      "content-range",
+      "content-type",
+      "etag",
+      "last-modified",
+      "x-request-id"
+    ]
+  },
+  "operation_states": [
+    "accepted",
+    "leased",
+    "executing",
+    "cancel_requested",
+    "responded",
+    "failed",
+    "execution_unknown",
+    "expired",
+    "canceled"
+  ],
+  "operation_transitions": {
+    "accepted": ["leased", "cancel_requested", "expired"],
+    "leased": ["leased", "executing", "cancel_requested", "failed", "expired"],
+    "executing": ["leased", "responded", "failed", "execution_unknown", "cancel_requested"],
+    "cancel_requested": ["canceled", "responded", "failed", "execution_unknown"],
+    "responded": [],
+    "failed": [],
+    "execution_unknown": [],
+    "expired": [],
+    "canceled": []
+  },
+  "transition_guards": {
+    "claim": "current-state-and-revision, unexpired pairing, capacity, row lock, increment claim_epoch",
+    "execution_start": "leased state conditionally becomes executing with one revision increment; an identical same-generation request in executing returns the existing revision",
+    "lease_renew": "executing state, exact device, lease_owner, claim_epoch, revision, and unexpired lease",
+    "safe_reclaim": "expired lease and retry policy read or idempotent_write",
+    "at_most_once_expiry": "executing at_most_once_action transitions to execution_unknown and is never auto-claimed",
+    "result": "executing state and exact device, lease_owner, claim_epoch, and operation revision",
+    "nonexecution_result": "leased or cancel_requested state and exact device, lease_owner, claim_epoch, and revision; may only fail validation, acknowledge cancellation, or acknowledge expiry"
+  },
+  "result_outcomes": [
+    "responded",
+    "failed",
+    "execution_unknown",
+    "canceled",
+    "expired"
+  ],
+  "retry_policies": [
+    "read",
+    "idempotent_write",
+    "at_most_once_action"
+  ],
+  "route_policy_matching": {
+    "precedence": ["exact", "prefix", "suffix"],
+    "tie_breaker": "longest-value-then-first-declared",
+    "default_profile": "general_action"
+  },
+  "route_policy_profiles": {
+    "terminal_read": {
+      "exposure": "relay",
+      "permission": "relay.terminal.read",
+      "payload": "json-object",
+      "timeout_seconds": 15,
+      "retry": "read"
+    },
+    "terminal_resource": {
+      "exposure": "relay",
+      "permission": "relay.terminal.read",
+      "payload": "opaque-response-bytes",
+      "timeout_seconds": 30,
+      "retry": "read"
+    },
+    "terminal_write": {
+      "exposure": "relay",
+      "permission": "relay.terminal.write",
+      "payload": "json-object",
+      "timeout_seconds": 15,
+      "retry": "idempotent_write"
+    },
+    "terminal_action": {
+      "exposure": "relay",
+      "permission": "relay.terminal.control",
+      "payload": "json-object",
+      "timeout_seconds": 15,
+      "retry": "at_most_once_action"
+    },
+    "terminal_integration": {
+      "exposure": "relay",
+      "permission": "relay.terminal.control",
+      "payload": "json-object",
+      "timeout_seconds": 150,
+      "retry": "at_most_once_action"
+    },
+    "general_read": {
+      "exposure": "relay",
+      "permission": "relay.route.read",
+      "payload": "bounded-json-or-opaque-response",
+      "timeout_seconds": 30,
+      "retry": "read"
+    },
+    "general_write": {
+      "exposure": "relay",
+      "permission": "relay.route.write",
+      "payload": "json-object",
+      "timeout_seconds": 30,
+      "retry": "idempotent_write"
+    },
+    "general_action": {
+      "exposure": "relay",
+      "permission": "relay.route.control",
+      "payload": "json-object",
+      "timeout_seconds": 30,
+      "retry": "at_most_once_action"
+    },
+    "denied": {
+      "exposure": "denied",
+      "permission": "none",
+      "payload": "none",
+      "timeout_seconds": 0,
+      "retry": "at_most_once_action"
+    }
+  },
+  "route_policies": [
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/books/list",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/tasks/list",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/get",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/progress",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/files",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/plan",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/manifest_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/system/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/auth/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/book_sentences",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/dictionary/dictionary_status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/dictionary/dictionary_lookup",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/dictionary/dictionary_match",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/windows",
+      "profile": "terminal_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/content",
+      "profile": "terminal_resource",
+      "methods": ["GET"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/screenshot",
+      "profile": "terminal_resource",
+      "methods": ["GET"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/viewer_demand",
+      "profile": "terminal_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/activate",
+      "profile": "terminal_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/draft",
+      "profile": "terminal_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/view",
+      "profile": "terminal_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/schedule_queue/sync",
+      "profile": "terminal_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/schedule_queue/clear",
+      "profile": "terminal_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/click",
+      "profile": "terminal_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/command_history",
+      "profile": "terminal_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/enter",
+      "profile": "terminal_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/input",
+      "profile": "terminal_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/scroll",
+      "profile": "terminal_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/desktop_integration",
+      "profile": "terminal_integration",
+      "methods": ["POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/open",
+      "profile": "denied",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "_reveal",
+      "profile": "denied",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/pick_path",
+      "profile": "denied",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/assist/bind_laravel_endpoint",
+      "profile": "denied",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/assist/laravel_transport_probe",
+      "profile": "denied",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "status",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "exact",
+      "value": "info",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "exact",
+      "value": "routes",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/status",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/snapshot",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/history",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/info",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/capabilities",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/version",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "suffix",
+      "value": "/resource",
+      "profile": "general_read",
+      "methods": ["GET", "POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/index",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompts",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/session_detail",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/session_id_pages",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/session_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompt_id_pages",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompt_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompt_derived",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/prompt_rewritten",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/runtime_get",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_list",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_logs",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_records",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_record_id_pages",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_record_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_video_media",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/queue_center/event_page",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/queue_center/audio_lane_state",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/laravel_delivery/status",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/laravel_delivery/retry",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/update_prompt",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/article_config_post",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/refresh",
+      "profile": "general_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/agent_history/test_extract",
+      "profile": "general_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "prefix",
+      "value": "ui/code_sync/",
+      "profile": "denied",
+      "methods": ["GET", "POST"]
+    }
+  ],
+  "capabilities": [
+    "rpc_v2_in_process",
+    "byte_exact_bodies",
+    "durable_execution_ledger",
+    "atomic_operation_claim",
+    "claim_epoch_execution_fencing",
+    "conditional_lease_renewal",
+    "deterministic_signature_canonicalization",
+    "demand_leased_terminal_resources",
+    "mercure_wake_reconciliation",
+    "ed25519_device_identity"
+  ]
+}

@@ -1,4 +1,0 @@
-#include "winres.h"
-
-IDI_ICON1       ICON      "TcUi.ico"
-

@@ -1,0 +1,1256 @@
+› Published: 0 · Generation records: 0 · multi-sentence: 0 ·
+  legacy audio: 0 · rebuilt: 0 · Pending upload: 0 · Audio
+  rebuild pending: 0 · Video ready: 0 · Video pending: 0
+  rpc_execution_timeout1 ：仍然有地方replay有问题，没有中转
+  顺畅，2：Qy App V1 Account
+   登陆后，加载所有默认组，首先defaulg group是默认的，并可以
+  选择以那个组作为Only New  WORDS的编辑基准。选择后需要缓
+  存，3：Backend Books下的每个item，的右边添加新建任务按钮，
+  而不是共用下面的New task,Task name自动生成，Books+时间格
+  式，不要重复，可以编辑，同时BOOK是一个下拉，可以选择切换为
+  别的书，4：Add step时，下拉中修改为Words Only NEW 和All
+  words，不再使用 Word selection
+  Word New Only (virtual read)
+  All words选择，而是直接在下拉中选择并编排，同时更新编排逻
+  辑，5：点击生成后，需要先清点清单，补齐资源，单词和句子音
+  频优先调用pycore的缓存，如果没有则调用laravel main中的资
+  源，如果laralvel也没有则由pycore实时生成，但要同步到
+  laravel，复用原来的资源缓存，上传逻辑。清单处理结束 后再生
+  成，也就是UI上要扩展清单收集、生成的界面，和后面生成的界
+  面，要有详细的所有步骤和进度条。同时以上要求先写到docs_fix
+  中作为需求文档，再开发。需要文件中备份一个同名但不同尾的进
+  度文档。
+
+
+• 我会先在 docs_fix 写需求文档和同名前缀的进度文档，再检查中
+  转超时、Qy 单词组、任务编辑和音频缓存上传链路，按这些要求开
+  发。
+
+• Ran pwd
+  │ rg --files -g AGENTS.md -g '*ORCH*' -g '*orchestration*'
+  │ -g '*Orch*' docs_fix development-guides poly_apps/
+  │ … +2 lines
+  └ /www/programing/core_node
+    poly_apps/pycore_laravel_wordnew_ui/core/integrations/
+    … +88 lines (ctrl + t to view transcript)
+    README.md
+    origin
+
+• Edited 2 files (+60 -0)
+  └ docs_fix/DESIGN_20260917_AUDIO_ORCHESTRATION.md (+45 -0)
+     1 +# Audio Orchestration Requirements
+     2 +
+     3 +## Relay reliability
+     4 +
+     5 +- Restore responsive Relay transport and resolve `rpc
+        _execution_timeout` on vocabulary status and orchestr
+        ation requests.
+     6 +- Relay does not require Qy or manager login. Device
+        signatures, pairing leases, and Mercure transport aut
+        horization remain independent.
+     7 +- Signed client requests use server time. Do not rota
+        te working credentials to repair timing errors.
+     8 +
+     9 +## Qy word groups
+    10 +
+    11 +- After Qy App V1 login, load all available default w
+        ord groups and their read-word records.
+    12 +- Select the default group initially and allow anothe
+        r group as the read/edit baseline for Words Only New.
+    13 +- Persist the selection per account and Laravel endpo
+        int, and retain it across refreshes.
+    14 +- Qy login is required only for account word-group/re
+        ad-word access.
+    15 +
+    16 +## Book tasks
+    17 +
+    18 +- Every Backend Books item has its own New Task actio
+        n on the right.
+    19 +- Creating a task selects that book and generates a u
+        nique editable name from the book name and formatted
+        creation time.
+    20 +- The task editor uses a book dropdown and permits sw
+        itching books.
+    21 +
+    22 +## Pattern steps
+    23 +
+    24 +- The Add Step dropdown offers Words Only New, All Wo
+        rds, and the existing sentence steps.
+    25 +- Remove the separate Word Selection control. Word po
+        licy belongs to each pattern step and preserves its o
+        rdering.
+    26 +- Words Only New uses the selected Qy group when avai
+        lable, retaining the existing task-local fallback wit
+        hout Qy login.
+    27 +- Existing task patterns remain readable through comp
+        atibility normalization.
+    28 +
+    29 +## Resource manifest and generation
+    30 +
+    31 +- Generate first collects the complete manifest of wo
+        rds and sentences for the selected book and pattern.
+    32 +- Resolve each audio resource in order: existing Pyco
+        re cache, Laravel resource, then live Pycore TTS gene
+        ration.
+    33 +- Reuse the established cache keys, resource download
+        , upload, and durable delivery mechanisms.
+    34 +- Newly generated resources synchronize to Laravel; r
+        etries remain idempotent and preserve pending uploads
+        .
+    35 +- Final audio/video generation starts only after mani
+        fest collection and required resource completion.
+    36 +- Show manifest collection, resource resolution/gener
+        ation/synchronization, and final generation as separa
+        te phases with detailed steps, counts, progress bars,
+         and actionable errors.
+    37 +- Persist phase/progress data so refreshes and reconn
+        ects recover the active job.
+    38 +
+    39 +## Constraints and acceptance
+    40 +
+    41 +- Reuse shared components and services, keep code/log
+        s/comments English, and put UI strings in i18n.
+    42 +- Preserve task history, cached resources, working cr
+        edentials, and upload records.
+    43 +- Do not perform Git operations or create/run/modify
+        tests. Do not run builds or services without a separa
+        te request.
+    44 +- Maintain the accompanying `DESIGN_20260917_AUDIO_OR
+        CHESTRATION_PROGRESS.md` as the implementation progre
+        ss record.
+    45 +- Completion requires code changes across UI, Pycore,
+         and Laravel where needed; documentation alone is ins
+        ufficient.
+
+  └ docs_fix/DESIGN_20260917_AUDIO_ORCHESTRATION_PROGRESS.md
+  (+15 -0)
+     1 +# Audio Orchestration Implementation Progress
+     2 +
+     3 +Requirements backup: `DESIGN_20260917_AUDIO_ORCHESTRA
+        TION.md`.
+     4 +
+     5 +| Work | State | Evidence |
+     6 +| --- | --- | --- |
+     7 +| Requirements and progress documents | Complete | Bo
+        th documents created before development |
+     8 +| Relay timeout diagnosis and repair | In progress |
+        Inspect existing request execution and status paths |
+     9 +| Qy groups and persistent baseline selection | Pendi
+        ng | Inspect existing Qy group API and orchestration
+        account state |
+    10 +| Per-book task action and editable unique names | Pe
+        nding | Reuse book picker and task editor |
+    11 +| Per-step new/all word policies | Pending | Normaliz
+        e existing pattern data |
+    12 +| Manifest, resource reuse, synchronization, final ge
+        neration | Pending | Reuse existing cache and durable
+         upload pipeline |
+    13 +| Detailed persistent phase progress UI | Pending | E
+        xtend task progress data and view |
+    14 +
+    15 +No tests, builds, or services have been run for this
+        work.
+
+• Explored
+  └ Read OrchBookPicker.tsx, OrchTaskEditor.tsx,
+         OrchLoginPanel.tsx
+    Read PYTHON_PYCORE.md
+    Read LARAVEL_GUIDE.md
+    List pyctl
+    Search (orch_|audio.*orch)
+
+• Ran cat poly_apps/pycore_laravel_wordnew_ui/core/
+  │ integrations/pycore/PycoreApiOrchestration.ts
+  │ rg -n 'rpc_execution_timeout' pycore
+  │ … +4 lines
+  └ /**
+     * Audio-orchestration HTTP surface for pycoreApi.
+    … +332 lines (ctrl + t to view transcript)
+    $message = $isNewGroup ? 'create new group ' . $gname :
+    'append words to group ' . $gname;
+
+⚠ Heads up, you have less than 25% of your 5h limit left.
+  Run /status for a breakdown.
+
+• Explored
+  └ Read orch_generate.py, orch_words.py, orch_store.py,
+         orch_service.py, execution.py,
+         laravel_relay_operation_processor.py,
+         OrchTaskEditor.tsx, VocabAudioOrchTab.tsx
+
+─────────────────────────────────────────────────────────────
+
+• 需求和进度文档已写好。现有生成流程逐段收集和补齐音频，句子
+  音频也没有经过 Laravel 资源回查；我会把它改成先处理整份资源
+  清单，再统一生成成品。中转超时还需要继续检查 Pycore 请求执
+  行队列。
+
+• Explored
+  └ Read orch_service.py, execution.py,
+         laravel_relay_operation_processor.py
+
+• Ran rg -n 'await_bus_task|submit_bus_task|class.*Thread|
+  │ timeout' pycore/pyfoundations/serialized_worker.py
+  │ sed -n '210,365p' pycore/pyfoundations/
+  │ … +11 lines
+  └ 4:without a poll timeout, and await_bus_task uses an
+    asyncio.Future woken via
+    … +481 lines (ctrl + t to view transcript)
+    pycore/pyutils/tts/tts_orchestrator.py:399:
+    sentence_audio_cache.store_result(
+
+• Ran sed -n '220,310p' pycore/pyctl/tts/
+  │ word_audio_service.py
+  │ cat pycore/pyutils/tts/sentence_audio_cache.py
+  │ … +6 lines
+  └
+
+    … +287 lines (ctrl + t to view transcript)
+    pycore/pyutils/external_apis/word_audio_client.py
+    pycore/pyutils/rpc_v2/delivery.py
+
+• Ran rg -n 'class.*(Sentence|Word).*Handler|def
+  │ _upload_report|audio_delivery_outbox.enqueue' pycore
+  │ cat poly_apps/pycore_laravel_wordnew_ui/core/
+  │ … +11 lines
+  └ pycore/pyctl/tts/laravel_audio_worker_execution.py:318:
+    def _upload_report(
+    … +232 lines (ctrl + t to view transcript)
+    audio/head', [AppQyV1SentenceAudioController::class,
+    'moveAudioToHead']);
+
+• Ran sed -n '1,170p' poly_apps/laravel_main/app/Apps/
+  │ AppQyV1/AppQyV1Services/
+  │ AppQyV1SentenceWordTableService.php
+  │ … +10 lines
+  └ <?php
+
+    … +399 lines (ctrl + t to view transcript)
+    laravel_audio_worker.py:723:laravel_sentence_audio_worker
+    = LaravelSentenceAudioWorker(LARAVEL_WORKER_API_URL)
+
+• Ran rg -n 'register_routes|timeout=' pycore/pyutils/rpc_v2/
+  │ server.py pycore/pyutils/rpc_v2/dispatcher.py
+  │ sed -n '100,230p' pycore/pyutils/rpc_v2/dispatcher.py
+  │ … +9 lines
+  └ pycore/pyutils/rpc_v2/server.py:389:
+    timeout=timeout,
+    … +217 lines (ctrl + t to view transcript)
+                ], 400);
+            }
+
+• Ran rg -n 'Published:|Generation records|Audio rebuild
+  │ pending|rpc_execution_timeout|generationRecords|
+  │ published' poly_apps/pycore_laravel_wordnew_ui/apps/
+  │ … +21 lines
+  └ rg: poly_apps/pycore_laravel_wordnew_ui/core/
+    integrations/pycore/PycoreApiVocabulary*: No such file or
+    … +170 lines (ctrl + t to view transcript)
+
+    __all__ = ["LaravelAudioWorkerStateMixin"]
+
+• Explored
+  └ Search Generation records|Audio rebuild pending|Pending
+           upload|generationRecords|publishedCount|published:
+           in
+           pycore-manager
+    Read AppQyV1SentenceAudioController.php
+    Read AppQyV1SentenceAudioController.php
+    Read orch_books.py
+
+• Ran rg -n 'status|Stats|load|pycoreApi' poly_apps/
+  │ pycore_laravel_wordnew_ui/apps/pycore-manager/pages/
+  │ agent-history/PcAgentHistory.tsx poly_apps/
+  │ … +20 lines
+  └ rg: poly_apps/pycore_laravel_wordnew_ui/apps/
+    pycore-manager/pages/agent-history/PcAgentHistory.tsx: No
+    … +158 lines (ctrl + t to view transcript)
+      RELAY_STATE_LEGACY: 'pycore_relay_v2_state',
+    } as const;
+
+• Explored
+  └ Read OrchLoginPanel.tsx, OrchTaskList.tsx, ui_service.py,
+         snapshot_cache.py, status_snapshot_cache.py,
+         agent_history_statistics.py
+
+• Ran sed -n '170,250p' pycore/pyutils/common/
+  │ status_snapshot_cache.py
+  │ sed -n '370,440p' pycore/pyutils/common/
+  │ … +10 lines
+  └     @serialized_method
+        def _release_waiter(self, signal_name: str,
+    … +209 lines (ctrl + t to view transcript)
+    pycore/pyutils/laravel/progress_upload.py:116:    def
+    _upload_chunks(
+
+• Explored
+  └ Search article_summary|runtimeGet|agentHistoryRuntime in
+           pycore_laravel_wordnew_ui
+    Read progress_upload.py
+    Read audio_delivery_outbox.py
+    Search function requestSentence|contentId|audio_url|url
+    in
+           AppQyV1AudioGateway.php
+    Read SENTENCE_AUDIO_GENERATION_PIPELINE.md
+    Search query_all_groups|learning.*sentence|sentenceWord
+    in
+           ApiContract.ts
+
+• Explored
+  └ Read audio_delivery_outbox.py
+    Read AppQyV1AudioGateway.php
+    Search contentId|content_id|hash\(|md5|audio_url|url in
+           AppQyV1SentenceAudioService.php
+    Read AgentHistoryRuntimeStore.ts
+    Search snapshot_pending|refreshing|status.*pending in
+           AgentHistoryRuntimeStore.ts
+
+• Edited 4 files (+75 -6)
+  └ poly_apps/laravel_main/app/Apps/AppQyV1/
+  AppQyV1Controllers/AppQyV1Group/
+  AppQyV1WordGroupQueryController.php (+1 -0)
+    408                  'is_language_default' => $group->is_
+         language_default ?? false,
+    409 +                'is_default' => $group->gname === DG
+         roupAPublic::$default_group_name,
+    410              ];
+
+  └ poly_apps/pycore_laravel_wordnew_ui/core/integrations/
+  laravel/LaravelQyAccountAPI.ts (+29 -0)
+    15
+    16 +export interface QyWordGroup {
+    17 +  gid: string;
+    18 +  gname: string;
+    19 +  language?: string;
+    20 +  total_words?: number;
+    21 +  is_default?: boolean;
+    22 +  is_language_default?: boolean;
+    23 +}
+    24 +
+    25  type AccountEnvelope = {
+       ⋮
+    36
+    37 +  async groups(token: string): Promise<QyWordGroup[]>
+         {
+    38 +    const http = new BaseAPI(createFixedLaravelModule
+        Config(LARAVEL_API_PREFIX.appQyV1, this.baseURL, 60_0
+        00));
+    39 +    const groups: QyWordGroup[] = [];
+    40 +    const limit = 1000;
+    41 +    let start = 0;
+    42 +    while (true) {
+    43 +      const path = `/query_all_groups?start=${start}&
+        limit=${limit}&with_words=0`;
+    44 +      const response = await http.rawRequest(path, {
+    45 +        method: 'GET', credentials: 'omit',
+    46 +        headers: { Accept: 'application/json', Author
+        ization: `Bearer ${token}` },
+    47 +      }, false);
+    48 +      const body = await readLaravelResponse<{ data?:
+         { groups?: QyWordGroup[] } }>(response, path);
+    49 +      const page = body.data?.groups;
+    50 +      if (!Array.isArray(page)) throw new Error('QY_W
+        ORD_GROUPS_PAYLOAD_INVALID');
+    51 +      groups.push(...page);
+    52 +      if (page.length < limit) return groups;
+    53 +      start += limit;
+    54 +    }
+    55 +  }
+    56 +
+    57    async login(username: string, password: string): Pr
+        omise<QyAccountCredentials> {
+
+  └ poly_apps/pycore_laravel_wordnew_ui/core/integrations/
+  pycore/OrchAccountSession.ts (+39 -5)
+      1  import { StorageManager } from '../../persistence';
+      2 -import { LaravelQyAccountAPI, type QyAccountCredenti
+         als } from '../laravel/LaravelQyAccountAPI';
+      2 +import { LaravelQyAccountAPI, type QyAccountCredenti
+         als, type QyWordGroup } from '../laravel/LaravelQyAc
+         countAPI';
+      3  import { resolveLaravelBaseURL } from '../laravel/La
+         ravelRequest';
+        ⋮
+      9
+     10 -type StoredAccount = QyAccountCredentials & { userna
+         me: string; logged_at: number };
+     10 +type StoredAccount = QyAccountCredentials & { userna
+         me: string; logged_at: number; word_groups?: QyWordG
+         roup[]; word_group_id?: string };
+     11  type StoredAccounts = Record<string, StoredAccount |
+          null>;
+        ⋮
+     44      if (generation !== this.generation || resolveLar
+         avelBaseURL() !== baseURL) throw new DOMException('A
+         borted', 'AbortError');
+     45 -    accounts[baseURL] = { ...credentials, username:
+         credentials.user.username || username, logged_at: Da
+         te.now() / 1000 };
+     45 +    const previous = accounts[baseURL];
+     46 +    accounts[baseURL] = { ...credentials, username:
+         credentials.user.username || username, logged_at: Da
+         te.now() / 1000,
+     47 +      ...(previous?.user.id === credentials.user.id
+         ? { word_groups: previous.word_groups, word_group_id
+         : previous.word_group_id } : {}),
+     48 +    };
+     49      StorageManager.set(PycoreStorageKeys.QY_ACCOUNTS
+         , accounts);
+        ⋮
+    128
+    126 -  generationAccount(): { expected_user_id?: number;
+         expected_base_url?: string; use_qy_account?: boolean
+          } {
+    129 +  async wordGroups(refresh = false): Promise<OrchAut
+         hStatus> {
+    130 +    const account = this.account();
+    131 +    const baseURL = resolveLaravelBaseURL();
+    132 +    const accounts = StorageManager.get<StoredAccoun
+         ts>(PycoreStorageKeys.QY_ACCOUNTS, {});
+    133 +    if (!account) return { success: true, logged_in:
+          false };
+    134 +    if (!refresh && account.word_groups) return this
+         .describe(account);
+    135 +    const groups = await new LaravelQyAccountAPI(bas
+         eURL).groups(account.token);
+    136 +    if (this.account()?.token !== account.token || r
+         esolveLaravelBaseURL() !== baseURL) throw new DOMExc
+         eption('Aborted', 'AbortError');
+    137 +    account.word_groups = groups;
+    138 +    if (!groups.some((group) => group.gid === accoun
+         t.word_group_id)) {
+    139 +      account.word_group_id = groups.find((group) =>
+          group.is_default)?.gid
+    140 +        || groups.find((group) => group.is_language_
+         default && group.language === 'en')?.gid
+    141 +        || groups.find((group) => group.is_language_
+         default)?.gid || groups[0]?.gid;
+    142 +    }
+    143 +    accounts[baseURL] = account;
+    144 +    StorageManager.set(PycoreStorageKeys.QY_ACCOUNTS
+         , accounts);
+    145 +    return this.describe(account);
+    146 +  }
+    147 +
+    148 +  selectWordGroup(groupId: string): OrchAuthStatus {
+    149 +    const account = this.account();
+    150 +    const accounts = StorageManager.get<StoredAccoun
+         ts>(PycoreStorageKeys.QY_ACCOUNTS, {});
+    151 +    if (!account || !account.word_groups?.some((grou
+         p) => group.gid === groupId)) throw new Error('QY_WO
+         RD_GROUP_NOT_FOUND');
+    152 +    account.word_group_id = groupId;
+    153 +    accounts[resolveLaravelBaseURL()] = account;
+    154 +    StorageManager.set(PycoreStorageKeys.QY_ACCOUNTS
+         , accounts);
+    155 +    return this.describe(account);
+    156 +  }
+    157 +
+    158 +  generationAccount(): { expected_user_id?: number;
+         expected_base_url?: string; use_qy_account?: boolean
+         ; word_group_id?: string } {
+    159      const account = this.account();
+        ⋮
+    161      const accounts = StorageManager.get<StoredAccoun
+         ts>(PycoreStorageKeys.QY_ACCOUNTS, {});
+    130 -    return account ? { expected_user_id: account.use
+         r.id, expected_base_url: baseURL, use_qy_account: tr
+         ue }
+    162 +    return account ? { expected_user_id: account.use
+         r.id, expected_base_url: baseURL, use_qy_account: tr
+         ue, word_group_id: account.word_group_id }
+    163        : Object.prototype.hasOwnProperty.call(account
+         s, baseURL) ? { use_qy_account: false } : {};
+        ⋮
+    187        machine_synced: synced,
+    188 +      word_groups: account.word_groups,
+    189 +      word_group_id: account.word_group_id,
+    190        sync_error: synced ? undefined : this.syncErro
+         r || 'QY_ACCOUNT_MACHINE_SYNC_PENDING',
+
+  └ poly_apps/pycore_laravel_wordnew_ui/core/integrations/
+  pycore/PycoreApiOrchestration.ts (+6 -1)
+      9  import { orchAccountSession } from './OrchAccountSes
+         sion';
+     10 +import type { QyWordGroup } from '../laravel/Laravel
+         QyAccountAPI';
+     11
+        ⋮
+     72    sync_error?: string;
+     73 +  word_groups?: QyWordGroup[];
+     74 +  word_group_id?: string;
+     75  }
+     76
+     74 -export type OrchPatternStepType = 'sentence_en' | 's
+         entence_zh' | 'words';
+     77 +export type OrchPatternStepType = 'sentence_en' | 's
+         entence_zh' | 'words_new' | 'words_all' | 'words';
+     78  export interface OrchPatternStep { type: OrchPattern
+         StepType; times: number }
+        ⋮
+    159    orchAuthSync: (force = false) => orchAccountSessio
+         n.sync(force),
+    160 +  orchWordGroups: (refresh = false) => orchAccountSe
+         ssion.wordGroups(refresh),
+    161 +  orchSelectWordGroup: (groupId: string) => orchAcco
+         untSession.selectWordGroup(groupId),
+    162
+
+• Explored
+  └ Read OrchTaskEditor.tsx, OrchTaskList.tsx,
+  OrchLocales.ts,
+         AppQyV1SentenceAudioService.php, tts_orchestrator.py
+    Read tts_orchestrator.py
+    Read tts_orchestrator.py
+    Search ensureSentence|register|upsert|create|function in
+           AppQyV1SentenceAudioService.php
+    Read AppQyV1SentenceAudioService.php
+    Read AppQyV1SentenceAudioService.php
+    Read OrchTaskList.tsx
+
+─────────────────────────────────────────────────────────────
+
+• 现有 Laravel 服务已支持按所选单词组查询已读状态，可以复用。
+  我会把选择按账户和后端地址缓存，并让每个 Words Only New 步
+  骤使用该基准。书籍右侧的新建入口、可切换的 Book 下拉和逐步
+  骤词策略也会一并更新。
+
+• Ran rg -n 'function computeContentId' poly_apps/
+  │ laravel_main/app/Services/MediaIngestService.php
+  │ poly_apps/laravel_main/app/Apps/AppQyV1/*/*MediaIngest*
+  │ … +9 lines
+  └ rg: poly_apps/laravel_main/app/Apps/AppQyV1/*/
+    *MediaIngest*: No such file or directory (os error 2)
+    … +70 lines (ctrl + t to view transcript)
+            $fullPath =
+    PathMapper::getAppQyV1SentenceSoundsDir($relativePath);
+
+• Ran rg -n 'function upload|upload_protocol|cleaned_word|not
+  │ found|find' poly_apps/laravel_main/app/Apps/AppQyV1/
+  │ AppQyV1Controllers/AppQyV1AITools/
+  │ … +11 lines
+  └ rg: poly_apps/laravel_main/app/Apps/AppQyV1/
+    AppQyV1Controllers/AppQyV1AITools/
+    … +72 lines (ctrl + t to view transcript)
+                return {"delivery_id": delivery_id,
+    "processed": False}
+
+• Ran rg -n 'strip_punctuation|content_id|hashlib.md5'
+  │ pycore/pyctl/laravel/sync/book_payload.py pycore/
+  │ pyutils/common/punctuation* pycore/pyfoundations/
+  │ … +8 lines
+  └ pycore/pyctl/laravel/sync/book_payload.py:31:# v2
+    structured representation (stripped sentences + md5
+    … +158 lines (ctrl + t to view transcript)
+        >,
+      getAgentHistoryArticles: (limit = 50) =>
+
+• Ran python3 - <<'PY'
+  │ from pathlib import Path
+  │ root = Path('/www/programing/core_node/poly_apps/
+  │ … +189 lines
+  └ (no output)
+
+• Explored
+  └ List common
+    Search (json|file.*store|background|job|registry)
+    Read serialized_worker.py
+    Read AgentHistoryRuntimeStore.ts
+    Search register|onHttpStatus|stop|interval|setInterval|
+           runtimeFlight in AgentHistoryRuntimeStore.ts
+    Read serialized_worker.py
+    Read AgentHistoryRuntimeStore.ts
+    Search function upload|upload_protocol in AppQyV1
+    Search _normalize_pattern|start_generation|task_generate
+    in
+           local_audio_orchestration_routes.py
+
+• Edited 2 files (+53 -0)
+  └ pycore/pyutils/common/background_jobs.py (+53 -0)
+     1 +import copy
+     2 +from typing import Any, Callable, Dict
+     3 +
+     4 +from pycore.pyfoundations.pybasecommon.color_print im
+        port ColorPrint
+     5 +from pycore.pyfoundations.serialized_worker import in
+        it_serialized_owner, serialized_method, start_bus_tas
+        k
+     6 +
+     7 +
+     8 +class BackgroundJobs:
+     9 +    def __init__(self, name: str) -> None:
+    10 +        self._name = name
+    11 +        self._jobs: Dict[str, Any] = {}
+    12 +        self._cancelled: set[str] = set()
+    13 +        init_serialized_owner(self, f"background_jobs
+        .{name}", "BackgroundJobsStateThread")
+    14 +
+    15 +    @serialized_method
+    16 +    def start(self, key: str, callback: Callable[...,
+         Any], *args: Any) -> bool:
+    17 +        if key in self._jobs:
+    18 +            return False
+    19 +        self._cancelled.discard(key)
+    20 +        self._jobs[key] = start_bus_task(
+    21 +            self._run, key, callback, copy.deepcopy(a
+        rgs),
+    22 +            thread_name=f"{self._name}-{key[:24]}Thre
+        ad",
+    23 +        )
+    24 +        return True
+    25 +
+    26 +    def _run(self, key: str, callback: Callable[...,
+        Any], args: tuple) -> None:
+    27 +        try:
+    28 +            callback(*args)
+    29 +        except Exception as error:
+    30 +            ColorPrint.red(f"[BackgroundJobs] job={se
+        lf._name}:{key} failed: {error}")
+    31 +            raise
+    32 +        finally:
+    33 +            self._finish(key)
+    34 +
+    35 +    @serialized_method
+    36 +    def _finish(self, key: str) -> None:
+    37 +        self._jobs.pop(key, None)
+    38 +        self._cancelled.discard(key)
+    39 +
+    40 +    @serialized_method
+    41 +    def running(self, key: str) -> bool:
+    42 +        return key in self._jobs
+    43 +
+    44 +    @serialized_method
+    45 +    def cancel(self, key: str) -> bool:
+    46 +        if key not in self._jobs:
+    47 +            return False
+    48 +        self._cancelled.add(key)
+    49 +        return True
+    50 +
+    51 +    @serialized_method
+    52 +    def cancelled(self, key: str) -> bool:
+    53 +        return key in self._cancelled
+
+  └ pycore/pyutils/common/status_snapshot_cache.py (+0 -0)
+
+• Explored
+  └ Search runtime_get|ui/agent_history/status|retry|
+           timeout_seconds in pycore_relay_contract.json
+    Read AppQyV1TTSWorkerController.php
+    Read local_audio_orchestration_routes.py
+    List AppQyV1
+    Search WordAudio.*Ctl|WordAudio.*Controller
+    Read orch_books.py
+
+• Ran rg -n '^def.*(hash|content|strip_punctuation)|
+  │ content_id.*hashlib' pycore/pyfoundations pycore/
+  │ pyutils/common | head -35
+  │ … +5 lines
+  └ pycore/pyutils/common/result_cache.py:57:def
+    _key_hash(parts: Tuple[Any, ...], version: str) -> str:
+    … +10 lines (ctrl + t to view transcript)
+    AppQyV1Words.php:72:Route::post('/word/audio/upload',
+    [AppQyV1WordMediaController::class, 'uploadAudio']);
+
+⚠ Heads up, you have less than 10% of your 5h limit left.
+  Run /status for a breakdown.
+
+• Ran python3 - <<'PY'
+  │ from pathlib import Path
+  │ root = Path('/www/programing/core_node')
+  │ … +151 lines
+  └ (no output)
+
+• Edited 2 files (+10 -3)
+  └ pycore/pyctl/audio_orchestration/orch_store.py (+4 -2)
+    193      task = dict(record)
+    194 +    book = task.get("book") or {}
+    195 +    timestamp = time.strftime("%Y%m%d_%H%M%S", time.
+         gmtime(now))
+    196      task.setdefault("task_id", new_task_id())
+    195 -    task["name"] = str(task.get("name") or "").strip
+         () or f"{(task.get("book") or {}).get("title") or (t
+         ask.get("book") or {}).get("source_key")}_{time.strf
+         time("%Y%m%d_%H%M%S", time.gmtime(now))}_{task["task
+         _id"]}"
+    196 -    task["slug"] = f"{slugify(task["name"])}_{task["
+         task_id"]}"
+    197 +    task["name"] = str(task.get("name") or "").strip
+         () or f"{book.get('title') or book.get('source_key')
+         }_{timestamp}_{task['task_id']}"
+    198 +    task["slug"] = f"{slugify(task['name'])}_{task['
+         task_id']}"
+    199      task.setdefault("status", "draft")
+
+  └ pycore/pyutils/tts/tts_orchestrator.py (+6 -1)
+    221      progress_callback: Optional[Callable[[Dict[str,
+         Any]], None]] = None,
+    222 +    cache_only: bool = False,
+    223  ) -> Dict[str, Any]:
+        ⋮
+    294              }
+    294 -        ColorPrint.gray("[tts] sentence cache MISS;
+         synthesizing")
+    295 +        if not cache_only:
+    296 +            ColorPrint.gray("[tts] sentence cache MI
+         SS; synthesizing")
+    297 +
+    298 +    if cache_only:
+    299 +        return {"success": False, "cached": False, "
+         error": "audio_cache_miss"}
+    300
+
+• Edited 4 files (+66 -0)
+  └ poly_apps/pycore_laravel_wordnew_ui/core/integrations/
+  pycore/PycoreApiLocal.ts (+1 -0)
+    280        success: boolean;
+    281 +      refreshing?: boolean;
+    282        data?: {
+
+  └ pycore/pyctl/agent_history/ui_service.py (+7 -0)
+    258  def runtime_get(_params: Any, _request_id: str) -> D
+         ict[str, Any]:
+    259 +    result = status_snapshot_cache.get_background(
+    260 +        "agent_history.runtime", _build_runtime, ttl
+         _seconds=3.0,
+    261 +    )
+    262 +    return {**(result["snapshot"] or {"success": Tru
+         e, "data": {}}), "refreshing": result["refreshing"]}
+    263 +
+    264 +
+    265 +def _build_runtime() -> Dict[str, Any]:
+    266      """One combined UI bootstrap exchange for config
+         , load, and operation state."""
+
+  └ pycore/pyutils/common/serialized_files.py (+37 -0)
+     1 +from functools import wraps
+     2 +from pathlib import Path
+     3 +from typing import Any, Callable, Dict
+     4 +
+     5 +from pycore.pyfoundations.serialized_worker import in
+        it_serialized_owner, serialized_method
+     6 +
+     7 +
+     8 +class SerializedFile:
+     9 +    def __init__(self) -> None:
+    10 +        init_serialized_owner(self, "serialized_file"
+        , "SerializedFileThread")
+    11 +
+    12 +    @serialized_method
+    13 +    def execute(self, callback: Callable[..., Any], *
+        args: Any, **kwargs: Any) -> Any:
+    14 +        return callback(*args, **kwargs)
+    15 +
+    16 +
+    17 +class SerializedFiles:
+    18 +    def __init__(self) -> None:
+    19 +        self._files: Dict[str, SerializedFile] = {}
+    20 +        init_serialized_owner(self, "serialized_files
+        .registry", "SerializedFilesRegistryThread")
+    21 +
+    22 +    @serialized_method
+    23 +    def owner(self, path: Path) -> SerializedFile:
+    24 +        key = str(Path(path).resolve())
+    25 +        if key not in self._files:
+    26 +            self._files[key] = SerializedFile()
+    27 +        return self._files[key]
+    28 +
+    29 +
+    30 +serialized_files = SerializedFiles()
+    31 +
+    32 +
+    33 +def serialized_file(callback: Callable[..., Any]) ->
+        Callable[..., Any]:
+    34 +    @wraps(callback)
+    35 +    def invoke(path: Path, *args: Any, **kwargs: Any)
+         -> Any:
+    36 +        return serialized_files.owner(path).execute(c
+        allback, path, *args, **kwargs)
+    37 +    return invoke
+
+  └ pycore/pyutils/common/status_snapshot_cache.py (+21 -0)
+    373
+    374 +    def get_background(
+    375 +        self,
+    376 +        key: str,
+    377 +        loader: Callable[[], Dict[str, Any]],
+    378 +        ttl_seconds: Optional[float] = None,
+    379 +        version: Optional[str] = None,
+    380 +    ) -> Dict[str, Any]:
+    381 +        effective_ttl, effective_lease = self._effec
+         tive_limits(ttl_seconds, None)
+    382 +        claim = self._claim(key, time.monotonic(), e
+         ffective_ttl, version, effective_lease, True)
+    383 +        if claim["state"] in ("cached", "stale"):
+    384 +            return {"snapshot": claim["value"], "ref
+         reshing": claim["state"] != "cached"}
+    385 +        if claim["state"] == "loading":
+    386 +            self._start_background_load(
+    387 +                self._load_and_finish,
+    388 +                (key, int(claim["generation"]), str(
+         claim["signal"]), loader, version),
+    389 +                {key: claim}, {key: version}, "Statu
+         sSnapshotRefreshThread",
+    390 +            )
+    391 +        else:
+    392 +            self._release_waiter(str(claim["signal"]
+         ), int(claim["generation"]))
+    393 +        return {"snapshot": self.peek(key), "refresh
+         ing": True}
+    394 +
+    395      def get_many(
+
+─────────────────────────────────────────────────────────────
+
+• 找到了你贴出的计数栏所用的请求：Agent History 初始化会同步
+  汇总历史、重建队列和 Qwen 状态，冷启动时可能超过 Relay 执行
+  期限。已把这项汇总移到后台并复用快照缓存，接下来让前端显示
+  加载进度、自动读取结果，同时保留已有计数。
+
+• Ran python3 - <<'PY'
+  │ from pathlib import Path
+  │ root = Path('/www/programing/core_node')
+  │ … +152 lines
+  └ (no output)
+
+• Explored
+  └ Read word_audio_service.py
+    Search def _laravel_base|def.*base_url|base_url= in
+    client.py
+    Read progress_upload.py
+    Search uploadAudio|upload_protocol|cleaned_word in
+    Read AppQyV1SentenceAudioService.php
+    Read laravel_audio_worker_execution.py,
+         AppQyV1WordMediaController.php,
+         AppQyV1SentenceAudioController.php
+
+⚠ Heads up, you have less than 5% of your 5h limit left.
+  Run /status for a breakdown.
+
+• Explored
+  └ Read audio_delivery_outbox.py
+    Read orch_service.py
+    Search ^def .* in engine_policy.py
+    Read audio_delivery_outbox.py
+    Read serialized_worker.py
+    Search shutdown in bus.py
+    Search def get_status|def.*state|available.* in engine.py
+
+• Edited 6 files (+33 -7)
+  └ poly_apps/laravel_main/app/Apps/AppQyV1/
+  AppQyV1Controllers/AppQyV1AITools/
+  AppQyV1SentenceAudioController.php (+3 -1)
+    119              'content_id' => 'nullable|string|max:64'
+         ,
+    120 +            'text' => 'nullable|string|max:16000',
+    121              'hash' => 'nullable|string|max:64',
+        ⋮
+    219                  $request->input('variant_key'),
+    219 -                $variantMeta ?: null
+    220 +                $variantMeta ?: null,
+    221 +                $request->input('text')
+    222              );
+
+  └ poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Services/
+  AppQyV1SentenceAudioService.php (+8 -1)
+    311          ?string $variantKey = null,
+    312 -        ?array $variantMeta = null
+    312 +        ?array $variantMeta = null,
+    313 +        ?string $text = null
+    314      ): array {
+        ⋮
+    320          $sentence = LangSentence::findByContentId($l
+         anguage, $contentId);
+    321 +        if ($sentence === null && $success && is_str
+         ing($text) && trim($text) !== '') {
+    322 +            if (!hash_equals(MediaIngestService::com
+         puteContentId($text), $contentId)) {
+    323 +                return ['ok' => false, 'status' => '
+         invalid', 'error' => __('audio_orchestration.content
+         _id_mismatch'), 'http_status' => 422];
+    324 +            }
+    325 +            $sentence = $this->ensureSentenceRow($co
+         ntentId, $language, trim($text));
+    326 +        }
+    327          if (!$sentence) {
+
+  └ poly_apps/laravel_main/lang/en/audio_orchestration.php
+  (+5 -0)
+    1 +<?php
+    2 +
+    3 +return [
+    4 +    'content_id_mismatch' => 'The sentence text does n
+       ot match the reported content identifier.',
+    5 +];
+
+  └ poly_apps/laravel_main/lang/zh_CN/audio_orchestration.php
+  (+5 -0)
+    1 +<?php
+    2 +
+    3 +return [
+    4 +    'content_id_mismatch' => 'The sentence text does n
+       ot match the reported content identifier.',
+    5 +];
+
+  └ pycore/pyctl/tts/word_audio_service.py (+5 -5)
+    247
+    248 -def word_audio_media(word: str, language: str = "en"
+         ):
+    248 +def word_audio_media(word: str, language: str = "en"
+         , base_url: Optional[str] = None):
+    249      """Stream a Laravel-owned word audio file throug
+         h pycore."""
+    250 -    base = _laravel_base()
+    250 +    base = base_url or _laravel_base()
+    251      clean_word = (word or "").strip()
+        ⋮
+    258      )
+    259 -    metadata_response = laravel_client.get(media_pat
+         h, base_url=base, timeout=30)
+    259 +    metadata_response = laravel_client.get(media_pat
+         h, base_url=base, params={"passive": "1"}, timeout=3
+         0)
+    260      if metadata_response.status_code != 200:
+        ⋮
+    279
+    280 -def upload_word_audio(payload: Dict[str, Any]):
+    280 +def upload_word_audio(payload: Dict[str, Any], base_
+         url: Optional[str] = None):
+    281      """POST /upload { md5, lang, audio_base64, provi
+         der?, accent?, cleaned_word? }
+        ⋮
+    285      try:
+    286 -        base = _laravel_base()
+    286 +        base = base_url or _laravel_base()
+    287          if not base:
+
+  └ pycore/pyutils/common/strtools/normalization.py (+7 -0)
+     1 +import hashlib
+     2  import re
+       ⋮
+     4
+     5 +from pycore.pyfoundations.punctuation_markers import
+        strip_punctuation
+     6 +
+     7
+       ⋮
+    16
+    17 +def media_content_id(text: str) -> str:
+    18 +    return hashlib.md5(collapse_whitespace(strip_punc
+        tuation(text).lower()).encode("utf-8")).hexdigest()
+    19 +
+    20 +
+    21  def collapse_horizontal_whitespace(value: str, strip:
+         bool = True) -> str:
+
+• Edited 2 files (+165 -1)
+  └ pycore/pyctl/audio_orchestration/orch_resources.py (+162
+  -0)
+      1 +import base64
+      2 +import hashlib
+      3 +import shutil
+      4 +import time
+      5 +import uuid
+      6 +from pathlib import Path
+      7 +from typing import Any, Callable, Dict, Optional
+      8 +
+      9 +from pycore.pyfoundations.pybasecommon.color_print i
+         mport ColorPrint
+     10 +from pycore.pyfoundations.system_paths import get_ap
+         p_cache_dir
+     11 +from pycore.pyfoundations.thread_bus.bus import THRE
+         AD_BUS
+     12 +from pycore.pyutils.common.background_jobs import Ba
+         ckgroundJobs
+     13 +from pycore.pyutils.common.strtools.normalization im
+         port media_content_id
+     14 +from pycore.pyutils.laravel.client import laravel_cl
+         ient
+     15 +from pycore.pyutils.laravel.progress_upload import l
+         aravel_progress_uploader
+     16 +from pycore.pyutils.tts import word_audio_cache
+     17 +from pycore.pyutils.tts.audio_delivery_outbox import
+          AUDIO_DELIVERY_PROCESS_ID, audio_delivery_outbox
+     18 +from pycore.pyutils.tts.audio_validation import vali
+         date_mp3
+     19 +from pycore.pyutils.tts.qwen.config import ENGINE_NA
+         ME as QWEN3TTS_ENGINE
+     20 +from pycore.pyutils.tts.tts_orchestrator import synt
+         hesize
+     21 +from pycore.pyctl.tts import word_audio_service
+     22 +
+     23 +
+     24 +SENTENCE_AUDIO_PATH = "/api/app_qy_v1/ai_tools/tts/s
+         entence/audio"
+     25 +SENTENCE_REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/
+         sentence/report"
+     26 +DELIVERY_LANE = "orchestration"
+     27 +_delivery_jobs = BackgroundJobs("AudioOrchDelivery")
+     28 +
+     29 +
+     30 +def resource_id(kind: str, language: str, text: str)
+          -> str:
+     31 +    content = media_content_id(text) if kind == "sen
+         tence" else text.strip().lower()
+     32 +    return hashlib.sha256(f"{kind}:{language}:{conte
+         nt}".encode("utf-8")).hexdigest()
+     33 +
+     34 +
+     35 +def _sentence_path(text: str, language: str) -> Path
+         :
+     36 +    directory = get_app_cache_dir() / "sentence_audi
+         o" / language
+     37 +    directory.mkdir(parents=True, exist_ok=True)
+     38 +    return directory / f"{media_content_id(text)}.mp
+         3"
+     39 +
+     40 +
+     41 +def _sentence_metadata(resource: Dict[str, Any], bas
+         e_url: Optional[str]) -> Dict[str, Any]:
+     42 +    response = laravel_client.get(
+     43 +        SENTENCE_AUDIO_PATH, base_url=base_url,
+     44 +        params={"text": resource["text"], "language"
+         : resource["language"], "passive": "1"},
+     45 +        timeout=30,
+     46 +    )
+     47 +    if response.status_code != 200:
+     48 +        return {"success": False, "error": f"sentenc
+         e lookup HTTP {response.status_code}"}
+     49 +    return response.json()
+     50 +
+     51 +
+     52 +def resolve_audio(
+     53 +    resource: Dict[str, Any], staging: Path, base_ur
+         l: Optional[str] = None,
+     54 +    progress_callback: Optional[Callable[[Dict[str,
+         Any]], None]] = None,
+     55 +) -> Dict[str, Any]:
+     56 +    kind = resource["kind"]
+     57 +    text = resource["text"]
+     58 +    language = resource["language"]
+     59 +    target = staging / f"{resource['resource_id']}.m
+         p3"
+     60 +    cached = word_audio_cache.find_cached(text, lang
+         uage) if kind == "word" else _sentence_path(text, la
+         nguage)
+     61 +    if kind == "sentence" and not cached.is_file():
+     62 +        cached = cached.with_name(f"{cached.stem}_{Q
+         WEN3TTS_ENGINE}.mp3")
+     63 +    if cached is not None and cached.is_file() and v
+         alidate_mp3(str(cached))[0]:
+     64 +        return {"audio_path": str(cached), "source":
+          "cache", "provider": "cache", "status": "ready"}
+     65 +    if kind == "sentence":
+     66 +        hit = synthesize(text, language, target, pri
+         ority_profile="sentence", cache_only=True)
+     67 +        if hit.get("success"):
+     68 +            return {"audio_path": str(target), "sour
+         ce": "cache", "provider": hit.get("engine") or "cach
+         e", "status": "ready"}
+     69 +        metadata = _sentence_metadata(resource, base
+         _url)
+     70 +        if metadata.get("exists") and metadata.get("
+         url"):
+     71 +            response = laravel_client.get(metadata["
+         url"], base_url=base_url, timeout=60)
+     72 +            if response.status_code == 200:
+     73 +                target.write_bytes(response.content)
+     74 +                if validate_mp3(str(target))[0]:
+     75 +                    cached = _sentence_path(text, la
+         nguage)
+     76 +                    shutil.copy2(target, cached)
+     77 +                    return {"audio_path": str(cached
+         ), "source": "laravel", "provider": "laravel", "stat
+         us": "ready", "synced": True}
+     78 +    else:
+     79 +        metadata = word_audio_service.word_audio_med
+         ia(text, language, base_url=base_url)
+     80 +        if metadata.get("success") and metadata.get(
+         "content_base64"):
+     81 +            target.write_bytes(base64.b64decode(meta
+         data["content_base64"]))
+     82 +            if validate_mp3(str(target))[0]:
+     83 +                cached = word_audio_cache.store_byte
+         s(text, language, "laravel", target.read_bytes())
+     84 +                return {"audio_path": str(cached), "
+         source": "laravel", "provider": "laravel", "status":
+          "ready", "synced": True}
+     85 +    result = synthesize(
+     86 +        text, language, target, priority_profile=kin
+         d,
+     87 +        client_job_id=f"audio-orch:{resource['resour
+         ce_id']}", progress_callback=progress_callback,
+     88 +    )
+     89 +    if not result.get("success") or not target.is_fi
+         le() or not validate_mp3(str(target))[0]:
+     90 +        return {"source": "missing", "status": "fail
+         ed", "error": str(result.get("error") or "audio_vali
+         dation_failed")}
+     91 +    provider = str(result.get("engine") or "generate
+         d")
+     92 +    cached = word_audio_cache.store_bytes(text, lang
+         uage, provider, target.read_bytes()) if kind == "wor
+         d" else _sentence_path(text, language)
+     93 +    if kind == "sentence":
+     94 +        shutil.copy2(target, cached)
+     95 +    return {"audio_path": str(cached), "source": "ca
+         che" if result.get("cached") else "generated", "prov
+         ider": provider, "status": "ready"}
+     96 +
+     97 +
+     98 +def _deliver(record: Dict[str, Any], progress_callba
+         ck: Optional[Callable[[Dict[str, Any]], None]] = Non
+         e) -> Dict[str, Any]:
+     99 +    delivery_id = record["delivery_id"]
+    100 +    owner = f"{AUDIO_DELIVERY_PROCESS_ID}:{uuid.uuid
+         4().hex}"
+    101 +    claimed = audio_delivery_outbox.claim(delivery_i
+         d, owner)
+    102 +    resource = record["resource"]
+    103 +    if claimed is None:
+    104 +        return {"success": False, "error": "audio_de
+         livery_in_progress"}
+    105 +    try:
+    106 +        if resource["kind"] == "sentence":
+    107 +            receipt = laravel_progress_uploader.uplo
+         ad(
+    108 +                SENTENCE_REPORT_PATH, Path(claimed["
+         audio_path"]).read_bytes(),
+    109 +                base_url=record.get("base_url"), pro
+         gress_callback=progress_callback,
+    110 +                params={"content_id": media_content_
+         id(resource["text"]), "text": resource["text"],
+    111 +                        "language": resource["langua
+         ge"], "worker_id": "pycore-audio-orchestration",
+    112 +                        "success": "true", "provider
+         ": resource.get("provider") or "cache"},
+    113 +                reason="audio_orchestration_manifest
+         ",
+    114 +            )
+    115 +            if not receipt.get("upload_complete"):
+    116 +                raise RuntimeError("sentence_upload_
+         incomplete")
+    117 +        else:
+    118 +            word_audio_service.word_audio_media(reso
+         urce["text"], resource["language"], base_url=record.
+         get("base_url"), metadata_only=True)
+    119 +            receipt = word_audio_service.upload_word
+         _audio({
+    120 +                "md5": hashlib.md5(resource["text"].
+         strip().lower().encode("utf-8")).hexdigest(),
+    121 +                "lang": resource["language"], "provi
+         der": resource.get("provider") or "cache",
+    122 +                "cleaned_word": resource["text"],
+    123 +                "audio_base64": base64.b64encode(Pat
+         h(claimed["audio_path"]).read_bytes()).decode("ascii
+         "),
+    124 +            }, base_url=record.get("base_url"))
+    125 +            if not receipt.get("success") or (receip
+         t.get("data") or {}).get("status") not in ("stored",
+          "exists"):
+    126 +                raise RuntimeError(str(receipt.get("
+         error") or receipt.get("message") or "word_upload_in
+         complete"))
+    127 +    except Exception as error:
+    128 +        attempts = int(claimed.get("delivery_attempt
+         s") or 0) + 1
+    129 +        audio_delivery_outbox.patch(delivery_id, {"d
+         elivery_attempts": attempts}, owner)
+    130 +        audio_delivery_outbox.release(delivery_id, o
+         wner, error=str(error), retry_at=time.time() + audio
+         _delivery_outbox.retry_delay(attempts, 5, 300))
+    131 +        ColorPrint.yellow(f"[AudioOrch] delivery={de
+         livery_id} pending: {error}")
+    132 +        return {"success": False, "error": str(error
+         )}
+    133 +    audio_delivery_outbox.complete(delivery_id, owne
+         r)
+    134 +    return {"success": True}
+    135 +
+    136 +
+    137 +def synchronize_audio(resource: Dict[str, Any], base
+         _url: Optional[str], progress_callback: Optional[Cal
+         lable[[Dict[str, Any]], None]] = None) -> Dict[str,
+         Any]:
+    138 +    metadata = _sentence_metadata(resource, base_url
+         ) if resource["kind"] == "sentence" else word_audio_
+         service.word_audio_media(
+    139 +        resource["text"], resource["language"], base
+         _url=base_url, metadata_only=True,
+    140 +    )
+    141 +    if metadata.get("exists"):
+    142 +        return {"success": True, "already_uploaded":
+          True}
+    143 +    audio_path = Path(resource["audio_path"])
+    144 +    digest = hashlib.sha256(audio_path.read_bytes())
+         .hexdigest()
+    145 +    endpoint_key = hashlib.sha256(str(base_url or ""
+         ).encode("utf-8")).hexdigest()[:16]
+    146 +    record = audio_delivery_outbox.stage_audio({
+    147 +        "lane": DELIVERY_LANE, "task_id": f"{endpoin
+         t_key}:{resource['resource_id']}:{digest}",
+    148 +        "attempt": 0, "resource": dict(resource), "b
+         ase_url": base_url,
+    149 +    }, str(audio_path), get_app_cache_dir())
+    150 +    result = _deliver(record, progress_callback)
+    151 +    return {**result, "delivery_id": record["deliver
+         y_id"]}
+    152 +
+    153 +
+    154 +def _recover_deliveries() -> None:
+    155 +    while audio_delivery_outbox.stats(DELIVERY_LANE)
+         ["pending"]:
+    156 +        for record in audio_delivery_outbox.list_rea
+         dy(DELIVERY_LANE, limit=25):
+    157 +            _deliver(record)
+    158 +        THREAD_BUS.wait_signal("audio_orchestration.
+         delivery.wait", timeout=5)
+    159 +
+    160 +
+    161 +def recover_deliveries() -> None:
+    162 +    _delivery_jobs.start("recovery", _recover_delive
+         ries)
+
+  └ pycore/pyctl/tts/word_audio_service.py (+3 -1)
+    247
+    248 -def word_audio_media(word: str, language: str = "en"
+         , base_url: Optional[str] = None):
+    248 +def word_audio_media(word: str, language: str = "en"
+         , base_url: Optional[str] = None, metadata_only: boo
+         l = False):
+    249      """Stream a Laravel-owned word audio file throug
+         h pycore."""
+        ⋮
+    266          return {"success": False, "error": "Word aud
+         io unavailable"}
+    267 +    if metadata_only:
+    268 +        return {"success": True, "exists": True, "au
+         dio_url": audio_url}
+    269      audio_response = laravel_client.get(audio_url, b
+         ase_url=base, timeout=60)
+
+• Ran rg -n 'sentence-words|SentenceWord' poly_apps/
+  │ laravel_main/routes/AppQyV1Router/*
+  │ rg -n 'group_id|groupId|resolve\(' poly_apps/
+  │ … +2 lines
+  └ poly_apps/laravel_main/routes/AppQyV1Router/
+    AppQyV1Learning.php:10:use
+    … +16 lines (ctrl + t to view transcript)
+    53:            'group_id' => 'nullable|string|max:64',
+    64:            $request->input('group_id')
+
+    29 -        ?string $groupId = null
+    29 +        ?string $groupId = null,
+    30 +        bool $includeMedia = true
+    31      ): array
+       ⋮
+    46          foreach ($words as $word) {
+    46 -            if (!isset($mediaByWord[$word])) {
+    47 +            if (!$includeMedia) {
+    48 +                $mediaByWord[$word] = ['word' => $wor
+        d];
+    49 +            } elseif (!isset($mediaByWord[$word])) {
+    50                  $mediaByWord[$word] = $this->mediaSer
+        vice->resolve(
+
+• Explored
+  └ Read AppQyV1SentenceWordTableController.php

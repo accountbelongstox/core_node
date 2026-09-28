@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
@@ -40,7 +29,7 @@ class AppQyV1AudioFileProcessor
     {
         try {
             if (!File::exists($audioArchivePath)) {
-                return ['success' => false, 'progress' => 0, 'error' => 'Audio archive not found'];
+                return ['success' => false, 'progress' => 0, 'error' => __('app_qy_v1.messages.media_audio_archive_not_found')];
             }
 
             // Get file extension to determine archive type
@@ -68,7 +57,7 @@ class AppQyV1AudioFileProcessor
             return [
                 'success' => false,
                 'progress' => 0,
-                'error' => 'Audio processing failed: ' . $e->getMessage()
+                'error' => __('app_qy_v1.messages.media_audio_processing_failed', ['error' => $e->getMessage()])
             ];
         }
     }
@@ -96,11 +85,11 @@ class AppQyV1AudioFileProcessor
                 case 'tar.gz':
                     return $this->extractTar($archivePath, $tempPath);
                 default:
-                    return ['success' => false, 'error' => 'Unsupported archive format: ' . $extension];
+                    return ['success' => false, 'error' => __('app_qy_v1.messages.archive_unsupported_format_named', ['format' => $extension])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'Archive extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -118,7 +107,7 @@ class AppQyV1AudioFileProcessor
             $result = $zip->open($archivePath);
             
             if ($result !== TRUE) {
-                return ['success' => false, 'error' => 'Failed to open ZIP archive'];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.archive_zip_open_failed')];
             }
             
             $zip->extractTo($tempPath);
@@ -127,7 +116,7 @@ class AppQyV1AudioFileProcessor
             return ['success' => true, 'extracted_path' => $tempPath];
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'ZIP extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_zip_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -151,11 +140,11 @@ class AppQyV1AudioFileProcessor
             if ($returnCode === 0) {
                 return ['success' => true, 'extracted_path' => $tempPath];
             } else {
-                return ['success' => false, 'error' => '7z extraction failed: ' . implode("\n", $output)];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.archive_7z_extraction_failed', ['error' => implode("\n", $output)])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => '7z extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_7z_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -178,11 +167,11 @@ class AppQyV1AudioFileProcessor
             if ($returnCode === 0) {
                 return ['success' => true, 'extracted_path' => $tempPath];
             } else {
-                return ['success' => false, 'error' => 'TAR extraction failed: ' . implode("\n", $output)];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.archive_tar_extraction_failed', ['error' => implode("\n", $output)])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'TAR extraction failed: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.archive_tar_extraction_failed', ['error' => $e->getMessage()])];
         }
     }
 
@@ -203,7 +192,7 @@ class AppQyV1AudioFileProcessor
             $audioFiles = $this->findAudioFilesRecursively($extractedPath, $audioExtensions);
             
             if (empty($audioFiles)) {
-                return ['success' => false, 'progress' => 0, 'error' => 'No audio files found in archive'];
+                return ['success' => false, 'progress' => 0, 'error' => __('app_qy_v1.messages.media_no_audio_files_in_archive')];
             }
 
             $totalFiles = count($audioFiles);
@@ -221,7 +210,7 @@ class AppQyV1AudioFileProcessor
                         $errors[] = $result['error'];
                     }
                 } catch (\Exception $e) {
-                    $errors[] = "Failed to process {$audioFile}: " . $e->getMessage();
+                    $errors[] = __('app_qy_v1.messages.media_file_process_failed', ['file' => $audioFile, 'error' => $e->getMessage()]);
                 }
                 
                 $processedFiles++;
@@ -247,7 +236,7 @@ class AppQyV1AudioFileProcessor
             return [
                 'success' => false,
                 'progress' => 0,
-                'error' => 'Audio file processing failed: ' . $e->getMessage()
+                'error' => __('app_qy_v1.messages.media_audio_file_processing_failed', ['error' => $e->getMessage()])
             ];
         }
     }
@@ -324,11 +313,11 @@ class AppQyV1AudioFileProcessor
                     'type' => $isWordAudio ? 'word' : 'sentence'
                 ];
             } else {
-                return ['success' => false, 'error' => "Failed to copy file: $filename"];
+                return ['success' => false, 'error' => __('app_qy_v1.messages.media_audio_copy_failed', ['file' => $filename])];
             }
 
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => 'File processing error: ' . $e->getMessage()];
+            return ['success' => false, 'error' => __('app_qy_v1.messages.media_file_processing_error', ['error' => $e->getMessage()])];
         }
     }
 
@@ -397,12 +386,12 @@ class AppQyV1AudioFileProcessor
     {
         try {
             if (!File::exists($archivePath)) {
-                return ['valid' => false, 'error' => 'Archive file does not exist'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_file_missing')];
             }
 
             $fileSize = File::size($archivePath);
             if ($fileSize === 0) {
-                return ['valid' => false, 'error' => 'Archive file is empty'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_file_empty')];
             }
 
             // Check file extension
@@ -410,7 +399,7 @@ class AppQyV1AudioFileProcessor
             $supportedExtensions = ['zip', '7z', 'tar', 'gz'];
             
             if (!in_array($extension, $supportedExtensions)) {
-                return ['valid' => false, 'error' => 'Unsupported archive format'];
+                return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_unsupported_format')];
             }
 
             return [
@@ -421,7 +410,7 @@ class AppQyV1AudioFileProcessor
             ];
 
         } catch (\Exception $e) {
-            return ['valid' => false, 'error' => 'Archive validation failed: ' . $e->getMessage()];
+            return ['valid' => false, 'error' => __('app_qy_v1.messages.archive_validation_failed', ['error' => $e->getMessage()])];
         }
     }
 }

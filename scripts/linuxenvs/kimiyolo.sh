@@ -1,0 +1,411 @@
+#!/bin/bash
+
+upgrade_choice=""
+kimi_installer_url="https://code.kimi.com/kimi-code/install.sh"
+current_version_output=""
+latest_version_output=""
+version_gap_large="0"
+script_dir_path=""
+script_source_path=""
+scripts_dir_path=""
+core_node_path=""
+mcp_chrome_path=""
+mcp_chrome_node_modules_path=""
+mcp_chrome_shared_artifact_path=""
+mcp_chrome_native_artifact_path=""
+mcp_chrome_extension_manifest_path=""
+mcp_chrome_register_script_path=""
+mcp_chrome_supervisor_script_path=""
+mcp_chrome_dev_log_path=""
+mcp_chrome_linux_common_dir=""
+mcp_chrome_gvar_common_path=""
+mcp_chrome_venv_python_common_path=""
+mcp_chrome_service_contract_common_path=""
+mcp_chrome_python_path=""
+mcp_chrome_url=""
+mcp_chrome_port=""
+mcp_chrome_port_ready=0
+mcp_chrome_port_wait_count=0
+mcp_chrome_needs_build=0
+mcp_chrome_enabled=0
+kimi_code_home_path=""
+kimi_mcp_config_path=""
+kimi_install_script_path=""
+kimi_secret_dir_path=""
+kimi_api_key=""
+kimi_base_url=""
+kimi_config_toml_path=""
+kimi_config_api_key=""
+kimi_args=(--auto)
+kimi_key_indices=()
+kimi_key_values=()
+kimi_key_file=""
+kimi_key_path=""
+kimi_key_name=""
+selected_key_index=0
+switch_choice=""
+switch_pick=""
+model_pick=""
+kimi_model="k3-256k"
+kimi_model_label="kimi k3 256K"
+entry_index=0
+entry_marker=""
+permission_line='default_permission_mode = "auto"'
+
+script_source_path="${BASH_SOURCE[0]}"
+if [ -L "$script_source_path" ]; then
+    script_source_path="$(readlink -f "$script_source_path" 2>/dev/null || echo "$script_source_path")"
+fi
+script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
+scripts_dir_path="$(dirname "$script_dir_path")"
+core_node_path="$(dirname "$scripts_dir_path")"
+mcp_chrome_path="$core_node_path/apps/mcp-chrome"
+mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
+mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
+mcp_chrome_native_artifact_path="$mcp_chrome_path/app/native-server/dist/index.js"
+mcp_chrome_register_script_path="$mcp_chrome_path/scripts/register-local-dev.cjs"
+mcp_chrome_supervisor_script_path="$mcp_chrome_path/scripts/service_supervisor.py"
+mcp_chrome_dev_log_path="/tmp/mcp-chrome-kimiyolo.log"
+mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
+mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
+mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
+mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
+ai_cli_provision_common_path="$mcp_chrome_linux_common_dir/ai_cli_provision_common.sh"
+kimi_install_script_path="$core_node_path/scripts/shells/linux/debian/install_shells/153_install_desktop_applications.sh"
+source "$mcp_chrome_gvar_common_path"
+source "$mcp_chrome_venv_python_common_path"
+source "$mcp_chrome_service_contract_common_path"
+# Shared launcher helpers; keys are printed through ai_cli_mask_secret.
+source "$ai_cli_provision_common_path"
+mcp_chrome_extension_manifest_path="$mcp_chrome_path/$(sc_require mcp_chrome.build_output_dir)/$(sc_require mcp_chrome.extension_dir)/manifest.json"
+mcp_chrome_port="$(sc_require ports.mcp_chrome)"
+mcp_chrome_url="http://$(sc_require hosts.loopback):${mcp_chrome_port}/mcp"
+mcp_chrome_python_path="$VENV_PYTHON3"
+if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
+    mcp_chrome_enabled=1
+fi
+
+kimi_read_secret_file() {
+    local file_path="$1"
+    local value=""
+    local first_bytes=""
+    local trimmed_line=""
+    if [ ! -f "$file_path" ]; then
+        return 0
+    fi
+    first_bytes="$(head -c 3 "$file_path" 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n' 2>/dev/null || echo "")"
+    if [ "$first_bytes" = "efbbbf" ]; then
+        while IFS= read -r trimmed_line || [ -n "$trimmed_line" ]; do
+            trimmed_line="$(echo "$trimmed_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < <(dd if="$file_path" bs=1 skip=3 2>/dev/null)
+    else
+        while IFS= read -r trimmed_line || [ -n "$trimmed_line" ]; do
+            trimmed_line="$(echo "$trimmed_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < "$file_path"
+    fi
+    echo "$value"
+}
+
+kimi_secret_dir_path="$core_node_path/.secret_keys/.secret_ignore"
+kimi_api_key="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_API_KEY_1")"
+kimi_base_url="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_BASE_URL_1")"
+
+# KIMI_CODE_HOME resolution (needed early for config.toml key matching).
+kimi_code_home_path="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
+mkdir -p "$kimi_code_home_path"
+kimi_mcp_config_path="$kimi_code_home_path/mcp.json"
+kimi_config_toml_path="$kimi_code_home_path/config.toml"
+kimi_config_api_key=""
+if [ -f "$kimi_config_toml_path" ]; then
+    kimi_config_api_key="$(grep -E '^[[:space:]]*api_key[[:space:]]*=' "$kimi_config_toml_path" 2>/dev/null | head -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/^"//; s/"[[:space:]]*$//')"
+fi
+
+# KIMI_API_KEY_${index} pool: default = the key already in config.toml;
+# offer a switch prompt [y/N] when more than one key exists.
+kimi_key_indices=()
+kimi_key_values=()
+for kimi_key_path in "$kimi_secret_dir_path"/KIMI_API_KEY_*; do
+    [ -f "$kimi_key_path" ] || continue
+    kimi_key_name="$(basename "$kimi_key_path")"
+    if [[ "$kimi_key_name" =~ ^KIMI_API_KEY_([0-9]+)$ ]]; then
+        kimi_key_file="$(kimi_read_secret_file "$kimi_key_path")"
+        if [ -n "$kimi_key_file" ]; then
+            kimi_key_indices+=("${BASH_REMATCH[1]}")
+            kimi_key_values+=("$kimi_key_file")
+        fi
+    fi
+done
+
+if [ "${#kimi_key_values[@]}" -gt 0 ]; then
+    selected_key_index=0
+    if [ -n "$kimi_config_api_key" ]; then
+        for ((entry_index = 0; entry_index < ${#kimi_key_values[@]}; entry_index++)); do
+            if [ "${kimi_key_values[$entry_index]}" = "$kimi_config_api_key" ]; then
+                selected_key_index=$entry_index
+                break
+            fi
+        done
+    fi
+    if [ "${#kimi_key_values[@]}" -gt 1 ]; then
+        echo "[INFO] Current key: KIMI_API_KEY_${kimi_key_indices[$selected_key_index]} (from config.toml)"
+        printf '\033[33mSwitch Kimi API key? [y/N]: \033[0m'
+        read -r switch_choice || switch_choice=""
+        if [ "$switch_choice" = "y" ] || [ "$switch_choice" = "Y" ]; then
+            for ((entry_index = 0; entry_index < ${#kimi_key_values[@]}; entry_index++)); do
+                entry_marker=""
+                if [ "$entry_index" -eq "$selected_key_index" ]; then
+                    entry_marker=" (current)"
+                fi
+                echo "  [$((entry_index + 1))] KIMI_API_KEY_${kimi_key_indices[$entry_index]}: $(ai_cli_mask_secret "${kimi_key_values[$entry_index]}")${entry_marker}"
+            done
+            printf '\033[33mSelect key number [1-%s]: \033[0m' "${#kimi_key_values[@]}"
+            read -r switch_pick || switch_pick=""
+            if [[ "$switch_pick" =~ ^[0-9]+$ ]] && [ "$switch_pick" -ge 1 ] && [ "$switch_pick" -le "${#kimi_key_values[@]}" ]; then
+                selected_key_index=$((switch_pick - 1))
+            fi
+        fi
+    fi
+    kimi_api_key="${kimi_key_values[$selected_key_index]}"
+    echo "[INFO] Using KIMI_API_KEY_${kimi_key_indices[$selected_key_index]}: $(ai_cli_mask_secret "$kimi_api_key")"
+fi
+
+echo ""
+echo "============================================================"
+echo "kimiyolo.sh"
+echo "============================================================"
+
+if ! command -v kimi >/dev/null 2>&1; then
+    echo "[INFO] kimi is not available on PATH; installing via script library..."
+    if [ -f "$kimi_install_script_path" ]; then
+        bash "$kimi_install_script_path" --exact-app kimi
+        hash -r
+    elif command -v curl >/dev/null 2>&1; then
+        echo "[WARN] Install script not found at: $kimi_install_script_path"
+        echo "[INFO] Falling back to the official native installer..."
+        curl -fsSL "$kimi_installer_url" | bash
+        hash -r
+    else
+        echo "[ERROR] kimi is not available on PATH and no installer is reachable."
+        exit 1
+    fi
+    if ! command -v kimi >/dev/null 2>&1; then
+        echo "[ERROR] kimi installation did not succeed; kimi is still not available on PATH."
+        exit 1
+    fi
+fi
+
+echo "[INFO] KIMI_BASE_URL: ${kimi_base_url:-[empty]}"
+echo "[INFO] API key: $(ai_cli_mask_secret "$kimi_api_key")"
+if [ -z "$kimi_api_key" ]; then
+    echo "[WARN] No API key found (KIMI_API_KEY_*); provider setup will be skipped."
+fi
+if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+    current_version_output="$(kimi --version 2>/dev/null || true)"
+    latest_version_output="$(pnpm view @moonshot-ai/kimi-code version 2>/dev/null || true)"
+    version_gap_large="$(node -e '
+const currentInput = process.argv[1];
+const latestInput = process.argv[2];
+const parseVersion = (value) => {
+    const tokens = value.trim().split(/\s+/);
+    for (const token of tokens) {
+        const candidate = token.startsWith("v") ? token.slice(1) : token;
+        const parts = candidate.split(".");
+        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
+        if (valid) {
+            return parts.map(Number);
+        }
+    }
+    return null;
+};
+const current = parseVersion(currentInput);
+const latest = parseVersion(latestInput);
+const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
+const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
+process.stdout.write(large ? "1" : "0");
+' "$current_version_output" "$latest_version_output" 2>/dev/null || true)"
+fi
+if [ "$version_gap_large" = "1" ]; then
+    printf '\033[33mUpgrade Kimi Code CLI with the official native installer? [N/y]: \033[0m'
+    read -r upgrade_choice || upgrade_choice=""
+fi
+if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "[WARN] curl is unavailable; keeping the installed Kimi Code CLI."
+    else
+        echo "[INFO] Upgrading Kimi Code CLI with the official native installer..."
+        curl -fsSL "$kimi_installer_url" | bash
+        hash -r
+        echo "[INFO] Kimi Code CLI native upgrade command completed."
+    fi
+elif [ "$version_gap_large" = "1" ]; then
+    echo "[INFO] Kimi Code CLI upgrade skipped."
+fi
+
+# Model selection (default 1 = kimi k3 256K / k3-256k; auto-selects after 5s).
+echo "Select model (default 1 = kimi k3 256K / k3-256k; auto-select in 5 seconds):"
+echo "  [1] kimi k3 256K (k3-256k)"
+echo "  [2] kimi k3 1M (k3)"
+echo "  [3] kimi2.8 preview (kimi-for-coding, 1M)"
+echo "  [4] kimi2.7 code highspeed (kimi-for-coding-highspeed, 256K)"
+printf '\033[33mModel number [1-4] (Enter or timeout = 1): \033[0m'
+read -r -t 5 model_pick || model_pick=""
+if [ -z "$model_pick" ]; then
+    model_pick="1"
+    echo "1 (auto)"
+fi
+case "$model_pick" in
+    2) kimi_model="k3"; kimi_model_label="kimi k3 1M" ;;
+    3) kimi_model="kimi-for-coding"; kimi_model_label="kimi2.8 preview" ;;
+    4) kimi_model="kimi-for-coding-highspeed"; kimi_model_label="kimi2.7 code highspeed" ;;
+    *) kimi_model="k3-256k"; kimi_model_label="kimi k3 256K" ;;
+esac
+echo "[INFO] Model: $kimi_model_label ($kimi_model)"
+
+# Non-interactive provider setup (idempotent: catalog add re-creates the provider).
+if [ -n "$kimi_api_key" ]; then
+    if [ -n "$kimi_base_url" ]; then
+        kimi provider catalog add kimi-for-coding --api-key "$kimi_api_key" --default-model "$kimi_model" --base-url "$kimi_base_url"
+    else
+        kimi provider catalog add kimi-for-coding --api-key "$kimi_api_key" --default-model "$kimi_model"
+    fi
+    if [ $? -ne 0 ]; then
+        echo "[WARN] Automatic provider setup failed."
+        echo "[INFO] Manual setup: run kimi, type /provider, choose Known third-party -> Kimi For Coding,"
+        echo "[INFO]   and paste this key: $kimi_api_key"
+    else
+        echo "[INFO] Provider kimi-for-coding configured (default model: $kimi_model)."
+    fi
+fi
+
+# Idempotent repair: kimi-for-coding is now K2.8 Preview (1M context).
+# Older config.toml model entries may still declare 262144 (256K); refresh them.
+if [ -f "$kimi_config_toml_path" ]; then
+    awk '
+{
+    lines[NR] = $0
+    if ($0 ~ /^[[:space:]]*\[/) {
+        current_section = NR
+    }
+    section_of[NR] = current_section
+    if (current_section >= 1 && $0 ~ /^[[:space:]]*model[[:space:]]*=[[:space:]]*"kimi-for-coding"/) {
+        kfc_sections[current_section] = 1
+    }
+}
+END {
+    for (i = 1; i <= NR; i++) {
+        if (kfc_sections[section_of[i]] && lines[i] ~ /^[[:space:]]*max_context_size[[:space:]]*=[[:space:]]*262144/) {
+            lines[i] = "max_context_size = 1048576"
+        }
+        print lines[i]
+    }
+}
+' "$kimi_config_toml_path" > "$kimi_config_toml_path.kfc_tmp"
+    if ! cmp -s "$kimi_config_toml_path.kfc_tmp" "$kimi_config_toml_path"; then
+        mv "$kimi_config_toml_path.kfc_tmp" "$kimi_config_toml_path"
+        echo "[INFO] Repaired kimi-for-coding model entries to K2.8 Preview (1M context)."
+    else
+        rm -f "$kimi_config_toml_path.kfc_tmp"
+    fi
+fi
+
+# Permission mode: Never Ask (disables "Approve once" prompts); idempotent.
+if [ -f "$kimi_config_toml_path" ] && grep -qE '^[[:space:]]*default_permission_mode[[:space:]]*=' "$kimi_config_toml_path"; then
+    sed -i -E 's/^[[:space:]]*default_permission_mode[[:space:]]*=.*/default_permission_mode = "auto"/' "$kimi_config_toml_path"
+elif [ -f "$kimi_config_toml_path" ]; then
+    printf 'default_permission_mode = "auto"\n' | cat - "$kimi_config_toml_path" > "$kimi_config_toml_path.tmp"
+    mv "$kimi_config_toml_path.tmp" "$kimi_config_toml_path"
+else
+    printf 'default_permission_mode = "auto"\n' > "$kimi_config_toml_path"
+fi
+echo "[INFO] Permission mode: auto (Never Ask; approve prompts disabled) in $kimi_config_toml_path"
+
+if [ "$mcp_chrome_enabled" -eq 1 ]; then
+if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
+    [ ! -f "$mcp_chrome_native_artifact_path" ] ||
+    [ ! -f "$mcp_chrome_extension_manifest_path" ]; then
+    mcp_chrome_needs_build=1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+    echo "[ERROR] node is required to install Chrome MCP."
+    exit 1
+fi
+if ! command -v bun >/dev/null 2>&1; then
+    echo "[ERROR] bun is required to install Chrome MCP."
+    exit 1
+fi
+
+echo "[INFO] Ensuring Chrome MCP is installed..."
+if [ ! -d "$mcp_chrome_node_modules_path" ] || [ "$mcp_chrome_needs_build" -eq 1 ]; then
+    echo "[INFO] Installing Chrome MCP dependencies..."
+    (
+        cd "$mcp_chrome_path"
+        bun install
+    )
+fi
+if [ "$mcp_chrome_needs_build" -eq 1 ]; then
+    echo "[INFO] Building missing Chrome MCP artifacts..."
+    (
+        cd "$mcp_chrome_path"
+        bun run build:all
+    )
+fi
+(
+    cd "$mcp_chrome_path"
+    node "$mcp_chrome_register_script_path"
+)
+
+mkdir -p "$kimi_code_home_path"
+node - "$kimi_mcp_config_path" "$mcp_chrome_url" <<'NODE'
+const fs = require("node:fs");
+const configPath = process.argv[2];
+const chromeUrl = process.argv[3];
+const config = fs.existsSync(configPath)
+    ? JSON.parse(fs.readFileSync(configPath, "utf8"))
+    : {};
+
+config.mcpServers ??= {};
+config.mcpServers.chrome = { url: chromeUrl };
+fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+NODE
+echo "[INFO] Chrome MCP registered in Kimi Code: $kimi_mcp_config_path"
+
+if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
+    mcp_chrome_port_ready=1
+fi
+echo "[INFO] Ensuring the singleton Chrome MCP supervisor is running..."
+if [ "$mcp_chrome_needs_build" -eq 1 ] || [ "$mcp_chrome_port_ready" -eq 0 ]; then
+    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev --recover-on-start >"$mcp_chrome_dev_log_path" 2>&1 &
+else
+    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev >"$mcp_chrome_dev_log_path" 2>&1 &
+fi
+while [ "$mcp_chrome_port_ready" -eq 0 ] && [ "$mcp_chrome_port_wait_count" -lt 60 ]; do
+    sleep 0.5
+    if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
+        mcp_chrome_port_ready=1
+    fi
+    mcp_chrome_port_wait_count=$((mcp_chrome_port_wait_count + 1))
+done
+if [ "$mcp_chrome_port_ready" -eq 1 ]; then
+    echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
+else
+    echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
+fi
+else
+    echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
+fi
+
+echo "[INFO] AUTO: ON (Never Ask; approve prompts disabled); built-in web search: configuration preserved"
+echo "[INFO] Provider kimi-for-coding, model $kimi_model; agents and feature settings preserved; extra args: $#"
+echo "============================================================"
+echo ""
+
+exec kimi "${kimi_args[@]}" "$@"

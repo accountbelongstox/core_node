@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY FORBIDDEN
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Windows Management Menu
@@ -24,12 +12,21 @@ $script:SHELLS_DIR = Split-Path (Split-Path $script:PS_CURRENT_DIR -Parent) -Par
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
 $script:TOOLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "tools"
 $script:ANDROID_LAUNCHER = Join-Path $script:TOOLS_DIR "AndroidEmulatorLauncher.ps1"
+$script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
+$script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\repair-chrome-crash.ps1"
+$script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
+$script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
+$script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager.ps1"
+$script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
+$script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
+$script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
+$script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
+$script:TAILSCALE_ACTIONS = @{ "status" = "Status"; "devices" = "Devices"; "restart" = "Restart"; "panel" = "Panel" }
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
-. (Join-Path $script:WIN_COMMON_DIR "SecretManager.ps1")
-
+$script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path (Join-Path $Global:CORE_NODE_DATA_DIR 'scripts\chromefix') 'repair-chrome-crash.ps1'
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
 $script:COLOR_ERROR = "Red"
@@ -59,30 +56,39 @@ function Write-ColorMessage {
     
     Write-Host "$prefix$Message" -ForegroundColor $color
 }
-#endregion
 
-#region Main Functions
-function Show-WindowsManagementSubMenu {
+function Invoke-ConsoleScript {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ScriptPath
+    )
+
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $ScriptPath)) -NoNewWindow -Wait
+}
+
+function Show-WindowsSystemInfoHeader {
+    $osInfo = Get-CimInstance Win32_OperatingSystem
+    $computerInfo = Get-CimInstance Win32_ComputerSystem
+
     Write-Host ""
     Write-ColorMessage -Message "================================================================================" -Type "Info"
     Write-ColorMessage -Message "Windows System Information" -Type "Info"
     Write-ColorMessage -Message "================================================================================" -Type "Info"
-    
-    $osInfo = Get-CimInstance Win32_OperatingSystem
-    $computerInfo = Get-CimInstance Win32_ComputerSystem
-    
     Write-ColorMessage -Message "Operating System: $($osInfo.Caption)" -Type "Info"
-    Write-ColorMessage -Message "Version: $($osInfo.Version)" -Type "Info"
-    Write-ColorMessage -Message "Build Number: $($osInfo.BuildNumber)" -Type "Info"
+    Write-ColorMessage -Message "Version: $($osInfo.Version) (Build $($osInfo.BuildNumber))" -Type "Info"
     Write-ColorMessage -Message "Architecture: $($osInfo.OSArchitecture)" -Type "Info"
     Write-ColorMessage -Message "Computer Name: $($computerInfo.Name)" -Type "Info"
     Write-ColorMessage -Message "Total Physical Memory: $([math]::Round($computerInfo.TotalPhysicalMemory / 1GB, 2)) GB" -Type "Info"
     Write-ColorMessage -Message "Manufacturer: $($computerInfo.Manufacturer)" -Type "Info"
     Write-ColorMessage -Message "Model: $($computerInfo.Model)" -Type "Info"
-    
     Write-ColorMessage -Message "================================================================================" -Type "Info"
     Write-Host ""
-    
+}
+#endregion
+
+#region Main Functions
+function Show-WindowsManagementSubMenu {
+    $extendWindowsUpdateScript = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step15_ExtendWindowsUpdate.ps1"
+
     $subItems = @(
         @{
             Text = "Display System Information";
@@ -92,9 +98,20 @@ function Show-WindowsManagementSubMenu {
             Action = {
                 Write-Host ""
                 Write-ColorMessage -Message "Detailed System Information:" -Type "Info"
-                systeminfo | Select-String -Pattern "OS Name|OS Version|System Type|Total Physical Memory|Available Physical Memory"
-                Write-Host ""
-                Read-Host "Press Enter to continue"
+                try {
+                    $os = Get-CimInstance Win32_OperatingSystem
+                    $cs = Get-CimInstance Win32_ComputerSystem
+                    Write-Host "OS Name:           $($os.Caption)"
+                    Write-Host "OS Version:        $($os.Version) Build $($os.BuildNumber)"
+                    Write-Host "System Type:       $($os.OSArchitecture)"
+                    Write-Host "Computer Name:     $($cs.Name)"
+                    $totalMB = [math]::Round($cs.TotalPhysicalMemory / 1MB, 2)
+                    $freeMB = [math]::Round(($os.FreePhysicalMemory) / 1KB, 2)
+                    Write-Host "Total Physical Memory:    $totalMB MB"
+                    Write-Host "Available Physical Memory: $freeMB MB"
+                } catch {
+                    Write-ColorMessage -Message "Failed to get system info: $_" -Type "Error"
+                }
             }
         },
         @{
@@ -103,27 +120,13 @@ function Show-WindowsManagementSubMenu {
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                $step7Script = Join-Path $script:SHELLS_DIR "win\install_powershells\Step7_ExtendWindowsUpdate.ps1"
-                if (Test-Path $step7Script) {
-                    Write-ColorMessage -Message "Executing Step7: Extend Windows Update Pause Days..." -Type "Info"
+                if (Test-Path $extendWindowsUpdateScript) {
+                    Write-ColorMessage -Message "Executing Step15: Extend Windows Update Pause Days..." -Type "Info"
                     Write-Host ""
-                    & $step7Script
-                    Write-Host ""
-                    Read-Host "Press Enter to continue"
+                    & $extendWindowsUpdateScript
                 } else {
-                    Write-ColorMessage -Message "Step7 script not found at: $step7Script" -Type "Error"
-                    Read-Host "Press Enter to continue"
+                    Write-ColorMessage -Message "Step15 script not found at: $extendWindowsUpdateScript" -Type "Error"
                 }
-            }
-        },
-        @{
-            Text = "Clear and Re-decrypt Secret Keys";
-            Values = @("default");
-            CurrentValueIndex = 0;
-            Key = $null;
-            Action = {
-                Clear-Host
-                Clear-AndRedecryptSecrets
             }
         },
         @{
@@ -145,8 +148,113 @@ function Show-WindowsManagementSubMenu {
                 } else {
                     Write-ColorMessage -Message "Stable launcher script not found: $stableLauncher" -Type "Error"
                 }
+            }
+        },
+        @{
+            Text = "APP Install";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $appInstallMenuScript = Join-Path $script:PS_CURRENT_DIR "AppInstallMenu.ps1"
+                if (Test-Path $appInstallMenuScript) {
+                    Write-ColorMessage -Message "Launching APP Install Menu..." -Type "Info"
+                    Write-Host ""
+                    & $appInstallMenuScript
+                } else {
+                    Write-ColorMessage -Message "AppInstallMenu.ps1 not found: $appInstallMenuScript" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "WSL Debian Management";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                if (Test-Path $script:WSL_DEBIAN_MANAGER_SCRIPT) {
+                    Write-ColorMessage -Message "Launching WSL Debian Management..." -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:WSL_DEBIAN_MANAGER_SCRIPT
+                } else {
+                    Write-ColorMessage -Message "WSLDebianManager.ps1 not found: $script:WSL_DEBIAN_MANAGER_SCRIPT" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "Repair Chrome Crash (PUP + Compat Shim / 0xC0000409)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Clear-Host
+                $repairScript = $script:CHROME_REPAIR_SCRIPT
+                if (-not (Test-Path $repairScript)) { $repairScript = $script:CHROME_REPAIR_SCRIPT_FALLBACK }
+                if (Test-Path $repairScript) {
+                    Write-ColorMessage -Message "Repairing Chrome crash (AW PUP removal + compat shim fix)..." -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript
+                } else {
+                    Write-ColorMessage -Message "Chrome repair script not found: $repairScript" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "Repair Disk (chkdsk /f)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT
+            }
+        },
+        @{
+            Text = "Linux Dual Boot Readiness (Fast Startup)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT
+            }
+        },
+        @{
+            Text = "Organize Desktop Icons";
+            Values = @("organize", "preview", "undo");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $desktopIconMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
+                $desktopIconAction = $script:DESKTOP_ICON_ACTIONS[$desktopIconMode]
+                Write-ColorMessage -Message "Desktop icon organizer: $desktopIconAction" -Type "Info"
                 Write-Host ""
-                Read-Host "Press Enter to continue"
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:DESKTOP_ICON_MANAGER_SCRIPT -DesktopIconAction $desktopIconAction
+            }
+        },
+        @{
+            Text = "Tailscale (mesh VPN status / devices / restart / panel)";
+            Values = @("status", "devices", "restart", "panel");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $tailscaleMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
+                $tailscaleAction = $script:TAILSCALE_ACTIONS[$tailscaleMode]
+                Write-ColorMessage -Message "Tailscale: $tailscaleAction" -Type "Info"
+                Write-Host ""
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:TAILSCALE_COMMON_SCRIPT -Action $tailscaleAction
+            }
+        },
+        @{
+            Text = "Path Mapping (.cursor / .devin)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                if (Test-Path $script:USER_PROFILE_PATH_MAPPING_SCRIPT) {
+                    . $script:USER_PROFILE_PATH_MAPPING_SCRIPT
+                    Show-UserProfilePathMappingMenu
+                } else {
+                    Write-ColorMessage -Message "UserProfilePathMapping.ps1 not found: $script:USER_PROFILE_PATH_MAPPING_SCRIPT" -Type "Error"
+                }
             }
         },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
@@ -168,6 +276,7 @@ function Show-WindowsManagementSubMenu {
     $selected = 0
     while ($true) {
         Clear-Host
+        Show-WindowsSystemInfoHeader
         Write-ColorMessage -Message "Windows Management Menu (Up/Down to move, Left/Right to change value, Enter to select)" -Type "Info"
         for ($i=0; $i -lt $subItems.Count; $i++) {
             $it = $subItems[$i]
@@ -223,14 +332,21 @@ function Show-WindowsManagementSubMenu {
                 }
             }
             'Enter' {
-                Clear-Host
-                $subItems[$selected].Action.Invoke()
-                if ($subItems[$selected].Text -eq "Back") {
+                $selectedItem = $subItems[$selected]
+                $selectedText = $selectedItem.Text
+
+                if ($selectedText -eq "Back") {
+                    $selectedItem.Action.Invoke()
                     return
                 }
-                if ($subItems[$selected].Text -eq "Quit") {
+                if ($selectedText -eq "Quit") {
+                    $selectedItem.Action.Invoke()
                     exit
                 }
+
+                Clear-Host
+                $selectedItem.Action.Invoke()
+                Wait-MenuContinue
             }
             'Q' { return }
             'Escape' { return }

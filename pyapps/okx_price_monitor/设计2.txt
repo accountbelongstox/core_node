@@ -160,12 +160,12 @@ Enabling feature(s)
 [==========================100.0%==========================]
 The operation completed successfully.
 
-kipping download for: shells\win\install_powershells\Step85_InstallWSLUbuntu24.ps1
-Executing script: D:\programing\core_node\scripts\shells\win\install_powershells\Step85_InstallWSLUbuntu24.ps1
+kipping download for: shells\win\install_powershells\Step30_InstallWSLUbuntu24.ps1
+Executing script: D:\programing\core_node\scripts\shells\win\install_powershells\Step30_InstallWSLUbuntu24.ps1
 [Step 80] Starting WSL Ubuntu 24 action: Global
 [Step 80] Invalid action: Global. Valid actions: install, reinstall, restart
 [Step 80] WSL Ubuntu 24 action 'Global' failed
-Checking script: Step86_SetRootLoginWSLUbuntuDebian.ps1
-Script is running from BASE_DIR subdirectory and file exists at: D:\programing\core_node\scripts\shells\win\install_powershells\Step86_SetRootLoginWSLUbuntuDebian.ps1
+Checking script: Step31_SetRootLoginWSLUbuntuDebian.ps1
+Script is running from BASE_DIR subdirectory and file exists at: D:\programing\core_node\scripts\shells\win\install_powershells\Step31_SetRootLoginWSLUbuntuDebian.ps1
 
 解决这个自动按Y/n的问题，

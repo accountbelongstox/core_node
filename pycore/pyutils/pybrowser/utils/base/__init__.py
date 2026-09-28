@@ -1,9 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Base Utilities Module
-"""
-
-from pycore.pyutils.pybrowser.utils.base.base_utils import BaseUtils
-
-__all__ = ['BaseUtils']
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

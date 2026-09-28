@@ -7,14 +7,30 @@ Uses system cache directory for persistent storage.
 """
 
 import json
-import threading
 from pathlib import Path
 from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.serialized_worker import (
+    SerializedWorkerThread,
+    call_serialized,
+)
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
+
+
+_QUEUE_STATE_QUEUE = 'pyctl.desktop.voice_subtitle_queue.state'
+_QUEUE_SNAPSHOT_SIGNAL = 'pyctl.desktop.voice_subtitle_queue.snapshot'
+_QUEUE_PAGE_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY['data_segment_limit'])
+_QUEUE_STATE_WORKER = SerializedWorkerThread(
+    _QUEUE_STATE_QUEUE,
+    'VoiceSubtitleQueueStateThread',
+)
+_QUEUE_STATE_WORKER.start()
 
 
 @dataclass
@@ -25,6 +41,10 @@ class VoiceSubtitleItem:
     play_count: int = 0
     category: str = "normal"  # 分类（默认"normal"普通）
     created_at: str = ""  # ISO格式时间戳
+    # Which AI produced this item's text (empty for plain user input). Shown in
+    # the UI so every AI-handled task is attributable to its provider/model.
+    ai_provider: str = ""
+    ai_model: str = ""
 
     def __post_init__(self):
         """Initialize created_at if not provided"""
@@ -40,13 +60,12 @@ class VoiceSubtitleQueue:
     - Queue of voice subtitle items
     - Current index tracking
     - Persistent storage in system cache
-    - Thread-safe operations
+    - THREAD_BUS-serialized operations
     - Playback control (enabled/disabled)
     """
 
     def __init__(self):
         """Initialize voice subtitle queue"""
-        self._lock = threading.RLock()
         self._queue: List[VoiceSubtitleItem] = []
         self._current_index: int = 0
         self._enabled: bool = False  # Playback enabled/disabled
@@ -63,29 +82,63 @@ class VoiceSubtitleQueue:
 
     def _load_queue(self):
         """Load queue from disk"""
-        if not self._storage_file.exists():
-            return
-
-        with self._lock:
+        if self._storage_file.exists():
             with open(self._storage_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self._queue = [VoiceSubtitleItem(**item) for item in data.get('queue', [])]
                 self._current_index = data.get('current_index', 0)
                 self._enabled = data.get('enabled', False)
+        self._publish_fast_snapshot()
+
+    def _build_snapshot(self, offset: int, limit: int) -> Dict:
+        """Build one bounded queue page on the state-owner thread."""
+        total = len(self._queue)
+        page_offset = max(0, min(int(offset or 0), total))
+        page_limit = max(1, min(int(limit or _QUEUE_PAGE_LIMIT), _QUEUE_PAGE_LIMIT))
+        page_end = min(total, page_offset + page_limit)
+        rows = []
+        for index in range(page_offset, page_end):
+            row = asdict(self._queue[index])
+            row['index'] = index
+            rows.append(row)
+        return {
+            'queue': rows,
+            'current_index': self._current_index,
+            'enabled': self._enabled,
+            'total': total,
+            'offset': page_offset,
+            'limit': page_limit,
+            'next_offset': page_end if page_end < total else None,
+        }
+
+    def _publish_fast_snapshot(self) -> Dict:
+        """Publish the default UI page as an immutable non-blocking snapshot."""
+        snapshot = self._build_snapshot(0, _QUEUE_PAGE_LIMIT)
+        THREAD_BUS.signal(_QUEUE_SNAPSHOT_SIGNAL, snapshot)
+        return snapshot
 
     def _save_queue(self):
-        """Save queue to disk"""
-        with self._lock:
-            data = {
-                'queue': [asdict(item) for item in self._queue],
-                'current_index': self._current_index,
-                'enabled': self._enabled
-            }
+        """Save queue to disk and broadcast the new snapshot"""
+        data = {
+            'queue': [asdict(item) for item in self._queue],
+            'current_index': self._current_index,
+            'enabled': self._enabled
+        }
 
-            with open(self._storage_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+        with open(self._storage_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
-    def add_item(self, text: str, audio_path: str, category: str = "normal") -> None:
+        snapshot = self._publish_fast_snapshot()
+        # Every mutation publishes only the bounded default page. Full persisted
+        # queue data stays on disk and is materialized one page at a time.
+        THREAD_BUS.trigger_event(
+            BusSignals.VOICE_SUBTITLE_QUEUE_UPDATE,
+            snapshot,
+            async_mode=True,
+        )
+
+    def add_item(self, text: str, audio_path: str, category: str = "normal",
+                 ai_provider: str = "", ai_model: str = "") -> None:
         """
         Add item to queue
 
@@ -93,12 +146,34 @@ class VoiceSubtitleQueue:
             text: Subtitle text
             audio_path: Path to audio file
             category: Item category (default: "normal")
+            ai_provider: AI provider that produced the text ("" = not AI)
+            ai_model: model id used by that provider
         """
-        with self._lock:
-            item = VoiceSubtitleItem(text=text, audio_path=audio_path, category=category)
-            self._queue.append(item)
-            self._save_queue()
-            ColorPrint.blue(f"[VoiceSubtitle] Added item ({category}): {text}")
+        call_serialized(
+            _QUEUE_STATE_QUEUE,
+            self._add_item,
+            text,
+            audio_path,
+            category,
+            ai_provider,
+            ai_model,
+        )
+
+    def _add_item(
+        self,
+        text: str,
+        audio_path: str,
+        category: str,
+        ai_provider: str,
+        ai_model: str,
+    ) -> None:
+        """Add an item on the queue-owner thread."""
+        item = VoiceSubtitleItem(text=text, audio_path=audio_path, category=category,
+                                 ai_provider=ai_provider, ai_model=ai_model)
+        self._queue.append(item)
+        self._save_queue()
+        ColorPrint.blue(f"[VoiceSubtitle] Added item ({category}"
+                        f"{', ai=' + ai_provider if ai_provider else ''}): {text}")
 
     def remove_item(self, index: int) -> bool:
         """
@@ -110,18 +185,20 @@ class VoiceSubtitleQueue:
         Returns:
             bool: True if removed
         """
-        with self._lock:
-            if 0 <= index < len(self._queue):
-                item = self._queue.pop(index)
-                # Adjust current index if necessary
-                if self._current_index >= len(self._queue) and len(self._queue) > 0:
-                    self._current_index = len(self._queue) - 1
-                elif len(self._queue) == 0:
-                    self._current_index = 0
-                self._save_queue()
-                ColorPrint.blue(f"[VoiceSubtitle] Removed item: {item.text}")
-                return True
-            return False
+        return call_serialized(_QUEUE_STATE_QUEUE, self._remove_item, index)
+
+    def _remove_item(self, index: int) -> bool:
+        """Remove an item on the queue-owner thread."""
+        if 0 <= index < len(self._queue):
+            item = self._queue.pop(index)
+            if self._current_index >= len(self._queue) and self._queue:
+                self._current_index = len(self._queue) - 1
+            elif not self._queue:
+                self._current_index = 0
+            self._save_queue()
+            ColorPrint.blue(f"[VoiceSubtitle] Removed item: {item.text}")
+            return True
+        return False
 
     def get_current_item(self) -> Optional[VoiceSubtitleItem]:
         """
@@ -130,10 +207,13 @@ class VoiceSubtitleQueue:
         Returns:
             Optional[VoiceSubtitleItem]: Current item or None
         """
-        with self._lock:
-            if 0 <= self._current_index < len(self._queue):
-                return self._queue[self._current_index]
-            return None
+        return call_serialized(_QUEUE_STATE_QUEUE, self._get_current_item)
+
+    def _get_current_item(self) -> Optional[VoiceSubtitleItem]:
+        """Return a detached current item on the queue-owner thread."""
+        if 0 <= self._current_index < len(self._queue):
+            return VoiceSubtitleItem(**asdict(self._queue[self._current_index]))
+        return None
 
     def next_item(self) -> Optional[VoiceSubtitleItem]:
         """
@@ -142,13 +222,15 @@ class VoiceSubtitleQueue:
         Returns:
             Optional[VoiceSubtitleItem]: Next item or None
         """
-        with self._lock:
-            if len(self._queue) == 0:
-                return None
+        return call_serialized(_QUEUE_STATE_QUEUE, self._next_item)
 
-            self._current_index = (self._current_index + 1) % len(self._queue)
-            self._save_queue()
-            return self.get_current_item()
+    def _next_item(self) -> Optional[VoiceSubtitleItem]:
+        """Advance on the queue-owner thread."""
+        if not self._queue:
+            return None
+        self._current_index = (self._current_index + 1) % len(self._queue)
+        self._save_queue()
+        return self._get_current_item()
 
     def previous_item(self) -> Optional[VoiceSubtitleItem]:
         """
@@ -157,13 +239,15 @@ class VoiceSubtitleQueue:
         Returns:
             Optional[VoiceSubtitleItem]: Previous item or None
         """
-        with self._lock:
-            if len(self._queue) == 0:
-                return None
+        return call_serialized(_QUEUE_STATE_QUEUE, self._previous_item)
 
-            self._current_index = (self._current_index - 1) % len(self._queue)
-            self._save_queue()
-            return self.get_current_item()
+    def _previous_item(self) -> Optional[VoiceSubtitleItem]:
+        """Move backward on the queue-owner thread."""
+        if not self._queue:
+            return None
+        self._current_index = (self._current_index - 1) % len(self._queue)
+        self._save_queue()
+        return self._get_current_item()
 
     def set_current_index(self, index: int) -> bool:
         """
@@ -175,12 +259,15 @@ class VoiceSubtitleQueue:
         Returns:
             bool: True if index was set
         """
-        with self._lock:
-            if 0 <= index < len(self._queue):
-                self._current_index = index
-                self._save_queue()
-                return True
-            return False
+        return call_serialized(_QUEUE_STATE_QUEUE, self._set_current_index, index)
+
+    def _set_current_index(self, index: int) -> bool:
+        """Set the current index on the queue-owner thread."""
+        if 0 <= index < len(self._queue):
+            self._current_index = index
+            self._save_queue()
+            return True
+        return False
 
     def increment_play_count(self, index: Optional[int] = None) -> None:
         """
@@ -189,11 +276,14 @@ class VoiceSubtitleQueue:
         Args:
             index: Item index (None = current item)
         """
-        with self._lock:
-            idx = index if index is not None else self._current_index
-            if 0 <= idx < len(self._queue):
-                self._queue[idx].play_count += 1
-                self._save_queue()
+        call_serialized(_QUEUE_STATE_QUEUE, self._increment_play_count, index)
+
+    def _increment_play_count(self, index: Optional[int]) -> None:
+        """Increment play count on the queue-owner thread."""
+        item_index = index if index is not None else self._current_index
+        if 0 <= item_index < len(self._queue):
+            self._queue[item_index].play_count += 1
+            self._save_queue()
 
     def get_queue(self) -> List[Dict]:
         """
@@ -202,18 +292,50 @@ class VoiceSubtitleQueue:
         Returns:
             List[Dict]: Queue items
         """
-        with self._lock:
-            return [asdict(item) for item in self._queue]
+        return list(self.get_snapshot().get('queue') or [])
+
+    def _get_queue(self) -> List[Dict]:
+        """Build a queue snapshot on the queue-owner thread."""
+        return list(self._build_snapshot(0, _QUEUE_PAGE_LIMIT)['queue'])
+
+    def get_snapshot(self, offset: int = 0, limit: int = _QUEUE_PAGE_LIMIT) -> Dict:
+        """Return one bounded page; the default page never waits on disk writes."""
+        page_offset = max(0, int(offset or 0))
+        page_limit = max(1, min(int(limit or _QUEUE_PAGE_LIMIT), _QUEUE_PAGE_LIMIT))
+        if page_offset == 0:
+            cached = THREAD_BUS.get_signal(_QUEUE_SNAPSHOT_SIGNAL, {}) or {}
+            if isinstance(cached, dict) and cached:
+                rows = [dict(item) for item in list(cached.get('queue') or [])[:page_limit]]
+                total = int(cached.get('total') or 0)
+                page_end = len(rows)
+                return {
+                    **cached,
+                    'queue': rows,
+                    'limit': page_limit,
+                    'next_offset': page_end if page_end < total else None,
+                }
+        return call_serialized(
+            _QUEUE_STATE_QUEUE,
+            self._build_snapshot,
+            page_offset,
+            page_limit,
+        )
 
     def get_current_index(self) -> int:
         """Get current index"""
-        with self._lock:
-            return self._current_index
+        return call_serialized(_QUEUE_STATE_QUEUE, self._get_current_index)
+
+    def _get_current_index(self) -> int:
+        """Read the current index on the queue-owner thread."""
+        return self._current_index
 
     def is_enabled(self) -> bool:
         """Check if playback is enabled"""
-        with self._lock:
-            return self._enabled
+        return call_serialized(_QUEUE_STATE_QUEUE, self._is_enabled)
+
+    def _is_enabled(self) -> bool:
+        """Read playback state on the queue-owner thread."""
+        return self._enabled
 
     def set_enabled(self, enabled: bool) -> None:
         """
@@ -222,11 +344,14 @@ class VoiceSubtitleQueue:
         Args:
             enabled: Enable state
         """
-        with self._lock:
-            self._enabled = enabled
-            self._save_queue()
-            status = "enabled" if enabled else "disabled"
-            ColorPrint.green(f"[VoiceSubtitle] Playback {status}")
+        call_serialized(_QUEUE_STATE_QUEUE, self._set_enabled, enabled)
+
+    def _set_enabled(self, enabled: bool) -> None:
+        """Set playback state on the queue-owner thread."""
+        self._enabled = enabled
+        self._save_queue()
+        status = "enabled" if enabled else "disabled"
+        ColorPrint.green(f"[VoiceSubtitle] Playback {status}")
 
     def toggle_enabled(self) -> bool:
         """
@@ -235,20 +360,26 @@ class VoiceSubtitleQueue:
         Returns:
             bool: New enabled state
         """
-        with self._lock:
-            self._enabled = not self._enabled
-            self._save_queue()
-            status = "enabled" if self._enabled else "disabled"
-            ColorPrint.green(f"[VoiceSubtitle] Playback {status}")
-            return self._enabled
+        return call_serialized(_QUEUE_STATE_QUEUE, self._toggle_enabled)
+
+    def _toggle_enabled(self) -> bool:
+        """Toggle playback state on the queue-owner thread."""
+        self._enabled = not self._enabled
+        self._save_queue()
+        status = "enabled" if self._enabled else "disabled"
+        ColorPrint.green(f"[VoiceSubtitle] Playback {status}")
+        return self._enabled
 
     def clear_queue(self) -> None:
         """Clear all items from queue"""
-        with self._lock:
-            self._queue.clear()
-            self._current_index = 0
-            self._save_queue()
-            ColorPrint.blue("[VoiceSubtitle] Queue cleared")
+        call_serialized(_QUEUE_STATE_QUEUE, self._clear_queue)
+
+    def _clear_queue(self) -> None:
+        """Clear items on the queue-owner thread."""
+        self._queue.clear()
+        self._current_index = 0
+        self._save_queue()
+        ColorPrint.blue("[VoiceSubtitle] Queue cleared")
 
     def get_categories(self) -> List[str]:
         """
@@ -257,9 +388,12 @@ class VoiceSubtitleQueue:
         Returns:
             List[str]: List of category names
         """
-        with self._lock:
-            categories = set(item.category for item in self._queue)
-            return sorted(list(categories))
+        return call_serialized(_QUEUE_STATE_QUEUE, self._get_categories)
+
+    def _get_categories(self) -> List[str]:
+        """Build the category snapshot on the queue-owner thread."""
+        categories = {item.category for item in self._queue}
+        return sorted(categories)
 
     def filter_by_category(self, category: str) -> List[Dict]:
         """
@@ -271,9 +405,11 @@ class VoiceSubtitleQueue:
         Returns:
             List[Dict]: Filtered queue items
         """
-        with self._lock:
-            filtered = [asdict(item) for item in self._queue if item.category == category]
-            return filtered
+        return call_serialized(_QUEUE_STATE_QUEUE, self._filter_by_category, category)
+
+    def _filter_by_category(self, category: str) -> List[Dict]:
+        """Filter items on the queue-owner thread."""
+        return [asdict(item) for item in self._queue if item.category == category]
 
     def filter_by_today(self) -> List[Dict]:
         """
@@ -282,18 +418,20 @@ class VoiceSubtitleQueue:
         Returns:
             List[Dict]: Items created today
         """
-        with self._lock:
-            today = datetime.now().date()
-            filtered = []
-            for item in self._queue:
-                try:
-                    item_date = datetime.fromisoformat(item.created_at).date()
-                    if item_date == today:
-                        filtered.append(asdict(item))
-                except (ValueError, AttributeError):
-                    # Skip items with invalid timestamps
-                    continue
-            return filtered
+        return call_serialized(_QUEUE_STATE_QUEUE, self._filter_by_today)
+
+    def _filter_by_today(self) -> List[Dict]:
+        """Filter today's items on the queue-owner thread."""
+        today = datetime.now().date()
+        filtered = []
+        for item in self._queue:
+            try:
+                item_date = datetime.fromisoformat(item.created_at).date()
+                if item_date == today:
+                    filtered.append(asdict(item))
+            except (ValueError, AttributeError):
+                continue
+        return filtered
 
     def get_latest_items(self, limit: int = 300) -> List[Dict]:
         """
@@ -305,15 +443,16 @@ class VoiceSubtitleQueue:
         Returns:
             List[Dict]: Latest items (sorted by creation time, newest first)
         """
-        with self._lock:
-            # Sort by created_at descending (newest first)
-            sorted_queue = sorted(
-                self._queue,
-                key=lambda item: item.created_at,
-                reverse=True
-            )
-            limited = sorted_queue[:limit]
-            return [asdict(item) for item in limited]
+        return call_serialized(_QUEUE_STATE_QUEUE, self._get_latest_items, limit)
+
+    def _get_latest_items(self, limit: int) -> List[Dict]:
+        """Build the latest-items snapshot on the queue-owner thread."""
+        sorted_queue = sorted(
+            self._queue,
+            key=lambda item: item.created_at,
+            reverse=True
+        )
+        return [asdict(item) for item in sorted_queue[:limit]]
 
     def change_item_category(self, index: int, new_category: str) -> bool:
         """
@@ -326,14 +465,22 @@ class VoiceSubtitleQueue:
         Returns:
             bool: True if category was changed
         """
-        with self._lock:
-            if 0 <= index < len(self._queue):
-                old_category = self._queue[index].category
-                self._queue[index].category = new_category
-                self._save_queue()
-                ColorPrint.blue(f"[VoiceSubtitle] Changed category: {old_category} -> {new_category}")
-                return True
-            return False
+        return call_serialized(
+            _QUEUE_STATE_QUEUE,
+            self._change_item_category,
+            index,
+            new_category,
+        )
+
+    def _change_item_category(self, index: int, new_category: str) -> bool:
+        """Change an item category on the queue-owner thread."""
+        if 0 <= index < len(self._queue):
+            old_category = self._queue[index].category
+            self._queue[index].category = new_category
+            self._save_queue()
+            ColorPrint.blue(f"[VoiceSubtitle] Changed category: {old_category} -> {new_category}")
+            return True
+        return False
 
     def remove_items(self, indices: List[int]) -> int:
         """
@@ -345,48 +492,25 @@ class VoiceSubtitleQueue:
         Returns:
             int: Number of items removed
         """
-        with self._lock:
-            # Sort indices in descending order to avoid index shifting issues
-            sorted_indices = sorted(set(indices), reverse=True)
-            removed_count = 0
+        return call_serialized(_QUEUE_STATE_QUEUE, self._remove_items, indices)
 
-            for index in sorted_indices:
-                if 0 <= index < len(self._queue):
-                    item = self._queue.pop(index)
-                    removed_count += 1
-                    ColorPrint.blue(f"[VoiceSubtitle] Removed item: {item.text}")
-
-            # Adjust current index if necessary
-            if len(self._queue) > 0:
-                if self._current_index >= len(self._queue):
-                    self._current_index = len(self._queue) - 1
-            else:
-                self._current_index = 0
-
-            if removed_count > 0:
-                self._save_queue()
-                ColorPrint.green(f"[VoiceSubtitle] Removed {removed_count} items")
-
-            return removed_count
+    def _remove_items(self, indices: List[int]) -> int:
+        """Remove multiple items on the queue-owner thread."""
+        sorted_indices = sorted(set(indices), reverse=True)
+        removed_count = 0
+        for index in sorted_indices:
+            if 0 <= index < len(self._queue):
+                item = self._queue.pop(index)
+                removed_count += 1
+                ColorPrint.blue(f"[VoiceSubtitle] Removed item: {item.text}")
+        if self._queue and self._current_index >= len(self._queue):
+            self._current_index = len(self._queue) - 1
+        elif not self._queue:
+            self._current_index = 0
+        if removed_count > 0:
+            self._save_queue()
+            ColorPrint.green(f"[VoiceSubtitle] Removed {removed_count} items")
+        return removed_count
 
 
-# Global instance
-_voice_subtitle_queue: Optional[VoiceSubtitleQueue] = None
-_queue_lock = threading.Lock()
-
-
-def get_voice_subtitle_queue() -> VoiceSubtitleQueue:
-    """
-    Get global voice subtitle queue instance
-
-    Returns:
-        VoiceSubtitleQueue: Global queue instance
-    """
-    global _voice_subtitle_queue
-
-    if _voice_subtitle_queue is None:
-        with _queue_lock:
-            if _voice_subtitle_queue is None:
-                _voice_subtitle_queue = VoiceSubtitleQueue()
-
-    return _voice_subtitle_queue
+voice_subtitle_queue = VoiceSubtitleQueue()

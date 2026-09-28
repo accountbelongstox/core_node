@@ -2,15 +2,16 @@
 # -*- coding: utf-8 -*-
 """
 Diablo 3 Macro - WebView UI Launcher
-Uses NativeUIFrameworkV2 with HTML/CSS/JS frontend
+Uses NativeUIFrameworkV2 with HTML/CSS/JS frontend.
+Single creator of D3MacroWebViewAPI / WebViewFramework per window.
 """
 
 # Check and install dependencies before importing
-from pycore import check_and_install_dependencies
+from pycore.pyfoundations.third_party.api import check_and_install_dependencies
 check_and_install_dependencies()
 
 # Import ColorPrint for logging
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import os
 import sys
@@ -18,19 +19,14 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 # Import WebView UI Framework
-from pycore.pyutils.native_ui import (
-    WebViewFramework,
-    UIConfig,
-    SignalType
-)
+from pycore.pyutils.native_ui.step1_config.config import UIConfig
+from pycore.pyutils.native_ui.step8_utils.signals import SignalType
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework as WebViewFramework
 
 # Import d3-check components
-from providor.common_imports import ENCYCLOPEDIA
-from providor.providor_index import CONFIG, save_config
-from d3utils.i18n_manager import i18n_manager
-from d3utils.shutdown_manager import request_shutdown
-
-
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from providor.providor_index import CONFIG, save_config, DIABLO_III_WINDOW_TITLES
+from providor.i18n_manager import i18n_manager
 class D3MacroWebViewAPI:
     """
     Python API exposed to JavaScript via webview bridge
@@ -62,14 +58,9 @@ class D3MacroWebViewAPI:
 
         if hasattr(self, method_name):
             method = getattr(self, method_name)
-            try:
-                if params:
-                    return method(params)
-                else:
-                    return method()
-            except Exception as e:
-                ColorPrint.red(f"[WebViewAPI] Error calling {method_name}: {e}")
-                return {'success': False, 'error': str(e)}
+            if params:
+                return method(params)
+            return method()
         else:
             ColorPrint.yellow(f"[WebViewAPI] Unknown method: {method_name}")
             return {'success': False, 'error': f'Unknown method: {method_name}'}
@@ -144,7 +135,7 @@ class D3MacroWebViewAPI:
         return {
             'success': True,
             'detected': False,  # Replace with actual detection
-            'window_title': 'Diablo III'
+            'window_title': (DIABLO_III_WINDOW_TITLES[0] if DIABLO_III_WINDOW_TITLES else "Diablo III")
         }
 
     def get_skills(self) -> list:
@@ -299,17 +290,9 @@ class WebViewLauncher:
 
 
 def main():
-    """Main entry point"""
-    try:
-        # Create and start launcher
-        launcher = WebViewLauncher()
-        launcher.start()
-
-    except Exception as e:
-        ColorPrint.red(f"[Main] Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    """Main entry point. Launcher and start must succeed at code level."""
+    launcher = WebViewLauncher()
+    launcher.start()
 
 
 if __name__ == '__main__':

@@ -1,31 +1,19 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Clash;
 
-use App\Models\Group;
+use App\Http\Controllers\Controller;
+
+use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
-class GroupController
+class GroupController extends Controller
 {
     public function index()
     {
-        $groups = Group::orderBy('created_at', 'desc')
-            ->withCount('configs')
-            ->get();
+        $groups = Group::orderedWithConfigCounts();
         return response()->json($groups);
     }
 
@@ -40,7 +28,7 @@ class GroupController
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $group = Group::create([
+        $group = Group::createGroup([
             'name' => $request->name,
             'description' => $request->description
         ]);
@@ -50,7 +38,7 @@ class GroupController
 
     public function show(Group $group)
     {
-        return response()->json($group->load('configs'));
+        return response()->json($group->loadRecordRelations('configs'));
     }
 
     public function update(Request $request, Group $group)
@@ -69,7 +57,7 @@ class GroupController
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $group->update([
+        $group->updateRecord([
             'name' => $request->name,
             'description' => $request->description
         ]);
@@ -79,14 +67,14 @@ class GroupController
 
     public function destroy(Group $group)
     {
-        // 检查组是否有关联的配置
-        if ($group->configs()->count() > 0) {
+        // Check whether the group has any associated configs
+        if ($group->hasConfigs()) {
             return response()->json([
                 'message' => 'Cannot delete group with associated configs'
             ], 422);
         }
 
-        $group->delete();
+        $group->deleteRecord();
         return response()->json(null, 204);
     }
 

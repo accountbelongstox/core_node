@@ -11,6 +11,9 @@ from dataclasses import dataclass, field
 from typing import Callable, Optional, List, Dict, Tuple, Union, Literal
 from pathlib import Path
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
 
 @dataclass
 class NativeUIConfig:
@@ -225,7 +228,7 @@ class NativeUIConfig:
 
     Example:
         def init_routes(rpc_server):
-            rpc_server.route('my.route', my_handler)
+            rpc_server.post('my/route', my_handler)
 
         config = NativeUIConfig(
             rpc_init_callback=init_routes
@@ -372,7 +375,6 @@ class NativeUIConfig:
             if icon_ico.exists():
                 self.icon_path = str(icon_ico)
                 if self.debug:
-                    from pycore import ColorPrint
                     ColorPrint.print_info(f"[Config] Auto-detected icon: {self.icon_path}")
 
         # Auto-detect logo path (same as icon by default)
@@ -397,7 +399,6 @@ class NativeUIConfig:
         if self.window_title_key is None:
             self.window_title_key = f"{self.app_id}.window.title"
             if self.debug:
-                from pycore import ColorPrint
                 ColorPrint.print_info(
                     f"[Config] Auto-generated window title key: {self.window_title_key}"
                 )

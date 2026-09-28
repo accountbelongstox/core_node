@@ -1,4 +1,5 @@
 #!/bin/bash
+SCRIPT_INDEX="33"
 
 # Source LGar.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

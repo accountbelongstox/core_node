@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Management</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
+</head>
+<!-- Built-in section: dashboard account management (profile, elevation, accounts). -->
+<body class="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div class="max-w-5xl mx-auto space-y-6">
+        <div id="management-auth-gate" class="hidden bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="p-12 text-center">
+                <h3 class="text-xl font-bold text-gray-900 mb-2">Sign in required</h3>
+                <p class="text-gray-600 text-sm mb-8">Account management is available after signing in.</p>
+                <button id="management-signin-btn" class="px-8 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold text-sm shadow-lg shadow-indigo-500/40 transition-all hover:-translate-y-0.5">Sign In</button>
+            </div>
+        </div>
+
+        <div id="management-content" class="hidden space-y-6">
+            <!-- Profile display card -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+                    <h2 class="text-xl font-bold text-white">Account Management</h2>
+                </div>
+                <div class="p-6 flex items-center gap-5 flex-wrap">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0 overflow-hidden" id="management-initials">U</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-lg font-bold text-gray-900" id="management-name">-</div>
+                        <div class="text-sm text-gray-500">Username: <span id="management-username" class="font-mono">-</span></div>
+                        <div class="text-sm text-gray-600 break-all" id="management-email">-</div>
+                        <div class="text-xs text-gray-400 font-mono" id="management-id">ID: -</div>
+                    </div>
+                    <span id="management-role-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-gray-100 text-gray-600">-</span>
+                </div>
+            </div>
+
+            <!-- Profile edit card -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-base font-bold text-gray-900">Edit Profile</h3>
+                    <p class="text-sm text-gray-600 mt-0.5">Update the display name, email or password of the signed-in account.</p>
+                </div>
+                <form id="management-profile-form" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Nickname</label>
+                        <input type="text" id="management-profile-nickname" class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="Display nickname" maxlength="64">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Email</label>
+                        <input type="email" id="management-profile-email" class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="user@example.com">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">New Password <span class="text-gray-400 normal-case font-normal">(optional)</span></label>
+                        <input type="password" id="management-profile-password" class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="Leave blank to keep current" autocomplete="new-password">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide mb-1.5">Current Password <span class="text-gray-400 normal-case font-normal">(required when changing password)</span></label>
+                        <input type="password" id="management-profile-current-password" class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="Verify password change" autocomplete="current-password">
+                    </div>
+                    <div class="md:col-span-2 flex items-center gap-4">
+                        <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-semibold text-sm shadow-lg shadow-indigo-500/30 transition-all hover:-translate-y-0.5">Save Changes</button>
+                        <button type="button" id="management-profile-reset" class="px-4 py-2.5 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Reset</button>
+                    </div>
+                    <div id="management-profile-message" class="hidden md:col-span-2 p-3 rounded-lg text-sm"></div>
+                </form>
+            </div>
+
+            <!-- Super code elevation -->
+            <div id="management-elevation-card" class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="p-6">
+                    <h3 class="text-base font-bold text-gray-900 mb-1">Super Code Elevation</h3>
+                    <p class="text-sm text-gray-600 mb-4">Redeem the server-configured super code to elevate this account to Super Administrator.</p>
+                    <form id="management-elevate-form" class="flex gap-3 flex-wrap">
+                        <input type="password" id="management-super-code" class="flex-1 min-w-48 px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 bg-white text-gray-900" placeholder="Super code" required autocomplete="off">
+                        <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg font-semibold text-sm shadow-lg shadow-orange-500/30 transition-all hover:-translate-y-0.5">Elevate</button>
+                    </form>
+                    <div id="management-elevate-message" class="hidden mt-4 p-3 rounded-lg text-sm"></div>
+                </div>
+            </div>
+
+            <!-- Registered accounts (super admins only) -->
+            <div id="management-users-card" class="hidden bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="text-base font-bold text-gray-900">Registered Accounts</h3>
+                    <button id="management-users-refresh" class="px-4 py-1.5 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors">Refresh</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 text-gray-600">
+                            <tr>
+                                <th class="px-6 py-3 text-left font-semibold">ID</th>
+                                <th class="px-6 py-3 text-left font-semibold">Username</th>
+                                <th class="px-6 py-3 text-left font-semibold">Email</th>
+                                <th class="px-6 py-3 text-left font-semibold">Role</th>
+                                <th class="px-6 py-3 text-left font-semibold">Level</th>
+                                <th class="px-6 py-3 text-left font-semibold">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody id="management-users-body" class="divide-y divide-gray-100"></tbody>
+                    </table>
+                </div>
+                <div id="management-users-empty" class="hidden p-8 text-center text-sm text-gray-500">No registered accounts found.</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/debug-assets/js/api-client.js"></script>
+    <script src="/debug-assets/js/dashboard-management.js"></script>
+</body>
+</html>

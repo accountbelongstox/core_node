@@ -2,10 +2,10 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
+use App\Models\Concerns\QueriesDiffIdPages;
+use Illuminate\Support\Facades\Schema;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\BindsAppQyV1DynamicLanguageTable;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
 
 /**
  * Multi-Language Article Library Model
@@ -14,11 +14,10 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
  * Used for article TTS generation, storage, and management
  * Table prefix is obtained from key center (AppTablePrefixServiceProvider)
  */
-class AppQyV1ArticleLibraryModel extends Model
+class AppQyV1ArticleLibraryModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
-    protected $langCode;
+    use AppQyV1TtsQueueQueries, BindsAppQyV1DynamicLanguageTable, QueriesDiffIdPages;
+
 
     protected $fillable = [
         'content',
@@ -31,49 +30,35 @@ class AppQyV1ArticleLibraryModel extends Model
         'tts_provider',
         'metadata',
         'added_at',
+        // TTS generation process state (queue-less coordination).
+        'tts_status',
+        'tts_attempts',
+        'tts_error',
+        'tts_locked_at',
+        'tts_locked_by',
+        'tts_requested_at',
+        'tts_completed_at',
     ];
 
-    protected $casts = [
-        'audio_files' => 'array',
-        'metadata' => 'array',
-        'has_audio' => 'boolean',
-        'added_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-
-        if (isset($attributes['lang_code'])) {
-            $this->setLanguage($attributes['lang_code']);
-        }
-    }
-    
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return [
+            'audio_files' => 'array',
+            'metadata' => 'array',
+            'has_audio' => 'boolean',
+            'added_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'tts_attempts' => 'integer',
+            'tts_locked_at' => 'datetime',
+            'tts_requested_at' => 'datetime',
+            'tts_completed_at' => 'datetime',
+        ];
     }
 
-    public function setLanguage(string $langCode): self
+    protected function resolveDynamicLanguageTable(string $language): string
     {
-        $this->langCode = strtolower($langCode);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$this->langCode}_article_library");
-        return $this;
-    }
-
-    public function getLanguage(): ?string
-    {
-        return $this->langCode;
-    }
-
-    public static function forLanguage(string $langCode): self
-    {
-        $instance = new self();
-        $instance->setLanguage($langCode);
-        return $instance;
+        return $this->appTable("{$language}_article_library");
     }
 
     public static function findByMd5(string $langCode, string $md5)
@@ -124,26 +109,16 @@ class AppQyV1ArticleLibraryModel extends Model
         return !empty($this->audio_files);
     }
 
-    public static function getArticlesWithoutAudio(string $langCode, int $limit = 10, bool $skipQueued = true): \Illuminate\Database\Eloquent\Collection
+    public static function pendingSentenceAudioRowsByIds(string $langCode, array $ids): array
     {
-        $query = self::forLanguage($langCode)
-            ->where('has_audio', false);
-
-        if ($skipQueued) {
-            $queuedHashes = AppQyV1TTSQueueModel::where('task_type', 'article')
-                ->where('language', $langCode)
-                ->whereIn('status', ['pending', 'processing'])
-                ->pluck('content_hash')
-                ->toArray();
-
-            if (!empty($queuedHashes)) {
-                $query->whereNotIn('md5', $queuedHashes);
-            }
-        }
-
-        return $query->orderBy('added_at', 'desc')
-            ->limit($limit)
-            ->get();
+        return self::forLanguage($langCode)
+            ->newQuery()
+            ->whereIn('id', $ids)
+            ->where('has_audio', false)
+            ->whereNull('tts_global_task_id')
+            ->orderBy('id')
+            ->get()
+            ->all();
     }
 
     public static function updateHasAudio(string $langCode, string $md5, bool $hasAudio): void
@@ -154,5 +129,59 @@ class AppQyV1ArticleLibraryModel extends Model
                 'has_audio' => $hasAudio,
                 'updated_at' => now()
             ]);
+    }
+
+    public static function aggregateStats(string $langCode): array
+    {
+        $model = self::forLanguage($langCode);
+        $connectionName = $model->getConnectionName();
+        $table = $model->getTable();
+
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return ['articles' => 0, 'audio' => 0];
+        }
+
+        $row = $model->newQuery()
+            ->selectRaw('COUNT(*) as articles, SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as audio')
+            ->first();
+
+        return [
+            'articles' => (int) ($row->articles ?? 0),
+            'audio' => (int) ($row->audio ?? 0),
+        ];
+    }
+
+    public static function languageSummary(string $langCode): ?array
+    {
+        $model = self::forLanguage($langCode);
+        $connectionName = $model->getConnectionName();
+        $table = $model->getTable();
+
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return null;
+        }
+
+        $stats = self::aggregateStats($langCode);
+        $byOwner = $model->newQuery()
+            ->select('owner')
+            ->selectRaw('COUNT(*) as count')
+            ->groupBy('owner')
+            ->pluck('count', 'owner')
+            ->toArray();
+        $bySource = $model->newQuery()
+            ->select('source')
+            ->selectRaw('COUNT(*) as count')
+            ->groupBy('source')
+            ->limit(10)
+            ->pluck('count', 'source')
+            ->toArray();
+
+        return [
+            'total' => $stats['articles'],
+            'with_audio' => $stats['audio'],
+            'without_audio' => $stats['articles'] - $stats['audio'],
+            'by_owner' => $byOwner,
+            'by_source' => $bySource,
+        ];
     }
 }

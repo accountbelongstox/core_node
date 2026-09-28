@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Dict, List, Any
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def build_file_tree(root_path: Path, relative_to: Path = None) -> Dict[str, Any]:
@@ -57,7 +58,7 @@ def build_file_tree(root_path: Path, relative_to: Path = None) -> Dict[str, Any]
             return None
 
         except Exception as e:
-            print(f"[ERROR] Failed to scan {path}: {e}")
+            ColorPrint.plain(f"[ERROR] Failed to scan {path}: {e}")
             return None
 
     tree = scan_directory(root_path)

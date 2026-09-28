@@ -1,24 +1,14 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Clash;
 
-use App\Models\Group;
+use App\Http\Controllers\Controller;
+
+use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-class GroupViewController
+class GroupViewController extends Controller
 {
     public function index()
     {
@@ -27,13 +17,11 @@ class GroupViewController
 
     public function list()
     {
-        $groups = Group::orderBy('created_at', 'desc')
-            ->withCount('configs')
-            ->get();
+        $groups = Group::orderedWithConfigCounts();
 
         if ($groups->isEmpty()) {
-            // 创建默认组
-            $defaultGroup = Group::create([
+            // Create the default group
+            $defaultGroup = Group::createGroup([
                 'name' => 'Default Group'
             ]);
             $groups = collect([$defaultGroup]);
@@ -44,20 +32,7 @@ class GroupViewController
 
     public function findGroup($identifier)
     {
-        // 先尝试通过组名查找
-        $group = Group::where('name', $identifier)->first();
-        
-        if (!$group) {
-            // 如果找不到，尝试通过 ID 查找
-            $group = is_numeric($identifier) ? Group::find($identifier) : null;
-        }
-
-        // 如果还是找不到，返回第一个组或创建默认组
-        if (!$group) {
-            $group = Group::first() ?? Group::create(['name' => 'Default Group']);
-        }
-
-        return $group;
+        return Group::resolveOrDefault($identifier);
     }
 
     public function store(Request $request)
@@ -66,7 +41,7 @@ class GroupViewController
             'name' => 'required|string|max:255',
         ]);
 
-        $group = Group::create($validated);
+        $group = Group::createGroup($validated);
         return response()->json($group, 201);
     }
 
@@ -77,7 +52,7 @@ class GroupViewController
             'description' => 'nullable|string'
         ]);
 
-        $group->update($validated);
+        $group->updateRecord($validated);
 
         return response()->json([
             'success' => true,
@@ -89,14 +64,14 @@ class GroupViewController
     public function destroy(Group $group)
     {
         // Check if group has any configs
-        if ($group->configs()->exists()) {
+        if ($group->hasConfigs()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot delete group with existing configurations'
             ], 422);
         }
 
-        $group->delete();
+        $group->deleteRecord();
 
         return response()->json([
             'success' => true,

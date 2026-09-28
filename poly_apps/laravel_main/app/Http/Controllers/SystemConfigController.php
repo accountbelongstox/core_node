@@ -27,7 +27,7 @@ class SystemConfigController extends Controller
     {
         $user = $request->user();
         if (!$user || !$user->isAdmin()) {
-            return $this->error('Unauthorized. Admin access required.', 403);
+            return $this->error(__('api.messages.unauthorized_admin_access_required'), 403);
         }
 
         $config = [
@@ -87,7 +87,7 @@ class SystemConfigController extends Controller
             ],
         ];
 
-        return $this->success($config, 'Server configuration retrieved successfully');
+        return $this->success($config, __('api.messages.server_configuration_retrieved_successfully'));
     }
 
     /**
@@ -98,7 +98,7 @@ class SystemConfigController extends Controller
     {
         $user = $request->user();
         if (!$user || !$user->isSuperAdmin()) {
-            return $this->error('Unauthorized. Super admin access required.', 403);
+            return $this->error(__('api.messages.unauthorized_super_admin_access_required'), 403);
         }
 
         $validated = $request->validate([
@@ -120,10 +120,10 @@ class SystemConfigController extends Controller
         }
 
         if (empty($updated)) {
-            return $this->error('No valid configuration values provided', 400);
+            return $this->error(__('api.messages.no_valid_configuration_values_provided'), 400);
         }
 
-        return $this->success(['updated' => $updated], 'Configuration updated successfully');
+        return $this->success(['updated' => $updated], __('api.messages.configuration_updated_successfully'));
     }
 
     /**
@@ -154,7 +154,7 @@ class SystemConfigController extends Controller
     {
         $user = $request->user();
         if (!$user || !$user->isAdmin()) {
-            return $this->error('Unauthorized. Admin access required.', 403);
+            return $this->error(__('api.messages.unauthorized_admin_access_required'), 403);
         }
 
         $env = [
@@ -178,7 +178,7 @@ class SystemConfigController extends Controller
             ],
         ];
 
-        return $this->success($env, 'Environment information retrieved successfully');
+        return $this->success($env, __('api.messages.environment_information_retrieved_successfully'));
     }
 
     /**

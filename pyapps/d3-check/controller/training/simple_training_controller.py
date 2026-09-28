@@ -7,7 +7,7 @@ Only needs to pass source data directory
 """
 
 import os
-# 天天见！
+# See you daily!
 import sys
 from pathlib import Path
  
@@ -20,9 +20,12 @@ core_node_dir = d3_check_dir.parent.parent
 if str(core_node_dir) not in sys.path:
     sys.path.insert(0, str(core_node_dir))
 
-from pycore.pyutils.ultralytics.classification_trainer import ClassificationTrainer
-from pycore.pyutils.ultralytics.detection_trainer import DetectionTrainer
-from pycore.pyutils.ultralytics.unified_trainer import UnifiedClassificationTrainer, UnifiedDetectionTrainer
+from pycore.pyutils.ultralytics.training import (
+    ClassificationTrainer,
+    DetectionTrainer,
+    UnifiedClassificationTrainer,
+    UnifiedDetectionTrainer,
+)
 
 
 class D3CheckTrainingController:
@@ -81,8 +84,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Training failed for '{project_name}': {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
     def train_detection(self, project_name: str, **kwargs):
@@ -126,8 +127,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Training failed for '{project_name}': {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
     def list_projects(self):
@@ -179,8 +178,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Unified training failed: {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
     def train_unified_detection(self, **kwargs):
@@ -219,8 +216,6 @@ class D3CheckTrainingController:
 
         except Exception as e:
             print(f"\033[91mERROR: Unified training failed: {e}\033[0m")
-            import traceback
-            traceback.print_exc()
             return None
 
 

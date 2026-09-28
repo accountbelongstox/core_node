@@ -4,19 +4,18 @@ namespace App\Services\EdgeTTS;
 
 use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
+use App\CallPycoreUtils\PycoreHttpClient;
+use App\Services\UserConfig\UserConfigService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * EdgeTTS Service - Common TTS service using TTSCacheManager
+ * EdgeTTS Service - Common TTS service using EdgeTTSPayloadCache
  *
- * @deprecated This service is deprecated and maintained only for backward compatibility.
- * Use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService for new implementations.
- *
- * Migration Path:
- * - Old: App\Services\EdgeTTS\EdgeTTSService
- * - New: App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService
+ * Canonical TTS service. The legacy
+ * App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService was removed; all
+ * former consumers were migrated here.
  *
  * IMPORTANT: This service should ONLY be called by AppQyV1UnifiedTTSQueueService.
  * All external requests should go through the TTS queue system to ensure:
@@ -25,12 +24,13 @@ use Illuminate\Support\Facades\Cache;
  * - Dynamic interval adjustment
  * - Task deduplication
  *
- * DO NOT call this service directly from controllers or other services.
- * Use the queue API endpoints instead: POST /api/app_qy_v1/ai_tools/tts/queue/batch/query
+ * DO NOT call this service directly from controllers; HTTP traffic must use
+ * the queue API endpoints instead: POST /api/app_qy_v1/ai_tools/tts/queue/batch/query
+ * (internal batch services such as SentenceEnrichmentService may call it directly).
  *
  * Features:
  * - 82 languages support with neural network voices
- * - File-based caching with TTSCacheManager
+ * - File-based caching with EdgeTTSPayloadCache
  * - Automatic availability checking with EdgeTTSChecker
  * - Sequential execution only (no concurrent support)
  */
@@ -91,17 +91,18 @@ class EdgeTTSService
             throw new \Exception('Laravel data directory not found');
         }
 
+        // json_db sidecar stays under the legacy tts_data root (it is a small
+        // cache index, not served), but the AUDIO base moves to the unified
+        // static tree so the write target equals the serve base
+        // (/api/app_qy_v1/ai_tools/tts/audio/{...}) and laravel_db copies
+        // cleanly. Stored tts_files relative paths ({lang}/{type}/{file}) are
+        // unchanged — only the physical base differs.
         $this->dataDir = $laravelDataDir . '/tts_data';
-        $this->audioDir = $this->dataDir . '/audio';
+        $this->audioDir = PathMapper::getAppQyV1AudioBaseDir();
         $jsonDbDir = $this->dataDir . '/json_db';
 
         $this->initializeDirectories();
-        $this->cacheManager = new TTSCacheManager($jsonDbDir);
-
-        // Automatic cleanup: 5% chance to clean zero-byte files on initialization
-        if (rand(1, 100) <= 5) {
-            $this->cleanZeroByteFilesBackground();
-        }
+        $this->cacheManager = new EdgeTTSPayloadCache($jsonDbDir);
     }
 
     private function initializeDirectories(): void
@@ -185,7 +186,7 @@ class EdgeTTSService
         $rate = $options['rate'] ?? '+0%';
         $speedKey = str_replace(['+', '%', '-'], ['p', 'pct', 'm'], $rate);
 
-        // Check cache using TTSCacheManager
+        // Check cache using EdgeTTSPayloadCache
         $cacheKey = $text . '|speed:' . $rate;
         $cached = $this->cacheManager->get($langCode, $textType, $cacheKey);
         if ($cached && isset($cached['audio_path'])) {
@@ -305,6 +306,15 @@ class EdgeTTSService
         $this->incrementConcurrentCounter();
 
         try {
+            // Binary-assist gate (UserConfigService::useServerBinaryAssist,
+            // default OFF): delegate synthesis to pycore's tts/synthesize RPC
+            // (POST /api/tts/synthesize on :59000) instead of the local
+            // edge-tts binary. ON = desktop fallback where no pycore worker is
+            // available. This keeps Laravel binary-free by default.
+            if (!app(UserConfigService::class)->useServerBinaryAssist()) {
+                return $this->executeViaPycoreRpc($text, $voice, $outputPath);
+            }
+
             $pythonPath = $this->findPythonPath();
             if (!$pythonPath) {
                 return [
@@ -401,6 +411,75 @@ class EdgeTTSService
     }
 
     /**
+     * pycore RPC path (default, binary-assist OFF). Delegates synthesis to
+     * pycore's tts/synthesize RPC and writes the returned base64 MP3 to
+     * $outputPath. Laravel stays binary-free; pycore's multi-engine TTS
+     * orchestrator does the actual synthesis. Note: this path only forwards
+     * text/language/voice, so non-default rate/volume/pitch are ignored here
+     * (default +0% is the common case for word/sentence/audio).
+     */
+    private function executeViaPycoreRpc(string $text, string $voice, string $outputPath): array
+    {
+        $language = $this->languageFromVoice($voice);
+
+        $response = PycoreHttpClient::call('tts/synthesize', [
+            'text' => $text,
+            'language' => $language,
+            'voice' => $voice,
+            'provider' => 'edge',
+            'return_base64' => true,
+            'enable_cache' => true,
+        ], 35);
+
+        if (isset($response['error']) || empty($response['success'])) {
+            $error = $response['error'] ?? ($response['message'] ?? 'pycore tts/synthesize failed');
+            Log::error('[EdgeTTS] pycore tts/synthesize failed', [
+                'voice' => $voice,
+                'language' => $language,
+                'error' => $error,
+            ]);
+            return ['success' => false, 'error' => 'pycore tts/synthesize failed: ' . $error];
+        }
+
+        // rpc_v2 handlers return their payload raw (no result envelope).
+        $audioBase64 = $response['audio_base64'] ?? null;
+
+        if (!is_string($audioBase64) || $audioBase64 === '') {
+            Log::error('[EdgeTTS] pycore tts/synthesize returned no audio_base64', [
+                'voice' => $voice,
+                'language' => $language,
+            ]);
+            return ['success' => false, 'error' => 'pycore tts/synthesize returned no audio'];
+        }
+
+        $binary = base64_decode($audioBase64, true);
+        if ($binary === false || $binary === '' || strlen($binary) < 100) {
+            Log::error('[EdgeTTS] pycore tts/synthesize audio payload invalid', [
+                'voice' => $voice,
+                'language' => $language,
+                'bytes' => strlen((string) $binary),
+            ]);
+            return ['success' => false, 'error' => 'pycore tts/synthesize returned invalid audio'];
+        }
+
+        if (@file_put_contents($outputPath, $binary) === false) {
+            Log::error('[EdgeTTS] failed to write pycore audio to disk', [
+                'output_path' => $outputPath,
+            ]);
+            return ['success' => false, 'error' => 'Failed to write audio file'];
+        }
+
+        return ['success' => true];
+    }
+
+    /** Best-effort locale extraction from an edge-tts voice id (en-US-JennyNeural -> en). */
+    private function languageFromVoice(string $voice): string
+    {
+        $parts = explode('-', $voice);
+        return isset($parts[0]) && $parts[0] !== '' ? $parts[0] : 'en';
+    }
+
+    /**
      * Increment concurrent request counter
      * Uses Octane cache (memory) for real-time concurrent counting
      */
@@ -451,7 +530,7 @@ class EdgeTTSService
     }
 
     /**
-     * Get cache statistics using TTSCacheManager
+     * Get cache statistics using EdgeTTSPayloadCache
      */
     public function getCacheStats(): array
     {
@@ -459,7 +538,7 @@ class EdgeTTSService
     }
 
     /**
-     * Clear cache using TTSCacheManager
+     * Clear cache using EdgeTTSPayloadCache
      */
     public function clearCache(?string $langCode = null, ?string $textType = null): int
     {
@@ -532,19 +611,59 @@ class EdgeTTSService
     }
 
     /**
-     * Clean zero-byte audio files in background (non-blocking)
-     * Called randomly during service initialization to maintain clean storage
-     * Limits: Max 100 files per call to avoid performance impact
+     * Absolute audio storage root (PathMapper::getAppQyV1AudioBaseDir() =
+     * <laravel_db>/static/app_qy_v1/audio). External result ingestion (the
+     * worker report endpoint + Bing-assist audio write-back) writes through this
+     * + buildRelativePath so worker-generated files land exactly where
+     * generateAudio would put them and the serve route reads them back.
      */
-    private function cleanZeroByteFilesBackground(): void
+    public function getAudioBaseDir(): string
     {
+        return $this->audioDir;
+    }
+
+    /**
+     * Deterministic relative path for a (text, lang, type, rate) tuple — the
+     * SAME formula generateAudio uses, exposed so other writers (the pycore
+     * worker report endpoint) produce identical paths and existence checks
+     * stay equivalent to generation-time cache hits.
+     */
+    /**
+     * Deterministic relative path for a (text, lang, type, rate[, variant]) tuple
+     * - the SAME formula generateAudio uses, exposed so other writers (the pycore
+     * worker report endpoint) produce identical paths and existence checks stay
+     * equivalent to generation-time cache hits.
+     *
+     * When $variantKey is a non-empty string, a ``_{variantKey}`` segment is
+     * appended to the filename (e.g. ``.../{hash}_uk_f.mp3``) so multiple
+     * accent/gender voices for one word coexist. When $variantKey is null/empty
+     * the path is BYTE-IDENTICAL to the legacy formula (primary audio).
+     */
+    public function buildRelativePath(string $text, string $langCode, string $textType = 'word', string $rate = '+0%', ?string $variantKey = null): string
+    {
+        $speedKey = str_replace(['+', '%', '-'], ['p', 'pct', 'm'], $rate);
+        $hash = md5($langCode . ':' . $textType . ':' . $rate . ':' . trim($text));
+        $suffix = ($variantKey !== null && $variantKey !== '') ? '_' . $variantKey : '';
+        return $langCode . '/' . $textType . '/' . $speedKey . '/' . $hash . $suffix . '.mp3';
+    }
+
+    /**
+     * Time-boxed zero-byte audio cleanup, invoked from the CLI maintenance
+     * schedule (QueueCenterAudioScanTask) — never from the request path.
+     * Both the file budget and the wall-clock budget stop the traversal.
+     *
+     * @return int Number of zero-byte files removed
+     */
+    public function cleanZeroByteFilesMaintenance(int $maxFilesToClean = 100, float $wallClockSeconds = 5.0): int
+    {
+        $cleaned = 0;
+
         try {
-            $maxFilesToClean = 100;
-            $cleaned = 0;
+            $deadline = microtime(true) + max(0.1, $wallClockSeconds);
 
             // Use RecursiveIteratorIterator for efficient directory traversal
             if (!is_dir($this->audioDir)) {
-                return;
+                return 0;
             }
 
             $iterator = new \RecursiveIteratorIterator(
@@ -553,8 +672,8 @@ class EdgeTTSService
             );
 
             foreach ($iterator as $file) {
-                // Stop after cleaning max files
-                if ($cleaned >= $maxFilesToClean) {
+                // Stop on file budget or wall-clock budget
+                if ($cleaned >= $maxFilesToClean || microtime(true) >= $deadline) {
                     break;
                 }
 
@@ -573,15 +692,17 @@ class EdgeTTSService
             }
 
             if ($cleaned > 0) {
-                Log::info('[EdgeTTS] Background cleanup removed zero-byte files', [
+                Log::info('[EdgeTTS] Maintenance cleanup removed zero-byte files', [
                     'files_cleaned' => $cleaned,
                 ]);
             }
         } catch (\Exception $e) {
             // Silent fail - don't break TTS service if cleanup fails
-            Log::warning('[EdgeTTS] Background cleanup failed', [
+            Log::warning('[EdgeTTS] Maintenance cleanup failed', [
                 'error' => $e->getMessage(),
             ]);
         }
+
+        return $cleaned;
     }
 }

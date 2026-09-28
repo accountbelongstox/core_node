@@ -1,0 +1,104 @@
+{
+  "task_id": "pycore-runtime-D7P2-fix",
+  "role": "pycore-runtime",
+  "previous_role": "pycore-ui (rounds 1-3, mis-assigned; deferred every item correctly)",
+  "reviewer": "pycore-lead",
+  "round": 4,
+  "verdict": "approved",
+  "base": "74e7770",
+  "head": "22ea5b992 (user commit 'win0.0.1', 21:59:44). Member code hunks are in 93f8de054 (21:48:43), F-1 in ab566fdf7 (21:31:31), the report in 5e0eb3dc7 (21:57:21). 22ea5b992 and 5e0eb3dc7 touch none of the six reviewed code files. The working tree equals HEAD for pycore/ and pyapps/.",
+  "scope_reviewed": "Round 4, the first round implemented by the owner (re-routed to pycore-runtime). Part 1: B1, B2, B3, B5 in pycore/pyutils/common/queue_center_contract.py, pycore/callmodule/rpc_routes/local_queue_head_routes.py, pycore/pyctl/queue_center/snapshot_service.py, pycore/pyutils/laravel/delivery_diff.py. Part 2: the B4 docstring in pycore/pyctl/runtime/event_handlers.py (after F-1, approved by the reviewer service) and B6 in .claude/agents_shared/reports/pycore-runtime.md. Diffed against 2f31f9cd3 (round-3 HEAD) and 74e7770 (task base).",
+  "summary": "All six blocking items are fixed and were re-verified independently: static checks, a 53-check in-process probe, and a fit check against pycore-ai's adoption of the B1 helpers at 22ea5b992. EOL is clean per file, py_compile passes, pycore.callmodule and the start chain import, and no import cycle or unresolved import involves a changed module. The remaining notes are cosmetic or belong to other scopes.",
+  "findings": {
+    "pycore-runtime-D7P2-B1": {
+      "result": "fixed",
+      "evidence": [
+        "queue_center_contract.py:27-40 reads word_identity once at the file top. The fallback content template is derived from fallback_when_md5_absent.key_format (probe: 'text:<cleaned_word>'). The import-time RuntimeError guard (:32-36) follows the module's existing contract checks (:252, :303-318).",
+        "queue_center_contract.py:586-607: word_identity_md5 / word_identity_content, exported at :851-852. audio_dedup_key uses word_identity_content at :633. The 'matching build_local_task ... resource_key' clause is gone.",
+        "local_queue_head_routes.py: _MD5_RE and 'import re' are removed. _sanitize_item_md5 (:44-54) stores word_identity_md5's normalized value, or drops md5.",
+        "Probe: word_identity_md5 on 9 inputs (upper, padded upper, lower, None, '', 'zz', 123, 33 hex, 32 non-hex) and word_identity_content on 6 inputs match the spec. audio_dedup_key gives 'en:text:hello', and 'en:5d41402abc4b2a76b9719d911017c592' for the upper-case md5.",
+        "Against 2f31f9cd3 over 360 audio_dedup_key input cases, 120 differ, all in the three intended classes: an upper-case md5 is normalized, an invalid md5 falls back to text, and empty text gives empty content, which promote_local_head's empty-content check (key.split(':', 1)[-1]) now skips instead of queuing a task for an empty word. sentence_audio keys are unchanged.",
+        "grep 'f\"text:' in pyutils/common and callmodule: empty. grep -w _MD5_RE in pycore: empty.",
+        "Fit at 22ea5b992: pycore-ai adopted the helpers (audio_queue_center.py:146-148, audio_resource_ledger.py:42). audio_dedup_key, audio_dedup_key_from_task(build_local_task(...)) and resource_key agree for md5 '', upper, lower and 'zz'."
+      ]
+    },
+    "pycore-runtime-D7P2-B2": {
+      "result": "fixed",
+      "evidence": [
+        "local_queue_head_routes.py:31 _RPC_ITEM_FIELDS, :57-66 _build_rpc_item, :75 used by promote_handler.",
+        "Probe: only this registrar was registered, on a fake server (no register_http_routes), with audio_queue_center stubbed. An item carrying task (nested _laravel_base_url), a top-level _laravel_base_url, owner, priority and an upper-case md5 reached promote_local_head as {language, text, kind, md5 lower-case}. An item with md5 'zz' kept content_id and lost md5. A non-dict item was dropped, and the caller's dict was not mutated. lane word_audio, local_source manual. Empty items give QUEUE_HEAD_ITEMS_REQUIRED.",
+        "The in-process path is intact: orch_promote.py:60 appends {language, text, task}, and :64 calls audio_queue_center.promote_local_head directly, which still honors item['task']."
+      ]
+    },
+    "pycore-runtime-D7P2-B3": {
+      "result": "fixed",
+      "evidence": [
+        "snapshot_service.py:107-119 _lane_wake_ready: the LANE_REGISTRY heartbeat callback is enabled and, for AUDIO_QUEUE_LANES, audio_queue_center.restore_complete(lane). wake_workers (:380) and apply_head_event (:561) both use it. set_cached_task_head and the snapshot update stay unconditional.",
+        "restore_complete is a THREAD_BUS signal (audio_queue_center.py:820). restore_from_cache sets it once per process, and every runtime activation reaches restore_from_cache through activate_audio_lane (audio_lane_activation.py:48; callers task_center_service.py:91, word_tts_auto.py:75, sentence_audio_auto.py:127). So a lane enabled after boot is not stranded. No polling was added.",
+        "Probe with a stub heartbeat, worker and snapshot cache and the real in-process restore signal. Before the signal the head is cached and the snapshot updated, with no pull. After _signal_restore_complete('word_audio') there is one request_pull(prefer_remote=True). With the callback off there is no pull, and the head is still cached. wake_workers: the restored word lane is woken, the unrestored sentence lane is gated, and the non-audio assist_translation lane is woken. With all callbacks off, none is woken.",
+        "No import cycle: audio_queue_center's import closure does not reach snapshot_service. In the callmodule_main start chain, audio_queue_center loads at sys.modules index 1185, before snapshot_service at 1504, so the AudioQueueCenter construction order is unchanged."
+      ]
+    },
+    "pycore-runtime-D7P2-B4": {
+      "result": "fixed",
+      "evidence": [
+        "F-1 is approved (reviews/pycore-lead-F1.json, reviewer service): serialized_worker.py:78 _report_unobserved_failure, called at :129 (SerializedWorkerThread) and :157 (BusTaskThread) when there is no response_signal.",
+        "event_handlers.py:423-443: the docstring now says the callback has no response_signal, and that BusTaskThread.run reports the failure through _report_unobserved_failure and does not re-raise it. try/finally with no except is unchanged (:440-443).",
+        "pycore-lead red-line re-check with the real _run_audio_lane_boot_chain: _start_audio_lane_boot_chain was patched to raise and apply_assist_runtime to record. start_bus_task(..., thread_name='AudioLaneBootChainThread') with no response_signal printed exactly one '[SerializedWorker] callback failed with no response_signal thread=AudioLaneBootChainThread error_type=RuntimeError' block with the message and traceback. apply_assist_runtime ran once with the settings."
+      ]
+    },
+    "pycore-runtime-D7P2-B5": {
+      "result": "fixed",
+      "evidence": [
+        "delivery_diff.py:46-47 DELIVERY_BATCH_CONTENT_PATH / DELIVERY_BATCH_STATUS_PATH come from _DELIVERY_ROUTES and equal config/queue_center_contract.json:294-295. :258 and :275 fill {batch_id}. No 'DELIVERY_BATCH_PATH}/' remains. batch_id is a str (:253).",
+        "The probe URLs equal the old suffix form for 'b1', a ULID-like id and a UUID.",
+        "History phrasing removed: delivery_diff.py:39 and queue_center_contract.py:234-236. grep 'used to keep' on both files: empty."
+      ]
+    },
+    "pycore-runtime-D7P2-B6": {
+      "result": "fixed",
+      "evidence": [
+        "reports/pycore-runtime.md (committed in 5e0eb3dc7) has '## pycore-runtime-D7P2-fix (part 1)' (:442), '## pycore-runtime-D7P2' (:623) and '## pycore-runtime-D7P2-fix (part 2)' (:690): the items mapped to B1-B5, changed files, per-file EOL and verification output. Every EOL count and line reference in them was re-checked and is exact."
+      ]
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "pycore-runtime, next touch (p5-02 edits queue_center_contract.py next): the placeholder tokens are inline. '<cleaned_word>' is at queue_center_contract.py:607, while '<lang>:' is a top constant at :28, and '{batch_id}' appears twice at delivery_diff.py:258/:275. Move both to file-top constants. This is not blocking because the B5 spec itself allowed an inline .replace('{batch_id}', batch_id).",
+    "pycore-runtime, next touch: local_queue_head_routes.py:26-30. The X4 comment now sits above _RPC_ITEM_FIELDS but describes _sanitize_item_md5 (:44). Move it or trim it.",
+    "pycore-runtime, next touch: queue_center_contract.py:626 still has the pre-existing em dash in the audio_dedup_key docstring (PYTHON_PYCORE.md section 1 requires ASCII). B1 edited that docstring but not this line. Carried over from the D7P2 verdict.",
+    "pycore-ai: audio_queue_center.py restore_from_cache signals completion only on success. If the restore raises, restore_complete stays False for the process, so _lane_wake_ready keeps event wakes closed for that lane, while capability_sync.py starts it after the timeout with a yellow log. F-1 now reports the restore failure in red. A settled or failed terminal restore state would make both gates agree.",
+    "pycore-ai (pycore-ai-D7P2-fix scope): audio_resource_ledger.py:52 still parses the fallback by hand (parts[1] == 'text'). A parser next to word_identity_content would give the format one builder and one parser.",
+    "Pre-existing and outside D7P2: pycore/callmodule/__main__.py:16 imports launch_windows_tray, which windows_startup_manager.py has not defined since 2667b80fd (already true at 74e7770). No launcher runs 'python -m pycore.callmodule' (the start chain is pycore_module_caller / callmodule_main, and it imports cleanly), but that command fails with ImportError. Recorded as a follow-up for pycore-runtime (callmodule/__main__.py) with pycore-lead (pylauncher).",
+    "delivery_diff.py mode 100644 -> 100755 came from the user's Linux-side commit 937239e18 ('debian0.1'), not from the member. It matches the neighbouring pycore files.",
+    "pycore-ui backlog (from round 3, still open): OrchManifestPanel.tsx:105 reads response.error, but the route returns error_code (local_queue_head_routes.py:80, :83). Map error_code to an i18n message."
+  ],
+  "checks": [
+    "Window: git log 2f31f9cd3..HEAD on the six files: 937239e18 (delivery_diff.py mode only), ab566fdf7 (F-1), 93f8de054 (B1-B5 and B4). Diff read in full.",
+    "numstat equals --ignore-space-at-eol for all six files against 2f31f9cd3. Against 74e7770 it also matches, except queue_center_contract.py's 7 EOL-only lines already accepted in D7P2.",
+    "EOL, Python byte counts for the blobs at 74e7770/2f31f9cd3/HEAD and the working tree: queue_center_contract.py CRLF 814 -> 853 with 0 LF; local_queue_head_routes.py LF 73 -> 91; snapshot_service.py LF 851 -> 863; delivery_diff.py LF 315 -> 316; event_handlers.py LF 578 -> 582; serialized_worker.py mixed 531/47 -> 544/47 (F-1, reviewed separately). No lone CR. The report is CRLF in the working tree over an LF blob (autocrlf), with numstat parity.",
+    "python -m py_compile on the six files: OK. No non-ASCII in the added lines.",
+    "Imports (import only, nothing called): pycore.callmodule; pycore.callmodule.callmodule_main (start chain); pycore.callmodule.rpc_routes.register_http_routes (register_local_queue_head_routes bound at :23/:88, not called).",
+    "Static AST scan of 1512 files in pycore/ and pyapps/: no unresolved from-import or module-attribute reference involves a changed module. The two new edges (snapshot_service -> pyutils.tts.audio_queue_center, local_queue_head_routes -> pyutils.common.queue_center_contract) close no cycle.",
+    "PYTHON_PYCORE.md: layering callmodule -> pyutils/common and pyctl -> pyutils/tts is allowed; imports and constants are at the top; no new thread, polling or try/except; no user-facing text; no tests. No git write by the member; the commits are the user's periodic commits.",
+    "Probe: scratchpad d7p2fix_r4_probe.py, 53/53 PASS (python -B, PYTHONDONTWRITEBYTECODE=1, PIP_NO_INDEX=1, os._exit; no register_http_routes, no restore_from_cache, no dirty lane, no service). Word-identity fit re-run at 22ea5b992: PASS.",
+    "Resource guard: 4.33 GB free before the probes. No build, test or service run. No Laravel change. The reviewer ran no git write."
+  ],
+  "decisions": [
+    "approved (recommended option): all six blocking items are fixed and independently verified. The remaining notes are cosmetic or belong to other scopes.",
+    "The inline placeholder tokens are non-blocking because the B5 spec allowed an inline replace. The fix is recorded for the next touch.",
+    "The dormant __main__ ImportError predates the base and lies outside this task's files, so it is recorded as a follow-up and not fixed in a member review."
+  ],
+  "previous_rounds": [
+    "Round 1 (20:30, HEAD 4ddb4be8e, role pycore-ui): changes_requested. Deferral confirmed; B1-B6 open.",
+    "Round 2 (20:36, HEAD 2f31f9cd3, role pycore-ui): changes_requested. Deferral confirmed; escalated for a re-route.",
+    "Round 3 (20:47, HEAD 2f31f9cd3, role pycore-ui): changes_requested. Deferral confirmed; the re-route was recorded in TASKS.md ('reroute-pending'); F-1 was named as the prerequisite for B4."
+  ],
+  "next_owner": [
+    "orchestrator: pycore-runtime-D7P2 is now approved, so the pycore-runtime-G3 gate is released",
+    "pycore-runtime: non_blocking 1-3 at the next touch; the callmodule/__main__.py follow-up",
+    "pycore-ai: the restore terminal state; the ledger fallback parser",
+    "pycore-ui: the error_code i18n backlog"
+  ],
+  "checked_at": "2026-09-27T22:08:00+10:00"
+}

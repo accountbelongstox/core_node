@@ -6,8 +6,13 @@ Qt WebEngine Codec Diagnostic Tool
 Checks if Qt WebEngine was built with proprietary codec support (H.264, AAC, etc.)
 """
 
+import platform
 from pathlib import Path
-from pycore import ColorPrint
+
+from PySide6.QtCore import QLibraryInfo, qVersion
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
 
 
 def check_proprietary_codec_support() -> bool:
@@ -18,7 +23,6 @@ def check_proprietary_codec_support() -> bool:
         True if proprietary codecs are available, False otherwise
     """
     try:
-        from PySide6.QtCore import QLibraryInfo
 
         ColorPrint.blue("=" * 80)
         ColorPrint.blue("[CodecDiagnostic] Qt WebEngine Codec Support Check")
@@ -29,7 +33,6 @@ def check_proprietary_codec_support() -> bool:
         ColorPrint.blue(f"[CodecDiagnostic] Qt installation: {qt_path}")
 
         # Check Qt version
-        from PySide6.QtCore import qVersion
         qt_version = qVersion()
         ColorPrint.blue(f"[CodecDiagnostic] Qt version: {qt_version}")
 
@@ -61,7 +64,6 @@ def check_proprietary_codec_support() -> bool:
             "libffmpeg.so*",
         ]
 
-        import platform
         if platform.system() == "Windows":
             codec_files = windows_codecs
         else:
@@ -122,13 +124,13 @@ def print_codec_solutions():
     ColorPrint.yellow("")
     ColorPrint.yellow("Option 1: Use Software H.264 Decoder (Recommended)")
     ColorPrint.yellow("  - Decode H.264 with PyAV/OpenCV on backend")
-    ColorPrint.yellow("  - Send RGB/RGBA frames via WebSocket as base64 images")
+    ColorPrint.yellow("  - Serve RGB/RGBA frames through an HTTP endpoint")
     ColorPrint.yellow("  - Render on HTML canvas element")
     ColorPrint.yellow("  - No WebCodecs API needed")
     ColorPrint.yellow("")
     ColorPrint.yellow("Option 2: Use YUV420P + Canvas2D Rendering")
     ColorPrint.yellow("  - Already implemented in your codebase")
-    ColorPrint.yellow("  - Uses ws://localhost:48000/video/yuv/{device_id}")
+    ColorPrint.yellow("  - Uses the application's HTTP video endpoint")
     ColorPrint.yellow("  - No codec dependencies")
     ColorPrint.yellow("")
     ColorPrint.yellow("Option 3: Rebuild Qt WebEngine with Proprietary Codecs (Advanced)")

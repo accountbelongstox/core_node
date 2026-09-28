@@ -1,12 +1,2 @@
-# -*- coding: utf-8 -*-
-"""
-UI Module - User interface components for Device Sync
-"""
-
-from .tray import SimpleTrayMenu
-from .main import main
-
-__all__ = [
-    'SimpleTrayMenu',
-    'main',
-]
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

@@ -1,81 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 
-interface LogMessage {
-  type: string;
-  level: string;
-  message: string;
-  timestamp: string;
-  coin?: string;
-}
+import { subscribeOkxLogs } from '../services/http';
+import type { OkxLogMessage } from '../services/http';
 
 const LogViewer: React.FC = () => {
-  const [logs, setLogs] = useState<LogMessage[]>([]);
+  const [logs, setLogs] = useState<OkxLogMessage[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const logContainerRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Determine WebSocket URL based on current location
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.hostname}:58888/ws/logs`;
-
-    console.log('[LogViewer] Connecting to:', wsUrl);
-
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log('[LogViewer] WebSocket connected');
-      setIsConnected(true);
-      setLogs(prev => [...prev, {
-        type: 'system',
-        level: 'info',
-        message: 'Connected to log stream',
-        timestamp: new Date().toISOString()
-      }]);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[LogViewer] Received:', data);
-
-        if (data.type === 'log') {
-          setLogs(prev => [...prev, data as LogMessage]);
-        }
-      } catch (error) {
-        console.error('[LogViewer] Failed to parse message:', error);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('[LogViewer] WebSocket error:', error);
-      setLogs(prev => [...prev, {
-        type: 'system',
-        level: 'error',
-        message: 'WebSocket connection error',
-        timestamp: new Date().toISOString()
-      }]);
-    };
-
-    ws.onclose = () => {
-      console.log('[LogViewer] WebSocket disconnected');
-      setIsConnected(false);
-      setLogs(prev => [...prev, {
-        type: 'system',
-        level: 'warning',
-        message: 'Disconnected from log stream',
-        timestamp: new Date().toISOString()
-      }]);
-    };
-
-    // Cleanup on unmount
-    return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    };
+    return subscribeOkxLogs(
+      (message) => setLogs((previous) => [...previous, message]),
+      setIsConnected,
+    );
   }, []);
 
   // Auto-scroll to bottom when new logs arrive

@@ -3,17 +3,10 @@ import re
 files_need_subprocess = """pyfoundations/device/scrcpy_device.py
 pyutils/device/adb_manager.py
 pyutils/device/scrcpy_device.py
-pyutils/device_sync/core/logging.py
-pyutils/device_sync/daemon.py
-pyutils/device_sync/logging_config.py
-pyutils/device_sync/utils/daemon.py
 pyutils/flutter_dev_tools/api/folder_opener.py
 pyutils/frontend_launcher/nuxt_launcher.py
 pyutils/frontend_launcher/output_capturer.py
 pyutils/frontend_launcher/universal_launcher.py
-pyutils/launcher/device_sync/core/logging.py
-pyutils/launcher/device_sync/daemon.py
-pyutils/launcher/device_sync/logging_config.py
 pyutils/launcher/device_sync/utils/daemon.py
 pyutils/launcher/explorer_executor.py
 pyutils/launcher/launcher.py

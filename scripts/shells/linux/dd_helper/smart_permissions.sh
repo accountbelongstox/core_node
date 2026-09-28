@@ -5,10 +5,23 @@
 # This script intelligently fixes all permissions and environment variables
 # for the Core Node Project, combining multiple functionalities:
 # - Core Node project permissions (root access issue fix)
-# - /var/_core_node permissions (MyBest directories)
+# - core_node data root permissions (MyBest directories)
 # - Environment variables setup (Claude Code auto-update disable, etc.)
 # - AI tools repair functionality
 # =============================================================================
+
+# Variable declarations
+SMART_PERMISSIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SMART_PERMISSIONS_HELPER="$SMART_PERMISSIONS_DIR/../common/fs_perm_helpers.sh"
+
+# shellcheck source=/dev/null
+source "$SMART_PERMISSIONS_HELPER"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$SMART_PERMISSIONS_DIR/../common/runtime_environment.sh"
+# dd.sh background repair state: the worker holds the lock while it runs.
+SMART_PERMISSIONS_STATE_DIR="$CORE_NODE_INSTALLER_STATE_DIR/dd_startup"
+SMART_PERMISSIONS_LOG_FILE="$SMART_PERMISSIONS_STATE_DIR/permissions.log"
+SMART_PERMISSIONS_LOCK_FILE="$SMART_PERMISSIONS_STATE_DIR/permissions.lock"
 
 # Get real user information
 get_real_user_info() {
@@ -16,40 +29,11 @@ get_real_user_info() {
     local real_user=""
     local real_user_home=""
 
-    echo "[DEBUG] get_real_user_info: project_root=$project_root" >&2
-
-    # Method 1: Check SUDO_USER (when running with sudo)
-    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
-        real_user="$SUDO_USER"
-        real_user_home=$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)
-        if [ -z "$real_user_home" ]; then
-            real_user_home="/home/$real_user"
-        fi
-        echo "[DEBUG] get_real_user_info: Using SUDO_USER method" >&2
-    fi
-
-    # Method 2: Check current user (when not running with sudo)
-    if [ -z "$real_user" ]; then
-        real_user="$(whoami 2>/dev/null || echo "$USER")"
-        if [ "$real_user" = "root" ]; then
-            # If running as root without sudo, try to find the real user
-            real_user="${USER:-ubuntu}"
-        fi
-        real_user_home=$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)
-        if [ -z "$real_user_home" ]; then
-            real_user_home="/home/$real_user"
-        fi
-        echo "[DEBUG] get_real_user_info: Using current user method" >&2
-    fi
-
-    # Method 3: Ultimate fallback
-    if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
-        echo "[DEBUG] get_real_user_info: Using ultimate fallback" >&2
-        real_user="ubuntu"
-        real_user_home="/home/ubuntu"
-    fi
-
-    echo "[DEBUG] get_real_user_info: final result=$real_user:$real_user_home" >&2
+    resolve_active_permission_owner >/dev/null
+    real_user="$ACTIVE_PERMISSION_USER"
+    real_user_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
+    [ -n "$real_user_home" ] || real_user_home="/root"
+    echo "[INFO] Permission owner source: $ACTIVE_PERMISSION_SOURCE" >&2
     echo "$real_user:$real_user_home"
 }
 
@@ -60,124 +44,37 @@ fix_core_node_permissions_essential() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    local real_user_home="${user_info##*:}"
-    
+    local real_group=""
+    local parent_dir=""
+    local build_dir=""
+
     echo "[INFO] Fixing Core Node essential permissions (fast)..."
-    echo "[INFO] Project root: $project_root"
+    echo "[SAFE_PATH] project_root=$project_root"
     echo "[INFO] Real user: $real_user"
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+    parent_dir="$(dirname "$project_root")"
+    build_dir="$parent_dir/_build_dir"
 
-    # Calculate build directory path dynamically (no hardcoding)
-    # project_root: /www/programing/core_node
-    # parent: /www/programing
-    # build_dir: /www/programing/_build_dir
-    local parent_dir="$(dirname "$project_root")"
-    local build_dir="$parent_dir/_build_dir"
-
-    # Essential directories for basic operation - 777 permissions
-    local essential_dirs=(
-        "$project_root"
-        "$project_root/scripts"
-        "$build_dir"
-    )
-
-    # Print directories to be scanned
-    echo "[SCAN] Directories to be checked:"
-    for dir in "${essential_dirs[@]}"; do
-        echo "  - $dir"
-    done
-    echo ""
-
-    # Critical file
-    local critical_file="$project_root/dd.sh"
-
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "[INFO] Running as root - fixing essential permissions"
-
-        # Fix essential directories - set 777 for all users
-        for dir in "${essential_dirs[@]}"; do
-            if [ ! -d "$dir" ]; then
-                echo "[INFO] Creating directory: $dir"
-                mkdir -p "$dir" 2>/dev/null
-            fi
-            if [ -d "$dir" ]; then
-                echo "[INFO] Setting 777 permissions for: $dir"
-                chmod -R 777 "$dir" 2>/dev/null
-                chown -R "$real_user:$real_user" "$dir" 2>/dev/null
-                # Ensure all .sh files in scripts are executable
-                find "$dir" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null
-            else
-                echo "[WARNING] Failed to create/access directory: $dir"
-            fi
-        done
-        
-        # Fix dd.sh specifically
-        if [ -f "$critical_file" ]; then
-            echo "[INFO] Setting permissions for: $critical_file"
-            chmod 755 "$critical_file"
-            chown "$real_user:$real_user" "$critical_file" 2>/dev/null
-        fi
-        
-        echo "[SUCCESS] Essential Core Node permissions fixed"
-    else
-        echo "[INFO] Not running as root - checking essential accessibility"
-        local needs_fix=false
-        
-        for dir in "${essential_dirs[@]}"; do
-            if [ -d "$dir" ] && [ ! -w "$dir" ]; then
-                echo "[WARNING] Essential directory not writable: $dir"
-                needs_fix=true
-            fi
-        done
-        
-        if [ "$needs_fix" = "false" ]; then
-            echo "[INFO] Essential directories are accessible"
-        else
-            echo "[WARNING] Essential directories need permission fix"
-        fi
-    fi
+    repair_owned_tree_777 "$project_root" "$real_user" "$real_group" || return $?
+    ensure_owned_tree_777 "$build_dir" "$real_user" "$real_group" || return $?
+    echo "[SUCCESS] Essential Core Node permissions fixed"
 }
 
 # =============================================================================
-# /var/_core_node Permissions (MyBest directories)
+# core_node data root Permissions (MyBest directories)
 # =============================================================================
 fix_var_core_node_permissions() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    local target_path="/var/_core_node"
-    
-    echo "[INFO] Fixing /var/_core_node permissions for MyBest directories..."
-    
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "[INFO] Running as root - setting up $target_path"
-        
-        # Create directory if needed
-        if [ ! -d "$target_path" ]; then
-            echo "[INFO] Creating directory: $target_path"
-            mkdir -p "$target_path" || {
-                echo "[ERROR] Failed to create $target_path"
-                return 1
-            }
-        fi
-        
-        # Set ownership and 777 permissions
-        echo "[INFO] Setting ownership and permissions for $real_user on $target_path"
-        chown -R "$real_user:$real_user" "$target_path" 2>/dev/null || {
-            echo "[WARNING] Failed to change ownership to $real_user"
-        }
-        chmod -R 777 "$target_path" 2>/dev/null || echo "[WARNING] Failed to set 777 permissions"
-        chmod -R +rwx "$target_path" 2>/dev/null || echo "[WARNING] Failed to set +rwx permissions"
-        
-        echo "[SUCCESS] /var/_core_node permissions configured"
-    else
-        if [ ! -d "$target_path" ]; then
-            echo "[WARNING] $target_path does not exist (need root to create)"
-        elif [ ! -w "$target_path" ]; then
-            echo "[WARNING] $target_path not writable (MyBest creation may fail)"
-        else
-            echo "[INFO] $target_path is accessible"
-        fi
-    fi
+    local real_group=""
+    local target_path="$CORE_NODE_DATA_DIR"
+
+    echo "[INFO] Fixing core_node data root permissions for MyBest directories..."
+    echo "[SAFE_PATH] target_path=$target_path (fixed path, allowed)"
+
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+    ensure_owned_tree_777 "$target_path" "$real_user" "$real_group"
 }
 
 # =============================================================================
@@ -190,12 +87,12 @@ setup_environment_variables() {
     
     # Claude Code configuration (disable auto-updates)
     if [ -z "${DISABLE_AUTOUPDATER:-}" ]; then
-        export DISABLE_AUTOUPDATER="1"
+        DISABLE_AUTOUPDATER="1"
         echo "[SUCCESS] Set DISABLE_AUTOUPDATER=1"
     fi
     
     if [ -z "${CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:-}" ]; then
-        export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1"
         echo "[SUCCESS] Set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
     fi
     
@@ -212,7 +109,7 @@ setup_environment_variables() {
     
     # Core Node project root
     if [ -n "$project_root" ] && [ -z "${CORE_NODE_PROJECT_ROOT:-}" ]; then
-        export CORE_NODE_PROJECT_ROOT="$project_root"
+        CORE_NODE_PROJECT_ROOT="$project_root"
         echo "[SUCCESS] Set CORE_NODE_PROJECT_ROOT=$project_root"
     fi
     
@@ -280,54 +177,67 @@ repair_ai_tool_simple() {
 }
 
 # =============================================================================
-# Main Smart Permissions Function (Essential Only - Fast)
+# Main Smart Permissions Function
 # =============================================================================
-smart_permissions_fix() {
-    echo "========================================" >&2
-    echo "[TEST] smart_permissions_fix CALLED" >&2
-    echo "========================================" >&2
 
+# Tree repairs: project root + _build_dir, then the core_node data root.
+smart_permissions_repair_trees() {
+    local project_root="$1"
+    local user_info=""
+
+    user_info="$(get_real_user_info "$project_root")"
+    echo "[INFO] Real user: ${user_info%%:*} (home: ${user_info##*:})"
+    echo "[STEP 1/2] Fixing essential Core Node permissions..."
+    fix_core_node_permissions_essential "$project_root" "$user_info"
+    echo "[STEP 2/2] Fixing core_node data root permissions..."
+    fix_var_core_node_permissions "$project_root" "$user_info"
+    echo "[SUCCESS] Permission repair completed"
+}
+
+# 0 while a background repair holds the lock.
+smart_permissions_background_running() {
+    [ -e "$SMART_PERMISSIONS_LOCK_FILE" ] || return 1
+    ! flock -n "$SMART_PERMISSIONS_LOCK_FILE" true 2>/dev/null
+}
+
+# Environment setup runs in this shell. As root, the full-tree permission walk
+# (minutes on a cold ntfs cache) runs detached so startup continues; it keeps
+# running after dd.sh exits. Non-root runs it in the foreground (sudo may ask).
+smart_permissions_fix() {
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
 
-    echo "[INFO] Essential Permissions & Environment Setup"
-    echo "[INFO] Essential Permissions & Environment Setup" >&2
-    echo "[DEBUG] Project root: $project_root"
-    echo "[DEBUG] Project root: $project_root" >&2
-
-    # Get user information
-    echo "[DEBUG] Getting real user information..."
-    local user_info="$(get_real_user_info "$project_root")"
-    local real_user="${user_info%%:*}"
-    local real_user_home="${user_info##*:}"
-
-    echo "[INFO] Real user: $real_user"
-    echo "[INFO] Real user home: $real_user_home"
-    echo ""
-
-    # 1. Fix essential Core Node permissions (fast)
-    echo "[STEP 1/3] Fixing essential Core Node permissions..."
-    fix_core_node_permissions_essential "$project_root" "$user_info"
-    echo ""
-
-    # 2. Fix /var/_core_node permissions
-    echo "[STEP 2/3] Fixing /var/_core_node permissions..."
-    fix_var_core_node_permissions "$project_root" "$user_info"
-    echo ""
-
-    # 3. Setup environment variables
-    echo "[STEP 3/3] Setting up environment variables..."
+    echo "[INFO] Project root: $project_root"
     setup_environment_variables "$project_root"
-    echo ""
-
-    echo "[SUCCESS] Essential setup completed"
+    if [ "$(id -u)" -ne 0 ]; then
+        smart_permissions_repair_trees "$project_root"
+        return 0
+    fi
+    mkdir -p "$SMART_PERMISSIONS_STATE_DIR" 2>/dev/null
+    if smart_permissions_background_running; then
+        echo "[INFO] Permission repair is already running in the background (log: $SMART_PERMISSIONS_LOG_FILE)"
+        return 0
+    fi
+    setsid bash "$SMART_PERMISSIONS_DIR/smart_permissions.sh" perms "$project_root" \
+        > "$SMART_PERMISSIONS_LOG_FILE" 2>&1 < /dev/null &
+    echo "[INFO] Permission repair started in the background (pid $!, log: $SMART_PERMISSIONS_LOG_FILE)"
     return 0
+}
+
+# Status of the background repair; printed right before the menu.
+smart_permissions_report() {
+    [ "$(id -u)" -eq 0 ] || return 0
+    if smart_permissions_background_running; then
+        echo -e "\033[33m[PERMISSIONS] Background repair still running; log: $SMART_PERMISSIONS_LOG_FILE\033[0m"
+    elif [ -s "$SMART_PERMISSIONS_LOG_FILE" ]; then
+        echo -e "\033[36m[PERMISSIONS] Background repair finished ($SMART_PERMISSIONS_LOG_FILE):\033[0m"
+        grep -E '^\[(permissions|SUCCESS|ERROR|WARNING)\]' "$SMART_PERMISSIONS_LOG_FILE" | tail -n 6 | sed 's/^/  /'
+    fi
 }
 
 # =============================================================================
 # Export functions for use by other scripts
 # =============================================================================
 
-# Simplified functions that dd.sh can call
 ensure_var_core_node_permissions() {
     local project_root="$1"
     local user_info="$(get_real_user_info "$project_root")"
@@ -350,22 +260,32 @@ repair_ai_tool() {
 # Main execution when called directly
 # =============================================================================
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
     case "${1:-smart}" in
         "smart"|"all")
-            smart_permissions_fix "$2"
+            setup_environment_variables "$project_root"
+            smart_permissions_repair_trees "$project_root"
+            ;;
+        "perms")
+            mkdir -p "$SMART_PERMISSIONS_STATE_DIR" 2>/dev/null
+            exec 9>"$SMART_PERMISSIONS_LOCK_FILE"
+            if ! flock -n 9; then
+                echo "[INFO] Another permission repair is running"
+                exit 0
+            fi
+            printf '[INFO] Started %(%Y-%m-%d %H:%M:%S)T\n' -1
+            smart_permissions_repair_trees "$project_root"
+            printf '[INFO] Finished %(%Y-%m-%d %H:%M:%S)T\n' -1
             ;;
         "core")
-            project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
             user_info="$(get_real_user_info "$project_root")"
-            fix_core_node_permissions "$project_root" "$user_info"
+            fix_core_node_permissions_essential "$project_root" "$user_info"
             ;;
         "var")
-            project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
             user_info="$(get_real_user_info "$project_root")"
             fix_var_core_node_permissions "$project_root" "$user_info"
             ;;
         "env")
-            project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
             setup_environment_variables "$project_root"
             ;;
         "repair")
@@ -377,10 +297,11 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
             fi
             ;;
         *)
-            echo "Usage: $0 [smart|core|var|env|repair <tool>] [project_root]"
+            echo "Usage: $0 [smart|perms|core|var|env|repair <tool>] [project_root]"
             echo "  smart - Run all fixes (default)"
+            echo "  perms - Permission repair only, single instance (dd.sh background worker)"
             echo "  core  - Fix core project permissions only"
-            echo "  var   - Fix /var/_core_node permissions only"
+            echo "  var   - Fix core_node data root permissions only"
             echo "  env   - Setup environment variables only"
             echo "  repair - Repair specific AI tool"
             ;;

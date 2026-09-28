@@ -2,7 +2,7 @@
 
 namespace App\Services\AI;
 
-use App\Helpers\GlobalSecretReader;
+use App\Utils\SecretStore;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -76,26 +76,16 @@ abstract class MultiKeyAIClientBase
     protected function resolveApiKeys(string $keyPrefix, ?string $override = null): array
     {
         $keys = [];
-        $append = function (?string $key) use (&$keys) {
-            $key = is_string($key) ? trim($key) : '';
-            if ($key !== '' && !in_array($key, $keys, true)) {
-                $keys[] = $key;
-            }
-        };
+        $resolvedOverride = '';
 
-        // 1. Override key
-        $append($override);
-
-        // 2. Base key (without suffix)
-        $append(GlobalSecretReader::getSecretContent($keyPrefix));
-
-        // 3. Numbered keys (_1, _2, _3, ...)
-        for ($i = 1; $i <= 10; $i++) {
-            $key = GlobalSecretReader::getSecretContent("{$keyPrefix}_{$i}");
-            $append($key);
+        $resolvedOverride = is_string($override) ? trim($override) : '';
+        if ($resolvedOverride !== '') {
+            $keys[] = $resolvedOverride;
         }
 
-        return $keys;
+        $keys = array_merge($keys, SecretStore::getAllIndexed($keyPrefix, 10));
+
+        return array_values(array_unique($keys));
     }
 
     /**

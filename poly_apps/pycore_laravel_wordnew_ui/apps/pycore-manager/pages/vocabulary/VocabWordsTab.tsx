@@ -1,0 +1,409 @@
+/**
+ * Words tab - dictionary word table with filter / search / sort / paging,
+ * batch actions (delete / mark_valid / mark_invalid / requeue_tts) and per-word
+ * edit + delete + requeue-TTS + validity-report. Uses Laravel directly.
+ *
+ * Query params mirror BooksAPI.getDictionaryWords (language/filter/q/start/limit/
+ * sort/order) so the direct Laravel request receives its native query shape.
+ */
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  Loader2, Trash2, RefreshCw, CheckCircle2, XCircle, Pencil, Flag, Search,
+} from 'lucide-react';
+import { laravelApi } from '@/apps/pycore-manager/api';
+import type { VocabDictionaryWordRow } from '@/apps/pycore-manager/api';
+import { isWordRowValid } from '@/core/integrations/laravel/wordValidity';
+import { pcLaravelErrorMessage } from '@/apps/pycore-manager/utils/pcErrorCodes';
+import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
+
+const FILTERS = [
+  'all',
+  'with_translation',
+  'without_translation',
+  'with_audio',
+  'without_audio',
+  'invalid',
+] as const;
+const SORTS = ['word', 'translation', 'queries', 'status'] as const;
+const PAGE_SIZE = 50;
+const DEFAULT_LANGUAGE = 'en';
+
+interface EditState {
+  md5: string;
+  language: string;
+  content: string;
+  translations: string;
+  phonetic: string;
+  is_valid: boolean;
+  validity_note: string;
+}
+
+export default function VocabWordsTab() {
+  const { t } = useTranslation('pc');
+  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
+  const [filter, setFilter] = useState('all');
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState('word');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [start, setStart] = useState(0);
+
+  const [rows, setRows] = useState<VocabDictionaryWordRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [edit, setEdit] = useState<EditState | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [sentences, setSentences] = useState<{ md5: string; items: any[]; loading: boolean } | null>(null);
+  const requestSequence = useRef(0);
+
+  const load = useCallback(async () => {
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await laravelApi.getVocabDictionaryWords({
+        language, filter, q, start, limit: PAGE_SIZE, sort, order,
+      });
+      if (sequence !== requestSequence.current) return;
+      const p = vp<any>(r);
+      setRows(toArray<VocabDictionaryWordRow>(p));
+      setTotal(Number(p?.total || 0));
+      setSelected(new Set());
+      setOffline(false);
+    } catch (e) {
+      if (sequence !== requestSequence.current) return;
+      const msg = pcLaravelErrorMessage(e, t(VL.error));
+      if (/offline|unavailable|Failed to fetch|timed out/i.test(msg)) setOffline(true);
+      setError(msg);
+    } finally {
+      if (sequence === requestSequence.current) setLoading(false);
+    }
+  }, [language, filter, q, start, sort, order, t]);
+
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { setStart(0); }, [language, filter, q, sort, order]);
+
+  const toggle = (md5: string) => {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(md5)) n.delete(md5); else n.add(md5);
+      return n;
+    });
+  };
+  const toggleAll = () => {
+    setSelected((s) => s.size === rows.length ? new Set() : new Set(rows.map((r) => r.md5 || r.content || '').filter(Boolean)));
+  };
+
+  const runBatch = async (action: 'delete' | 'mark_valid' | 'mark_invalid' | 'requeue_tts') => {
+    const md5s = Array.from(selected).filter(Boolean);
+    if (!md5s.length) return;
+    if (action === 'delete' && !confirm(t(VL.confirmDelete))) return;
+    try {
+      await laravelApi.batchVocabDictionaryWords({ language, md5s, action });
+      await load();
+    } catch (e) {
+      setError(pcLaravelErrorMessage(e, t(VL.error)));
+    }
+  };
+
+  const deleteWord = async (row: VocabDictionaryWordRow) => {
+    const md5 = row.md5 || '';
+    if (!md5 || !confirm(t(VL.confirmDelete))) return;
+    try {
+      await laravelApi.deleteVocabDictionaryWord(md5, { language });
+      await load();
+    } catch (e) {
+      setError(pcLaravelErrorMessage(e, t(VL.error)));
+    }
+  };
+
+  const requeueTts = async (row: VocabDictionaryWordRow) => {
+    const content = row.content || row.word || '';
+    if (!content) return;
+    try {
+      // laravel TTS batch/query takes a BARE ARRAY of {content, language, type}.
+      await laravelApi.queueVocabTtsBatchQuery([{ content, language, type: 'word' }]);
+      await load();
+    } catch (e) {
+      setError(pcLaravelErrorMessage(e, t(VL.error)));
+    }
+  };
+
+  const reportValidity = async (row: VocabDictionaryWordRow) => {
+    const md5 = row.md5 || '';
+    if (!md5) return;
+    try {
+      await laravelApi.reportVocabValidity({ language, md5 });
+      await load();
+    } catch (e) {
+      setError(pcLaravelErrorMessage(e, t(VL.error)));
+    }
+  };
+
+  const loadSentences = async (row: VocabDictionaryWordRow) => {
+    const md5 = row.md5 || '';
+    const word = row.content || row.word || '';
+    if (!word) return;
+    if (sentences?.md5 === md5) { setSentences(null); return; }
+    setSentences({ md5, items: [], loading: true });
+    try {
+      const r = await laravelApi.getVocabDictionarySentences({ word, language, limit: 10 });
+      setSentences({ md5, items: toArray(vp<any>(r)), loading: false });
+    } catch {
+      setSentences({ md5, items: [], loading: false });
+    }
+  };
+
+  const openEdit = (row: VocabDictionaryWordRow) => {
+    setEditError(null);
+    setEdit({
+      md5: row.md5 || '',
+      language,
+      content: row.content || row.word || '',
+      translations: (row.translations || []).join('\n'),
+      phonetic: row.phonetic || row.us_phonetic || '',
+      is_valid: isWordRowValid(row),
+      validity_note: row.validity_note || '',
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!edit || !edit.md5) return;
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      await laravelApi.updateVocabDictionaryWord(edit.md5, {
+        language: edit.language,
+        translations: edit.translations.split('\n').map((s) => s.trim()).filter(Boolean),
+        phonetic: edit.phonetic || null,
+        is_valid: edit.is_valid,
+        validity_note: edit.validity_note || null,
+      });
+      setEdit(null);
+      await load();
+    } catch (e) {
+      setEditError(pcLaravelErrorMessage(e, t(VL.error)));
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  if (loading && rows.length === 0) return <VocabLoading />;
+  if (offline && rows.length === 0) return <VocabBanner kind="offline" message={t(VL.offline)} />;
+
+  return (
+    <div className="space-y-3">
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">{t(VL.language)}</span>
+          <input value={language} onChange={(e) => setLanguage(e.target.value)}
+            placeholder={DEFAULT_LANGUAGE}
+            className="w-24 px-2 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-400" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">{t('vocabularyPage.words.filter')}</span>
+          <select value={filter} onChange={(e) => setFilter(e.target.value)}
+            className="px-2 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-400">
+            {FILTERS.map((f) => <option key={f} value={f}>{t(`vocabularyPage.words.filters.${f}`)}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">{t(VL.search)}</span>
+          <input value={q} onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void load(); }}
+            placeholder="…"
+            className="w-40 px-2 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-400" />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-slate-400">{t('vocabularyPage.words.sort')}</span>
+          <select value={sort} onChange={(e) => setSort(e.target.value)}
+            className="px-2 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-400">
+            {SORTS.map((s) => <option key={s} value={s}>{t(`vocabularyPage.words.sorts.${s}`)}</option>)}
+          </select>
+        </label>
+        <button onClick={() => setOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+          title={t('vocabularyPage.words.sortOrder')}
+          className="px-2 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700/50">
+          {order === 'asc' ? '↑' : '↓'}
+        </button>
+        <button onClick={load}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm hover:bg-sky-400">
+          <Search className="w-3.5 h-3.5" /> {t('vocabularyPage.words.apply')}
+        </button>
+      </div>
+
+      {error && <VocabBanner kind="error" message={error} />}
+
+      {/* Batch bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700 text-sm">
+          <span className="text-slate-300">{t('vocabularyPage.words.selected', { count: selected.size })}</span>
+          <BatchBtn onClick={() => runBatch('mark_valid')} icon={CheckCircle2} label={t('vocabularyPage.words.markValid')} />
+          <BatchBtn onClick={() => runBatch('mark_invalid')} icon={XCircle} label={t('vocabularyPage.words.markInvalid')} />
+          <BatchBtn onClick={() => runBatch('requeue_tts')} icon={RefreshCw} label={t('vocabularyPage.words.requeueTts')} />
+          <BatchBtn onClick={() => runBatch('delete')} icon={Trash2} label={t(VL.delete)} danger />
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border border-slate-700">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-800/60 text-slate-400">
+            <tr>
+              <th className="px-2 py-2 w-8">
+                <input type="checkbox" checked={rows.length > 0 && selected.size === rows.length}
+                  onChange={toggleAll} className="accent-sky-400" />
+              </th>
+              <th className="px-2 py-2 text-left">{t('vocabularyPage.words.word')}</th>
+              <th className="px-2 py-2 text-left">{t('vocabularyPage.words.translations')}</th>
+              <th className="px-2 py-2 text-left">{t('vocabularyPage.words.phonetic')}</th>
+              <th className="px-2 py-2 text-center">{t(VL.translationBadge)}</th>
+              <th className="px-2 py-2 text-center">{t(VL.audioBadge)}</th>
+              <th className="px-2 py-2 text-center">{t(VL.validBadge)}</th>
+              <th className="px-2 py-2 text-right">{t('vocabularyPage.words.queries')}</th>
+              <th className="px-2 py-2 text-right">{t(VL.actions)}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const md5 = row.md5 || row.content || '';
+              const isSel = selected.has(md5);
+              return (
+                <React.Fragment key={md5 || i}>
+                  <tr className={`border-t border-slate-800 ${isSel ? 'bg-sky-500/5' : 'hover:bg-slate-800/30'}`}>
+                    <td className="px-2 py-2">
+                      <input type="checkbox" checked={isSel} onChange={() => toggle(md5)} className="accent-sky-400" />
+                    </td>
+                    <td className="px-2 py-2 font-medium text-slate-100">{row.content || row.word}</td>
+                    <td className="px-2 py-2 text-slate-300 max-w-xs">
+                      <div className="truncate">{(row.translations || []).join('; ')}</div>
+                    </td>
+                    <td className="px-2 py-2 text-slate-400">{row.phonetic || row.us_phonetic || '—'}</td>
+                    <td className="px-2 py-2 text-center"><PresenceBadge ok={!!row.has_translation} yesLabel={t(VL.translationBadge)} noLabel="—" /></td>
+                    <td className="px-2 py-2 text-center"><PresenceBadge ok={!!row.has_audio} yesLabel={t(VL.audioBadge)} noLabel="—" /></td>
+                    <td className="px-2 py-2 text-center"><PresenceBadge ok={isWordRowValid(row)} yesLabel={t(VL.validBadge)} noLabel="—" /></td>
+                    <td className="px-2 py-2 text-right text-slate-400">{humanInt(row.query_count)}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center justify-end gap-1">
+                        <IconBtn title={t('vocabularyPage.words.sentences')} onClick={() => loadSentences(row)}><Search className="w-3.5 h-3.5" /></IconBtn>
+                        <IconBtn title={t('vocabularyPage.words.editWord')} onClick={() => openEdit(row)}><Pencil className="w-3.5 h-3.5" /></IconBtn>
+                        <IconBtn title={t('vocabularyPage.words.requeueTts')} onClick={() => requeueTts(row)}><RefreshCw className="w-3.5 h-3.5" /></IconBtn>
+                        <IconBtn title={t('vocabularyPage.words.validity')} onClick={() => reportValidity(row)}><Flag className="w-3.5 h-3.5" /></IconBtn>
+                        <IconBtn title={t(VL.delete)} onClick={() => deleteWord(row)} danger><Trash2 className="w-3.5 h-3.5" /></IconBtn>
+                      </div>
+                    </td>
+                  </tr>
+                  {sentences?.md5 === md5 && (
+                    <tr className="border-t border-slate-800 bg-slate-900/40">
+                      <td colSpan={9} className="px-4 py-2">
+                        {sentences.loading ? <span className="text-slate-400">{t(VL.loading)}</span> :
+                          sentences.items.length === 0 ? <span className="text-slate-500">{t('vocabularyPage.words.noSentences')}</span> :
+                          <ul className="space-y-1 text-slate-300">
+                            {sentences.items.map((s, j) => (
+                              <li key={j} className="text-xs">{s.text || s.sentence || JSON.stringify(s)}</li>
+                            ))}
+                          </ul>}
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr><td colSpan={9} className="px-2 py-6 text-center text-slate-500">{t(VL.empty)}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Paging */}
+      <div className="flex items-center justify-between text-sm text-slate-400">
+        <span>{t(VL.range, { total: humanInt(total), from: start + 1, to: Math.min(start + PAGE_SIZE, total) })}</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setStart(Math.max(0, start - PAGE_SIZE))} disabled={start === 0}
+            className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{t(VL.prev)}</button>
+          <button onClick={() => setStart(start + PAGE_SIZE)} disabled={start + PAGE_SIZE >= total}
+            className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{t(VL.next)}</button>
+        </div>
+      </div>
+
+      {/* Edit modal */}
+      {edit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-slate-100">{t('vocabularyPage.words.editWord')}</h3>
+              <button onClick={() => setEdit(null)} aria-label={t(VL.close)} className="text-slate-400 hover:text-slate-200">✕</button>
+            </div>
+            <Field label={t('vocabularyPage.words.word')}>
+              <input value={edit.content} readOnly
+                className="w-full px-2 py-1.5 rounded bg-slate-800/60 border border-slate-700 text-slate-400" />
+            </Field>
+            <Field label={t('vocabularyPage.words.translations')}>
+              <textarea value={edit.translations}
+                onChange={(e) => setEdit({ ...edit, translations: e.target.value })} rows={3}
+                placeholder={t('vocabularyPage.words.translationsPlaceholder')}
+                className="w-full px-2 py-1.5 rounded bg-slate-800/60 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-400" />
+            </Field>
+            <Field label={t('vocabularyPage.words.phonetic')}>
+              <input value={edit.phonetic}
+                onChange={(e) => setEdit({ ...edit, phonetic: e.target.value })}
+                className="w-full px-2 py-1.5 rounded bg-slate-800/60 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-400" />
+            </Field>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={edit.is_valid}
+                onChange={(e) => setEdit({ ...edit, is_valid: e.target.checked })} className="accent-sky-400" />
+              {t('vocabularyPage.words.valid')}
+            </label>
+            {editError && <VocabBanner kind="error" message={editError} />}
+            <div className="flex justify-end gap-2 pt-2">
+              <button onClick={() => setEdit(null)}
+                className="px-3 py-1.5 rounded border border-slate-600 text-slate-300 hover:bg-slate-700/50">{t(VL.cancel)}</button>
+              <button onClick={saveEdit} disabled={editBusy}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-sky-500 text-white disabled:opacity-50 hover:bg-sky-400">
+                {editBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} {t(VL.save)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BatchBtn({ onClick, icon: Icon, label, danger }: {
+  onClick: () => void; icon: React.ComponentType<{ className?: string }>; label: string; danger?: boolean;
+}) {
+  return (
+    <button onClick={onClick}
+      className={`inline-flex items-center gap-1 px-2 py-1 rounded border text-xs ${danger ? 'border-rose-500/40 text-rose-300 hover:bg-rose-500/10' : 'border-slate-600 text-slate-300 hover:bg-slate-700/50'}`}>
+      <Icon className="w-3 h-3" /> {label}
+    </button>
+  );
+}
+
+function IconBtn({ title, onClick, children, danger }: {
+  title: string; onClick: () => void; children: React.ReactNode; danger?: boolean;
+}) {
+  return (
+    <button title={title} onClick={onClick}
+      className={`p-1 rounded hover:bg-slate-700/50 ${danger ? 'text-rose-400' : 'text-slate-400 hover:text-slate-200'}`}>
+      {children}
+    </button>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block space-y-1">
+      <span className="text-xs text-slate-400">{label}</span>
+      {children}
+    </label>
+  );
+}

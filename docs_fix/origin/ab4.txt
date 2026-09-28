@@ -1,0 +1,1790 @@
+ 93_install_frankenphp.sh
+    94_install_composer.sh
+    96_configure_php85.sh    175_laravel_main_start.sh 以上几个
+ 脚本安装的前端和域名，是否是热重载，注意不是laravel mainr后端
+ ，当然laravel main后端也要确保是热重载。前端和后端都要幂等最细
+ 粒度，比如前端即使服务安装下，再次运行也要刷新重启并重写服务文
+ 件文档内容。现在的问题是 https://www.12gm.com/pycore-manager
+ 会卡住，无任务反应。
+
+
+ The user is asking about the installer scripts 93/94/96/175 —
+ whether the frontend and domain are hot-reload, ensuring both
+ frontend and backend hot-reload, and that installers are
+ idempotent at the finest granularity — re-running should
+ refresh/restart and rewrite service files. The current
+ problem: https://www.12gm.com/pycore-manager gets stuck, no
+ task response.
+
+ Let me think about what these scripts do:
+ - 93_install_frankenphp.sh — installs FrankenPHP
+ - 94_install_composer.sh — installs Composer
+ - 96_configure_php85.sh — configures PHP 8.5 (Caddyfile for
+   frankenphp workers)
+ - 175_laravel_main_start.sh — starts laravel_main service
+
+ The user says "以上几个脚本安装的前端和域名" — the frontend
+ and domain installed by these scripts. Wait — the frontend
+ here is likely served by FrankenPHP/Caddy too. www.12gm.com is
+ the domain, and /pycore-manager is the frontend UI path
+ (pycore_laravel_wordnew_ui). The question: is the frontend
+ hot-reloaded?
+
+ Actually the frontend is a built static SPA (pycore-manager
+ app built with vite?) served by Caddy/FrankenPHP? Or is it
+ served by some other service? Let me investigate the scripts.
+
+ The problem: https://www.12gm.com/pycore-manager hangs, no
+ response ("无任务反应" — no task response, probably meaning
+ requests hang).
+
+ Possible causes:
+ - The frontend serves, but API calls to the relay hang (SSE
+   stream?)
+ - The page loads but the pycore-manager app hangs on data
+   fetch — perhaps the relay SSE event stream
+   (/api/relay/v2/events) is a long-lived connection that
+   consumes the worker pool? Earlier design said "The current
+   PHP sleep-loop response endpoint is removed. One SSE
+   connection per UI runtime multiplexes roster and operation
+   topics; no per-request Laravel worker remains blocked." But
+   if SSE is implemented with sleep-loops and workers are
+   exhausted, requests hang.
+
+ FrankenPHP with a limited worker pool (e.g. 4 workers) — if
+ SSE occupies all workers, the frontend HTML (if also served by
+ the same FrankenPHP/PHP) would hang. But static frontend
+ usually served by Caddy directly.
+
+ Wait — is www.12gm.com (http://www.12gm.com) served by the
+ same Caddy? The Caddyfile at /www/wwwroot/laravel_db/Caddyfile
+ probably has both api.si.12gm.com and www.12gm.com
+ (http://www.12gm.com). If the frontend is a static SPA served
+ by Caddy file_server, hot reload is irrelevant for static
+ files. But the user asks whether "安装的前端和域名" are
+ hot-reload — i.e., whether the installed frontend (service)
+ and domain config hot-reload changes.
+
+ Let me actually look at the scripts and the Caddyfile to
+ understand the architecture before answering. Also check what
+ serves www.12gm.com/pycore-manager
+ (http://www.12gm.com/pycore-manager).
+
+ Let me read the scripts.
+
+
+ $ ls /www/programing/core_node/ | head -30; find
+ /www/programing/core_node -maxdepth 2 -name
+ "93_install_frankenphp.sh" -o -maxdepth 2 -name
+ "96_configure_php85.sh" -o -maxdepth 2 -name
+ "175_laravel_main_start.sh" 2>/dev/null | head
+
+ ... (25 earlier lines, ctrl+o to expand)
+ pnpm-lock.yaml
+ poly_apps
+ _prompts
+ public
+ pyapps
+
+ Took 0.0s
+
+
+
+ $ find /www/programing/core_node -name
+ "93_install_frankenphp.sh" -not -path "*/node_modules/*"
+ 2>/dev/null; find /www/programing/core_node -name
+ "175_laravel_main_start.sh" -not -path "*/node_modules/*"
+ 2>/dev/null
+
+ /www/programing/core_node/scripts/shells/linux/debian/install_
+ shells/93_install_frankenphp.sh
+ /www/programing/core_node/scripts/shells/linux/debian/install_
+ shells/175_laravel_main_start.sh
+
+ Took 14.0s
+
+
+
+ read
+ /www/programing/core_node/scripts/shells/linux/debian/install_
+ shells/175_laravel_main_start.sh
+
+
+ Now let me understand the frontend serving. The user asks
+ about "前端和域名" — www.12gm.com (http://www.12gm.com) serves
+ the frontend /pycore-manager. Let me check:
+ 1. What serves www.12gm.com (http://www.12gm.com) — is it the
+    same Caddy (frankenphp)? Or the UI start.sh (vite dev
+    server)?
+ 2. Is it hot reload?
+ 3. Idempotency of installers at the finest granularity —
+    re-run should refresh/restart and rewrite service files.
+ 4. Current problem: https://www.12gm.com/pycore-manager hangs.
+
+ Let me look at the Caddyfile and the frankenphp sub-scripts.
+
+
+ $ cat /www/wwwroot/laravel_db/Caddyfile 2>/dev/null; echo ===;
+ ls
+ /www/programing/core_node/scripts/shells/linux/debian/debian_c
+ om/ | grep -i "175\|frankenphp" | head
+
+ ... (3 earlier lines, ctrl+o to expand)
+ 175_laravel_main_start_frankenphp.sh
+ 175_laravel_main_start_nginx.sh
+ 175_laravel_main_start_npx_fallback.sh
+ 175_laravel_main_start_php_serve.sh
+ laravel_runtime_frankenphp.sh
+
+ Took 0.0s
+
+
+
+ $ find /www -maxdepth 4 -name "Caddyfile*" 2>/dev/null | grep
+ -v node_modules; systemctl cat
+ ncore-laravel-frankenphp.service 2>/dev/null | head -40
+
+ ... (29 earlier lines, ctrl+o to expand)
+ MemoryMax=1861M
+ MemoryHigh=1488M
+
+ [Install]
+ WantedBy=multi-user.target
+
+ Took 0.3s
+
+
+
+ $ cat
+ /www/programing/core_node/scripts/shells/linux/debian/debian_c
+ om/175_laravel_main_service_frankenphp.sh
+
+ ... (77 earlier lines, ctrl+o to expand)
+ FRANKENPHP_SITE_HOST="$(fm_site_host)"
+
+ cd "$LARAVEL_DIR" || exit 1
+
+ exec /bin/bash "$LARAVEL_RUNTIME_FRANKENPHP_SCRIPT"
+
+ Took 0.0s
+
+
+
+ $ sed -n 1,120p
+ /www/programing/core_node/scripts/shells/linux/debian/debian_c
+ om/laravel_runtime_frankenphp.sh
+
+ ... (151 earlier lines, ctrl+o to expand)
+ renders and
+ # the server binds the HTTPS port - the prebuilt-tls gate pins
+ them; the
+ # embedded dnspod module path stays a fallback. Issuance
+ failures only
+
+ Took 0.0s
+
+
+ Now let me see the rest — the Caddyfile generation, especially
+ whether www.12gm.com (http://www.12gm.com) and the
+ pycore-manager frontend routes are served. Let me look at the
+ actual runtime Caddyfile at
+ /www/programing/core_node/poly_apps/laravel_main/storage/frank
+ enphp/Caddyfile.
+
+
+ $ cat
+ /www/programing/core_node/poly_apps/laravel_main/storage/frank
+ enphp/Caddyfile
+
+ ... (80 earlier lines, ctrl+o to expand)
+ # Per-domain route files (managed by
+ fm_domain_ensure_route_file)
+ import
+ /www/programing/core_node/poly_apps/laravel_main/storage/frank
+ enphp/routes/*.caddy
+
+ Took 0.0s
+
+
+
+ $ ls -la
+ /www/programing/core_node/poly_apps/laravel_main/storage/frank
+ enphp/routes/ 2>/dev/null; echo ===; for f in
+ /www/programing/core_node/poly_apps/laravel_main/storage/frank
+ enphp/routes/*.caddy; do echo "--- $f"; cat "$f"; done
+ 2>/dev/null
+
+ ... (119 earlier lines, ctrl+o to expand)
+ rel=preload; as=fetch; crossorigin"
+       respond @early_hints 103
+       reverse_proxy http://127.0.0.1:13054
+    }
+ }
+
+ Took 0.0s
+
+
+ Now the architecture is clear:
+ - www.12gm.com (frontend domain) → reverse_proxy →
+   http://127.0.0.1:13054 — that's the UI dev server (vite)
+   port 13054
+ - api.si.12gm.com → reverse_proxy → http://127.0.0.1:9000 —
+   the Laravel backend (FrankenPHP Octane)
+
+ The problem: https://www.12gm.com/pycore-manager hangs. That
+ means the UI dev server at port 13054 is either down or stuck.
+ Let me check what serves 13054 — the UI start.sh script and
+ its systemd service.
+
+
+ $ ss -tlnp | grep -E ":13054|:9000|:443" | head; echo ===;
+ systemctl list-units --all --type=service | grep -iE
+ "ui|nexus|wordnew|frankenphp" | head
+
+ ... (17 earlier lines, ctrl+o to expand)
+ dead    Rebuild Hardware Database
+   systemd-journal-catalog-update.service   loaded    inactive
+ dead    Rebuild Journal Catalog
+   user@0.service                           loaded    active
+ running User Manager for UID 0
+
+ Took 0.1s
+
+
+
+ $ ps -o pid,ppid,etime,cmd -p 2598; echo ===; curl -sk -o
+ /dev/null -w "direct 13054: HTTP %{http_code} in
+ %{time_total}s\n" --max-time 8
+ http://127.0.0.1:13054/pycore-manager; curl -sk -o /dev/null
+ -w "direct 13054 root: HTTP %{http_code} in %{time_total}s\n"
+ --max-time 8 http://127.0.0.1:13054/; curl -sk -o /dev/null -w
+ "via www domain: HTTP %{http_code} in %{time_total}s\n"
+ --max-time 12 https://www.12gm.com/pycore-manager (timeout
+ 40s)
+
+ ... (3 earlier lines, ctrl+o to expand)
+ --strictPort --host 0.0.0.0
+ ===
+ direct 13054: HTTP 200 in 0.014754s
+ direct 13054 root: HTTP 200 in 0.004375s
+ via www domain: HTTP 200 in 0.020389s
+
+ Took 0.1s
+
+
+ Interesting — the UI dev server (vite, port 13054,
+ ncore-nexus-dash.service) is up and responding fast, both
+ direct and via domain. The user says
+ https://www.12gm.com/pycore-manager "卡住，无任务反应" — page
+ loads but hangs / no task response.
+
+ "无任务反应" — probably meaning: page loads but nothing
+ responds (no reaction to tasks). This is likely the relay mode
+  issue — the UI's communication to pycore via the Laravel
+ relay. But wait, the user's question first part is about
+ installers and hot reload. Let me interpret the full message:
+
+ "93_install_frankenphp.sh 94_install_composer.sh
+ 96_configure_php85.sh 175_laravel_main_start.sh 以上几个脚本安
+ 装的前端和域名，是否是热重载，注意不是laravel main后端，当然
+ laravel main后端也要确保是热重载。前端和后端都要幂等最细粒度，
+ 比如前端即使服务安装下，再次运行也要刷新重启并重写服务文件文档
+ 内容。现在的问题是 https://www.12gm.com/pycore-manager 会卡住
+ ，无任务反应。"
+
+ Translation: "The frontend and domains installed by these
+ scripts — are they hot-reload? Note: not the laravel_main
+ backend, though laravel_main backend must also be hot-reload.
+ Frontend and backend both must be idempotent at the finest
+ granularity — e.g. even if the frontend service is installed,
+ re-running must refresh/restart and rewrite service files'
+ content. The current problem:
+ https://www.12gm.com/pycore-manager hangs, no task response."
+
+ So the user wants:
+ 1. Verify/ensure frontend (ncore-nexus-dash /
+    pycore_laravel_wordnew_ui) hot reload — vite dev server has
+    HMR natively. But is the UI service running in dev mode
+    (vite) — yes, vite --port 13054 — HMR works natively via
+    websocket. But is the websocket proxied through Caddy? HMR
+    through the Caddy reverse_proxy — the vite client connects
+    to ws://www.12gm.com:443 (http://www.12gm.com:443) (h2/h3)
+    — Caddy proxies websockets fine.
+
+ Actually wait — does the vite dev server allow host
+ www.12gm.com? Vite has server.allowedHosts config. If the host
+ is not allowed, vite returns 403. But we got HTTP 200 through
+ the domain, so host check passed (or is disabled).
+
+ 2. Idempotency at finest granularity for both frontend and
+    backend installers — re-run should refresh, restart, and
+    rewrite service files. Need to check the UI's service
+    registration script (ensure_ui_domain_binding, start.sh,
+    the UI's own installer scripts) and the
+    systemd_service_manager.
+
+ 3. The actual problem: www.12gm.com/pycore-manager
+    (http://www.12gm.com/pycore-manager) hangs with no response
+    to tasks.
+
+ Since the page loads (HTTP 200 fast), the hang is likely at
+ runtime — the pycore-manager app's data loading. In relay
+ mode, the UI talks to pycore via the Laravel relay at
+ api.si.12gm.com. The device (Windows pycore) hasn't synced the
+ new contract yet — 409 contract_digest_conflict! That would
+ make all pycore-manager pages hang: operations are admitted
+ (403/422 fixed) but never claimed/executed by the device
+ because the device refuses to claim due to digest mismatch...
+ Actually wait — the device-side relay agent gets 409 on claim
+ → _skip_permanent_conflict → skips requests, retries later. So
+ UI requests would be admitted as pending operations but never
+ executed → UI hangs waiting for operation results (with 30s
+ timeout).
+
+ But wait — is the UI in relay mode pointing at
+ api.si.12gm.com? Yes, per the summary. And the device hasn't
+ code-synced the new contract digest yet (user's pending
+ action). So pycore-manager pages will hang until the device
+ syncs.
+
+ But hold on — "会卡住，无任务反应" might also be about the UI
+ runtime hanging completely (page unresponsive). Let me check
+ what pycore-manager does on load: readBackend() →
+ requestPycoreHttp(pycoreManagerStateGet) → relay mode → POST
+ api.si.12gm.com/api/relay/v2/operations → admitted → device
+ claims... device gets 409 → operation stays pending → UI waits
+ for SSE event → timeout (30s) → error. The page would show
+ loading state for ~30s then error, OR hang forever if the UI's
+ wait logic doesn't time out properly.
+
+ Also possible: the UI pycore-manager has a "任务" (tasks)
+ concept — the sentence tasks queue. "无任务反应" = "no task
+ reaction" — clicking things doesn't produce tasks?
+
+ Let me first check the current state of the relay operations
+ from the UI's recent attempts — the DB would show admitted
+ operations stuck in pending. Let me check
+ global_relay_operations recent rows.
+
+ 架构已清楚：www.12gm.com → Caddy 反代 → vite 前端
+ （13054，ncore-nexus-dash.service），页面本身 200 且 14ms 内响
+ 应。卡住的是运行时数据流。查中转侧最近的操作状态：
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use App\Apps\RelayV2\RelayV2Models\RelayV2OperationModel;
+ \$rows =
+ RelayV2OperationModel::query()->orderByDesc('created_at')->lim
+ it(12)->get(['operation_id','path','state','created_at','last_
+ error_code']);
+ foreach (\$rows as \$r) { echo substr(\$r->created_at,5,15).'
+ '.str_pad(\$r->state,10).' '.(\$r->last_error_code ?? '-').\"
+ \".\$r->path.PHP_EOL; }
+ echo '---'.PHP_EOL;
+ echo 'pending:
+ '.RelayV2OperationModel::query()->where('state','pending')->co
+ unt().PHP_EOL;
+ " 2>&1 | tail -16
+
+ ... (4 earlier lines, ctrl+o to expand)
+                                ^ (Connection: main, Host:
+ 127.0.0.1, Port: 5432, Database: core_node_main, SQL: select
+ "operation_id", "path", "state", "created_at",
+ "last_error_code" from "global_relay_operations" order by
+ "created_at" desc limit 12).
+
+ Took 1.0s
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use Illuminate\Support\Facades\Schema;
+ print_r(collect(Schema::getColumnListing('global_relay_operati
+ ons'))->diff(['operation_id','created_at','state'])->values()-
+ >toArray());
+ " 2>&1 | tail -25
+
+ ... (20 earlier lines, ctrl+o to expand)
+     [33] => execution_started_at
+     [34] => completed_at
+     [35] => expires_at
+     [36] => updated_at
+ )
+
+ Took 0.9s
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use App\Apps\RelayV2\RelayV2Models\RelayV2OperationModel;
+ \$rows =
+ RelayV2OperationModel::query()->orderByDesc('created_at')->lim
+ it(14)->get();
+ foreach (\$rows as \$r) { echo substr(\$r->created_at,5,15).'
+ '.str_pad(\$r->state,10).' '.str_pad((\$r->error_code ??
+ '-'),26).substr(\$r->request_path ?? '-',0,42).PHP_EOL; }
+ echo '---'.PHP_EOL;
+ echo 'pending now:
+ '.RelayV2OperationModel::query()->where('state','pending')->co
+ unt().PHP_EOL;
+ " 2>&1 | tail -17
+
+ ... (11 earlier lines, ctrl+o to expand)
+ 09-05 12:00:54 responded  -                         -
+ 09-05 12:00:52 responded  -                         -
+ 09-05 12:00:49 responded  -                         -
+ ---
+ pending now: 0
+
+ Took 1.1s
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use App\Apps\RelayV2\RelayV2Models\RelayV2OperationModel;
+ \$rows =
+ RelayV2OperationModel::query()->orderByDesc('created_at')->lim
+ it(14)->get();
+ foreach (\$rows as \$r) {
+   echo substr(\$r->created_at,5,15).'
+ '.str_pad(\$r->state,10).' '.str_pad((\$r->error_code ??
+ '-'),24).' st='.\$r->response_status.' ';
+   \$h = \$r->request_headers; \$b = \$r->request_body_base64;
+   echo 'path='.(\$r['request_headers']['x-pycore-route'] ??
+ '?');
+   echo PHP_EOL;
+ }
+ " 2>&1 | tail -16
+
+ ... (23 earlier lines, ctrl+o to expand)
+ path=?
+ 09-05 12:00:52 responded  -                        st=200
+ path=?
+ 09-05 12:00:49 responded  -                        st=200
+ path=?
+
+ Took 1.0s
+
+
+ Wait — there ARE operations being responded with status 200 —
+ at 12:00-12:04 (UTC; that's 20:00-20:04 local +08:00, i.e.,
+ RIGHT NOW). The device IS claiming and executing operations
+ successfully! That means:
+
+ 1. The Windows pycore device has ALREADY code-synced the new
+    contract (digest matches — otherwise claim would 409)
+ 2. Operations flow: admitted → claimed → executed → responded
+    200
+
+ So the relay pipeline is WORKING end-to-end right now. The
+ recent ops at 20:00-20:04 local — that's within the last few
+ minutes (current time ~20:05).
+
+ Hmm wait, but earlier probe showed "pairing_not_found" for
+ fake pairing 99999999-.... The real pairing exists. And these
+ operations respond 200. Let me see what routes they are — the
+ request_headers cast. The column names — let me check what
+ headers structure is. request_headers is likely JSON. My
+ access failed (path=?) — maybe headers use different case or
+ the route isn't in headers. Let me dump one operation fully to
+ see which route it is.
+
+ 设备端已在正常 claim 并返回 200（20:00–20:04 本地时间，刚刚发
+ 生）——说明 Windows 端已同步新契约、中转链路已通。查这些操作具
+ 体是什么路由：
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use App\Apps\RelayV2\RelayV2Models\RelayV2OperationModel;
+ \$r =
+ RelayV2OperationModel::query()->orderByDesc('created_at')->fir
+ st();
+ echo 'op: '.\$r->operation_id.PHP_EOL;
+ echo 'request_headers:
+ '.json_encode(\$r->request_headers).PHP_EOL;
+ echo 'query: '.json_encode(\$r->request_query ??
+ null).PHP_EOL;
+ echo 'created: '.\$r->created_at.' completed:
+ '.\$r->completed_at.PHP_EOL;
+ \$body = \$r->request_body_base64 ?
+ base64_decode(\$r->request_body_base64) : '(none)';
+ echo 'body: '.substr(\$body,0,120).PHP_EOL;
+ \$resp = \$r->response_body_base64 ?
+ base64_decode(\$r->response_body_base64) : '(none)';
+ echo 'resp[0:200]: '.substr(\$resp,0,200).PHP_EOL;
+ " 2>&1 | tail -8
+
+ ... (3 earlier lines, ctrl+o to expand)
+ created: 2026-09-05 12:04:17 completed: 2026-09-05 12:04:27
+ body: (none)
+ resp[0:200]:
+ {"is_http_service":true,"protocol_version":"2.0","service":"Ht
+ tpServer","transport":"relay"}
+
+ Took 0.9s
+
+
+ The most recent operation (12:04:17 UTC = 20:04 local, just
+ now) responded with
+ {"is_http_service":true,"protocol_version":"2.0","service":"Ht
+ tpServer","transport":"relay"} — that's the pycore HTTP
+ service status/ping response. So the relay round-trip is FULLY
+ WORKING: UI → Laravel relay → Windows pycore device → response
+ back.
+
+ Wait, but where's the route/path? Let me check the actual
+ columns — request headers seem to be null. Let me look at the
+ whole row. Actually — I should check request_path-like
+ columns. Earlier Schema::getColumnListing diff output was
+ truncated at the top (started at index 13). Let me see full
+ columns list. Actually let me check for the route column —
+ maybe it's route or pycore_route or the path is inside
+ headers. The response shows a successful ping-type op.
+
+ Actually, the key insight: operations ARE flowing and
+ responding 200. The device must have synced the contract. Let
+ me verify digest match:
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use Illuminate\Support\Facades\DB;
+ \$cols = collect(DB::select(\"SELECT column_name FROM
+ information_schema.columns WHERE
+ table_name='global_relay_operations' ORDER BY
+ ordinal_position\"))->pluck('column_name')->filter(fn(\$c) =>
+ str_contains(\$c,'path') || str_contains(\$c,'route') ||
+ str_contains(\$c,'digest') || str_contains(\$c,'pairing'));
+ print_r(\$cols->values()->toArray());
+ \$pair =
+ DB::table('global_relay_pairings')->where('state','active')->f
+ irst();
+ echo 'pairing digest: '.substr(\$pair->contract_digest ??
+ '-',0,16).' state: '.(\$pair->state ?? '-').PHP_EOL;
+ \$local = hash('sha256',
+ file_get_contents('/www/programing/core_node/config/pycore_rel
+ ay_contract.json'));
+ echo 'local  digest: '.substr(\$local,0,16).PHP_EOL;
+ " 2>&1 | tail -14
+
+ ... (5 earlier lines, ctrl+o to expand)
+     [3] => request_digest
+     [4] => result_digest
+ )
+ pairing digest: - state: active
+ local  digest: 4cb786eeccd65bd8
+
+ Took 1.3s
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use App\Apps\RelayV2\RelayV2Models\RelayV2OperationModel;
+ \$rows =
+ RelayV2OperationModel::query()->orderByDesc('created_at')->lim
+ it(15)->get(['operation_id','normalized_path','route_policy_ke
+ y','state','response_status','created_at','completed_at','erro
+ r_code']);
+ foreach (\$rows as \$r) {
+   \$ms = \$r->completed_at && \$r->created_at ?
+ (strtotime(\$r->completed_at)-strtotime(\$r->created_at)) :
+ '?';
+   echo substr(\$r->created_at,11,8).'
+ '.str_pad(\$r->state,10).'
+ '.str_pad((string)\$r->response_status,4).\$ms.'s
+ '.str_pad(\$r->route_policy_key,16).\$r->normalized_path.PHP_E
+ OL;
+ }
+ " 2>&1 | tail -16
+
+ ... (20 earlier lines, ctrl+o to expand)
+ /ui/pycore_manager/state/put
+ 12:00:49 responded  200 3s general_action
+ /ui/user_data/get_video_history
+ 12:00:49 responded  200 2s general_action
+ /ui/user_data/get_video_history
+
+ Took 2.2s
+
+
+ Excellent! This is decisive evidence:
+
+ 1. The relay is FULLY WORKING now: ui/pycore_manager/state/get
+     (general_action, the previously-403/422 route) responds
+    200; state/put, terminal_write schedule sync,
+    user_data/get_video_history — all 200.
+ 2. The Windows device synced the new contract (digest match —
+    otherwise claim would 409).
+ 3. My payload fix is verified in production — state/get with
+    {} body passes admission now.
+
+ BUT — note the latency: 10-14 seconds per operation! /status
+ pings take 4-14s. That's very slow. The device is polling on
+ roster (slow claim cadence) or the device's network round trip
+ is slow. This might be what the user perceives as "卡住，无任
+ 务反应" (stuck, no task response) — operations work but take
+ ~10+ seconds, and during waiting the UI appears frozen.
+
+ Wait, but the last operation was at 12:04:27 (20:04 local).
+ Current time? Let me check. If the user tried at ~20:05+, and
+ no new operations are being created, the UI might have stopped
+ retrying — i.e., stuck. Let me check current time and whether
+ ops stopped coming.
+
+ Actually, the operations stopped at 12:04:27. Let me check the
+ current time. Also check the roster polling state — the device
+ polls the roster; if the roster poll works, /status ops appear
+ regularly (the UI requests status via relay periodically). The
+ last /status was 12:04:13. If now is 12:06+, then the UI's
+ status polling stopped — user closed the page, or the page
+ hung.
+
+ Key question: why would the UI hang? Let me check:
+ 1. Current time
+ 2. Whether the device is still claiming (roster polls in
+    another table — global_relay_roster or events)
+ 3. Mercure SSE hub — the UI subscribes to operation events via
+    SSE at api.si.12gm.com/.well-known/mercure. If SSE fails
+    through the Caddy h2/h3 proxy, the UI never learns a
+    response arrived → hangs forever even though ops respond.
+
+ Actually wait — the earlier design: https://localhost:443
+ block has @mercure path /.well-known/mercure* → reverse_proxy
+ to 127.0.0.1:9000. And the :9000 server block has the actual
+ mercure hub. The api.si.12gm.com:443 route → reverse_proxy to
+ 127.0.0.1:9000 → hits the mercure hub on :9000 (path
+ /.well-known/mercure). SSE through two proxy hops — Caddy
+ handles SSE fine (flush_interval default -1 for streaming?).
+
+ Hmm, but actually for the response to reach the UI, the UI's
+ transport PycoreLaravelRelayTransport — how does it get
+ responses? Via SSE (Mercure) subscription to topics, or via
+ polling the operation endpoint? Per the design: "One SSE
+ connection per UI runtime multiplexes roster and operation
+ topics". So the UI subscribes via Mercure SSE at
+ https://api.si.12gm.com/.well-known/mercure?topic=...
+
+ If SSE is broken, ops respond in the DB but the UI never sees
+ the response → UI hangs waiting → timeout. The UI's requests
+ DO reach the backend (ops created), the device executes them
+ (responded 200), but the response event may not reach the
+ browser.
+
+ But wait — the user's problem statement says "会卡住，无任务反
+ 应" — "gets stuck, no task reaction". The ops at 12:00-12:04
+ succeeded. So during that window the user was testing and
+ things worked (with ~10s latency). Then at some point it
+ "hangs".
+
+ Hmm, also the 10-14s latency is suspicious. A local /status
+ read through relay shouldn't take 10s unless the device's
+ claim cadence is slow (roster poll every ~10s?). The device
+ claims on roster poll — if the roster poll interval is ~10s,
+ each operation waits for the next poll → avg latency ≈ poll
+ interval. 10-14s latency suggests roster poll ~10-15s interval
+ or the device claim loop delay.
+
+ Let me check:
+ 1. Current time & whether device still polls (roster table)
+ 2. The SSE/Mercure path for the UI
+ 3. What the user's "卡住" could be — maybe the UI's relay
+    transport has a pending-request timeout of 30s (contract
+    timeout), and each operation takes ~10s+ → UI feels stuck.
+
+ Also the user asks about hot reload for frontend — vite dev
+ server HMR. Let me check the UI start.sh / service: is it
+ running vite dev (yes, pid 2598 vite --port 13054). Vite HMR
+ via websocket — through Caddy reverse_proxy www.12gm.com
+ (http://www.12gm.com) → 13054. Websockets proxy fine with
+ Caddy. But HMR client needs to connect to the same host — vite
+ config hmr settings might point to ws://localhost:13054
+ directly, which fails from a remote browser. Let me check
+ vite.config for HMR config.
+
+ Also "幂等最细粒度" — re-running installers must
+ refresh/restart and rewrite service files. Let me check the
+ UI's installer/service registration path:
+ ensure_ui_domain_binding in 175 (calls UI_START script
+ start.sh?), and the UI's own scripts. Let me look at:
+ - poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh
+ - how ncore-nexus-dash.service is registered
+   (systemd_service_manager.sh)
+ - whether re-running rewrites the service file (idempotency)
+
+ And for the backend: 175 registers via
+ register_laravel_service → systemd_service_manager. Re-running
+ 175 with AS_SERVICE=yes rewrites the unit (need to verify).
+
+ Also 96_configure_php85.sh — PHP config hot reload? PHP-FPM
+ not used; frankenphp workers reload via Caddyfile watch. 93
+ installs frankenphp binary. 94 composer. The "hot reload" for
+ backend = Octane --watch (chokidar) → workers restart on PHP
+ file changes — already confirmed working (watch directive in
+ Caddyfile {$CADDY_SERVER_WATCH_DIRECTIVES}... wait actually
+ the watch is in the worker directive).
+
+ Let me now:
+ 1. Check current time, roster poll recency
+ 2. Check UI start.sh and service unit + idempotency of UI
+    service registration
+ 3. Check vite HMR config for remote domain
+ 4. Check Mercure SSE accessibility from the domain
+ 5. Answer hot-reload questions for 93/94/96/175
+
+ Let me first check the time and recent device activity.
+
+ 中转链路已完全打通（设备已同步新契约，state/get、state/put、
+ terminal_write 均 200）。但注意延迟：每个操作 4–14 秒。继续查
+ 设备轮询节奏与 SSE 事件通道：
+
+
+ $ date '+%F %T %z'; cd
+ /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use Illuminate\Support\Facades\DB;
+ \$t =
+ DB::table('global_relay_roster')->orderByDesc('updated_at')->l
+ imit(3)->get();
+ foreach (\$t as \$r) { echo json_encode(\$r).PHP_EOL; }
+ echo 'last op ever:
+ '.DB::table('global_relay_operations')->max('created_at').PHP_
+ EOL;
+ echo 'ops last 10min:
+ '.DB::table('global_relay_operations')->where('created_at','>'
+ ,now()->subMinutes(10))->count().PHP_EOL;
+ " 2>&1 | tail -6
+
+ ... (4 earlier lines, ctrl+o to expand)
+ LINE 1: select * from "global_relay_roster" order by
+ "updated_at" de...
+                       ^ (Connection: main, Host: 127.0.0.1,
+ Port: 5432, Database: core_node_main, SQL: select * from
+ "global_relay_roster" order by "updated_at" desc limit 3).
+
+ Took 1.2s
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use Illuminate\Support\Facades\DB;
+ foreach (DB::select(\"SELECT tablename FROM pg_tables WHERE
+ tablename LIKE 'global_relay%'\") as \$t) echo
+ \$t->tablename.PHP_EOL;
+ echo '---'.PHP_EOL;
+ echo 'ops last 5min:
+ '.DB::table('global_relay_operations')->where('created_at','>'
+ ,now()->subMinutes(5))->count().PHP_EOL;
+ echo 'claims:
+ '.DB::table('global_relay_operations')->where('state','claimed
+ ')->count().PHP_EOL;
+ " 2>&1 | tail -12
+
+ ... (7 earlier lines, ctrl+o to expand)
+ global_relay_nonces
+ global_relay_outbox
+ ---
+ ops last 5min: 7
+ claims: 0
+
+ Took 1.0s
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use Illuminate\Support\Facades\DB;
+ \$d =
+ DB::table('global_relay_devices')->orderByDesc('last_seen_at')
+ ->first();
+ echo 'device last_seen: '.\$d->last_seen_at.' (now:
+ '.now().')'.PHP_EOL;
+ echo 'device: '.substr(\$d->device_id,0,12).'
+ state='.\$d->state.PHP_EOL;
+ " 2>&1 | tail -3; grep -i "relay\|claim"
+ /www/wwwroot/laravel_db/logs/laravel.log 2>/dev/null | tail -5
+
+ ... (30 earlier lines, ctrl+o to expand)
+ tion","global_task_maintenance_task","global_task_result_write
+ back_task","php_file_watcher","pycore_url_discovery","queue_ce
+ nter_audio_scan","queue_head_notification_task","realtime_outb
+ ox_publish_task","relay_v2_maintenance_task","ssl_cert_auto_re
+ new_task"]}
+
+ Took 38.3s
+
+
+ Device last_seen: 12:07:12 (12 seconds ago) — the device is
+ actively polling RIGHT NOW. Operations flow fine.
+
+ So the relay pipeline is working. The "卡住" the user reports
+ — since ops at 12:00-12:04 responded 200 and the device is
+ live at 12:07 — maybe:
+ 1. The user's browser page is stuck due to SSE (Mercure) not
+    delivering events — the UI admitted ops, device responded,
+    but the browser never learned.
+ 2. Or the user tested during the broken window (before my
+    payload fix at 19:58) — page got stuck then and stayed
+    stuck (needs refresh).
+ 3. Or latency 10-14s feels stuck.
+
+ Note the timeline:
+ - 19:57:29 — my payload fix edit
+ - 19:58:55 — workers reloaded with fix
+ - 20:00:49–20:04:27 — successful operations (state/get etc.)
+
+ So the user apparently refreshed and it worked (ops flowed
+ 12:00-12:04 UTC = 20:00-20:04 local). Then "卡住" at some
+ point? The last op was 12:04:27; now 12:07. Device still
+ polls. No new ops in the last ~3 min — user probably closed
+ the page or it hung.
+
+ Wait — maybe the user is describing the problem BEFORE these
+ fixes (their message may have been written while the page was
+ stuck from the earlier 422/403 era — a stuck page needs a
+ browser refresh to retry). The ops 12:00-12:04 prove that a
+ FRESH page load works.
+
+ Actually let me re-read the user's message: "现在的问题是
+ https://www.12gm.com/pycore-manager 会卡住，无任务反应。" —
+ "The current problem: www.12gm.com/pycore-manager
+ (http://www.12gm.com/pycore-manager) gets stuck, no task
+ reaction."
+
+ Given the evidence (ops flowing 200 until 12:04, device
+ polling at 12:07), the most likely scenario: the user's
+ browser page was opened during the broken window (403/422
+ era), and the UI's relay transport got stuck in a bad state
+ (e.g., pending promises never resolving, no auto-retry). A
+ simple refresh would fix it. OR the UI keeps a stale contract
+ digest in localStorage? No — contract is server-side.
+
+ But also the ~10s latency: each op takes 4-14s (roster poll
+ cadence). The pycore-manager page does MANY operations on load
+ (state get, version, terminal sync, video history...) — if
+ serialized at ~10s each, the page takes 30-60s to fully load →
+ feels "卡住，无任务反应" (stuck, no reaction to tasks).
+
+ Why is each op taking 10s? The device polls the roster on an
+ interval, then claims. If poll interval is 10s, mean wait is
+ ~5s + execution. The ops show 4-14s — consistent with ~10s
+ claim cadence. Hmm, but is that by design? Let me check the
+ device claim interval in the contract... Actually, wait —
+ earlier (in the pre-summary context), relay worked with device
+ polling. The roster/claim cadence: let me check the contract
+ JSON for claim/poll intervals.
+
+ Actually — the important thing for THIS turn: the user asked
+ (a) are frontend & domain hot-reload? (b) ensure backend
+ hot-reload too, (c) both must be idempotent at finest
+ granularity — re-run must refresh/restart/rewrite service
+ files even when already installed, (d) fix the stuck
+ pycore-manager page.
+
+ Let me structure the investigation:
+ 1. Frontend hot reload: vite dev server with HMR — check
+    vite.config hmr settings for remote domain access. If HMR
+    websocket can't connect from the remote browser (user
+    accesses via https://www.12gm.com), hot reload won't work
+    for them.
+ 2. Idempotency: check UI service registration script — does
+    re-running re-register/restart the service? Check
+    ensure_ui_domain_binding and UI start.sh & its service unit
+    creation.
+ 3. The stuck page: likely resolved by refresh (evidence shows
+    ops flowing). But ALSO check the UI transport error
+    handling — maybe stuck requests don't time out. And check
+    the 10s+ claim latency — the roster poll cadence. Maybe
+    there's a "claim on roster poll only" design — earlier
+    summary says "auto-claim on roster poll only". So latency =
+    poll interval. Let me check the poll interval in the
+    contract or the device agent code.
+
+ Let me look at the UI side: vite config, service scripts.
+
+ 设备 12 秒前仍在轮询（last_seen 12:07:12），操作 12:00–12:04
+ 全部 200 —— 中转链路已通。现在检查前端热重载与幂等注册。先看
+ UI 的 vite 配置（HMR 走远端域名是否可用）与服务注册脚本：
+
+
+ $ ls
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ scripts/ 2>/dev/null; echo ===; grep -n "hmr\|server:" -A 8
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ vite.config.* 2>/dev/null | head -30
+
+ ... (10 earlier lines, ctrl+o to expand)
+ 107-        allowedHosts: readExternalAllowedHosts(),
+ 108-      },
+ 109-      preview: {
+ 110-        allowedHosts: readExternalAllowedHosts(),
+ 111-      },
+
+ Took 0.1s
+
+
+
+ $ sed -n 1,102p
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ vite.config.ts 2>/dev/null || sed -n 1,102p
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ vite.config.mts 2>/dev/null; ls
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ vite.config.* 2>/dev/null
+
+ ... (122 earlier lines, ctrl+o to expand)
+       define: {
+         __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
+       },
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ vite.config.ts
+
+ Took 0.0s
+
+
+ Vite dev server: no explicit HMR config — vite's default HMR
+ uses the same origin/port as the page. When accessed via
+ https://www.12gm.com (proxied through Caddy to 13054), the HMR
+ websocket attempts wss://www.12gm.com/
+ (http://www.12gm.com/)... → Caddy proxies websockets fine →
+ HMR should work through the domain proxy (default HMR path is
+ the same host since vite infers from location). Vite HMR
+ client uses import.meta.url origin → wss://www.12gm.com:443/
+ (http://www.12gm.com:443/)... wait, default vite HMR connects
+ to the same host and port as the current page —
+ https://www.12gm.com → ws to www.12gm.com
+ (http://www.12gm.com) on the page's protocol — should connect
+ through Caddy proxy. Caddy reverse_proxy handles WS upgrades
+ transparently.
+
+ But there's a subtlety: through an https/h2 proxy, HMR client
+ uses wss. Vite's client honors the page protocol. This
+ generally works.
+
+ Now — the UI hot reload: source changes under core/ apps/ are
+ picked up by vite (HMR). So frontend hot reload = vite dev
+ server (HMR) — YES by design.
+
+ Now check the UI service registration + idempotency. Look at
+ start.sh and how ncore-nexus-dash.service is registered, and
+ ensure_ui_domain_binding in 175.
+
+
+ $ cat
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ scripts/start.sh
+
+ ... (856 earlier lines, ctrl+o to expand)
+     log "Frontend skipped (--no-frontend). Backend (if
+ started) keeps running in background."
+ fi
+
+ cd "$ORIGINAL_DIR" || true
+
+ Took 0.0s
+
+
+ Now let me look at the current service unit for
+ ncore-nexus-dash and create_systemd_service in
+ debian_service_manager.sh — to verify the idempotency of
+ service re-registration ("rewrite service file + restart" on
+ re-run).
+
+
+ $ cat /etc/systemd/system/ncore-nexus-dash.service; echo ===;
+ grep -n "create_systemd_service" -A 60
+ /www/programing/core_node/scripts/shells/linux/common/debian_s
+ ervice_manager.sh | sed -n 1,75p
+
+ ... (20 earlier lines, ctrl+o to expand)
+ MemoryHigh=744M
+
+ [Install]
+ WantedBy=multi-user.target
+ ===
+
+ Took 0.0s
+
+
+
+ $ grep -n "create_systemd_service\s*()" -A 55
+ /www/programing/core_node/scripts/shells/linux/common/debian_s
+ ervice_manager.sh | head -70
+
+ (no output)
+
+ Took 0.0s
+
+
+
+ $ grep -n "create_systemd_service"
+ /www/programing/core_node/scripts/shells/linux/common/debian_s
+ ervice_manager.sh | head; grep -n
+ "^create_systemd_service\|^function create_systemd_service" -A
+ 3
+ /www/programing/core_node/scripts/shells/linux/common/debian_s
+ ervice_manager.sh
+
+ (no output)
+
+ Command exited with code 1
+
+ Took 0.0s
+
+
+
+ $ ls /www/programing/core_node/scripts/shells/linux/common/ |
+ grep -i service; grep -rn "create_systemd_service()"
+ /www/programing/core_node/scripts/shells/linux/ 2>/dev/null |
+ head -3
+
+ ... (11 earlier lines, ctrl+o to expand)
+ /www/programing/core_node/scripts/shells/linux/common/codesync
+ _service.sh:23:#   - common/systemd_service_manager.sh ->
+ create_systemd_service()
+ /www/programing/core_node/scripts/shells/linux/common/systemd_
+ service_manager.sh:350:create_systemd_service() {
+
+ Took 0.1s
+
+
+
+ $ sed -n 350,430p
+ /www/programing/core_node/scripts/shells/linux/common/systemd_
+ service_manager.sh
+
+ ... (88 earlier lines, ctrl+o to expand)
+ EOF
+
+     if [ -n "$required_unit" ]; then
+         printf 'Requires=%s\nAfter=%s\n' "$required_unit"
+ "$required_unit" >> "$service_file"
+
+ Took 0.0s
+
+
+
+ $ sed -n 430,520p
+ /www/programing/core_node/scripts/shells/linux/common/systemd_
+ service_manager.sh
+
+ ... (106 earlier lines, ctrl+o to expand)
+     local existing_service=""
+
+     SYSTEMD_OPERATION_READY=false
+     if [ ! -f "$script_path" ]; then
+         echo "[ERROR] Script file not found: $script_path"
+
+ Took 0.0s
+
+
+ The idempotency of service re-registration is confirmed:
+ - create_systemd_service ALWAYS rewrites the unit file (cat >
+   "$service_file" unconditional), then daemon-reload, and when
+   the unit pre-existed and restart_existing=yes (default) →
+   systemctl restart.
+ - The UI's register_dashboard_service then does systemctl
+   enable + systemctl restart unconditionally.
+ - The backend's 175 flow: register_laravel_service — same
+   manager. So re-running rewrites and restarts.
+
+ So re-running 175_laravel_main_start.sh --service (or the UI
+ start.sh --service) rewrites service files + restarts. Finest
+ granularity idempotency — confirmed for service files.
+
+ Now — 93/94/96:
+ - 93 installs frankenphp binary (init-ensure: repair only
+   missing)
+ - 94 composer
+ - 96 configure php85 — let me check what it does.
+
+ But the user asks about "前端和域名" hot reload — the frontend
+ (vite HMR) and the domain config (Caddyfile routes). The
+ frontend vite dev server HMR: when a source file changes under
+ poly_apps/pycore_laravel_wordnew_ui, vite reloads the module
+ in the browser. That's hot reload for the frontend — TRUE by
+ design (vite dev).
+
+ Domain config: the Caddyfile route files (12gm.com.caddy etc.)
+ — managed by fm_domain_ensure_route_file. When domain binding
+ changes, the runtime renders and... does Caddy reload? The
+ runtime script renders the Caddyfile before launch. Hot reload
+ of the Caddyfile = watch directive? The Caddyfile has
+ {$CADDY_SERVER_WATCH_DIRECTIVES} inside the frankenphp worker
+ block only (that's for PHP worker reload — Octane watch). For
+ domain route file changes, Caddy itself needs a reload (via
+ admin /load endpoint — used by the ACME renewal hook).
+
+ Let me check what CADDY_SERVER_WATCH_DIRECTIVES is and whether
+ the octane watch covers both. Let me look at how the runtime
+ renders these directives.
+
+
+ $ grep -n
+ "CADDY_SERVER_WATCH_DIRECTIVES\|CADDY_SERVER_WORKER_DIRECTIVE\
+ |watch"
+ /www/programing/core_node/scripts/shells/linux/debian/debian_c
+ om/laravel_runtime_frankenphp.sh | head -20
+
+ ... (7 earlier lines, ctrl+o to expand)
+ 190:    # the app root, avoiding a duplicate copy of Laravel's
+ watch list.
+ 191:    CADDY_SERVER_WATCH_DIRECTIVES="watch"
+ 193:export CADDY_SERVER_WORKER_DIRECTIVE
+ 194:export CADDY_SERVER_WATCH_DIRECTIVES
+
+ Took 0.0s
+
+
+
+ $ sed -n 160,220p
+ /www/programing/core_node/scripts/shells/linux/debian/debian_c
+ om/laravel_runtime_frankenphp.sh
+
+ ... (53 earlier lines, ctrl+o to expand)
+ "$PHP_BIN" artisan schedule:work &
+ SCHEDULER_PID=$!
+ "$FM_BINARY" "${FRANKENPHP_RUN_ARGS[@]}" &
+ FRANKENPHP_PID=$!
+ wait -n "$SCHEDULER_PID" "$FRANKENPHP_PID"
+
+ Took 0.0s
+
+
+ Backend hot reload confirmed:
+ - Octane watch via Caddyfile worker watch directive (default
+   watches .env/PHP/Twig/YAML under app root) — PHP file
+   changes restart workers. Confirmed working live earlier
+   today (multiple reloads at 19:58:55, 20:00:45).
+
+ Frontend hot reload:
+ - vite dev server (ncore-nexus-dash.service runs start.sh
+   --serve --dev → vite --port 13054) — HMR native. Source
+   changes under poly_apps/pycore_laravel_wordnew_ui → instant
+   browser update (through the Caddy proxy, websocket proxy
+   works).
+
+ Now — the important remaining question: why does
+ www.12gm.com/pycore-manager
+ (http://www.12gm.com/pycore-manager) hang ("卡住，无任务反应
+ ")?
+
+ Evidence gathered:
+ - Page serves 200 (fast) via domain and direct
+ - Relay ops all responded 200 between 12:00:49–12:04:27 UTC
+   (20:00–20:04 local)
+ - Device still polling at 12:07
+ - No pending/claimed operations
+
+ Timeline interpretation:
+ - 19:25/19:26 — backend restarted (probably when user re-ran
+   something)
+ - 19:57:29 — my payload fix; 19:58:55 + 20:00:45 worker
+   reloads
+ - 20:00–20:04 — ops flowed 200 (this was likely the user
+   testing after being asked to refresh, or the UI
+   auto-retrying)
+ - ~20:04 — ops stopped; user reports page "stuck, no task
+   reaction"
+
+ Hmm wait — the user reports the page hangs NOW (message at
+ ~20:05+). The last op was 12:04:27 (20:04:27 local). So the
+ page stopped making requests ~1 minute ago. Possibilities:
+ 1. The user navigated to a page/tab that doesn't poll, and
+    clicked something that doesn't send a request (client-side
+    stuck).
+ 2. The UI's relay transport hit an error state and stopped
+    retrying (e.g., a stuck pending request never resolves — no
+    timeout → UI "卡住，无任务反应").
+ 3. Browser tab not focused (background throttling).
+
+ Actually — WAIT. Important: 10-14s latency per operation. The
+ pycore-manager page load fires MANY ops. And more importantly
+ — "无任务反应" — "no TASK reaction". Maybe the user means the
+ TASKS page (sentence tasks? global tasks?) doesn't react. In
+ relay mode, task operations flow through the relay with 10s+
+ latency each.
+
+ Actually, let me reconsider: is there an SSE component? The UI
+ subscribes to operation response events. Let me check how the
+ UI relay transport gets responses — polling or SSE/Mercure. If
+ SSE via Mercure on api.si.12gm.com fails, responses never
+ arrive → UI stuck. The ops DID respond 200 in DB, but did the
+ UI SEE them?
+
+ Let me check the UI's relay transport response mechanism.
+
+ 后端与前端热重载机制已确认。现在查 UI 中转传输如何接收响应
+ （SSE 还是轮询）——这决定“卡住”的根因：
+
+
+ $ grep -n "mercure\|EventSource\|events\|poll"
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/integrations/pycore/PycoreLaravelRelayTransport.ts | head
+ -20
+
+ (no output)
+
+ Took 0.0s
+
+
+
+ $ find
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core -name "*Relay*" | grep -v node_modules; grep -rn "class
+ PycoreLaravelRelayTransport\|deliverThroughLaravelRelay"
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core --include="*.ts" -l | grep -v node_modules | head
+
+ ... (9 earlier lines, ctrl+o to expand)
+ core/integrations/pycore/PycoreLaravelRelayTransport.ts
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/integrations/pycore/PycoreTransportSelector.ts
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/integrations/pycore/index.ts
+
+ Took 0.1s
+
+
+
+ $ grep -n "deliverThroughLaravelRelay" -A 60
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/integrations/pycore/PycoreLaravelRelayTransport.ts | sed
+ -n 1,70p
+
+ ... (46 earlier lines, ctrl+o to expand)
+ 274-  return new Response(responseBody, {
+ 275-    status: completed.response_status,
+ 276-    headers: completed.response_headers || {},
+ 277-  });
+ 278-}
+
+ Took 0.0s
+
+
+
+ $ grep -n "waitForOperation" -A 45
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/integrations/pycore/PycoreLaravelRelayTransport.ts | sed
+ -n 1,55p
+
+ ... (66 earlier lines, ctrl+o to expand)
+ 272-  }
+ 273-  const responseBody = await responseBytes(completed);
+ 274-  return new Response(responseBody, {
+ 275-    status: completed.response_status,
+ 276-    headers: completed.response_headers || {},
+
+ Took 0.0s
+
+
+
+ $ grep -n
+ "OPERATION_POLL_MS\|claim_timeout_seconds\|execution_timeout_s
+ econds"
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/integrations/pycore/PycoreLaravelRelayTransport.ts
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/contracts/RelayV2Contract.ts | head; grep -n
+ "claim_timeout_seconds\|execution_timeout_seconds\|roster_poll
+ " /www/programing/core_node/config/pycore_relay_contract.json
+ | head
+
+ ... (7 earlier lines, ctrl+o to expand)
+ /www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/
+ core/integrations/pycore/PycoreLaravelRelayTransport.ts:214:
+ const timer = setTimeout(resolve, OPERATION_POLL_MS);
+ 157:    "claim_timeout_seconds": 15,
+ 158:    "execution_timeout_seconds": 50,
+
+ Took 0.0s
+
+
+ The UI polls the operation every 400ms until terminal —
+ deadline = claim_timeout (15s) + execution_timeout (50s) =
+ 65s. If the device is not claiming (e.g., contract digest
+ conflict, offline), the UI waits 65 seconds per request, then
+ errors. During those 65s the page appears "卡住，无任务反应"
+ (stuck, no task reaction).
+
+ Now — WHY is each operation taking 4-14s even when everything
+ works? The device claims on roster poll. Let me check the
+ device claim cadence — the roster poll interval. In the pycore
+ relay agent, what's the poll loop interval? Let me check the
+ device-side agent polling logic. The claim happens "on roster
+ poll only" per the earlier summary. Let me find the poll
+ interval in pycore's relay agent code.
+
+ UI 每 400ms 轮询操作状态，超时 = 15s claim + 50s execution =
+ 65s。设备未 claim 时页面就会“卡住”65 秒。查设备端轮询周期（决
+ 定正常延迟为何 10–14 秒）：
+
+
+ $ grep -rn "roster\|poll_interval\|sleep"
+ /www/programing/core_node/pycore/pyutils/common/laravel_relay_
+ agent.py 2>/dev/null | head -20; ls
+ /www/programing/core_node/pycore/pyutils/common/ | grep -i
+ relay
+
+ relay_activity_log.py
+ relay_contract.py
+ relay_execution_ledger.py
+ relay_identity.py
+
+ Took 0.0s
+
+
+
+ $ grep -rln "roster" /www/programing/core_node/pycore/
+ --include="*.py" | grep -v test | head; grep -rn
+ "def.*roster\|roster_poll\|POLL_INTERVAL\|poll_interval"
+ /www/programing/core_node/pycore/callmodule/rpc_routes/../../
+ --include="*.py" -l 2>/dev/null | head -5
+
+ ... (5 earlier lines, ctrl+o to expand)
+ yctl/runtime/event_handlers.py
+ /www/programing/core_node/pycore/callmodule/rpc_routes/../../p
+ yutils/clipboard/clipboard_monitor.py
+ /www/programing/core_node/pycore/callmodule/rpc_routes/../../p
+ yutils/launcher/char_size_measurer.py
+
+ Took 0.4s
+
+
+
+ $ grep -n "interval\|sleep\|roster"
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py | head -30
+
+ 409:            f"enter claim code {claim_code} in the Relay
+ device roster "
+
+ Took 0.0s
+
+
+
+ $ grep -rln
+ "claim_operations\|/operations/claim\|claimV2\|relay/v2"
+ /www/programing/core_node/pycore/ --include="*.py" | head -8
+
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py
+
+ Took 0.0s
+
+
+
+ $ grep -n "sleep\|interval\|timeout\|while True\|claim"
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py | head -40
+
+ ... (40 earlier lines, ctrl+o to expand)
+ timeout=relay_contract.duration("claim_timeout_seconds"),
+ 441:            action="operation.claim",
+ 446:            raise
+ ValueError("relay_claim_operations_missing")
+ 448:            "operation.claim.received",
+
+ Took 0.0s
+
+
+
+ $ grep -n "recovery_claim_seconds\|heartbeat"
+ /www/programing/core_node/config/pycore_relay_contract.json;
+ sed -n 193,245p
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py
+
+ ... (57 earlier lines, ctrl+o to expand)
+                 force_claim = signal_kind ==
+ RELAY_CONTROL_WAKE
+             except RelayHttpError as exc:
+                 if exc.status_code in (401, 403) or (
+                     exc.status_code == 404
+
+ Took 0.0s
+
+
+ The device claim loop: every recovery_claim_seconds = 15s
+ (plus wake signals). So a relay operation waits on average
+ ~7.5s, worst ~15s+ for claim, then executes. That matches the
+ observed 4–14s end-to-end latency. This is BY DESIGN
+ (pull-based claim cadence).
+
+ So the "卡住，无任务反应" symptom during the broken window
+ (403/422 era) was: every UI request admitted → never
+ claimed/executed → UI waited 65s per request → page frozen.
+ NOW the pipeline works (ops 200 in 4-14s) — the page should
+ work after a browser refresh.
+
+ But wait — the user says the problem is NOW. The ops stopped
+ at 12:04:27 and device still polls. If the user's page is
+ currently open and hung, it would mean requests stopped being
+ SENT. Since no new operations since 12:04:27 (~3min), and the
+ UI's status poller would normally fire /status ops regularly
+ (we saw /status every ~30s at 12:00:52, 12:01:49,
+ 12:02:26/27/30, 12:03:33, 12:04:13/17 — roughly every 30-60s),
+ the absence since 12:04 suggests the user closed/navigated the
+ page OR the page tab went to background (browsers throttle
+ timers in background tabs heavily).
+
+ Hmm — actually, wait. Look at the /status pattern:
+ 12:00:52→12:01:49 (57s), 12:02:26,27,30, 12:03:33,
+ 12:04:13,17. Then nothing. It's 12:07 now. If the user's page
+ is still open and stuck, the status poller stopped. What could
+ stop the UI's status polling entirely? An uncaught exception
+ in the poll loop, or the tab is hidden/backgrounded.
+
+ Actually — I should not over-speculate. The evidence:
+ 1. Relay pipeline fully working (ops 200, device live)
+ 2. Page serves fine
+ 3. The old stuck page (from the 403/422 era) needs a refresh
+
+ The user's report "会卡住，无任务反应" was most likely written
+ from a page that loaded during the broken window OR the user
+ expects instant task reaction and sees 10-15s delays.
+
+ Hmm, but "无任务反应" — let me think about "任务" (tasks)
+ specifically. pycore-manager has terminal scheduling / task
+ queue pages. When you submit a task in the UI in relay mode...
+ it goes through the relay with 10-15s latency. "无任务反应" =
+ submitted task shows no reaction. With claim cadence 15s +
+ execution + UI poll 400ms — the first feedback can take
+ 15-20s. If the user's device claim loop is alive, tasks DO
+ execute eventually (we saw terminal_write schedule_queue/sync
+ respond 200 at 12:00:55).
+
+ BUT — there's one more critical thing: the earlier probes
+ (12:00-12:04) show things working NOW. The user's complaint
+ may predate the fix. Let me also verify the SSE/Mercure isn't
+ used for the response (it polls — confirmed waitForOperation
+ polls every 400ms via getRelayV2Operation). OK.
+
+ One more check — roster: does the UI transport "ensurePair"
+ use a pairing that's active until 2026-09-05 21:20:26
+ (tonight)? Yes — pairing lease expires 21:20:26 local. After
+ expiry, renewal happens automatically? The pairing lease
+ renewal is driven by the device heartbeat (lease renewed on
+ heartbeat). Device heartbeats every 20s → lease keeps
+ extending. Fine.
+
+ Now let me also check /status ops taking 7-14s — could be
+ improved (wake on admit?). There's a Mercure SSE subscription
+ channel from the device (subscriber_reconnect_min_seconds) —
+ the device subscribes to roster topic via SSE and wakes
+ (RELAY_CONTROL_WAKE) on events? Let me check if the device
+ subscribes to operation-admitted events. If yes, claim latency
+ would be ~instant. The transport has
+ "subscriber_reconnect_min_seconds" — the device does subscribe
+ to something. Let me check quickly.
+
+ 设备端 claim 周期 = recovery_claim_seconds: 15s——这解释了 4–14
+ 秒延迟（设计如此：拉取式认领）。查设备端是否有 SSE 唤醒通道（
+ 决定延迟能否降低）：
+
+
+ $ grep -n "subscriber\|SSE\|event_stream\|wake\|subscribe"
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py | head -15; grep -n
+ "subscriber_reconnect\|event_stream\|roster_stream"
+ /www/programing/core_node/config/pycore_relay_contract.json
+
+ ... (1 earlier lines, ctrl+o to expand)
+ relay_contract.duration("subscriber_reconnect_min_seconds")
+ 190:            "subscriber_reconnect_max_seconds"
+ 234:                    "subscriber_reconnect_min_seconds"
+ 180:    "subscriber_reconnect_min_seconds": 1,
+ 181:    "subscriber_reconnect_max_seconds": 30
+
+ Took 0.0s
+
+
+
+ $ grep -rn
+ "subscriber\|/events\|EventSource\|text/event-stream"
+ /www/programing/core_node/pycore/pyctl/relay/*.py | grep -vi
+ "reconnect" | head -10; ls
+ /www/programing/core_node/pycore/pyctl/relay/
+
+ __init__.py
+ laravel_relay_agent_service.py
+ laravel_relay_operation_processor.py
+ __pycache__
+
+ Took 0.0s
+
+
+
+ $ grep -rn "event_stream\|/events\|stream=True\|iter_lines"
+ /www/programing/core_node/pycore/pyutils/common/laravel_relay_
+ transport.py 2>/dev/null | head -8; grep -rn "def
+ stream\|event"
+ /www/programing/core_node/pycore/pyutils/common/laravel_relay_
+ transport.py | head -8; grep -n "admit" -A 3
+ /www/programing/core_node/config/pycore_relay_contract.json |
+ head -12
+
+ ... (5 earlier lines, ctrl+o to expand)
+ "/api/relay/v2/operations/{operationId}",
+ 87-    "owner_operation_cancel":
+ "/api/relay/v2/operations/{operationId}/cancel",
+ 88-    "owner_request_blob_allocate":
+ "/api/relay/v2/request-blobs",
+
+ Took 0.0s
+
+
+ There's no SSE wake channel from coordinator to device in the
+ current implementation — the device claims on a 15s cadence
+ (recovery_claim_seconds). The subscriber_reconnect settings
+ are for the device's roster subscription... let me not dig
+ deeper; the design is claim-on-poll.
+
+ Summary of the latency: by design, ops take avg ~7.5s (up to
+ 15s+) for claim + execution. The UI polls every 400ms and
+ shows results as soon as responded. The user's pycore-manager
+ page makes many calls on load; each ~10s.
+
+ Wait — actually, I should double check one important thing:
+ does the device's roster subscription (SSE) wake the claim
+ loop? _handle_control_signal(signal) → force_claim =
+ signal_kind == RELAY_CONTROL_WAKE. What emits
+ RELAY_CONTROL_WAKE? Possibly the roster SSE stream handler
+ when the roster changes (new operation admitted → roster
+ update → wake → immediate claim). If that worked, latency
+ would be sub-second. Observed 4-14s says wake is NOT happening
+ (or not wired on the coordinator side). Let me check what
+ triggers RELAY_CONTROL_WAKE.
+
+
+ $ grep -n "RELAY_CONTROL_WAKE\|_wait_control\|def
+ _handle_control_signal\|control_event\|ControlEvent"
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py | head -15
+
+ ... (9 earlier lines, ctrl+o to expand)
+ 267:                self._wait_control(retry_seconds)
+ 276:                self._wait_control(retry_seconds)
+ 310:    def _handle_control_signal(self, signal: Dict[str,
+ Any]) -> str:
+ 506:                {"kind": RELAY_CONTROL_WAKE},
+
+ Took 0.0s
+
+
+
+ $ sed -n 490,530p
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py; sed -n 179,192p
+ /www/programing/core_node/pycore/pyctl/relay/laravel_relay_age
+ nt_service.py
+
+ ... (54 earlier lines, ctrl+o to expand)
+ relay_contract.duration("subscriber_reconnect_min_seconds")
+         max_retry_seconds = relay_contract.duration(
+             "subscriber_reconnect_max_seconds"
+         )
+         next_heartbeat_at = 0.0
+
+ Took 0.0s
+
+
+ The WAKE signal fires only after a batch completes (to
+ immediately claim follow-up ops in the same logical flow).
+ There's no coordinator→device push channel; claim cadence is
+ the 15s recovery loop. So 4-14s latency is the designed
+ behavior. OK — that's the design; not a bug.
+
+ Now the full picture for the user's question:
+
+ ### 1. Hot reload status
+
+ Backend (laravel_main, api.si.12gm.com) — YES, hot reload:
+ - ncore-laravel-frankenphp.service → runtime launcher →
+   frankenphp run with Caddyfile worker watch directive
+   (OCTANE_WATCH=1 default) → PHP file changes under the app
+   root auto-restart workers (verified live today: 19:58:55,
+   20:00:45 reloads).
+ - Note: files OUTSIDE the app root (repo-root
+   config/pycore_relay_contract.json) aren't watched — known
+   quirk; touch a PHP file in the app to reload workers (or
+   systemctl restart ncore-laravel-frankenphp).
+
+ Frontend (www.12gm.com (http://www.12gm.com) →
+ ncore-nexus-dash.service → vite dev server) — YES, hot reload:
+ - Service runs start.sh --serve --dev → vite --port 13054 dev
+   server → HMR (React fast refresh) — source changes under
+   poly_apps/pycore_laravel_wordnew_ui/ hot-swap in the browser
+   instantly. Vite's HMR websocket traverses the Caddy reverse
+   proxy (www.12gm.com:443 (http://www.12gm.com:443) →
+   127.0.0.1:13054) transparently (Caddy proxies WS upgrades).
+ - allowedHosts is converged from web_access_config.json so the
+   domain access works.
+
+ Domain layer (Caddyfile route files) — converged files,
+ applied at runtime start; cert renewals hot-reload via the
+ admin /load endpoint. Domain route file changes need either
+ service restart or the 175 domains phase re-run.
+
+ ### 2. Idempotency at finest granularity
+
+ - create_systemd_service (both backend 175 and frontend
+   start.sh use it): ALWAYS rewrites the unit file
+   (unconditional cat >), then daemon-reload, then
+   restart-if-preexisted (restart_existing=yes default). The
+   frontend's register_dashboard_service additionally does
+   systemctl enable + systemctl restart unconditionally. So
+   re-running start.sh --service → rewrites unit + restarts. ✓
+ - Re-running 175 with --service → register_laravel_service →
+   same manager. ✓ (Let me verify register_laravel_service
+   passes restart_existing=yes — default yes.)
+ - 93/94/96 are init-ensure installers (repair-only-if-missing
+   semantics) — per the shell guide, they're not "refresh"
+   installers. But the user says "前端和后端都要幂等最细粒度，
+   比如前端即使服务安装下，再次运行也要刷新重启并重写服务文件文
+   档内容" — i.e., the service registration layer must
+   re-converge. That's satisfied by create_systemd_service
+   semantics.
+
+ Wait — but let me verify register_laravel_service actually
+ calls create_systemd_service with restart semantics. Let me
+ check 175's register_laravel_service.
+
+ ### 3. The stuck pycore-manager page
+
+ Root cause (historical): during the 403 route_denied → 422
+ route_payload_invalid window, every relay request from the UI
+ failed; the page's requests hung until timeout (65s per
+ request) or errored — "卡住，无任务反应".
+
+ Current state (verified live):
+ - The relay pipeline is WORKING now: ops 12:00:49–12:04:27 UTC
+   all responded 200 (state/get, state/put, terminal schedule
+   sync, user_data video history, /status pings)
+ - Device live (last_seen 12:07:12, heartbeat 20s cadence)
+ - The page itself serves 200 fast
+ - => The user needs to REFRESH the browser page (the stuck one
+   was loaded during the broken window and its in-flight
+   promises are dead)
+
+ Latency note: each relay round-trip takes ~4–14s by design
+ (device claim cadence = 15s recovery_claim_seconds + WAKE
+ after batch). pycore-manager loads several ops on start → the
+ page takes ~10–20s to fully populate data in relay mode. This
+ may LOOK like "卡住" but tasks DO execute.
+
+ Optional improvement (not requested explicitly): lower
+ recovery_claim_seconds or add coordinator→device push. Not
+ doing without approval.
+
+ Let me verify register_laravel_service quickly, then check the
+ browser-side: what happens on a page load NOW — I can simulate
+ the full UI sequence with curl: admit state/get with REAL
+ pairing + wait for response. That proves end-to-end. Let me
+ get the real pairing id and do one real end-to-end operation
+ via curl, using a token... but creating ops under the UI's
+ pairing might collide with the UI's own state? A read-only
+ state/get is safe (it's a read). Let me do it — admit
+ state/get with the real pairing, poll until responded, print
+ the response body. This proves the exact flow the browser
+ does.
+
+ Actually — safer: use a GET /status-like read-only route?
+ /status is what the UI polls. Let me admit /status
+ (general_read, no body) — completely safe, and proves the full
+ round trip including polling.
+
+
+ $ grep -n "register_laravel_service" -A 25
+ /www/programing/core_node/scripts/shells/linux/debian/install_
+ shells/175_laravel_main_start.sh | head -30; grep -n
+ "create_systemd_service"
+ /www/programing/core_node/scripts/shells/linux/debian/install_
+ shells/175_laravel_main_start.sh
+
+ ... (30 earlier lines, ctrl+o to expand)
+ 757-            return
+ 758-        else
+
+
+ Command exited with code 1
+
+ Took 0.0s
+
+
+
+ $ grep -rn "register_laravel_service()" -A 20
+ /www/programing/core_node/scripts/shells/linux/debian/install_
+ shells/175_laravel_main_runtime_common.sh 2>/dev/null | head
+ -25; grep -rln "register_laravel_service"
+ /www/programing/core_node/scripts/shells/linux/ | head -5
+
+ ... (33 earlier lines, ctrl+o to expand)
+ shells/175_laravel_main_runtime_common.sh
+ /www/programing/core_node/scripts/shells/linux/debian/debian_c
+ om/175_laravel_main_service_frankenphp.sh
+ /www/programing/core_node/scripts/shells/linux/debian/debian_c
+ om/175_laravel_main_service_nginx.sh
+
+ Took 0.0s
+
+
+ Confirmed:
+ - Backend register_laravel_service → create_systemd_service
+   (unconditional rewrite of the unit file, daemon-reload,
+   restart deferred "no" to caller) → then caller does
+   systemctl enable + systemctl restart unconditionally. So
+   re-running 175 with service choice → rewrites the unit file
+   + restarts. Idempotent finest granularity ✓.
+
+ - Frontend register_dashboard_service → same manager + enable
+   + restart. ✓
+
+ Now the last piece — do the end-to-end proof with the REAL
+ pairing: admit a read-only /status op through the production
+ endpoint and poll to responded. This replicates exactly what
+ the browser does in relay mode. Read-only, safe.
+
+ Get the real pairing_id first.
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use Illuminate\Support\Facades\DB;
+ \$p =
+ DB::table('global_relay_pairings')->where('state','active')->f
+ irst();
+ echo \$p->pairing_id.PHP_EOL;
+ echo 'lease_expires: '.\$p->lease_expires_at.PHP_EOL;
+ " 2>&1 | tail -2
+
+ <warning> WARNING </warning> Undefined property:
+ stdClass::$lease_expires_at on line 4.
+ lease_expires:
+
+ Took 0.9s
+
+
+
+ $ cd /www/programing/core_node/poly_apps/laravel_main &&
+ /usr/bin/php artisan tinker --execute="
+ use Illuminate\Support\Facades\DB;
+ \$p =
+ DB::table('global_relay_pairings')->where('state','active')->f
+ irst();
+ echo 'pairing: '.\$p->pairing_id.PHP_EOL;
+ echo 'device:  '.substr(\$p->device_id,0,8).PHP_EOL;
+ echo
+ json_encode(collect((array)\$p)->only(['pairing_id'])->toArray
+ ()).PHP_EOL;
+ " 2>&1 | grep pairing:
+
+ pairing: cb148102-0514-4e44-b534-6ebccfe598c7
+
+ Took 0.6s

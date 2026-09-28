@@ -88,9 +88,9 @@ echo ""
 
 cd "$PROJECT_PATH"
 
-export PORT=$PROJECT_PORT
-export NUXT_PORT=$PROJECT_PORT
-export NUXT_HOST="0.0.0.0"
+PORT=$PROJECT_PORT
+NUXT_PORT=$PROJECT_PORT
+NUXT_HOST="0.0.0.0"
 
 case "$PROJECT_TYPE" in
     "nuxt")

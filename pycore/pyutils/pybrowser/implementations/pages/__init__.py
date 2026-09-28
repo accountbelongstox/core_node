@@ -1,12 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Pages Package
-
-Exports page implementations
-"""
-
-from pycore.pyutils.pybrowser.implementations.pages.standard_page import StandardPage
-from pycore.pyutils.pybrowser.implementations.pages.enhanced_page import EnhancedPage
-
-__all__ = ['StandardPage', 'EnhancedPage']
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

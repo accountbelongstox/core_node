@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Callable
 
 # Import from pycore following standards
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Import route handlers
 from routes.app_routes import AppRoutesHandler

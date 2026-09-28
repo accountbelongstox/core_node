@@ -1,0 +1,45 @@
+{
+  "task_id": "shell-windows-9",
+  "role": "shell-windows",
+  "reviewer": "reviewer",
+  "round": 2,
+  "verdict": "approved",
+  "base": "74e7770",
+  "base_note": "Full base 74e7770. Round 2 is isolated with ab566fdf7 (the state reviewed in round 1) to HEAD 93f8de054 (a merge commit, 21:48:43). The working tree equals HEAD for FrankenPhpManager.ps1. That range holds two sets of hunks. The first is this task's comment trim (:29-32). The second is the shell-windows-10 round-2 Tailscale dedup (:9-17, :74-75, Get-FrankenPhpTailscaleDnsName :558-583, Ensure-FrankenPhpLanLocalCertificates :740-743; shell-windows.md:537), which is reviewed under shell-windows-10, not here.",
+  "checked_at": "2026-09-27T22:00:00+10:00",
+  "notes": "Both round-1 blockers are resolved, and the code was re-verified independently. B1: the align tasks exist at client_key_auth/TASKS.md:192 (shell-linux-align-SPW-033) and :193 (shell-linux-align-SPW-034), both queued. B2: the SPW-034 counterpart request is rewritten in shell_parity/windows.md:38 and reports/shell-windows.md:273,280-284, and every citation checks out against the current Linux source. frankenphp_domain_common.sh:457-458 fm_domain_install_all gates on domain_setup_detect_environment/DOMAIN_ENV_LAN_MODE. domain_setup_common.sh:212 honors DOMAIN_SETUP_NET_MODE, and 175_laravel_main_start.sh:677-679 forces server mode on HAS_PUBLIC_IP=yes. fm_domain_enable_ui_binding at :241-270 has no LAN check and is called at 175_laravel_main_start_frankenphp.sh:67. fm_domain_cleanup_stale_routes runs only at :506. The code is unchanged in substance: an AST text compare of ab566fdf7 against the current file changes only the two Tailscale functions, so every generator (Ensure-FrankenPhpLanLocalRoute, Ensure-FrankenPhpDomainRoutes, Ensure-FrankenPhpCaddyfile, Ensure-FrankenPhpPhpConfiguration, Get-FrankenPhpExpectedRoutePaths) is byte-identical to the round-1 verified version. They were re-rendered anyway (details in findings). The live instance was not touched. No blocking defects remain; non-blocking items are listed below.",
+  "findings": {
+    "B1 align tasks": {
+      "status": "resolved",
+      "detail": "TASKS.md:192 shell-linux-align-SPW-033 (skip_install_trust in fm_caddyfile_render) and :193 shell-linux-align-SPW-034 (LAN gate in fm_domain_enable_ui_binding plus the LAN-branch sweep, keeping domain_setup_detect_environment). The orchestrator opened both, and the owner correctly left TASKS.md alone."
+    },
+    "B2 SPW-034 counterpart text": {
+      "status": "resolved",
+      "detail": "windows.md:38 no longer points shell-linux at raw NET_ENV_IS_LAN. It names the real gap (fm_domain_enable_ui_binding :241-270, reached via 175_laravel_main_start_frankenphp.sh:67) and asks for fm_domain_cleanup_stale_routes in the LAN branch. Its wording matches TASKS.md:193. Every line number was re-read against the current Linux files, which are unchanged since 5bbb23682."
+    },
+    "(a)-(d) re-verification": {
+      "status": "verified",
+      "detail": "Reviewer harness, run in the reviewer scratchpad. All functions were extracted from the working-tree file by AST. The real ServiceContract.ps1 was dot-sourced (read-only). Test-FrankenPhpLanOnlyHost and Get-FrankenPhpLanCertificateMaterial were stubbed with a throwaway openssl self-signed pair, and every $script: output path was redirected to scratch. Results: LAN gives local_lan.caddy only. Prod gives 12gm.com.caddy, gm15.com.caddy and local_lan.caddy, with tls lines. Prod then LAN sweeps down to local_lan.caddy. There are 0 '}}' lines, and the Caddyfile carries skip_install_trust. frankenphp.exe validate --adapter caddyfile, with XDG_* in scratch, printed 'Valid configuration' with exit 0 for all three. Negative control, the same harness on 74e7770: 6 '}}' lines, exit 1, 'unexpected EOF ... local_lan.caddy:25'. The scratch 99-core-node.ini holds extension_dir plus 10 extension= lines (no bcmath DLL, as expected). php.exe -m with PHP_INI_SCAN_DIR pointed at it loads all of them plus bcmath, with 0 stderr bytes."
+    },
+    "file hygiene": {
+      "status": "ok",
+      "detail": "The PS 5.1 Parser::ParseFile reports 0 errors on FrankenPhpManager.ps1 and 0 on TailscaleCommon.ps1. The file has 0 CR bytes, as the base does (LF-only), and 0 non-ASCII bytes. The comment trim at :29-32 keeps only the rule, which is what round-1 non-blocking item 4 asked for."
+    },
+    "live instance": {
+      "status": "untouched",
+      "detail": "Re-checked after the reviewer harness ran: D:\\www\\frankenphp\\php-conf.d\\99-core-node.ini is at 16:57:35 and 50-d7-local-extensions.ini at 16:58:28. poly_apps/laravel_main/storage/frankenphp/Caddyfile is at 17:00:20 and routes/*.caddy at 17:00:41. global_var/web_access_config.json is at 20:25:26 (a bulk directory rewrite), and the MERCURE_* secrets date from 2026-08-18. Every one matches round 1."
+    },
+    "boundaries": {
+      "status": "ok",
+      "detail": "Round-2 writes by the owner: windows.md (SPW-034 row), reports/shell-windows.md (the shell-windows-9 section) and the FrankenPhpManager.ps1 comment. Step175, start.ps1 and the Linux files were not touched by this task."
+    }
+  },
+  "non_blocking": [
+    "reports/shell-windows.md (round-2 result/verification): the claim that the only new hunk since the prior verified state is the comment removal is inaccurate. The shell-windows-10 Tailscale dedup (FrankenPhpManager.ps1:9-17, :74-75, :558-583, :740-743) also landed in the file, and it changes the load path, because FrankenPhpManager.ps1 now dot-sources TailscaleCommon.ps1 and CommonFunc.ps1. It does not affect the generators (they are byte-identical, and the reviewer re-validated them). -> Name foreign hunks in shared files when claiming that nothing else changed.",
+    "reports/shell-windows.md:290-291: the line references are stale after the Tailscale hunk shifted the file. Test-FrankenPhpLanOnlyHost is now :517-540, and the sweep calls are :860 and :988, not 510-533, :857 and :985. -> Update them when the follow-up is opened.",
+    "Carried from round 1 and recorded by the owner as follow-ups, but no task exists yet: Test-FrankenPhpLanOnlyHost (:517-540) has no HAS_PUBLIC_IP/server-mode override, so a Windows host behind 1:1 NAT loses its public routes and they get swept. The function also runs 3 times per Ensure-FrankenPhpDomainRoutes and 5 times per Step175 run (the ipify call has a 4 s timeout). The embedded PHP has no CA bundle. -> Orchestrator: open a [shell-windows] follow-up task, with HAS_PUBLIC_IP first.",
+    "For the shell-windows-10 re-review, not this task: dot-sourcing TailscaleCommon.ps1 now puts its param variables $Action and $PanelTarget, both carrying ValidateSet, into the script scope of Step93, Step94, Step96, Step175 and FrankenPhpCertificateManager. None of these assigns $Action or $PanelTarget at script scope today (FrankenPhpCertificateManager.ps1:301 is function-local), so there is no conflict yet. A future script-level $action assignment in those callers would throw.",
+    "windows.md:37 SPW-033 cites '~line 713-718'. The fm_caddyfile_render global block is at about frankenphp_runtime_common.sh:714-725 (auto_https at :716). This is cosmetic."
+  ],
+  "user_request_note": "Relayed D27 question (/opt/core_node_trees/www/core_node_trees). The name core_node_trees no longer appears in any code: a grep outside .claude finds it only in docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md and CLIENT_KEY_AUTH_AUDIT_FIX.md, where it is recorded as removed. The directory was the old D27-era ext4 tree root, which was bind-mounted onto /www/core_node_trees to serve Windows node_modules/vendor/.venv junctions. It was superseded by the D28/D30 contract keys trees_root.linux=/opt/core_node/trees and trees_mount_linux=/www/core_node_compiler/trees (config/service_contract.json:173-177). Any /opt/core_node_trees left on a Linux host is therefore an orphan from the old design. Removing it is a destructive action on the host, which needs the user's approval and belongs to shell-linux, not to this Windows review."
+}

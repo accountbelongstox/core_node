@@ -2,6 +2,8 @@
 <html>
 <head>
   <meta charset="UTF-8">
+  <!-- Offscreen documents are Chrome-only; skip this entrypoint on Firefox builds -->
+  <meta name="manifest.exclude" content="['firefox']">
   <title>Audio Recorder Offscreen</title>
 </head>
 <body>

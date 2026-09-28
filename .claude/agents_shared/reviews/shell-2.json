@@ -1,0 +1,33 @@
+{
+  "task_id": "shell-2",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "IS-001": {
+      "status": "fixed",
+      "reason": "configure_postgresql never drops a cluster with user data. The user-database count is taken once while the cluster runs (pg_database, excluding templates and postgres) with an on-disk base/ fallback. Case 1 uses $USE_SUDO test -f, so a non-root run sees an initialized target, and it prints a NOTICE when it switches away from a dir that holds user databases (kept on disk). Case 2 calls pg_dropcluster only when that count is exactly 0; otherwise it prints ACTION REQUIRED, restarts the stopped service and returns 1. pg_keep_existing_cluster keeps the current cluster when the target is empty and the current one is missing or used."
+    },
+    "IS-012": {
+      "status": "fixed",
+      "reason": "pg_resolve_target_dirs is the single resolver for configure_postgresql and pg_expected_data_dir (WSL image or native, else the mapped POSIX path, else compile_dir). pg_config_value parses quoted values with trailing comments, which removes the false need_recreate. pg_data_dir_drifted reports drift only when the reconcile loses nothing, so a kept cluster is not restarted on every run."
+    },
+    "IS-002": {
+      "status": "fixed",
+      "reason": "Step93/94/96 use \"Step ${STEP_NUMBER}: ...\" (the Step175 form), so the scope-qualified-variable parse error is gone."
+    },
+    "IS-003": {
+      "status": "fixed",
+      "reason": "gitput_security_common.sh step 6 is opt-in (GITPUT_SHARE_SSH_KEY_WITH_USERS, default false, declared in gitput_unified.sh). It copies only when the user has no key of that name, and a different existing key is kept and reported. Step 3 backs up the SSH_DIR key pair before every --force decrypt."
+    },
+    "IS-004": {
+      "status": "fixed",
+      "reason": "Remove-PathMappingLinkLocation sends reparse points (junctions and symlinks) to Remove-PathMappingJunction, which calls [System.IO.Directory]::Delete(path, $false) and removes only the link. A stale junction first merges the old target into the new one with the non-overwriting robocopy (/XC /XN /XO), skipped when either path contains the other. The em dashes in two double-quoted strings are replaced with ASCII (IS-006 class)."
+    }
+  },
+  "issues": [
+    "(resolved) the postgres ALTER USER password goes to psql on stdin.",
+    "scripts/shells/linux/debian/install_shells/75_install_postgresql.sh:319 (non-blocking follow-up) the password mirror file is now 0644 instead of 0666, but it is still world-readable. If only the PHP runtime user reads it, use 0640 with that group (IS-010 class; not part of the audited finding)."
+  ],
+  "checks": "Diffs of 75_install_postgresql.sh, Step93/94/96, gitput_security_common.sh, gitput_unified.sh and PathMappingLib.ps1 read. configure_postgresql traced for root and non-root runs (USE_SUDO from gvar_common.sh). Test-PathIsDirectoryJunction detects any reparse point. Copy-MissingPathMappingContent treats a robocopy exit code of 8 or higher as failure.",
+  "checked_at": "2026-09-27T04:42:00+10:00"
+}

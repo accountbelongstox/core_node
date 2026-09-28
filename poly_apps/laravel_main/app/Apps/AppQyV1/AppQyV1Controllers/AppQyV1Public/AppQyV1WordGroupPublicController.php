@@ -1,24 +1,15 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Utils\StrTool;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 
-class AppQyV1WordGroupPublicController
+class AppQyV1WordGroupPublicController extends Controller
 {
     use ApiResponse;
 
@@ -41,12 +32,11 @@ class AppQyV1WordGroupPublicController
             }
         }
         $isNewGroup = false;
-        $existGroup = AppQyV1WordGroupModel::where('gname', $gname)
-            ->where(function ($query) use ($uid, $username) {
-                $query->where('uid', $uid)
-                    ->orWhere('username', $username);
-            })
-            ->first();
+        $existGroup = AppQyV1WordGroupModel::findByNameOwner(
+            $gname,
+            $uid === null ? null : (int) $uid,
+            $username
+        );
         if (!$existGroup) {
             $isNewGroup = true;
             $existGroup = new AppQyV1WordGroupModel([
@@ -67,24 +57,24 @@ class AppQyV1WordGroupPublicController
 
     public static function ensureDefaultGroupIfNotExist($uid = null, $username = null)
     {
-            $gname = self::$default_group_name;
-            $existGroupResult = self::isGroupNameExist($gname, $uid, $username);
-            $existGroup = $existGroupResult['group'];
-            $did = $existGroup->id;
-            $isNewGroup = $existGroupResult['isNewGroup'];
-            if ($isNewGroup) {
-                $existGroup->save();
+            if ($uid === null) {
+                $uid = Auth::id();
             }
+            $existGroup = AppQyV1LanguageStudyGroupService::createLanguageDefaultGroup((int) $uid, 'en');
+            $did = $existGroup->id;
+            $wordsFrequency = is_array($existGroup->words_frequency)
+                ? $existGroup->words_frequency
+                : [];
             return [
                 'gid' => $existGroup->gid,
                 'uid' => $existGroup->uid,
                 'did' => $did,
-                'gname' => $gname,
+                'gname' => $existGroup->gname,
                 'new_words' => 0,
                 'created_at' => $existGroup->created_at,
                 'updated_at' => $existGroup->updated_at,
-                'words_frequency_count' => count($existGroup->words_frequency),
-                'words_frequency' => $existGroup->words_frequency,
+                'words_frequency_count' => count($wordsFrequency),
+                'words_frequency' => $wordsFrequency,
                 'gwords_count' => StrTool::wordCount($existGroup->gwords),
                 'gcontent_count' => 0,
             ];

@@ -1,25 +1,13 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'package:flutter/material.dart';
-import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
 import 'package:qyflutter/common/widgets/custom_image_icon_label.dart';
 import '../../../resources_app_bank/assets_images_app_bank.dart';
 import '../../../widgets_app_bank/bank_rotating_search_hint.dart';
+import '../../../widgets_app_bank/bank_location_indicator.dart';
 
 /// Card Top Header Component
 ///
 /// Displays the top header for credit card page with:
-/// - Location indicator (北京)
+/// - Location indicator (from data center)
 /// - Search bar (same position as dashboard)
 /// - Customer service and message icons
 class CardTopHeader extends StatelessWidget {
@@ -65,25 +53,14 @@ class CardTopHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // Location indicator
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.location_on,
-                          size: 20,
-                          color: Colors.red,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          '北京',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
+                    const BankLocationIndicator(
+                      iconSize: 20,
+                      iconColor: Colors.red,
+                      textStyle: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     // Search bar
@@ -93,9 +70,12 @@ class CardTopHeader extends StatelessWidget {
                         textColor: Colors.grey,
                         fontSize: 14,
                         backgroundColor: Colors.white.withOpacity(0.9),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
-                        suffixIcon: const Icon(Icons.mic, size: 18, color: Colors.grey),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        prefixIcon: const Icon(Icons.search,
+                            size: 18, color: Colors.grey),
+                        suffixIcon:
+                            const Icon(Icons.mic, size: 18, color: Colors.grey),
                       ),
                     ),
                     const SizedBox(width: 8),

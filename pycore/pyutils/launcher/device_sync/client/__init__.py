@@ -1,10 +1,2 @@
-# -*- coding: utf-8 -*-
-"""
-Client Module - SECONDARY client functionality for Device Sync
-"""
-
-from .secondary import SimpleClient
-
-__all__ = [
-    'SimpleClient',
-]
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

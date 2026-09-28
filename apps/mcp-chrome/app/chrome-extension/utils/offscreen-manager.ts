@@ -3,11 +3,12 @@
  * Ensures only one offscreen document is created across the entire extension to avoid conflicts
  */
 
+import { AsyncOperationController } from './async';
+
 export class OffscreenManager {
   private static instance: OffscreenManager | null = null;
   private isCreated = false;
-  private isCreating = false;
-  private createPromise: Promise<void> | null = null;
+  private readonly creation = new AsyncOperationController<void>();
 
   private constructor() {}
 
@@ -25,20 +26,19 @@ export class OffscreenManager {
    * Ensure offscreen document exists
    */
   public async ensureOffscreenDocument(): Promise<void> {
+    if (import.meta.env.FIREFOX) {
+      // Firefox has no offscreen API; offscreen responsibilities run inline in
+      // the background event page (see utils/inline-similarity-host.ts), so
+      // readiness is immediate and nothing may await a real document here.
+      this.isCreated = true;
+      return;
+    }
+
     if (this.isCreated) {
       return;
     }
 
-    if (this.isCreating && this.createPromise) {
-      return this.createPromise;
-    }
-
-    this.isCreating = true;
-    this.createPromise = this._doCreateOffscreenDocument().finally(() => {
-      this.isCreating = false;
-    });
-
-    return this.createPromise;
+    return this.creation.run(() => this._doCreateOffscreenDocument());
   }
 
   private async _doCreateOffscreenDocument(): Promise<void> {
@@ -83,6 +83,12 @@ export class OffscreenManager {
    * Close offscreen document
    */
   public async closeOffscreenDocument(): Promise<void> {
+    if (import.meta.env.FIREFOX) {
+      // No offscreen document exists on Firefox; just reset the inline flag
+      this.isCreated = false;
+      return;
+    }
+
     try {
       if (chrome.offscreen && this.isCreated) {
         await chrome.offscreen.closeDocument();
@@ -99,8 +105,7 @@ export class OffscreenManager {
    */
   public reset(): void {
     this.isCreated = false;
-    this.isCreating = false;
-    this.createPromise = null;
+    this.creation.reset();
   }
 }
 

@@ -4,7 +4,7 @@ MCP Backend Configuration
 
 Tool list and backend info template for MCP Backend
 
-Port configuration moved to pycore.pygvar:
+Port configuration moved to pycore.pyfoundations.pygvar:
 - MCP_BACKEND_SINGLETON_PORT_START / MCP_BACKEND_SINGLETON_PORT_RANGE
 - MCP_BACKEND_RPC_PORT_START / MCP_BACKEND_RPC_PORT_RANGE
 """

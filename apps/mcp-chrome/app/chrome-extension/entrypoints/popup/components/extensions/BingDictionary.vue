@@ -1,16 +1,30 @@
 <template>
   <div class="bing-dictionary">
-    <!-- Task Center Panel (Unified State Center) -->
-    <TaskCenterPanel />
+    <!-- Translation Assist (worker mode): pull untranslated words from
+         laravel_main, translate via parallel Bing tabs, post results back. -->
+    <ClientModePanel
+      :clientConfig="clientConfig"
+      :clientService="clientService"
+      :formatTimestamp="formatTimestamp"
+      :error="assistError"
+      :connectionStatus="connectionStatus"
+      :currentEndpoint="currentEndpoint"
+      :testWords="testWords"
+      :testResults="testResults"
+      :testing="testing"
+      :queueOverview="queueOverview"
+      :prepared="prepared"
+      @toggle-service="toggleClientService"
+      @test-connection="testConnection"
+      @run-scrape-test="runScrapeTest"
+      @update-test-words="(v) => (testWords = v)"
+      @refresh-queue="loadQueueOverview"
+      @set-queue-page="setQueuePage"
+    />
 
-    <!-- Header -->
-    <div class="dictionary-header">
-      <h4 class="dictionary-title">Bing Dictionary</h4>
-      <div class="header-actions">
-        <button class="icon-button" @click="handleClearHistory" title="Clear history">
-          [CLEAR]
-        </button>
-      </div>
+    <!-- Search + clear -->
+    <div class="dictionary-toolbar">
+      <button class="icon-button" @click="handleClearHistory" :title="getMessage('clearHistoryButton')">[CLEAR]</button>
     </div>
 
     <!-- Search Box -->
@@ -26,6 +40,7 @@
       :result="currentResult"
       :isLoading="isLoading"
       @play-pronunciation="handlePlayPronunciation"
+      @play-audio="handlePlayAudio"
       @lookup-word="handleLookupWord"
     />
 
@@ -43,10 +58,13 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
 import { useBingDictionary } from '../../composables/useBingDictionary';
-import TaskCenterPanel from './TaskCenterPanel.vue';
+import { useBingDictionaryClient } from '../../composables/useBingDictionaryClient';
+import ClientModePanel from './bing-dictionary/ClientModePanel.vue';
 import SearchBox from './bing-dictionary/SearchBox.vue';
 import WordResult from './bing-dictionary/WordResult.vue';
 import HistoryList from './bing-dictionary/HistoryList.vue';
+import './bing-dictionary/base-styles.css';
+import { getMessage } from '@/utils/i18n';
 
 // Dictionary composable
 const {
@@ -57,10 +75,32 @@ const {
   history,
   lookupWord,
   playPronunciation,
+  playAudio,
   clearHistory,
   formatTime,
   loadHistory,
 } = useBingDictionary();
+
+// Translation-assist (worker) composable
+const {
+  clientConfig,
+  clientService,
+  error: assistError,
+  connectionStatus,
+  currentEndpoint,
+  testWords,
+  testResults,
+  testing,
+  queueOverview,
+  loadQueueOverview,
+  setQueuePage,
+  prepared,
+  toggleClientService,
+  testConnection,
+  runScrapeTest,
+  formatTimestamp,
+  initPanel,
+} = useBingDictionaryClient();
 
 // Event handlers
 const handleSearch = () => {
@@ -75,6 +115,10 @@ const handlePlayPronunciation = () => {
   playPronunciation();
 };
 
+const handlePlayAudio = (url: string) => {
+  playAudio(url);
+};
+
 const handleClearHistory = () => {
   clearHistory();
 };
@@ -82,6 +126,6 @@ const handleClearHistory = () => {
 // Initialize on mount
 onMounted(async () => {
   await loadHistory();
+  await initPanel();
 });
 </script>
-

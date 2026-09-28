@@ -5,20 +5,24 @@ Application Configuration - Centralized app settings
 """
 
 import json
+import copy
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 # Import from pycore following PYTHON_PYCORE.md standards
-from pycore.pyfoundations import ColorPrint, ENCYCLOPEDIA
-from pycore.pygvar import (
-    IS_WINDOWS,
-    PROJECT_ROOT,
-    CACHE_DIR,
-    LOCAL_CORE_NODE_DIR
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
 )
+from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyfoundations.pygvar import IS_WINDOWS, PROJECT_ROOT, CACHE_DIR, LOCAL_CORE_NODE_DIR
 
 # Configuration cache key prefix
 CONFIG_CACHE_PREFIX = "flutter_dev_tool_config"
+USER_DATA_SECTION = "flutter_dev_tools"
 
 
 class AppConfig:
@@ -42,8 +46,8 @@ class AppConfig:
         self.color_print = ColorPrint()
         self.encyclopedia = ENCYCLOPEDIA
 
-        # Default config file location
-        if config_file is None:
+        self._uses_unified_store = config_file is None
+        if self._uses_unified_store:
             config_dir = Path(LOCAL_CORE_NODE_DIR) / "flutter_dev_tools"
             config_dir.mkdir(parents=True, exist_ok=True)
             config_file = config_dir / "config.json"
@@ -53,6 +57,11 @@ class AppConfig:
 
         # Load config
         self._load_config()
+        init_serialized_owner(
+            self,
+            'flutter_dev_tools.app_config.state',
+            'FlutterDevToolsAppConfigStateThread',
+        )
 
     def _get_default_config(self) -> Dict[str, Any]:
         """Get default configuration"""
@@ -107,7 +116,26 @@ class AppConfig:
             self.color_print.print_green("[Config] Loaded from cache")
             return
 
-        # Load from file
+        if self._uses_unified_store:
+            personalized = user_data_store.get_personalized_section(USER_DATA_SECTION)
+            if not personalized and self.config_file.exists():
+                try:
+                    with open(self.config_file, 'r', encoding='utf-8') as f:
+                        legacy_config = json.load(f)
+                    if isinstance(legacy_config, dict):
+                        user_data_store.set_section(USER_DATA_SECTION, legacy_config)
+                except Exception as e:
+                    self.color_print.print_red(f"[Config] Legacy migration failed: {e}")
+            effective = user_data_store.get_section(USER_DATA_SECTION)
+            defaults = self._get_default_config()
+            self._config = self._deep_merge(defaults, effective)
+            self.encyclopedia.set(cache_key, self._config)
+            self.color_print.print_green(
+                f"[Config] Loaded from {user_data_store.path}"
+            )
+            return
+
+        # Load from custom file
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
@@ -155,8 +183,14 @@ class AppConfig:
         return result
 
     def _save_config(self) -> None:
-        """Save configuration to file"""
+        """Save configuration to the selected persistence backend."""
         try:
+            if self._uses_unified_store:
+                user_data_store.set_section(USER_DATA_SECTION, self._config)
+                self.color_print.print_green(
+                    f"[Config] Saved to {user_data_store.path}"
+                )
+                return
             self.config_file.parent.mkdir(parents=True, exist_ok=True)
 
             with open(self.config_file, 'w', encoding='utf-8') as f:
@@ -166,6 +200,7 @@ class AppConfig:
         except Exception as e:
             self.color_print.print_red(f"[Config] Failed to save config: {e}")
 
+    @serialized_method
     def get(self, key_path: str, default: Any = None) -> Any:
         """
         Get configuration value by dot-separated path
@@ -186,8 +221,9 @@ class AppConfig:
             else:
                 return default
 
-        return value
+        return copy.deepcopy(value)
 
+    @serialized_method
     def set(self, key_path: str, value: Any, save: bool = True) -> None:
         """
         Set configuration value by dot-separated path
@@ -217,6 +253,7 @@ class AppConfig:
         if save:
             self._save_config()
 
+    @serialized_method
     def reload(self) -> None:
         """Reload configuration from file"""
         # Clear cache
@@ -226,13 +263,17 @@ class AppConfig:
         # Reload
         self._load_config()
 
+    @serialized_method
     def get_all(self) -> Dict[str, Any]:
         """Get entire configuration dictionary"""
-        return self._config.copy()
+        return copy.deepcopy(self._config)
 
 
-# Singleton instance
-_app_config_instance: Optional[AppConfig] = None
+_APP_CONFIG_PROVIDER = SerializedSingletonProvider(
+    AppConfig,
+    'flutter_dev_tools.app_config.provider',
+    'FlutterDevToolsAppConfigProviderThread',
+)
 
 
 def get_app_config() -> AppConfig:
@@ -242,9 +283,4 @@ def get_app_config() -> AppConfig:
     Returns:
         AppConfig instance
     """
-    global _app_config_instance
-
-    if _app_config_instance is None:
-        _app_config_instance = AppConfig()
-
-    return _app_config_instance
+    return _APP_CONFIG_PROVIDER.get()

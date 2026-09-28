@@ -15,7 +15,7 @@ class GroupController:
     - Synchronization rules
 
     Characteristics:
-    - Stateless (does not depend on WebSocket)
+    - Stateless and transport-independent
     - Pure algorithm logic
     - Easy to test
 

@@ -15,7 +15,7 @@ Features:
 - Custom theme support
 
 Usage:
-    from pycore.pyutils.native_ui.tkinter import ThemeSystem
+    from pycore.pyutils.native_ui.step5_main_ui.tkinter.theme_system import ThemeSystem
 
     # Use default dark theme
     bg_color = ThemeSystem.get_color('bg_primary')

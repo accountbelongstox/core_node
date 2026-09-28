@@ -1,0 +1,15 @@
+---
+description: WebClaude group shell/PowerShell script conventions
+globs: webclaude_group/**/*.sh, webclaude_group/**/*.ps1
+---
+
+# WebClaude group scripts
+
+- Detect build success by **file existence** (`test -f` / `Test-Path`), not exit codes; launchers may `exit 0` so callers don't read codes (not for `.claude/` hook handlers).
+- Long-running cmds (`npm/pnpm install`, `go build/mod download`, installers) print **real-time**; don't pipe through `tail`/`grep`/capture-only `$()`.
+- **Trust-style** sourcing: `source` expected lib paths with no `if [[ -f ]]` guards — fail fast on incomplete checkout.
+- No complex `grep`/`sed`/`tail` for structured data; use `webclaude_group/scripts/pytools/`: `wc_env.py`, `wc_line_value.py`, `wc_list_backups.py`, `wc_tail_file.py`.
+- Privileged Linux cmds use `sudo` when not root (`apt-get`, `systemctl`).
+- Keep scripts thin (logic → Python); declare constants/flags at top.
+
+Full detail: webclaude_group/CLAUDE.md. Git/code rules: repo-root CLAUDE.md.

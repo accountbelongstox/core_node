@@ -1,0 +1,126 @@
+import { LmBaseAPI } from '../LmBaseAPI';
+import { APIResponse } from '../../types';
+
+/**
+ * AI Dev History API — extracted Claude/Codex/Gemini/Cursor prompt & session
+ * history served read-only by the Laravel backend (localhost only).
+ * Mounted with prefix '/api/dev-history' in core/api/index.ts.
+ */
+
+export interface DevHistorySessionSummary {
+  id: string;
+  raw_id: string;
+  tool: string;
+  os_user: string;
+  project: string;
+  title: string;
+  started_at: string;
+  ended_at: string;
+  started_ts: number;
+  prompt_count: number;
+  message_count: number;
+  has_subagent: boolean;
+  models?: string[];
+  bytes?: number;
+  file?: string;
+}
+
+export interface DevHistoryTurn {
+  ts: number;
+  time: string;
+  role: 'user' | 'assistant' | 'thinking' | 'tool_use' | 'tool_result' | 'system';
+  is_subagent: boolean;
+  model?: string | null;
+  name?: string | null;
+  text: string;
+}
+
+export interface DevHistorySessionDetail extends DevHistorySessionSummary {
+  prompts: Array<{ id: string; ts: number; text: string; edited?: boolean }>;
+  turns: DevHistoryTurn[];
+}
+
+export interface DevHistoryIndex {
+  is_dev_machine: boolean;
+  generated_at: string;
+  tools: string[];
+  users: string[];
+  sessions: DevHistorySessionSummary[];
+  counts?: Record<string, number>;
+}
+
+export interface DevHistoryPrompt {
+  id: string;
+  tool: string;
+  os_user: string;
+  project: string;
+  session_id: string;
+  ts: number;
+  time: string;
+  text: string;
+  lang?: string;
+  edited?: boolean;
+  translation?: {
+    english: string;
+    cleaned?: string;
+    variants?: string[];
+    source_lang?: string;
+    audio?: { url?: string } | null;
+  };
+}
+
+export class DevHistoryAPI extends LmBaseAPI {
+  /** Session summaries + tool/user facets for classification. */
+  async getIndex(): Promise<APIResponse<DevHistoryIndex>> {
+    return this.get('/index');
+  }
+
+  /** Full transcript (prompts + turns, incl. sub-agent) for one session. */
+  async getSession(id: string): Promise<APIResponse<DevHistorySessionDetail>> {
+    return this.get(`/sessions/${encodeURIComponent(id)}`);
+  }
+
+  /** Flat, newest-first prompt list with server-side search + pagination. */
+  async getPrompts(params?: {
+    tool?: string;
+    user?: string;
+    q?: string;
+    lang?: string;
+    page?: number;
+    pageSize?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<APIResponse<{ items: DevHistoryPrompt[]; total: number; limit?: number; offset?: number }>> {
+    return this.get('/prompts', params);
+  }
+
+  /** Trigger a fresh extraction (idempotent on the backend). */
+  async refresh(): Promise<APIResponse<Record<string, unknown>>> {
+    return this.post('/refresh', {});
+  }
+
+  /** Edit + save one prompt's text (persisted to files on the backend). */
+  async updatePrompt(id: string, text: string): Promise<APIResponse<{ id: string; text: string; edited: boolean }>> {
+    return this.post('/prompts/update', { id, text });
+  }
+
+  /** Translation-assist distribution: status counts + recent tasks. */
+  async getAssist(): Promise<APIResponse<{ summary: Record<string, number>; recent: DevHistoryAssistTask[] }>> {
+    return this.get('/assist');
+  }
+
+  /** Manually enqueue pending non-English prompts for translation. */
+  async assistScan(): Promise<APIResponse<{ enqueued: number }>> {
+    return this.post('/assist/scan', {});
+  }
+}
+
+export interface DevHistoryAssistTask {
+  task_id: string;
+  status: string;
+  prompt_id: string;
+  source_lang: string;
+  text: string;
+  created_at: string;
+  updated_at: string;
+}

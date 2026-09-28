@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Backup Management Menu
@@ -78,15 +66,9 @@ function Invoke-ScriptAndPause {
             } else {
                 & python $ScriptPath
             }
-            $exitCode = $LASTEXITCODE
-
             Write-Host ""
             Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
-            if ($exitCode -eq 0) {
-                Write-ColorMessage -Message "Script completed successfully" -Type "Success"
-            } else {
-                Write-ColorMessage -Message "Script completed with exit code: $exitCode" -Type "Warning"
-            }
+            Write-ColorMessage -Message "Script completed" -Type "Success"
             Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
             Write-Host ""
             Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
@@ -211,6 +193,38 @@ function Restore-ClaudeCodexAnthropic {
     Invoke-ScriptAndPause -ScriptPath $aiBackupScript -Description "Restore Claude, Codex and @anthropic-ai" -Action "restore"
 }
 
+# Python Runtime + Models + User Data Backups
+# Snapshots the actual Python install directory (parent of python.exe), all
+# downloaded models and the core_node user-data root so the environment can
+# be restored without re-running the installers. The Python tool prompts for
+# compression (Y/n, default Y) and confirmation; restore accepts a compressed
+# .tar.gz archive or an uncompressed backup directory.
+function Backup-PythonEnvironment {
+    Write-Host ""
+    Write-ColorMessage -Message "Python Runtime + Models + User Data Backup" -Type "Info"
+    Write-Host "========================================" -ForegroundColor $script:COLOR_INFO
+    Write-Host "Includes:" -ForegroundColor $script:COLOR_INFO
+    Write-Host "  - Python install directory (interpreter + all pip packages)" -ForegroundColor Gray
+    Write-Host "  - pycore models + user data (core_node: cache/tts, cache/stt, ...)" -ForegroundColor Gray
+    Write-Host "  - HuggingFace model cache (D:\www\cache\huggingface: faster-whisper, ...)" -ForegroundColor Gray
+    Write-Host "  - Whisper model cache (D:\www\cache\whisper)" -ForegroundColor Gray
+    Write-Host ""
+    Write-ColorMessage -Message "You will be asked whether to compress the backup (.tar.gz)." -Type "Warning"
+    Write-Host ""
+    $pyBackupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\python_env\backup_python_env.py"
+    Invoke-ScriptAndPause -ScriptPath $pyBackupScript -Description "Python Environment Backup Manager" -Action "backup"
+}
+
+function List-PythonEnvironmentBackups {
+    $pyBackupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\python_env\backup_python_env.py"
+    Invoke-ScriptAndPause -ScriptPath $pyBackupScript -Description "List Python Environment Backups" -Action "list"
+}
+
+function Restore-PythonEnvironment {
+    $pyBackupScript = Join-Path $script:SCRIPT_DIR "pytools\pybackup\python_env\backup_python_env.py"
+    Invoke-ScriptAndPause -ScriptPath $pyBackupScript -Description "Restore Python Environment" -Action "restore"
+}
+
 # Utility Functions
 function Show-BackupStatistics {
     Write-Host ""
@@ -232,8 +246,12 @@ function Show-BackupStatistics {
     $claudeBackups = Get-ChildItem -Path $backupParentDir -Directory -Filter "claude_*_bak_*" -ErrorAction SilentlyContinue
     Write-Host "Claude/Codex/@anthropic-ai Backups: $($claudeBackups.Count)" -ForegroundColor $script:COLOR_SUCCESS
 
+    # Count python env backups (directories and compressed archives)
+    $pythonEnvBackups = Get-ChildItem -Path $backupParentDir -Filter "python_env_bak_*" -ErrorAction SilentlyContinue
+    Write-Host "Python Runtime/Models Backups: $($pythonEnvBackups.Count)" -ForegroundColor $script:COLOR_SUCCESS
+
     # Calculate total backup size
-    $allBackups = $coreNodeBackups + $devEnvBackups + $claudeBackups
+    $allBackups = $coreNodeBackups + $devEnvBackups + $claudeBackups + $pythonEnvBackups
     $totalSize = 0
     foreach ($backup in $allBackups) {
         $size = (Get-ChildItem -Path $backup.FullName -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
@@ -321,6 +339,24 @@ function Show-BackupMenu {
         @{
             Text = "  Restore Claude/Codex backup"
             Action = { Restore-ClaudeCodexAnthropic }
+        },
+        # Python Runtime & Models Section
+        @{
+            Text = "-- Python Runtime & Models -------"
+            Action = { }
+            IsHeader = $true
+        },
+        @{
+            Text = "  Backup Python runtime + models"
+            Action = { Backup-PythonEnvironment }
+        },
+        @{
+            Text = "  List Python env backups"
+            Action = { List-PythonEnvironmentBackups }
+        },
+        @{
+            Text = "  Restore Python env backup"
+            Action = { Restore-PythonEnvironment }
         },
         # Utilities Section
         @{

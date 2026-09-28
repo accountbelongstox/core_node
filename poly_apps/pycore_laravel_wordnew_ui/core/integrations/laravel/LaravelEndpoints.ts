@@ -1,0 +1,381 @@
+/**
+ * Global API Endpoints Configuration
+ * Defines all available API endpoints
+ */
+
+import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
+import { getWebAccessConfig, resolveApiHostname } from '../../contracts/DomainConfig';
+import { LARAVEL_API_BACKEND_PORT, SERVICE_CONTRACT_URL_ENTRIES } from '../../contracts/ServiceContract';
+import { StorageManager } from '../../persistence';
+import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
+
+export { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
+
+export interface BackendApiEndpoint {
+  id: string;
+  url: string;
+  protocol: 'http' | 'https';
+  port?: number;
+  priority: number;
+  isLocal: boolean;
+  description: string;
+}
+
+export interface ApiEndpointsConfig {
+  endpoints: BackendApiEndpoint[];
+  healthCheckInterval: number;
+  timeout: number;
+  retryAttempts: number;
+}
+
+/** Laravel Octane API port — independent of the FE shell port (e.g. :13054). */
+export const FIXED_API_PORT = LARAVEL_API_BACKEND_PORT;
+
+function isLocalHostname(hostname: string): boolean {
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || /^192\.168\./.test(hostname)
+    || /^10\./.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+    || /^100\./.test(hostname);
+}
+
+/** Full-URL service entries from the central contract (https machine entries). */
+function parseServiceUrl(raw: string): { hostname: string; protocol: 'http' | 'https'; port?: number } | null {
+  try {
+    const parsed = new URL(raw);
+    const protocol = parsed.protocol === 'https:' ? 'https' : parsed.protocol === 'http:' ? 'http' : null;
+    if (!protocol || !parsed.hostname) return null;
+    return {
+      hostname: parsed.hostname,
+      protocol,
+      port: parsed.port ? Number(parsed.port) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getConfiguredApiEndpoints(): BackendApiEndpoint[] {
+  const config = getWebAccessConfig();
+  const endpoints = config.domains.map((domain, index): BackendApiEndpoint => ({
+    id: index === 0 ? 'primary-remote' : index === 1 ? 'secondary-remote' : `remote-domain-${index + 1}`,
+    url: `api.${config.apiRegionPrefix}.${domain}`,
+    protocol: 'https',
+    priority: index === 0 ? 0 : index === 1 ? 6 : 10 + index,
+    isLocal: false,
+    description: domain,
+  }));
+  config.serviceHostKeys.laravelApi.forEach((key, index) => {
+    const host = config.hosts[key];
+    endpoints.push({
+      id: `configured-api-${key}`,
+      url: host,
+      protocol: 'http',
+      port: FIXED_API_PORT,
+      priority: 20 + index,
+      isLocal: isLocalHostname(host),
+      description: key,
+    });
+  });
+  SERVICE_CONTRACT_URL_ENTRIES.forEach((entry, index) => {
+    const parsed = parseServiceUrl(entry.url);
+    if (!parsed) return;
+    endpoints.push({
+      id: `configured-url-${entry.key}`,
+      url: parsed.hostname,
+      protocol: parsed.protocol,
+      port: parsed.port,
+      priority: 40 + index,
+      isLocal: isLocalHostname(parsed.hostname),
+      description: entry.label,
+    });
+  });
+
+  return endpoints;
+}
+
+function getBuiltInEndpoints(): BackendApiEndpoint[] {
+  return [...GLOBAL_API_ENDPOINTS.endpoints, ...getConfiguredApiEndpoints()];
+}
+
+function createCurrentOriginEndpoint(
+  hostname: string,
+  protocol: 'http' | 'https',
+): BackendApiEndpoint {
+  const isLocal = isLocalHostname(hostname);
+
+  // HTTPS on a public origin: the api.<prefix>.<domain> nginx site serves
+  // the API on 443, so the :9000 backend port is NEVER appended; the region
+  // prefix comes from the shell-written domain config (DomainConfig). A
+  // hostname that already is an api fqdn (persisted current-url id) is kept
+  // verbatim; a leading www. folds back to the apex.
+  if (protocol === 'https' && !isLocal) {
+    const apiHost = resolveApiHostname(hostname);
+    return {
+      id: `${CURRENT_URL_TYPE}:${apiHost}`,
+      url: apiHost,
+      protocol,
+      priority: 5,
+      isLocal: false,
+      description: `Current URL - this site (${protocol}://${apiHost})`,
+    };
+  }
+
+  // A loopback/LAN origin serves its own Laravel backend on :9000, so it ranks
+  // ahead of the configured remote domains for first-run selection.
+  return {
+    id: `${CURRENT_URL_TYPE}:${hostname}`,
+    url: hostname,
+    protocol,
+    port: FIXED_API_PORT,
+    priority: isLocal ? -1 : 5,
+    isLocal,
+    description: `Current URL — this site (${protocol}://${hostname}:${FIXED_API_PORT})`,
+  };
+}
+
+/**
+ * Health-probe error code recorded when the browser's mixed-content policy
+ * makes an endpoint unreachable from the current page (no request is sent).
+ */
+export const MIXED_CONTENT_BLOCKED_ERROR = 'MIXED_CONTENT_BLOCKED';
+
+/** Loopback hosts stay fetchable from secure pages (potentially trustworthy). */
+function isLoopbackHostname(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '');
+  return host === 'localhost'
+    || host.endsWith('.localhost')
+    || host === '::1'
+    || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+/**
+ * True when this endpoint can NEVER be fetched from the current page: the
+ * page is HTTPS and the endpoint is plain HTTP on a non-loopback host, so the
+ * browser blocks every request as mixed content before it hits the network.
+ */
+export function isEndpointMixedContentBlocked(
+  endpoint: Pick<BackendApiEndpoint, 'protocol' | 'url'>,
+): boolean {
+  if (endpoint.protocol !== 'http') return false;
+  if (typeof window === 'undefined' || !window.location) return false;
+  if (window.location.protocol !== 'https:') return false;
+  return !isLoopbackHostname(endpoint.url);
+}
+
+/**
+ * Build the current-page-origin endpoint: host + protocol from `window.location`,
+ * port pinned to FIXED_API_PORT (:9000). Null off-web or on non-http(s) origins.
+ */
+export function getCurrentOriginEndpoint(): BackendApiEndpoint | null {
+  if (typeof window === 'undefined' || !window.location) return null;
+
+  const { protocol, hostname } = window.location;
+  if (protocol !== 'http:' && protocol !== 'https:') return null;
+  if (!hostname) return null;
+
+  const proto: 'http' | 'https' = protocol === 'https:' ? 'https' : 'http';
+  return createCurrentOriginEndpoint(hostname, proto);
+}
+
+/**
+ * Global API endpoints configuration
+ */
+export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
+  endpoints: [],
+  // Default ALL-Offline retry interval for this end (laravel-manager). While
+  // every endpoint is Offline the end re-probes at this cadence and stops as
+  // soon as one recovers; a healthy backend is never polled. Overridable per
+  // browser in the endpoint switcher UI.
+  healthCheckInterval: 60000, // 1 minute
+  // 3s, not 1s: the Laravel backend under Octane can have first-byte latency
+  // (cold worker / reload) above 1s, which made a healthy localhost probe abort
+  // and show "✗ Unavailable" while real 15s-timeout requests still succeeded.
+  timeout: 3000,
+  retryAttempts: 3
+};
+
+/**
+ * Build the full API URL
+ */
+export function buildApiUrl(endpoint: BackendApiEndpoint, path: string = ''): string {
+  const port = endpoint.port ? `:${endpoint.port}` : '';
+  const baseUrl = `${endpoint.protocol}://${endpoint.url}${port}`;
+
+  if (!path) return baseUrl;
+
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${baseUrl}${cleanPath}`;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Custom endpoints (user-added, persisted in localStorage)                    *
+ *                                                                             *
+ * Both the top API-Endpoints switcher and the Settings page read through the  *
+ * MERGED list (built-in config + custom), so a custom endpoint added in       *
+ * Settings appears in both. Duplicates are never added: an endpoint is keyed  *
+ * by protocol://host:port and a built-in always wins over a custom with the   *
+ * same key.                                                                    *
+ * -------------------------------------------------------------------------- */
+/** Normalized identity of an endpoint for de-duplication. */
+export function endpointKey(e: { protocol: string; url: string; port?: number }): string {
+  const port = e.port ? `:${e.port}` : '';
+  return `${e.protocol}://${(e.url || '').toLowerCase()}${port}`;
+}
+
+function readCustomEndpoints(): BackendApiEndpoint[] {
+  try {
+    const parsed = StorageManager.get<BackendApiEndpoint[]>(StorageKeys.CUSTOM_ENDPOINTS, []);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (e): e is BackendApiEndpoint =>
+        e && typeof e.id === 'string' && typeof e.url === 'string' &&
+        (e.protocol === 'http' || e.protocol === 'https'),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeCustomEndpoints(list: BackendApiEndpoint[]): void {
+  StorageManager.set(StorageKeys.CUSTOM_ENDPOINTS, list);
+}
+
+/** User-added endpoints only (already de-duplicated against built-ins). */
+export function getCustomEndpoints(): BackendApiEndpoint[] {
+  const builtinKeys = new Set(getBuiltInEndpoints().map(endpointKey));
+  // Drop any custom entry that collides with a built-in (built-in wins).
+  return readCustomEndpoints().filter(e => !builtinKeys.has(endpointKey(e)));
+}
+
+export function isCustomEndpoint(id: string): boolean {
+  return getCustomEndpoints().some(e => e.id === id);
+}
+
+/** Built-in + custom, de-duplicated by key (built-in wins), sorted by priority. */
+export function getMergedEndpoints(): BackendApiEndpoint[] {
+  const seen = new Set<string>();
+  const merged: BackendApiEndpoint[] = [];
+  for (const e of [...getBuiltInEndpoints(), ...getCustomEndpoints()]) {
+    const k = endpointKey(e);
+    if (seen.has(k)) continue;       // no redundant duplicates
+    seen.add(k);
+    merged.push(e);
+  }
+  return merged.sort((a, b) => a.priority - b.priority);
+}
+
+export interface AddEndpointInput {
+  url: string;
+  protocol?: 'http' | 'https';
+  port?: number;
+  description?: string;
+}
+
+/**
+ * Add a user endpoint (persisted). Rejects duplicates (same protocol://host:port
+ * as any built-in or existing custom endpoint). Returns the created endpoint or
+ * an error message.
+ */
+export function addCustomEndpoint(input: AddEndpointInput):
+  { ok: true; endpoint: BackendApiEndpoint } | { ok: false; error: string } {
+  let url = (input.url || '').trim();
+  if (!url) return { ok: false, error: 'Host / URL is required' };
+
+  // Accept a full URL, peel protocol/port off it.
+  let protocol: 'http' | 'https' = input.protocol || 'http';
+  let port = input.port;
+  const m = url.match(/^(https?):\/\/(.+)$/i);
+  if (m) {
+    protocol = m[1].toLowerCase() as 'http' | 'https';
+    url = m[2];
+  }
+  const portInPath = url.match(/^([^/:]+):(\d+)/);
+  if (portInPath) {
+    url = portInPath[1];
+    if (port == null) port = Number(portInPath[2]);
+  }
+  url = url.replace(/\/.*$/, '').replace(/:\d+$/, '').toLowerCase();
+  if (!url) return { ok: false, error: 'Invalid host / URL' };
+  if (port != null && (Number.isNaN(port) || port < 1 || port > 65535)) {
+    return { ok: false, error: 'Port must be 1–65535' };
+  }
+
+  const candidate: BackendApiEndpoint = {
+    id: `custom-${endpointKey({ protocol, url, port }).replace(/[^a-z0-9]+/gi, '-')}`,
+    url,
+    protocol,
+    port,
+    priority: 0,            // assigned below
+    isLocal: /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(url),
+    description: (input.description || '').trim() || `${url}${port ? `:${port}` : ''}`,
+  };
+
+  const key = endpointKey(candidate);
+  const existing = getMergedEndpoints();
+  if (existing.some(e => endpointKey(e) === key)) {
+    return { ok: false, error: 'This endpoint already exists' };
+  }
+
+  candidate.priority = Math.max(0, ...existing.map(e => e.priority)) + 1;
+  const custom = getCustomEndpoints();
+  custom.push(candidate);
+  writeCustomEndpoints(custom);
+  return { ok: true, endpoint: candidate };
+}
+
+/** Remove a user endpoint by id (built-ins are never removed). */
+export function removeCustomEndpoint(id: string): boolean {
+  const custom = getCustomEndpoints();
+  const next = custom.filter(e => e.id !== id);
+  if (next.length === custom.length) return false;
+  writeCustomEndpoints(next);
+  return true;
+}
+
+/**
+ * Get an endpoint by ID (built-in, custom, or current-url type).
+ * A host-qualified current-url ID restores its exact persisted hostname.
+ * Only the legacy unqualified type resolves from window.location.
+ */
+export function getEndpointById(id: string): BackendApiEndpoint | undefined {
+  if (id === CURRENT_URL_TYPE) return getCurrentOriginEndpoint() ?? undefined;
+  if (isCurrentUrlId(id)) {
+    const hostname = id.slice(`${CURRENT_URL_TYPE}:`.length).trim();
+    const live = getCurrentOriginEndpoint();
+    if (!hostname || !live) return live ?? undefined;
+    return createCurrentOriginEndpoint(hostname, live.protocol);
+  }
+  return getAllEndpoints().find(e => e.id === id);
+}
+
+/**
+ * Get all endpoints — built-in + custom + current-url, de-duplicated, sorted by priority.
+ * When the current-url target matches a static/custom entry, the static row is
+ * dropped so the list shows one "Current URL" row for that host:port.
+ */
+export function getAllEndpoints(): BackendApiEndpoint[] {
+  const list = getMergedEndpoints();
+  const current = getCurrentOriginEndpoint();
+  if (!current) return list;
+
+  const sameTarget = (e: BackendApiEndpoint) =>
+    e.id !== current.id &&
+    e.protocol === current.protocol &&
+    e.url === current.url &&
+    (e.port ?? null) === (current.port ?? null);
+
+  const filtered = list.filter(e => !sameTarget(e));
+  filtered.push(current);
+  // The persisted Laravel endpoint remains visible even when a debug reload
+  // opens the UI through a different hostname (for example localhost instead
+  // of 127.0.0.1). Listing must follow localStorage, not window.location.
+  const storedId = StorageManager.getRaw(StorageKeys.CURRENT_ENDPOINT);
+  const stored = storedId && isCurrentUrlId(storedId)
+    ? getEndpointById(storedId)
+    : undefined;
+  const storedExists = stored && filtered.some(e => endpointKey(e) === endpointKey(stored));
+  if (stored && !storedExists) filtered.push(stored);
+  return filtered.sort((a, b) => a.priority - b.priority);
+}

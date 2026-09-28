@@ -1,0 +1,27 @@
+# Project-managed compose service for the CosyVoice official fastapi server.
+# restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
+# Limits and the image fingerprint come from model.sh through the docker model
+# runner, matching every other engine's compose.yml in this directory.
+services:
+  cosyvoice:
+    build:
+      context: .
+      args:
+        TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+        TTS_DEVICE: ${TTS_DEVICE:-cpu}
+      labels:
+        pycore.fingerprint: ${TTS_IMAGE_FINGERPRINT:-}
+    image: pycore-tts-cosyvoice:local
+    container_name: pycore-tts-cosyvoice
+    restart: "no"
+    mem_limit: ${TTS_MEM_LIMIT:-4g}
+    memswap_limit: ${TTS_MEM_LIMIT:-4g}
+    cpus: ${TTS_CPUS:-3.0}
+    pids_limit: ${TTS_PIDS_LIMIT:-512}
+    ports:
+      - "127.0.0.1:${TTS_PORT:-50000}:50000"
+    volumes:
+      - ${TTS_STAGING:?TTS_STAGING is required}:/data
+    labels:
+      pycore.managed: "true"
+      pycore.engine: "cosyvoice"

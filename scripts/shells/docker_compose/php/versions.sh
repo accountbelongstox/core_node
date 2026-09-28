@@ -14,7 +14,6 @@ versions=( "${versions[@]%/}" )
 
 for version in "${versions[@]}"; do
 	rcVersion="${version%-rc}"
-	export version rcVersion
 
 	# scrape the relevant API based on whether we're looking for pre-releases
 	if [ "$rcVersion" = "$version" ]; then
@@ -96,14 +95,12 @@ for version in "${versions[@]}"; do
 					continue
 				fi
 			fi
-			export suite variant
 			variants="$(jq <<<"$variants" -c '. + [ env.suite + "/" + env.variant ]')"
 		done
 	done
 
 	echo "$version: $fullVersion"
 
-	export fullVersion url ascUrl sha256
 	json="$(
 		jq <<<"$json" -c --argjson variants "$variants" '
 			.[env.version] = {

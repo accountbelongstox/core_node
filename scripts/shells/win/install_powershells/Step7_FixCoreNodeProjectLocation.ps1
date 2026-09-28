@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 
@@ -57,7 +45,7 @@ function Find-CoreNodeProjects {
     $commonLocations = @(
         "C:\Users\$env:USERNAME\Documents\core_node",
         "C:\Users\$env:USERNAME\Desktop\core_node",
-        "$env:USERPROFILE\core_node",
+        (Join-Path $env:USERPROFILE "core_node"),
         "D:\core_node",
         "C:\core_node"
     )
@@ -233,7 +221,7 @@ function Main-FixProjectLocation {
                 Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
                 Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
                 Read-Host "Press Enter to exit"
-                exit 0
+                return
             } else {
                 Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Failed to clone project" -Type "Error"
             }
@@ -370,7 +358,7 @@ function Main-FixProjectLocation {
         Write-ColorMessage -Message "$SCRIPT_INDEX   cd /d $TARGET_PROJECT_DIR" -Type "Info"
         Write-ColorMessage -Message "$SCRIPT_INDEX   dd.cmd" -Type "Info"
         Read-Host "Press Enter to exit"
-        exit 0
+        return
     } else {
         Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Error"
         Write-ColorMessage -Message "$SCRIPT_INDEX   Failed to fix project location" -Type "Error"

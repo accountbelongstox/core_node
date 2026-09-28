@@ -3,26 +3,25 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Traits\ApiResponse;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1BaseCtl extends Controller
 {
+    use ApiResponse;
+
     /**
      * Authenticate request using API key
-     * In debug/local mode or CLI mode, authentication is bypassed for easier development
+     * In debug/local mode, authentication is bypassed for easier development
      */
     protected function authenticate(Request $request): bool
     {
-        // Check if we're running in console (CLI) - skip authentication for command line
-        if (app()->runningInConsole()) {
-            Log::info('ServerManagerV1: Authentication bypassed for CLI/console environment');
-            return true;
-        }
-
         // Check if we're in debug or local environment - skip authentication
         $appEnv = config('app.env');
         $appDebug = config('app.debug');
@@ -36,6 +35,17 @@ class ServerManagerV1BaseCtl extends Controller
             return true;
         }
 
+        // Platform-canonical auth: a Sanctum bearer token belonging to an
+        // admin user (the session every management UI holds after login) is
+        // accepted directly; the static API key below remains for
+        // machine-to-machine callers.
+        if ($request->bearerToken()) {
+            $sanctumUser = Auth::guard('sanctum')->user();
+            if ($sanctumUser instanceof User && $sanctumUser->isAdmin()) {
+                return true;
+            }
+        }
+
         // Production authentication
         $apiKey = $request->header(ServerManagerV1Constants::AUTH_HEADER);
 
@@ -43,20 +53,14 @@ class ServerManagerV1BaseCtl extends Controller
             return false;
         }
 
-        // Get API key from environment or use default
-        $validApiKey = env('SERVER_MANAGER_API_KEY', config('app.server_manager_api_key', 'default-server-manager-key'));
+        $validApiKey = (string) config('app.server_manager_api_key', '');
+
+        if ($validApiKey === '') {
+            Log::error('ServerManagerV1: SERVER_MANAGER_API_KEY is not configured');
+            return false;
+        }
 
         return hash_equals($validApiKey, $apiKey);
-    }
-    
-    /**
-     * Check rate limiting
-     */
-    protected function checkRateLimit(Request $request): bool
-    {
-        // Simple rate limiting implementation
-        // In production, use Laravel's built-in rate limiting
-        return true;
     }
     
     /**
@@ -64,7 +68,7 @@ class ServerManagerV1BaseCtl extends Controller
      */
     protected function logRequest(Request $request, string $action): void
     {
-        Log::info('ServerManagerV1 API Request', [
+        Log::debug('ServerManagerV1 API Request', [
             'action' => $action,
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),
@@ -75,29 +79,7 @@ class ServerManagerV1BaseCtl extends Controller
     }
     
     /**
-     * Return success response
-     */
-    protected function successResponse($data = null, string $message = '', int $code = 200): JsonResponse
-    {
-        return response()->json(
-            ServerManagerV1Utils::apiResponse(true, $data, $message, $code),
-            $code
-        );
-    }
-    
-    /**
-     * Return error response
-     */
-    protected function errorResponse(string $message, int $code = 400, $data = null): JsonResponse
-    {
-        return response()->json(
-            ServerManagerV1Utils::apiResponse(false, $data, $message, $code),
-            $code
-        );
-    }
-    
-    /**
-     * Validate request authentication and rate limiting
+     * Validate request authentication
      */
     protected function validateRequest(Request $request, string $action): ?JsonResponse
     {
@@ -106,17 +88,9 @@ class ServerManagerV1BaseCtl extends Controller
         
         // Check authentication
         if (!$this->authenticate($request)) {
-            return $this->errorResponse(
+            return $this->error(
                 'Authentication required. Please provide valid API key in ' . ServerManagerV1Constants::AUTH_HEADER . ' header.',
                 ServerManagerV1Constants::RESPONSE_UNAUTHORIZED
-            );
-        }
-        
-        // Check rate limiting
-        if (!$this->checkRateLimit($request)) {
-            return $this->errorResponse(
-                'Rate limit exceeded. Please try again later.',
-                429
             );
         }
         
@@ -136,7 +110,7 @@ class ServerManagerV1BaseCtl extends Controller
             'trace' => $e->getTraceAsString()
         ]);
         
-        return $this->errorResponse(
+        return $this->error(
             'Internal server error occurred.',
             ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
         );
@@ -156,7 +130,7 @@ class ServerManagerV1BaseCtl extends Controller
         }
         
         if (!empty($missing)) {
-            return $this->errorResponse(
+            return $this->error(
                 'Missing required parameters: ' . implode(', ', $missing),
                 ServerManagerV1Constants::RESPONSE_BAD_REQUEST
             );

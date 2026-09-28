@@ -1,10 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Step 5: Main UI Module
-
-Provides PySide6 and Tkinter UI implementations.
-"""
-
-# Will be populated as needed
-__all__ = []
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

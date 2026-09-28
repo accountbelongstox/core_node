@@ -76,17 +76,14 @@ class ServerManagerV1PathConfig
         return PathMapper::mapWebPath('nginxconfig') . '/ssl/credentials';
     }
 
-    /** Legacy constants - DEPRECATED: Use getter methods instead */
-    public const SSL_BASE_DIR = '/www/nginxconfig/ssl';
-    public const SSL_CREDENTIALS_DIR = '/www/nginxconfig/ssl/credentials';
-
     // ==========================================
     // WEB ROOT PATHS (ENVIRONMENT-AWARE)
     // ==========================================
 
     /**
      * Get main web root directory (environment-aware)
-     * Returns: /www/wwwroot (production) or /mnt/d/www/wwwroot (WSL)
+     * Returns: /www/wwwroot (native production), /www/www/wwwroot (NTFS
+     * dual-boot) or /mnt/d/www/wwwroot (WSL) -- resolved by PathMapper.
      */
     public static function getWwwRoot(): string
     {
@@ -100,11 +97,6 @@ class ServerManagerV1PathConfig
     {
         return self::getWwwRoot() . '/default';
     }
-
-    // Legacy constants for backwards compatibility
-    // DEPRECATED: Use getWwwRoot() instead
-    public const WWW_ROOT = '/www/wwwroot';
-    public const DEFAULT_SITE_DIR = '/www/wwwroot/default';
 
     // ==========================================
     // LARAVEL APPLICATION PATHS (ENVIRONMENT-AWARE)

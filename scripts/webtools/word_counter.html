@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>字数统计</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface-2: #243044;
+      --border: #2f3f56;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-soft: rgba(59, 130, 246, 0.15);
+      --green: #34d399;
+      --amber: #fbbf24;
+      --purple: #a78bfa;
+      --rose: #fb7185;
+      --cyan: #22d3ee;
+      --radius: 12px;
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.18), transparent),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    header {
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .article-bar {
+      display: grid;
+      grid-template-columns: minmax(160px, 0.8fr) minmax(220px, 1.2fr) auto;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .article-field {
+      min-width: 0;
+    }
+
+    .article-field label {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+
+    .article-field select,
+    .article-field input {
+      width: 100%;
+      height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 0 10px;
+      font: inherit;
+      font-size: 0.9rem;
+    }
+
+    .article-field select:focus,
+    .article-field input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .article-actions {
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+      height: 100%;
+      padding-top: 21px;
+    }
+
+    .save-status {
+      grid-column: 1 / -1;
+      min-height: 18px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .save-status[data-state="saved"] {
+      color: var(--green);
+    }
+
+    .save-status[data-state="error"] {
+      color: var(--rose);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+
+    .stat-card:hover {
+      border-color: rgba(59, 130, 246, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .stat-card.primary {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(59, 130, 246, 0.06));
+      border-color: rgba(59, 130, 246, 0.35);
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      font-size: 1.65rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .stat-card.primary .stat-value { color: #93c5fd; }
+    .stat-card[data-key="charsNoSpace"] .stat-value { color: var(--green); }
+    .stat-card[data-key="chinese"] .stat-value { color: var(--amber); }
+    .stat-card[data-key="words"] .stat-value { color: var(--purple); }
+    .stat-card[data-key="lines"] .stat-value { color: var(--cyan); }
+    .stat-card[data-key="paragraphs"] .stat-value { color: var(--rose); }
+
+    .editor-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .toolbar input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn:hover {
+      background: var(--accent-soft);
+      border-color: rgba(59, 130, 246, 0.5);
+    }
+
+    .btn-danger:hover {
+      background: rgba(251, 113, 133, 0.12);
+      border-color: rgba(251, 113, 133, 0.45);
+    }
+
+    #textInput {
+      display: block;
+      width: 100%;
+      min-height: 420px;
+      padding: 20px;
+      border: none;
+      outline: none;
+      resize: vertical;
+      background: transparent;
+      color: var(--text);
+      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace;
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    #textInput::placeholder {
+      color: #5c6b82;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      .page {
+        padding: 20px 14px 32px;
+      }
+
+      h1 {
+        font-size: 1.4rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .article-bar {
+        grid-template-columns: 1fr;
+      }
+
+      .article-actions {
+        padding-top: 0;
+      }
+
+      #textInput {
+        min-height: 320px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>字数统计</h1>
+      <p class="subtitle">按文章保存文本，自动清理空行与多余空格</p>
+    </header>
+
+    <section class="article-bar" aria-label="文章管理">
+      <div class="article-field">
+        <label for="articleSelect">当前文章</label>
+        <select id="articleSelect"></select>
+      </div>
+      <div class="article-field">
+        <label for="articleTitle">文章标题</label>
+        <input id="articleTitle" type="text" maxlength="120" autocomplete="off" placeholder="输入文章标题">
+      </div>
+      <div class="article-actions">
+        <button type="button" class="btn" id="newArticleBtn">新建</button>
+        <button type="button" class="btn btn-danger" id="deleteArticleBtn">删除</button>
+      </div>
+      <div class="save-status" id="saveStatus" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="stats-grid" id="statsGrid" aria-live="polite"></section>
+
+    <section class="editor-wrap">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <label>
+            <input type="checkbox" id="excludeWhitespace" checked>
+            不计空白字符
+          </label>
+          <label>
+            <input type="checkbox" id="countPunctuation">
+            单独统计标点
+          </label>
+        </div>
+        <div>
+          <button type="button" class="btn" id="pasteBtn">粘贴</button>
+          <button type="button" class="btn btn-danger" id="clearBtn">清空</button>
+        </div>
+      </div>
+      <textarea
+        id="textInput"
+        placeholder="在此输入或粘贴文本，统计结果会实时更新…"
+        spellcheck="false"
+        autofocus
+      ></textarea>
+    </section>
+
+    <p class="footer-note">文章仅保存在当前浏览器的本地缓存中，无需服务器</p>
+  </div>
+
+  <script>
+    var textInput = document.getElementById("textInput");
+    var statsGrid = document.getElementById("statsGrid");
+    var excludeWhitespaceCheckbox = document.getElementById("excludeWhitespace");
+    var countPunctuationCheckbox = document.getElementById("countPunctuation");
+    var pasteBtn = document.getElementById("pasteBtn");
+    var clearBtn = document.getElementById("clearBtn");
+    var articleSelect = document.getElementById("articleSelect");
+    var articleTitle = document.getElementById("articleTitle");
+    var newArticleBtn = document.getElementById("newArticleBtn");
+    var deleteArticleBtn = document.getElementById("deleteArticleBtn");
+    var saveStatus = document.getElementById("saveStatus");
+
+    var storageKey = "coreNode.wordCounter.articles.v1";
+    var saveDelayMs = 600;
+    var articles = [];
+    var activeArticleId = "";
+    var saveTimer = 0;
+
+    var statDefinitions = [
+      { key: "totalChars", label: "总字符", primary: true },
+      { key: "charsNoSpace", label: "不含空格" },
+      { key: "chinese", label: "中文字符" },
+      { key: "englishLetters", label: "英文字母" },
+      { key: "words", label: "英文单词" },
+      { key: "numbers", label: "数字" },
+      { key: "punctuation", label: "标点符号" },
+      { key: "lines", label: "行数" },
+      { key: "nonEmptyLines", label: "非空行" },
+      { key: "paragraphs", label: "段落数" },
+      { key: "bytesUtf8", label: "UTF-8 字节" }
+    ];
+
+    var statElements = {};
+
+    function normalizeTitle(value) {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function normalizeContent(value) {
+      var normalized = String(value || "").replace(/\r\n?/g, "\n");
+
+      normalized = normalized.replace(/[ \t\u00a0\u3000]+/g, " ");
+      normalized = normalized.replace(/(?: *\n *)+/g, "\n");
+      return normalized.trim();
+    }
+
+    function createArticleId() {
+      return "article-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+    }
+
+    function createArticle(title) {
+      var timestamp = new Date().toISOString();
+
+      return {
+        id: createArticleId(),
+        title: normalizeTitle(title) || "未命名文章",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+    }
+
+    function findArticle(articleId) {
+      var i;
+
+      for (i = 0; i < articles.length; i += 1) {
+        if (articles[i].id === articleId) {
+          return articles[i];
+        }
+      }
+
+      return null;
+    }
+
+    function setSaveStatus(message, state) {
+      saveStatus.textContent = message;
+      saveStatus.dataset.state = state || "";
+    }
+
+    function loadStoredState() {
+      var rawState;
+      var storedState;
+      var storedArticles;
+      var restoredArticles = [];
+      var storedArticle;
+      var restoredArticle;
+      var i;
+
+      try {
+        rawState = localStorage.getItem(storageKey);
+        if (!rawState) {
+          return false;
+        }
+
+        storedState = JSON.parse(rawState);
+        storedArticles = Array.isArray(storedState.articles) ? storedState.articles : [];
+
+        for (i = 0; i < storedArticles.length; i += 1) {
+          storedArticle = storedArticles[i];
+          if (!storedArticle || typeof storedArticle.id !== "string") {
+            continue;
+          }
+
+          restoredArticle = {
+            id: storedArticle.id,
+            title: normalizeTitle(storedArticle.title) || "未命名文章",
+            content: normalizeContent(storedArticle.content),
+            createdAt: storedArticle.createdAt || new Date().toISOString(),
+            updatedAt: storedArticle.updatedAt || new Date().toISOString()
+          };
+          restoredArticles.push(restoredArticle);
+        }
+
+        if (restoredArticles.length === 0) {
+          return false;
+        }
+
+        articles = restoredArticles;
+        activeArticleId = findArticle(storedState.activeArticleId)
+          ? storedState.activeArticleId
+          : articles[0].id;
+
+        if (storedState.settings) {
+          excludeWhitespaceCheckbox.checked = storedState.settings.excludeWhitespace !== false;
+          countPunctuationCheckbox.checked = storedState.settings.countPunctuation === true;
+        }
+
+        return true;
+      } catch (error) {
+        setSaveStatus("无法读取浏览器缓存，将使用临时内容", "error");
+        return false;
+      }
+    }
+
+    function persistState() {
+      var state = {
+        version: 1,
+        activeArticleId: activeArticleId,
+        articles: articles,
+        settings: {
+          excludeWhitespace: excludeWhitespaceCheckbox.checked,
+          countPunctuation: countPunctuationCheckbox.checked
+        }
+      };
+      var savedAt;
+
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+        savedAt = new Date().toLocaleTimeString("zh-CN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit"
+        });
+        setSaveStatus("已自动保存 " + savedAt, "saved");
+        return true;
+      } catch (error) {
+        setSaveStatus("浏览器缓存不可用，当前修改尚未保存", "error");
+        return false;
+      }
+    }
+
+    function renderArticleSelect() {
+      var option;
+      var article;
+      var i;
+
+      articleSelect.innerHTML = "";
+
+      for (i = 0; i < articles.length; i += 1) {
+        article = articles[i];
+        option = document.createElement("option");
+        option.value = article.id;
+        option.textContent = article.title;
+        articleSelect.appendChild(option);
+      }
+
+      articleSelect.value = activeArticleId;
+    }
+
+    function loadActiveArticle() {
+      var article = findArticle(activeArticleId);
+
+      if (!article) {
+        return;
+      }
+
+      articleTitle.value = article.title;
+      textInput.value = article.content;
+      renderArticleSelect();
+      updateStats();
+    }
+
+    function saveActiveArticle() {
+      var article = findArticle(activeArticleId);
+      var rawContent;
+      var normalizedContent;
+      var normalizedSelectionStart;
+      var normalizedSelectionEnd;
+      var selectionStart;
+      var selectionEnd;
+      var normalizedArticleTitle;
+
+      window.clearTimeout(saveTimer);
+      saveTimer = 0;
+
+      if (!article) {
+        return;
+      }
+
+      rawContent = textInput.value;
+      selectionStart = textInput.selectionStart;
+      selectionEnd = textInput.selectionEnd;
+      normalizedContent = normalizeContent(rawContent);
+      normalizedSelectionStart = normalizeContent(rawContent.slice(0, selectionStart)).length;
+      normalizedSelectionEnd = normalizeContent(rawContent.slice(0, selectionEnd)).length;
+      normalizedArticleTitle = normalizeTitle(articleTitle.value) || "未命名文章";
+
+      article.title = normalizedArticleTitle;
+      article.content = normalizedContent;
+      article.updatedAt = new Date().toISOString();
+      articleTitle.value = normalizedArticleTitle;
+
+      if (rawContent !== normalizedContent) {
+        textInput.value = normalizedContent;
+        if (document.activeElement === textInput) {
+          textInput.setSelectionRange(
+            Math.min(normalizedSelectionStart, normalizedContent.length),
+            Math.min(normalizedSelectionEnd, normalizedContent.length)
+          );
+        }
+      }
+
+      renderArticleSelect();
+      updateStats();
+      persistState();
+    }
+
+    function scheduleSave() {
+      window.clearTimeout(saveTimer);
+      setSaveStatus("正在编辑…", "");
+      saveTimer = window.setTimeout(saveActiveArticle, saveDelayMs);
+    }
+
+    function initializeArticles() {
+      var restored = loadStoredState();
+      var article;
+
+      if (!restored) {
+        article = createArticle("文章 1");
+        articles = [article];
+        activeArticleId = article.id;
+      }
+
+      loadActiveArticle();
+
+      if (restored) {
+        setSaveStatus("已从浏览器缓存恢复", "saved");
+      } else {
+        persistState();
+      }
+    }
+
+    function initStatCards() {
+      var html = "";
+      var i;
+      var def;
+
+      for (i = 0; i < statDefinitions.length; i += 1) {
+        def = statDefinitions[i];
+        html += '<div class="stat-card' + (def.primary ? " primary" : "") + '" data-key="' + def.key + '">';
+        html += '<div class="stat-label">' + def.label + "</div>";
+        html += '<div class="stat-value" id="stat-' + def.key + '">0</div>';
+        html += "</div>";
+      }
+
+      statsGrid.innerHTML = html;
+
+      for (i = 0; i < statDefinitions.length; i += 1) {
+        def = statDefinitions[i];
+        statElements[def.key] = document.getElementById("stat-" + def.key);
+      }
+    }
+
+    function countChinese(text) {
+      var matches = text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countEnglishLetters(text) {
+      var matches = text.match(/[a-zA-Z]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countNumbers(text) {
+      var matches = text.match(/[0-9]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countPunctuation(text) {
+      var matches = text.match(/[\u3000-\u303f\uff00-\uffef\u2000-\u206f!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~，。！？；：""''（）【】《》、…—·]/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countEnglishWords(text) {
+      var matches = text.match(/[a-zA-Z]+(?:['-][a-zA-Z]+)*/g);
+      return matches ? matches.length : 0;
+    }
+
+    function countLines(text) {
+      if (text.length === 0) {
+        return 0;
+      }
+      return text.split(/\r\n|\r|\n/).length;
+    }
+
+    function countNonEmptyLines(text) {
+      var lines = text.split(/\r\n|\r|\n/);
+      var count = 0;
+      var i;
+
+      for (i = 0; i < lines.length; i += 1) {
+        if (lines[i].trim().length > 0) {
+          count += 1;
+        }
+      }
+
+      return count;
+    }
+
+    function countParagraphs(text) {
+      var blocks = text.split(/\r\n\r\n|\r\r|\n\n/);
+      var count = 0;
+      var i;
+
+      for (i = 0; i < blocks.length; i += 1) {
+        if (blocks[i].trim().length > 0) {
+          count += 1;
+        }
+      }
+
+      return count;
+    }
+
+    function countUtf8Bytes(text) {
+      return new TextEncoder().encode(text).length;
+    }
+
+    function formatNumber(value) {
+      return value.toLocaleString("zh-CN");
+    }
+
+    function computeStats(text) {
+      var excludeWhitespace = excludeWhitespaceCheckbox.checked;
+      var charsNoSpace = text.replace(/\s/g, "").length;
+      var totalChars = excludeWhitespace ? charsNoSpace : text.length;
+
+      return {
+        totalChars: totalChars,
+        charsNoSpace: charsNoSpace,
+        chinese: countChinese(text),
+        englishLetters: countEnglishLetters(text),
+        words: countEnglishWords(text),
+        numbers: countNumbers(text),
+        punctuation: countPunctuation(text),
+        lines: countLines(text),
+        nonEmptyLines: countNonEmptyLines(text),
+        paragraphs: countParagraphs(text),
+        bytesUtf8: countUtf8Bytes(text)
+      };
+    }
+
+    function updateStats() {
+      var text = textInput.value;
+      var stats = computeStats(text);
+      var key;
+
+      for (key in statElements) {
+        if (Object.prototype.hasOwnProperty.call(statElements, key)) {
+          statElements[key].textContent = formatNumber(stats[key]);
+        }
+      }
+
+      statElements.punctuation.closest(".stat-card").style.display =
+        countPunctuationCheckbox.checked ? "" : "none";
+    }
+
+    function handleTextInput() {
+      updateStats();
+      scheduleSave();
+    }
+
+    function handleArticleTitleInput() {
+      scheduleSave();
+    }
+
+    function handleArticleChange() {
+      var nextArticleId = articleSelect.value;
+
+      saveActiveArticle();
+      activeArticleId = nextArticleId;
+      loadActiveArticle();
+      persistState();
+    }
+
+    function handleNewArticle() {
+      var article;
+
+      saveActiveArticle();
+      article = createArticle("文章 " + (articles.length + 1));
+      articles.push(article);
+      activeArticleId = article.id;
+      loadActiveArticle();
+      persistState();
+      articleTitle.select();
+    }
+
+    function handleDeleteArticle() {
+      var article = findArticle(activeArticleId);
+      var articleIndex = -1;
+      var replacementArticle;
+      var i;
+
+      if (!article || !window.confirm("确定删除《" + article.title + "》吗？此操作无法撤销。")) {
+        return;
+      }
+
+      for (i = 0; i < articles.length; i += 1) {
+        if (articles[i].id === activeArticleId) {
+          articleIndex = i;
+          break;
+        }
+      }
+
+      if (articleIndex >= 0) {
+        articles.splice(articleIndex, 1);
+      }
+
+      if (articles.length === 0) {
+        replacementArticle = createArticle("文章 1");
+        articles.push(replacementArticle);
+      }
+
+      activeArticleId = articles[Math.min(Math.max(articleIndex, 0), articles.length - 1)].id;
+      loadActiveArticle();
+      persistState();
+      textInput.focus();
+    }
+
+    function handlePaste() {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        textInput.focus();
+        return;
+      }
+
+      navigator.clipboard.readText().then(function (clipText) {
+        textInput.value = normalizeContent(clipText);
+        saveActiveArticle();
+        textInput.focus();
+      }).catch(function () {
+        textInput.focus();
+      });
+    }
+
+    function handleClear() {
+      textInput.value = "";
+      saveActiveArticle();
+      textInput.focus();
+    }
+
+    function handleSettingChange() {
+      updateStats();
+      persistState();
+    }
+
+    function handleEditorPaste() {
+      window.setTimeout(saveActiveArticle, 0);
+    }
+
+    initStatCards();
+    initializeArticles();
+
+    textInput.addEventListener("input", handleTextInput);
+    textInput.addEventListener("paste", handleEditorPaste);
+    textInput.addEventListener("blur", saveActiveArticle);
+    articleTitle.addEventListener("input", handleArticleTitleInput);
+    articleTitle.addEventListener("blur", saveActiveArticle);
+    articleSelect.addEventListener("change", handleArticleChange);
+    newArticleBtn.addEventListener("click", handleNewArticle);
+    deleteArticleBtn.addEventListener("click", handleDeleteArticle);
+    excludeWhitespaceCheckbox.addEventListener("change", handleSettingChange);
+    countPunctuationCheckbox.addEventListener("change", handleSettingChange);
+    pasteBtn.addEventListener("click", handlePaste);
+    clearBtn.addEventListener("click", handleClear);
+    window.addEventListener("beforeunload", saveActiveArticle);
+  </script>
+</body>
+</html>

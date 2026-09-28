@@ -1,0 +1,10 @@
+:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #091321; color: #e5edf8; }
+body { margin: 0; }
+main { width: min(880px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0; }
+header { display: flex; justify-content: space-between; align-items: center; }
+h1, h2, p { margin: 0; }
+header p { color: #93a7c0; }
+section { margin-top: 16px; padding: 18px; border: 1px solid #293b55; border-radius: 12px; background: #101d30; }
+#connection { padding: 5px 10px; border-radius: 999px; background: #43202a; color: #fda4af; }
+#connection.online { background: #123d31; color: #6ee7b7; }
+.row { margin-top: 8px; padding: 10px; border-radius: 8px; background: #0a1526; }

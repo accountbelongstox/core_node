@@ -1,17 +1,6 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const https = require('https');
+const serviceContract = require('../../../config/service_contract');
 const daemonPath = '/etc/docker/daemon.json';
 const synologyPath = '/var/packages/ContainerManager/etc/dockerd.json';
 
@@ -32,7 +21,7 @@ const mirrorMap = {
   tencent: 'https://mirror.ccs.tencentyun.com',
   aliyun: 'https://4idglt5r.mirror.aliyuncs.com',
   huawei: 'https://668bad1d4db74415b0e85c8abdd0eb04.mirror.swr.myhuaweicloud.com',
-  default: 'https://docker.si.12gm.com'
+  default: serviceContract.url('https', serviceContract.serviceDomain('docker_registry'))
 };
 
 function getTargetDNS(cloudProvider, envLocal) {
@@ -84,11 +73,6 @@ function testUrl(url, timeoutMs = 5000) {
   let needRestart = false;
   let daemonExists = fs.existsSync(daemonPath);
 
-  if (envLocal === 'en') {
-    logger.info('envLocal is en, skipping all Docker DNS and registry-mirrors settings. No changes will be made.');
-    process.exit(0);
-  }
-
   if (!daemonExists) {
     if (fs.existsSync(synologyPath)) {
       logger.warn('Detected Synology environment (/var/packages/ContainerManager/etc/dockerd.json exists).');
@@ -107,6 +91,26 @@ function testUrl(url, timeoutMs = 5000) {
     }
   }
 
+  // Self-heal: migrate the legacy uppercase "DNS" key written by older
+  // versions of this script. dockerd only accepts lowercase "dns"; an unknown
+  // key makes the whole daemon fail to start.
+  if (Object.prototype.hasOwnProperty.call(daemon, 'DNS')) {
+    if (!Object.prototype.hasOwnProperty.call(daemon, 'dns')) {
+      daemon.dns = daemon.DNS;
+    }
+    delete daemon.DNS;
+    needWrite = true;
+    needRestart = true;
+    logger.info('Migrating legacy "DNS" key to lowercase "dns" (dockerd rejects the uppercase key).');
+  }
+
+  // NOTE: no early exit for envLocal === 'en' here; the skipDefault logic
+  // below already skips DNS/mirror changes for 'en', and the legacy-key
+  // migration above must still run for every region.
+  if (envLocal === 'en') {
+    logger.info('envLocal is en, skipping Docker DNS and registry-mirrors settings.');
+  }
+
   // --- Begin envLocal logic ---
   let skipDefault = false;
   if (envLocal === 'en') {
@@ -122,9 +126,9 @@ function testUrl(url, timeoutMs = 5000) {
   else if (!skipDefault) targetDNS = dnsMap.default;
 
   if (typeof targetDNS !== 'undefined') {
-    let dnsChanged = !arraysEqual(daemon.DNS, targetDNS);
+    let dnsChanged = !arraysEqual(daemon.dns, targetDNS);
     if (dnsChanged) {
-      daemon.DNS = targetDNS;
+      daemon.dns = targetDNS;
       needWrite = true;
       needRestart = true;
       logger.info('Docker DNS will be set to: ' + JSON.stringify(targetDNS));
@@ -173,9 +177,9 @@ function testUrl(url, timeoutMs = 5000) {
         fs.mkdirSync(dockerDir, { recursive: true, mode: 0o755 });
       }
 
-      // Only keep DNS and registry-mirrors if creating new file
+      // Only keep dns and registry-mirrors if creating new file
       if (!daemonExists) {
-        daemon = { DNS: daemon.DNS };
+        daemon = { dns: daemon.dns };
         if (daemon['registry-mirrors']) daemon['registry-mirrors'] = [mirrorUrl];
       }
 

@@ -1,0 +1,216 @@
+--- a/poly_apps/pycore_laravel_wordnew_ui/scripts/flavor/build_apk.py
++++ b/poly_apps/pycore_laravel_wordnew_ui/scripts/flavor/build_apk.py
+@@ -2,6 +2,8 @@
+ from __future__ import annotations
+ 
+ import argparse
++import base64
++import binascii
+ import json
+ import os
+ import platform
+@@ -9,11 +11,42 @@
+ import shutil
+ import subprocess
+ import sys
++import tarfile
++import tempfile
++from contextlib import contextmanager, nullcontext
+ from pathlib import Path
++from typing import Iterator
+ 
+ 
+ BUILD_TYPES = ("debug", "release")
+ CHOICES = ("ask", "yes", "no")
++VERSION_PATTERN = re.compile(r"(\d+)\.(\d+)\.(\d+)")
++VERSION_CODE_MAJOR_STEP = 1_000_000
++VERSION_CODE_MINOR_STEP = 1_000
++VERSION_CODE_MAX = 2_100_000_000
++GRADLE_VERSION_NAME_PROPERTY = "coreNodeVersionName"
++GRADLE_VERSION_CODE_PROPERTY = "coreNodeVersionCode"
++SIGNING_SECRET_NAMES = {
++    "keystore": "{prefix}_ANDROID_KEYSTORE_1",
++    "store_password": "{prefix}_ANDROID_KEYSTORE_PASSWORD_1",
++    "key_alias": "{prefix}_ANDROID_KEY_ALIAS_1",
++    "key_password": "{prefix}_ANDROID_KEY_PASSWORD_1",
++}
++SIGNING_ENVIRONMENT_NAMES = {
++    "keystore": "CORE_NODE_ANDROID_SIGNING_STORE_FILE",
++    "store_password": "CORE_NODE_ANDROID_SIGNING_STORE_PASSWORD",
++    "key_alias": "CORE_NODE_ANDROID_SIGNING_KEY_ALIAS",
++    "key_password": "CORE_NODE_ANDROID_SIGNING_KEY_PASSWORD",
++}
++SECRET_STORE_RAW_DIR = ".secret_keys/.secret_ignore"
++SECRET_DECRYPT_STEP = "dd.sh / dd.cmd step [SECRETS] ensure_secret_keys_ready"
++KEYSTORE_TEMP_PREFIX = "core-node-signing-"
++KEYSTORE_TEMP_SUFFIX = ".keystore"
++KEYSTORE_MAGIC_HEADERS = (b"\xfe\xed\xfe\xed", b"\xce\xce\xce\xce")
++DER_SEQUENCE_TAG = 0x30
++DER_LONG_FORM_FLAG = 0x80
++GRADLE_WRAPPER_FILES = ("gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties")
++CAPACITOR_ANDROID_TEMPLATE = Path("node_modules", "@capacitor", "cli", "assets", "android-template.tar.gz")
+ 
+ 
+ def log(message: str) -> None:
+@@ -124,17 +157,107 @@
+     return [str(wrapper)]
+ 
+ 
+-def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str) -> Path:
++def ensure_gradle_wrapper(root: Path, android_dir: Path) -> None:
++    missing = [name for name in GRADLE_WRAPPER_FILES if not (android_dir / name).is_file()]
++    if not missing:
++        return
++    template = root / CAPACITOR_ANDROID_TEMPLATE
++    if not template.is_file():
++        fail(f"Gradle wrapper files are missing in {android_dir}: {', '.join(missing)}. "
++             f"The Capacitor Android template {template} is missing too; run bun install in {root}.")
++    with tarfile.open(template, "r:gz") as archive:
++        members = {member.name.removeprefix("./"): member for member in archive.getmembers() if member.isfile()}
++        absent = [name for name in missing if name not in members]
++        if absent:
++            fail(f"Gradle wrapper files are missing in {android_dir} and in {template}: {', '.join(absent)}")
++        for name in missing:
++            destination = android_dir / name
++            destination.parent.mkdir(parents=True, exist_ok=True)
++            with archive.extractfile(members[name]) as source, destination.open("xb") as target:
++                shutil.copyfileobj(source, target)
++            log(f"Restored {name} from {template}")
++
++
++def resolve_app_version(app: dict) -> tuple[str, int]:
++    version_name = str(app.get("version") or "")
++    match = VERSION_PATTERN.fullmatch(version_name)
++    if not match:
++        fail(f"{app.get('_manifest', app['id'])}: version must be MAJOR.MINOR.PATCH, got '{version_name}'.")
++    major, minor, patch = (int(part) for part in match.groups())
++    version_code = major * VERSION_CODE_MAJOR_STEP + minor * VERSION_CODE_MINOR_STEP + patch
++    minor_limit = VERSION_CODE_MAJOR_STEP // VERSION_CODE_MINOR_STEP
++    if minor >= minor_limit or patch >= VERSION_CODE_MINOR_STEP or not 0 < version_code <= VERSION_CODE_MAX:
++        fail(f"Version '{version_name}' of {app['id']} has no valid versionCode: MINOR must be < {minor_limit}, "
++             f"PATCH < {VERSION_CODE_MINOR_STEP}, and the code within 1..{VERSION_CODE_MAX}.")
++    return version_name, version_code
++
++
++def keystore_is_complete(data: bytes) -> bool:
++    if data[:4] in KEYSTORE_MAGIC_HEADERS:
++        return True
++    if len(data) < 2 or data[0] != DER_SEQUENCE_TAG:
++        return False
++    if data[1] < DER_LONG_FORM_FLAG:
++        return len(data) == 2 + data[1]
++    width = data[1] - DER_LONG_FORM_FLAG
++    if width == 0:
++        return True
++    return len(data) == 2 + width + int.from_bytes(data[2:2 + width], "big")
++
++
++def read_release_signing(app: dict, repo_root: Path) -> tuple[bytes, dict[str, str]]:
++    prefix = re.sub(r"[^A-Z0-9]", "_", str(app["id"]).upper())
++    names = {key: template.format(prefix=prefix) for key, template in SIGNING_SECRET_NAMES.items()}
++    if str(repo_root) not in sys.path:
++        sys.path.insert(0, str(repo_root))
++    try:
++        from pycore.pyfoundations.secret_manager import get_secret_key
++    except ImportError as error:
++        fail(f"Cannot load the secret-store reader from {repo_root}: {error}")
++    values = {key: get_secret_key(name) for key, name in names.items()}
++    missing = [names[key] for key, value in values.items() if not value]
++    if missing:
++        fail(f"Release signing secrets are missing: {', '.join(missing)}. "
++             f"Put them in {SECRET_STORE_RAW_DIR}/ (the keystore as single-line base64), "
++             f"or decrypt them with the {SECRET_DECRYPT_STEP}. Debug builds need no signing secrets.")
++    try:
++        keystore = base64.b64decode(values.pop("keystore"), validate=True)
++    except (binascii.Error, ValueError):
++        keystore = b""
++    if not keystore_is_complete(keystore):
++        fail(f"{names['keystore']} is not a complete keystore. Store it as single-line base64 "
++             f"in {SECRET_STORE_RAW_DIR}/{names['keystore']}.")
++    return keystore, {SIGNING_ENVIRONMENT_NAMES[key]: value for key, value in values.items()}
++
++
++@contextmanager
++def release_signing_environment(keystore: bytes, credentials: dict[str, str], repo_root: Path) -> Iterator[dict[str, str]]:
++    temp_dir = Path(tempfile.gettempdir()).resolve()
++    if temp_dir == repo_root or repo_root in temp_dir.parents:
++        fail(f"The temporary directory {temp_dir} is inside the repository; point TMPDIR/TEMP outside it.")
++    handle, keystore_name = tempfile.mkstemp(prefix=KEYSTORE_TEMP_PREFIX, suffix=KEYSTORE_TEMP_SUFFIX, dir=temp_dir)
++    keystore_path = Path(keystore_name)
++    try:
++        with os.fdopen(handle, "wb") as stream:
++            stream.write(keystore)
++        yield {**credentials, SIGNING_ENVIRONMENT_NAMES["keystore"]: str(keystore_path)}
++    finally:
++        try:
++            keystore_path.unlink(missing_ok=True)
++        except OSError as error:
++            log(f"WARNING: could not remove the temporary keystore {keystore_path}: {error}")
++
++
++def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str, version_name: str) -> Path:
+     output_root = android_dir / "app" / "build" / "outputs" / "apk" / build_type
+     source_apks = sorted(output_root.rglob("*.apk")) if output_root.is_dir() else []
+     if not source_apks:
+         fail(f"Gradle completed but no APK was found under {output_root}")
+     artifact_dir = root / "artifacts" / "apk" / str(app["id"]) / build_type
+     artifact_dir.mkdir(parents=True, exist_ok=True)
+-    version = str(app.get("version") or "0.0.0")
+     for index, source in enumerate(source_apks, start=1):
+         suffix = "" if len(source_apks) == 1 else f"-{index}"
+-        destination = artifact_dir / f"{app['id']}-{version}-{build_type}{suffix}.apk"
++        destination = artifact_dir / f"{app['id']}-{version_name}-{build_type}{suffix}.apk"
+         shutil.copy2(source, destination)
+         log(f"APK: {destination}")
+     return artifact_dir
+@@ -169,6 +292,9 @@
+     parser.add_argument("--open", dest="open_output", choices=CHOICES, default="ask")
+     parser.add_argument("--non-interactive", action="store_true")
+     parser.add_argument("--list", action="store_true")
++    parser.add_argument("--version-info", action="store_true",
++                        help="print versionName (flavor.json version) and versionCode "
++                             f"(MAJOR*{VERSION_CODE_MAJOR_STEP} + MINOR*{VERSION_CODE_MINOR_STEP} + PATCH), then exit")
+     return parser.parse_args()
+ 
+ 
+@@ -183,10 +309,18 @@
+         for reason in rejected:
+             log(f"skipped\t{reason}")
+         return 0
++    if args.version_info:
++        for app in ([select_app(apps, args.app, True)] if args.app else apps):
++            version_name, version_code = resolve_app_version(app)
++            log(f"{app['id']}\tversionName={version_name}\tversionCode={version_code}")
++        return 0
+     app = select_app(apps, args.app, args.non_interactive)
++    version_name, version_code = resolve_app_version(app)
++    repo_root = root.parents[1]
+     build_type = args.build_type
+     if build_type == "ask":
+         build_type = "release" if ask("Build a release APK?", False, args.non_interactive) else "debug"
++    release_signing = read_release_signing(app, repo_root) if build_type == "release" else None
+     generate_assets = choose(args.assets, "Generate Android icons and splash resources?", True, args.non_interactive)
+     clean = choose(args.clean, "Clean the Android Gradle project first?", False, args.non_interactive)
+     open_output = choose(args.open_output, "Open the APK output directory when complete?", True, args.non_interactive)
+@@ -219,12 +353,19 @@
+         ], root, environment)
+     run([npx, "cap", "sync", "android"], root, environment)
+ 
++    ensure_gradle_wrapper(root, android_dir)
+     gradle = gradle_command(android_dir)
+     if clean:
+         run(gradle + ["clean"], android_dir, environment)
+     task = "assembleRelease" if build_type == "release" else "assembleDebug"
+-    run(gradle + [task], android_dir, environment)
+-    artifact_dir = collect_apks(root, android_dir, app, build_type)
++    version_properties = [
++        f"-P{GRADLE_VERSION_NAME_PROPERTY}={version_name}",
++        f"-P{GRADLE_VERSION_CODE_PROPERTY}={version_code}",
++    ]
++    signing_context = release_signing_environment(*release_signing, repo_root) if release_signing else nullcontext({})
++    with signing_context as signing_environment:
++        run(gradle + [task] + version_properties, android_dir, {**environment, **signing_environment})
++    artifact_dir = collect_apks(root, android_dir, app, build_type, version_name)
+     if open_output:
+         open_directory(artifact_dir)
+     return 0

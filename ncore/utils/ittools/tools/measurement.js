@@ -1,4 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
 'use strict';
 const logger = require('#@logger');
 

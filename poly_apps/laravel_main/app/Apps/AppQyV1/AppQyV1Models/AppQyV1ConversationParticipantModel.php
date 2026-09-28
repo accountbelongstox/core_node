@@ -1,0 +1,117 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Models;
+
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Collection;
+
+/**
+ * Conversation membership (SOCIAL_FEATURE_SPECIFICATION.md §1/§2). The caller's
+ * row in this table is the authorization check for every message endpoint;
+ * last_read_message_id drives unread counts. No updated_at (joined_at only).
+ */
+class AppQyV1ConversationParticipantModel extends AppQyV1Model
+{
+    public $timestamps = false;
+
+
+    protected ?string $appTableMapKey = 'CONVERSATION_PARTICIPANTS';
+
+    protected $fillable = [
+        'conversation_id',
+        'user_id',
+        'last_read_message_id',
+        'joined_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'conversation_id' => 'integer',
+            'user_id' => 'integer',
+            'last_read_message_id' => 'integer',
+            'joined_at' => 'datetime',
+        ];
+    }
+
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(AppQyV1ConversationModel::class, 'conversation_id');
+    }
+
+    public static function participationsForUser(int $userId): Collection
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->get(['conversation_id', 'last_read_message_id']);
+    }
+
+    public static function peersForConversations(array $conversationIds, int $userId): Collection
+    {
+        $normalizedIds = [];
+
+        $normalizedIds = array_values(array_unique(array_map('intval', $conversationIds)));
+        if (empty($normalizedIds)) {
+            return collect();
+        }
+
+        return static::query()
+            ->whereIn('conversation_id', $normalizedIds)
+            ->where('user_id', '!=', $userId)
+            ->get(['conversation_id', 'user_id']);
+    }
+
+    public static function ensureUsers(int $conversationId, array $userIds): void
+    {
+        $joinedAt = null;
+        $normalizedIds = [];
+        $rows = [];
+
+        $joinedAt = now();
+        $normalizedIds = array_values(array_unique(array_map('intval', $userIds)));
+        foreach ($normalizedIds as $userId) {
+            $rows[] = [
+                'conversation_id' => $conversationId,
+                'user_id' => $userId,
+                'last_read_message_id' => null,
+                'joined_at' => $joinedAt,
+            ];
+        }
+
+        if (!empty($rows)) {
+            static::query()->insertOrIgnore($rows);
+        }
+    }
+
+    public static function markRead(int $conversationId, int $userId, int $messageId): int
+    {
+        return (int) static::query()
+            ->where('conversation_id', $conversationId)
+            ->where('user_id', $userId)
+            ->update(['last_read_message_id' => $messageId]);
+    }
+
+    /** Whether $userId is a participant of $conversationId (the chat auth check). */
+    public static function isParticipant(int $conversationId, int $userId): bool
+    {
+        return static::query()
+            ->where('conversation_id', $conversationId)
+            ->where('user_id', $userId)
+            ->exists();
+    }
+
+    /**
+     * Other participant user ids of a conversation (everyone except $userId).
+     *
+     * @return array<int, int>
+     */
+    public static function otherParticipantIds(int $conversationId, int $userId): array
+    {
+        return static::query()
+            ->where('conversation_id', $conversationId)
+            ->where('user_id', '!=', $userId)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+}

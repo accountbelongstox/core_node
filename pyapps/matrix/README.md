@@ -16,7 +16,7 @@
 | **[BACKEND_REFERENCE.md](BACKEND_REFERENCE.md)** | 📗 **后端参考** - 统一 WebSocket 协议规范 | 前端对接、API 集成 |
 | **[docs/BACKEND_API_SPECIFICATION.md](docs/BACKEND_API_SPECIFICATION.md)** | 📙 **API 规范** - 详细端点文档 | API 开发参考 |
 
-### 参考文档
+### References
 
 | 文档 | 说明 |
 |------|------|
@@ -93,7 +93,7 @@ python pyapps/matrix/matrix_main.py
 └─────────────────────────────────┘
 ```
 
-### 技术栈
+### Stack
 
 - **后端**: FastAPI (RPC v2) + Uvicorn
 - **设备通信**: ADB + scrcpy v3.3.3
@@ -244,5 +244,5 @@ pyapps/matrix/
 ---
 
 **维护者**: Matrix 开发团队
-**最后更新**: 2025-12-04
+**Last updated**: 2025-12-04
 **文档版本**: v2.0

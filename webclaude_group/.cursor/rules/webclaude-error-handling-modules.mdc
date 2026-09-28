@@ -1,0 +1,15 @@
+---
+description: Optional requires, bridge modules, and visible errors (Node/TS/Go) — WebClaude group
+globs: webclaude_group/**/*.js, webclaude_group/**/*.ts, webclaude_group/**/*.tsx, webclaude_group/**/*.go
+---
+
+# Error handling & module loading
+
+- **Node** (center_server + shared): eager top-level `require` in dependency order; never `require`/`import` inside `catch`, no empty `catch {}` around `require`.
+- Optional native/peer deps: list in `package.json` + top-level `require`, or ONE `*Bridge.js` that distinguishes `err.code === 'MODULE_NOT_FOUND'` from real errors (log + rethrow). `*Bridge.js` = load glue only.
+- Parse untrusted Redis/DB JSON via `packages/webclaude-shared/utils/jsonParseLenient.js` (or `src/utils/`), not bare `try{JSON.parse}catch{}`.
+- Break `require` cycles with a thin bridge / third module, not nested try/require.
+- **TS/React** (website): static `import`/`import type` on error paths; lazy `import().then().catch` must log/map, not swallow.
+- **Go** (gateway): wrap errors with `%w`/`errors.Join`; never hide init failures with `if err != nil { return nil }`.
+
+Full detail: webclaude_group/CLAUDE.md.

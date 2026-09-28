@@ -7,11 +7,10 @@ import base64
 import io
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
-
-Image = PIL.Image
+Image = get_third_package_PIL_Image()
 
 
 # Application logo (PNG, 24x24)
@@ -135,7 +134,7 @@ def get_logo_image() -> Optional[Image.Image]:
         img = Image.open(io.BytesIO(img_data))
         return img
     except Exception as e:
-        print(f"[EmbeddedImages] Failed to load logo: {e}")
+        ColorPrint.plain(f"[EmbeddedImages] Failed to load logo: {e}")
         return None
 
 
@@ -149,5 +148,5 @@ def get_logo_bytes() -> Optional[bytes]:
     try:
         return base64.b64decode(LOGO_PNG_BASE64.strip())
     except Exception as e:
-        print(f"[EmbeddedImages] Failed to decode logo: {e}")
+        ColorPrint.plain(f"[EmbeddedImages] Failed to decode logo: {e}")
         return None

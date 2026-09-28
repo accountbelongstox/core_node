@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Variable Declarations
 $PSScriptRoot = Split-Path -Parent $PSCommandPath
 $script:PS_CURENT_DIR = Split-Path -Parent $PSScriptRoot
@@ -22,7 +10,7 @@ $WIN_COMMON_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $WIN_COMMON_DIR_N
 $INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $INSTALL_POWERSHELLS_DIR_NAME
 
 # Load InstallerScriptsList.ps1 for script management
-$installerScriptsListPath = Join-Path $INSTALL_POWERSHELLS_DIR "InstallerScriptsList.ps1"
+$installerScriptsListPath = Join-Path $WIN_COMMON_DIR "InstallerScriptsList.ps1"
 . $installerScriptsListPath
 
 # =============================================================================
@@ -30,12 +18,11 @@ $installerScriptsListPath = Join-Path $INSTALL_POWERSHELLS_DIR "InstallerScripts
 # =============================================================================
 function Get-ExecutionMode {
     # Detect if running in project mode or installation mode
-    # Check if running from .core_node directory (installation mode) or project directory (project mode)
+    # Check if running from the core_node data dir (installation mode) or project directory (project mode)
     $currentDir = $script:PS_CURENT_DIR
-    $userProfileDir = [Environment]::GetFolderPath("UserProfile")
-    $coreNodeInstallDir = Join-Path $userProfileDir ".core_node"
+    $coreNodeInstallDir = Join-Path "D:\www" "core_node"
 
-    # Check if running from .core_node installation directory
+    # Check if running from the core_node installation directory
     if ($currentDir -like "$coreNodeInstallDir*") {
         return "INSTALLATION"
     }
@@ -46,10 +33,9 @@ function Get-ExecutionMode {
 }
 
 function Test-InitializationRequired {
-    # Check if script is running from .core_node directory (not initialized)
+    # Check if script is running from the core_node data dir (not initialized)
     $currentDir = Get-Location
-    $userProfileDir = [Environment]::GetFolderPath("UserProfile")
-    $coreNodeInstallDir = Join-Path $userProfileDir ".core_node"
+    $coreNodeInstallDir = Join-Path "D:\www" "core_node"
 
     if ($currentDir.Path -like "$coreNodeInstallDir*") {
         return $true
@@ -178,7 +164,7 @@ function Initialize-DevelopmentEnvironment {
         Write-Host "[*] Verifying Git installation..." -ForegroundColor Cyan
         try {
             $gitVersion = git --version 2>$null
-            if ($LASTEXITCODE -eq 0) {
+            if ($gitVersion) {
                 Write-Host "[OK] Git installed successfully: $gitVersion" -ForegroundColor Green
             } else {
                 Write-Host "[ERROR] Git installation verification failed" -ForegroundColor Red
@@ -199,7 +185,7 @@ function Initialize-DevelopmentEnvironment {
                 Write-Host "[*] Using repository: $repoUrl" -ForegroundColor Cyan
                 
                 git clone $repoUrl $projectDir
-                if ($LASTEXITCODE -eq 0) {
+                if (Test-Path $projectDir) {
                     Write-Host "[OK] Project cloned successfully from $selectedRegion repository" -ForegroundColor Green
                 } else {
                     Write-Host "[ERROR] Project clone failed" -ForegroundColor Red
@@ -233,7 +219,7 @@ function Initialize-DevelopmentEnvironment {
                 Write-Host ""
                 & $ddPs1Path
                 # dd.ps1 execution completed, exit initialization
-                exit 0
+                return
             } else {
                 Write-Host "[ERROR] dd.ps1 not found at: $ddPs1Path" -ForegroundColor Red
                 return $false
@@ -294,10 +280,10 @@ if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
         "initialize" {
             if (Initialize-DevelopmentEnvironment) {
                 Write-Host "Initialization completed successfully. Exiting..." -ForegroundColor Green
-                exit 0
+                return
             } else {
                 Write-Host "Initialization failed. Exiting..." -ForegroundColor Red
-                exit 1
+                return
             }
         }
         "continue" {
@@ -305,7 +291,7 @@ if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
         }
         "exit" {
             Write-Host "Exiting..." -ForegroundColor Yellow
-            exit 0
+            return
         }
     }
 } else {

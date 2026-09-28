@@ -3,7 +3,7 @@
  * Uses vector database for efficient semantic search
  */
 
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { ContentIndexer } from '@/utils/content-indexer';
@@ -122,19 +122,11 @@ class VectorSearchTabsContentTool extends BaseBrowserToolExecutor {
         `VectorSearchTabsContentTool: Found ${topResults.length} results with vector search`,
       );
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result, { space: 2 });
     } catch (error) {
       console.error('VectorSearchTabsContentTool: Search failed:', error);
       return createErrorResponse(
-        `Vector search failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Vector search failed: ${toErrorMessage(error)}`,
       );
     }
   }

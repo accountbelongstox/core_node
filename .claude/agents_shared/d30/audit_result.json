@@ -1,0 +1,1116 @@
+{
+ "findings": [
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\GlobalVars.ps1",
+   "line": 130,
+   "creates": "D:\\.dev_win10 (literal \"D:\\.dev_$systemName\"; every tool install derives from LANG_COMPILER_DIR: scoop, node, python3xx, py_venv_*, bun, 7z, Sysinternals, Go, Qt, vs2022, flutter, apktool, PG, wsl_disk, mcp_service, .desktopIcons, .winenvs)",
+   "namespace_target": "$Global:CN_TOOL_ROOT = E:\\core_node_compiler\\.dev_<sys> (D: fallback D:\\www\\.dev_<sys>). E: is absent on this machine, so today it resolves to D:\\www\\.dev_win10, which does not exist yet",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Stop writing the literal. Set $Global:LANG_COMPILER_DIR = the legacy dir if it exists, else $Global:CN_TOOL_ROOT. Take the legacy template from a new contract key, e.g. paths.drive_layout.legacy.windows_tool_root = \"D:\\\\.dev_<sys>\" (orchestrator adds it; core-node-e9 resolves it in SharedCacheEnv.ps1 as $Global:CN_LEGACY_TOOL_ROOT). Keep reading D:\\.dev_win10 until the user approves the migration. Only SharedCacheEnv.ps1 and ProjectTreeCommon.ps1 reference CN_TOOL_ROOT today; nothing else uses it."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\GlobalVars.ps1",
+   "line": 99,
+   "creates": "D:\\.tmp. Created on every GlobalVars load (lines 104-106) and exported as $env:TEMP/$env:TMP, so every child process (pip, node-compile-cache, hsperfdata, installers) writes there. DOWNLOADS_DIR, LOGS_DIR, SCOOP_CACHE_DIR, CHOCO_CACHE_DIR and SEVENZIP_TEMP_DIR derive from it",
+   "namespace_target": "Program-drive namespace temp: E:\\core_node_compiler\\tmp (D: fallback D:\\www\\tmp). No contract key exists yet",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Add a contract key paths.drive_layout.temp_root {windows: \"<program_drive>\\\\core_node_compiler\\\\tmp\", windows_d_fallback: \"D:\\\\www\\\\tmp\"} (orchestrator). core-node-e9 resolves it in SharedCacheEnv.ps1 as $Global:CN_TEMP_ROOT. Set TEMP_DIR to legacy D:\\.tmp while it exists, else CN_TEMP_ROOT. Create it with New-CnNamespaceDirectory, not New-Item. Note: D:\\.tmp\\claude is the Claude Code scratchpad (harness config, not a project script)."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\GlobalVars.ps1",
+   "line": 132,
+   "creates": "D:\\applications (APP_INSTALL_DIR). Used for Cursor, Weixin, QQ, Git (GIT_INSTALL_DIR), Chrome and FFmpeg",
+   "namespace_target": "E:\\core_node_compiler\\applications (D: fallback D:\\www\\applications). No contract key exists yet",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Add contract paths.drive_layout.app_root {windows: \"<program_drive>\\\\core_node_compiler\\\\applications\", windows_d_fallback: \"D:\\\\www\\\\applications\"} (orchestrator) and have SharedCacheEnv.ps1 resolve it as $Global:CN_APP_ROOT (core-node-e9). Set APP_INSTALL_DIR = legacy D:\\applications while it exists, else CN_APP_ROOT."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\install_powershells\\Step1_InitializeBaseDirectories.ps1",
+   "line": 111,
+   "creates": "D:\\.dev_<sys> (LANG_COMPILER_DIR, line 111), D:\\applications (APP_INSTALL_DIR, line 112), D:\\.tmp (TEMP_DIR/DOWNLOADS_DIR/LOGS_DIR, line 46). All are created with New-Item at lines 93 and 130",
+   "namespace_target": "CN_TOOL_ROOT / CN_APP_ROOT / CN_TEMP_ROOT (see the GlobalVars.ps1 findings)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "No new literals here; the values come from GlobalVars. Replace both New-Item calls with New-CnNamespaceDirectory (the one creation helper, from SharedCacheEnv.ps1). The fix takes effect once the GlobalVars.ps1 lines 99/130/132 fixes land. PROJECT_ROOT_DIR (D:\\programing) is user-managed and out of scope."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\PostgresqlManager.ps1",
+   "line": 37,
+   "creates": "D:\\.dev_win11 (line 37, on a Win11 build; does not exist yet) or D:\\.dev_win10 (line 39). Used when LANG_COMPILER_DIR is unset (start.ps1 context). PG_INSTALL_DIR under it is created at line 280. Also literal \"D:\\www\" (line 30) and \"www\\core_node\" (line 97)",
+   "namespace_target": "CN_TOOL_ROOT\\PG (tools); $Global:WWW_BASE_DIR / $Global:CORE_NODE_DATA_DIR (data)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Dot-source SharedCacheEnv.ps1 (or GlobalVars.ps1) and use the same LANG_COMPILER_DIR resolver as the GlobalVars.ps1:130 fix (legacy if present, else CN_TOOL_ROOT). Delete the win10/win11 literals. Line 30: PG_WEB_BASE = $Global:WWW_BASE_DIR. Line 97: use $Global:CORE_NODE_DATA_DIR."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\tools\\BirdNET-Go-Windows.ps1",
+   "line": 83,
+   "creates": "D:\\.dev_<os> (line 87, 'D:\\' literal at line 83), or any existing D:\\ top-level dir matching ^\\.dev|devtools|programs|tools|sdk|bin|dist|build. Ensure-Directory creates it at line 287",
+   "namespace_target": "CN_TOOL_ROOT (E:\\core_node_compiler\\.dev_<sys>; D: fallback D:\\www\\.dev_<sys>)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Remove Resolve-CompilerProgramsRootOnDriveD and its scan of the D:\\ root. Dot-source GlobalVars.ps1 and use $Global:LANG_COMPILER_DIR (the legacy-aware resolver). The existing install D:\\.dev_win10\\birdnet-go-win10 keeps working until the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\node-upgrade\\node-upgrade-manager.ps1",
+   "line": 143,
+   "creates": "D:\\.dev_win<ver>\\node_via_choco: D:\\.dev_win10 exists, D:\\.dev_win11 on Win11 does not. Created at line 286; line 292 also writes Machine env chocolateyInstall",
+   "namespace_target": "CN_TOOL_ROOT\\node_via_choco",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Dot-source scripts/shells/win/win_common/GlobalVars.ps1 and set $ChocolateyInstallDir = Join-Path $Global:LANG_COMPILER_DIR 'node_via_choco'."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\install_powershells\\Step4_InstallNodeJS.ps1",
+   "line": 234,
+   "creates": "D:\\.pnpm-store (v3/v10/v11). pnpm is given global-dir/global-bin-dir (lines 234-235, and again near line 378) but never store-dir, so pnpm falls back to <project drive root>\\.pnpm-store",
+   "namespace_target": "$Global:CN_CACHE_ROOT\\pnpm-store (E:\\core_node_compiler\\cache\\pnpm-store; D: fallback D:\\www\\cache\\pnpm-store); the subdir name comes from contract cache_subdirs",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Next to both global-dir calls, add: & $PnpmExePath config set store-dir (Join-Path $Global:CN_CACHE_ROOT ($Global:CN_CACHE_SUBDIR_NAMES | Where-Object { $_ -eq 'pnpm-store' })). Leave D:\\.pnpm-store in place until the migration. For Linux parity, 39_ensure_npmrc.sh:68 uses $CORE_NODE_DATA_DIR/.pnpm-store (Linux sweep)."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\git\\gitput_unified.ps1",
+   "line": 44,
+   "creates": "C:\\_node_core, which holds git_skip_encrypt_cache.db. Created at lines 56-57",
+   "namespace_target": "D:\\www\\core_node\\cache ($Global:CORE_NODE_RUNTIME_CACHE_DIR)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "GlobalVars.ps1 is already dot-sourced (line 43), so set $skipEncryptCacheDir = Join-Path $Global:CORE_NODE_RUNTIME_CACHE_DIR 'git'. Until the migration, read C:\\_node_core\\git_skip_encrypt_cache.db only when the new file is absent."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\git\\gitee_host_refresh.ps1",
+   "line": 14,
+   "creates": "C:\\_node_core, for gitee_host_cache.txt (created at lines 44-46). Line 27 is the Linux branch, /var/_node_core",
+   "namespace_target": "Windows: $Global:CORE_NODE_RUNTIME_CACHE_DIR\\git (D:\\www\\core_node\\cache\\git). Linux: $CORE_NODE_RUNTIME_CACHE_DIR/git (/www/www/core_node/cache)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Read the cache dir from GlobalVars ($Global:CORE_NODE_RUNTIME_CACHE_DIR) instead of the C:\\ literal. On Linux, use CORE_NODE_RUNTIME_CACHE_DIR from runtime_environment.sh instead of /var/_node_core."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\docker_compose\\baota\\build.bat",
+   "line": 31,
+   "creates": "D:\\.devr (docker -v D:\\.devr\\docker\\www:/www auto-creates the host dir)",
+   "namespace_target": "D:\\www\\core_node\\docker\\baota\\www (data namespace)",
+   "legacy": false,
+   "owner": "shell-windows",
+   "fix": "Get the host path from the constants instead of a literal, e.g. for /f from powershell -NoProfile -Command \". <repo>\\scripts\\shells\\win\\win_common\\SharedCacheEnv.ps1; Join-Path $Global:CORE_NODE_DATA_DIR 'docker\\baota\\www'\", then pass it to -v."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\winenvs\\kimi1.ps1",
+   "line": 24,
+   "creates": "D:\\.tmp\\Users\\Kimi1 (New-Item at line 124). kimi2.ps1:24 does the same for Kimi2. Both are generated from scripts/pytools/special_software_env_manager/script_sections/kimi_launcher_section.py:94",
+   "namespace_target": "A constant, not a literal: $Global:PROGRAMING_USERS_DIR (same base as ark*/codex*/pi*), or D:\\www\\core_node\\Users (already exists)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "In the generator template (kimi_launcher_section.py:94), replace \"D:\\.tmp\\Users\" with $Global:PROGRAMING_USERS_DIR, then regenerate kimi1.ps1 and kimi2.ps1. Keep reading D:\\.tmp\\Users\\KimiN profiles until the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\WindowsPathFunction.ps1",
+   "line": 59,
+   "creates": "D:\\.dev_<sys>: a duplicate LANG_COMPILER_DIR literal used when the script runs standalone, before GlobalVars loads",
+   "namespace_target": "CN_TOOL_ROOT (legacy-aware resolver)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Delete the literal. Dot-source SharedCacheEnv.ps1 (or GlobalVars.ps1, which this file already loads at line 65) and reuse the single LANG_COMPILER_DIR resolver from the GlobalVars.ps1:130 fix."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\WindowsPathFunction.ps1",
+   "line": 223,
+   "creates": "D:\\.tmp\\.GlobalEnv (PATH backups; New-Item at line 227)",
+   "namespace_target": "D:\\www\\core_node\\backups\\GlobalEnv ($Global:CORE_NODE_DATA_DIR)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "$backupDir = Join-Path $Global:CORE_NODE_DATA_DIR 'backups\\GlobalEnv'. Keep pruning and reading D:\\.tmp\\.GlobalEnv until the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\video_tools\\extract_audio.ps1",
+   "line": 109,
+   "creates": "D:\\.tmp\\_compressed_result (default -Root 'D:\\.tmp'; output built at line 317)",
+   "namespace_target": "$Global:TEMP_DIR (CN_TEMP_ROOT after the fix)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Default -Root to $Global:TEMP_DIR (dot-source GlobalVars.ps1), or make -Root mandatory. No drive literal."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\easy-gpy-pv\\CopyFilesToVM.ps1",
+   "line": 11,
+   "creates": "D:\\.dev_win11\\Hyper-V\\VirtualHardDisks. The script writes a VHDX there, and lines 112-113 require the user to pre-create the dir",
+   "namespace_target": "CN_TOOL_ROOT\\Hyper-V\\VirtualHardDisks",
+   "legacy": false,
+   "owner": "shell-windows",
+   "fix": "VHDPath = Join-Path $Global:LANG_COMPILER_DIR 'Hyper-V\\VirtualHardDisks' after dot-sourcing GlobalVars.ps1. SourcePath under D:\\programing is user-managed."
+  },
+  {
+   "file": "D:\\programing\\core_node\\dd.cmd",
+   "line": 11,
+   "creates": "D:\\programing\\Users\\%USERNAME%\\.core_node\\ (mkdir at lines 37 and 41). It is under user-managed D:\\programing, so outside D30, but the comment says it mirrors USER_DIR, and USER_DIR is now D:\\www\\core_node",
+   "namespace_target": "D:\\www\\core_node (data namespace)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Point local_root at the data namespace (D:\\www\\core_node\\). Either fetch config/service_contract.json from remote_base_url and read paths.windows_data_drive_root + paths.drive_layout.namespaces.windows_data_drive, or keep one documented bootstrap literal. Separate bug: WinScriptsInstaller.ps1 has no param block, so -LocalDataDir is ignored and it installs into D:\\www\\core_node; after a fresh install, downloaded_dd (line 24) never exists."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\SharedCacheEnv.ps1",
+   "line": 360,
+   "creates": "D:\\www (the correct namespace root) from the literal 'www'. Lines 361-363 hard-code 'cache' and 'core_node', and lines 404-409 create D:\\www\\cache\\* at load",
+   "namespace_target": "paths.drive_layout.namespaces.windows_data_drive (+ paths core_node data dir name)",
+   "legacy": true,
+   "owner": "core-node-e9",
+   "fix": "$Global:WWW_BASE_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT (Get-ServiceContractValue 'paths.drive_layout.namespaces.windows_data_drive'). Read the core_node dir name from the existing contract key used by linux_data_dir_candidates (core_node_data_dir_name). Paths do not change; this only removes literals."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\FrankenPhpManager.ps1",
+   "line": 13,
+   "creates": "D:\\www\\frankenphp, D:\\www\\wwwroot\\laravel_db, D:\\www\\core_node\\global_var (correct namespace, from the literal 'D:\\www'; also lines 46, 49, 498)",
+   "namespace_target": "$Global:WWW_BASE_DIR / $Global:CORE_NODE_DATA_DIR / $Global:GLOBAL_VAR_DIR",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "GlobalVars.ps1 is already dot-sourced at line 10, so set $script:FrankenPhpWebRoot = $Global:WWW_BASE_DIR, and use $Global:GLOBAL_VAR_DIR at line 49 and $Global:CORE_NODE_DATA_DIR at line 498."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\main_powershells\\WinScriptsInstaller.ps1",
+   "line": 135,
+   "creates": "D:\\www\\core_node (correct namespace, from the literal 'D:\\www'; New-Item at line 186; also line 118 global_var)",
+   "namespace_target": "$Global:CORE_NODE_DATA_DIR (contract)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "This is a remote bootstrap. Download config/service_contract.json first and derive the root from paths.windows_data_drive_root + paths.drive_layout.namespaces.windows_data_drive, or add a param([string]$LocalDataDir) block so the caller supplies it."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells\\DevInstaller.ps1",
+   "line": 18,
+   "creates": "D:\\www\\core_node\\global_var (correct namespace, from the literal 'D:\\www'; New-Item at line 49)",
+   "namespace_target": "$Global:CORE_NODE_DATA_DIR / $Global:GLOBAL_VAR_DIR",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Dot-source SharedCacheEnv.ps1 and set $USER_DIR = $Global:CORE_NODE_DATA_DIR."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\IsolatedPythonInstallCommon.ps1",
+   "line": 16,
+   "creates": "D:\\www\\core_node\\global_var (correct namespace, literal)",
+   "namespace_target": "$Global:GLOBAL_VAR_DIR",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "$PygvarStoreDir = $Global:GLOBAL_VAR_DIR"
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells\\InitializationManager.ps1",
+   "line": 23,
+   "creates": "none; compares against the literal D:\\www\\core_node (lines 23 and 38)",
+   "namespace_target": "$Global:CORE_NODE_DATA_DIR",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Replace Join-Path \"D:\\www\" \"core_node\" with $Global:CORE_NODE_DATA_DIR."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\linux\\common\\base_libs\\pip_lock.sh",
+   "line": 18,
+   "creates": "D:\\core_node (= /www/core_node on the dual-boot share) via ${CORE_NODE_DATA_DIR:-/www/core_node}/locks. D:\\core_node\\locks\\pip.lock exists. The same fallback literal creates D:\\core_node\\global_var\\web_access_config.json via web_access_common.sh:16, and recurs in parallel_terminals.sh:156/193, nginx_common.sh:70/82, domain_setup_common.sh:44/296/339, apt_repository_backup.sh:54, laravel_main_runtime_common.sh:128, xrdp_monitor.sh:272, linux_management.sh:523, 113_natgateway.sh:39, install_bootstrap.sh:118",
+   "namespace_target": "/www/www/core_node (= D:\\www\\core_node; contract namespaces.linux_ntfs_shared_data)",
+   "legacy": true,
+   "owner": "shell-linux",
+   "fix": "Source common/runtime_environment.sh and use $CORE_NODE_DATA_DIR instead of the ':-/www/core_node' default, in all listed files (Linux sweep). D:\\core_node also holds global_var/DEBIAN_13_BASE_DATA_DIR and step_state; keep reading them until the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\linux\\common\\runtime_environment.sh",
+   "line": 43,
+   "creates": "D:\\core_node when the NTFS check (lines 28-40) fails: it requires /www/www to already exist and a source that differs from /, and otherwise falls back to /www/core_node",
+   "namespace_target": "/www/www/core_node (contract namespaces.linux_ntfs_shared_data)",
+   "legacy": true,
+   "owner": "shell-linux",
+   "fix": "Decide on the /www fstype alone (ntfs family means the base is the contract's linux_ntfs_shared_data), and read the base from config/service_contract.json#paths.drive_layout.namespaces. Never fall back to /www/core_node on an NTFS /www."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\scripts\\check_global_packages.js",
+   "line": 5,
+   "creates": "D:\\.cache (\\.check\\.npm_global_package.cache, last written Sep 21). CACHE_DIR = path.resolve('../../.cache/.check') resolves against the cwd, so a cwd of /www/programing/core_node gives /www/.cache. Called by linux 37_ensure_pnpm_packages.sh and bt9debian12 18_ensure_npm_packages.sh",
+   "namespace_target": "Linux ext4 /opt/core_node/cache (contract cache_root.linux), or $CORE_NODE_RUNTIME_CACHE_DIR",
+   "legacy": true,
+   "owner": "shell-linux (callers; the .js has no explicit D22 owner)",
+   "fix": "CACHE_DIR = path.join(process.env.CORE_NODE_RUNTIME_CACHE_DIR || <contract cache_root.linux>, 'check'). Never resolve relative to the cwd."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\linux\\common\\gvar_common.sh",
+   "line": 566,
+   "creates": "/opt/_debian_13 today: COMPILE_DIR=$(map_web_path compile_dir), created by mkdir at line 439 on every load. Base comes from get_dev_compile_base, gvar_storage_common.sh:362-379, which returns \"/opt\". The empty D:\\_debian_13 (= /www/_debian_13, created Sep 27 16:11) is left over from the earlier /www base",
+   "namespace_target": "/opt/core_node/_debian_13 (contract tool_root.linux /opt/core_node/_<os>_<ver>)",
+   "legacy": true,
+   "owner": "core-node-e9",
+   "fix": "get_dev_compile_base should return the contract's paths.drive_layout.namespaces.linux_ext4 (/opt/core_node). Keep the sticky legacy /opt/_debian_13 while it exists, until the migration. Record D:\\_debian_13 as legacy."
+  },
+  {
+   "file": "(no creator in the current tree) D:\\.dev_debian13, D:\\.dev_linux",
+   "creates": "D:\\.dev_debian13 (empty, Sep 27 05:06), D:\\.dev_linux (empty, Sep 21). Nothing in the current repo references them; they are from earlier Linux script versions",
+   "namespace_target": "/opt/core_node/_<os>_<ver> (Linux tools belong on ext4, never NTFS)",
+   "legacy": true,
+   "owner": "shell-linux (record only)",
+   "fix": "No code change. List them in the audit record as legacy; remove them only in the user-approved migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\ai_ps1tools\\mcp_config_provider.ps1",
+   "line": 164,
+   "creates": "none. Reads the legacy D:\\.dev_<sn>\\python311\\python.exe (and D:\\Git\\bin\\bash.exe at line 132). Other files with the same legacy tool-root literals: seccap.ps1:34-37 and autoruns-scan.ps1:30-33 (C:\\.dev_win10, D:\\.dev_win10/11 Sysinternals), setup-claude-ext.ps1:42 and verify-installation.ps1:8-10 (D:\\.dev_win11\\node; setup creates claude-ext under it at line 103), pear.bat:27/pecl.bat:32/peardev.bat:32 (D:\\.dev_win10\\PHP\\php8.5), deep-scan-restarter.ps1:54 and stress_gpu_30s.ps1:6 (D:\\.dev_win10\\python311)",
+   "namespace_target": "$Global:LANG_COMPILER_DIR / PYTHON_EXE_PATH / SECURITY_TOOLS_INSTALL_DIR / NODE_DIR (legacy-aware resolver)",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Replace each drive literal with the GlobalVars constant ($Global:PYTHON_EXE_PATH, $Global:SECURITY_TOOLS_INSTALL_DIR, $Global:NODE_DIR, Join-Path $Global:LANG_COMPILER_DIR 'PHP\\php8.5'). These read the legacy dirs through the resolver, so they keep working until the migration."
+  },
+  {
+   "file": "(drive top level, not project-created) C:\\ and D:\\",
+   "creates": "D:\\.Trash-1000 and C:\\.Trash-1000 (Linux desktop trash from file-manager deletes on NTFS; no repo script uses gio trash). D:\\d\\.tmp\\claude (a Claude session passed the POSIX path /d/.tmp to a native Windows program). Third-party: D:\\BaiduNetdiskDownload, D:\\迅雷下载, D:\\递交资料不空, C:\\WCH.CN, C:\\AdwCleaner, C:\\DeepSmartTool, C:\\Temp, C:\\OneDriveTemp. No E: drive exists (only C: and D:), so the E:\\core_node_compiler namespace is absent and the D: fallback is active",
+   "namespace_target": "n/a",
+   "legacy": true,
+   "owner": "none",
+   "fix": "No project code change. Record as non-project. LINUX_SHELL_RULES.md (no recycle bin on NTFS) is the reference for the .Trash-1000 dirs."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/app_manager/linux_sh/app_manager.sh",
+   "line": 85,
+   "creates": "(deletes, does not create) legacy /var/_core_node, plus /var/tmp/_core_node, /tmp/_core_node and /opt/core_node_unified_manager. The list is APP_MANAGER_OLD_DATA_DIRS at scripts/app_manager/linux_sh/config/app_config.sh:36; maybe_trim_logs (:112) runs cleanup_old_log_dirs at most every 30 min and does rm -rf on each entry (:91).",
+   "namespace_target": "Leave in place until the user-approved migration (user-8); afterwards /opt/core_node",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Remove /var/_core_node, /var/tmp/_core_node and /tmp/_core_node from APP_MANAGER_OLD_DATA_DIRS. WSL Debian still has live data in /var/_core_node: cache (huggingface, pip, torch, whisper...), global_var, locks, _tmp. It is contract paths.legacy_linux_data_dir, and shared_cache_env.sh, runtime_environment.sh, the kimi/codex/ark launchers and mcp-chrome all read it. The cleanup may only delete trees the app manager itself wrote, and never a path the contract names. D30: legacy dirs are kept and read until the migration."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/gvar_storage_common.sh",
+   "line": 379,
+   "creates": "/opt/_<os>_<ver> (e.g. /opt/_debian_13). get_dev_compile_base echoes the literal \"/opt\" (:368-370 sticky branch, :379 default), and every map_web_path compile_dir, applications_dir, npm_global and dev_system path builds on it",
+   "namespace_target": "/opt/core_node/_<os>_<ver> (contract paths.drive_layout.tool_root.linux / namespaces.linux_ext4)",
+   "owner": "core-node-e9",
+   "legacy": false,
+   "fix": "Return the ext4 namespace root read through sc_get paths.drive_layout.namespaces.linux_ext4 in the constants library, with no literal. Keep the sticky branch that returns /opt only when /opt/$SYS_DIR already exists, so legacy installs keep being read until the migration. PHP PathMapper::getDevCompileParts already returns ServiceContract::linuxToolBase(), i.e. /opt/core_node, so shell and PHP have drifted. Fix pycore system_paths.py:214-241 and scripts/nodetools/gvar_common.js:306-312 in the same change. WSL /opt holds only containerd; the dual-boot Debian host could not be inspected."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/gvar_common.sh",
+   "line": 566,
+   "creates": "/opt/_<os>_<ver> on every source of gvar_common.sh. :566 runs COMPILE_DIR=$(map_web_path compile_dir), and map_web_path auto-runs mkdir -p plus chmod 777 for compile_dir (:435-447; mapping at :351-354, :358-361, :404-414)",
+   "namespace_target": "/opt/core_node/_<os>_<ver>",
+   "owner": "core-node-e9",
+   "legacy": false,
+   "fix": "Keep mapping compile_dir, applications_dir, npm_global and dev_system through get_dev_compile_base once that returns the namespace root. Create the namespace root with the single idempotent helper, not as a side effect of sourcing gvar_common.sh."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/shared_cache_env.sh",
+   "line": 173,
+   "creates": "/var/_core_node on every source. :173 SHARED_CACHE_DATA_ROOT=${LEGACY_CORE_NODE_DATA_DIR:-/var/_core_node}; the :224-233 loop runs mkdir for it plus cache/{huggingface/hub,torch,pip,xdg,whisper,stt,tts,ocr} and chmod 1777. On WSL and Linux-only hosts this is the whole shared cache",
+   "namespace_target": "/opt/core_node/cache (contract paths.drive_layout.cache_root.linux); /www/www/cache only for shared model data on the NTFS share",
+   "owner": "core-node-e9",
+   "legacy": true,
+   "fix": "Read the cache root from contract cache_root.linux and create it under the ext4 namespace. Do not create the legacy /var/_core_node root. If /var/_core_node/cache already exists, keep reading it until the migration. WSL Debian has /var/_core_node/cache (created 2026-09-18, whisper subdir added 2026-09-27 16:11)."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/shared_cache_env.sh",
+   "line": 84,
+   "creates": "/opt/core_node_trees and /www/core_node_trees (= D:\\core_node_trees). :84-86 read paths.drive_layout.tree_root.linux, tree_root.linux_backing and tree_cache_root; mount_common.sh:1082-1084 runs mkdir on CN_TREE_BACKING and CN_TREE_MNT. Those keys were removed by D27/D30 (their old values in commit 4ddb4be8e were /www/core_node_trees and /opt/core_node_trees), so today the vars are empty and bun/npm/uv/composer/corepack caches fall back to $HOME/.cache/core_node (:150)",
+   "namespace_target": "/opt/core_node/trees (trees_root.linux), /www/core_node_compiler/trees (trees_mount_linux, an empty mount point), /opt/core_node/cache (cache_root.linux)",
+   "owner": "core-node-e9",
+   "legacy": false,
+   "fix": "Switch to the current keys: trees_root.linux, trees_mount_linux and cache_root.linux. In mount_common.sh ensure_tree_root_bind_mount, create only /opt/core_node/trees and the /www/core_node_compiler/trees mount point, and check mountpoint -q before any write. Neither old dir exists on D: or in WSL."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/runtime_environment.sh",
+   "line": 43,
+   "creates": "/www/core_node. CORE_NODE_DATA_DIR=$CORE_NODE_WWW_BASE/core_node, and the base falls back to /www whenever /www/www is missing or /www is not NTFS (:28-41). On dual boot this produced D:\\core_node (global_var, locks; created 2026-09-26 19:43). On WSL Debian it produced an ext4 /www and /www/core_node (created 2026-09-27 16:11:57). :18 also defines LEGACY_CORE_NODE_DATA_DIR=/var/_core_node as a literal",
+   "namespace_target": "/www/www/core_node on the NTFS share; on ext4-only hosts (WSL, Linux-only) a contract-named data dir under /opt/core_node (needs an orchestrator decision)",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Build the data dir from contract namespaces.linux_ntfs_shared_data + core_node_data_dir_name. Refuse the /www/core_node fallback when fstab declares /www but it is not mounted. Leave the existing D:\\core_node and WSL /www/core_node in place and keep reading them until the migration. Read the /var/_core_node literal from contract paths.legacy_linux_data_dir."
+  },
+  {
+   "file": "D:/programing/core_node/config/service_contract.json",
+   "line": 136,
+   "creates": "(contract) Sanctions non-namespace dirs: linux_data_dir_candidates uses linux_www_root + core_node when the NTFS rule fails (/www/core_node on ext4), plus legacy_linux_data_dir /var/_core_node (:131). Both conflict with namespaces (:142-149), which name only /opt/core_node for ext4 and /www/www for NTFS",
+   "namespace_target": "namespaces.linux_ext4 (/opt/core_node/...) for ext4-only hosts; namespaces.linux_ntfs_shared_data (/www/www) for the NTFS share",
+   "owner": "orchestrator",
+   "legacy": true,
+   "fix": "Add an ext4 data-dir candidate under namespaces.linux_ext4 and mark /www/core_node (on ext4) and /var/_core_node as legacy read-only candidates that stay until the migration. Mirror the change in ServiceContract.php and core_node_dirs.py."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/base_libs/pip_lock.sh",
+   "line": 18,
+   "creates": "/www/core_node (= D:\\core_node on dual boot) through ${CORE_NODE_DATA_DIR:-/www/core_node} literal fallbacks that mkdir. The same pattern is at: pip_lock.sh:18-19 (D:\\core_node\\locks\\pip.lock exists); base_libs/parallel_terminals.sh:156,193; debian/server_manager/xrdp_monitor.sh:272,283; debian/install_shells/113_natgateway.sh:39; debian/debian_com/natgateway_monitor.sh:11; scripts/unified_manager/utils/global_variables.sh:84-89; common/domain_setup_common.sh:44,296,339; common/web_access_common.sh:16; common/nginx_common.sh:70,82; common/apt_repository_backup.sh:54; common/laravel_main_runtime_common.sh:128; dd_helper/linux_management.sh:523",
+   "namespace_target": "/www/www/core_node (CORE_NODE_DATA_DIR from runtime_environment.sh)",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Remove each /www/core_node literal. When CORE_NODE_DATA_DIR or CORE_NODE_GLOBAL_VAR_DIR is empty, source runtime_environment.sh and use its values. Never write a literal root."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/install_bootstrap.sh",
+   "line": 118,
+   "creates": "/www/core_node. When run as root, REGION_CACHE_DIR=/www/core_node and :162 runs mkdir -p for SELECTED_REGION (non-root uses ~/core_node)",
+   "namespace_target": "/www/www/core_node/global_var (SELECTED_REGION is a shared gvar key)",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Write SELECTED_REGION through the var center (CORE_NODE_GLOBAL_VAR_DIR from runtime_environment.sh, or the contract namespace root plus core_node_data_dir_name) instead of the literal. Keep reading an existing /www/core_node/SELECTED_REGION until the migration."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/gvar_common.sh",
+   "line": 308,
+   "creates": "/www/cache, /www/wwwroot, /www/nginxconfig, /www/shared-data, /www/backup (and /www itself). On a non-NTFS, non-WSL host the base_path is /www (:306-310), and map_web_path auto-runs mkdir plus chmod 777 on these keys (:434-464)",
+   "namespace_target": "/www/www/... on the NTFS share; on Linux-only ext4 the contract-named ext4 data root under /opt/core_node (orchestrator decision); caches go to /opt/core_node/cache",
+   "owner": "core-node-e9",
+   "legacy": false,
+   "fix": "Take the base from the contract namespace (linux_ntfs_shared_data, or the ext4 data candidate once defined) instead of bare /www. The same fix is needed in pycore system_paths.py and PathMapper::mapWebPath. The existing D:\\www\\{cache,wwwroot,nginxconfig,shared-data,backup} are already inside the namespace."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/systemd_service_manager.sh",
+   "line": 12,
+   "creates": "/www/services_log. map_web_path www services_log resolves to /www/services_log on non-NTFS hosts, the literal fallback is \"/www/services_log\", and ensure_directories runs mkdir (:117-127)",
+   "namespace_target": "/var/log/ncore_services (the existing LOG_DIR) or /www/www/services_log on the share",
+   "owner": "shell-linux",
+   "legacy": false,
+   "fix": "Drop the literal fallback and use get_mapped_log_dir (map_web_path logs). D:\\www\\services_log already exists inside the namespace; leave it."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/build_scripts/build_py_tools/deploy_helper.sh",
+   "line": 25,
+   "creates": "/www/_build_dir (= D:\\_build_dir on dual boot). Literal FACTORY_BASE and DEPLOY_BASE with mkdir -p at :34 and :79 (also :112, :118, :137, :139)",
+   "namespace_target": "/opt/core_node/_<os>_<ver>/_build_dir (map_web_path compile_dir _build_dir)",
+   "owner": "shell-linux",
+   "legacy": false,
+   "fix": "Build the root with map_web_path compile_dir _build_dir. Change build_manager.py:19 and the Laravel ServerManagerV1Nuxt* factory path in the same change."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/dd_helper/smart_permissions.sh",
+   "line": 56,
+   "creates": "/www/programing/_build_dir (= D:\\programing\\_build_dir, in the user-managed code area). build_dir=$(dirname project_root)/_build_dir, and ensure_owned_tree_777 (:59) runs on every dd.sh start; the same code is in dd_helper/permissions_repair_menu.sh:33-37",
+   "namespace_target": "/opt/core_node/_<os>_<ver>/_build_dir, or nothing (no Linux consumer)",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Drop the ensure, or use map_web_path compile_dir _build_dir. Leave the existing empty D:\\programing\\_build_dir (2026-06-08) until the migration."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/mount_common.sh",
+   "line": 1034,
+   "creates": "/www/programing, via mkdir -p when missing. With /www unmounted (nofail skip) this is an ext4 placeholder; on the share it is D:\\programing, the user's code parent, which scripts must not create",
+   "namespace_target": "none: code checkouts are user-managed (DIRECTORY_NAMESPACE_RULES §1)",
+   "owner": "core-node-e9",
+   "legacy": true,
+   "fix": "Do not create it. Check whether the dir exists and warn if it does not. The /www/www creation at :1027-1030 is the namespace root and is correct; /www itself (:987, :993) is the mount point."
+  },
+  {
+   "file": "D:/programing/core_node/config/service_contract.json",
+   "line": 138,
+   "creates": "/www/programing/frankenphp (= D:\\programing\\frankenphp, in the user code area). paths.frankenphp_root_posix is consumed by scripts/shells/linux/common/frankenphp_static_builder.sh:43 (mkdir at :272) and frankenphp_acme_sh_install.sh:20",
+   "namespace_target": "/opt/core_node/_<os>_<ver>/frankenphp (ext4 build root); Windows keeps D:\\www\\frankenphp",
+   "owner": "orchestrator",
+   "legacy": true,
+   "fix": "Point frankenphp_root_posix at a path under namespaces.linux_ext4; the shell scripts follow without edits. Moving the existing D:\\programing\\frankenphp (acme.sh, certs) needs user approval."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/debian/install_shells/105_install_deepseek.sh",
+   "line": 66,
+   "creates": "<base>/programing/DeepSeek-VL (= D:\\programing\\DeepSeek-VL). A local get_base_directory with its own blkid NTFS probe; the same code is in 107_install_deepseek_ocr.sh:54 (D:\\programing\\DeepSeek-OCR)",
+   "namespace_target": "/opt/core_node/_<os>_<ver>/applications/DeepSeek-* (map_web_path applications_dir); weights in the shared cache",
+   "owner": "pycore-ai",
+   "legacy": true,
+   "fix": "Delete the local get_base_directory and use map_web_path applications_dir. Leave the existing D:\\programing\\DeepSeek-VL and DeepSeek-OCR until the migration."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/debian/install_shells/39_ensure_npmrc.sh",
+   "line": 68,
+   "creates": "$CORE_NODE_DATA_DIR/.pnpm-store (an NTFS package store). Separately, launchers that override HOME (linuxenvs/piyolo.sh:276-278, piark*.sh) skip the user npmrc, so pnpm falls back to its mount-root store /www/.pnpm-store = D:\\.pnpm-store (v11 Linux relative links)",
+   "namespace_target": "/opt/core_node/cache/pnpm-store (contract cache_root.linux + cache_subdirs pnpm-store)",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Pin npm_config_store_dir from the contract cache_root.linux in the constants library (env, so HOME overrides cannot bypass it), and remove the conflicting store-dir at :68-77. Leave D:\\.pnpm-store (v10 is Windows-owned) until the migration."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/scripts/check_global_packages.js",
+   "line": 5,
+   "creates": "/www/.cache (= D:\\.cache\\.check). CACHE_DIR = path.resolve('../../.cache/.check') is relative to the cwd; it is run by debian/install_shells/37_ensure_pnpm_packages.sh:20,115,467 with cwd=/www/programing/core_node",
+   "namespace_target": "GLOBAL_TEMP_DIR or /opt/core_node/cache",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Derive the dir from process.env.GLOBAL_TEMP_DIR or os.tmpdir(), never from the cwd. Leave D:\\.cache (holds only .check) until the migration."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/mount_common.sh",
+   "line": 1017,
+   "creates": "D:\\.Trash-1000 (and .Trash-0). The /www NTFS bind entry has no x-gvfs-notrash and there is no .Trash-<uid> blocker anywhere in the file (grep finds none), so GUI deletes create a per-volume trash at the D: root",
+   "namespace_target": "none: no recycle bin on NTFS (user D25)",
+   "owner": "core-node-e9",
+   "legacy": true,
+   "fix": "Add the D25 trash blocker (x-gvfs-notrash on the NTFS mounts plus a blocked .Trash-<uid>, with the name defined once) in the mount helper. Leave the existing D:\\.Trash-1000 (about 73 GB) for the user to handle."
+  },
+  {
+   "file": "D:/programing/core_node/pycore/pyfoundations/system_paths.py",
+   "line": 227,
+   "creates": "D:\\_debian_13 (/mnt/d/_debian_13). stat shows it was created 2026-09-27 16:11:57.088 by a WSL Debian session, in the same burst as WSL /www (57.040) and /www/core_node/locks (57.128). This corrects p1b_linux_ntfs_audit.md, which called the writer an unknown Windows-side process. The shell cannot produce this path (get_dev_compile_base returns /opt). The code paths that yield /mnt/d/_<os>_<ver> are _get_dev_compile_base (on WSL it returns secondary_base=/mnt/d) and scripts/nodetools/gvar_common.js:306-312 (${dataBase}/_<os>_<ver>, which is also the source of the /www/_debian_12 and /www/_debian_13 form)",
+   "namespace_target": "/opt/core_node/_<os>_<ver>",
+   "owner": "pycore-lead",
+   "legacy": true,
+   "fix": "Pin the Linux tool base to contract tool_root.linux with no WSL or secondary-disk branch, and change nodetools gvar_common.js in the same commit. Leave the empty D:\\_debian_13 until the migration. Outside Sweep 2 (Python/JS writers); reported because it is a Linux-created legacy dir."
+  },
+  {
+   "file": "D:/programing/core_node/ncore/global_vars/global_dir/globaldir.js",
+   "line": 22,
+   "creates": "D:\\.dev_debian13 (2026-09-27 05:06) and D:\\.dev_linux (2026-09-21), both empty. LANG_COMPILER_DIR=<DATA_DRIVER=/www>/.dev_<ostag> is created on Linux (attribution from p1b audit G16)",
+   "namespace_target": "/opt/core_node/_<os>_<ver>",
+   "owner": "ncore",
+   "legacy": true,
+   "fix": "Take LANG_COMPILER_DIR from contract tool_root.linux through ncore system_paths.js; never mkdir under the /www root. Keep the legacy dirs until the migration. Outside Sweep 2 (JS), but these are Linux-created top-level dirs on D:."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/gvar_common.sh",
+   "line": 380,
+   "creates": "/opt/_core_node (app_manager_logs -> /opt/_core_node/logs). The same value is in pycore system_paths.py:917,981, PathMapper.php:182 and scripts/nodetools/gvar_common.js",
+   "namespace_target": "/opt/core_node/app_manager/logs (under namespaces.linux_ext4)",
+   "owner": "core-node-e9",
+   "legacy": false,
+   "fix": "Build the value from the ext4 namespace root read from the contract, and change all four path maps together. app_manager_logs_old (/opt/core_node_unified_manager) is a read-only legacy pointer; keep it."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/app_manager/linux_sh/config/app_config.sh",
+   "line": 29,
+   "creates": "/opt/_core_node. APP_MANAGER_DATA_DIR_DEFAULT is used by app_manager.sh:29-31 (mkdir -p plus chmod 0777) and utils/log_budget.sh:96",
+   "namespace_target": "/opt/core_node/app_manager",
+   "owner": "shell-linux",
+   "legacy": false,
+   "fix": "Use map_web_path app_manager_logs (its parent) from the constants library instead of the literal."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/venv_python_common.sh",
+   "line": 167,
+   "creates": "/opt/_core_node (PYCORE_PYUSERBASE=/opt/_core_node/pyuserbase, mkdir -p plus chmod 1777 at :169-175). pyservice_entry.sh:117 documents the same path",
+   "namespace_target": "/opt/core_node/pyuserbase",
+   "owner": "shell-linux",
+   "legacy": false,
+   "fix": "Build the path from the ext4 namespace root read from the contract through the constants library, not the literal."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/linuxenvs/kimi1.sh",
+   "line": 92,
+   "creates": "/var/_core_node/Users/<slot>, by mkdir on a literal. Same in: kimi2.sh:92-95; codex1.sh and codex2.sh:74-76; ark1.sh and ark2.sh:135-137; scripts/git/gitee_host_refresh.sh:16; scripts/git/cleanup_repo_with_bfg.sh:14; and the ${CORE_NODE_CACHE_DIR:-/var/_core_node/cache} fallbacks in common/android_build_env.sh:24 and common/scan_shared_cache.sh:31,61",
+   "namespace_target": "/opt/core_node/... (the ext4 namespace; per-slot HOMEs under e.g. /opt/core_node/users/<slot>)",
+   "owner": "shell-linux",
+   "legacy": true,
+   "fix": "Now: read LEGACY_CORE_NODE_DATA_DIR from runtime_environment.sh instead of the literal, so the existing /var/_core_node/Users (with credentials) keeps being read. After the approved migration: use the namespace root from the contract."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/debian/install_shells/129_install_vosk.sh",
+   "line": 20,
+   "creates": "/var/_core_node/cache via ${CORE_NODE_CACHE_DIR:-/var/_core_node/cache} literal fallbacks in model installers. Same in: 31_install_tts_offline.sh:18, 127_install_whisper.sh:139, 151_install_faster_whisper.sh:73",
+   "namespace_target": "CORE_NODE_CACHE_DIR from shared_cache_env.sh (/www/www/cache for shared models, /opt/core_node/cache otherwise)",
+   "owner": "pycore-ai",
+   "legacy": true,
+   "fix": "Drop the literal fallback and source shared_cache_env.sh (via gvar_common) so CORE_NODE_CACHE_DIR is always set."
+  },
+  {
+   "file": "D:/programing/core_node/apps/mcp-chrome/scripts/start.sh",
+   "line": 516,
+   "creates": "/var/_core_node/mcp_chrome/logs, by literal. Same in: apps/mcp-chrome/scripts/var_manager.sh:10 and apps/mcp-chrome/app/native-server/src/scripts/run_host.sh:9",
+   "namespace_target": "/opt/core_node/... (ext4 log root from the contract)",
+   "owner": "wordnew-link",
+   "legacy": true,
+   "fix": "Read the root from gvar_common or runtime_environment.sh (currently LEGACY_CORE_NODE_DATA_DIR) instead of the literal; switch to the namespace after the migration."
+  },
+  {
+   "file": "D:/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh",
+   "line": 50,
+   "creates": "/var/_core_node/cache/pycore/logs and /var/_core_node/global_var via ${CORE_NODE_CACHE_DIR:-/var/_core_node/cache} and ${CORE_NODE_DATA_DIR:-/var/_core_node} fallbacks (:50, :69, :70, :184); same in start_build.sh:39",
+   "namespace_target": "CORE_NODE_GLOBAL_VAR_DIR, and map_web_path app_manager_logs / the ext4 namespace",
+   "owner": "wordnew-lead (path not in the D22 map; p1b audit G13 put it in the wordnew lane)",
+   "legacy": true,
+   "fix": "Source gvar_common and use CORE_NODE_GLOBAL_VAR_DIR and the namespace log root; no literal fallbacks."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/gvar_common.sh",
+   "line": 503,
+   "creates": "none directly: a namespace collision. The get_core_node_dir fallback (:499-508) sets CORE_NODE_DIR (the code checkout) to /opt/core_node, which is the ext4 namespace root, so writes to $CORE_NODE_DIR/... would land in the namespace root. debian/install_shells/27_install_git_ssh.sh:486 also probes /opt/core_node/scripts/git",
+   "namespace_target": "/opt/core_node is namespace-only; the code checkout stays user-managed (/www/programing/core_node)",
+   "owner": "core-node-e9",
+   "legacy": false,
+   "fix": "Remove the /opt/core_node fallback (fail with a clear message when the checkout cannot be found), and drop the 27_install_git_ssh.sh:486 candidate (owner shell-linux)."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/runtime_environment.sh",
+   "line": 28,
+   "creates": "n/a (a missing mechanism). No Linux .sh reads paths.drive_layout.namespaces (grep finds none), and no single idempotent namespace-root helper exists, as DIRECTORY_NAMESPACE_RULES §2 and LINUX_SHELL_RULES §1 require",
+   "namespace_target": "/opt/core_node, /www/www, /www/core_node_compiler",
+   "owner": "shell-linux",
+   "legacy": false,
+   "fix": "Export the namespace roots once from the constants library (sc_get paths.drive_layout.namespaces.*, e.g. CN_NS_EXT4, CN_NS_NTFS_DATA, CN_NS_TREES_PARENT) with one ensure_namespace_root helper. The fenced consumers (gvar_storage_common.sh, gvar_common.sh, shared_cache_env.sh, mount_common.sh) then switch to it in the core-node-e9 session."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/linux/common/install_cuda_toolkit.sh",
+   "line": 65,
+   "creates": "/opt/cuda_install. cti_pick_scratch runs mkdir -p on each candidate in turn, and falls through to /opt/cuda_install when /var/tmp/cuda_install is too small (it leaves the earlier dirs behind)",
+   "namespace_target": "/opt/core_node/cache/cuda_install (or a temp dir under GLOBAL_TEMP_DIR)",
+   "owner": "shell-linux",
+   "legacy": false,
+   "fix": "Replace the /opt/cuda_install candidate with a path under the ext4 namespace cache read from the contract."
+  },
+  {
+   "file": "D:/programing/core_node/scripts/shells/common/app_registry.sh",
+   "line": 13,
+   "creates": "/mnt/dev_sdb3/_ubuntu_24 (hardcoded INSTALL_BASE_DIR, mkdir at :173-187). Only install_logic.sh sources it, and install_logic.sh itself has no caller, so this is dead code",
+   "namespace_target": "/opt/core_node/_<os>_<ver>/applications",
+   "owner": "shell-linux",
+   "legacy": false,
+   "fix": "Delete it with install_logic.sh/install_config.sh, or use map_web_path applications_dir instead of the literal."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\core_node_dirs.py",
+   "line": 166,
+   "creates": "D:\\core_node (Linux side: when /www is the NTFS D:\\ root but /www/www is missing or not detected, www_data_root_mounted() returns false, so the loop _ensure_dir()s /www/core_node, which is D:\\core_node). Also /var/_core_node as the second candidate. On disk: D:\\core_node exists and holds global_var/DEBIAN_13_BASE_DATA_DIR and locks/pip.lock, written from Debian 13. /var/_core_node exists in WSL.",
+   "namespace_target": "D:\\www\\core_node (= /www/www/core_node, contract linux_ntfs_shared_data); Linux ext4 fallback /opt/core_node/...",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Do not mkdir <linux_www_root>/<name> when /www has an NTFS fstype. Only the NTFS check should gate the non-nested candidate (the /www/www-exists check should not), and on NTFS create /www/www idempotently first. Read the roots from paths.drive_layout.namespaces. D:\\core_node and /var/_core_node are legacy: keep them in the read chain (iter_global_var_dirs) until the user approves the migration. Needs the matching contract change (see service_contract.json:136)."
+  },
+  {
+   "file": "D:\\programing\\core_node\\config\\service_contract.json",
+   "line": 136,
+   "creates": "This contract entry is the source of the D:\\core_node case above. The candidate {linux_www_root join core_node when not linux_www_ntfs_root_rule} resolves to /www/core_node. That is D:\\core_node when /www is NTFS but /www/www is missing, and /www/core_node on native Linux or WSL (it exists in WSL ext4, outside /opt/core_node). The legacy_linux_data_dir candidate gives /var/_core_node. There is also no namespace key for the Linux-only model cache or for tmp.",
+   "namespace_target": "namespaces.linux_ntfs_shared_data (/www/www/core_node) on NTFS; namespaces.linux_ext4 (/opt/core_node) on ext4-only hosts",
+   "legacy": true,
+   "owner": "orchestrator",
+   "fix": "Change the second candidate's condition to \"/www fstype not in ntfs_fs_types\". Decide the Linux-only data root inside the namespace, or record /www/core_node as an approved exception. Add namespace-relative keys for tmp and the Linux-only model cache (e.g. /opt/core_node/cache, /opt/core_node/tmp, D:\\www\\tmp) so the code stops using the /var/_core_node and D:\\.tmp literals. Keep legacy_linux_data_dir as read-only until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\pygvar.py",
+   "line": 89,
+   "creates": "D:\\.tmp and D:\\.tmp\\pytools (mkdir at lines 74/104/166 on every pycore import). The same D:\\.tmp root comes from core_node_dirs.py:62-67 (WINDOWS_TMP_DIR_NAME '.tmp', WINDOWS_TMP_USERS_DIR D:\\.tmp\\Users).",
+   "namespace_target": "D:\\www\\<tmp> (under namespaces.windows_data_drive)",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Build TMP_DIR from the contract's windows_data_drive namespace (D:\\www) plus a tmp key (orchestrator adds it) instead of the r\"D:\\.tmp\" literal. Keep reading and cleaning D:\\.tmp (legacy) until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\pygvar.py",
+   "line": 100,
+   "creates": "/var/_core_node/_tmp (mkdir on every Linux import; implicitly creates /var/_core_node)",
+   "namespace_target": "/opt/core_node/<tmp> (namespaces.linux_ext4)",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Derive the Linux TMP_DIR from namespaces.linux_ext4 (/opt/core_node) plus a tmp key read through service_contract, not the literal. /var/_core_node/_tmp exists in WSL, so keep it as a read fallback until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\pygvar.py",
+   "line": 90,
+   "creates": "Nothing is created yet (these are unused exports), but the values name new top-level dirs: APPLICATIONS_DIR D:\\applications and /opt/applications (line 101); LANG_COMPILER_DIR D:\\lang_compiler (line 91) and /opt/lang_compiler (line 102).",
+   "namespace_target": "tool_root: E:\\core_node_compiler\\.dev_<sys> (D: fallback D:\\www\\.dev_<sys>); /opt/core_node/_<os>_<ver>",
+   "legacy": false,
+   "owner": "pycore-lead",
+   "fix": "Remove these constants, or derive them from paths.drive_layout.tool_root (with an applications subdir). D:\\applications is the user's app folder and stays read-only."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\system_paths.py",
+   "line": 972,
+   "creates": "The Linux compile_dir computed by _get_dev_compile_base (lines 227-241). It gives /opt/_debian_13 (sticky, or when / has more than 50 GB free), otherwise <base>/_debian_13: /www/_debian_13 (= D:\\_debian_13 on NTFS) or /mnt/d/_debian_13 on WSL (= D:\\_debian_13, which exists and is empty). This does not match PathMapper, which already uses /opt/core_node/_<os>_<ver>.",
+   "namespace_target": "/opt/core_node/_<os>_<ver> (contract tool_root.linux)",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Replace _get_dev_compile_base and the /opt literals with service_contract drive_layout.tool_root.linux (the same approach as PathMapper::getDevCompileParts / ServiceContract::linuxToolBase). No free-space switch and never the NTFS base. D:\\_debian_13 is legacy: leave it in place until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\system_paths.py",
+   "line": 911,
+   "creates": "The Windows compile_dir is D:\\_win10 or D:\\_win11 (base_d / f'_{win_suffix}'). It is read by pycore/pyutils/launcher/app_finder.py:420 (compile_dir/applications) and quick_test_ffmpeg.py:55.",
+   "namespace_target": "<program_drive>\\core_node_compiler\\.dev_<sys> (E:), fallback D:\\www\\.dev_<sys>",
+   "legacy": false,
+   "owner": "pycore-lead",
+   "fix": "Resolve from drive_layout.tool_root.windows or windows_d_fallback, using the recorded WINDOWS_PROGRAM_DRIVE_ROOT gvar the same way PathMapper does. Keep D:\\.dev_win10 (the real legacy tool root) as a read candidate until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\system_paths.py",
+   "line": 981,
+   "creates": "app_manager_logs /opt/_core_node/logs and app_manager_logs_old /opt/core_node_unified_manager/logs (also on lines 917-918): two new top-level dirs under /opt",
+   "namespace_target": "/opt/core_node/logs (namespaces.linux_ext4)",
+   "legacy": false,
+   "owner": "pycore-lead",
+   "fix": "Build the path from the namespaces.linux_ext4 root plus 'logs'. Keep the _old key read-only for migration only."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\system_paths.py",
+   "line": 403,
+   "creates": "/var/_core_node/cache (Linux-only shared model cache; _ensure_dir, with ~/core_node/cache as fallback)",
+   "namespace_target": "/opt/core_node/cache (contract cache_root.linux)",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Read cache_root.linux from service_contract drive_layout instead of the literal. The cross-OS NTFS branch (/www/www/cache) stays. /var/_core_node/cache exists in WSL, so keep reading it until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\system_paths.py",
+   "line": 116,
+   "creates": "/var/cache/core_node/agent_history_root_spool (os.makedirs in pycore/pyctl/agent_history/root_spool.py:175, which pycore-runtime owns). This is a project dir on ext4 outside /opt/core_node.",
+   "namespace_target": "/opt/core_node/<spool> (namespaces.linux_ext4); keep it root-owned 0750",
+   "legacy": false,
+   "owner": "pycore-lead",
+   "fix": "Derive AGENT_HISTORY_ROOT_SPOOL_DIR from the linux_ext4 namespace root read from the contract. root_spool.py needs no change beyond using the constant."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\system_paths.py",
+   "line": 996,
+   "creates": "D:\\applications. map_web_path('applications') maps to base_d/'applications' (line 901) and mkdirs it (line 995-996). 'programing' also maps to D:\\programing.",
+   "namespace_target": "E:\\core_node_compiler\\.dev_<sys>\\applications (D: fallback D:\\www\\.dev_<sys>\\applications), the same as PathMapper 'applications_dir'",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Map 'applications' under the contract tool root and drop it from the mkdir list. D:\\applications is the user's existing app folder: keep it read-only (app_finder search roots) and never create it."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\system_paths.py",
+   "line": 564,
+   "creates": "get_lang_compiler_dir() returns Path(sys.executable).parent.parent, i.e. D:\\.dev_win10. pycore/pyutils/common/python_env/isolated_venv_runtime.py:75/783 and runtime_policy.py:442 create venvs (py_venv_<engine>_<tag>) there. On Linux with a system python it becomes /usr.",
+   "namespace_target": "contract tool_root (E:\\core_node_compiler\\.dev_<sys> | D:\\www\\.dev_<sys> | /opt/core_node/_<os>_<ver>)",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Resolve the tool root from service_contract drive_layout.tool_root instead of the interpreter location. Keep D:\\.dev_win10 as a read candidate for existing venvs until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\shortcut_manager.py",
+   "line": 73,
+   "creates": "D:\\.dev_<winver>\\.winenvs (mkdir at line 75; parents=True would also create D:\\.dev_win11 on Windows 11)",
+   "namespace_target": "<tool_root.windows>\\.winenvs (E:\\core_node_compiler\\.dev_<sys>) or D:\\www\\.dev_<sys>\\.winenvs",
+   "legacy": true,
+   "owner": "pycore-lead",
+   "fix": "Build the path from the contract tool root (the same resolver as system_paths) instead of the f'D:\\\\.dev_{ver}' literal. Keep reading D:\\.dev_win10\\.winenvs until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyutils\\frontend_launcher\\nuxt_launcher.py",
+   "line": 78,
+   "creates": "The Nuxt factory build output: D:\\programing\\.build_dir\\nuxt_factory (Windows) and /www/.build_dir (Linux: a top-level dir under /www; on NTFS this is D:\\.build_dir, i.e. build output on NTFS). /mnt/d/programing/.build_dir on WSL.",
+   "namespace_target": "Windows: E:\\core_node_compiler\\<build> (D: fallback D:\\www\\<build>); Linux: /opt/core_node/<build> (never on NTFS)",
+   "legacy": false,
+   "owner": "pycore-runtime",
+   "fix": "Take the factory root from the contract namespace roots through system_paths instead of the 'D:/programing', '/www' and '/mnt/d' literals."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyutils\\flutter_dev_tools\\utils\\comparison_manager.py",
+   "line": 50,
+   "creates": "<programing>/_build_dir/flutter_main/<app>/comparison_images (mkdir at line 54). This is D:\\programing\\_build_dir on Windows; on Linux map_web_path('programing') gives /www/www/programing/_build_dir, which is build output on NTFS.",
+   "namespace_target": "E:\\core_node_compiler\\<build> (D:\\www fallback); /opt/core_node/<build> on Linux",
+   "legacy": true,
+   "owner": "pycore-runtime",
+   "fix": "Use a namespace-rooted build dir read from the contract instead of map_web_path('programing'). D:\\programing\\_build_dir exists, so keep reading it until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyutils\\voc_annotator\\yolo_data_layout.py",
+   "line": 16,
+   "creates": "D:\\programing\\yolo_data (root.mkdir at line 75). The same default is in pyapps/d3-check/providor/constants/common.py:48 and pyapps/d3-check/d3utils/yolo_record.py:54. This is program-created data (not a code checkout) placed in the user's code folder.",
+   "namespace_target": "D:\\www\\core_node\\data\\yolo_data (Linux /www/www/...)",
+   "legacy": false,
+   "owner": "pycore-runtime",
+   "fix": "Default YOLO_DATA_ROOT to get_app_data_dir()/'yolo_data' (the contract-derived data root) in one constant that d3-check imports. Keep the YOLO_DATA_ROOT env override."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pyapps\\matrix\\matrix_config\\config.py",
+   "line": 198,
+   "creates": "/var/_core_node/scrcpy/config (mkdir at line 201)",
+   "namespace_target": "<core_node data dir>/config/scrcpy via get_app_config_dir() (D:\\www\\core_node = /www/www/core_node)",
+   "legacy": true,
+   "owner": "pycore-runtime",
+   "fix": "Replace the literal with pycore.pyfoundations.system_paths.get_app_config_dir()/'scrcpy'. The /var/_core_node parent is legacy (it exists in WSL)."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pyapps\\d3-check\\providor\\template_config.json",
+   "line": 226,
+   "creates": "D:\\.tmp\\d3check, D:\\.tmp\\d3check\\screenshots, D:\\.tmp\\d3check\\ui_analysis (user_temp_dir, screenshot_dir, ui_analysis_dir)",
+   "namespace_target": "D:\\www\\<tmp>\\d3check (from pygvar TMP_DIR once that is namespaced)",
+   "legacy": true,
+   "owner": "pycore-runtime",
+   "fix": "Drop the absolute defaults and derive them from pygvar TMP_DIR / get_app_temp_dir() at runtime. D:\\.tmp is legacy: keep reading it until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\tts_install_assets\\tts_server_common.py",
+   "line": 35,
+   "creates": "D:\\.tmp or /var/_core_node/_tmp as the literal fallback when CORE_NODE_TMP_DIR is not exported",
+   "namespace_target": "the namespaced tmp root from pygvar/contract (D:\\www\\<tmp>, /opt/core_node/<tmp>)",
+   "legacy": true,
+   "owner": "pycore-ai",
+   "fix": "Resolve the fallback from service_contract (the standalone server can read config/service_contract.json) instead of the two literals. Keep the CORE_NODE_TMP_DIR override."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\global_vars\\global_dir\\globaldir.js",
+   "line": 62,
+   "creates": "LANG_COMPILER_DIR = <DATA_DRIVER>/.dev_<os> (mkdir at line 122 on every ncore start). This gives D:\\.dev_win10 on Windows (C:\\.dev_win10 if the data dir falls back to LOCALAPPDATA), /mnt/d/.dev_debian13 on WSL (= D:\\.dev_debian13, which exists), /www/.dev_debian13 on Linux (= D:\\.dev_debian13 on NTFS), and /usr/.dev_<os> as the last fallback. D:\\.dev_linux comes from an older osVersion tag.",
+   "namespace_target": "contract tool_root: E:\\core_node_compiler\\.dev_<sys> | D:\\www\\.dev_<sys> | /opt/core_node/_<os>_<ver>",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Read drive_layout.tool_root through #@/config/service_contract.js (with the recorded program drive) and stop using DATA_DRIVER + LANG_COMPILER_DIRNAME. Never mkdir a tool root on NTFS from Linux. D:\\.dev_win10, D:\\.dev_debian13 and D:\\.dev_linux are legacy: keep D:\\.dev_win10 as a read candidate until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\global_vars\\global_dir\\globaldir.js",
+   "line": 80,
+   "creates": "ROOT_APP_STATIC_DIR and its cache (mkdir at lines 120-121 for every app): D:\\static_<app>, /mnt/d/static_<app> on WSL, /www/static_<app> on Linux (on NTFS = D:\\static_<app>), /usr/static_<app>, and C:\\static_<app> on the LOCALAPPDATA fallback. It is used by apps/WebLocalAreaNetwork, VoiceClientAndCaddy (BaseDirProvider.js:54 mkdir) and VideoCompression.",
+   "namespace_target": "D:\\www\\static_<app> via mapWebPath() (Linux /www/www/static_<app>)",
+   "legacy": false,
+   "owner": "ncore",
+   "fix": "Set ROOT_APP_STATIC_DIR = mapWebPath(`static_${app}`) (WWW_BASE comes from the contract via system_paths.js) instead of path.join(DATA_DRIVER, ...)."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\global_vars\\global_dir\\globaldir.js",
+   "line": 36,
+   "creates": "DATA_DIR = <drive>/wwwroot: D:\\wwwroot on Windows (line 36), /mnt/d/wwwroot on WSL (line 39), /usr/wwwroot (line 47). It is created by ncore/utils/ai_translator/libs/translation_manager.js:26 (ai_translator_db, ai_translator_temp) and cache_manager.js:27.",
+   "namespace_target": "D:\\www\\wwwroot via mapWebPath('wwwroot') (/www/www/wwwroot)",
+   "legacy": false,
+   "owner": "ncore",
+   "fix": "Use DATA_DIR = mapWebPath('wwwroot') on every platform, as the /www branch already does at line 43. Remove the /mnt/d and /usr fallbacks."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\foundation\\common\\downloader.js",
+   "line": 38,
+   "creates": "<drive>\\.tmp\\<os>\\Downloads (ensureDir at lines 39-40 on module load): D:\\.tmp (C:\\.tmp if there is no D:), and /mnt/d/.tmp on WSL (= D:\\.tmp)",
+   "namespace_target": "D:\\www\\<tmp> (Windows); /opt/core_node/<tmp> (Linux, not NTFS)",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Get the temp root from the contract namespace through system_paths.js (one shared tmp resolver) instead of DATA_DRIVER plus '.tmp'. Never fall back to C:\\ root. D:\\.tmp is legacy: keep reading it until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\foundation\\utilities\\filetoollibs\\link.js",
+   "line": 7,
+   "creates": "D:\\.tmp and D:\\.tmp\\.downloads (ensureDir at lines 9-10; C:\\.tmp when there is no D:)",
+   "namespace_target": "D:\\www\\<tmp>",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Use the same contract-derived tmp resolver as downloader.js and remove the USE_DRIVER logic. (The file also uses `os` without requiring it.)"
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\utils\\win_tool\\libs\\winpath.js",
+   "line": 107,
+   "creates": "D:\\.tmp (mkdirSync in getBackupTmpDir for PATH backups)",
+   "namespace_target": "D:\\www\\<tmp> (or <core_node data dir>/backups)",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Resolve the dir from system_paths.js (contract) instead of the 'D:\\\\.tmp' literal. Keep reading existing backups under D:\\.tmp until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\foundation\\utilities\\pathtool.js",
+   "line": 54,
+   "creates": "/var/_core_node and /var/_core_node/shared_downloads (mkdir 0777 at lines 56-61). /opt/downloads is also a probed candidate (line 40).",
+   "namespace_target": "<core_node data dir>/shared_downloads via system_paths.getSystemCacheDir() (/www/www/core_node on NTFS; ext4 namespace otherwise)",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Replace the literals with path.join(systemPaths.getSystemCacheDir(), 'shared_downloads') and drop /opt/downloads. /var/_core_node is legacy: keep it as a read candidate until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\foundation\\common\\system_paths.js",
+   "line": 243,
+   "creates": "/var/_core_node/cache (Linux-only shared download cache, mkdirSync at line 250)",
+   "namespace_target": "/opt/core_node/cache (contract cache_root.linux)",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Read drive_layout.cache_root.linux from CONTRACT_PATHS instead of LEGACY_LINUX_DATA_DIR + 'cache'. Keep the legacy dir as a read candidate until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\foundation\\common\\system_paths.js",
+   "line": 85,
+   "creates": "getLinuxDataDirCandidates plus the mkdirSync loop (line 327-329) create /www/core_node. When /www is the NTFS D:\\ root but /www/www is absent, that is D:\\core_node (it exists). They also create /var/_core_node.",
+   "namespace_target": "/www/www/core_node (= D:\\www\\core_node)",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Follow the corrected contract rule: on an NTFS /www, create only under /www/www. Never mkdir /www/<name> on NTFS. Keep D:\\core_node as a read-only legacy until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\apps\\VideoCompression\\config\\index.js",
+   "line": 13,
+   "creates": "D:\\MobileBackup. ncore/utils/video/libs/video-file-operations.js:27 defaults the cache to <rootDir>/.vcache and mkdirs it recursively (line 48), which creates D:\\MobileBackup\\.vcache\\{temp,completed,.delete}.",
+   "namespace_target": "D:\\www\\core_node\\cache\\video_compression (cache); the source video dir should be user-configured, not assumed",
+   "legacy": false,
+   "owner": "ncore",
+   "fix": "Read LOCAL_VIDEO_DIRS from user settings or config (no drive literal), skip dirs that do not exist, and pass an explicit cacheDir from system_paths.getAppCacheDir() so video-file-operations never writes beside the source."
+  },
+  {
+   "file": "D:\\programing\\core_node\\poly_apps\\laravel_main\\app\\Providers\\PathMapper.php",
+   "line": 140,
+   "creates": "The Windows compile_dir is <drive>\\_win10 (E:\\_win10 or D:\\_win10, from getDevCompileParts line 716). applications_dir (<drive>\\_win10\\applications) and npm_global are built under it. The Linux branch is already correct (/opt/core_node/_<os>_<ver>).",
+   "namespace_target": "E:\\core_node_compiler\\.dev_<sys> (tool_root.windows), fallback D:\\www\\.dev_<sys> (tool_root.windows_d_fallback)",
+   "legacy": false,
+   "owner": "pycore-laravel",
+   "fix": "On Windows, build the path from ServiceContract drive_layout.tool_root.windows or windows_d_fallback (substituting <program_drive> and <sys>) instead of drive + '_' + suffix. Keep D:\\.dev_win10 as a read candidate until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\poly_apps\\laravel_main\\app\\Providers\\PathMapper.php",
+   "line": 182,
+   "creates": "app_manager_logs /opt/_core_node/logs and app_manager_logs_old /opt/core_node_unified_manager/logs (line 183)",
+   "namespace_target": "/opt/core_node/logs",
+   "legacy": false,
+   "owner": "pycore-laravel",
+   "fix": "Derive the path from the namespaces.linux_ext4 root through ServiceContract. Keep the _old key read-only."
+  },
+  {
+   "file": "D:\\programing\\core_node\\poly_apps\\laravel_main\\app\\Providers\\PathMapper.php",
+   "line": 905,
+   "creates": "D:\\.tmp (getBaseTempDir ensureDirectory; used by the external-storage 'temp' fallback at line 1320 and the log fallback at line 872)",
+   "namespace_target": "D:\\www\\<tmp> (namespaces.windows_data_drive)",
+   "legacy": true,
+   "owner": "pycore-laravel",
+   "fix": "Build the path from the windowsWwwBase() namespace plus the contract tmp key instead of windowsDataDriveRoot() + '.tmp'. Keep reading D:\\.tmp until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\poly_apps\\laravel_main\\app\\Providers\\PathMapper.php",
+   "line": 1660,
+   "creates": "/var/_core_node/cache (Linux-only getSharedDownloadCacheDir, ensureDirectory at line 1666). The getCoreNodeRuntimeDir candidates (lines 294-299, ensureDirectory) also create /www/core_node (= D:\\core_node when /www is NTFS and /www/www is not detected) and /var/_core_node.",
+   "namespace_target": "/opt/core_node/cache (cache_root.linux); data dir /www/www/core_node",
+   "legacy": true,
+   "owner": "pycore-laravel",
+   "fix": "Read cache_root.linux from ServiceContract::driveLayout(). Gate the /www/<name> candidate on the /www fstype not being NTFS (following the contract fix). Keep the legacy dirs as read-only until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\poly_apps\\laravel_main\\app\\Apps\\ServerManagerV1\\ServerManagerV1CLI\\Commands\\ServerManagerV1NuxtAppCommand.php",
+   "line": 46,
+   "creates": "str_replace('/www','',mapWebPath('www')) + '/_build_dir/nuxt_factory/linux' resolves to /_build_dir at the filesystem root, because both /www and /www/www collapse to ''. It resolves to /mnt/d/_build_dir (= D:\\_build_dir) on WSL. mkdir at lines 322/371/379. The same expression is in ServerManagerV1NuxtServiceManager.php:142 (getFactoryPath).",
+   "namespace_target": "/opt/core_node/<build>/nuxt_factory/linux (ext4; build output is never on NTFS)",
+   "legacy": false,
+   "owner": "pycore-laravel",
+   "fix": "Add a PathMapper helper that builds the factory root from ServiceContract namespaces.linux_ext4, and use it in both files in place of the str_replace hack."
+  },
+  {
+   "file": "D:\\programing\\core_node\\poly_apps\\pycore_laravel_wordnew_ui\\vite.config.ts",
+   "line": 31,
+   "creates": "None: this is a read-only lookup of global_var/web_access_config.json. The Vite cacheDir and outDir stay at their in-repo defaults. It hardcodes the roots 'D:\\\\www', '/www', '/www/www' and the legacy '/var/_core_node' (lines 31-36) instead of reading the contract.",
+   "namespace_target": "namespaces.windows_data_drive / linux_ntfs_shared_data from config/service_contract.json",
+   "legacy": true,
+   "owner": "pycore-ui",
+   "fix": "Import config/service_contract.json (paths.windows_data_drive_root, www_dir_name, linux_www_root, linux_ntfs_nested_www_root, legacy_linux_data_dir, ntfs_fs_types) instead of the literals. Keep /var/_core_node as a read-only legacy candidate until the user approves the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\pytools\\pybackup\\dev_env\\backup_dev_env.py",
+   "line": 87,
+   "creates": "<X>:\\CoreNodeBackup\\<ns> at the top level of whichever drive the user picks (mkdir parents=True at :92). On Linux it is <mount_point>/CoreNodeBackup. BACKUP_DIR_NAME = \"CoreNodeBackup\" comes from pycore/pyfoundations/pygvar.py:113. The script is launched from BackupManager.ps1:144-161. Nothing exists on disk today.",
+   "namespace_target": "On D: use map_web_path('www','backups')\\dev_env (D:\\www\\backups, which already exists). On the program drive use <program_drive>\\core_node_compiler\\backups. Any other drive needs a contract key: the namespace dir name plus \\backups.",
+   "legacy": false,
+   "owner": "unassigned in D22 (scripts/pytools Python; the caller BackupManager.ps1 is shell-windows). pygvar.py:113 is pycore-lead",
+   "fix": "Build the root as <drive namespace root>\\backups\\<ns>, reading the namespace from config/service_contract.json#paths.drive_layout.namespaces through system_paths. Never use f\"{letter}:\\\\{BACKUP_DIR_NAME}\". The orchestrator adds a namespace key for non-D:, non-program backup drives. Remove BACKUP_DIR_NAME from pygvar."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\pytools\\pybackup\\core_node\\backup_manager.py",
+   "line": 59,
+   "creates": "D:\\programing\\core_node_bak_<ts> (backup_parent_dir = project_root.parent; mkdir at :140). This is backup data placed in the user code area. The same pattern is in scripts/pytools/backup_core_node_script/backup_manager.py:35 (mkdir :121) and scripts/backup/backup_core_node.py:19 (backup_parent_dir = ../../..). BackupManager.ps1:113-130 calls the first one, and Show-BackupStatistics (BackupManager.ps1:~233) counts core_node_bak_* under the repo parent.",
+   "namespace_target": "map_web_path('www','backups')\\core_node (D:\\www\\backups\\core_node; Linux /www/www/backups/core_node)",
+   "legacy": false,
+   "owner": "unassigned in D22 (scripts/pytools and scripts/backup Python); BackupManager.ps1 is shell-windows",
+   "fix": "Set backup_parent_dir = map_web_path('www', 'backups') / 'core_node' from pycore system_paths (contract-derived). Apply the same change in all three scripts, and in BackupManager.ps1 Show-BackupStatistics. Never write beside the checkout."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\pytools\\pybackup\\python_env\\backup_python_env.py",
+   "line": 169,
+   "creates": "D:\\programing\\<backup_name>(.tar.gz or dir). The default backup_root is core_node_dir.parent (:170), with os.makedirs at :282, so multi-GB Python, model and user-data snapshots land in the user code folder. The caller is BackupManager.ps1:214-224.",
+   "namespace_target": "map_web_path('www','backups')\\python_env (D:\\www\\backups\\python_env)",
+   "legacy": false,
+   "owner": "unassigned in D22 (scripts/pytools Python); the caller BackupManager.ps1 is shell-windows",
+   "fix": "Keep the --backup-root override. Change the default to map_web_path('www', 'backups') / 'python_env' (contract-derived via system_paths) instead of core_node_dir.parent. list/restore should also scan the old parent dir read-only, in case older backups exist there."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\linux\\menu_itemshells\\gitea_backup\\backup_web_manager.py",
+   "line": 589,
+   "creates": "/www/backups. When the script runs without argv[2], it falls back to possible_paths[0] and os.makedirs it (:600-609). On dual boot that is D:\\backups, at the D: top level. Also probed: ~/www/backups and /mnt/d/www/backups. backup_common.sh:87 passes BACKUP_ROOT_DIR, so only a standalone run takes this path.",
+   "namespace_target": "map_web_path www backups (/www/www/backups = D:\\www\\backups)",
+   "legacy": false,
+   "owner": "shell-linux",
+   "fix": "Drop the literal list. When no argument is given, resolve the root with map_web_path('www','backups') from pycore system_paths, or exit with a usage error. Never makedirs a guessed root."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\docker_compose\\clash_scrible\\node_spider\\node_provider\\util\\setenv.js",
+   "line": 17,
+   "creates": "D:\\tmp. getBackupTmpDir runs mkdirSync on 'D:\\\\tmp' (:22-24) and writes path_<ts>.bak PATH backups there (backupEnvPath, called at :119 and :153)",
+   "namespace_target": "The namespaced temp root (CN_TEMP_ROOT: E:\\core_node_compiler\\tmp, D: fallback D:\\www\\tmp), or D:\\www\\core_node\\backups\\GlobalEnv like the WindowsPathFunction fix",
+   "legacy": false,
+   "owner": "shell-linux (owns scripts/shells/docker_compose/)",
+   "fix": "Resolve the dir through ncore/foundation/common/system_paths.js (contract) instead of the literal, e.g. path.join(<core_node data dir>, 'backups', 'GlobalEnv'). Use os.tmpdir() only for true scratch files."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\docker_compose\\clash_scrible\\node_spider\\node_provider\\util\\getnode.js",
+   "line": 442,
+   "creates": "D:\\.devr\\nodes on Windows, /usr/nodes on Linux (this.mkdir at :446). Node binaries are downloaded there. This is the same D:\\.devr root as baota/build.bat:31.",
+   "namespace_target": "Tool root: CN_TOOL_ROOT\\nodes (E:\\core_node_compiler\\.dev_<sys>; D: fallback D:\\www\\.dev_<sys>); Linux /opt/core_node/_<os>_<ver>/nodes",
+   "legacy": false,
+   "owner": "shell-linux (owns scripts/shells/docker_compose/)",
+   "fix": "Build the dir from the contract tool_root (drive_layout.tool_root.windows / windows_d_fallback / linux) through ncore system_paths.js. Remove both literals."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\docker_compose\\clash_scrible\\build.sh",
+   "line": 14,
+   "creates": "/home/clash_subscribe_data/.data_cache (mkdir -p at :22-24), bind-mounted into the container (docker run -v at :85). The same literal is at build.nodebase.Bookworm.sh:12 and build.nodebase.Alpine.sh:12 (docker run :69) and in README.md:14/21/36. It is a project data dir under /home.",
+   "namespace_target": "Ext4 namespace: /opt/core_node/docker/clash_subscribe (Docker bind mounts need ext4 permissions; never NTFS)",
+   "legacy": false,
+   "owner": "shell-linux",
+   "fix": "Source the constants library and set DATA_CACHE_DIR from the contract's paths.drive_layout.namespaces.linux_ext4 plus docker/clash_subscribe, created with the single ensure_namespace_root helper. Update the three build scripts and the README together."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\docker_compose\\baota\\build.pure.baota.sh",
+   "line": 62,
+   "creates": "/home/www on the host (docker run -v /home/www:/www auto-creates the bind source). It is the Linux twin of build.bat:31 (D:\\.devr\\docker\\www).",
+   "namespace_target": "/opt/core_node/docker/baota/www (ext4 namespace). Windows twin: D:\\www\\core_node\\docker\\baota\\www",
+   "legacy": false,
+   "owner": "shell-linux",
+   "fix": "Derive the host path from the contract namespace through the constants library (e.g. \"$CN_NS_EXT4/docker/baota/www\") and create it with the namespace helper before docker run. No literal."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\docker_compose\\si.server\\docker-compose.yaml",
+   "line": 10,
+   "creates": "/www/wwwroot/docker-data/nginx-proxy-manager (and letsencrypt), /www/wwwroot/registry-data (lines 21 and 40) and /www/wwwroot/gitea_data (line 73). These are Docker bind sources auto-created under a bare /www. On an NTFS /www they land at D:\\wwwroot\\...; on an ext4 host they are the non-namespace /www/wwwroot.",
+   "namespace_target": "map_web_path wwwroot (/www/www/wwwroot on the share); on ext4-only hosts use the ext4 data root the orchestrator decides (see the gvar_common.sh:308 finding), with Docker data under /opt/core_node/docker/<svc>",
+   "legacy": false,
+   "owner": "shell-linux",
+   "fix": "Replace the literals with ${CN_DOCKER_DATA}/<svc> variables. Generate a .env from the constants library (contract namespace) next to the compose file. A compose file cannot read the contract itself, so compose must only be run through a wrapper that exports the vars."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\scripts\\docker-compose-selector.js",
+   "line": 29,
+   "creates": "/usr/docker_compose/generated (mkdirSync recursive at :39-40). On Windows the same literal resolves to <current drive>\\usr\\docker_compose, e.g. D:\\usr. Its input docker-compose-template.yml uses ${DOCKER_DATA}/${WEB_DIR}/${DOCKER_DIR}/${MAIN_DIR} (e.g. :11, :54, :150, :296), which are defined only in .env-synology. On any other host they are empty, so the bind sources become /portainer, /redis, /mongodb, /nextcloud ... at the filesystem root. No caller in the repo.",
+   "namespace_target": "Generated compose: GLOBAL_TEMP_DIR or <core_node data dir>/docker/generated. Docker data: /opt/core_node/docker/<svc> (ext4) or D:\\www\\core_node\\docker\\<svc>",
+   "legacy": false,
+   "owner": "shell-linux (nearest; scripts/shells/scripts/*.js has no explicit D22 owner, same as check_global_packages.js)",
+   "fix": "Set OUTPUT_DIR = path.join(systemPaths.getSystemCacheDir() or the data dir, 'docker', 'generated'). systemPaths is already required at :6. When writing the generated file, also write DOCKER_DATA/WEB_DIR/DOCKER_DIR/MAIN_DIR from the contract namespace, and refuse to emit when any of them is empty."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\slim_c_disk\\slim_c_disk.py",
+   "line": 39,
+   "creates": "D:\\CDriveRedirect (TARGET_DIR; ensure_directory_exists at :352; per-folder targets built at :240). The companion slim_init.py writes loose files at the D: root: D:\\slim_c2d_disk.py (:41), D:\\find_python_and_run.bat (:130) and D:\\find_python_and_run.ps1 (:180)",
+   "namespace_target": "D:\\www\\core_node\\CDriveRedirect (or D:\\www\\CDriveRedirect) for the redirected folders; helper scripts under D:\\www\\core_node\\scripts or run from the repo",
+   "legacy": false,
+   "owner": "unassigned in D22 (scripts/slim_c_disk Python)",
+   "fix": "Read the D: namespace from the contract (windows_data_drive_root + namespaces.windows_data_drive) through pycore system_paths, and set TARGET_DIR = <CORE_NODE_DATA_DIR>\\CDriveRedirect. Point slim_init.py's three outputs at the same namespace (or run them in place from the repo). No drive-root literal."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\pytools\\media_compressor\\compressor.py",
+   "line": 73,
+   "creates": "E:\\Evidences\\_tmp and E:\\Evidences\\_compress (mkdir parents=True at :137-138, which also creates E:\\Evidences). transfer_mixin.py:83 creates E:\\Evidences itself (:92-94), and migrate_to_sqlite.py:74 and integrity_mixin.py:31 use the same literal. integrity_mixin.py:28 defaults to the legacy D:\\.tmp\\BaiduNetdiskDownload. E: does not exist on this machine.",
+   "namespace_target": "Scratch and compress output go under the program-drive namespace: E:\\core_node_compiler\\tmp\\media_compressor (D: fallback D:\\www\\tmp\\media_compressor). The evidence source/target dir is user data and should come from user settings, not a literal",
+   "legacy": false,
+   "owner": "unassigned in D22 (scripts/pytools Python)",
+   "fix": "Take SOURCE_DIR and the copy target from a setting or argument, and skip them when missing. Derive TMP_DIR and COMPRESS_DIR from the contract temp root (the proposed paths.drive_layout.temp_root) through system_paths. Never mkdir a drive-root folder."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\utilities\\generate_tts.py",
+   "line": 32,
+   "creates": "D:\\wwwroot\\pycore_db\\tts\\{en,jp,laos,vie} (mkdir parents=True at :183 and :250), i.e. a D:\\wwwroot next to D:\\www. On Linux it uses /mnt/d/wwwroot/pycore_db (the same D:\\wwwroot).",
+   "namespace_target": "map_web_path('wwwroot','pycore_db') = D:\\www\\wwwroot\\pycore_db (Linux /www/www/wwwroot/pycore_db)",
+   "legacy": false,
+   "owner": "unassigned in D22 (scripts/utilities Python; TTS content, nearest lane pycore-ai)",
+   "fix": "BASE_STORAGE_DIR = map_web_path('wwwroot', 'pycore_db') from pycore.pyfoundations.system_paths (contract-derived). Delete both drive literals."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\ai_scripts\\DeepSeekManager.ps1",
+   "line": 65,
+   "creates": "D:\\programing\\DeepSeek-VL. Get-DeepSeekBaseDirectory returns 'D:\\programing' (also /mnt/d/programing at :68 and :90) and the install dir is created under it (New-Item parent at :111). This is a model checkout written by a script into the user code area. It is the Windows twin of the Linux 105_install_deepseek.sh finding.",
+   "namespace_target": "Tool root: CN_TOOL_ROOT\\applications\\DeepSeek-VL (E:\\core_node_compiler\\.dev_<sys>; D: fallback D:\\www\\.dev_<sys>). Weights go in the shared model cache",
+   "legacy": true,
+   "owner": "shell-windows",
+   "fix": "Dot-source GlobalVars.ps1 and use Join-Path $Global:LANG_COMPILER_DIR 'applications\\DeepSeek-VL' (the legacy-aware tool-root resolver). Keep detecting the existing D:\\programing\\DeepSeek-VL as a read candidate until the user-approved migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\install_powershells\\Step37_InstallDeepSeekOCR.ps1",
+   "line": 27,
+   "creates": "D:\\programing\\DeepSeek-OCR (git clone at :121; candidates are D:\\programing, E:\\programing and C:\\programing, else %USERPROFILE%\\programing). This is the Windows twin of 107_install_deepseek_ocr.sh.",
+   "namespace_target": "CN_TOOL_ROOT\\applications\\DeepSeek-OCR (legacy-aware tool root)",
+   "legacy": true,
+   "owner": "pycore-ai (Step37 is in its Windows install-step list)",
+   "fix": "Replace Get-BaseDirectory with the GlobalVars tool-root resolver (Join-Path $Global:LANG_COMPILER_DIR 'applications'). Keep reading the existing D:\\programing\\DeepSeek-OCR until the user-approved migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\utils\\stream_translator\\libs\\ModelInitializer.js",
+   "line": 48,
+   "creates": "D:\\programing\\DeepSeek-VL (mkdirSync baseDir at :83, gitClone into modelDir at :135). On WSL it uses /mnt/d/programing; on Linux it uses /mnt/dev_*/programing or ~/programing. The same base-dir logic is in ncore/utils/deepseek_launcher/index.js:38.",
+   "namespace_target": "Contract tool_root + applications/DeepSeek-VL (E:\\core_node_compiler\\.dev_<sys> | D:\\www\\.dev_<sys> | /opt/core_node/_<os>_<ver>)",
+   "legacy": true,
+   "owner": "ncore",
+   "fix": "Resolve baseDir from drive_layout.tool_root through ncore/foundation/common/system_paths.js in both files. Never mkdir or clone into the programing folder. Keep the existing D:\\programing\\DeepSeek-VL as a read candidate until the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\ncore\\utils\\dev_tool\\wsl-uitls\\tool\\wsl_ubuntu_config.js",
+   "line": 96,
+   "creates": "/www/programming inside WSL (mkdir -p, then git clone <repo> script at :97-101). This is a new top-level dir under /www (and misspelled), holding a script-created code checkout.",
+   "namespace_target": "none: code checkouts are user-managed (DIRECTORY_NAMESPACE_RULES §1)",
+   "legacy": false,
+   "owner": "ncore",
+   "fix": "Do not create the parent or clone. Check that the user's checkout path exists (from the contract linux_www_root + programing layout, or a user setting), and print instructions when it does not."
+  },
+  {
+   "file": "D:\\programing\\core_node\\config\\index.js",
+   "line": 34,
+   "creates": "This is the #@gconfig module. APP_INSTALL_DIR = <DATA_DRIVER>\\applications_<os> (e.g. D:\\applications_win10; ncore/utils/win_tool/libs/winget.js:18/46 and dev_tool/win-libs/winget.js:17 install winget packages there). TEMP_DIR = <DATA_DRIVER>\\.tmp and DOWNLOAD_DIR = <DATA_DRIVER>\\.tmp\\.downloads (:36-37), which ncore/utils/dev_tool/lang_deploy/get*_win.js and getandroidstudio_linux.js:44 create. On Linux DATA_DRIVER=/www, so this gives /www/.tmp/.downloads (= D:\\.tmp on NTFS). DEV_LANG_DIR (:33) is the globaldir.js finding.",
+   "namespace_target": "APP_INSTALL_DIR: tool_root\\applications (E:\\core_node_compiler\\.dev_<sys>\\applications; D: fallback D:\\www\\.dev_<sys>\\applications). TEMP/DOWNLOAD: the namespaced temp root (D:\\www\\tmp or E:\\core_node_compiler\\tmp; Linux /opt/core_node/tmp)",
+   "legacy": true,
+   "owner": "ncore (consumers; config/index.js is not *.json, so the orchestrator's config/*.json scope does not name it)",
+   "fix": "Build all four constants from ncore system_paths.js (contract drive_layout.tool_root and the proposed temp_root) instead of path.join(DATA_DRIVER, ...). D:\\applications_win10 does not exist yet; D:\\.tmp is legacy, so keep reading it until the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\pycore\\pyfoundations\\pg_sync_adapter.py",
+   "line": 232,
+   "creates": "<win mount>/var/_core_node (= D:\\var\\_core_node, a new D: top-level dir). sync_meta_path.parent.mkdir(parents=True) at :547 writes the PG sync metadata there. Line 231 also reads Windows PG passwords from D:\\var\\_core_node\\global_var, but the Windows gvar store is actually D:\\www\\core_node\\global_var, so that read always misses.",
+   "namespace_target": "<win mount>/www/core_node (D:\\www\\core_node, contract windows_data_drive namespace + core_node_data_dir_name) for both the meta file and global_var",
+   "legacy": false,
+   "owner": "pycore-lead",
+   "fix": "Derive win_secrets_dir and sync_meta_path from the contract's windows_data_drive namespace (e.g. m / www_dir_name / core_node_data_dir_name / 'global_var'), the way win_pg_root at :229 already uses m/www/wwwroot. Never mkdir m/var."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\win\\win_common\\SharedCacheEnv.ps1",
+   "line": 359,
+   "creates": "D:\\programing\\Users (WINDOWS_PROGRAMING_USERS_DIR). It is the base for GlobalVars.ps1:152-163 PROGRAMING_USER_DIR (D:\\programing\\Users\\$env:USERNAME, which produced D:\\programing\\Users\\DESKTOP-1L9K06N$\\.core_node on 2026-08-25 when run as SYSTEM) and for PI_*_USER_DIR (PiYolo, PiKimi, PiCodex, PiVolcAgent, PiVolcCoding). Profile and credential data sits in the user code area. The tree is split: pi_launcher_section.py:49 already uses CORE_NODE_DATA_DIR\\Users (D:\\www\\core_node\\Users holds Kimi1/2, PiVolc*, PiYolo), while ark/codex/Pi GlobalVars use D:\\programing\\Users. D:\\programing\\Users\\mpc holds a live .claude (updated today).",
+   "namespace_target": "D:\\www\\core_node\\Users (CORE_NODE_DATA_DIR\\Users; it already exists). Linux: the same data-dir Users",
+   "legacy": true,
+   "owner": "core-node-e9",
+   "fix": "Define the Users root once, e.g. contract paths.users_dir_name joined to CORE_NODE_DATA_DIR (orchestrator adds the key). SharedCacheEnv.ps1 resolves it as $Global:WINDOWS_PROGRAMING_USERS_DIR = the legacy D:\\programing\\Users while it exists, else CORE_NODE_DATA_DIR\\Users. Do not create PROGRAMING_USER_DIR for a machine account. Moving the credential profiles needs the user's approval."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\pytools\\special_software_env_manager\\script_sections\\ark_launcher_section.py",
+   "line": 48,
+   "creates": "The generator templates emit literal user roots into the launchers, so any regeneration brings the literals back in the Linux sweep fixes and in the kimi fix. Windows: WIN_USER_BASE \"D:\\\\programing\\\\Users\" (here) and command_content_generator_windows.py:249 give ark1-7.ps1:147 and codex1-2.ps1:77 (D:\\programing\\Users\\<slot>). \"D:\\\\.tmp\\\\Users\" (MyBest slots) is in user_directory_section.py:55 and command_content_generator_windows.py:70. Linux: \"/var/_core_node/Users\" is in ark_launcher_section.py:49, command_content_generator_linux.py:48, kimi_launcher_section.py:570 and user_directory_section.py:241, and linuxenvs/openai1.sh:55 uses /tmp/Users.",
+   "namespace_target": "$Global:PROGRAMING_USERS_DIR / CORE_NODE_DATA_DIR\\Users on Windows (see the SharedCacheEnv.ps1:359 finding); LEGACY_CORE_NODE_DATA_DIR/Users on Linux until the migration, then the namespace data dir",
+   "legacy": true,
+   "owner": "unassigned in D22 (scripts/pytools generator); the generated scripts/winenvs/*.ps1 are shell-windows and scripts/linuxenvs/*.sh are shell-linux",
+   "fix": "Make every template emit the constant instead of a literal: $Global:PROGRAMING_USERS_DIR on Windows (as pi_launcher_section.py already does with the data dir), and $LEGACY_CORE_NODE_DATA_DIR/Users from runtime_environment.sh on Linux. Then regenerate ark*, codex*, kimi* and MyBest launchers so the existing credential profiles keep being read until the migration."
+  },
+  {
+   "file": "D:\\programing\\core_node\\poly_apps\\flutter_bloom\\scripts\\win_common\\FlutterGlobalVar.ps1",
+   "line": 15,
+   "creates": "D:\\programing\\Users\\$env:USERNAME\\.core_node\\.flutter_build\\.cache\\flutter_bloom (FTEMP_FLUTTER_DIR, New-Item at :204), a literal build cache in the user code area",
+   "namespace_target": "$Global:CN_CACHE_ROOT\\flutter_bloom (E:\\core_node_compiler\\cache; D: fallback D:\\www\\cache)",
+   "legacy": false,
+   "owner": "flutter (D6 won't-fix stands; recorded for the audit)",
+   "fix": "Dot-source SharedCacheEnv.ps1 and set CORE_NODE_USER_CACHE = Join-Path $Global:CN_CACHE_ROOT 'flutter_bloom'. No drive literal."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\linux\\common\\linux_applications_list.sh",
+   "line": 120,
+   "creates": "/opt/Postman. postman_debian_install_spec \"/opt/Postman|Postman\" drives install_via_tarball (scripts/shells/linux/common/installation_methods.sh:758, dest_dir = spec field 1, mkdir -p then tar -xzf), a new top-level dir under /opt",
+   "namespace_target": "/opt/core_node/_<os>_<ver>/applications/Postman (map_web_path applications_dir)",
+   "legacy": false,
+   "owner": "shell-linux",
+   "fix": "Make tarball specs relative (e.g. \"Postman|Postman\") and have install_via_tarball prefix them with $(map_web_path applications_dir). Reject absolute dest_dir values outside the namespace."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\shells\\linux\\common\\desktop_application_installer.sh",
+   "line": 139,
+   "creates": "Project-owned trees under /usr/local, outside any namespace: /usr/local/super_scripts (here, desktop_application_reporting.sh:185 and super_launch_helper.sh:11/19); /usr/local/super_bin (super_launch_helper.sh:10/14); /usr/local/lib/core_node/browser-bridge (desktop_browser_bridge.sh:23/39, on PATH via cursor_install_backend_common.sh:579/588 and desktop_application_entry.sh:251); /usr/local/uv-tools (installation_methods.sh:453 UV_TOOL_DIR); /usr/local/lib/<app> copies (installation_library.sh:155 relocate_root_home_install); /usr/local/lib/composer and /usr/local/share/composer (composer_install_common.sh:11/15, mkdir :90/:93); /usr/local/src/nginx-build and /usr/local/nginx (nginx_common.sh:31-32, source-build prefix). /usr/local/bin link entries are PATH only and not in scope. None exist in WSL.",
+   "namespace_target": "/opt/core_node/_<os>_<ver>/{super_scripts,super_bin,browser-bridge,uv-tools,composer,nginx-src} with /usr/local/bin symlinks as the only PATH entry (needs an orchestrator decision, because §2 names only /opt, /www and drive tops)",
+   "legacy": false,
+   "owner": "shell-linux",
+   "fix": "Orchestrator decides whether /usr/local counts. If it does, define each root once in the constants library under $(map_web_path compile_dir) and keep only symlinks in /usr/local/bin. Keep existing /usr/local trees read-only until the approved migration, because launchers and PATH lines point at them."
+  },
+  {
+   "file": "D:\\programing\\core_node\\scripts\\nodetools\\gvar_common.js",
+   "line": 178,
+   "creates": "getBaseDataDirectory (:170-222) is a third, diverging data base. Windows: C:\\www if present, else %USERPROFILE%\\Documents\\www (commented \"Create it if doesn't exist\"), and mapWebPath appends another 'www' (:234): C:\\www\\www or Documents\\www\\www, never D:\\www. Linux: /mnt/d, /mnt/e, /data or /www, whichever exists first. Neither C:\\www nor Documents\\www exists today.",
+   "namespace_target": "D:\\www (contract windows_data_drive_root + namespaces.windows_data_drive); Linux /www/www (linux_ntfs_shared_data) or the ext4 root",
+   "legacy": false,
+   "owner": "unassigned in D22 (scripts/nodetools JS; app_config.sh:23 names it as the JS path-map twin)",
+   "fix": "Replace getBaseDataDirectory and mapWebPath with ncore/foundation/common/system_paths.js (contract-derived), so shell, PHP, pycore and nodetools share one map. Fix this together with the earlier gvar_common.js:306-312 compile-dir finding."
+  },
+  {
+   "file": "(no creator in the current tree) WSL Debian /agents, /config, /xdg-open",
+   "creates": "Test fixtures at the WSL filesystem root, created 2026-09-27 21:10:18-21:13: /agents/{alpha.md,reviewer.md}, /config/roles.json (a claude_team roles fixture: schema_version 7, agents_dir \"agents\", min_lead/min_role) and /xdg-open (a stub that appends to \"/opened.log\"). The path pattern suggests an ad-hoc agent test whose temp-dir variable was empty, so \"$tmp/agents\" became /agents. The fixture shape matches claude_team_common.sh and desktop_browser_bridge.sh tests.",
+   "namespace_target": "none (scratch under mktemp -d inside GLOBAL_TEMP_DIR)",
+   "legacy": true,
+   "owner": "none (session artifact); rule reference LINUX_SHELL_RULES / DIRECTORY_NAMESPACE_RULES §2",
+   "fix": "No repo code change. Record them in the audit as stray root-level dirs and let the user remove them. Test harnesses should use tmp=$(mktemp -d) and abort when ${tmp:?} is empty before writing."
+  },
+  {
+   "file": "(no creator in the current tree) D:\\programing\\.data, .paddle_home, .paddlex_cache_cpu, scripts, all_projects_ubuntu-HW15S",
+   "creates": "Program-created dirs in the user code folder with no writer in the current tree: D:\\programing\\.data\\pycore\\{gptsovits (2026-06-20), chattts, cosyvoice, f5tts (2026-07-12)} (named after pycore TTS engines, so likely an older pycore model-data root); .paddle_home\\{.cache,.matplotlib} and .paddlex_cache_cpu\\official_models (2026-07-10); scripts\\ (a different project's backend scripts, 2026-07-10); all_projects_ubuntu-HW15S (1.15 GB zip + PROJECTS_REPORT.md, 2026-06-20, looks like an old backup_all_projects output; current default is $CORE_NODE_DATA_DIR/backups).",
+   "namespace_target": "Model data: the CN cache root (D:\\www\\cache\\pycore); backups: D:\\www\\backups",
+   "legacy": true,
+   "owner": "none (record only)",
+   "fix": "No code change. List them as legacy/unattributed in the audit record. Leave them in place; moving or removing them needs the user's approval."
+  }
+ ]
+}

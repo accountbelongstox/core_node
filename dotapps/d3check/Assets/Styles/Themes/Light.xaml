@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Fluent 2 Light theme overrides. Use via theme switcher to apply light palette. -->
+  <SolidColorBrush x:Key="BackgroundPrimaryBrush" Color="#f3f3f3"/>
+  <SolidColorBrush x:Key="BackgroundSecondaryBrush" Color="#e8e8e8"/>
+  <SolidColorBrush x:Key="BackgroundTertiaryBrush" Color="#d0d0d0"/>
+  <SolidColorBrush x:Key="BackgroundDarkBrush" Color="#1a1a1a"/>
+  <SolidColorBrush x:Key="BackgroundLightBrush" Color="#ffffff"/>
+  <SolidColorBrush x:Key="BackgroundHoverBrush" Color="#e0e0e0"/>
+  <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#e5e5e5"/>
+  <SolidColorBrush x:Key="PanelHeaderBrush" Color="#d8d8d8"/>
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1a1a1a"/>
+  <SolidColorBrush x:Key="TextSecondaryBrush" Color="#0066aa"/>
+  <SolidColorBrush x:Key="TextTertiaryBrush" Color="#505050"/>
+  <SolidColorBrush x:Key="TextMutedBrush" Color="#666666"/>
+  <SolidColorBrush x:Key="TextDarkBrush" Color="#1a1a1a"/>
+  <SolidColorBrush x:Key="InputBackgroundBrush" Color="#ffffff"/>
+  <SolidColorBrush x:Key="InputTextBrush" Color="#1a1a1a"/>
+  <SolidColorBrush x:Key="BorderSubtleBrush" Color="#d0d0d0"/>
+  <SolidColorBrush x:Key="SeparatorBrush" Color="#d0d0d0"/>
+  <SolidColorBrush x:Key="TabSelectedBackgroundBrush" Color="#e8e8e8"/>
+  <SolidColorBrush x:Key="TabSelectedForegroundBrush" Color="#1a1a1a"/>
+</ResourceDictionary>

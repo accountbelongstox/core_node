@@ -1,0 +1,48 @@
+{
+  "task_id": "ncore-1",
+  "role": "ncore",
+  "verdict": "approved",
+  "findings": {
+    "NC-001": {
+      "status": "fixed",
+      "reason": "callmodule (58000) binds the contract loopback by default (global_config uses defaultBindHost; launcher, linux_service, windows_tray and ncore_module_caller.js follow). cors('*') is replaced by the K7 guard as the first middleware, with raw-body capture and the signed body-digest check. /api/call runs only exact {module, function} pairs from allowedCalls (empty by default); absolute, drive-letter and escaping module paths are rejected, and a whole module can no longer be invoked. A web page or LAN host can no longer require() arbitrary modules."
+    },
+    "NC-005": {
+      "status": "fixed",
+      "reason": "The shared HTTP RPC stack defaults to the contract loopback (rpc_constants, rpc_config, ExpressServer). expressProvider runs the guard first, reflects only allowed origins (never * with credentials), and checks the signed body digest. WsManager/WsRpcServer upgrades use createWsVerifyClient. /rpc/query results are bound to the requesting client id (ResponseCache owner)."
+    },
+    "NC-007": {
+      "status": "fixed",
+      "reason": "WebLocalAreaNetwork serves and accepts uploads only under <ROOT_APP_STATIC_DIR>/share on a loopback bind (HTTP_HOST unset, so the stack default applies). Containment uses pathtool.resolveInside (realpath of the existing prefix plus path.relative), so sibling-prefix and symlink escapes are rejected. Upload names are reduced to basename and the dir picker is contained."
+    },
+    "NC-013": {
+      "status": "fixed",
+      "reason": "SessionManager runs an unref'd cleanup interval, caps sessions (evicting the oldest) and validates client ids (normalizeClientId); the WS close handler reads the entry before deleting and ignores superseded sockets."
+    },
+    "NC-020": {
+      "status": "fixed",
+      "reason": "jsmcptools replaces @fastify/cors '*' with the fastify guard (onRequest + preParsing): loopback Host, loopback origins plus the extension origin from service_contract.json#mcp_chrome.extension_id (now present in the contract), and K3 for non-loopback callers."
+    },
+    "NC-028": {
+      "status": "fixed",
+      "reason": "The translation HTTP service listens on the contract loopback (or the configured host) behind the express guard and the body-digest check."
+    },
+    "NC-038": {
+      "status": "fixed",
+      "reason": "New finding, accepted: Node package imports do no extension/index resolution, so the extensionless #@ requires threw MODULE_NOT_FOUND. The 24 require strings now carry the file path; only the require string changed in each file. The unresolved targets that do not exist at all are listed as dead in the report."
+    },
+    "NC-039": {
+      "status": "fixed",
+      "reason": "New finding, accepted: rpc.getExpressServer() never existed; the Voice dict_server/sync_audio and WLAN update controllers now require UploadTools directly."
+    }
+  },
+  "cross_end": "Scratchpad check: a copy of client_key_auth.js with only logger, secret_manager and contract requires stubbed reproduces the key id, all 3 canonical strings and signatures of test_vectors.json (unsorted raw query with %20 included). A full verifyRequest round trip gives ok, then client_key_nonce_replayed on replay and client_key_signature_invalid on a tampered query. Every value is read from service_contract.json#client_key_auth and the relay canonicalization (the key id length is parsed from the contract). Verifier keys are CORE_NODE_CLIENT_KEY_1..5 only, which matches K1. signRequest accepts a precomputed contentSha256 for the mcp-chrome native host.",
+  "issues": [
+    "ncore/ncore_backend_main.py:~40-90 (non-blocking) the FastAPI middleware reimplements the K7 decision (loopback name, Host and origin checks) instead of reusing pycore/pyutils/common/local_rpc_guard.py (evaluate_request, is_loopback_peer, host_header_is_loopback), which pycore is building now. Consolidate once pycore's guard is reviewed. It also hardcodes the literal 'client_key_signature_invalid'; read the code from the contract error_codes.",
+    "ncore/foundation/common/client_key_auth.js:529 (non-blocking) signRequest({query: {...}}) canonicalizes the object with repeated keys, but axios serializes array params as a[]=1&a[]=2 by default. Callers that pass arrays should sign the URL as sent (request.url) rather than the params object.",
+    "(behaviour change, recorded) WebLocalAreaNetwork and the Voice local UI are loopback-only, and /api/call refuses every call until allowedCalls is configured."
+  ],
+  "checks": "client_key_auth.js and local_rpc_guard.js read in full. Diffs read: callmodule app/global_config, expressProvider, rpc_constants, session_manager/WsManager/response_cache, WLAN config/http/download plus pathtool, jsmcptools server, translation http_service, ncore_backend_main.py. The pycore client_key_verify signature used by ncore_backend_main.py matches pycore/pyutils/common/client_key_auth.py. The /rpc and /rpc/* handler lookups are behind the guard. Scope: ncore/, apps/ (not mcp-chrome), ncore_module_caller.js.",
+  "checked_at": "2026-09-27T04:28:06+10:00",
+  "post_review_note": "2026-09-27T05:17 (ncore-7 review): the K7 guard approved here tests Host and Origin hostnames with a '127.' string prefix (local_rpc_guard.js isLoopbackAddress), which a DNS-rebinding name gets through. It is tracked as a HIGH issue in ncore-7.json; this verdict's K7 approval is superseded until that fix lands. Closed at the ncore-7 resubmit (2026-09-27T09:41:31+10:00): exact-match Host/Origin and IP-parsed peers, verified."
+}

@@ -1,10 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
 AppIndicator3 System Tray - Native Ubuntu/GNOME System Tray
 
 Native implementation using GTK3 + AppIndicator3 for Ubuntu/GNOME Shell.
 This provides the best system tray experience on Ubuntu 22.04+.
+
+Platform notes (verified live on Debian 13, GNOME 48 + ubuntu-appindicators v59, 2026-09):
+- Debian 13 (trixie, GNOME 48, Wayland default): only the Ayatana binding
+  exists (gir1.2-ayatanaappindicator3-0.1; legacy gir1.2-appindicator3-0.1 was
+  dropped from Debian). GNOME Shell shows NO tray icons without the
+  gnome-shell-extension-appindicator package (install + re-login required).
+- Ubuntu 26.04 (GNOME 50, Wayland-only): both GI packages exist;
+  prefer Ayatana. The appindicator extension ships enabled by default via
+  gnome-shell-ubuntu-extensions, so tray works out of the box.
+- The AppIndicator protocol is D-Bus (StatusNotifierItem), so it works
+  natively under Wayland without XWayland. Menus are exported via
+  com.canonical.dbusmenu and rendered by the shell; a click reveals them.
+- The process MUST run as the desktop session user: a root process cannot
+  connect to the user's session bus (/run/user/<uid>/bus), even with
+  DBUS_SESSION_BUS_ADDRESS forwarded - the icon then never registers, or GTK
+  half-initializes and menu popups fail with Gdk-CRITICAL
+  'gdk_window_thaw_toplevel_updates'. pyservice_entry.sh therefore drops the
+  worker to the graphical session user; check_session_bus_available() guards
+  this backend when that did not happen.
 
 Features:
 - Native GNOME Shell integration (no extensions required for basic functionality)
@@ -15,14 +35,16 @@ Features:
 
 Requirements:
     System packages (recommended):
-        sudo apt-get install python3-gi gir1.2-appindicator3-0.1
+        sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1
+        # Debian 13 GNOME additionally needs the shell extension:
+        sudo apt-get install gnome-shell-extension-appindicator
 
     OR pip packages (requires compilation):
         pip install PyGObject
-        sudo apt-get install gir1.2-appindicator3-0.1
+        sudo apt-get install gir1.2-ayatanaappindicator3-0.1
 
 Usage:
-    from pycore.pyutils.native_ui.step6_tray import AppIndicatorSystemTray
+    from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import AppIndicatorSystemTray
 
     tray = AppIndicatorSystemTray(
         app_id="my-app",
@@ -36,58 +58,78 @@ Usage:
 import sys
 import platform
 from typing import Optional, List, Callable, TYPE_CHECKING
-from dataclasses import dataclass
 from pathlib import Path
 
-# Try to import GTK3 and AppIndicator3
+from pycore.pyutils.native_ui.step6_tray._types import (
+    AppIndicatorMenuItem,
+    build_appindicator_menu_items,
+)
+
+
+# Try to import GTK3 + an AppIndicator binding.
+#
+# Ubuntu differentiation: modern Ubuntu (22.04+/24.04) deprecates the old
+# AppIndicator3 (gir1.2-appindicator3-0.1) in favour of Ayatana AppIndicator
+# (gir1.2-ayatanaappindicator3-0.1 / AyatanaAppIndicator3). Their APIs are
+# identical (Indicator.new / IndicatorCategory / IndicatorStatus / set_menu /
+# set_status / set_title / set_icon_full), so we try Ayatana first and fall back
+# to the legacy binding, exposing whichever we get as `AppIndicator3`.
+APPINDICATOR_AVAILABLE = False
+IMPORT_ERROR = None
+APPINDICATOR_BACKEND = None  # "ayatana" | "legacy" | None
+Gtk = None
+AppIndicator3 = None
+GLib = None
+
 try:
     import gi
     gi.require_version('Gtk', '3.0')
-    gi.require_version('AppIndicator3', '0.1')
-    from gi.repository import Gtk, AppIndicator3, GLib
-    APPINDICATOR_AVAILABLE = True
-    IMPORT_ERROR = None
-except ImportError as e:
+    from gi.repository import Gtk, GLib, Gio
+
+    # 1) Modern Ubuntu: Ayatana AppIndicator
+    try:
+        gi.require_version('AyatanaAppIndicator3', '0.1')
+        from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+        APPINDICATOR_AVAILABLE = True
+        APPINDICATOR_BACKEND = "ayatana"
+    except (ImportError, ValueError):
+        # 2) Legacy AppIndicator (older Ubuntu / Debian)
+        gi.require_version('AppIndicator3', '0.1')
+        from gi.repository import AppIndicator3
+        APPINDICATOR_AVAILABLE = True
+        APPINDICATOR_BACKEND = "legacy"
+except (ImportError, ValueError) as e:
     APPINDICATOR_AVAILABLE = False
     IMPORT_ERROR = str(e)
-    # Create dummy classes for type hints
     Gtk = None
     AppIndicator3 = None
     GLib = None
-except ValueError as e:
-    # gi.require_version failed
-    APPINDICATOR_AVAILABLE = False
-    IMPORT_ERROR = str(e)
-    Gtk = None
-    AppIndicator3 = None
-    GLib = None
+    Gio = None
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
-@dataclass
-class AppIndicatorMenuItem:
+def check_session_bus_available() -> bool:
     """
-    Menu item configuration for AppIndicator.
+    Preflight: verify the D-Bus session bus is actually reachable.
 
-    Attributes:
-        text: Menu item label (supports i18n keys)
-        callback: Function to call when clicked
-        icon_path: Optional icon path
-        checkable: Whether item is checkable (toggle)
-        checked: Initial checked state (if checkable)
-        separator: True if this is a separator
-        submenu: List of submenu items
-        enabled: Whether item is enabled
+    The StatusNotifierItem is registered on the DESKTOP USER's session bus.
+    When the process runs as root (direct root shell, no sudo/drop-privileges)
+    the user's bus socket (/run/user/<uid>/bus) refuses the connection even
+    with DBUS_SESSION_BUS_ADDRESS forwarded - the icon then never registers,
+    or GTK half-initializes and menu popups die with
+    'gdk_window_thaw_toplevel_updates' Gdk-CRITICAL. Catching it here lets the
+    caller fall back to another backend with a clear log instead of a dead tray.
     """
-    text: str
-    callback: Optional[Callable] = None
-    icon_path: Optional[str] = None
-    checkable: bool = False
-    checked: bool = False
-    separator: bool = False
-    submenu: Optional[List['AppIndicatorMenuItem']] = None
-    enabled: bool = True
+    if Gio is None:
+        return False
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        return bus is not None
+    except Exception:
+        return False
 
 
 class AppIndicatorSystemTray:
@@ -126,8 +168,10 @@ class AppIndicatorSystemTray:
         """
         if not APPINDICATOR_AVAILABLE:
             raise RuntimeError(
-                f"AppIndicator3 not available: {IMPORT_ERROR}\n"
-                f"Install with: sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
+                f"AppIndicator not available: {IMPORT_ERROR}\n"
+                f"Install (Debian 13 / Ubuntu 24.04+): sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
+                f"Debian 13 GNOME also needs:           sudo apt-get install gnome-shell-extension-appindicator\n"
+                f"Install (legacy Ubuntu only):         sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
             )
 
         self.app_id = app_id
@@ -146,7 +190,8 @@ class AppIndicatorSystemTray:
         self.indicator: Optional["AppIndicator3.Indicator"] = None
 
         # Running state
-        self._running = False
+        self._running_signal = f"native_ui.appindicator_tray.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
         ColorPrint.blue(f"[AppIndicatorSystemTray] Initialized - App ID: {app_id}")
 
@@ -300,13 +345,38 @@ class AppIndicatorSystemTray:
                 self.indicator.set_icon_full(icon_path, self.app_name)
             ColorPrint.cyan(f"[AppIndicatorSystemTray] Icon updated to: {icon_path}")
 
+    def _register_thread_bus_handlers(self):
+        """Register THREAD_BUS event handlers (tray.request_stop, tray.update_menu)."""
+        def handle_stop_request(event_data):
+            ColorPrint.blue("[AppIndicatorSystemTray] Received stop request via THREAD_BUS")
+            self.stop()
+
+        def handle_update_menu(event_data):
+            items = event_data.get('menu_items')
+            if items is not None:
+                # THREAD_BUS payload is backend-aware: TrayMenuItem objects
+                # (native pystray) OR dicts (PySide6 Qt). This backend needs
+                # AppIndicatorMenuItem, so adapt via the shared builder (same
+                # one the direct startup callers use). Raw items lack
+                # .separator/.callback and crash _add_menu_item.
+                ColorPrint.blue("[AppIndicatorSystemTray] Received menu update via THREAD_BUS")
+                self.update_menu(build_appindicator_menu_items(items))
+
+        THREAD_BUS.register_event_handler('tray.request_stop', handle_stop_request, priority=10)
+        THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)
+        ColorPrint.blue("[AppIndicatorSystemTray] THREAD_BUS event handlers registered")
+
+        latest_menu_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
+        if isinstance(latest_menu_payload, dict):
+            handle_update_menu(latest_menu_payload)
+
     def run(self):
         """
         Run tray (blocks until stopped).
 
         This starts the GTK main loop and blocks until Gtk.main_quit() is called.
         """
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow("[AppIndicatorSystemTray] Already running")
             return
 
@@ -315,10 +385,26 @@ class AppIndicatorSystemTray:
 
         if not self.gtk_menu:
             self._create_menu()
-            self.indicator.set_menu(self.gtk_menu)
+
+        # If no menu items were set, add a default Quit item so the menu is not
+        # empty (AppIndicator3 shows nothing on click if the menu has 0 children).
+        if self.gtk_menu and len(self.gtk_menu.get_children()) == 0:
+            quit_item = Gtk.MenuItem(label="Quit")
+            quit_item.connect("activate", lambda _: self.stop())
+            self.gtk_menu.append(quit_item)
+            self.gtk_menu.show_all()
+
+        # Always call set_menu() after the indicator is created.
+        # When set_menu_items() was called before run(), _rebuild_menu() built
+        # self.gtk_menu but could not call set_menu() because self.indicator was
+        # None at that point.  We must set it here unconditionally.
+        self.indicator.set_menu(self.gtk_menu)
 
         # Mark as running
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
+
+        # Register THREAD_BUS handlers so shutdown/update_menu work
+        self._register_thread_bus_handlers()
 
         # Signal that tray is ready
         THREAD_BUS.trigger_event('tray.ready', {'app_id': self.app_id})
@@ -333,7 +419,7 @@ class AppIndicatorSystemTray:
         except KeyboardInterrupt:
             ColorPrint.yellow("[AppIndicatorSystemTray] Interrupted by user")
         finally:
-            self._running = False
+            THREAD_BUS.signal(self._running_signal, False)
 
             # Trigger shutdown if configured
             if self.trigger_shutdown_on_exit:
@@ -357,7 +443,7 @@ class AppIndicatorSystemTray:
 
     def is_running(self) -> bool:
         """Check if tray is running."""
-        return self._running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
 
 def check_appindicator_available() -> bool:
@@ -387,24 +473,24 @@ def print_appindicator_status():
     ColorPrint.blue("=" * 70)
 
     if APPINDICATOR_AVAILABLE:
-        ColorPrint.green("✓ AppIndicator3 is available")
+        ColorPrint.green(f"✓ AppIndicator is available (backend: {APPINDICATOR_BACKEND})")
 
         # Try to get version info
         try:
-            import gi
             ColorPrint.cyan(f"  PyGObject version: {gi.__version__}")
         except:
             pass
     else:
-        ColorPrint.red("✗ AppIndicator3 is NOT available")
+        ColorPrint.red("✗ AppIndicator is NOT available")
         ColorPrint.yellow(f"  Error: {IMPORT_ERROR}")
         ColorPrint.yellow("")
-        ColorPrint.yellow("  Installation:")
-        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-appindicator3-0.1")
+        ColorPrint.yellow("  Installation (Debian 13 / Ubuntu 24.04+ - Ayatana):")
+        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1")
+        ColorPrint.yellow("  Debian 13 GNOME additionally needs the shell extension (re-login after):")
+        ColorPrint.yellow("    sudo apt-get install gnome-shell-extension-appindicator")
         ColorPrint.yellow("")
-        ColorPrint.yellow("  OR (with pip):")
-        ColorPrint.yellow("    pip install PyGObject")
-        ColorPrint.yellow("    sudo apt-get install gir1.2-appindicator3-0.1")
+        ColorPrint.yellow("  Installation (legacy AppIndicator, older Ubuntu only):")
+        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-appindicator3-0.1")
 
     ColorPrint.blue("=" * 70)
 

@@ -1,20 +1,6 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\ServerManagerV1;
-
-use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
-use App\Http\Common\CommonGvar;
 
 /**
  * ServerManagerV1ApiInfo Class
@@ -93,6 +79,14 @@ class ServerManagerV1ApiInfo
                 'path' => $apiPrefix . '/system/storage',
                 'feature' => 'auth_required/GET|Get storage analysis and disk usage information|ServerManagerV1SystemInfoCtl|response:storage(object,Storage info),usage(object,Disk usage),free_space(string,Available space)|tags:server,system'
             ],
+            [
+                'path' => $apiPrefix . '/system/static-resources',
+                'feature' => 'auth_required/GET|Get static resources summary (laravel_db/static file counts and sizes by type)|ServerManagerV1SystemInfoCtl@getStaticResources|response:base_path(string,Static root),total_files(int,File count),total_size_bytes(int,Total bytes),by_type(object,Counts by audio/video/image),by_subdirectory(array,Known subdirs),disk_usage(array,Mount points)|tags:server,system,static'
+            ],
+            [
+                'path' => $apiPrefix . '/system/static-resources/files',
+                'feature' => 'auth_required/GET|List files in static subdirectory with search/sort/pagination|ServerManagerV1SystemInfoCtl@listStaticResourceFiles|params:path(string,required,app_qy_v1/audio),q(string,optional,),sort(string,optional,name),order(string,optional,asc),page(int,optional,1),per_page(int,optional,100)|response:files(array,File list),total(int,Total matches)|tags:server,system,static'
+            ],
 
             // File Management APIs
             [
@@ -109,7 +103,19 @@ class ServerManagerV1ApiInfo
             ],
             [
                 'path' => $apiPrefix . '/files/preview',
-                'feature' => 'auth_required/GET|Preview text files with syntax highlighting|ServerManagerV1FileManagerCtl|params:file_path(string,required,/etc/hosts),lines(int,optional,100)|response:content(string,File content),type(string,File type)|tags:server,files'
+                'feature' => 'auth_required/GET|Preview text files with syntax highlighting|ServerManagerV1FileManagerCtl|params:file_path(string,required,/etc/hosts),lines(int,optional,100),for_edit(bool,optional,false)|response:content(string,File content),type(string,File type)|tags:server,files'
+            ],
+            [
+                'path' => $apiPrefix . '/files/write',
+                'feature' => 'auth_required/POST|Write text file with whitelist and optional elevated access|ServerManagerV1FileManagerCtl|params:file_path(string,required,/etc/hosts),content(string,required,file body)|headers:X-Elevated-Token(string,optional,short-lived token)|response:file_path(string,Saved path),size(int,Bytes)|tags:server,files'
+            ],
+            [
+                'path' => $apiPrefix . '/files/elevated-auth',
+                'feature' => 'auth_required/POST|Exchange root password for short-lived elevated write token|ServerManagerV1FileManagerCtl|params:password(string,required,root password)|response:token(string,Elevated token),expires_in(int,Seconds)|tags:server,files,security'
+            ],
+            [
+                'path' => $apiPrefix . '/files/elevated-auth',
+                'feature' => 'auth_required/DELETE|Revoke elevated write token|ServerManagerV1FileManagerCtl|headers:X-Elevated-Token(string,optional,token to revoke)|tags:server,files,security'
             ],
 
             // Code Execution APIs
@@ -167,6 +173,54 @@ class ServerManagerV1ApiInfo
                 'path' => $apiPrefix . '/nginx/reload',
                 'feature' => 'auth_required/POST|Reload nginx configuration without restart|ServerManagerV1NginxManagerCtl@reloadNginx|response:reloaded(boolean,Reload status),output(string,Command output)|tags:server,nginx'
             ],
+            [
+                'path' => $apiPrefix . '/nginx/status',
+                'feature' => 'auth_required/GET|Get nginx overview: installed, version, running state, config test, site counts|ServerManagerV1NginxManagerCtl@statusOverview|response:installed(boolean,Nginx installed),version(string,Nginx version),running(boolean,Running state),process_count(int,Process count),config_test(object,Config test result),sites(object,Site counts),install_hint(string,Install hint when missing)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/service',
+                'feature' => 'auth_required/POST|Control the nginx service (start/stop/restart/reload/status)|ServerManagerV1NginxManagerCtl@serviceControl|params:action(string,required,start)|response:action(string,Executed action),executed_via(string,systemctl or service),success(boolean,Action result),output(string,Command output)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/logs',
+                'feature' => 'auth_required/GET|Tail nginx access/error logs with optional keyword filter|ServerManagerV1NginxManagerCtl@logs|params:type(string,optional,error),lines(int,optional,200),filter(string,optional,ssl)|response:type(string,Log type),file(string,Log file path),exists(boolean,File exists),lines(array,Log lines),size_bytes(int,File size)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/install',
+                'feature' => 'auth_required/POST|Install nginx via the idempotent installer script (long-running)|ServerManagerV1NginxManagerCtl@install|response:installed(boolean,Installed after run),already_installed(boolean,Was already installed),version(string,Detected version),output(string,Installer output tail)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/backups',
+                'feature' => 'auth_required/GET|List nginx site config backups|ServerManagerV1NginxManagerCtl@listBackups|params:site(string,optional,example.com)|response:backups(array,Backups with site/type/size/created_at),total(int,Total backups)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/backups/restore',
+                'feature' => 'auth_required/POST|Restore a site config backup (current config backed up first; config test with rollback)|ServerManagerV1NginxManagerCtl@restoreBackup|params:file(string,required,example.com_2026-06-12_10-00-00.backup)|response:restored(boolean,Restore result),site(string,Site name),config_test(object,Config test result)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/main-config',
+                'feature' => 'auth_required/GET|View nginx.conf and conf.d listing with parsed worker directives (read-only)|ServerManagerV1NginxManagerCtl@mainConfig|response:file(string,Config path),exists(boolean,File exists),content(string,Config content),conf_d(array,conf.d files),parsed(object,Parsed worker directives)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/port-check',
+                'feature' => 'auth_required/GET|Check whether a TCP port is in use and by which process|ServerManagerV1NginxManagerCtl@portCheck|params:port(int,required,80)|response:port(int,Checked port),in_use(boolean,Port occupied),holder(string,Holder process),is_nginx(boolean,Held by nginx)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/metrics',
+                'feature' => 'auth_required/GET|Get nginx runtime metrics (stub_status plus process CPU/memory)|ServerManagerV1NginxManagerCtl@metrics|response:available(boolean,stub_status available),stub_status(object,Connection and request counters),hint(string,Enable hint when unavailable),processes(array,Process stats),totals(object,Memory and CPU totals)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/sites/batch',
+                'feature' => 'auth_required/POST|Batch enable/disable/test nginx sites|ServerManagerV1NginxManagerCtl@batchSites|params:action(string,required,enable),sites(array,required,["example.com"])|response:action(string,Executed action),results(array,Per-site results),succeeded(int,Success count),failed(int,Failure count)|tags:server,nginx'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/sites/{site_name}/delete-files',
+                'feature' => 'auth_required/POST|Delete a site web root after elevated confirmation|ServerManagerV1NginxManagerCtl@deleteSiteFiles|params:site_name(string,required,example.com),password(string,required),confirm(string,required,delete)|response:site_name(string,Site name),deleted(boolean,Delete status)|tags:server,nginx,security'
+            ],
+            [
+                'path' => $apiPrefix . '/nginx/repair',
+                'feature' => 'auth_required/POST|Repair nginx directories and quarantine invalid site configs before reload|ServerManagerV1NginxManagerCtl@repairConfig|response:repaired(boolean,Repair status),actions(array,Applied repairs)|tags:server,nginx'
+            ],
 
             // Unified Manager APIs
             [
@@ -183,15 +237,15 @@ class ServerManagerV1ApiInfo
             ],
             [
                 'path' => $apiPrefix . '/unified/start',
-                'feature' => 'auth_required/POST|Start application service|ServerManagerV1UnifiedManagerCtl@startApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+                'feature' => 'auth_required/POST|Start application service|ServerManagerV1UnifiedManagerCtl@startApp|params:app_name(string,required,pycore_laravel_wordnew_ui),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/stop',
-                'feature' => 'auth_required/POST|Stop application service|ServerManagerV1UnifiedManagerCtl@stopApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+                'feature' => 'auth_required/POST|Stop application service|ServerManagerV1UnifiedManagerCtl@stopApp|params:app_name(string,required,pycore_laravel_wordnew_ui),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/restart',
-                'feature' => 'auth_required/POST|Restart application service|ServerManagerV1UnifiedManagerCtl@restartApp|params:app_name(string,required,laravel_dashboard),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
+                'feature' => 'auth_required/POST|Restart application service|ServerManagerV1UnifiedManagerCtl@restartApp|params:app_name(string,required,pycore_laravel_wordnew_ui),app_type(string,required,polyApp)|response:service_name(string,Service name),status(object,Updated service status),output(string,Command output)|tags:server,deploy'
             ],
             [
                 'path' => $apiPrefix . '/unified/deploy',
@@ -230,6 +284,14 @@ class ServerManagerV1ApiInfo
             [
                 'path' => $apiPrefix . '/certificates/detect-certbot',
                 'feature' => 'auth_required/GET|Detect certbot installation and version|ServerManagerV1CertificateManagerCtl@detectCertbot|response:installed(boolean,Installation status),path(string,Certbot path),version(string,Version),nginx_plugin(boolean,Plugin status)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/ensure',
+                'feature' => 'auth_required/POST|Generate a missing certificate or renew an existing one asynchronously|ServerManagerV1CertificateManagerCtl@ensureCertificate|params:domain(string,required,example.com),provider(string,optional,dnspod),staging(boolean,optional,false)|response:request_id(string,Progress request ID),status(string,Running status)|tags:server,ssl,certificate'
+            ],
+            [
+                'path' => $apiPrefix . '/certificates/progress/{request_id}',
+                'feature' => 'auth_required/GET|Read asynchronous certificate operation progress|ServerManagerV1CertificateManagerCtl@certificateProgress|params:request_id(string,required)|response:status(string,Operation status),output(string,Certbot output)|tags:server,ssl,certificate'
             ]
         ];
     }

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>{{ROOT_NAMESPACE}}</RootNamespace>
+    <AssemblyName>{{APP_NAME}}</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\dotcore\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Utils\DotCore.Utils.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.UITheme\DotCore.UITheme.csproj" />
+  </ItemGroup>
+</Project>

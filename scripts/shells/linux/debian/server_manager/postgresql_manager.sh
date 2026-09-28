@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Declare all variables at the beginning of the file
-# 6. For Bash scripts: Use absolute paths resolved from script location
-# 7. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -17,6 +6,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 PG_VERSION=$(psql --version 2>/dev/null | awk '{print $3}' | cut -d. -f1)
 PG_CONFIG_DIR="/etc/postgresql"
@@ -32,7 +22,7 @@ COLOR_CYAN="\033[36m"
 check_postgresql_installed() {
     if ! command -v psql >/dev/null 2>&1; then
         echo -e "${COLOR_RED}PostgreSQL is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 46_install_postgresql.sh"
+        echo "Please run installation script first: 75_install_postgresql.sh"
         return 1
     fi
     return 0
@@ -257,16 +247,17 @@ create_database() {
 }
 
 view_config() {
-    show_header
-    echo -e "${COLOR_BLUE}=== PostgreSQL Configuration Files ===${COLOR_RESET}"
-    echo ""
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "View postgresql.conf"
+        "View pg_hba.conf"
+        "Back to PostgreSQL Manager"
+    )
 
-    echo "1) View postgresql.conf"
-    echo "2) View pg_hba.conf"
-    echo "0) Back to main menu"
-    echo ""
-
-    read -p "Select option: " choice
+    arrow_menu_select "PostgreSQL Configuration Files" menu_items 0 2
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    choice=$((selected_index + 1))
 
     case $choice in
         1)
@@ -289,22 +280,26 @@ view_config() {
 }
 
 show_menu() {
-    show_header
-    show_postgresql_status
+    local menu_items=(
+        "Start PostgreSQL"
+        "Stop PostgreSQL"
+        "Restart PostgreSQL"
+        "Reload Configuration"
+        "Show Basic Information"
+        "List Databases"
+        "List Users/Roles"
+        "Show Active Connections"
+        "Create New Database"
+        "View Configuration Files"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start PostgreSQL"
-    echo "  2) Stop PostgreSQL"
-    echo "  3) Restart PostgreSQL"
-    echo "  4) Reload Configuration"
-    echo "  5) Show Basic Information"
-    echo "  6) List Databases"
-    echo "  7) List Users/Roles"
-    echo "  8) Show Active Connections"
-    echo "  9) Create New Database"
-    echo " 10) View Configuration Files"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "PostgreSQL Manager" menu_items 0 10 show_postgresql_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 10 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -314,7 +309,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_postgresql ;;

@@ -1,20 +1,8 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Compares and synchronizes files between two network shares with directory skipping.
 .DESCRIPTION
-    Recursively scans \\192.168.100.5 and checks if each file exists in \\192.168.100.6.
+    Recursively scans the configured primary share and checks the configured secondary share.
     Skips specified directories (node_modules, vendor) and provides detailed statistics.
 .NOTES
     File Name      : FileSyncAdvanced.ps1
@@ -36,10 +24,17 @@ $script:skippedBytes = 0
 $script:startTime = Get-Date
 $script:skippedDirNames = @()
 $script:processedFiles = 0
+$scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptsDirectory = Split-Path -Parent $scriptDirectory
+$serviceContractCommon = Join-Path $scriptsDirectory "shells\win\win_common\ServiceContract.ps1"
+
+. $serviceContractCommon
 
 # Network paths
-$sourcePath = "\\192.168.100.5"
-$targetPath = "\\192.168.100.6"
+$sourceHost = Get-ServiceContractHost -Name "lan_storage_primary"
+$targetHost = Get-ServiceContractHost -Name "lan_storage_secondary"
+$sourcePath = Join-Path -Path "\\" -ChildPath $sourceHost
+$targetPath = Join-Path -Path "\\" -ChildPath $targetHost
 
 # Directories to skip (case insensitive)
 $skipDirectories = @("node_modules", "vendor", "bin", "obj", "packages", ".git", ".vs", ".idea")

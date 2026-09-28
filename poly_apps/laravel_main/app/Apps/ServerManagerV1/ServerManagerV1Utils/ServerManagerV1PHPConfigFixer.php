@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
@@ -21,25 +10,25 @@ use Illuminate\Support\Facades\File;
  * ServerManagerV1 PHP Configuration Fixer
  * 
  * This class provides PHP configuration correction functionality that matches
- * the logic in 32_configure_php84.sh to ensure PHP-FPM open_basedir settings
+ * the logic in 34_configure_php85.sh to ensure PHP-FPM open_basedir settings
  * are correctly configured based on the current path mapping.
  * 
  * IMPORTANT: This script must be called as a PRE-REQUISITE before any ServerManagerV1
  * operations that require PHP-FPM access to Laravel files.
  * 
- * RELATIONSHIP WITH 32_configure_php84.sh:
+ * RELATIONSHIP WITH 34_configure_php85.sh:
  * ==========================================
  * 
  * This PHP class is the equivalent of the shell script located at:
- *   Relative path from this file: ../../../../../../../../scripts/shells/linux/debian/install_shells/32_configure_php84.sh
- *   Absolute path: /www/programing/core_node/scripts/shells/linux/debian/install_shells/32_configure_php84.sh
+ *   Relative path from this file: ../../../../../../../../scripts/shells/linux/debian/install_shells/34_configure_php85.sh
+ *   Absolute path: /www/programing/core_node/scripts/shells/linux/debian/install_shells/34_configure_php85.sh
  * 
  * PURPOSE AND INTENT:
  * ------------------
  * Both scripts serve the same purpose: ensuring PHP-FPM can access Laravel files
  * by configuring open_basedir settings correctly based on the environment.
  * 
- * The shell script (32_configure_php84.sh) is used during system installation
+ * The shell script (34_configure_php85.sh) is used during system installation
  * and can be run manually or via installation scripts. It uses gvar_common.sh
  * for path mapping.
  * 
@@ -76,13 +65,13 @@ use Illuminate\Support\Facades\File;
  * 
  * - If gvar_common.sh map_web_path() changes -> Update PathMapper::mapWebPath()
  * - If PathMapper::mapWebPath() changes -> Update gvar_common.sh map_web_path()
- * - If 32_configure_php84.sh changes -> Update this class
- * - If this class changes -> Update 32_configure_php84.sh comments
+ * - If 34_configure_php85.sh changes -> Update this class
+ * - If this class changes -> Update 34_configure_php85.sh comments
  * 
  * MODIFICATION CHECKLIST:
  * -----------------------
  * When modifying this file, ensure you also check/update:
- * [ ] 32_configure_php84.sh (relative path: ../../../../../../../../scripts/shells/linux/debian/install_shells/32_configure_php84.sh)
+ * [ ] 34_configure_php85.sh (relative path: ../../../../../../../../scripts/shells/linux/debian/install_shells/34_configure_php85.sh)
  * [ ] gvar_common.sh (relative path: ../../../../../../../../scripts/shells/linux/common/gvar_common.sh)
  * [ ] PathMapper.php (relative path: ../../../../Providers/PathMapper.php)
  * [ ] php_common_functions.sh (relative path: ../../../../../../../../scripts/shells/linux/debian/debian_com/php_common_functions.sh)
@@ -110,7 +99,7 @@ class ServerManagerV1PHPConfigFixer
     /**
      * Fix PHP configuration to ensure Laravel files are accessible
      * 
-     * This method performs the same configuration as 32_configure_php84.sh
+     * This method performs the same configuration as 34_configure_php85.sh
      * but from PHP code. It ensures open_basedir restrictions are removed
      * or set correctly based on the current path mapping.
      * 

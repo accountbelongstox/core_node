@@ -17,9 +17,14 @@ class MCPSectionGenerator:
     def generate_windows_mcp_section(
         self, tool_type: str, tool_display_name: str,
         target_name: str, support_upgrade: bool = True,
-        support_npm_update: bool = False
+        support_npm_update: bool = False,
+        include_launch_pause: bool = True
     ) -> str:
-        """Generate Windows PowerShell MCP section"""
+        """Generate Windows PowerShell MCP section
+
+        include_launch_pause: when False, omit the trailing 'Press Enter to
+        continue' pause (used by codex which has its own single consolidated
+        pause + variable summary before launch)."""
         update_script_name = self.path_config.get_update_script_path(tool_type, 'windows').name
         sync_script_name = self.path_config.get_mcp_sync_script_path(tool_type).name
         pre_launch_script_name = self.path_config.get_pre_launch_script_path(tool_type, 'windows').name
@@ -120,7 +125,9 @@ if ($LASTEXITCODE -ne 0) {{
     Write-Host ""
     Write-Host "[SUCCESS] MCP synchronization completed" -ForegroundColor Green
 }}
-
+"""
+        if include_launch_pause:
+            sync_section += f"""
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Press Enter to start {tool_display_name}..." -ForegroundColor Cyan
@@ -139,9 +146,13 @@ Write-Host ""
     def generate_linux_mcp_section(
         self, tool_type: str, tool_display_name: str,
         target_name: str, support_upgrade: bool = True,
-        support_npm_update: bool = False
+        support_npm_update: bool = False,
+        include_launch_pause: bool = True
     ) -> str:
-        """Generate Linux bash MCP section"""
+        """Generate Linux bash MCP section
+
+        include_launch_pause: when False, omit the trailing 'Press Enter to
+        continue' pause (codex consolidates to one pause + variable summary)."""
         update_script_name = self.path_config.get_update_script_path(tool_type, 'linux').name
         sync_script_name = self.path_config.get_mcp_sync_script_path(tool_type).name
         pre_launch_script_name = self.path_config.get_pre_launch_script_path(tool_type, 'linux').name
@@ -264,7 +275,9 @@ else
     echo "[WARNING] MCP sync script not found: $sync_script"
     echo "[INFO] Skipping MCP synchronization"
 fi
-
+"""
+        if include_launch_pause:
+            sync_section += f"""
 echo ""
 echo "============================================================"
 echo "Press Enter to start {tool_display_name}..."

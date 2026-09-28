@@ -1,21 +1,12 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Validator;
@@ -26,7 +17,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicCont
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 
-class AppQyV1WordGroupQueryController
+class AppQyV1WordGroupQueryController extends Controller
 {
     use ApiResponse;
 
@@ -40,7 +31,7 @@ class AppQyV1WordGroupQueryController
     public function isGroupNameExist($gname)
     {
         $uid = Auth::id();
-        $group = AppQyV1WordGroupModel::where('gname', $gname)->where('uid', $uid)->first();
+        $group = AppQyV1WordGroupModel::findOwnedByName((int) $uid, $gname);
         return $group;
     }
 
@@ -71,20 +62,18 @@ class AppQyV1WordGroupQueryController
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized access',
+                    'message' => __('app_qy_v1.messages.unauthorized_access'),
                     'supported_params' => $supported_params,
                 ], 401);
             }
 
             $uid = Auth::id();
-            $group = AppQyV1WordGroupModel::where('gid', $gid)
-                ->where('uid', $user->id)
-                ->first();
+            $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
             if (!$group) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group not found',
+                    'message' => __('app_qy_v1.messages.group_not_found'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 404);
@@ -95,7 +84,10 @@ class AppQyV1WordGroupQueryController
             }
             $personal_words = PDQBasePublic::queryPersonalDictionary(false, $sort_frequency);
             $group->gwords = ArrTool::sortNestedObject($group->gwords, $sort_by, $sort_asc);
-            
+            // Merged total: gwords JSON words + the group_word_progress
+            // row's total_words cache - disjoint sources, both count.
+            $groupWordsCount = $group->pivotWordsCount();
+
             return response()->json([
                 'status' => 'success',
                 'supported_params' => $supported_params,
@@ -103,7 +95,7 @@ class AppQyV1WordGroupQueryController
                     'gid' => $group->gid,
                     'did' => $personal_words["id"],
                     'gname' => $group->gname,
-                    'total_words' => count($group->gwords),
+                    'total_words' => count($group->gwords) + $groupWordsCount,
                     'created_at' => $group->created_at,
                     'updated_at' => $group->updated_at,
                     'uid' => $uid,
@@ -149,7 +141,7 @@ class AppQyV1WordGroupQueryController
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized access',
+                    'message' => __('app_qy_v1.messages.unauthorized_access'),
                     'supported_params' => $supported_params,
                 ], 401);
             }
@@ -157,20 +149,18 @@ class AppQyV1WordGroupQueryController
             if (!$gname) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group name is required',
+                    'message' => __('app_qy_v1.messages.group_name_is_required'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 400);
             }
 
-            $group = AppQyV1WordGroupModel::where('gname', $gname)
-                ->where('uid', $user->id)
-                ->first();
+            $group = AppQyV1WordGroupModel::findOwnedByName((int) $user->id, $gname);
 
             if (!$group) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group not found',
+                    'message' => __('app_qy_v1.messages.group_not_found'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 404);
@@ -181,6 +171,9 @@ class AppQyV1WordGroupQueryController
             }
             $group->gwords = ArrTool::sortNestedObject($group->gwords, $sort_by, $sort_asc);
             $personal_words = PDQBasePublic::queryPersonalDictionary(false, $sort_frequency);
+            // Merged total: gwords JSON words + the group_word_progress
+            // row's total_words cache - disjoint sources, both count.
+            $groupWordsCount = $group->pivotWordsCount();
             return response()->json([
                 'status' => 'success',
                 'supported_params' => $supported_params,
@@ -190,7 +183,7 @@ class AppQyV1WordGroupQueryController
                     'did' => $personal_words["id"],
                     'gname' => $group->gname,
                     'gwords' => $group->gwords,
-                    'total_words' => count($group->gwords),
+                    'total_words' => count($group->gwords) + $groupWordsCount,
                     'created_at' => $group->created_at,
                     'updated_at' => $group->updated_at,
                     'fetch_gcontent' => $fetch_gcontent,
@@ -209,15 +202,13 @@ class AppQyV1WordGroupQueryController
         $sort_frequency = $request->input(key: 'sort_frequency');
         $gid = $request->input(key: 'gid');
         $default_select = ['gid', 'gname', 'words_frequency', 'created_at', 'updated_at'];
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->select($default_select) // specify all fields except gcontent
-            ->first();
+        $group = AppQyV1WordGroupModel::findByGid($gid, $default_select);
         if (!$group) {
             return response()->json([
                 'status' => 'error',
                 'code' => 404,
                 'gid' => $gid,
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
@@ -243,15 +234,32 @@ class AppQyV1WordGroupQueryController
     public function getGcontent(Request $request): JsonResponse
     {
         $supported_params = ['gid', 'gwords'];
+        $validator = Validator::make($request->all(), [
+            'gid' => 'required|string',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'supported_params' => $supported_params,
+            ], 400);
+        }
         $gid = $request->input(key: 'gid');
         $isGetGwords = $request->input(key: 'gwords');
         $default_select = ['gid', 'gname', 'gcontent', 'words_frequency', 'created_at', 'updated_at'];
         if ($isGetGwords) {
             $default_select[] = 'gwords';
         }
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->select($default_select) // specify all fields except gcontent
-            ->first();
+        $group = AppQyV1WordGroupModel::findByGid($gid, $default_select);
+        if (!$group) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 404,
+                'gid' => $gid,
+                'message' => __('app_qy_v1.messages.group_not_found'),
+                'supported_params' => $supported_params,
+            ], 404);
+        }
         return response()->json([
             'status' => 'success',
             'supported_params' => $supported_params,
@@ -276,10 +284,30 @@ class AppQyV1WordGroupQueryController
     public function getGwords(Request $request): JsonResponse
     {
         $supported_params = ['gid'];
+        $validator = Validator::make($request->all(), [
+            'gid' => 'required|string',
+        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $validator->errors()->first(),
+                'supported_params' => $supported_params,
+            ], 400);
+        }
         $gid = $request->input(key: 'gid');
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->select(['gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at']) // specify all fields except gcontent
-            ->first();
+        $group = AppQyV1WordGroupModel::findByGid(
+            $gid,
+            ['gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at']
+        );
+        if (!$group) {
+            return response()->json([
+                'status' => 'error',
+                'code' => 404,
+                'gid' => $gid,
+                'message' => __('app_qy_v1.messages.group_not_found'),
+                'supported_params' => $supported_params,
+            ], 404);
+        }
         return response()->json([
             'status' => 'success',
             'supported_params' => $supported_params,
@@ -303,7 +331,7 @@ class AppQyV1WordGroupQueryController
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $validated = $request->validate([
@@ -312,25 +340,39 @@ class AppQyV1WordGroupQueryController
             'with_words' => 'nullable|boolean',
         ]);
 
-        DGroupAPublic::ensureDefaultGroupIfNotExist($user->id, $user->username);
+        // Read-side shuffle-ensure hook for the Default Vocabulary Group
+        // (design doc §5.3 R2): the one-time random shuffle is applied on
+        // the first list request, then gated by shuffled_at forever after.
+        // Wrapped so a shuffle failure never breaks the groups listing.
+        $defaultGroupResult = DGroupAPublic::ensureDefaultGroupIfNotExist($user->id, $user->username);
+        try {
+            if (isset($defaultGroupResult['did'])) {
+                $defaultProgress = AppQyV1GroupWordProgressModel::findByGroupId((int) $defaultGroupResult['did']);
+                if ($defaultProgress) {
+                    $defaultProgress->ensureShuffledOnce();
+                }
+            }
+        } catch (\Throwable $e) {
+            // Shuffle is best-effort; the listing must still return.
+        }
 
         $start = $validated['start'] ?? 0;
         $limit = $validated['limit'] ?? 1000;
         $withWords = $validated['with_words'] ?? false;
 
-        $query = AppQyV1WordGroupModel::forUser($user->id)
-            ->select(['id', 'gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at', 'uid', 'cover_url', 'thumbnail_url', 'cover_category', 'language', 'is_language_default'])
-            ->orderBy('created_at', 'desc');
+        // Always merge both word stores: a group's words live in TWO
+        // disjoint representations (legacy gwords JSON text + the
+        // group_word_progress row's word-ID map from library attachment)
+        // and the displayed total is the sum of both. total_words comes
+        // from the progress row's cache - one eager-loaded row per group.
+        $groups = AppQyV1WordGroupModel::pageWithProgress(
+            (int) $user->id,
+            $start,
+            $limit,
+            ['id', 'gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at', 'uid', 'cover_url', 'thumbnail_url', 'cover_category', 'language', 'is_language_default']
+        );
 
-        if ($withWords) {
-            $query->withCount('groupWords');
-        }
-
-        $groups = $query->skip($start)
-            ->take($limit)
-            ->get();
-
-        $mappedGroups = $groups->map(function ($group) use ($withWords) {
+        $mappedGroups = $groups->map(function ($group) {
             $gwords = $group->gwords;
             if (is_string($gwords)) {
                 $decodedGwords = json_decode($gwords, true);
@@ -340,11 +382,13 @@ class AppQyV1WordGroupQueryController
                 $gwords = [];
             }
 
+            $groupWordsCount = $group->pivotWordsCount();
+
             $data = [
                 'gid' => $group->gid,
                 'gname' => $group->gname,
                 'gwords' => $gwords,
-                'total_words' => $withWords ? ($group->group_words_count ?? 0) : count($gwords),
+                'total_words' => count($gwords) + $groupWordsCount,
                 'created_at' => $group->created_at,
                 'updated_at' => $group->updated_at,
                 'words_frequency' => $group->words_frequency,
@@ -353,6 +397,7 @@ class AppQyV1WordGroupQueryController
                 'cover_category' => $group->cover_category ?? 'custom',
                 'language' => $group->language ?? 'en',
                 'is_language_default' => $group->is_language_default ?? false,
+                'is_default' => $group->gname === DGroupAPublic::$default_group_name,
             ];
 
             return $data;
@@ -365,7 +410,6 @@ class AppQyV1WordGroupQueryController
             'limit' => $limit,
             'groups_length' => $groups->count(),
             'groups' => $mappedGroups,
-        ], 'Groups retrieved successfully');
+        ], __('app_qy_v1.messages.groups_retrieved_successfully'));
     }
 }
-

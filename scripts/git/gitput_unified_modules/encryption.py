@@ -12,7 +12,10 @@ from gitput_unified_modules.utils import (
     get_core_node_dir,
     read_masked_password,
 )
-from pycore.pyfoundations.pybasecommon import Commander
+
+# The password reaches the node tool on stdin through this runner, never argv.
+SECRET_PASSWORD_RUNNER = Path("encryption_tools") / "secret_password_runner.js"
+SECRET_PASSWORD_ARG = "--password-stdin"
 
 
 def find_disguise_js() -> Optional[Path]:
@@ -75,21 +78,20 @@ def encrypt_file(file_path: Path, password: str, output_dir: Path) -> bool:
         write_color_text(f"  - Password: {masked_password}", "DarkGray")
         write_color_text(f"  - Output Dir: {output_dir}", "DarkGray")
         
-        # Use Commander for execution
-        result = Commander.exec_silent(
-            ["node", str(disguise_js), str(file_path), password, str(output_dir)],
-            info=False,
-            cwd=None
+        runner = get_core_node_dir() / "scripts" / SECRET_PASSWORD_RUNNER
+        result = subprocess.run(
+            ["node", str(runner), str(disguise_js), str(file_path), SECRET_PASSWORD_ARG, str(output_dir)],
+            input=password,
+            capture_output=True,
+            text=True,
         )
-        
-        # Check output for success (recommended approach)
-        output = result.get_output().lower()
-        if result.success and ("success" in output or "encrypted" in output or result.return_code == 0):
+        output = f"{result.stdout}{result.stderr}"
+        if result.returncode == 0:
             write_color_text(f"SUCCESS: Encrypted {file_path.name}", "Green")
             return True
         else:
             write_color_text(f"WARNING: Failed to encrypt {file_path.name}", "Yellow")
-            write_color_text(f"Error: {result.get_output()}", "Yellow")
+            write_color_text(f"Error: {output}", "Yellow")
             return False
             
     except Exception as e:

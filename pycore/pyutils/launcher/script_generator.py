@@ -5,7 +5,14 @@ Generates temporary batch scripts for launching applications
 """
 
 from pathlib import Path
-import os
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
+
+
+def format_wt_size(term_cols, term_rows):
+    """Format --size per Microsoft Learn: columns,rows (comma-separated character cells)."""
+    return f'{term_cols},{term_rows}'
 
 
 class ScriptGenerator:
@@ -19,9 +26,8 @@ class ScriptGenerator:
             temp_dir: Temporary directory for scripts. If None, uses default location.
         """
         if temp_dir is None:
-            username = os.getenv('USERNAME') or os.getenv('USER')
-            temp_dir = Path(f'C:\\Users\\{username}\\.core_node\\launch_multiple')
-        
+            temp_dir = TMP_DIR / 'launch_multiple'
+
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
     
@@ -41,9 +47,10 @@ class ScriptGenerator:
         """
         bat_path = self.temp_dir / f'launch_terminal_{index}.bat'
         
-        # Format: wt.exe --pos "x,y" --size "cols.rows"
-        # Use start command to ensure window positioning works correctly
-        cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}"'
+        # Format: wt.exe -w -1 --pos "x,y" --size "cols,rows"  (Learn: --size c,r)
+        # -w -1 forces a new window so each launch gets its own window (not tab in existing)
+        size_arg = format_wt_size(term_cols, term_rows)
+        cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}"'
         
         lines = [
             '@echo off',
@@ -56,17 +63,17 @@ class ScriptGenerator:
             f.write('\r\n'.join(lines) + '\r\n')
         
         # Print the command for verification
-        print(f"  Command: {cmd}")
+        ColorPrint.plain(f"  Command: {cmd}")
         
         return bat_path
     
     def create_editor_bat(self, index, app_name, x, y, width, height, file_path=None):
         """
-        Create batch file for editor applications (chrome/vscode/cursor)
-        
+        Create batch file for editor applications (chrome/vscode/antigravity)
+
         Args:
             index: Window index
-            app_name: Application name (chrome, vscode, cursor)
+            app_name: Application name (chrome, vscode, antigravity)
             x: Window X position
             y: Window Y position
             width: Window width
@@ -82,7 +89,7 @@ class ScriptGenerator:
         exe_map = {
             'chrome': 'chrome.exe',
             'vscode': 'code.exe',
-            'cursor': 'cursor.exe'
+            'antigravity': 'Antigravity.exe'
         }
         
         exe_name = exe_map.get(app_name.lower(), f'{app_name}.exe')
@@ -125,16 +132,17 @@ class ScriptGenerator:
         arguments = ubuntu_shortcut.get('arguments', '')
         
         # Build command: Use Windows Terminal to launch Ubuntu with position and size
-        # Format: wt.exe --pos "x,y" --size "cols.rows" <target> <arguments>
+        # Format: wt.exe -w -1 --pos "x,y" --size "cols,rows" <target> <arguments>
+        size_arg = format_wt_size(term_cols, term_rows)
         if target:
             # Combine target and arguments
             if arguments:
                 ubuntu_cmd = f'{target} {arguments}'.strip()
             else:
                 ubuntu_cmd = target
-            
-            # Use Windows Terminal to launch with position and size
-            cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}" {ubuntu_cmd}'
+
+            # Use Windows Terminal to launch with position and size (-w -1 = new window)
+            cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}" {ubuntu_cmd}'
         else:
             # Fallback: try to launch shortcut directly (won't have position/size control)
             shortcut_path = ubuntu_shortcut.get('path', '')
@@ -142,7 +150,7 @@ class ScriptGenerator:
                 cmd = f'start "" "{shortcut_path}"'
             else:
                 # Last resort: try wsl.exe
-                cmd = f'wt.exe --pos "{x},{y}" --size "{term_cols}.{term_rows}" wsl.exe'
+                cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}" wsl.exe'
         
         lines = [
             '@echo off',
@@ -153,11 +161,10 @@ class ScriptGenerator:
         with open(bat_path, 'w', encoding='utf-8', newline='\r\n') as f:
             f.write('\r\n'.join(lines) + '\r\n')
         
-        print(f"  Command: {cmd}")
+        ColorPrint.plain(f"  Command: {cmd}")
         
         return bat_path
     
     def get_temp_dir(self):
         """Get temporary directory path"""
         return self.temp_dir
-

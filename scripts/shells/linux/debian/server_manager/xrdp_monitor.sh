@@ -9,32 +9,22 @@
 #   ./xrdp_monitor.sh --remove          # Remove service
 #   ./xrdp_monitor.sh --status          # Check service status
 #
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Script paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 GRANDPARENT_DIR="$(dirname "$PARENT_DIR")"
 COMMON_DIR="$GRANDPARENT_DIR/common"
-SERVICE_MANAGER="$COMMON_DIR/debian_service_manager.sh"
+SERVICE_MANAGER="$COMMON_DIR/systemd_service_manager.sh"
 
 # XRDP configuration
 XRDP_LOG="/var/log/xrdp.log"
 XRDP_SESMAN_LOG="/var/log/xrdp-sesman.log"
 XRDP_SYSLOG_PATTERN="xrdp|xorgxrdp"
 
-# Monitor configuration
-MONITOR_DIR="/var/_core_node/xrdp_monitor"
+# Monitor configuration (CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh)
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$COMMON_DIR/runtime_environment.sh"
+MONITOR_DIR="$CORE_NODE_DATA_DIR/xrdp_monitor"
 MONITOR_LOG="$MONITOR_DIR/monitor.log"
 CONNECTIONS_LOG="$MONITOR_DIR/connections.log"
 DISCONNECTS_LOG="$MONITOR_DIR/disconnects.log"
@@ -71,6 +61,32 @@ init_monitor_dir() {
         echo "DISCONNECTS_COUNT=0" >> "$STATE_FILE"
         echo "ERRORS_COUNT=0" >> "$STATE_FILE"
     fi
+
+    # Bound any logs left oversized from a previous run.
+    cap_monitor_logs
+}
+
+# Cap an append-only log to its last ${2:-10MB} bytes, preserving the inode (the
+# tail -F loop keeps writing at the new end). No-op if the file is under the cap.
+cap_log_file() {
+    local f="$1" max="${2:-10485760}" sz tmp
+    [ -f "$f" ] || return 0
+    sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
+    [ "${sz:-0}" -gt "$max" ] 2>/dev/null || return 0
+    tmp="${f}.cap.$$"
+    tail -c "$max" "$f" > "$tmp" 2>/dev/null && cat "$tmp" > "$f" 2>/dev/null
+    rm -f "$tmp" 2>/dev/null || true
+}
+
+# Bound every monitor log (and the appended .state file) so the core_node data root never
+# grows without limit. Called on startup and periodically inside the monitor loop.
+cap_monitor_logs() {
+    cap_log_file "$MONITOR_LOG"
+    cap_log_file "$CONNECTIONS_LOG"
+    cap_log_file "$DISCONNECTS_LOG"
+    cap_log_file "$ERRORS_LOG"
+    cap_log_file "$ANALYSIS_LOG"
+    cap_log_file "$STATE_FILE" 65536
 }
 
 # Log message with timestamp
@@ -175,10 +191,16 @@ monitor_logs() {
     local connection_count=0
     local disconnect_count=0
     local error_count=0
+    local cap_counter=0
 
     # Use tail -F to follow logs even if they rotate
     tail -F -n 0 "$XRDP_LOG" "$XRDP_SESMAN_LOG" 2>/dev/null | while read -r line; do
         timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+
+        # Periodically bound the monitor logs (every ~200 events) so they never grow
+        # without limit on a busy/long-running monitor.
+        cap_counter=$((cap_counter + 1))
+        if (( cap_counter % 200 == 0 )); then cap_monitor_logs; fi
 
         # Detect new connection
         if echo "$line" | grep -qi "connected.*from\|new connection\|login successful"; then
@@ -247,7 +269,7 @@ install_service() {
 # XRDP Monitor Daemon
 set -euo pipefail
 
-MONITOR_DIR="/var/_core_node/xrdp_monitor"
+MONITOR_DIR="${CORE_NODE_DATA_DIR:-/www/core_node}/xrdp_monitor"
 MONITOR_LOG="$MONITOR_DIR/monitor.log"
 CONNECTIONS_LOG="$MONITOR_DIR/connections.log"
 DISCONNECTS_LOG="$MONITOR_DIR/disconnects.log"
@@ -263,6 +285,24 @@ chmod 750 "$MONITOR_DIR" 2>/dev/null || true
 
 log_message() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$MONITOR_LOG"
+}
+
+# Bound the daemon's append-only logs (inode preserved; safe under set -e).
+cap_log_file() {
+    local f="$1" max="${2:-10485760}" sz tmp
+    [ -f "$f" ] || return 0
+    sz="$(stat -c %s "$f" 2>/dev/null || echo 0)"
+    [ "${sz:-0}" -gt "$max" ] 2>/dev/null || return 0
+    tmp="${f}.cap.$$"
+    { tail -c "$max" "$f" > "$tmp" 2>/dev/null && cat "$tmp" > "$f" 2>/dev/null; } || true
+    rm -f "$tmp" 2>/dev/null || true
+}
+cap_monitor_logs() {
+    cap_log_file "$MONITOR_LOG"
+    cap_log_file "$CONNECTIONS_LOG"
+    cap_log_file "$DISCONNECTS_LOG"
+    cap_log_file "$ERRORS_LOG"
+    cap_log_file "$ANALYSIS_LOG"
 }
 
 analyze_error() {
@@ -289,13 +329,19 @@ analyze_error() {
 }
 
 log_message "XRDP Monitor daemon started"
+cap_monitor_logs
 
 connection_count=0
 disconnect_count=0
 error_count=0
+cap_counter=0
 
 tail -F -n 0 "$XRDP_LOG" "$XRDP_SESMAN_LOG" 2>/dev/null | while read -r line; do
     timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+
+    # Periodically bound the logs (every ~200 events) so they never grow unbounded.
+    cap_counter=$((cap_counter + 1))
+    if (( cap_counter % 200 == 0 )); then cap_monitor_logs; fi
 
     if echo "$line" | grep -qi "connected.*from\|new connection\|login successful"; then
         connection_count=$((connection_count + 1))

@@ -11,6 +11,11 @@ class McpV1PlaceholderUtil
 {
     private const STORAGE_DIR = 'mcp_placeholders';
 
+    public static function storageDirectory(): string
+    {
+        return PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::STORAGE_DIR;
+    }
+
     public static function generatePlaceholder(
         int $width,
         int $height,
@@ -21,7 +26,7 @@ class McpV1PlaceholderUtil
             $uuid = (string) Str::uuid();
             $filename = "placeholder_{$width}x{$height}_{$uuid}.png";
 
-            $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::STORAGE_DIR;
+            $storageDir = self::storageDirectory();
             FileSystemManager::ensureDirectoryExists($storageDir);
 
             $filePath = $storageDir . DIRECTORY_SEPARATOR . $filename;
@@ -245,7 +250,7 @@ class McpV1PlaceholderUtil
 
     public static function cleanupOldFiles(): int
     {
-        $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::STORAGE_DIR;
+        $storageDir = self::storageDirectory();
 
         if (!FileSystemManager::exists($storageDir)) {
             return 0;

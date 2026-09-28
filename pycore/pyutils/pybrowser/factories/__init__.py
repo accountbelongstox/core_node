@@ -1,11 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Factories Package
-
-Exports factory classes
-"""
-
-from pycore.pyutils.pybrowser.factories.browser_factory import BrowserFactory
-
-__all__ = ['BrowserFactory']
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

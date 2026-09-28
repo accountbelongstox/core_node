@@ -8,15 +8,15 @@
     "mcp-chrome-stdio": "./dist/mcp/mcp-server-stdio.js"
   },
   "scripts": {
-    "dev": "nodemon --watch src --ext ts,js,json --ignore dist/ --exec \"npm run build && npm run register:dev\"",
-    "build": "ts-node src/scripts/build.ts",
+    "dev": "nodemon --watch src --watch ../../packages/shared/dist --ext ts,js,cjs,mjs,json --exec \"bun run build && bun run register:dev\"",
+    "build": "bun src/scripts/build.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint 'src/**/*.{js,ts}'",
     "lint:fix": "eslint 'src/**/*.{js,ts}' --fix",
     "format": "prettier --write 'src/**/*.{js,ts,json}'",
     "register:dev": "node dist/scripts/register-dev.js",
-    "postinstall": "node dist/scripts/postinstall.js"
+    "postinstall": "node -e \"const f='dist/scripts/postinstall.js',fs=require('fs');if(fs.existsSync(f)){const r=require('child_process').spawnSync(process.execPath,[f],{stdio:'inherit'});process.exit(r.status||0)}\""
   },
   "files": [
     "dist"
@@ -33,7 +33,6 @@
   "author": "hangye",
   "license": "MIT",
   "dependencies": {
-    "@fastify/cors": "^11.0.1",
     "@modelcontextprotocol/sdk": "^1.11.0",
     "@types/node-fetch": "^2.6.13",
     "chalk": "^5.4.1",

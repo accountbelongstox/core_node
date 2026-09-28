@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Script Scanner and Executor Menu
@@ -34,7 +22,7 @@ if (-not $RootDir) {
         $RootDir = $currentDir
     } else {
         Write-Host "Cannot find core_node root directory, please specify -RootDir parameter manually" -ForegroundColor Red
-        exit 1
+        return
     }
 }
 
@@ -262,7 +250,7 @@ try {
     
     if (-not (Test-Path $ScriptsDir)) {
         Write-ColorMessage "Scripts directory does not exist: $ScriptsDir" -Type "Error"
-        exit 1
+        return
     }
     
     Write-ColorMessage "Scanning script files..." -Type "Info"
@@ -270,7 +258,7 @@ try {
     
     if ($allScripts.Count -eq 0) {
         Write-ColorMessage "No script files found" -Type "Warning"
-        exit 0
+        return
     }
     
     Write-ColorMessage "Found $($allScripts.Count) script files" -Type "Success"
@@ -281,5 +269,4 @@ try {
 }
 catch {
     Write-ColorMessage "Program execution error: $_" -Type "Error"
-    exit 1
 }

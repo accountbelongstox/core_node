@@ -8,7 +8,7 @@ Handles authentication and provides access to all OKX API endpoints.
 """
 
 from typing import Optional
-from pycore.pyfoundations.third_party import get_third_package_okx
+from pycore.pyfoundations.third_party.api import get_third_package_okx
 from pycore.pyfoundations.secret_manager import get_secret_key
 from pyapps.okx_price_monitor.core import config
 

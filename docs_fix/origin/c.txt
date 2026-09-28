@@ -1,0 +1,319 @@
+
+ ✨ 扩展UI，API Endpoints
+    Re-detect
+
+    0
+    Current URL — this site (https://12gm.com:9000)
+    https
+    12gm.com:9000 当CURRENT是https时。API不再加9000端口。并
+    自动加上api.$prefix，$prefix由[domain] Modify the API
+    region prefix (current: si)? [y/N]
+    [domain] Installing domains (sites: <domain> apex +
+    api.si.<domain>, both proxy -> backend): 中心数据提供
+    ，175_laravel_main_start.sh,shell / react / php均引用一
+    处，比如 12gm.com = api.$prefix.12gm.com无9000端口。
+    2:https://12gm.com/pycore-manager 端也是同样的拼接
+    ，pycore-manager / laravel-manager端都是一样。
+ … thinking 11 times, call 19 tools, 9 messages
+
+ ● Now I understand the vite config pattern. The design the
+   user wants:
+   ... (179 more lines, ctrl+o to expand)
+
+ ● Read 2 files · 169 lines
+   ├─
+ poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/se
+ rvices/ApiHealthRecheck.ts · 49 lines
+   └─
+ poly_apps/pycore_laravel_wordnew_ui/core/integrations/larav
+ el/ApiManager.ts · 120 lines
+
+ ● Now, where's a good hook to load domain config at startup
+   for both ends? Both ends use core ApiManager
+   ... (25 more lines, ctrl+o to expand)
+
+ ● Used Read
+ (…_laravel_wordnew_ui/core/integrations/laravel/ApiManager.
+ ts) · 240 lines
+
+ ● Now I have a good picture. Design decision for loading
+   the domain config:
+   ... (177 more lines, ctrl+o to expand)
+
+ ● Read 3 files · 166 lines
+   ├─
+ poly_apps/pycore_laravel_wordnew_ui/core/integrations/larav
+ el/LaravelAPI.ts · 140 lines
+   ├─
+ poly_apps/pycore_laravel_wordnew_ui/core/network/api-client
+ /endpointIdentity.ts · 8 lines
+   └─ config/service_contract.json · 18 lines
+
+ ● Good — both UI ends go through the shared `apiManager` +
+   `LaravelEndpoints` (pycore-manager's LaravelAPI uses
+   ... (10 more lines, ctrl+o to expand)
+
+ ● Read 2 files · 296 lines
+   ├─ scripts/shells/linux/common/domain_setup_common.sh ·
+ 226 lines
+   └─ poly_apps/laravel_main/app/Support/ServiceContract.php
+  · 70 lines
+
+ ● Now I have the full picture. Implementation plan:
+
+   ... (103 more lines, ctrl+o to expand)
+
+ ● Used Read
+ (…_laravel_wordnew_ui/core/integrations/laravel/LaravelAPI.
+ ts) · 99 lines
+
+ ● Both ends share `apiManager` (core). The cleanest single
+   hook: `loadDomainConfig()` awaited at the start of
+   ... (404 more lines, ctrl+o to expand)
+
+ ● Used TodoList
+
+ ● Used Edit (config/service_contract.json) · +2 -1
+   +2 -1 config/service_contract.json
+      1       "files": {
+      2 -         "ui_allowed_hosts": "UI_ALLOWED_HOSTS"
+      2 +         "ui_allowed_hosts": "UI_ALLOWED_HOSTS",
+      3 +         "ui_domain_config":
+   "ui_domain_config.json"
+      4       }
+
+ ● Used Edit
+ (…pycore_laravel_wordnew_ui/core/contracts/ServiceContract.
+ ts) · +1
+   +1
+   poly_apps/pycore_laravel_wordnew_ui/core/contracts/Serv
+   iceContract.ts
+      1   export const UI_ALLOWED_HOSTS_FILE_NAME: string
+   = contractDocument.files.ui_allowed_hosts;
+      2 + export const UI_DOMAIN_CONFIG_FILE_NAME: string
+   = contractDocument.files.ui_domain_config;
+
+ ● Used Edit
+ (poly_apps/laravel_main/app/Support/ServiceContract.php) ·
+ +10
+   +10
+   poly_apps/laravel_main/app/Support/ServiceContract.php
+      6           }
+      7
+      8           return $hosts[$name];
+      9 +     }
+     10 +
+     11 +     public static function file(string $name):
+   string
+     12 +     {
+     13 +         $files = self::document()['files'] ??
+   [];
+     14 +         if (!isset($files[$name]) ||
+   !is_string($files[$name])) {
+     15 +             throw new RuntimeException("Unknown
+   service contract file: {$name}");
+        … 3 more changes hidden (ctrl+o to expand)
+
+ ● Used Write
+ (…ps/pycore_laravel_wordnew_ui/core/contracts/DomainConfig.
+ ts) · 58 lines
+      1  /**
+      2   * Runtime UI domain configuration.
+      3   *
+      4   * The shell domain setup
+   (scripts/shells/linux/common/domain_setup_common.sh)
+      5   * writes this JSON into the shared data
+   directory
+      6   *
+   (<core_node_data_dir>/global_var/<files.ui_domain_confi
+   g>); the Vite
+      7   * dev/preview middleware serves it same-origin
+   at /<file name>, re-read from
+      8   * disk on every request, so a shell-side change
+   is visible to the frontend
+      9   * immediately. A missing/unreadable file keeps
+   the built-in defaults, so
+     10   * plain dev machines and compiled bundles work
+   without the file.
+   ... (49 more lines, 59 total, ctrl+o to expand)
+
+ ● Now vite.config.ts — add the constant, the middleware,
+   and the plugin. The file has mixed CRLF. Lines 6-17
+   ... (18 more lines, ctrl+o to expand)
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +1
+   +1 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1     UI_ALLOWED_HOSTS_FILE_NAME,
+      2 +   UI_DOMAIN_CONFIG_FILE_NAME,
+      3   } from './core/contracts/ServiceContract';
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +1
+   +1 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1   const UI_ALLOWED_HOSTS_FILE =
+   path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME,
+   UI_ALLOWED_HOSTS_FILE_NAME);
+      2 + const UI_DOMAIN_CONFIG_FILE =
+   path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME,
+   UI_DOMAIN_CONFIG_FILE_NAME);
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +23
+   +23 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1       return hosts.length > 0 ? hosts : undefined;
+      2     } catch {
+      3       return undefined;
+      4 +   }
+      5 + };
+      6 +
+      7 + // Serve the shell-written UI domain config (api
+   region prefix) same-origin.
+      8 + // The file is re-read from disk on EVERY
+   request (no caching), so a shell-side
+      9 + // change is visible to the frontend immediately
+   in both dev and preview. A
+     10 + // missing/unreadable file answers 404 and the
+   frontend keeps its defaults.
+        … 16 more changes hidden (ctrl+o to expand)
+
+ ● Now add the plugin. The plugins array is CRLF. Read
+   output earlier:
+   ... (9 more lines, ctrl+o to expand)
+
+ ✗ Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1         plugins: [
+      2           react(),
+      3 +         {
+      4 +           name: 'ui-domain-config-server',
+      5 +           configureServer(server) {
+      6 +
+   server.middlewares.use(serveUiDomainConfig);
+      7 +           },
+      8 +           configurePreviewServer(server) {
+      9 +
+   server.middlewares.use(serveUiDomainConfig);
+     10 +           },
+        … 1 more change hidden (ctrl+o to expand)
+   old_string not found in
+   poly_apps/pycore_laravel_wordnew_ui/vite.config.ts, the
+   file contents may be out of date. Please use the Read
+   ... (1 more lines, ctrl+o to expand)
+
+ ● Used Read
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · 20
+ lines
+
+ ✗ Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1         plugins: [
+      2           react(),
+      3 +         {
+      4 +           name: 'ui-domain-config-server',
+      5 +           configureServer(server) {
+      6 +
+   server.middlewares.use(serveUiDomainConfig);
+      7 +           },
+      8 +           configurePreviewServer(server) {
+      9 +
+   server.middlewares.use(serveUiDomainConfig);
+     10 +           },
+        … 1 more change hidden (ctrl+o to expand)
+   old_string not found in
+   poly_apps/pycore_laravel_wordnew_ui/vite.config.ts, the
+   file contents may be out of date. Please use the Read
+   ... (1 more lines, ctrl+o to expand)
+
+ ● The Read shows `      plugins: [\r` — the \r is shown at
+   line end, meaning CRLF. My old_string with \n doesn't
+   ... (13 more lines, ctrl+o to expand)
+
+ ✗ Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1         plugins: [
+      2           react(),
+      3 +         {
+      4 +           name: 'ui-domain-config-server',
+      5 +           configureServer(server) {
+      6 +
+   server.middlewares.use(serveUiDomainConfig);
+      7 +           },
+      8 +           configurePreviewServer(server) {
+      9 +
+   server.middlewares.use(serveUiDomainConfig);
+     10 +           },
+        … 1 more change hidden (ctrl+o to expand)
+   old_string not found in
+   poly_apps/pycore_laravel_wordnew_ui/vite.config.ts, the
+   file contents may be out of date. Please use the Read
+   ... (1 more lines, ctrl+o to expand)
+
+ ● The editor keeps normalizing? The parameter passes
+   literal text; I need the carriage return character
+   ... (25 more lines, ctrl+o to expand)
+
+ ● 改用单行锚点避开 CRLF 问题：
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1 +         {
+      2 +           name: 'ui-domain-config-server',
+      3 +           configureServer(server) {
+      4 +
+   server.middlewares.use(serveUiDomainConfig);
+      5 +           },
+      6 +           configurePreviewServer(server) {
+      7 +
+   server.middlewares.use(serveUiDomainConfig);
+      8 +           },
+      9 +         },
+     10           tailwindcss(),
+
+ ● Used TodoList
+
+ ● 现在改 LaravelEndpoints.ts 的 https 拼接规则：
+
+ ● Used Edit
+ (…el_wordnew_ui/core/integrations/laravel/LaravelEndpoints.
+ ts) · +1
+   +1
+   poly_apps/pycore_laravel_wordnew_ui/core/integrations/l
+   aravel/LaravelEndpoints.ts
+      1   import { CURRENT_URL_TYPE, isCurrentUrlId } from
+   '../../network/api-client/endpointIdentity';
+      2 + import { getApiRegionPrefix } from
+   '../../contracts/DomainConfig';
+      3   import { StorageManager } from
+   '../../persistence';
+      4   import { LaravelStorageKeys as StorageKeys }
+   from './LaravelStorageKeys';
+   Error: [provider.auth_error] 403
+ {"error":{"type":"permission_error","message":"You've
+ reached your usage limit for this billing cycle. Your quota
+ will be refreshed in the next cycle. To continue now,
+ purchase extra usage or upgrade your plan:
+ https://www.kimi.com/code/#pricing"},"type":"error"}
+   If this persists, run `/export-debug-zip` and share the
+ file with us for diagnosis. Please don't share it publicly.
+
+ ───────────────────────────────────────────────────────────
+   Todo
+   ✓ Fix sc_get load-order error in domain_setup_common.sh
+   ✓ Investigate endpoint construction on both UI ends + ...
+   ✓ Contract: files.ui_domain_config + TS/PHP/shell adap...
+   ✓ UI: DomainConfig loader + vite middleware serving th...
+   ● LaravelEndpoints: https -> api.<prefix>.<host>, no :...
+   ○ ApiManager: load domain config on detection pass
+   ○ Shell: write ui_domain_config.json in domain setup
+   ○ Verify (bash -n, tsc/build)
+   all 8 items · ctrl+t to collapse
+ ╭─────────────────────────────────────────────────────────╮
+ │ >                                                       │
+ ╰─────────────────────────────────────────────────────────╯
+ yolo  Kimi K3 thinking  D:\programing\core_node  main [+63…
+                                     context: 10% (99.2k/1M)

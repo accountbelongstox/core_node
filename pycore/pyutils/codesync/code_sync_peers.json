@@ -1,0 +1,27 @@
+{
+  "peers": [
+    {
+      "host": "100.101.149.39",
+      "id": "159ec26d49df9c5c3a5a2270108f4a11d307cc2417d154fba5038d6e1c3128b5",
+      "name": "Dev Machine",
+      "port": 59000,
+      "role": "dev"
+    },
+    {
+      "host": "43.163.112.77",
+      "id": "43.163.112.77:59000",
+      "name": "Tencent Cloud SG",
+      "port": 59000,
+      "role": "client"
+    },
+    {
+      "host": "100.106.85.16",
+      "id": "100.106.85.16:59000",
+      "name": "tailscal(Ace)",
+      "port": 59000,
+      "role": "client"
+    }
+  ],
+  "updated_at": 1781606974.4206822,
+  "version": 21
+}

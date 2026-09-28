@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -138,51 +126,51 @@ class _HomeScreenState extends State<HomeScreen> {
                 HomeLocalNav(
                   localNavs: homeProvider.homeData!.data.localNavs,
                 ),
-                Transform.translate(
-                  offset: const Offset(0, -15.0),
-                  child: Column(
-                    children: [
-                      HomeGridNavSection(
-                        gridNavs: homeProvider.homeData!.data.gridNavs,
-                      ),
-                      const SizedBox(height: 12),
-                      HomeRecommend(
+                Column(
+                  children: [
+                    HomeGridNavSection(
+                      gridNavs: homeProvider.homeData!.data.gridNavs,
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: HomeRecommend(
                         recommend: homeProvider.homeData!.data.recommend,
                       ),
-                      const SizedBox(height: 12),
-                      HomeSubnav(
-                        subnavs: homeProvider.homeData!.data.subnavs,
+                    ),
+                    const SizedBox(height: 12),
+                    HomeSubnav(
+                      subnavs: homeProvider.homeData!.data.subnavs,
+                    ),
+                    const SizedBox(height: 12),
+                    HomeWelcome(
+                      cityName: userProvider.user.currentCity ?? TravelAppConstants.defaultCityName,
+                      temperature: TravelAppConstants.defaultTemperature,
+                    ),
+                    const SizedBox(height: 12),
+                    const HomeContentMix(),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: HomePopular(
+                        popularItems: homeProvider.homeData!.data.popularList,
                       ),
-                      const SizedBox(height: 12),
-                      HomeWelcome(
-                        cityName: userProvider.user.currentCity ?? TravelAppConstants.defaultCityName,
-                        temperature: TravelAppConstants.defaultTemperature,
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      child: HomeLocalHot(
+                        localHot: homeProvider.homeData!.data.localHot,
+                        hideTitle: false,
                       ),
-                      const SizedBox(height: 12),
-                      const HomeContentMix(),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: HomePopular(
-                          popularItems: homeProvider.homeData!.data.popularList,
-                        ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (homeProvider.homeData!.data.sights != null &&
+                        homeProvider.homeData!.data.sights!.isNotEmpty)
+                      HomeWaterfall(
+                        sights: homeProvider.homeData!.data.sights!,
                       ),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                        child: HomeLocalHot(
-                          localHot: homeProvider.homeData!.data.localHot,
-                          hideTitle: false,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (homeProvider.homeData!.data.sights != null &&
-                          homeProvider.homeData!.data.sights!.isNotEmpty)
-                        HomeWaterfall(
-                          sights: homeProvider.homeData!.data.sights!,
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
                 SizedBox(height: widget.isInScaffold ? 10 : 40),
               ]),

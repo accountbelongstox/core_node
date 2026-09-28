@@ -1,66 +1,95 @@
 <template>
-  <div class="bg-white rounded-xl p-6 shadow-sm space-y-6">
+  <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
+    <TaskCapabilitySelector compact />
+
+    <div class="tk-cap-summary">
+      <span>{{ readinessHint }}</span>
+      <strong>{{ getMessage('taskCenterSelectedCount', [String(checkedCapabilityKeys.length)]) }}</strong>
+      <span v-if="isRunning">{{ getMessage('taskCenterActiveCount', [String(state.activeCapabilities.length)]) }}</span>
+    </div>
+
+    <p v-if="error" class="tk-error">{{ error }}</p>
+
     <div class="flex items-center justify-between">
-      <h3 class="text-lg font-bold text-gray-800">🎯 Local Task Center</h3>
+      <span class="text-xs" style="color: var(--text-muted)">{{ getMessage('taskCenterReadyControlHint') }}</span>
       <div class="flex items-center gap-3">
-        <span :class="['px-3 py-1 text-xs font-bold rounded-full', state.isRunning ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600']">
-          {{ state.isRunning ? '● RUNNING' : '○ STOPPED' }}
+        <span
+          class="px-3 py-1 text-xs font-bold rounded-full"
+          :style="isRunning
+            ? 'background: var(--accent-soft); color: var(--success)'
+            : 'background: var(--surface-2); color: var(--text-muted)'"
+        >
+          {{ readinessStatus }}
         </span>
         <button
           class="px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
           @click="toggleCenter"
-          :disabled="!config.apiUrl"
+          :disabled="!isRunning && !apiBaseUrl"
         >
-          {{ state.isRunning ? 'Stop' : 'Start' }}
+          {{ isRunning || isStarting ? getMessage('taskCenterCancelReadyAction') : readinessAction }}
         </button>
       </div>
     </div>
 
-    <div class="space-y-3">
-      <div class="space-y-2">
-        <label class="block text-sm font-medium text-gray-700">Server API URL:</label>
-        <input
-          v-model="config.apiUrl"
-          @blur="saveConfig"
-          type="text"
-          placeholder="https://api.example.com"
-          class="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:border-purple-500 transition-colors"
-        />
+    <!-- Production Laravel request status. Single-feature validity diagnostics
+         stay in the Extension test panel. -->
+    <div v-if="state.backend" class="tk-status">
+      <div v-if="state.backend" class="tk-be" :class="backendOnline ? 'tk-be--on' : 'tk-be--off'">
+        <span class="tk-be-dot">{{ backendOnline ? '●' : '○' }}</span>
+        <span class="tk-be-label">{{ backendOnline ? getMessage('taskCenterBackendOnline') : getMessage('taskCenterBackendOffline') }}</span>
+        <span v-if="backendLastRequest" class="tk-be-meta">· {{ backendLastRequest }}</span>
+        <span
+          v-if="(state.backend.consecutiveFailures || 0) > 0"
+          class="tk-be-meta tk-be-fail"
+        >· {{ getMessage('taskCenterBackendFailureCount', [String(state.backend.consecutiveFailures)]) }}</span>
+        <span v-if="state.backend.lastError" class="tk-be-err" :title="state.backend.lastError">
+          · {{ state.backend.lastError }}
+        </span>
       </div>
     </div>
 
-    <div v-if="state.stats" class="space-y-4">
+    <div v-if="state.stats" class="space-y-3">
       <!-- Overall Stats -->
       <div class="grid grid-cols-4 gap-3">
         <div class="bg-purple-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-purple-600 font-medium">Processors</span>
+          <span class="block text-xs text-purple-600 font-medium">{{ getMessage('taskCenterProcessorsLabel') }}</span>
           <span class="block text-lg font-bold text-purple-700">{{ state.stats.runningProcessors }}/{{ state.stats.totalProcessors }}</span>
         </div>
         <div class="bg-blue-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-blue-600 font-medium">Pending</span>
+          <span class="block text-xs text-blue-600 font-medium">{{ getMessage('taskCenterPendingLabel') }}</span>
           <span class="block text-lg font-bold text-blue-700">{{ state.stats.totalPending }}</span>
         </div>
         <div class="bg-green-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-green-600 font-medium">Completed</span>
+          <span class="block text-xs text-green-600 font-medium">{{ getMessage('taskCenterCompletedLabel') }}</span>
           <span class="block text-lg font-bold text-green-700">{{ state.stats.totalTranslated }}</span>
         </div>
         <div class="bg-red-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-red-600 font-medium">Failed</span>
+          <span class="block text-xs text-red-600 font-medium">{{ getMessage('taskCenterFailedLabel') }}</span>
           <span class="block text-lg font-bold text-red-700">{{ state.stats.totalFailed }}</span>
         </div>
       </div>
 
-      <!-- Individual Processors -->
-      <div class="space-y-3">
+      <!-- Individual Processors (collapsible — long list; collapsed by default) -->
+      <button type="button" class="tk-collapse" @click="showProcessors = !showProcessors">
+        <span class="tk-collapse-caret">{{ showProcessors ? '▾' : '▸' }}</span>
+        <span>{{ getMessage('taskCenterProcessorDetails', [String(state.stats.runningProcessors), String(state.stats.totalProcessors)]) }}</span>
+      </button>
+      <div v-show="showProcessors" class="space-y-3">
         <div
           v-for="(processor, type) in state.stats.processors"
           :key="type"
-          class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3"
+          class="rounded-lg p-3 space-y-3"
+          style="background: var(--surface-2); border: 1px solid var(--border)"
         >
           <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold text-gray-800">{{ getProcessorName(type) }}</span>
-            <span :class="['px-2.5 py-1 text-xs font-bold rounded-full', processor.isRunning ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600']">
-              {{ processor.isRunning ? '▶ Active' : '⏸ Inactive' }}
+            <span class="text-sm font-semibold" style="color: var(--text)">{{ getProcessorName(String(type)) }}</span>
+            <span
+              class="px-2.5 py-1 text-xs font-bold rounded-full"
+              :style="processor.isRunning
+                ? 'background: var(--accent-soft); color: var(--success)'
+                : 'background: var(--surface); color: var(--text-muted)'"
+            >
+              {{ processor.isRunning ? `▶ ${getMessage('taskCenterActiveLabel')}` : `⏸ ${getMessage('taskCenterInactiveLabel')}` }}
             </span>
           </div>
 
@@ -68,59 +97,217 @@
             <!-- Bento Queue Stats -->
             <div class="grid grid-cols-3 gap-2">
               <div class="bg-blue-100 rounded-lg p-2 text-center space-y-1">
-                <div class="text-xs text-blue-700 font-medium">Queue</div>
+                <div class="text-xs text-blue-700 font-medium">{{ getMessage('taskCenterQueueLabel') }}</div>
                 <div class="text-base font-bold text-blue-800">{{ processor.stats.queueTotal || 0 }}</div>
               </div>
               <div class="bg-green-100 rounded-lg p-2 text-center space-y-1">
-                <div class="text-xs text-green-700 font-medium">New</div>
+                <div class="text-xs text-green-700 font-medium">{{ getMessage('taskCenterNewLabel') }}</div>
                 <div class="text-base font-bold text-green-800">{{ processor.stats.newTasks || 0 }}</div>
               </div>
               <div class="bg-orange-100 rounded-lg p-2 text-center space-y-1">
-                <div class="text-xs text-orange-700 font-medium">Dup</div>
+                <div class="text-xs text-orange-700 font-medium">{{ getMessage('taskCenterDuplicateLabel') }}</div>
                 <div class="text-base font-bold text-orange-800">{{ processor.stats.duplicateTasks || 0 }}</div>
               </div>
             </div>
 
             <!-- Traditional Stats -->
-            <div class="flex flex-wrap gap-3 text-xs text-gray-600">
-              <span class="font-medium">Pending: <span class="text-gray-800">{{ processor.stats.pending }}</span></span>
-              <span class="font-medium">Done: <span class="text-gray-800">{{ processor.stats.translated }}</span></span>
-              <span class="font-medium">Failed: <span class="text-gray-800">{{ processor.stats.failed }}</span></span>
+            <div class="flex flex-wrap gap-3 text-xs" style="color: var(--text-muted)">
+              <span class="font-medium">{{ getMessage('taskCenterPendingLabel') }}: <span style="color: var(--text)">{{ processor.stats.pending }}</span></span>
+              <span class="font-medium">{{ getMessage('taskCenterDoneLabel') }}: <span style="color: var(--text)">{{ processor.stats.progressTotal ? `${processor.stats.progressCompleted || 0}/${processor.stats.progressTotal}` : processor.stats.translated }}</span></span>
+              <span class="font-medium">{{ getMessage('taskCenterFailedLabel') }}: <span style="color: var(--text)">{{ processor.stats.failed }}</span></span>
               <span v-if="processor.stats.lastRun" class="font-medium">
-                Last: <span class="text-gray-800">{{ formatTimestamp(processor.stats.lastRun) }}</span>
+                {{ getMessage('taskCenterLastLabel') }}: <span style="color: var(--text)">{{ formatTimestamp(processor.stats.lastRun) }}</span>
+              </span>
+              <span v-if="processor.stats.currentAssistItem" class="font-medium">
+                {{ getMessage('taskCenterCurrentTaskLabel') }}:
+                <span style="color: var(--text)">{{ processor.stats.currentAssistItem }}</span>
+              </span>
+              <span v-if="processor.stats.currentAssistStage" class="font-medium">
+                {{ getMessage('taskCenterCurrentStageLabel') }}:
+                <span style="color: var(--text)">{{ processor.stats.currentAssistStage }}</span>
+              </span>
+              <span v-if="processor.stats.lastAssistError" class="font-medium tk-be-fail" :title="processor.stats.lastAssistError">
+                {{ processor.stats.lastAssistError }}
               </span>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Unified Task Center: live + history task rows from the laravel global
+         queue, each clickable to open the live SSE drilldown (TaskDetailModal). -->
+    <div class="pt-1">
+      <UnifiedTaskCenter ref="unifiedRef" />
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { onMounted } from 'vue';
+import { onMounted, ref, computed } from 'vue';
 import { useTaskCenter } from '../../composables/useTaskCenter';
+import { useTaskCapabilities } from '../../composables/useTaskCapabilities';
+import { usePersistedRef } from '@/composables/usePersistedRef';
+import { getMessage } from '@/utils/i18n';
+import TaskCapabilitySelector from '../TaskCapabilitySelector.vue';
+import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
-const { isActive, config, state, saveConfig, startTaskCenter, stopTaskCenter, formatTimestamp, initialize } = useTaskCenter();
+const {
+  apiBaseUrl,
+  state,
+  error,
+  isStarting,
+  startTaskCenter,
+  stopTaskCenter,
+  formatTimestamp,
+  initialize,
+} = useTaskCenter();
+
+// Template ref to the child so Start can trigger a full lane load immediately.
+const unifiedRef = ref<{ loadAll: () => Promise<void> } | null>(null);
+
+// Collapse the long per-processor list by default (persisted). The 4-tile
+// summary bento above stays visible; only the 12-row detail folds.
+const showProcessors = usePersistedRef('tkShowProcessors', false);
+const {
+  enabledKeys: checkedCapabilityKeys,
+} = useTaskCapabilities();
+
+const isRunning = computed(() => state.value.isRunning);
+const hasSelectedCapabilities = computed(() => checkedCapabilityKeys.value.length > 0);
+const readinessAction = computed(() =>
+  getMessage(hasSelectedCapabilities.value
+    ? 'taskCenterReadyAndStartAction'
+    : 'taskCenterReadyOnlyAction'),
+);
+const readinessStatus = computed(() => {
+  if (!isRunning.value) return `○ ${getMessage('taskCenterNotReadyStatus')}`;
+  return state.value.activeCapabilities.length > 0
+    ? `● ${getMessage('taskCenterReadyRunningStatus')}`
+    : `● ${getMessage('taskCenterReadyStatus')}`;
+});
+const readinessHint = computed(() =>
+  getMessage(hasSelectedCapabilities.value
+    ? 'taskCenterReadyWithTasksHint'
+    : 'taskCenterReadyOnlyHint'),
+);
+
+// Backend REQUEST-layer status strip.
+const backendOnline = computed(() => state.value.backend?.online === true);
+const backendLastRequest = computed(() =>
+  state.value.backend?.lastRequestAt ? formatTimestamp(state.value.backend.lastRequestAt) : '',
+);
+
+const onStart = async () => {
+  await startTaskCenter(checkedCapabilityKeys.value);
+  if (state.value.isRunning) await unifiedRef.value?.loadAll?.();
+};
+
+const onStop = async () => {
+  await stopTaskCenter();
+};
 
 const toggleCenter = async () => {
-  if (state.value.isRunning) {
-    await stopTaskCenter();
+  if (isRunning.value || isStarting.value) {
+    await onStop();
   } else {
-    await startTaskCenter();
+    await onStart();
   }
 };
 
 const getProcessorName = (type: string): string => {
   const names: Record<string, string> = {
     bing_dictionary: 'Bing Dictionary',
+    qwen_tts: 'Qwen3 TTS',
+    word_validity_web: 'Word Validity',
+    web_ai_translate: 'Web-AI Translate',
     deepseek: 'DeepSeek AI',
   };
   return names[type] || type;
 };
 
-onMounted(() => {
-  initialize();
+onMounted(async () => {
+  await initialize();
 });
 </script>
 
+<style scoped>
+.tk-cap-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.tk-cap-summary strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+.tk-error {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid rgb(244 63 94 / 35%);
+  border-radius: 8px;
+  background: rgb(244 63 94 / 10%);
+  color: #fb7185;
+  font-size: 10px;
+}
+
+/* ── Collapsible section header ── */
+.tk-collapse {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.tk-collapse:hover { border-color: var(--accent); background: var(--surface); }
+.tk-collapse-caret { font-size: 9px; color: var(--text-faint); }
+
+/* ── Backend status strip ── */
+.tk-status {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 6px 8px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  font-size: 10px;
+}
+.tk-be { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.tk-be-dot { font-size: 10px; line-height: 1; }
+.tk-be--on .tk-be-dot { color: var(--success, #10b981); }
+.tk-be--off .tk-be-dot { color: var(--text-muted); }
+.tk-be-label { font-weight: 700; color: var(--text); }
+.tk-be--off .tk-be-label { color: var(--text-muted); }
+.tk-be-meta { color: var(--text-muted); }
+.tk-be-fail { color: #f59e0b; }
+.tk-be-err {
+  color: #f43f5e; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tk-input {
+  background: var(--surface-2);
+  border: 2px solid var(--border);
+  color: var(--text);
+}
+
+.tk-input:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.tk-input::placeholder {
+  color: var(--text-faint);
+}
+</style>

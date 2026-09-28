@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 """
 Unified Git Push/Pull Script (Cross-platform Python version)
@@ -198,7 +187,102 @@ def invoke_safe_git_pull(target_url: str) -> bool:
         os.chdir(original_working_dir)
 
 
-def invoke_git_operations(target_url: str) -> bool:
+def human_kb(kb: int) -> str:
+    """Format a KiB value as human-readable size"""
+    kb = kb or 0
+    if kb >= 1048576:
+        return f"{kb / 1048576:.2f} GB"
+    if kb >= 1024:
+        return f"{kb / 1024:.2f} MB"
+    return f"{kb} KB"
+
+
+def get_local_repo_size_kb() -> int:
+    """Return local git repository size in KiB."""
+    loose = pack = 0
+    out = run_git_command("git count-objects -v", capture_output=True) or ""
+    for line in out.splitlines():
+        if line.startswith("size:"):
+            loose = int(line.split(":", 1)[1].strip() or 0)
+        elif line.startswith("size-pack:"):
+            pack = int(line.split(":", 1)[1].strip() or 0)
+    return loose + pack
+
+
+def get_remote_repo_size_from_url(target_url: str) -> tuple[str, int | None]:
+    """Return (host, remote_size_kb) for a remote URL via host API."""
+    import re
+    import json
+    import urllib.request
+
+    host = ""
+    owner_repo = ""
+    m = re.match(r'^git@([^:]+):(.+)$', target_url)
+    if not m:
+        m = re.match(r'^https?://([^/]+)/(.+)$', target_url)
+    if m:
+        host, owner_repo = m.group(1), m.group(2)
+    if owner_repo.endswith(".git"):
+        owner_repo = owner_repo[:-4]
+
+    remote_kb = None
+    api = None
+    if owner_repo and host == "github.com":
+        api = f"https://api.github.com/repos/{owner_repo}"
+    elif owner_repo and host == "gitee.com":
+        api = f"https://gitee.com/api/v5/repos/{owner_repo}"
+    if api:
+        try:
+            req = urllib.request.Request(api, headers={"User-Agent": "gitput-unified"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data.get("size"), int):
+                remote_kb = data["size"]
+        except Exception:
+            remote_kb = None
+
+    return host, remote_kb
+
+
+def show_repo_size_overview(targets: list[str]) -> None:
+    """Show local git size and all target remote sizes before commit."""
+    local_kb = get_local_repo_size_kb()
+
+    write_color_text("", "White")
+    write_color_text("============================================================", "Cyan")
+    write_color_text("  REPOSITORY SIZE OVERVIEW", "Cyan")
+    write_color_text("============================================================", "Cyan")
+    write_color_text(f"  Local (git): {human_kb(local_kb)}", "White")
+    write_color_text("", "White")
+
+    for target in targets:
+        target_url = REMOTE_CONFIGS.get(target)
+        if not target_url:
+            continue
+
+        host, remote_kb = get_remote_repo_size_from_url(target_url)
+        if not host:
+            host = target
+
+        if remote_kb is not None:
+            write_color_text(f"  Remote [{target}] ({host}): {human_kb(remote_kb)}", "White")
+            diff = local_kb - remote_kb
+            if diff >= 0:
+                write_color_text(f"    Local is larger by {human_kb(diff)}", "DarkGray")
+            else:
+                write_color_text(f"    Remote is larger by {human_kb(-diff)}", "DarkGray")
+        else:
+            write_color_text(
+                f"  Remote [{target}] ({host}): unavailable (private repo, no network, or unsupported host)",
+                "Yellow",
+            )
+
+    write_color_text("", "White")
+    write_color_text("============================================================", "Cyan")
+    write_color_text("", "White")
+
+
+def invoke_git_operations(target_url: str, force_push_mode: bool = False) -> bool:
     """Perform git operations (push)"""
     global encryption_check_completed, pull_completed, file_validation_completed
     global original_branch, original_remote_url
@@ -234,7 +318,7 @@ def invoke_git_operations(target_url: str) -> bool:
         run_git_command("git remote -v")
         write_color_text("--------------------------------", "Green")
         write_color_text("----------------------------------------------------------------", "DarkYellow")
-        
+
         # Run pre-commit encryption check (only once per session)
         if not encryption_check_completed:
             if process_encryption():
@@ -259,8 +343,14 @@ def invoke_git_operations(target_url: str) -> bool:
             push_branch(current_branch, set_upstream=True)
             write_color_text(f"Executing: git branch --set-upstream-to=origin/{current_branch} {current_branch}", "DarkGray")
             run_git_command(f"git branch --set-upstream-to=origin/{current_branch} {current_branch}")
-            write_color_text(f"Executing: git pull origin {DEFAULT_BRANCH}", "DarkGray")
-            run_git_command(f"git pull origin {DEFAULT_BRANCH}")
+            if force_push_mode:
+                write_color_text("FORCE PUSH MODE - skipping pull on new branch", "Red")
+            elif not pull_completed:
+                write_color_text(f"Executing: git pull origin {DEFAULT_BRANCH}", "DarkGray")
+                run_git_command(f"git pull origin {DEFAULT_BRANCH}")
+                pull_completed = True
+            else:
+                write_color_text("Skipping pull - already synchronized in this session", "Yellow")
             return True
         
         # Stage all changes FIRST (before pull)
@@ -279,9 +369,20 @@ def invoke_git_operations(target_url: str) -> bool:
         write_color_text(f"Committing changes with message: {commit_message}", "Cyan")
         write_color_text(f'Executing: git commit -m "{commit_message}"', "DarkGray")
         commit_changes(commit_message)
-        
-        # Only pull if this is the first remote (should be DEFAULT_REMOTE) and not yet completed
-        if not pull_completed:
+
+        # Ensure local is fully committed before any pull/push (force or normal)
+        if has_uncommitted_changes():
+            write_color_text("ERROR: Working tree not clean after commit; aborting to protect local work.", "Red")
+            run_git_command("git status --short")
+            return False
+        write_color_text("Local commit verified: working tree is clean.", "Green")
+
+        # Force push mode skips pull entirely (will overwrite remote changes)
+        if force_push_mode:
+            write_color_text("=== FORCE PUSH MODE ===", "Red")
+            write_color_text("Skipping pull (will overwrite remote changes)", "Red")
+        # Otherwise pull only if this is the first remote and not yet completed
+        elif not pull_completed:
             write_color_text("Pulling and merging remote changes after commit...", "Cyan")
             write_color_text(f"Executing: git pull origin {current_branch} --no-edit", "DarkGray")
             success, output = pull_branch(current_branch, no_edit=True)
@@ -296,10 +397,14 @@ def invoke_git_operations(target_url: str) -> bool:
         else:
             write_color_text("Skipping pull - already synchronized in this session", "Yellow")
         
-        # Push changes to remote
+        # Push changes to remote (force push when requested)
         write_color_text("Pushing changes to remote...", "Cyan")
-        write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
-        push_branch(current_branch, set_upstream=True)
+        if force_push_mode:
+            write_color_text(f"Executing: git push --force --set-upstream origin {current_branch}", "DarkGray")
+            push_branch(current_branch, set_upstream=True, force=True)
+        else:
+            write_color_text(f"Executing: git push --set-upstream origin {current_branch}", "DarkGray")
+            push_branch(current_branch, set_upstream=True)
         write_color_text("----------------------------------------------------------------", "DarkBlue")
 
         # Restore default remote after push
@@ -352,13 +457,27 @@ def main():
         # Determine target remote
         if not args.target:
             write_color_text("No target specified, using all remotes", "Yellow")
-            targets = ["gitee", "github", "local"]
+            # local temporarily disabled (not reachable or not in use); restore with: ["github", "gitee", "local"]
+            targets = ["github", "gitee"]
         else:
             targets = [args.target]
         
         # Reorder targets to execute DEFAULT_REMOTE first
         targets = get_execution_order(targets)
-        
+
+        # Ask once for force push decision (applies to all targets); skips pull when enabled
+        force_push_mode = False
+        if not args.pull:
+            write_color_text("Do you want to force push? [y/N]: ", "Yellow")
+            force_push_choice = input().strip()
+            if force_push_choice.lower() == 'y':
+                force_push_mode = True
+                write_color_text("Force push enabled for ALL targets", "Red")
+            else:
+                write_color_text("Normal push mode (with pull) for ALL targets", "Green")
+
+            show_repo_size_overview(targets)
+
         all_success = True
         
         for target in targets:
@@ -377,7 +496,7 @@ def main():
                     break
                 else:
                     write_color_text(f"\n=== Pushing to {target} ({target_url}) ===", "Magenta")
-                    success = invoke_git_operations(target_url)
+                    success = invoke_git_operations(target_url, force_push_mode)
                     if success:
                         write_color_text(f"Successfully pushed to {target}", "Green")
                     else:

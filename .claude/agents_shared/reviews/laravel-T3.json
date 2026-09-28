@@ -1,0 +1,41 @@
+{
+  "task_id": "laravel-T3",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "LB-010": {
+      "status": "fixed",
+      "reason": "The receiver stores the final archive chunk and answers extracting; the passive timer (buildRequestedArtifacts) verifies, extracts and writes a completion receipt keyed by key + sha256. A replayed final chunk, or the driver's repeated empty final chunk, answers complete:true from the receipt instead of restarting at offset 0. No 7z extraction runs inside the 120 s peer request, so the push loop is gone. A timer-side mismatch is reported on the next chunk and the driver fails the session, as before."
+    },
+    "LB-016": {
+      "status": "fixed",
+      "reason": "readFileBatch and readFileChunk return a per-file missing marker; the driver skips it (skipResource) in pull batch, pull chunk and push chunk."
+    },
+    "LB-017": {
+      "status": "fixed",
+      "reason": "Passive nodes publish context.resource_roots in the status summary; the driver syncs the intersection and records one-sided roots in resource_results.skipped_roots; an older peer without the field keeps the local roots."
+    },
+    "LB-018": {
+      "status": "fixed",
+      "reason": "Row counts and fresh manifests are timer-built artifacts tagged with a generation (hash of the received counters) and served only when current, 503 busy until then (a TRANSIENT status in the peer client). Export archives are queued in pending_archives and built by the exporter timer."
+    },
+    "LB-021": {
+      "status": "fixed",
+      "reason": "writeFileAtomic adds random bytes to the staging name and deletes it on failure; the six AiGateway stores, AppQyV1DailySentenceService and DeveloperHistoryService now call it instead of their own temp+rename copies."
+    },
+    "LB-022": {
+      "status": "fixed",
+      "reason": "supersede() uses requestCancel plus tryLock on the idle session and throws busy when the lock is held, the same path as a driver cancel."
+    },
+    "LB-023": {
+      "status": "fixed",
+      "reason": "Tables whose identity columns are NOT NULL and selected page by keyset ((ids) > (cursor), identity order, grammar-quoted); next_cursor travels through the driver checkpoint and the exporter GET (validated cursor.*). Other tables and non-scalar identities fall back to OFFSET."
+    }
+  },
+  "issues": [
+    "(non-blocking, relates to LB-012 in laravel-T4) the artifact builds, archive creation and 7z extraction now run in the passive/exporter timer tick. That is the fix LB-018 asked for, but it is the one heartbeat LB-012 says stalls 1 s tasks. When T4 adds background execution, move buildRequestedArtifacts there.",
+    "(resolved in the T2 resubmission) DataSyncPassiveService clears a recorded archive mismatch when the archive restarts at offset 0."
+  ],
+  "checks": "Diffs of ResourceSyncService, DataSyncPassiveService, DataSyncDriverService, DatabaseSyncService, DataSyncStateStore, DataSyncController, FileSystemManager, the AiGateway stores and DeveloperHistoryService read. Traced the driver's archive loop (advanceArchiveChunk), its hash_mismatch handling and the peer client's 503 transient path. The DataSyncPeerClient hunks are the T1 signing, already approved.",
+  "checked_at": "2026-09-27T04:19:20+10:00"
+}

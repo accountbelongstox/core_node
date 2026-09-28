@@ -2,11 +2,13 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Http\Controllers\Controller;
+
 use App\Services\OctaneTaskStatusService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class OctaneTaskController
+class OctaneTaskController extends Controller
 {
     private OctaneTaskStatusService $taskStatusService;
 

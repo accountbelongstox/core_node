@@ -7,8 +7,12 @@ These are convenience functions built on top of ADBManager.
 
 from typing import List, Optional
 from pathlib import Path
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.adb_manager import ADBManager
 from pycore.pyutils.device.adb_device import ADBDevice
+
+import time
+
 
 
 class ADBCommands:
@@ -89,7 +93,6 @@ class ADBCommands:
         Returns:
             True if device became online, False if timeout
         """
-        import time
         start_time = time.time()
 
         while time.time() - start_time < timeout:
@@ -130,31 +133,30 @@ class ADBCommands:
         """
         # Step 1: Enable WiFi ADB
         if not ADBManager.enable_wifi_adb(serial, port, adb_path):
-            print("Failed to enable WiFi ADB")
+            ColorPrint.plain("Failed to enable WiFi ADB")
             return None
 
         # Step 2: Get device IP
-        import time
         time.sleep(2)  # Wait for WiFi ADB to initialize
 
         ip = ADBManager.get_device_ip(serial, adb_path)
         if not ip:
-            print("Failed to get device IP")
+            ColorPrint.plain("Failed to get device IP")
             return None
 
         # Step 3: Connect via WiFi
         if not ADBManager.connect_wifi(ip, port, adb_path):
-            print(f"Failed to connect to {ip}:{port}")
+            ColorPrint.plain(f"Failed to connect to {ip}:{port}")
             return None
 
         wifi_serial = f"{ip}:{port}"
 
         # Step 4: Verify connection
         if not ADBCommands.wait_for_device(wifi_serial, adb_path, timeout=10):
-            print(f"Device {wifi_serial} not ready")
+            ColorPrint.plain(f"Device {wifi_serial} not ready")
             return None
 
-        print(f"WiFi connection established: {wifi_serial}")
+        ColorPrint.plain(f"WiFi connection established: {wifi_serial}")
         return wifi_serial
 
     @staticmethod
@@ -202,7 +204,7 @@ class ADBCommands:
             return success
 
         except Exception as e:
-            print(f"Failed to take screenshot: {e}")
+            ColorPrint.plain(f"Failed to take screenshot: {e}")
             return False
 
     @staticmethod
@@ -235,7 +237,7 @@ class ADBCommands:
             return True
 
         except Exception as e:
-            print(f"Failed to start screen recording: {e}")
+            ColorPrint.plain(f"Failed to start screen recording: {e}")
             return False
 
     @staticmethod
@@ -259,7 +261,7 @@ class ADBCommands:
             return True
 
         except Exception as e:
-            print(f"Failed to stop screen recording: {e}")
+            ColorPrint.plain(f"Failed to stop screen recording: {e}")
             return False
 
     @staticmethod
@@ -294,7 +296,7 @@ class ADBCommands:
             return success
 
         except Exception as e:
-            print(f"Failed to pull recording: {e}")
+            ColorPrint.plain(f"Failed to pull recording: {e}")
             return False
 
     # ========== Input Control ==========
@@ -429,7 +431,7 @@ class ADBCommands:
             return packages
 
         except Exception as e:
-            print(f"Failed to list packages: {e}")
+            ColorPrint.plain(f"Failed to list packages: {e}")
             return []
 
     @staticmethod
@@ -567,6 +569,6 @@ class ADBCommands:
             info['ip_address'] = ADBManager.get_device_ip(serial, adb_path)
 
         except Exception as e:
-            print(f"Failed to get system info: {e}")
+            ColorPrint.plain(f"Failed to get system info: {e}")
 
         return info

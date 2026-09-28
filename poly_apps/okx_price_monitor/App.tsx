@@ -6,7 +6,7 @@ import { AlertsPage } from './pages/Alerts';
 import { ConfigPage } from './pages/Config';
 import { StatsPage } from './pages/Stats';
 import { PageRoute } from './types';
-import { RPCClient } from './services/rpc';
+import { HttpClient } from './services/http';
 
 const App: React.FC = () => {
   // Simple hash-based routing since React Router is not available or desired for minimal deps
@@ -17,17 +17,9 @@ const App: React.FC = () => {
     // Check connection on mount
     const checkConnection = async () => {
       try {
-        await RPCClient.getStats();
-        setConnected(true);
-      } catch (e) {
-        // Even if we fail, RPCClient now mocks data, but we can set this to false to indicate "Simulated Mode"
-        // However, RPCClient.call swallows the error and returns mock data.
-        // We can check if the response data "looks" real or check a flag if we added one.
-        // For now, let's assume if it returns, we are "connected" to the data source (real or mock).
-        // To strictly detect backend (use correct port 58888):
-        fetch('http://localhost:58888/rpc/monitor.stats', { method: 'POST', body: JSON.stringify({route:'monitor.stats', id:'ping'}) })
-           .then(res => setConnected(res.ok))
-           .catch(() => setConnected(false));
+        setConnected(await HttpClient.isAvailable());
+      } catch {
+        setConnected(false);
       }
     };
     checkConnection();

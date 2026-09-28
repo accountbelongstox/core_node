@@ -11,7 +11,7 @@
  * - Callback support
  *
  * Usage:
- *   const { Task, TaskState, TaskPriority } = require('#@foundation/task_models');
+ *   const { Task, TaskState, TaskPriority } = require('#@foundation/task_models.js');
  *
  *   const task = new Task('tts', { text: 'Hello' }, {
  *       priority: TaskPriority.HIGH,

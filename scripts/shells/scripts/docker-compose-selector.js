@@ -1,22 +1,11 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const yaml = require('js-yaml');
 const env = require('../../../ncore/gvar/libs/env.js');
+const systemPaths = require('../../../ncore/foundation/common/system_paths.js');
 
-const GLOBAL_VAR_DIR="/usr/core_node/global_var"
+const GLOBAL_VAR_DIR = systemPaths.getGlobalVarDirs()[0];
 const INSTALL_MODE = getValByGlobalVar(`INSTALL_MODE`);
 const DOCKER_FULL = env.getEnvValue(`DOCKER_FULL`);
 const DOCKER_BASE = env.getEnvValue(`DOCKER_BASE`);
@@ -52,11 +41,14 @@ if (!fs.existsSync(OUTPUT_DIR)) {
 }
 
 function getValByGlobalVar(file) {
-  const filePath = path.join(GLOBAL_VAR_DIR, file);
-  if (!fs.existsSync(filePath)) {
-    return '';
+  const candidateNames = systemPaths.getGlobalVarReadNames(file);
+  for (const candidateName of candidateNames) {
+    const filePath = path.join(GLOBAL_VAR_DIR, candidateName);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      return fs.readFileSync(filePath, 'utf8');
+    }
   }
-  return fs.readFileSync(filePath, 'utf8');
+  return '';
 }
 
 // Read and parse docker-compose file
@@ -78,7 +70,11 @@ function getServices(composeData) {
 // Generate new compose file with selected services
 function generateComposeFile(composeData, selectedServices) {
   const newCompose = { ...composeData };
-  
+
+  // Compose Spec: the legacy top-level 'version' field is obsolete and must
+  // never leak into generated output (the docker compose plugin ignores it).
+  delete newCompose.version;
+
   newCompose.services = Object.fromEntries(
     Object.entries(composeData.services)
       .filter(([name]) => selectedServices.includes(name))

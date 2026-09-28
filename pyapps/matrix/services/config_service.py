@@ -13,7 +13,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict, Optional
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pyapps.matrix.matrix_config import Config
 
 

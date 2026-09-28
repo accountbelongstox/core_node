@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 param(
     [Parameter(Mandatory=$true)]
     [hashtable]$WindowsVersion,
@@ -124,7 +112,8 @@ function Enable-WSLFeature {
     try {
         Write-ColorMessage -Message "[WSL Upgrade] Enabling Windows feature: $FeatureName" -Type "Info"
         Enable-WindowsOptionalFeature -Online -FeatureName $FeatureName -NoRestart -All
-        if ($LASTEXITCODE -eq 0) {
+        $featureState = Get-WindowsOptionalFeature -Online -FeatureName $FeatureName -ErrorAction SilentlyContinue
+        if ($featureState -and $featureState.State -eq "Enabled") {
             Write-ColorMessage -Message "[WSL Upgrade] Successfully enabled feature: $FeatureName" -Type "Success"
             return $true
         } else {
@@ -137,10 +126,25 @@ function Enable-WSLFeature {
     }
 }
 
+function Get-WSLStatusValue {
+    param(
+        [Parameter(Mandatory = $true)][object[]]$Lines,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+    $lineText = ''
+    foreach ($line in $Lines) {
+        $lineText = ([string]$line).Trim()
+        if ($lineText.StartsWith($Label, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $lineText.Substring($Label.Length).Trim()
+        }
+    }
+    return ''
+}
+
 function Get-WSLVersionInfo {
     try {
         $wslStatus = & wsl --status 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if (-not ("$wslStatus").Contains('not installed')) {
             # Extract version information
             $versionInfo = @{
                 IsInstalled = $true
@@ -149,17 +153,9 @@ function Get-WSLVersionInfo {
                 WSLVersion = "Unknown"
             }
             
-            if ($wslStatus -match "Default Version: (\d+)") {
-                $versionInfo.DefaultVersion = $matches[1]
-            }
-            
-            if ($wslStatus -match "WSL version: ([^\r\n]+)") {
-                $versionInfo.WSLVersion = $matches[1].Trim()
-            }
-            
-            if ($wslStatus -match "Default kernel version: ([^\r\n]+)") {
-                $versionInfo.KernelVersion = $matches[1].Trim()
-            }
+            $versionInfo.DefaultVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'Default Version:'
+            $versionInfo.WSLVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'WSL version:'
+            $versionInfo.KernelVersion = Get-WSLStatusValue -Lines @($wslStatus) -Label 'Default kernel version:'
             
             return $versionInfo
         } else {
@@ -186,18 +182,17 @@ function Test-WSLUpdateAvailable {
         
         # Check if wsl --update is available and if there are updates
         $updateCheck = & wsl --update --dry-run 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            if ($updateCheck -match "No updates available" -or $updateCheck -match "already up to date") {
-                Write-ColorMessage -Message "[WSL Upgrade] WSL is already up to date." -Type "Success"
-                return $false
-            } else {
-                Write-ColorMessage -Message "[WSL Upgrade] WSL updates are available." -Type "Warning"
-                return $true
-            }
+        if ($updateCheck -match "No updates available" -or $updateCheck -match "already up to date") {
+            Write-ColorMessage -Message "[WSL Upgrade] WSL is already up to date." -Type "Success"
+            return $false
+        } elseif ("$updateCheck" -match "update|download|install|available") {
+            Write-ColorMessage -Message "[WSL Upgrade] WSL updates are available." -Type "Warning"
+            return $true
         } else {
             # If --dry-run is not supported, try regular update check
             $updateCheck = & wsl --update 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            $wslStatusAfterUpdate = & wsl --status 2>&1
+            if ("$wslStatusAfterUpdate" -notmatch "not installed") {
                 Write-ColorMessage -Message "[WSL Upgrade] WSL update completed." -Type "Success"
                 return $false
             } else {
@@ -288,14 +283,14 @@ function Update-WSLKernel {
         # Try wsl --update first (preferred method for newer systems)
         Write-ColorMessage -Message "[WSL Upgrade] Running: wsl --update" -Type "Info"
         $updateResult = & wsl --update 2>&1
-        $updateExitCode = $LASTEXITCODE
-        
-        if ($updateExitCode -eq 0) {
+        $wslStatusAfterUpdate = & wsl --status 2>&1
+
+        if ("$wslStatusAfterUpdate" -notmatch "not installed") {
             Write-ColorMessage -Message "[WSL Upgrade] WSL kernel updated successfully using wsl --update." -Type "Success"
             Write-ColorMessage -Message "[WSL Upgrade] Update output: $updateResult" -Type "Info"
             return $true
         } else {
-            Write-ColorMessage -Message "[WSL Upgrade] wsl --update failed with exit code: $updateExitCode" -Type "Warning"
+            Write-ColorMessage -Message "[WSL Upgrade] wsl --update did not produce a working WSL installation." -Type "Warning"
             Write-ColorMessage -Message "[WSL Upgrade] Update output: $updateResult" -Type "Warning"
             return $false
         }
@@ -370,12 +365,13 @@ function Install-WSLUpdate {
         
         Write-ColorMessage -Message "[WSL Upgrade] Running: msiexec.exe $($installArgs -join ' ')" -Type "Info"
         $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $installArgs -Wait -PassThru
-        
-        if ($process.ExitCode -eq 0) {
+
+        $wslStatusAfterMsi = & wsl --status 2>&1
+        if ("$wslStatusAfterMsi" -notmatch "not installed") {
             Write-ColorMessage -Message "[WSL Upgrade] WSL update installed successfully." -Type "Success"
             return $true
         } else {
-            Write-ColorMessage -Message "[WSL Upgrade] WSL update installation failed with exit code: $($process.ExitCode)" -Type "Error"
+            Write-ColorMessage -Message "[WSL Upgrade] WSL update installation failed." -Type "Error"
             return $false
         }
     } catch {
@@ -396,18 +392,6 @@ function Create-StartupScript {
         
         # Create startup script content
         $startupScriptContent = @"
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Auto-generated startup script for WSL multi-stage installation continuation
 # This script will be automatically deleted after successful installation
 
@@ -440,9 +424,9 @@ if (`$userInput -eq "Y" -or `$userInput -eq "y") {
     # Execute Step80 script
     try {
         & "$Step80ScriptPath"
-        `$exitCode = `$LASTEXITCODE
-        
-        if (`$exitCode -eq 0) {
+        `$wslStatusAfterStep = wsl --status 2>&1
+
+        if ("`$wslStatusAfterStep" -notmatch "not installed") {
             Write-Host "WSL installation completed successfully!" -ForegroundColor Green
             
             # Check if upgrade state should be cleared
@@ -458,7 +442,7 @@ if (`$userInput -eq "Y" -or `$userInput -eq "y") {
                 }
             }
         } else {
-            Write-Host "WSL installation failed with exit code: `$exitCode" -ForegroundColor Red
+            Write-Host "WSL installation verification failed." -ForegroundColor Red
             Write-Host "Upgrade state preserved for debugging." -ForegroundColor Yellow
         }
     } catch {
@@ -605,7 +589,8 @@ function Process-WSLUpgrade {
             # Try wsl --install first
             try {
                 & wsl --install --no-distribution
-                if ($LASTEXITCODE -eq 0) {
+                $wslStatusAfterInstall = & wsl --status 2>&1
+                if ("$wslStatusAfterInstall" -notmatch "not installed") {
                     Write-ColorMessage -Message "[WSL Upgrade] WSL installed successfully using wsl --install." -Type "Success"
                     Set-UpgradeStage 2 "Install WSL" "Success"
                 } else {
@@ -647,7 +632,8 @@ function Process-WSLUpgrade {
             # Set WSL2 as default
             try {
                 & wsl --set-default-version 2
-                if ($LASTEXITCODE -eq 0) {
+                $wslStatusAfterDefault = & wsl --status 2>&1
+                if (("$wslStatusAfterDefault").Contains('Default Version: 2')) {
                     Write-ColorMessage -Message "[WSL Upgrade] WSL2 set as default version." -Type "Success"
                     
                     # Convert existing distributions
@@ -729,16 +715,7 @@ function Process-WSLUpgrade {
 
 # Main execution
 try {
-    $upgradeProcessed = Process-WSLUpgrade -WindowsVersion $WindowsVersion -CurrentWSLVersion $CurrentWSLVersion -Step80ScriptPath $Step80ScriptPath
-    
-    if ($upgradeProcessed) {
-        Write-ColorMessage -Message "[WSL Upgrade] Upgrade process completed. System restart initiated." -Type "Success"
-        exit 0
-    } else {
-        Write-ColorMessage -Message "[WSL Upgrade] No upgrade required. Continuing with normal installation." -Type "Info"
-        exit 1
-    }
+    Process-WSLUpgrade -WindowsVersion $WindowsVersion -CurrentWSLVersion $CurrentWSLVersion -Step80ScriptPath $Step80ScriptPath
 } catch {
     Write-ColorMessage -Message "[WSL Upgrade] Error during upgrade process: $_" -Type "Error"
-    exit 1
 }

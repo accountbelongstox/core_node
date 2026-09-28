@@ -17,12 +17,19 @@ import time
 import urllib.request
 import urllib.error
 from typing import List, Dict, Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    map_bus_tasks,
+    serialized_method,
+)
 
-from .logging import setup_logging
-from ..network_cache import NetworkCache
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.device_sync.network_cache import NetworkCache
+import pycore.pyutils.launcher.device_sync.routes as routes
 
-logger = setup_logging(__name__)
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config
+
 
 # Device sync service port
 DEVICE_SYNC_PORT = 58923
@@ -32,6 +39,44 @@ SCAN_TIMEOUT = 0.3
 
 # Max concurrent scan threads (reduced from 100 to avoid Windows performance issues)
 MAX_THREADS = 30
+
+
+def _scan_device_request(request: Dict) -> Optional[Dict]:
+    """Probe one address using only data delivered through THREAD_BUS."""
+    ip = request['ip']
+    local_ip = request['local_ip']
+    port = request['port']
+    if ip == local_ip:
+        return None
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(SCAN_TIMEOUT)
+    try:
+        if sock.connect_ex((ip, port)) != 0:
+            return None
+    except Exception:
+        return None
+    finally:
+        sock.close()
+
+    url = f"http://{ip}:{port}{routes.STATUS_PATH}"
+    try:
+        with urllib.request.urlopen(url, timeout=1) as response:
+            info = json.loads(response.read().decode('utf-8'))
+        return {
+            'ip': ip,
+            'hostname': info.get('hostname', 'unknown'),
+            'device_id': info.get('device_id', 'unknown'),
+            'mode': info.get('mode'),
+            'sync_enabled': info.get('sync_enabled', False),
+            'http_port': port,
+            'last_seen': time.time(),
+        }
+    except urllib.error.URLError:
+        return None
+    except Exception as exc:
+        ColorPrint.debug(f"Failed to get device info from {ip}: {exc}")
+        return None
 
 
 class SimpleDeviceScanner:
@@ -49,7 +94,7 @@ class SimpleDeviceScanner:
         devices = scanner.scan_devices()
 
         for device in devices:
-            print(f"Found: {device['hostname']} at {device['ip']}")
+            ColorPrint.info(f"Found: {device['hostname']} at {device['ip']}")
     """
 
     def __init__(self, port: int = DEVICE_SYNC_PORT):
@@ -66,7 +111,14 @@ class SimpleDeviceScanner:
 
         # Network cache
         self.network_cache = NetworkCache()
+        init_serialized_owner(
+            self,
+            'device_sync.scanner.state',
+            'DeviceSyncScannerStateThread',
+            timeout=300.0,
+        )
 
+    @serialized_method
     def scan_devices(self, force_rescan_network: bool = False) -> List[Dict]:
         """
         Scan devices on local network (uses cached network config)
@@ -84,41 +136,42 @@ class SimpleDeviceScanner:
         network_info = self.network_cache.get_network_info(force_rescan=force_rescan_network)
 
         if not network_info:
-            logger.error("Cannot get network configuration")
+            ColorPrint.error("Cannot get network configuration")
             return []
 
         self.local_ip = network_info['local_ip']
         self.network_prefix = network_info['network_prefix']
 
         # 2. Scan only device sync services (port 58923) in network segment
-        logger.info(f"Scanning {self.network_prefix}.0/24 for Device Sync services (port {self.port})...")
+        ColorPrint.info(f"Scanning {self.network_prefix}.0/24 for Device Sync services (port {self.port})...")
         start_time = time.time()
 
         devices = []
-        futures = []
-
-        with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-            # Scan all IPs (1-255)
-            for host_num in range(1, 256):
-                ip = f"{self.network_prefix}.{host_num}"
-                future = executor.submit(self._scan_device, ip)
-                futures.append(future)
-
-            # Collect results
-            for future in as_completed(futures):
-                device_info = future.result()
-                if device_info:
-                    devices.append(device_info)
-                    logger.info(f"Found device: {device_info['hostname']} ({device_info['ip']})")
+        addresses = [
+            {
+                'ip': f"{self.network_prefix}.{host_num}",
+                'local_ip': self.local_ip,
+                'port': self.port,
+            }
+            for host_num in range(1, 256)
+        ]
+        for device_info in map_bus_tasks(
+            _scan_device_request,
+            addresses,
+            MAX_THREADS,
+            thread_prefix="CoreDeviceScan",
+        ):
+            if device_info:
+                devices.append(device_info)
+                ColorPrint.info(f"Found device: {device_info['hostname']} ({device_info['ip']})")
 
         elapsed = time.time() - start_time
-        logger.info(f"Scan complete: Found {len(devices)} device(s) in {elapsed:.2f}s")
+        ColorPrint.info(f"Scan complete: Found {len(devices)} device(s) in {elapsed:.2f}s")
 
         # Update last scan time
         self.last_scan_time = time.time()
 
         # Update global config
-        from .config import get_global_config
         config = get_global_config()
         config.update_online_devices(devices)
 
@@ -190,7 +243,7 @@ class SimpleDeviceScanner:
         Returns:
             Device info dict
         """
-        url = f"http://{ip}:{self.port}/api/status"
+        url = f"http://{ip}:{self.port}{routes.STATUS_PATH}"
 
         try:
             with urllib.request.urlopen(url, timeout=1) as response:
@@ -214,7 +267,7 @@ class SimpleDeviceScanner:
             # Port open but not device sync service
             return None
         except Exception as e:
-            logger.debug(f"Failed to get device info from {ip}: {e}")
+            ColorPrint.debug(f"Failed to get device info from {ip}: {e}")
             return None
 
     def get_primary_devices(self, devices: List[Dict]) -> List[Dict]:
@@ -229,6 +282,7 @@ class SimpleDeviceScanner:
         """
         return [d for d in devices if d.get('mode') == 'primary']
 
+    @serialized_method
     def find_primary_device(self) -> Optional[Dict]:
         """
         Scan and find PRIMARY device
@@ -240,19 +294,20 @@ class SimpleDeviceScanner:
         primary_devices = self.get_primary_devices(devices)
 
         if len(primary_devices) == 0:
-            logger.warning("No primary device found")
+            ColorPrint.warning("No primary device found")
             return None
 
         if len(primary_devices) > 1:
-            logger.error(f"Multiple primary devices found: {len(primary_devices)}")
+            ColorPrint.error(f"Multiple primary devices found: {len(primary_devices)}")
             for i, dev in enumerate(primary_devices, 1):
-                logger.error(f"  {i}. {dev['hostname']} ({dev['ip']})")
+                ColorPrint.error(f"  {i}. {dev['hostname']} ({dev['ip']})")
             return None
 
         primary = primary_devices[0]
-        logger.info(f"Found primary device: {primary['hostname']} ({primary['ip']})")
+        ColorPrint.info(f"Found primary device: {primary['hostname']} ({primary['ip']})")
         return primary
 
+    @serialized_method
     def scan_if_needed(self, force: bool = False, interval: float = 60.0):
         """
         Scan network if needed (only in SECONDARY mode)
@@ -261,7 +316,6 @@ class SimpleDeviceScanner:
             force: Force scan even if recently scanned
             interval: Minimum interval between scans (seconds, default 60)
         """
-        from .config import get_global_config
         config = get_global_config()
 
         # Only scan in SECONDARY mode
@@ -277,13 +331,13 @@ class SimpleDeviceScanner:
             self.scan_devices()
 
 
-# Global scanner instance
-_scanner: SimpleDeviceScanner | None = None
+_SCANNER_PROVIDER = SerializedSingletonProvider(
+    SimpleDeviceScanner,
+    'device_sync.scanner.provider',
+    'DeviceSyncScannerProviderThread',
+)
 
 
 def get_network_scanner() -> SimpleDeviceScanner:
     """Get or create global network scanner singleton"""
-    global _scanner
-    if _scanner is None:
-        _scanner = SimpleDeviceScanner()
-    return _scanner
+    return _SCANNER_PROVIDER.get()

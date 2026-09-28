@@ -12,7 +12,7 @@ import ipaddress
 import threading
 import concurrent.futures
 from typing import List, Optional, Set
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class NetworkScanner:

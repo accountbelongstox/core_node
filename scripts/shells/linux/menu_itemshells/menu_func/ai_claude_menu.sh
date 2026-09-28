@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Claude AI Environment Variables Menu Module
 # Provides menu functions for managing Claude AI environment variables
@@ -39,11 +28,11 @@ get_claude_config() {
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_1_IsSecret="true"
     ENVIRONMENT_CONFIGS_Claude_AI_Variables_1_InputType="Token"
 
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Name="ANTHROPIC_API_KEY"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_DisplayName="ANTHROPIC_API_KEY"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Description="Claude AI API key (alternative to ANTHROPIC_AUTH_TOKEN)"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_IsSecret="true"
-    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_InputType="Token"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Name="ANTHROPIC_MODEL"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_DisplayName="ANTHROPIC_MODEL"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_Description="Default model (optional, e.g. claude-opus-5-5)"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_IsSecret="false"
+    ENVIRONMENT_CONFIGS_Claude_AI_Variables_2_InputType="Text"
 }
 
 # Menu Functions

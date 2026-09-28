@@ -1,0 +1,13 @@
+{
+  "task_id": "codemart-1",
+  "role": "codemart",
+  "verdict": "approved",
+  "findings": {
+    "FU-010": {"status": "fixed", "reason": "CmProjectAnalysisPanel: load captures a generation and checks alive+generation after the fetch and after onProjectChanged; unmount/project change bumps the generation and clears the timer, so no re-arm and no onProjectChanged after unmount. t is read through a ref, so a language switch no longer recreates load and starts a second poll chain."},
+    "FU-013": {"status": "fixed", "reason": "useCmPagedList: request counter drops superseded responses; disabling the list invalidates in-flight requests. Same pattern as useCmAdminList."},
+    "FU-014": {"status": "fixed", "reason": "CmAdminKycDocumentViewer: request counter bumped on every open/toggle and on unmount; a stale response returns before URL.createObjectURL, so it neither mislabels the document nor leaks a blob URL."}
+  },
+  "issues": [],
+  "checks": "git diff read; callers of load/open reviewed; scope apps/codemart only; no new UI strings; owner ran tsc --noEmit (0 errors in apps/codemart).",
+  "checked_at": "2026-09-27T03:55:37+10:00"
+}

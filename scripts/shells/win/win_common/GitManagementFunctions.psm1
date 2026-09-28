@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Git Management Functions - Python-based with File Variables
@@ -18,8 +6,12 @@
     and file variables for communication between Python and PowerShell
 #>
 
-# File variables directory
-$script:GIT_VARS_DIR = Join-Path $env:USERPROFILE ".core_node\.build_global_vars"
+# File variables directory.
+$script:SHARED_CACHE_ENV_PATH = Join-Path $PSScriptRoot 'SharedCacheEnv.ps1'
+if (-not $Global:CORE_NODE_DATA_DIR) {
+    . $script:SHARED_CACHE_ENV_PATH
+}
+$script:GIT_VARS_DIR = Join-Path $Global:CORE_NODE_DATA_DIR 'build_global_vars'
 
 # Helper functions for file variables
 function Read-GitVar {
@@ -76,6 +68,19 @@ function Clear-GitVars {
     }
 }
 
+function Get-GitManagementPythonCommand {
+    if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
+        return $Global:PYTHON_EXE_PATH
+    }
+    $cmd = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $cmd -or -not $cmd.Source) { return $null }
+    $src = $cmd.Source.TrimEnd('\')
+    if ($src -match "WindowsApps|Microsoft\\WindowsApps|AppExecutionAliases") {
+        return $null
+    }
+    return $cmd.Source
+}
+
 function Show-GitManagementMenu {
     <#
     .SYNOPSIS
@@ -100,8 +105,14 @@ function Show-GitManagementMenu {
         }
 
         # Call Python to show menu and handle user input
+        $pythonExe = Get-GitManagementPythonCommand
+        if (-not $pythonExe) {
+            Write-ColorMessage -Message "Python was not found. Use Step9 to install Python, or disable the 'python' App Execution Alias in Settings > Apps > Advanced app settings > App execution aliases." -Type "Error"
+            Read-Host "Press Enter to continue"
+            return
+        }
         try {
-            python $gitManagementPy
+            & $pythonExe $gitManagementPy
         } catch {
             Write-ColorMessage -Message "Error calling Python: $_" -Type "Error"
             Read-Host "Press Enter to continue"

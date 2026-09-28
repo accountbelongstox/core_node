@@ -1,19 +1,9 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
 use Illuminate\Support\Facades\File;
+use App\Providers\PathMapper;
 
 /**
  * Initialization Marker Manager for Dictionary System
@@ -29,11 +19,14 @@ class AppQyV1InitializationMarkerManager
     protected $vocabularyMarker;
     protected $vocabularyStartMarker;
     protected $vocabularyFailedMarker;
+    protected $dailySentencesToArticleMarker;
 
     public function __construct()
     {
-        $externalDataPath = env('DICT_EXTERNAL_DATA_PATH', storage_path('app/external_data'));
-        $this->markersPath = $externalDataPath . '/markers';
+        // Resolve markers directory through the canonical path map so the same
+        // logical location is produced under WSL / Windows / Ubuntu and is
+        // identical for the sys:init CLI process and the Octane HTTP worker.
+        $this->markersPath = PathMapper::getAppQyV1ExternalDataRoot('markers');
         
         $this->databaseMarker = $this->markersPath . '/database_ready.flag';
         $this->audioMarker = $this->markersPath . '/audio_processed.flag';
@@ -42,10 +35,43 @@ class AppQyV1InitializationMarkerManager
         $this->vocabularyMarker = $this->markersPath . '/vocabulary_processed.flag';
         $this->vocabularyStartMarker = $this->markersPath . '/vocabulary_processing_start.flag';
         $this->vocabularyFailedMarker = $this->markersPath . '/vocabulary_processing_failed.flag';
+        // Routes-only (and optional article_type rename) guard for short/daily merge.
+        $this->dailySentencesToArticleMarker = $this->markersPath . '/.migrated_daily_sentences_to_article';
 
         // Ensure markers directory exists
         if (!File::exists($this->markersPath)) {
             File::makeDirectory($this->markersPath, 0755, true);
+        }
+    }
+
+    /** Idempotent guard: daily-sentences → article/list?type=short route merge. */
+    public function hasMigratedDailySentencesToArticle(): bool
+    {
+        return File::exists($this->dailySentencesToArticleMarker);
+    }
+
+    /**
+     * Write the daily-sentences→article merge marker.
+     *
+     * @param array<string,mixed> $extra Optional note fields (e.g. routes_aliased, rows_renamed)
+     */
+    public function setMigratedDailySentencesToArticle(array $extra = []): bool
+    {
+        try {
+            $markerData = array_merge([
+                'timestamp' => now()->toISOString(),
+                'status' => 'migrated_daily_sentences_to_article',
+                'process_id' => getmypid(),
+                'version' => '1.0',
+                'note' => 'Routes aliased: daily-sentences/* → ai_tools/article/*?type=short',
+            ], $extra);
+
+            return File::put(
+                $this->dailySentencesToArticleMarker,
+                json_encode($markerData, JSON_PRETTY_PRINT)
+            ) !== false;
+        } catch (\Exception $e) {
+            return false;
         }
     }
 

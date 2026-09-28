@@ -5,15 +5,21 @@ Handles generation of systemd service files and wrapper scripts
 """
 
 import os
+import sys
 from pathlib import Path
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import get_unified_manager_launcher_dir
 from typing import Optional, Dict, List, Tuple
 
 
 class ServiceFileGenerator:
     """Generates systemd service files and wrapper scripts"""
 
-    def __init__(self, wrapper_script_dir: str = "/var/_core_node/unified_manager/temp_scripts"):
-        self.wrapper_script_dir = Path(wrapper_script_dir)
+    def __init__(self, wrapper_script_dir: Optional[str] = None):
+        self.wrapper_script_dir = Path(wrapper_script_dir) if wrapper_script_dir else get_unified_manager_launcher_dir()
         self.service_file_dir = Path("/etc/systemd/system")
 
     def ensure_wrapper_dir(self) -> None:

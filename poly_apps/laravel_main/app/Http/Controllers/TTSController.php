@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
 use App\Traits\ApiResponse;
+use App\Traits\ServesTTSAudio;
 
 /**
  * @deprecated This controller is deprecated. Use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController instead.
@@ -21,6 +22,7 @@ use App\Traits\ApiResponse;
 class TTSController extends Controller
 {
     use ApiResponse;
+    use ServesTTSAudio;
 
     private $ttsService;
 
@@ -45,7 +47,7 @@ class TTSController extends Controller
             options: $request->input('options', [])
         );
 
-        return $this->success($result, 'Audio generated successfully');
+        return $this->success($result, __('api.messages.audio_generated_successfully'));
     }
     
     public function batchGenerate(Request $request): JsonResponse
@@ -60,7 +62,7 @@ class TTSController extends Controller
 
         $results = $this->ttsService->batchGenerate($request->input('items'));
 
-        return $this->success(['results' => $results], 'Batch generation completed');
+        return $this->success(['results' => $results], __('api.messages.batch_generation_completed'));
     }
     
     public function checkGeneration(Request $request): JsonResponse
@@ -71,7 +73,7 @@ class TTSController extends Controller
         
         $result = $this->ttsService->checkGeneration($request->input('audio_path'));
 
-        return $this->success($result, 'Generation status retrieved successfully');
+        return $this->success($result, __('api.messages.generation_status_retrieved_successfully'));
     }
     
     public function batchCheck(Request $request): JsonResponse
@@ -86,77 +88,47 @@ class TTSController extends Controller
             $results[$path] = $this->ttsService->checkGeneration($path);
         }
 
-        return $this->success(['results' => $results], 'Batch check completed');
+        return $this->success(['results' => $results], __('api.messages.batch_check_completed'));
     }
     
     public function serveAudioWithSpeed(string $language, string $type, string $speed, string $filename)
     {
-        $relativePath = $language . '/' . $type . '/' . $speed . '/' . $filename;
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
+        $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/{$type}/{$speed}/{$filename}");
 
-        if (!$fullPath) {
+        if (!$response) {
             abort(404, 'Audio file not found');
         }
 
-        if (!file_exists($fullPath)) {
-            abort(404, 'Audio file not found');
-        }
-
-        $content = file_get_contents($fullPath);
-
-        return response($content, 200, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'public, max-age=31536000',
-            'Content-Length' => strlen($content),
-        ]);
+        return $response;
     }
-    
+
     public function serveAudio(string $language, string $type, string $filename)
     {
-        $relativePath = $language . '/' . $type . '/' . $filename;
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
+        $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/{$type}/{$filename}");
 
-        if (!$fullPath) {
+        if (!$response) {
             abort(404, 'Audio file not found');
         }
 
-        if (!file_exists($fullPath)) {
-            abort(404, 'Audio file not found');
-        }
-
-        $content = file_get_contents($fullPath);
-
-        return response($content, 200, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'public, max-age=31536000',
-            'Content-Length' => strlen($content),
-        ]);
+        return $response;
     }
-    
+
     public function serveSentenceByMd5(string $language, string $md5)
     {
-        $filename = $md5 . '.mp3';
-        $relativePath = $language . '/sentence/' . $filename;
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
-        
-        if (!$fullPath || !file_exists($fullPath)) {
+        $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/sentence/{$md5}.mp3");
+
+        if (!$response) {
             abort(404, 'Audio file not found');
         }
-        
-        $content = file_get_contents($fullPath);
-        
-        return response($content, 200, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'public, max-age=31536000',
-            'Content-Length' => strlen($content),
-        ]);
+
+        return $response;
     }
     
     public function getVoices(Request $request): JsonResponse
     {
         return $this->success(
             ['voices' => $this->ttsService->getAvailableVoices()],
-            'Available voices retrieved successfully'
+            __('api.messages.available_voices_retrieved_successfully')
         );
     }
 
@@ -164,7 +136,7 @@ class TTSController extends Controller
     {
         $stats = $this->ttsService->getCacheStats();
 
-        return $this->success(['stats' => $stats], 'Cache stats retrieved successfully');
+        return $this->success(['stats' => $stats], __('api.messages.cache_stats_retrieved_successfully'));
     }
 
     public function clearCache(Request $request): JsonResponse

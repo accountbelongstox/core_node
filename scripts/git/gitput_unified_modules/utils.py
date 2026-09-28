@@ -9,8 +9,8 @@ import sys
 import platform
 from pathlib import Path
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pygvar import GlobalVarManager
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import GlobalVarManager
 
 
 def get_script_dir() -> Path:
@@ -34,36 +34,10 @@ def get_win_common_dir() -> Path:
 
 def get_global_var(key: str, default: Optional[str] = None) -> Optional[str]:
     """Get global variable value"""
-    # Try the same lookup paths used by the PowerShell implementation
-    candidates = []
-    
-    # Windows/WSL user profile location
-    user_profile = os.environ.get("USERPROFILE")
-    if user_profile:
-        candidates.append(Path(user_profile) / ".core_node" / ".global_vars" / key)
-    
-    # WSL host user directories (align with ps1 logic)
-    wsl_users = Path("/mnt/c/Users")
-    if wsl_users.exists():
-        for user_dir in sorted(wsl_users.iterdir()):
-            candidates.append(user_dir / ".core_node" / ".global_vars" / key)
-    
-    # Linux fallback used by ps1
-    candidates.append(Path("/usr/core_node/global_var") / key)
-    
-    for path in candidates:
-        try:
-            if path.exists():
-                raw = path.read_text(encoding="utf-8")
-                return raw.replace("\x00", "")  # strip null bytes
-        except Exception:
-            continue
-    
-    # Fallback to Python global var manager
     try:
         gvm = GlobalVarManager()
         value = gvm.get(key, default)
-        return value
+        return value.replace("\x00", "") if isinstance(value, str) else value
     except Exception:
         return default
 

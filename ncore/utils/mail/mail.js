@@ -1,20 +1,11 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const nodemailer = require('nodemailer');
     const dotenv = require('dotenv');
     const Base = require('#@base');
     const { format } = require('date-fns');
-    const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper');
+    const { getSecretOrEnv } = require('#@ncore/foundation/common/secret_config_helper.js');
+    const serviceContract = require('../../../config/service_contract');
+    const defaultMailDomain = serviceContract.serviceDomain('mail_local');
+    const defaultMailUsername = `mailserver@${defaultMailDomain}`;
 
     dotenv.config();
 
@@ -27,9 +18,9 @@ const nodemailer = require('nodemailer');
 
       loadMailConfig() {
         const config = {
-          MAIL_SERVER: process.env.MAIL_SERVER || 'mail.local.12gm.com',
-          MAIL_PORT: parseInt(process.env.MAIL_PORT, 10) || 587,
-          MAIL_USERNAME: getSecretOrEnv('MAIL_USERNAME', 'MAIL_USERNAME', 'mailserver@mail.local.12gm.com'),
+          MAIL_SERVER: process.env.MAIL_SERVER || defaultMailDomain,
+          MAIL_PORT: parseInt(process.env.MAIL_PORT, 10) || serviceContract.port('mail_submission'),
+          MAIL_USERNAME: getSecretOrEnv('MAIL_USERNAME', 'MAIL_USERNAME', defaultMailUsername),
           MAIL_PASSWORD: getSecretOrEnv('MAIL_PASSWORD', 'MAIL_PASSWORD', null),
         };
 
@@ -37,9 +28,9 @@ const nodemailer = require('nodemailer');
         if (missing.length > 0) {
           console.warn(`Missing configuration for: ${missing.map(([key]) => key).join(', ')}`);
           console.warn(`Example configuration:
-    MAIL_SERVER=mail.local.12gm.com
-    MAIL_PORT=587
-    MAIL_USERNAME=mailserver@mail.local.12gm.com
+    MAIL_SERVER=${defaultMailDomain}
+    MAIL_PORT=${serviceContract.port('mail_submission')}
+    MAIL_USERNAME=${defaultMailUsername}
     MAIL_PASSWORD=#Abbb123`);
         }
 

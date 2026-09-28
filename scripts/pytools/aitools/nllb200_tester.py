@@ -4,11 +4,61 @@
 NLLB-200 Model Tester
 Reusable testing script for Facebook's No Language Left Behind translation model
 Supports 196 languages
+
+Requires: PyTorch (torch) must be installed in the same Python environment.
+  - Transformers docs: https://huggingface.co/docs/transformers/installation
+  - PyTorch install: https://pytorch.org/get-started/locally/
+  - CPU only: pip install torch --index-url https://download.pytorch.org/whl/cpu
+  - With CUDA: use the command from pytorch.org for your CUDA version.
 """
 
 import os
 import sys
 from pathlib import Path
+
+# Authenticate to the HF Hub from the project secret store (.secret_keys/
+# .secret_ignore: HF_TOKEN_1..5 then HF_TOKEN) before transformers runs, so model
+# downloads are not rate-limited "unauthenticated" requests.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from hf_secret import ensure_hf_token
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..'))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+from pycore.pyutils.common.hf_local_weights import resolve_model_id
+
+_NLLB200_DEFAULT_REPO = "facebook/nllb-200-distilled-600M"
+
+
+def _resolve_model(model_name=None):
+    """Pre-downloaded local weights (Step39 idempotent install) when available,
+    else the HF repo id. An explicit model_name always wins."""
+    if model_name:
+        return model_name
+    return resolve_model_id("NLLB200_DIR", "nllb200", _NLLB200_DEFAULT_REPO)
+
+
+ensure_hf_token()
+
+
+def _require_pytorch():
+    """Ensure PyTorch is importable; exit with clear message if not. See pytorch.org/get-started/locally/"""
+    try:
+        import torch
+        return
+    except ImportError:
+        pass
+    print('[ERROR] PyTorch (torch) is not installed in this Python environment.')
+    print('        AutoModelForSeq2SeqLM requires PyTorch. Install it first, then run this script again.')
+    print()
+    print('  Official install: https://pytorch.org/get-started/locally/')
+    print('  Transformers:     https://huggingface.co/docs/transformers/installation')
+    print()
+    print('  CPU only (same Python as this script):')
+    print('    pip install torch --index-url https://download.pytorch.org/whl/cpu')
+    print('  With CUDA: use the command from the PyTorch site for your CUDA version.')
+    print()
+    sys.exit(1)
 
 
 COMMON_LANGUAGES = {
@@ -35,12 +85,12 @@ COMMON_LANGUAGES = {
 }
 
 
-def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_Latn', target_lang='zho_Hans', test_text=None):
+def test_model(model_name=None, source_lang='eng_Latn', target_lang='zho_Hans', test_text=None):
     """
     Test NLLB-200 model loading and translation
 
     Args:
-        model_name: HuggingFace model name
+        model_name: HuggingFace model name or local weights dir (default: project staging -> HF repo id)
         source_lang: Source language code (e.g., 'eng_Latn')
         target_lang: Target language code (e.g., 'zho_Hans')
         test_text: Optional test text to translate
@@ -48,15 +98,16 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
     Returns:
         bool: True if test succeeded, False otherwise
     """
+    model_name = _resolve_model(model_name)
     try:
-        os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
         os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '3600'
 
         print('[TEST] Importing transformers...')
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
         print(f'[INFO] Model: {model_name}')
-        print('[INFO] First run will download model from HuggingFace (~1.2GB)')
+        print('[INFO] Local staged weights used when present; else downloads from HuggingFace (~1.2GB)')
         print('[INFO] Download timeout: 3600s (1 hour)')
         print('[INFO] This may take a few minutes...')
         print()
@@ -64,13 +115,12 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
         print('[TEST] Loading tokenizer...')
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            src_lang=source_lang,
-            resume_download=True
+            src_lang=source_lang
         )
         print('[OK] Tokenizer loaded successfully')
 
         print('[TEST] Loading model...')
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name, resume_download=True)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         print('[OK] Model loaded successfully')
 
         if test_text is None:
@@ -109,15 +159,16 @@ def test_model(model_name='facebook/nllb-200-distilled-600M', source_lang='eng_L
         return False
 
 
-def interactive_translator(model_name='facebook/nllb-200-distilled-600M'):
+def interactive_translator(model_name=None):
     """
     Start an interactive translation session
 
     Args:
-        model_name: HuggingFace model name
+        model_name: HuggingFace model name or local weights dir (default: project staging -> HF repo id)
     """
+    model_name = _resolve_model(model_name)
     try:
-        os.environ['HF_HOME'] = os.path.join(os.path.expanduser('~'), '.cache', 'huggingface')
+        os.environ.setdefault('HF_HOME', os.environ.get('CORE_NODE_CACHE_DIR', '/var/_core_node/cache') + '/huggingface')
 
         print('Loading NLLB-200 translation model...')
         from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
@@ -216,16 +267,19 @@ def interactive_translator(model_name='facebook/nllb-200-distilled-600M'):
 
 def main():
     """Main entry point"""
+    _require_pytorch()
+
     import argparse
 
     parser = argparse.ArgumentParser(description='NLLB-200 Model Tester and Translator')
-    parser.add_argument('--model', default='facebook/nllb-200-distilled-600M', help='Model name')
+    parser.add_argument('--model', default=None, help='Model name or local weights dir (default: project staging -> facebook/nllb-200-distilled-600M)')
     parser.add_argument('--interactive', action='store_true', help='Start interactive translator')
     parser.add_argument('--source', default='eng_Latn', help='Source language code')
     parser.add_argument('--target', default='zho_Hans', help='Target language code')
     parser.add_argument('--text', default=None, help='Text to translate')
 
     args = parser.parse_args()
+    args.model = _resolve_model(args.model)
 
     if args.interactive:
         interactive_translator(args.model)

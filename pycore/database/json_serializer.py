@@ -13,6 +13,9 @@ from decimal import Decimal
 from typing import Any, Dict, List, Union
 from pathlib import Path
 
+import base64
+
+
 
 class DatabaseJSONEncoder(json.JSONEncoder):
     """
@@ -53,7 +56,6 @@ class DatabaseJSONEncoder(json.JSONEncoder):
 
         # Binary types
         elif isinstance(obj, bytes):
-            import base64
             return base64.b64encode(obj).decode('utf-8')
 
         # Path types
@@ -139,7 +141,6 @@ def serialize_value(value: Any) -> Any:
 
     # Binary types
     elif isinstance(value, bytes):
-        import base64
         return base64.b64encode(value).decode('utf-8')
 
     # Path types

@@ -14,6 +14,7 @@ from .basic import (
     ThemedText,
     ThemedCheckbutton,
     ThemedCombobox,
+    ThemedSpinbox,
     ThemedScrollbar
 )
 
@@ -31,6 +32,7 @@ __all__ = [
     "ThemedText",
     "ThemedCheckbutton",
     "ThemedCombobox",
+    "ThemedSpinbox",
     "ThemedScrollbar",
 
     # Specialized widgets

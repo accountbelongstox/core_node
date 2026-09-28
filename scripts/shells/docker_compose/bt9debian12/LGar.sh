@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Get script directory and parent directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -75,7 +64,7 @@ else
     SYSTEM_VERSION=$(uname -r)
 fi
 
-COMPILE_DIR="/usr/.dev_$SYSTEM_VERSION"
+COMPILE_DIR="/usr/_${SYSTEM_NAME}_$(echo "${SYSTEM_VERSION}" | cut -d. -f1)"
 get_system_info() {
     echo "${SYSTEM_NAME}_${SYSTEM_VERSION}"
 }
@@ -111,36 +100,8 @@ echo "Shells Directory: $SHELLS_DIR"
 echo "Core Scripts Directory: $CORE_SCRIPTS_DIR"
 echo "Core Node Directory: $CORE_NODE_DIR"
 # Export directory variables
-export SCRIPT_DIR
-export SHELLS_DIR
-export CORE_SCRIPTS_DIR
-export CORE_NODE_DIR
 
 # Export system information
-export SYSTEM_NAME
-export SYSTEM_VERSION
-export SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
+SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
 
 # Additional useful exports
-export OS_ID
-export OS_VERSION_ID
-export OS_NAME
-export POETRY_HOME
-export POETRY_LINK
-export NODE_INSTALL_DIR
-export COMMON_SHELLS_DIR
-export NODE_VERSION
-export NODE_DOWNLOAD_URL
-export NODE_SHORT_VERSION
-export SHELLS_SCRIPTS_DIR
-export NODE_BIN
-export COMPILE_DIR
-export GO_DIR
-export GO_BIN
-export GO_VERSION_AMD64_FILE
-export GO_TAR_URL
-export UPS_CONF
-export UPSD_CONF
-export UPSD_USERS_CONF
-export UPSMON_CONF
-export USE_SUDO

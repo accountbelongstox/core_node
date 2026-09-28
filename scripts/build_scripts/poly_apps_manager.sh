@@ -139,9 +139,9 @@ if [ -n "$env_count" ]; then
     env_name="${selection[$name_key]}"
     env_value="${selection[$value_key]}"
     if [ -n "$env_name" ]; then
-      echo "Exporting $env_name=$env_value"
-      export "$env_name"="$env_value"
-    }
+      echo "Setting $env_name=$env_value (current shell only)"
+      printf -v "$env_name" '%s' "$env_value"
+    fi
   done
 fi
 

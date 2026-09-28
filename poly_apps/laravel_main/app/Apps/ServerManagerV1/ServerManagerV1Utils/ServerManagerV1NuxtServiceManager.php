@@ -203,7 +203,7 @@ class ServerManagerV1NuxtServiceManager
      * @param bool $debugMode If true, runs directly from source; if false, runs from factory build
      * @return bool Success status
      */
-    public static function createServiceFile(string $appname, int $port, string $user = null, bool $debugMode = false): bool
+    public static function createServiceFile(string $appname, int $port, ?string $user = null, bool $debugMode = false): bool
     {
         if ($user === null) {
             $user = self::getDefaultServiceUser();
@@ -212,11 +212,11 @@ class ServerManagerV1NuxtServiceManager
         $serviceName = self::getNuxtServiceName($appname);
 
         if ($debugMode) {
-            $serviceContent = self::generateDebugServiceFileContent($appname, $port, $user);
+            $serviceContent = ServerManagerV1NuxtSystemdConfig::debug($appname, $port);
             $mode = 'debug';
         } else {
             $factoryPath = self::getFactoryPath($appname);
-            $serviceContent = self::generateServiceFileContent($appname, $factoryPath, $port, $user);
+            $serviceContent = ServerManagerV1NuxtSystemdConfig::production($appname, $factoryPath, $port);
             $mode = 'production';
         }
 
@@ -241,91 +241,6 @@ class ServerManagerV1NuxtServiceManager
         ]);
 
         return true;
-    }
-
-    /**
-     * Generate systemd service file content for production mode (factory build)
-     * Note: Running as root to avoid permission issues with factory directory
-     */
-    private static function generateServiceFileContent(string $appname, string $factoryPath, int $port, string $user): string
-    {
-        $nodePath = PathMapper::getNodeBinaryPath();
-        $nodeBinDir = dirname($nodePath);
-
-        // Build PATH with node directory
-        $pathDirs = array_unique([$nodeBinDir, '/usr/local/bin', '/usr/bin', '/bin']);
-        $pathEnv = implode(':', $pathDirs);
-
-        return <<<SERVICE
-[Unit]
-Description=Nuxt PolyApp - $appname (Production)
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=$factoryPath
-Environment="PATH=$pathEnv"
-Environment="NODE_ENV=production"
-Environment="PORT=$port"
-Environment="NITRO_PORT=$port"
-Environment="NUXT_APP_NAMESPACE=$appname"
-ExecStart=$nodePath $factoryPath/.output/server/index.mjs
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SERVICE;
-    }
-
-    /**
-     * Generate systemd service file content for debug mode (factory with file watcher)
-     * Note: Running as root to avoid permission issues with factory directory sync
-     */
-    private static function generateDebugServiceFileContent(string $appname, int $port, string $user): string
-    {
-        $nodePath = PathMapper::getNodeBinaryPath();
-        $pnpmPath = PathMapper::getPnpmBinaryPath();
-        $nodeBinDir = dirname($nodePath);
-        $pnpmBinDir = dirname($pnpmPath);
-
-        $coreNodeDir = PathMapper::getCoreNodeDir();
-        $nuxtMainPath = "$coreNodeDir/poly_apps/nuxt_main";
-        $switchScript = "$nuxtMainPath/scripts/switch-app.js";
-        $factoryPath = self::getFactoryPath($appname);
-
-        // Build PATH with node and pnpm directories
-        $pathDirs = array_unique([$nodeBinDir, $pnpmBinDir, '/usr/local/bin', '/usr/bin', '/bin']);
-        $pathEnv = implode(':', $pathDirs);
-
-        return <<<SERVICE
-[Unit]
-Description=Nuxt PolyApp - $appname (Debug Mode - Factory with File Watcher)
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=$nuxtMainPath
-Environment="PATH=$pathEnv"
-Environment="NODE_ENV=development"
-Environment="PORT=$port"
-Environment="NITRO_PORT=$port"
-Environment="NUXT_PORT=$port"
-Environment="NUXT_HOST=0.0.0.0"
-Environment="APP_ENTRY=$appname"
-ExecStart=$nodePath $switchScript $appname --mode dev
-Restart=always
-RestartSec=5
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-SERVICE;
     }
 
     /**
@@ -678,7 +593,7 @@ SERVICE;
      * @param bool $debugMode Debug mode flag
      * @return bool Success status
      */
-    public static function refreshService(string $appname, int $port, string $user = null, bool $debugMode = false): bool
+    public static function refreshService(string $appname, int $port, ?string $user = null, bool $debugMode = false): bool
     {
         $serviceName = self::getNuxtServiceName($appname);
         $currentMode = self::detectServiceMode($serviceName);
@@ -785,7 +700,7 @@ SERVICE;
      * @param bool $autoResolve Auto-resolve duplicates and refresh mode
      * @return array Status information
      */
-    public static function createOrRefreshService(string $appname, int $port, string $user = null, bool $debugMode = false, bool $autoResolve = true): array
+    public static function createOrRefreshService(string $appname, int $port, ?string $user = null, bool $debugMode = false, bool $autoResolve = true): array
     {
         $serviceName = self::getNuxtServiceName($appname);
         $result = [

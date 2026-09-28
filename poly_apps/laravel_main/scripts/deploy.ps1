@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Declare all variables at the beginning of the file
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # ============================================================================
 # Laravel Deployment Script with UP Method Support (PowerShell)
 # ============================================================================
@@ -32,6 +20,10 @@ if ($PSScriptRoot) {
 }
 $APP_DIR = Split-Path -Parent $SCRIPT_DIR
 $CORE_NODE_DIR = Split-Path -Parent (Split-Path -Parent $APP_DIR)
+# Canonical laravel_main ensure/start on Windows (provisioning, service or foreground runtime).
+$CANONICAL_START_PS1 = Join-Path $SCRIPT_DIR "start.ps1"
+$POWERSHELL_EXE = (Get-Command powershell.exe -ErrorAction SilentlyContinue).Source
+if (-not $POWERSHELL_EXE) { $POWERSHELL_EXE = (Get-Command pwsh.exe -ErrorAction SilentlyContinue).Source }
 
 # Save initial working directory to restore at the end
 $INITIAL_WORKING_DIR = Get-Location
@@ -214,12 +206,6 @@ function Show-EnvironmentInfo {
         Write-Host "  Laravel Directory: $laravelDir"
         if (Test-Path $laravelDir) {
             Write-Host "  Exists: Yes"
-            $envFile = Join-Path $laravelDir ".env"
-            if (Test-Path $envFile) {
-                Write-Host "  .env file: Exists"
-            } else {
-                Write-Host "  .env file: Not found" -ForegroundColor Yellow
-            }
             $vendorDir = Join-Path $laravelDir "vendor"
             if (Test-Path $vendorDir) {
                 Write-Host "  vendor directory: Exists"
@@ -698,39 +684,6 @@ function Invoke-Up20251215InstallReverb {
         return $false
     }
     
-    Write-Info "[UP] Step 6: Updating .env for Reverb..."
-    $envFile = Join-Path $laravelDir ".env"
-    if (Test-Path $envFile) {
-        $envContent = Get-Content $envFile -Raw
-        
-        if ($envContent -notmatch "^BROADCAST_CONNECTION=") {
-            Add-Content -Path $envFile -Value "BROADCAST_CONNECTION=reverb"
-            Write-Success "[UP] OK Added BROADCAST_CONNECTION=reverb"
-        } elseif ($envContent -match "^BROADCAST_CONNECTION=log") {
-            $envContent = $envContent -replace "^BROADCAST_CONNECTION=log", "BROADCAST_CONNECTION=reverb"
-            Set-Content -Path $envFile -Value $envContent
-            Write-Success "[UP] OK Updated BROADCAST_CONNECTION to reverb"
-        } else {
-            Write-Info "[UP] BROADCAST_CONNECTION already configured"
-        }
-        
-        if ($envContent -notmatch "^REVERB_APP_ID=") {
-            $timestamp = [DateTimeOffset]::Now.ToUnixTimeSeconds()
-            Add-Content -Path $envFile -Value ""
-            Add-Content -Path $envFile -Value "REVERB_APP_ID=task-system"
-            Add-Content -Path $envFile -Value "REVERB_APP_KEY=reverb-key-$timestamp"
-            Add-Content -Path $envFile -Value "REVERB_APP_SECRET=reverb-secret-$timestamp"
-            Add-Content -Path $envFile -Value "REVERB_HOST=0.0.0.0"
-            Add-Content -Path $envFile -Value "REVERB_PORT=8080"
-            Add-Content -Path $envFile -Value "REVERB_SCHEME=http"
-            Write-Success "[UP] OK Added Reverb configuration to .env"
-        } else {
-            Write-Info "[UP] Reverb env variables already configured"
-        }
-    } else {
-        Write-Warning "[UP] WARNING .env file not found"
-    }
-    
     Set-UpApplied $version
     
     Write-Success "========================================"
@@ -830,14 +783,6 @@ function Initialize-SystemDirectories {
     $backupDir = $BACKUP_DIR
     $laravelMain = Join-Path $wwwRoot "laravel_main"
     $laravelDb = Join-Path $laravelMain "laravel_db"
-    
-    $dbFiles = Get-ChildItem -Path $laravelDb -Filter "*.db" -ErrorAction SilentlyContinue
-    $dbFiles += Get-ChildItem -Path $laravelDb -Filter "*.sqlite" -ErrorAction SilentlyContinue
-    $dbFiles += Get-ChildItem -Path $laravelDb -Filter "*.sqlite3" -ErrorAction SilentlyContinue
-    
-    if ($dbFiles.Count -gt 0) {
-        Write-Info "[DEPLOY] Database files detected - will preserve"
-    }
     
     $systemDirs = @(
         $nginxConfigDir,
@@ -956,24 +901,7 @@ function Test-Initialization {
         New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
     }
     
-    # Create .env if needed
-    $envFile = Join-Path $laravelDir ".env"
-    $envExample = Join-Path $laravelDir ".env.example"
-    
-    if (-not (Test-Path $envFile)) {
-        if (Test-Path $envExample) {
-            Copy-Item $envExample $envFile
-        }
-    }
-    
-    # Generate APP_KEY if needed
-    $envContent = Get-Content $envFile -Raw -ErrorAction SilentlyContinue
-    if ($envContent -and $envContent -notmatch "^APP_KEY=base64:") {
-        Write-Host "  Command: php artisan key:generate --force" -ForegroundColor Yellow
-        php artisan key:generate --force
-    }
-    
-    Write-Success "[INIT] OK Environment initialized"
+    Write-Success "[INIT] OK Laravel directories initialized"
     return $true
 }
 
@@ -1072,128 +1000,6 @@ function Repair-Prerequisites {
     Write-Host ""
 }
 
-# Ensures the .env file exists and is properly configured
-function Test-EnvFile {
-    param(
-        [string]$ProjectRoot = ""
-    )
-    
-    if ([string]::IsNullOrEmpty($ProjectRoot)) {
-        $ProjectRoot = Get-Location
-    }
-    
-    $envFile = Join-Path $ProjectRoot ".env"
-    $envExample = Join-Path $ProjectRoot ".env.example"
-    
-    Write-Host ""
-    Write-Info "[ENV SETUP] Verifying environment configuration"
-    
-    # Verify .env file existence
-    if (-not (Test-Path $envFile)) {
-        if (-not (Test-Path $envExample)) {
-            Write-Error "Error: Missing .env.example file in $ProjectRoot"
-            return $false
-        }
-        
-        # Create from example
-        Copy-Item $envExample $envFile
-        Write-Success "Created .env from template"
-        
-        # Generate application key
-        $envContent = Get-Content $envFile -Raw
-        if ($envContent -match "APP_KEY=") {
-            if (Get-Command php -ErrorAction SilentlyContinue) {
-                Set-Location $ProjectRoot
-                Write-Host "  Command: php artisan key:generate --quiet" -ForegroundColor Yellow
-                php artisan key:generate --quiet
-                Write-Success "Generated application encryption key"
-            } else {
-                Write-Warning "PHP not available - APP_KEY remains unset"
-            }
-        }
-    } else {
-        Write-Info ".env already exists"
-    }
-    
-    # Set secure permissions (Windows: remove read permissions for others)
-    if (Test-Path $envFile) {
-        $acl = Get-Acl $envFile
-        $acl.SetAccessRuleProtection($true, $false)
-        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-        $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($currentUser, "FullControl", "Allow")
-        $acl.SetAccessRule($accessRule)
-        Set-Acl $envFile $acl
-        Write-Success "Applied secure file permissions"
-    }
-    
-    return $true
-}
-
-# Ensures production environment configuration
-function Test-ProductionEnvironment {
-    param(
-        [string]$ProjectRoot = ""
-    )
-    
-    if ([string]::IsNullOrEmpty($ProjectRoot)) {
-        $ProjectRoot = Get-Location
-    }
-    
-    $envFile = Join-Path $ProjectRoot ".env"
-    $changesMade = $false
-    
-    Write-Host ""
-    Write-Info "[ENV CONFIG] Validating production settings"
-    
-    # Verify .env exists
-    if (-not (Test-Path $envFile)) {
-        Write-Error "Error: .env not found in $ProjectRoot"
-        return $false
-    }
-    
-    # Create backup
-    Copy-Item $envFile "$envFile.bak"
-    
-    $envContent = Get-Content $envFile -Raw
-    
-    # Configure APP_ENV
-    if ($envContent -match "^APP_ENV=") {
-        if ($envContent -notmatch "^APP_ENV=production`r?`n") {
-            $envContent = $envContent -replace "^APP_ENV=.*", "APP_ENV=production"
-            $changesMade = $true
-            Write-Success "Set APP_ENV to production"
-        }
-    } else {
-        $envContent += "`nAPP_ENV=production`n"
-        $changesMade = $true
-        Write-Success "Added APP_ENV setting"
-    }
-    
-    # Configure APP_DEBUG
-    if ($envContent -match "^APP_DEBUG=") {
-        if ($envContent -notmatch "^APP_DEBUG=false`r?`n") {
-            $envContent = $envContent -replace "^APP_DEBUG=.*", "APP_DEBUG=false"
-            $changesMade = $true
-            Write-Success "Disabled debug mode"
-        }
-    } else {
-        $envContent += "`nAPP_DEBUG=false`n"
-        $changesMade = $true
-        Write-Success "Added APP_DEBUG setting"
-    }
-    
-    # Cleanup if no changes were needed
-    if (-not $changesMade) {
-        Remove-Item "$envFile.bak" -Force -ErrorAction SilentlyContinue
-        Write-Info "Production settings already configured"
-    } else {
-        Set-Content -Path $envFile -Value $envContent
-        Write-Success "Production configuration complete"
-    }
-    
-    return $true
-}
-
 # ============================================================================
 # MAIN EXECUTION - Always runs (idempotent)
 # ============================================================================
@@ -1210,15 +1016,17 @@ Invoke-AllUps
 Set-Location $INITIAL_WORKING_DIR
 Write-Info "Restored initial working directory: $INITIAL_WORKING_DIR"
 
-# Run Laravel system initialization (in parent directory of scripts)
-$parentDir = Split-Path -Parent $SCRIPT_DIR
-Set-Location $parentDir
-Write-Info "Running Laravel system initialization..."
-Write-Host "  Command: php artisan sys:init" -ForegroundColor Yellow
-php artisan sys:init
-Write-Success "Laravel system initialization completed"
+# Provision, initialize and start through the canonical start.ps1, in its own process
+# because it ends with exit (the same way start.ps1 runs Step175).
+Write-Info "Delegating provisioning to the canonical start script: $CANONICAL_START_PS1"
+& $POWERSHELL_EXE -NoProfile -ExecutionPolicy Bypass -File $CANONICAL_START_PS1
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Canonical start failed (exit $LASTEXITCODE)"
+    Set-Location $INITIAL_WORKING_DIR
+    exit 1
+}
 
-# Verify Laravel project can start after sys:init (Windows: no service installation needed)
+# Verify the Laravel project after the canonical start
 $laravelDir = Get-LaravelDir
 Set-Location $laravelDir
 
@@ -1246,14 +1054,6 @@ if (-not (Test-Path $vendorDir)) {
     Write-Success "vendor directory exists"
 }
 
-# Check if .env exists
-$envFile = Join-Path $laravelDir ".env"
-if (-not (Test-Path $envFile)) {
-    Write-Warning ".env file not found - Laravel may not start properly"
-} else {
-    Write-Success ".env file exists"
-}
-
 # Test basic artisan command
 Write-Info "Testing Laravel artisan command..."
 Write-Host "  Command: php artisan --version" -ForegroundColor Yellow
@@ -1262,9 +1062,8 @@ Write-Success "Laravel artisan is working"
 
 Write-Host ""
 Write-Info "Laravel project is ready to start"
-Write-Info "To start the development server, run:"
-Write-Host "  cd $laravelDir" -ForegroundColor Yellow
-Write-Host "  php artisan serve" -ForegroundColor Yellow
+Write-Info "To start it again (service or foreground), run:"
+Write-Host "  powershell -File `"$CANONICAL_START_PS1`"" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "============================================================================" -ForegroundColor Cyan
 Write-Host ""
@@ -1274,7 +1073,7 @@ Set-Location $INITIAL_WORKING_DIR
 Write-Info "Restored initial working directory: $INITIAL_WORKING_DIR"
 
 # ============================================================================
-# LEGACY DEPLOYMENT FUNCTIONS (kept for reference, not executed automatically)
+# OPTIONAL FULL DEPLOYMENT FUNCTIONS
 # ============================================================================
 # To run full deployment, execute: .\deploy.ps1 -FullDeploy
 # ============================================================================
@@ -1343,124 +1142,8 @@ if ($FullDeploy) {
         } else {
             Write-Host "Vendor directory exists."
         }
-        
-        # Octane is not needed on Windows - skipped
-        # Repair-OctaneSwooleCompatibility
     }
-    
-    # Function to clear Laravel cache
-    function Clear-Cache {
-        $laravelDir = Get-LaravelDir
-        Set-Location $laravelDir
-        
-        Write-Host "Clearing Laravel cache..."
-        Write-Host "  Command: php artisan cache:clear" -ForegroundColor Yellow
-        php artisan cache:clear
-        Write-Host "  Command: php artisan config:clear" -ForegroundColor Yellow
-        php artisan config:clear
-        Write-Host "  Command: php artisan route:clear" -ForegroundColor Yellow
-        php artisan route:clear
-        Write-Host "  Command: php artisan view:clear" -ForegroundColor Yellow
-        php artisan view:clear
-    }
-    
-    # Function to handle SQLite database with intelligent migration
-    function Initialize-Database {
-        # Windows: Direct D: drive path
-        $dbDir = $LARAVEL_DB_DIR
-        $dbFile = Join-Path $dbDir "database.sqlite"
-        $laravelDir = Get-LaravelDir
-        $envFile = Join-Path $laravelDir ".env"
-        
-        Write-Info "[DATABASE] Initializing SQLite database"
-        Write-Host "Database file location: $dbFile" -ForegroundColor Green
-        
-        # 1. Ensure database directory exists
-        if (-not (Test-Path $dbDir)) {
-            New-Item -ItemType Directory -Path $dbDir -Force | Out-Null
-            Write-Warning "Created database directory"
-        }
-        
-        # 2. Handle database file creation
-        $dbExists = $false
-        if (-not (Test-Path $dbFile)) {
-            $response = Read-Host "Database file does not exist. Create it? (y/N)"
-            if ($response -eq "y" -or $response -eq "Y") {
-                New-Item -ItemType File -Path $dbFile -Force | Out-Null
-                Write-Success "Created new database file"
-            } else {
-                Write-Warning "Skipping database initialization"
-                return
-            }
-        } else {
-            $dbExists = $true
-            Write-Success "Using existing database"
-        }
-        
-        # 3. Configure .env file
-        if (-not (Test-Path $envFile)) {
-            $envExample = Join-Path $laravelDir ".env.example"
-            if (Test-Path $envExample) {
-                Copy-Item $envExample $envFile
-                Write-Warning "Created .env file from example"
-            }
-        }
-        
-        # Update .env with SQLite configuration
-        $envContent = Get-Content $envFile -Raw
-        if ($envContent -notmatch "^DB_CONNECTION=sqlite") {
-            $envContent = $envContent -replace "^DB_CONNECTION=.*", "DB_CONNECTION=sqlite"
-        }
-        $dbFileEscaped = $dbFile -replace '\\', '\\'
-        $envContent = $envContent -replace "^DB_DATABASE=.*", "DB_DATABASE=$dbFileEscaped"
-        Set-Content -Path $envFile -Value $envContent
-        
-        # 4. Run appropriate migrations based on database state
-        Set-Location $laravelDir
-        if ($dbExists) {
-            Write-Info "[DATABASE] Running schema updates on existing database"
-            Write-Host "  Command: php artisan migrate --force" -ForegroundColor Yellow
-            php artisan migrate --force
-        } else {
-            Write-Info "[DATABASE] Initializing new database with migrations"
-            Write-Host "  Command: php artisan migrate:fresh --force --seed" -ForegroundColor Yellow
-            php artisan migrate:fresh --force --seed
-        }
-        
-        # 5. Optional configuration (if needed)
-        Write-Host "  Command: php artisan" -ForegroundColor Yellow
-        $artisanCommands = php artisan 2>&1
-        if ($artisanCommands -match "database:config") {
-            Write-Host "  Command: php artisan database:config" -ForegroundColor Yellow
-            php artisan database:config
-        }
-        
-        # Set proper permissions
-        if (Test-Path $dbDir) {
-            $acl = Get-Acl $dbDir
-            $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-            $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule($currentUser, "FullControl", "Allow")
-            $acl.SetAccessRule($accessRule)
-            Set-Acl $dbDir $acl
-        }
-        
-        Write-Success "Database setup complete"
-    }
-    
-    # Function to fix Octane/Swoole compatibility
-    function Repair-OctaneSwooleCompatibility {
-        $laravelRoot = Split-Path -Parent $SCRIPT_DIR
-        $fixerScript = Join-Path $laravelRoot "app\Support\OctaneSwooleCompatFixer.php"
-        
-        # Always try to apply patch, silently skip if conditions not met
-        if ((Test-Path $fixerScript) -and (Test-Path (Join-Path $laravelRoot "vendor\laravel\octane"))) {
-            Write-Host "  Command: php $fixerScript $laravelRoot" -ForegroundColor Yellow
-            php $fixerScript $laravelRoot
-        }
-        
-        return $true
-    }
-    
+
     # Function to verify Laravel project can start (Windows only - no service installation)
     function Test-LaravelStartup {
         $laravelDir = Get-LaravelDir
@@ -1489,14 +1172,6 @@ if ($FullDeploy) {
             return $false
         }
         Write-Success "vendor directory exists"
-        
-        # Check if .env exists
-        $envFile = Join-Path $laravelDir ".env"
-        if (-not (Test-Path $envFile)) {
-            Write-Warning ".env file not found - Laravel may not start properly"
-        } else {
-            Write-Success ".env file exists"
-        }
         
         # Test basic artisan command
         Write-Info "Testing Laravel artisan command..."
@@ -1554,14 +1229,8 @@ expose_php = Off
     Test-PhpExtensions
     
     $laravelDir = Get-LaravelDir
-    Test-EnvFile -ProjectRoot $laravelDir
-    Test-ProductionEnvironment -ProjectRoot $laravelDir
     # Windows does not need permission setup - skipped
     Test-Vendor
-    # Octane is not needed on Windows - skipped
-    # Repair-OctaneSwooleCompatibility
-    Clear-Cache
-    Initialize-Database
     Set-ProjectOpenBasedir
     
     # Create initialization marker
@@ -1570,18 +1239,6 @@ expose_php = Off
     Write-Host "Project initialization completed. Marker file created."
     
     # Restore initial working directory before final step
-    Set-Location $INITIAL_WORKING_DIR
-    Write-Info "Restored initial working directory: $INITIAL_WORKING_DIR"
-    
-    # Run Laravel system initialization last (in parent directory of scripts)
-    $parentDir = Split-Path -Parent $SCRIPT_DIR
-    Set-Location $parentDir
-    Write-Info "Running Laravel system initialization (final step)..."
-    Write-Host "  Command: php artisan sys:init" -ForegroundColor Yellow
-    php artisan sys:init
-    Write-Success "Laravel system initialization completed"
-    
-    # Restore initial working directory after sys:init
     Set-Location $INITIAL_WORKING_DIR
     Write-Info "Restored initial working directory: $INITIAL_WORKING_DIR"
     

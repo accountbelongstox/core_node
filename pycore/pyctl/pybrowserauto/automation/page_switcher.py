@@ -9,7 +9,7 @@ Refactored to use TabUtils for consistency and code reuse.
 
 from typing import List, Dict, Any, Optional, Union
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.pybrowser.utils.tab_utils import TabUtils
 
 

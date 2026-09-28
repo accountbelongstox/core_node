@@ -23,6 +23,7 @@ class ConfigManager:
                 'CommandPrefix': 'claude',
                 'WindowsCommand': 'claude',
                 'LinuxCommand': 'claude',
+                'UseV4Launcher': True,
                 'Variables': [
                     {
                         'Name': 'ANTHROPIC_BASE_URL',
@@ -35,9 +36,9 @@ class ConfigManager:
                         'Required': True
                     },
                     {
-                        'Name': 'ANTHROPIC_API_KEY',
-                        'Description': 'Anthropic API Key',
-                        'Required': True
+                        'Name': 'ANTHROPIC_MODEL',
+                        'Description': 'Default model (optional, e.g. claude-opus-5-5); empty = account default',
+                        'Required': False
                     },
                 ],
                 'MCPSupport': {
@@ -66,6 +67,11 @@ class ConfigManager:
                         'Name': 'OPENAI_BASE_URL',
                         'Description': 'OpenAI API Base URL',
                         'Required': False
+                    },
+                    {
+                        'Name': 'CODEX_MODEL',
+                        'Description': 'Codex model (optional, e.g. gpt-5-codex); empty = account default',
+                        'Required': False
                     }
                 ],
                 'MCPSupport': {
@@ -73,6 +79,105 @@ class ConfigManager:
                     'SyncScript': 'codex_sync_mcp_servers.py',
                     'PreLaunchScript': 'codex_pre_launch.ps1',
                     'UpdateScript': 'codex_update.bat'
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'Kimi Code CLI': {
+                'Common': 'kimi',
+                'DisplayName': 'Kimi Code CLI',
+                'CommandPrefix': 'kimi',
+                'WindowsCommand': 'kimi',
+                'LinuxCommand': 'kimi',
+                'Variables': [
+                    {
+                        'Name': 'KIMI_API_KEY',
+                        'Description': 'Kimi Code API Key (from Kimi Code Console)',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'KIMI_BASE_URL',
+                        'Description': 'Optional Kimi Coding Base URL override (passed as --base-url to kimi provider catalog add; empty = official endpoint)',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'Ark CLI': {
+                'Common': 'ark',
+                'DisplayName': 'Ark CLI (Volcano Ark / GLM)',
+                'CommandPrefix': 'ark',
+                'WindowsCommand': 'claude',
+                'LinuxCommand': 'claude',
+                'UseV4Launcher': True,
+                # Script-only numbering still uses existing ark*.ps1 / ark*.sh.
+                # Optional vars below may be empty (native arkcli interactive).
+                #
+                # Distinctive opt-in feature — empty-native slot merge/reuse
+                # (ScriptOnlyLauncher, default False):
+                # When True, several arkN with no ARKCLI_* secrets count as one
+                # empty-native capacity; all-empty Create reuses the lowest index
+                # instead of allocating a new one. Leave False to allow multiple
+                # empty ark slots (ark1/ark2/ark3 each with its own user dir).
+                'ScriptOnlyLauncher': False,
+                'Variables': [
+                    {
+                        'Name': 'ARKCLI_PROFILE',
+                        'Description': 'Optional arkcli profile for helper configure (coding-plan / coding-plan-team / agent-plan / agent-plan-team). Empty = interactive arkcli selection.',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ARKCLI_MODEL',
+                        'Description': 'Optional model id (e.g. kimi-k3). After arkcli configure: Use model xxx? [Y/n] (default Y). Empty = Use model kimi-k3? [Y/n]. Any N auto-forces ark-code-latest (tip only).',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ARKCLI_MCP_PROFILE',
+                        'Description': 'Optional Agent Plan profile for helper mcp. Empty = interactive; Coding Plan only soft-fails and still launches Claude.',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ARKCLI_OV_RESOURCE',
+                        'Description': 'Optional OpenViking resource for helper mcp --ov-resource. Empty = skip.',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'ARKCLI_API',
+                        'Description': (
+                            'Optional Anthropic-compatible API base URL '
+                            '(trailing / stripped; forces ANTHROPIC_BASE_URL). '
+                            'Hints — Agent Plan: '
+                            'https://gentle-ark-agentplan-b531.cy00000000x.workers.dev ; '
+                            'Coding Plan: '
+                            'https://aged-flower-a0e4.cy00000000x.workers.dev . '
+                            'Empty = keep arkcli provider endpoint.'
+                        ),
+                        'Required': False,
+                        'Hints': [
+                            {
+                                'Label': 'Agent Plan',
+                                'Value': 'https://gentle-ark-agentplan-b531.cy00000000x.workers.dev',
+                            },
+                            {
+                                'Label': 'Coding Plan',
+                                'Value': 'https://aged-flower-a0e4.cy00000000x.workers.dev',
+                            },
+                        ],
+                    },
+                    {
+                        'Name': 'ARKCLI_API_KEY',
+                        'Description': 'Optional API key for plain Claude mode. When set: skip arkcli (no auth login / helper configure / helper mcp); launch Claude with ANTHROPIC_AUTH_TOKEN (+ ARKCLI_API as ANTHROPIC_BASE_URL) under the isolated arkN user dir so Claude data stays in that custom profile.',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
                 },
                 'SmartRecognition': {
                     'Enabled': False
@@ -139,18 +244,18 @@ class ConfigManager:
                 'StorageType': 'encrypted_constant',
                 'Variables': [
                     {
-                        'Name': 'AZURE_SPEECH_KEYA',
-                        'DisplayName': 'Azure Speech Key A',
-                        'Description': 'Azure Speech Service API Key A',
+                        'Name': 'AZURE_SPEECH_KEY',
+                        'DisplayName': 'Azure Speech Key',
+                        'Description': 'Azure Speech subscription key (Key A or Key B; either works)',
                         'InputType': 'Token',
                         'Required': True
                     },
                     {
                         'Name': 'AZURE_SPEECH_KEYB',
-                        'DisplayName': 'Azure Speech Key B',
-                        'Description': 'Azure Speech Service API Key B',
+                        'DisplayName': 'Azure Speech Key (backup)',
+                        'Description': 'Optional second Azure Speech key for rotation (Key B)',
                         'InputType': 'Token',
-                        'Required': True
+                        'Required': False
                     },
                     {
                         'Name': 'AZURE_SPEECH_REGION',
@@ -165,6 +270,31 @@ class ConfigManager:
                         'Description': 'Azure Speech Service Endpoint URL',
                         'InputType': 'Url',
                         'Required': False
+                    }
+                ],
+                'MCPSupport': {
+                    'Enabled': False
+                },
+                'SmartRecognition': {
+                    'Enabled': False
+                }
+            },
+            'StreamElements TTS': {
+                'Common': 'streamelements_tts',
+                'DisplayName': 'StreamElements TTS',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'STREAMELEMENTS_API_KEY',
+                        'DisplayName': 'StreamElements API Key',
+                        'Description': (
+                            'StreamElements JWT/auth token for kappa/v2/speech. '
+                            'Stored under .secret_keys/.secret_ignore as STREAMELEMENTS_API_KEY_1 '
+                            '(indexed _1.._5 supported). Without this key the streamelements '
+                            'TTS engine is disabled at startup.'
+                        ),
+                        'InputType': 'Token',
+                        'Required': True
                     }
                 ],
                 'MCPSupport': {
@@ -549,6 +679,608 @@ class ConfigManager:
                 'SmartRecognition': {
                     'Enabled': False
                 }
+            },
+
+            # ---- AI providers with free tiers (CN) -------------------------
+            'SiliconFlow': {
+                'Common': 'siliconflow',
+                'DisplayName': 'SiliconFlow',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'SILICONFLOW_API_KEY',
+                        'DisplayName': 'SiliconFlow API Key',
+                        'Description': 'SiliconFlow API Key (free models available)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'SILICONFLOW_BASE_URL',
+                        'DisplayName': 'SiliconFlow Base URL',
+                        'Description': 'SiliconFlow API Base URL (default: https://api.siliconflow.cn/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Volcano Ark': {
+                'Common': 'volcano_ark',
+                'DisplayName': 'Volcano Ark (Doubao)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'ARK_API_KEY',
+                        'DisplayName': 'Ark API Key',
+                        'Description': 'Volcano Engine Ark API Key (Doubao models)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'ARK_BASE_URL',
+                        'DisplayName': 'Ark Base URL',
+                        'Description': 'Ark Coding Plan Base URL for Claude Code (default: https://ark.cn-beijing.volces.com/api/coding; glm-5.2 model ID)',
+                        'InputType': 'Url',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'VOLC_ACCESSKEY',
+                        'DisplayName': 'Volc Access Key',
+                        'Description': 'Volcano Engine cloud Access Key (non-Ark cloud APIs)',
+                        'InputType': 'Token',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'VOLC_SECRETKEY',
+                        'DisplayName': 'Volc Secret Key',
+                        'Description': 'Volcano Engine cloud Secret Key (non-Ark cloud APIs)',
+                        'InputType': 'Token',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Alibaba DashScope': {
+                'Common': 'dashscope',
+                'DisplayName': 'Alibaba DashScope (Qwen)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'DASHSCOPE_API_KEY',
+                        'DisplayName': 'DashScope API Key',
+                        'Description': 'Alibaba DashScope/Bailian API Key (Qwen models)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'DASHSCOPE_BASE_URL',
+                        'DisplayName': 'DashScope Base URL',
+                        'Description': 'DashScope OpenAI-compatible Base URL (default: https://dashscope.aliyuncs.com/compatible-mode/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'DASHSCOPE_ANTHROPIC_BASE_URL',
+                        'DisplayName': 'DashScope Anthropic Base URL',
+                        'Description': 'Anthropic-compatible Base URL for Claude Code (claudealibaba). '
+                        'default: https://dashscope.aliyuncs.com/apps/anthropic (Pay-as-you-go). '
+                        'Coding Plan: https://coding.dashscope.aliyuncs.com/apps/anthropic ; '
+                        'Token Plan: https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic',
+                        'InputType': 'Url',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'DASHSCOPE_ANTHROPIC_MODEL',
+                        'DisplayName': 'DashScope Anthropic Model',
+                        'Description': 'Qwen model forced into every Claude Code slot (claudealibaba). '
+                        'default: qwen3.6-plus (Pay-as-you-go). Coding Plan: qwen3.7-plus',
+                        'InputType': 'Token',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Tencent Hunyuan': {
+                'Common': 'hunyuan',
+                'DisplayName': 'Tencent Hunyuan',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'HUNYUAN_API_KEY',
+                        'DisplayName': 'Hunyuan API Key',
+                        'Description': 'Tencent Hunyuan API Key (hunyuan-lite is free)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'HUNYUAN_BASE_URL',
+                        'DisplayName': 'Hunyuan Base URL',
+                        'Description': 'Hunyuan OpenAI-compatible Base URL (default: https://api.hunyuan.cloud.tencent.com/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Zhipu AI': {
+                'Common': 'zhipuai',
+                'DisplayName': 'Zhipu AI (GLM)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'ZHIPUAI_API_KEY',
+                        'DisplayName': 'Zhipu API Key',
+                        'Description': 'Zhipu AI API Key (glm-4-flash is free)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'ZHIPUAI_BASE_URL',
+                        'DisplayName': 'Zhipu Base URL',
+                        'Description': 'Zhipu API Base URL (default: https://open.bigmodel.cn/api/paas/v4)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Baidu Qianfan': {
+                'Common': 'qianfan',
+                'DisplayName': 'Baidu Qianfan (ERNIE)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'QIANFAN_API_KEY',
+                        'DisplayName': 'Qianfan API Key',
+                        'Description': 'Baidu Qianfan v2 API Key (ERNIE models; speed/lite tiers free)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'QIANFAN_BASE_URL',
+                        'DisplayName': 'Qianfan Base URL',
+                        'Description': 'Qianfan OpenAI-compatible Base URL (default: https://qianfan.baidubce.com/v2)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'iFlytek Spark': {
+                'Common': 'spark',
+                'DisplayName': 'iFlytek Spark',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'SPARK_API_PASSWORD',
+                        'DisplayName': 'Spark HTTP APIPassword',
+                        'Description': 'iFlytek Spark HTTP APIPassword (Spark Lite is free)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'SPARK_APP_ID',
+                        'DisplayName': 'Spark App ID',
+                        'Description': 'iFlytek APPID (WebSocket API)',
+                        'InputType': 'Text',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'SPARK_API_KEY',
+                        'DisplayName': 'Spark API Key',
+                        'Description': 'iFlytek APIKey (WebSocket API)',
+                        'InputType': 'Token',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'SPARK_API_SECRET',
+                        'DisplayName': 'Spark API Secret',
+                        'Description': 'iFlytek APISecret (WebSocket API)',
+                        'InputType': 'Token',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'MiniMax': {
+                'Common': 'minimax',
+                'DisplayName': 'MiniMax',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'MINIMAX_API_KEY',
+                        'DisplayName': 'MiniMax API Key',
+                        'Description': 'MiniMax API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'MINIMAX_GROUP_ID',
+                        'DisplayName': 'MiniMax Group ID',
+                        'Description': 'MiniMax Group ID (required by some endpoints)',
+                        'InputType': 'Text',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'StepFun': {
+                'Common': 'stepfun',
+                'DisplayName': 'StepFun',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'STEPFUN_API_KEY',
+                        'DisplayName': 'StepFun API Key',
+                        'Description': 'StepFun API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'STEPFUN_BASE_URL',
+                        'DisplayName': 'StepFun Base URL',
+                        'Description': 'StepFun API Base URL (default: https://api.stepfun.com/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            '01.AI Yi': {
+                'Common': 'yi',
+                'DisplayName': '01.AI Yi',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'YI_API_KEY',
+                        'DisplayName': 'Yi API Key',
+                        'Description': '01.AI Yi API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'YI_BASE_URL',
+                        'DisplayName': 'Yi Base URL',
+                        'Description': 'Yi API Base URL (default: https://api.lingyiwanwu.com/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+
+            # ---- AI providers with free tiers (global) ---------------------
+            'Groq': {
+                'Common': 'groq',
+                'DisplayName': 'Groq',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'GROQ_API_KEY',
+                        'DisplayName': 'Groq API Key',
+                        'Description': 'Groq API Key (generous free tier, Llama/Mixtral)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'GROQ_BASE_URL',
+                        'DisplayName': 'Groq Base URL',
+                        'Description': 'Groq API Base URL (default: https://api.groq.com/openai/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Mistral': {
+                'Common': 'mistral',
+                'DisplayName': 'Mistral AI',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'MISTRAL_API_KEY',
+                        'DisplayName': 'Mistral API Key',
+                        'Description': 'Mistral La Plateforme API Key (free experiment tier)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'MISTRAL_BASE_URL',
+                        'DisplayName': 'Mistral Base URL',
+                        'Description': 'Mistral API Base URL (default: https://api.mistral.ai/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Cohere': {
+                'Common': 'cohere',
+                'DisplayName': 'Cohere',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'COHERE_API_KEY',
+                        'DisplayName': 'Cohere API Key',
+                        'Description': 'Cohere API Key (free trial keys, Command models)',
+                        'InputType': 'Token',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Together AI': {
+                'Common': 'together',
+                'DisplayName': 'Together AI',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'TOGETHER_API_KEY',
+                        'DisplayName': 'Together API Key',
+                        'Description': 'Together AI API Key — $5 minimum prepaid, no free trial (docs.together.ai/credits)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'TOGETHER_KEY_ID',
+                        'DisplayName': 'Together Key ID',
+                        'Description': 'Together AI Key ID',
+                        'InputType': 'Text',
+                        'Required': False
+                    },
+                    {
+                        'Name': 'TOGETHER_BASE_URL',
+                        'DisplayName': 'Together Base URL',
+                        'Description': 'Together API Base URL (default: https://api.together.xyz/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Cerebras': {
+                'Common': 'cerebras',
+                'DisplayName': 'Cerebras',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'CEREBRAS_API_KEY',
+                        'DisplayName': 'Cerebras API Key',
+                        'Description': 'Cerebras Inference API Key (free tier, very fast Llama)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CEREBRAS_BASE_URL',
+                        'DisplayName': 'Cerebras Base URL',
+                        'Description': 'Cerebras API Base URL (default: https://api.cerebras.ai/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'xAI Grok': {
+                'Common': 'xai',
+                'DisplayName': 'xAI Grok',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'XAI_API_KEY',
+                        'DisplayName': 'xAI API Key',
+                        'Description': 'xAI Grok API Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'XAI_BASE_URL',
+                        'DisplayName': 'xAI Base URL',
+                        'Description': 'xAI API Base URL (default: https://api.x.ai/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'NVIDIA NIM': {
+                'Common': 'nvidia_nim',
+                'DisplayName': 'NVIDIA NIM',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'NVIDIA_API_KEY',
+                        'DisplayName': 'NVIDIA API Key',
+                        'Description': 'NVIDIA NIM API Key (free credits on build.nvidia.com)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'NVIDIA_BASE_URL',
+                        'DisplayName': 'NVIDIA Base URL',
+                        'Description': 'NVIDIA NIM Base URL (default: https://integrate.api.nvidia.com/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Hugging Face': {
+                'Common': 'huggingface',
+                'DisplayName': 'Hugging Face',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'HF_TOKEN',
+                        'DisplayName': 'Hugging Face Token',
+                        'Description': 'Hugging Face access token (free Inference Providers quota)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'HF_BASE_URL',
+                        'DisplayName': 'HF Router Base URL',
+                        'Description': 'HF Inference Providers Base URL (default: https://router.huggingface.co/v1)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'GitHub Models': {
+                'Common': 'github_models',
+                'DisplayName': 'GitHub Models',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'GITHUB_MODELS_TOKEN',
+                        'DisplayName': 'GitHub Models Token',
+                        'Description': 'GitHub PAT for GitHub Models (free tier; kept separate from GITHUB_TOKEN to avoid clobbering git auth)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'GITHUB_MODELS_BASE_URL',
+                        'DisplayName': 'GitHub Models Base URL',
+                        'Description': 'GitHub Models Base URL (default: https://models.github.ai/inference)',
+                        'InputType': 'Url',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Cloudflare Workers AI': {
+                'Common': 'cloudflare_ai',
+                'DisplayName': 'Cloudflare Workers AI',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'CLOUDFLARE_API_TOKEN',
+                        'DisplayName': 'Cloudflare API Token',
+                        'Description': 'Cloudflare API Token with Workers AI permission (free daily allocation)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CLOUDFLARE_ACCOUNT_ID',
+                        'DisplayName': 'Cloudflare Account ID',
+                        'Description': 'Cloudflare Account ID (required by Workers AI endpoints)',
+                        'InputType': 'Text',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'Cloudflare R2': {
+                'Common': 'cloudflare_r2',
+                'DisplayName': 'Cloudflare R2',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'CLOUDFLARE_R2_API_TOKEN',
+                        'DisplayName': 'Cloudflare R2 API Token',
+                        'Description': 'Cloudflare R2 API Token (format: cfat_...)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CLOUDFLARE_R2_ACCESS_KEY_ID',
+                        'DisplayName': 'Cloudflare R2 Access Key ID',
+                        'Description': 'R2 S3-compatible Access Key ID',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CLOUDFLARE_R2_SECRET_ACCESS_KEY',
+                        'DisplayName': 'Cloudflare R2 Secret Access Key',
+                        'Description': 'R2 S3-compatible Secret Access Key',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'CLOUDFLARE_R2_S3_ENDPOINT',
+                        'DisplayName': 'Cloudflare R2 S3 Endpoint',
+                        'Description': 'R2 S3 API endpoint (e.g., https://<account_id>.r2.cloudflarestorage.com)',
+                        'InputType': 'Url',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'TMDB (The Movie Database)': {
+                'Common': 'tmdb',
+                'DisplayName': 'TMDB (The Movie Database)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'TMDB_API_KEY',
+                        'DisplayName': 'TMDB API Key (v3)',
+                        'Description': 'TMDB v3 API Key (themoviedb.org, free; used for movie/TV poster lookup)',
+                        'InputType': 'Token',
+                        'Required': True
+                    },
+                    {
+                        'Name': 'TMDB_API_READ_ACCESS_TOKEN',
+                        'DisplayName': 'TMDB API Read Access Token (v4)',
+                        'Description': 'TMDB v4 Bearer token (optional; preferred over the v3 key when present)',
+                        'InputType': 'Token',
+                        'Required': False
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'OMDB (omdbapi.com)': {
+                'Common': 'omdb',
+                'DisplayName': 'OMDB (omdbapi.com)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'OMDB_API_KEY',
+                        'DisplayName': 'OMDB API Key',
+                        'Description': 'OMDB API Key (omdbapi.com, free tier; fallback movie/TV poster lookup)',
+                        'InputType': 'Token',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
+            },
+            'SerpApi (Google Images)': {
+                'Common': 'serpapi',
+                'DisplayName': 'SerpApi (Google Images)',
+                'StorageType': 'encrypted_constant',
+                'Variables': [
+                    {
+                        'Name': 'SERPAPI_API_KEY',
+                        'DisplayName': 'SerpApi API Key',
+                        'Description': 'SerpApi API key (serpapi.com; Google Images search + preferred book/movie poster source)',
+                        'InputType': 'Token',
+                        'Required': True
+                    }
+                ],
+                'MCPSupport': {'Enabled': False},
+                'SmartRecognition': {'Enabled': False}
             }
         }
 

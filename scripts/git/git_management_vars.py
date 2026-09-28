@@ -12,6 +12,13 @@ import platform
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+# Make pycore importable so the vars dir resolves via the centralized
+# system_paths module (one source of truth for the core_node data root).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 
 class GitManagementVars:
     """
@@ -25,20 +32,12 @@ class GitManagementVars:
         self._ensure_vars_directory()
 
     def _get_vars_directory(self) -> Path:
-        """
-        Get the global variables directory based on OS
-        Windows: C:/Users/username/.core_node/.build_global_vars/
-        Linux: /var/_core_node/_build_global_vars/
-        """
-        if platform.system() == "Windows":
-            # Windows path (use forward slashes to avoid escape issues)
-            username = os.environ.get("USERNAME", "user")
-            base_dir = Path(f"C:/Users/{username}/.core_node/.build_global_vars")
-        else:
-            # Linux/Unix path
-            base_dir = Path("/var/_core_node/_build_global_vars")
+        """Get the global variables directory (centralized via system_paths).
 
-        return base_dir
+        Windows: D:\\www\\core_node\\build_global_vars
+        Linux:   <core_node_data_dir>/build_global_vars (else ~/core_node/build_global_vars)
+        """
+        return get_system_cache_dir() / 'build_global_vars'
 
     def _ensure_vars_directory(self):
         """Ensure the variables directory exists"""
@@ -63,6 +62,8 @@ class GitManagementVars:
             # Sanitize key to be a valid filename
             safe_key = self._sanitize_key(key)
             var_file = self.vars_dir / safe_key
+            if var_file.is_dir():
+                raise IsADirectoryError(var_file)
 
             # Write value to file
             with open(var_file, 'w', encoding='utf-8') as f:
@@ -86,7 +87,7 @@ class GitManagementVars:
             safe_key = self._sanitize_key(key)
             var_file = self.vars_dir / safe_key
 
-            if var_file.exists():
+            if var_file.is_file():
                 with open(var_file, 'r', encoding='utf-8') as f:
                     return f.read().strip()
             else:
@@ -107,7 +108,7 @@ class GitManagementVars:
             safe_key = self._sanitize_key(key)
             var_file = self.vars_dir / safe_key
 
-            if var_file.exists():
+            if var_file.is_file():
                 var_file.unlink()
             return True
         except Exception as e:
@@ -124,7 +125,7 @@ class GitManagementVars:
         """
         safe_key = self._sanitize_key(key)
         var_file = self.vars_dir / safe_key
-        return var_file.exists()
+        return var_file.is_file()
 
     def list_vars(self) -> Dict[str, str]:
         """

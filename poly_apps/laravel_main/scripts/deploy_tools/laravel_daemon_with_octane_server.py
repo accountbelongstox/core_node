@@ -29,7 +29,7 @@ LARAVEL_ROOT = SCRIPT_DIR.parent.parent
 CORE_NODE_ROOT = LARAVEL_ROOT.parent.parent
 OCTANE_MANAGER_SCRIPT = CORE_NODE_ROOT / "scripts/shells/linux/common/octane_service_manager.sh"
 
-WATCH_EXTENSIONS = {'.php', '.env', '.blade.php', '.json', '.yaml', '.yml'}
+WATCH_EXTENSIONS = {'.php', '.blade.php', '.json', '.yaml', '.yml'}
 WATCH_DIRS = ['app', 'config', 'routes', 'database', 'resources']
 IGNORE_DIRS = {'vendor', 'node_modules', 'storage', 'bootstrap/cache', 'public/build'}
 
@@ -61,9 +61,6 @@ class OctaneWatcher:
             return False
 
         if path.suffix in WATCH_EXTENSIONS:
-            return True
-
-        if path.name == '.env':
             return True
 
         return False
@@ -138,8 +135,6 @@ class OctaneWatcher:
             if full_path.exists():
                 watch_paths.append(str(full_path))
                 logger.info(f"Watching: {full_path}")
-
-        watch_paths.append(str(self.laravel_root / '.env'))
 
         i = inotify.adapters.InotifyTrees(
             watch_paths,

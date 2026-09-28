@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RustDesk Dashboard - Login</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="login-box">
+    <h2>RustDesk OSS Dashboard</h2>
+    <form id="loginForm" method="post" action="/api/login">
+      <div id="loginMsg" class="msg hidden"></div>
+      <input type="password" id="password" name="password" placeholder="Password" required autofocus autocomplete="current-password">
+      <button type="submit" class="btn btn-primary">Login</button>
+    </form>
+  </div>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var pwd = document.getElementById('password').value;
+      var msg = document.getElementById('loginMsg');
+      fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd })
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        if (data && data.ok) {
+          window.location.href = '/';
+        } else {
+          msg.textContent = (data && data.error) ? data.error : 'Login failed';
+          msg.className = 'msg error';
+          msg.classList.remove('hidden');
+        }
+      }).catch(function () {
+        msg.textContent = 'Request failed';
+        msg.className = 'msg error';
+        msg.classList.remove('hidden');
+      });
+    });
+  </script>
+</body>
+</html>

@@ -5,13 +5,11 @@
 
 import { TextChunker } from './text-chunker';
 import { VectorDatabase, getGlobalVectorDatabase } from './vector-database';
-import {
-  SemanticSimilarityEngine,
-  SemanticSimilarityEngineProxy,
-  PREDEFINED_MODELS,
-  type ModelPreset,
-} from './semantic-similarity-engine';
+import { SemanticSimilarityEngineProxy } from './semantic-similarity-proxy';
+import { PREDEFINED_MODELS, type ModelPreset } from './semantic-similarity-models';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { AsyncOperationController } from './async';
 
 export interface IndexingOptions {
   autoIndex?: boolean;
@@ -22,11 +20,16 @@ export interface IndexingOptions {
 export class ContentIndexer {
   private textChunker: TextChunker;
   private vectorDatabase!: VectorDatabase;
-  private semanticEngine!: SemanticSimilarityEngine | SemanticSimilarityEngineProxy;
+  private semanticEngine!: SemanticSimilarityEngineProxy;
   private isInitialized = false;
-  private isInitializing = false;
-  private initPromise: Promise<void> | null = null;
-  private indexedPages = new Set<string>();
+  private readonly initialization = new AsyncOperationController<void>();
+  // Map pageKey -> set of tabIds that indexed it, so removeTabIndex can drop
+  // a pageKey only when no remaining tab references it (two tabs can index the
+  // same URL). Replaces a plain Set that could never be cleaned up because the
+  // old code checked pageKey.includes(`tab_${tabId}_`) but pageKey is built
+  // from url+title and never contains a tab id.
+  private indexedPageTabs = new Map<string, Set<number>>();
+  private tabListenersRegistered = false;
   private readonly options: Required<IndexingOptions>;
 
   constructor(options?: IndexingOptions) {
@@ -45,10 +48,15 @@ export class ContentIndexer {
    */
   private async getCurrentModelConfig() {
     try {
-      const result = await chrome.storage.local.get(['selectedModel', 'selectedVersion']);
-      const selectedModel = (result.selectedModel as ModelPreset) || 'multilingual-e5-small';
+      const result = await chrome.storage.local.get([
+        STORAGE_KEYS.SEMANTIC_MODEL,
+        STORAGE_KEYS.SEMANTIC_MODEL_VERSION,
+      ]);
+      const selectedModel =
+        (result[STORAGE_KEYS.SEMANTIC_MODEL] as ModelPreset) || 'multilingual-e5-small';
       const selectedVersion =
-        (result.selectedVersion as 'full' | 'quantized' | 'compressed') || 'quantized';
+        (result[STORAGE_KEYS.SEMANTIC_MODEL_VERSION] as 'full' | 'quantized' | 'compressed') ||
+        'quantized';
 
       const modelInfo = PREDEFINED_MODELS[selectedModel];
 
@@ -82,14 +90,7 @@ export class ContentIndexer {
    */
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    if (this.isInitializing && this.initPromise) return this.initPromise;
-
-    this.isInitializing = true;
-    this.initPromise = this._doInitialize().finally(() => {
-      this.isInitializing = false;
-    });
-
-    return this.initPromise;
+    return this.initialization.run(() => this._doInitialize());
   }
 
   private async _doInitialize(): Promise<void> {
@@ -148,8 +149,13 @@ export class ContentIndexer {
       }
 
       const pageKey = `${tab.url}_${tab.title}`;
-      if (this.options.skipDuplicates && this.indexedPages.has(pageKey)) {
-        console.log(`ContentIndexer: Skipping tab ${tabId} - already indexed`);
+      // Only skip when THIS specific tab has already indexed the page.
+      // Previously the check was `indexedPageTabs.has(pageKey)` which
+      // matched ANY tab — if tab 1 indexed a page and tab 2 opened the
+      // same URL, tab 2 was skipped. When tab 1 closed its vectors were
+      // deleted and tab 2's content became permanently unsearchable.
+      if (this.options.skipDuplicates && this.indexedPageTabs.get(pageKey)?.has(tabId)) {
+        console.log(`ContentIndexer: Skipping tab ${tabId} - already indexed by this tab`);
         return;
       }
 
@@ -187,7 +193,7 @@ export class ContentIndexer {
         }
       }
 
-      this.indexedPages.add(pageKey);
+      this.indexedPageTabs.set(pageKey, (this.indexedPageTabs.get(pageKey) ?? new Set()).add(tabId));
 
       console.log(
         `ContentIndexer: Successfully indexed ${chunksToIndex.length} chunks for tab ${tabId}`,
@@ -261,9 +267,11 @@ export class ContentIndexer {
     try {
       await this.vectorDatabase.removeTabDocuments(tabId);
 
-      for (const pageKey of this.indexedPages) {
-        if (pageKey.includes(`tab_${tabId}_`)) {
-          this.indexedPages.delete(pageKey);
+      // Remove pageKeys that this tab indexed; drop a pageKey only when no
+      // other tab still references it (two tabs can index the same URL).
+      for (const [pageKey, tabs] of this.indexedPageTabs) {
+        if (tabs.delete(tabId) && tabs.size === 0) {
+          this.indexedPageTabs.delete(pageKey);
         }
       }
 
@@ -304,9 +312,7 @@ export class ContentIndexer {
    * Check if semantic engine is initializing
    */
   public isSemanticEngineInitializing(): boolean {
-    return (
-      this.isInitializing || (this.semanticEngine && (this.semanticEngine as any).isInitializing)
-    );
+    return this.initialization.isRunning;
   }
 
   /**
@@ -316,12 +322,11 @@ export class ContentIndexer {
     console.log('ContentIndexer: Reinitializing for model switch...');
 
     this.isInitialized = false;
-    this.isInitializing = false;
-    this.initPromise = null;
+    this.initialization.reset();
 
     await this.performCompleteDataCleanupForModelSwitch();
 
-    this.indexedPages.clear();
+    this.indexedPageTabs.clear();
     console.log('ContentIndexer: Cleared indexed pages cache');
 
     try {
@@ -439,7 +444,7 @@ export class ContentIndexer {
    * Note: This should only be called after the semantic engine is already initialized
    */
   public startSemanticEngineInitialization(): void {
-    if (!this.isInitialized && !this.isInitializing) {
+    if (!this.isInitialized && !this.initialization.isRunning) {
       console.log('ContentIndexer: Checking if semantic engine is ready...');
 
       // Check if global semantic engine is ready before initializing ContentIndexer
@@ -474,7 +479,7 @@ export class ContentIndexer {
 
     return {
       ...vectorStats,
-      indexedPages: this.indexedPages.size,
+      indexedPages: this.indexedPageTabs.size,
       isInitialized: this.isInitialized,
       semanticEngineReady: this.isSemanticEngineReady(),
       semanticEngineInitializing: this.isSemanticEngineInitializing(),
@@ -491,13 +496,20 @@ export class ContentIndexer {
 
     try {
       await this.vectorDatabase.clear();
-      this.indexedPages.clear();
+      this.indexedPageTabs.clear();
       console.log('ContentIndexer: All indexes cleared');
     } catch (error) {
       console.error('ContentIndexer: Failed to clear indexes:', error);
     }
   }
   private setupTabEventListeners(): void {
+    // Register listeners only once across the singleton's lifetime.
+    // reinitialize() calls initialize() -> _doInitialize() -> this method
+    // again; without this guard each model switch stacks duplicate listeners
+    // that fire indexTabContent N times per tab 'complete' event.
+    if (this.tabListenersRegistered) return;
+    this.tabListenersRegistered = true;
+
     chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       if (this.options.autoIndex && changeInfo.status === 'complete' && tab.url) {
         setTimeout(() => {
@@ -547,7 +559,15 @@ export class ContentIndexer {
     try {
       await chrome.scripting.executeScript({
         target: { tabId },
-        files: ['inject-scripts/web-fetcher-helper.js'],
+        files: [
+          'inject-scripts/web-fetcher-readability.js',
+          'inject-scripts/web-fetcher-readability-article.js',
+          'inject-scripts/web-fetcher-readability-metadata.js',
+          'inject-scripts/web-fetcher-readability-cleanup.js',
+          'inject-scripts/web-fetcher-readability-visibility.js',
+          'inject-scripts/web-fetcher-readability-finalize.js',
+          'inject-scripts/web-fetcher-helper.js',
+        ],
       });
 
       const response = await chrome.tabs.sendMessage(tabId, {

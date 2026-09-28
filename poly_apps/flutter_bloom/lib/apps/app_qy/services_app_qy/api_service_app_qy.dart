@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/api_config_app_qy.dart';
 import 'package:qyflutter/apps/app_qy/config_app_qy/api_endpoints_app_qy.dart';
 import 'package:qyflutter/common/network/core/multi_endpoint_discovery.dart';
+
+const String _requiresUserExtraKey = 'qy_requires_user';
+const List<int> _userAuthFailureStatusCodes = [401, 403];
 
 class ApiServiceAppQy {
   static final ApiServiceAppQy _instance = ApiServiceAppQy._internal();
@@ -9,6 +13,8 @@ class ApiServiceAppQy {
 
   late final Dio _dio;
   String? _authToken;
+  final StreamController<int> _userAuthFailureController =
+      StreamController<int>.broadcast();
 
   ApiServiceAppQy._internal() {
     _initializeWithDiscoveredEndpoint();
@@ -40,8 +46,13 @@ class ApiServiceAppQy {
         return handler.next(options);
       },
       onError: (error, handler) {
-        if (error.response?.statusCode == 401) {
+        final int? statusCode = error.response?.statusCode;
+        if (statusCode == 401) {
           _authToken = null;
+        }
+        if (error.requestOptions.extra[_requiresUserExtraKey] == true &&
+            _userAuthFailureStatusCodes.contains(statusCode)) {
+          _userAuthFailureController.add(statusCode!);
         }
         return handler.next(error);
       },
@@ -54,18 +65,24 @@ class ApiServiceAppQy {
 
   bool get isAuthenticated => _authToken != null;
 
+  Stream<int> get userAuthFailures => _userAuthFailureController.stream;
+
   Future<Map<String, dynamic>> post(
     String endpoint, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
+    bool requiresUser = false,
   }) async {
     try {
       final response = await _dio.post(
         endpoint,
         data: data,
         queryParameters: queryParameters,
-        options: Options(headers: headers),
+        options: Options(
+          headers: headers,
+          extra: {_requiresUserExtraKey: requiresUser},
+        ),
       );
       return _handleResponse(response);
     } on DioException catch (e) {
@@ -272,7 +289,7 @@ class ApiServiceAppQy {
     String rate = '+0%',
   }) async {
     // Use main service, TTS endpoints share the same base URL
-    return post(ApiEndpointsAppQy.ttsGenerate, data: {
+    return post(ApiEndpointsAppQy.ttsGenerate, requiresUser: true, data: {
       'text': text,
       'language': langCode,
       'type': textType,

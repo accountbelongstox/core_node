@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models_app_travel/order_model.dart';
 import '../../resources_app_travel/assets_images_app_travel.dart';
 
@@ -118,27 +119,76 @@ class _FlightOrderDetailPageState extends State<FlightOrderDetailPage> {
     );
   }
 
-  /// 订单信息
+  /// 订单信息（总计、积分、订单号+复制）
   Widget _buildOrderInfo() {
+    final extraInfo = widget.order.extraInfo ?? {};
+    final expectedPoints = extraInfo['expectedPoints'];
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       color: Colors.white,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '订单号',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-            ),
+          Row(
+            children: [
+              Text(
+                '总计${widget.order.price}',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            widget.order.id,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
+          if (expectedPoints != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              '完成订单预计得$expectedPoints积分',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black54,
+              ),
             ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                '1 订单号: ${widget.order.id}',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: widget.order.id));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('已复制到剪贴板'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                },
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.copy, size: 18, color: Color(0xFF00D0D8)),
+                    SizedBox(width: 4),
+                    Text(
+                      '复制',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF00D0D8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

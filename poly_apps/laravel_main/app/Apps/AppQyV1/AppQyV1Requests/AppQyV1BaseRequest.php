@@ -7,15 +7,15 @@ use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
- * AppQyV1 基础 FormRequest
- * 统一处理验证失败响应格式
- * 自动提取 supported_params
+ * AppQyV1 base FormRequest
+ * Uniformly handles the validation failure response format
+ * Automatically extracts supported_params
  */
 abstract class AppQyV1BaseRequest extends FormRequest
 {
     /**
-     * 默认授权通过
-     * 子类可覆盖实现权限检查
+     * Authorize by default
+     * Subclasses can override to implement permission checks
      */
     public function authorize(): bool
     {
@@ -23,8 +23,8 @@ abstract class AppQyV1BaseRequest extends FormRequest
     }
 
     /**
-     * 验证失败处理
-     * 返回统一格式的错误响应,包含 supported_params
+     * Handle validation failure
+     * Returns an error response in the unified format, including supported_params
      */
     protected function failedValidation(Validator $validator)
     {
@@ -43,8 +43,8 @@ abstract class AppQyV1BaseRequest extends FormRequest
     }
 
     /**
-     * 自定义错误消息 (可选)
-     * 子类可覆盖提供自定义消息
+     * Custom error messages (optional)
+     * Subclasses can override to provide custom messages
      */
     public function messages(): array
     {
@@ -52,8 +52,8 @@ abstract class AppQyV1BaseRequest extends FormRequest
     }
 
     /**
-     * 自定义属性名称 (可选)
-     * 子类可覆盖提供友好的属性名
+     * Custom attribute names (optional)
+     * Subclasses can override to provide friendly attribute names
      */
     public function attributes(): array
     {

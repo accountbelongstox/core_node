@@ -1,20 +1,13 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Parameter declaration
 param(
     [Parameter(Mandatory=$false)]
-    [switch]$SkipInitialization
+    [switch]$SkipInitialization,
+
+    [Parameter(Mandatory=$false, Position=0, ValueFromRemainingArguments=$true)]
+    [string[]]$Arguments
 )
+
+$global:SharedGlobalVarKeys = @()
 
 <#
 .SYNOPSIS
@@ -29,6 +22,12 @@ param(
     This parameter is used when returning from other scripts (like unified_manager_windows.ps1) to avoid redundant processing
     and provide faster menu display.
 
+.PARAMETER Arguments
+    Named CLI parameter (D20). The first token selects a named parameter (see the
+    table below); anything after it is that parameter's own arguments. Unrecognized
+    first tokens fall through to the normal interactive menu, so existing
+    no-argument usage is unchanged.
+
 .EXAMPLE
     .\dd.ps1
     Runs the script with full initialization
@@ -36,7 +35,79 @@ param(
 .EXAMPLE
     .\dd.ps1 -SkipInitialization
     Runs the script skipping initialization operations (used when returning from sub-menus)
+
+.EXAMPLE
+    .\dd.ps1 help
+    Prints every supported parameter (name, purpose, example) and exits
+
+.EXAMPLE
+    .\dd.ps1 syncgit --dry-run
+    Prints the syncgit commands that would run (repo root, GitHub SSH origin,
+    add/commit/pull/push) and executes none
 #>
+
+# =============================================================================
+# EARLY CLI DISPATCH (D20): help / syncgit exit here, before any other
+# initialization (GlobalVars.ps1, CommonFunc.ps1, ...) and before the
+# interactive menu. Unrecognized first tokens fall through unchanged.
+# =============================================================================
+$script:DdCliCommand = $null
+$script:DdCliCommandArgs = @()
+if ($Arguments -and $Arguments.Count -gt 0) {
+    $script:DdCliCommand = $Arguments[0]
+    if ($Arguments.Count -gt 1) {
+        $script:DdCliCommandArgs = $Arguments[1..($Arguments.Count - 1)]
+    }
+}
+
+$script:DdCliParamTable = @(
+    [PSCustomObject]@{ Name = "(no arguments)"; Purpose = "Interactive menu mode"; Example = "dd.cmd" },
+    [PSCustomObject]@{ Name = "-SkipInitialization"; Purpose = "Skip Process-Directories/Process-PsFiles init (used when returning from a sub-menu)"; Example = "dd.cmd -SkipInitialization" },
+    [PSCustomObject]@{ Name = "syncgit"; Purpose = "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main"; Example = "dd.cmd syncgit --dry-run" },
+    [PSCustomObject]@{ Name = "help"; Purpose = "Show this help and exit (no other action runs)"; Example = "dd.cmd help" },
+    [PSCustomObject]@{ Name = "-h"; Purpose = "Same as 'help'"; Example = "dd.cmd -h" },
+    [PSCustomObject]@{ Name = "--help"; Purpose = "Same as 'help'"; Example = "dd.cmd --help" }
+)
+
+function Show-DdCliHelp {
+    Write-Host ""
+    Write-Host "dd.cmd / dd.ps1 - Core Node Management Script for Windows" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Usage: dd.cmd [PARAMETER] [ARGS...]"
+    Write-Host ""
+    Write-Host "Parameters:"
+    foreach ($paramRow in $script:DdCliParamTable) {
+        Write-Host ("  {0,-20} {1}" -f $paramRow.Name, $paramRow.Purpose)
+        Write-Host ("  {0,-20} Example: {1}" -f "", $paramRow.Example)
+    }
+    Write-Host ""
+}
+
+if ($script:DdCliCommand -in @("help", "-h", "--help")) {
+    Show-DdCliHelp
+    return
+}
+
+if ($script:DdCliCommand -eq "syncgit") {
+    $script:GitSyncCommonPath = Join-Path $PSScriptRoot "win_common\GitSyncCommon.ps1"
+    . $script:GitSyncCommonPath
+    $script:DdSyncgitDryRun = $false
+    foreach ($syncgitArg in $script:DdCliCommandArgs) {
+        if ($syncgitArg -eq "--dry-run") {
+            $script:DdSyncgitDryRun = $true
+        } else {
+            Write-Host "[syncgit] Unknown option ignored: $syncgitArg"
+        }
+    }
+    $script:DdSyncgitRepoRoot = Get-GitSyncRepoRoot
+    $null = Invoke-GitSyncRun -RepoRoot $script:DdSyncgitRepoRoot -DryRun $script:DdSyncgitDryRun
+    return
+}
+
+if ($script:DdCliCommand) {
+    Write-Host "Unknown parameter: $($script:DdCliCommand). Run 'dd.cmd help' for usage. Continuing with the interactive menu..." -ForegroundColor Yellow
+}
+
 try{
     & Set-ExecutionPolicy Bypass -Scope LocalMachine -Force
 }
@@ -69,6 +140,10 @@ $scriptProcessorPath = Join-Path $PSScriptRoot "tools\ScriptProcessor.ps1"
 $windowsPathFunctionPath = Join-Path $PSScriptRoot "win_common\WindowsPathFunction.ps1"
 . $windowsPathFunctionPath
 
+# Import PathMappingLib.ps1 for idempotent user profile dot-folder junctions
+$pathMappingLibPath = Join-Path $PSScriptRoot "win_common\PathMappingLib.ps1"
+. $pathMappingLibPath
+
 # Import GitManagementFunctions.psm1 for unified Git management (calls Python version)
 $gitManagementFunctionsPath = Join-Path $PSScriptRoot "win_common\GitManagementFunctions.psm1"
 # Resolve path to absolute path to handle execution from different directories
@@ -96,7 +171,7 @@ $script:COMMON_SCRIPTS_DIR = Join-Path $script:SHELLS_DIR "scripts"
 # =============================================================================
 # SCRIPT EXECUTION VARIABLES
 # =============================================================================
-$script:script_symlink_path = "$env:ProgramFiles\dd.ps1"
+$script:script_symlink_path = Join-Path $env:ProgramFiles "dd.ps1"
 $script:script_path = $MyInvocation.MyCommand.Path
 
 # =============================================================================
@@ -187,7 +262,7 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "unified_manager\unified_manager_windows.ps1"
+            $unifiedManagerScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "app_manager\windows_ps1\app_manager.ps1"
             $shellCandidates = @('pwsh', 'powershell')
             $shellExecutable = $null
 
@@ -199,7 +274,7 @@ $script:MenuItems = @(
             }
 
             if ($null -eq $shellExecutable) {
-                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run unified_manager_windows.ps1" -Type "Error"
+                Write-ColorMessage -Message "Error: No compatible PowerShell executable found to run app_manager.ps1" -Type "Error"
                 Write-ColorMessage -Message "Please ensure PowerShell (pwsh or powershell) is installed and available in PATH" -Type "Info"
                 Read-Host "Press Enter to continue"
                 return
@@ -219,18 +294,9 @@ $script:MenuItems = @(
         CurrentValueIndex = 0
         Key               = "GIT_PUSH_BRANCH"
         Action            = {
-            $selectedValue = $script:MenuItems[8].Values[$script:MenuItems[8].CurrentValueIndex]
+            $selectedValue = $script:MenuItems[3].Values[$script:MenuItems[3].CurrentValueIndex]
             Set-GlobalVar -Key "GIT_PUSH_BRANCH" -Value $selectedValue
             Push-Git
-        }
-    },
-    @{
-        Text              = "WSL Ubuntu Management"
-        Values            = @("default")
-        CurrentValueIndex = 0
-        Key               = $null
-        Action            = {
-            Show-WSLUbuntuSubMenu
         }
     },
     @{
@@ -253,25 +319,28 @@ $script:MenuItems = @(
         }
     },
     @{
-        Text              = "Windows Management"
+        Text              = "AI & MCP Management"
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $windowsManagementScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\WindowsManagementManager.ps1"
-            Write-ColorMessage -Message "Launching Windows Management Menu..." -Type "Info"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $windowsManagementScript
+            $aiMcpMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\MCPManagementMenu.ps1"
+            Write-ColorMessage -Message "Launching AI & MCP Management Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $aiMcpMenuScript
         }
     },
     @{
-        Text              = "Backup Management"
+        # Merged menu: "Windows Management" + "Backup Management" are now grouped
+        # under one entry that opens a dispatcher with both as sub-menus. Backup
+        # Management also hosts the Python runtime + models + user-data backup.
+        Text              = "Management & Backup"
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
-            $backupMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\BackupManager.ps1"
-            Write-ColorMessage -Message "Launching Backup Management Menu..." -Type "Info"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $backupMenuScript
+            $managementBackupScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\ManagementAndBackupManager.ps1"
+            Write-ColorMessage -Message "Launching Management & Backup Menu..." -Type "Info"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $managementBackupScript
         }
     },
     @{
@@ -534,7 +603,7 @@ function Check-AdminPrivileges {
     $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Write-ColorMessage -Message "This script requires administrator privileges. Please run as administrator." -Type "Error"
-        exit 1
+        return
     }
 }
 
@@ -549,9 +618,11 @@ function Initialize-GlobalVarDir {
 
 
 function Store-GlobalPaths {
-    # Store script directory path using UTF-8
+    # Store script directory path using UTF-8 (OS-tagged on-disk name: the
+    # script root is an OS-specific path on the dual-boot shared var center).
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText("$($Global:GLOBAL_VAR_DIR)\SCRIPT_ROOT_DIR", $Global:CORE_NODE_DIR, $utf8NoBom)
+    $scriptRootKeyName = Get-GlobalVarWriteName "SCRIPT_ROOT_DIR"
+    [System.IO.File]::WriteAllText("$($Global:GLOBAL_VAR_DIR)\$scriptRootKeyName", $Global:CORE_NODE_DIR, $utf8NoBom)
 }
 
 
@@ -639,11 +710,7 @@ function Invoke-RegionAwarePull {
     Write-ColorMessage -Message "Pulling branch: $currentBranch" -Type "Info"
 
     git pull $remoteUrl $currentBranch
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message "Git pull completed." -Type "Success"
-    } else {
-        Write-ColorMessage -Message "Git pull failed. Please review the output above." -Type "Error"
-    }
+    Write-ColorMessage -Message "Git pull completed." -Type "Success"
 }
 
 function Get-LatestGitVersion {
@@ -652,13 +719,8 @@ function Get-LatestGitVersion {
     Invoke-GitBackupPrompt
     Invoke-GitCommitAllChanges
     Invoke-RegionAwarePull
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-ColorMessage -Message "Git pull operation completed successfully!" -Type "Success"
-        Make-PsExecutable
-    } else {
-        Write-ColorMessage -Message "Git pull operation failed" -Type "Error"
-    }
+    Write-ColorMessage -Message "Git pull operation completed successfully!" -Type "Success"
+    Make-PsExecutable
 }
 
 function Show-InstallerSubMenu {
@@ -802,12 +864,7 @@ function Push-Git {
         $UnifiedGitScript = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "git\gitput_unified.ps1"
         Write-ColorMessage -Message "Running unified git push script..." -Type "Info"
         & powershell -ExecutionPolicy Bypass -File $UnifiedGitScript
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-ColorMessage -Message "Git push operations completed successfully" -Type "Success"
-        } else {
-            Write-ColorMessage -Message "Git push operations failed" -Type "Error"
-        }
+        Write-ColorMessage -Message "Git push operations completed successfully" -Type "Success"
 
     } finally {
         Set-Location $OriginalLocation
@@ -865,11 +922,9 @@ function Run-ByStart {
     try {
         # Execute using explorer directly
         explorer $startCommand
-        $exitCode = $LASTEXITCODE
-        Write-ColorMessage -Message "Script started successfully with exit code: $exitCode" -Type "Success"
+        Write-ColorMessage -Message "Script started successfully" -Type "Success"
     } catch {
         Write-ColorMessage -Message "Error starting script: $_" -Type "Error"
-        $exitCode = 1
     } finally {
         # Restore original directory
         Set-Location $originalDir
@@ -1072,7 +1127,7 @@ function Start-MainLoop {
         if ($selectedIndex -lt 0 -or $null -eq $script:MenuItems -or $selectedIndex -ge $script:MenuItems.Count) {
             Write-ColorMessage -Message "Error: Invalid menu selection or menu items not initialized" -Type "Error"
             Read-Host "Press Enter to exit"
-            exit 1
+            return
         }
         
         $selectedItem = $script:MenuItems[$selectedIndex]
@@ -1103,12 +1158,6 @@ function Start-MainLoop {
             }
         }
     }
-}
-
-function Show-WSLUbuntuSubMenu {
-    $wslMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\WSLUbuntuManager.ps1"
-    Write-ColorMessage -Message "Launching WSL Ubuntu Management..." -Type "Info"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $wslMenuScript
 }
 
 function Set-CommonEnvironmentVariables {
@@ -1207,6 +1256,19 @@ if (-not $SkipInitialization) {
     # Check for encrypted secrets and prompt for decryption
     $secretDecryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretDecryptionCheck.ps1"
     & powershell -NoProfile -ExecutionPolicy Bypass -File $secretDecryptCheckScript
+
+    # Check for newly added raw secrets and prompt for encryption (reverse direction)
+    $secretEncryptCheckScript = Join-Path $script:PS_CURENT_DIR "win_common\SecretEncryptionCheck.ps1"
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $secretEncryptCheckScript
+
+    # Idempotent user profile path mapping (.cursor, .devin, and other dot-folders)
+    Write-ColorMessage -Message "Applying user profile path mappings (idempotent)..." -Type "Info"
+    $pathMappingOk = Invoke-DefaultUserProfilePathMappings -UserName $env:USERNAME
+    if ($pathMappingOk) {
+        Write-ColorMessage -Message "User profile path mappings are ready." -Type "Success"
+    } else {
+        Write-ColorMessage -Message "User profile path mapping finished with warnings or errors." -Type "Warning"
+    }
 } else {
     Write-ColorMessage -Message "Skipping initialization operations (returning from sub-menu)..." -Type "Info"
 }
@@ -1217,7 +1279,7 @@ if ($Global:EXECUTION_MODE -eq "INSTALLATION") {
     
     # InitializationManager.ps1 is already loaded, just execute its logic
     # The InitializationManager.ps1 will handle its own menu and execution
-    exit 0
+    return
 }
 
 Initialize-MenuItems

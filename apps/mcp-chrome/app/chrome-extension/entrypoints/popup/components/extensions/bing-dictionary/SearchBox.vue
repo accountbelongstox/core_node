@@ -5,7 +5,7 @@
       @input="onInput"
       @keyup.enter="onSearch"
       type="text"
-      placeholder="Enter word to look up..."
+      :placeholder="getMessage('dictionarySearchPlaceholder')"
       class="search-input"
     />
     <button
@@ -19,7 +19,7 @@
 
   <div v-if="isLoading" class="loading-state">
     <span class="loading-spinner"></span>
-    <span>Looking up word...</span>
+    <span>{{ getMessage('dictionaryLookingUp') }}</span>
   </div>
 
   <div v-if="error" class="error-message">
@@ -29,6 +29,7 @@
 </template>
 
 <script lang="ts" setup>
+import { getMessage } from '@/utils/i18n';
 interface Props {
   searchQuery: string;
   isLoading: boolean;

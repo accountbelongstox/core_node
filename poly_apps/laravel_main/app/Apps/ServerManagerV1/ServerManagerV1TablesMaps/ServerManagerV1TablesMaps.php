@@ -2,11 +2,13 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1TablesMaps;
 
-class ServerManagerV1TablesMaps
+use App\Providers\TableMaps;
+
+class ServerManagerV1TablesMaps extends TableMaps
 {
     // Nginx Sites Table
-    public const NGINX_SITES_TABLE = [
-        'table_name' => 'servermanagerv1_nginx_sites',
+    public const servermanagerv1_NGINX_SITES_TABLE = [
+        'tablename' => 'nginx_sites',
         'fields' => [
             'id' => 'id',
             'site_name' => 'site_name',
@@ -24,10 +26,10 @@ class ServerManagerV1TablesMaps
             'updated_at' => 'updated_at'
         ]
     ];
-    
+
     // Execution Logs Table
-    public const EXECUTION_LOGS_TABLE = [
-        'table_name' => 'servermanagerv1_execution_logs',
+    public const servermanagerv1_EXECUTION_LOGS_TABLE = [
+        'tablename' => 'execution_logs',
         'fields' => [
             'id' => 'id',
             'script_id' => 'script_id',
@@ -47,10 +49,10 @@ class ServerManagerV1TablesMaps
             'created_at' => 'created_at'
         ]
     ];
-    
+
     // SSL Certificates Table
-    public const CERTIFICATES_TABLE = [
-        'table_name' => 'servermanagerv1_certificates',
+    public const servermanagerv1_CERTIFICATES_TABLE = [
+        'tablename' => 'certificates',
         'fields' => [
             'id' => 'id',
             'domain' => 'domain',
@@ -68,10 +70,10 @@ class ServerManagerV1TablesMaps
             'updated_at' => 'updated_at'
         ]
     ];
-    
+
     // System Snapshots Table
-    public const SYSTEM_SNAPSHOTS_TABLE = [
-        'table_name' => 'servermanagerv1_system_snapshots',
+    public const servermanagerv1_SYSTEM_SNAPSHOTS_TABLE = [
+        'tablename' => 'system_snapshots',
         'fields' => [
             'id' => 'id',
             'snapshot_type' => 'snapshot_type',
@@ -89,10 +91,10 @@ class ServerManagerV1TablesMaps
             'created_at' => 'created_at'
         ]
     ];
-    
+
     // File Access Logs Table
-    public const FILE_ACCESS_LOGS_TABLE = [
-        'table_name' => 'servermanagerv1_file_access_logs',
+    public const servermanagerv1_FILE_ACCESS_LOGS_TABLE = [
+        'tablename' => 'file_access_logs',
         'fields' => [
             'id' => 'id',
             'action' => 'action',
@@ -106,10 +108,10 @@ class ServerManagerV1TablesMaps
             'created_at' => 'created_at'
         ]
     ];
-    
+
     // Predefined Scripts Table
-    public const PREDEFINED_SCRIPTS_TABLE = [
-        'table_name' => 'servermanagerv1_predefined_scripts',
+    public const servermanagerv1_PREDEFINED_SCRIPTS_TABLE = [
+        'tablename' => 'predefined_scripts',
         'fields' => [
             'id' => 'id',
             'script_name' => 'script_name',
@@ -125,66 +127,89 @@ class ServerManagerV1TablesMaps
             'updated_at' => 'updated_at'
         ]
     ];
-    
+
+    /**
+     * Hardcoded to preserve the existing servermanagerv1_* table names; the
+     * app_registry prefix for this app (server_manager_v1) does not match the
+     * tables already created.
+     */
+    protected static function getTablePrefix(): string
+    {
+        return 'servermanagerv1';
+    }
+
+    public static function getAvailableTableKeys(): array
+    {
+        $prefix = static::getTablePrefix();
+        return [
+            "{$prefix}_NGINX_SITES_TABLE",
+            "{$prefix}_EXECUTION_LOGS_TABLE",
+            "{$prefix}_CERTIFICATES_TABLE",
+            "{$prefix}_SYSTEM_SNAPSHOTS_TABLE",
+            "{$prefix}_FILE_ACCESS_LOGS_TABLE",
+            "{$prefix}_PREDEFINED_SCRIPTS_TABLE",
+        ];
+    }
+
     // Helper methods to get table names
     public static function getNginxSitesTable(): string
     {
-        return self::NGINX_SITES_TABLE['table_name'];
+        return static::getTableName('NGINX_SITES_TABLE');
     }
-    
+
     public static function getExecutionLogsTable(): string
     {
-        return self::EXECUTION_LOGS_TABLE['table_name'];
+        return static::getTableName('EXECUTION_LOGS_TABLE');
     }
-    
+
     public static function getCertificatesTable(): string
     {
-        return self::CERTIFICATES_TABLE['table_name'];
+        return static::getTableName('CERTIFICATES_TABLE');
     }
-    
+
     public static function getSystemSnapshotsTable(): string
     {
-        return self::SYSTEM_SNAPSHOTS_TABLE['table_name'];
+        return static::getTableName('SYSTEM_SNAPSHOTS_TABLE');
     }
-    
+
     public static function getFileAccessLogsTable(): string
     {
-        return self::FILE_ACCESS_LOGS_TABLE['table_name'];
+        return static::getTableName('FILE_ACCESS_LOGS_TABLE');
     }
-    
+
     public static function getPredefinedScriptsTable(): string
     {
-        return self::PREDEFINED_SCRIPTS_TABLE['table_name'];
+        return static::getTableName('PREDEFINED_SCRIPTS_TABLE');
     }
-    
+
     // Helper methods to get field names
     public static function getNginxSitesFields(): array
     {
-        return self::NGINX_SITES_TABLE['fields'];
+        return static::getTableFields('NGINX_SITES_TABLE');
     }
-    
+
     public static function getExecutionLogsFields(): array
     {
-        return self::EXECUTION_LOGS_TABLE['fields'];
+        return static::getTableFields('EXECUTION_LOGS_TABLE');
     }
-    
+
     public static function getCertificatesFields(): array
     {
-        return self::CERTIFICATES_TABLE['fields'];
+        return static::getTableFields('CERTIFICATES_TABLE');
     }
-    
+
     public static function getSystemSnapshotsFields(): array
     {
-        return self::SYSTEM_SNAPSHOTS_TABLE['fields'];
+        return static::getTableFields('SYSTEM_SNAPSHOTS_TABLE');
     }
-    
+
     public static function getFileAccessLogsFields(): array
     {
-        return self::FILE_ACCESS_LOGS_TABLE['fields'];
+        return static::getTableFields('FILE_ACCESS_LOGS_TABLE');
     }
-    
+
     public static function getPredefinedScriptsFields(): array
     {
-        return self::PREDEFINED_SCRIPTS_TABLE['fields'];
+        return static::getTableFields('PREDEFINED_SCRIPTS_TABLE');
     }
 }

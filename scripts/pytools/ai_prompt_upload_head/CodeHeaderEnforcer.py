@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 import os
 import re
 import sys
+
+from CodeHeaderCommon import RULES_END_TEXT, RULES_START_TEXT, SKIP_DIRS
 
 # Configuration
 TARGET_DIR = "../../"  # Relative to current Python file location
@@ -28,98 +18,22 @@ ALLOWED_SUBDIRS = {
     'development-guides',
 }
 
-# Skip these directories even within allowed subdirectories
-SKIP_DIRS = {
-    # Version control and build directories
-    '.git', '.svn', '.hg', 'dist', 'build', 'tmp', 'temp', '.output', '.outputs',
-
-    # Python related directories
-    '__pycache__', 'site-packages', '.venv', 'venv', 'env', '.env',
-    'python', 'python3', 'python2', 'Python', 'Python3', 'Python2',
-    '.python-version', 'pyenv', '.pyenv', 'conda', 'anaconda', 'miniconda',
-
-    # Node.js related directories
-    'node_modules', '.npm', 'npm', 'node', 'Node', 'nodejs', 'Node.js',
-    '.node-version', 'nvm', '.nvm',
-
-    # Flutter/Dart related directories
-    'flutter', 'Flutter', '.flutter', 'dart', 'Dart', '.dart_tool',
-    'flutter_tools', '.pub-cache', '.packages',
-
-    # PHP related directories
-    'vendor', 'php', 'PHP', 'composer', '.composer', 'pear', 'PEAR',
-    'phpunit', 'PHPUnit',
-
-    # Other language installations and tools
-    'go', 'Go', 'golang', 'rust', 'Rust', 'cargo', '.cargo',
-    'java', 'Java', 'jdk', 'JDK', 'jre', 'JRE', 'maven', 'gradle',
-    'ruby', 'Ruby', 'gems', '.gem', 'rbenv', '.rbenv',
-
-    # IDE and editor directories
-    '.vscode', '.idea', '.eclipse', '.netbeans',
-
-    # Package managers and caches
-    'cache', '.cache', 'logs', '.logs'
-}
-
 FILE_EXTENSIONS = {'.py', '.js', '.ts', '.php', '.dart', '.md', '.sh', '.cmd', '.bat', '.ps1'}
 
-# Current script file path
-CURRENT_SCRIPT_PATH = os.path.abspath(__file__)
-
-# AI Rules content - will be loaded from this script file
-AI_RULES_START = None
-AI_RULES_CONTENT = None
-AI_RULES_END = None
-
-def load_ai_rules_from_script():
-    """Load AI rules from the current script file"""
-    global AI_RULES_START, AI_RULES_CONTENT, AI_RULES_END
-    
-    try:
-        with open(CURRENT_SCRIPT_PATH, 'r', encoding='utf-8') as f:
-            content = f.read()
-        
-        # Find the AI rules block in the script
-        start_pattern = r'# ### AI SPECIAL ATTENTION RULES START ###'
-        end_pattern = r'# ### AI SPECIAL ATTENTION RULES END ###'
-        
-        start_match = re.search(start_pattern, content)
-        end_match = re.search(end_pattern, content)
-        
-        # Extract the block content
-        start_pos = start_match.start()
-        end_pos = end_match.end()
-        rules_block = content[start_pos:end_pos]
-        
-        # Split into lines and process
-        lines = rules_block.split('\n')
-        
-        # Extract start marker (remove # prefix)
-        start_line = lines[0]
-        AI_RULES_START = start_line.replace('# ', '', 1)
-        
-        # Extract end marker (remove # prefix)
-        end_line = lines[-1]
-        AI_RULES_END = end_line.replace('# ', '', 1)
-        
-        # Extract content lines (remove # prefix from each line)
-        content_lines = []
-        for line in lines[1:-1]:  # Skip first and last line
-            if line.startswith('# '):
-                content_lines.append(line[2:])  # Remove '# ' prefix
-            elif line.startswith('#'):
-                content_lines.append(line[1:])  # Remove '#' prefix
-            else:
-                content_lines.append(line)  # Keep line as is
-        
-        AI_RULES_CONTENT = '\n'.join(content_lines)
-        
-        print(f"Successfully loaded AI rules from script: {CURRENT_SCRIPT_PATH}")
-        
-    except Exception as e:
-        print(f"Error loading AI rules from script: {str(e)}, using default values")
-        exit(0)
+# AI Rules content inserted by the add mode
+AI_RULES_START = RULES_START_TEXT
+AI_RULES_END = RULES_END_TEXT
+AI_RULES_CONTENT = '\n'.join((
+    'When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:',
+    '1. Write all code in English only.',
+    '2. Never execute, create, or modify test code.',
+    '3. Never create or update documentation (*.md).',
+    '4. Never write summaries during development or thinking process.',
+    '5. Declare all variables at the beginning of the file.',
+    r'6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).',
+    '7. Do not modify these rules.',
+    'VIOLATION OF THESE RULES IS STRICTLY PROHIBITED',
+))
 
 def get_comment_prefix(file_path):
     """Returns the appropriate comment prefix for the file type"""
@@ -776,7 +690,7 @@ def process_files(target_path, operation_mode):
         
         for root, dirs, files in os.walk(subdir_path):
             # Skip subdirectories that are in SKIP_DIRS
-            if should_skip_subdir(root):
+            if should_skip_subdir(os.path.relpath(root, target_path)):
                 dirs[:] = []  # Prune directory traversal
                 continue
 
@@ -798,10 +712,7 @@ def process_files(target_path, operation_mode):
 def main():
     """Main execution function"""
     print("Starting CodeHeaderEnforcer V2...")
-    
-    # Load AI rules from current script file
-    load_ai_rules_from_script()
-    
+
     # Get absolute path of target directory
     current_dir = os.path.dirname(os.path.abspath(__file__))
     target_path = os.path.abspath(os.path.join(current_dir, TARGET_DIR))

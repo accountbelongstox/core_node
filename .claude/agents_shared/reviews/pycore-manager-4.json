@@ -1,0 +1,20 @@
+{
+  "task_id": "pycore-manager-4",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-020": {
+      "status": "fixed",
+      "reason": "LibraryCoverTaskModel.enqueue keeps the tasks and skips gathered from chunks sent before a failure, restores the optimistic entries only for ids whose chunk was not sent, publishes, and then rethrows. refreshNow marks an active id inactive (idle phase) when a status chunk answers with an items array that omits it, so polling stops for ids the server no longer returns."
+    },
+    "FU-027": {
+      "status": "fixed",
+      "reason": "ShellLaravelEndpointBridge no longer calls persistSharedBaseURL on mount or on each pycore health event; it only retries a binding that failed earlier. The implicit bind in BaseAPI.setSharedBaseURL (HEAD: 'if (currentBaseURL !== nextBaseURL) void persistSharedBaseURL(nextBaseURL)') has been removed by laravel-manager, the BaseAPI writer, in the working copy. The only remaining caller of persistSharedBaseURL is ApiManager.switchEndpoint, an explicit probed user switch. Activation and the mixed-content failover only dispatch SHARED_BASE_URL_CHANGED_EVENT, and no listener binds pycore. So no tab rebinds pycore's worker endpoint on a transient activation."
+    }
+  },
+  "issues": [
+    "(note) FU-027 is complete only together with the laravel-manager BaseAPI hunk that removes the persist call from setSharedBaseURL. That hunk is in the working copy and correct; record it under laravel-manager's next submission."
+  ],
+  "checks": "Both diffs read; both files are assigned to pycore-manager in requirements section 6; grep for persistSharedBaseURL, setSharedBaseURL, bindLaravelWorkerEndpoint and SHARED_BASE_URL_CHANGED_EVENT across core, shell, shared and apps.",
+  "checked_at": "2026-09-27T04:20:10+10:00"
+}

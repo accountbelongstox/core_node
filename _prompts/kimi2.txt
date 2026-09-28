@@ -1,0 +1,215 @@
+✨ 1 -1 pycore/pyutils/tts/memory_gate.py          
+                                                       
+              1 - QWEN3TTS_MIN_FREE_VRAM_MB = 1024     
+                                                       
+                                                       
+                                                       
+              1 + QWEN3TTS_MIN_FREE_VRAM_MB = 800      
+                                                       
+                                                       
+                                                       
+                                                       
+                                                       
+         ● Used Edit (…l_assets/qwen3tts_api_server.py)
+    ·                                                  
+        +1 -1                                          
+                                                       
+           +1 -1                                       
+                                                       
+                                                       
+                                                       
+                                                       
+    pycore/tts_install_assets/qwen3tts_api_server.py   
+                                                       
+                                                       
+              1 - _QWEN3TTS_MIN_FREE_VRAM_MB = 1024    
+                                                       
+                                                       
+                                                       
+              1 + _QWEN3TTS_MIN_FREE_VRAM_MB = 800   不
+    要多                                               
+        处定义，查看还有那些常量多处定义的，全部定义在 
+    常量                                               
+        中心，拒绝多处定义常量或变量。                 
+ … thinking 10 times, call 15 tools, 7 messages
+ 
+ ● Used Grep (TMP_DIR) · 6 matches across 2 files
+   pycore/tts_install_assets/fishspeech_api_s…, +3 more
+ 
+ ● Used Read (…s/tts/tts_service_manager.py) · 60 lines
+ 
+ ● Now I have everything. Plan of edits:               
+                                                       
+   … (426 more lines, ctrl+o to expand)
+ 
+ ● Used Grep (57212|"8000'…) · 4 matches across 3 files
+   pycore/tts_install_assets/melotts_api_serv…, +1 more
+ 
+ ● Used Grep (_SENTENCE_S…) · 15 matches across 3 files
+   pycore/tts_install_assets/tts_text_chunki…, +12 more
+ 
+ ● Used Grep (import|_module\.|…) · 7 matches in 1 file
+   pycore/pyutils/tts/chunked_synthesis.py:17…, +4 more
+ 
+ ● Used Grep (^import |^from ) · 4 matches in 1 file
+   pycore/pyfoundations/service_contract.py:1…, +1 more
+ 
+ ● Good:                                               
+   - melotts port 57212: melotts_api_server.py:253     
+   … (23 more lines, ctrl+o to expand)
+ 
+ ● Used Read (…ils/tts/chunked_synthesis.py) · 40 lines
+ 
+ ● Used Grep (8000|def main) · 3 matches in 1 file
+   pycore/tts_install_assets/chattts_api_server.py:12,…
+ 
+ ● Used Grep (8000|57212) · 7 matches across 3 files
+   pycore/pyutils/tts/chattts_engine.py:15, p…, +4 more
+ 
+ ● More duplications confirmed:                        
+   - melotts 57212: melotts_engine.py:35 `_DEFAULT_PORT
+   … (365 more lines, ctrl+o to expand)
+ 
+ ● Used Read (…ore/pyfoundations/pygvar.py) · 100 lines
+ 
+ ● Used Grep (def host|def port) · 2 matches in 1 file
+   pycore/pyfoundations/service_contract.py:22, pycore…
+ 
+ ● Read 2 files · 91 lines
+ 
+ ● pygvar imports core_node_dirs, machine_id,          
+   system_info — too heavy/fragile for isolated venv   
+   … (495 more lines, ctrl+o to expand)
+ 
+ ● Read 2 files · 70 lines
+ 
+ ● Used Grep (= 800$|= 409…) · 3 matches across 3 files
+   pycore/pyutils/tts/tts_service_manager.py:91, pycor…
+ 
+ ● Used Grep (import qwen3tts_syn…) · 1 match in 1 file
+   pycore/tts_install_assets/qwen3tts_api_server.py:115
+ 
+ ● All confirmed. Now execute. Todo list, then edits.  
+                                                       
+   … (42 more lines, ctrl+o to expand)
+ 
+ ● All duplications are confirmed. Now I'll centralize 
+   everything. Starting with the constant center.      
+ 
+ ● Used TodoList
+ 
+ ● Used Edit (…yfoundations/network_constants.py) · +28
+   +28 pycore/pyfoundations/network_constants.py       
+      2   # Single source shared by pycore             
+   (qwen.config.default_speed) and the isolated        
+      3   # api server (loaded from source);           
+   overridable via the QWEN3TTS_SPEED env.             
+      4   QWEN3TTS_DEFAULT_SPEED = 0.75                
+      5 + # Playback-speed bounds accepted from        
+   QWEN3TTS_SPEED / request overrides.                 
+      6 + # Single source shared by pycore             
+   (qwen.config) and the isolated api server.          
+      7 + QWEN3TTS_SPEED_MIN = 0.25                    
+      8 + QWEN3TTS_SPEED_MAX = 3.0                     
+      9 + # qwen3tts VRAM launch policy (MiB).         
+   qwen3tts is the ONLY engine that uses the           
+     10 + # GPU by design, so when free VRAM is below  
+   the recommended floor the launcher                  
+     11 + # and the startup profile forcibly stop      
+   OTHER GPU-holding processes                         
+        … 21 more changes hidden (ctrl+o to expand)    
+ 
+ ● Used Edit (…yfoundations/network_constants.py) · +10
+   +10 pycore/pyfoundations/network_constants.py       
+      1 +     "CHATTTS_HTTP_PORT",                     
+      2 +     "CHATTTS_MIN_FREE_VRAM_MB",              
+      3       "HTTP_API_PREFIX",                       
+      4       "HTTP_BIND_HOST",                        
+      5       "HTTP_CLIENT_ID_PATH",                   
+        … 8 unchanged lines …                          
+     14       "HTTP_PROTOCOL_VERSION",                 
+     15       "HTTP_ROUTES_PATH",                      
+     16       "HTTP_STATUS_PATH",                      
+     17 +     "MELOTTS_HTTP_PORT",                     
+        … 7 more changes hidden (ctrl+o to expand)     
+ 
+ ● Now create the shared loader module                 
+   `pycore/tts_install_assets/tts_server_common.py`.   
+ 
+ ● Used Write (…assets/tts_server_common.py) · 91 lines
+      1  #!/usr/bin/env python3                        
+      2  """Shared bootstrap for the standalone TTS    
+   api servers.                                        
+      3                                                
+      4  Pure standard-library module (same contract   
+   as tts_text_chunking.py): no                        
+      5  pycore imports and no third-party imports,    
+   so it can be staged next to any                     
+      6  standalone API server and imported as a       
+   sibling.                                            
+      7                                                
+      8  Two jobs:                                     
+      9                                                
+     10  1. Load                                       
+   pycore.pyfoundations.network_constants FROM SOURCE  
+   - the single                                        
+   … (82 more lines, 92 total, ctrl+o to expand)       
+ 
+ ● Now make the split regex/merge ratio public in      
+   tts_text_chunking.py:                               
+ 
+ ● Used Edit (…all_assets/tts_text_chunking.py) · +2 -1
+   +2 -1                                               
+   pycore/tts_install_assets/tts_text_chunking.py      
+      1   _DEFAULT_PAUSE_MS = 120                      
+      2 - _SENTENCE_MERGE_RATIO = 0.85                 
+      2 + # Sentence/clause splitting shared with      
+   qwen3tts_synthesis (single source).                 
+      3 + SENTENCE_MERGE_RATIO = 0.85                  
+ 
+ ● Used Edit (…all_assets/tts_text_chunking.py) · +2 -2
+   +2 -2                                               
+   pycore/tts_install_assets/tts_text_chunking.py      
+      1 - _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;  
+   。！？；:：])\s+|(?<=[。！？；])|\n+")              
+      2 - _CLAUSE_SPLIT_RE = re.compile(r"(?<=[,，、   
+   ])\s*")                                             
+      1 + SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;   
+   。！？；:：])\s+|(?<=[。！？；])|\n+")              
+      2 + CLAUSE_SPLIT_RE = re.compile(r"(?<=[,，、    
+   ])\s*")                                             
+ 
+ ● Read 2 files · 26 lines
+ 
+ ● Used Edit (…all_assets/tts_text_chunking.py) · +1 -1
+   +1 -1                                               
+   pycore/tts_install_assets/tts_text_chunking.py      
+      1 -             soft = max(60, round(hard *      
+   _SENTENCE_MERGE_RATIO))                             
+      1 +             soft = max(60, round(hard *      
+   SENTENCE_MERGE_RATIO))                              
+ 
+ ● Used Edit (…all_assets/tts_text_chunking.py) · +1 -1
+   +1 -1                                               
+   pycore/tts_install_assets/tts_text_chunking.py      
+      1 -         piece.strip() for piece in           
+   _SENTENCE_SPLIT_RE.split(masked) if piece.strip()   
+      1 +         piece.strip() for piece in           
+   SENTENCE_SPLIT_RE.split(masked) if piece.strip()    
+   Error: [provider.auth_error] 403 You've reached your
+ 5-hour usage limit. Your quota will reset when the    
+ current 5-hour window ends. To continue now, purchase 
+ extra usage or upgrade your plan:                     
+ https://www.kimi.com/membership/subscription?tab=quota
+   If this persists, run `/export-debug-zip` and share 
+ the file with us for diagnosis. Please don't share it 
+ publicly.                                             
+ 
+ ──────────────────────────────────────────────────────
+   Todo
+   ● Add shared constants to network_constants.py
+   ○ Create tts_server_common.py shared loader
+   ○ Make split regex/merge ratio public in tts_text...
+   ○ Dedupe qwen3tts_synthesis.py constants
+   ○ Dedupe qwen3tts_api_server.py constants
+   … +7 more (7 pending) · ctrl+t to expand

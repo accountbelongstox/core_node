@@ -1,12 +1,14 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Collection;
 
-class CodeMartV1AIAnalysisModel extends Model
+class CodeMartV1AIAnalysisModel extends CodeMartV1Model
 {
-    protected $connection = 'codemartv1';
+    use RunsModelTransactions;
+
     protected $table = 'codemart_v1_ai_analyses';
 
     protected $fillable = [
@@ -24,6 +26,7 @@ class CodeMartV1AIAnalysisModel extends Model
         'revision_notes',
         'completed_at',
         'accepted_at',
+        'accept_idempotency_key',
     ];
 
     protected $casts = [
@@ -37,5 +40,63 @@ class CodeMartV1AIAnalysisModel extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(CodeMartV1ProjectModel::class, 'project_id');
+    }
+
+    public static function pendingBatch(array $statuses, int $limit): Collection
+    {
+        return self::query()
+            ->with('project')
+            ->whereIn('status', $statuses)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function lockPendingById(int $id, array $statuses): ?self
+    {
+        return self::query()
+            ->whereKey($id)
+            ->whereIn('status', $statuses)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    public static function markPendingFailed(int $id, array $statuses): int
+    {
+        return self::query()
+            ->whereKey($id)
+            ->whereIn('status', $statuses)
+            ->update(['status' => 'failed']);
+    }
+
+    public static function latestForProject(int $projectId): ?self
+    {
+        return static::query()->where('project_id', $projectId)->orderByDesc('id')->first();
+    }
+
+    public static function markProjectAnalysisFailed(int $analysisId, string $analysisStatus): void
+    {
+        $analysis = static::query()->with('project')->find($analysisId);
+        if ($analysis && $analysis->project) {
+            $analysis->project->updateRecord(['analysis_status' => $analysisStatus]);
+        }
+    }
+
+    public static function findWithProject(int $analysisId): ?self
+    {
+        return static::query()->with('project')->find($analysisId);
+    }
+
+    public static function lockById(int $analysisId): ?self
+    {
+        return static::query()->whereKey($analysisId)->lockForUpdate()->first();
+    }
+
+    /** True when this analysis was already accepted with the same Idempotency-Key. */
+    public function isAcceptReplay(?string $idempotencyKey): bool
+    {
+        return $idempotencyKey !== null
+            && $this->accepted_at !== null
+            && hash_equals((string) $this->accept_idempotency_key, $idempotencyKey);
     }
 }

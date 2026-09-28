@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -46,13 +34,6 @@ try {
     console.error('Error decoding:', error);
 }
 let CACHE_EXPIRE = 1000 * 60 * 60 * 24;
-let ROOT_APP_CACHE_DIR ;
-try {
-    const {gdir} = require('#@global_vars');
-    ROOT_APP_CACHE_DIR = gdir.ROOT_APP_CACHE_DIR;
-} catch (error) {
-    log.error('Error decoding:', error);
-}
 /**
  * Forces text to be correctly encoded in the specified character encoding.
  * @param {string|Buffer} text - Input text to be processed
@@ -134,7 +115,7 @@ class FWriter {
         return file_path
     }
 
-    saveCacheJSON(file_path, json_text, expire = 1000 * 60 * 60 * 24) {
+    saveCacheJSON(file_path, json_text, expire = CACHE_EXPIRE, baseDir = null) {
         if(typeof json_text != 'string'){
             try {
                 json_text = JSON.stringify(json_text);
@@ -143,30 +124,32 @@ class FWriter {
                 return false;
             }
         }
-        return this.saveCacheText(file_path, json_text, 'utf-8', expire);
+        return this.saveCacheText(file_path, json_text, 'utf-8', expire, baseDir);
     }
 
-    saveCacheText(file_path, text, encoding = "utf-8", expire = 1000 * 60 * 60 * 24) {
+    saveCacheText(file_path, text, encoding = "utf-8", expire = CACHE_EXPIRE, baseDir = null) {
         encoding = encoding.toLowerCase();
-        const fullpath = path.resolve(file_path);
-        if(!path.isAbsolute(fullpath) && ROOT_APP_CACHE_DIR){
-            fullpath = path.resolve(ROOT_APP_CACHE_DIR, fullpath);
-        }
+        const fullpath = baseDir && !path.isAbsolute(file_path)
+            ? path.resolve(baseDir, file_path)
+            : path.resolve(file_path);
         let oldCacheUptime = 0;
         if(fs.existsSync(fullpath)){
-            oldCacheUptime = fs.statSync(fullpath).mtime;
+            oldCacheUptime = fs.statSync(fullpath).mtimeMs;
         }
-        let newCacheUptime = Date.now();
-        const isExpired = newCacheUptime - oldCacheUptime > expire;
-        if(!isExpired && !oldCacheUptime){
-            logger.debug(`${prefix} saveCache: ${file_path} is not expired, skip`);
+        const isExpired = Date.now() - oldCacheUptime > expire;
+        if(oldCacheUptime && !isExpired){
+            logger.debug(`${prefix} saveCache: ${fullpath} is not expired, skip`);
             return false;
         }
-        const basedir = path.dirname(fullpath);
-        mkdir(basedir);
-        fs.writeFileSync(file_path, text, { flag: 'wx', encoding });
-        logger.debug(`${prefix} saveCache: ${file_path} saved`);
-        return file_path
+        mkdir(path.dirname(fullpath));
+        try {
+            fs.writeFileSync(fullpath, text, { encoding });
+        } catch (error) {
+            logger.error(`${prefix} saveCache: ${fullpath} write failed: ${error.code || error.message}`);
+            return false;
+        }
+        logger.debug(`${prefix} saveCache: ${fullpath} saved`);
+        return fullpath
     }
 
     saveTextForceEncoding(file_path, text, encoding = "utf-8", replace = false) {

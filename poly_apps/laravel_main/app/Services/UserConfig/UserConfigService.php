@@ -1,0 +1,223 @@
+<?php
+
+namespace App\Services\UserConfig;
+
+use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * User-data-area configuration loader - the single source of truth for
+ * application feature settings, kept in the shell-aligned user-data area.
+ *
+ * Storage: a JSON file in the user-data area
+ * (<laravel_data_dir>/config/settings.json), resolved via PathMapper so it
+ * follows the SAME persisted base-data-dir the shell installer / pycore use
+ * (see PathMapper::getBaseDataDirectory -> /var/_core_node/global_var/
+ * BASE_DATA_DIR). Both the task-center UI toggle and backend services read +
+ * write through here.
+ *
+ * Resolution priority for get(): user-data JSON > caller default. Runtime
+ * environment variables are intentionally not a configuration source.
+ *
+ * Concurrency: set() does a locked read-modify-write (flock) so concurrent
+ * Octane workers / HTTP requests never corrupt the file. The decoded JSON is
+ * memoized per request (and reloaded lazily when its mtime advances).
+ */
+class UserConfigService
+{
+    private const WRITE_LOCK_SUFFIX = '.lock';
+
+    public const APPQYV1_ASSIST_ENABLED = 'appqyv1_assist_enabled';
+    public const APPQYV1_COVER_GENERATION_ENABLED = 'appqyv1_cover_generation_enabled';
+    public const APPQYV1_COVER_MAINTENANCE_ENABLED = 'appqyv1_cover_maintenance_enabled';
+    public const APPQYV1_LIBRARY_COVER_FALLBACK_ENABLED = 'appqyv1_library_cover_fallback_enabled';
+    public const APPQYV1_MEDIA_SCAN = 'appqyv1_media_scan';
+    public const APPQYV1_POSTER_COLLECTION_ENABLED = 'appqyv1_poster_collection_enabled';
+    public const APPQYV1_STUDY_GEN_ENABLED = 'appqyv1_study_gen_enabled';
+    public const APPQYV1_VALIDITY_SCAN = 'appqyv1_validity_scan';
+    public const APPQYV1_WORD_TRANSLATION_FILLER_ENABLED = 'appqyv1_word_translation_filler_enabled';
+    public const CODEMARTV1_AI_ANALYSIS_ENABLED = 'codemartv1_ai_analysis_enabled';
+    public const QUEUE_CENTER_AUDIO_SCAN = 'queue_center_audio_scan';
+    public const USE_SERVER_BINARY_ASSIST = 'use_server_binary_assist';
+
+    /** Relative path under the Laravel data dir for the settings file. */
+    private const SETTINGS_REL_PATH = 'config/settings.json';
+
+    /** Memoized decoded settings (null = not loaded yet). */
+    private ?array $cache = null;
+
+    /** Memoized file mtime at load time, to detect external writes. */
+    private ?int $loadedMtime = null;
+
+    /**
+     * Absolute path to the user-data settings JSON file.
+     */
+    public function filePath(): string
+    {
+        return PathMapper::getLaravelDataDir(self::SETTINGS_REL_PATH);
+    }
+
+    /**
+     * Read a setting. User-data JSON overrides the hardcoded caller default.
+     * Scalar cast follows $default's type (bool/int/string).
+     *
+     * @param string $key   Dotted setting key (e.g. "use_server_binary_assist").
+     * @param mixed  $default
+     * @return mixed
+     */
+    public function get(string $key, $default = null)
+    {
+        $json = $this->load();
+        if (is_array($json) && array_key_exists($key, $json)) {
+            return $this->cast($json[$key], $default);
+        }
+
+        return $default;
+    }
+
+    /**
+     * Write a setting to the user-data JSON (locked read-modify-write).
+     * Never throws - a write failure is logged and returns false so callers
+     * (HTTP toggle endpoints) can report it without 500ing.
+     *
+     * @param string $key
+     * @param mixed  $value
+     * @return bool
+     */
+    public function set(string $key, $value): bool
+    {
+        $path = $this->filePath();
+        $dir = dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+
+        // Writers serialize on a sidecar lock file and replace the settings
+        // file atomically (temp file + rename), so lock-free readers see
+        // either the old or the new document, never a truncated one.
+        $fp = @fopen($path . self::WRITE_LOCK_SUFFIX, 'c');
+        if ($fp === false) {
+            Log::warning('[UserConfig] cannot open settings lock file for write', ['path' => $path]);
+            return false;
+        }
+
+        try {
+            if (!flock($fp, LOCK_EX)) {
+                Log::warning('[UserConfig] cannot acquire write lock', ['path' => $path]);
+                return false;
+            }
+
+            $raw = is_file($path) ? (string) @file_get_contents($path) : '';
+            $data = $this->decode($raw);
+
+            if ($value === null) {
+                unset($data[$key]);
+            } else {
+                $data[$key] = $value;
+            }
+
+            if (!FileSystemManager::writeFileAtomic($path, $this->encode($data))) {
+                Log::warning('[UserConfig] cannot write settings file', ['path' => $path]);
+                return false;
+            }
+            clearstatcache(true, $path);
+
+            // Refresh the memoized cache so a subsequent get() in the same
+            // request reflects the new value.
+            $this->cache = $data;
+            $this->loadedMtime = @filemtime($path) ?: null;
+
+            return true;
+        } finally {
+            if (is_resource($fp)) {
+                flock($fp, LOCK_UN);
+                fclose($fp);
+            }
+        }
+    }
+
+    /** Return the full settings array (decoded JSON, empty array on any error). */
+    public function all(): array
+    {
+        return $this->load();
+    }
+
+    /**
+     * Convenience: whether the server may call local TTS binaries as an assist.
+     * Default OFF - Laravel delegates all synthesis to pycore; ON = desktop
+     * fallback where no pycore worker is available.
+     */
+    public function useServerBinaryAssist(): bool
+    {
+        return (bool) $this->get(self::USE_SERVER_BINARY_ASSIST, false);
+    }
+
+    /**
+     * Lazily load + memoize the decoded JSON, reloading when the file mtime
+     * advances (so writes from another worker/HTTP request are picked up).
+     *
+     * @return array
+     */
+    private function load(): array
+    {
+        $path = $this->filePath();
+        $mtime = @filemtime($path);
+        if ($mtime === false) {
+            $mtime = null;
+        }
+
+        if ($this->cache !== null && $this->loadedMtime !== null && $mtime === $this->loadedMtime) {
+            return $this->cache;
+        }
+
+        $raw = is_file($path) ? (string) @file_get_contents($path) : '';
+        $this->cache = $this->decode($raw);
+        $this->loadedMtime = $mtime;
+        return $this->cache;
+    }
+
+    private function decode(string $raw): array
+    {
+        if ($raw === '') {
+            return [];
+        }
+        $data = json_decode($raw, true);
+        return is_array($data) ? $data : [];
+    }
+
+    private function encode(array $data): string
+    {
+        $out = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return is_string($out) ? $out : '{}';
+    }
+
+    /**
+     * Cast a stored/env value to the type of $default (bool/int/string).
+     * Env values are strings ("true"/"false"/"1"/"0"); JSON values keep type.
+     *
+     * @param mixed $value
+     * @param mixed $default
+     * @return mixed
+     */
+    private function cast($value, $default)
+    {
+        if (is_bool($default)) {
+            if (is_bool($value)) {
+                return $value;
+            }
+            if (is_string($value)) {
+                $lower = strtolower($value);
+                return in_array($lower, ['1', 'true', 'yes', 'on'], true);
+            }
+            return (bool) $value;
+        }
+        if (is_int($default)) {
+            return is_int($value) ? $value : (int) $value;
+        }
+        if (is_array($default)) {
+            return is_array($value) ? $value : $default;
+        }
+        return is_string($value) ? $value : (string) $value;
+    }
+}

@@ -2,16 +2,17 @@
 
 namespace App\Apps\McpV1\McpV1Utils;
 
+use App\Apps\McpV1\McpV1Models\McpV1PlaceholderImageModel;
 use App\Contracts\AppInitializerInterface;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Artisan;
 
 class McpV1Initializer implements AppInitializerInterface
 {
+    private const LANG_PREFIX = 'mcp_v1.init.';
+
     private $statusFile;
 
     const INITIALIZATION_STEPS = [
@@ -49,7 +50,12 @@ class McpV1Initializer implements AppInitializerInterface
         $allSuccess = true;
 
         foreach (self::INITIALIZATION_STEPS as $step => $description) {
-            if (!$force && isset($status['completed_steps'][$step]) && $status['completed_steps'][$step] === true) {
+            if (
+                !$force
+                && isset($status['completed_steps'][$step])
+                && $status['completed_steps'][$step] === true
+                && $this->stepStateHolds($step)
+            ) {
                 $results[$step] = [
                     'status' => 'skipped',
                     'message' => 'Already completed',
@@ -59,15 +65,27 @@ class McpV1Initializer implements AppInitializerInterface
             }
 
             Log::info("[McpV1Init] Running step: {$step} - {$description}");
+            if (PHP_SAPI === 'cli') {
+                echo "    [McpV1] Step {$step}: {$description}...\n";
+            }
 
             try {
                 $result = $this->executeStep($step);
                 $results[$step] = array_merge($result, ['description' => $description]);
 
-                if ($result['status'] === 'success') {
+                $statusCode = $result['status'] ?? 'error';
+
+                if ($statusCode === 'success') {
                     $this->markStepCompleted($step);
-                } else {
+                    if (PHP_SAPI === 'cli') {
+                        echo "      -> OK: {$result['message']}\n";
+                    }
+                } elseif ($statusCode === 'error') {
                     $allSuccess = false;
+                    if (PHP_SAPI === 'cli') {
+                        $msg = $result['message'] ?? 'Unknown error';
+                        echo "      -> {$result['status']}: {$msg}\n";
+                    }
                     if (!$force) {
                         break;
                     }
@@ -80,6 +98,10 @@ class McpV1Initializer implements AppInitializerInterface
                     'exception' => get_class($e),
                 ];
                 $allSuccess = false;
+
+                if (PHP_SAPI === 'cli') {
+                    echo "      -> EXCEPTION: {$e->getMessage()}\n";
+                }
 
                 if (!$force) {
                     break;
@@ -165,29 +187,57 @@ class McpV1Initializer implements AppInitializerInterface
         }
     }
 
+    /**
+     * Whether the real state a completed step produced still holds, so the
+     * status file alone never skips a step whose schema or directory is gone.
+     */
+    private function stepStateHolds(string $step): bool
+    {
+        try {
+            return match ($step) {
+                'create_placeholder_table', 'verify_tables' => McpV1PlaceholderImageModel::schemaReady(),
+                'create_storage_directory' => is_dir(McpV1PlaceholderUtil::storageDirectory()),
+                default => true,
+            };
+        } catch (\Throwable $e) {
+            Log::warning('[McpV1Init] Step state check failed; re-running the step', [
+                'step' => $step,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Idempotent add-only ensure of placeholder_images from the model's
+     * structure: creates a missing table and adds missing columns/indexes,
+     * whatever the migrations repository records.
+     */
     private function createPlaceholderTable(): array
     {
         try {
-            if (Schema::hasTable('placeholder_images')) {
+            $alignment = McpV1PlaceholderImageModel::ensureTableAligned(McpV1PlaceholderImageModel::tableStructure());
+            $tableStatus = $alignment['status'] ?? 'error';
+
+            if (!McpV1PlaceholderImageModel::schemaReady()) {
                 return [
-                    'status' => 'success',
-                    'message' => 'Table placeholder_images already exists',
+                    'status' => 'error',
+                    'message' => __(self::LANG_PREFIX . 'placeholder_table_missing', [
+                        'connection' => AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1),
+                    ]),
+                    'table_status' => $tableStatus,
                 ];
             }
 
-            // Migrations are handled by sys:init command
-            // This method only checks if tables exist
-            if (Schema::hasTable('placeholder_images')) {
-                return [
-                    'status' => 'success',
-                    'message' => 'Table placeholder_images created successfully',
-                ];
-            } else {
-                return [
-                    'status' => 'error',
-                    'message' => 'Migration ran but table not found',
-                ];
-            }
+            return [
+                'status' => 'success',
+                'message' => match ($tableStatus) {
+                    'created' => 'Table placeholder_images created successfully',
+                    'updated' => __(self::LANG_PREFIX . 'placeholder_table_aligned', ['count' => count($alignment['actions'] ?? [])]),
+                    default => 'Table placeholder_images already exists',
+                },
+                'table_status' => $tableStatus,
+            ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
@@ -199,26 +249,19 @@ class McpV1Initializer implements AppInitializerInterface
     private function verifyTables(): array
     {
         try {
-            $requiredTables = ['placeholder_images'];
-            $missingTables = [];
-
-            foreach ($requiredTables as $table) {
-                if (!Schema::hasTable($table)) {
-                    $missingTables[] = $table;
-                }
-            }
-
-            if (empty($missingTables)) {
+            if (McpV1PlaceholderImageModel::schemaReady()) {
                 return [
                     'status' => 'success',
                     'message' => 'All required MCP tables exist',
                 ];
-            } else {
-                return [
-                    'status' => 'error',
-                    'message' => 'Missing tables: ' . implode(', ', $missingTables),
-                ];
             }
+
+            return [
+                'status' => 'error',
+                'message' => __(self::LANG_PREFIX . 'placeholder_table_missing', [
+                    'connection' => AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1),
+                ]),
+            ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
@@ -230,7 +273,7 @@ class McpV1Initializer implements AppInitializerInterface
     private function createStorageDirectory(): array
     {
         try {
-            $storageDir = \App\Providers\PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . 'mcp_placeholders';
+            $storageDir = McpV1PlaceholderUtil::storageDirectory();
 
             if (!file_exists($storageDir)) {
                 mkdir($storageDir, 0755, true);

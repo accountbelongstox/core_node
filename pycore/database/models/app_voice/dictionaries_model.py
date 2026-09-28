@@ -7,7 +7,10 @@ Stores word/phrase entries with translations, phonetics, and voice files
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_sqlalchemy
+from pycore.pyfoundations.third_party.api import get_third_package_sqlalchemy
+
+import hashlib
+
 
 sqlalchemy = get_third_package_sqlalchemy()
 from pycore.database.base_model import BaseModel
@@ -261,7 +264,6 @@ class VoiceDictionariesModel(BaseModel):
             conn: Database connection
             contents: List of content strings
         """
-        import hashlib
 
         insert_data = []
         for content in contents:

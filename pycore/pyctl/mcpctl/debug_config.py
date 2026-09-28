@@ -20,6 +20,10 @@ Usage:
 
 import os
 
+import time
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
 # Debug flags
 MCP_BACKEND_DEBUG = os.environ.get('MCP_BACKEND_DEBUG', '').lower() in ('1', 'true', 'yes')
 MCP_PROXY_DEBUG = os.environ.get('MCP_PROXY_DEBUG', '').lower() in ('1', 'true', 'yes')
@@ -56,7 +60,6 @@ def debug_print(message: str, component: str = "MCP"):
         message: Debug message
         component: Component name (Backend, Proxy, Singleton)
     """
-    import time
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
 
     # Determine if should print based on component
@@ -69,7 +72,7 @@ def debug_print(message: str, component: str = "MCP"):
         should_print = True
 
     if should_print or MCP_DEBUG_ALL:
-        print(f"[{timestamp}] [DEBUG:{component}] {message}")
+        ColorPrint.plain(f"[{timestamp}] [DEBUG:{component}] {message}")
 
 
 # Export debug status on import

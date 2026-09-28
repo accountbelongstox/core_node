@@ -1,29 +1,17 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # Git Functions - Python-based with File Variables
 # =============================================================================
 
-# Source constants (backup copy)
-source "$DD_HELPER_DIR/constants.sh"
-
-# Build full path from constants
-GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
 GIT_MANAGEMENT_PY="$CORE_NODE_ROOT_DIR/scripts/git/git_management.py"
 
-# File variables directory
-GIT_VARS_DIR="/var/_core_node/_build_global_vars"
+# File variables directory (must match scripts/git/git_management_vars.py cache path)
+if [ -w "$CORE_NODE_DATA_DIR" ] || [ -d "$CORE_NODE_DATA_DIR/build_global_vars" ]; then
+    GIT_VARS_DIR="$CORE_NODE_DATA_DIR/build_global_vars"
+else
+    GIT_VARS_DIR="$HOME/core_node/build_global_vars"
+fi
 
 # Helper functions for file variables
 read_git_var() {
@@ -72,7 +60,7 @@ show_git_management_menu() {
         # Check if user wants to go back to main menu
         if [ "$menu_back" = "true" ]; then
             clear_git_vars
-            return 0
+            return
         fi
 
         # Check operation status
@@ -97,44 +85,32 @@ show_git_management_menu() {
 
             if [ -n "$shell_script" ]; then
                 echo ""
-                echo -e "\033[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+                echo -e "\033[36m------------------------------------------------------------\033[0m"
                 echo -e "\033[36mExecuting Git operation...\033[0m"
-                echo -e "\033[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+                echo -e "\033[36m------------------------------------------------------------\033[0m"
                 echo ""
 
                 # Execute the shell command
                 cd "$CORE_NODE_ROOT_DIR"
                 eval "$shell_script"
-                local exec_result=$?
+                write_git_var "git_operation_status" "success"
+                echo ""
+                echo -e "\033[32mOperation completed.\033[0m"
 
-                # Update status based on execution result
-                if [ $exec_result -eq 0 ]; then
-                    write_git_var "git_operation_status" "success"
-                    echo ""
-                    echo -e "\033[32m�?Operation completed successfully!\033[0m"
+                if [ "$operation_type" = "safe_pull" ] || [ "$operation_type" = "force_overwrite" ]; then
+                    make_sh_executable
+                fi
 
-                    # Make shell scripts executable after pull operations
-                    if [ "$operation_type" = "safe_pull" ] || [ "$operation_type" = "force_overwrite" ]; then
-                        make_sh_executable
+                if [ "$operation_type" = "force_overwrite" ]; then
+                    local backup_branch=$(read_git_var "git_backup_branch" "")
+                    if [ -n "$backup_branch" ]; then
+                        echo ""
+                        echo -e "\033[36mYour local changes have been backed up to: $backup_branch\033[0m"
                     fi
-
-                    # Show backup branch info for force overwrite
-                    if [ "$operation_type" = "force_overwrite" ]; then
-                        local backup_branch=$(read_git_var "git_backup_branch" "")
-                        if [ -n "$backup_branch" ]; then
-                            echo ""
-                            echo -e "\033[36mYour local changes have been backed up to: $backup_branch\033[0m"
-                        fi
-                    fi
-                else
-                    write_git_var "git_operation_status" "failed"
-                    echo ""
-                    echo -e "\033[31m�?Operation failed.\033[0m"
-                    echo "Please check the output above for details."
                 fi
 
                 echo ""
-                echo -e "\033[36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+                echo -e "\033[36m------------------------------------------------------------\033[0m"
             else
                 echo ""
                 echo -e "\033[31mError: No shell command generated.\033[0m"

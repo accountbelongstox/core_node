@@ -2,12 +2,10 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1TaskCommentModel extends Model
+class CodeMartV1TaskCommentModel extends CodeMartV1Model
 {
-    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_task_comments';
 
     protected $fillable = [

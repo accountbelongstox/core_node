@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RPCClient } from '../services/rpc';
+import { HttpClient } from '../services/http';
 import { SystemStats } from '../types';
 import { Database, Activity, Clock, Server } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip } from 'recharts';
@@ -8,7 +8,7 @@ export const StatsPage: React.FC = () => {
   const [stats, setStats] = useState<SystemStats | null>(null);
 
   useEffect(() => {
-    RPCClient.getStats().then(setStats).catch(console.error);
+    HttpClient.getStats().then(setStats).catch(console.error);
   }, []);
 
   const StatCard = ({ icon: Icon, label, value, color }: any) => (

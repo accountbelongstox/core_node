@@ -1,0 +1,325 @@
+# -*- coding: utf-8 -*-
+"""
+Generic HF local-weights resolver for engines whose model weights are
+pre-downloaded idempotently by an install Step script (sentinel + curl resume +
+HF-size verify; see scripts/shells/win/win_common/TtsInstallAssetsCommon.ps1
+Install-HfRepoFlat and scripts/shells/linux/common/tts_install_assets_common.sh
+install_hf_repo_flat).
+
+Single source of truth for the staging-dir + sentinel + verify pattern shared by
+all neural engines. The pycore.pyutils.tts.qwen.weights adapter binds this
+parameterized implementation to Qwen-specific defaults and hints.
+core and adds its engine-specific static sizes / hints.
+
+Layout (created by Install-HfRepoFlat):
+  <staging>/                <- staging_dir(env_var, subdir); env override > get_local_data_dir()/subdir
+    .model_installed        <- sentinel; content = repo id that was downloaded
+    weights/                <- flat-with-subdirs HF snapshot (config.json + .bin/.pt/.safetensors)
+      config.json
+      <weight files, possibly under subfolders e.g. suno/bark text_24khz/>
+
+Engine contract: call resolve_model_id(env_var, subdir, default_repo) where
+default_repo is the GPU/CPU tier (e.g. runtime_engine_model("bark")). Returns the
+local weights/ dir when the sentinel + size verify pass, else default_repo (graceful
+fallback to lazy HF-cache download). The caller still honors an explicit
+<ENV>_MODEL override BEFORE calling this. Engines whose installer pre-downloads an
+allow-listed subset of the repo (see tts_model_tiers.HF_ALLOW) must pass the same
+allow_patterns so readiness checks exactly the downloaded contract and ignores
+foreign weight files left in weights/ by older layouts.
+"""
+
+import fnmatch
+import importlib.util
+import json
+import os
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Dict, Optional, Sequence, Tuple
+
+from pycore.pyfoundations.system_paths import get_local_data_dir
+
+WEIGHT_SUFFIXES = (".safetensors", ".bin", ".pt")
+_HF_CATALOG_CACHE: Dict[str, Dict[str, int]] = {}
+
+
+def staging_dir(env_var: str, subdir: str) -> Path:
+    """Staging root: <env_var> override > get_local_data_dir()/subdir."""
+    explicit = (os.environ.get(env_var) or "").strip()
+    if explicit:
+        return Path(explicit)
+    return get_local_data_dir() / subdir
+
+
+def weights_dir(staging: Path) -> Path:
+    return staging / "weights"
+
+
+def configured_weights_dir(env_var: str, staging: Path) -> Path:
+    """Resolve an optional model-directory override without changing staging ownership."""
+    explicit = (os.environ.get(env_var) or "").strip()
+    if explicit:
+        return Path(explicit)
+    return weights_dir(staging)
+
+
+def sentinel_model_id(staging: Optional[Path] = None) -> Optional[str]:
+    """Read .model_installed sentinel; returns the repo id that was staged, or None."""
+    root = staging if staging is not None else Path()
+    sentinel = root / ".model_installed"
+    if not sentinel.is_file():
+        return None
+    value = sentinel.read_text(encoding="utf-8-sig").strip()
+    return value or None
+
+
+def required_files_ready(root: Path, relative_paths: Sequence[str]) -> bool:
+    """Validate one engine's exact local model manifest without network access."""
+    for relative_path in relative_paths:
+        path = root / relative_path
+        if not path.is_file() or path.stat().st_size <= 0:
+            return False
+    return True
+
+
+def load_required_file_manifest(path: Path) -> Tuple[str, ...]:
+    """Load a shared installer/runtime model manifest without probing the network."""
+    entries = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        value = line.strip()
+        if value and not value.startswith("#"):
+            entries.append(value)
+    return tuple(entries)
+
+
+def installed_model_files_ready(
+    staging: Path,
+    model_root: Path,
+    relative_paths: Sequence[str],
+) -> bool:
+    """Require the installer sentinel and the engine's exact local file manifest."""
+    return bool(
+        sentinel_model_id(staging)
+        and required_files_ready(model_root, relative_paths)
+    )
+
+
+def _hf_mirror_bases() -> list:
+    bases: list = []
+    endpoint = (os.environ.get("HF_ENDPOINT") or os.environ.get("GPTSOVITS_MIRROR") or "").strip()
+    if endpoint:
+        bases.append(endpoint.rstrip("/"))
+    bases.append("https://huggingface.co")
+    if "hf-mirror.com" not in "".join(bases):
+        bases.append("https://hf-mirror.com")
+    return bases
+
+
+def _entry_size(entry: dict) -> int:
+    size = entry.get("size")
+    if size is not None and int(size) > 0:
+        return int(size)
+    lfs = entry.get("lfs") or {}
+    lfs_size = lfs.get("size")
+    if lfs_size is not None and int(lfs_size) > 0:
+        return int(lfs_size)
+    return 0
+
+
+def _fetch_hf_tree(base: str, repo_id: str, subpath: str = "") -> list:
+    path_part = f"/{subpath}" if subpath else ""
+    url = f"{base.rstrip('/')}/api/models/{repo_id}/tree/main{path_part}"
+    with urllib.request.urlopen(url, timeout=30) as resp:
+        return json.load(resp)
+
+
+def hf_repo_catalog(repo_id: str, use_cache: bool = True, static_sizes: Optional[Dict[str, int]] = None) -> Dict[str, int]:
+    """Repo file -> bytes map (recursive HF tree). Falls back to static_sizes when the
+    HF API is unreachable (offline). Generic over any repo id."""
+    repo = (repo_id or "").strip()
+    if not repo:
+        return {}
+    if use_cache and repo in _HF_CATALOG_CACHE:
+        return dict(_HF_CATALOG_CACHE[repo])
+
+    catalog: Dict[str, int] = {}
+    for base in _hf_mirror_bases():
+        pending = [""]
+        catalog = {}
+        base_unreachable = False
+        while pending:
+            sub = pending.pop()
+            try:
+                entries = _fetch_hf_tree(base, repo, sub)
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, OSError):
+                if not sub:
+                    # Top-level listing failed: the base itself is unreachable.
+                    base_unreachable = True
+                    break
+                # A single unreadable subdirectory must not nuke the whole catalog.
+                continue
+            for entry in entries:
+                # The HF tree API always returns repo-root-relative paths, also for
+                # subdirectory queries — never re-prefix them with the subpath.
+                name = str(entry.get("path") or "").strip()
+                if not name:
+                    continue
+                if str(entry.get("type") or "") == "directory":
+                    pending.append(name)
+                    continue
+                size = _entry_size(entry)
+                if size > 0:
+                    catalog[name] = size
+        if base_unreachable:
+            continue
+        if catalog:
+            _HF_CATALOG_CACHE[repo] = dict(catalog)
+            return catalog
+
+    fallback = static_sizes or {}
+    if fallback:
+        _HF_CATALOG_CACHE[repo] = dict(fallback)
+        return dict(fallback)
+    return {}
+
+
+def catalog_bytes(repo_id: str, rel_path: str, static_sizes: Optional[Dict[str, int]] = None) -> int:
+    repo = (repo_id or "").strip()
+    rel = rel_path.replace("\\", "/")
+    if not repo:
+        return 0
+    live = hf_repo_catalog(repo).get(rel, 0)
+    if live > 0:
+        return int(live)
+    if static_sizes:
+        return int(static_sizes.get(rel, 0))
+    return 0
+
+
+def safetensors_readable(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    if importlib.util.find_spec("safetensors") is None:
+        return True
+    from safetensors import safe_open
+
+    try:
+        with safe_open(str(path), framework="pt") as handle:
+            _ = handle.keys()
+        return True
+    except Exception:
+        return False
+
+
+def allow_match(rel_path: str, allow_patterns: Optional[Sequence[str]]) -> bool:
+    """HF glob allow-list match ('*' crosses directories, like fnmatch). Empty/None
+    patterns match everything; this is the same contract the installers enforce."""
+    if not allow_patterns:
+        return True
+    rel = rel_path.replace("\\", "/")
+    return any(fnmatch.fnmatchcase(rel, pattern) for pattern in allow_patterns)
+
+
+def local_weights_ready(
+    weights: Path,
+    repo_id: str = "",
+    static_sizes: Optional[Dict[str, int]] = None,
+    allow_patterns: Optional[Sequence[str]] = None,
+) -> bool:
+    """True when weights/ has config.json + the allow-listed weight files
+    (.bin/.pt/.safetensors), each meeting the HF catalog (or static fallback) size,
+    and .safetensors deserialize cleanly. Recursive over subfolders (e.g. suno/bark
+    text_24khz/). The allow-list is the install contract: foreign weight files
+    (legacy leftovers from other layouts) are ignored, and every allow-listed
+    catalog weight file must be present locally."""
+    if not weights.is_dir():
+        return False
+    if not any(weights.rglob("config.json")):
+        return False
+
+    catalog = hf_repo_catalog(repo_id, static_sizes=static_sizes) if repo_id else dict(static_sizes or {})
+    if catalog:
+        for rel, expected in catalog.items():
+            if Path(rel).suffix.lower() not in WEIGHT_SUFFIXES:
+                continue
+            if not allow_match(rel, allow_patterns):
+                continue
+            path = weights / rel
+            if not path.is_file():
+                return False
+            size = path.stat().st_size
+            if size <= 0 or (expected > 0 and size < expected):
+                return False
+
+    weight_files = [
+        p
+        for p in weights.rglob("*")
+        if p.is_file()
+        and p.suffix.lower() in WEIGHT_SUFFIXES
+        and allow_match(p.relative_to(weights).as_posix(), allow_patterns)
+    ]
+    if not weight_files:
+        return False
+
+    for path in weight_files:
+        rel = path.relative_to(weights).as_posix()
+        size = path.stat().st_size
+        expected = catalog_bytes(repo_id, rel, static_sizes)
+        if expected > 0:
+            if size < expected:
+                return False
+        elif size <= 0:
+            return False
+        if path.suffix.lower() == ".safetensors" and not safetensors_readable(path):
+            return False
+    return True
+
+
+def local_weights_dir(
+    staging: Path,
+    repo_id: str = "",
+    static_sizes: Optional[Dict[str, int]] = None,
+    allow_patterns: Optional[Sequence[str]] = None,
+) -> Optional[Path]:
+    """weights/ dir when ready, else None."""
+    weights = weights_dir(staging)
+    if local_weights_ready(weights, repo_id, static_sizes, allow_patterns):
+        return weights
+    return None
+
+
+def resolve_model_id(
+    env_var: str,
+    subdir: str,
+    default_repo: str,
+    static_sizes: Optional[Dict[str, int]] = None,
+    allow_patterns: Optional[Sequence[str]] = None,
+) -> str:
+    """Local weights/ path when the sentinel + verify pass, else the staged repo id
+    (sentinel value) or default_repo. The caller honors an explicit <ENV>_MODEL
+    override before calling this."""
+    staging = staging_dir(env_var, subdir)
+    repo = sentinel_model_id(staging) or default_repo
+    weights = weights_dir(staging)
+    if local_weights_ready(weights, repo, static_sizes, allow_patterns):
+        return str(weights)
+    return repo
+
+
+__all__ = [
+    "WEIGHT_SUFFIXES",
+    "allow_match",
+    "catalog_bytes",
+    "configured_weights_dir",
+    "staging_dir",
+    "weights_dir",
+    "sentinel_model_id",
+    "hf_repo_catalog",
+    "local_weights_ready",
+    "installed_model_files_ready",
+    "load_required_file_manifest",
+    "local_weights_dir",
+    "resolve_model_id",
+    "required_files_ready",
+    "safetensors_readable",
+]

@@ -5,7 +5,14 @@ Contains paths and settings for monitoring software installations
 
 import os
 import platform
+import sys
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
 
 
 def get_windows_version():
@@ -36,7 +43,7 @@ def ensure_cache_directories():
 
 # User cache directory for storing monitoring results and settings
 USER_HOME = Path.home()
-USER_CACHE_DIR = USER_HOME / ".core_node" / ".installation_monitor"
+USER_CACHE_DIR = get_core_node_data_dir() / "installation_monitor"
 MONITOR_RESULTS_BASE = USER_CACHE_DIR / "monitoring_results"
 EXPORT_BASE_DIR = USER_CACHE_DIR / "exported_software"
 CACHE_DIR = USER_CACHE_DIR / "cache"

@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Declare all variables at the beginning of the file
-# 6. For Bash scripts: Use absolute paths resolved from script location
-# 7. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -17,6 +6,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 REDIS_CONFIG="/etc/redis/redis.conf"
 REDIS_CLI="redis-cli"
@@ -31,7 +21,7 @@ COLOR_CYAN="\033[36m"
 check_redis_installed() {
     if ! command -v redis-server >/dev/null 2>&1; then
         echo -e "${COLOR_RED}Redis is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 45_install_redis.sh"
+        echo "Please run installation script first: 73_install_redis.sh"
         return 1
     fi
     return 0
@@ -230,20 +220,24 @@ view_config() {
 }
 
 show_menu() {
-    show_header
-    show_redis_status
+    local menu_items=(
+        "Start Redis"
+        "Stop Redis"
+        "Restart Redis"
+        "Show Basic Information"
+        "Show Statistics"
+        "Show Keys Information"
+        "View Configuration File"
+        "Flush Database (Delete All Keys)"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start Redis"
-    echo "  2) Stop Redis"
-    echo "  3) Restart Redis"
-    echo "  4) Show Basic Information"
-    echo "  5) Show Statistics"
-    echo "  6) Show Keys Information"
-    echo "  7) View Configuration File"
-    echo "  8) Flush Database (Delete All Keys)"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "Redis Manager" menu_items 0 8 show_redis_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 8 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -253,7 +247,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_redis ;;

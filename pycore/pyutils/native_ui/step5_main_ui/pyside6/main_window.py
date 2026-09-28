@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
+
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 PySide6 Main Window - Frameless Window with Custom Title Bar
 
@@ -20,15 +25,13 @@ from enum import Enum
 
 # Import THREAD_BUS for event-driven architecture
 try:
-    from pycore import THREAD_BUS, ColorPrint
     HAS_THREAD_BUS = True
 except ImportError:
     THREAD_BUS = None
     HAS_THREAD_BUS = False
-    from pycore import ColorPrint
 
 # Import window state manager
-from .window_state import WindowStateManager
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.window_state import WindowStateManager
 
 
 class ResizeEdge(Enum):
@@ -59,6 +62,7 @@ class PySide6MainWindow(QMainWindow):
     window_minimized = Signal()
     window_maximized = Signal()
     window_restored = Signal()
+    window_hidden = Signal()  # emitted when hidden to tray (close_to_tray)
 
     def __init__(
         self,
@@ -69,6 +73,7 @@ class PySide6MainWindow(QMainWindow):
         frameless: bool = True,
         icon_path: Optional[str] = None,
         cache_window_state: bool = True,
+        close_to_tray: bool = False,
         parent: Optional[QWidget] = None
     ):
         """
@@ -92,6 +97,7 @@ class PySide6MainWindow(QMainWindow):
         self._icon_path = icon_path
         self._is_maximized = False
         self._cache_window_state = cache_window_state
+        self._close_to_tray = close_to_tray  # hide to tray on close instead of quitting
 
         # Window state manager
         self._state_manager = WindowStateManager(app_id=app_id) if cache_window_state else None
@@ -111,6 +117,7 @@ class PySide6MainWindow(QMainWindow):
         # Close handling - prevent multiple shutdown triggers
         self._close_requested = False  # Tracks if app.close event was triggered
         self._force_close = False  # Allows forced close after shutdown complete
+        self._content: Optional[QWidget] = None
 
         # Setup window (will load cached state if available)
         self._setup_window(width, height)
@@ -264,7 +271,23 @@ class PySide6MainWindow(QMainWindow):
         Args:
             content: Content widget (typically WebView)
         """
+        self._content = content
         self.main_layout.addWidget(content)
+
+    def showEvent(self, event):
+        """Notify content widgets when the tray window becomes visible."""
+        super().showEvent(event)
+        timing = getattr(self, "_tray_timing", None)
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} main_window_showEvent "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
+        if self._content is not None:
+            on_window_shown = getattr(self._content, "on_window_shown", None)
+            if callable(on_window_shown):
+                on_window_shown(getattr(self, "_tray_timing", None))
 
     # ========== Window State Management ==========
 
@@ -298,8 +321,16 @@ class PySide6MainWindow(QMainWindow):
         """Hide window (for minimize to tray)."""
         self.hide()
 
-    def show_window(self):
+    def show_window(self, event_data=None):
         """Show window."""
+        timing = event_data.get("_tray_timing") if isinstance(event_data, dict) else None
+        self._tray_timing = timing
+        if isinstance(timing, dict):
+            elapsed_ms = (time.perf_counter() - timing["started_at"]) * 1000
+            ColorPrint.blue(
+                f"[TrayTiming] id={timing.get('trace_id', '?')} main_window_show_called "
+                f"wall={time.strftime('%Y-%m-%d %H:%M:%S')} elapsed={elapsed_ms:.3f}ms"
+            )
         self.show()
         self.activateWindow()
         self.raise_()
@@ -505,6 +536,15 @@ class PySide6MainWindow(QMainWindow):
             self.window_closed.emit()
             return
 
+        # Close-to-tray: the window lives in the tray, so the close button hides it
+        # instead of quitting the whole app. The tray "Exit" is the real quit path.
+        if self._close_to_tray:
+            ColorPrint.blue("[MainWindow] close_to_tray: hiding window instead of quitting")
+            self.hide()
+            self.window_hidden.emit()
+            event.ignore()
+            return
+
         # First close attempt: Trigger shutdown flow
         if not self._close_requested:
             ColorPrint.blue("[MainWindow] Close button clicked, triggering app.close event...")
@@ -523,7 +563,7 @@ class PySide6MainWindow(QMainWindow):
                 ColorPrint.blue("[MainWindow] app.close event triggered, waiting for shutdown...")
 
             # IMPORTANT: Ignore this close event to prevent window from closing immediately
-            # Window will be closed later by framework.quit() after shutdown completes
+            # The shutdown handler queues framework.quit() on the Qt main thread.
             event.ignore()
             ColorPrint.blue("[MainWindow] Close event ignored, waiting for shutdown to complete...")
             return

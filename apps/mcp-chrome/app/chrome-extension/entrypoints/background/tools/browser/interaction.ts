@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
@@ -14,6 +14,7 @@ interface ClickToolParams {
   coordinates?: Coordinates; // Coordinates to click at (x, y relative to viewport)
   waitForNavigation?: boolean; // Whether to wait for navigation to complete after click
   timeout?: number; // Timeout in milliseconds for waiting for the element or navigation
+  tabId?: number; // Optional: target a specific tab instead of the active tab of the current window
 }
 
 /**
@@ -31,6 +32,7 @@ class ClickTool extends BaseBrowserToolExecutor {
       coordinates,
       waitForNavigation = false,
       timeout = TIMEOUTS.DEFAULT_WAIT * 5,
+      tabId,
     } = args;
 
     console.log(`Starting click operation with options:`, args);
@@ -42,15 +44,10 @@ class ClickTool extends BaseBrowserToolExecutor {
     }
 
     try {
-      // Get current tab
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tabs[0]) {
+      // Resolve target tab (explicit tabId wins; otherwise the active tab)
+      const tab = await this.resolveTargetTab(tabId);
+      if (!tab?.id) {
         return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
-      }
-
-      const tab = tabs[0];
-      if (!tab.id) {
-        return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND + ': Active tab has no ID');
       }
 
       await this.injectContentScript(tab.id, ['inject-scripts/click-helper.js']);
@@ -64,25 +61,17 @@ class ClickTool extends BaseBrowserToolExecutor {
         timeout,
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: result.message || 'Click operation successful',
-              elementInfo: result.elementInfo,
-              navigationOccurred: result.navigationOccurred,
-              clickMethod: coordinates ? 'coordinates' : 'selector',
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: result.message || 'Click operation successful',
+        elementInfo: result.elementInfo,
+        navigationOccurred: result.navigationOccurred,
+        clickMethod: coordinates ? 'coordinates' : 'selector',
+      });
     } catch (error) {
       console.error('Error in click operation:', error);
       return createErrorResponse(
-        `Error performing click: ${error instanceof Error ? error.message : String(error)}`,
+        `Error performing click: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -93,6 +82,7 @@ export const clickTool = new ClickTool();
 interface FillToolParams {
   selector: string;
   value: string;
+  tabId?: number; // Optional: target a specific tab instead of the active tab of the current window
 }
 
 /**
@@ -105,7 +95,7 @@ class FillTool extends BaseBrowserToolExecutor {
    * Execute fill operation
    */
   async execute(args: FillToolParams): Promise<ToolResult> {
-    const { selector, value } = args;
+    const { selector, value, tabId } = args;
 
     console.log(`Starting fill operation with options:`, args);
 
@@ -118,15 +108,10 @@ class FillTool extends BaseBrowserToolExecutor {
     }
 
     try {
-      // Get current tab
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tabs[0]) {
+      // Resolve target tab (explicit tabId wins; otherwise the active tab)
+      const tab = await this.resolveTargetTab(tabId);
+      if (!tab?.id) {
         return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
-      }
-
-      const tab = tabs[0];
-      if (!tab.id) {
-        return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND + ': Active tab has no ID');
       }
 
       await this.injectContentScript(tab.id, ['inject-scripts/fill-helper.js']);
@@ -142,23 +127,15 @@ class FillTool extends BaseBrowserToolExecutor {
         return createErrorResponse(result.error);
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: result.message || 'Fill operation successful',
-              elementInfo: result.elementInfo,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: result.message || 'Fill operation successful',
+        elementInfo: result.elementInfo,
+      });
     } catch (error) {
       console.error('Error in fill operation:', error);
       return createErrorResponse(
-        `Error filling element: ${error instanceof Error ? error.message : String(error)}`,
+        `Error filling element: ${toErrorMessage(error)}`,
       );
     }
   }

@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Services\TimerTasks\OctaneTimerTaskInterface;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,8 +14,12 @@ use Illuminate\Support\Facades\Log;
  */
 class OctaneTaskStatusService
 {
-    private const TASKS_DIR = __DIR__ . '/TimerTasks';
-    private const TASKS_NAMESPACE = 'App\\Services\\TimerTasks\\';
+    private OctaneTimerTaskCatalog $catalog;
+
+    public function __construct(?OctaneTimerTaskCatalog $catalog = null)
+    {
+        $this->catalog = $catalog ?? app(OctaneTimerTaskCatalog::class);
+    }
 
     /**
      * Get comprehensive status of all timer tasks
@@ -76,7 +78,10 @@ class OctaneTaskStatusService
      */
     private function countRunning(array $runtimeStatus): int
     {
-        return count($runtimeStatus);
+        return count(array_filter(
+            $runtimeStatus,
+            static fn (array $runtime): bool => ($runtime['enabled'] ?? true) === true
+        ));
     }
 
     /**
@@ -97,56 +102,7 @@ class OctaneTaskStatusService
      */
     private function discoverTaskClasses(): array
     {
-        $tasks = [];
-
-        if (!is_dir(self::TASKS_DIR)) {
-            return $tasks;
-        }
-
-        $files = File::glob(self::TASKS_DIR . '/*.php');
-
-        foreach ($files as $file) {
-            $className = basename($file, '.php');
-
-            if (in_array($className, ['OctaneTimerTaskInterface', 'OctaneTimerTaskAbstract'])) {
-                continue;
-            }
-
-            $fullClassName = self::TASKS_NAMESPACE . $className;
-
-            if (!class_exists($fullClassName)) {
-                continue;
-            }
-
-            $implements = class_implements($fullClassName);
-            if (!isset($implements[OctaneTimerTaskInterface::class])) {
-                continue;
-            }
-
-            try {
-                $instance = new $fullClassName();
-                $tasks[] = [
-                    'class' => $className,
-                    'full_class' => $fullClassName,
-                    'name' => $instance->getName(),
-                    'interval' => $instance->getInterval(),
-                    'enabled' => $instance->isEnabled(),
-                    'file' => basename($file),
-                ];
-            } catch (\Throwable $e) {
-                $tasks[] = [
-                    'class' => $className,
-                    'full_class' => $fullClassName,
-                    'name' => null,
-                    'interval' => null,
-                    'enabled' => false,
-                    'error' => $e->getMessage(),
-                    'file' => basename($file),
-                ];
-            }
-        }
-
-        return $tasks;
+        return $this->catalog->descriptions();
     }
 
     /**
@@ -173,7 +129,7 @@ class OctaneTaskStatusService
 
             $merged[] = array_merge($task, [
                 'registered' => $isRegistered,
-                'running' => $isRegistered && $runtime !== null,
+                'running' => ($task['enabled'] ?? false) && $isRegistered && $runtime !== null,
                 'status' => $this->determineTaskStatus($task, $isRegistered, $runtime),
                 'runtime' => $runtime,
             ]);
@@ -215,29 +171,35 @@ class OctaneTaskStatusService
     }
 
     /**
-     * Get heartbeat status
+     * Get heartbeat status.
+     *
+     * Sourced from OctaneTimerService's cross-process heartbeat file. The
+     * `last_alive` timestamp is written by the active runtime's sole driver and
+     * remains readable by console inspection processes outside the Swoole
+     * worker tree.
      */
     private function getHeartbeatStatus(): array
     {
-        $tmpDir = \App\Providers\PathMapper::getLaravelTmpDir();
-        $heartbeatFile = $tmpDir . '/octane_timer_heartbeat.txt';
+        $status = OctaneTimerService::getStatus();
+        $lastAlive = $status['last_alive'] ?? null;
 
-        if (!file_exists($heartbeatFile)) {
+        if ($lastAlive === null) {
             return [
                 'exists' => false,
-                'message' => 'Heartbeat file not found',
+                'message' => 'No timer heartbeat recorded yet (timer never ticked)',
             ];
         }
 
-        $lastModified = filemtime($heartbeatFile);
-        $secondsAgo = time() - $lastModified;
+        $secondsAgo = time() - $lastAlive;
+        // isRunning() already applies the same staleness window this reflects.
+        $isFresh = (bool) ($status['running'] ?? false);
 
         return [
             'exists' => true,
-            'last_modified' => date('Y-m-d H:i:s', $lastModified),
+            'last_modified' => date('Y-m-d H:i:s', $lastAlive),
             'seconds_ago' => $secondsAgo,
-            'is_fresh' => $secondsAgo < 3,
-            'status' => $secondsAgo < 3 ? 'alive' : 'stale',
+            'is_fresh' => $isFresh,
+            'status' => $isFresh ? 'alive' : 'stale',
         ];
     }
 
@@ -265,9 +227,9 @@ class OctaneTaskStatusService
 
         $heartbeat = $status['heartbeat'];
         if (!$heartbeat['exists']) {
-            $issues[] = 'Heartbeat file missing';
+            $issues[] = 'No timer heartbeat recorded yet (timer never ticked)';
         } elseif ($heartbeat['status'] === 'stale') {
-            $issues[] = "Heartbeat is stale ({$heartbeat['seconds_ago']}s ago)";
+            $issues[] = "Heartbeat is stale ({$heartbeat['seconds_ago']}s ago) -- the ticking process may have crashed";
         }
 
         return [

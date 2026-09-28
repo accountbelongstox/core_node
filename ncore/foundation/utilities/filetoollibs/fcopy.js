@@ -1,18 +1,6 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
-const { isDebug } = require('#@global_vars');
+const { isDebug } = require('../../common/logger.js');
 const fs_promises = require('fs').promises;
 let log;
 try {
@@ -62,11 +50,7 @@ async function copyFileToDir(sourcePath, targetDir, replace = false, removeSourc
     if (fs.existsSync(targetPath)) {
         const targetStats = fs.statSync(targetPath);
         if (targetStats.size === 0 || replace) {
-            try {
-                deleteFile(sourcePath);
-            } catch (error) {
-                log.error(`Copy-Replace to copy file: ${error.message}`);
-            }
+            await deleteFile(targetPath);
         } else {
             log.debug(`Target file exists and replace is false: ${targetPath}`);
         }
@@ -82,12 +66,8 @@ async function copyFileToDir(sourcePath, targetDir, replace = false, removeSourc
             log.error(`Failed to copy file: ${error.message}`);
         }
     }
-    try {
-        if (removeSource) {
-            deleteFile(sourcePath);
-        }
-    } catch (e) {
-        log.error(`Copy-removeSource: ${e.message}`);
+    if (removeSource && result) {
+        await deleteFile(sourcePath);
     }
     return result
 }

@@ -1,0 +1,17 @@
+{
+  "task_id": "codemart-5",
+  "role": "codemart",
+  "verdict": "approved",
+  "findings": {
+    "FU-026": {
+      "status": "fixed",
+      "reason": "CodeMart part only. cmWorkspaceFormat.ts is the single formatter module: cmFormatMoney takes fractionDigits (CM_WHOLE_MONEY_DIGITS for public figures), with new cmFormatMoneyRange and cmFormatPercent. cmPublicFormat.ts is deleted with no importers left. The admin money/number formatting and both commission-percent copies delegate to it. The dead CmApi.getPublicHome, its normalizers, its TTL and CmPublicHomeLoadResult are removed; useCmPublicHome (CmPublicApi.getHome) is still the only loader and is still exported. The pycore-manager part of FU-026 stays with pycore-manager."
+    }
+  },
+  "issues": [
+    "(resolved after approval) api/index.ts is back to CRLF, and its diff is only the removed CmPublicHomeLoadResult line.",
+    "(resolved after approval) cmFormatMoney without a currency again shows up to 2 decimals (min = fractionDigits, max = max(fractionDigits, 2)); the workspace default is unchanged."
+  ],
+  "checks": "git diff read; grep for formatCmAmount/formatCmAmountRange/formatCmDate/cmPublicFormat/getPublicHome/CmPublicHomeLoadResult across UI apps, core, shared and shell (none left); commission semantics unchanged (rate to percent); scope apps/codemart only.",
+  "checked_at": "2026-09-27T04:02:17+10:00"
+}

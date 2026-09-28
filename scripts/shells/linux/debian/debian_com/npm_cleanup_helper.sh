@@ -1,13 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # NPM Cleanup Helper
 # Universal cleanup script for npm package installation issues
@@ -15,11 +6,10 @@
 
 SCRIPT_INDEX="[NPM_CLEANUP]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALLATION_LIBRARY_PATH="$(dirname "$(dirname "$SCRIPT_CURRENT_DIR")")/common/installation_library.sh"
 
 # Source required libraries
-if [ -f "$SCRIPT_CURRENT_DIR/installation_library.sh" ]; then
-    source "$SCRIPT_CURRENT_DIR/installation_library.sh"
-fi
+source "$INSTALLATION_LIBRARY_PATH"
 
 # Check if package_id is provided
 if [ -z "$1" ]; then
@@ -102,6 +92,7 @@ remove_package_directory() {
     fi
 
     log_install "Removing package directory: $package_dir"
+    log_install "[SAFE_PATH] package_dir=$package_dir"
 
     # Try normal removal first
     if $USE_SUDO rm -rf "$package_dir" 2>/dev/null; then
@@ -110,9 +101,19 @@ remove_package_directory() {
     else
         log_warning "Normal removal failed, trying with permission fix..."
 
-        # Fix permissions and retry
-        $USE_SUDO chmod -R 777 "$package_dir" 2>/dev/null || true
-        $USE_SUDO chown -R root:root "$package_dir" 2>/dev/null || true
+        # Refuse chmod/chown on system or dangerous paths
+        _safe_pkg=false
+        if [ -n "$package_dir" ] && [[ "$package_dir" == /* ]]; then
+            case "$package_dir" in
+                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
+                *) _safe_pkg=true ;;
+            esac
+        fi
+        if [ "$_safe_pkg" = true ]; then
+            repair_owned_tree_777 "$package_dir" || true
+        else
+            log_warning "Refusing chmod/chown on system or invalid path: $package_dir"
+        fi
 
         if $USE_SUDO rm -rf "$package_dir" 2>/dev/null; then
             log_success "Successfully removed package directory after permission fix"

@@ -1,0 +1,194 @@
+/**
+ * Learning Tasks tab - the assist overview (worker queue categories + roster),
+ * the real in-flight learning/processing work. The laravel-manager Learning
+ * Tasks panel is presentational/mock, so this surfaces the assist overview
+ * instead (categories with pending/processing/leased counts + drill-down rows).
+ * Loaded directly from Laravel.
+ *
+ * Params mirror LaravelAPI.getQueueOverviewItems (category/status/start/limit).
+ */
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ChevronLeft } from 'lucide-react';
+import { laravelApi } from '@/apps/pycore-manager/api';
+import type { VocabAssistCategory } from '@/apps/pycore-manager/api';
+import { GLOBAL_TASK_LIMITS } from '@/apps/pycore-manager/api';
+import { pcLaravelErrorMessage } from '@/apps/pycore-manager/utils/pcErrorCodes';
+import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
+
+export default function VocabLearningTasksPanel() {
+  const { t } = useTranslation('pc');
+  const [cats, setCats] = useState<VocabAssistCategory[]>([]);
+  const [workers, setWorkers] = useState<Record<string, unknown>[]>([]);
+  const [generatedAt, setGeneratedAt] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeCat, setActiveCat] = useState<VocabAssistCategory | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await laravelApi.getQueueOverview();
+      const p = vp<any>(r);
+      setCats(p?.categories || []);
+      setWorkers((p?.workers || []) as Record<string, unknown>[]);
+      setGeneratedAt(p?.generated_at || '');
+      setOffline(false);
+    } catch (e) {
+      const msg = pcLaravelErrorMessage(e, t(VL.error));
+      if (/offline|unavailable|Failed to fetch|timed out/i.test(msg)) setOffline(true);
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [t]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (loading && cats.length === 0) return <VocabLoading />;
+  if (offline && cats.length === 0) return <VocabBanner kind="offline" message={t(VL.offline)} />;
+
+  return (
+    <div className="space-y-4">
+      {error && <VocabBanner kind="warn" message={error} />}
+      {generatedAt && <p className="text-xs text-slate-500">{t('vocabularyPage.learning.updatedAt', { time: generatedAt })}</p>}
+
+      {activeCat ? (
+        <CategoryItems cat={activeCat} onBack={() => setActiveCat(null)} />
+      ) : (
+        <>
+          {/* Categories */}
+          <div className="rounded-lg border border-slate-700 overflow-hidden">
+            <div className="px-3 py-2 bg-slate-800/60 text-sm font-medium text-slate-200">{t('vocabularyPage.learning.categories')}</div>
+            {cats.length === 0 ? (
+              <p className="px-3 py-6 text-center text-slate-500">{t('vocabularyPage.learning.empty')}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-800/40 text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.category')}</th>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.handler')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.pending')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.processing')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.leased')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.total')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cats.map((c, i) => (
+                      <tr key={c.key || i} className="border-t border-slate-800 hover:bg-slate-800/30 cursor-pointer"
+                        onClick={() => setActiveCat(c)}>
+                        <td className="px-3 py-2 text-slate-100">{c.label || c.key}</td>
+                        <td className="px-3 py-2 text-slate-400" title={t('vocabularyPage.learning.eligible', { handlers: c.claimants.join(', ') })}>
+                          {c.primary_handler || '-'}
+                        </td>
+                        <td className="px-3 py-2 text-right text-amber-300">{humanInt(c.pending)}</td>
+                        <td className="px-3 py-2 text-right text-sky-300">{humanInt(c.processing)}</td>
+                        <td className="px-3 py-2 text-right text-slate-300">{humanInt(c.leased)}</td>
+                        <td className="px-3 py-2 text-right text-slate-300">{humanInt(c.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Workers */}
+          {workers.length > 0 && (
+            <div className="rounded-lg border border-slate-700 overflow-hidden">
+              <div className="px-3 py-2 bg-slate-800/60 text-sm font-medium text-slate-200">{t('vocabularyPage.learning.workers')}</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-800/40 text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.worker')}</th>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.kind')}</th>
+                      <th className="px-3 py-2 text-center">{t('vocabularyPage.learning.online')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.claimed')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workers.map((w, i) => (
+                      <tr key={String(w.id ?? i)} className="border-t border-slate-800">
+                        <td className="px-3 py-2 text-slate-100">{String(w.name ?? w.id ?? '-')}</td>
+                        <td className="px-3 py-2 text-slate-400">{String(w.kind ?? '-')}</td>
+                        <td className="px-3 py-2 text-center">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${w.online ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'}`}>
+                            {t(w.online ? 'vocabularyPage.learning.onlineState' : 'vocabularyPage.learning.offlineState')}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right text-slate-300">{humanInt(w.claimed as number)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CategoryItems({ cat, onBack }: { cat: VocabAssistCategory; onBack: () => void }) {
+  const { t } = useTranslation('pc');
+  const [items, setItems] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [start, setStart] = useState(0);
+  const limit = GLOBAL_TASK_LIMITS.list;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    laravelApi.getQueueOverviewItems({ category: cat.key || '', start, limit })
+      .then((r) => { if (!cancelled) setItems(toArray(vp<any>(r))); })
+      .catch(() => { if (!cancelled) setItems([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [cat.key, start]);
+
+  return (
+    <div className="space-y-3">
+      <button onClick={onBack}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm text-slate-300 hover:bg-slate-700/50">
+        <ChevronLeft className="w-4 h-4" /> {t('vocabularyPage.learning.back')}
+      </button>
+      <h3 className="text-base font-semibold text-slate-100">{t('vocabularyPage.learning.items', { category: cat.label || cat.key })}</h3>
+      <div className="overflow-x-auto rounded-lg border border-slate-700">
+        {loading ? <VocabLoading /> : items.length === 0 ? (
+          <p className="py-6 text-center text-slate-500">{t(VL.empty)}</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="bg-slate-800/60 text-slate-400">
+              <tr>
+                {Object.keys(items[0]).slice(0, 5).map((k) => (
+                  <th key={k} className="px-3 py-2 text-left">{k}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it, i) => (
+                <tr key={i} className="border-t border-slate-800">
+                  {Object.keys(items[0]).slice(0, 5).map((k) => (
+                    <td key={k} className="px-3 py-2 text-slate-200"><div className="truncate max-w-xs">{String(it[k] ?? '-')}</div></td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+      <div className="flex items-center justify-end gap-2 text-sm">
+        <button onClick={() => setStart(Math.max(0, start - limit))} disabled={start === 0}
+          className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{t(VL.prev)}</button>
+        <button onClick={() => setStart(start + limit)} disabled={items.length < limit}
+          className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{t(VL.next)}</button>
+      </div>
+    </div>
+  );
+}

@@ -1,20 +1,9 @@
-﻿<?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
+<?php
 
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController as WordQController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordLookupController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1EcdictLookupCtl;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
@@ -22,6 +11,11 @@ $apiVersionPrefix = 'app_qy_v1';
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::get('/lookup', [AppQyV1WordLookupController::class, 'lookup']);
     Route::post('/lookup/batch', [AppQyV1WordLookupController::class, 'batchLookup']);
+
+    // ECDICT offline dictionary (same stardict.db pycore serves; PathMapper-resolved).
+    Route::get('/ecdict/status', [AppQyV1EcdictLookupCtl::class, 'status']);
+    Route::match(['get', 'post'], '/ecdict/lookup', [AppQyV1EcdictLookupCtl::class, 'lookup']);
+    Route::match(['get', 'post'], '/ecdict/match', [AppQyV1EcdictLookupCtl::class, 'match']);
     
     Route::middleware(['client.token'])->group(function () {
         Route::any('/word_exists', [WordQController::class, 'wordExists']);

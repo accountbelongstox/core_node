@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Unified App Service Manager
 # Manages services created by unified_manager (app-*, webapp-*, nuxt-*, etc.)
@@ -19,6 +8,9 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
 ROOT_DIR="$PARENT_DIR_LEVEL_3"
+source "$PARENT_DIR_LEVEL_1/common/arrow_menu.sh"
+# CORE_NODE_DATA_DIR is defined once in common/runtime_environment.sh
+[ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$PARENT_DIR_LEVEL_1/common/runtime_environment.sh"
 
 # Color codes
 RED='\033[0;31m'
@@ -310,7 +302,7 @@ remove_service() {
     fi
 
     # Remove launcher script if exists
-    local launcher_script="/var/_core_node/unified_manager/temp_scripts/${service}.sh"
+    local launcher_script="$CORE_NODE_DATA_DIR/unified_manager/temp_scripts/${service}.sh"
     if [ -f "$launcher_script" ]; then
         echo "Removing launcher script..."
         sudo rm -f "$launcher_script"
@@ -327,30 +319,29 @@ remove_service() {
 # Manage specific service
 manage_service() {
     local service="$1"
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "Start Service"
+        "Stop Service"
+        "Restart Service"
+        "Show Status"
+        "Show Logs"
+        "Show Configuration"
+        "Toggle Auto-start"
+        "Reinstall (via Unified Manager)"
+        "Remove Service"
+        "Back to Service List"
+    )
 
     while true; do
-        clear
-        echo "================================================"
-        echo "$service Management"
-        echo "================================================"
-        echo ""
-        echo -n "Status: "
-        local status=$(get_service_status "$service")
-        print_status "$status"
-        echo ""
-        echo "1. Start Service"
-        echo "2. Stop Service"
-        echo "3. Restart Service"
-        echo "4. Show Status"
-        echo "5. Show Logs"
-        echo "6. Show Configuration"
-        echo "7. Toggle Auto-start"
-        echo "8. Reinstall (via Unified Manager)"
-        echo "9. Remove Service"
-        echo ""
-        echo "0. Back to Service List"
-        echo ""
-        read -p "Choose an option: " choice
+        arrow_menu_select "$service Management" menu_items "$selected_index" 9
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 9 ]; then
+            choice=0
+        else
+            choice=$((selected_index + 1))
+        fi
 
         case "$choice" in
             1)
@@ -397,112 +388,28 @@ manage_service() {
 
 # Main menu
 show_main_menu() {
+    local services=()
+    local menu_items=()
+    local service=""
+    local status=""
+    local selected_index=0
+
     while true; do
-        clear
-        echo "================================================"
-        echo "Unified App Services Manager"
-        echo "================================================"
-        echo ""
-
-        # Detect all unified services
-        local services=($(detect_unified_services))
-
-        if [ ${#services[@]} -eq 0 ]; then
-            echo -e "${YELLOW}No services created by Unified Manager found${NC}"
-            echo ""
-            echo "Services are created with prefixes like:"
-            echo "  - app-*"
-            echo "  - webapp-*"
-            echo "  - nuxt-*"
-            echo "  - laravel-*"
-            echo "  - flutter-*"
-            echo ""
-            echo "To create a service, use: Unified App Manager"
-            echo ""
-            echo "0. Back to Service Manager"
-            echo ""
-            read -p "Choose an option: " choice
-
-            if [ "$choice" = "0" ]; then
-                return 0
-            fi
-            continue
-        fi
-
-        echo -e "${CYAN}Found ${#services[@]} service(s):${NC}"
-        echo ""
-
-        local index=1
+        services=($(detect_unified_services))
+        menu_items=()
         for service in "${services[@]}"; do
-            local status=$(get_service_status "$service")
-
-            printf "${CYAN}%d.${NC} %-25s " "$index" "$service"
-            print_status "$status"
-
-            # Show quick action hints
-            if [[ "$status" == "RUNNING" ]]; then
-                echo -e "  ${YELLOW}${index}x${NC} Stop  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
-            else
-                echo -e "  ${YELLOW}${index}s${NC} Start  ${YELLOW}${index}r${NC} Restart  ${YELLOW}${index}l${NC} Logs  ${YELLOW}${index}m${NC} Manage"
-            fi
-
-            ((index++))
+            status="$(get_service_status "$service")"
+            menu_items+=("$service [$status]")
         done
+        menu_items+=("Back to Service Manager")
 
-        echo ""
-        echo "================================================"
-        echo -e "Enter: ${YELLOW}<number><action>${NC} (e.g., ${YELLOW}1s${NC}=Start, ${YELLOW}2x${NC}=Stop, ${YELLOW}3m${NC}=Manage) | ${YELLOW}0${NC}=Back"
-        echo "================================================"
-        echo ""
-        read -p "Command: " choice
-
-        # Parse command format: <number><action>
-        if [[ "$choice" =~ ^([0-9]+)([sxrlm])$ ]]; then
-            local service_num="${BASH_REMATCH[1]}"
-            local action="${BASH_REMATCH[2]}"
-            local service_index=$((service_num - 1))
-
-            if [ $service_index -ge 0 ] && [ $service_index -lt ${#services[@]} ]; then
-                local service="${services[$service_index]}"
-
-                case "$action" in
-                    s)
-                        start_service "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    x)
-                        stop_service "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    r)
-                        restart_service "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    l)
-                        show_service_logs "$service"
-                        read -p "Press Enter to continue..."
-                        ;;
-                    m)
-                        manage_service "$service"
-                        ;;
-                esac
-            else
-                echo -e "${RED}Invalid service number${NC}"
-                read -p "Press Enter to continue..."
-            fi
-        else
-            # Handle special commands
-            case "$choice" in
-                0)
-                    echo "Returning to Service Manager..."
-                    return 0
-                    ;;
-                *)
-                    echo -e "${RED}Invalid command. Use format: <number><action> (e.g., 1s, 2x, 3m)${NC}"
-                    read -p "Press Enter to continue..."
-                    ;;
-            esac
+        arrow_menu_select "Unified App Services Manager" menu_items "$selected_index" "${#services[@]}"
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq "${#services[@]}" ]; then
+            echo "Returning to Service Manager..."
+            return 0
         fi
+        manage_service "${services[$selected_index]}"
     done
 }
 

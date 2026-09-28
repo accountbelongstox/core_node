@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Setup paths
 sys.path.insert(0, str(Path(__file__).parent))
-from pycore.pyutils.scrcpy_init import get_initializer
+from pycore.pyutils.device.scrcpy_init import get_initializer
 
 # Get ADB path
 scrcpy_init = get_initializer()

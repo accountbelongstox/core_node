@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Traits\ApiResponse;
@@ -9,7 +11,7 @@ use App\Helpers\AuthHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 
-class AppQyV1WordGroupLanguageController
+class AppQyV1WordGroupLanguageController extends Controller
 {
     use ApiResponse;
 
@@ -17,7 +19,7 @@ class AppQyV1WordGroupLanguageController
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $validated = $request->validate([
@@ -27,13 +29,13 @@ class AppQyV1WordGroupLanguageController
         $language = $validated['language'];
 
         if (!AppQyV1LanguageStudyGroupService::isValidLanguage($language)) {
-            return $this->error("Invalid language code: {$language}", 400);
+            return $this->error(__('app_qy_v1.messages.invalid_language_code', ['language' => $language]), 400);
         }
 
         $group = AppQyV1LanguageStudyGroupService::createLanguageDefaultGroup($user->id, $language);
 
         if (!$group) {
-            return $this->error('Failed to create language group', 500);
+            return $this->error(__('app_qy_v1.messages.failed_to_create_language_group'), 500);
         }
 
         return $this->success([
@@ -50,18 +52,18 @@ class AppQyV1WordGroupLanguageController
             'thumbnail_url' => $group->thumbnail_url,
             'cover_category' => $group->cover_category,
             'created_at' => $group->created_at,
-        ], 'Language study group created successfully');
+        ], __('app_qy_v1.messages.language_study_group_created_successfully'));
     }
 
     public function getByLanguage(Request $request, string $language): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         if (!AppQyV1LanguageStudyGroupService::isValidLanguage($language)) {
-            return $this->error("Invalid language code: {$language}", 400);
+            return $this->error(__('app_qy_v1.messages.invalid_language_code', ['language' => $language]), 400);
         }
 
         $groups = AppQyV1LanguageStudyGroupService::getByLanguage($user->id, $language);
@@ -88,14 +90,14 @@ class AppQyV1WordGroupLanguageController
             'language' => $language,
             'study_groups' => $formattedGroups,
             'total' => count($formattedGroups),
-        ], 'Study groups retrieved successfully');
+        ], __('app_qy_v1.messages.study_groups_retrieved_successfully'));
     }
 
     public function ensureLanguageGroups(Request $request): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $validated = $request->validate([
@@ -110,6 +112,6 @@ class AppQyV1WordGroupLanguageController
         return $this->success([
             'created_count' => count($createdGroups),
             'languages' => $languages,
-        ], 'Language study groups ensured');
+        ], __('app_qy_v1.messages.language_study_groups_ensured'));
     }
 }

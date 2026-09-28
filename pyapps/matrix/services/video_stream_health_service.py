@@ -24,9 +24,9 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint
-from pycore.pyutils.device_manager import DeviceManager
-from pycore.pyutils.device import ScrcpyDevice
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.device.device_manager import DeviceManager
+from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
 from pyapps.matrix.matrix_config import Config
 
 
@@ -94,7 +94,7 @@ class VideoStreamHealthService:
 
     def __init__(self):
         # ✅ 使用全局导出的实例（模块级别单例）
-        from pycore.pyutils.device_manager import device_manager
+        from pycore.pyutils.device.device_manager import device_manager
         self.device_manager = device_manager
         self.device_health: Dict[str, DeviceHealthStatus] = {}
 
@@ -277,7 +277,7 @@ class VideoStreamHealthService:
 
     def _is_device_in_adb(self, serial: str) -> bool:
         """Check if device is still in ADB devices list"""
-        from pycore.pyutils.device import ADBManager
+        from pycore.pyutils.device.adb_manager import ADBManager
 
         adb_path = Config.get_adb_path()
         devices = ADBManager.list_devices(adb_path)

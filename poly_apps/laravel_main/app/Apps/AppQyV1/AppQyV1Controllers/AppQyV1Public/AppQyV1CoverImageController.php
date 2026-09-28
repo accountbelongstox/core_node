@@ -4,11 +4,11 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1CoverImageService;
 use Illuminate\Support\Facades\Log;
 
-class AppQyV1CoverImageController extends BaseController
+class AppQyV1CoverImageController extends Controller
 {
     /**
      * Serve cover image file

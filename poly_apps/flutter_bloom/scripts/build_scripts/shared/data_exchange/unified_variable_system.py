@@ -5,10 +5,20 @@ Combines all variable exchange functionality from gvar and step_data_exchange
 """
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass
+
+# Make pycore importable so the cache path resolves via the centralized
+# system_paths module (matches FlutterGlobalVar.ps1 D:\programing\Users\<user>\.core_node).
+_REPO_ROOT = Path(__file__).resolve()
+while _REPO_ROOT != _REPO_ROOT.parent and not (_REPO_ROOT / 'pycore').is_dir():
+    _REPO_ROOT = _REPO_ROOT.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 
 @dataclass
@@ -105,7 +115,7 @@ class UnifiedVariableSystem:
         self.flutter_bloom_root = self.project_root
 
         # PowerShell-compatible paths - match FlutterGlobalVar.ps1 configuration
-        core_node_base = Path.home() / ".core_node"
+        core_node_base = get_system_cache_dir()
         flutter_build_base = core_node_base / ".flutter_build"
 
         # File-based variable storage (PowerShell compatible)

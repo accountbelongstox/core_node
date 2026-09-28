@@ -1,0 +1,9 @@
+REGEDIT4
+[HKEY_CURRENT_USER\Environment]
+"PHP_PEAR_SYSCONF_DIR"="D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells"
+"PHP_PEAR_INSTALL_DIR"="D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells\\pear"
+"PHP_PEAR_DOC_DIR"="D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells\\docs"
+"PHP_PEAR_BIN_DIR"="D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells"
+"PHP_PEAR_DATA_DIR"="D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells\\data"
+"PHP_PEAR_PHP_BIN"="D:\\.dev_win10\\PHP\\php8.5\\php.exe"
+"PHP_PEAR_TEST_DIR"="D:\\programing\\core_node\\scripts\\shells\\win\\menu_itemshells\\tests"

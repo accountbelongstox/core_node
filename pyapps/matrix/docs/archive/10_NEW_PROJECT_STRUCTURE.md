@@ -20,7 +20,7 @@ D:\programing\core_node\
 │   │   ├── color_print.py
 │   │   └── encyclopedia.py
 │   │
-│   ├── pygvar/                             # 全局变量（已有）
+│   ├── pygvar.py                           # 全局变量（已有）
 │   │   ├── __init__.py
 │   │   └── global_var_manager.py
 │   │
@@ -232,7 +232,7 @@ D:\programing\core_node\
 ┌──────────────────────────────────────────────────────┐
 │  pycore/                                             │
 │  ├── pyfoundations/     (基础工具)                   │
-│  ├── pygvar/            (全局变量)                   │
+│  ├── pygvar.py          (全局变量)                   │
 │  ├── pyadb/             (ADB 通信) ✨                │
 │  ├── pystream/          (视频流) ✨                  │
 │  ├── pydevice/          (设备抽象) ✨                │

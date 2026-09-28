@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from pycore.pyutils.scrcpy_init import get_initializer
-from pycore import ColorPrint
+from pycore.pyutils.device.scrcpy_init import get_initializer
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 scrcpy_init = get_initializer()
 ADB_PATH = scrcpy_init.get_adb_path()

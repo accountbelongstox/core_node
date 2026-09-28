@@ -1,6 +1,6 @@
 # Images Directory
 
-本目录用于存放设计图片。
+This directory holds design images.
 
 ## Example Image Mechanism
 
@@ -8,31 +8,31 @@
 - **Purpose**: Auto-generated when directory is empty to remind developers to add actual designs
 - **Cleanup**: Auto-removed when actual images are added
 
-## 建议放置的图片
+## Suggested Images
 
-根据设计需求，可放置以下类型的图片：
+Depending on design needs, you may place:
 
-- `wireframe.png`: 线框图（低保真）
-- `wireframe_mobile.png`: 移动端线框图
-- `mockup.png`: 高保真效果图
-- `mockup_dark.png`: 深色模式效果图
-- `components.png`: 组件标注图
-- `interaction_flow.png`: 交互流程图
+- `wireframe.png`: Wireframe (low fidelity)
+- `wireframe_mobile.png`: Mobile wireframe
+- `mockup.png`: High-fidelity mockup
+- `mockup_dark.png`: Dark-mode mockup
+- `components.png`: Component annotation diagram
+- `interaction_flow.png`: Interaction flow diagram
 
-## 命名规范
+## Naming Conventions
 
-- 使用 `snake_case` 命名（英文目录）或直接中文命名（中文目录）
-- 描述性名称
-- 版本号用 `_v1`, `_v2` 后缀
-- 设备/模式用下划线分隔（如 `_mobile`, `_dark`）
+- Use `snake_case` in English directories, or Chinese names in Chinese directories
+- Descriptive names
+- Version suffixes: `_v1`, `_v2`
+- Device/mode suffixes with underscores (e.g. `_mobile`, `_dark`)
 
-## 支持的格式
+## Supported Formats
 
-- PNG（推荐，支持透明背景）
-- JPG/JPEG（照片级效果图）
-- SVG（矢量图，可缩放）
-- GIF（动图）
+- PNG (recommended; supports transparency)
+- JPG/JPEG (photo-quality renders)
+- SVG (vector; scalable)
+- GIF (animated)
 
-## 参考文档
+## References
 
-完整规范请参考: `doc/DESIGN_IMAGES_PLACEMENT.md`
+See `doc/DESIGN_IMAGES_PLACEMENT.md` for the full image placement guide.

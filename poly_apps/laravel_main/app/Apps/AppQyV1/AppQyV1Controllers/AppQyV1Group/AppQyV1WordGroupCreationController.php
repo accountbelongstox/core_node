@@ -1,18 +1,7 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
@@ -23,7 +12,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryPublicController as PDAPublic;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController as DGroupAPublic;
 use App\Traits\ApiResponse;
-class AppQyV1WordGroupCreationController
+class AppQyV1WordGroupCreationController extends Controller
 {
     use ApiResponse;
 
@@ -47,6 +36,7 @@ class AppQyV1WordGroupCreationController
 
     public function countFrequency($group,$gcontent,$gwords)
     {
+        $join_sep = "\n";
         $new_gcontent = StrTool::combineIfNotIncluded($group->gcontent, $gcontent,$join_sep);
         $result = implode("\n", $gwords);
         $frequency_content = $new_gcontent . "\n" . $result;
@@ -81,7 +71,7 @@ class AppQyV1WordGroupCreationController
             if ($validator->fails()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Validation failed',
+                    'message' => __('app_qy_v1.messages.validation_failed_generic'),
                     'errors' => $validator->errors(),
                     'supported_params' => $supported_params,
                 ], 422);
@@ -118,7 +108,7 @@ class AppQyV1WordGroupCreationController
                 asort($words_frequency);
             }
             $existGroup->words_frequency = $words_frequency;
-            $existGroup->save();
+            $existGroup->saveRecord();
 
             $result = PDAPublic::addPersonDictionaries($mergeWords);
             $did = $result['id'];
@@ -146,4 +136,3 @@ class AppQyV1WordGroupCreationController
     }
 
 }
-

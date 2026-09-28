@@ -81,7 +81,7 @@ while IFS= read -r -d '' file; do
 
     # Check if file exists and is readable
     if [[ ! -f "$file" ]] || [[ ! -r "$file" ]]; then
-        echo -e "${RED}✗ Skipped: $filename (not readable)${NC}"
+        echo -e "${RED}[ERROR] Skipped: $filename (not readable)${NC}"
         ((skipped_files++))
         continue
     fi
@@ -94,7 +94,7 @@ while IFS= read -r -d '' file; do
 
     # If file has less than or equal to KEEP_LINES, skip it
     if [[ $line_count -le $KEEP_LINES ]]; then
-        echo -e "  ${YELLOW}→ Skipped (already ≤ ${KEEP_LINES} lines)${NC}"
+        echo -e "  ${YELLOW}-> Skipped (already less than or equal to ${KEEP_LINES} lines)${NC}"
         ((skipped_files++))
         echo ""
         continue
@@ -127,21 +127,21 @@ while IFS= read -r -d '' file; do
                 # Get file sizes
                 old_size=$(du -h "$file" 2>/dev/null | cut -f1)
 
-                echo -e "  ${GREEN}✓ Trimmed: $line_count → $new_line_count lines (removed $removed_lines)${NC}"
+                echo -e "  ${GREEN}[OK] Trimmed: $line_count -> $new_line_count lines (removed $removed_lines)${NC}"
                 echo -e "  ${GREEN}  New size: $old_size${NC}"
                 ((processed_files++))
             else
-                echo -e "  ${RED}✗ Error: Failed to replace file${NC}"
+                echo -e "  ${RED}[ERROR] Error: Failed to replace file${NC}"
                 rm -f "$temp_file" 2>/dev/null
                 ((error_files++))
             fi
         else
-            echo -e "  ${RED}✗ Error: Temp file is empty or not created${NC}"
+            echo -e "  ${RED}[ERROR] Error: Temp file is empty or not created${NC}"
             rm -f "$temp_file" 2>/dev/null
             ((error_files++))
         fi
     else
-        echo -e "  ${RED}✗ Error: Failed to extract last ${KEEP_LINES} lines${NC}"
+        echo -e "  ${RED}[ERROR] Error: Failed to extract last ${KEEP_LINES} lines${NC}"
         rm -f "$temp_file" 2>/dev/null
         ((error_files++))
     fi

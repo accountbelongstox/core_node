@@ -1,11 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Utils\RunsModelTransactions;
 
-class CodeMartV1ReviewerApplicationModel extends Model
+class CodeMartV1ReviewerApplicationModel extends CodeMartV1Model
 {
-    protected $connection = 'codemartv1';
+    use RunsModelTransactions;
+
     protected $table = 'codemart_v1_reviewer_applications';
 
     protected $fillable = [
@@ -15,10 +16,31 @@ class CodeMartV1ReviewerApplicationModel extends Model
         'user_reviews',
         'similarity_score',
         'completed_at',
+        'revoked_at',
+        'revoked_by',
+        'revoke_reason',
     ];
 
     protected $casts = [
         'similarity_score' => 'decimal:2',
         'completed_at' => 'datetime',
+        'revoked_at' => 'datetime',
     ];
+
+    public static function recentForUser(int $userId, int $days): ?self
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('created_at', '>', now()->subDays($days))
+            ->first();
+    }
+
+    public static function findOwnedInProgress(int $applicationId, int $userId): ?self
+    {
+        return static::query()
+            ->whereKey($applicationId)
+            ->where('user_id', $userId)
+            ->where('status', 'in_progress')
+            ->first();
+    }
 }

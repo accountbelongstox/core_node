@@ -1,0 +1,137 @@
+/pycore-manager/vocabulary 从后端看，几乎所有的单词都有音
+  频 ，但是为什么音频编排是缺少了那么多音频，你现在运行在
+  pycore端，先扫描代码，然后实地扫描系统 ，得出pycore的实际
+  缓存，并查看代码是否有多处缓存的定义导致缓存获取层层转发没
+  有获取到，如果有先修正代码，之后，将pycore的情况写到fix
+  docs目录中，然后暂停，等待laralvled端的实际扫描并最后修
+  复，注意，如果是从laravel main缓存到pycore，不要一个音频一
+  个音频的传输，需要扩展API使用批量下载，搜索官方如何下载，
+  可以后端打包前端下载再解包，也可以使用其他支持的方式。同
+  时，音频都是pycore生成再上传laravel的为什么缺少这么多，同
+  时对于pycore的本地音频查询也要批量组织查询，而不是一个一个
+  的对比，加快速度，laravel-manager管理后台的数据 ···
+
+
+• 我会先扫描单词音频编排、缓存定义和 Laravel 交付链，再实地检
+  查 pycore 的缓存目录与数据。确认 pycore 侧问题后先修正，将
+  扫描结果和 Laravel 侧待查事项写入 docs_fix，然后暂停等待
+  Laravel 端扫描。
+
+• Ran Get-Content -LiteralPath 'D:
+  │ \programing\core_node\development-guides\PYTHON_PYCORE.
+  │ md'; rg -n 'cache|audio_present|batch|vocabulary|
+  │ … +4 lines
+  └ (no output)
+
+• Ran Get-Content pycore/pyutils/tts/word_audio_cache.py; rg
+  │ -n 'find_cached_many|find_cached|word_audio|
+  │ missing_audio' pycore/pyctl --glob '*.py'; Get-Content
+  │ … +4 lines
+  └ pycore/pyctl\tts\word_tts_auto.py:19:
+    laravel_word_audio_worker,
+    … +571 lines (ctrl + t to view transcript)
+    fNewAdminLibraries.tsx:2: * WfNewAdminLibraries —
+    super-admin "libraries" panel: the vocabulary library
+
+
+› Static ResourcesFiles
+  Storage Details
+
+  Words
+  238,905
+
+  Translated
+  233,777
+
+  No translation
+  5,128
+
+  With audio
+  135,158
+
+  No audio
+  103,747
+
+  Valid
+  238,891
+
+  Invalid
+  14···   编排数据···NIV-Bible_20260917_052030.364_4f381de0
+
+  NIV-Bible · 10 segments · Word New Only (virtual read)
+
+  Generating
+  Preparing resources
+
+  4170/29403 audio items
+
+  0/10 segments
+
+  cache 4,109 · from Laravel 42 · generated 19 · synced 15 ·
+  syncing 4 · missing 0
+
+  word: zechariah
+
+  generating audio locally
+
+  Edit
+  Cancel
+  Delete
+  Hide
+  Files (0)
+
+  Open folder
+  D:
+  \programing\Users\mpc\.core_node\data\audio_orchestration\
+  output\niv_bible_20260917_052030_364_4f381de0_orch_10dbeb7
+  0ad15
+
+  No generated files yet.
+
+  Generation log
+
+  3:21:37 PM · generation started for book
+  f8dceaf19864eab917c3cd70a4e3fd1421fa8eba
+
+  3:24:32 PM · manifest ready: 29403 unique resources across
+  10 segments···
+
+
+• Ran Get-Content pycore/pyctl/audio_orchestration/
+  │ orch_resources.py -TotalCount 260; Get-Content pycore/
+  │ pyfoundations/app_config_path.py -TotalCount 100; rg -n
+  │ … +2 lines
+  └ (no output)
+
+─────────────────────────────────────────────────────────────
+
+• 你提供的统计是后端 135,158 个单词有音频、103,747 个无音频，
+  并非几乎全部都有。编排的 4,170/29,403 是当前已处理进度，
+  missing 0 不能代表剩余资源都有音频。我会分别核对本地命中、
+  后端命中和未处理资源，避免把进度误当缺失数量。
+
+• Ran Get-ChildItem -LiteralPath 'D:
+  │ \programing\Users\mpc\.core_node\cache' -Directory |
+  │ Select-Object Name; Get-ChildItem -LiteralPath 'D:
+  │ … +11 lines
+  └
+    pycore/pyutils/tts/edge\parser.py:94:
+    … +128 lines (ctrl + t to view transcript)
+
+
+
+• Ran Get-ChildItem 'D:
+  │ \programing\Users\mpc\.core_node\data\audio_orchestrati
+  │ on\tasks' -File | Select-Object Name,Length;
+  │ … +6 lines
+  └ Name                   Length
+    ----                   ------
+    … +336 lines (ctrl + t to view transcript)
+
+
+
+• Ran @'
+  │ import json, os, collections
+  │ from pathlib import Path
+  │ … +25 lines
+  └ {"root": "D:\\programing\\Users\\mpc\\.core_node\\cach

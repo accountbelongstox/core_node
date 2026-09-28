@@ -2,33 +2,32 @@
 # -*- coding: utf-8 -*-
 """
 Split File Store
-Stores data as separate files instead of one large JSON
+================
+Stores data as separate files instead of one large JSON. Designed for
+coordination between MULTIPLE INDEPENDENT PROCESSES: each record is a
+separate file, preventing conflicts from large-file updates. Multi-process
+safe via FileLockManager.
 
-IMPORTANT: Multi-Process Architecture
-======================================
-This module is designed for coordination between MULTIPLE INDEPENDENT PROCESSES.
-Each record is stored as a separate file, preventing conflicts from large file updates.
+Split out of the former file_lock_manager module. Re-exported through the
+file_lock_manager.py facade so the public import path is unchanged.
+
+Structure:
+    base_dir/
+        .cache/
+            metadata.json          # version, last_update, stats, scan_info
+            files/
+                {md5_hash}.json    # individual file records
 """
 
 import json
-import hashlib
 import os
 import time
+import hashlib
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-# Import FileLockManager - handle relative vs absolute imports
-FileLockManager = None
-try:
-    from pycore.pyfoundations.file_lock_manager import FileLockManager
-except ImportError:
-    pass
-
-if FileLockManager is None:
-    from file_lock_manager import FileLockManager
-
-
-JsonData = Dict[str, Any]
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.file_lock import FileLockManager, JsonData
 
 
 class SplitFileStore:
@@ -52,7 +51,7 @@ class SplitFileStore:
 
     def __init__(
         self,
-        base_path: str | Path,
+        base_path: "str | Path",
         default_factory: Optional[Callable[[], JsonData]] = None,
         *,
         max_retries: int = None,
@@ -104,7 +103,7 @@ class SplitFileStore:
     def _log(self, message: str):
         """Print log message if verbose"""
         if self.verbose:
-            print(f"[SplitFileStore] {message}", flush=True)
+            ColorPrint.plain(f"[SplitFileStore] {message}", flush=True)
 
     @staticmethod
     def _path_to_hash(path: str) -> str:
@@ -135,6 +134,9 @@ class SplitFileStore:
 
     def _write_record(self, key: str, data: Dict):
         """Write a single record file"""
+        # TODO(atomic_write_json): Reuse the shared atomic_write_json(path,
+        # data, indent) helper (see FileLockManager._write_json_to_disk TODO)
+        # instead of duplicating the tmp+fsync+atomic-replace pattern. Deferred.
         record_file = self._get_record_file(key)
 
         # Atomic write with tmp file
@@ -325,7 +327,7 @@ class SplitFileStore:
         """Get metadata only"""
         return self.metadata_lock.read()
 
-    def list_keys(self) -> list[str]:
+    def list_keys(self) -> "list[str]":
         """
         List all record keys efficiently (without loading data)
 
@@ -347,70 +349,3 @@ class SplitFileStore:
                     keys.extend(data.keys())
 
         return keys
-
-
-def main():
-    """Test function"""
-    print("=" * 60)
-    print("SplitFileStore Test")
-    print("=" * 60)
-
-    # Test directory
-    test_dir = Path.home() / '.core_node' / 'split_store_test'
-    test_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"\nTest directory: {test_dir}")
-
-    # Create store
-    store = SplitFileStore(test_dir, verbose=True)
-
-    # Test 1: Write some records
-    print("\n--- Test 1: Write Records ---")
-    data = {
-        'version': '1.0',
-        'stats': {'compressed': 5, 'failed': 1},
-        'scan_info': {'total_files': 10},
-        'files': {
-            'path/to/file1.jpg': {
-                'status': 'compressed',
-                'size': 1024,
-            },
-            'path/to/file2.jpg': {
-                'status': 'pending',
-                'size': 2048,
-            },
-        },
-    }
-    store.write(data)
-
-    # Test 2: Read back
-    print("\n--- Test 2: Read Back ---")
-    loaded = store.read()
-    print(f"Files: {len(loaded['files'])}")
-    print(f"Stats: {loaded['stats']}")
-
-    # Test 3: Update single record
-    print("\n--- Test 3: Update Single Record ---")
-    def update_status(record):
-        record['status'] = 'completed'
-        record['timestamp'] = time.time()
-
-    store.update_record('path/to/file1.jpg', update_status)
-
-    # Test 4: Get single record
-    print("\n--- Test 4: Get Single Record ---")
-    record = store.get_record('path/to/file1.jpg')
-    print(f"Record: {record}")
-
-    # Test 5: List keys
-    print("\n--- Test 5: List Keys ---")
-    keys = store.list_keys()
-    print(f"Keys: {keys}")
-
-    print("\n" + "=" * 60)
-    print("All tests completed!")
-    print("=" * 60)
-
-
-if __name__ == "__main__":
-    main()

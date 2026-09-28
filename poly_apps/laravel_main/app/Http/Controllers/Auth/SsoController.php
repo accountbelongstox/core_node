@@ -1,23 +1,14 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Models\User;
-use App\Http\Controllers\Auth\AvatarPublic;
+use App\Http\Common\CommonAuthService;
+use App\Http\Common\CommonAvatarPublic;
 use App\Services\FileService;
+use App\Services\Auth\WorkOsRuntimeCredentials;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -27,6 +18,13 @@ use Illuminate\Support\Str;
 class SsoController extends Controller
 {
     use ApiResponse;
+
+    private WorkOsRuntimeCredentials $credentials;
+
+    public function __construct(WorkOsRuntimeCredentials $credentials)
+    {
+        $this->credentials = $credentials;
+    }
 
     /**
      * Display SSO login page
@@ -43,23 +41,34 @@ class SsoController extends Controller
     }
 
     /**
+     * Display SSO documentation page (usage, deployment, embedding examples)
+     */
+    public function docs()
+    {
+        $html = file_get_contents(public_path('debug-assets/debug-tools/sections/sso-docs.html'));
+
+        return response($html)->header('Content-Type', 'text/html; charset=utf-8');
+    }
+
+    /**
      * Get authorization URL for SSO
      */
     public function getAuthorizationUrl(Request $request)
     {
-        $workosApiKey = env('WORKOS_API_KEY');
-        $workosClientId = env('WORKOS_CLIENT_ID');
-        $redirectUri = $request->input('redirect_uri') ?? env('WORKOS_REDIRECT_URL', $request->getSchemeAndHttpHost() . '/sso/callback');
+        $workosApiKey = $this->credentials->apiKey();
+        $workosClientId = $this->credentials->clientId();
+        $redirectUri = $request->input('redirect_uri')
+            ?? $this->credentials->redirectUrl($request->getSchemeAndHttpHost() . '/sso/callback');
         $organizationId = $request->input('organization_id');
         $provider = $request->input('provider', 'authkit');
 
         if (!$workosApiKey || !$workosClientId) {
-            return $this->error('WorkOS API key or Client ID not configured', 400);
+            return $this->error(__('api.messages.workos_api_key_or_client_id_not'), 400);
         }
 
         try {
             if (!class_exists('\WorkOS\WorkOS')) {
-                return $this->error('WorkOS PHP SDK not installed. Please run: composer require workos/workos-php', 500);
+                return $this->error(__('api.messages.workos_php_sdk_not_installed_please_run'), 500);
             }
 
             $workos = new \WorkOS\WorkOS($workosApiKey);
@@ -83,13 +92,13 @@ class SsoController extends Controller
             return $this->success([
                 'url' => $authorizationUrl,
                 'state' => $state,
-            ], 'Authorization URL generated successfully');
+            ], __('api.messages.authorization_url_generated_successfully'));
         } catch (\Exception $e) {
             Log::error('WorkOS authorization URL generation failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return $this->error('Failed to generate authorization URL: ' . $e->getMessage(), 500);
+            return $this->error(__('api.messages.failed_to_generate_authorization_url') . $e->getMessage(), 500);
         }
     }
 
@@ -122,8 +131,8 @@ class SsoController extends Controller
             return response($html)->header('Content-Type', 'text/html; charset=utf-8');
         }
 
-        $workosApiKey = env('WORKOS_API_KEY');
-        $workosClientId = env('WORKOS_CLIENT_ID');
+        $workosApiKey = $this->credentials->apiKey();
+        $workosClientId = $this->credentials->clientId();
 
         if (!$workosApiKey || !$workosClientId) {
             $html = file_get_contents(public_path('debug-assets/debug-tools/sections/sso-section.html'));
@@ -152,8 +161,9 @@ class SsoController extends Controller
             Auth::login($user, true);
             $request->session()->regenerate();
             
-            $user = AvatarPublic::createAvatar($user, true);
-            $token = $user->createToken('auth_token')->plainTextToken;
+            $session = CommonAuthService::issueLoginToken($user);
+            $user = $session['user'];
+            $token = $session['token'];
 
             $userData = [
                 'id' => $user->id,
@@ -174,7 +184,7 @@ class SsoController extends Controller
                     'token' => $token,
                     'token_type' => 'Bearer',
                     'expiration' => config('sanctum.expiration'),
-                ], 'Authentication successful');
+                ], __('api.messages.authentication_successful'));
             }
 
             $html = file_get_contents(public_path('debug-assets/debug-tools/sections/sso-section.html'));
@@ -195,7 +205,11 @@ class SsoController extends Controller
     }
 
     /**
-     * Get current SSO user session
+     * Get current SSO user session.
+     *
+     * Always answers 200: an absent session is a normal state (the SSO page
+     * polls this on load), so it must not surface as a transport error. The
+     * payload carries an explicit `authenticated` flag instead.
      */
     public function getUser(Request $request)
     {
@@ -204,7 +218,7 @@ class SsoController extends Controller
         if ($sessionUser) {
             if (Auth::check()) {
                 $user = Auth::user();
-                $user = AvatarPublic::createAvatar($user, true);
+                $user = CommonAvatarPublic::createAvatar($user, true);
                 
                 $token = null;
                 if ($user->currentAccessToken()) {
@@ -216,19 +230,19 @@ class SsoController extends Controller
                 return $this->success([
                     'user' => $userArray,
                     'token' => $token,
-                ], 'User session retrieved');
+                ], __('api.messages.user_session_retrieved'));
             } else {
                 $userId = $sessionUser['id'] ?? null;
                 if ($userId && is_numeric($userId)) {
-                    $user = User::find($userId);
+                    $user = User::findById((int) $userId);
                     if ($user) {
-                        $user = AvatarPublic::createAvatar($user, true);
+                        $user = CommonAvatarPublic::createAvatar($user, true);
                         $userArray = $user->toArray();
                         $userArray['avatar'] = FileService::getAvatarUrl($user->avatar);
                         return $this->success([
                             'user' => $userArray,
                             'token' => null,
-                        ], 'User session retrieved');
+                        ], __('api.messages.user_session_retrieved'));
                     }
                 }
                 $formattedUser = [
@@ -242,11 +256,14 @@ class SsoController extends Controller
                     'lastName' => $sessionUser['lastName'] ?? null,
                     'profilePictureUrl' => $sessionUser['profilePictureUrl'] ?? null,
                 ];
-                return $this->success(['user' => $formattedUser], 'User session retrieved');
+                return $this->success(['user' => $formattedUser], __('api.messages.user_session_retrieved'));
             }
         }
 
-        return $this->error('No authenticated user', 401);
+        return $this->success([
+            'user' => null,
+            'authenticated' => false,
+        ], __('api.messages.no_authenticated_user'));
     }
 
     /**
@@ -260,14 +277,10 @@ class SsoController extends Controller
         $password = $request->input('password');
 
         if (!$identifier || !$password) {
-            return $this->error('Email/username and password are required', 400);
+            return $this->error(__('api.messages.email_username_and_password_are_required'), 400);
         }
 
-        $workosApiKey = env('WORKOS_API_KEY');
-        $workosClientId = env('WORKOS_CLIENT_ID');
-        $workosClientSecret = env('WORKOS_CLIENT_SECRET');
-
-        $useWorkOS = $workosApiKey && $workosClientId && $workosClientSecret;
+        $useWorkOS = $this->credentials->supportsPasswordAuthentication();
 
         if ($useWorkOS) {
             return $this->authenticateWithWorkOS($request, $identifier, $password);
@@ -283,12 +296,12 @@ class SsoController extends Controller
     {
         try {
             if (!class_exists('\WorkOS\WorkOS')) {
-                return $this->error('WorkOS PHP SDK not installed. Please run: composer require workos/workos-php', 500);
+                return $this->error(__('api.messages.workos_php_sdk_not_installed_please_run'), 500);
             }
 
-            $workosApiKey = env('WORKOS_API_KEY');
-            $workosClientId = env('WORKOS_CLIENT_ID');
-            $workosClientSecret = env('WORKOS_CLIENT_SECRET');
+            $workosApiKey = $this->credentials->apiKey();
+            $workosClientId = $this->credentials->clientId();
+            $workosClientSecret = $this->credentials->clientSecret();
 
             $workos = new \WorkOS\WorkOS($workosApiKey);
             
@@ -306,8 +319,9 @@ class SsoController extends Controller
             Auth::login($user, true);
             $request->session()->regenerate();
             
-            $user = AvatarPublic::createAvatar($user, true);
-            $token = $user->createToken('auth_token')->plainTextToken;
+            $session = CommonAuthService::issueLoginToken($user);
+            $user = $session['user'];
+            $token = $session['token'];
 
             $userData = [
                 'id' => $user->id,
@@ -327,35 +341,31 @@ class SsoController extends Controller
                 'token' => $token,
                 'token_type' => 'Bearer',
                 'expiration' => config('sanctum.expiration'),
-            ], 'Authentication successful');
+            ], __('api.messages.authentication_successful'));
         } catch (\Exception $e) {
             Log::error('WorkOS password authentication failed', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            return $this->error('Authentication failed: ' . $e->getMessage(), 401);
+            return $this->error(__('api.messages.authentication_failed') . $e->getMessage(), 401);
         }
     }
 
     /**
      * Authenticate using Laravel native authentication
      * Following CommonAuthService pattern: support username, email, or phone
-     * Following Laravel official documentation: https://laravel.com/docs/12.x/authentication
+     * Following Laravel official documentation: https://laravel.com/docs/13.x/authentication
      */
     private function authenticateWithLaravel(Request $request, string $identifier, string $password)
     {
-        $user = User::where(function($query) use ($identifier) {
-            $query->where('username', $identifier)
-                ->orWhere('email', $identifier)
-                ->orWhere('phone', $identifier);
-        })->first();
+        $user = User::findByUsernameEmailOrPhone($identifier);
 
         if (!$user) {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         if (!Hash::check($password, $user->password)) {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         $credentials = [];
@@ -370,16 +380,16 @@ class SsoController extends Controller
         }
 
         if (!Auth::attempt($credentials, $request->boolean('remember'))) {
-            return $this->error('The provided credentials do not match our records.', 401);
+            return $this->error(__('api.messages.the_provided_credentials_do_not_match_our'), 401);
         }
 
         $request->session()->regenerate();
         
         $authenticatedUser = Auth::user();
 
-        $authenticatedUser = AvatarPublic::createAvatar($authenticatedUser, true);
-
-        $token = $authenticatedUser->createToken('auth_token')->plainTextToken;
+        $session = CommonAuthService::issueLoginToken($authenticatedUser);
+        $authenticatedUser = $session['user'];
+        $token = $session['token'];
 
         $userData = [
             'id' => $authenticatedUser->id,
@@ -399,7 +409,7 @@ class SsoController extends Controller
             'token' => $token,
             'token_type' => 'Bearer',
             'expiration' => config('sanctum.expiration'),
-        ], 'Authentication successful');
+        ], __('api.messages.authentication_successful'));
     }
 
     /**
@@ -408,7 +418,7 @@ class SsoController extends Controller
     private function findOrCreateUserFromWorkOS($workosUser)
     {
         $email = $workosUser->email;
-        $user = User::where('email', $email)->first();
+        $user = User::findByEmail($email);
 
         if (!$user) {
             $firstName = $workosUser->firstName ?? '';
@@ -416,7 +426,7 @@ class SsoController extends Controller
             $fullName = trim($firstName . ' ' . $lastName);
             $username = $this->generateUsernameFromEmail($email);
 
-            $user = User::create([
+            $user = User::createRecord([
                 'email' => $email,
                 'username' => $username,
                 'nickname' => $fullName ?: $email,
@@ -439,7 +449,7 @@ class SsoController extends Controller
         $baseUsername = $username;
         $counter = 1;
 
-        while (User::where('username', $username)->exists()) {
+        while (User::usernameExists($username)) {
             $username = $baseUsername . $counter;
             $counter++;
         }
@@ -452,9 +462,7 @@ class SsoController extends Controller
      */
     public function logout(Request $request)
     {
-        if ($request->user() && $request->user()->currentAccessToken()) {
-            $request->user()->currentAccessToken()->delete();
-        }
+        $request->user()?->revokeCurrentAccessToken();
         
         Auth::logout();
         $request->session()->invalidate();
@@ -462,7 +470,6 @@ class SsoController extends Controller
         $request->session()->forget('workos_user');
         $request->session()->forget('workos_state');
         
-        return $this->success([], 'Logged out successfully');
+        return $this->success([], __('api.messages.logged_out_successfully'));
     }
 }
-

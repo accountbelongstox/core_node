@@ -1,0 +1,2 @@
+# 手机桌面自动化脚本依赖（list_devices/list_apps 仅需 pycore+adb）
+uiautomator2>=3.0.0

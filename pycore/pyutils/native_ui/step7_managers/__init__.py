@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Native UI Module
-"""
+"""Native UI lifecycle managers."""
 
-# Exports will be added as needed
-__all__ = []
+__all__ = [
+    'bus_manager',
+    'callback_manager',
+    'shutdown_manager',
+    'timer_manager',
+]

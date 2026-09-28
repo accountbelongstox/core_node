@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 use App\Services\SafeMigrationHelper;
 
 return new class extends Migration
@@ -38,6 +39,11 @@ return new class extends Migration
                 'add_indexes' => true,
             ]
         );
+
+        $connectionName = $this->connection ?? config('database.default');
+        $db = DB::connection($connectionName);
+        $db->statement('DROP INDEX IF EXISTS cache_key_index');
+        $db->statement('CREATE UNIQUE INDEX IF NOT EXISTS cache_key_unique ON cache(key)');
     }
 
     private function createCacheLocksTable(): void
@@ -64,6 +70,20 @@ return new class extends Migration
                 'add_indexes' => true,
             ]
         );
+
+        $connectionName = $this->connection ?? config('database.default');
+        $db = DB::connection($connectionName);
+        // Index adjustment only (no data touched). Guarded so a leftover
+        // duplicate transient lock key can never brick sys:init — the
+        // non-unique index simply stays until the locks expire.
+        try {
+            $db->statement('DROP INDEX IF EXISTS cache_locks_key_index');
+            $db->statement('CREATE UNIQUE INDEX IF NOT EXISTS cache_locks_key_unique ON cache_locks(key)');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning(
+                '[create_cache_table] cache_locks unique index deferred: ' . $e->getMessage()
+            );
+        }
     }
 
     public function down(): void

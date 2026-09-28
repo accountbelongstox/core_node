@@ -5,6 +5,13 @@ Secret Manager Module
 Handles secret loading from encrypted files and .secret_ignore directory.
 """
 
+import os
+# Reading a secret must NEVER trigger the ML dependency installer. This module imports
+# pyfoundations (lazily, in resolve_secret_value) only for get_secret_key; importing it runs
+# third_party.py's import-time check_and_install_dependencies(). Skip it so any tool that
+# reuses this secret loader stays lightweight.
+os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
+
 import sys
 import shutil
 import subprocess
@@ -20,6 +27,9 @@ if _pycore_path.exists() and str(_pycore_path) not in sys.path:
 
 from utils.common_utils import ColorMessage, get_project_root
 from config.path_config import get_path_config
+
+# Placeholder the password runner replaces with the password read from stdin.
+SECRET_PASSWORD_ARG = '--password-stdin'
 
 
 class LocalSecretManager:
@@ -143,7 +153,11 @@ class LocalSecretManager:
         for enc_file in pending_files:
             ColorMessage.write(f'  Decrypting {enc_file.name} ...', 'info')
             result = subprocess.run(
-                [self.node_command, str(enc_file), 'pwd', password, str(self.raw_dir)],
+                [
+                    self.node_command, str(self.path_config.secret_password_runner),
+                    str(enc_file), 'pwd', SECRET_PASSWORD_ARG, str(self.raw_dir),
+                ],
+                input=password,
                 capture_output=True,
                 text=True,
                 timeout=60

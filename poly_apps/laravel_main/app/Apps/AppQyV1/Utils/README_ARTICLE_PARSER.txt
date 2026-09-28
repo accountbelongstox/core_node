@@ -82,7 +82,7 @@ Integration with Task System:
 This parser is designed to work with:
 - Global Task System (app/Http/Controllers/TaskController.php)
 - Edge TTS Service (app/Services/EdgeTTS/EdgeTTSService.php)
-- TTS Cache Manager (app/Services/EdgeTTS/TTSCacheManager.php)
+- Edge TTS Payload Cache (app/Services/EdgeTTS/EdgeTTSPayloadCache.php)
 
 Typical Workflow:
 1. User submits article text

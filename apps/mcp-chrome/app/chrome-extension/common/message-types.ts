@@ -3,6 +3,25 @@
  * Note: Native message types are imported from the shared package
  */
 
+/**
+ * chrome.runtime message `type` for the Bing dictionary worker control channel
+ * (popup composables -> background listener). One const so a rename can't desync
+ * sender and listener.
+ */
+export const BING_DICT_MSG = 'bing_dictionary_worker_service' as const;
+
+export const FEATURE_MESSAGE_TYPES = {
+  AI_WEB_WORKER: 'ai_web_worker_service',
+  BING_DICTIONARY_CLIENT: 'bing_dictionary_client_service',
+  PUTER_TRANSLATE_WORKER: 'puter_translate_worker_service',
+  GEMINI_IMAGE: 'gemini_image_service',
+  NOTEBOOK_LM: 'notebooklm_service',
+  GEMINI_TEXT: 'gemini_text_service',
+  CHATGPT_TEXT: 'chatgpt_text_service',
+  GROK_TEXT: 'grok_text_service',
+  COPILOT_TEXT: 'copilot_text_service',
+} as const;
+
 // Message targets for routing
 export enum MessageTarget {
   Offscreen = 'offscreen',
@@ -21,6 +40,10 @@ export const BACKGROUND_MESSAGE_TYPES = {
   REFRESH_SERVER_STATUS: 'refresh_server_status',
   SERVER_STATUS_CHANGED: 'server_status_changed',
   INITIALIZE_SEMANTIC_ENGINE: 'initialize_semantic_engine',
+  ELEMENT_PICKER_FRAME_EVENT: 'element_picker_frame_event',
+  ELEMENT_PICKER_UI_EVENT: 'element_picker_ui_event',
+  API_HEALTH_CHECK: 'api_health_check',
+  CLIENT_KEY_SIGN: 'client_key_sign',
 } as const;
 
 // Offscreen message types
@@ -63,6 +86,17 @@ export const TOOL_MESSAGE_TYPES = {
 
   // Interactive elements
   GET_INTERACTIVE_ELEMENTS: 'getInteractiveElements',
+
+  // Accessibility tree
+  GENERATE_ACCESSIBILITY_TREE: 'generateAccessibilityTree',
+  RESOLVE_REF: 'resolveRef',
+  ENSURE_REF_FOR_SELECTOR: 'ensureRefForSelector',
+
+  // Element picker
+  ELEMENT_PICKER_UI_SHOW: 'elementPickerUiShow',
+  ELEMENT_PICKER_UI_HIDE: 'elementPickerUiHide',
+  ELEMENT_PICKER_UI_UPDATE: 'elementPickerUiUpdate',
+  ELEMENT_PICKER_UI_PING: 'elementPickerUiPing',
 
   // Network requests
   NETWORK_SEND_REQUEST: 'sendPureNetworkRequest',

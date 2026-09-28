@@ -36,7 +36,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
     public function handle(): int
     {
         // PRE-REQUISITE: Fix PHP configuration before any operations
-        // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
+        // This ensures open_basedir restrictions are correct (matches 34_configure_php85.sh)
         $this->initializeCommand();
 
         $action = $this->argument('action');
@@ -216,7 +216,7 @@ class ServerManagerV1WebsiteCommand extends ServerManagerV1BaseCommand
                     // IDEMPOTENT DESIGN: Always regenerate service configuration
                     // This ensures configuration fixes (ProtectSystem, ReadWritePaths) are applied
                     // regardless of service state (running, stopped, or failed)
-                    // Requirement: "反复运行时要修复问题，不能因为修复一个完成而跳过另一个"
+                    // Requirement: "When run repeatedly, problems must be fixed; do not skip one fix just because another one is complete"
                     $description = implode(', ', array_slice($allDomains, 0, 3)) . ($domainCount > 3 ? "... ($domainCount total)" : '');
 
                     // STEP 1: ALWAYS regenerate service file with latest configuration

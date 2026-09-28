@@ -1,27 +1,19 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate;
 
+use App\Http\Controllers\Controller;
+
+use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryProcessPublicController as PDPPublic;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1UpdateLearnedStatusRequest;
 use App\Traits\ApiResponse;
-class AppQyV1WordLearningStatusController
+class AppQyV1WordLearningStatusController extends Controller
 {
     use ApiResponse;
 
@@ -42,5 +34,52 @@ class AppQyV1WordLearningStatusController
         );
     }
 
-}
+    /**
+     * Mark a single word as learned by its dictionary id.
+     * Route: POST /api/app_qy_v1/words/{id}/learn
+     * Reuses the same personal-dictionary update path as upLearned,
+     * resolving the word text from its dictionary id first.
+     */
+    public function markAsLearned(Request $request, $id): JsonResponse
+    {
+        $language = $request->input('language', 'en');
+        $dictionaryRow = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
 
+        if ($dictionaryRow === null) {
+            return $this->notFound('Word not found');
+        }
+
+        $wordText = $dictionaryRow->content;
+        $queryResult = PDPPublic::updateLearnedPDByWords($wordText, false);
+
+        return $this->success(
+            $queryResult,
+            'Word "' . $wordText . '" marked as learned successfully'
+        );
+    }
+
+    /**
+     * Mark a single word as reviewed by its dictionary id.
+     * Route: POST /api/app_qy_v1/words/{id}/review
+     * Reuses the same personal-dictionary update path as the
+     * word-text based review endpoint.
+     */
+    public function markAsReviewed(Request $request, $id): JsonResponse
+    {
+        $language = $request->input('language', 'en');
+        $dictionaryRow = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
+
+        if ($dictionaryRow === null) {
+            return $this->notFound('Word not found');
+        }
+
+        $wordText = $dictionaryRow->content;
+        $queryResult = PDPPublic::updateReviewedPDByWords($wordText, false);
+
+        return $this->success(
+            $queryResult,
+            'Word "' . $wordText . '" marked as reviewed successfully'
+        );
+    }
+
+}

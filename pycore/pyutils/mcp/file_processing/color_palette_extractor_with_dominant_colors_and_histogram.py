@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from sklearn.cluster import KMeans
 """
 Color Palette Extractor with Dominant Colors and Histogram
 Extracts color information from images including dominant colors, palettes, and histograms
@@ -9,7 +10,15 @@ import logging
 from typing import Dict, Any, List, Tuple
 from collections import Counter
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_numpy
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_numpy
+
+try:
+    _KMEANS_AVAILABLE = True
+except ImportError:
+    KMeans = None
+    _KMEANS_AVAILABLE = False
+
 
 PIL_Image = get_third_package_PIL_Image()
 numpy = get_third_package_numpy()
@@ -79,7 +88,6 @@ class ColorPaletteExtractorWithDominantColorsAndHistogram:
             indices = numpy.random.choice(len(pixels), 10000, replace=False)
             pixels = pixels[indices]
 
-        from sklearn.cluster import KMeans
         kmeans = KMeans(n_clusters=num_colors, random_state=42, n_init=10)
         kmeans.fit(pixels)
 
@@ -139,11 +147,12 @@ class ColorPaletteExtractorWithDominantColorsAndHistogram:
         return closest_name
 
 
-_color_extractor_instance = None
+_COLOR_EXTRACTOR_PROVIDER = SerializedSingletonProvider(
+    ColorPaletteExtractorWithDominantColorsAndHistogram,
+    "mcp.color_extractor.provider",
+    "MCPColorExtractorProviderThread",
+)
 
 def get_color_extractor_singleton() -> ColorPaletteExtractorWithDominantColorsAndHistogram:
     """Get singleton instance of color extractor"""
-    global _color_extractor_instance
-    if _color_extractor_instance is None:
-        _color_extractor_instance = ColorPaletteExtractorWithDominantColorsAndHistogram()
-    return _color_extractor_instance
+    return _COLOR_EXTRACTOR_PROVIDER.get()

@@ -1,7 +1,8 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { ExecutionWorld } from '@/common/constants';
+import { delay as waitForDelay } from '@/utils/async';
 
 interface InjectScriptParam {
   url?: string;
@@ -17,7 +18,9 @@ interface SendCommandToInjectScriptToolParam {
   payload?: string;
 }
 
-const injectedTabs = new Map();
+// Maps tabId → execution world type of the currently injected user script.
+// Only the type is stored (not the full script code) to keep memory bounded.
+const injectedTabs = new Map<number, ExecutionWorld>();
 class InjectScriptTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.INJECT_SCRIPT;
   async execute(args: InjectScriptParam & ScriptConfig): Promise<ToolResult> {
@@ -53,11 +56,11 @@ class InjectScriptTool extends BaseBrowserToolExecutor {
 
           // Wait for page to load
           console.log('Waiting for page to load...');
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await waitForDelay(3000);
         }
       } else {
-        // Use active tab
-        const tabs = await chrome.tabs.query({ active: true });
+        // Use active tab in the current window
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tabs[0]) {
           return createErrorResponse('No active tab found');
         }
@@ -73,19 +76,11 @@ class InjectScriptTool extends BaseBrowserToolExecutor {
 
       const res = await handleInject(tab.id!, { ...args });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(res),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(res);
     } catch (error) {
       console.error('Error in InjectScriptTool.execute:', error);
       return createErrorResponse(
-        `Inject script error: ${error instanceof Error ? error.message : String(error)}`,
+        `Inject script error: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -111,8 +106,8 @@ class SendCommandToInjectScriptTool extends BaseBrowserToolExecutor {
       let finalTabId: number | undefined = tabId;
 
       if (finalTabId === undefined) {
-        // Use active tab
-        const tabs = await chrome.tabs.query({ active: true });
+        // Use active tab in the current window
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tabs[0]) {
           return createErrorResponse('No active tab found');
         }
@@ -129,22 +124,14 @@ class SendCommandToInjectScriptTool extends BaseBrowserToolExecutor {
       const result = await chrome.tabs.sendMessage(finalTabId, {
         action: eventName,
         payload,
-        targetWorld: injectedTabs.get(finalTabId).type, // The bridge uses this to decide whether to forward to MAIN world.
+        targetWorld: injectedTabs.get(finalTabId), // The bridge uses this to decide whether to forward to MAIN world.
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result);
     } catch (error) {
       console.error('Error in InjectScriptTool.execute:', error);
       return createErrorResponse(
-        `Inject script error: ${error instanceof Error ? error.message : String(error)}`,
+        `Inject script error: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -195,7 +182,7 @@ async function handleInject(tabId: number, scriptConfig: ScriptConfig) {
       world: ExecutionWorld.ISOLATED,
     });
   }
-  injectedTabs.set(tabId, scriptConfig);
+  injectedTabs.set(tabId, type);
   console.log(`Scripts successfully injected into tab ${tabId}.`);
   return { injected: true };
 }
@@ -206,12 +193,15 @@ async function handleInject(tabId: number, scriptConfig: ScriptConfig) {
  */
 async function handleCleanup(tabId: number) {
   if (!injectedTabs.has(tabId)) return;
-  // Send cleanup signal. The bridge will forward it to the MAIN world.
-  chrome.tabs
-    .sendMessage(tabId, { type: 'chrome-mcp:cleanup' })
-    .catch((err) =>
-      console.warn(`Could not send cleanup message to tab ${tabId}. It might have been closed.`),
-    );
+  // Send cleanup signal and wait for it to complete (or fail) before clearing
+  // state. The bridge forwards this to the MAIN world. If we delete from
+  // injectedTabs before the message is delivered, a subsequent handleInject
+  // could re-inject while the old MAIN world script is still tearing down.
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: 'chrome-mcp:cleanup' });
+  } catch (err) {
+    console.warn(`Could not send cleanup message to tab ${tabId}. It might have been closed.`);
+  }
 
   injectedTabs.delete(tabId);
   console.log(`Cleanup signal sent to tab ${tabId}. State cleared.`);

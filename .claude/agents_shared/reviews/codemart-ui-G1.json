@@ -1,0 +1,95 @@
+{
+  "task_id": "codemart-ui-G1",
+  "role": "codemart-ui",
+  "reviewer": "codemart-lead",
+  "round": 1,
+  "verdict": "approved",
+  "base": "74e7770",
+  "head": "6ecff3401. The working tree is clean for apps/codemart and flavors/codemart. The G1 edits are in the user's auto-commits 4ddb4be8e, 2f31f9cd3 and 0b6f362e3, so the G1-only diff was read as 8f95a2a24..HEAD. 74e7770..8f95a2a24 holds codemart-1..7 and other tasks, which were reviewed earlier.",
+  "checked_at": "2026-09-27T21:33:01+10:00",
+  "notes": "All five items hold under an attempted refutation. d9-03 is done except the THEME_IDS part, which is correctly deferred: shell/shellTypes.ts:17 exports only the ThemeId type, and no shared list exists (ShellProvider.tsx:71 compares literals). Nothing blocks. The non-blocking notes are follow-ups for later passes.",
+  "findings": {
+    "d9-03": {
+      "claimed": "done (THEME_IDS deferred, cross_group)",
+      "result": "confirmed, approved",
+      "evidence": [
+        "The verify grep ['\"`]/codemart over apps/codemart *.ts/*.tsx, excluding cmPublicRoutes.ts and cmPages.tsx, finds 0 hits (exit 1). That includes bare '/codemart'. The remaining 'codemart' text is only the APK file path (cmAppDownloads.ts:3), the App Store URL (:4) and comments.",
+        "cmPublicRoutes.ts:21-50 extends CM_PROTECTED_ROUTE (tasks, reviews, architect, notifications) and adds CM_ADMIN_ROUTE with the 12 console routes and CM_TASK_QUERY_PARAM. The helpers cmRouteWithQuery (:57), cmWorkspacePath (:67), cmProjectPath, cmTaskPath (:76) and cmAdminUserPath are new. No local ADMIN_BASE, ADMIN_HOME, ADMIN_*_PATH or TASK_QUERY_PARAM is left (grep exit 1).",
+        "Replacements read hunk by hunk. CmAdminLayout: 12 nav rows, the back link, 2 brand links and the dashboard link. CmDashboardPage: STEP_ROUTES, 8 SHORTCUTS, 7 METRICS, 3 preview rows, 3 allRoute props, notification links, empty state and primary actions. CmProjectsPage :75/:114/:122/:134/:205/:283. cmAuthSession.ts:48 uses CM_ADMIN_ROUTE.home. Also CmAdminShared, CmAdminPages (queues/totals/status chips), CmAdminFinancePages:49, CmAdminUserDetailPage (users, actor activity, KYC link), cmNotificationFormat:25-34, and the extra in-scope files CmApp, CmLayout, CmProjectFundPanel, CmMarketplacePage, CmProjectDetailPage, CmTasksPage, CmVerificationPage and CmSettingsPage.",
+        "Behavior is kept. URLSearchParams keeps the old key order. It encodes values that were encodeURIComponent before, and useSearchParams decodes both. cmTaskPath keeps the old 'id ? ?task=id : list' rule. cmRouteWithQuery drops only null/undefined/'' and keeps 0.",
+        "Dead code: CmApi.ts no longer has getAnalysis, createPayment or estimate, and the unused CmAiAnalysis/CmEstimateInput/CmEstimateResult imports are gone. A grep over the whole UI package (node_modules and dist excluded) finds no caller. CmEstimatePage.tsx:67 calls cmPublicApi.estimate, and CmPayment is still used by getPayments (:267).",
+        "File split: pages/CmArchitectPage.tsx (204 lines, new, LF) matches the block removed from CmReviewsPage (constants, CmArchitectProjectList, the page) line for line. The only changes are the two route literals, now CM_PROTECTED_ROUTE.wallet and cmProjectPath. It has a default export, and cmPages.tsx:24 lazy-loads './pages/CmArchitectPage'. CmReviewsPage dropped the imports it no longer uses (useEffect, Link, 5 icons, architect types, APIResponse, cmFormatNumber). CmArchitectPage has no other importer.",
+        "Deferred: CmSettingsPage.tsx:10 THEME_IDS is unchanged. The SHELL_THEME_IDS request to pycore-ui (B2 writer) is in cross_scope; the codemart lead routes it."
+      ]
+    },
+    "cmpolreq-07": {
+      "claimed": "done",
+      "result": "confirmed, approved",
+      "evidence": [
+        "A grep of zh.ts for 该交付 / 押金 / 审核员 / 您 finds 0/0/0/0.",
+        "zh.ts:2006-2008: submission_invalid_state is '此交付物当前不处于待评审状态。', review_duplicate is '你已评审过此交付物。', and review_conflict_of_interest is '不能评审自己提交的交付物。'. :1992 submission_not_found is '未找到交付物。'. This matches the PAGE_POLISH §3 glossary (submission 交付物, reviewer 评审员, deposit 保证金).",
+        "The 14 uses of 您 are now 你, in phoneUnavailable, 3 errors, returnNotice, registrationCodeHint, termsNotice, alreadySignedIn, forgot.lead, reset.lead, the 3 access.unavailable strings and denied.hint. The recorded choice, states.submission.pending_review from 待审核 to 待评审, matches the review-queue copy. Accepted.",
+        "The zh.ts dictionary is typed CmTranslationDict, and tsc passes, so en/zh key parity holds."
+      ]
+    },
+    "cmdesign-13": {
+      "claimed": "done (code part; Capacitor build deferred to the user)",
+      "result": "confirmed, approved",
+      "evidence": [
+        "cmFlavor.ts (new, LF) reads FLAVOR_REGISTRY['codemart'].version and flavorAssetUrl(flavor, 'icon') from the shared shell/flavor.ts, read-only, so B2 reuse and no copy. shell/flavor.ts:47-55 eager-globs flavors/*/flavor.json and the flavor assets with ?url.",
+        "cmAppDownloads.ts has no version literal (grep for \\d+.\\d+.\\d+: 0). Both entries use CM_APP_VERSION, and the Android URL is built from it (:3). PROBE_TIMEOUT_MS and HTML_CONTENT_TYPE moved to the top of the file, as AGENTS.md asks.",
+        "CmBrand.tsx has no Braces import (grep 0). It renders the flavor icon.svg in an aria-hidden span with alt='' at 40 or 32 px. MARK_SIZE constants are at the top. CRLF is kept (index and worktree both crlf, as at base). The .cm-brand__mark CSS drops the box, because icon.svg already has its own rounded tile (rect rx=112).",
+        "flavors/codemart/flavor.json is unchanged (diff empty) and still declares version 1.0.0 as the single source. The Capacitor build and artifact are deferred to the user, as the item allows."
+      ]
+    },
+    "CKA-28-ui": {
+      "claimed": "done",
+      "result": "confirmed, approved",
+      "evidence": [
+        "The ledger codes come from laravel-codemart-D7-fix, which is approved.",
+        "A scratchpad parity check re-run: CodeMartV1Gvar/CodeMartV1Constants.php:262-274 has 13 LEDGER_* values. They equal the wallet.ledger keys in en.ts:817-831 and zh.ts:819-833 (13/13/13, symmetric difference empty).",
+        "Every locale placeholder matches the server call-site params. payment_sent/received use payment_id+user_id (PaymentCtl:133-136). project_funding and escrow_remainder_refund use project_id (EscrowService:71/:227). task_escrow_release uses task_id (:305). refund_debit/credit use payment_id (FinanceService:138/:148). deposit_refunded uses deposit_id (AdminFinanceService:379). withdrawal_requested/rejected/paid use withdrawal_id (PaymentCtl:442, AdminFinanceService:481/:514). wallet_top_up and opening_balance have none.",
+        "CmWalletPage.tsx:591-595 describe() returns the stored description only when description_code is falsy. Otherwise it returns t('wallet.ledger.<code>', {...params, defaultValue: cmHumanize(code)}). The prefix constant LEDGER_KEY_PREFIX is at the top (:44). CmApiTypes.ts:405-412 types description_code?: string|null and description_params?: Record<string,string|number>|null.",
+        "In-process contract check through artisan tinker (scratchpad g1_ledger_probe.php, read-only): WalletTransactionModel::toArray() carries the description_code and description_params keys. The server description accessor (WalletTransactionModel.php:42-52) returns the stored text for rows without a code, matching the UI fallback. All 24 local rows have a null code (seeded before D7), so they take the legacy path."
+      ]
+    },
+    "cmpolish-IMG-01": {
+      "claimed": "done",
+      "result": "confirmed, approved",
+      "evidence": [
+        "assets/cmImageRegistry.ts (new, LF) is the only module with '.webp': grep -rln '\\.webp' over apps/codemart *.ts/*.tsx lists only that file. The 16 CM_IMAGE_SPECS entries each have width, height, altKey and lazy. PIL confirms every width x height equals the real file (16/16 OK), and no spec lacks a file.",
+        "The icon slot is ICON_MODULES glob ./icons/*.webp (:2), CM_ICON_SPECS (:41, empty, typed) and cmIcon() (:57). There are no writes to assets/icons/ or generate_cm_images.py: the G1-window changes to those paths are the lead's codemart-lead-G1 work, which is already reviewed.",
+        "components/CmImage.tsx renders src, width, height, the localized alt (empty when decorative), loading from the registry unless eager is given, and decoding=async. CmPublicIllustration wraps it (CmPublicBlocks.tsx:15-17). CmStateViews, CmAuthLayout and CmAdminPages use it, so the direct imports and the size constants BANNER_* and AUTH_IMAGE_* are gone.",
+        "Loading and alt behavior are unchanged at each call site. Hero, process-overview, estimate and contact-support were eager and are eager (registry lazy:false). The about split still passes eager, and the services split keeps eager={index===0}. Home service cards, showcase-empty, download-devices and empty-workspace were lazy and stay lazy. Admin and auth used the browser default and are now loading=eager. The alt keys moved into the registry with the same keys, and the decorative images stay decorative.",
+        "cmPublicImages.ts and cmWorkspaceImages.ts are deleted, and a grep finds no importer left in the UI package. They were superseded source modules inside the member's own scope, and git history keeps them, so this is not a destructive action (the codemart-5 precedent)."
+      ]
+    }
+  },
+  "issues": {
+    "blocking": [],
+    "non_blocking": [
+      "New one-line JSDoc comments: cmPublicRoutes.ts:56,66,75; cmImageRegistry.ts:10,12,20,40,51,56; CmImage.tsx:8,12; cmFlavor.ts:6,9; CmApiTypes.ts:408,410; CmPublicBlocks.tsx:14. They follow the files' existing one-line style, but AGENTS.md prefers code as documentation. Drop them when these lines are next edited (same ruling as ui-vortex-D7).",
+      "Workspace routes are declared twice: CM_PROTECTED_ROUTE (cmPublicRoutes.ts:21-33, e.g. tasks '/codemart/tasks' at :28) and the CM_PAGES path (cmPages.tsx:48 'tasks'). CM_ROUTE_BASE (cmPublicRoutes.ts:1) also repeats flavor.json rootRoute. Later: derive one from the other, e.g. CM_PAGES path via cmWorkspacePath or CM_PROTECTED_ROUTE from CM_PAGES, and CM_ROUTE_BASE from CM_FLAVOR.rootRoute.",
+      "zh.ts:2137 '交付物先经独立评审员审核' still uses 审核 for the reviewer's action, while the error strings now use 评审. Align it to 评审 in the next zh pass.",
+      "Cross-scope for the codemart lead to route: the server-side poly_apps/laravel_main/lang/zh_CN/codemart.php still has 审核员 x6 and 您 x20. It is outside codemart-ui scope; send it to the lang/ owner through the claude lead.",
+      "The report and cross_scope say the lead's icon set has 29 icons. assets/icons/ holds 28. Cosmetic.",
+      "d9-01-ui (next codemart-ui item): add the '?no-inline' query to the ICON_MODULES glob (cmImageRegistry.ts:2). Every icon is at most 1460 B, which is under Vite's 4096 B inline limit (lead-G1 note 3). Fill CM_ICON_SPECS at 128x128.",
+      "Local demo wallet rows all have a null description_code, so the coded ledger path is not exercised by local data. The G3 end-to-end calibration re-seeds or creates one coded row and checks the wallet.ledger text in en and zh.",
+      "DEFAULT_CURRENCY 'CNY' is repeated in CmArchitectPage:17, CmMarketplacePage:17, CmProjectsPage:21, CmTasksPage:24 and CmVerificationPage:28 (the member reported it). It belongs to cmdesign-03: one shared constant, or bootstrap policy.currency only."
+    ]
+  },
+  "checks": {
+    "resource_guard": "Free RAM was 4.33 GB before the type-check (>= 3 GB).",
+    "tsc": "`node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json` in poly_apps/pycore_laravel_wordnew_ui exits 0 with 0 errors in total and 0 under apps/codemart (3m32s). This is the lint script run through node, because the bun .bin shims do not resolve on this checkout.",
+    "unused_imports": "tsconfig has no noUnusedLocals, so a scratchpad scan of every import in the 37 added or modified TS/TSX files was run: 0 unused.",
+    "route_grep": "['\"`]/codemart outside cmPublicRoutes.ts/cmPages.tsx: 0 hits. The leftover local route constants grep also finds 0.",
+    "dead_code_grep": "getAnalysis, createPayment and cmApi.estimate: 0 callers in the UI package.",
+    "zh_grep": "该交付 0, 押金 0, 审核员 0, 您 0.",
+    "cmdesign_grep": "cmAppDownloads.ts version literal 0; CmBrand.tsx Braces 0; flavors/codemart diff empty.",
+    "ledger_parity": "13 PHP LEDGER_* = 13 en keys = 13 zh keys, and the placeholders match the call-site params.",
+    "ledger_contract_in_process": "`php artisan tinker` read-only probe: toArray() includes description_code and description_params, and 24/24 local rows are legacy (null code). No Laravel file changed, so no worker restart was needed.",
+    "webp_grep": "'.webp' only in assets/cmImageRegistry.ts; 16/16 registry sizes equal the real files (PIL).",
+    "line_endings": "git ls-files --eol and a byte count at 8f95a2a24 vs HEAD vs the worktree: every file keeps its ending (LF everywhere; CmBrand.tsx stays CRLF). The new files are LF. No AI rules header was re-added.",
+    "scope": "All member writes are in apps/codemart/ plus the member's report and agent memory. flavors/codemart is unchanged. There are no writes to assets/icons/, generate_cm_images.py, the shared UI layer (B2) or config contracts, no tests were touched, and no git write was run by this review."
+  }
+}

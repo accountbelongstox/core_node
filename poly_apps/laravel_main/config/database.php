@@ -1,19 +1,50 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
+use App\Constants\LaravelConfig;
+use App\Support\ServiceContract;
 
-use Illuminate\Support\Str;
-use App\Providers\PathMapper;
+// ---------------------------------------------------------------------------
+// Database topology: PostgreSQL ONLY, identical on Linux and Windows.
+// ---------------------------------------------------------------------------
+// This application runs on PostgreSQL on EVERY platform: one dedicated database
+// per app on a single localhost server (on Windows the SAME WSL PostgreSQL is
+// reached through WSL2 NAT localhost forwarding, so there is no second server
+// and no per-OS difference). The driver, host, port, username and per-app
+// database name are fixed in code. RuntimeConfigurationServiceProvider injects
+// the Shell-owned password after configuration loading.
+//
+// NOTHING about the active database connections is read from .env -- not the
+// driver, host, port, username, database, nor the password. This is deliberate:
+// a copied or committed .env must not be able to repoint the app at another
+// server or leak the password, and the behaviour must be byte-for-byte identical
+// on Linux and Windows. Any DB_* / POLY_DB_DRIVER line in .env is ignored here by
+// design. start.sh / start.ps1 are responsible for ensuring the localhost-only
+// PostgreSQL server is up and the password is in the store before the app serves.
+$connections = [];
+
+// Build one PostgreSQL per-app connection. Topology mirrors the former
+// one-SQLite-file-per-app isolation: each app gets its own database (and thus
+// its own migrations table). Credentials are the fixed-in-code values above.
+$polyConnection = static function (string $pgDatabase): array {
+    return [
+        'driver' => 'pgsql',
+        'host' => ServiceContract::host('loopback'),
+        'port' => ServiceContract::port('postgresql'),
+        'database' => $pgDatabase,
+        'username' => LaravelConfig::DATABASE_USERNAME,
+        'password' => null,
+        'charset' => 'utf8',
+        'prefix' => '',
+        'prefix_indexes' => true,
+        'search_path' => LaravelConfig::DATABASE_SEARCH_PATH,
+        'sslmode' => LaravelConfig::DATABASE_SSL_MODE,
+    ];
+};
+
+foreach (LaravelConfig::DATABASES as $connectionName => $databaseName) {
+    $connections[$connectionName] = $polyConnection($databaseName);
+}
+
 return [
 
     /*
@@ -28,7 +59,8 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    // Fixed in code. 'main' is the PostgreSQL main application database.
+    'default' => LaravelConfig::DATABASE_CONNECTION,
 
     /*
     |--------------------------------------------------------------------------
@@ -41,181 +73,7 @@ return [
     |
     */
 
-    'connections' => [
-
-        'sqlite' => [
-            'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' =>  PathMapper::getDefaultDatabasePath('database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
-        ],
-
-        'appqyv1' => [
-            'driver' => 'sqlite',
-            'url' => env('DB_URL'),
-            'database' => PathMapper::getDefaultDatabasePath('app_qy_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'awyv0' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('awy_v0_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'vipclubv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('vipclub_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'servermanagerv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('server_manager_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'achatv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('achat_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'codemartv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('code_mart_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'mcpv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('mcp_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'ittoolsv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('it_tools_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'bankv1' => [
-            'driver' => 'sqlite',
-            'database' => PathMapper::getDefaultDatabasePath('bank_v1_database.sqlite'),
-            'prefix' => '',
-            'foreign_key_constraints' => true,
-            'busy_timeout' => 5000,
-            'journal_mode' => 'WAL',
-            'synchronous' => 'NORMAL',
-        ],
-
-        'mysql' => [
-            'driver' => 'mysql',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'unix_socket' => env('DB_SOCKET', ''),
-            'charset' => env('DB_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'strict' => true,
-            'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                \Pdo\Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
-        ],
-
-        'mariadb' => [
-            'driver' => 'mariadb',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'unix_socket' => env('DB_SOCKET', ''),
-            'charset' => env('DB_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'strict' => true,
-            'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                \Pdo\Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
-        ],
-
-        'pgsql' => [
-            'driver' => 'pgsql',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'charset' => env('DB_CHARSET', 'utf8'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => 'prefer',
-        ],
-
-        'sqlsrv' => [
-            'driver' => 'sqlsrv',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', 'localhost'),
-            'port' => env('DB_PORT', '1433'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'charset' => env('DB_CHARSET', 'utf8'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            // 'encrypt' => env('DB_ENCRYPT', 'yes'),
-            // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
-        ],
-
-    ],
+    'connections' => $connections,
 
     /*
     |--------------------------------------------------------------------------
@@ -246,30 +104,52 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+        'client' => LaravelConfig::REDIS_CLIENT,
 
         'options' => [
-            'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
-            'persistent' => env('REDIS_PERSISTENT', false),
+            'cluster' => 'redis',
+            'prefix' => LaravelConfig::REDIS_PREFIX,
+            'persistent' => false,
         ],
 
         'default' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_DB', '0'),
+            'url' => null,
+            'host' => ServiceContract::host('loopback'),
+            'username' => null,
+            'password' => null,
+            'port' => ServiceContract::port('redis'),
+            'database' => LaravelConfig::REDIS_DATABASE,
+            'max_retries' => LaravelConfig::REDIS_MAX_RETRIES,
+            'backoff_algorithm' => LaravelConfig::REDIS_BACKOFF_ALGORITHM,
+            'backoff_base' => LaravelConfig::REDIS_BACKOFF_BASE,
+            'backoff_cap' => LaravelConfig::REDIS_BACKOFF_CAP,
         ],
 
         'cache' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_CACHE_DB', '1'),
+            'url' => null,
+            'host' => ServiceContract::host('loopback'),
+            'username' => null,
+            'password' => null,
+            'port' => ServiceContract::port('redis'),
+            'database' => LaravelConfig::REDIS_CACHE_DATABASE,
+            'max_retries' => LaravelConfig::REDIS_MAX_RETRIES,
+            'backoff_algorithm' => LaravelConfig::REDIS_BACKOFF_ALGORITHM,
+            'backoff_base' => LaravelConfig::REDIS_BACKOFF_BASE,
+            'backoff_cap' => LaravelConfig::REDIS_BACKOFF_CAP,
+        ],
+
+        // Static resource index (delivery diff); optional, rebuildable, short
+        // timeouts so an absent Redis degrades to the database path quickly.
+        LaravelConfig::REDIS_RESOURCE_INDEX_CONNECTION => [
+            'url' => null,
+            'host' => ServiceContract::host('loopback'),
+            'username' => null,
+            'password' => null,
+            'port' => ServiceContract::port('redis'),
+            'database' => LaravelConfig::REDIS_RESOURCE_INDEX_DATABASE,
+            'timeout' => LaravelConfig::REDIS_RESOURCE_INDEX_CONNECT_TIMEOUT,
+            'read_timeout' => LaravelConfig::REDIS_RESOURCE_INDEX_READ_TIMEOUT,
+            'max_retries' => 0,
         ],
 
     ],

@@ -1,0 +1,26 @@
+完成并测试对齐codemart的前后端代码和API， 两个端都运行在本机，poly apps / pycore ui , laravel main
+注意需要底层重构，按规范开发代码，
+1：UI增加官方推荐的多语言能力，并在右上角可以切换，增加dark/light模式，
+2：登陆和注册等等扩展codemart，后端也按规范在公共字段上扩展出codemart专用API，注意幂等加入sys:init中初始化，并按规范只能修改表不能drop表重建，
+3：推导并添加管理民后台，注意175 脚本，其中部署laravel时会生成超级码，在注册时使用超级码同样可以成为管理员。管理后端和用户后端不是一个UI界面。并添加管理的所有功能。
+4：前端扩展移动端，WEB端的所有适配，并确保支持capacitor的APP编译支持，搜索官方文档更新所有代码。
+5：添加所有缺少的页面，而不是简单的跳转，比如 ···
+A local managed software-delivery application built on the unified React shell and Laravel Main.
+
+Platform
+About CodeMart
+Delivery process
+Services
+Task marketplace
+Project estimate
+Account
+Workspace
+Verification
+Information
+Privacy
+Terms···
+
+6：更新文档  docs_fix\DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN.md 只保留功能描述部份，也就是不涉及代码构架的部份，因为代码以当前的代码为准
+7：根据DESIGN_20260823_CODEMART_PYCORE_UI_LARAVEL_MAIN在当前的代码上完成所有未实现的功能，注意推导并测试所有功能。
+8：全局搜索关键词  CodeMart  codemark，找到所有文档，并复制到一处，然后修改所有文档，去掉代码构架的内容，只保留功能的设计说明，不涉及代码和构架。
+9：对所有后面找到的文档完成其中的所有未完成功能，在当前的构架上。

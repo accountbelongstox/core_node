@@ -1,34 +1,25 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
+source "$SCRIPT_DIR/arrow_menu.sh"
 
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
 
 # Menu configuration table: Menu Name|Menu Key|Available Options|Default(base)|Default(server)|Default(full)|Default(desktop)
-# Note: Services (MySQL, Redis, PostgreSQL, Docker, Nginx) are always installed
-# The menu option controls whether to start them after installation
+# Note: switching a service OFF means it is NOT installed (its apt repo is also
+# skipped/removed); ON installs it and starts it after installation.
 declare -a MENU_CONFIG=(
     "[*] Switch Installation Mode|INSTALL_MODE|base server full desktop|base|server|full|desktop"
     "[@] Select Region|SELECTED_REGION|China Global|Global|Global|Global|Global"
     "[D] Start MySQL After Installation|START_MYSQL|false true|false|false|false|false"
     "[R] Start Redis After Installation|START_REDIS|false true|false|false|false|false"
     "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
-    "[>] Start Nginx After Installation|START_NGINX|false true|false|false|false|false"
+    "[W] Web Server After Installation|START_WEB_SERVER|frankenphp nginx|frankenphp|frankenphp|frankenphp|frankenphp"
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
     "[.] Install .NET SDK|START_DOTNET|false true|false|false|false|false"
     "[G] Install Gitea (Git Service)|INSTALL_GITEA|false true|false|true|true|false"
+    "[T] Install Tailscale (Local-Network Mesh VPN)|INSTALL_TAILSCALE|false true|false|true|true|true"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )
@@ -40,17 +31,13 @@ declare -A menu_options=()
 declare -A mode_defaults=()
 declare -A current_values=()
 declare -A value_indices=()
+CANCEL_RETURN_EXIT_CODE=130
 
 # Parse menu configuration table
 parse_menu_config() {
-    echo "DEBUG: Starting parse_menu_config"
-    echo "DEBUG: MENU_CONFIG array size: ${#MENU_CONFIG[@]}"
-    
     for config in "${MENU_CONFIG[@]}"; do
-        echo "DEBUG: Processing config: $config"
         IFS='|' read -r name key options base_default server_default full_default desktop_default <<< "$config"
-        echo "DEBUG: Parsed - name: '$name', key: '$key'"
-        
+
         menu_names+=("$name")
         menu_keys+=("$key")
         menu_options["$key"]="$options"
@@ -59,9 +46,7 @@ parse_menu_config() {
         mode_defaults["${key}_full"]="$full_default"
         mode_defaults["${key}_desktop"]="$desktop_default"
     done
-    echo "DEBUG: Finished parse_menu_config"
 }
-
 # Get preset value based on mode
 get_preset_value() {
     local key="$1"
@@ -139,7 +124,7 @@ show_menu() {
     echo "Current Mode: ${current_values["INSTALL_MODE"]}"
 
     echo "--------------------------------------"
-    echo "Controls: Arrow Keys=Navigate, Enter=Confirm, Q=Quit, M=Linux Management"
+    echo "Controls: Arrow Keys=Navigate, Enter=Confirm, B=Back, Q=Quit, M=Linux Management"
     echo "--------------------------------------"
     
     # Ensure arrays are in sync
@@ -178,7 +163,7 @@ show_menu() {
     
     echo ""
     echo "Navigation: Up/Down arrows to move, Left/Right arrows to change values, Enter to confirm"
-    echo "Press Q to quit without saving"
+    echo "Press B to return to previous menu, Q to quit without saving"
 }
 
 # Toggle menu item value (left/right arrows)
@@ -257,9 +242,26 @@ confirm_configuration() {
     done
     
     echo ""
-    echo "Installation will start in 1 seconds..."
-    sleep 1
-    save_configuration
+    echo "Enter=Start installation, B=Go back to edit, Q=Quit without saving"
+    echo "Installation will start automatically in 10 seconds..."
+    local confirm_key=""
+    read -rsn1 -t 10 confirm_key || confirm_key=""
+    case "$confirm_key" in
+        [bB])
+            echo ""
+            echo "Returning to configuration menu."
+            sleep 1
+            return 0
+            ;;
+        [qQ])
+            echo ""
+            echo "Exiting without saving."
+            exit "$CANCEL_RETURN_EXIT_CODE"
+            ;;
+        *)
+            save_configuration
+            ;;
+    esac
 }
 
 # Main Program Entry Point
@@ -311,66 +313,51 @@ while true; do
         [qQ])  # Q key to quit
             echo ""
             echo "Exiting without saving."
-            exit 0
+            exit "$CANCEL_RETURN_EXIT_CODE"
+            ;;
+        [bB])  # B key for return
+            echo ""
+            echo "Returning to previous menu."
+            exit "$CANCEL_RETURN_EXIT_CODE"
             ;;
     esac
 done
 
 # Function to show Linux management menu
 show_linux_management_menu() {
-    clear
-    echo "  Linux Management"
-    echo ""
-    echo "Available management options:"
-    echo "  1) Manage Services (Nginx, MySQL, Redis, etc.)"
-    echo "  2) NAT Gateway Configuration"
-    echo "  3) Return to main menu"
-    echo ""
-    echo "Enter your choice (1-3): "
+    local menu_items=(
+        "Manage Services (Nginx, MySQL, Redis, etc.)"
+        "NAT Gateway Configuration"
+        "Return to Installation Menu"
+    )
 
-    read -n 1 choice
-    case "$choice" in
-        1) show_service_management_menu ;;
-        2) manage_natgateway ;;
-        3) return ;;
-        *) 
-            echo ""
-            echo "Invalid choice. Press any key to continue..."
-            read -n 1
-            show_linux_management_menu
-            ;;
+    arrow_menu_select "Linux Management" menu_items 0 2
+    case "$ARROW_MENU_SELECTED_INDEX" in
+        0) show_service_management_menu ;;
+        1) manage_natgateway ;;
+        2) return ;;
     esac
 }
 
 # Function to show service management menu
 show_service_management_menu() {
-    clear
-    echo "  Service Management"
-    echo ""
-    echo "Available services to manage:"
-    echo "  1) Nginx"
-    echo "  2) MySQL/MariaDB"
-    echo "  3) Redis"
-    echo "  4) Gitea"
-    echo "  5) XRDP (Remote Desktop)"
-    echo "  6) Return to Linux Management"
-    echo ""
-    echo "Enter your choice (1-6): "
+    local menu_items=(
+        "Nginx"
+        "MySQL/MariaDB"
+        "Redis"
+        "Gitea"
+        "XRDP (Remote Desktop)"
+        "Return to Linux Management"
+    )
 
-    read -n 1 choice
-    case "$choice" in
-        1) manage_nginx_service ;;
-        2) manage_mysql_service ;;
-        3) manage_redis_service ;;
-        4) manage_gitea_service ;;
-        5) manage_xrdp_service ;;
-        6) show_linux_management_menu ;;
-        *) 
-            echo ""
-            echo "Invalid choice. Press any key to continue..."
-            read -n 1
-            show_service_management_menu
-            ;;
+    arrow_menu_select "Service Management" menu_items 0 5
+    case "$ARROW_MENU_SELECTED_INDEX" in
+        0) manage_nginx_service ;;
+        1) manage_mysql_service ;;
+        2) manage_redis_service ;;
+        3) manage_gitea_service ;;
+        4) manage_xrdp_service ;;
+        5) show_linux_management_menu ;;
     esac
 }
 
@@ -380,7 +367,7 @@ manage_natgateway() {
     echo "  NAT Gateway Configuration"
     echo ""
     
-    local natgateway_script="$SCRIPT_DIR/../debian/install_shells/101_natgateway.sh"
+    local natgateway_script="$SCRIPT_DIR/../debian/install_shells/113_natgateway.sh"
     
     if [ ! -f "$natgateway_script" ]; then
         echo "Error: NAT gateway script not found at: $natgateway_script"
@@ -418,24 +405,21 @@ manage_natgateway() {
 # Legacy service management functions
 manage_old_service() {
     local service_name="$1"
-    echo ""
-    echo "Managing $service_name..."
-    echo "1) Start service"
-    echo "2) Stop service"
-    echo "3) Restart service"
-    echo "4) Check service status"
-    echo "5) Return"
-    echo ""
-    read -n 1 action
-    
-    case "$action" in
-        1) $USE_SUDO systemctl start "$service_name" && echo "$service_name started" ;;
-        2) $USE_SUDO systemctl stop "$service_name" && echo "$service_name stopped" ;;
-        3) $USE_SUDO systemctl restart "$service_name" && echo "$service_name restarted" ;;
-        4) $USE_SUDO systemctl status "$service_name" ;;
-        5) return ;;
-        6) return ;;
-        *) echo "Invalid choice. Press any key to continue..."; read -n 1 ;;
+    local menu_items=(
+        "Start service"
+        "Stop service"
+        "Restart service"
+        "Check service status"
+        "Return"
+    )
+
+    arrow_menu_select "Managing $service_name" menu_items 0 4
+    case "$ARROW_MENU_SELECTED_INDEX" in
+        0) $USE_SUDO systemctl start "$service_name" && echo "$service_name started" ;;
+        1) $USE_SUDO systemctl stop "$service_name" && echo "$service_name stopped" ;;
+        2) $USE_SUDO systemctl restart "$service_name" && echo "$service_name restarted" ;;
+        3) $USE_SUDO systemctl status "$service_name" ;;
+        4) return ;;
     esac
 }
 
@@ -459,7 +443,7 @@ manage_nginx_service() {
         fi
 
         echo "Nginx service has been stopped and disabled."
-        echo "To re-enable, set START_NGINX=true and run the installation script."
+        echo "To re-enable, set START_WEB_SERVER=nginx and run the installation script."
     else
         echo "Nginx is not installed."
     fi

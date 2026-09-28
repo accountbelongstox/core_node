@@ -32,13 +32,29 @@
     "tooltip": "应用程序",
     "menu": {
       "show": "显示窗口",
+      "open_web": "打开 Web 界面",
+      "pycore_ui": "PyCore UI 界面",
       "hide": "隐藏窗口",
       "maximize": "最大化",
       "minimize": "最小化",
       "restore": "还原",
       "restart": "重启",
-      "exit": "退出"
+      "exit": "退出",
+      "rpc_server": "RPC v2 服务端口: {port}",
+      "singleton_port": "单实例端口: {port}",
+      "autostart": "开机自启动",
+      "service_toggle": "作为系统服务运行",
+      "language": "语言",
+      "code_sync": "代码同步",
+      "code_sync_distribute": "开始分发",
+      "code_sync_skip_update": "跳过更新",
+      "prompt_derive_sound": "提示词推导提示音",
+      "prompt_new_notify": "新提示词通知"
     }
+  },
+  "toast": {
+    "prompt_derived_title": "当前 Linux（Debian）系统新提示词",
+    "prompt_new_title": "新的 Agent 提示词"
   },
   "loading": {
     "text": "加载中...",

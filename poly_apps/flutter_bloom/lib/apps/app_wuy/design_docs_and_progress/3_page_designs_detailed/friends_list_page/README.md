@@ -1,4 +1,4 @@
-# 好友列表页 (friends_list_page)
+# Friends List Page (friends_list_page)
 
 This directory contains detailed design specifications for the friends_list_page page.
 

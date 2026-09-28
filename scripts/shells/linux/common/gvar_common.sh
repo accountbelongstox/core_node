@@ -1,83 +1,166 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
+
+# Shared environment hub: this file may export variables for consumers that source it.
+# Other project *.sh files must not export path/config constants; resolve them locally or source hubs like this one.
+
+# Source-once guard: repeated `source` is a no-op so hub side effects (env
+# detection, secret library load, path mapping, store writes) run exactly once
+# per shell process. NOT exported so child bash processes do a full load.
+if [ "${GVAR_COMMON_LOADED:-false}" = "true" ]; then
+    return
+fi
+GVAR_COMMON_LOADED="true"
+
+# PATH normalization for every consumer of this hub: privileged helpers
+# (usermod, groupadd, chpasswd, visudo) and dpkg's own helpers (ldconfig,
+# start-stop-daemon) live in */sbin, but install-time shells frequently run
+# with a minimal PATH (cron, su without -, orchestrators). Without this, apt
+# emits "dpkg: warning: 'ldconfig' not found in PATH" and user tools fail with
+# "command not found". Idempotent.
+case ":$PATH:" in
+    *:/usr/sbin:*) ;;
+    *) PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"; export PATH ;;
+esac
 
 # Detect environment type
-IS_WSL=false
-IS_PRODUCTION=false
-IS_DESKTOP_WITH_WINDOWS=false
-HAS_DESKTOP_ENVIRONMENT=false
-DESKTOP_ENVIRONMENT=""
 CURRENT_USER=""
 DESKTOP_WINDOWS_MOUNT_PATH=""
 DESKTOP_WINDOWS_DRIVES=""
-WSL_USERS_PATH="/mnt/c/Users"
+# Project repository URLs (single definition for all project scripts; the
+# pre-download entry points dd.sh / install_bootstrap.sh must self-contain theirs).
+CORE_NODE_GITHUB_REPO="https://github.com/accountbelongstox/core_node.git"
+CORE_NODE_GITEE_REPO="https://gitee.com/accountbelongstox/core_node.git"
+GVAR_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_ENVIRONMENT_SCRIPT="$GVAR_COMMON_DIR/runtime_environment.sh"
+GVAR_STORAGE_COMMON_SCRIPT="$GVAR_COMMON_DIR/gvar_storage_common.sh"
+GVAR_SYSTEM_COMMON_SCRIPT="$GVAR_COMMON_DIR/gvar_system_common.sh"
+GLOBAL_VAR_STORE_SCRIPT="$GVAR_COMMON_DIR/global_var_store.sh"
+
+source "$RUNTIME_ENVIRONMENT_SCRIPT"
 
 # Detected actual desktop user (when running as root)
 ACTUAL_DESKTOP_USER=""
 ACTUAL_DESKTOP_USER_HOME=""
+CORE_PERMISSION_USER=""
+CORE_PERMISSION_GROUP=""
+SYSTEM_USER_EXCLUDED=false
+SYSTEM_USER_ACTIVE_REGULAR=false
+SUDO_READY=false
+CORE_NODE_DELETION_AUTHORIZED=false
 
-# IDEMPOTENCY: Detect actual system user dynamically (excludes system/service users)
-detect_system_user() {
-    local excluded_users=("git" "nginx" "www-data" "mysql" "postgres" "redis" "mongodb" "docker" "systemd-network" "systemd-resolve" "systemd-timesync" "_apt" "backup" "bin" "daemon" "games" "gnats" "irc" "list" "lp" "mail" "man" "news" "proxy" "sync" "sys" "uucp" "sshd" "postfix" "ftp" "nobody" "nogroup" "root")
+# Resolve whether an account is service-only.
+system_user_is_excluded() {
+    local candidate="$1"
 
-    # Check SUDO_USER first
-    if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
-        for excluded in "${excluded_users[@]}"; do
-            [[ "$SUDO_USER" == "$excluded" ]] && break
-        done
-        if [[ "$SUDO_USER" != "$excluded" ]]; then
-            echo "$SUDO_USER"
-            return 0
-        fi
-    fi
-
-    # Check current USER
-    if [[ "$USER" != "root" ]]; then
-        for excluded in "${excluded_users[@]}"; do
-            [[ "$USER" == "$excluded" ]] && break
-        done
-        if [[ "$USER" != "$excluded" ]]; then
-            echo "$USER"
-            return 0
-        fi
-    fi
-
-    # Prefer ubuntu if exists
-    if [[ -d "/home/ubuntu" ]]; then
-        echo "ubuntu"
-        return 0
-    fi
-
-    # Find any real user in /home
-    for user_home in /home/*; do
-        if [[ -d "$user_home" ]]; then
-            local username=$(basename "$user_home")
-            for excluded in "${excluded_users[@]}"; do
-                [[ "$username" == "$excluded" ]] && break
-            done
-            if [[ "$username" != "$excluded" ]]; then
-                echo "$username"
-                return 0
-            fi
-        fi
-    done
-
-    # Final fallback
-    echo "ubuntu"
+    SYSTEM_USER_EXCLUDED=false
+    case "$candidate" in
+        root|bin|sys|sync|games|man|lp|mail|news|uucp|proxy|backup|list|irc|_apt|git|gitea|mysql|postgres|redis|nginx|www-data|node|nobody|daemon|messagebus|sshd|polkitd|systemd-network|systemd-timesync)
+            SYSTEM_USER_EXCLUDED=true
+            ;;
+    esac
 }
 
-# Check and set sudo
-if command -v sudo >/dev/null 2>&1; then
+# Resolve whether an account is interactive and non-system.
+system_user_candidate_is_active_regular() {
+    local candidate="$1"
+    local candidate_uid=""
+    local candidate_entry=""
+    local candidate_shell=""
+
+    SYSTEM_USER_ACTIVE_REGULAR=false
+    [ -n "$candidate" ] || return
+    candidate_uid="$(id -u "$candidate" 2>/dev/null || true)"
+    [ -n "$candidate_uid" ] || return
+    [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return
+    [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return
+    system_user_is_excluded "$candidate"
+    [ "$SYSTEM_USER_EXCLUDED" = false ] || return
+    if command -v getent >/dev/null 2>&1; then
+        candidate_entry="$(getent passwd "$candidate" 2>/dev/null || true)"
+        candidate_shell="${candidate_entry##*:}"
+        case "$candidate_shell" in
+            */nologin|*/false) return ;;
+        esac
+    fi
+    SYSTEM_USER_ACTIVE_REGULAR=true
+}
+
+# Prefer an explicit caller or active login. A root-only process then scores
+# valid /home accounts by common interactive directories before using root.
+detect_system_user() {
+    local candidate=""
+    local candidate_home=""
+    local home_entry=""
+    local marker=""
+    local best_user=""
+    local candidate_score=0
+    local best_score=-1
+
+    candidate="${SUDO_USER:-}"
+    system_user_candidate_is_active_regular "$candidate"
+    if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
+        echo "$candidate"
+        return
+    fi
+
+    candidate="$(id -un 2>/dev/null || true)"
+    system_user_candidate_is_active_regular "$candidate"
+    if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
+        echo "$candidate"
+        return
+    fi
+
+    if command -v who >/dev/null 2>&1; then
+        candidate="$(who 2>/dev/null | awk 'NF { print $1; exit }')"
+        system_user_candidate_is_active_regular "$candidate"
+        if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
+            echo "$candidate"
+            return
+        fi
+    fi
+
+    if command -v loginctl >/dev/null 2>&1; then
+        while read -r candidate; do
+            [ -n "$candidate" ] || continue
+            system_user_candidate_is_active_regular "$candidate"
+            if [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ]; then
+                echo "$candidate"
+                return
+            fi
+        done < <(loginctl list-sessions --no-legend 2>/dev/null | awk 'NF >= 3 { print $3 }')
+    fi
+
+    for candidate_home in /home/*; do
+        [ -d "$candidate_home" ] || continue
+        candidate="${candidate_home##*/}"
+        system_user_candidate_is_active_regular "$candidate"
+        [ "$SYSTEM_USER_ACTIVE_REGULAR" = true ] || continue
+        home_entry="$(getent passwd "$candidate" 2>/dev/null | cut -d: -f6)"
+        [ "$home_entry" = "$candidate_home" ] || continue
+        candidate_score=0
+        for marker in Downloads Documents Desktop; do
+            [ -d "$candidate_home/$marker" ] && candidate_score=$((candidate_score + 1))
+        done
+        if [ "$candidate_score" -gt "$best_score" ]; then
+            best_user="$candidate"
+            best_score="$candidate_score"
+        fi
+    done
+    if [ -n "$best_user" ]; then
+        echo "$best_user"
+        return
+    fi
+
+    echo "root"
+}
+
+# Check and set sudo. Skip sudo when already root: sudo-as-root is an
+# identity no-op that still opens a PAM session per invocation, flooding
+# the journal (3 lines x ~6 source-time calls x every gvar re-source) on
+# the systemd service plane.
+if [ "$(id -u)" = "0" ]; then
+    USE_SUDO=""
+elif command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
     USE_SUDO=""
@@ -85,9 +168,17 @@ fi
 
 # Function to check and install sudo if needed
 check_and_install_sudo() {
+    SUDO_READY=false
+    # Root never needs sudo (same journal-noise rationale as USE_SUDO).
+    if [ "$(id -u)" = "0" ]; then
+        USE_SUDO=""
+        SUDO_READY=true
+        return
+    fi
     if command -v sudo >/dev/null 2>&1; then
         USE_SUDO="sudo"
-        return 0
+        SUDO_READY=true
+        return
     fi
 
     echo "[INFO] sudo is not installed, attempting to install..."
@@ -107,850 +198,71 @@ check_and_install_sudo() {
         else
             echo "[ERROR] Package manager not found, cannot install sudo"
             USE_SUDO=""
-            return 1
+            return
         fi
 
         if command -v sudo >/dev/null 2>&1; then
             USE_SUDO="sudo"
+            SUDO_READY=true
             echo "[OK] sudo installed successfully"
-            return 0
         else
             echo "[ERROR] Failed to install sudo"
             USE_SUDO=""
-            return 1
         fi
     else
         echo "[WARNING] Not running as root, cannot install sudo"
         echo "[INFO] Please run as root or install sudo manually"
         USE_SUDO=""
-        return 1
+        return
     fi
 }
 
 # Core Node project root directory
 CORE_NODE_PROJECT_ROOT=""
 
-# Function to detect desktop environment
-detect_desktop_environment() {
-    # Check for X11 session
-    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-
-    # Check for Wayland session
-    if [ -n "$WAYLAND_DISPLAY" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-
-    # Check for common desktop environment variables
-    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
-    elif [ -n "$DESKTOP_SESSION" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
-    fi
-
-    # Check for running desktop processes
-    if pgrep -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session\|lxde-session\|lxqt-session\|openbox\|fluxbox\|i3\|awesome\|dwm" >/dev/null 2>&1; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-
-    # Check for desktop environment directories
-    if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
-        # Additional check: see if we're in a graphical session
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-
-    # Check for WSL with desktop environment
-    if [ "$IS_WSL" = true ]; then
-        # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-}
+# Prompt helpers (prompt_read_default / read_default): single definition lives in
+# prompt_common.sh (zero side effects, so prompt-only libraries source it directly).
+source "$GVAR_COMMON_DIR/prompt_common.sh"
 
 # Function to detect actual desktop user when running as root
 # This is useful for services that need to interact with the desktop user's session
 detect_actual_desktop_user() {
-    # If not running as root, return current user
-    if [ "$(id -u)" -ne 0 ]; then
-        ACTUAL_DESKTOP_USER="$USER"
-        ACTUAL_DESKTOP_USER_HOME="$HOME"
-        return 0
-    fi
-
     local detected_user=""
     local detected_home=""
 
-    # Priority 1: Check SUDO_USER environment variable
-    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        detected_user="$SUDO_USER"
-        detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
-        if [ -n "$detected_home" ] && [ -d "$detected_home" ]; then
-            ACTUAL_DESKTOP_USER="$detected_user"
-            ACTUAL_DESKTOP_USER_HOME="$detected_home"
-            return 0
-        fi
-    fi
-
-    # Priority 2: Find user with active desktop session
-    for user_home in /home/*; do
-        if [ -d "$user_home" ]; then
-            detected_user="$(basename "$user_home")"
-
-            # Check if user has active desktop session process
-            if pgrep -u "$detected_user" -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session" >/dev/null 2>&1; then
-                detected_home="$user_home"
-                ACTUAL_DESKTOP_USER="$detected_user"
-                ACTUAL_DESKTOP_USER_HOME="$detected_home"
-                return 0
-            fi
-        fi
-    done
-
-    # Priority 3: Find user with Desktop folder (typical desktop user)
-    for user_home in /home/*; do
-        if [ -d "$user_home/Desktop" ]; then
-            detected_user="$(basename "$user_home")"
-            detected_home="$user_home"
-            ACTUAL_DESKTOP_USER="$detected_user"
-            ACTUAL_DESKTOP_USER_HOME="$detected_home"
-            return 0
-        fi
-    done
-
-    # Priority 4: Find user with most running processes (likely the active user)
-    local max_processes=0
-    local best_user=""
-    local best_home=""
-    for user_home in /home/*; do
-        if [ -d "$user_home" ]; then
-            detected_user="$(basename "$user_home")"
-            local proc_count=$(pgrep -u "$detected_user" 2>/dev/null | wc -l)
-            if [ "$proc_count" -gt "$max_processes" ]; then
-                max_processes=$proc_count
-                best_user="$detected_user"
-                best_home="$user_home"
-            fi
-        fi
-    done
-
-    if [ -n "$best_user" ] && [ "$max_processes" -gt 0 ]; then
-        ACTUAL_DESKTOP_USER="$best_user"
-        ACTUAL_DESKTOP_USER_HOME="$best_home"
-        return 0
-    fi
-
-    # Priority 5: Find first non-system user (UID >= 1000, < 60000)
-    while IFS=: read -r username _ uid _ _ homedir _; do
-        if [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$homedir" ]; then
-            ACTUAL_DESKTOP_USER="$username"
-            ACTUAL_DESKTOP_USER_HOME="$homedir"
-            return 0
-        fi
-    done < /etc/passwd
-
-    # Fallback: return empty (no user detected)
-    ACTUAL_DESKTOP_USER=""
-    ACTUAL_DESKTOP_USER_HOME=""
-    return 1
+    detected_user="$(detect_system_user)"
+    detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
+    [ -n "$detected_home" ] || detected_home="/root"
+    ACTUAL_DESKTOP_USER="$detected_user"
+    ACTUAL_DESKTOP_USER_HOME="$detected_home"
 }
-
-# Detect desktop environment first
-detect_desktop_environment
 
 # Detect actual desktop user (if running as root)
 detect_actual_desktop_user
 
-# Check if running in WSL
-if [ -d "$WSL_USERS_PATH" ]; then
-    IS_WSL=true
-elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
-    # Not WSL and no desktop environment = production server
-    IS_PRODUCTION=true
-fi
+# system before storage: storage derives BASE_DATA_DIR_FILE from GLOBAL_VAR_DIR,
+# which gvar_system_common.sh defines.
+source "$GVAR_SYSTEM_COMMON_SCRIPT"
 
-# Function to get optimal base directory for data storage
-# Priority: WSL /mnt/d -> NTFS mount -> Data disk mount -> /www
-get_base_data_directory() {
-    local base_dir=""
+source "$GVAR_STORAGE_COMMON_SCRIPT"
 
-    # Priority 1: WSL /mnt/d
-    if [ "$IS_WSL" = true ]; then
-        base_dir="/mnt/d"
-        echo "$base_dir"
-        return 0
-    fi
-
-    # Priority 2: NTFS mount point (derived from device detection)
-    if has_ntfs_disk; then
-        # Get first NTFS device
-        local ntfs_device=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"" | head -n 1 | cut -d: -f1)
-        if [ -n "$ntfs_device" ]; then
-            # Derive standard mount point from device name
-            local ntfs_mount=$(device_to_mount_point "$ntfs_device")
-            if [ -d "$ntfs_mount" ] && [ -w "$ntfs_mount" ]; then
-                base_dir="$ntfs_mount"
-                echo "$base_dir"
-                return 0
-            fi
-        fi
-    fi
-
-    # Priority 3: Data disk mount point (derived from device detection)
-    local data_device=$($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | head -n 1 | cut -d: -f1)
-    if [ -n "$data_device" ]; then
-        # Check if it's not root or boot partition
-        local mount_point=$(findmnt -n -o TARGET "$data_device" 2>/dev/null || echo "")
-        if [ "$mount_point" != "/" ] && [ "$mount_point" != "/boot" ]; then
-            # Derive standard mount point from device name
-            local data_mount=$(device_to_mount_point "$data_device")
-            if [ -d "$data_mount" ] && [ -w "$data_mount" ]; then
-                base_dir="$data_mount"
-                echo "$base_dir"
-                return 0
-            fi
-        fi
-    fi
-
-    # Priority 4: Desktop with Windows drives
-    if [ "$IS_DESKTOP_WITH_WINDOWS" = true ] && [ -n "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
-        if [ -d "$DESKTOP_LARGEST_WINDOWS_PATH" ] && [ -w "$DESKTOP_LARGEST_WINDOWS_PATH" ]; then
-            base_dir="$DESKTOP_LARGEST_WINDOWS_PATH"
-            echo "$base_dir"
-            return 0
-        fi
-    fi
-
-    # Fallback: /www
-    base_dir="/www"
-    echo "$base_dir"
-    return 0
+# True when /www is the ROOT of a mounted NTFS dual-boot disk (the Windows D:\
+# root on a dual-boot machine, bound there by mount_common.sh/3_setting_base.sh).
+# In that case the SAME logical tree gains ONE EXTRA LEVEL on Linux:
+#   Windows D:\www  ==  Linux /www/www      (NOT /www)
+#   Windows D:\www\cache  ==  Linux /www/www/cache
+# When /www is a plain directory on the native Linux filesystem OR a native
+# ext4/xfs data-disk mount (Linux-only machine), there is NO extra level: /www
+# itself is the D:\www equivalent and native paths are used directly -- the
+# extra level exists ONLY for the NTFS share, so runtime_environment.sh gates
+# CORE_NODE_WWW_BASE on an NTFS-family fstype (ntfs/ntfs3/fuseblk/ntfs-3g).
+# The detection itself lives ONCE in runtime_environment.sh; this function is
+# a thin reader of that single source of truth.
+# SYNC WARNING: consumers also exist in system_paths.py (delegates to
+# core_node_dirs.www_data_root_mounted) and PathMapper.php::mapWebPath.
+www_ntfs_root_mounted() {
+    [ "${CORE_NODE_WWW_BASE:-/www}" = "/www/www" ]
 }
-
-# Function to detect if system has NTFS disks
-has_ntfs_disk() {
-    local ntfs_devices=$($USE_SUDO blkid | grep -i "TYPE=\"ntfs\"")
-    if [ -n "$ntfs_devices" ]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to convert device name to standardized mount point
-# Example: /dev/sdb3 -> /mnt/dev_sdb3
-device_to_mount_point() {
-    local device="$1"
-    local mount_base="${2:-/mnt}"
-    # Convert /dev/sdb3 to dev_sdb3
-    local mount_name=$(echo "$device" | sed 's|/dev/|dev_|g')
-    echo "$mount_base/$mount_name"
-}
-
-# Function to get mount point from device (check actual mount or derive standardized path)
-get_device_mount_point() {
-    local device="$1"
-
-    # First check if device is currently mounted
-    if mount | grep -q "^$device "; then
-        mount | grep "^$device " | awk '{print $3}'
-        return 0
-    fi
-
-    # If not mounted, return standardized mount point
-    device_to_mount_point "$device"
-    return 0
-}
-
-# Function to detect if system has unmounted data disks
-has_unmounted_data_disk() {
-    # Check for ext4, xfs, btrfs partitions that are not root or boot
-    while IFS= read -r device; do
-        if [ -n "$device" ]; then
-            local mount_point=$(findmnt -n -o TARGET "$device" 2>/dev/null || echo "")
-            if [ -z "$mount_point" ]; then
-                # Found unmounted data disk
-                return 0
-            fi
-        fi
-    done < <($USE_SUDO blkid | grep -iE "TYPE=\"(ext4|xfs|btrfs)\"" | cut -d: -f1)
-
-    return 1
-}
-# Function to detect desktop system with Windows drives
-detect_desktop_windows_drives() {
-    # Get current user
-    CURRENT_USER=$(whoami)
-    
-    # Check if /media/current_user directory exists
-    local media_user_path="/media/$CURRENT_USER"
-    
-    if [ -d "$media_user_path" ]; then
-        DESKTOP_WINDOWS_MOUNT_PATH="$media_user_path"
-        
-        # Look for Windows drives (typically C:, D:, E:, etc.)
-        local windows_drives=""
-        local drive_count=0
-        
-        # Check for common Windows drive patterns
-        for drive_letter in {A..Z}; do
-            local drive_path="$media_user_path/$drive_letter"
-            if [ -d "$drive_path" ]; then
-                # Check if it looks like a Windows drive (has Windows-specific directories)
-                if [ -d "$drive_path/Windows" ] || [ -d "$drive_path/Program Files" ] || [ -d "$drive_path/Users" ] || [ -f "$drive_path/bootmgr" ]; then
-                    windows_drives="$windows_drives$drive_letter "
-                    drive_count=$((drive_count + 1))
-                fi
-            fi
-        done
-        
-        # Also check for numbered drives (common in some Linux distributions)
-        for drive_num in {0..9}; do
-            local drive_path="$media_user_path/$drive_num"
-            if [ -d "$drive_path" ]; then
-                # Check if it looks like a Windows drive
-                if [ -d "$drive_path/Windows" ] || [ -d "$drive_path/Program Files" ] || [ -d "$drive_path/Users" ] || [ -f "$drive_path/bootmgr" ]; then
-                    windows_drives="$windows_drives$drive_num "
-                    drive_count=$((drive_count + 1))
-                fi
-            fi
-        done
-        
-        # Check for generic "disk" or "drive" patterns
-        for pattern in "disk" "drive" "volume"; do
-            for item in "$media_user_path"/*; do
-                if [ -d "$item" ]; then
-                    local item_name=$(basename "$item")
-                    if [[ "$item_name" =~ ^$pattern ]]; then
-                        # Check if it looks like a Windows drive
-                        if [ -d "$item/Windows" ] || [ -d "$item/Program Files" ] || [ -d "$item/Users" ] || [ -f "$item/bootmgr" ]; then
-                            windows_drives="$windows_drives$item_name "
-                            drive_count=$((drive_count + 1))
-                        fi
-                    fi
-                fi
-            done
-        done
-        
-        DESKTOP_WINDOWS_DRIVES="$windows_drives"
-        
-        if [ "$drive_count" -gt 0 ]; then
-            IS_DESKTOP_WITH_WINDOWS=true
-            # Determine the largest drive (usually C: or the system drive)
-            determine_largest_windows_drive
-        else
-            IS_DESKTOP_WITH_WINDOWS=false
-        fi
-    else
-        IS_DESKTOP_WITH_WINDOWS=false
-    fi
-}
-
-# Function to determine the largest Windows drive
-determine_largest_windows_drive() {
-    local largest_drive=""
-    local largest_size=0
-    
-    for drive in $DESKTOP_WINDOWS_DRIVES; do
-        local drive_path="$DESKTOP_WINDOWS_MOUNT_PATH/$drive"
-        if [ -d "$drive_path" ]; then
-            # Get drive size using df
-            local drive_size=$(df "$drive_path" 2>/dev/null | awk 'NR==2 {print $2}' | sed 's/[^0-9]//g')
-            if [ -n "$drive_size" ] && [ "$drive_size" -gt "$largest_size" ]; then
-                largest_size="$drive_size"
-                largest_drive="$drive"
-            fi
-        fi
-    done
-    
-    if [ -n "$largest_drive" ]; then
-        export DESKTOP_LARGEST_WINDOWS_DRIVE="$largest_drive"
-        export DESKTOP_LARGEST_WINDOWS_PATH="$DESKTOP_WINDOWS_MOUNT_PATH/$largest_drive"
-    fi
-}
-
-# Function to detect desktop environment
-detect_desktop_environment() {
-    # Check for X11 session
-    if [ -n "$DISPLAY" ] && [ "$DISPLAY" != ":0" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-    
-    # Check for Wayland session
-    if [ -n "$WAYLAND_DISPLAY" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-    
-    # Check for common desktop environment variables
-    if [ -n "$XDG_CURRENT_DESKTOP" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$XDG_CURRENT_DESKTOP"
-    elif [ -n "$DESKTOP_SESSION" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="$DESKTOP_SESSION"
-    fi
-    
-    # Check for running desktop processes
-    if pgrep -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session\|lxde-session\|lxqt-session\|openbox\|fluxbox\|i3\|awesome\|dwm" >/dev/null 2>&1; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-    
-    # Check for desktop environment directories
-    if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
-        # Additional check: see if we're in a graphical session
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-    
-    # Check for WSL with desktop environment
-    if [ "$IS_WSL" = true ]; then
-        # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ] || pgrep -x "wslg" >/dev/null 2>&1; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-}
-
-# Detect desktop environment
-detect_desktop_environment
-
-# Detect desktop system with Windows drives
-detect_desktop_windows_drives
-
-# Set core node project root directory (derived from base data directory)
-# Unified path for both server and desktop: base_dir/programing/core_node
-get_core_node_project_root() {
-    local base_dir=$(get_base_data_directory)
-
-    # Unified path structure for all environments
-    echo "$base_dir/programing/core_node"
-}
-
-CORE_NODE_PROJECT_ROOT="$(get_core_node_project_root)"
-
-# Export desktop Windows drive variables
-export IS_DESKTOP_WITH_WINDOWS
-export CURRENT_USER
-export DESKTOP_WINDOWS_MOUNT_PATH
-export DESKTOP_WINDOWS_DRIVES
-export DESKTOP_LARGEST_WINDOWS_DRIVE
-export DESKTOP_LARGEST_WINDOWS_PATH
-
-# Function to get comprehensive environment information
-get_environment_info() {
-    # Environment detection summary
-    if [ "$IS_WSL" = true ]; then
-        # WSL environment details
-        true
-    elif [ "$IS_DESKTOP_WITH_WINDOWS" = true ]; then
-        # Desktop with Windows drives details
-        true
-    elif [ "$IS_PRODUCTION" = true ]; then
-        # Production environment details
-        true
-    else
-        # Standard Linux Desktop/Server details
-        true
-    fi
-    
-    if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
-        # Desktop environment details
-        true
-    fi
-}
-
-# Multi-disk detection variables
-HAS_MULTIPLE_DISKS=false
-DISK_COUNT=0
-DISK_LIST=""
-DISK_MOUNT_INFO=""
-
-# Function to detect multiple hard drives
-detect_multiple_disks() {
-    # Get list of all block devices (excluding loop devices and partitions)
-    local disks=$(lsblk -d -n -o NAME,TYPE | grep -E "disk|nvme" | awk '{print $1}' | sort)
-    
-    # Count disks
-    DISK_COUNT=$(echo "$disks" | wc -l)
-    DISK_LIST="$disks"
-    
-    # Check if we have multiple disks
-    if [ "$DISK_COUNT" -gt 1 ]; then
-        HAS_MULTIPLE_DISKS=true
-        # Get detailed mount information for each disk
-        get_disk_mount_info
-    else
-        HAS_MULTIPLE_DISKS=false
-    fi
-}
-
-# Function to get mount information for all disks
-get_disk_mount_info() {
-    DISK_MOUNT_INFO=""
-    
-    # Process each disk
-    while IFS= read -r disk; do
-        if [ -n "$disk" ]; then
-            local disk_path="/dev/$disk"
-            local disk_info=""
-            
-            # Get disk size
-            local disk_size=$(lsblk -d -n -o SIZE "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Get mount points for this disk
-            local mount_points=$(lsblk -n -o MOUNTPOINT "$disk_path" 2>/dev/null | grep -v "^$" | tr '\n' ',' | sed 's/,$//')
-            
-            # Get filesystem type
-            local fs_type=$(lsblk -d -n -o FSTYPE "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Get disk model/vendor
-            local disk_model=$(lsblk -d -n -o MODEL "$disk_path" 2>/dev/null || echo "Unknown")
-            
-            # Check if disk is mounted
-            local is_mounted="No"
-            if [ -n "$mount_points" ]; then
-                is_mounted="Yes"
-            fi
-            
-            # Build disk information string
-            disk_info="Disk: $disk_path | Size: $disk_size | Model: $disk_model | FS: $fs_type | Mounted: $is_mounted"
-            if [ -n "$mount_points" ]; then
-                disk_info="$disk_info | Mount Points: $mount_points"
-            fi
-            
-            DISK_MOUNT_INFO="$DISK_MOUNT_INFO$disk_info\n"
-        fi
-    done <<< "$DISK_LIST"
-}
-
-# Function to get available mount points for additional disks
-get_available_mount_points() {
-    local available_mounts=""
-    
-    # Check common mount point directories
-    local common_mounts=("/mnt" "/media" "/opt" "/var" "/home")
-    
-    for mount_dir in "${common_mounts[@]}"; do
-        if [ -d "$mount_dir" ]; then
-            # Check if directory is writable and has space
-            if [ -w "$mount_dir" ]; then
-                local available_space=$(df "$mount_dir" 2>/dev/null | awk 'NR==2 {print $4}')
-                if [ -n "$available_space" ] && [ "$available_space" -gt 1048576 ]; then  # More than 1MB
-                    available_mounts="$available_mounts$mount_dir (Available: ${available_space}KB)\n"
-                fi
-            fi
-        fi
-    done
-    
-    if [ -n "$available_mounts" ]; then
-        # Available mount points found
-        true
-    else
-        # No suitable mount points found
-        true
-    fi
-}
-
-# Function to suggest optimal disk usage strategy
-suggest_disk_usage_strategy() {
-    if [ "$HAS_MULTIPLE_DISKS" = true ]; then
-        # Multi-disk usage strategy suggestions
-        # System has multiple disks available
-        # Recommended disk usage strategy:
-        # 1. Primary disk (/dev/sda): System files, OS, and core applications
-        # 2. Secondary disk (/dev/sdb): Data storage, web content, and user files
-        # 3. Additional disks: Backup storage, logs, or specialized applications
-        # Suggested mount points for additional disks:
-        get_available_mount_points
-        # To mount additional disks, consider:
-        # - /mnt/data for general data storage
-        # - /mnt/web for web content
-        # - /mnt/backup for backup storage
-        # - /mnt/logs for log files
-    else
-        # Single disk system - no additional disk configuration needed
-        true
-    fi
-}
-
-# Execute multi-disk detection
-detect_multiple_disks
-
-# Initialize global variables function (compatibility placeholder)
-init_global_vars() {
-    # Global variables are already initialized above
-    # This function exists for compatibility with existing scripts
-    return 0
-}
-
-# Export the function
-export -f init_global_vars
-
-# Export key variables for use by other scripts
-export USE_SUDO
-export CORE_NODE_PROJECT_ROOT
-export IS_WSL
-export IS_PRODUCTION
-export IS_DESKTOP_WITH_WINDOWS
-export HAS_DESKTOP_ENVIRONMENT
-export DESKTOP_ENVIRONMENT
-export CURRENT_USER
-export DESKTOP_WINDOWS_MOUNT_PATH
-export DESKTOP_WINDOWS_DRIVES
-export DESKTOP_LARGEST_WINDOWS_DRIVE
-export DESKTOP_LARGEST_WINDOWS_PATH
-export HAS_MULTIPLE_DISKS
-export DISK_COUNT
-export DISK_LIST
-export DISK_MOUNT_INFO
-export GLOBAL_TEMP_DIR
-export GLOBAL_VAR_DIR
-export CORE_NODE_DATA_DIR
-export CORE_NODE_SHARED_DOWNLOADS
-
-# System detection variables (merged from gvar_common.sh)
-PRE_COMPILE_DIR=".dev"
-OS_ID=""
-OS_VERSION_ID=""
-OS_NAME=""
-SYSTEM_NAME=""
-SYSTEM_VERSION=""
-SYS_DIR=""
-
-# System detection (merged from gvar_common.sh)
-if [ -f /etc/os-release ]; then
-    OS_ID=$(awk -F= '/^ID=/ { print $2 }' /etc/os-release | tr -d '"')
-    OS_VERSION_ID=$(awk -F= '/^VERSION_ID=/ { print $2 }' /etc/os-release | tr -d '"')
-    OS_NAME=$(awk -F= '/^NAME=/ { print $2 }' /etc/os-release | tr -d '"')
-
-    # Handle special cases
-    case "$OS_ID" in
-    "centos" | "rhel" | "fedora")
-        SYSTEM_NAME="centos"
-        SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_centos${OS_VERSION_ID}"
-        ;;
-    "ubuntu")
-        SYSTEM_NAME="ubuntu"
-        SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_ubuntu${OS_VERSION_ID}"
-        ;;
-    "debian")
-        SYSTEM_NAME="debian"
-        SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_debian${OS_VERSION_ID}"
-        ;;
-    "almalinux" | "rocky")
-        SYSTEM_NAME="centos" # Treat AlmaLinux/Rocky as CentOS for compatibility
-        SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_centos${OS_VERSION_ID}"
-        ;;
-    *)
-        SYSTEM_NAME="$OS_ID"
-        SYSTEM_VERSION="$OS_VERSION_ID"
-        SYS_DIR="${PRE_COMPILE_DIR}_${OS_ID}${OS_VERSION_ID}"
-        ;;
-    esac
-elif [ -f /etc/redhat-release ]; then
-    # Older RedHat-based systems
-    SYSTEM_NAME="centos"
-    SYSTEM_VERSION=$(cat /etc/redhat-release | sed -e 's/.*release \([0-9]\+\).*/\1/')
-    SYS_DIR="${PRE_COMPILE_DIR}_centos${SYSTEM_VERSION}"
-elif [ -f /etc/lsb-release ]; then
-    # Older Ubuntu systems
-    . /etc/lsb-release
-    SYSTEM_NAME="${DISTRIB_ID,,}"
-    SYSTEM_VERSION="$DISTRIB_RELEASE"
-    SYS_DIR="${PRE_COMPILE_DIR}_${SYSTEM_NAME}${SYSTEM_VERSION}"
-else
-    # Fallback to uname
-    SYSTEM_NAME=$(uname -s | tr '[:upper:]' '[:lower:]')
-    SYSTEM_VERSION=$(uname -r)
-    SYS_DIR="${PRE_COMPILE_DIR}_${SYSTEM_NAME}${SYSTEM_VERSION}"
-fi
-
-# Directory variables will be set after map_web_path function is defined
-
-# Additional directory variables
-# Only set if not already defined (to avoid overwriting dd.sh values)
-if [ -z "$SHELLS_DIR" ]; then
-    SHELLS_DIR=""
-fi
-if [ -z "$SHELLS_SCRIPTS_DIR" ]; then
-    SHELLS_SCRIPTS_DIR=""
-fi
-if [ -z "$CORE_SCRIPTS_DIR" ]; then
-    CORE_SCRIPTS_DIR=""
-fi
-
-# Set directory variables based on script location only if not already set
-if [ -n "${BASH_SOURCE[0]}" ] && [ -z "$SHELLS_DIR" ]; then
-    LOCAL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    SHELLS_DIR="$(dirname "$LOCAL_SCRIPT_DIR")"
-    SHELLS_SCRIPTS_DIR="$SHELLS_DIR/scripts"
-    CORE_SCRIPTS_DIR="$(dirname "$SHELLS_DIR")"
-fi
-
-# Installation directories will be set after map_web_path function is defined
-
-# Function to get system information (merged from gvar_common.sh)
-get_system_info() {
-    echo "${SYSTEM_NAME}_${SYSTEM_VERSION}"
-}
-
-# Export additional variables (merged from gvar_common.sh)
-export PRE_COMPILE_DIR
-export OS_ID
-export OS_VERSION_ID
-export OS_NAME
-export SYSTEM_NAME
-export SYSTEM_VERSION
-export SYSTEM_FULL_NAME="${SYSTEM_NAME}_${SYSTEM_VERSION}"
-export SYS_DIR
-export BASE_DIR
-export WIS_PROGRAMING_DIR
-export COMPILE_DIR
-export POETRY_HOME
-export POETRY_LINK
-export NODE_INSTALL_DIR
-export NODE_SHORT_VERSION
-export NODE_VERSION
-export NODE_DOWNLOAD_URL
-export NODE_BIN
-export GO_DIR
-export GO_BIN
-export GO_VERSION_AMD64_FILE
-export GO_TAR_URL
-export RUBY_INSTALL_DIR
-export RUBY_GEM_HOME
-export RUBY_GEM_BIN_DIR
-export UPS_CONF
-export UPSD_CONF
-export UPSD_USERS_CONF
-export UPSMON_CONF
-export MCP_SOURCE_DIR
-export MCP_SERVER_DIR
-export MCP_LOCAL_DIR
-export SCRIPT_DIR
-export SHELLS_DIR
-export SHELLS_SCRIPTS_DIR
-export CORE_SCRIPTS_DIR
-
-# Function to get disk information for other scripts
-get_disk_info() {
-    local info_type="$1"
-    
-    case "$info_type" in
-        "count")
-            echo "$DISK_COUNT"
-            ;;
-        "list")
-            echo "$DISK_LIST"
-            ;;
-        "multiple")
-            if [ "$HAS_MULTIPLE_DISKS" = true ]; then
-                echo "true"
-            else
-                echo "false"
-            fi
-            ;;
-        "mount_info")
-            echo -e "$DISK_MOUNT_INFO"
-            ;;
-        "suggest")
-            suggest_disk_usage_strategy
-            ;;
-        *)
-            echo "Usage: get_disk_info [count|list|multiple|mount_info|suggest]"
-            echo "  count: Number of disks"
-            echo "  list: List of disk names"
-            echo "  multiple: true/false if multiple disks exist"
-            echo "  mount_info: Detailed mount information"
-            echo "  suggest: Disk usage strategy suggestions"
-            ;;
-    esac
-}
-
-# Export disk detection variables for use in other scripts
-export HAS_MULTIPLE_DISKS
-export DISK_COUNT
-export DISK_LIST
-export DISK_MOUNT_INFO
-
-# Function to help with disk mounting operations
-mount_additional_disk() {
-    local disk_device="$1"
-    local mount_point="$2"
-    local filesystem_type="${3:-ext4}"
-    
-    if [ -z "$disk_device" ] || [ -z "$mount_point" ]; then
-        echo "Usage: mount_additional_disk <device> <mount_point> [filesystem_type]"
-        echo "Example: mount_additional_disk /dev/sdb /mnt/data ext4"
-        return 1
-    fi
-    
-    # Check if device exists
-    if [ ! -b "$disk_device" ]; then
-        echo "Error: Device $disk_device does not exist"
-        return 1
-    fi
-    
-    # Check if mount point exists, create if not
-    if [ ! -d "$mount_point" ]; then
-        echo "Creating mount point: $mount_point"
-        $USE_SUDO mkdir -p "$mount_point"
-    fi
-    
-    # Check if device is already mounted
-    if mountpoint -q "$mount_point"; then
-        echo "Warning: $mount_point is already mounted"
-        return 1
-    fi
-    
-    # Check if device has a filesystem
-    if ! blkid "$disk_device" >/dev/null 2>&1; then
-        echo "Device $disk_device has no filesystem. Creating $filesystem_type filesystem..."
-        $USE_SUDO mkfs.$filesystem_type "$disk_device"
-    fi
-    
-    # Mount the device
-    echo "Mounting $disk_device to $mount_point..."
-    if $USE_SUDO mount "$disk_device" "$mount_point"; then
-        echo "Successfully mounted $disk_device to $mount_point"
-        
-        # Set proper permissions
-        $USE_SUDO chmod 755 "$mount_point"
-        
-        # Add to fstab for persistent mounting
-        local uuid=$(blkid -s UUID -o value "$disk_device")
-        if [ -n "$uuid" ]; then
-            local fstab_entry="UUID=$uuid $mount_point $filesystem_type defaults 0 2"
-            if ! grep -q "$mount_point" /etc/fstab; then
-                echo "Adding to /etc/fstab for persistent mounting..."
-                echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
-            fi
-        fi
-        
-        return 0
-    else
-        echo "Failed to mount $disk_device to $mount_point"
-        return 1
-    fi
-}
-
-# Determine CORE_NODE_DATA_DIR based on environment (standardized location)
-CORE_NODE_DATA_DIR="/var/_core_node"
-
-GLOBAL_VAR_DIR="$CORE_NODE_DATA_DIR/global_var"
-
-# Global download directory for all installation scripts
-CORE_NODE_SHARED_DOWNLOADS="$CORE_NODE_DATA_DIR/shared_downloads"
 
 # Function to map paths based on environment (using get_base_data_directory)
 # SYNC WARNING: This function MUST be kept in sync with:
@@ -961,22 +273,41 @@ map_web_path() {
     local sub_path="${2:-}"
     local mapped_path=""
     local base_path=""
+    local data_base=""
 
     # Get optimal base directory
-    local data_base=$(get_base_data_directory)
+    data_base=$(get_base_data_directory)
 
-    # Determine base path for www based on environment
+    # Determine the web base. Cross-platform WWW alignment (single rule for the
+    # WWW_PATH var-center value): Windows uses D:\www, so the SAME logical tree
+    # on Linux is /www/www when a shared NTFS dual-boot disk is present -- e.g.
+    # the cache dir is D:\www\cache on Windows and /www/www/cache on Linux (ONE
+    # EXTRA LEVEL: the disk ROOT is mounted at /www, so /www == D:\ and
+    # /www/www == D:\www). 3_setting_base.sh (ensure_www_base_mount) bind-mounts
+    # the selected disk root onto /www, so /www/www IS the disk's www dir and
+    # stays valid across device-node renames (/mnt/dev_* paths are unstable).
+    # The extra level exists ONLY for the NTFS dual-boot share
+    # (www_ntfs_root_mounted requires an NTFS-family fstype at /www): a
+    # Linux-only machine -- /www a plain native dir OR a native ext4/xfs data
+    # disk -- uses /www directly, no extra level.
+    # Priority: the persisted WWW_PATH central variable (single source of truth,
+    # written once by 3_setting_base.sh and read identically by sh/py/PHP) ->
+    # live NTFS-root-mount detection -> legacy data_base rule.
+    # PostgreSQL is unaffected -- its data dir stays on native ext4
+    # (pg_mount -> /var/lib/postgresql/d), not under www.
+    local www_path_var=""
+    www_path_var="$(get_var WWW_PATH 2>/dev/null | head -n1)"
     if [ "$IS_WSL" = true ]; then
         base_path="$data_base/www"
-    elif [ "$IS_PRODUCTION" = true ]; then
-        base_path="/www"
+    elif [ -n "$www_path_var" ] && [ -d "$www_path_var" ]; then
+        base_path="$www_path_var"
+    elif www_ntfs_root_mounted; then
+        base_path="/www/www"
     else
-        # Desktop environment: use data base + /www, unless data base is already /www
-        if [ "$data_base" = "/www" ]; then
-            base_path="/www"
-        else
-            base_path="$data_base/www"
-        fi
+        case "$data_base" in
+            /|/www) base_path="/www" ;;
+            *)      base_path="$data_base/www" ;;
+        esac
     fi
 
     # Map paths using common base path
@@ -989,6 +320,13 @@ map_web_path() {
             ;;
         "laravel_db")
             mapped_path="$base_path/wwwroot/laravel_db"
+            ;;
+        "postgresql")
+            # PostgreSQL data root on the shared web/data disk (native Windows +
+            # native Linux server). On WSL the cluster instead uses an ext4 loop
+            # image (laravel_db/postgresql/pgdata.ext4) at pg_mount, since drvfs
+            # cannot host a postgres-owned, mode-0700 data dir.
+            mapped_path="$base_path/wwwroot/postgresql"
             ;;
         "nginxconfig")
             mapped_path="$base_path/nginxconfig"
@@ -1006,24 +344,21 @@ map_web_path() {
             mapped_path="$base_path"
             ;;
         "compile_dir")
-            # Compile directory for development languages
-            # All environments: _system_version (with underscore prefix)
-            # Format: _ubuntu_24, _debian_12, _centos_8
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            # Compile directory for development languages (node, py, ...).
+            # Format: _ubuntu_24, _debian_13, _kali_2026 (underscore prefix).
+            # Base prefers /opt when root has >50G free (or /opt dir already in use);
+            # see get_dev_compile_base. NOT the web data base.
+            data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}"
+            mapped_path="${data_base}/${SYS_DIR}"
             ;;
         "applications_dir")
             # Applications directory - same location as compile_dir for consistency
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version/applications for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}/applications"
+            mapped_path="${data_base}/${SYS_DIR}/applications"
             ;;
         "nginx")
             # Keep /etc/nginx in Linux filesystem
@@ -1037,6 +372,25 @@ map_web_path() {
             # Keep logs in Linux filesystem
             mapped_path="/var/log"
             ;;
+        "app_manager_logs")
+            # Unified App Manager log namespace ROOT (scripts/app_manager/linux_sh).
+            # Service stdout/stderr (service.log) and foreground.log live under
+            # <this>/namespaces/apps/<name>/. Kept on the native Linux fs like
+            # "logs". Retired predecessor: see "app_manager_logs_old".
+            mapped_path="/opt/_core_node/logs"
+            ;;
+        "app_manager_logs_old")
+            # Retired App Manager log root (formerly "core_node_unified_manager").
+            # Kept ONLY so cleanup tooling can locate and purge the old 13GB tree.
+            mapped_path="/opt/core_node_unified_manager/logs"
+            ;;
+        "pg_mount")
+            # Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
+            # persistence). MUST be on the native Linux fs (NOT drvfs): the whole
+            # point is to give pg a postgres-owned, mode-0700 data dir that drvfs
+            # cannot provide. The data/image itself lives under "laravel_db".
+            mapped_path="/var/lib/postgresql/d"
+            ;;
         "programing")
             # Programming/development directory under base_path
             mapped_path="$base_path/programing"
@@ -1046,33 +400,18 @@ map_web_path() {
             mapped_path="$base_path/programing/core_node"
             ;;
         "npm_global")
-            # NPM global packages directory (in compile_dir)
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            # NPM global packages directory (inside the dev compile_dir -> same base).
+            data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version/npm-global for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}/npm-global"
+            mapped_path="${data_base}/${SYS_DIR}/npm-global"
             ;;
         "dev_system")
-            # Development system directory (same as compile_dir)
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            local data_base=$(get_base_data_directory)
-            
+            # Development system directory (same as compile_dir -> same base).
+            data_base=$(get_dev_compile_base)
+
             # Use base_dir/_system_version for all environments
-            mapped_path="${data_base}/_${sys_name}_${sys_version}"
-            ;;
-        "dev_system_old")
-            # Old development system directory naming (dev_ubuntu24 style - no underscore prefix)
-            local sys_name="${SYSTEM_NAME}"
-            local sys_version=$(echo "${SYSTEM_VERSION}" | cut -d. -f1)
-            if [ "$IS_WSL" = true ] || [ "$HAS_DESKTOP_ENVIRONMENT" = true ] || has_ntfs_disk 2>/dev/null; then
-                local data_base=$(get_base_data_directory)
-                mapped_path="${data_base}/dev_${sys_name}${sys_version}"
-            else
-                mapped_path="/usr/dev_${sys_name}${sys_version}"
-            fi
+            mapped_path="${data_base}/${SYS_DIR}"
             ;;
         *)
             # Default: return the key as-is (assume it's already a path)
@@ -1101,9 +440,10 @@ map_web_path() {
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
                     local detected_user=$(detect_system_user)
-                    $USE_SUDO chown ${detected_user}:${detected_user} "$mapped_path" 2>/dev/null || true
+                    local detected_group=$(id -gn "$detected_user" 2>/dev/null || echo "$detected_user")
+                    $USE_SUDO chown "$detected_user:$detected_group" "$mapped_path" 2>/dev/null || true
                 fi
-                $USE_SUDO chmod 755 "$mapped_path" 2>/dev/null || true
+                $USE_SUDO chmod 777 "$mapped_path" 2>/dev/null || true
             fi
             ;;
         "www")
@@ -1116,366 +456,18 @@ map_web_path() {
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
                     local detected_user=$(detect_system_user)
-                    $USE_SUDO chown ${detected_user}:${detected_user} "$mapped_path" 2>/dev/null || true
+                    local detected_group=$(id -gn "$detected_user" 2>/dev/null || echo "$detected_user")
+                    $USE_SUDO chown "$detected_user:$detected_group" "$mapped_path" 2>/dev/null || true
                 fi
-                $USE_SUDO chmod 755 "$mapped_path" 2>/dev/null || true
+                $USE_SUDO chmod 777 "$mapped_path" 2>/dev/null || true
             fi
             ;;
     esac
 
     echo "$mapped_path"
-    return 0
 }
 
-# Function to ensure directory exists with proper permissions
-ensure_web_directory() {
-    local path_key="$1"
-    local permissions="${2:-755}"
-    local detected_user=$(detect_system_user)
-    local owner="${3:-${detected_user}:${detected_user}}"
-
-    # Map to appropriate path using string key
-    local actual_path=$(map_web_path "$path_key")
-
-    # Create directory if it doesn't exist
-    if [ ! -d "$actual_path" ]; then
-        echo "Creating directory: $actual_path (mapped from key: $path_key)" >&2
-        $USE_SUDO mkdir -p "$actual_path"
-    fi
-
-    # Set permissions
-    $USE_SUDO chmod "$permissions" "$actual_path" 2>/dev/null || true
-
-    # Set owner (only if not in WSL, Windows filesystem doesn't support chown)
-    if [ "$IS_WSL" = false ]; then
-        $USE_SUDO chown "$owner" "$actual_path" 2>/dev/null || true
-    fi
-
-    echo "$actual_path"
-    return 0
-}
-
-# Initialize global temporary directory
-GLOBAL_TEMP_DIR="/usr/tmp"
-
-# Ensure global temporary directory exists
-if [ ! -d "$GLOBAL_TEMP_DIR" ]; then
-    echo "Creating global temporary directory: $GLOBAL_TEMP_DIR"
-    $USE_SUDO mkdir -p "$GLOBAL_TEMP_DIR"
-    $USE_SUDO chmod 755 "$GLOBAL_TEMP_DIR"
-fi
-
-# Function to create script-specific temporary directory
-create_script_temp_dir() {
-    local script_name="$1"
-    local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
-
-    if [ ! -d "$script_temp_dir" ]; then
-        $USE_SUDO mkdir -p "$script_temp_dir"
-        $USE_SUDO chmod 777 "$script_temp_dir"
-        # Ensure current user can write to this directory
-        if [ -n "$USER" ] && [ "$USER" != "root" ]; then
-            $USE_SUDO chown -R "$USER:$USER" "$script_temp_dir" 2>/dev/null || true
-        fi
-    fi
-
-    echo "$script_temp_dir"
-    return 0
-}
-
-# Function to clean up script-specific temporary directory
-cleanup_script_temp_dir() {
-    local script_name="$1"
-    local script_temp_dir="$GLOBAL_TEMP_DIR/$script_name"
-
-    if [ -d "$script_temp_dir" ]; then
-        echo "Cleaning up temporary directory: $script_temp_dir"
-        $USE_SUDO rm -rf "$script_temp_dir"
-    fi
-}
-
-# Ensure the global variable directory exists
-if [ ! -d "$GLOBAL_VAR_DIR" ]; then
-    $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
-    echo "Created global variable directory: $GLOBAL_VAR_DIR"
-fi
-
-# Set IS_GLOBAL based on SELECTED_REGION
-set_is_global() {
-    local selected_region=$(get_global_var "SELECTED_REGION" "Global")
-    if [ "$selected_region" = "Global" ]; then
-        IS_GLOBAL="true"
-    else
-        IS_GLOBAL="false"
-    fi
-}
-
-# Helper function to normalize key and get file path
-_get_var_file_path() {
-    local key="$1"
-    # Convert key to uppercase and remove any special characters
-    key=$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')
-    echo "$GLOBAL_VAR_DIR/$key"
-}
-
-# Function to store path in global variables
-store_path() {
-    local name=$1
-    local path=$2
-    if [[ -n "$path" ]]; then
-        set_var "${name}_path" "$path"
-        echo "${name} path stored: $path"
-    else
-        echo "Warning: Could not find ${name} path"
-    fi
-}
-
-# Function to set global variable in file
-set_global_var() {
-    local key="$1"
-    local val="$2"
-    local print="${3:-}"
-
-    # Check if parameters are provided
-    if [[ -z "$key" ]] || [[ -z "$val" ]]; then
-        echo "Error: Both key and value must be provided"
-        echo "Usage: set_global_var <key> <value>"
-        return 1
-    fi
-
-    # Get normalized file path
-    local file_path=$(_get_var_file_path "$key")
-
-    # Write value to file
-    echo "$val" | $USE_SUDO tee "$file_path" >/dev/null
-    if [[ $? -eq 0 ]]; then
-        if [[ "$print" != "false" ]]; then
-            echo "Successfully set global variable: $key -> $val"
-        fi
-        return 0
-    else
-        echo "Error: Failed to write to $file_path"
-        return 1
-    fi
-}
-
-# Function to get global variable from file
-get_global_var() {
-    local key="$1"
-    local default_value="$2"
-
-    # Check if key is provided
-    if [[ -z "$key" ]]; then
-        echo "Error: Key must be provided"
-        echo "Usage: get_global_var <key> [default_value]"
-        return 1
-    fi
-
-    # Get normalized file path
-    local file_path=$(_get_var_file_path "$key")
-
-    # Check if file exists
-    if [[ ! -f "$file_path" ]]; then
-        # Return default value if provided, otherwise return empty string
-        echo "${default_value:-}"
-        return 0
-    fi
-
-    # Read and return the value
-    local val=$($USE_SUDO cat "$file_path" 2>/dev/null)
-    if [[ $? -eq 0 ]]; then
-        echo "$val"
-        return 0
-    else
-        # Return default value if read fails
-        echo "${default_value:-}"
-        return 0
-    fi
-}
-
-# Alias for get_global_var for backward compatibility
-get_var() {
-    get_global_var "$@"
-}
-
-# Function to clear all global variables
-clear_all_global_vars() {
-    if [[ ! -d "$GLOBAL_VAR_DIR" ]]; then
-        echo "Global variable directory does not exist"
-        return 0
-    fi
-
-    # Remove all files in the directory
-    $USE_SUDO rm -f "$GLOBAL_VAR_DIR"/*
-    if [[ $? -eq 0 ]]; then
-        echo "Successfully cleared all global variables"
-        return 0
-    else
-        echo "Error: Failed to clear global variables"
-        return 1
-    fi
-}
-
-# Function to set multiple global variables with value 'true'
-set_multiple_global_vars() {
-    local keys=("$@")
-    local success=true
-
-    if [[ ${#keys[@]} -eq 0 ]]; then
-        echo "Error: No keys provided"
-        echo "Usage: set_multiple_global_vars key1 key2 key3 ..."
-        return 1
-    fi
-
-    for key in "${keys[@]}"; do
-        if ! set_global_var "$key" "true"; then
-            echo "Failed to set key: $key"
-            success=false
-        fi
-    done
-
-    if [[ "$success" == "true" ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to remove one or more global variables
-remove_global_vars() {
-    local keys=("$@")
-    local success=true
-
-    if [[ ${#keys[@]} -eq 0 ]]; then
-        echo "Error: No keys provided"
-        echo "Usage: remove_global_vars key1 key2 key3 ..."
-        return 1
-    fi
-
-    for key in "${keys[@]}"; do
-        # Get normalized file path
-        local file_path=$(_get_var_file_path "$key")
-
-        if [[ -f "$file_path" ]]; then
-            $USE_SUDO rm -f "$file_path"
-            if [[ $? -eq 0 ]]; then
-                echo "Successfully removed global variable: $key"
-            else
-                echo "Failed to remove global variable: $key"
-                success=false
-            fi
-        else
-            echo "Global variable not found: $key"
-        fi
-    done
-
-    if [[ "$success" == "true" ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to check if system is Debian-based (includes both Debian and Ubuntu)
-is_debian_based() {
-    if [[ -f /etc/debian_version ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to check if system is Debian
-is_debian() {
-    if is_debian_based && [[ ! -f /etc/lsb-release ]]; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to check if system is Ubuntu
-is_ubuntu() {
-    if [[ -f /etc/lsb-release ]] && grep -qi "ubuntu" /etc/lsb-release; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Function to check if system is CentOS/RHEL based
-is_centos() {
-    if [[ -f /etc/centos-release ]] || [[ -f /etc/redhat-release ]] ||
-        ([[ -f /etc/os-release ]] && grep -qiE "centos|rhel|rocky|almalinux" /etc/os-release); then
-        return 0
-    else
-        return 1
-    fi
-}
-
-# Alias for set_global_var for backward compatibility
-set_var() {
-    set_global_var "$@"
-}
-
-# Function to set a variable both in global_var and /etc/environment
-set_env_and_var() {
-    local key="$1"
-    local val="$2"
-    set_var "$key" "$val"
-
-    # Ensure /etc/environment contains the variable
-    if grep -q "^${key}=" /etc/environment 2>/dev/null; then
-        $USE_SUDO sed -i "s|^${key}=.*|${key}=\"${val}\"|g" /etc/environment 2>/dev/null || true
-    else
-        echo "${key}=\"${val}\"" | $USE_SUDO tee -a /etc/environment >/dev/null 2>&1 || true
-    fi
-    if [ "$USE_SUDO" = "sudo" ]; then
-        sudo bash -c "source /etc/environment" 2>/dev/null || true
-    else
-        source /etc/environment 2>/dev/null || true
-    fi
-}
-
-# Set Puppeteer skip download globally by default
-set_env_and_var "PUPPETEER_SKIP_DOWNLOAD" "true"
-
-# Git SSH related URLs - Auto-switch based on region
-SELECTED_REGION=$(get_global_var "SELECTED_REGION" "Global" 2>/dev/null || echo "Global")
-
-if [[ "$SELECTED_REGION" == "China" ]]; then
-    GIT_SSH_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
-else
-    GIT_SSH_BASE_URL="https://raw.githubusercontent.com/accountbelongstox/core_node/main"
-fi
-
-GIT_SSH_PUB_URL="$GIT_SSH_BASE_URL/scripts/git/git.ssh.id.ed.pub.js"
-GIT_SSH_KEY_URL="$GIT_SSH_BASE_URL/scripts/git/git.ssh.id.ed.js"
-
-# SSH directory configuration
-# Always use user's .ssh directory for Git SSH keys
-# This ensures Git can find the keys regardless of user privileges
-SSH_DIR="$HOME/.ssh"
-if [[ "$EUID" -eq 0 ]]; then
-    SSH_INSTALLED_FLAG="$GLOBAL_VAR_DIR/SSH_KEYS_INSTALLED_ROOT"
-else
-    SSH_INSTALLED_FLAG="$GLOBAL_VAR_DIR/SSH_KEYS_INSTALLED_USER"
-fi
-
-# Export SSH related variables
-export GIT_SSH_BASE_URL
-export GIT_SSH_PUB_URL
-export GIT_SSH_KEY_URL
-export SSH_DIR
-export SSH_INSTALLED_FLAG
-
-# Export the GLOBAL_VAR_DIR and GLOBAL_TEMP_DIR
-export GLOBAL_VAR_DIR
-export GLOBAL_TEMP_DIR
-export COMPILE_DIR
-
-# Initialize batch decryption flag
-BATCH_DECRYPTION_COMPLETED=false
+source "$GLOBAL_VAR_STORE_SCRIPT"
 
 # Function to detect and return CORE_NODE_DIR dynamically based on gvar_common.sh location
 get_core_node_dir() {
@@ -1549,139 +541,18 @@ export -f debug_path_analysis
 GVAR_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Only reference the centralized secret_manager directory under shells
 NEW_SECRET_MANAGER_PATH="$(dirname "$(dirname "$GVAR_SCRIPT_DIR")")/secret_manager/secret_manager.sh"
-source "$NEW_SECRET_MANAGER_PATH" 2>/dev/null || true
+source "$NEW_SECRET_MANAGER_PATH"
 
-# Function to get encrypted content by key name (equivalent to Invoke-DisguiseDecryption)
-# This function now uses the centralized secret_manager.sh library
-# For backward compatibility, this wrapper function is maintained
+# Read encrypted content through the centralized secret manager.
 get_secret_content() {
     local key_name="$1"
 
     if [ -z "$key_name" ]; then
         echo "Error: KeyName parameter is required" >&2
-        return 1
+        return
     fi
 
-    # Check if secret_manager library is loaded
-    if type secret_get_key &>/dev/null; then
-        # Use new secret manager library
-        secret_get_key "$key_name"
-        return $?
-    else
-        # Fallback to old implementation (for backward compatibility)
-        echo "Warning: secret_manager.sh not loaded, using legacy implementation" >&2
-
-        # Use centralized core_node directory detection
-        local core_node_dir=$(get_core_node_dir)
-
-        # Variables declaration
-        local scripts_dir="$core_node_dir/scripts"
-        local secret_keys_dir="$core_node_dir/.secret_keys"
-        local raw_dir="$secret_keys_dir/.secret_ignore"
-        local encrypted_dir="$secret_keys_dir/already_encrypted"
-        local raw_file="$raw_dir/$key_name"
-        local encrypted_file="$encrypted_dir/$key_name.js"
-
-        # First check if raw file exists
-        if [ -f "$raw_file" ]; then
-            local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-            if [ -n "$content" ]; then
-                echo "$content"
-                return 0
-            fi
-        fi
-
-        # Check if encrypted file exists
-        if [ ! -f "$encrypted_file" ]; then
-            return 1
-        fi
-
-        # Check if we need to perform batch decryption
-        if [ "$BATCH_DECRYPTION_COMPLETED" = false ]; then
-            echo "[DECRYPT] Checking for encrypted files requiring batch decryption..." >&2
-
-            # Find all encrypted .js files that don't have corresponding raw files
-            local encrypted_files=()
-            if [ -d "$encrypted_dir" ]; then
-                while IFS= read -r -d '' enc_file; do
-                    local raw_file_name=$(basename "$enc_file" .js)
-                    local raw_file_path="$raw_dir/$raw_file_name"
-
-                    if [ ! -f "$raw_file_path" ]; then
-                        encrypted_files+=("$enc_file")
-                    fi
-                done < <(find "$encrypted_dir" -name "*.js" -print0 2>/dev/null)
-            fi
-
-            if [ ${#encrypted_files[@]} -gt 0 ]; then
-                echo "[DECRYPT] Found ${#encrypted_files[@]} encrypted files requiring decryption" >&2
-
-                # Find disguise.js
-                local disguise_js=""
-                if [ -d "$scripts_dir" ]; then
-                    disguise_js=$(find "$scripts_dir" -name "disguise.js" -type f | head -n 1)
-                fi
-
-                if [ -n "$disguise_js" ]; then
-                    echo "[DECRYPT] Found decryption tool: $disguise_js" >&2
-
-                    # Get password for batch decryption
-                    echo -n "[DECRYPT] Enter decryption password for all encrypted files: " >&2
-                    read -s password
-                    echo "" >&2
-
-                    if [ -n "$password" ]; then
-                        # Ensure raw directory exists
-                        if [ ! -d "$raw_dir" ]; then
-                            mkdir -p "$raw_dir"
-                        fi
-
-                        # Decrypt each file
-                        local success_count=0
-                        for encrypted_file in "${encrypted_files[@]}"; do
-                            local file_name=$(basename "$encrypted_file")
-                            echo "[DECRYPT] Decrypting: $file_name" >&2
-
-                            local result
-                            result=$(node "$encrypted_file" pwd "$password" "$raw_dir" 2>&1)
-                            local exit_code=$?
-
-                            if [ $exit_code -eq 0 ]; then
-                                echo "[DECRYPT] SUCCESS: Decrypted $file_name" >&2
-                                ((success_count++))
-                            else
-                                echo "[DECRYPT] WARNING: Failed to decrypt $file_name" >&2
-                                echo "[DECRYPT] Error: $result" >&2
-                            fi
-                        done
-
-                        echo "[DECRYPT] Batch decryption completed: $success_count/${#encrypted_files[@]} files decrypted" >&2
-                    else
-                        echo "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" >&2
-                    fi
-
-                    # Clear password from memory
-                    password=""
-                else
-                    echo "[DECRYPT] WARNING: disguise.js not found in scripts directory" >&2
-                fi
-            fi
-
-            # Mark batch decryption as completed for this session
-            BATCH_DECRYPTION_COMPLETED=true
-        fi
-
-        # Try to read the decrypted file again
-        if [ -f "$raw_file" ]; then
-            local content=$(cat "$raw_file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-            if [ -n "$content" ]; then
-                echo "$content"
-                return 0
-            fi
-        fi
-
-        return 1
-    fi
+    secret_get_key "$key_name"
 }
 
 
@@ -1694,29 +565,149 @@ BASE_DIR=$(map_web_path "www")
 WIS_PROGRAMING_DIR="$BASE_DIR/programing"
 COMPILE_DIR=$(map_web_path "compile_dir")
 
+PYTHON_RUNTIME_LINK_DIR="/usr/local/bin"
+PYTHON310_VERSION="3.10"
+PYTHON310_DIR="$COMPILE_DIR/python310"
+PYTHON310_EXE_PATH="$PYTHON310_DIR/bin/python3.10"
+PYTHON310_SOURCE_RELEASE="3.10.21"
+PYTHON310_SOURCE_URL="https://www.python.org/ftp/python/3.10.21/Python-3.10.21.tgz"
+PYTHON310_SOURCE_SHA256="f276987f06270ae6c1fb4da620bd105edf78c31368c2f7e85e6c1d51c560b04b"
+PYTHON312_VERSION="3.12"
+PYTHON312_DIR="$COMPILE_DIR/python312"
+PYTHON312_EXE_PATH="$PYTHON312_DIR/bin/python3.12"
+PYTHON312_SOURCE_RELEASE="3.12.10"
+PYTHON312_SOURCE_URL="https://www.python.org/ftp/python/3.12.10/Python-3.12.10.tgz"
+PYTHON312_SOURCE_SHA256="15d9c623abfd2165fe816ea1fb385d6ed8cf3c664661ab357f1782e3036a6dac"
+
+# Python VENV constants
+if [ -n "${COMPILE_DIR:-}" ]; then
+    export VENV_DIR="$COMPILE_DIR/python3_venv"
+    export VENV_PYTHON3="$VENV_DIR/bin/python3"
+    export VENV_PYTHON="$VENV_DIR/bin/python"
+    export VENV_PIP3="$VENV_DIR/bin/pip3"
+    export VENV_PIP="$VENV_DIR/bin/pip"
+fi
 # Installation directories (set after all functions are defined)
 POETRY_HOME="$COMPILE_DIR/poetry"
 POETRY_LINK="$COMPILE_DIR/bin/poetry"
 NODE_INSTALL_DIR="$COMPILE_DIR/node"
-NODE_SHORT_VERSION="24"
-NODE_VERSION="v24.11.1"
+NODE_SHORT_VERSION="26"
+NODE_VERSION="v26.9.0"
 NODE_DOWNLOAD_URL="https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-x64.tar.xz"
-NODE_BIN_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin"
+NODE_BIN_DIR="$NODE_INSTALL_DIR/$NODE_VERSION/bin"
 NODE_BIN="$NODE_BIN_DIR/node"
 NPM_BIN="$NODE_BIN_DIR/npm"
 NPX_BIN="$NODE_BIN_DIR/npx"
 COREPACK_BIN="$NODE_BIN_DIR/corepack"
 
 # PNPM global directories
-PNPM_GLOBAL_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/pnpm-global"
+PNPM_GLOBAL_DIR="$NODE_INSTALL_DIR/$NODE_VERSION/pnpm-global"
 PNPM_GLOBAL_BIN_DIR="$PNPM_GLOBAL_DIR/bin"
 PNPM_BIN="$NODE_BIN_DIR/pnpm"
+BUN_INSTALL_DIR="$COMPILE_DIR/bun"
+BUN_BIN_DIR="$BUN_INSTALL_DIR/bin"
+BUN_BIN="$BUN_BIN_DIR/bun"
 YARN_BIN="$NODE_BIN_DIR/yarn"
+
+# =============================================================================
+# Tool binary fullpath share (var center)
+# =============================================================================
+
+# Installers register the absolute path of every tool they install under
+# <TOOL>_BIN (node -> NODE_BIN, pnpm -> PNPM_BIN, ...). Consumers resolve
+# through resolve_tool_bin instead of a bare PATH lookup, so a script running
+# right after a first install -- before /etc/environment is reloaded, with a
+# minimal PATH -- still finds the real binary.
+
+# register_tool_bin <tool> <fullpath>: persist the fullpath in the var center.
+# Only executable paths are stored (an error string like "Error: pnpm not
+# found" must never land in the store); a repeated identical write is a no-op.
+register_tool_bin() {
+    local tool="$1"
+    local path="$2"
+    local var_name=""
+    local stored=""
+
+    [ -n "$tool" ] && [ -n "$path" ] && [ -x "$path" ] || return 1
+    var_name="$(echo "$tool" | tr 'a-z.-' 'A-Z__')_BIN"
+    stored="$(get_var "$var_name" "" 2>/dev/null)"
+    [ "$stored" = "$path" ] && return 0
+    set_var "$var_name" "$path" >/dev/null 2>&1 || true
+    return 0
+}
+
+# resolve_tool_bin <tool>: echo the absolute path of an executable tool.
+# Order: /usr/local/bin/<tool> (17_install_node_toolchain_26.sh links every
+# tool there idempotently, so it is the stable all-users entry) -> PATH ->
+# <TOOL>_BIN constant from this hub -> var-center persisted <TOOL>_BIN ->
+# newest versioned tree under $COMPILE_DIR (node) or the per-tool dir
+# ($COMPILE_DIR/<tool>/bin/<tool>: bun, go, ...).
+resolve_tool_bin() {
+    local tool="$1"
+    local var_name=""
+    local candidate=""
+    local versioned_dir=""
+
+    [ -n "$tool" ] || return 1
+
+    if [ -x "/usr/local/bin/$tool" ]; then
+        echo "/usr/local/bin/$tool"
+        return 0
+    fi
+
+    candidate="$(command -v "$tool" 2>/dev/null || true)"
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    var_name="$(echo "$tool" | tr 'a-z.-' 'A-Z__')_BIN"
+    candidate="${!var_name:-}"
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    candidate="$(get_var "$var_name" "" 2>/dev/null)"
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+
+    if [ -n "${COMPILE_DIR:-}" ]; then
+        versioned_dir="$(ls -d "$COMPILE_DIR"/node/v*/bin 2>/dev/null | sort -V | tail -n1)"
+        if [ -n "$versioned_dir" ] && [ -x "$versioned_dir/$tool" ]; then
+            echo "$versioned_dir/$tool"
+            return 0
+        fi
+        if [ -x "$COMPILE_DIR/$tool/bin/$tool" ]; then
+            echo "$COMPILE_DIR/$tool/bin/$tool"
+            return 0
+        fi
+    fi
+    return 1
+}
 
 GO_DIR="$COMPILE_DIR/go"
 GO_BIN="$GO_DIR/bin/go"
-GO_VERSION_AMD64_FILE="go1.22.5.linux-amd64"
+# Pinned Go toolchain (single source of truth for 91_install_golang.sh);
+# frankenphp v1.12.7 native xcaddy rebuild (Caddy v2.11.4) needs go >= 1.26.0.
+GO_VERSION="1.26.6"
+GO_VERSION_AMD64_FILE="go${GO_VERSION}.linux-amd64"
 GO_TAR_URL="https://dl.google.com/go/$GO_VERSION_AMD64_FILE.tar.gz"
+# Anti-hijack integrity pins for the tarball (official go.dev/dl values).
+GO_TARBALL_SIZE="66890545"
+GO_TARBALL_SHA256="708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89"
+# Ordered download fallbacks (gvar_common): aliyun first (most stable on
+# CN networks), official go.dev/dl next, NJU last (stalls on some networks).
+# Consumed by sourcing from 91_install_golang.sh; not exported.
+GO_TAR_URLS=(
+    "https://mirrors.aliyun.com/golang/$GO_VERSION_AMD64_FILE.tar.gz"
+    "https://go.dev/dl/$GO_VERSION_AMD64_FILE.tar.gz"
+    "https://golang.google.cn/dl/$GO_VERSION_AMD64_FILE.tar.gz"
+    "$GO_TAR_URL"
+    "https://mirrors.nju.edu.cn/golang/$GO_VERSION_AMD64_FILE.tar.gz"
+)
 
 # Ruby installation directories
 RUBY_INSTALL_DIR="$COMPILE_DIR/ruby"
@@ -1751,11 +742,17 @@ export COREPACK_BIN
 export PNPM_GLOBAL_DIR
 export PNPM_GLOBAL_BIN_DIR
 export PNPM_BIN
+export BUN_INSTALL_DIR
+export BUN_BIN_DIR
+export BUN_BIN
 export YARN_BIN
 export GO_DIR
 export GO_BIN
+export GO_VERSION
 export GO_VERSION_AMD64_FILE
 export GO_TAR_URL
+export GO_TARBALL_SIZE
+export GO_TARBALL_SHA256
 export UPS_CONF
 export UPSD_CONF
 export UPSD_USERS_CONF
@@ -1763,3 +760,55 @@ export UPSMON_CONF
 export MCP_SOURCE_DIR
 export MCP_SERVER_DIR
 export MCP_LOCAL_DIR
+
+# =============================================================================
+# core_node deletion safety guard (mandatory; see
+# development-guides/CORE_NODE_DELETION_SAFETY.md). Authorise deletion of a
+# core_node directory ONLY after explicit TRIPLE confirmation (default NO each),
+# and hard-refuse system paths, git working trees, and non-interactive runs.
+# Sets CORE_NODE_DELETION_AUTHORIZED only after three explicit confirmations.
+# =============================================================================
+confirm_core_node_deletion() {
+    local target="$1"
+    local i=0
+    local ans=""
+    CORE_NODE_DELETION_AUTHORIZED=false
+    case "$target" in
+        ""|"/"|"/usr"|"/usr/"*|"/etc"|"/etc/"*|"/bin"|"/bin/"*|"/sbin"|"/sbin/"*|"/lib"|"/lib/"*|"/var"|"/var/"*|"/home"|"/root"|"/opt"|"/mnt"|"/www"|"/www/"*)
+            echo -e "\033[31m[DELETE-GUARD] Refusing to delete a system/critical path: '$target'\033[0m" >&2
+            return ;;
+    esac
+    if [ -e "$target/.git" ]; then
+        echo -e "\033[31m[DELETE-GUARD] '$target' is a git working tree (possible uncommitted work). Refusing to delete it.\033[0m" >&2
+        echo -e "\033[31m[DELETE-GUARD] Move/rename it MANUALLY if you must replace it, then re-run.\033[0m" >&2
+        return
+    fi
+    if [ ! -t 0 ] || [ ! -r /dev/tty ]; then
+        echo -e "\033[31m[DELETE-GUARD] No interactive terminal; refusing to delete '$target' (default = NO).\033[0m" >&2
+        return
+    fi
+    echo -e "\033[33m[DELETE-GUARD] About to DELETE the core_node directory: $target (IRREVERSIBLE)\033[0m" >&2
+    for i in 1 2 3; do
+        printf '[DELETE-GUARD] Confirmation %d of 3 - permanently delete "%s"? [N/y]: ' "$i" "$target" > /dev/tty
+        read -r -t 30 ans < /dev/tty || ans=""
+        case "$ans" in
+            [Yy]) : ;;
+            *) echo -e "\033[36m[DELETE-GUARD] Cancelled at step $i (default No). Nothing removed.\033[0m" >&2; return ;;
+        esac
+    done
+    echo -e "\033[33m[DELETE-GUARD] All three confirmations received; proceeding to delete $target\033[0m" >&2
+    CORE_NODE_DELETION_AUTHORIZED=true
+}
+
+# Calculate and set SKIP_LARGE_MODELS flag
+if [ -z "$(get_global_var "SKIP_LARGE_MODELS" "")" ]; then
+    if [ "$IS_PRODUCTION" = true ] && [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
+        if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi -L >/dev/null 2>&1; then
+            set_global_var "SKIP_LARGE_MODELS" "true" "false"
+        else
+            set_global_var "SKIP_LARGE_MODELS" "false" "false"
+        fi
+    else
+        set_global_var "SKIP_LARGE_MODELS" "false" "false"
+    fi
+fi

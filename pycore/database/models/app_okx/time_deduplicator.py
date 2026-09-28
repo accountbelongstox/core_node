@@ -7,9 +7,15 @@ Uses memory-based tracking instead of database queries for performance,
 since the number of coins is large and database checks would be too slow.
 """
 
-from typing import Dict, Set, Optional
+from typing import Any, Dict, Set
 from datetime import datetime, timedelta
 import time
+
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 
 
 class TimestampDeduplicator:
@@ -41,7 +47,13 @@ class TimestampDeduplicator:
 
         # Cleanup interval (cleanup every 60 seconds)
         self._cleanup_interval_seconds = 60
+        init_serialized_owner(
+            self,
+            'database.timestamp_deduplicator.state',
+            'TimestampDeduplicatorStateThread',
+        )
 
+    @serialized_method
     def should_accept(self, coin_symbol: str, timestamp_ms: int) -> bool:
         """
         Check if timestamp should be accepted (not duplicate)
@@ -99,6 +111,7 @@ class TimestampDeduplicator:
         # Update cleanup time
         self._last_cleanup[coin_key] = now
 
+    @serialized_method
     def mark_processed(self, coin_symbol: str, timestamp_ms: int):
         """
         Manually mark a timestamp as processed
@@ -115,6 +128,7 @@ class TimestampDeduplicator:
 
         self._coin_timestamps[coin_key].add(timestamp_ms)
 
+    @serialized_method
     def clear_coin(self, coin_symbol: str):
         """
         Clear all timestamps for a specific coin
@@ -126,6 +140,7 @@ class TimestampDeduplicator:
         if coin_key in self._coin_timestamps:
             self._coin_timestamps[coin_key].clear()
 
+    @serialized_method
     def clear_all(self):
         """
         Clear all timestamps for all coins
@@ -133,7 +148,8 @@ class TimestampDeduplicator:
         self._coin_timestamps.clear()
         self._last_cleanup.clear()
 
-    def get_coin_stats(self, coin_symbol: str) -> Dict[str, any]:
+    @serialized_method
+    def get_coin_stats(self, coin_symbol: str) -> Dict[str, Any]:
         """
         Get statistics for a specific coin
 
@@ -165,7 +181,8 @@ class TimestampDeduplicator:
             'last_cleanup': self._last_cleanup.get(coin_key)
         }
 
-    def get_global_stats(self) -> Dict[str, any]:
+    @serialized_method
+    def get_global_stats(self) -> Dict[str, Any]:
         """
         Get global deduplicator statistics
 
@@ -181,6 +198,7 @@ class TimestampDeduplicator:
             'cleanup_interval_seconds': self._cleanup_interval_seconds
         }
 
+    @serialized_method
     def force_cleanup_all(self):
         """
         Force cleanup of all coins immediately
@@ -201,8 +219,6 @@ class GlobalTimestampDeduplicator:
     Shared across all coin data objects
     """
 
-    _instance: Optional[TimestampDeduplicator] = None
-
     @classmethod
     def get_instance(cls, time_window_seconds: int = 10) -> TimestampDeduplicator:
         """
@@ -214,13 +230,18 @@ class GlobalTimestampDeduplicator:
         Returns:
             Global deduplicator instance
         """
-        if cls._instance is None:
-            cls._instance = TimestampDeduplicator(time_window_seconds)
-        return cls._instance
+        return _TIMESTAMP_DEDUPLICATOR_PROVIDER.get(time_window_seconds)
 
     @classmethod
     def reset(cls):
         """
-        Reset global instance (for testing)
+        Clear all timestamps from the shared deduplicator.
         """
-        cls._instance = None
+        _TIMESTAMP_DEDUPLICATOR_PROVIDER.get().clear_all()
+
+
+_TIMESTAMP_DEDUPLICATOR_PROVIDER = SerializedSingletonProvider(
+    TimestampDeduplicator,
+    'database.timestamp_deduplicator.provider',
+    'TimestampDeduplicatorProviderThread',
+)

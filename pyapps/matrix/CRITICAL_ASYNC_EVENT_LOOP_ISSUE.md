@@ -291,7 +291,7 @@ asyncio.run_coroutine_threadsafe(
 ### 模式 #2: 同步包装器方法（正确 ✅）
 
 ```python
-class FastAPIRPCServer:
+class RpcServer:
     async def broadcast_event(self, event_name, data):
         """异步实现"""
         for client_id, websocket in clients.items():

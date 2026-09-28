@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # Linux Path Function - Environment Variable Management
@@ -77,29 +66,33 @@ ensure_linuxenvs_dir() {
 add_dir_to_path() {
     local dir_path="$1"
     local bashrc_file="$HOME/.bashrc"
+    local path_line=""
 
     if [ ! -d "$dir_path" ]; then
         log_error "Directory does not exist: $dir_path"
         return 1
     fi
 
-    # Check if already in PATH
-    if echo "$PATH" | grep -q "$dir_path"; then
-        log_info "Directory already in PATH: $dir_path"
-        return 0
-    fi
+    path_line="export PATH=\"$dir_path:\$PATH\""
 
-    # Add to ~/.bashrc
-    if ! grep -q "export PATH=.*$dir_path" "$bashrc_file" 2>/dev/null; then
+    if ! grep -Fqx "$path_line" "$bashrc_file" 2>/dev/null; then
         echo "" >> "$bashrc_file"
         echo "# Added by linux_path_function.sh" >> "$bashrc_file"
-        echo "export PATH=\"$dir_path:\$PATH\"" >> "$bashrc_file"
+        echo "$path_line" >> "$bashrc_file"
         log_success "Added to ~/.bashrc: $dir_path"
+    else
+        log_info "Directory already persisted in ~/.bashrc: $dir_path"
     fi
 
-    # Add to current session
-    export PATH="$dir_path:$PATH"
-    log_success "Added to current PATH: $dir_path"
+    case ":$PATH:" in
+        *":$dir_path:"*)
+            log_info "Directory already in current PATH: $dir_path"
+            ;;
+        *)
+            export PATH="$dir_path:$PATH"
+            log_success "Added to current PATH: $dir_path"
+            ;;
+    esac
 
     return 0
 }
@@ -128,7 +121,7 @@ add_env_variable() {
     fi
 
     # Set in current session
-    export "$var_name=$var_value"
+"$var_name=$var_value"
 
     return 0
 }

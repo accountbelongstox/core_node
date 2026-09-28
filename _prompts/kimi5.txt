@@ -1,0 +1,8 @@
+poly_apps/laravel_main/error.log dsfdsfdsfd
+
+/www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/ APP compile-direction
+
+big-file
+/www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/_nivs.json
+/www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/_nivch2.json
+/www/programing/core_node/poly_apps/pycore_laravel_wordnew_ui/apps/wordnew/_niv.json

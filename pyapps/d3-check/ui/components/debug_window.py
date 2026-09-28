@@ -11,17 +11,22 @@ import sys
 import os
 from typing import Optional
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageTk, get_third_package_PIL_ImageDraw
 
-PIL = get_third_package_PIL()
-from PIL import Image, ImageTk
+Image = get_third_package_PIL_Image()
+ImageTk = get_third_package_PIL_ImageTk()
+ImageDraw = get_third_package_PIL_ImageDraw()
 
-# Add project paths
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
+from providor.constants.ui import POPUP_KEY_DEBUG_WINDOW
+from share.ui_registry import get_popup, register_popup, unregister_popup
 from ui.unified_styles import UnifiedStyles
-from providor.common_imports import ColorPrint
-from share.game_interface_data import get_d4_interface_data
+from ui.utils.app_root import get_app_root
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from share.game_interface_data import get_d4_interface_data, get_game_interface_data
+from providor.i18n_manager import i18n_manager
 
 
 class DebugWindow:
@@ -37,9 +42,10 @@ class DebugWindow:
         self.parent = parent
         self.d4_data = get_d4_interface_data()
 
-        # Create window
-        self.window = tk.Toplevel(parent) if parent else tk.Tk()
-        self.window.title("D4 Debug - Region Detection")
+        # Create window (reuse app root to avoid extra blank "Tk" window)
+        root = parent or get_app_root()
+        self.window = tk.Toplevel(root) if root else tk.Tk()
+        self.window.title(i18n_manager.get_ui_text("d4_panel.debug_window.title"))
         self.window.geometry("680x1000+50+50")  # 680x1000px, positioned at left side
         self.window.resizable(False, False)
         self.window.configure(bg=UnifiedStyles.COLORS['bg_primary'])
@@ -84,7 +90,7 @@ class DebugWindow:
 
         # Title
         title_label = tk.Label(scrollable_frame,
-                              text="D4 Region Detection Debug",
+                              text=i18n_manager.get_ui_text("d4_panel.debug_window.heading"),
                               bg=UnifiedStyles.COLORS['bg_primary'],
                               fg=UnifiedStyles.COLORS['text_primary'],
                               font=UnifiedStyles.FONTS['heading'])
@@ -111,6 +117,9 @@ class DebugWindow:
                              font=UnifiedStyles.FONTS['button'],
                              command=self._on_close)
         close_btn.pack(side=tk.LEFT, padx=5)
+
+        # D3 Bag Recognition section (from bag_info_collector result)
+        self._create_d3_bag_section(scrollable_frame)
 
         # Image display areas
         self.image_labels = {}
@@ -159,6 +168,166 @@ class DebugWindow:
         for idx, (region_key, region_title) in enumerate(regions[half:]):
             self._create_image_section(columns_container, region_key, region_title, row=idx, column=1)
 
+    def _create_d3_bag_section(self, parent):
+        """Create D3 bag recognition section: text info + bag crop image."""
+        title = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_title", "D3 Bag Recognition")
+        section = tk.LabelFrame(
+            parent,
+            text=title,
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['subheading'],
+            relief=tk.RIDGE,
+            bd=2,
+        )
+        section.pack(fill=tk.X, padx=5, pady=5)
+
+        self.d3_bag_info_label = tk.Label(
+            section,
+            text="",
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_primary'],
+            font=UnifiedStyles.FONTS['small'],
+            justify=tk.LEFT,
+            anchor="w",
+        )
+        self.d3_bag_info_label.pack(anchor="w", padx=5, pady=2, fill=tk.X)
+
+        self.d3_bag_image_label = tk.Label(
+            section,
+            text="No Image",
+            bg=UnifiedStyles.COLORS['bg_secondary'],
+            fg=UnifiedStyles.COLORS['text_muted'],
+            font=UnifiedStyles.FONTS['small'],
+        )
+        self.d3_bag_image_label.pack(padx=5, pady=5)
+        self.d3_bag_photo = None
+
+    def _draw_d3_bag_grid_on_pil(self, pil_img, coords, layout):
+        """Draw grid and quality labels on cropped bag PIL image (same logic as _draw_bag_layout_grid)."""
+        if pil_img is None or coords is None:
+            return pil_img
+        img = pil_img.copy()
+        draw = ImageDraw.Draw(img)
+        w, h = img.size
+        rows, cols = coords.rows, coords.cols
+        slot_w = w / cols
+        slot_h = h / rows
+        # Quality color (RGB): same as image_annotator_helper
+        quality_colors = {
+            'empty': (100, 100, 100),
+            'legendary_set': (0, 200, 0),
+            'legendary': (255, 165, 0),
+            'rare': (255, 255, 0),
+            'magic': (0, 128, 255),
+            'unknown': (128, 128, 128),
+        }
+        grid_color = (160, 160, 160)
+        # Grid lines
+        for col in range(cols + 1):
+            x = int(col * slot_w)
+            draw.line([(x, 0), (x, h)], fill=grid_color, width=1)
+        for row in range(rows + 1):
+            y = int(row * slot_h)
+            draw.line([(0, y), (w, y)], fill=grid_color, width=1)
+        # Slot quality labels
+        if layout and layout.layout and layout.items:
+            layout_grid = layout.layout
+            items = layout.items
+            for row in range(rows):
+                for col in range(cols):
+                    if layout_grid[row][col] == 'item_2slot_bottom':
+                        continue
+                    cx = int((col + 0.5) * slot_w)
+                    cy = int((row + 0.5) * slot_h)
+                    info = items.get((row, col))
+                    if not info:
+                        continue
+                    quality = info.get('quality', 'unknown')
+                    color = quality_colors.get(quality, (128, 128, 128))
+                    letter = quality[0].upper() if quality else '?'
+                    # Draw small filled rect as marker
+                    r = max(2, min(int(slot_w * 0.15), int(slot_h * 0.15)))
+                    draw.rectangle(
+                        [cx - r, cy - r, cx + r, cy + r],
+                        outline=color,
+                        fill=color,
+                        width=2
+                    )
+                    # Text (default font, small)
+                    tw, th = 8, 10
+                    draw.text((cx - tw // 2, cy - th // 2), letter, fill=(255, 255, 255))
+        return img
+
+    def _update_d3_bag_section(self):
+        """Refresh D3 bag section from get_game_interface_data() (bag_coordinates, bag_layout)."""
+        if not self.d3_bag_info_label.winfo_exists():
+            return
+        no_data = i18n_manager.get_ui_text("d4_panel.exp_farming.debug_window.d3_bag_no_data", "No D3 bag data (run bag detection first)")
+        d3_data = get_game_interface_data()
+        coords = d3_data.bag_coordinates
+        layout = d3_data.bag_layout
+        game_img = d3_data.game_window_image
+
+        if coords is None and layout is None:
+            self.d3_bag_info_label.configure(text=no_data)
+            if self.d3_bag_image_label.winfo_exists():
+                self.d3_bag_image_label.configure(image="", text="No Image")
+            self.d3_bag_photo = None
+            return
+
+        lines = []
+        if coords is not None:
+            lines.append(f"Grid: {coords.rows}x{coords.cols} ({coords.total_slots} slots)")
+            lines.append(f"TopLeft: {coords.top_left}  BottomRight: {coords.bottom_right}")
+            lines.append(f"Size: {coords.width}x{coords.height}")
+
+        if layout and layout.items:
+            items = layout.items
+            occupied = sum(1 for v in items.values() if v.get("type") != "empty")
+            total_slots = coords.total_slots if coords is not None else 0
+            lines.append(f"Occupied: {occupied} / {total_slots}")
+            quality_count = {
+                'legendary_set': 0, 'legendary': 0, 'rare': 0, 'magic': 0, 'unknown': 0, 'empty': 0,
+            }
+            for v in items.values():
+                q = v.get('quality', 'unknown')
+                quality_count[q] = quality_count.get(q, 0) + 1
+            lines.append("")
+            lines.append("Quality:")
+            lines.append(f"  Legendary set: {quality_count.get('legendary_set', 0)}  Legendary: {quality_count.get('legendary', 0)}  Rare: {quality_count.get('rare', 0)}  Magic: {quality_count.get('magic', 0)}  Unknown: {quality_count.get('unknown', 0)}  Empty: {quality_count.get('empty', 0)}")
+            lines.append("")
+            for (r, c), info in sorted(items.items()):
+                t = info.get("type", "?")
+                q = info.get("quality", "?")
+                if t == "empty":
+                    continue
+                lines.append(f"  ({r},{c}) {t}  quality={q}")
+        else:
+            lines.append("Layout: no item detail")
+
+        self.d3_bag_info_label.configure(text="\n".join(lines))
+
+        if game_img is not None and coords is not None:
+            left, top = coords.top_left[0], coords.top_left[1]
+            right, bottom = coords.bottom_right[0], coords.bottom_right[1]
+            left = max(0, min(left, game_img.width))
+            top = max(0, min(top, game_img.height))
+            right = max(left, min(right, game_img.width))
+            bottom = max(top, min(bottom, game_img.height))
+            cropped = game_img.crop((left, top, right, bottom))
+            cropped = self._draw_d3_bag_grid_on_pil(cropped, coords, layout)
+            max_w = 320
+            if cropped.width > max_w:
+                ratio = max_w / cropped.width
+                h = int(cropped.height * ratio)
+                cropped = cropped.resize((max_w, h), Image.Resampling.LANCZOS)
+            self.d3_bag_photo = ImageTk.PhotoImage(cropped)
+            self.d3_bag_image_label.configure(image=self.d3_bag_photo, text="")
+        else:
+            self.d3_bag_image_label.configure(image="", text="No game window image")
+            self.d3_bag_photo = None
+
     def _create_image_section(self, parent, region_key, title, row=0, column=0):
         """
         Create an image display section
@@ -193,119 +362,86 @@ class DebugWindow:
 
     def update_images(self):
         """Update all debug images from detected_regions"""
-        try:
-            # Check if window still exists
-            if not hasattr(self, 'window') or not self.window.winfo_exists():
-                ColorPrint.yellow("[DebugWindow] Window no longer exists, skipping update")
-                return
+        if not self.window.winfo_exists():
+            ColorPrint.yellow("[DebugWindow] Window no longer exists, skipping update")
+            return
 
-            ColorPrint.blue("[DebugWindow] Starting update_images...")
+        ColorPrint.blue("[DebugWindow] Starting update_images...")
+        detected_regions = self.d4_data.detected_regions
 
-            # Get region_images from detected_regions
-            detected_regions = self.d4_data.detected_regions
+        if detected_regions is None:
+            ColorPrint.yellow("[DebugWindow] detected_regions is None")
+            return
 
-            if detected_regions is None:
-                ColorPrint.yellow("[DebugWindow] detected_regions is None")
-                return
+        if 'region_images' not in detected_regions:
+            ColorPrint.yellow(f"[DebugWindow] 'region_images' not in detected_regions. Keys: {list(detected_regions.keys())}")
+            return
 
-            if 'region_images' not in detected_regions:
-                ColorPrint.yellow(f"[DebugWindow] 'region_images' not in detected_regions. Keys: {list(detected_regions.keys())}")
-                return
+        region_images = detected_regions['region_images']
+        ColorPrint.blue(f"[DebugWindow] Found {len(region_images)} region images")
+        ColorPrint.blue(f"[DebugWindow] Available regions: {list(region_images.keys())}")
+        ColorPrint.blue(f"[DebugWindow] Expected regions: {list(self.image_labels.keys())}")
 
-            region_images = detected_regions['region_images']
-            ColorPrint.blue(f"[DebugWindow] Found {len(region_images)} region images")
-            ColorPrint.blue(f"[DebugWindow] Available regions: {list(region_images.keys())}")
-            ColorPrint.blue(f"[DebugWindow] Expected regions: {list(self.image_labels.keys())}")
+        updated_count = 0
+        for region_key, img_label in self.image_labels.items():
+            if not img_label.winfo_exists():
+                ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping")
+                continue
 
-            updated_count = 0
-            for region_key, img_label in self.image_labels.items():
-                # Check if label still exists
-                if not hasattr(img_label, 'winfo_exists') or not img_label.winfo_exists():
-                    ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping")
+            if region_key in region_images and region_images[region_key] is not None:
+                pil_image = region_images[region_key]
+                if pil_image is None or pil_image.width <= 0 or pil_image.height <= 0:
+                    ColorPrint.yellow(f"[DebugWindow] Invalid image for '{region_key}': {pil_image.width if pil_image else 'None'}x{pil_image.height if pil_image else 'None'}")
+                    if img_label.winfo_exists():
+                        img_label.configure(image="", text="Invalid Image")
                     continue
 
-                if region_key in region_images and region_images[region_key] is not None:
-                    # Get image from detected_regions
-                    pil_image = region_images[region_key]
-                    
-                    # Safety check: ensure image is valid
-                    if pil_image is None or pil_image.width <= 0 or pil_image.height <= 0:
-                        ColorPrint.yellow(f"[DebugWindow] Invalid image for '{region_key}': {pil_image.width if pil_image else 'None'}x{pil_image.height if pil_image else 'None'}")
-                        if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
-                            img_label.configure(image="", text="Invalid Image")
-                        continue
-
-                    # Resize image to fit two-column layout (max 300px per column)
-                    max_width = 300
-                    if pil_image.width > max_width:
-                        ratio = max_width / pil_image.width
-                        new_height = int(pil_image.height * ratio)
-                        # Safety check: ensure dimensions are valid
-                        if new_height > 0 and max_width > 0:
-                            pil_image = pil_image.resize((max_width, new_height), Image.Resampling.LANCZOS)
-                        else:
-                            ColorPrint.yellow(f"[DebugWindow] Invalid dimensions for '{region_key}': {max_width}x{new_height}, skipping resize")
-
-                    # Convert to PhotoImage
-                    photo_image = ImageTk.PhotoImage(pil_image)
-
-                    # Store reference to prevent garbage collection
-                    self.photo_images[region_key] = photo_image
-
-                    # Update label
-                    if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
-                        img_label.configure(image=photo_image, text="")
-                        updated_count += 1
-                        ColorPrint.green(f"[DebugWindow] ✓ Updated '{region_key}'")
+                max_width = 300
+                if pil_image.width > max_width:
+                    ratio = max_width / pil_image.width
+                    new_height = int(pil_image.height * ratio)
+                    if new_height > 0 and max_width > 0:
+                        pil_image = pil_image.resize((max_width, new_height), Image.Resampling.LANCZOS)
                     else:
-                        ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping update")
+                        ColorPrint.yellow(f"[DebugWindow] Invalid dimensions for '{region_key}': {max_width}x{new_height}, skipping resize")
+
+                photo_image = ImageTk.PhotoImage(pil_image)
+                self.photo_images[region_key] = photo_image
+                if img_label.winfo_exists():
+                    img_label.configure(image=photo_image, text="")
+                    updated_count += 1
+                    ColorPrint.green(f"[DebugWindow] ✓ Updated '{region_key}'")
                 else:
-                    # No image available
-                    if hasattr(img_label, 'winfo_exists') and img_label.winfo_exists():
-                        img_label.configure(image="", text="No Image Available")
-                    ColorPrint.yellow(f"[DebugWindow] ✗ No image for '{region_key}'")
+                    ColorPrint.yellow(f"[DebugWindow] Label for '{region_key}' no longer exists, skipping update")
+            else:
+                if img_label.winfo_exists():
+                    img_label.configure(image="", text="No Image Available")
+                ColorPrint.yellow(f"[DebugWindow] ✗ No image for '{region_key}'")
 
-            ColorPrint.green(f"[DebugWindow] Updated {updated_count}/{len(self.image_labels)} images")
-
-        except Exception as e:
-            ColorPrint.red(f"[DebugWindow] Error updating images: {e}")
-            import traceback
-            traceback.print_exc()
+        self._update_d3_bag_section()
+        ColorPrint.green(f"[DebugWindow] Updated {updated_count}/{len(self.image_labels)} images")
 
     def _toggle_pause(self):
         """Toggle pause/continue state for image updates"""
-        try:
-            # Toggle pause state in shared data
-            self.d4_data.debug_window_paused = not self.d4_data.debug_window_paused
-
-            # Update button appearance based on state
-            if self.d4_data.debug_window_paused:
-                # Currently paused - button shows "Continue Updates"
-                self.pause_btn.config(
-                    text="Continue Updates",
-                    bg=UnifiedStyles.COLORS['btn_success']
-                )
-                ColorPrint.yellow("[DebugWindow] Image updates PAUSED - viewing frozen snapshot")
-            else:
-                # Currently running - button shows "Pause Updates"
-                self.pause_btn.config(
-                    text="Pause Updates",
-                    bg=UnifiedStyles.COLORS['btn_warning']
-                )
-                ColorPrint.green("[DebugWindow] Image updates RESUMED")
-
-        except Exception as e:
-            ColorPrint.red(f"[DebugWindow] Error toggling pause: {e}")
-            import traceback
-            traceback.print_exc()
+        self.d4_data.debug_window_paused = not self.d4_data.debug_window_paused
+        if self.d4_data.debug_window_paused:
+            self.pause_btn.config(
+                text="Continue Updates",
+                bg=UnifiedStyles.COLORS['btn_success']
+            )
+            ColorPrint.yellow("[DebugWindow] Image updates PAUSED - viewing frozen snapshot")
+        else:
+            self.pause_btn.config(
+                text="Pause Updates",
+                bg=UnifiedStyles.COLORS['btn_warning']
+            )
+            ColorPrint.green("[DebugWindow] Image updates RESUMED")
 
     def _on_close(self):
         """Handle window close event"""
-        # Update shared data to indicate window is closed
         self.d4_data.debug_window_open = False
         ColorPrint.yellow("[DebugWindow] Debug window closed")
-
-        # Destroy window
+        unregister_popup(POPUP_KEY_DEBUG_WINDOW)
         self.window.destroy()
 
     def show(self):
@@ -317,48 +453,33 @@ class DebugWindow:
         self.window.withdraw()
 
 
-# Singleton instance
-_debug_window_instance = None
-
-
 def get_debug_window(parent=None) -> Optional[DebugWindow]:
     """
-    Get or create debug window singleton
-
-    Args:
-        parent: Parent window (optional)
-
-    Returns:
-        DebugWindow instance or None
+    Get or create debug window singleton. Uses share.ui_registry (get_popup/register_popup).
+    When parent is given and no valid instance exists, creates and registers.
     """
-    global _debug_window_instance
+    inst = get_popup(POPUP_KEY_DEBUG_WINDOW)
+    if inst and inst.window.winfo_exists():
+        return inst
+    if inst:
+        unregister_popup(POPUP_KEY_DEBUG_WINDOW)
 
-    # Check if window exists and is valid
-    if _debug_window_instance is not None:
-        try:
-            # Test if window still exists
-            _debug_window_instance.window.winfo_exists()
-            return _debug_window_instance
-        except:
-            # Window was destroyed, create new one
-            _debug_window_instance = None
-
-    # Create new window
-    try:
-        _debug_window_instance = DebugWindow(parent)
-        return _debug_window_instance
-    except Exception as e:
-        ColorPrint.red(f"[DebugWindow] Error creating debug window: {e}")
-        return None
+    if parent is not None:
+        inst = DebugWindow(parent)
+        register_popup(POPUP_KEY_DEBUG_WINDOW, inst)
+        return inst
+    return None
 
 
-def close_debug_window():
-    """Close the debug window if it exists"""
-    global _debug_window_instance
+def close_debug_window() -> None:
+    """Close the debug window if it exists (uses share.ui_registry)."""
+    inst = get_popup(POPUP_KEY_DEBUG_WINDOW)
+    if inst:
+        inst._on_close()
 
-    if _debug_window_instance is not None:
-        try:
-            _debug_window_instance._on_close()
-        except:
-            pass
-        _debug_window_instance = None
+
+def update_debug_window_images_if_open() -> None:
+    """Update debug window images if the window is open."""
+    inst = get_popup(POPUP_KEY_DEBUG_WINDOW)
+    if inst and inst.window.winfo_exists():
+        inst.update_images()

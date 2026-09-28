@@ -1,22 +1,12 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Http\Common;
 
 use App\Models\User;
+use App\Constants\AppKeys;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\PersonalAccessToken;
 use Carbon\Carbon;
 
 /**
@@ -62,11 +52,7 @@ class CommonAuthService
         }
         // Authenticate by username/password
         elseif ($username && $password) {
-            $user = User::where(function($query) use ($username) {
-                $query->where('username', $username)
-                    ->orWhere('email', $username)
-                    ->orWhere('phone', $username);
-            })->first();
+            $user = User::findByUsernameEmailOrPhone($username);
 
             if ($user && !Hash::check($password, $user->password)) {
                 $user = null;
@@ -83,7 +69,7 @@ class CommonAuthService
         // Handle existing sessions based on multi-device setting
         if (!$allowMultiDevice) {
             // Revoke all existing tokens for single-device mode
-            $user->tokens()->delete();
+            $user->revokeAllAccessTokens();
             self::revokeUserToken($user->id);
         }
 
@@ -109,6 +95,93 @@ class CommonAuthService
     }
 
     /**
+     * Verify username/email/phone + password against the canonical users table.
+     * Keeps "user not found" and "wrong password" distinguishable for callers
+     * that surface distinct error codes.
+     *
+     * @param string $identifier Username, email, or phone
+     * @param string $password Plain-text password
+     * @return array{status:string,user:User|null} status: ok|not_found|invalid_password
+     */
+    public static function verifyCredentials($identifier, $password)
+    {
+        $user = User::findByUsernameEmailOrPhone($identifier);
+
+        if (!$user) {
+            return ['status' => 'not_found', 'user' => null];
+        }
+
+        if (!Hash::check($password, $user->password)) {
+            return ['status' => 'invalid_password', 'user' => null];
+        }
+
+        return ['status' => 'ok', 'user' => $user];
+    }
+
+    /**
+     * Issue a Sanctum login token for an already-authenticated user, ensuring the
+     * avatar/nickname defaults are populated first (single avatar pipeline).
+     *
+     * @param User $user
+     * @param string $tokenName Sanctum token name
+     * @return array{user:User,token:string,token_type:string,expiration:mixed}
+     */
+    public static function issueLoginToken(User $user, $tokenName = 'auth_token')
+    {
+        $user = CommonAvatarPublic::createAvatar($user, true);
+        $token = $user->createToken($tokenName)->plainTextToken;
+
+        return [
+            'user' => $user,
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'expiration' => config('sanctum.expiration'),
+        ];
+    }
+
+    /**
+     * Resolve a Sanctum personal access token (plain-text) to its user, applying
+     * the same expiry rules as the Sanctum guard. App-neutral: usable by callers
+     * that receive the token on a non-Authorization header.
+     *
+     * @param string|null $loginToken Plain-text Sanctum token
+     * @return User|null
+     */
+    public static function getUserByLoginToken($loginToken)
+    {
+        if (!$loginToken) {
+            return null;
+        }
+
+        $accessToken = PersonalAccessToken::findToken($loginToken);
+
+        if (!$accessToken) {
+            return null;
+        }
+
+        $user = $accessToken->tokenable;
+
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        $expiresAt = $accessToken->expires_at;
+
+        if ($expiresAt === null) {
+            $expirationMinutes = config('sanctum.expiration');
+            if ($expirationMinutes) {
+                $expiresAt = $accessToken->created_at->addMinutes($expirationMinutes);
+            }
+        }
+
+        if ($expiresAt !== null && $expiresAt->isPast()) {
+            return null;
+        }
+
+        return $user;
+    }
+
+    /**
      * Generate or refresh user_token for a user
      * 
      * @param int $userId
@@ -120,7 +193,7 @@ class CommonAuthService
         $token = Str::random(self::USER_TOKEN_LENGTH);
         $expiresAt = Carbon::now()->addDays(self::USER_TOKEN_EXPIRES_DAYS);
 
-        User::where('id', $userId)->update(['user_token' => $token]);
+        User::updateById((int) $userId, ['user_token' => $token]);
 
         return [
             'token' => $token,
@@ -154,7 +227,7 @@ class CommonAuthService
      */
     public static function getUserByUserToken($userToken)
     {
-        return User::where('user_token', $userToken)->first();
+        return User::findByUserToken((string) $userToken);
     }
 
     /**
@@ -166,7 +239,7 @@ class CommonAuthService
      */
     public static function revokeUserToken($userId, $appName = null)
     {
-        User::where('id', $userId)->update(['user_token' => null]);
+        User::updateById((int) $userId, ['user_token' => null]);
         return true;
     }
 
@@ -190,6 +263,10 @@ class CommonAuthService
      */
     public static function getAppAuthConfig($appName)
     {
+        $normalizedAppName = strtolower(str_replace('_', '', (string) $appName));
+        if ($normalizedAppName === 'dictv1') {
+            $normalizedAppName = AppKeys::APPQYV1;
+        }
         $defaultConfig = [
             'allow_multi_device' => false,
             'user_token_expires_days' => self::USER_TOKEN_EXPIRES_DAYS,
@@ -197,13 +274,8 @@ class CommonAuthService
         ];
 
         $appConfigs = [
-            'DictV1' => [
+            AppKeys::APPQYV1 => [
                 'allow_multi_device' => true,  // Dictionary app allows multi-device
-                'user_token_expires_days' => 7,
-                'auto_refresh_user_token' => true
-            ],
-            'AwyV0' => [
-                'allow_multi_device' => false, // Social app single device only
                 'user_token_expires_days' => 7,
                 'auto_refresh_user_token' => true
             ],
@@ -214,7 +286,7 @@ class CommonAuthService
             ]
         ];
 
-        return array_merge($defaultConfig, $appConfigs[$appName] ?? []);
+        return array_merge($defaultConfig, $appConfigs[$normalizedAppName] ?? []);
     }
 
     /**
@@ -228,9 +300,7 @@ class CommonAuthService
     public static function logoutUser($user, $appName = 'common', $revokeUserToken = false)
     {
         // Revoke current sanctum token
-        if ($user->currentAccessToken()) {
-            $user->currentAccessToken()->delete();
-        }
+        $user->revokeCurrentAccessToken();
 
         // Optionally revoke user_token
         if ($revokeUserToken) {
@@ -254,11 +324,9 @@ class CommonAuthService
             return self::getUserByUserToken($userToken);
         }
 
-        // Try login_token (sanctum)
+        // Try login_token (sanctum personal access token)
         if ($loginToken) {
-            // This would be handled by sanctum middleware naturally
-            // But we can implement manual validation here if needed
-            return null; // Let sanctum handle this
+            return self::getUserByLoginToken($loginToken);
         }
 
         return null;

@@ -1,22 +1,10 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Services\TaskManagerService;
-use App\Models\GlobalTask;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Support\QueueCenterContract;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1TranslationTaskService
@@ -52,7 +40,8 @@ class AppQyV1TranslationTaskService
         }
 
         // Always use real task type - backend never creates demo tasks
-        $taskType = 'dictionary_explanation';
+        $taskType = (string) QueueCenterContract::taskTypeKey('dictionary_explanation');
+        $executionType = (string) QueueCenterContract::taskTypeExecution($taskType);
         $timeoutSeconds = 60 + (count($untranslatedWords) * 3);
 
         if ($timeoutSeconds > 600) {
@@ -66,13 +55,21 @@ class AppQyV1TranslationTaskService
             'word_count' => count($untranslatedWords),
         ];
 
+        // EXECUTION_REMOTE_CLIENT, NOT EXECUTION_REMOTE_TRANSLATION: workers pull
+        // by execution_type, and the dict-shaped payload here ({word, md5,
+        // query_count} entries plus an "explanations" result contract) is only
+        // understood by the browser-side dictionary worker, which registers with
+        // processor_types ["remote_client"]. Tagging these remote_translation
+        // handed them to the pycore Google worker and the Laravel AI self-filler
+        // (both expect word_translation's plain-string words), which crashed on /
+        // rejected every one of them and burned the tasks' retries.
         $task = $this->taskManager->createTask(
             'AppQyV1',
             $taskType,
-            GlobalTask::EXECUTION_REMOTE_TRANSLATION,
+            $executionType,
             $payload,
             $timeoutSeconds,
-            50,
+            QueueCenterContract::taskPriority('manual'),
             3
         );
 
@@ -86,7 +83,7 @@ class AppQyV1TranslationTaskService
             'task_id' => $task->task_id,
             'word_count' => count($untranslatedWords),
             'timeout_seconds' => $timeoutSeconds,
-            'status' => 'pending',
+            'status' => QueueCenterContract::taskStatus('pending'),
         ];
     }
 
@@ -136,52 +133,20 @@ class AppQyV1TranslationTaskService
         $processed = 0;
         $failed = 0;
 
-        foreach ($explanations as $explanation) {
-            $word = $explanation['word'] ?? null;
-            $explanationText = $explanation['explanation'] ?? $explanation['translation'] ?? null;
-
-            if (!$word || !$explanationText) {
-                $failed++;
-                continue;
-            }
-
-            try {
-                $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
-
-                if (!$entry) {
-                    $failed++;
-                    continue;
-                }
-
-                $updateData = [];
-
-                if ($isEnglish) {
-                    $updateData['translation'] = $explanationText;
-                    if (isset($explanation['us_phonetic'])) {
-                        $updateData['us_phonetic'] = $explanation['us_phonetic'];
-                    }
-                    if (isset($explanation['uk_phonetic'])) {
-                        $updateData['uk_phonetic'] = $explanation['uk_phonetic'];
-                    }
-                } else {
-                    $updateData['meaning_en'] = $explanationText;
-                    if (isset($explanation['meaning_zh'])) {
-                        $updateData['meaning_zh'] = $explanation['meaning_zh'];
-                    }
-                    if (isset($explanation['pronunciation'])) {
-                        $updateData['pronunciation'] = $explanation['pronunciation'];
-                    }
-                }
-
-                $entry->update($updateData);
-                $processed++;
-            } catch (\Exception $e) {
-                Log::error('[AppQyV1TranslationTaskService] Failed to update word', [
-                    'word' => $word,
-                    'error' => $e->getMessage(),
-                ]);
-                $failed++;
-            }
+        try {
+            $outcome = AppQyV1LangDictionaryModel::applyExplanationResults(
+                $langCode,
+                $explanations,
+                $isEnglish
+            );
+            $processed = $outcome['processed'];
+            $failed = $outcome['failed'];
+        } catch (\Exception $e) {
+            Log::error('[AppQyV1TranslationTaskService] Failed to update explanations', [
+                'task_id' => $taskId,
+                'error' => $e->getMessage(),
+            ]);
+            $failed = count($explanations);
         }
 
         Log::info('[AppQyV1TranslationTaskService] Explanation result processed', [

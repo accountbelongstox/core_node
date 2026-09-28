@@ -6,16 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TTSQueueMetrics;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1AddTTSTaskRequest;
+use App\Support\QueueCenterContract;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 
 /**
  * Unified TTS Queue API Controller
  *
  * Provides endpoints for:
- * - Adding tasks (word/sentence/article) to TTS queue
+ * - Adding contract-defined audio tasks to the TTS queue
  * - Querying queue status
  * - Getting task details
  * - Getting queue statistics
@@ -43,8 +45,8 @@ class AppQyV1TTSQueueController extends Controller
      * {
      *   "content": "hello world",
      *   "language": "en",
-     *   "type": "word",        // Optional: word/sentence/article (auto-detect if omitted)
-     *   "priority": 50         // Optional: 0-100 (default 50)
+     *   "type": "word",        // Optional contract alias (auto-detect if omitted)
+     *   "position": "end"      // Optional: beginning or end
      * }
      *
      * Response:
@@ -54,7 +56,7 @@ class AppQyV1TTSQueueController extends Controller
      *     "task_id": 123,
      *     "task_type": "word",
      *     "queue_status": "queued" | "moved_to_front" | "already_available" | "already_completed",
-     *     "priority": 50
+     *     "queue_position": 42
      *   }
      * }
      */
@@ -62,21 +64,26 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
+
+        // Compatibility flag: interactive audio tasks move to the global queue head.
+        $position = (bool) $request->input('interactive', false)
+            ? 'beginning'
+            : $request->input('position', 'end');
 
         $result = $this->queueService->addTask(
             $request->input('content'),
             $request->input('language'),
             $request->input('type'),
-            $request->input('position', 'end')
+            $position
         );
 
         if (!$result['success']) {
             return $this->error($result['error'] ?? 'Failed to add task', 400);
         }
 
-        return $this->success($this->addLogsToResponse($result), 'Task added to queue successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.task_added_to_queue_successfully'));
     }
 
     /**
@@ -88,7 +95,7 @@ class AppQyV1TTSQueueController extends Controller
      * - page: Page number (default: 1)
      * - per_page: Items per page (default: 50)
      * - status: Filter by status (pending/processing/completed/failed)
-     * - type: Filter by type (word/sentence/article)
+     * - type: Filter by a contract-defined audio alias
      *
      * Response:
      * {
@@ -101,7 +108,6 @@ class AppQyV1TTSQueueController extends Controller
      *         "content_text": "hello",
      *         "language": "en",
      *         "status": "pending",
-     *         "priority": 50,
      *         "requested_at": "2025-12-21T10:30:00.000000Z"
      *       }
      *     ],
@@ -123,7 +129,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $page = $request->input('page', 1);
@@ -133,7 +139,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->getQueueSummary((int)$page, (int)$perPage, $status, $type);
 
-        return $this->success($this->addLogsToResponse($result), 'Queue summary retrieved successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.queue_summary_retrieved_successfully'));
     }
 
     /**
@@ -144,7 +150,7 @@ class AppQyV1TTSQueueController extends Controller
      * Query params:
      * - page: Page number (default: 1)
      * - per_page: Items per page (default: 50)
-     * - type: Filter by type (word/sentence/article)
+     * - type: Filter by a contract-defined audio alias
      *
      * Response: Same as getQueueSummary but filtered to completed tasks
      */
@@ -152,7 +158,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $page = $request->input('page', 1);
@@ -161,7 +167,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->getCompletedTasks((int)$page, (int)$perPage, $type);
 
-        return $this->success($this->addLogsToResponse($result), 'Completed tasks retrieved successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.completed_tasks_retrieved_successfully'));
     }
 
     /**
@@ -178,7 +184,6 @@ class AppQyV1TTSQueueController extends Controller
      *     "content_text": "hello",
      *     "language": "en",
      *     "status": "completed",
-     *     "priority": 50,
      *     "audio_path": "p0pct/default/abc123.mp3",
      *     "audio_url": "/api/app_qy_v1/ai_tools/tts/audio/en/word/p0pct/default/abc123.mp3",
      *     "requested_at": "2025-12-21T10:30:00.000000Z",
@@ -191,10 +196,10 @@ class AppQyV1TTSQueueController extends Controller
         $task = $this->queueService->getTask($taskId);
 
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('app_qy_v1.messages.task_not_found'));
         }
 
-        return $this->success($this->addLogsToResponse($task), 'Task retrieved successfully');
+        return $this->success($this->addLogsToResponse($task), __('app_qy_v1.messages.task_retrieved_successfully'));
     }
 
     /**
@@ -225,7 +230,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $stats = $this->queueService->getStatistics();
 
-        return $this->success($this->addLogsToResponse($stats), 'Statistics retrieved successfully');
+        return $this->success($this->addLogsToResponse($stats), __('app_qy_v1.messages.statistics_retrieved_successfully'));
     }
 
     /**
@@ -264,7 +269,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $metrics = AppQyV1TTSQueueMetrics::getMetrics();
 
-        return $this->success($this->addLogsToResponse($metrics), 'Metrics retrieved successfully');
+        return $this->success($this->addLogsToResponse($metrics), __('app_qy_v1.messages.metrics_retrieved_successfully'));
     }
 
     /**
@@ -303,7 +308,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $metrics = $this->queueService->getPerformanceMetrics();
 
-        return $this->success($metrics, 'Performance metrics retrieved successfully');
+        return $this->success($metrics, __('app_qy_v1.messages.performance_metrics_retrieved_successfully'));
     }
 
     /**
@@ -314,10 +319,10 @@ class AppQyV1TTSQueueController extends Controller
      * Request:
      * {
      *   "tasks": [
-     *     {"content": "hello", "language": "en", "type": "word", "priority": 50},
+     *     {"content": "hello", "language": "en", "type": "word"},
      *     {"content": "world", "language": "en"}
      *   ],
-     *   "default_priority": 50
+     *   "default_position": "beginning"
      * }
      *
      * Response:
@@ -349,9 +354,14 @@ class AppQyV1TTSQueueController extends Controller
         $tasks = $request->input('tasks');
         $defaultPosition = $request->input('default_position', 'end');
 
+        // Compatibility flag: interactive audio tasks move to the global queue head.
+        if ((bool) $request->input('interactive', false)) {
+            $defaultPosition = 'beginning';
+        }
+
         $result = $this->queueService->batchAddTasks($tasks, $defaultPosition);
 
-        return $this->success($this->addLogsToResponse($result), 'Batch tasks processed successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.batch_tasks_processed_successfully'));
     }
 
     /**
@@ -379,7 +389,7 @@ class AppQyV1TTSQueueController extends Controller
      *       {
      *         "task_id": 124,
      *         "status": "pending",
-     *         "priority": 50
+     *         "queue_position": 42
      *       },
      *       {
      *         "task_id": 125,
@@ -398,7 +408,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->batchGetTasks($taskIds);
 
-        return $this->success($this->addLogsToResponse($result), 'Batch tasks retrieved successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.batch_tasks_retrieved_successfully'));
     }
 
     /**
@@ -414,7 +424,7 @@ class AppQyV1TTSQueueController extends Controller
      *     {"content": "hello", "language": "en", "type": "word"},
      *     {"content": "How are you?", "language": "en"}
      *   ],
-     *   "default_priority": 50
+     *   "default_position": "end"
      * }
      *
      * Response:
@@ -452,7 +462,7 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = \App\Helpers\AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $queries = $request->input('queries');
@@ -460,7 +470,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->intelligentBatchQuery($queries, $defaultPosition);
 
-        return $this->success($this->addLogsToResponse($result), 'Intelligent batch query completed successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.intelligent_batch_query_completed_successfully'));
     }
 
     /**
@@ -487,7 +497,7 @@ class AppQyV1TTSQueueController extends Controller
 
         $result = $this->queueService->getRecentLogs($limit);
 
-        return $this->success($result, 'Logs retrieved successfully');
+        return $this->success($result, __('app_qy_v1.messages.logs_retrieved_successfully'));
     }
 
     /**
@@ -508,12 +518,12 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $result = $this->queueService->requeueFailedTasks();
 
-        return $this->success($this->addLogsToResponse($result), 'Failed tasks re-queued successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.failed_tasks_re_queued_successfully'));
     }
 
     /**
@@ -526,7 +536,7 @@ class AppQyV1TTSQueueController extends Controller
      *   "content": "hello world",
      *   "language": "en",
      *   "type": "word",
-     *   "position": "beginning" | "middle" | "end"
+     *   "position": "beginning" | "end"
      * }
      *
      * Response:
@@ -536,7 +546,7 @@ class AppQyV1TTSQueueController extends Controller
      *     "task_id": 123,
      *     "task_type": "word",
      *     "queue_status": "queued",
-     *     "priority": 100
+     *     "queue_position": 42
      *   }
      * }
      */
@@ -544,14 +554,14 @@ class AppQyV1TTSQueueController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $request->validate([
             'content' => 'required|string|max:10000',
             'language' => 'required|string|max:10',
-            'type' => 'nullable|string|in:word,sentence,article',
-            'position' => 'required|string|in:beginning,middle,end',
+            'type' => ['nullable', 'string', Rule::in(QueueCenterContract::queuePositionOrderedTaskAliases())],
+            'position' => 'required|string|in:beginning,end',
         ]);
 
         $result = $this->queueService->addTaskAtPosition(
@@ -565,7 +575,7 @@ class AppQyV1TTSQueueController extends Controller
             return $this->error($result['error'] ?? 'Failed to add task', 400);
         }
 
-        return $this->success($this->addLogsToResponse($result), 'Task added successfully');
+        return $this->success($this->addLogsToResponse($result), __('app_qy_v1.messages.task_added_successfully'));
     }
 
     /**

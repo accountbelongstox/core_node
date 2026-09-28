@@ -1,17 +1,7 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordMediaController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController;
 use Illuminate\Support\Facades\Route;
 
@@ -55,4 +45,32 @@ Route::prefix('words/public')->group(function () {
     Route::get('/{word}', [AppQyV1WordQueryController::class, 'publicWordLookup']);
 
 });
+
+// Word-media on-demand resolution (P2). No auth — browser UI and workers consume it; the
+// same public trust level as words/public. FILE-FIRST: image_url/audio_url only
+// when on disk; misses prioritize image work and move word audio to its queue head.
+//   GET /api/app_qy_v1/word/{lang}/{word}/media
+Route::get('/word/{lang}/{word}/media', [AppQyV1WordMediaController::class, 'media'])
+    ->where('lang', '[A-Za-z][A-Za-z0-9_-]*');
+
+Route::get('/word/{lang}/{word}/audio', [AppQyV1WordMediaController::class, 'audio'])
+    ->where('lang', '[A-Za-z][A-Za-z0-9_-]*');
+Route::post('/word/audio/head', [AppQyV1WordMediaController::class, 'moveAudioToHead']);
+
+// Word audio upload from pycore (client key): persist a synthesized clip for a
+// dictionary row matched by (lang, md5); validated + fill-missing server-side.
+//   POST /api/app_qy_v1/word/audio/upload  { md5, lang, audio_base64, provider? }
+Route::post('/word/audio/upload', [AppQyV1WordMediaController::class, 'uploadAudio'])->middleware('client.key');
+
+// Missing-audio word batch for the browser-side Puter.js generator (pycore-manager
+// Queue Center persistent bar). Returns up to limit words with has_audio=false;
+// backend-marked invalid words (is_valid=false) are excluded.
+//   GET /api/app_qy_v1/word/audio/missing-batch?limit=1000&language=en
+Route::get('/word/audio/missing-batch', [AppQyV1WordMediaController::class, 'missingBatch']);
+
+// Fix garbled word text detected during browser-side audio generation.
+// Writes the cleaned form back to the content column (HTML/garbage -> '-').
+//   POST /api/app_qy_v1/word/fix-text  { md5, lang, cleaned_word }
+Route::post('/word/fix-text', [AppQyV1WordMediaController::class, 'fixWordText'])->middleware('client.key');
+
 });

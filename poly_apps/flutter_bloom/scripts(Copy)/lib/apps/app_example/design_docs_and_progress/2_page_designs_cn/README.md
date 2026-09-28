@@ -1,25 +1,25 @@
-# 页面设计层（中文）- app_example
+# Page Design Layer (Chinese) — app_example
 
-**层级**: 第二层 - 粗页面图（中文页面名）
-**用途**: 页面级别设计，使用中文方便理解
+**Layer**: Level 2 — rough page designs (Chinese page names)
+**Purpose**: Page-level design; Chinese names for readability
 
-## 页面列表
+## Page List
 
-（在此添加页面设计文件）
+(Add page design files here)
 
-示例:
-- `首页设计.md` - 应用首页
-- `个人中心设计.md` - 用户个人中心
-- `设置页面设计.md` - 应用设置页面
+Examples:
+- `home_page_design.md` — App home page
+- `profile_center_design.md` — User profile center
+- `settings_page_design.md` — App settings page
 
-## 设计模板
+## Design Template
 
-每个页面设计文件应包含:
-1. 页面功能描述
-2. 布局结构
-3. 主要交互
-4. 对应英文页面名（用于第三层）
+Each page design file should include:
+1. Page feature description
+2. Layout structure
+3. Primary interactions
+4. Matching English page name (for level 3)
 
-## 更新记录
+## Changelog
 
-- 2025-11-19: 初始化页面设计层
+- 2025-11-19: Initial page design layer

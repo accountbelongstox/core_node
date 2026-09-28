@@ -1,23 +1,14 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../providers_app_bank/bank_user_provider.dart';
 import 'package:qyflutter/apps/app_bank/config_app_bank/constants.dart';
-import '../components/region_selector_widget.dart';
-import '../services/location_service.dart';
+import '../../../helpers/bank_region_utils.dart';
+import '../utils/china_regions.dart';
+import '../utils/location_helper.dart';
 
 class RegionSelectionScreen extends StatefulWidget {
   const RegionSelectionScreen({super.key});
@@ -141,6 +132,7 @@ class _RegionSelectionScreenState extends State<RegionSelectionScreen> {
       if (locationResult != null) {
         String? province = locationResult.province;
         String? city = locationResult.city;
+        final district = locationResult.district;
 
         if (province != null && province.isNotEmpty) {
           final matchedProvince = ChinaRegions.provinces.firstWhere(
@@ -195,6 +187,18 @@ class _RegionSelectionScreenState extends State<RegionSelectionScreen> {
                 duration: const Duration(seconds: 2),
               ),
             );
+          }
+
+          final smallest = BankRegionUtils.pickSmallestRegion(
+            province: province,
+            city: city,
+            district: district,
+          );
+          if (smallest != null && smallest.isNotEmpty) {
+            setState(() {
+              _useCustomRegion = true;
+              _customRegionController.text = smallest;
+            });
           }
         } else {
           if (mounted) {

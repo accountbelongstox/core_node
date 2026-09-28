@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Declare all variables at the beginning of the file
-# 6. For Bash scripts: Use absolute paths resolved from script location
-# 7. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -17,6 +6,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
 DOCKER_CONFIG="/etc/docker/daemon.json"
 
@@ -30,7 +20,7 @@ COLOR_CYAN="\033[36m"
 check_docker_installed() {
     if ! command -v docker >/dev/null 2>&1; then
         echo -e "${COLOR_RED}Docker is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 47_install_docker.sh"
+        echo "Please run installation script first: 79_install_docker.sh"
         return 1
     fi
     return 0
@@ -280,23 +270,27 @@ view_config() {
 }
 
 show_menu() {
-    show_header
-    show_docker_status
+    local menu_items=(
+        "Start Docker"
+        "Stop Docker"
+        "Restart Docker"
+        "Show Basic Information"
+        "List Containers"
+        "List Images"
+        "List Volumes"
+        "List Networks"
+        "Show Disk Usage"
+        "System Cleanup (prune)"
+        "View Configuration"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start Docker"
-    echo "  2) Stop Docker"
-    echo "  3) Restart Docker"
-    echo "  4) Show Basic Information"
-    echo "  5) List Containers"
-    echo "  6) List Images"
-    echo "  7) List Volumes"
-    echo "  8) List Networks"
-    echo "  9) Show Disk Usage"
-    echo " 10) System Cleanup (prune)"
-    echo " 11) View Configuration"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "Docker Manager" menu_items 0 11 show_docker_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 11 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -306,7 +300,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_docker ;;

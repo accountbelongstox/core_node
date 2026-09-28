@@ -165,7 +165,7 @@ ITTools.Implementations.Clipboard = {
         for (let i = 0; i < files.length; i++) {
             formData.append('files[]', files[i]);
         }
-        return await apiClientInstance.post('/clipboard/upload', formData, { includeAuth: false }).then(r => r.json());
+        return await apiClientInstance.post('/clipboard/upload', formData, { includeAuth: false });
     },
 
     // ============================================

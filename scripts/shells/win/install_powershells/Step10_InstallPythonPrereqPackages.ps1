@@ -1,0 +1,49 @@
+# Python prerequisite packages installer (Windows).
+#
+# Runs immediately AFTER Step8_InstallDefaultPython.ps1 (pip confirmed) and
+# Step9_InstallCudaNvidiaPrereq.ps1 (CUDA/driver when GPU present).
+# Installs everything pyservice's third_party.py and prepare.ps1 pip steps need:
+#   - torch + torchvision + torchaudio + ultralytics (YOLO) — driver-matched index
+#   - paddlepaddle (CPU or GPU) + paddleocr + paddlex
+#   - shared backend deps (fastapi, opencv, numpy, …) + Windows-only pyautogui/mss
+#   - pycore DEPENDENCY_MAP + WinRT OCR + document-parsing extras (absl, PyQt5, …)
+# TTS/STT heavy stacks (faster-whisper, edge-tts, sherpa-onnx, MeloTTS opt-in) → Step11-13.
+#
+# GPU/CPU: TorchCpuGuard.ps1 and PaddleCpuGuard.ps1 auto-select the correct wheel
+# index from nvidia-smi; CPU-only hosts never pull CUDA/nvidia-* stacks.
+# Idempotent: each bundle skips when pip metadata already exists.
+# Mirrors linux/debian/install_shells/15_install_default_python_prereq_packages.sh.
+
+[CmdletBinding()]
+param(
+    [string]$Python = '',
+    [switch]$Force
+)
+
+$stepErrorActionPreference = 'Continue'
+$scriptRoot = $PSScriptRoot
+$shellsWinRoot = $null
+$winCommonDir = $null
+$preferredPython = $null
+$SCRIPT_INDEX = '[Step 10]'
+if (-not $scriptRoot) { $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
+$shellsWinRoot = Split-Path $scriptRoot -Parent
+$winCommonDir = Join-Path $shellsWinRoot "win_common"
+
+. (Join-Path $winCommonDir "GlobalVars.ps1")
+Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
+. (Join-Path $winCommonDir "CommonFunc.ps1")
+. (Join-Path $winCommonDir "PythonPrereqInstallCommon.ps1")
+
+$ErrorActionPreference = $stepErrorActionPreference
+
+Write-Host "$SCRIPT_INDEX ============================================================" -ForegroundColor Cyan
+Write-Host "$SCRIPT_INDEX Install python prerequisite packages (captcha/AI backends)" -ForegroundColor Cyan
+Write-Host "$SCRIPT_INDEX ============================================================" -ForegroundColor Cyan
+
+$preferredPython = if ($Python) { $Python } else { $Global:PYTHON_EXE_PATH }
+if (-not ($preferredPython -and (Test-Path $preferredPython))) {
+    $preferredPython = $null
+}
+
+Invoke-PythonPrereqInstall -PreferredPythonPath $preferredPython -LogPrefix $SCRIPT_INDEX

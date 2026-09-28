@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserInitializationModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Models\User;
 
 class AppQyV1UserInitializationService
@@ -17,9 +18,7 @@ class AppQyV1UserInitializationService
 
     public function getStatus(User $user): array
     {
-        $profile = AppQyV1UserInitializationModel::query()
-            ->where('user_id', $user->id)
-            ->first();
+        $profile = AppQyV1UserInitializationModel::forUser((int) $user->id);
 
         $learningLanguages = $this->normalizeLearningLanguages($user->learning_languages ?? []);
         $missingFields = $this->determineMissingFields($profile, $learningLanguages);
@@ -47,10 +46,14 @@ class AppQyV1UserInitializationService
         if (isset($payload['native_language'])) {
             $user->native_language = $payload['native_language'];
         }
-        $user->save();
+        $user->saveRecord();
+        AppQyV1LanguageStudyGroupService::ensureLanguageGroupsExist(
+            (int) $user->id,
+            $learningLanguages
+        );
 
-        $profile = AppQyV1UserInitializationModel::query()->updateOrCreate(
-            ['user_id' => $user->id],
+        $profile = AppQyV1UserInitializationModel::saveForUser(
+            (int) $user->id,
             [
                 'occupation' => $payload['occupation'],
                 'daily_words_target' => $payload['daily_words_target'],
@@ -61,11 +64,11 @@ class AppQyV1UserInitializationService
             ]
         );
 
-        $freshUser = $user->fresh();
+        $freshUser = $user->freshRecord();
 
         return [
             'user' => $freshUser,
-            'profile' => $profile->fresh(),
+            'profile' => $profile->freshRecord(),
             'status' => $this->getStatus($freshUser),
         ];
     }

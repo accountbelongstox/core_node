@@ -14,10 +14,12 @@ Port: 45678 (configurable)
 """
 
 import socket
-import threading
 import json
 import time
-from typing import Optional, Callable, Dict
+from typing import Any, Optional, Callable, Dict
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 DEFAULT_IPC_PORT = 45678
 
@@ -28,7 +30,7 @@ class IPCServer:
 
     Usage:
         def on_restart():
-            print("Restarting application...")
+            ColorPrint.info("Restarting application...")
 
         ipc = IPCServer(port=45678)
         ipc.register_handler('restart', on_restart)
@@ -45,8 +47,10 @@ class IPCServer:
         self.port = port
         self.running = False
         self.server_socket: Optional[socket.socket] = None
-        self.server_thread: Optional[threading.Thread] = None
+        self.server_thread: Optional[Any] = None
         self.handlers: Dict[str, Callable] = {}
+        self._running_signal = f"device_sync.core_ipc.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
     def is_already_running(self) -> bool:
         """
@@ -98,7 +102,7 @@ class IPCServer:
 
             return result.get('status') == 'ok'
         except Exception as e:
-            print(f"[IPCServer] Failed to send command: {e}")
+            ColorPrint.plain(f"[IPCServer] Failed to send command: {e}")
             return False
         finally:
             client_socket.close()
@@ -131,19 +135,23 @@ class IPCServer:
             self.server_socket.listen(5)
             self.server_socket.settimeout(1)
         except Exception as e:
-            print(f"[IPCServer] Failed to bind port {self.port}: {e}")
+            ColorPrint.plain(f"[IPCServer] Failed to bind port {self.port}: {e}")
             return False
 
         self.running = True
-        self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-        self.server_thread.start()
+        THREAD_BUS.signal(self._running_signal, True)
+        self.server_thread = start_bus_task(
+            self._server_loop,
+            thread_name="CoreIPCServerThread",
+        )
 
-        print(f"[IPCServer] Started on port {self.port}")
+        ColorPrint.plain(f"[IPCServer] Started on port {self.port}")
         return True
 
     def stop(self):
         """Stop IPC server."""
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.server_socket:
             self.server_socket.close()
@@ -151,23 +159,23 @@ class IPCServer:
         if self.server_thread and self.server_thread.is_alive():
             self.server_thread.join(timeout=2)
 
-        print("[IPCServer] Stopped")
+        ColorPrint.plain("[IPCServer] Stopped")
 
     def _server_loop(self):
         """Server main loop (runs in background thread)."""
-        while self.running:
+        while THREAD_BUS.get_signal(self._running_signal, False):
             try:
                 client_socket, addr = self.server_socket.accept()
-                threading.Thread(
-                    target=self._handle_client,
-                    args=(client_socket,),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    self._handle_client,
+                    client_socket,
+                    thread_name="CoreIPCClientThread",
+                )
             except socket.timeout:
                 continue
             except Exception as e:
-                if self.running:
-                    print(f"[IPCServer] Error accepting connection: {e}")
+                if THREAD_BUS.get_signal(self._running_signal, False):
+                    ColorPrint.plain(f"[IPCServer] Error accepting connection: {e}")
 
     def _handle_client(self, client_socket: socket.socket):
         """
@@ -187,11 +195,11 @@ class IPCServer:
             # Execute handler
             if command in self.handlers:
                 handler = self.handlers[command]
-                threading.Thread(
-                    target=handler,
-                    args=(command_data,),
-                    daemon=True
-                ).start()
+                start_bus_task(
+                    handler,
+                    command_data,
+                    thread_name=f"CoreIPCHandler-{command}",
+                )
 
                 response = {'status': 'ok', 'message': f'Command {command} executed'}
             else:

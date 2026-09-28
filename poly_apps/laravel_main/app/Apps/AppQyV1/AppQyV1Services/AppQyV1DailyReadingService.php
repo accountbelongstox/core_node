@@ -1,0 +1,241 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Services;
+
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
+
+class AppQyV1DailyReadingService
+{
+    private AppQyV1DailyReadingDocumentService $documentService;
+
+    private AppQyV1ArticleManagementService $articleManagementService;
+
+    public function __construct(
+        AppQyV1DailyReadingDocumentService $documentService,
+        AppQyV1ArticleManagementService $articleManagementService
+    ) {
+        $this->documentService = $documentService;
+        $this->articleManagementService = $articleManagementService;
+    }
+
+    public function list(int $limit = 30, int $offset = 0): array
+    {
+        return $this->articleManagementService->list($limit, $offset, 'daily');
+    }
+
+    public function storeAudio(string $articleId, string $language, string $audioBase64): ?string
+    {
+        $artifact = $this->writeAudioArtifact($articleId, $language, $audioBase64);
+
+        return $artifact['url'] ?? null;
+    }
+
+    public function audioUrlFor(AppQyV1Article $article): string
+    {
+        $artifact = $this->audioArtifact(
+            (string) $article->article_id,
+            (string) $article->language
+        );
+
+        return $artifact['url'];
+    }
+
+    public function isPublishedAudio(AppQyV1Article $article, string $sha256): bool
+    {
+        $artifact = [];
+        $metadata = [];
+        $publishedHash = '';
+        $fileHash = '';
+
+        $article = AppQyV1Article::resolveCanonicalArticle($article);
+        $metadata = is_array($article->metadata) ? $article->metadata : [];
+        $publishedHash = (string) ($metadata['audio_sha256'] ?? '');
+        if ($publishedHash === '' || !hash_equals($publishedHash, $sha256)) {
+            return false;
+        }
+
+        $artifact = $this->audioArtifact(
+            (string) $article->article_id,
+            (string) $article->language
+        );
+        if (!is_file($artifact['path'])) {
+            return false;
+        }
+
+        $fileHash = (string) hash_file('sha256', $artifact['path']);
+
+        return $fileHash !== '' && hash_equals($sha256, $fileHash);
+    }
+
+    private function writeAudioArtifact(string $articleId, string $language, string $audioBase64): ?array
+    {
+        $binary = null;
+
+        $binary = base64_decode($audioBase64, true);
+        if ($binary === false) {
+            return null;
+        }
+
+        return $this->writeAudioArtifactBytes($articleId, $language, $binary);
+    }
+
+    private function writeAudioArtifactBytes(string $articleId, string $language, string $binary): ?array
+    {
+        $artifact = [];
+
+        if (strlen($binary) < 128) {
+            return null;
+        }
+
+        $artifact = $this->audioArtifact($articleId, $language);
+        if (!FileSystemManager::writeFile($artifact['path'], $binary)) {
+            return null;
+        }
+
+        $artifact['sha256'] = hash('sha256', $binary);
+
+        return $artifact;
+    }
+
+    private function audioArtifact(string $articleId, string $language): array
+    {
+        $languageCode = '';
+        $safeId = '';
+        $filename = '';
+        $directory = '';
+        $path = '';
+
+        $languageCode = AppQyV1TableMaps::normalizeLangCode($language);
+        $languageCode = $languageCode !== '' ? $languageCode : 'en';
+        $safeId = preg_replace('/[^A-Za-z0-9._-]/', '_', $articleId) ?: 'article';
+        $filename = $safeId . '.mp3';
+        $directory = PathMapper::getAppQyV1AudioBaseDir('daily/' . $languageCode);
+        $path = $directory . DIRECTORY_SEPARATOR . $filename;
+
+        return [
+            'url' => '/static/app_qy_v1/audio/daily/'
+                . rawurlencode($languageCode)
+                . '/'
+                . rawurlencode($filename),
+            'path' => $path,
+        ];
+    }
+
+    /**
+     * Replace the published audio of an existing agent-history article.
+     *
+     * The audio path is deterministic (<article_id>.mp3), so writing through
+     * storeAudio() replaces the bytes in place and the public URL stays
+     * stable; only the provenance metadata moves.
+     */
+    public function replaceAudio(AppQyV1Article $article, string $audioBase64, array $provenance = []): ?string
+    {
+        $binary = null;
+
+        $binary = base64_decode($audioBase64, true);
+        if ($binary === false) {
+            return null;
+        }
+
+        return $this->replaceAudioBytes($article, $binary, $provenance);
+    }
+
+    public function replaceAudioBytes(AppQyV1Article $article, string $binary, array $provenance = []): ?string
+    {
+        $audioRebuiltAt = null;
+        $eventIdentity = '';
+        $article = AppQyV1Article::resolveCanonicalArticle($article);
+        $artifact = $this->writeAudioArtifactBytes(
+            (string) $article->article_id,
+            (string) $article->language,
+            $binary
+        );
+        if ($artifact === null) {
+            return null;
+        }
+
+        AppQyV1Article::mutateMetadataByArticleId(
+            (string) $article->article_id,
+            static function (array $metadata, AppQyV1Article $lockedArticle) use (
+                $artifact,
+                $provenance,
+                &$audioRebuiltAt
+            ): array {
+                $previousHash = (string) ($metadata['audio_sha256'] ?? '');
+                $audioChanged = $previousHash === '' || !hash_equals($previousHash, $artifact['sha256']);
+                $audioFiles = is_array($metadata['audio_files'] ?? null) ? $metadata['audio_files'] : [];
+                $isRebuild = ($provenance['audio_rebuild'] ?? false) === true;
+
+                $metadata['audio_url'] = $artifact['url'];
+                $metadata['audio_status'] = 'ready';
+                $metadata['audio_sha256'] = $artifact['sha256'];
+                $metadata['tts_engine'] = $provenance['tts_engine'] ?? ($metadata['tts_engine'] ?? null);
+                $metadata['tts_model'] = $provenance['tts_model'] ?? ($metadata['tts_model'] ?? null);
+                $metadata['tts_chunked'] = (bool) ($provenance['tts_chunked'] ?? false);
+                $metadata['tts_accent'] = $provenance['tts_accent'] ?? ($metadata['tts_accent'] ?? null);
+                if (is_string($provenance['source_record_id'] ?? null)
+                    && trim($provenance['source_record_id']) !== '') {
+                    $metadata['source_record_id'] = trim($provenance['source_record_id']);
+                    $metadata['idempotency_key_hash'] = hash('sha256', $metadata['source_record_id']);
+                }
+
+                if ($audioChanged || !isset($audioFiles[0]) || !is_array($audioFiles[0])) {
+                    $metadata['audio_replaced_at'] = now()->toIso8601String();
+                    $audioFiles[0] = [
+                        'sentence' => (string) $lockedArticle->content,
+                        'path' => $artifact['url'],
+                        'created_at' => now()->toIso8601String(),
+                    ];
+                }
+                if ($isRebuild) {
+                    if ($audioChanged || trim((string) ($metadata['audio_rebuilt_at'] ?? '')) === '') {
+                        $metadata['audio_rebuilt_at'] = now()->toIso8601String();
+                    }
+                    $audioRebuiltAt = (string) $metadata['audio_rebuilt_at'];
+                }
+                $metadata['audio_files'] = array_values($audioFiles);
+
+                return $metadata;
+            }
+        );
+
+        app(AppQyV1ResourceIndexService::class)->recordArticle($article);
+
+        $eventIdentity = (string) $article->article_id
+            . ':' . $artifact['sha256']
+            . (($provenance['audio_rebuild'] ?? false) === true ? ':rebuild' : ':publish');
+        AppQyV1TranslationEventModel::emitOnce(
+            AppQyV1TranslationEventModel::EVENT_ARTICLE_AUDIO_READY,
+            $eventIdentity,
+            [
+                'article_id' => (string) $article->article_id,
+                'audio_url' => $artifact['url'],
+                'tts_engine' => $provenance['tts_engine'] ?? null,
+                'tts_model' => $provenance['tts_model'] ?? null,
+                'tts_chunked' => (bool) ($provenance['tts_chunked'] ?? false),
+                'audio_rebuilt_at' => $audioRebuiltAt,
+            ]
+        );
+
+        return $artifact['url'];
+    }
+
+    public function createDocument(
+        AppQyV1Article $article,
+        string $articleText,
+        ?string $referenceCn,
+        string $language
+    ): ?int {
+        return $this->documentService->createForWorkerArticle(
+            $article,
+            $articleText,
+            $referenceCn,
+            $language
+        );
+    }
+
+}

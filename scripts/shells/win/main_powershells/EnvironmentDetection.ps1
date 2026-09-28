@@ -1,21 +1,13 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Environment Detection Module (Windows PowerShell)
 # All code is in English only.
 
-# Ensure cache directory
-$script:userProfile = [Environment]::GetFolderPath("UserProfile")
-$script:cacheRoot = Join-Path $script:userProfile ".core_node\cache"
+# Ensure cache directory through the centralized Windows path constants.
+$script:MAIN_POWERSHELLS_DIR = $PSScriptRoot
+$script:WIN_DIR = Split-Path $script:MAIN_POWERSHELLS_DIR -Parent
+$script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR 'win_common'
+$script:SHARED_CACHE_ENV_PATH = Join-Path $script:WIN_COMMON_DIR 'SharedCacheEnv.ps1'
+. $script:SHARED_CACHE_ENV_PATH
+$script:cacheRoot = $Global:WWW_CACHE_DIR
 if (-not (Test-Path $script:cacheRoot)) {
     New-Item -ItemType Directory -Path $script:cacheRoot -Force | Out-Null
 }
@@ -105,7 +97,7 @@ function Test-WSLInstallation {
         $feature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -ErrorAction SilentlyContinue
         if ($feature.State -eq "Enabled") {
             $distros = & wsl.exe --list --quiet 2>$null
-            if ($LASTEXITCODE -eq 0) {
+            if ($distros) {
                 return ($distros -join ", ")
             }
             return "Enabled (no distro listed)"
@@ -115,7 +107,7 @@ function Test-WSLInstallation {
     try {
         $wslOutput = & wsl --status 2>&1
         $output = $wslOutput -join "`n"
-        if ($LASTEXITCODE -eq 0 -and $output -notmatch "not installed") {
+        if ($output -and $output -notmatch "not installed") {
             return "Detected via command"
         }
     } catch {}

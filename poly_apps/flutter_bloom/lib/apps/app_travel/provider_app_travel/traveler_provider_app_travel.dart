@@ -14,9 +14,9 @@ class TravelerProviderAppTravel extends ChangeNotifier {
     _travelers = [
       TravelerModel(
         id: 'default_1',
-        name: 'ZHUIDEQIONG',
-        phone: '17785451996',
-        email: '2862198276@qq.com',
+        name: 'XIONG YIN CAN',
+        phone: '18984121454',
+        email: 'cy00000000x@gmail.com',
         isDefault: true,
       ),
     ];

@@ -1,31 +1,27 @@
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import cors from '@fastify/cors';
-import { stderr } from 'process';
 import {
   NATIVE_SERVER_PORT,
   TIMEOUTS,
   SERVER_CONFIG,
   HTTP_STATUS,
   ERROR_MESSAGES,
+  LOCAL_RPC_GUARD_OPTIONS,
 } from '../constant';
-import { NativeMessagingHost } from '../native-messaging-host';
+import {
+  ExtensionConnectionError,
+  ExtensionRequestTimeoutError,
+  type NativeMessagingHost,
+} from '../native-messaging-host';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { randomUUID } from 'node:crypto';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { getMcpServer } from '../mcp/mcp-server';
+import { createMcpServer } from '../mcp/mcp-server';
 import { SingletonHandler } from './singleton';
+import { localRpcGuard } from '../ncore';
+import { createLogger } from '../util/logger';
 
-// Log function for debugging
-function log(level: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [Server] [${level}] ${message}`;
-  if (data) {
-    stderr.write(`${logMessage} ${JSON.stringify(data)}\n`);
-  } else {
-    stderr.write(`${logMessage}\n`);
-  }
-}
+const log = createLogger('Server');
 
 // Define request body type (if data needs to be retrieved from HTTP requests)
 interface ExtensionRequestPayload {
@@ -34,22 +30,34 @@ interface ExtensionRequestPayload {
 
 export class Server {
   private fastify: FastifyInstance;
-  public isRunning = false; // Changed to public or provide a getter
+  public isRunning = false;
   private nativeHost: NativeMessagingHost | null = null;
   private transportsMap: Map<string, StreamableHTTPServerTransport | SSEServerTransport> =
     new Map();
   private singletonHandler: SingletonHandler;
+  private stopPromise: Promise<void> | null = null;
 
   constructor() {
     this.fastify = Fastify({ logger: SERVER_CONFIG.LOGGER_ENABLED });
     this.singletonHandler = new SingletonHandler('chrome-mcp-native-server');
 
-    // Set shutdown callback - allow shutdown if no active MCP sessions
+    // A native host process and its MCP server are one ownership unit. A newer
+    // browser connection must be able to replace the old unit even when the old
+    // process still has in-memory MCP sessions.
     this.singletonHandler.setCanShutdownCallback(() => {
       const activeSessions = this.transportsMap.size;
-      log('INFO', `Shutdown check: ${activeSessions} active MCP sessions`);
-      // Allow shutdown if no active sessions, or always allow for now
-      return activeSessions === 0;
+      log('INFO', `Shutdown check: replacement accepted with ${activeSessions} active session(s)`);
+      return true;
+    });
+
+    // When an incoming instance wins the port, release it gracefully: end every
+    // open MCP session so its SSE stream closes (an open stream would otherwise
+    // keep fastify.close() pending), then stop the HTTP server. The client sees
+    // a clean stream end / 404-on-reconnect and re-initializes against the new
+    // port owner, instead of the abrupt "transport dropped mid-call" a bare
+    // process.exit() produced.
+    this.singletonHandler.setShutdownCallback(async () => {
+      await this.stop();
     });
 
     this.setupPlugins();
@@ -62,13 +70,20 @@ export class Server {
     this.nativeHost = nativeHost;
   }
 
-  private async setupPlugins(): Promise<void> {
-    await this.fastify.register(cors, {
-      origin: SERVER_CONFIG.CORS_ORIGIN,
-    });
+  private setupPlugins(): void {
+    const guard = localRpcGuard.createFastifyGuard(LOCAL_RPC_GUARD_OPTIONS);
+    this.fastify.addHook('onRequest', guard.onRequest);
+    this.fastify.addHook('preParsing', guard.preParsing);
   }
 
   private setupRoutes(): void {
+    this.fastify.get('/health', async (_, reply) => {
+      return reply.status(HTTP_STATUS.OK).send({
+        status: this.isRunning ? 'ok' : 'starting',
+        extensionConnected: this.nativeHost?.isExtensionConnected() === true,
+      });
+    });
+
     // for ping
     this.fastify.get(
       '/ask-extension',
@@ -84,7 +99,6 @@ export class Server {
             .status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
             .send({ error: ERROR_MESSAGES.SERVER_NOT_RUNNING });
         }
-
         try {
           // wait from extension message
           const extensionResponse = await this.nativeHost.sendRequestToExtensionAndWait(
@@ -93,17 +107,22 @@ export class Server {
             TIMEOUTS.EXTENSION_REQUEST_TIMEOUT,
           );
           return reply.status(HTTP_STATUS.OK).send({ status: 'success', data: extensionResponse });
-        } catch (error: any) {
-          if (error.message.includes('timed out')) {
+        } catch (error: unknown) {
+          if (error instanceof ExtensionRequestTimeoutError) {
             return reply
               .status(HTTP_STATUS.GATEWAY_TIMEOUT)
               .send({ status: 'error', message: ERROR_MESSAGES.REQUEST_TIMEOUT });
-          } else {
-            return reply.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+          }
+          if (error instanceof ExtensionConnectionError) {
+            return reply.status(HTTP_STATUS.SERVICE_UNAVAILABLE).send({
               status: 'error',
-              message: `Failed to get response from extension: ${error.message}`,
+              message: ERROR_MESSAGES.EXTENSION_NOT_CONNECTED,
             });
           }
+          return reply.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).send({
+            status: 'error',
+            message: ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
+          });
         }
       },
     );
@@ -130,8 +149,10 @@ export class Server {
           this.transportsMap.delete(transport.sessionId);
         });
 
-        log('INFO', 'Connecting MCP server to SSE transport');
-        const server = getMcpServer();
+        log('INFO', 'Connecting a fresh MCP server instance to SSE transport');
+        // Fresh Server per SSE session for the same one-transport-per-Server
+        // reason as the streamable-HTTP path above.
+        const server = createMcpServer();
         await server.connect(transport);
         log('SUCCESS', 'MCP server connected to SSE transport');
 
@@ -175,8 +196,13 @@ export class Server {
       if (transport) {
         log('INFO', `Found existing transport for session: ${sessionId}`);
         // transport found, do nothing
-      } else if (!sessionId && isInitializeRequest(request.body)) {
-        log('INFO', 'Initialize request received, creating new session');
+      } else if (isInitializeRequest(request.body)) {
+        // Allow re-initialization: either no sessionId (fresh) or stale sessionId (reconnect)
+        if (sessionId) {
+          log('INFO', `Re-initialization with stale session: ${sessionId}, creating new session`);
+        } else {
+          log('INFO', 'Initialize request received, creating new session');
+        }
         const newSessionId = randomUUID(); // Generate session ID
         log('INFO', `Generated new session ID: ${newSessionId}`);
 
@@ -200,12 +226,34 @@ export class Server {
           }
         };
 
-        log('INFO', 'Connecting MCP server to transport');
-        await getMcpServer().connect(transport);
+        log('INFO', 'Connecting a fresh MCP server instance to transport');
+        // A fresh Server per session — an SDK Server binds to ONE transport for
+        // life, so reusing a singleton makes the 2nd client's initialize 500.
+        await createMcpServer().connect(transport);
         log('SUCCESS', 'MCP server connected to transport');
+      } else if (sessionId) {
+        // A request bearing a session id we no longer have — almost always the
+        // native server restarted and lost its in-memory transportsMap while the
+        // client kept its old session id. Per the MCP Streamable HTTP spec an
+        // UNKNOWN/EXPIRED session MUST return 404 (JSON-RPC -32001) so a
+        // spec-compliant client transparently re-initializes a fresh session.
+        // (The previous code returned 400 here, which clients do NOT treat as
+        // recoverable, so the connection stayed dead until the client restarted.)
+        log('INFO', `Unknown/expired session, asking client to re-initialize: ${sessionId}`);
+        reply.code(HTTP_STATUS.NOT_FOUND).send({
+          jsonrpc: '2.0',
+          error: { code: -32001, message: ERROR_MESSAGES.SESSION_NOT_FOUND },
+          id: null,
+        });
+        return;
       } else {
-        log('ERROR', 'Invalid MCP request', { sessionId, isInitRequest: isInitializeRequest(request.body) });
-        reply.code(HTTP_STATUS.BAD_REQUEST).send({ error: ERROR_MESSAGES.INVALID_MCP_REQUEST });
+        // No session id AND not an initialize request -> genuinely malformed.
+        log('ERROR', 'Invalid MCP request (no session id, not an initialize request)');
+        reply.code(HTTP_STATUS.BAD_REQUEST).send({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: ERROR_MESSAGES.INVALID_MCP_REQUEST },
+          id: null,
+        });
         return;
       }
 
@@ -231,26 +279,28 @@ export class Server {
         ? (this.transportsMap.get(sessionId) as StreamableHTTPServerTransport)
         : undefined;
       if (!transport) {
-        log('ERROR', `No transport found for session: ${sessionId}`);
-        reply.code(HTTP_STATUS.BAD_REQUEST).send({ error: ERROR_MESSAGES.INVALID_SSE_SESSION });
+        // Unknown/expired session on the SSE stream too -> 404 so the client
+        // re-initializes (consistent with the POST handler above).
+        log('INFO', `No transport found for SSE session, asking client to re-initialize: ${sessionId}`);
+        reply.code(HTTP_STATUS.NOT_FOUND).send({
+          jsonrpc: '2.0',
+          error: { code: -32001, message: ERROR_MESSAGES.SESSION_NOT_FOUND },
+          id: null,
+        });
         return;
       }
 
       log('INFO', `Setting up SSE stream for session: ${sessionId}`);
-      reply.raw.setHeader('Content-Type', 'text/event-stream');
-      reply.raw.setHeader('Cache-Control', 'no-cache');
-      reply.raw.setHeader('Connection', 'keep-alive');
-      reply.raw.flushHeaders(); // Ensure headers are sent immediately
+      // The MCP SDK owns the raw response, including the SSE headers. Fastify
+      // must be hijacked before handing it over; otherwise it finalizes the
+      // reply after the SDK has already opened the stream and Node throws
+      // ERR_HTTP_HEADERS_SENT, disconnecting every MCP client immediately.
+      reply.hijack();
 
       try {
         log('INFO', `Starting SSE stream handling for session: ${sessionId}`);
-        // transport.handleRequest will take over the response stream
+        // transport.handleRequest takes over the hijacked response stream.
         await transport.handleRequest(request.raw, reply.raw);
-        if (!reply.sent) {
-          // If transport didn't send anything (unlikely for SSE initial handshake)
-          log('INFO', `Hijacking reply for session: ${sessionId}`);
-          reply.hijack(); // Prevent Fastify from automatically sending response
-        }
         log('INFO', `SSE stream established for session: ${sessionId}`);
       } catch (error) {
         log('ERROR', `Error in SSE stream for session: ${sessionId}`, { error });
@@ -307,15 +357,11 @@ export class Server {
     });
   }
 
-  public async start(port = NATIVE_SERVER_PORT, nativeHost: NativeMessagingHost): Promise<void> {
+  public async start(port = NATIVE_SERVER_PORT): Promise<void> {
     log('INFO', `Server.start() called with port: ${port}`);
 
     if (!this.nativeHost) {
-      log('INFO', 'Setting native host reference');
-      this.nativeHost = nativeHost; // Ensure nativeHost is set
-    } else if (this.nativeHost !== nativeHost) {
-      log('INFO', 'Updating native host reference to new instance');
-      this.nativeHost = nativeHost; // Update to the passed instance
+      throw new Error(ERROR_MESSAGES.NATIVE_HOST_NOT_AVAILABLE);
     }
 
     if (this.isRunning) {
@@ -330,34 +376,41 @@ export class Server {
       log('SUCCESS', `Fastify server successfully listening on http://${SERVER_CONFIG.HOST}:${port}`);
       log('INFO', `MCP endpoint available at: http://${SERVER_CONFIG.HOST}:${port}/mcp`);
       log('INFO', `SSE endpoint available at: http://${SERVER_CONFIG.HOST}:${port}/sse`);
-      // No need to return, Promise resolves void by default
     } catch (err) {
-      this.isRunning = false; // Startup failed, reset status
+      this.isRunning = false;
       log('ERROR', 'Failed to start Fastify server', { error: err });
-      // Throw error instead of exiting directly, let caller (possibly NativeHost) handle
-      throw err; // or return Promise.reject(err);
-      // process.exit(1); // Not recommended to exit directly here
+      throw err;
     }
   }
 
   public async stop(): Promise<void> {
-    log('INFO', 'Server.stop() called');
+    if (this.stopPromise) return this.stopPromise;
+    this.stopPromise = this.stopOnce();
+    return this.stopPromise;
+  }
 
-    if (!this.isRunning) {
-      log('WARN', 'Server is not running, skipping stop');
-      return;
+  private async stopOnce(): Promise<void> {
+    log('INFO', 'Server.stop() called');
+    if (!this.isRunning) return;
+
+    const transports = [...this.transportsMap.values()];
+    this.transportsMap.clear();
+    for (const transport of transports) {
+      try {
+        await transport.close();
+      } catch (error) {
+        log('WARN', 'Failed to close an MCP transport during server shutdown', { error });
+      }
     }
-    // this.nativeHost = null; // Not recommended to nullify here, association relationship may still be needed
+
     try {
-      log('INFO', 'Attempting to close Fastify server');
       await this.fastify.close();
-      this.isRunning = false; // Update running status
       log('SUCCESS', 'Fastify server closed successfully');
-    } catch (err) {
-      // Even if closing fails, mark as not running, but log the error
+    } catch (error) {
+      log('ERROR', 'Failed to close Fastify server', { error });
+      throw error;
+    } finally {
       this.isRunning = false;
-      log('ERROR', 'Failed to close Fastify server', { error: err });
-      throw err; // Throw error
     }
   }
 

@@ -2,12 +2,14 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 
-class ChunkedUploadController
+class ChunkedUploadController extends Controller
 {
     private $baseDirectory;
     private $chunksDirectory;
@@ -15,7 +17,9 @@ class ChunkedUploadController
     public function __construct()
     {
         $this->baseDirectory = PathMapper::getStaticPath();
-        $this->chunksDirectory = storage_path('app/upload_chunks');
+        // Transient upload chunks live on the mapped external filesystem, NOT inside
+        // the laravel_main project tree (was storage_path('app/upload_chunks')).
+        $this->chunksDirectory = PathMapper::getExternalStoragePath('temp', 'upload_chunks');
         FileSystemManager::ensureDirectoryExists($this->baseDirectory);
         FileSystemManager::ensureDirectoryExists($this->chunksDirectory);
     }

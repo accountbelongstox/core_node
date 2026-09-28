@@ -1,16 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Middleware\AppQyV1ClientAuth;
 
@@ -34,8 +22,8 @@ class AppQyV1ResourceAccessAuth
         }
 
         return response()->json([
-            'error' => 'Unauthorized',
-            'message' => 'Invalid static resource access token'
+            'error' => __('app_qy_v1.messages.unauthorized'),
+            'message' => __('app_qy_v1.messages.invalid_static_resource_access_token')
         ], 401);
     }
 
@@ -44,7 +32,7 @@ class AppQyV1ResourceAccessAuth
      */
     private function isStaticResourceAccessValid(Request $request): bool
     {
-        $isDebugMode = env('APP_DEBUG', false);
+        $isDebugMode = (bool) config('app.debug');
 
         if ($isDebugMode) {
             return $this->isDebugToken($request);
@@ -58,7 +46,7 @@ class AppQyV1ResourceAccessAuth
      */
     public static function isDebugToken(Request $request): bool
     {
-        $isLaravelDebugMode = env('APP_DEBUG');
+        $isLaravelDebugMode = (bool) config('app.debug');
         if (!$isLaravelDebugMode) {
             return false;
         }

@@ -1,16 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Utils;
 
@@ -19,6 +7,17 @@ class FileSystemManager
     private static $autoFixPermissions = true;
     private static $externalPathMappings = [];
     private static $cachedUserInfo = null;
+
+    /**
+     * Per-process depth of exclusive file locks currently held by this
+     * process, keyed by resolved file path. flock() blocks across separate
+     * file descriptors even within one process, so nested lock-taking on a
+     * path already locked here must be suppressed (read/write helpers check
+     * this registry); otherwise a callback that reads or writes the locked
+     * file deadlocks against itself until the PHP execution limit kills the
+     * request.
+     */
+    private static array $exclusiveLockRegistry = [];
 
     public static function setAutoFixPermissions(bool $enabled): void
     {
@@ -54,7 +53,7 @@ class FileSystemManager
                 try {
                     mkdir($mappedDir, 0755, true);
                 } catch (\Throwable $e) {
-                    \Log::error('[FileSystemManager] Failed to create mapped dir: ' . $mappedDir . ' - ' . $e->getMessage());
+                    SafeLogger::error('[FileSystemManager] Failed to create mapped dir: ' . $mappedDir . ' - ' . $e->getMessage());
                 }
             }
 
@@ -67,7 +66,7 @@ class FileSystemManager
                     try {
                         symlink($symlinkTarget, $symlinkPath);
                     } catch (\Throwable $e) {
-                        \Log::error('[FileSystemManager] Failed to create symlink: ' . $symlinkPath . ' -> ' . $symlinkTarget . ' - ' . $e->getMessage());
+                        SafeLogger::error('[FileSystemManager] Failed to create symlink: ' . $symlinkPath . ' -> ' . $symlinkTarget . ' - ' . $e->getMessage());
                     }
                 }
             }
@@ -120,7 +119,8 @@ class FileSystemManager
             }
         }
 
-        $result = file_put_contents($path, $content) !== false;
+        $lockHeldBySelf = self::exclusiveLockHeld($path);
+        $result = file_put_contents($path, $content, $lockHeldBySelf ? 0 : LOCK_EX) !== false;
 
         if ($result && $userInfo && isset($userInfo['uid'], $userInfo['gid'])) {
             @chown($path, $userInfo['uid']);
@@ -131,12 +131,71 @@ class FileSystemManager
         return $result;
     }
 
-    public static function readFile(string $path): string|false
+    public static function writePrivateFile(string $path, string $content): bool
     {
-        // Map path to writable storage if needed
-        $mappedPath = self::mapExternalPath($path);
+        $result = self::writeFile($path, $content);
+
+        return $result && self::ensureFileMode($path, 0600);
+    }
+
+    public static function ensureFileMode(string $path, int $mode): bool
+    {
+        $permissions = false;
+        $resolvedPath = file_exists($path) ? $path : self::mapExternalPath($path);
+
+        if (!self::isFile($resolvedPath)) {
+            return false;
+        }
+        if (\App\Providers\PathMapper::isWindows()) {
+            return true;
+        }
+
+        @chmod($resolvedPath, $mode);
+        $permissions = fileperms($resolvedPath);
+
+        return is_int($permissions) && ($permissions & 0777) === $mode;
+    }
+
+    public static function readFile(string $path, bool $fixPermissions = true): string|false
+    {
+        $mappedPath = file_exists($path) ? $path : self::mapExternalPath($path);
 
         if (!file_exists($mappedPath)) {
+            return false;
+        }
+
+        if ($fixPermissions && self::$autoFixPermissions) {
+            self::fixPermissions($mappedPath);
+        }
+
+        $handle = fopen($mappedPath, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+
+        // When this process already holds the exclusive lock on the file
+        // (runWithExclusiveFileLock callback), taking LOCK_SH here would
+        // block against our own LOCK_EX on the other descriptor.
+        $lockHeldBySelf = self::exclusiveLockHeld($mappedPath);
+        if (!$lockHeldBySelf) {
+            flock($handle, LOCK_SH);
+        }
+        $content = stream_get_contents($handle);
+        if (!$lockHeldBySelf) {
+            flock($handle, LOCK_UN);
+        }
+        fclose($handle);
+
+        return $content;
+    }
+
+    public static function readFileSegment(string $path, int $offset = 0, ?int $length = null): string|false
+    {
+        $mappedPath = self::mapExternalPath($path);
+        $handle = null;
+        $content = false;
+
+        if (!file_exists($mappedPath) || !is_readable($mappedPath)) {
             return false;
         }
 
@@ -144,45 +203,325 @@ class FileSystemManager
             self::fixPermissions($mappedPath);
         }
 
-        return file_get_contents($mappedPath);
+        $handle = fopen($mappedPath, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+
+        if ($offset > 0 && fseek($handle, $offset) !== 0) {
+            fclose($handle);
+            return false;
+        }
+
+        $content = $length === null
+            ? stream_get_contents($handle)
+            : stream_get_contents($handle, $length);
+        fclose($handle);
+
+        return $content;
+    }
+
+    public static function writeFileSegment(string $path, string $content, int $expectedOffset): array
+    {
+        $mappedPath = self::mapExternalPath($path);
+        $parentDir = dirname($mappedPath);
+        $handle = null;
+        $currentSize = 0;
+        $written = 0;
+
+        self::ensureDirectoryExists($parentDir);
+        $handle = fopen($mappedPath, 'c+b');
+        if ($handle === false) {
+            return ['success' => false, 'offset' => 0];
+        }
+
+        if (!flock($handle, LOCK_EX | LOCK_NB)) {
+            clearstatcache(true, $mappedPath);
+            $currentSize = (int) (@filesize($mappedPath) ?: 0);
+            fclose($handle);
+            return ['success' => false, 'offset' => $currentSize, 'busy' => true];
+        }
+        fseek($handle, 0, SEEK_END);
+        $currentSize = ftell($handle);
+        if ($currentSize !== $expectedOffset) {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+            return ['success' => false, 'offset' => $currentSize, 'busy' => false];
+        }
+
+        $written = fwrite($handle, $content);
+        fflush($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        if ($written === false || $written !== strlen($content)) {
+            return ['success' => false, 'offset' => $currentSize, 'busy' => false];
+        }
+
+        self::fixPermissions($mappedPath);
+        return ['success' => true, 'offset' => $currentSize + $written, 'busy' => false];
+    }
+
+    public static function runWithExclusiveFileLock(string $path, callable $callback, bool $blocking = false): array
+    {
+        $mappedPath = self::mapExternalPath($path);
+        $lockKey = self::exclusiveLockKey($mappedPath);
+        $handle = null;
+        $operation = LOCK_EX | ($blocking ? 0 : LOCK_NB);
+
+        if ((self::$exclusiveLockRegistry[$lockKey] ?? 0) > 0) {
+            // Re-entrant: this process already holds the exclusive lock for
+            // this path, so run the callback directly instead of taking a
+            // second flock that would block against our own descriptor.
+            self::$exclusiveLockRegistry[$lockKey] = self::$exclusiveLockRegistry[$lockKey] + 1;
+            try {
+                return ['acquired' => true, 'result' => $callback()];
+            } finally {
+                self::$exclusiveLockRegistry[$lockKey] = self::$exclusiveLockRegistry[$lockKey] - 1;
+                if (self::$exclusiveLockRegistry[$lockKey] <= 0) {
+                    unset(self::$exclusiveLockRegistry[$lockKey]);
+                }
+            }
+        }
+
+        self::ensureDirectoryExists(dirname($mappedPath));
+        $handle = fopen($mappedPath, 'c+b');
+        if ($handle === false) {
+            throw new \RuntimeException('Unable to open the exclusive file lock.');
+        }
+        if (!flock($handle, $operation)) {
+            fclose($handle);
+            return ['acquired' => false, 'result' => null];
+        }
+
+        self::$exclusiveLockRegistry[$lockKey] = 1;
+        try {
+            return ['acquired' => true, 'result' => $callback()];
+        } finally {
+            unset(self::$exclusiveLockRegistry[$lockKey]);
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    private static function exclusiveLockKey(string $mappedPath): string
+    {
+        $resolvedPath = realpath($mappedPath);
+
+        return $resolvedPath === false ? $mappedPath : $resolvedPath;
+    }
+
+    private static function exclusiveLockHeld(string $mappedPath): bool
+    {
+        return (self::$exclusiveLockRegistry[self::exclusiveLockKey($mappedPath)] ?? 0) > 0;
+    }
+
+    public static function hashFile(string $path, string $algorithm = 'sha256'): string|false
+    {
+        $mappedPath = self::mapExternalPath($path);
+
+        if (!is_file($mappedPath) || !is_readable($mappedPath)) {
+            return false;
+        }
+
+        return hash_file($algorithm, $mappedPath);
+    }
+
+    /**
+     * Relative path => size + SHA-256 for every readable file below the root.
+     * With a cache path, hashes are reused for files whose size and mtime are
+     * unchanged; the cache is also saved when the scan is aborted midway.
+     */
+    public static function fileManifest(string $rootPath, ?callable $shouldAbort = null, ?string $hashCachePath = null): array
+    {
+        $cacheContent = $hashCachePath !== null ? self::readFile($hashCachePath, false) : false;
+        $cache = is_string($cacheContent) ? (json_decode($cacheContent, true) ?: []) : [];
+        $nextCache = [];
+        $manifest = [];
+        $changed = false;
+        $completed = false;
+
+        try {
+            foreach (self::iterateFiles($rootPath) as $relativePath => $file) {
+                $size = (int) $file->getSize();
+                $mtime = (int) $file->getMTime();
+                $cached = $cache[$relativePath] ?? null;
+                if (is_array($cached) && ($cached[0] ?? null) === $size && ($cached[1] ?? null) === $mtime) {
+                    $hash = (string) $cached[2];
+                } else {
+                    if ($shouldAbort !== null) {
+                        $shouldAbort();
+                    }
+                    $hash = (string) hash_file('sha256', $file->getPathname());
+                    $changed = true;
+                }
+                $nextCache[$relativePath] = [$size, $mtime, $hash];
+                $manifest[$relativePath] = ['size' => $size, 'sha256' => $hash];
+            }
+            $completed = true;
+        } finally {
+            if ($hashCachePath !== null && $completed && ($changed || count($nextCache) !== count($cache))) {
+                self::writeFileAtomic($hashCachePath, (string) json_encode($nextCache, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            } elseif ($hashCachePath !== null && !$completed && $changed) {
+                self::writeFileAtomic($hashCachePath, (string) json_encode($nextCache + $cache, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            }
+        }
+
+        ksort($manifest, SORT_STRING);
+        return $manifest;
+    }
+
+    /**
+     * Lazily yield every readable file below the root as relative path
+     * (forward slashes) => SplFileInfo, without collecting the tree in memory.
+     *
+     * @return \Generator<string,\SplFileInfo>
+     */
+    public static function iterateFiles(string $rootPath): \Generator
+    {
+        $mappedRoot = rtrim(self::mapExternalPath($rootPath), '/\\');
+        $iterator = null;
+
+        if (!is_dir($mappedRoot)) {
+            return;
+        }
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($mappedRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($iterator as $file) {
+            if ($file->isFile() && $file->isReadable()) {
+                yield str_replace('\\', '/', substr($file->getPathname(), strlen($mappedRoot) + 1)) => $file;
+            }
+        }
+    }
+
+    public static function writeFileAtomic(string $path, string $content): bool
+    {
+        // FrankenPHP worker threads share one PID, so the staging name also
+        // carries random bytes to keep concurrent writers of one path apart.
+        $staging = $path . '.' . getmypid() . '.' . bin2hex(random_bytes(6)) . '.tmp';
+
+        if (self::writeFile($staging, $content) && self::moveFile($staging, $path)) {
+            return true;
+        }
+        self::delete($staging);
+
+        return false;
     }
 
     public static function copy(string $source, string $destination): bool
     {
         $mappedSource = self::mapExternalPath($source);
         $mappedDestination = self::mapExternalPath($destination);
-
-        $userInfo = self::$cachedUserInfo;
-        if ($userInfo === null) {
-            $userInfo = SystemUserDetector::getActualUser();
-            self::$cachedUserInfo = $userInfo;
-        }
+        $result = false;
 
         if (self::$autoFixPermissions) {
             if (file_exists($mappedSource)) {
                 self::fixPermissions($mappedSource);
             }
-
-            $destParent = dirname($mappedDestination);
-            if (file_exists($destParent)) {
-                self::fixPermissions($destParent);
-            }
         }
 
-        $escapedSource = escapeshellarg($mappedSource);
-        $escapedDest = escapeshellarg($mappedDestination);
-        $username = escapeshellarg($userInfo['username']);
-
-        $command = "sudo -u {$username} cp {$escapedSource} {$escapedDest} 2>&1";
-        shell_exec($command);
-
-        $result = file_exists($mappedDestination);
+        self::ensureDirectoryExists(dirname($mappedDestination));
+        $result = copy($mappedSource, $mappedDestination);
 
         if ($result && self::$autoFixPermissions) {
             self::fixPermissions($mappedDestination);
         }
 
         return $result;
+    }
+
+    public static function concatenateFiles(array $sourcePaths, string $destination): bool
+    {
+        $expectedSize = 0;
+        $destinationSize = false;
+        $temporaryPath = $destination . '.assembling';
+        $output = false;
+        $input = false;
+
+        if ($sourcePaths === []) {
+            return false;
+        }
+        foreach ($sourcePaths as $sourcePath) {
+            if (!is_string($sourcePath) || !self::isFile($sourcePath)) {
+                return false;
+            }
+            $expectedSize += (int) self::filesize($sourcePath);
+        }
+
+        $destinationSize = self::isFile($destination) ? self::filesize($destination) : false;
+        if ($destinationSize !== false && $destinationSize === $expectedSize) {
+            return true;
+        }
+
+        self::ensureDirectoryExists(dirname($destination));
+        if (self::exists($temporaryPath)) {
+            self::delete($temporaryPath);
+        }
+        $output = fopen($temporaryPath, 'wb');
+        if ($output === false) {
+            return false;
+        }
+
+        foreach ($sourcePaths as $sourcePath) {
+            $input = fopen($sourcePath, 'rb');
+            if ($input === false) {
+                fclose($output);
+                self::delete($temporaryPath);
+                return false;
+            }
+            stream_copy_to_stream($input, $output);
+            fclose($input);
+        }
+        fclose($output);
+
+        if (self::filesize($temporaryPath) !== $expectedSize) {
+            self::delete($temporaryPath);
+            return false;
+        }
+
+        return self::replaceFile($temporaryPath, $destination);
+    }
+
+    public static function replaceFile(string $source, string $destination): bool
+    {
+        $mappedSource = self::mapExternalPath($source);
+        $mappedDestination = self::mapExternalPath($destination);
+        $copied = false;
+
+        if (!is_file($mappedSource)) {
+            return false;
+        }
+
+        self::ensureDirectoryExists(dirname($mappedDestination));
+        $copied = copy($mappedSource, $mappedDestination);
+        if (!$copied) {
+            return false;
+        }
+
+        self::fixPermissions($mappedDestination);
+        unlink($mappedSource);
+        return true;
+    }
+
+    /**
+     * Native in-process move that replaces the destination (atomic on the
+     * same volume); falls back to copy + unlink across volumes.
+     */
+    public static function moveFile(string $source, string $destination): bool
+    {
+        $mappedSource = self::mapExternalPath($source);
+        $mappedDestination = self::mapExternalPath($destination);
+
+        if (!is_file($mappedSource)) {
+            return false;
+        }
+        self::ensureDirectoryExists(dirname($mappedDestination));
+        if (@rename($mappedSource, $mappedDestination)) {
+            return true;
+        }
+        return self::replaceFile($source, $destination);
     }
 
     public static function rename(string $oldPath, string $newPath): bool
@@ -268,6 +607,10 @@ class FileSystemManager
             return true;
         }
 
+        if (\App\Providers\PathMapper::isWindows()) {
+            return self::deleteNative($mappedPath);
+        }
+
         $userInfo = self::$cachedUserInfo;
         if ($userInfo === null) {
             $userInfo = SystemUserDetector::getActualUser();
@@ -295,6 +638,41 @@ class FileSystemManager
         }
 
         return !file_exists($mappedPath);
+    }
+
+    private static function deleteNative(string $path): bool
+    {
+        $iterator = null;
+
+        if (@filetype($path) === 'dir') {
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+                    \RecursiveIteratorIterator::CHILD_FIRST
+                );
+                foreach ($iterator as $entry) {
+                    self::removeNativeEntry($entry->getPathname());
+                }
+            } catch (\UnexpectedValueException $e) {
+                SafeLogger::error('[FileSystemManager] Native walk failed for: ' . $path . ' - ' . $e->getMessage());
+            }
+        }
+
+        self::removeNativeEntry($path);
+
+        return !file_exists($path);
+    }
+
+    private static function removeNativeEntry(string $path): void
+    {
+        if (@unlink($path) || @rmdir($path)) {
+            return;
+        }
+
+        @chmod($path, 0666);
+        if (@unlink($path) || @rmdir($path)) {
+            return;
+        }
     }
 
     public static function exists(string $path): bool
@@ -506,7 +884,7 @@ class FileSystemManager
             } catch (\Exception $e) {
                 $errorMsg = "Failed to scan directory: {$dir} - " . $e->getMessage();
                 $errors[] = $errorMsg;
-                \Log::warning($errorMsg);
+                SafeLogger::warning($errorMsg);
             }
         }
 

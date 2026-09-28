@@ -91,7 +91,7 @@ remove_services_by_patterns() {
     for pattern in "${patterns[@]}"; do
         local service_name="$pattern-$app_name$suffix"
         if remove_systemd_service "$service_name"; then
-            echo -e "${COLOR_SUCCESS}✓ Removed service: $service_name${COLOR_RESET}"
+            echo -e "${COLOR_SUCCESS}[OK] Removed service: $service_name${COLOR_RESET}"
             ((removed_count++))
         fi
     done

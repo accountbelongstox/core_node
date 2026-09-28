@@ -1,157 +1,77 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
-const crypto = require('crypto');
-const homeDir = os.homedir();
-const log = {
-    colors: {
-        reset: '\x1b[0m',
-        // Regular colors
-        red: '\x1b[31m',
-        green: '\x1b[32m',
-        yellow: '\x1b[33m',
-        blue: '\x1b[34m',
-        magenta: '\x1b[35m',
-        cyan: '\x1b[36m',
-        white: '\x1b[37m',
-        // Bright colors
-        brightRed: '\x1b[91m',
-        brightGreen: '\x1b[92m',
-        brightYellow: '\x1b[93m',
-        brightBlue: '\x1b[94m',
-        brightMagenta: '\x1b[95m',
-        brightCyan: '\x1b[96m',
-        brightWhite: '\x1b[97m',
-    },
+const systemPaths = require('../../foundation/common/system_paths');
+const secretManager = require('../../foundation/common/secret_manager');
+const log = require('#@logger');
 
-    info: function (...args) {
-        console.log(this.colors.cyan + '[INFO]' + this.colors.reset, ...args);
-    },
-    warn: function (...args) {
-        console.warn(this.colors.yellow + '[WARN]' + this.colors.reset, ...args);
-    },
-    error: function (...args) {
-        console.error(this.colors.red + '[ERROR]' + this.colors.reset, ...args);
-    },
-    success: function (...args) {
-        console.log(this.colors.green + '[SUCCESS]' + this.colors.reset, ...args);
-    },
-    debug: function (...args) {
-        console.log(this.colors.magenta + '[DEBUG]' + this.colors.reset, ...args);
-    },
-    command: function (...args) {
-        console.log(this.colors.brightBlue + '[COMMAND]' + this.colors.reset, ...args);
-    }
-};
-
-const SCRIPT_NAME = `core_node`
-const LOCAL_DIR = os.platform() === 'win32'
-    ? path.join(homeDir, `.${SCRIPT_NAME}`)
-    : `/usr/${SCRIPT_NAME}`;
-const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
-
-// Fallback directory for when we don't have permission to write to /usr/
-const FALLBACK_LOCAL_DIR = path.join(homeDir, `.${SCRIPT_NAME}`);
-const FALLBACK_GLOBAL_VAR_DIR = path.join(FALLBACK_LOCAL_DIR, 'global_var');
+const LOCAL_DIR = systemPaths.getSystemCacheDir();
+const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, systemPaths.GLOBAL_VAR_DIR_NAME);
+const LEGACY_GLOBAL_VAR_DIRS = systemPaths.getGlobalVarDirs().slice(1);
 
 function mkdir(dirPath) {
     if (!dirPath) return null;
     try {
         return fs.mkdirSync(dirPath, { recursive: true });
     } catch (error) {
-        if (error.code === 'EACCES' || error.code === 'EPERM') {
-            log.warn(`Permission denied creating directory: ${dirPath}`);
-            return null;
-        }
-        throw error;
+        log.warn(`Cannot create directory ${dirPath}: ${error.code || error.message}`);
+        return null;
     }
 }
 
-// Try to create the primary directory, fall back to user home if permission denied
-let actualGlobalVarDir = GLOBAL_VAR_DIR;
-if (!mkdir(GLOBAL_VAR_DIR)) {
-    log.warn(`Cannot create ${GLOBAL_VAR_DIR}, using fallback: ${FALLBACK_GLOBAL_VAR_DIR}`);
-    mkdir(FALLBACK_GLOBAL_VAR_DIR);
-    actualGlobalVarDir = FALLBACK_GLOBAL_VAR_DIR;
-}
-
 // Global configuration settings
-const configDir = actualGlobalVarDir;
-const encryptionKey = crypto.scryptSync('K8x#mP9$vL2@nQ5^wR7&jD3*fH6', 'core_node_salt', 32);
-const algorithm = 'aes-256-cbc';
-const ivLength = 16;
+const configDir = GLOBAL_VAR_DIR;
 const encryptedPrefix = 'ENC:';
+const secretReferencePrefix = 'SECRET:';
+const secretMissingHint = 'run dd.sh (Linux) or dd.cmd (Windows) to decrypt the shared secret store';
+const secretConfig = new Map();
 
-// Fallback configuration directory for permission issues
-let fallbackConfigDir = null;
-if (configDir !== FALLBACK_GLOBAL_VAR_DIR) {
-    fallbackConfigDir = FALLBACK_GLOBAL_VAR_DIR;
-    mkdir(fallbackConfigDir);
-}
+const fallbackConfigDir = LEGACY_GLOBAL_VAR_DIRS.find((directory) => (
+    fs.existsSync(directory) && fs.statSync(directory).isDirectory()
+)) || null;
 
 if (!fs.existsSync(configDir)) {
     try {
         fs.mkdirSync(configDir, { recursive: true });
         log.info(`Created config directory: ${configDir}`);
     } catch (error) {
-        if (error.code === 'EACCES' || error.code === 'EPERM') {
-            log.warn(`Permission denied creating config directory: ${configDir}`);
-            if (fallbackConfigDir) {
-                log.info(`Using fallback config directory: ${fallbackConfigDir}`);
-            }
-        } else {
-            throw error;
+        log.warn(`Cannot create config directory ${configDir}: ${error.code || error.message}`);
+        if (fallbackConfigDir) {
+            log.info(`Using fallback config directory: ${fallbackConfigDir}`);
         }
-    }
-}
-
-function encryptValue(text) {
-    try {
-        if (isEncrypted(text)) {
-            return text; // Already encrypted
-        }
-        const iv = crypto.randomBytes(ivLength);
-        const cipher = crypto.createCipheriv(algorithm, encryptionKey, iv);
-        let encrypted = cipher.update(text, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-        // Combine IV and encrypted text with prefix
-        return `${encryptedPrefix}${iv.toString('hex')}:${encrypted}`;
-    } catch (error) {
-        log.error('Encryption failed:', error);
-        return text;
     }
 }
 
 function decryptValue(text) {
-    try {
-        if (!isEncrypted(text)) {
-            return text; // Not encrypted
-        }
-        // Remove prefix and split IV and encrypted text
-        const encryptedData = text.substring(encryptedPrefix.length);
-        const [ivHex, encryptedText] = encryptedData.split(':');
-
-        const iv = Buffer.from(ivHex, 'hex');
-        const decipher = crypto.createDecipheriv(algorithm, encryptionKey, iv);
-        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
-    } catch (error) {
-        log.error('Decryption failed:', error);
+    if (!isEncrypted(text)) {
         return text;
     }
+    log.error(`Legacy ${encryptedPrefix} value ignored; store the secret in the shared secret store and reference it as ${secretReferencePrefix}<NAME>`);
+    return null;
+}
+
+function isSecretReference(value) {
+    return typeof value === 'string' && value.startsWith(secretReferencePrefix);
+}
+
+function resolveSecretReference(key, value) {
+    const name = value.substring(secretReferencePrefix.length).trim();
+    const secret = secretManager.readRawSecret(name);
+
+    if (!secret) {
+        log.error(`Config ${key}: secret ${name} missing; ${secretMissingHint}`);
+    }
+    return secret;
+}
+
+function resolveConfigValue(key, value) {
+    if (isSecretReference(value)) {
+        return resolveSecretReference(key, value);
+    }
+    return decryptValue(value);
+}
+
+function isSecretEntry(key, value) {
+    return needsEncryption(key) || isSecretReference(value) || isEncrypted(value);
 }
 
 function isEncrypted(text) {
@@ -212,54 +132,19 @@ function _stringifyValue(value) {
 }
 
 function _setSingleConfigFallback(key, value) {
-    if (!fallbackConfigDir) {
-        log.error(`No fallback config directory available for ${key}`);
-        return false;
-    }
-
-    try {
-        const upperKey = key.toUpperCase();
-        const filePath = path.join(fallbackConfigDir, upperKey);
-
-        // Encrypt if necessary
-        if (typeof value === 'string' && needsEncryption(key)) {
-            value = encryptValue(value);
-        }
-
-        // Convert value to string format for storage
-        const stringValue = _stringifyValue(value);
-
-        // Check if file exists and content is different
-        let shouldLog = false;
-        if (fs.existsSync(filePath)) {
-            const existingContent = fs.readFileSync(filePath, 'utf8');
-            const isEncryptedValue = isEncrypted(existingContent);
-            shouldLog = (existingContent !== stringValue) && !isEncryptedValue;
-        }
-
-        // Write to file, overwriting if exists
-        fs.writeFileSync(filePath, stringValue, 'utf8');
-
-        // Only log if content changed
-        if (shouldLog) {
-            log.debug(`Config updated (fallback): ${upperKey} = ${stringValue}`);
-        }
-
-        return true;
-    } catch (error) {
-        log.error(`Error setting fallback config for ${key}:`, error);
-        return false;
-    }
+    log.error(`Canonical global variable directory is not writable for ${key}: ${configDir}`);
+    return false;
 }
 
 function _setSingleConfig(key, value) {
     try {
         const upperKey = key.toUpperCase();
-        const filePath = path.join(configDir, upperKey);
+        const filePath = path.join(configDir, systemPaths.getGlobalVarWriteName(upperKey));
 
-        // Encrypt if necessary
-        if (typeof value === 'string' && needsEncryption(key)) {
-            value = encryptValue(value);
+        // Secrets stay in process memory; the shared global_var directory never stores them
+        if (isSecretEntry(key, value)) {
+            secretConfig.set(upperKey, resolveConfigValue(key, value));
+            return true;
         }
 
         // Convert value to string format for storage
@@ -267,11 +152,14 @@ function _setSingleConfig(key, value) {
 
         // Check if file exists and content is different
         let shouldLog = false;
-        if (fs.existsSync(filePath)) {
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
+            log.error(`Config key collides with a directory: ${upperKey}`);
+            return false;
+        }
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
             try {
                 const existingContent = fs.readFileSync(filePath, 'utf8');
-                const isEncryptedValue = isEncrypted(existingContent);
-                shouldLog = (existingContent !== stringValue) && !isEncryptedValue;
+                shouldLog = existingContent !== stringValue;
             } catch (readError) {
                 if (readError.code === 'EACCES' || readError.code === 'EPERM') {
                     log.warn(`Permission denied reading config file: ${filePath}. Using fallback storage.`);
@@ -334,24 +222,39 @@ function setConfig(key, value) {
 function getConfig(key) {
     try {
         const upperKey = key.toUpperCase();
+        if (secretConfig.has(upperKey)) {
+            return secretConfig.get(upperKey);
+        }
+        const candidateNames = systemPaths.getGlobalVarReadNames(upperKey);
 
         // Hardcoded default values for common configurations
+        const coreNodeDir = systemPaths.getSystemCacheDir();
         const defaultConfigs = {
-            'FILE_CACHE': path.join(os.homedir(), '.core_node', 'cache', 'files'),
-            'BEHAVIOR_CACHE': path.join(os.homedir(), '.core_node', 'cache', 'behavior'),
-            'APP_CACHE_DIR': path.join(os.homedir(), '.core_node', 'cache'),
-            'APP_TEMP_DIR': path.join(os.homedir(), '.core_node', 'temp'),
-            'APP_LOG_DIR': path.join(os.homedir(), '.core_node', 'logs')
+            'FILE_CACHE': path.join(coreNodeDir, 'cache', 'files'),
+            'BEHAVIOR_CACHE': path.join(coreNodeDir, 'cache', 'behavior'),
+            'APP_CACHE_DIR': path.join(coreNodeDir, 'cache'),
+            'APP_TEMP_DIR': path.join(coreNodeDir, 'temp'),
+            'APP_LOG_DIR': path.join(coreNodeDir, 'logs')
         };
 
-        const filePath = path.join(configDir, upperKey);
-        const fallbackFilePath = fallbackConfigDir ? path.join(fallbackConfigDir, upperKey) : null;
+        const primaryName = candidateNames.find((name) => {
+            const candidate = path.join(configDir, name);
+            return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+        });
+        const fallbackName = fallbackConfigDir
+            ? candidateNames.find((name) => {
+                const candidate = path.join(fallbackConfigDir, name);
+                return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+            })
+            : null;
+        const filePath = primaryName ? path.join(configDir, primaryName) : path.join(configDir, candidateNames[0]);
+        const fallbackFilePath = fallbackName ? path.join(fallbackConfigDir, fallbackName) : null;
 
         // Try primary config file first
         let configFilePath = filePath;
         let usesFallback = false;
 
-        if (!fs.existsSync(filePath)) {
+        if (!primaryName) {
             // Try fallback config file
             if (fallbackFilePath && fs.existsSync(fallbackFilePath)) {
                 configFilePath = fallbackFilePath;
@@ -430,9 +333,12 @@ function getConfig(key) {
 
 function getAllKeys() {
     try {
-        const files = fs.readdirSync(configDir);
+        const files = fs.readdirSync(configDir, { withFileTypes: true })
+            .filter((entry) => entry.isFile())
+            .map((entry) => systemPaths.getGlobalVarLogicalName(entry.name))
+            .filter(Boolean);
         log.debug(`Found ${files.length} config keys`);
-        return files;
+        return [...new Set([...files, ...secretConfig.keys()])];
     } catch (error) {
         log.error('Error getting config keys:', error);
         return [];
@@ -440,7 +346,7 @@ function getAllKeys() {
 }
 
 function getConfigAll() {
-    const files = fs.readdirSync(configDir);
+    const files = getAllKeys();
     const config = {};
     for (const file of files) {
         const key = file.toUpperCase();
@@ -452,9 +358,9 @@ function getConfigAll() {
 function clearConfig(key) {
     try {
         const upperKey = key.toUpperCase();
-        const filePath = path.join(configDir, upperKey);
+        const filePath = path.join(configDir, systemPaths.getGlobalVarWriteName(upperKey));
 
-        if (fs.existsSync(filePath)) {
+        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
             fs.writeFileSync(filePath, '', 'utf8');
             log.debug(`Config cleared: ${upperKey}`);
         }
@@ -465,7 +371,7 @@ function clearConfig(key) {
 }
 
 function clearAllConfig() {
-    const files = fs.readdirSync(configDir);
+    const files = getAllKeys();
     for (const file of files) {
         clearConfig(file);
     }
@@ -480,9 +386,6 @@ function importConfigFromJs(filePath, setConfigFlag = false, printInfo = true) {
             return false;
         }
 
-        // Read file content for later replacement
-        let content = fs.readFileSync(absolutePath, 'utf8');
-
         delete require.cache[absolutePath];
         const importedConfig = require(absolutePath);
 
@@ -491,26 +394,16 @@ function importConfigFromJs(filePath, setConfigFlag = false, printInfo = true) {
             return false;
         }
 
-        // Process values that need encryption
-        let hasChanges = false;
+        // Resolve SECRET:<NAME> references from the shared secret store; tracked files are never rewritten
+        const secretKeys = new Set();
+        const persistedConfig = {};
         for (const [key, value] of Object.entries(importedConfig)) {
-            if (typeof value === 'string' && needsEncryption(key)) {
-                if (!isEncrypted(value)) {
-                    const encryptedValue = encryptValue(value);
-                    content = content.replace(value, encryptedValue);
-                    hasChanges = true;
-                } else {
-                    const decryptedValue = decryptValue(value);
-                    importedConfig[key] = decryptedValue;
-                }
+            if (isSecretEntry(key, value)) {
+                secretKeys.add(key);
+                importedConfig[key] = resolveConfigValue(key, value);
+            } else {
+                persistedConfig[key] = value;
             }
-        }
-
-
-        // Update file if there are encrypted values
-        if (hasChanges) {
-            fs.writeFileSync(absolutePath, content, 'utf8');
-            log.success('Updated config file with encrypted values');
         }
 
         // Set all config values
@@ -518,7 +411,8 @@ function importConfigFromJs(filePath, setConfigFlag = false, printInfo = true) {
             log.debug(`Importing config from ${filePath}`);
         }
         if (setConfigFlag) {
-            const success = setConfig(importedConfig);
+            secretKeys.forEach((key) => secretConfig.set(key.toUpperCase(), importedConfig[key]));
+            const success = setConfig(persistedConfig);
             if (success) {
                 if (printInfo)log.debug(`Successfully imported config from ${filePath}`);
             } else {
@@ -539,8 +433,8 @@ function getConfigDir() {
 }
 
 module.exports = {
-    encryptValue,
     decryptValue,
+    isSecretReference,
     isEncrypted,
     needsEncryption,
     setConfig,

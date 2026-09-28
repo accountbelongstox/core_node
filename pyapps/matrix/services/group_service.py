@@ -2,7 +2,8 @@
 
 from typing import Optional, Dict, Set, List
 import asyncio
-from pycore.pyutils.group import GroupController, SyncStrategy, AllSyncStrategy
+from pycore.pyutils.group.group_controller import GroupController
+from pycore.pyutils.group.sync_strategy import SyncStrategy, AllSyncStrategy
 
 
 class GroupService:

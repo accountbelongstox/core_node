@@ -3,12 +3,14 @@
 namespace App\Apps\ItToolsV1\ItToolsV1TextCtl;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
-use App\Apps\ItToolsV1\ItToolsV1Utils\ResponseHelper;
-use App\Apps\ItToolsV1\ItToolsV1Gvar\Constants;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
 
 class ItToolsV1TextCtl extends Controller
 {
+    use ApiResponse;
+
     public function statistics(Request $request)
     {
         $request->validate(['text' => 'required|string']);
@@ -25,7 +27,7 @@ class ItToolsV1TextCtl extends Controller
         $readingTime = round($words / 200, 2) . ' minutes';
         $speakingTime = round($words / 150, 2) . ' minutes';
 
-        return ResponseHelper::success([
+        return $this->success([
             'characters' => $characters,
             'charactersWithoutSpaces' => $charactersWithoutSpaces,
             'words' => $words,
@@ -59,14 +61,14 @@ class ItToolsV1TextCtl extends Controller
 
             preg_match_all($fullPattern, $text, $matches);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'matches' => $matches[0] ?? [],
                 'matchCount' => count($matches[0] ?? []),
                 'isValid' => true
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -83,7 +85,7 @@ class ItToolsV1TextCtl extends Controller
         try {
             $parsed = parse_url($url);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'protocol' => ($parsed['scheme'] ?? '') . ':',
                 'host' => ($parsed['host'] ?? '') . (isset($parsed['port']) ? ':' . $parsed['port'] : ''),
                 'hostname' => $parsed['host'] ?? '',
@@ -96,8 +98,8 @@ class ItToolsV1TextCtl extends Controller
                 'origin' => ($parsed['scheme'] ?? '') . '://' . ($parsed['host'] ?? '') . (isset($parsed['port']) ? ':' . $parsed['port'] : '')
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -133,10 +135,10 @@ class ItToolsV1TextCtl extends Controller
                 }
             }
 
-            return ResponseHelper::success(['text' => trim($text)]);
+            return $this->success(['text' => trim($text)]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -156,15 +158,15 @@ class ItToolsV1TextCtl extends Controller
             $localPart = explode('+', $localPart)[0];
             $normalized = strtolower($localPart . '@' . $domain);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'normalized' => $normalized,
                 'valid' => filter_var($normalized, FILTER_VALIDATE_EMAIL) !== false,
                 'localPart' => $localPart,
                 'domain' => strtolower($domain)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -182,14 +184,14 @@ class ItToolsV1TextCtl extends Controller
             $length = strlen($text);
             $numeronym = $length > 2 ? $text[0] . ($length - 2) . $text[$length - 1] : $text;
 
-            return ResponseHelper::success([
+            return $this->success([
                 'numeronym' => $numeronym,
                 'original' => $text,
                 'length' => $length
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -227,13 +229,13 @@ class ItToolsV1TextCtl extends Controller
 
             $diff = $this->computeDiff($lines1, $lines2);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'diff' => $diff,
                 'hasDifferences' => count($diff) > 0
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -254,13 +256,13 @@ class ItToolsV1TextCtl extends Controller
         try {
             $art = $this->generateAsciiArt($text, $font);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'art' => $art,
                 'font' => $font
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -292,14 +294,14 @@ class ItToolsV1TextCtl extends Controller
 
             $description = $this->describeCrontab($schedule);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'schedule' => $schedule,
                 'description' => $description,
                 'isValid' => true
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -326,7 +328,7 @@ class ItToolsV1TextCtl extends Controller
 
             $formatted = $this->formatPhoneNumber($nationalNumber, $country);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'original' => $phone,
                 'cleaned' => $cleaned,
                 'countryCode' => $countryCode,
@@ -335,8 +337,8 @@ class ItToolsV1TextCtl extends Controller
                 'isValid' => strlen($cleaned) >= 10
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -380,7 +382,7 @@ class ItToolsV1TextCtl extends Controller
 
             $isValid = $mod === 1;
 
-            return ResponseHelper::success([
+            return $this->success([
                 'iban' => $iban,
                 'countryCode' => $countryCode,
                 'checkDigits' => $checkDigits,
@@ -388,8 +390,8 @@ class ItToolsV1TextCtl extends Controller
                 'isValid' => $isValid
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -416,14 +418,14 @@ class ItToolsV1TextCtl extends Controller
                 $result = $decoded;
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'original' => $url,
                 'result' => $result,
                 'action' => $action
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -451,15 +453,15 @@ class ItToolsV1TextCtl extends Controller
                 });
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'emojis' => array_values($emojis),
                 'count' => count($emojis),
                 'search' => $search,
                 'category' => $category
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -501,7 +503,7 @@ class ItToolsV1TextCtl extends Controller
                 $message .= "\n\nBREAKING CHANGE: This is a breaking change";
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'message' => $message,
                 'header' => $header,
                 'type' => $type,
@@ -509,8 +511,8 @@ class ItToolsV1TextCtl extends Controller
                 'subject' => $subject
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -641,15 +643,15 @@ class ItToolsV1TextCtl extends Controller
                     $result = $text;
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'original' => $text,
                 'obfuscated' => $result,
                 'method' => $method,
                 'length' => strlen($result)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500

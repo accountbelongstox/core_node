@@ -67,9 +67,9 @@ class ServerManagerV1OctaneServiceManager
      * Service is per-directory, not per-domain
      * Multiple domains in same directory share the same service
      *
-     * Service naming: octane-{app_name}-{port}
-     * - poly: octane-poly-9000
-     * - AChatV1: octane-achatv1-9001
+     * Service naming (legacy): octane-{app_name}-{port}
+     * New unified naming: app-manager-{project_name} (e.g. app-manager-laravel_main)
+     * Legacy examples: octane-poly-9000, octane-achatv1-9001
      */
     public static function getOctaneServiceNameFromPath(string $wwwDir, int $port): string
     {
@@ -592,7 +592,7 @@ class ServerManagerV1OctaneServiceManager
         $phpBinary = PathMapper::getPhpBinaryPath();
 
         $isDesktop = self::isDesktopEnvironment();
-        $watchFlag = $isDesktop ? ' --watch' : '';
+        $watchEnabled = $isDesktop ? '1' : '0';
         $envNote = $isDesktop ? ' (Desktop: Hot-reload enabled)' : ' (Server: 48h timer)';
 
         Log::info('Generating Octane service', [
@@ -612,7 +612,7 @@ Type=simple
 User={$serviceUser}
 Group={$serviceGroup}
 WorkingDirectory={$laravelPath}
-ExecStart={$phpBinary} {$laravelPath}/artisan octane:start --host={$host} --port={$port} --workers={$workers}{$watchFlag}
+ExecStart=/bin/bash {$laravelPath}/scripts/run_runtime.sh
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -639,6 +639,11 @@ SyslogIdentifier={$serviceName}
 # Environment
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NODE_PATH=/usr/local/lib/node_modules"
+Environment="PHP_BIN={$phpBinary}"
+Environment="OCTANE_HOST={$host}"
+Environment="PORT={$port}"
+Environment="WORKERS={$workers}"
+Environment="OCTANE_WATCH={$watchEnabled}"
 
 # Security (Relaxed for development/TTS requirements)
 # SYNC: octane_service_manager.sh Line 270-276
@@ -699,7 +704,7 @@ Type=simple
 User={$serviceUser}
 Group={$serviceGroup}
 WorkingDirectory={$laravelPath}
-ExecStart={$phpBinary} {$laravelPath}/artisan octane:start --host=0.0.0.0 --port={$port} --workers={$workers}
+ExecStart=/bin/bash {$laravelPath}/scripts/run_runtime.sh
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -726,6 +731,10 @@ SyslogIdentifier={$serviceName}
 # Environment
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NODE_PATH=/usr/local/lib/node_modules"
+Environment="PHP_BIN={$phpBinary}"
+Environment="OCTANE_HOST=0.0.0.0"
+Environment="PORT={$port}"
+Environment="WORKERS={$workers}"
 
 # Security (Relaxed for development/TTS requirements)
 # SYNC: octane_service_manager.sh Line 270-276

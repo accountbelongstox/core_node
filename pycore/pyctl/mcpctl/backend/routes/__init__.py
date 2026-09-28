@@ -1,11 +1,2 @@
-# -*- coding: utf-8 -*-
-"""
-MCP Backend Routes (DEPRECATED)
-
-THIS MODULE IS NO LONGER USED.
-All MCP routes are now registered in pycore/callmodule/routers/mcp_router.py
-
-This module is kept for backwards compatibility only.
-"""
-
-__all__ = []
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

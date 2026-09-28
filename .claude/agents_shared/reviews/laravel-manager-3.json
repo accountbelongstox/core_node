@@ -1,0 +1,13 @@
+{
+  "task_id": "laravel-manager-3",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-005": {"status": "fixed", "reason": "nodeError (owned by the poll) and actionError (cleared by the next user action) are separate states and both are rendered. The poll sequence plus the local-update floor stop an in-flight poll from reverting a just-cancelled or just-started session."},
+    "FU-006": {"status": "fixed", "reason": "resolveNewServer compares normalized scheme://host:port (also against each endpoint's normalized syncTarget). A bare host with no scheme and no port matches only when exactly one registry node is on that host; otherwise an ad-hoc node is created. IPv6 double bracketing is fixed."},
+    "FU-012": {"status": "fixed", "reason": "The client cache key is id + baseUrl. The auth header and the 401 handler evaluate current per request via apiManager.getCurrentEndpoint(), so after an endpoint switch the new current node sends the shared token and its 401 opens the global login (same as the BaseAPI default)."}
+  },
+  "issues": [],
+  "checks": "git diff read; LARAVEL_API_BACKEND_PORT = contract ports.laravel_api_backend = 9000 (same value as the removed DATA_SYNC_DEFAULT_PORT, now from the contract); DATA_SYNC_LAN_PULL_ONLY is never rendered (no reader of forward.error); FU-025/FU-026 Data Sync parts done.",
+  "checked_at": "2026-09-27T03:58:27+10:00"
+}

@@ -10,6 +10,9 @@ namespace App\Services\TimerTasks;
  */
 interface OctaneTimerTaskInterface
 {
+    public const EXECUTION_INLINE = 'inline';
+    public const EXECUTION_BACKGROUND = 'background';
+
     /**
      * Get task name (unique identifier)
      *
@@ -41,4 +44,12 @@ interface OctaneTimerTaskInterface
      * @return bool
      */
     public function isEnabled(): bool;
+
+    /**
+     * Select whether the task may run on the heartbeat or must be dispatched
+     * to an Octane task worker. Non-Swoole scheduler processes execute the
+     * background class locally because they are already isolated from HTTP
+     * workers.
+     */
+    public function getExecutionMode(): string;
 }

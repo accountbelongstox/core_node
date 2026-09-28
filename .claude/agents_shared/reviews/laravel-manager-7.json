@@ -1,0 +1,13 @@
+{
+  "task_id": "laravel-manager-7",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "shared contract adapters (orchestrator assignment)": {"status": "fixed", "reason": "ServiceContract.ts replaces the removed data-dir exports with CORE_NODE_DATA_DIR_NAME (contract paths.core_node_data_dir_name) and adds LOCAL_RPC_LOOPBACK_HOSTS, mapped from client_key_auth.local_rpc.loopback_hosts through the contract hosts. QueueCenterContract.ts drops relay.device_identity and the history_timeline limit key, both gone from queue_center_contract.json. RequestCoordinator stores a settled value only when ttlMs > 0, which closes the laravel-manager-1 retention note. vite.config.ts resolves the data dir without undefined contract keys."}
+  },
+  "issues": [
+    "vite.config.ts:32-36 (non-blocking) the data-root rule (D:\\www, /www, /www/www on NTFS, /var/_core_node, ~/core_node) is now written a fifth time, after pycore core_node_dirs, ncore system_paths.js, runtime_environment.sh and PathMapper. The literals are re-declared rather than read from the contract. Propose to the orchestrator that the WWW bases and legacy dirs go into service_contract.json paths so every end reads them."
+  ],
+  "checks": "Diffs read; contract keys confirmed (paths.core_node_data_dir_name, hosts localhost/loopback/ipv6_loopback; device_identity and history_timeline absent from queue_center_contract.json). All four files are assigned to laravel-manager in requirements section 6.",
+  "checked_at": "2026-09-27T04:30:08+10:00"
+}

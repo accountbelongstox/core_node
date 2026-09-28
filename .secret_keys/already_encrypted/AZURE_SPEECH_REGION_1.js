@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 // disguised.template.js
 // This is a template for encrypted files - DO NOT MODIFY
 
@@ -19,10 +7,10 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 // Embedded encrypted data and parameters
-const ENCRYPTED_DATA = Buffer.from('8NfMpAfPTDWHIpAMdao=', 'base64');
-const OBFUSCATED_PARAMS = Buffer.from('SfE7/2zUiGBNKON7Ms4AKKDVxsdlaqn6085IfJWqbg+amX8coylLa8DqVoUHdp3TbzOT+XOBtGUc7+SuSJ0YRUciLB9lGHcaV6TKEo4TwiHcL+D+y5rdEWPOp2Z2MzFn9iPkH3+EoFKMj58UfhlOAnJ4NymPkxKWLniheBGuaMb6Cd3ZJMf5mpfavzLR+LD6w1TpZxxQrQYIKMuMhR/Vj6Z/F1sT0CA82x0BqrbjT2WzJxCe0GcwjMNt7SsZDOj3z+TxJxnJOU4+nvj12C9JNtG6t5zj+tPRl/K59nHJOU1TesVNfU1ws88DzT3xLyVJHGg3Hk/GvVikCxlGR+PDItCo2VwKwzvrLFgM2GstAsvCZhQAIG978x4HpGDN/+aKGNYrlgoBiu5RaRhFjrA4WUMXrQRdF+SpDvzK1AYiQglBvGYNn7CJZWiZFVChQc/vcYhEmLrkBEc+3/pkNQjB95wgidXl1AOXzJE6tcBNb7OiFeSfelYju/l2G9tLQZLq', 'base64');
-const PARAMS_KEY = Buffer.from('jsK1NneVP40d9qtRo3NKOj9nTs3QeYaK6qfkfs0GKmE=', 'base64');
-const PARAMS_IV = Buffer.from('WZr0AYyJ0S4HSXp4HciQ4g==', 'base64');
+const ENCRYPTED_DATA = Buffer.from('kpnKI5Y+YXj+lTM8q4U=', 'base64');
+const OBFUSCATED_PARAMS = Buffer.from('RPNtHEXlbx2zceNWpSS7hXpVT7DVL1jRpwuPBn+6z6zNLoUQ//UhGeumAiuYwQrzHRrYAmRT/3slKr8jWhUHY2pDU1JjYpFQ+HvSWjaPyzpBV80ypY3FFtb5eWSEEkjOQzmB6PQRS22hO6x09bKu8ycQkKvzE4uGEJkiBxP77UkBMfimFwHdv2UNhi60Bhl9nyjqvTCXNbdtXY8l0Lxwru5sW0++nPLbWu842Fm7L2xdNF+it/07BS/l5qTi3TAmycpQrBoP/MRi+yz4EsRr7Hw0RHcp9o+WCbskNmm1wtM5TOSQ7H0M37K0BNdsJFyUvGUXBFiKN4lNuLPS80xNNDjmD0X8/tZAC14f8ueqpf+EA+05ryi4WZGvTwG2T1IuI+JXa+/y5JYK9efSyUkZBrI8+08lccyaOGhOY0mDZDQB0FH4bV3kBtkah9kyy+xOOKa0DlDfrJ3O75R2ImMjiE5nlLTuJZcFsCd6/KRbpRzPxZeavGl+/6Z2ghXj77FY', 'base64');
+const PARAMS_KEY = Buffer.from('CgOID8wot0EHOYdWyr9Lajr4PcST+WnsSUfHUbIhh5E=', 'base64');
+const PARAMS_IV = Buffer.from('YFwIIQuMzTw5fjvGqL5kPg==', 'base64');
 const ORIGINAL_FILENAME = 'AZURE_SPEECH_REGION_1';
 
 // Function to deobfuscate parameters

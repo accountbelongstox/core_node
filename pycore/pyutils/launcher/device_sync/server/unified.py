@@ -11,18 +11,19 @@ Architecture:
 """
 
 import json
-import socket
+import time
 import urllib.parse
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from pathlib import Path
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Optional
 
-from ..core.config import get_global_config, DEFAULT_ROOT_DIR
-from ..core.logging import setup_logging
-from ..core.database import get_sync_database
-
-logger = setup_logging(__name__)
-
+from pycore.pyutils.launcher.device_sync.core.config import (
+    get_global_config,
+)
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
+import pycore.pyutils.launcher.device_sync.routes as routes
+from pycore.pyutils.launcher.device_sync.sse_protocol import serve_sync_events
+from pycore.pyutils.launcher.device_sync.static_assets import serve_device_sync_asset
 
 class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     """
@@ -33,7 +34,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """Override to use our logger"""
-        logger.debug(f"{self.address_string()} - {format % args}")
+        ColorPrint.debug(f"{self.address_string()} - {format % args}")
 
     def do_GET(self):
         """Handle GET requests (mode-aware)"""
@@ -41,26 +42,34 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         path = parsed_path.path
         config = get_global_config()
 
+        if path == routes.ROUTES_PATH:
+            self._send_json(routes.PUBLIC_ROUTES)
+            return
+        if path.startswith(routes.ASSETS_PATH_PREFIX) and serve_device_sync_asset(self, path):
+            return
+
         # ===== Public Endpoints (available in both modes) =====
-        if path == '/':
+        if path == routes.ROOT_PATH:
             self._handle_dashboard()
-        elif path == '/api/status':
+        elif path == routes.STATUS_PATH:
             self._handle_status()
-        elif path == '/api/devices':
+        elif path == routes.DEVICES_PATH:
             self._handle_devices()
 
         # ===== PRIMARY Mode Endpoints =====
         elif config.isPrimaryServer:
-            if path == '/api/files':
+            if path == routes.FILES_PATH:
                 self._handle_files_list()
-            elif path.startswith('/api/file/'):
+            elif path == routes.EVENTS_PATH:
+                self._handle_sync_events()
+            elif path.startswith(routes.FILE_PATH_PREFIX):
                 self._handle_file_download(path)
             else:
                 self.send_error(404, "Not Found")
 
         # ===== SECONDARY Mode Endpoints (GET) =====
         else:
-            if path == '/api/sync/status':
+            if path == routes.SYNC_STATUS_PATH:
                 self._handle_sync_status()
             else:
                 self.send_error(404, "Not Found")
@@ -77,9 +86,9 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             return
 
         # ===== SECONDARY Mode POST Endpoints =====
-        if path == '/api/sync/start':
+        if path == routes.SYNC_START_PATH:
             self._handle_sync_start()
-        elif path == '/api/sync/stop':
+        elif path == routes.SYNC_STOP_PATH:
             self._handle_sync_stop()
         else:
             self.send_error(404, "Not Found")
@@ -87,226 +96,14 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     # ========== Common Handlers ==========
 
     def _handle_dashboard(self):
-        """Handle / - Unified dashboard showing current mode"""
-        config = get_global_config()
-        db = get_sync_database()
-
-        # Log current config state for debugging
-        logger.info(f"_handle_dashboard: config id={id(config)}, isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
-
-        mode = "PRIMARY SERVER" if config.isPrimaryServer else "SECONDARY CLIENT"
-        mode_color = "#27ae60" if config.isPrimaryServer else "#3498db"
-
-        # Get statistics
-        db_stats = db.get_stats()
-        recent_transfers = db.get_recent_transfers(limit=10)
-
-        # Build mode-specific content
-        if config.isPrimaryServer:
-            mode_content = self._build_primary_content(config, db_stats)
-        else:
-            mode_content = self._build_secondary_content(config, db_stats)
-
-        # Build transfers table
-        transfers_html = ""
-        if recent_transfers:
-            transfers_html = "<h3>Recent File Transfers</h3><table><tr><th>Time</th><th>Operation</th><th>File</th><th>Size</th><th>Status</th></tr>"
-            for transfer in recent_transfers:
-                size_mb = transfer['file_size'] / (1024 * 1024)
-                transfers_html += f"""
-                <tr>
-                    <td>{transfer['timestamp']}</td>
-                    <td>{transfer['operation']}</td>
-                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{transfer['file_path']}</td>
-                    <td>{size_mb:.2f} MB</td>
-                    <td class="status-{transfer['status']}">{transfer['status']}</td>
-                </tr>
-                """
-            transfers_html += "</table>"
-        else:
-            transfers_html = "<h3>Recent File Transfers</h3><p>No transfers recorded</p>"
-
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Device Sync - {mode}</title>
-    <meta http-equiv="refresh" content="30">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; }}
-        .container {{ max-width: 1200px; margin: 0 auto; }}
-        h1 {{ color: #2c3e50; margin-bottom: 10px; }}
-        .mode-badge {{ display: inline-block; padding: 8px 16px; border-radius: 5px; font-weight: bold; background: {mode_color}; color: white; }}
-        .subtitle {{ color: #7f8c8d; margin-bottom: 30px; }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .card h2 {{ margin-top: 0; color: #34495e; font-size: 18px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
-        .card h3 {{ color: #2c3e50; font-size: 16px; margin-top: 20px; margin-bottom: 10px; }}
-        .info {{ margin: 8px 0; line-height: 1.6; }}
-        .label {{ font-weight: 600; color: #555; display: inline-block; min-width: 140px; }}
-        .value {{ color: #2c3e50; }}
-        .status-badge {{ display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: 600; }}
-        .status-badge.active {{ background: #d4edda; color: #155724; }}
-        .status-badge.enabled {{ background: #cce5ff; color: #004085; }}
-        .status-badge.disabled {{ background: #f8d7da; color: #721c24; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }}
-        th {{ background: #ecf0f1; padding: 8px; text-align: left; font-weight: 600; color: #2c3e50; }}
-        td {{ padding: 8px; border-bottom: 1px solid #ecf0f1; }}
-        tr:hover {{ background: #f8f9fa; }}
-        .status-success {{ color: #27ae60; font-weight: 600; }}
-        .status-failed {{ color: #e74c3c; font-weight: 600; }}
-        ul {{ margin: 10px 0; padding-left: 20px; }}
-        li {{ margin: 5px 0; }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 15px 0; }}
-        .stat-box {{ text-align: center; padding: 15px; background: #f8f9fa; border-radius: 5px; }}
-        .stat-number {{ font-size: 24px; font-weight: bold; color: #3498db; }}
-        .stat-label {{ font-size: 12px; color: #7f8c8d; margin-top: 5px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔄 Device Sync</h1>
-        <div class="mode-badge">{mode}</div>
-        <div class="subtitle">Auto-refresh every 30s</div>
-
-        <div class="grid">
-            <div class="card">
-                <h2>📊 System Status</h2>
-                <div class="info"><span class="label">Mode:</span> <span class="value">{mode}</span></div>
-                <div class="info"><span class="label">Hostname:</span> <span class="value">{config.hostname}</span></div>
-                <div class="info"><span class="label">IP Address:</span> <span class="value">{config.local_ip or 'Unknown'}</span></div>
-                <div class="info"><span class="label">Port:</span> <span class="value">{config.http_port}</span></div>
-                <div class="info"><span class="label">Root Dir:</span> <span class="value">{DEFAULT_ROOT_DIR}</span></div>
-                <div class="info"><span class="label">Device ID:</span> <span class="value">{config.device_id[:16] if config.device_id else 'N/A'}...</span></div>
-            </div>
-
-            <div class="card">
-                <h2>📈 Statistics</h2>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <div class="stat-number">{config.file_cache_count}</div>
-                        <div class="stat-label">Files Cached</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{config.total_scans}</div>
-                        <div class="stat-label">Total Scans</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{db_stats['total_transfers']}</div>
-                        <div class="stat-label">Transfers</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{config.online_devices_count}</div>
-                        <div class="stat-label">Devices</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {mode_content}
-
-        <div class="card">
-            {transfers_html}
-        </div>
-    </div>
-</body>
-</html>"""
-
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        # Disable browser caching to ensure config changes are reflected immediately
-        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-        self.send_header('Pragma', 'no-cache')
-        self.send_header('Expires', '0')
-        self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
-
-    def _build_primary_content(self, config, db_stats) -> str:
-        """Build PRIMARY mode specific content"""
-        # Connected clients
-        clients_html = ""
-        if config.connected_clients:
-            clients_html = "<h3>Connected Clients</h3><ul>"
-            for client in config.connected_clients:
-                clients_html += f"""
-                <li>
-                    <strong>{client.get('ip', 'Unknown')}</strong>
-                    {f" - {client.get('hostname', '')}" if client.get('hostname') else ""}
-                </li>
-                """
-            clients_html += "</ul>"
-        else:
-            clients_html = "<h3>Connected Clients</h3><p>No clients currently connected</p>"
-
-        # API endpoints
-        endpoints_html = """
-        <h3>API Endpoints</h3>
-        <ul>
-            <li><a href="/api/status">/api/status</a> - Server status</li>
-            <li><a href="/api/files">/api/files</a> - File list (requires API access)</li>
-            <li><a href="/api/devices">/api/devices</a> - Online devices</li>
-        </ul>
-        """
-
-        return f"""
-        <div class="grid">
-            <div class="card">
-                <h2>👥 Clients</h2>
-                {clients_html}
-            </div>
-            <div class="card">
-                <h2>🔗 API</h2>
-                <div class="info"><span class="label">API Access:</span> <span class="status-badge {'enabled' if config.api_enabled else 'disabled'}">{('Enabled' if config.api_enabled else 'Disabled').upper()}</span></div>
-                {endpoints_html}
-            </div>
-        </div>
-        """
-
-    def _build_secondary_content(self, config, db_stats) -> str:
-        """Build SECONDARY mode specific content"""
-        # Primary servers
-        servers_html = ""
-        if config.primary_servers:
-            servers_html = "<h3>Available PRIMARY Servers</h3><ul>"
-            for server in config.primary_servers:
-                servers_html += f"""
-                <li>
-                    <strong>{server.get('ip', 'Unknown')}</strong>
-                    {f" ({server.get('hostname', '')})" if server.get('hostname') else ""}
-                </li>
-                """
-            servers_html += "</ul>"
-        else:
-            servers_html = "<h3>Available PRIMARY Servers</h3><p>No PRIMARY servers found on network</p>"
-
-        # Sync status
-        can_sync = self._can_enable_sync()
-        sync_status_msg = ""
-        if not can_sync['allowed']:
-            sync_status_msg = f"<p style='color: #e74c3c;'>⚠️ {can_sync['reason']}</p>"
-        else:
-            sync_status_msg = "<p style='color: #27ae60;'>✓ Sync can be enabled</p>"
-
-        return f"""
-        <div class="grid">
-            <div class="card">
-                <h2>🔄 Sync Status</h2>
-                <div class="info"><span class="label">Sync Enabled:</span> <span class="status-badge {'enabled' if config.sync_enabled else 'disabled'}">{('YES' if config.sync_enabled else 'NO')}</span></div>
-                <div class="info"><span class="label">Primary Server:</span> <span class="value">{config.primary_server_ip or 'Not set'}</span></div>
-                {sync_status_msg}
-            </div>
-            <div class="card">
-                <h2>🌐 Network</h2>
-                {servers_html}
-            </div>
-        </div>
-        """
+        serve_device_sync_asset(self, routes.ROOT_PATH)
 
     def _handle_status(self):
         """Handle /api/status - Return current mode status"""
         config = get_global_config()
 
         # Log current config state for debugging
-        logger.debug(f"_handle_status: isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
+        ColorPrint.debug(f"_handle_status: isPrimaryServer={config.isPrimaryServer}, api_enabled={config.api_enabled}")
 
         status = {
             'mode': 'primary' if config.isPrimaryServer else 'secondary',
@@ -332,9 +129,8 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
     def _handle_files_list(self):
         """Handle /api/files - Return file list (PRIMARY mode only)"""
-        import time
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         # Check API access permission
         if not config.api_enabled:
@@ -343,16 +139,14 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         # Record connection
         client_ip = self.client_address[0]
-        db.record_connection('client_connect', client_ip, request_path='/api/files')
+        record_store.record_connection(
+            'client_connect',
+            client_ip,
+            request_path=routes.FILES_PATH,
+        )
 
-        # Update connected clients
         client_info = {'ip': client_ip, 'last_seen': time.time()}
-        if not any(c['ip'] == client_ip for c in config.connected_clients):
-            config.connected_clients.append(client_info)
-        else:
-            for c in config.connected_clients:
-                if c['ip'] == client_ip:
-                    c['last_seen'] = time.time()
+        config.upsert_connected_client(client_info)
 
         if not config.root_dir or not config.root_dir.exists():
             self._send_json({'error': 'Root directory not found'}, 500)
@@ -360,14 +154,14 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         # Build file cache if needed
         if not config.file_cache:
-            logger.info("Building file cache...")
+            ColorPrint.info("Building file cache...")
             start_time = time.time()
             config.build_file_cache()
             duration = time.time() - start_time
-            logger.info(f"File cache built: {len(config.file_cache)} files")
+            ColorPrint.info(f"File cache built: {len(config.file_cache)} files")
 
             # Record scan
-            db.record_scan(
+            record_store.record_scan(
                 scan_type='full',
                 files_found=len(config.file_cache),
                 duration_seconds=duration,
@@ -382,10 +176,19 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         self._send_json(response)
 
+    def _handle_sync_events(self):
+        """Hold an SSE connection and notify a SECONDARY when it should sync."""
+        config = get_global_config()
+        serve_sync_events(
+            self,
+            config,
+            lambda: config.isPrimaryServer and config.server_running,
+        )
+
     def _handle_file_download(self, path):
         """Handle /api/file/{path} - Download file (PRIMARY mode only)"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
         client_ip = self.client_address[0]
 
         # Check API access permission
@@ -394,18 +197,18 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             return
 
         # Extract file path
-        file_path_encoded = path[len('/api/file/'):]
+        file_path_encoded = path[len(routes.FILE_PATH_PREFIX):]
         file_path = urllib.parse.unquote(file_path_encoded)
 
         full_path = config.root_dir / file_path
 
         if not full_path.exists():
-            db.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'File not found')
+            record_store.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'File not found')
             self.send_error(404, "File not found")
             return
 
         if not full_path.is_file():
-            db.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'Not a file')
+            record_store.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, 'Not a file')
             self.send_error(400, "Not a file")
             return
 
@@ -414,7 +217,7 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             with open(full_path, 'rb') as f:
                 content = f.read()
 
-            db.record_transfer(None, 'download', file_path, len(content), 'success', client_ip)
+            record_store.record_transfer(None, 'download', file_path, len(content), 'success', client_ip)
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/octet-stream')
@@ -422,11 +225,11 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(content)
 
-            logger.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
+            ColorPrint.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
 
         except Exception as e:
-            db.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, str(e))
-            logger.error(f"Failed to send file {file_path}: {e}")
+            record_store.record_transfer(None, 'download', file_path, 0, 'failed', client_ip, str(e))
+            ColorPrint.error(f"Failed to send file {file_path}: {e}")
             self.send_error(500, f"Failed to read file: {e}")
 
     # ========== SECONDARY Mode Handlers ==========
@@ -520,7 +323,7 @@ class UnifiedHTTPServer:
     def __init__(self):
         """Initialize unified server"""
         self.config = get_global_config()
-        self.server: Optional[HTTPServer] = None
+        self.server: Optional[ThreadingHTTPServer] = None
         self.running = False
 
     def start(self):
@@ -531,14 +334,17 @@ class UnifiedHTTPServer:
         Server runs in main thread, tray runs on top of it.
         """
         if self.running:
-            logger.warning("Server already running")
+            ColorPrint.warning("Server already running")
             return
 
-        logger.info(f"Starting unified HTTP server on port {self.config.http_port}...")
+        ColorPrint.info(f"Starting unified HTTP server on port {self.config.http_port}...")
 
         try:
             # Create HTTP server
-            self.server = HTTPServer(('0.0.0.0', self.config.http_port), UnifiedHTTPHandler)
+            self.server = ThreadingHTTPServer(
+                ('0.0.0.0', self.config.http_port),
+                UnifiedHTTPHandler,
+            )
 
             # Update network info if not set
             if not self.config.local_ip:
@@ -547,12 +353,12 @@ class UnifiedHTTPServer:
             self.running = True
             self.config.server_running = True
 
-            logger.info(f"✓ Unified HTTP server started on {self.config.local_ip}:{self.config.http_port}")
-            logger.info(f"  Current mode: {'PRIMARY' if self.config.isPrimaryServer else 'SECONDARY'}")
-            logger.info(f"  Dashboard: http://{self.config.local_ip}:{self.config.http_port}/")
+            ColorPrint.info(f"✓ Unified HTTP server started on {self.config.local_ip}:{self.config.http_port}")
+            ColorPrint.info(f"  Current mode: {'PRIMARY' if self.config.isPrimaryServer else 'SECONDARY'}")
+            ColorPrint.info(f"  Dashboard: http://{self.config.local_ip}:{self.config.http_port}/")
 
         except Exception as e:
-            logger.error(f"Failed to start server: {e}", exc_info=True)
+            ColorPrint.error(f"Failed to start server: {e}")
             self.running = False
             raise
 
@@ -568,9 +374,9 @@ class UnifiedHTTPServer:
         try:
             self.server.serve_forever()
         except KeyboardInterrupt:
-            logger.info("Server interrupted by user")
+            ColorPrint.info("Server interrupted by user")
         except Exception as e:
-            logger.error(f"Server error: {e}", exc_info=True)
+            ColorPrint.error(f"Server error: {e}")
         finally:
             self.stop()
 
@@ -579,7 +385,7 @@ class UnifiedHTTPServer:
         if not self.running:
             return
 
-        logger.info("Stopping unified HTTP server...")
+        ColorPrint.info("Stopping unified HTTP server...")
 
         self.running = False
 
@@ -589,8 +395,9 @@ class UnifiedHTTPServer:
 
         self.config.server_running = False
 
-        logger.info("Unified HTTP server stopped")
+        ColorPrint.info("Unified HTTP server stopped")
 
     def is_running(self) -> bool:
         """Check if server is running"""
         return self.running
+

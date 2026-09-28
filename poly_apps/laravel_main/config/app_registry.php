@@ -27,31 +27,10 @@ return [
         'current_version' => 'v1',
     ],
 
-    'awyv0' => [
-        'name' => 'AwyV0',
-        'table_prefix' => 'awy_v0',
-        'connection' => 'awyv0',
-        'current_version' => 'v0',
-    ],
-
     'mcpv1' => [
         'name' => 'McpV1',
         'table_prefix' => 'mcp_v1',
         'connection' => 'mcpv1',
-        'current_version' => 'v1',
-    ],
-
-    'vipclubv1' => [
-        'name' => 'VipClubV1',
-        'table_prefix' => 'vipclub_v1',
-        'connection' => 'vipclubv1',
-        'current_version' => 'v1',
-    ],
-
-    'bankv1' => [
-        'name' => 'BankV1',
-        'table_prefix' => 'bank_v1',
-        'connection' => 'bankv1',
         'current_version' => 'v1',
     ],
 
@@ -80,6 +59,20 @@ return [
         'name' => 'ItToolsV1',
         'table_prefix' => 'ittools_v1',
         'connection' => 'ittoolsv1',
+        'current_version' => 'v1',
+    ],
+
+    'pddtoolv1' => [
+        'name' => 'PddToolV1',
+        'table_prefix' => 'pdd_tool_v1',
+        'connection' => 'pddtoolv1',
+        'current_version' => 'v1',
+    ],
+
+    'dingduoduov1' => [
+        'name' => 'DingDuoDuoV1',
+        'table_prefix' => 'ding_duo_duo_v1',
+        'connection' => 'dingduoduov1',
         'current_version' => 'v1',
     ],
 ];

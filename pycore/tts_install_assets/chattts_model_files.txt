@@ -1,0 +1,9 @@
+asset/Decoder.safetensors
+asset/DVAE.safetensors
+asset/Embed.safetensors
+asset/Vocos.safetensors
+asset/gpt/config.json
+asset/gpt/model.safetensors
+asset/tokenizer/special_tokens_map.json
+asset/tokenizer/tokenizer_config.json
+asset/tokenizer/tokenizer.json

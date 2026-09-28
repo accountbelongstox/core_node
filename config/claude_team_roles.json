@@ -1,0 +1,268 @@
+{
+  "schema_version": 8,
+  "guide_doc": "development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md",
+  "record_dir": "docs_fix",
+  "agents_dir": ".claude/agents",
+  "shared_dir": ".claude/agents_shared",
+  "sessions": {
+    "session_prefix": "ct-",
+    "tmux_socket": "claudeteam",
+    "kickoff_lead": "You are the orchestrator in session {session}. Follow {guide}. Send each request directly to the smallest suitable owner and keep one writer per path. Do not create separate planning, implementation, or review phases. Use SendMessage only when another running session owns necessary work. Each owner implements and verifies its own change, then reports the result. Start working as soon as the user provides a task.",
+    "kickoff": "You are the {role} role in session {session}. Follow your agent definition and {guide}. Implement assigned changes directly, verify them in proportion to risk, and report the result to {lead}. Do not create separate planning or review tasks."
+  },
+  "team": {
+    "session_name": "ca-orchestrator",
+    "tmux_socket": "claudeagents",
+    "teammate_mode_linux": "tmux",
+    "kickoff": "You are the agent-team lead in session {session}. Follow {guide} and handle each user request to completion. For a simple or single-scope task, work directly without teammates. For independent parallel work, spawn only the needed named agent types from this roster: {roles}. Use Sonnet for ordinary coding and name Opus only for genuinely complex architecture, cross-layer design, or difficult root-cause work. Do not create separate plan, implementation, or review agents and do not force a plan-review loop. Give each teammate a concrete deliverable and exclusive paths, let the owner implement and verify its own work, wait for active teammates, then synthesize the result."
+  },
+  "grid": {
+    "columns": 5,
+    "rows": 3,
+    "top_offset_px": 32,
+    "chrome_width_px": 16,
+    "chrome_height_px": 60,
+    "char_width_px": 9,
+    "char_height_px": 19,
+    "fallback_screen_width": 1920,
+    "fallback_screen_height": 1080
+  },
+  "roles": [
+    {
+      "name": "orchestrator",
+      "enabled": true
+    },
+    {
+      "name": "pycore-lead",
+      "enabled": true
+    },
+    {
+      "name": "pycore-ai",
+      "enabled": true
+    },
+    {
+      "name": "pycore-runtime",
+      "enabled": true
+    },
+    {
+      "name": "pycore-laravel",
+      "enabled": true
+    },
+    {
+      "name": "pycore-ui",
+      "enabled": true
+    },
+    {
+      "name": "wordnew-lead",
+      "enabled": true
+    },
+    {
+      "name": "wordnew-ui",
+      "enabled": true
+    },
+    {
+      "name": "wordnew-laravel",
+      "enabled": true
+    },
+    {
+      "name": "wordnew-native",
+      "enabled": true
+    },
+    {
+      "name": "wordnew-link",
+      "enabled": true
+    },
+    {
+      "name": "shell-windows",
+      "enabled": true
+    },
+    {
+      "name": "shell-linux",
+      "enabled": true
+    },
+    {
+      "name": "codemart-lead",
+      "enabled": true
+    },
+    {
+      "name": "codemart-ui",
+      "enabled": true
+    },
+    {
+      "name": "codemart-laravel",
+      "enabled": true
+    },
+    {
+      "name": "laravel-remote",
+      "enabled": true,
+      "remote": {
+        "ssh_secret": "SSH_CONNECTION_1",
+        "root": "/www/programing/core_node"
+      }
+    },
+    {
+      "name": "pycore-gpu-remote",
+      "enabled": false,
+      "remote": {
+        "ssh_secret": "SSH_CONNECTION_GPU_1",
+        "os": "auto",
+        "root_linux": "/www/programing/core_node",
+        "root_windows": "D:\\programing\\core_node",
+        "purpose": "GPU test-end: runs pyservice on the GPU host and tests pycore features; test-only"
+      }
+    },
+    {
+      "name": "reviewer",
+      "enabled": false,
+      "window": false
+    },
+    {
+      "name": "ncore",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "flutter",
+      "enabled": true,
+      "window": false
+    }
+  ],
+  "remote": {
+    "reconnect_seconds": 5,
+    "kickoff": "You are the {role} role in session {session} on the remote server. Follow your agent definition and {guide}. Implement the assigned change directly in this checkout, verify it on this server, and report the result and changed paths to {lead}.",
+    "code_distribution": "pyservice CodeSync only (docs_fix/CODESYNC_AI_COMMUNICATION_API.md): DEV pushes signed file versions to the remote host's CodeSync client; never git",
+    "enable_rule": "a remote role starts only when its ssh_secret resolves; os auto = probe `uname -s || ver` and use the Linux (bash/tmux/claudeteam.sh) or Windows (powershell/claudeteam.ps1) remote command"
+  },
+  "role_source": {
+    "agents_dir": ".claude/agents",
+    "name_from": "frontmatter name",
+    "model_from": "frontmatter model; the lead may override a teammate to opus for genuinely complex work",
+    "effort_from": "frontmatter effort, passed to role sessions as --effort",
+    "catalog_roles_are": "overrides only (enabled, remote, window); an agent file without a catalog row is enabled; window:false = service role, valid task tag, no window/session at start"
+  },
+  "session_env": {
+    "all": {},
+    "lead": {
+      "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    },
+    "windows": {
+      "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT": "1"
+    },
+    "remote": {}
+  },
+  "user_settings_merge": {
+    "crossSessionInbound": "accept",
+    "agentPushNotifEnabled": true,
+    "inputNeededNotifEnabled": true,
+    "preferredNotifChannel": "terminal_bell"
+  },
+  "layout": {
+    "window_name": "core-node-team",
+    "tmux_session": "core-node-team",
+    "min_lead": {
+      "cols": 100,
+      "rows": 30
+    },
+    "min_role": {
+      "cols": 60,
+      "rows": 15
+    },
+    "tab_groups": [
+      [
+        "orchestrator",
+        "shell-windows",
+        "shell-linux"
+      ],
+      [
+        "pycore-lead",
+        "pycore-ai",
+        "pycore-runtime",
+        "pycore-laravel",
+        "pycore-ui"
+      ],
+      [
+        "wordnew-lead",
+        "wordnew-ui",
+        "wordnew-laravel",
+        "wordnew-native",
+        "wordnew-link"
+      ],
+      [
+        "codemart-lead",
+        "codemart-ui",
+        "codemart-laravel"
+      ]
+    ],
+    "merge_groups_when_room": true,
+    "unlisted_roles": "appended to the last tab group",
+    "group_source": "groups[] (user D22): one tab group per team group; the claude lead shares its tab with the 2-member shell group"
+  },
+  "groups": [
+    {
+      "name": "claude",
+      "leader": "orchestrator",
+      "members": [
+        "orchestrator"
+      ]
+    },
+    {
+      "name": "pycore",
+      "leader": "pycore-lead",
+      "members": [
+        "pycore-lead",
+        "pycore-ai",
+        "pycore-runtime",
+        "pycore-laravel",
+        "pycore-ui"
+      ],
+      "remote_members": [
+        "pycore-gpu-remote"
+      ]
+    },
+    {
+      "name": "wordnew",
+      "leader": "wordnew-lead",
+      "members": [
+        "wordnew-lead",
+        "wordnew-ui",
+        "wordnew-laravel",
+        "wordnew-native",
+        "wordnew-link"
+      ]
+    },
+    {
+      "name": "shell",
+      "leader": "shell-windows",
+      "members": [
+        "shell-windows",
+        "shell-linux"
+      ]
+    },
+    {
+      "name": "codemart",
+      "leader": "codemart-lead",
+      "members": [
+        "codemart-lead",
+        "codemart-ui",
+        "codemart-laravel"
+      ]
+    },
+    {
+      "name": "remote",
+      "leader": "orchestrator",
+      "members": [
+        "laravel-remote"
+      ]
+    },
+    {
+      "name": "service",
+      "leader": "orchestrator",
+      "members": [
+        "reviewer",
+        "ncore",
+        "flutter"
+      ],
+      "window": false
+    }
+  ]
+}

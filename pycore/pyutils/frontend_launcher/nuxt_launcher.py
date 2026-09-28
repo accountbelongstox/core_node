@@ -8,15 +8,23 @@ import os
 import sys
 import time
 import platform
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import tempfile
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyfoundations.color_print import ColorPrint
-from .frontend_config import FrontendConfig
-from .output_capturer import OutputCapturer
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
+from pycore.pyutils.frontend_launcher.output_capturer import OutputCapturer
 import subprocess
+
+import traceback
+from pycore.pyfoundations.third_party.api import get_third_package_requests
+
+import platform as plat
+
+
 
 
 class NuxtLauncher:
@@ -175,7 +183,6 @@ class NuxtLauncher:
 
         except Exception as e:
             ColorPrint.red(f"[NuxtLauncher] Compilation error: {e}")
-            import traceback
             traceback.print_exc()
             return False
 
@@ -194,11 +201,12 @@ class NuxtLauncher:
         ColorPrint.gray(f"Command: python \"{self.start_dev_script}\" {self.config.app_name} {self.config.port}")
 
         try:
-            import platform as plat
 
             if plat.system() == 'Windows':
                 # Windows: Launch in new console window
-                fd, temp_script_path = tempfile.mkstemp(suffix='.bat', text=True)
+                fd, temp_script_path = tempfile.mkstemp(
+                    suffix='.bat', text=True, dir=str(TMP_DIR)
+                )
                 self.temp_script = Path(temp_script_path)
 
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:
@@ -239,7 +247,6 @@ class NuxtLauncher:
 
         except Exception as e:
             ColorPrint.red(f"[NuxtLauncher] Failed to start dev server: {e}")
-            import traceback
             traceback.print_exc()
             return False
 
@@ -250,7 +257,7 @@ class NuxtLauncher:
         Returns:
             True if frontend is ready
         """
-        import requests
+        requests = get_third_package_requests()
 
         url = f"http://localhost:{self.config.port}"
         timeout = self.config.health_check_timeout
@@ -295,7 +302,7 @@ class NuxtLauncher:
             # Animated progress
             dots = (dots + 1) % 4
             progress_bar = '.' * dots + ' ' * (3 - dots)
-            print(
+            ColorPrint.plain(
                 f"\r[Waiting for frontend{progress_bar}] "
                 f"Elapsed: {current_elapsed:>5.1f}s | "
                 f"Attempts: {attempt:>3} | "

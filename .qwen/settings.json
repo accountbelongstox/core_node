@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(which *)",
+      "Bash(npm *)",
+      "Bash(npm search *)",
+      "Bash(npm view *)",
+      "Bash(pip show *)",
+      "Bash(pipx *)",
+      "WebFetch(pypi.org)"
+    ]
+  },
+  "$version": 4
+}

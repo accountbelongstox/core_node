@@ -2,120 +2,19 @@
 # -*- coding: utf-8 -*-
 
 from typing import Dict, Any, Optional
-from dataclasses import dataclass, field
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pythreadpool import get_global_thread_pool, SERVICE_STARTERS
-from pycore.pylauncher.singleton_detector import SingletonDetector
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pythreadpool import global_thread_pool
+from pycore.pythreadpool.registry import SERVICE_STARTERS
+from pycore.pyfoundations.singleton.detector import (
+    get_process_singleton_detector,
+    on_singleton_superseded,
+)
+from pycore.pyfoundations.launcher_config import LauncherConfig  # noqa: F401 — re-export
 
+import traceback
 
-# ============================================================
-# Configuration
-# ============================================================
-
-@dataclass
-class LauncherConfig:
-    """
-    Unified service launcher configuration
-
-    Supports both modern dict-based API and legacy boolean flags.
-    Legacy flags automatically convert to services dict.
-
-    Modern Usage:
-        config = LauncherConfig(
-            services={'rpc_v2': {'port': 58100}}
-        )
-
-    Legacy Usage (backward compatible):
-        config = LauncherConfig(
-            enable_rpc_v2=True,
-            rpc_v2_port=58100
-        )
-    """
-    # Modern API - Primary interface
-    services: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    app_id: str = "default_app"
-    app_name: str = "Application"
-    singleton: bool = False
-    singleton_port_start: int = 54000
-    singleton_port_range: int = 100
-    force_launch: bool = False
-    shutdown_existing: bool = False
-
-    # Tray Configuration (Cross-platform)
-    enable_tray: bool = False
-    tray_backend: str = "auto"          # "auto", "pystray", "pyside6"
-    tray_icon_path: Optional[str] = None
-    tray_menu_items: list = field(default_factory=list)
-
-    # Legacy API - Auto-converts to services dict
-    enable_heartbeat: bool = True
-    enable_rpc_v2: bool = False
-    rpc_v2_port: int = 58100
-    rpc_v2_host: str = "0.0.0.0"
-    rpc_v2_debug: bool = True
-    enable_speech: bool = False
-    speech_mode: str = "single"
-    enable_ui: bool = False
-    singleton_check: bool = False  # Maps to 'singleton'
-
-    def __post_init__(self):
-        """Convert legacy flags to modern services dict"""
-        # If using legacy API (any enable_* flag), convert to services
-        legacy_used = (
-            self.enable_rpc_v2 or
-            self.enable_speech or
-            self.enable_ui or
-            not self.enable_heartbeat
-        )
-
-        if legacy_used and not self.services:
-            # Build services from legacy flags
-            if self.enable_heartbeat:
-                self.services['heartbeat'] = {}
-
-            if self.enable_rpc_v2:
-                self.services['rpc_v2'] = {
-                    'port': self.rpc_v2_port,
-                    'host': self.rpc_v2_host,
-                    'debug': self.rpc_v2_debug
-                }
-
-            if self.enable_speech:
-                self.services['speech'] = {'mode': self.speech_mode}
-
-            if self.enable_ui:
-                self.services['ui'] = {}
-
-            # Map legacy singleton_check to singleton
-            if self.singleton_check:
-                self.singleton = True
-
-    @classmethod
-    def rpc_v2_only(cls, port: int = 58100, singleton: bool = False):
-        """Quick config for RPC v2 only"""
-        return cls(
-            app_id="rpc_v2_app",
-            app_name="RPC v2 Service",
-            singleton=singleton,
-            services={
-                'heartbeat': {},
-                'rpc_v2': {'port': port, 'host': '0.0.0.0', 'debug': True}
-            }
-        )
-
-    @classmethod
-    def speech_only(cls, mode: str = "single", singleton: bool = False):
-        """Quick config for Speech only"""
-        return cls(
-            app_id="speech_app",
-            app_name="Speech Service",
-            singleton=singleton,
-            services={
-                'heartbeat': {},
-                'speech': {'mode': mode}
-            }
-        )
 
 
 # ============================================================
@@ -168,7 +67,6 @@ class ServiceLauncher:
                     success_count += 1
             except Exception as e:
                 ColorPrint.red(f"[Launcher] Failed to start {name}: {e}")
-                import traceback
                 traceback.print_exc()
 
         self._started = True
@@ -181,12 +79,20 @@ class ServiceLauncher:
         ColorPrint.green(f"=== Launched {success_count}/{len(self.config.services)} services ===")
 
         # Signal that third-party packages are loaded (all services started)
-        # This allows StartupWindow to auto-close if configured
+        # This allows tk startup window (TkinterStartupThread) to auto-close if configured
         THREAD_BUS.trigger_event('system.third_party_packages_loaded', {
             'message': 'All required third-party packages have been loaded',
             'app_name': self.config.app_name,
             'services': list(self.services.keys())
         })
+        THREAD_BUS.signal(
+            'system.third_party_packages_loaded.completed',
+            {
+                'message': 'All required third-party packages have been loaded',
+                'app_name': self.config.app_name,
+                'services': list(self.services.keys())
+            }
+        )
         ColorPrint.blue("[Launcher] Third-party packages loaded signal sent")
 
         return success_count > 0
@@ -200,30 +106,27 @@ class ServiceLauncher:
         """
         ColorPrint.blue(f"[Singleton] Detecting {self.config.app_id}...")
 
-        # Define callbacks
-        def on_msg(msg):
-            """Handle incoming messages from new instances"""
-            if msg.get('type') == 'SHUTDOWN':
-                THREAD_BUS.request_shutdown(
-                    f"Shutdown by new instance (PID {msg.get('pid')})",
-                    execute_handlers=True
-                )
-
+        # Inter-instance takeover (newest-wins) is owned entirely by the detector:
+        # it fires 'singleton.superseded' and triggers the graceful shutdown when a
+        # newer instance arrives, so no on_message shutdown handler is needed here
+        # (that path was redundant with request_shutdown). state_checker still
+        # reports busy state for STATUS queries (external monitors), but no longer
+        # gates a sibling takeover.
         def state_checker():
-            """Check if application can shutdown (based on busy state)"""
+            """Report whether the app is busy (for STATUS queries only)."""
             is_busy = THREAD_BUS.is_busy()
             return {
                 'can_shutdown': not is_busy,
                 'message': THREAD_BUS.get_busy_reason() if is_busy else 'Ready to shutdown'
             }
 
-        # Create detector with all configuration
-        self.singleton_detector = SingletonDetector(
+        # Reuse the process-owned detector when an embedding launcher already
+        # acquired this singleton domain before constructing ServiceLauncher.
+        self.singleton_detector = get_process_singleton_detector(
             app_id=self.config.app_id,
             port_start=self.config.singleton_port_start,
             port_range=self.config.singleton_port_range,
             debug=True,
-            on_message=on_msg,
             state_checker=state_checker,
             shutdown_existing=self.config.shutdown_existing  # Pass config to detector
         )
@@ -237,6 +140,8 @@ class ServiceLauncher:
             ColorPrint.green(f"[Singleton] PRIMARY on port {detection.port}")
             return True
         elif detection.existing_instance and not self.config.force_launch:
+            if detection.yielded_to_newer:
+                ColorPrint.yellow("[Singleton] A NEWER instance is already running; yielding to it")
             ColorPrint.yellow(f"[Singleton] Existing instance at {detection.existing_port}")
             ColorPrint.yellow(f"[Singleton] {detection.message}")
             return False
@@ -271,7 +176,7 @@ class ServiceLauncher:
         Use this to access service-specific APIs.
 
         Args:
-            name: Service name ('rpc_v2', 'heartbeat', 'speech', etc.)
+            name: Service name ('rpc_v2', 'heartbeat', 'ui', etc.)
 
         Returns:
             Service instance or None
@@ -280,7 +185,7 @@ class ServiceLauncher:
             # Get RPC v2 server and register custom route
             rpc = launcher.get_service('rpc_v2')
             if rpc:
-                rpc.server.route('custom', handler_func, sync=True)
+                rpc.server.post('custom', handler_func)
 
             # Get heartbeat system
             heartbeat = launcher.get_service('heartbeat')
@@ -331,6 +236,7 @@ __all__ = [
     'launch_services',
     'stop_services',
     'SingletonDetector',
+    'on_singleton_superseded',
 ]
 
 

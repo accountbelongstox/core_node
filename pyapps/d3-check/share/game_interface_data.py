@@ -6,99 +6,108 @@ Centralized data structure for D3 game interface recognition results
 Shared across all controllers and UI components
 """
 
+import ctypes
+import json
 import os
 import sys
-import tkinter as tk
 import threading
+import tkinter as tk
 from typing import Optional, Dict, Tuple, List, Any, Set, Union, TYPE_CHECKING, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL, get_third_package_numpy, get_third_package_cv2
+from share.ui_registry import get_ui
+from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
 numpy = get_third_package_numpy()
+np = numpy
 cv2 = get_third_package_cv2()
-from PIL import Image
+Image = get_third_package_PIL_Image()
 
-# Add project path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-sys.path.insert(0, project_root)
-
-# Import D3/D4 specific resolution constants
-from providor.providor_index import (
-    STANDARD_RESOLUTION_WIDTH as D3_STANDARD_RESOLUTION_WIDTH,    # D3: 1826x1301
-    STANDARD_RESOLUTION_HEIGHT as D3_STANDARD_RESOLUTION_HEIGHT,
-    D4_STANDARD_RESOLUTION_WIDTH,                                  # D4: 1763x1126
-    D4_STANDARD_RESOLUTION_HEIGHT,
-    get_template_path,
-    TMP_DIR
+from providor.constants.common import (
+    TMP_DIR,
+    BATTLE_NET_CONFIG_SERVICES_KEY,
+    BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY,
+    BATTLE_NET_CONFIG_REGION_CN,
 )
-from providor.common_imports import ColorPrint
+from providor.constants.d3 import D3_STANDARD_RESOLUTION_WIDTH, D3_STANDARD_RESOLUTION_HEIGHT
+from providor.constants.d4 import D4_STANDARD_RESOLUTION_WIDTH, D4_STANDARD_RESOLUTION_HEIGHT
+from providor.providor_index import get_template_path, BATTLE_NET_CONFIG_PATH
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-# Global scale variables (moved from providor_index.py to avoid circular imports)
+# Global scale variables (moved from providor_index)
 GLOBAL_SCALE_X = 1.0  # Horizontal scale factor
 GLOBAL_SCALE_Y = 1.0  # Vertical scale factor
 
 # Screen resolution cache (get once, use many times)
 _screen_resolution = None
 
+def _get_screen_resolution_win32() -> tuple[int, int]:
+    """Get primary monitor resolution on Windows without creating any Tk window."""
+    user32 = ctypes.windll.user32
+    return (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))  # SM_CXSCREEN, SM_CYSCREEN
+
 def get_screen_resolution() -> tuple[int, int]:
-    """Get screen resolution with caching"""
+    """Get screen resolution with caching. Does not create tk.Tk() to avoid extra blank window."""
     global _screen_resolution
     if _screen_resolution is None:
-        root = tk.Tk()
-        screen_width = root.winfo_screenwidth()
-        screen_height = root.winfo_screenheight()
-        root.destroy()
-        _screen_resolution = (screen_width, screen_height)
-        print(f"[GameInterfaceData] Screen resolution cached: {screen_width}x{screen_height}")
+        if sys.platform == "win32":
+            _screen_resolution = _get_screen_resolution_win32()
+        else:
+            ui = get_ui()
+            if ui and ui.root.winfo_exists():
+                _screen_resolution = (ui.root.winfo_screenwidth(), ui.root.winfo_screenheight())
+            else:
+                root = tk.Tk()
+                root.withdraw()
+                _screen_resolution = (root.winfo_screenwidth(), root.winfo_screenheight())
+                root.destroy()
+        ColorPrint.blue(f"[GameInterfaceData] Screen resolution cached: {_screen_resolution[0]}x{_screen_resolution[1]}")
     return _screen_resolution
 
 # ============================================================================
-# Window Border and Title Bar Constants
+# Window Border and Title Bar Constants / Scale specification
 # ============================================================================
-# These constants define the window frame dimensions for coordinate calculations
-# All coordinate conversion functions MUST use these constants
+# 1) Size relation (standard 1300x800 is content area)
+#    - Client (content) = 1300 x 800 (D3_STANDARD_RESOLUTION)
+#    - Screenshot/GetWindowRect gives OUTER frame: left/right margins, title bar, bottom margin
+#    - Outer vs content: outer_w = 1300 + left(8) + right(8) = 1316, outer_h = 800 + title(31) + bottom(8) = 839
 #
-# Measured from actual D4 window:
-# - Window reported by GetWindowRect: offset (731, 17), size 1826x1031
-# - Actual title bar clickable range: (740, 16) to (2550, 47)
+# 2) When actual screenshot is 1316x839
+#    - Effective content width = actual_width  - (WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT) = 1316 - 16 = 1300
+#    - Effective content height = actual_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM) = 839 - 39 = 800
+#    - Standard effective content = standard_resolution (1300, 800), no further border subtract (already content)
+#    - scale_x = effective_content_width_actual / 1300, scale_y = effective_content_height_actual / 800 -> 1.0 here
 #
-# Calculated values:
-# - LEFT_BORDER: 740 - 731 = 9px
-# - RIGHT_BORDER: 731 + 1826 - 2550 = 7px
-# - TOP_OFFSET: 16 - 17 = -1px (title bar starts 1px above window rect)
-# - TITLE_BAR_HEIGHT: 47 - 16 = 31px
-# - BOTTOM_BORDER: Same as standard Windows window (8px)
-#
+# 3) Coord: standard outer (0..1316, 0..839). scaled = (std - border) * scale + border. See COORDINATE_SCALE_SPEC.md
 # ============================================================================
 
 # Title bar dimensions
 TITLE_BAR_HEIGHT = 31  # Title bar height in pixels (measured)
 TITLE_BAR_TOP_OFFSET = -1  # Title bar starts 1px above window rect top
 
-# Window border widths
-WINDOW_BORDER_LEFT = 9  # Left border width in pixels
-WINDOW_BORDER_RIGHT = 7  # Right border width in pixels
+# Window border widths (left/right blanks + bottom)
+WINDOW_BORDER_LEFT = 8  # Left border width in pixels
+WINDOW_BORDER_RIGHT = 8  # Right border width in pixels
 WINDOW_BORDER_BOTTOM = 8  # Bottom border width in pixels
 
-# Legacy constant for backward compatibility (uses left border as standard)
-WINDOW_BORDER_WIDTH = 8  # DEPRECATED: Use specific border constants instead
+# Legacy constant for backward compatibility
+WINDOW_BORDER_WIDTH = 8  # DEPRECATED: Use WINDOW_BORDER_LEFT / WINDOW_BORDER_RIGHT
+
+# D3 standard OUTER window size when client is 1300x800 (screenshot returns this)
+D3_STANDARD_OUTER_WIDTH = D3_STANDARD_RESOLUTION_WIDTH + WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT   # 1316
+D3_STANDARD_OUTER_HEIGHT = D3_STANDARD_RESOLUTION_HEIGHT + TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM  # 839
 
 # Click safety margins
 CLICK_MARGIN_DEFAULT = 10  # Default safety margin for click operations (pixels)
 CLICK_MARGIN_REGION = 5  # Margin for region-based clicks (pixels)
 
-# D4 Directory constants
-D4_SCREENSHOT_DIR = TMP_DIR / "d4_screenshots"
-D4_ANNOTATED_DIR = TMP_DIR / "d4_annotated"
+from providor.constants.d4 import D4_SCREENSHOT_DIR, D4_ANNOTATED_DIR
 
-# Optimized image processing constants
-OPTIMIZED_IMAGE_WIDTH = 800   # Target width for optimized images
-OPTIMIZED_IMAGE_HEIGHT = 600  # Target height for optimized images
+# Optimized image processing constants (scaled from 800x600 at old base 1826x1301)
+OPTIMIZED_IMAGE_WIDTH = 570   # was 800
+OPTIMIZED_IMAGE_HEIGHT = 369  # was 600
 
 # D4 Event State Keys
 # These keys are used to trigger events when states change
@@ -130,6 +139,18 @@ D4_EVENT_KEYS = {
 # ============================================================================
 # Unified Coordinate Calculation Functions
 # ============================================================================
+#
+# ALGORITHM (see docs/COORDINATE_SCALE_SPEC.md):
+#
+# Screenshot (window size) and offset values BOTH use the same rule:
+#   (1) Subtract border   (2) Compute (scale)   (3) Add border back
+#
+# - Screenshot: effective_actual = actual_outer - (left+right) or -(title+bottom);
+#   scale = effective_actual / 1300 or 800. Then use scale in (2) for coords/offsets.
+# - Coordinates: scaled_x = (std_x - 8) * scale_x + 8, scaled_y = (std_y - 31) * scale_y + 31.
+# - Offsets: same formula per value, scale_standard_value_to_actual(value, scale, border).
+# Frame fixed (8,8,31,8); only content scales. No exception.
+#
 
 def calculate_unified_scaled_coordinate(
     standard_coord: Union[Tuple[int, int], Tuple[int, None], Tuple[None, int]],
@@ -138,18 +159,8 @@ def calculate_unified_scaled_coordinate(
     is_windowed: bool = True
 ) -> Union[Tuple[int, int], Tuple[int, None], Tuple[None, int]]:
     """
-    Unified coordinate calculation for both D3 and D4
-    
-    Algorithm Description:
-    1. Percentage calculation: 
-       - Window mode: subtract 31+8 from height, 8+8 from width, then calculate percentage
-       - All values use constants (TITLE_BAR_HEIGHT, WINDOW_BORDER_WIDTH)
-    
-    2. Offset calculation:
-       - For each coordinate[0]: subtract 8, calculate percentage, then add back 8
-       - For each coordinate[1]: subtract 31, calculate percentage, then add back 31
-       - Use (a,b) coordinate system when possible
-       - Single points use (x,Null) for horizontal or (Null,y) for vertical
+    Map standard outer-window coordinate to actual window pixel. Uses subtract-border,
+    scale, add-border. standard_coord is in standard outer space (e.g. 1316x839).
     
     Args:
         standard_coord: Standard coordinate (x, y) at base resolution
@@ -186,28 +197,19 @@ def calculate_unified_scaled_coordinate(
         ColorPrint.blue(f"[CoordCalc] 🔍 Input: std={standard_coord}, actual_size={game_window_size}, std_size={standard_resolution}, windowed={is_windowed}")
 
     if is_windowed:
-        # Windowed mode: account for title bar and borders
-        # Standard coordinates include border offsets, so we need to handle them properly
-        
-        # Calculate effective dimensions (excluding fixed borders)
-        # Window mode percentage calculation: subtract 31+8 from height, 8+8 from width
-        # All values use constants: TITLE_BAR_HEIGHT=31, WINDOW_BORDER_WIDTH=8
-        effective_actual_width = actual_width - (WINDOW_BORDER_WIDTH + WINDOW_BORDER_WIDTH)  # 8+8
-        effective_standard_width = standard_width - (WINDOW_BORDER_WIDTH + WINDOW_BORDER_WIDTH)  # 8+8
-        effective_actual_height = actual_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_WIDTH)  # 31+8
-        effective_standard_height = standard_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_WIDTH)  # 31+8
-        
-        # Calculate scale factors for effective dimensions
+        # Windowed mode: actual = outer (e.g. 1316x839), standard = content (1300x800)
+        # Effective content: subtract left+right, title+bottom from actual; standard is already content
+        effective_actual_width = actual_width - (WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT)   # e.g. 1316-16=1300
+        effective_actual_height = actual_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM)  # e.g. 839-39=800
+        effective_standard_width = standard_width   # 1300, content size
+        effective_standard_height = standard_height # 800, content size
+
         scale_x = effective_actual_width / effective_standard_width
         scale_y = effective_actual_height / effective_standard_height
-        
-        # Apply scaling: subtract fixed offsets, scale, then add back fixed offsets
-        # Offset calculation algorithm:
-        # - For each coordinate[0]: subtract 8, calculate percentage, then add back 8
-        # - For each coordinate[1]: subtract 31, calculate percentage, then add back 31
-        # - Use (a,b) coordinate system when possible
-        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x + WINDOW_BORDER_WIDTH)  # [0] -8, 计算后 +8
-        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y + TITLE_BAR_HEIGHT)  # [1] -31, 计算后 +31
+
+        # Standard coords in outer space (0..1316, 0..839): subtract border -> scale -> add border back
+        scaled_x = int((std_x - WINDOW_BORDER_LEFT) * scale_x + WINDOW_BORDER_LEFT)
+        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y + TITLE_BAR_HEIGHT)
 
         if debug_this_coord:
             ColorPrint.blue(f"[CoordCalc] 🔍 Windowed mode:")
@@ -217,20 +219,11 @@ def calculate_unified_scaled_coordinate(
             ColorPrint.blue(f"  ({std_x}, {std_y}) -> ({scaled_x}, {scaled_y})")
 
     else:
-        # Fullscreen mode: no title bar or borders
-        # Standard coordinates were measured in windowed mode, so we need to subtract the fixed offsets
-        # before scaling, but don't add them back since fullscreen has no such offsets
-        
-        # Calculate scale factors for full dimensions
+        # Fullscreen mode: no title bar or borders; actual and standard are both content size
         scale_x = actual_width / standard_width
         scale_y = actual_height / standard_height
-        
-        # Apply scaling: subtract fixed offsets from standard coordinates before scaling
-        # Fullscreen mode: no title bar or borders, so don't add back fixed offsets
-        # - For coordinate[0]: subtract 8, calculate percentage, don't add back (no borders)
-        # - For coordinate[1]: subtract 31, calculate percentage, don't add back (no title bar)
-        scaled_x = int((std_x - WINDOW_BORDER_WIDTH) * scale_x)  # [0] -8, 计算后不加回
-        scaled_y = int((std_y - TITLE_BAR_HEIGHT) * scale_y)  # [1] -31, 计算后不加回
+        scaled_x = int(std_x * scale_x)
+        scaled_y = int(std_y * scale_y)
 
         if debug_this_coord:
             ColorPrint.blue(f"[CoordCalc] 🔍 Fullscreen mode:")
@@ -246,6 +239,15 @@ def calculate_unified_scaled_coordinate(
         return (scaled_x, scaled_y)
 
 
+def scale_standard_value_to_actual(value: float, scale: float, border: int) -> int:
+    """
+    Scale a value from standard outer space to actual window space.
+    Same principle as coordinates: (value - border) * scale + border.
+    Use border=WINDOW_BORDER_LEFT for x, TITLE_BAR_HEIGHT for y (top), WINDOW_BORDER_BOTTOM for y (bottom).
+    """
+    return int((value - border) * scale + border)
+
+
 # ============================================================================
 # Standard Resolution Coordinate Mapping
 # ============================================================================
@@ -253,28 +255,47 @@ def calculate_unified_scaled_coordinate(
 @dataclass
 class StandardCoordinates:
     """
-    Standard coordinates for UI elements at base resolution (1826x1301)
-
-    All coordinates are relative to game window top-left corner.
-    When actual window size differs, coordinates are scaled proportionally.
+    Standard coordinates for UI elements. Stored in standard outer space (1316x839).
+    Scaling uses subtract-border -> scale -> add-border (see COORDINATE_SCALE_SPEC.md).
     """
 
-    # Blacksmith interface
-    blacksmith_salvage_button: Tuple[int, int] = (202, 368)
+    # Blacksmith panel (standard outer space 1316x839)
+    # Panel TAB switch buttons (left sidebar)
+    blacksmith_tab_forge_weapon: Tuple[int, int] = (390, 201)        # Blacksmith Forge Weapon tab
+    blacksmith_tab_armor: Tuple[int, int] = (386, 296)              # Blacksmith Armor tab
+    blacksmith_tab_salvage_materials: Tuple[int, int] = (385, 387)   # Blacksmith Salvage Materials tab
+    blacksmith_tab_repair: Tuple[int, int] = (385, 488)             # Blacksmith Repair tab
+    blacksmith_tab_train: Tuple[int, int] = (387, 578)               # Blacksmith Train tab
+    # Forge weapon page: craft item button
+    blacksmith_forge_weapon_craft_button: Tuple[int, int] = (227, 613)  # Blacksmith Forge page craft button
+    # Salvage materials page: salvage (dismantle) button
+    blacksmith_salvage_button: Tuple[int, int] = (144, 226)        # Blacksmith Salvage page salvage button
+    # Salvage confirm dialog: click salvage button first, then confirm/cancel
+    blacksmith_salvage_dialog_salvage_button: Tuple[int, int] = (128, 249)   # Salvage dialog: salvage button (click then confirm)
+    blacksmith_salvage_dialog_confirm: Tuple[int, int] = (584, 310)         # Salvage dialog confirm
+    blacksmith_salvage_dialog_cancel: Tuple[int, int] = (766, 310)          # Salvage dialog cancel
+    # Salvage materials page: one-click salvage by rarity
+    blacksmith_salvage_oneclick_white: Tuple[int, int] = (195, 248)   # One-click salvage white
+    blacksmith_salvage_oneclick_blue: Tuple[int, int] = (245, 248)    # One-click salvage blue
+    blacksmith_salvage_oneclick_yellow: Tuple[int, int] = (297, 248)  # One-click salvage yellow
 
-    # Kanai's Cube interface
-    kanai_put_material_button: Tuple[int, int] = (848, 1012)
-    kanai_right_panel_toggle: Tuple[int, int] = (514, 997)
-    kanai_conversion_button: Tuple[int, int] = (290, 1005)
-    kanai_next_page_button: Tuple[int, int] = (1005, 1015)
+    # Kanai's Cube interface (standard outer space 1316x839)
+    kanai_conversion_button: Tuple[int, int] = (178, 643)           # Convert
+    kanai_right_panel_toggle: Tuple[int, int] = (329, 647)         # Open recipe panel
+    kanai_recipe_prev_page_button: Tuple[int, int] = (439, 652)    # Recipe prev page
+    kanai_put_material_button: Tuple[int, int] = (532, 653)        # Put material
+    kanai_next_page_button: Tuple[int, int] = (636, 651)          # Recipe next page
 
-    # Reforge region (vertical line - same X coordinate)
-    reforge_region_start: Tuple[int, int] = (368, 470)  # (x, y) - vertical line start
-    reforge_region_end: Tuple[int, int] = (368, 723)    # (x, y) - vertical line end
+    # Reforge region (was (368,470), (368,723))
+    reforge_region_start: Tuple[int, int] = (262, 289)  # (x, y) - vertical line start
+    reforge_region_end: Tuple[int, int] = (262, 445)    # (x, y) - vertical line end
 
-    # Bag region
-    bag_top_left: Tuple[int, int] = (1213, 686)
-    bag_bottom_right: Tuple[int, int] = (1805, 1036)
+    # Bag region (standard outer space 1316x839; scale uses subtract-border -> scale -> add-border)
+    bag_top_left: Tuple[int, int] = (925, 445)
+    bag_bottom_right: Tuple[int, int] = (1297, 665)
+
+    # Game window focus: click this point to bring game to foreground (instead of other topmost methods)
+    game_focus_click_point: Tuple[int, int] = (1051, 783)  # Click to bring game to foreground
 
 
 # Global standard coordinates instance
@@ -445,7 +466,7 @@ def d3_scale_single_coord(coord: Tuple[int, int]) -> Tuple[int, int]:
     """
     Scale D3 single coordinate using shared D3InterfaceData.
     Direct property access to shared_data fields.
-    Uses D3-specific standard resolution (1826x1301).
+    Uses D3-specific standard resolution (1300x800; was 1826x1301).
     """
     shared_data = get_game_interface_data()
     return calculate_unified_scaled_coordinate(
@@ -471,6 +492,67 @@ def get_scaled_bag_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
 def get_scaled_blacksmith_salvage_button() -> Tuple[int, int]:
     return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_button)
 
+def get_scaled_blacksmith_tab_forge_weapon() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_tab_forge_weapon)
+
+def get_scaled_blacksmith_tab_armor() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_tab_armor)
+
+def get_scaled_blacksmith_tab_salvage_materials() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_tab_salvage_materials)
+
+def get_scaled_blacksmith_tab_repair() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_tab_repair)
+
+def get_scaled_blacksmith_tab_train() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_tab_train)
+
+def get_scaled_blacksmith_forge_weapon_craft_button() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_forge_weapon_craft_button)
+
+def get_scaled_blacksmith_salvage_dialog_salvage_button() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_dialog_salvage_button)
+
+def get_scaled_blacksmith_salvage_dialog_confirm() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_dialog_confirm)
+
+def get_scaled_blacksmith_salvage_dialog_cancel() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_dialog_cancel)
+
+def get_scaled_blacksmith_salvage_oneclick_white() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_oneclick_white)
+
+def get_scaled_blacksmith_salvage_oneclick_blue() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_oneclick_blue)
+
+def get_scaled_blacksmith_salvage_oneclick_yellow() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.blacksmith_salvage_oneclick_yellow)
+
+
+def get_scaled_blacksmith_ui_coords() -> Dict[str, Tuple[int, int]]:
+    """
+    Return all blacksmith UI relative coordinates scaled for current game window.
+    Keys: tab_forge_weapon, tab_armor, tab_salvage_materials, tab_repair, tab_train,
+    salvage_button, salvage_dialog_salvage_button, salvage_dialog_confirm, salvage_dialog_cancel.
+    Values are (x, y) relative to game window (add window_offset for screen coords).
+    """
+    return {
+        "tab_forge_weapon": get_scaled_blacksmith_tab_forge_weapon(),
+        "tab_armor": get_scaled_blacksmith_tab_armor(),
+        "tab_salvage_materials": get_scaled_blacksmith_tab_salvage_materials(),
+        "tab_repair": get_scaled_blacksmith_tab_repair(),
+        "tab_train": get_scaled_blacksmith_tab_train(),
+        "salvage_button": get_scaled_blacksmith_salvage_button(),
+        "salvage_dialog_salvage_button": get_scaled_blacksmith_salvage_dialog_salvage_button(),
+        "salvage_dialog_confirm": get_scaled_blacksmith_salvage_dialog_confirm(),
+        "salvage_dialog_cancel": get_scaled_blacksmith_salvage_dialog_cancel(),
+    }
+
+
+def get_scaled_game_focus_click_point() -> Tuple[int, int]:
+    """Scaled coordinate for clicking to bring game window to foreground (instead of other topmost methods)."""
+    return d3_scale_single_coord(STANDARD_COORDS.game_focus_click_point)
+
 def get_scaled_reforge_region() -> Tuple[Tuple[int, int], Tuple[int, int]]:
     return d3_scale_region(STANDARD_COORDS.reforge_region_start, STANDARD_COORDS.reforge_region_end)
 
@@ -485,6 +567,10 @@ def get_scaled_kanai_right_panel_toggle() -> Tuple[int, int]:
 
 def get_scaled_kanai_next_page_button() -> Tuple[int, int]:
     return d3_scale_single_coord(STANDARD_COORDS.kanai_next_page_button)
+
+
+def get_scaled_kanai_recipe_prev_page_button() -> Tuple[int, int]:
+    return d3_scale_single_coord(STANDARD_COORDS.kanai_recipe_prev_page_button)
 
 
 # ============================================================================
@@ -567,7 +653,11 @@ class BagCoordinates:
 
 @dataclass
 class BagLayout:
-    """Bag layout data with item information"""
+    """
+    Bag layout data with item information.
+    Item quality (color-detectable): empty, magic (blue), rare (yellow), legendary (green).
+    Legendary tier: normal / ancient / primal. Ancient and primal cannot be distinguished by color alone; hover to detect tier line.
+    """
     layout: List[List[int]]  # 2D array of slot usage
     items: Dict[Tuple[int, int], Dict]  # Mapping (row, col) to item info with quality
 
@@ -599,7 +689,10 @@ class D3InterfaceData(InterfaceDataBase):
     1. screenshot_provider fills: fullscreen_image, game_window_image, window_offset, screenshot_history
     2. ui_region_collector fills: ui_region, timestamp
     3. bag_info_collector fills: bag_coordinates, bag_layout
-    4. ROSBOT/controllers fill: rosbot_running, d3_running, map_type, game_stage
+    4. d3_running / battlenet_window_found set by window detection (d3_status_provider / battlenet_status_provider / timer), independent of rosbot_running
+    5. D3 dynamic: on_login_screen, disconnected (highest priority), in_game (normal) - set by d3_status_provider or TODO
+    6. Battle.net dynamic: on_login_screen, disconnected, normal_available - same as D3
+    7. ROSBOT/controllers fill: rosbot_running, map_type, game_stage
     """
 
     # UI region (filled by ui_region_collector)
@@ -620,14 +713,51 @@ class D3InterfaceData(InterfaceDataBase):
     button_detections: Optional[Dict[str, DetectionResult]] = None
 
     # Game state management (merged from GameState for D3/ROSBOT)
+    battlenet_window_found: bool = False  # Set by window detection (battlenet_status_provider), independent of rosbot
+    rosbot_window_found: bool = False  # True when extended_status is paused (has window)
+    rosbot_has_main_ui: bool = False  # True when paused (any visible UI); False when running or not_found
+    rosbot_extended_status: str = "not_found"  # not_found | running (process, no window) | paused (has window)
     rosbot_running: bool = False
-    d3_running: bool = False
+    rosbot_flow_master_enabled: bool = False  # Master state: True when user clicks "Start ROSBOT", False when "Stop" (ROSBOT_FLOW_MERMAID A1)
+    ensure_battlenet_only_master_enabled: bool = False  # True when user clicks "Ensure Battle.net"; tick runs Battle.net segment only, no D3/ROSBOT; each tick re-polls, reconnect on disconnect
+    d3_running: bool = False  # Set by window detection (d3_status_provider/controller), independent of rosbot
+    _window_hwnd: Optional[int] = None  # D3 window handle; set by d3_status_provider
+    _window_title: Optional[str] = None  # D3 window title; set by d3_status_provider
+    # D13 found D3 window with for_f2_only: set True so next C1 tick uses d3_just_entered -> C7a map teleport (ROSBOT_FLOW_MERMAID)
+    d3_just_entered_from_d13: bool = False
     map_type: str = "unknown"  # town, greater_rift, rift, unknown
     game_stage: str = "unknown"  # gem_upgrade, kill_boss, back_town, in_greater_rift, in_rift, unknown
 
-    # State change callbacks (merged from GameState)
+    # D3 dynamic state (display priority: disconnected > on_login_screen > in_game)
+    d3_on_login_screen: bool = False
+    d3_disconnected: bool = False  # Highest priority
+    d3_in_game: bool = False  # Normal state
+
+    # Battle.net dynamic state (same priority: disconnected > on_login_screen > normal_available)
+    battlenet_on_login_screen: bool = False
+    battlenet_disconnected: bool = False
+    battlenet_normal_available: bool = False
+    # Battle.net server region: "asia" | "cn" | None; cached and used to try only that region next time
+    battlenet_region: Optional[str] = None
+
+    # Found ROSBOT display (process name + window title for status bar "process:xxx.exe title:xxx")
+    rosbot_found_exe_name: str = ""
+    rosbot_found_window_title: str = ""
+    # ROSBOT UI need-key state (set by refresh_rosbot_status from timer thread; main thread only reads from snapshot)
+    rosbot_need_key_input: bool = False
+    rosbot_need_key_message: str = ""
+    # Test mode (rosbot.test_mode): display line for bottom bar, set each tick when test_mode; None when off
+    rosbot_test_mode_display: Optional[str] = None
+    # ROSBOT disconnection detected from logs ("WARN - Disconnected" or "Session Time out")
+    rosbot_disconnected_from_log: bool = False
+    # ROSBOT total restart count (all types: normal_pause, test_debug_exit, process gone, log disconnect)
+    rosbot_total_restart_count: int = 0
+
+    # State change callbacks (merged from GameState). Invoked only on main thread via _drain_and_notify (no after() from background).
     _callbacks: List[Callable] = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock)
+    _poll_after_fn: Optional[Callable] = None  # (ms, callable) -> id; set by start_main_thread_poll from main thread
+    _poll_interval_ms: int = 100
 
     def clear(self):
         """Clear all data"""
@@ -648,10 +778,33 @@ class D3InterfaceData(InterfaceDataBase):
         self.bag_buttom_match = None
         self.bag_left_match = None
         self.button_detections = None
+        self.battlenet_window_found = False
+        self.rosbot_window_found = False
+        self.rosbot_has_main_ui = False
+        self.rosbot_extended_status = "not_found"
         self.rosbot_running = False
+        self.rosbot_flow_master_enabled = False
+        self.ensure_battlenet_only_master_enabled = False
         self.d3_running = False
+        self._window_hwnd = None
+        self._window_title = None
+        self.d3_just_entered_from_d13 = False
+        self.rosbot_disconnected_from_log = False
         self.map_type = "unknown"
         self.game_stage = "unknown"
+        self.d3_on_login_screen = False
+        self.d3_disconnected = False
+        self.d3_in_game = False
+        self.battlenet_on_login_screen = False
+        self.battlenet_disconnected = False
+        self.battlenet_normal_available = False
+        self.battlenet_region = None
+        self.rosbot_found_exe_name = ""
+        self.rosbot_found_window_title = ""
+        self.rosbot_need_key_input = False
+        self.rosbot_need_key_message = ""
+        self.rosbot_test_mode_display = None
+        self.rosbot_total_restart_count = 0
 
     def has_ui_region(self) -> bool:
         """Check if UI region is available"""
@@ -670,14 +823,117 @@ class D3InterfaceData(InterfaceDataBase):
             "has_bag_coordinates": self.bag_coordinates is not None,
             "has_bag_layout": self.bag_layout is not None,
             "functional_interface": self.functional_interface,
+            "battlenet_window_found": self.battlenet_window_found,
+            "rosbot_window_found": self.rosbot_window_found,
+            "rosbot_has_main_ui": self.rosbot_has_main_ui,
+            "rosbot_extended_status": self.rosbot_extended_status,
             "rosbot_running": self.rosbot_running,
+            "rosbot_flow_master_enabled": self.rosbot_flow_master_enabled,
             "d3_running": self.d3_running,
             "map_type": self.map_type,
-            "game_stage": self.game_stage
+            "game_stage": self.game_stage,
+            "d3_on_login_screen": self.d3_on_login_screen,
+            "d3_disconnected": self.d3_disconnected,
+            "d3_in_game": self.d3_in_game,
+            "battlenet_on_login_screen": self.battlenet_on_login_screen,
+            "battlenet_disconnected": self.battlenet_disconnected,
+            "battlenet_normal_available": self.battlenet_normal_available,
+            "battlenet_region": self.battlenet_region,
+            "rosbot_found_exe_name": self.rosbot_found_exe_name,
+            "rosbot_found_window_title": self.rosbot_found_window_title,
+            "rosbot_need_key_input": self.rosbot_need_key_input,
+            "rosbot_need_key_message": self.rosbot_need_key_message,
+            "rosbot_test_mode_display": self.rosbot_test_mode_display,
+            "rosbot_total_restart_count": self.rosbot_total_restart_count,
         }
 
     # ==================== Game State Methods (with callback notification) ====================
     # These methods are kept because they trigger callbacks
+
+    def set_battlenet_status(self, window_found: bool) -> bool:
+        """Set Battle.net window found status (from battlenet_status_provider). Notify callbacks. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.battlenet_window_found != window_found:
+                self.battlenet_window_found = window_found
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Battle.net: {'found' if window_found else 'not found'}")
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def get_battlenet_region(self) -> Optional[str]:
+        """Return cached Battle.net server region: \"asia\" | \"cn\" | None."""
+        with self._lock:
+            return self.battlenet_region
+
+    def set_battlenet_region(self, region: Optional[str]):
+        """Set Battle.net server region (asia/cn) when detected; used for UI and next detection. Notify callbacks."""
+        if region is not None and region not in ("asia", "cn"):
+            return
+        should_notify = False
+        with self._lock:
+            if self.battlenet_region != region:
+                self.battlenet_region = region
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Battle.net region: {region or 'unknown'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_rosbot_window_found(self, window_found: bool):
+        """Legacy: prefer set_rosbot_extended_status (rosbot_window_found is derived as status == 'paused'). Notify callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_window_found != window_found:
+                self.rosbot_window_found = window_found
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT window: {'found' if window_found else 'not found'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_rosbot_extended_status(self, status: str) -> bool:
+        """Set ROSBOT extended status: not_found | running | paused. Notify callbacks. Returns True if value changed."""
+        if status not in ("not_found", "running", "paused"):
+            return False
+        should_notify = False
+        with self._lock:
+            if self.rosbot_extended_status != status:
+                self.rosbot_extended_status = status
+                self.rosbot_window_found = status == "paused"
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT extended status: {status}")
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_rosbot_has_main_ui(self, has_main_ui: bool) -> bool:
+        """Set whether any UI is visible (True when status is paused). Notify callbacks. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_has_main_ui != has_main_ui:
+                self.rosbot_has_main_ui = has_main_ui
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_rosbot_found_display(self, exe_name: str = "", window_title: str = "") -> bool:
+        """Set found ROSBOT process name and window title for status bar (process:xxx.exe title:xxx). Notify callbacks. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_found_exe_name != exe_name or self.rosbot_found_window_title != window_title:
+                self.rosbot_found_exe_name = exe_name
+                self.rosbot_found_window_title = window_title
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_rosbot_ui_need_key(self, need_key_input: bool, message: str = ""):
+        """Set ROSBOT need-key state (from timer thread via refresh_rosbot_status). Main thread only reads from snapshot."""
+        with self._lock:
+            self.rosbot_need_key_input = need_key_input
+            self.rosbot_need_key_message = message or ""
 
     def set_rosbot_status(self, running: bool):
         """Set ROSBOT running status and notify callbacks"""
@@ -690,8 +946,30 @@ class D3InterfaceData(InterfaceDataBase):
         if should_notify:
             self._notify_callbacks()
 
-    def set_d3_status(self, running: bool):
-        """Set D3 running status and notify callbacks"""
+    def set_rosbot_flow_master_enabled(self, enabled: bool):
+        """Set master state (ROSBOT flow). Only written by d3utils.rosbot_flow_state; used for UI/callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_flow_master_enabled != enabled:
+                self.rosbot_flow_master_enabled = enabled
+                should_notify = True
+                ColorPrint.blue(f"[D3State] ROSBOT flow master: {'enabled' if enabled else 'disabled'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_ensure_battlenet_only_master_enabled(self, enabled: bool):
+        """Set Ensure Battle.net only. Only written by d3utils.rosbot_flow_state; used for UI/callbacks."""
+        should_notify = False
+        with self._lock:
+            if self.ensure_battlenet_only_master_enabled != enabled:
+                self.ensure_battlenet_only_master_enabled = enabled
+                should_notify = True
+                ColorPrint.blue(f"[D3State] Ensure Battle.net only: {'enabled' if enabled else 'disabled'}")
+        if should_notify:
+            self._notify_callbacks()
+
+    def set_d3_status(self, running: bool) -> bool:
+        """Set D3 running status and notify callbacks. Returns True if value changed."""
         should_notify = False
         with self._lock:
             if self.d3_running != running:
@@ -700,6 +978,86 @@ class D3InterfaceData(InterfaceDataBase):
                 ColorPrint.blue(f"[D3State] D3: {'Running' if running else 'Stopped'}")
         if should_notify:
             self._notify_callbacks()
+        return should_notify
+
+    def set_d3_just_entered_from_d13(self, value: bool) -> None:
+        """Set when D13 found D3 window with for_f2_only; next C1 tick uses d3_just_entered -> C7a (ROSBOT_FLOW_MERMAID)."""
+        with self._lock:
+            self.d3_just_entered_from_d13 = value
+
+    def get_and_clear_d3_just_entered_from_d13(self) -> bool:
+        """Return current value and clear. Flow master calls before start_extension_flow_c_branch to pass d3_just_entered."""
+        with self._lock:
+            v = self.d3_just_entered_from_d13
+            self.d3_just_entered_from_d13 = False
+            return v
+
+    def set_rosbot_disconnected_from_log(self, disconnected: bool) -> None:
+        """Set ROSBOT disconnection detected from logs (log_analyzer detects "WARN - Disconnected" or "Session Time out")."""
+        with self._lock:
+            self.rosbot_disconnected_from_log = disconnected
+
+    def get_and_clear_rosbot_disconnected_from_log(self) -> bool:
+        """Return current value and clear. Flow master checks this to trigger F4 when ROSBOT disconnection detected."""
+        with self._lock:
+            v = self.rosbot_disconnected_from_log
+            self.rosbot_disconnected_from_log = False
+            return v
+
+    def set_rosbot_total_restart_count(self, count: int) -> bool:
+        """Set ROSBOT total restart count. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if self.rosbot_total_restart_count != count:
+                self.rosbot_total_restart_count = count
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_d3_dynamic_status(
+        self,
+        on_login_screen: bool = False,
+        disconnected: bool = False,
+        in_game: bool = False,
+    ) -> bool:
+        """Set D3 dynamic state (priority: disconnected > on_login_screen > in_game). Notify callbacks. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if (
+                self.d3_on_login_screen != on_login_screen
+                or self.d3_disconnected != disconnected
+                or self.d3_in_game != in_game
+            ):
+                self.d3_on_login_screen = on_login_screen
+                self.d3_disconnected = disconnected
+                self.d3_in_game = in_game
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
+
+    def set_battlenet_dynamic_status(
+        self,
+        on_login_screen: bool = False,
+        disconnected: bool = False,
+        normal_available: bool = False,
+    ) -> bool:
+        """Set Battle.net dynamic state (same priority as D3). Notify callbacks. Returns True if value changed."""
+        should_notify = False
+        with self._lock:
+            if (
+                self.battlenet_on_login_screen != on_login_screen
+                or self.battlenet_disconnected != disconnected
+                or self.battlenet_normal_available != normal_available
+            ):
+                self.battlenet_on_login_screen = on_login_screen
+                self.battlenet_disconnected = disconnected
+                self.battlenet_normal_available = normal_available
+                should_notify = True
+        if should_notify:
+            self._notify_callbacks()
+        return should_notify
 
     def set_map_type(self, map_type: str):
         """Set map type and notify callbacks"""
@@ -724,30 +1082,64 @@ class D3InterfaceData(InterfaceDataBase):
             self._notify_callbacks()
 
     def register_callback(self, callback: Callable):
-        """Register state change callback"""
+        """Register state change callback. Callbacks are invoked only on main thread by the poll started with start_main_thread_poll."""
         with self._lock:
             self._callbacks.append(callback)
             ColorPrint.debug(f"[D3State] Callback registered: {callback.__name__}")
 
+    def get_state_snapshot(self) -> Dict:
+        """Thread-safe copy of state for UI. Call from any thread."""
+        with self._lock:
+            return {
+                "battlenet_window_found": self.battlenet_window_found,
+                "battlenet_region": self.battlenet_region,
+                "rosbot_window_found": self.rosbot_window_found,
+                "rosbot_has_main_ui": self.rosbot_has_main_ui,
+                "rosbot_extended_status": self.rosbot_extended_status,
+                "rosbot_running": self.rosbot_running,
+                "d3_running": self.d3_running,
+                "map_type": self.map_type,
+                "game_stage": self.game_stage,
+                "d3_on_login_screen": self.d3_on_login_screen,
+                "d3_disconnected": self.d3_disconnected,
+                "d3_in_game": self.d3_in_game,
+                "battlenet_on_login_screen": self.battlenet_on_login_screen,
+                "battlenet_disconnected": self.battlenet_disconnected,
+                "battlenet_normal_available": self.battlenet_normal_available,
+                "rosbot_found_exe_name": self.rosbot_found_exe_name,
+                "rosbot_found_window_title": self.rosbot_found_window_title,
+                "rosbot_need_key_input": self.rosbot_need_key_input,
+                "rosbot_need_key_message": self.rosbot_need_key_message,
+                "rosbot_test_mode_display": self.rosbot_test_mode_display,
+                "rosbot_total_restart_count": self.rosbot_total_restart_count,
+            }
+
+    def start_main_thread_poll(self, after_fn: Callable, interval_ms: int = 100):
+        """Start main-thread-only notification. Must be called from main thread (e.g. when UI is ready). after_fn(ms, callable) schedules callable on main thread."""
+        self._poll_after_fn = after_fn
+        self._poll_interval_ms = interval_ms
+        after_fn(interval_ms, self._drain_and_notify)
+
+    def _drain_and_notify(self):
+        """Runs on main thread only (scheduled by after). Schedule next first so one failing callback does not stop the poll."""
+        if self._poll_after_fn is not None:
+            self._poll_after_fn(self._poll_interval_ms, self._drain_and_notify)
+        state = self.get_state_snapshot()
+        with self._lock:
+            callbacks = self._callbacks.copy()
+        for callback in callbacks:
+            try:
+                callback(state)
+            except Exception:
+                pass
+
+    def notify_state_sync(self):
+        """State changed; UI will reflect on next main-thread poll (no cross-thread after)."""
+        pass
+
     def _notify_callbacks(self):
-        """Notify all registered callbacks"""
-        try:
-            callbacks = []
-            with self._lock:
-                callbacks = self._callbacks.copy()
-                state = {
-                    'rosbot_running': self.rosbot_running,
-                    'd3_running': self.d3_running,
-                    'map_type': self.map_type,
-                    'game_stage': self.game_stage
-                }
-            for callback in callbacks:
-                try:
-                    callback(state)
-                except Exception as e:
-                    ColorPrint.red(f"[D3State] Callback error: {e}")
-        except Exception as e:
-            ColorPrint.red(f"[D3State] Notify error: {e}")
+        """Deprecated: do not invoke callbacks from background thread. Poll on main thread only."""
+        pass
 
 
 # ============================================================================
@@ -887,6 +1279,60 @@ class D4InterfaceData(InterfaceDataBase):
 # Global shared instances
 _game_interface_data = None
 _d4_interface_data = None
+
+# ROSBOT flow (ROSBOT_FLOW_MERMAID): A8_Success -> run F2 next tick; F2 No -> E-block (panel submits do_rosbot_update)
+_a8_success_pending = False
+_e_block_after_f2_pending = False
+# When B7 (poll elements) has no operable UI for N ticks, tick sets this so controller runs D block (D3 tab, Play, region) once
+_request_d_block_from_b7 = False
+
+
+def set_a8_success_pending() -> None:
+    """Set when C block completes (A8_Success); task processor runs F2 chain next tick."""
+    global _a8_success_pending
+    _a8_success_pending = True
+
+
+def get_and_clear_a8_success_pending() -> bool:
+    """Consumed by task processor to run F2->F3->F4 or F2->E1."""
+    global _a8_success_pending
+    v = _a8_success_pending
+    _a8_success_pending = False
+    return v
+
+
+def set_e_block_after_f2_pending() -> None:
+    """Set when F2 returns No (ROSBOT not online); panel submits do_rosbot_update (E block)."""
+    global _e_block_after_f2_pending
+    _e_block_after_f2_pending = True
+
+
+def get_and_clear_e_block_after_f2_pending() -> bool:
+    """Consumed by panel on state sync to submit do_rosbot_update."""
+    global _e_block_after_f2_pending
+    v = _e_block_after_f2_pending
+    _e_block_after_f2_pending = False
+    return v
+
+
+def set_request_d_block_from_b7() -> None:
+    """Set by B7 when no operable elements for N ticks; controller runs D block (D3 tab, Play, region) once."""
+    global _request_d_block_from_b7
+    _request_d_block_from_b7 = True
+
+
+def get_request_d_block_from_b7() -> bool:
+    """Peek: True if B7 requested D block (no clear). Used to avoid running D when tick flow is on login screen."""
+    return _request_d_block_from_b7
+
+
+def get_and_clear_request_d_block_from_b7() -> bool:
+    """Consumed by ensure_battlenet_started_and_login_check to run D block (skip BN UI poll, run D1)."""
+    global _request_d_block_from_b7
+    v = _request_d_block_from_b7
+    _request_d_block_from_b7 = False
+    return v
+
 
 # Color sets cache (initialized once per color type)
 _color_cache: Dict[str, Set[Tuple[int, int, int]]] = {}
@@ -1145,11 +1591,11 @@ def update_global_scale(actual_width: int, actual_height: int):
     is_windowed = shared_data.is_windowed_mode()
     
     if is_windowed:
-        # Windowed mode: use actual dimensions (with title bar)
-        effective_actual_width = actual_width
-        effective_actual_height = actual_height
-        effective_standard_width = D3_STANDARD_RESOLUTION_WIDTH   # D3: 1826
-        effective_standard_height = D3_STANDARD_RESOLUTION_HEIGHT # D3: 1301
+        # Windowed mode: actual = outer (e.g. 1316x839); effective content = subtract borders (see scale convention above)
+        effective_actual_width = actual_width - (WINDOW_BORDER_LEFT + WINDOW_BORDER_RIGHT)
+        effective_actual_height = actual_height - (TITLE_BAR_HEIGHT + WINDOW_BORDER_BOTTOM)
+        effective_standard_width = D3_STANDARD_RESOLUTION_WIDTH   # 1300 content
+        effective_standard_height = D3_STANDARD_RESOLUTION_HEIGHT # 800 content
     else:
         # Fullscreen mode: add threshold to both dimensions (no title bar)
         effective_actual_width = actual_width + shared_data.WINDOW_HEIGHT_THRESHOLD
@@ -1181,6 +1627,7 @@ def get_global_scale() -> tuple:
 def get_game_interface_data() -> D3InterfaceData:
     """
     Get global shared game interface data instance (singleton)
+    On first initialization, reads Battle.net region from config file and sets it.
 
     Returns:
         Global D3InterfaceData instance
@@ -1189,8 +1636,69 @@ def get_game_interface_data() -> D3InterfaceData:
 
     if _game_interface_data is None:
         _game_interface_data = D3InterfaceData()
+        # Initialize Battle.net region from config file on first creation
+        _initialize_battlenet_region_from_config(_game_interface_data)
 
     return _game_interface_data
+
+
+def _find_last_login_region_recursive(obj):
+    """Recursively find Services.LastLoginRegion; config key containing Services is dynamic (e.g. install ID)."""
+    if not isinstance(obj, dict):
+        return None
+    services = obj.get(BATTLE_NET_CONFIG_SERVICES_KEY, {})
+    if isinstance(services, dict) and BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY in services:
+        val = services[BATTLE_NET_CONFIG_LAST_LOGIN_REGION_KEY]
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+        return val if isinstance(val, str) else None
+    for v in obj.values():
+        found = _find_last_login_region_recursive(v)
+        if found:
+            return found
+    return None
+
+
+def _initialize_battlenet_region_from_config(game_data: D3InterfaceData) -> None:
+    """
+    Initialize Battle.net region once at app startup. Source: config file on disk only (not memory).
+    Services.LastLoginRegion is under a dynamic key (install ID), search recursively. CN (case-insensitive) -> "cn"; non-CN (KR/US/EU/TW etc.) -> "asia".
+    """
+    config_path = Path(BATTLE_NET_CONFIG_PATH)
+    ColorPrint.gray(
+        f"[GameInterfaceData] BN region init (once at startup, from config file not memory): file={config_path} exists={config_path.exists()}"
+    )
+    if not config_path.exists():
+        ColorPrint.gray("[GameInterfaceData] BN region init: file missing, skip (region stays None)")
+        return
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            raw_text = f.read()
+    except OSError as e:
+        ColorPrint.yellow(f"[GameInterfaceData] Failed to read Battle.net config file: {e}")
+        return
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as e:
+        ColorPrint.yellow(f"[GameInterfaceData] Battle.net config JSON error: {e}")
+        ColorPrint.gray(f"[GameInterfaceData] BN region init: full config as debug:\n{raw_text[:3000]}\n--- end ---")
+        return
+    if not isinstance(data, dict):
+        ColorPrint.gray("[GameInterfaceData] BN region init: root not dict, full config as debug:\n{raw_text[:3000]}\n--- end ---")
+        return
+    last_login_region = _find_last_login_region_recursive(data)
+    ColorPrint.gray(
+        f"[GameInterfaceData] BN region init: read Services.LastLoginRegion={repr(last_login_region)}"
+    )
+    if not last_login_region or not isinstance(last_login_region, str):
+        ColorPrint.gray("[GameInterfaceData] BN region init: LastLoginRegion empty/invalid, printing full config as debug:")
+        ColorPrint.gray(f"[GameInterfaceData] --- Battle.net.config full text ---\n{raw_text}\n--- end ---")
+        return
+    # CN region -> "cn"; non-CN -> "asia"
+    is_cn = last_login_region.strip().upper() == BATTLE_NET_CONFIG_REGION_CN
+    region = "cn" if is_cn else "asia"
+    ColorPrint.gray(f"[GameInterfaceData] BN region init: -> region={region}")
+    game_data.set_battlenet_region(region)
 
 
 def clear_game_interface_data():
@@ -1264,8 +1772,8 @@ def optimize_image_for_processing(image: Image.Image, target_width: int = OPTIMI
     
     Args:
         image: Original PIL Image
-        target_width: Target width for optimization (default: 800)
-        target_height: Target height for optimization (default: 600)
+        target_width: Target width for optimization (default 570; was 800 at 1826x1301)
+        target_height: Target height for optimization (default 369; was 600 at 1826x1301)
         
     Returns:
         OptimizedImageData with both original and optimized images

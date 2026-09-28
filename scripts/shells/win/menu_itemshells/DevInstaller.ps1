@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Variable Declarations (all globals at top)
 $PSScriptRoot = Split-Path -Parent $PSCommandPath
 
@@ -21,12 +9,14 @@ $WIN_COMMON_DIR_NAME = "win_common"
 $INSTALLER_SCRIPTS_LIST_FILE = "InstallerScriptsList.ps1"
 
 # Path combinations
-$SCRIPTS_SHELLS_WIN_INSTALL_POWERSHELLS_PATH = "$SCRIPTS_PATH\$SHELLS_WIN_PATH\$INSTALL_POWERSHELLS_DIR_NAME"
-$SHELLS_WIN_INSTALL_POWERSHELLS_PATH = "$SHELLS_WIN_PATH\$INSTALL_POWERSHELLS_DIR_NAME"
+$SCRIPTS_SHELLS_WIN_INSTALL_POWERSHELLS_PATH = Join-Path (Join-Path $SCRIPTS_PATH $SHELLS_WIN_PATH) $INSTALL_POWERSHELLS_DIR_NAME
+$SHELLS_WIN_INSTALL_POWERSHELLS_PATH = Join-Path $SHELLS_WIN_PATH $INSTALL_POWERSHELLS_DIR_NAME
+$SCRIPTS_SHELLS_WIN_WIN_COMMON_PATH = Join-Path (Join-Path $SCRIPTS_PATH $SHELLS_WIN_PATH) $WIN_COMMON_DIR_NAME
+$SHELLS_WIN_WIN_COMMON_PATH = Join-Path $SHELLS_WIN_PATH $WIN_COMMON_DIR_NAME
 
 # Directory and path variables
-$USER_DIR = "$env:USERPROFILE\.core_node"
-$GLOBAL_VAR_DIR = Join-Path $USER_DIR ".global_vars"
+$USER_DIR = Join-Path "D:\www" "core_node"
+$GLOBAL_VAR_DIR = Join-Path $USER_DIR "global_var"
 $INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $INSTALL_POWERSHELLS_DIR_NAME
 $WIN_COMMON_DIR = Join-Path (Split-Path -Parent $PSScriptRoot) $WIN_COMMON_DIR_NAME
 
@@ -101,7 +91,7 @@ function Install-Script {
         return
     }
     
-    $script:downloadPath = Join-Path $USER_DIR "$SCRIPTS_SHELLS_WIN_INSTALL_POWERSHELLS_PATH\$scriptName"
+    $script:downloadPath = Join-Path (Join-Path $USER_DIR $SCRIPTS_SHELLS_WIN_INSTALL_POWERSHELLS_PATH) $scriptName
 
     Write-Host "Checking script: $scriptName" -ForegroundColor Cyan
 
@@ -115,13 +105,22 @@ function Install-Script {
 
     if ($shouldExecute) {
         Write-Host "Executing script: $actualScriptPath" -ForegroundColor Cyan
-        & $actualScriptPath $selectedRegion
+        $scriptLeaf = Split-Path -Leaf $actualScriptPath
+        $pythonExe = $null
+        if (Get-Command Resolve-InstallerStepPythonExe -ErrorAction SilentlyContinue) {
+            $pythonExe = Resolve-InstallerStepPythonExe
+        }
+        if (Get-Command Invoke-InstallerStepScript -ErrorAction SilentlyContinue) {
+            Invoke-InstallerStepScript -ScriptName $scriptLeaf -Region $selectedRegion -PythonExe $pythonExe | Out-Null
+        } else {
+            & $actualScriptPath $selectedRegion
+        }
     }
 }
 
 # Execute the main installation steps in order via a single source of truth
 # Smart load the steps list file using Invoke-SmartLoadScript
-$stepsListSubPath = Join-Path $SHELLS_WIN_INSTALL_POWERSHELLS_PATH $INSTALLER_SCRIPTS_LIST_FILE
+$stepsListSubPath = Join-Path $SHELLS_WIN_WIN_COMMON_PATH $INSTALLER_SCRIPTS_LIST_FILE
 $stepsList = Invoke-SmartLoadScript -SubPath $stepsListSubPath
 if (-not $stepsList) {
     throw "Failed to load steps list file"

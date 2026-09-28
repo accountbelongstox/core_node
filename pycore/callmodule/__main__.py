@@ -13,8 +13,20 @@ import argparse
 import sys
 from pathlib import Path
 
+from pycore.pylauncher.platform.windows_startup_manager import launch_windows_tray
+from pycore.pycore_module_caller import main as launch_service
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
+
+
+
 PYCORE_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PYCORE_ROOT))
+PROJECT_ROOT = PYCORE_ROOT.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyfoundations.system_paths import apply_shared_cache_env
+
+apply_shared_cache_env()
 
 
 def main():
@@ -22,14 +34,14 @@ def main():
     parser = argparse.ArgumentParser(description="Pycore Module Caller FastAPI Service")
     parser.add_argument(
         '--host',
-        default='0.0.0.0',
-        help='Host to bind to (default: 0.0.0.0 for all interfaces, use 127.0.0.1 for local only)'
+        default=HTTP_BIND_HOST,
+        help=f'Host to bind to (default: {HTTP_BIND_HOST} for all interfaces, use 127.0.0.1 for local only)'
     )
     parser.add_argument(
         '--port',
         type=int,
-        default=59000,
-        help='Port to bind to (default: 59000)'
+        default=PYCORE_HTTP_PORT,
+        help=f'Port to bind to (default: {PYCORE_HTTP_PORT})'
     )
     parser.add_argument(
         '--debug',
@@ -54,38 +66,16 @@ def main():
 
     args = parser.parse_args()
 
-    # Force specific mode if requested
     if args.tray:
-        from .platform.windows_tray import launch_windows_tray
         launch_windows_tray(host=args.host, port=args.port, debug=args.debug)
         return
 
-    if args.service or args.reload:
-        # Service mode or reload mode
-        from .global_config import init_global_config
-        from pycore.pyfoundations.third_party import get_third_package_uvicorn
-
-        init_global_config(
-            pycore_root=str(PYCORE_ROOT),
-            http_port=args.port,
-            host=args.host,
-            debug=args.debug
-        )
-
-        uvicorn = get_third_package_uvicorn()
-        uvicorn.run(
-            "pycore.callmodule.app:create_app",
-            host=args.host,
-            port=args.port,
-            reload=args.reload,
-            factory=True,
-            log_level="debug" if args.debug else "info"
-        )
-        return
-
-    # Platform-aware mode (default)
-    from .platform import launch_platform_aware
-    launch_platform_aware(host=args.host, port=args.port, debug=args.debug)
+    launch_service(
+        host=args.host,
+        port=args.port,
+        debug=args.debug,
+        reload=args.reload,
+    )
 
 
 if __name__ == '__main__':

@@ -11,11 +11,19 @@ from pathlib import Path
 from typing import Dict, Any
 import json
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.flutter_dev_tools.utils.pageview_updater import (
     update_pageview_map,
     cleanup_orphaned_entries,
     add_actual_image,
 )
+
+import traceback
+
+import tempfile
+
+
 
 
 def update_app_pageview_map(
@@ -45,8 +53,8 @@ def update_app_pageview_map(
     app_name = app_path.name
 
     try:
-        print(f"[PageViewUpdater] Updating pageview_map.json for: {app_name}")
-        print(f"[PageViewUpdater] Layer: {layer}, Force: {force}")
+        ColorPrint.plain(f"[PageViewUpdater] Updating pageview_map.json for: {app_name}")
+        ColorPrint.plain(f"[PageViewUpdater] Layer: {layer}, Force: {force}")
 
         # Update pageview map
         updated_map = update_pageview_map(
@@ -60,7 +68,6 @@ def update_app_pageview_map(
 
         # Save if there were orphaned entries
         if removed_count > 0:
-            import json
             pageview_map_path = design_docs_dir / "pageview_map.json"
             with open(pageview_map_path, 'w', encoding='utf-8') as f:
                 json.dump(updated_map, f, indent=2, ensure_ascii=False)
@@ -84,8 +91,7 @@ def update_app_pageview_map(
         }
 
     except Exception as e:
-        print(f"[ERROR] Failed to update pageview_map.json: {e}")
-        import traceback
+        ColorPrint.plain(f"[ERROR] Failed to update pageview_map.json: {e}")
         traceback.print_exc()
 
         return {
@@ -135,8 +141,11 @@ def upload_actual_image(
             }
 
         # Create temporary file for image
-        import tempfile
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix='.png',
+            dir=str(TMP_DIR),
+        ) as temp_file:
             temp_file.write(image_data)
             temp_path = Path(temp_file.name)
 
@@ -161,8 +170,7 @@ def upload_actual_image(
         return result
 
     except Exception as e:
-        print(f"[ERROR] Failed to upload actual image: {e}")
-        import traceback
+        ColorPrint.plain(f"[ERROR] Failed to upload actual image: {e}")
         traceback.print_exc()
 
         return {

@@ -350,7 +350,6 @@ File: ncore/utils/http_rpc/example_client.js
 
 ✅ PASS: Code style
    - All code in English ✅
-   - AI SPECIAL ATTENTION RULES present ✅
    - Proper variable declarations ✅
    - No test code ✅
 

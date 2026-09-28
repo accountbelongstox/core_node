@@ -1,25 +1,29 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1OtpService;
+use App\Models\AppModel;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class CodeMartV1UserModel extends Model
+class CodeMartV1UserModel extends AppModel
 {
+    use RunsModelTransactions;
+
     protected $table = 'users';
+
+    /**
+     * Global Laravel identity is the only login identity: the shared users
+     * table lives on the default connection, not the CodeMart database.
+     */
+    protected ?string $appKey = null;
+
+    public function getConnectionName(): ?string
+    {
+        return config('database.default');
+    }
 
     protected $fillable = [
         'username',
@@ -94,5 +98,40 @@ class CodeMartV1UserModel extends Model
             ->where('role_status', 'active')
             ->pluck('role_type')
             ->toArray();
+    }
+
+    public static function findByEmail(string $email): ?self
+    {
+        return static::query()->where('email', $email)->first();
+    }
+
+    public static function findRegistration(int $userId): ?self
+    {
+        return static::query()->with(['userRoles', 'phoneVerifications', 'kycVerification'])->find($userId);
+    }
+
+    public function hasVerifiedPhone(): bool
+    {
+        if ($this->relationLoaded('phoneVerifications')) {
+            return $this->phoneVerifications->contains(fn ($verification): bool => $verification->verified_at !== null);
+        }
+
+        return $this->phoneVerifications()->whereNotNull('verified_at')->exists();
+    }
+
+    public function roleStatusMap(): array
+    {
+        if ($this->relationLoaded('userRoles')) {
+            return $this->userRoles->pluck('role_status', 'role_type')->toArray();
+        }
+
+        return $this->userRoles()->pluck('role_status', 'role_type')->toArray();
+    }
+
+    public function isRegistrationComplete(): bool
+    {
+        return $this->email_verified_at !== null
+            && ($this->hasVerifiedPhone() || !CodeMartV1OtpService::smsDeliveryAvailable())
+            && ($this->kycVerification?->isApproved() ?? false);
     }
 }

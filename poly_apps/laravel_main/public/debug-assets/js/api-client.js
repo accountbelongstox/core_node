@@ -1,15 +1,11 @@
 /**
  * Unified API Client
  * Centralized API endpoint definitions and methods
- * Usage: ApiClient.json(ApiClient.PointUrlKey.ENDPOINT_KEY, 'GET', data)
+ * Contract: every method resolves with the parsed JSON body - never a fetch Response.
+ * Usage: apiClientInstance.json(ApiClient.PointUrlKey.ENDPOINT_KEY, 'GET', data)
  */
 
 class ApiClient {
-    constructor() {
-        this.csrfToken = this.getCsrfToken();
-        this.authToken = localStorage.getItem('auth_token');
-    }
-
     getCsrfToken() {
         const meta = document.querySelector('meta[name="csrf-token"]');
         if (!meta) {
@@ -61,129 +57,72 @@ class ApiClient {
             try {
                 errorData = JSON.parse(errorText);
             } catch (e) {
-                errorData = { message: errorText || 'Request failed', status: response.status };
+                errorData = { message: errorText || 'Request failed' };
             }
-            throw new Error(errorData.message || 'Request failed');
+            const error = new Error(errorData.message || 'Request failed');
+            error.status = response.status;
+            throw error;
         }
         return response.json();
     }
 
-    async get(url, options = {}) {
-        const headers = options.headers;
-        const includeAuth = options.includeAuth;
-        const restOptions = Object.assign({}, options);
-        delete restOptions.headers;
-        delete restOptions.includeAuth;
-
-        return this.request(url, {
-            method: 'GET',
-            headers: this.buildHeaders(headers, includeAuth, false),
-            ...restOptions
-        });
-    }
-
-    async post(url, data = null, options = {}) {
-        const headers = options.headers;
-        const includeAuth = options.includeAuth;
-        const restOptions = Object.assign({}, options);
-        delete restOptions.headers;
-        delete restOptions.includeAuth;
+    async send(url, method, data, options = {}) {
+        const { headers, includeAuth, ...fetchOptions } = options;
         const isFormData = data instanceof FormData;
 
         const requestOptions = {
-            method: 'POST',
-            headers: this.buildHeaders(headers, includeAuth, isFormData),
-            ...restOptions
+            ...fetchOptions,
+            method: method,
+            headers: this.buildHeaders(headers, includeAuth, isFormData)
         };
 
-        if (data) {
+        if (data !== null && data !== undefined) {
             requestOptions.body = isFormData ? data : JSON.stringify(data);
         }
 
         return this.request(url, requestOptions);
     }
 
-    async put(url, data = null, options = {}) {
-        const headers = options.headers;
-        const includeAuth = options.includeAuth;
-        const restOptions = Object.assign({}, options);
-        delete restOptions.headers;
-        delete restOptions.includeAuth;
-
-        const requestOptions = {
-            method: 'PUT',
-            headers: this.buildHeaders(headers, includeAuth, false),
-            ...restOptions
-        };
-
-        if (data) {
-            requestOptions.body = JSON.stringify(data);
-        }
-
-        return this.request(url, requestOptions);
+    get(url, options = {}) {
+        return this.send(url, 'GET', null, options);
     }
 
-    async delete(url, options = {}) {
-        const headers = options.headers;
-        const includeAuth = options.includeAuth;
-        const restOptions = Object.assign({}, options);
-        delete restOptions.headers;
-        delete restOptions.includeAuth;
-
-        return this.request(url, {
-            method: 'DELETE',
-            headers: this.buildHeaders(headers, includeAuth, false),
-            ...restOptions
-        });
+    post(url, data = null, options = {}) {
+        return this.send(url, 'POST', data, options);
     }
 
-    async patch(url, data = null, options = {}) {
-        const headers = options.headers;
-        const includeAuth = options.includeAuth;
-        const restOptions = Object.assign({}, options);
-        delete restOptions.headers;
-        delete restOptions.includeAuth;
+    put(url, data = null, options = {}) {
+        return this.send(url, 'PUT', data, options);
+    }
 
-        const requestOptions = {
-            method: 'PATCH',
-            headers: this.buildHeaders(headers, includeAuth, false),
-            ...restOptions
-        };
+    delete(url, options = {}) {
+        return this.send(url, 'DELETE', null, options);
+    }
 
-        if (data) {
-            requestOptions.body = JSON.stringify(data);
-        }
-
-        return this.request(url, requestOptions);
+    patch(url, data = null, options = {}) {
+        return this.send(url, 'PATCH', data, options);
     }
 
     async json(url, method = 'GET', data = null, options = {}) {
-        let response;
-
         switch (method.toUpperCase()) {
             case 'GET':
-                response = await this.get(url, options);
-                break;
+                return this.get(url, options);
             case 'POST':
-                response = await this.post(url, data, options);
-                break;
+                return this.post(url, data, options);
             case 'PUT':
-                response = await this.put(url, data, options);
-                break;
+                return this.put(url, data, options);
             case 'DELETE':
-                response = await this.delete(url, options);
-                break;
+                return this.delete(url, options);
             case 'PATCH':
-                response = await this.patch(url, data, options);
-                break;
+                return this.patch(url, data, options);
             default:
                 throw new Error(`Unsupported HTTP method: ${method}`);
         }
-
-        return response.json();
     }
 
     async initCsrfToken() {
+        // Raw fetch: runs before the CSRF meta tag exists, so it must not go
+        // through send()/buildHeaders() (getCsrfToken() would recurse).
         try {
             const response = await fetch('/csrf-token');
             const data = await response.json();
@@ -196,7 +135,6 @@ class ApiClient {
                 metaTag.setAttribute('content', data.csrf_token);
                 document.head.appendChild(metaTag);
             }
-            this.csrfToken = data.csrf_token;
         } catch (error) {
             console.error('Failed to initialize CSRF token:', error);
         }
@@ -281,7 +219,10 @@ ApiClient.PointUrlKey = {
     TTS_GENERATE: '/tts/generate',
 
     // Translation
-    TRANSLATION_GOOGLE: '/translation/simple/google'
+    TRANSLATION_GOOGLE: '/translation/simple/google',
+
+    // Dashboard Database Viewer (auth required)
+    DB_VIEWER_TABLES: '/api/dashboard/db-viewer/tables'
 };
 
 const apiClientInstance = new ApiClient();

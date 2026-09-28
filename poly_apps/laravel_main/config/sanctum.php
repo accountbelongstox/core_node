@@ -1,18 +1,23 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
-
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use App\Support\ServiceContract;
 use Laravel\Sanctum\Sanctum;
+
+$statefulDomains = [Sanctum::currentApplicationUrlWithPort(), ServiceContract::host('ipv6_loopback')];
+$statefulPorts = [
+    ServiceContract::port('nexus_dash_frontend'),
+    ServiceContract::port('voice_api_local'),
+    ServiceContract::port('laravel_api_backend'),
+];
+
+foreach (ServiceContract::stringList('access.service_host_keys.browserAccess') as $hostKey) {
+    $host = ServiceContract::host($hostKey);
+    $statefulDomains[] = $host;
+    foreach ($statefulPorts as $port) {
+        $statefulDomains[] = $host.':'.$port;
+    }
+}
 
 return [
 
@@ -27,12 +32,7 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:3000,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort(),
-        env('FRONTEND_URL') ? ','.parse_url(env('FRONTEND_URL'), PHP_URL_HOST) : ''
-    ))),
+    'stateful' => array_values(array_unique(array_filter($statefulDomains))),
 
     /*
     |--------------------------------------------------------------------------
@@ -74,7 +74,7 @@ return [
     |
     */
 
-    'token_prefix' => env('SANCTUM_TOKEN_PREFIX', ''),
+    'token_prefix' => 'core-node-',
 
     /*
     |--------------------------------------------------------------------------
@@ -90,7 +90,7 @@ return [
     'middleware' => [
         'authenticate_session' => Laravel\Sanctum\Http\Middleware\AuthenticateSession::class,
         'encrypt_cookies' => Illuminate\Cookie\Middleware\EncryptCookies::class,
-        'validate_csrf_token' => Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+        'validate_csrf_token' => PreventRequestForgery::class,
     ],
 
 ];

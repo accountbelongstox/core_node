@@ -1,0 +1,76 @@
+{
+  "task_id": "laravel-T4",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "LB-011": {
+      "status": "fixed",
+      "reason": "tick() checkpoints its lane's task state into the heartbeat file, merged under LOCK_EX per lane. stateSet always updates the in-process store, so the snapshot is complete on every runtime. A new schedule:run process seeds last_run from it, so long intervals survive the per-minute restart."
+    },
+    "LB-012": {
+      "status": "fixed",
+      "reason": "EXECUTION_BACKGROUND is implemented: on non-Swoole runtimes the heartbeat skips background-lane tasks, and octane-timer:background (scheduled every minute, runInBackground + withoutOverlapping(5)) runs them on its own one-second loop for about 59 s. AI calls, archive work, DataSync and certbot no longer stall the 1 s heartbeat tasks. This also moves the laravel-T3 timer-side work off the heartbeat."
+    },
+    "LB-013": {
+      "status": "fixed",
+      "reason": "Batched dict lanes exclude words carried by live claim tasks (database payloads) and materialize one lane+language at a time under a shared cache lock; per-thread statics are only a local hint."
+    },
+    "LB-014": {
+      "status": "fixed",
+      "reason": "Word and sentence TTS controllers discard the completed spool once the report is stored; a complete spool that fails the whole-file hash is deleted (the retry restarts at 0); AppQyV1OffsetSpoolSweepTask removes spools idle for a day."
+    },
+    "LB-026": {
+      "status": "fixed",
+      "reason": "Orch-audio detail resolves word audio passively in one dictionary query per language (resolvePassiveBatch); requestWordBatch is correctly not reused because it enqueues and moves words to the head."
+    },
+    "LB-027": {
+      "status": "fixed",
+      "reason": "Batch ingest takes sorted, transaction-scoped advisory locks on its task keys before the read-then-write, so concurrent first ingests serialize instead of failing with 500."
+    },
+    "LB-029": {
+      "status": "fixed",
+      "reason": "The sorted pair index is cached per language, keyed by the public libraries' ids + updated_at (5 min TTL), and page requests slice it."
+    },
+    "LB-030": {
+      "status": "fixed",
+      "reason": "UserConfigService::set serializes on a sidecar lock and writes through FileSystemManager::writeFileAtomic, so readers never see a truncated file."
+    },
+    "LB-031": {
+      "status": "fixed",
+      "reason": "Completed rows are no longer claim candidates; the route stays for laravel-manager's counts-only summary (client.key_or_dashboard per the route table)."
+    },
+    "LB-033": {
+      "status": "refuted_disputed",
+      "reason": "Deferred with a reason: the unattended --service run now keys on Test-ProcessOwnedByDirectory. The interactive run still stops unowned worker lanes, because an orphaned relative 'php artisan' lane has no owner evidence on Windows. Narrowing it needs a user/shell ruling; the orchestrator should record it. Ruling (requirements section 7.2): laravel fixes start.ps1 with a project-artisan-path match in laravel-T7; reviewed there."
+    },
+    "X4": {
+      "status": "refuted_disputed",
+      "reason": "Deferred to the contract: changing Laravel's md5 identity would re-key existing rows. The recommended contract rule (word identity = md5 of the exact stored content; pycore uses the md5 from the task payload) needs an orchestrator decision and a pycore-4 follow-up. Ruling (requirements section 7.2): word identity = md5 of the exact stored content, sent by Laravel in the payload and never recomputed by pycore; the contract field follows once laravel names it."
+    },
+    "RV-001": {
+      "status": "fixed",
+      "reason": "Laravel side: device events get a server-assigned monotonic outbox revision per (entity, event type) under a pg advisory transaction lock with a time floor; a retry carrying the same metadata as the latest entry is a no-op, so the insertOrIgnore LogicException/500 path is gone."
+    },
+    "RV-002": {
+      "status": "fixed",
+      "reason": "Laravel side: page-data accepts the same queue set as the lane diff (every contract task type, including article_audio)."
+    },
+    "RV-004": {
+      "status": "fixed",
+      "reason": "Laravel side: the unused QueueCenterContract::taskStreamEvent adapter is removed; the mcp-chrome consumer is removed (mcp-chrome-4), and the contract block is the orchestrator's."
+    },
+    "RV-007": {
+      "status": "fixed",
+      "reason": "Partly: realtime event names and the topic come from the contract in the assist, translation, connection, outbox and queue-center services. The synthetic heads (cover/poster payloads carry library/media ids, not global task ids) are a consumer/contract matter, recorded for pycore and the orchestrator. Ruling (requirements section 7.2): cover/poster heads are keyed by the assist request id (contract realtime.head_keys) and pycore drops its synthetic heads."
+    },
+    "RV-011": {
+      "status": "fixed",
+      "reason": "A change inside the 1 s window marks it pending, and one deferred callback per window emits the trailing queue.changed."
+    }
+  },
+  "issues": [
+    "(resolved by ruling) LB-033 -> laravel-T7; X4 and RV-007 -> contract fields plus pycore-4/laravel follow-ups per requirements section 7.2."
+  ],
+  "checks": "OctaneTimerService (lanes, snapshot merge, backgroundLoop), routes/console.php, the offset-upload service and TTS controller, and the RelayOutboxRepository revision diffs read; stateGet/stateSet confirmed to keep the in-process store on every runtime. The other T4 files were read only as the report's per-finding summaries plus diffstat; no problems noticed.",
+  "checked_at": "2026-09-27T04:38:26+10:00"
+}

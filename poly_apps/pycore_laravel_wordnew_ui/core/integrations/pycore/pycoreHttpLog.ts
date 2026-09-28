@@ -1,0 +1,93 @@
+/**
+ * pycoreHttpLog - global in-memory ring buffer of HTTP request records for
+ * shared HTTP diagnostics consumers. Holds BOTH directions:
+ *
+ *   - direction 'pycore': FE -> pycore requests. Instrumented at the two FE
+ *     choke points: PycoreHttp.requestPycoreHttp and PycoreApi HTTP helpers.
+ *   - direction 'laravel': pycore -> Laravel requests. Relayed from the backend
+ *     'laravel_http' HTTP event (LaravelHttpRecorder -> event journal) by
+ *     PcLiveContext, which calls appendHttpDebug on each event.
+ *
+ * Framework-free pub/sub ring (mirrors logstore/logStore.ts), capped at the last
+ * MAX entries. Not persisted. useSyncExternalStore-friendly.
+ */
+export type HttpDirection = 'pycore' | 'laravel';
+
+export interface HttpDebugRecord {
+  id: number;
+  /** Epoch ms. */
+  ts: number;
+  direction: HttpDirection;
+  /** HTTP verb used by the request. */
+  method: string;
+  /** Named HTTP controller route. */
+  route?: string;
+  /** Optional legacy router path carried as HTTP params. */
+  path: string;
+  /** Full URL when available (HTTP path / laravel url). */
+  fullUrl?: string;
+  /** Compact params/body summary (long strings + base64 truncated). */
+  paramsSummary: string;
+  /** HTTP status (0 = transport error / HTTP rejection). */
+  status: number;
+  /** Round-trip duration (ms). */
+  ms: number;
+  error?: string | null;
+  transport?: string;
+  httpVersion?: string;
+  progress?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  transferId?: string;
+  phase?: string;
+}
+
+export const MAX_HTTP_ENTRIES = 500;
+
+let nextId = 1;
+let entries: HttpDebugRecord[] = [];
+const listeners = new Set<() => void>();
+
+/** Snapshot for useSyncExternalStore - stable reference between appends. */
+export function getHttpDebugEntries(): HttpDebugRecord[] {
+  return entries;
+}
+
+export function subscribeHttpDebug(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+export function appendHttpDebug(rec: Omit<HttpDebugRecord, 'id' | 'ts'>): void {
+  // Replace (not mutate) so React snapshot comparison sees a change.
+  const next = entries.length >= MAX_HTTP_ENTRIES
+    ? entries.slice(entries.length - MAX_HTTP_ENTRIES + 1)
+    : entries.slice();
+  next.push({ id: nextId++, ts: Date.now(), ...rec });
+  entries = next;
+  listeners.forEach((l) => l());
+}
+
+export function clearHttpDebug(): void {
+  entries = [];
+  listeners.forEach((l) => l());
+}
+
+/**
+ * Compact a params/body value into a short string for the debugger. Long strings
+ * (base64 payloads, big bodies) are truncated BEFORE stringify so a megabyte
+ * upload never becomes a megabyte string first.
+ */
+export function summarizeHttpParams(value: unknown): string {
+  if (value == null) return '';
+  if (typeof FormData !== 'undefined' && value instanceof FormData) return '[FormData]';
+  try {
+    const s = JSON.stringify(value, (key, item) => {
+      if (/password|token|authorization|credential|secret/i.test(key)) return '<redacted>';
+      return typeof item === 'string' && item.length > 120 ? item.slice(0, 120) + '…' : item;
+    });
+    return s.length > 240 ? s.slice(0, 240) + '…' : s;
+  } catch {
+    return String(value).slice(0, 240);
+  }
+}

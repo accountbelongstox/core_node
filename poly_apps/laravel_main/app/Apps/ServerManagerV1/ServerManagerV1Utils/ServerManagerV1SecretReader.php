@@ -2,21 +2,21 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
-use App\Helpers\GlobalSecretReader;
+use App\Utils\SecretStore;
 
 /**
  * ServerManagerV1 Secret Reader
- * @deprecated Use App\Helpers\GlobalSecretReader instead
+ * @deprecated Use App\Utils\SecretStore instead
  */
 class ServerManagerV1SecretReader
 {
     /**
      * Get secret content by key name
-     * @deprecated Use GlobalSecretReader::getSecretContent() instead
+     * @deprecated Use SecretStore::get() instead
      */
     public static function getSecretContent(string $keyName): ?string
     {
-        $content = GlobalSecretReader::getSecretContent($keyName);
+        $content = SecretStore::get($keyName);
         return $content !== '' ? $content : null;
     }
 }

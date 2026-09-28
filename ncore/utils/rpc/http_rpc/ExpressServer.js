@@ -1,4 +1,5 @@
 const logger = require('#@logger');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 const expressProvider = require('./provider/expressProvider');
 const rpcCommon = require('../common');
 const StaticServer = require('./libs/StaticServer.js');
@@ -74,8 +75,12 @@ class ExpressServer {
         await this.wsManager.start(this.config);
 
         const serverPort = this.config.HTTP_PORT || 3000;
-        const serverHost = this.config.HTTP_HOST || '0.0.0.0';
-        const localIp = this.getLocalIp();
+        const serverHost = localRpcGuard.resolveBindHost(this.config.HTTP_HOST);
+        const localIp = localRpcGuard.isLoopbackBind(serverHost) ? serverHost : this.getLocalIp();
+
+        if (!localRpcGuard.isLoopbackBind(serverHost)) {
+            logger.warn(`Express Server binds ${serverHost}: non-loopback callers need a client key signature`);
+        }
 
         this.server = expressProvider.getServerApp();
 

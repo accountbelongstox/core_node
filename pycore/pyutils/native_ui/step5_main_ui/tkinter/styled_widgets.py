@@ -14,7 +14,7 @@ Features:
 - Easy customization
 
 Usage:
-    from pycore.pyutils.native_ui.tkinter import StyledWidgets
+    from pycore.pyutils.native_ui.step5_main_ui.tkinter.styled_widgets import StyledWidgets
     import tkinter as tk
 
     root = tk.Tk()
@@ -45,7 +45,7 @@ Author: Extracted from d3-check, generalized for pycore
 
 from typing import Optional, Callable
 
-from pycore.pyfoundations.third_party import get_third_package_tkinter
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
 from pycore.pyutils.native_ui.step5_main_ui.tkinter.theme_system import ThemeSystem
 
 # Get tkinter via third_party manager (auto-installs python3-tk on Linux)

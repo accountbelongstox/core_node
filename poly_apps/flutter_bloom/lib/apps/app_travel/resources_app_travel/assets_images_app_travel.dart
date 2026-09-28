@@ -1,21 +1,16 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /// Travel app image assets
 /// Uses standardized paths: assets/apps/app_travel/images/
 /// All asset keys have 'travel' prefix as required by documentation
 class AssetsImagesAppTravel {
   static const String _baseNav = 'assets/apps/app_travel/images/nav';
   static const String _baseUpload = 'assets/apps/app_travel/images/upload';
+
+  // Bottom nav tab icons (image + label, no icon font)
+  static const String travelNavTabHome = 'assets/apps/app_travel/images/nav_tab_home.png';
+  static const String travelNavTabJourney = 'assets/apps/app_travel/images/nav_tab_journey.png';
+  static const String travelNavTabService = 'assets/apps/app_travel/images/nav_tab_service.png';
+  static const String travelNavTabExplore = 'assets/apps/app_travel/images/nav_tab_explore.png';
+  static const String travelNavTabMine = 'assets/apps/app_travel/images/nav_tab_mine.png';
 
   // Navigation Icons
   static const String travelNavHotel = '$_baseNav/grid-nav-items-hotel@v7.15.png';
@@ -73,7 +68,7 @@ class AssetsImagesAppTravel {
   ];
 
   // Swiper Banner Images
-  static const String travelSwiperPromoFood = '$_baseUpload/carousel_promo_food_001.jpg';
+  static const String travelSwiperPromoFood = '$_baseUpload/carousel_promo_food_001.png';
   static const String travelSwiper1 = '$_baseUpload/zg0516000000zifq4FC3C.jpg';
   static const String travelSwiper2 = '$_baseUpload/zg0a15000000ypf1tBC70.jpg';
   static const String travelSwiper3 = '$_baseUpload/zg0e15000000yqzweE43E.jpg';

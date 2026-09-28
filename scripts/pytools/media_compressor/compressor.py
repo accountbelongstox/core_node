@@ -46,7 +46,7 @@ except ImportError:
     )
 
 try:
-    from pycore.pyutils import MediaCompressor as UnifiedMediaCompressor
+    from pycore.pyutils.image_tools.media_compressor import MediaCompressor as UnifiedMediaCompressor
 
     UNIFIED_COMPRESSOR_AVAILABLE = True
 except ImportError:  # pragma: no cover - optional dependency

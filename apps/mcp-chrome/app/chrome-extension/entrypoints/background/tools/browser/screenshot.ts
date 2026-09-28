@@ -1,8 +1,10 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { TIMEOUTS, ERROR_MESSAGES } from '@/common/constants';
+import { delay as waitForDelay } from '@/utils/async';
+import { withDebuggerSession } from '@/utils/debugger-session';
 import {
   canvasToDataURL,
   createImageBitmapFromUrl,
@@ -28,10 +30,22 @@ const SCREENSHOT_CONSTANTS = {
   readonly SCRIPT_INIT_DELAY: number;
 };
 
-SCREENSHOT_CONSTANTS["CAPTURE_STITCH_DELAY_MS"] = Math.max(1000 / chrome.tabs.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND - SCREENSHOT_CONSTANTS.SCROLL_DELAY_MS, SCREENSHOT_CONSTANTS.CAPTURE_STITCH_DELAY_MS)
+// MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND is Chromium-only; on Firefox the
+// browser-shim aliases chrome to browser, where it is undefined. Guard the
+// computation so 1000/undefined (= NaN) does not poison Math.max and silently
+// drop the stitch throttle to 0; keep the default 50ms floor otherwise.
+{
+  const captureRate = (chrome.tabs as any).MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND;
+  if (typeof captureRate === 'number' && captureRate > 0) {
+    SCREENSHOT_CONSTANTS["CAPTURE_STITCH_DELAY_MS"] = Math.max(
+      1000 / captureRate - SCREENSHOT_CONSTANTS.SCROLL_DELAY_MS,
+      SCREENSHOT_CONSTANTS.CAPTURE_STITCH_DELAY_MS,
+    );
+  }
+}
 
 interface ScreenshotToolParams {
-  name: string;
+  name?: string;
   selector?: string;
   width?: number;
   height?: number;
@@ -39,6 +53,9 @@ interface ScreenshotToolParams {
   fullPage?: boolean;
   savePng?: boolean;
   maxHeight?: number; // Maximum height to capture in pixels (for infinite scroll pages)
+  tabId?: number;
+  windowId?: number;
+  background?: boolean;
 }
 
 /**
@@ -57,16 +74,16 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       storeBase64 = false,
       fullPage = false,
       savePng = true,
+      background = false,
     } = args;
 
     console.log(`Starting screenshot with options:`, args);
 
-    // Get current tab
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tabs[0]) {
+    const explicitTab = await this.tryGetTab(args.tabId);
+    const tab = explicitTab || (await this.getActiveTabOrThrowInWindow(args.windowId));
+    if (!tab?.id) {
       return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
     }
-    const tab = tabs[0];
 
     // Check URL restrictions
     if (
@@ -83,11 +100,15 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     let finalImageDataUrl: string | undefined;
     const results: any = { base64: null, fileSaved: false };
     let originalScroll = { x: 0, y: 0 };
+    const [previousActiveTab] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+    const useCdpCapture = !fullPage && !selector && (background || typeof args.tabId === 'number');
+    const shouldActivate = !useCdpCapture && previousActiveTab?.id !== tab.id;
 
     try {
+      if (shouldActivate) await chrome.tabs.update(tab.id, { active: true });
       await this.injectContentScript(tab.id!, ['inject-scripts/screenshot-helper.js']);
       // Wait for script initialization
-      await new Promise((resolve) => setTimeout(resolve, SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY));
+      await waitForDelay(SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY);
       // 1. Prepare page (hide scrollbars, potentially fixed elements)
       await this.sendMessageToTab(tab.id!, {
         action: TOOL_MESSAGE_TYPES.SCREENSHOT_PREPARE_PAGE_FOR_CAPTURE,
@@ -109,7 +130,9 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       } else {
         // Visible area only
         this.logInfo('Capturing visible area...');
-        finalImageDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+        finalImageDataUrl = useCdpCapture
+          ? await this._captureViewport(tab.id)
+          : await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
       }
 
       if (!finalImageDataUrl) {
@@ -128,15 +151,7 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
         // Include base64 data in response (without prefix)
         const base64Data = compressed.dataUrl.replace(/^data:image\/[^;]+;base64,/, '');
         results.base64 = base64Data;
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({ base64Data, mimeType: compressed.mimeType }),
-            },
-          ],
-          isError: false,
-        };
+        return createJsonResponse({ base64Data, mimeType: compressed.mimeType });
       }
 
       if (savePng === true) {
@@ -161,7 +176,7 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
           // Try to get the full file path
           try {
             // Wait a moment to ensure download info is updated
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await waitForDelay(100);
 
             // Search for download item to get full path
             const [downloadItem] = await chrome.downloads.search({ id: downloadId });
@@ -174,13 +189,13 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
           }
         } catch (error) {
           console.error('Error saving PNG file:', error);
-          results.saveError = String(error instanceof Error ? error.message : error);
+          results.saveError = toErrorMessage(error);
         }
       }
     } catch (error) {
       console.error('Error during screenshot execution:', error);
       return createErrorResponse(
-        `Screenshot error: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+        `Screenshot error: ${toErrorMessage(error)}`,
       );
     } finally {
       // 3. Reset page
@@ -193,26 +208,25 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       } catch (err) {
         console.warn('Failed to reset page, tab might have closed:', err);
       }
+      if (shouldActivate && previousActiveTab?.id) {
+        try {
+          await chrome.tabs.update(previousActiveTab.id, { active: true });
+        } catch {
+          // The previously active tab may have closed during capture.
+        }
+      }
     }
 
     this.logInfo('Screenshot completed!');
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            message: `Screenshot [${name}] captured successfully`,
-            tabId: tab.id,
-            url: tab.url,
-            name: name,
-            ...results,
-          }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({
+      success: true,
+      message: `Screenshot [${name}] captured successfully`,
+      tabId: tab.id,
+      url: tab.url,
+      name,
+      ...results,
+    });
   }
 
   /**
@@ -220,6 +234,16 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
    */
   private logInfo(message: string) {
     console.log(`[Screenshot Tool] ${message}`);
+  }
+
+  private async _captureViewport(tabId: number): Promise<string> {
+    const response = await withDebuggerSession(tabId, async (target) => chrome.debugger.sendCommand(
+      target,
+      'Page.captureScreenshot',
+      { format: 'png', fromSurface: true },
+    )) as { data?: string };
+    if (!response.data) throw new Error('Page.captureScreenshot returned no data');
+    return `data:image/png;base64,${response.data}`;
   }
 
   /**
@@ -247,9 +271,10 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     };
 
     // Small delay to ensure element is fully rendered after scrollIntoView
-    await new Promise((resolve) => setTimeout(resolve, SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY));
+    await waitForDelay(SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY);
 
-    const visibleCaptureDataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
+    const tab = await chrome.tabs.get(tabId);
+    const visibleCaptureDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
     if (!visibleCaptureDataUrl) {
       throw new Error('Failed to capture visible tab for element cropping');
     }
@@ -320,7 +345,8 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
         setTimeout(resolve, SCREENSHOT_CONSTANTS.CAPTURE_STITCH_DELAY_MS),
       );
 
-      const dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
+      const tab = await chrome.tabs.get(tabId);
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
       if (!dataUrl) throw new Error('captureVisibleTab returned empty during full page capture');
 
       const yOffsetPx = currentScrollYCss * dpr;
@@ -359,38 +385,45 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     this.logInfo('Stitching image...');
     const finalCanvas = await stitchImages(capturedParts, totalWidthPx, totalHeightPx);
 
-    // If user specified width but not height (or vice versa for full page), resize maintaining aspect ratio
-    let outputCanvas = finalCanvas;
-    if (options.width && !options.height) {
-      const targetWidthPx = options.width * dpr;
-      const aspectRatio = finalCanvas.height / finalCanvas.width;
-      const targetHeightPx = targetWidthPx * aspectRatio;
-      outputCanvas = new OffscreenCanvas(targetWidthPx, targetHeightPx);
-      const ctx = outputCanvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(finalCanvas, 0, 0, targetWidthPx, targetHeightPx);
-      }
-    } else if (options.height && !options.width) {
-      const targetHeightPx = options.height * dpr;
-      const aspectRatio = finalCanvas.width / finalCanvas.height;
-      const targetWidthPx = targetHeightPx * aspectRatio;
-      outputCanvas = new OffscreenCanvas(targetWidthPx, targetHeightPx);
-      const ctx = outputCanvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(finalCanvas, 0, 0, targetWidthPx, targetHeightPx);
-      }
-    } else if (options.width && options.height) {
-      // Both specified, direct resize
-      const targetWidthPx = options.width * dpr;
-      const targetHeightPx = options.height * dpr;
-      outputCanvas = new OffscreenCanvas(targetWidthPx, targetHeightPx);
-      const ctx = outputCanvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(finalCanvas, 0, 0, targetWidthPx, targetHeightPx);
-      }
-    }
+    // If user specified dimensions, resize the stitched canvas
+    const outputCanvas = this._resizeCanvas(finalCanvas, options, dpr);
 
     return canvasToDataURL(outputCanvas);
+  }
+
+  /**
+   * Resize a canvas to the requested dimensions, preserving aspect ratio when
+   * only one axis is specified. Returns the original canvas unchanged when no
+   * target dimensions are given.
+   */
+  private _resizeCanvas(
+    source: OffscreenCanvas,
+    options: ScreenshotToolParams,
+    dpr: number,
+  ): OffscreenCanvas {
+    const { width, height } = options;
+    if (!width && !height) return source;
+
+    let targetWidthPx: number;
+    let targetHeightPx: number;
+
+    if (width && height) {
+      targetWidthPx = width * dpr;
+      targetHeightPx = height * dpr;
+    } else if (width) {
+      targetWidthPx = width * dpr;
+      targetHeightPx = targetWidthPx * (source.height / source.width);
+    } else {
+      targetHeightPx = height! * dpr;
+      targetWidthPx = targetHeightPx * (source.width / source.height);
+    }
+
+    const out = new OffscreenCanvas(targetWidthPx, targetHeightPx);
+    const ctx = out.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(source, 0, 0, targetWidthPx, targetHeightPx);
+    }
+    return out;
   }
 }
 

@@ -1,11 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Control Utils Package
-
-Exports control utility classes
-"""
-
-from pycore.pyutils.pybrowser.utils.control.browser_control_utils import BrowserControlUtils
-
-__all__ = ['BrowserControlUtils']
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

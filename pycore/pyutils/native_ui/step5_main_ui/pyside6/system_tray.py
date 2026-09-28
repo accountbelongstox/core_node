@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 """
 PySide6 System Tray - System Tray Icon with Menu
 
@@ -16,7 +19,6 @@ from dataclasses import dataclass
 
 # Import THREAD_BUS for event-driven architecture
 try:
-    from pycore import THREAD_BUS
     HAS_THREAD_BUS = True
 except ImportError:
     THREAD_BUS = None
@@ -24,8 +26,6 @@ except ImportError:
 
 # Import i18n for multi-language support
 try:
-    from pycore.pyutils.native_ui.step0_i18n import i18n
-    from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
     HAS_I18N = True
 except ImportError:
     i18n = None
@@ -88,6 +88,7 @@ class PySide6SystemTray(QObject):
 
         # Menu items storage
         self.menu_items: List[PySide6TrayMenuItem] = []
+        self._menu_signature = {'value': None}
 
         # Create tray icon
         self._create_tray_icon()
@@ -128,8 +129,31 @@ class PySide6SystemTray(QObject):
         Args:
             items: List of menu item configurations
         """
+        signature = self._menu_signature_value(items)
+        if signature == self._menu_signature.get('value'):
+            return
+        self._menu_signature['value'] = signature
         self.menu_items = items
         self._rebuild_menu()
+
+    @staticmethod
+    def _menu_signature_value(items: List['PySide6TrayMenuItem']) -> str:
+        """Stable menu-signature helper for dedupe."""
+        def normalize(item):
+            if item.separator:
+                return {"separator": True}
+            children = item.submenu
+            data = {
+                "text": item.text,
+                "enabled": bool(item.enabled),
+                "checkable": bool(item.checkable),
+                "checked": bool(item.checked),
+                "submenu": [normalize(child) for child in children] if children else [],
+            }
+            return data
+
+        normalized = [normalize(item) for item in items]
+        return str(normalized)
 
     def _rebuild_menu(self):
         """Rebuild menu from menu items."""
@@ -270,6 +294,40 @@ class PySide6SystemTray(QObject):
         if self.tray_icon:
             self.tray_icon.hide()
             self.tray_icon = None
+
+
+def build_pyside6_menu_from_dicts(items: List[Dict[str, Any]]) -> List[PySide6TrayMenuItem]:
+    """
+    Build PySide6 tray menu items from the canonical dict format.
+
+    This is the cross-layer bridge: higher layers (e.g. callmodule) describe the
+    menu as plain dicts (so they need not import PySide6 before it is installed),
+    and the framework converts them here once PySide6 is available.
+
+    Dict schema: {separator: bool, text: str, action_signal: str, enabled: bool,
+    children?: [...]} — `children` (same schema) becomes a submenu, recursively.
+    A non-empty `action_signal` becomes a callback that fires the corresponding
+    THREAD_BUS event (matching the pystray tray's action_signal contract).
+    """
+    result: List[PySide6TrayMenuItem] = []
+    for item in items:
+        if item.get('separator'):
+            result.append(PySide6TrayMenuItem(text="---", separator=True))
+            continue
+
+        action_signal = item.get('action_signal') or ""
+        callback = None
+        if action_signal and HAS_THREAD_BUS:
+            callback = lambda sig=action_signal: THREAD_BUS.trigger_event(sig)
+
+        children = item.get('children')
+        result.append(PySide6TrayMenuItem(
+            text=item.get('text', ''),
+            callback=callback,
+            enabled=item.get('enabled', True),
+            submenu=build_pyside6_menu_from_dicts(children) if children else None,
+        ))
+    return result
 
 
 # Convenience function to create default tray menu

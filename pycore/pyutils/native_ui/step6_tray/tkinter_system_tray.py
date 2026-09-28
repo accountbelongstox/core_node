@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from __future__ import annotations  # Enable deferred type hint evaluation
+
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 """
 Tkinter-based System Tray using pystray
 
@@ -8,8 +11,8 @@ Uses pystray library for cross-platform system tray support.
 Communicates with main thread via THREAD_BUS signals.
 
 Usage:
-    from pycore import THREAD_BUS
-    from pycore.pyutils.native_ui.tkinter_system_tray import TkinterSystemTray, TrayMenuItem
+    from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+    from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem
 
     # Define menu items with callbacks
     menu_items = [
@@ -42,21 +45,21 @@ Usage:
     THREAD_BUS.on('tray_action_open', handle_open)
 """
 
-from __future__ import annotations  # Enable deferred type hint evaluation
 
+import hashlib
+import json
 import threading
 from pathlib import Path
 from typing import List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_pystray
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_pystray
 
-# Import i18n for multi-language support
-try:
-    from pycore.pyutils.native_ui.step0_i18n import i18n
-except ImportError:
-    i18n = None
+# i18n for multi-language support (pycore-internal: direct top import, never lazy)
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 # Use lazy loader to get pystray (handles X11 display errors gracefully)
 pystray = get_third_package_pystray()
@@ -66,6 +69,7 @@ PYSTRAY_AVAILABLE = pystray is not None
 if PYSTRAY_AVAILABLE:
     try:
         from PIL import Image, ImageDraw
+        import pystray as pystray_types
     except ImportError:
         PYSTRAY_AVAILABLE = False
         pystray = None
@@ -77,9 +81,7 @@ else:
 
 # Type checking imports (not evaluated at runtime)
 if TYPE_CHECKING and pystray is not None:
-    import pystray as pystray_types
-
-
+    pass
 @dataclass
 class TrayMenuItem:
     """
@@ -94,6 +96,10 @@ class TrayMenuItem:
         submenu: Optional list of submenu items
         checked: Optional checked state (None = no checkbox, True = checked, False = unchecked)
         state_getter: Optional callable that returns current state for dynamic updates
+        enabled_getter: Optional callable that returns whether the item is enabled
+        text_args: Optional format args applied to the (translated) text, e.g.
+                   text="tray.menu.rpc_server" + text_args={"port": 59000} with the
+                   translation "RPC v2 Server: {port}"
     """
     text: str
     action_signal: str
@@ -103,6 +109,17 @@ class TrayMenuItem:
     submenu: Optional[List['TrayMenuItem']] = None
     checked: Optional[bool] = None
     state_getter: Optional[Callable] = None
+    enabled_getter: Optional[Callable] = None
+    text_args: Optional[dict] = None
+
+    def is_enabled(self) -> bool:
+        """Resolve enabled state; enabled_getter wins when provided."""
+        if self.enabled_getter is not None:
+            try:
+                return bool(self.enabled_getter())
+            except Exception:
+                return self.enabled
+        return self.enabled
 
     def get_display_text(self) -> str:
         """
@@ -113,12 +130,19 @@ class TrayMenuItem:
         """
         # Translate text if it's an i18n key (e.g., "tray.menu.show")
         translated_text = self.text
-        if i18n and self.text and not self.text.startswith("["):  # Skip already formatted text
+        if self.text and not self.text.startswith("["):  # Skip already formatted text
             # Try to translate the text key
             translated = i18n.get(self.text)
             # Only use translation if it's different from the key (meaning translation exists)
             if translated != self.text:
                 translated_text = translated
+
+        # Apply dynamic format args (e.g. port numbers) to the translated template
+        if self.text_args:
+            try:
+                translated_text = translated_text.format(**self.text_args)
+            except (KeyError, IndexError, ValueError):
+                pass  # malformed template: show it untouched rather than crash the tray
 
         # If state_getter is provided, use it to get current state
         if self.state_getter:
@@ -175,8 +199,9 @@ class TkinterSystemTray:
         self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
 
         self._tray_icon: Optional[pystray.Icon] = None
-        self._running = False
-        self._stop_requested = False
+        self._running_signal = f"native_ui.tkinter_tray.running.{id(self)}"
+        self._menu_signature = {'value': None}
+        THREAD_BUS.signal(self._running_signal, False)
 
     def _load_icon(self) -> Image:
         """
@@ -243,7 +268,7 @@ class TkinterSystemTray:
             return pystray.MenuItem(
                 text=item.get_display_text(),
                 action=submenu,  # Menu object as action creates a submenu
-                enabled=item.enabled
+                enabled=item.is_enabled()
             )
 
         # Create menu item with callback
@@ -258,7 +283,7 @@ class TkinterSystemTray:
                 })
 
                 # Auto-refresh menu after action to reflect state changes
-                if self._tray_icon and self._running:
+                if self._tray_icon and THREAD_BUS.get_signal(self._running_signal, False):
                     self._refresh_menu()
 
         # Handle checked state
@@ -275,7 +300,7 @@ class TkinterSystemTray:
         return pystray.MenuItem(
             text=item.get_display_text(),
             action=callback,
-            enabled=item.enabled,
+            enabled=item.is_enabled(),
             default=item.default,
             checked=checked_func
         )
@@ -301,12 +326,29 @@ class TkinterSystemTray:
             """Handle tray.update_menu event"""
             menu_items = event_data.get('menu_items')
             if menu_items:
+                signature = self._menu_signature_value(menu_items)
+                if signature == self._menu_signature.get('value'):
+                    ColorPrint.blue("[TRAY] Menu unchanged, skip rebuild")
+                    return
+                self._menu_signature['value'] = signature
                 ColorPrint.blue("[TRAY] Received menu update via THREAD_BUS")
                 self.update_menu(menu_items)
 
+        def handle_language_changed(event_data):
+            """Rebuild the menu so item texts pick up the new language"""
+            ColorPrint.blue("[TRAY] Language changed, refreshing menu")
+            self._refresh_menu()
+
         THREAD_BUS.register_event_handler('tray.request_stop', handle_stop_request, priority=10)
         THREAD_BUS.register_event_handler('tray.update_menu', handle_update_menu, priority=10)
+        # pystray bakes item texts at build time (unlike the Win32 backend, which
+        # rebuilds on every right-click), so re-translate on language change.
+        THREAD_BUS.register_event_handler('ui.i18n.language_changed', handle_language_changed, priority=10)
         ColorPrint.blue("[TRAY] THREAD_BUS event handlers registered")
+
+        latest_menu_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
+        if isinstance(latest_menu_payload, dict):
+            handle_update_menu(latest_menu_payload)
 
     def run(self):
         """
@@ -314,7 +356,7 @@ class TkinterSystemTray:
 
         This method blocks until stop() is called.
         """
-        if self._running:
+        if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow("[TRAY] Already running")
             return
 
@@ -342,13 +384,13 @@ class TkinterSystemTray:
             menu=menu
         )
 
-        self._running = True
+        THREAD_BUS.signal(self._running_signal, True)
 
         # Run tray with setup callback (blocking)
         self._tray_icon.run(setup=on_setup)
 
         # Cleanup after tray stops
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
         ColorPrint.blue("[TRAY] System tray stopped")
         THREAD_BUS.signal('TkinterTray_stopped', {"app_name": self.app_name})
 
@@ -359,12 +401,10 @@ class TkinterSystemTray:
         This will cause run() to return.
         If trigger_shutdown_on_exit=True, this will also trigger global shutdown.
         """
-        if not self._running:
+        if not THREAD_BUS.get_signal(self._running_signal, False):
             return
 
         ColorPrint.blue("[TRAY] Stopping system tray...")
-        self._stop_requested = True
-
         if self._tray_icon:
             self._tray_icon.stop()
 
@@ -382,9 +422,14 @@ class TkinterSystemTray:
 
         This is called automatically after menu actions to reflect state changes.
         """
-        if self._tray_icon and self._running:
-            menu = self._build_menu()
-            self._tray_icon.menu = menu
+        if self._tray_icon and THREAD_BUS.get_signal(self._running_signal, False):
+            self._tray_icon.menu = self._build_menu()
+            # On Windows, reassigning .menu alone does not refresh the live popup;
+            # update_menu() forces pystray to rebuild the Win32 menu handle.
+            try:
+                self._tray_icon.update_menu()
+            except Exception:
+                pass
 
     def update_menu(self, menu_items: List[TrayMenuItem]):
         """
@@ -393,12 +438,57 @@ class TkinterSystemTray:
         Args:
             menu_items: New list of TrayMenuItem objects
         """
+        signature = self._menu_signature_value(menu_items)
+        if signature == self._menu_signature.get('value'):
+            return
+        self._menu_signature['value'] = signature
         self.menu_items = menu_items
 
-        if self._tray_icon and self._running:
-            menu = self._build_menu()
-            self._tray_icon.menu = menu
+        if self._tray_icon and THREAD_BUS.get_signal(self._running_signal, False):
+            self._tray_icon.menu = self._build_menu()
+            # On Windows, reassigning .menu alone does not refresh the live popup;
+            # update_menu() forces pystray to rebuild the Win32 menu handle.
+            try:
+                self._tray_icon.update_menu()
+            except Exception:
+                pass
             ColorPrint.blue("[TRAY] Menu updated")
+
+    @staticmethod
+    def _menu_signature_value(menu_items: List[TrayMenuItem]) -> str:
+        """Stable signature for tray menu payloads."""
+
+        def normalize_item(item):
+            children = getattr(item, "submenu", None)
+            data = {
+                "text": getattr(item, "text", None),
+                "default": bool(getattr(item, "default", False)),
+                "action": getattr(item, "action_signal", None) or getattr(item, "signal", None),
+            }
+            if children:
+                data["submenu"] = [normalize_item(sub_item) for sub_item in children]
+            if getattr(item, "checked", None) is not None:
+                data["checked"] = item.checked
+            if getattr(item, "enabled_getter", None) is None:
+                data["enabled"] = bool(getattr(item, "enabled", True))
+            return data
+
+        normalized = {
+            "items": [normalize_item(menu_item) for menu_item in menu_items],
+            "codesync": THREAD_BUS.get_signal(BusSignals.TRAY_CODESYNC_STATE, {}),
+            "language": i18n.get_current_language(),
+            "voice_subtitle_visible": THREAD_BUS.get_signal(
+                BusSignals.VOICE_SUBTITLE_UI_WINDOW_VISIBLE, False
+            ),
+        }
+
+        try:
+            payload = json.dumps(
+                normalized, sort_keys=True, ensure_ascii=False, default=str
+            ).encode("utf-8")
+            return hashlib.md5(payload).hexdigest()
+        except Exception:
+            return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
 
 
 # Example menu items

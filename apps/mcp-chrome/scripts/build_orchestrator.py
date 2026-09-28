@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """
-Build Orchestrator - Build orchestration script
-Handles cross-platform differences, generates build commands and configuration
-Does not execute shell commands, only generates variable files for Shell to read
+Build Orchestrator - Build configuration script
+Handles cross-platform path and UI configuration for the shell launchers.
 """
 
 import os
 import sys
-import json
 from pathlib import Path
-from typing import Dict, List
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 # Import variable manager and variable definitions
 from var_manager import get_instance as get_var_manager
 from build_vars import BuildVars
+from pycore.pyfoundations.service_contract import value as contract_value
+
+NATIVE_HOST_MANIFEST_NAME = f"{contract_value('mcp_chrome.native_host_name')}.json"
 
 
 class BuildOrchestrator:
@@ -25,16 +29,12 @@ class BuildOrchestrator:
         self.vm = get_var_manager()
         self.platform = self.vm.platform
 
-        # Path configuration
-        # project_root: /www/programing/core_node/apps/mcp-chrome
-        # project_root.parent: /www/programing/core_node/apps
-        # project_root.parent.parent: /www/programing/core_node
-        # project_root.parent.parent.parent: /www/programing
-        self.build_output_dir = self.project_root.parent.parent.parent / "_build_dir"
-        # WXT automatically creates chrome-mv3 subdirectory
-        self.extension_path = self.build_output_dir / "chrome-mv3"
+        # Extension output: <mcp-chrome>/<mcp_chrome.build_output_dir>/<mcp_chrome.extension_dir>
+        # (wxt outDir + outDirTemplate, both named in config/service_contract.json)
+        self.build_output_dir = self.project_root / contract_value("mcp_chrome.build_output_dir")
+        self.extension_path = self.build_output_dir / contract_value("mcp_chrome.extension_dir")
         self.native_path = self.project_root / "app" / "native-server" / "dist"
-        self.shared_path = self.project_root / "packages" / "chrome-mcp-shared" / "dist"
+        self.shared_path = self.project_root / "packages" / "shared" / "dist"
 
     def detect_environment(self):
         """Detect environment and save to variables"""
@@ -95,40 +95,11 @@ class BuildOrchestrator:
 
         if self.platform == "windows":
             # Use real user's home dir instead of APPDATA
-            return os.path.join(home, "AppData", "Roaming", "Google", "Chrome", "NativeMessagingHosts", "com.chromemcp.nativehost.json")
+            return os.path.join(home, "AppData", "Roaming", "Google", "Chrome", "NativeMessagingHosts", NATIVE_HOST_MANIFEST_NAME)
         elif self.platform == "darwin":
-            return os.path.join(home, "Library", "Application Support", "Google", "Chrome", "NativeMessagingHosts", "com.chromemcp.nativehost.json")
+            return os.path.join(home, "Library", "Application Support", "Google", "Chrome", "NativeMessagingHosts", NATIVE_HOST_MANIFEST_NAME)
         else:  # linux
-            return os.path.join(home, ".config", "google-chrome", "NativeMessagingHosts", "com.chromemcp.nativehost.json")
-
-    def generate_commands(self):
-        """Generate build commands"""
-        print("Generating build commands...")
-
-        # Dependency check command (display only, not executed)
-        self.vm.set(BuildVars.CMD_CHECK_DEPS, "node --version && pnpm --version")
-
-        # Install dependencies command
-        node_modules_exists = self.vm.get(BuildVars.NODE_MODULES_EXISTS) == "true"
-        if node_modules_exists:
-            self.vm.set(BuildVars.SHOULD_INSTALL, "false")
-            self.vm.set(BuildVars.CMD_INSTALL, "")
-        else:
-            self.vm.set(BuildVars.SHOULD_INSTALL, "true")
-            self.vm.set(BuildVars.CMD_INSTALL, "pnpm install")
-
-        # Build commands (cross-platform)
-        self.vm.set(BuildVars.CMD_BUILD_SHARED, "pnpm run build:shared")
-        self.vm.set(BuildVars.CMD_BUILD_NATIVE, "pnpm run build:native")
-        self.vm.set(BuildVars.CMD_BUILD_EXTENSION, "pnpm run build:extension")
-
-        # Register command
-        if self.platform == "windows":
-            self.vm.set(BuildVars.CMD_REGISTER, "node scripts\\register-local-dev.cjs")
-        else:
-            self.vm.set(BuildVars.CMD_REGISTER, "node scripts/register-local-dev.cjs")
-
-        print("  Commands generated successfully")
+            return os.path.join(home, ".config", "google-chrome", "NativeMessagingHosts", NATIVE_HOST_MANIFEST_NAME)
 
     def generate_ui_strings(self):
         """Generate UI display strings"""
@@ -189,9 +160,6 @@ class BuildOrchestrator:
 
             # Detect environment
             self.detect_environment()
-
-            # Generate commands
-            self.generate_commands()
 
             # Generate UI strings
             self.generate_ui_strings()

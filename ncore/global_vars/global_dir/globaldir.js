@@ -1,19 +1,8 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { getAppName } = require('../libs/app_parameter.js');
+const systemPaths = require('../../foundation/common/system_paths.js');
 let appname = getAppName() || '';
 const hasAppName = typeof appname === 'string' && appname.trim().length > 0;
 const effectiveAppName = hasAppName ? appname : 'default_app';
@@ -28,57 +17,30 @@ const rootdir = path.join(__dirname, '../../..');
 function getCwd() {
     return rootdir;
 }
-const osVersion = (() => {
-    const platform = os.platform();
-    if (platform === 'win32') {
-        const release = os.release();
-        const [major, minor, build] = release.split('.').map(Number);
-
-        if (major === 10 && build >= 22000) {
-            return 'win11';
-        }
-        else if (major === 10) {
-            return 'win10';
-        }
-    } else if (platform === 'linux') {
-        const distro = os.type();
-        const version = os.release();
-        if (distro.includes('Ubuntu')) {
-            return `ubuntu${version.split('.')[0]}`;
-        } else if (distro.includes('Debian')) {
-            return `debian${version.split('.')[0]}`;
-        } else if (distro.includes('Arch')) {
-            return `archlinux${version.split('.')[0]}`;
-        } else if (distro.includes('Fedora')) {
-            return `fedora${version.split('.')[0]}`;
-        } else if (distro.includes('CentOS')) {
-            return `centos${version.split('.')[0]}`;
-        } else if (distro.includes('Red Hat')) {
-            return `redhat${version.split('.')[0]}`;
-        } else if (distro.includes('openSUSE')) {
-            return `opensuse${version.split('.')[0]}`;
-        } else if (distro.includes('Manjaro')) {
-            return `manjaro${version.split('.')[0]}`;
-        } else if (distro.includes('Linux Mint')) {
-            return `linuxmint${version.split('.')[0]}`;
-        } else {
-            return platform;
-        }
-    }
-    return platform;
-})();
+// Per-OS directory tag from /etc/os-release ID + major VERSION_ID (win10/win11 on Windows), e.g. debian13, ubuntu24, kali2025
+const osVersion = systemPaths.getOsVarTag().toLowerCase().replace(/_/g, '');
 const LANG_COMPILER_DIRNAME = `.dev_${osVersion}`;
 const APP_INSTALL_NAME = `applications_${osVersion}`
+
+const WWW_BASE = isWinodws
+    ? systemPaths.WINDOWS_WWW_BASE
+    : systemPaths.getLinuxWwwBase();
+function mapWebPath(sub = '') {
+    return sub ? path.join(WWW_BASE, sub) : WWW_BASE;
+}
+
 let DATA_DRIVER, DATA_DIR;
 if (os.platform() === 'win32') {
-    DATA_DRIVER = fs.existsSync('D:\\') ? 'D:\\' : 'C:\\';
+    // The drive of the resolved core_node data dir (D:\ normally, the user profile drive as fallback)
+    DATA_DRIVER = path.parse(systemPaths.getSystemCacheDir()).root || systemPaths.WINDOWS_DATA_DRIVE_ROOT;
     DATA_DIR = path.join(DATA_DRIVER, `wwwroot`);
 } else {
     DATA_DRIVER = fs.existsSync('/mnt/d') ? '/mnt/d' : null;
     DATA_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `wwwroot`) : null;
     if (!DATA_DRIVER) {
-        DATA_DRIVER = fs.existsSync('/www') ? '/www' : null;
-        DATA_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `wwwroot`) : null;
+        DATA_DRIVER = fs.existsSync(systemPaths.LINUX_WWW_ROOT) ? systemPaths.LINUX_WWW_ROOT : null;
+        // wwwroot sits under the NTFS-aware WWW base (/www/www on dual-boot).
+        DATA_DIR = DATA_DRIVER ? mapWebPath('wwwroot') : null;
     }
     if (!DATA_DRIVER) {
         DATA_DRIVER = fs.existsSync('/usr/') ? '/usr/' : null;
@@ -86,24 +48,20 @@ if (os.platform() === 'win32') {
     }
 }
 
-const LANG_COMPILER_DIR = DATA_DRIVER
-    ? path.join(DATA_DRIVER, LANG_COMPILER_DIRNAME)
-    : path.join(LOCAL_DIR, LANG_COMPILER_DIRNAME);
 const BASEDIR = getCwd();
 const CWD = BASEDIR;
 const APPS_DIR = path.join(BASEDIR, 'apps');
 const APP_DIR = path.join(BASEDIR, 'apps', effectiveAppName);
-const CACHE_DIR = path.join(BASEDIR, '.cache');
+const LOCAL_DIR = systemPaths.getSystemCacheDir();
+const USER_DIR = homeDir;
+const GLOBAL_VAR_DIR = path.join(LOCAL_DIR, systemPaths.GLOBAL_VAR_DIR_NAME);
+const COMMON_CACHE_DIR = path.join(LOCAL_DIR, systemPaths.CACHE_DIR_NAME, 'ncore');
+const CACHE_DIR = COMMON_CACHE_DIR;
 const APP_CACHE_DIR = path.join(CACHE_DIR, effectiveAppName);
-const LOG_DIR = path.join(CACHE_DIR, '.logs');
-const SCRIPT_NAME = `core_node`
-const USER_DIR = isWinodws
-    ? homeDir
-    : `/var/`;
-const PRIMARY_LOCAL_DIR = isWinodws
-    ? path.join(USER_DIR, `.${SCRIPT_NAME}`)
-    : `/var/_${SCRIPT_NAME}`;
-const FALLBACK_LOCAL_DIR = path.join(homeDir, `.${SCRIPT_NAME}`);
+const LOG_DIR = path.join(LOCAL_DIR, 'logs', 'ncore');
+const LANG_COMPILER_DIR = DATA_DRIVER
+    ? path.join(DATA_DRIVER, LANG_COMPILER_DIRNAME)
+    : path.join(LOCAL_DIR, LANG_COMPILER_DIRNAME);
 
 // Directory creation with permission handling
 function mkdir(dirPath) {
@@ -113,24 +71,10 @@ function mkdir(dirPath) {
     try {
         return fs.mkdirSync(dirPath, { recursive: true });
     } catch (error) {
-        if (error.code === 'EACCES' || error.code === 'EPERM') {
-            console.warn(`[GLOBAL_DIR] Permission denied creating directory: ${dirPath}`);
-            return null;
-        }
-        throw error;
+        console.warn(`[GLOBAL_DIR] Cannot create directory ${dirPath}: ${error.code || error.message}`);
+        return null;
     }
 }
-
-// Try to create primary directory, fall back if permission denied
-let LOCAL_DIR = PRIMARY_LOCAL_DIR;
-if (!mkdir(PRIMARY_LOCAL_DIR)) {
-    console.warn(`[GLOBAL_DIR] Cannot create ${PRIMARY_LOCAL_DIR}, using fallback: ${FALLBACK_LOCAL_DIR}`);
-    LOCAL_DIR = FALLBACK_LOCAL_DIR;
-    mkdir(LOCAL_DIR);
-}
-
-let GLOBAL_VAR_DIR = path.join(LOCAL_DIR, 'global_var');
-const COMMON_CACHE_DIR = path.join(LOCAL_DIR, '.cache');
 
 const PUBLIC_DIR = path.join(BASEDIR, 'public');
 const ROOT_APP_STATIC_DIR = DATA_DRIVER ? path.join(DATA_DRIVER, `static_${effectiveAppName.toLowerCase()}`) : null;
@@ -206,6 +150,10 @@ module.exports = {
     APP_METADATA_SQLITE_DIR,
     COMMON_CACHE_DIR,
     DATA_DRIVER,
+    WWW_BASE,
+    mapWebPath,
+    wwwDataRootMounted: systemPaths.wwwDataRootMounted,
+    USER_DIR,
     APP_DATA_DIR,
     APP_DATA_CACHE_DIR,
     APP_TMP_DIR,

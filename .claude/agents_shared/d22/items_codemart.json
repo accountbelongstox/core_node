@@ -1,0 +1,208 @@
+[
+ {
+  "old_role": "laravel-codemart",
+  "task_id": "laravel-codemart-D7",
+  "items": [
+   {
+    "item_id": "srv-05",
+    "requirement": "Merged: srv-05, USER175-06, cmgap-D01, CMGAP-D01, cmcont-10, CMCONT-02, D9-04, CMLM-03, cmpolreq-01, and the password part of d9-02b. Depends on laravel USER175-11, which provides the seeding switch in config. CodeMart passwords follow config/service_contract.json#codemart_admin_password. (1) Add the command class codemart:admin-password --file <path> in app/Apps/CodeMartV1/CodeMartV1Commands/. It reads the file and sets the hashed password on every account the CodeMart seeder creates (admin and demo users). It is idempotent, with CLI text through lang keys. laravel registers it (USER175-07). (2) CodeMartV1DemoSeeder no longer has DEMO_PASSWORD (:55, :765, :835-836). It reads the contract secret file under the laravel_db dir (PathMapper/RuntimeConfigurationStore). When the file is missing, it generates one with the contract length and alphabet, reusing the existing InstallationAccessCode random helper, writes it 0600 and prints it. It never rehashes an existing account's password; the command is the only rotator. (3) CodeMartV1Initializer.php:537-562 reads config('services.codemart_seed_demo') (LaravelConfig, default true per D17), and its comment is corrected.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Utils/CodeMartV1DemoSeeder.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Utils/CodeMartV1Initializer.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Commands/"
+    ],
+    "verify": "php -l passes. A grep for 'Codemart#2026' finds nothing. Inside a rolled-back PG transaction, with the secret path pointed at a scratchpad file by reflection or config override: the seeder creates the accounts and Hash::check(filePassword) is true for each. A second seed leaves the hashes unchanged. The command with a new file rotates every hash; with the same file it changes nothing. Roll back and delete the scratch file."
+   },
+   {
+    "item_id": "cmdesign-03-api",
+    "requirement": "Merged: the API parts of cmdesign-02, cmdesign-03 and cmgap-U17. contractVocabulary/bootstrap (CodeMartV1Constants.php:672-729, CodeMartV1BootstrapService.php:61) adds the testimonial and reviewer_application state groups, a terminal-state list, a capability-to-role map, and policy.withdrawal_methods and withdrawal_min_amount (CodeMartV1Constants.php:200). ui-codemart then drops its local copies.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Gvar/CodeMartV1Constants.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Services/CodeMartV1BootstrapService.php"
+    ],
+    "verify": "php -l passes. In-process HTTP GET of the CodeMart bootstrap endpoint returns vocabulary.states.testimonial, vocabulary.states.reviewer_application, the terminal list, the capability_roles map, and policy.withdrawal_methods and withdrawal_min_amount, with values equal to the constants."
+   },
+   {
+    "item_id": "CKA-28",
+    "requirement": "Merged: CKA-28, cmdesign-12, cmpui-06, cmgap-U31, CMGAP-U31, CMDES-09, cmpolreq-08, and the i18n part of d9-02b. The wallet ledger stores a message code plus params instead of English text. appendLedger (CodeMartV1WalletModel.php:186-199) and the transaction model (CodeMartV1WalletTransactionModel.php:16) get description_code and description_params columns, added through the idempotent CodeMartV1Initializer contract alignment. Old rows keep description. Callers pass codes: EscrowService :71, :225, :303; AdminFinanceService :378; PaymentCtl :133, :136; FinanceService :139-150. The remaining CodeMart literal messages also go through codemart lang keys: RegistrationCtl:70, AIAnalysisCtl:163 and :268, ProjectCtl:220, and the other 23 sites.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Models/CodeMartV1WalletModel.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Models/CodeMartV1WalletTransactionModel.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Services/CodeMartV1EscrowService.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Services/CodeMartV1AdminFinanceService.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Services/CodeMartV1FinanceService.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ctl/CodeMartV1PaymentCtl.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Utils/CodeMartV1Initializer.php"
+    ],
+    "verify": "php -l passes. Inside a rolled-back PG transaction, the initializer adds the two columns and a second run adds nothing. An escrow release writes description_code and params. The wallet transactions API (in-process) returns code and params. The codemart literal scan finds 0 hits."
+   },
+   {
+    "item_id": "cmgap-R1",
+    "requirement": "Merged: cmgap-R1, cmgap-U28, CMGAP-U28, CMGAP-R01. Add a throttled email verification resend endpoint under routes/CodeMartV1Router/api.php. It reuses CodeMartV1EmailService and the existing token issuance in CodeMartV1RegistrationCtl, and returns stable codes.",
+    "files": [
+     "poly_apps/laravel_main/routes/CodeMartV1Router/api.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ctl/CodeMartV1RegistrationCtl.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Utils/CodeMartV1EmailService.php"
+    ],
+    "verify": "php -l passes. route:list --json lists the resend route with the CodeMart throttle. Through the in-process HTTP kernel, inside a rolled-back transaction with the mail fake: an unverified user gets 200 and one queued mail, and a verified user gets the already_verified code."
+   },
+   {
+    "item_id": "cmgap-U30",
+    "requirement": "Analysis accept (CodeMartV1AIAnalysisCtl.php:210-272) honors the Idempotency-Key header like deposits and payments. A repeat request returns the prior result instead of a transition conflict.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Ctl/CodeMartV1AIAnalysisCtl.php"
+    ],
+    "verify": "php -l passes. In-process HTTP inside a rolled-back transaction: two accept calls with the same key return the same body and status, and the project status transitions once."
+   },
+   {
+    "item_id": "CMDES-08",
+    "requirement": "Merged: CMDES-08, CMGAP-G10. An idempotent CodeMartV1Initializer step moves legacy KYC documents from the public disk to the private 'local' disk and updates their stored disk. The public read path (CodeMartV1Constants.php:281-282, CodeMartV1FileUploadService.php:44-55) is removed once the rows are migrated. The step runs only at sys:init on the user's request.",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Utils/CodeMartV1FileUploadService.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Gvar/CodeMartV1Constants.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Utils/CodeMartV1Initializer.php"
+    ],
+    "verify": "php -l passes. With Storage::fake('public') and Storage::fake('local') in-process and a rolled-back transaction: a fake legacy KYC row moves, and the admin stream serves it from local. A second run moves nothing."
+   },
+   {
+    "item_id": "cmcont-11",
+    "requirement": "Local part of cmcont-11 and d9-02b (schema gap, public/home 500). Now that laravel-T11 is approved, prove that the local schema converges and public/home serves. The server part is deferred to the user (USER175-14).",
+    "files": [
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Utils/CodeMartV1Initializer.php",
+     "poly_apps/laravel_main/app/Apps/CodeMartV1/CodeMartV1Models/CodeMartV1EscrowModel.php"
+    ],
+    "verify": "In one rolled-back PG transaction: run CodeMartV1Initializer (schema only), then the in-process HTTP kernel GET codemart public/home returns 200. The same run lists the tables and columns it would add (expected: the 5 tables and 42 columns from §10.4), then roll back. Record the list in reports/laravel-codemart.md."
+   }
+  ],
+  "shared_layer_paths": [],
+  "done_before_outage_unreviewed": false
+ },
+ {
+  "old_role": "ui-codemart",
+  "task_id": "ui-codemart-D7",
+  "items": [
+   {
+    "item_id": "cmpui-07",
+    "requirement": "Merged: cmpui-07, cmgap-P02, cmpolish-K1-01, cmpolreq-02. B2 writer of core/integrations/laravel/transport/ApiContract.ts. Add forgot-password and reset-password to LARAVEL_API_ROUTE.auth. CmAuthApi.ts:9-10 and CmPublicApi.ts:13-14 and :297-302 use LARAVEL_API_ROUTE.auth instead of local paths.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/core/integrations/laravel/transport/ApiContract.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/auth/CmAuthApi.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/api/CmPublicApi.ts"
+    ],
+    "verify": "bun run lint passes. A grep of apps/codemart finds no 'api/login', 'api/logout', 'api/forgot-password' or 'api/reset-password' literal."
+   },
+   {
+    "item_id": "cmdesign-03",
+    "requirement": "Merged: the UI parts of cmdesign-02, cmdesign-03 and cmgap-U17. Depends on laravel-codemart cmdesign-03-api. Remove the local copies and read the bootstrap vocabulary and policy instead: the 13 status lists in CmAdminTypes.ts:3-19, the local sets in CmDashboardPage.tsx:28-30 and :151-154, CmMilestoneCard.tsx:13, CmProjectAnalysisPanel.tsx:12 and CmSubmissionsPanel.tsx:15, the capability-to-role map in cmPageAccess.ts:173-180, DEPOSIT_ROLES in CmCapabilityGate.tsx:10-11 (derived from policy.deposit_amounts), and WITHDRAWAL_METHODS in CmWalletPage.tsx:30.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/admin/CmAdminTypes.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmDashboardPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/auth/cmPageAccess.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/access/CmCapabilityGate.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/workspace/CmMilestoneCard.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmWalletPage.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no ROLE_ORDER, DEPOSIT_ROLES or WITHDRAWAL_METHODS literal arrays and no status string arrays in CmAdminTypes.ts."
+   },
+   {
+    "item_id": "CKA-28-ui",
+    "requirement": "Depends on laravel-codemart CKA-28. CmWalletPage.tsx:609 renders description_code and params through cm-locales keys. The stored description is used only for legacy rows.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmWalletPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/cm-locales/en.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/cm-locales/zh.ts"
+    ],
+    "verify": "bun run lint passes. The en.ts and zh.ts keys cover every description_code emitted by the CodeMart services (script diff)."
+   },
+   {
+    "item_id": "cmgap-R1-ui",
+    "requirement": "Depends on laravel-codemart cmgap-R1. CmVerificationPage.tsx gets a resend-verification-email action with its throttle and error states, through the centralized CodeMart API module.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmVerificationPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/api/CmApi.ts"
+    ],
+    "verify": "bun run lint passes, and the keys exist in en and zh."
+   },
+   {
+    "item_id": "cmgap-U30-ui",
+    "requirement": "Depends on laravel-codemart cmgap-U30. The analysis accept call (CmApi.ts:230-232) sends an Idempotency-Key through useCmIdempotencyKey.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/api/CmApi.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/workspace/CmProjectAnalysisPanel.tsx"
+    ],
+    "verify": "bun run lint passes. A static read shows the header on the accept request."
+   },
+   {
+    "item_id": "cmgap-A14",
+    "requirement": "Merged: cmgap-A14, cmpolreq-09, cmpolreq-11, and the duplicate-primitives part of d9-03. Consolidate the admin primitives into components/workspace, one per concern: pager (CmAdminPager, CmPager, CmShowcasePager), state views (CmAdminListState, CmStateViews), notice, status badge, the paged-list hook (useCmAdminList, useCmPagedList), and the page header (CmAdminPageHeader, CmPageHeader). Admin date and number formatting (CmAdminShared.tsx:58-62, CmAdminModerationPages.tsx:189) uses cmWorkspaceFormat.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/admin/CmAdminShared.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/workspace/CmPager.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/workspace/CmStateViews.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmShowcasePage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/admin/CmAdminModerationPages.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds no CmAdminPager, CmShowcasePager, CmAdminListState, CmAdminNotice or CmAdminStatus definitions, and no 'new Intl.' in apps/codemart/admin."
+   },
+   {
+    "item_id": "d9-03",
+    "requirement": "Merged: the route, dead-code and file-split parts of d9-03, and the code parts of cmpolish-K3-01..13. The 44 hardcoded '/codemart/...' literals (13 in CmAdminLayout.tsx, 20 in CmDashboardPage.tsx, CmProjectsPage.tsx:113, ADMIN_HOME in cmAuthSession.ts:8) use the cmPublicRoutes.ts/cmPages.tsx route constants. Remove the dead CmApi.ts methods getAnalysis :226, createPayment :278 and estimate :306 (the CmPublicApi.ts:284 duplicate). Move CmArchitectPage out of CmReviewsPage.tsx:391 into its own page file. The local THEME_IDS (CmSettingsPage.tsx:9) uses the shared shell theme list.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/admin/CmAdminLayout.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmDashboardPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/public-home/cmPublicRoutes.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/api/CmApi.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmReviewsPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmSettingsPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/auth/cmAuthSession.ts"
+    ],
+    "verify": "bun run lint passes. A grep for \"'/codemart/\" outside cmPublicRoutes.ts and cmPages.tsx finds 0 hits. The three dead methods are gone, and nothing imports them."
+   },
+   {
+    "item_id": "cmpolish-IMG-01",
+    "requirement": "One image registry (name to src, width, height) serves the public, workspace, auth and admin pages. It replaces cmPublicImages.ts:5-20, cmWorkspaceImages.ts:1-5, and the direct imports with local size constants (CmAdminPages.tsx:26, CmAuthLayout.tsx:4).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/public-home/cmPublicImages.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/workspace/cmWorkspaceImages.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/admin/CmAdminPages.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/auth/CmAuthLayout.tsx"
+    ],
+    "verify": "bun run lint passes. A grep finds '.webp' imports only in the registry file."
+   },
+   {
+    "item_id": "cmpolreq-07",
+    "requirement": "zh terminology: cm-locales/zh.ts:1998-2000 (submission_invalid_state, review_duplicate, review_conflict_of_interest) uses 交付物 and the glossary register, not 该交付 or 您.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/cm-locales/zh.ts"
+    ],
+    "verify": "A grep of zh.ts finds 0 hits for 该交付 and 0 for 押金 or 审核员. bun run lint passes."
+   },
+   {
+    "item_id": "cmdesign-13",
+    "requirement": "Code part only. The app version is declared once: cmAppDownloads.ts:20 reads flavors/codemart/flavor.json:5. CmBrand.tsx:2,17 uses the flavor icon.svg mark instead of the lucide Braces glyph. The Capacitor native project and published artifact need the user's build request (deferred).",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/cmAppDownloads.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/components/CmBrand.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/flavors/codemart/flavor.json"
+    ],
+    "verify": "bun run lint passes. A grep finds no version literal in cmAppDownloads.ts and no Braces import in CmBrand.tsx."
+   },
+   {
+    "item_id": "d9-01",
+    "requirement": "Merged: d9-01a, d9-01b. Ruling B9: extend the single CodeMart generator apps/codemart/assets/generate_cm_images.py with an icon group (navigation, feature, category and empty-state icons) through the same pycore gateway. Do not add a second generator. Store the icons as versioned app assets, with i18n alt texts in cm-locales. Replace the lucide glyphs in cmPages.tsx:2-16,44-55 and CmDashboardPage.tsx:3-15,46-73. Record the prompts in docs_fix/codemart_docs/PROGRESS_20260927_CODEMART_PAGE_POLISH.md; that is an orchestrator doc, so send them in the lane report. The generation run needs the pycore gateway; if it is unreachable, record it as pending for the user.",
+    "files": [
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/assets/generate_cm_images.py",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/cmPages.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/pages/CmDashboardPage.tsx",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/cm-locales/en.ts",
+     "poly_apps/pycore_laravel_wordnew_ui/apps/codemart/cm-locales/zh.ts"
+    ],
+    "verify": "python -m py_compile generate_cm_images.py passes. Its --help or dry-run lists the icon group. When generated: every icon under 30 KB and referenced from the registry. bun run lint passes. The alt keys exist in en and zh."
+   }
+  ],
+  "shared_layer_paths": [
+   "poly_apps/pycore_laravel_wordnew_ui/core/integrations/laravel/transport/ApiContract.ts"
+  ],
+  "done_before_outage_unreviewed": false
+ }
+]

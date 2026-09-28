@@ -106,7 +106,7 @@ try {
             Write-Host "Using System.Windows.Forms: Primary screen dimensions only" -ForegroundColor Yellow
         } else {
             Write-Host "Error: Failed to get screen dimensions: $_" -ForegroundColor Red
-            exit 1
+            return
         }
     }
 }

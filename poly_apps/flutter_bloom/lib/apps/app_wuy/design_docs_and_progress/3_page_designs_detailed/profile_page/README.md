@@ -1,4 +1,4 @@
-# 个人资料页 (profile_page)
+# Profile Page (profile_page)
 
 This directory contains detailed design specifications for the profile_page page.
 

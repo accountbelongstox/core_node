@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
 
@@ -32,6 +20,7 @@ $NodeExePath = Join-Path $NodeJSInstallDir "node.exe"
 $NpmExePath = Join-Path $NodeJSInstallDir "npm.cmd"
 $PnpmExePath = Join-Path $NodeJSInstallDir "pnpm.cmd"
 $YarnExePath = Join-Path $NodeJSInstallDir "yarn.cmd"
+$BunExePath = Join-Path $NodeJSInstallDir "bun.exe"
 
 # Get WindowsPathFunction.ps1 path for PATH management
 $windowsPathFunctionPath = Join-Path $winCommonDir "WindowsPathFunction.ps1"
@@ -48,7 +37,7 @@ function Remove-OldNodeVersions {
 
     # Find all node directories (both versioned and non-versioned)
     $oldNodeDirs = @(Get-ChildItem -Path $langCompilerDir -Directory -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -match '^node(-v[\d\.]+)?$' -and $_.FullName -ne $NodeJSInstallDir
+        ($_.Name -eq 'node' -or $_.Name.StartsWith('node-v', [System.StringComparison]::OrdinalIgnoreCase)) -and $_.FullName -ne $NodeJSInstallDir
     })
 
     if (-not $oldNodeDirs -or $oldNodeDirs.Count -eq 0) {
@@ -213,7 +202,7 @@ function Install-NodeJS {
 }
 
 function Install-PackageManagers {
-    Write-ColorMessage -Message "$SCRIPT_INDEX Installing pnpm and yarn package managers..." -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX Installing pnpm, yarn and bun package managers..." -Type "Info"
 
     # Validate npm exists
     if (-not (Test-Path $NpmExePath)) {
@@ -244,13 +233,26 @@ function Install-PackageManagers {
 
         & $PnpmExePath config set global-dir $pnpmGlobalDir
         & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
-        & $PnpmExePath config set enable-pre-post-scripts true
+        # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is a workspace-level
+        # setting in pnpm 10+, so a GLOBAL `pnpm config set` is rejected
+        # (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY). It's the default, so we do
+        # not set it globally; the .pnpmrc carries it. Docs: https://pnpm.io/settings
         Write-Host "Y" | & $PnpmExePath setup
 
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-dir: $pnpmGlobalDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts: true" -Type "Success"
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm setup completed" -Type "Success"
+
+        # Always ensure pnpm global bin directory is in PATH (repair step)
+        Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Type "Info"
+        if (Test-Path $pnpmGlobalBinDir) {
+            Add-Path -newPath $pnpmGlobalBinDir
+            Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global bin directory PATH check completed" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Type "Warning"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Will be added to PATH when directory is created" -Type "Info"
+        }
     }
 
     # Install yarn
@@ -264,6 +266,21 @@ function Install-PackageManagers {
             Write-ColorMessage -Message "$SCRIPT_INDEX yarn installed successfully" -Type "Success"
         } else {
             Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: yarn installation may have failed" -Type "Warning"
+        }
+    }
+
+    # Install bun (frontend runtime: the pycore UI package scripts run via bun;
+    # the bun npm package ships the Windows binary)
+    Write-ColorMessage -Message "$SCRIPT_INDEX Installing bun..." -Type "Warning"
+    if (Test-Path $BunExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX bun already installed" -Type "Success"
+    } else {
+        & $NpmExePath install -g bun
+        Start-Sleep -Milliseconds 500
+        if (Test-Path $BunExePath) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX bun installed successfully" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX WARNING: bun installation may have failed" -Type "Warning"
         }
     }
 
@@ -329,9 +346,9 @@ enable-pre-post-scripts=true
         Write-ColorMessage -Message "$SCRIPT_INDEX .pnpmrc created with default settings" -Type "Success"
     }
 
-    Write-ColorMessage -Message "$SCRIPT_INDEX Force-setting pnpm enable-pre-post-scripts via CLI..." -Type "Info"
-    & $PnpmExePath config set enable-pre-post-scripts true
-    Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts set to true" -Type "Success"
+    # enable-pre-post-scripts is the default (pnpm 7+) and workspace-level in pnpm 10+;
+    # a global `pnpm config set` errors, so we do NOT force it via CLI. Docs: https://pnpm.io/settings
+    Write-ColorMessage -Message "$SCRIPT_INDEX pnpm enable-pre-post-scripts: true (default; not set globally on pnpm 10+)" -Type "Info"
 
     return $true
 }
@@ -341,7 +358,7 @@ function Verify-AndFix-AllConfigs {
     Write-ColorMessage -Message "$SCRIPT_INDEX Verifying and fixing all configurations..." -Type "Warning"
     Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"
 
-    Write-ColorMessage -Message "$SCRIPT_INDEX [1/4] Checking npm configuration..." -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX [1/5] Checking npm configuration..." -Type "Info"
     if (Test-Path $NpmExePath) {
         Configure-NpmRegistry
         Write-ColorMessage -Message "$SCRIPT_INDEX npm configuration verified" -Type "Success"
@@ -349,7 +366,7 @@ function Verify-AndFix-AllConfigs {
         Write-ColorMessage -Message "$SCRIPT_INDEX npm not found, skipping" -Type "Warning"
     }
 
-    Write-ColorMessage -Message "$SCRIPT_INDEX [2/4] Checking pnpm installation..." -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX [2/5] Checking pnpm installation..." -Type "Info"
     if (Test-Path $PnpmExePath) {
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm already installed" -Type "Success"
     } else {
@@ -358,7 +375,7 @@ function Verify-AndFix-AllConfigs {
         Start-Sleep -Milliseconds 500
     }
 
-    Write-ColorMessage -Message "$SCRIPT_INDEX [3/4] Checking pnpm configuration..." -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX [3/5] Checking pnpm configuration..." -Type "Info"
     if (Test-Path $PnpmExePath) {
         $pnpmGlobalDir = Join-Path $NodeJSInstallDir "pnpm-global"
         $pnpmGlobalBinDir = Join-Path $pnpmGlobalDir ".bin"
@@ -369,11 +386,21 @@ function Verify-AndFix-AllConfigs {
         Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm global-bin-dir: $pnpmGlobalBinDir" -Type "Info"
         & $PnpmExePath config set global-bin-dir $pnpmGlobalBinDir
 
-        Write-ColorMessage -Message "$SCRIPT_INDEX Setting pnpm enable-pre-post-scripts: true" -Type "Info"
-        & $PnpmExePath config set enable-pre-post-scripts true
+        # enable-pre-post-scripts is the default (pnpm 7+) and workspace-level in pnpm 10+;
+        # a global `pnpm config set` errors, so we do NOT set it globally. Docs: https://pnpm.io/settings
 
         Write-ColorMessage -Message "$SCRIPT_INDEX Running pnpm setup..." -Type "Info"
         Write-Host "Y" | & $PnpmExePath setup
+
+        # Always ensure pnpm global bin directory is in PATH (repair step)
+        Write-ColorMessage -Message "$SCRIPT_INDEX Ensuring pnpm global bin directory is in PATH: $pnpmGlobalBinDir" -Type "Info"
+        if (Test-Path $pnpmGlobalBinDir) {
+            Add-Path -newPath $pnpmGlobalBinDir
+            Write-ColorMessage -Message "$SCRIPT_INDEX pnpm global bin directory PATH check completed" -Type "Success"
+        } else {
+            Write-ColorMessage -Message "$SCRIPT_INDEX Warning: pnpm global bin directory does not exist yet: $pnpmGlobalBinDir" -Type "Warning"
+            Write-ColorMessage -Message "$SCRIPT_INDEX Will be added to PATH when directory is created" -Type "Info"
+        }
 
         Configure-PnpmRegistry
 
@@ -382,7 +409,7 @@ function Verify-AndFix-AllConfigs {
         Write-ColorMessage -Message "$SCRIPT_INDEX pnpm not found, skipping" -Type "Warning"
     }
 
-    Write-ColorMessage -Message "$SCRIPT_INDEX [4/4] Checking yarn installation..." -Type "Info"
+    Write-ColorMessage -Message "$SCRIPT_INDEX [4/5] Checking yarn installation..." -Type "Info"
     if (Test-Path $YarnExePath) {
         Write-ColorMessage -Message "$SCRIPT_INDEX yarn already installed" -Type "Success"
     } else {
@@ -391,6 +418,18 @@ function Verify-AndFix-AllConfigs {
         Start-Sleep -Milliseconds 500
         if (Test-Path $YarnExePath) {
             Write-ColorMessage -Message "$SCRIPT_INDEX yarn installed successfully" -Type "Success"
+        }
+    }
+
+    Write-ColorMessage -Message "$SCRIPT_INDEX [5/5] Checking bun installation..." -Type "Info"
+    if (Test-Path $BunExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX bun already installed" -Type "Success"
+    } else {
+        Write-ColorMessage -Message "$SCRIPT_INDEX Installing bun..." -Type "Warning"
+        & $NpmExePath install -g bun
+        Start-Sleep -Milliseconds 500
+        if (Test-Path $BunExePath) {
+            Write-ColorMessage -Message "$SCRIPT_INDEX bun installed successfully" -Type "Success"
         }
     }
 
@@ -422,6 +461,11 @@ function Test-NodeJSInstallation {
     if (Test-Path $YarnExePath) {
         Write-ColorMessage -Message "$SCRIPT_INDEX yarn version:" -Type "Info"
         & $YarnExePath --version
+    }
+
+    if (Test-Path $BunExePath) {
+        Write-ColorMessage -Message "$SCRIPT_INDEX bun version:" -Type "Info"
+        & $BunExePath --version
     }
 
     Write-ColorMessage -Message "$SCRIPT_INDEX Verifying pnpm configuration..." -Type "Info"
@@ -456,7 +500,6 @@ if ($installSuccess) {
     }
 } else {
     Write-ColorMessage -Message "$SCRIPT_INDEX ERROR: Node.js installation failed" -Type "Error"
-    exit 1
 }
 
 Write-ColorMessage -Message "$SCRIPT_INDEX ===============================================" -Type "Info"

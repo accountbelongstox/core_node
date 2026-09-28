@@ -5,6 +5,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1StaticServiceManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxConfigBuilder;
 use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
 use App\Providers\PathMapper;
 use App\Utils\SystemUtil;
@@ -355,48 +356,11 @@ class ServerManagerV1StaticAppCommand extends ServerManagerV1BaseCommand
 
     private function generateNginxProxyConfig(string $appname, string $domain, int $port, bool $sslEnabled, $certificate): string
     {
-        $proxyConfig = "
-    location / {
-        proxy_pass http://localhost:$port;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }";
+        $certPaths = ($sslEnabled && $certificate)
+            ? ['cert' => $certificate['cert_path'], 'key' => $certificate['key_path']]
+            : null;
 
-        if ($sslEnabled && $certificate) {
-            return <<<NGINX
-server {
-    listen 80;
-    server_name $domain;
-    return 301 https://\$server_name\$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name $domain;
-
-    ssl_certificate {$certificate['cert_path']};
-    ssl_certificate_key {$certificate['key_path']};
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-$proxyConfig
-}
-NGINX;
-        } else {
-            return <<<NGINX
-server {
-    listen 80;
-    server_name $domain;
-$proxyConfig
-}
-NGINX;
-        }
+        return ServerManagerV1NginxConfigBuilder::buildProxy($domain, "127.0.0.1:{$port}", $certPaths);
     }
 
     private function generateNginxStaticConfig(string $appname, string $domain, bool $sslEnabled, $certificate): string
@@ -412,48 +376,11 @@ NGINX;
             $rootPath = $buildPath;
         }
 
-        $staticConfig = "
-    root $rootPath;
-    index index.html;
+        $certPaths = ($sslEnabled && $certificate)
+            ? ['cert' => $certificate['cert_path'], 'key' => $certificate['key_path']]
+            : null;
 
-    location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-
-    location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control \"public, immutable\";
-    }";
-
-        if ($sslEnabled && $certificate) {
-            return <<<NGINX
-server {
-    listen 80;
-    server_name $domain;
-    return 301 https://\$server_name\$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name $domain;
-
-    ssl_certificate {$certificate['cert_path']};
-    ssl_certificate_key {$certificate['key_path']};
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-$staticConfig
-}
-NGINX;
-        } else {
-            return <<<NGINX
-server {
-    listen 80;
-    server_name $domain;
-$staticConfig
-}
-NGINX;
-        }
+        return ServerManagerV1NginxConfigBuilder::buildStatic($domain, $rootPath, $certPaths, true);
     }
 
     private function checkIfStaticAppExists(string $appname): bool

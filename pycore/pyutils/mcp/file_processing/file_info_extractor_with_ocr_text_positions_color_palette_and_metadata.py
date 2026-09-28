@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
 
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyutils.mcp.file_processing.image_analyzer_with_ocr_color_extraction_and_pixel_matrix import (
     get_image_analyzer_singleton
 )
@@ -20,6 +21,10 @@ from pycore.pyutils.mcp.file_processing.document_parser_with_text_positions_and_
 from pycore.pyutils.mcp.file_processing.database_manager_for_file_info_caching_and_history import (
     get_database_manager_singleton
 )
+
+import os
+import hashlib
+
 
 logger = logging.getLogger(__name__)
 
@@ -217,8 +222,6 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
 
     async def _process_generic_file_with_basic_info(self, file_path: str) -> Dict[str, Any]:
         """Process generic file with basic information"""
-        import os
-        import hashlib
 
         file_size = os.path.getsize(file_path)
         mime_type, _ = mimetypes.guess_type(file_path)
@@ -250,15 +253,16 @@ class FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
         }
 
 
-# Create singleton instance
-_file_info_extractor_instance = None
+_FILE_INFO_EXTRACTOR_PROVIDER = SerializedSingletonProvider(
+    FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata,
+    "mcp.file_info_extractor.provider",
+    "MCPFileInfoExtractorProviderThread",
+    timeout=300.0,
+)
 
 def get_file_info_extractor_singleton() -> FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata:
     """Get singleton instance of file info extractor"""
-    global _file_info_extractor_instance
-    if _file_info_extractor_instance is None:
-        _file_info_extractor_instance = FileInfoExtractorWithOCRTextPositionsColorPaletteAndMetadata()
-    return _file_info_extractor_instance
+    return _FILE_INFO_EXTRACTOR_PROVIDER.get()
 
 
 # Convenience function with long descriptive name

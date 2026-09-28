@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Common Functions Module for Special Software Environment Manager
@@ -1637,56 +1625,52 @@ function Set-EnvironmentVariables {
             Write-ColorMessage -Message "Refreshing environment variables in current session..." -Type "Info"
 
             & $script:WINDOWS_PATH_FUNCTION_PATH "refreshvar" | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "All environment variables have been refreshed in the current session." -Type "Success"
+            Write-ColorMessage -Message "All environment variables have been refreshed in the current session." -Type "Success"
+
+            if ($temporarilyCleared.Count -gt 0) {
+                Write-ColorMessage -Message "Attempting to clear environment variables..." -Type "Info"
                 
-                if ($temporarilyCleared.Count -gt 0) {
-                    Write-ColorMessage -Message "Attempting to clear environment variables..." -Type "Info"
-                    
-                    $clearedCount = 0
-                    foreach ($varName in $temporarilyCleared) {
-                        try {
-                            Set-Item -Path "env:$varName" -Value ""
-                            $clearedCount++
-                            Write-ColorMessage -Message "Cleared $varName" -Type "Success"
-                        } catch {
-                            $errorMsg = $_.Exception.Message
-                            Write-ColorMessage -Message "Failed to clear ${varName}: $errorMsg" -Type "Error"
-                        }
+                $clearedCount = 0
+                foreach ($varName in $temporarilyCleared) {
+                    try {
+                        Set-Item -Path "env:$varName" -Value ""
+                        $clearedCount++
+                        Write-ColorMessage -Message "Cleared $varName" -Type "Success"
+                    } catch {
+                        $errorMsg = $_.Exception.Message
+                        Write-ColorMessage -Message "Failed to clear ${varName}: $errorMsg" -Type "Error"
                     }
-                    
-                    Write-ColorMessage -Message "Manual commands to clear variables (copy and paste):" -Type "Warning"
-                    Write-Host ""
-                    foreach ($varName in $temporarilyCleared) {
-                        $clearCommand = "`$env:$varName = `"`""
-                        Write-Host "  $clearCommand" -ForegroundColor Cyan
-                    }
-                    Write-Host ""
-                    Write-ColorMessage -Message "Or run this single command:" -Type "Info"
-                    $allClearCommands = $temporarilyCleared | ForEach-Object { "`$env:$_ = `"`"" }
-                    Write-Host "  $($allClearCommands -join '; ')" -ForegroundColor Yellow
-                    Write-Host ""
-                    
-                    if ($clearedCount -lt $temporarilyCleared.Count) {
-                        Write-ColorMessage -Message "Some variables could not be cleared automatically." -Type "Warning"
+                }
+                
+                Write-ColorMessage -Message "Manual commands to clear variables (copy and paste):" -Type "Warning"
+                Write-Host ""
+                foreach ($varName in $temporarilyCleared) {
+                    $clearCommand = "`$env:$varName = `"`""
+                    Write-Host "  $clearCommand" -ForegroundColor Cyan
+                }
+                Write-Host ""
+                Write-ColorMessage -Message "Or run this single command:" -Type "Info"
+                $allClearCommands = $temporarilyCleared | ForEach-Object { "`$env:$_ = `"`"" }
+                Write-Host "  $($allClearCommands -join '; ')" -ForegroundColor Yellow
+                Write-Host ""
+                
+                if ($clearedCount -lt $temporarilyCleared.Count) {
+                    Write-ColorMessage -Message "Some variables could not be cleared automatically." -Type "Warning"
+                } else {
+                    Write-ColorMessage -Message "Variables marked for clearing. Use commands above if needed." -Type "Info"
+                }
+            }
+            
+            foreach ($var in $config.Variables) {
+                if ($newValues.ContainsKey($var.Name)) {
+                    if ($newValues[$var.Name] -eq "__DELETE__") {
+                        Write-ColorMessage -Message "Refreshed $($var.DisplayName) (deleted)" -Type "Success"
                     } else {
-                        Write-ColorMessage -Message "Variables marked for clearing. Use commands above if needed." -Type "Info"
+                        Write-ColorMessage -Message "Refreshed $($var.DisplayName)" -Type "Success"
                     }
+                } elseif ($temporarilyCleared -contains $var.Name) {
+                    Write-ColorMessage -Message "Refreshed $($var.DisplayName) (temporarily cleared)" -Type "Info"
                 }
-                
-                foreach ($var in $config.Variables) {
-                    if ($newValues.ContainsKey($var.Name)) {
-                        if ($newValues[$var.Name] -eq "__DELETE__") {
-                            Write-ColorMessage -Message "Refreshed $($var.DisplayName) (deleted)" -Type "Success"
-                        } else {
-                            Write-ColorMessage -Message "Refreshed $($var.DisplayName)" -Type "Success"
-                        }
-                    } elseif ($temporarilyCleared -contains $var.Name) {
-                        Write-ColorMessage -Message "Refreshed $($var.DisplayName) (temporarily cleared)" -Type "Info"
-                    }
-                }
-            } else {
-                Write-ColorMessage -Message "Failed to refresh environment variables in current session." -Type "Error"
             }
         } else {
             Write-ColorMessage -Message "No environment variables to refresh." -Type "Info"
@@ -1772,30 +1756,26 @@ function Refresh-CurrentTerminalEnvironment {
     try {
         if (Test-Path $script:WINDOWS_PATH_FUNCTION_PATH) {
             & $script:WINDOWS_PATH_FUNCTION_PATH "refreshvar" | Out-Null
-            if ($LASTEXITCODE -eq 0) {
-                Write-ColorMessage -Message "All environment variables refreshed successfully!" -Type "Success"
-                Write-ColorMessage -Message "Current terminal session now has the latest environment variables." -Type "Success"
+            Write-ColorMessage -Message "All environment variables refreshed successfully!" -Type "Success"
+            Write-ColorMessage -Message "Current terminal session now has the latest environment variables." -Type "Success"
+            
+            Write-Host ""
+            Write-ColorMessage -Message "Current status of configured environment variables:" -Type "Info"
+            Write-ColorMessage -Message "=================================================" -Type "Info"
+            
+            foreach ($configName in $script:EnvironmentConfigs.Keys) {
+                $config = $script:EnvironmentConfigs[$configName]
+                Write-ColorMessage -Message "$($config.Title):" -Type "Info"
                 
-                Write-Host ""
-                Write-ColorMessage -Message "Current status of configured environment variables:" -Type "Info"
-                Write-ColorMessage -Message "=================================================" -Type "Info"
-                
-                foreach ($configName in $script:EnvironmentConfigs.Keys) {
-                    $config = $script:EnvironmentConfigs[$configName]
-                    Write-ColorMessage -Message "$($config.Title):" -Type "Info"
-                    
-                    foreach ($var in $config.Variables) {
-                        $currentValue = Get-EnvironmentVariable -VariableName $var.Name
-                        if ($currentValue) {
-                            Write-ColorMessage -Message "  $($var.DisplayName): $currentValue" -Type "Success"
-                        } else {
-                            Write-ColorMessage -Message "  $($var.DisplayName): [Not set]" -Type "Warning"
-                        }
+                foreach ($var in $config.Variables) {
+                    $currentValue = Get-EnvironmentVariable -VariableName $var.Name
+                    if ($currentValue) {
+                        Write-ColorMessage -Message "  $($var.DisplayName): $currentValue" -Type "Success"
+                    } else {
+                        Write-ColorMessage -Message "  $($var.DisplayName): [Not set]" -Type "Warning"
                     }
-                    Write-Host ""
                 }
-            } else {
-                Write-ColorMessage -Message "Failed to refresh environment variables." -Type "Error"
+                Write-Host ""
             }
         } else {
             Write-ColorMessage -Message "Error: WindowsPathFunction.ps1 not found at: $script:WINDOWS_PATH_FUNCTION_PATH" -Type "Error"
@@ -1903,18 +1883,6 @@ function Save-ConfigurationToFile {
     }
 
     $configFileContent = @"
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Saved Configuration for $ConfigName

@@ -8,7 +8,7 @@ Manages URL validation, normalization, and scope checking for document offline d
 
 from urllib.parse import urlparse, urljoin, urlunparse
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class DomainContext:

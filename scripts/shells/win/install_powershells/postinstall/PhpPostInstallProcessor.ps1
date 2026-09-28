@@ -1,23 +1,12 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # PHP Post-Installation Processor
 # Handles PHP configuration, Composer installation, and extension setup
 # Enhanced with advanced extension detection and configuration management
 
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
+$windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
 
 function Install-ComposerForPhp {
     param (
@@ -28,89 +17,142 @@ function Install-ComposerForPhp {
         [string]$LogPrefix = "[PHP-Composer]",
         [bool]$ForceReinstall = $false
     )
-    
-    
     $composerDir = $InstallDir
     $composerBat = Join-Path $composerDir "composer.bat"
-    
+    $composerPhar = Join-Path $composerDir "composer.phar"
+    $installerUrl = "https://getcomposer.org/installer"
+    $installerPath = Join-Path $Global:DOWNLOADS_DIR "composer-setup.php"
+    $composerInstalled = (Test-Path -LiteralPath $PhpPath -PathType Leaf) -and (Test-Path -LiteralPath $composerPhar -PathType Leaf)
+    $batContent = $null
+
     # Check if Composer and PHP are in the same installation directory
-    if (-not $ForceReinstall) {
-        $phpExeFile = Get-ChildItem -Path $InstallDir -Filter "php.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-        $composerPharFile = Get-ChildItem -Path $InstallDir -Filter "composer.phar" -ErrorAction SilentlyContinue | Select-Object -First 1
-        
-        if ($phpExeFile -and $composerPharFile) {
-            Write-Host "$LogPrefix Composer is already installed in the same directory as PHP" -ForegroundColor Green
-            return
-        }
-    }
-    
-    if ($ForceReinstall) {
-        Write-Host "$LogPrefix Force reinstalling Composer..." -ForegroundColor Yellow
+    if ($composerInstalled -and -not $ForceReinstall) {
+        Write-Host "$LogPrefix Composer is already installed in the same directory as PHP" -ForegroundColor Green
     }
     else {
-        Write-Host "$LogPrefix Installing Composer..." -ForegroundColor Yellow
+        if ($ForceReinstall) {
+            Write-Host "$LogPrefix Force reinstalling Composer..." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "$LogPrefix Installing Composer..." -ForegroundColor Yellow
+        }
+
+        if (-not (Test-Path -LiteralPath $composerDir)) {
+            New-Item -ItemType Directory -Path $composerDir -Force | Out-Null
+        }
+
+        try {
+            Write-Host "$LogPrefix Downloading Composer installer..." -ForegroundColor Yellow
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+
+            Write-Host "$LogPrefix Running Composer installer..." -ForegroundColor Yellow
+            & $PhpPath $installerPath --install-dir="$composerDir" --filename=composer.phar
+        }
+        catch {
+            Write-Host "$LogPrefix Failed to install Composer: $($_.Exception.Message)" -ForegroundColor Red
+        }
+        finally {
+            if (Test-Path -LiteralPath $installerPath) {
+                Remove-Item -LiteralPath $installerPath -Force
+            }
+        }
     }
-    
-    # Create composer directory if it doesn't exist
-    if (-not (Test-Path $composerDir)) {
-        New-Item -ItemType Directory -Path $composerDir -Force | Out-Null
+
+    if (-not (Test-Path -LiteralPath $composerPhar -PathType Leaf)) {
+        Write-Host "$LogPrefix Composer binary is unavailable after installation" -ForegroundColor Red
+        return $null
     }
-    
-    try {
-        # Download Composer installer
-        $installerUrl = "https://getcomposer.org/installer"
-        $installerPath = Join-Path $Global:DOWNLOADS_DIR "composer-setup.php"
-        
-        Write-Host "$LogPrefix Downloading Composer installer..." -ForegroundColor Yellow
-        Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
-        
-        # Run Composer installer
-        Write-Host "$LogPrefix Running Composer installer..." -ForegroundColor Yellow
-        & $PhpPath $installerPath --install-dir="$composerDir" --filename=composer.phar
-        
-        # Verify installation by scanning binary files
-        $composerPharFile = Get-ChildItem -Path $composerDir -Filter "composer.phar" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($composerPharFile -and $composerPharFile.Length -gt 0) {
-            # Create composer.bat
-            $batContent = @"
+
+    if (-not (Test-Path -LiteralPath $composerBat -PathType Leaf)) {
+        $batContent = @"
 @echo off
 php "%~dp0composer.phar" %*
 "@
-            Set-Content -Path $composerBat -Value $batContent -Encoding ASCII
-            
-            # Verify composer.bat was created
-            $composerBatFile = Get-ChildItem -Path $composerDir -Filter "composer.bat" -ErrorAction SilentlyContinue | Select-Object -First 1
-            if (-not $composerBatFile -or $composerBatFile.Length -eq 0) {
-                Write-Host "$LogPrefix Warning: Failed to create composer.bat" -ForegroundColor Yellow
-                return
-            }
-            
-            # Add Composer to PATH
-            Write-Host "$LogPrefix Adding Composer to PATH..." -ForegroundColor Cyan
-            $windowsPathFunctionPath = Join-Path $parentDir "win_common\WindowsPathFunction.ps1"
-            & $windowsPathFunctionPath "add" $composerDir
-            Write-Host "$LogPrefix Added Composer to PATH: $composerDir" -ForegroundColor Green
-            
-            # Verify installation: check if composer.phar and php.exe are in the same directory
-            $phpExeFile = Get-ChildItem -Path $composerDir -Filter "php.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-            $finalPharFile = Get-ChildItem -Path $composerDir -Filter "composer.phar" -ErrorAction SilentlyContinue | Select-Object -First 1
-            
-            if ($phpExeFile -and $finalPharFile) {
-                Write-Host "$LogPrefix Composer installed and verified successfully" -ForegroundColor Green
-            }
-            else {
-                Write-Host "$LogPrefix Warning: Composer and PHP are not in the same directory" -ForegroundColor Yellow
+        Set-Content -LiteralPath $composerBat -Value $batContent -Encoding ASCII
+        Write-Host "$LogPrefix Repaired Composer launcher: $composerBat" -ForegroundColor Green
+    }
+
+    if (-not (Test-Path -LiteralPath $composerBat -PathType Leaf)) {
+        Write-Host "$LogPrefix Composer launcher is unavailable after repair" -ForegroundColor Red
+        return $null
+    }
+
+    Write-Host "$LogPrefix Ensuring Composer is in PATH..." -ForegroundColor Cyan
+    & $windowsPathFunctionPath "add" $composerDir
+    Write-Host "$LogPrefix Composer PATH repair completed: $composerDir" -ForegroundColor Green
+
+    return $composerBat
+}
+
+function Get-ComposerGlobalBinDirectory {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ComposerPath,
+        [string]$LogPrefix = "[PHP-Composer]"
+    )
+
+    $composerBinOutput = @()
+    $composerBinDir = $null
+    $candidatePath = $null
+    $composerHome = $env:COMPOSER_HOME
+
+    try {
+        $composerBinOutput = @(& $ComposerPath global config bin-dir --absolute --no-ansi 2>&1)
+        foreach ($outputLine in $composerBinOutput) {
+            $candidatePath = ([string]$outputLine).Trim()
+            if ([System.IO.Path]::IsPathRooted($candidatePath)) {
+                $composerBinDir = [System.IO.Path]::GetFullPath($candidatePath)
             }
         }
     }
     catch {
-        Write-Host "$LogPrefix Failed to install Composer: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "$LogPrefix Warning: Failed to query Composer global bin directory: $($_.Exception.Message)" -ForegroundColor Yellow
     }
-    finally {
-        if (Test-Path $installerPath) {
-            Remove-Item $installerPath -Force
+
+    if (-not $composerBinDir) {
+        if ([string]::IsNullOrWhiteSpace($composerHome)) {
+            $composerHome = Join-Path $env:APPDATA "Composer"
         }
+        $composerBinDir = Join-Path (Join-Path $composerHome "vendor") "bin"
     }
+
+    return $composerBinDir
+}
+
+function Install-LaravelInstallerForPhp {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$ComposerPath,
+        [string]$LogPrefix = "[PHP-Laravel]"
+    )
+
+    $composerBinDir = Get-ComposerGlobalBinDirectory -ComposerPath $ComposerPath -LogPrefix $LogPrefix
+    $laravelBat = Join-Path $composerBinDir "laravel.bat"
+    $laravelExecutable = Join-Path $composerBinDir "laravel"
+    $laravelInstalled = (Test-Path -LiteralPath $laravelBat -PathType Leaf) -or (Test-Path -LiteralPath $laravelExecutable -PathType Leaf)
+
+    if (-not $laravelInstalled) {
+        Write-Host "$LogPrefix Installing Laravel Installer..." -ForegroundColor Yellow
+        try {
+            & $ComposerPath global require "laravel/installer" --no-interaction
+        }
+        catch {
+            Write-Host "$LogPrefix Failed to install Laravel Installer: $($_.Exception.Message)" -ForegroundColor Red
+        }
+        $laravelInstalled = (Test-Path -LiteralPath $laravelBat -PathType Leaf) -or (Test-Path -LiteralPath $laravelExecutable -PathType Leaf)
+    }
+    else {
+        Write-Host "$LogPrefix Laravel Installer is already installed" -ForegroundColor Green
+    }
+
+    if (-not $laravelInstalled) {
+        Write-Host "$LogPrefix Laravel Installer binary is unavailable after installation" -ForegroundColor Red
+        return
+    }
+
+    Write-Host "$LogPrefix Ensuring Laravel Installer is in PATH..." -ForegroundColor Cyan
+    & $windowsPathFunctionPath "add" $composerBinDir
+    Write-Host "$LogPrefix Laravel Installer PATH repair completed: $composerBinDir" -ForegroundColor Green
 }
 
 function Configure-PhpIniForPackage {
@@ -122,15 +164,17 @@ function Configure-PhpIniForPackage {
         [string]$LogPrefix = "[PHP-Config]"
     )
 
+    $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $phpConfigScriptPath = Join-Path $parentDir "1_phpconfig\configure_php_ini.php"
+    $phpIniDepsFixPath = Join-Path $parentDir "1_phpconfig\fix_php_ini_deps.php"
+    $phpErrorLogPath = Join-Path $PhpDir "error.log"
+
     Write-Host "$LogPrefix Configuring PHP using configure_php_ini.php..." -ForegroundColor Cyan
 
     if (-not (Test-Path $PhpExePath)) {
         Write-Host "$LogPrefix Error: PHP executable not found: $PhpExePath" -ForegroundColor Red
         return
     }
-
-    $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    $phpConfigScriptPath = Join-Path $parentDir "1_phpconfig\configure_php_ini.php"
 
     if (-not (Test-Path $phpConfigScriptPath)) {
         Write-Host "$LogPrefix Error: configure_php_ini.php not found at $phpConfigScriptPath" -ForegroundColor Red
@@ -139,11 +183,32 @@ function Configure-PhpIniForPackage {
 
     try {
         Write-Host "$LogPrefix Running configure_php_ini.php..." -ForegroundColor Yellow
-        & $PhpExePath $phpConfigScriptPath $PhpExePath
+        & $PhpExePath $phpConfigScriptPath $PhpExePath $phpErrorLogPath
         Write-Host "$LogPrefix PHP configuration completed" -ForegroundColor Green
     }
     catch {
         Write-Host "$LogPrefix Error running configure_php_ini.php: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    # Idempotent php.ini dependency + duplicate-load cleanup, run right after
+    # configure_php_ini.php so the rest of Step16 (Composer/Swoole spawn PHP
+    # subprocesses) does not log "Module <ext> already loaded". Comments out
+    # auto-dep extensions (pgsql, auto-loaded by pdo_pgsql) and deduplicates
+    # same-extension lines in different Windows forms (extension=pdo_pgsql vs
+    # extension=php_pdo_pgsql.dll - both resolve to the same DLL). No-op when
+    # the ini is already clean. Best-effort: never blocks the step.
+    if (Test-Path $phpIniDepsFixPath) {
+        try {
+            Write-Host "$LogPrefix Running fix_php_ini_deps.php (idempotent ini cleanup)..." -ForegroundColor Yellow
+            & $PhpExePath $phpIniDepsFixPath | Out-Null
+            Write-Host "$LogPrefix php.ini dependency/duplicate cleanup completed" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "$LogPrefix Warning: fix_php_ini_deps.php reported an error: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "$LogPrefix Warning: fix_php_ini_deps.php not found at $phpIniDepsFixPath" -ForegroundColor Yellow
     }
 }
 
@@ -205,7 +270,7 @@ function Install-PECL {
             else {
                 $peclVersion = & $PhpPath $peclPhpPath version 2>&1
             }
-            if ($LASTEXITCODE -eq 0 -or $peclVersion -match "PECL|PEAR") {
+            if (("$peclVersion").Contains('PECL') -or ("$peclVersion").Contains('PEAR')) {
                 Write-Host "$LogPrefix PECL is working correctly (verified)" -ForegroundColor Green
                 return $peclPath
             }
@@ -266,22 +331,24 @@ function Install-PECL {
             return $null
         }
         
-        # Run go-pear.phar installer
+        # Run go-pear.phar installer (must run with CWD = InstallDir so default $prefix is PHP dir)
         if (Test-Path $goPearPath) {
             Write-Host "$LogPrefix Running go-pear.phar installer..." -ForegroundColor Yellow
             Write-Host "$LogPrefix This will install PEAR and PECL to: $InstallDir" -ForegroundColor Cyan
-            
+            if (-not (Test-Path $InstallDir)) {
+                Write-Host "$LogPrefix InstallDir does not exist: $InstallDir" -ForegroundColor Red
+                return $null
+            }
+            Push-Location -LiteralPath $InstallDir
             try {
-                # Try normal installation first
+                # Try normal installation first; go-pear.phar uses current directory as default $prefix
                 $installOutput = & $PhpPath $goPearPath 2>&1
-                
                 # If signature error, try with phar.require_hash=0
-                if ($installOutput -match "signature|hash" -or $LASTEXITCODE -ne 0) {
+                if (-not (($installOutput -match "signature|hash") -or (Test-Path $peclBatPath) -or (Test-Path $peclPhpPath))) {
                     Write-Host "$LogPrefix Retrying with phar.require_hash=0 flag..." -ForegroundColor Yellow
                     $installOutput = & $PhpPath -d phar.require_hash=0 $goPearPath 2>&1
                 }
-                
-                # Check if installation was successful
+                # Check if installation was successful (pecl.bat under InstallDir or InstallDir\bin)
                 if (Test-Path $peclBatPath) {
                     Write-Host "$LogPrefix PECL installed successfully at: $peclBatPath" -ForegroundColor Green
                     $peclPath = $peclBatPath
@@ -305,7 +372,7 @@ function Install-PECL {
                 return $null
             }
             finally {
-                # Clean up temporary file
+                Pop-Location -ErrorAction SilentlyContinue
                 if (Test-Path $goPearTempPath) {
                     Remove-Item $goPearTempPath -Force -ErrorAction SilentlyContinue
                 }
@@ -324,7 +391,7 @@ function Install-PECL {
                 $peclTest = & $PhpPath $peclPath version 2>&1
             }
             
-            if ($LASTEXITCODE -eq 0 -or $peclTest -match "PECL|PEAR") {
+            if ($peclTest -match "PECL|PEAR") {
                 Write-Host "$LogPrefix PECL installation verified successfully" -ForegroundColor Green
                 return $peclPath
             }
@@ -447,26 +514,22 @@ function Install-SwooleExtension {
                 $peclOutput = & $PhpPath $peclPhpPath install swoole 2>&1
             }
             
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "$LogPrefix Swoole installed successfully via PECL" -ForegroundColor Green
-                
-                # Verify installation
-                $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
-                $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
-                $swooleFound = $false
-                foreach ($module in $modulesCheckList) {
-                    if ($module -eq "swoole") {
-                        $swooleFound = $true
-                        break
-                    }
-                }
-                if ($swooleFound) {
-                    Write-Host "$LogPrefix Swoole extension verified and enabled" -ForegroundColor Green
-                    return $true
+            $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
+            $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
+            $swooleFound = $false
+            foreach ($module in $modulesCheckList) {
+                if ($module -eq "swoole") {
+                    $swooleFound = $true
+                    break
                 }
             }
+            if ($swooleFound) {
+                Write-Host "$LogPrefix Swoole installed successfully via PECL" -ForegroundColor Green
+                Write-Host "$LogPrefix Swoole extension verified and enabled" -ForegroundColor Green
+                return $true
+            }
             else {
-                Write-Host "$LogPrefix PECL installation failed with exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                Write-Host "$LogPrefix PECL installation did not enable swoole module" -ForegroundColor Yellow
                 Write-Host "$LogPrefix PECL output: $peclOutput" -ForegroundColor Yellow
             }
         }
@@ -633,26 +696,22 @@ function Install-SwooleExtension {
                 $peclOutput = & $PhpPath $peclPhpPath install openswoole 2>&1
             }
             
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "$LogPrefix Open Swoole installed successfully via PECL" -ForegroundColor Green
-                
-                # Verify installation
-                $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
-                $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
-                $openswooleFound = $false
-                foreach ($module in $modulesCheckList) {
-                    if ($module -eq "openswoole") {
-                        $openswooleFound = $true
-                        break
-                    }
-                }
-                if ($openswooleFound) {
-                    Write-Host "$LogPrefix Open Swoole extension verified and enabled (compatible with Swoole)" -ForegroundColor Green
-                    return $true
+            $phpModulesCheck = & $PhpPath -m 2>&1 | Out-String
+            $modulesCheckList = $phpModulesCheck -split "`n" | ForEach-Object { $_.Trim() }
+            $openswooleFound = $false
+            foreach ($module in $modulesCheckList) {
+                if ($module -eq "openswoole") {
+                    $openswooleFound = $true
+                    break
                 }
             }
+            if ($openswooleFound) {
+                Write-Host "$LogPrefix Open Swoole installed successfully via PECL" -ForegroundColor Green
+                Write-Host "$LogPrefix Open Swoole extension verified and enabled (compatible with Swoole)" -ForegroundColor Green
+                return $true
+            }
             else {
-                Write-Host "$LogPrefix Open Swoole PECL installation failed with exit code: $LASTEXITCODE" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Open Swoole PECL installation did not enable openswoole module" -ForegroundColor Yellow
             }
         }
         catch {
@@ -683,9 +742,10 @@ function Invoke-PhpPostInstallProcessor {
         [string]$LogPrefix = "[PHP-PostInstall]"
     )
 
-    Write-Host "$LogPrefix Processing PHP post-installation for $PackageName" -ForegroundColor Cyan
-
+    $composerPath = Join-Path $InstallDir "composer.bat"
     $phpOperation = if ($PhpCallback.ContainsKey("Operation")) { $PhpCallback.Operation } else { "" }
+
+    Write-Host "$LogPrefix Processing PHP post-installation for $PackageName" -ForegroundColor Cyan
 
     if ([string]::IsNullOrEmpty($phpOperation)) {
         Write-Host "$LogPrefix Error: PHP callback missing Operation parameter" -ForegroundColor Red
@@ -702,10 +762,13 @@ function Invoke-PhpPostInstallProcessor {
         }
         "install_composer" {
             Write-Host "$LogPrefix Installing Composer..." -ForegroundColor Yellow
-            Install-ComposerForPhp -PhpPath $ExecutablePath -InstallDir $InstallDir -LogPrefix $LogPrefix
+            Install-ComposerForPhp -PhpPath $ExecutablePath -InstallDir $InstallDir -LogPrefix $LogPrefix | Out-Null
+            if (Test-Path -LiteralPath $composerPath -PathType Leaf) {
+                Install-LaravelInstallerForPhp -ComposerPath $composerPath -LogPrefix $LogPrefix
+            }
         }
         "full_setup" {
-            Write-Host "$LogPrefix Performing full PHP setup (INI + Extensions + Composer + Swoole)..." -ForegroundColor Yellow
+            Write-Host "$LogPrefix Performing full PHP setup (INI + Extensions + Composer + Laravel + Swoole)..." -ForegroundColor Yellow
 
             # Step 1: Configure php.ini using configure_php_ini.php (always run, continue even if fails)
             try {
@@ -725,13 +788,23 @@ function Invoke-PhpPostInstallProcessor {
 
             # Step 3: Install Composer (always run, continue even if fails)
             try {
-                Install-ComposerForPhp -PhpPath $ExecutablePath -InstallDir $InstallDir -LogPrefix $LogPrefix -ForceReinstall $false
+                Install-ComposerForPhp -PhpPath $ExecutablePath -InstallDir $InstallDir -LogPrefix $LogPrefix -ForceReinstall $false | Out-Null
             }
             catch {
                 Write-Host "$LogPrefix Warning: Failed to install Composer: $($_.Exception.Message)" -ForegroundColor Yellow
             }
 
-            # Step 4: Install Swoole extension (always run, never skip, continue even if fails)
+            # Step 4: Install Laravel Installer and repair its PATH (continue even if it fails)
+            try {
+                if (Test-Path -LiteralPath $composerPath -PathType Leaf) {
+                    Install-LaravelInstallerForPhp -ComposerPath $composerPath -LogPrefix $LogPrefix
+                }
+            }
+            catch {
+                Write-Host "$LogPrefix Warning: Failed to install Laravel Installer: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+
+            # Step 5: Install Swoole extension (always run, never skip, continue even if fails)
             # Required for Laravel 12 with Octane
             try {
                 Install-SwooleExtension -PhpPath $ExecutablePath -InstallDir $InstallDir -LogPrefix $LogPrefix

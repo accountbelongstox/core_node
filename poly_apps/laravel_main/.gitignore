@@ -21,4 +21,5 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
-/private_public
+/private_publicrr
+.rr.yaml

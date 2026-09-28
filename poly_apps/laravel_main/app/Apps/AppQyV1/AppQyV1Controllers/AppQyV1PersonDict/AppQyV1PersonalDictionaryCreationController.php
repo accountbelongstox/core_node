@@ -1,28 +1,17 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\JsonResponse;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
-use App\Utils\StrTool;
-use App\Utils\ArrTool;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryPublicController as PDAPublic;
-use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1CreatePersonalDictionaryRequest;
+use Illuminate\Support\Facades\Validator;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionaryEntryModel;
 use App\Traits\ApiResponse;
-class AppQyV1PersonalDictionaryCreationController
+
+class AppQyV1PersonalDictionaryCreationController extends Controller
 {
     use ApiResponse;
 
@@ -31,24 +20,39 @@ class AppQyV1PersonalDictionaryCreationController
      * NO ?? or || allowed - use explicit if statements
      */
 
-
-    public function createPersonalDictionary(AppQyV1CreatePersonalDictionaryRequest $request): JsonResponse
+    public function createPersonalDictionary(Request $request): JsonResponse
     {
-        $dictionaries = $request->input('dictionaries');
-        $dictionaries = StrTool::toWordArray($dictionaries);
-        $result = PDAPublic::addPersonDictionaries($dictionaries);
+        $validator = Validator::make($request->all(), [
+            'word' => 'required|string|max:255',
+            'definition' => 'nullable|string',
+            'example' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'language' => 'nullable|string|max:16',
+        ]);
 
-        $data = $result['data'];
-        if (is_string($data)) {
-            $data = json_decode($data, true);
+        if ($validator->fails()) {
+            return $this->validationErrorWithParams($validator);
         }
 
+        $uid = Auth::id();
+        $language = $request->input('language');
+        if ($language === null) {
+            $language = 'en';
+        }
+
+        $entry = new AppQyV1PersonalDictionaryEntryModel();
+        $entry->uid = $uid;
+        $entry->word = $request->input('word');
+        $entry->language = $language;
+        $entry->definition = $request->input('definition');
+        $entry->example = $request->input('example');
+        $entry->notes = $request->input('notes');
+        $entry->saveRecord();
+
         return $this->success([
-            'dictionaries_length' => ArrTool::count($dictionaries),
-            'id' => $result['id'],
-            'data' => $data,
-        ], 'Personal dictionary created successfully');
+            'id' => (string) $entry->id,
+            'message' => __('app_qy_v1.messages.personal_dictionary_entry_created'),
+        ], __('app_qy_v1.messages.personal_dictionary_entry_created'));
     }
 
 }
-

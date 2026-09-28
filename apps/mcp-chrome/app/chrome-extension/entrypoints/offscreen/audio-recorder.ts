@@ -1,13 +1,22 @@
 // Offscreen Audio Recorder
 // Handles audio capture, mixing, streaming, and silence detection
 
+// MUST stay the first import: aliases chrome -> browser on Firefox before any
+// other module top-level code touches chrome.* (no-op, tree-shaken on Chrome).
+import '@/utils/browser-shim';
+import { respondAsync } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
+import { IntervalController, TimeoutController } from '@/utils/async';
+
 let recorder: MediaRecorder | null = null;
 let audioData: Blob[] = [];
 let activeStreams: MediaStream[] = [];
 let websockets: Map<string, WebSocket> = new Map();
 let audioContext: AudioContext | null = null;
 let analyserNode: AnalyserNode | null = null;
-let silenceDetectionInterval: ReturnType<typeof setInterval> | null = null;
+const maxDurationTimeout = new TimeoutController();
+const silenceDetection = new IntervalController();
+const durationUpdates = new IntervalController();
 
 // Recording configuration
 let recordingConfig: {
@@ -41,28 +50,38 @@ let recordingState = {
 };
 
 // Message listener
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+// Synchronous listener returning true and driving async work via .then/.catch,
+// matching the sibling offscreen/background listeners (main.ts, storage-manager.ts).
+// An async listener returns a Promise, not the boolean Chrome needs to keep the
+// channel open, so sendResponse would always hit a closed port.
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('[Audio Offscreen] Received message:', message.type);
 
-  switch (message.type) {
-    case 'audio_start_recording':
-      await startRecording(message.streamId, message.config);
-      sendResponse({ success: true });
-      break;
+  try {
+    switch (message.type) {
+      case 'audio_start_recording':
+        respondAsync(
+          sendResponse,
+          startRecording(message.streamId, message.config),
+          () => ({ success: true }),
+        );
+        break;
 
-    case 'audio_stop_recording':
-      await stopRecording();
-      sendResponse({ success: true });
-      break;
+      case 'audio_stop_recording':
+        respondAsync(sendResponse, stopRecording(), () => ({ success: true }));
+        break;
 
-    case 'audio_update_config':
-      recordingConfig = message.config;
-      sendResponse({ success: true });
-      break;
+      case 'audio_update_config':
+        recordingConfig = message.config;
+        sendResponse({ success: true });
+        break;
 
-    default:
-      console.warn('[Audio Offscreen] Unknown message type:', message.type);
-      sendResponse({ success: false, error: 'Unknown message type' });
+      default:
+        console.warn('[Audio Offscreen] Unknown message type:', message.type);
+        sendResponse({ success: false, error: 'Unknown message type' });
+    }
+  } catch (error) {
+    sendResponse({ success: false, error: toErrorMessage(error) });
   }
 
   return true; // Keep message channel open for async response
@@ -99,8 +118,8 @@ async function startRecording(streamId: string, config: typeof recordingConfig) 
         mandatory: {
           chromeMediaSource: 'tab',
           chromeMediaSourceId: streamId,
-        } as any,
-      },
+        },
+      } as MediaTrackConstraints,
       video: false,
     });
     activeStreams.push(tabStream);
@@ -206,7 +225,10 @@ async function startRecording(streamId: string, config: typeof recordingConfig) 
     // Set max duration timeout if configured
     if (recordingConfig?.recordingSettings.maxDuration &&
         recordingConfig.recordingSettings.maxDuration > 0) {
-      setTimeout(() => {
+      // Clear any orphaned timer from a prior recording so it can never fire
+      // during this one and stop it prematurely.
+      stopMaxDurationTimer();
+      maxDurationTimeout.schedule(() => {
         if (recordingState.isRecording) {
           console.log('[Audio Offscreen] Max duration reached, stopping recording');
           stopRecording();
@@ -236,6 +258,7 @@ async function stopRecording() {
   recorder.stop();
   stopSilenceDetection();
   stopDurationTimer();
+  stopMaxDurationTimer();
 }
 
 async function streamChunk(chunk: Blob) {
@@ -296,7 +319,12 @@ async function connectWebSockets() {
 
       ws.onclose = () => {
         console.log(`[Audio Offscreen] WebSocket closed: ${server.name}`);
-        websockets.delete(server.id);
+        // Only evict if this is still the active socket for the server. A stale
+        // close from a replaced or cleaned-up socket must not evict the new one
+        // that a subsequent recording already registered under the same id.
+        if (websockets.get(server.id) === ws) {
+          websockets.delete(server.id);
+        }
       };
 
       websockets.set(server.id, ws);
@@ -382,7 +410,7 @@ function startSilenceDetection() {
   const silenceThreshold = 10; // Adjust as needed
   const silenceDuration = (recordingConfig?.recordingSettings.silenceDuration || 30) * 1000;
 
-  silenceDetectionInterval = setInterval(() => {
+  silenceDetection.start(() => {
     if (!analyserNode) return;
 
     analyserNode.getByteFrequencyData(dataArray);
@@ -414,26 +442,22 @@ function startSilenceDetection() {
 }
 
 function stopSilenceDetection() {
-  if (silenceDetectionInterval) {
-    clearInterval(silenceDetectionInterval);
-    silenceDetectionInterval = null;
-  }
+  silenceDetection.stop();
 }
 
-let durationTimer: ReturnType<typeof setInterval> | null = null;
-
 function startDurationTimer() {
-  durationTimer = setInterval(() => {
+  durationUpdates.start(() => {
     recordingState.duration = Math.floor((Date.now() - recordingState.startTime) / 1000);
     notifyRecordingStatus();
   }, 1000);
 }
 
 function stopDurationTimer() {
-  if (durationTimer) {
-    clearInterval(durationTimer);
-    durationTimer = null;
-  }
+  durationUpdates.stop();
+}
+
+function stopMaxDurationTimer() {
+  maxDurationTimeout.cancel();
 }
 
 function notifyRecordingStatus() {
@@ -482,6 +506,7 @@ async function cleanup() {
   // Stop timers
   stopSilenceDetection();
   stopDurationTimer();
+  stopMaxDurationTimer();
 
   // Clear data
   audioData = [];

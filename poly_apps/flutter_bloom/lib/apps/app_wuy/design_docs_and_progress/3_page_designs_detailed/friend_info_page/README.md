@@ -1,4 +1,4 @@
-# 好友信息页 (friend_info_page)
+# Friend Info Page (friend_info_page)
 
 This directory contains detailed design specifications for the friend_info_page page.
 

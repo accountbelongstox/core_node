@@ -1,0 +1,924 @@
+# -*- coding: utf-8 -*-
+"""
+Persistent TTS audio workers for contract-owned typed queues.
+
+Enabled workers pull and accept typed Laravel tasks without depending on the
+React UI lifecycle. The RPC ``accept_task`` route remains as a compatible
+manual dispatch surface.
+
+------------------------------------------------------------------------------
+Laravel typed pull/accept/result contract
+------------------------------------------------------------------------------
+  Pull:    POST /api/worker/tasks/{taskType}/pull
+  Accept:  POST /api/worker/tasks/{taskType}/accept
+  Result:  POST /api/worker/tasks/{taskType}/result   (processing/completed/failed)
+
+  Task payloads (global_task.payload, delivered by Laravel typed pull):
+    word_audio:     {word, content(alias), language, md5, audio_relative_path,
+                     accent?, dict_row_id?}
+    article_audio:  {content, language, md5}
+    sentence_audio: {text, content(alias), language, content_id, variant_key?,
+                     accent?, engine_profile?, preferred_engine?}
+
+  File transport (UNCHANGED report endpoints, multipart, field ``audio``):
+    word:     POST /api/app_qy_v1/ai_tools/tts/worker/report
+              {task_id:int(encoded), worker_id, success, audio|audio_base64,
+               provider?, error?}
+              task_id = dict_row_id*1000 + typeDigit*100 + langIndex
+              (AppQyV1DictionaryTTSCoordinator::encodeTaskId, typeDigit word=1).
+              When the payload carries no dict_row_id the domain report is
+              skipped and the audio is delivered ONLY through the global task
+              result (WordTranslationTaskProcessor ingests translations[]
+              audio_base64 fill-missing).
+    sentence: POST /api/app_qy_v1/ai_tools/tts/sentence/report
+              {content_id, language, worker_id, success, audio|audio_base64,
+               variant_key?, accent?, gender?, source?, voice_type?,
+               provider?, error?}
+
+  The completed global-task result carries audio_base64 only when a domain
+  report endpoint cannot be addressed. A successful domain upload is the
+  durable audio step; the result then carries identity and provenance only.
+
+------------------------------------------------------------------------------
+Architecture (persistent worker kernel)
+------------------------------------------------------------------------------
+  * Singleton per lane on top of BaseLaravelWorkerService, plus one shared
+    durable delivery outbox for domain uploads, terminal results, and history.
+  * Typed pull or the compatibility accept_task() entry records the task
+    type/endpoint, pushes it into ONE shared ordered heap, and starts ONE drain
+    (non-reentrant via a THREAD_BUS signal). Serial engines drain on one lane,
+    parallel-safe engines fan out to bounded lanes via map_bus_tasks
+    (retired-worker pattern).
+  * Local caches are honored BEFORE synthesis: word cache
+    (pyutils/tts/word_audio_cache.py) and the persistent sentence cache
+    (<app_cache>/sentence_audio/<lang>/<content_id>[_variant].mp3 — the local
+    retained copy, never deleted). Fresh output is validated with the shared
+    validate_mp3 mirror of the server checks and saved to the cache.
+  * Logging only via ColorPrint. Networking via laravel_client (lazy
+    third-party requests). All imports at file top (PYTHON_PYCORE.md).
+"""
+
+import time
+from collections import deque
+from typing import Any, Deque, Dict, List, Optional, Tuple
+
+# ColorPrint is the only allowed logger in pycore services.
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint, format_duration_hms
+from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.serialized_worker import (
+    SerializedValue,
+    map_bus_tasks,
+    serialized_method,
+    start_bus_task,
+)
+# Rule §4: all inter-thread data exchange goes through the global bus.
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.system_paths import get_app_cache_dir
+# Unified pycore->Laravel HTTP gateway (times + logs + records every request).
+from pycore.pyutils.common.service_config import (
+    LARAVEL_WORKER_API_URL,
+    PYSERVICE_STARTED_MONOTONIC,
+    TTS_SENTENCE_WORKER_CONCURRENCY,
+    TTS_WORKER_CONCURRENCY,
+)
+from pycore.pyutils.common.queue_center_contract import (
+    GLOBAL_TASK_CAPABILITIES_BY_ROLE,
+    GLOBAL_TASK_PROGRESS_STAGES,
+    GLOBAL_TASK_PROGRESS_TOTAL,
+    GLOBAL_TASK_TYPES_BY_KEY,
+    task_execution_type,
+    task_types_for_claimant,
+)
+from pycore.pyctl.assist.assist_settings import assist_capability_enabled
+from pycore.pyctl.laravel.worker_base import (
+    BaseLaravelWorkerService,
+)
+from pycore.pyctl.tts.word_audio_backend_progress import (
+    word_audio_backend_progress,
+)
+from pycore.pyctl.tts.laravel_audio_worker_state import (
+    LaravelAudioWorkerStateMixin,
+    TASK_OUTCOME_COMPLETED,
+    TASK_OUTCOME_SKIPPED,
+)
+from pycore.pyctl.tts.laravel_audio_worker_execution import (
+    LaravelAudioWorkerExecutionMixin,
+)
+# ONE entry point for synthesis; local-first engine priority and edge's
+# process-wide serialization live inside the orchestrator.
+import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
+from pycore.pyutils.tts import runtime_profile
+from pycore.pyutils.tts.batch import batch_constants
+from pycore.pyutils.tts.tts_concurrency import (
+    effective_concurrency,
+    recommended_concurrency,
+)
+from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
+from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
+from pycore.pyutils.tts import audio_queue_cache
+from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_delivery
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+
+
+# TTL for the cached engine probe (tts_status() probes EVERY engine; far too
+# expensive per task). Retired-worker value.
+_ENGINE_PROBE_TTL_S = 60.0
+
+def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
+    """Drain one synth lane; payload and result travel through THREAD_BUS."""
+    worker = payload["worker"]
+    processed = succeeded = failed = skipped = 0
+    while True:
+        if worker._lane_halt_requested():
+            break
+        task = audio_queue_center.pop_next(worker.QUEUE_KEY)
+        if task is None:
+            break
+        processed += 1
+        started = time.monotonic()
+        outcome = worker._process_claimed(task)
+        if outcome == TASK_OUTCOME_SKIPPED:
+            # Claim rejected / duplicate dispatch: never synthesized, so the
+            # lifetime counters and backend progress stay untouched.
+            skipped += 1
+        else:
+            success = outcome == TASK_OUTCOME_COMPLETED
+            if success:
+                succeeded += 1
+            else:
+                failed += 1
+            worker._record_task_result(success, time.monotonic() - started)
+        worker._log_cycle_task_result(task, outcome)
+        worker._complete_queued_task(task, outcome)
+    return {
+        "processed": processed,
+        "succeeded": succeeded,
+        "failed": failed,
+        "skipped": skipped,
+    }
+
+
+class BaseLaravelAudioWorker(
+    LaravelAudioWorkerStateMixin,
+    LaravelAudioWorkerExecutionMixin,
+    BaseLaravelWorkerService,
+):
+    """Shared word/sentence persistent Laravel audio worker.
+
+    Lane-specific config lives in class attributes; the two concrete singletons
+    at the bottom differ ONLY in those attributes. Lifecycle:
+      typed pull or compatibility accept_task() -> record type/endpoint + push into
+      the shared ordered heap -> start ONE background drain cycle (skipped
+      while the previous cycle runs) -> drain by queue order (one serial lane
+      or bounded parallel lanes) -> per task: cache check -> synthesize ->
+      validate -> durable cache/outbox. Independent delivery task groups send
+      domain reports and global results without blocking synthesis lanes.
+    """
+
+    # ---- lane config (overridden by the concrete subclasses) ----
+    LANE = "word"
+    QUEUE_KEY = "word_audio"
+    CAPABILITY = "audio"
+    PRIORITY_PROFILE = "word"
+    REQUIRED_ENGINE: Optional[str] = None
+    ASSIST_CAPABILITY = "tts"
+    WORKER_ID_PREFIX = "pycore"
+    WORKER_NAME_TAG = "word-audio"
+    LOG_PREFIX = "[WordAudioWorker]"
+    STATE_OWNER_KEY = "tts.word_audio_worker.state"
+    STATE_OWNER_NAME = "WordAudioWorkerState"
+    STATE_OWNER_TIMEOUT = 180.0
+    REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
+    CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
+    CONCURRENCY_LIMIT = 8
+    PROGRESS_EVENTS_ENABLED = False
+    # Audio lanes mirror the entire pending claim order from one diff
+    # (sync=1), keep the mirrored backlog in the persistent segment store
+    # plus the local heap for offline processing, claim just-in-time at
+    # task start, and apply later diffs incrementally (new payloads via
+    # page-data segments + local reorder) instead of bounded claim-pulls.
+    FULL_SYNC_ENABLED = True
+    # Result/progress delivery is independent from synthesis. Laravel traffic
+    # uses the shared progress-driven activity contract (connect + idle
+    # socket-stall bounds, no fixed total deadline); the durable audio outbox
+    # retries delivery after reconnect.
+    RESULT_OFFLINE_BACKOFF_SECONDS = 30.0
+
+    def _on_laravel_online(self, base_url: str) -> None:
+        """Flush generated local audio before admitting more remote work."""
+        laravel_delivery_outbox.kick(self._delivery_kind)
+
+    def __init__(self, laravel_api_url: str = ""):
+        """Initialize the worker (idempotent — safe to call repeatedly)."""
+        if getattr(self, "_initialized", False):
+            return
+
+        # Shared Laravel-worker scaffold (candidates, api_url, worker_id,
+        # circuit/inflight state).
+        self._init_base_laravel(laravel_api_url or LARAVEL_WORKER_API_URL)
+        self.worker_name = f"pycore-{self.WORKER_NAME_TAG}-{self.worker_id}"
+        self._log_prefix = self.LOG_PREFIX
+
+        # 0 = use the per-engine recommended value (pyutils/tts/tts_concurrency).
+        self._concurrency = max(0, self.CONCURRENCY_DEFAULT)
+        self._speaker = ""
+
+        # The lane queue is owned by the shared audio queue library
+        # (Queue = Part1 + Part2); this worker consumes it, never
+        # constructs it, and registers its Laravel-intake callables so the
+        # library's public M1/M2 entries drive the Part2 fill/update.
+        self._queue = audio_queue_center.queue_for(self.QUEUE_KEY)
+        audio_queue_center.register_lane_intake(
+            self.QUEUE_KEY,
+            initializer=self._initialize_lane_from_laravel,
+            diff_applier=self._apply_lane_laravel_diff,
+            head_ticket_applier=self._persist_head_ticket,
+            waker=self.request_pull,
+        )
+
+        # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
+        self._cycle_signal = f"laravel_audio_worker.cycle_running.{self.LANE}"
+        THREAD_BUS.signal(self._cycle_signal, False)
+        # Atomic single-flight guard of the drain cycle (the signal above is
+        # the observable state only).
+        self._drain_guard = SerializedValue(False, f"{self.LANE.title()}AudioDrainGuardThread")
+
+        # Engine probe cache (60s TTL) — see _engine_plan().
+        self._engine_probe_cache: Optional[str] = None
+        self._usable_engines_cache: List[str] = []
+        self._engine_probe_ts = 0.0
+
+        # Lifetime + live counters (introspection / FE status).
+        self._total_claimed = 0
+        self._total_succeeded = 0
+        self._total_failed = 0
+        self._total_duration_s = 0.0
+        self._processing = 0
+        self._current_tasks: Dict[Any, Dict[str, Any]] = {}
+        self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
+        self._event_revision = 0
+        self._last_cycle_summary: Dict[str, Any] = {}
+        # Throttle marker for the idle event (epoch seconds of the last one).
+        self._last_idle_event_ts = 0.0
+        # Scratch dir for synthesized/uploaded word MP3s (cleaned per task) and
+        # the persistent sentence cache root (retained local copy).
+        self._tmp_dir = str(TMP_DIR / "pycore_tts_worker")
+        self._cache_dir = str(get_app_cache_dir() / "sentence_audio")
+
+        self._initialized = True
+        # Registration only; the outbox flushes rows left by a previous
+        # process when it starts (service startup path).
+        self._delivery_kind = audio_lane_delivery.register(self)
+        ColorPrint.green(
+            f"{self._log_prefix} Service initialized (worker_id={self.worker_id}, "
+            f"enabled={assist_capability_enabled(self.ASSIST_CAPABILITY)})"
+        )
+
+    # -------------------- dynamic log prefix (shared by both lanes) --------------------
+
+    @property
+    def _log_prefix(self) -> str:
+        """Dynamic prefix: "[<Tag> <service uptime HH:MM:SS>] <remote tier> <local runtime>".
+
+        Uptime is anchored at the ONE central pyservice start constant
+        (service_config.PYSERVICE_STARTED_MONOTONIC) so every lane measures
+        from the same service boot, and renders through the shared
+        format_duration_hms. The local runtime label mirrors THIS
+        lane's own lifetime counters (word and sentence are separate worker
+        instances - totals and average durations never mix) accumulated
+        since that same boot; the remote tier label (remote_en=done/total)
+        appears only on contract-tiered lanes.
+        """
+        elapsed = time.monotonic() - PYSERVICE_STARTED_MONOTONIC
+        parts = [f"[{self.LOG_PREFIX.strip('[]')} {format_duration_hms(elapsed)}]"]
+        tier_label = self._remote_language_tier_label()
+        if tier_label:
+            parts.append(tier_label)
+        parts.append(self._local_runtime_label())
+        return " ".join(parts)
+
+    @_log_prefix.setter
+    def _log_prefix(self, value: str) -> None:
+        # Both __init__ layers assign the static LOG_PREFIX; the shared
+        # dynamic property replaces it, so the assignment is discarded.
+        del value
+
+    # -------------------- identity / lanes --------------------
+
+    def _effective_processor_types(self) -> List[str]:
+        """Audio is claimed only from its queue-position ordered lane."""
+        return [task_execution_type(self.QUEUE_KEY)]
+
+    def _effective_capabilities(self) -> List[str]:
+        return [GLOBAL_TASK_CAPABILITIES_BY_ROLE[self.CAPABILITY]]
+
+    def _pull_task_types(self) -> List[str]:
+        if not self._is_enabled():
+            return []
+        return self._contract_task_types()
+
+    def _contract_task_types(self) -> List[str]:
+        capability = GLOBAL_TASK_CAPABILITIES_BY_ROLE[self.CAPABILITY]
+        return list(task_types_for_claimant("pycore", capability))
+
+    def _pull_capacity(self) -> int:
+        concurrency, _engine = self._effective_concurrency()
+        return max(0, concurrency - self._queue.active_count())
+
+    def _diff_pull_capacity(self) -> int:
+        concurrency, _engine = self._effective_concurrency()
+        return max(0, concurrency - self._queue.active_count())
+
+    def _lease_capacity(self) -> int:
+        concurrency, _engine = self._effective_concurrency()
+        return concurrency
+
+    def _is_enabled(self) -> bool:
+        """Lane enable state: the persisted assist capability (UI toggle).
+
+        The persistent pull callback runs only while this toggle is on; this is
+        also a defense-in-depth guard on the compatibility accept entry."""
+        return assist_capability_enabled(self.ASSIST_CAPABILITY)
+
+    # -------------------- engine probe / concurrency --------------------
+
+    def _required_engine(self) -> Optional[str]:
+        """Effective pinned engine for this lane.
+
+        The startup-pinned runtime profile wins over the class pin: on a GPU
+        host the sentence lane keeps qwen3tts, on a CPU-only host the profile
+        pins sentence/long text to kokoro. None for unpinned lanes (word)."""
+        if self.REQUIRED_ENGINE is None:
+            return None
+        return runtime_profile.pinned_sentence_engine() or self.REQUIRED_ENGINE
+
+    @serialized_method
+    def _engine_plan(self) -> Tuple[Optional[str], List[str]]:
+        """(planned engine, usable engine list) for this lane (60s TTL cache).
+
+        ``tts_orchestrator.tts_status()`` probes EVERY engine — per-task calls
+        stall synthesis on sequential availability checks, so the result is
+        cached for _ENGINE_PROBE_TTL_S seconds (retired-worker pattern). The
+        usable list drives multi-engine fan-out: with per-task engine rotation,
+        each usable engine can synthesize a different word concurrently.
+        """
+        if self._required_engine():
+            return self._required_engine(), [self._required_engine()]
+        now = time.monotonic()
+        if (
+            self._engine_probe_cache is not None
+            and now - self._engine_probe_ts < _ENGINE_PROBE_TTL_S
+        ):
+            return self._engine_probe_cache or None, list(self._usable_engines_cache)
+        status = tts_orchestrator.tts_status(refresh=True)
+        entries = {
+            str(row.get("name") or ""): row
+            for row in status.get("engines", [])
+            if isinstance(row, dict)
+        }
+        usable: List[str] = []
+        for candidate in tts_orchestrator._priority(self.PRIORITY_PROFILE):
+            row = entries.get(candidate) or {}
+            concurrency_class = self._engine_concurrency_class(candidate)
+            available = bool(row.get("available")) or (
+                concurrency_class == "server" and bool(row.get("installed"))
+            )
+            if not available or float(row.get("cooldown_remaining") or 0) > 0:
+                continue
+            usable.append(candidate)
+        engine = usable[0] if usable else ""
+        self._engine_probe_cache = engine
+        self._usable_engines_cache = list(usable)
+        self._engine_probe_ts = now
+        return engine or None, usable
+
+    def _planned_engine(self) -> Optional[str]:
+        """First usable engine in this lane's priority profile."""
+        return self._engine_plan()[0]
+
+    def _usable_engines(self) -> List[str]:
+        """Every currently usable engine in this lane's priority order."""
+        return self._engine_plan()[1]
+
+    @staticmethod
+    def _engine_concurrency_class(engine: Optional[str]) -> str:
+        """Concurrency class of the planned engine; unknown -> serial (safe)."""
+        return tts_orchestrator.engine_concurrency(engine or "")
+
+    def _effective_concurrency(self) -> Tuple[int, str]:
+        """(effective fan-out, planned engine).
+
+        Single-engine chains keep the engine-class value (serial forced to 1).
+        Multi-engine chains (no REQUIRED_ENGINE pin) scale to the number of
+        usable engines: per-task engine rotation starts each lane on a
+        DIFFERENT engine, and same-engine work still serializes on that
+        engine's managed lease, so several local models synthesize different
+        words at the same time."""
+        engine = self._planned_engine() or ""
+        kind = self._engine_concurrency_class(engine)
+        concurrency = effective_concurrency(kind, self.get_concurrency())
+        if self._required_engine() is None:
+            usable_count = len(self._usable_engines())
+            if usable_count > 1:
+                user_value = self.get_concurrency()
+                multi = min(usable_count, self.CONCURRENCY_LIMIT)
+                if user_value > 0:
+                    concurrency = max(1, min(int(user_value), multi))
+                else:
+                    concurrency = max(concurrency, multi)
+        return min(self.CONCURRENCY_LIMIT, concurrency), engine
+
+    def concurrency_status(self) -> Dict[str, Any]:
+        """Return cached planning data without probing engines on a status RPC."""
+        engine = self._required_engine() or self._engine_probe_cache or ""
+        kind = self._engine_concurrency_class(engine)
+        concurrency = min(
+            self.CONCURRENCY_LIMIT,
+            effective_concurrency(kind, self._concurrency),
+        )
+        recommended = min(
+            self.CONCURRENCY_LIMIT,
+            recommended_concurrency(kind),
+        )
+        usable_count = len(self._usable_engines_cache)
+        if self._required_engine() is None and usable_count > 1:
+            multi = min(usable_count, self.CONCURRENCY_LIMIT)
+            if self._concurrency > 0:
+                concurrency = max(1, min(int(self._concurrency), multi))
+            else:
+                concurrency = max(concurrency, multi)
+            recommended = max(recommended, multi)
+        return {
+            "concurrency": concurrency,
+            "concurrency_recommended": recommended,
+            "concurrency_limit": self.CONCURRENCY_LIMIT,
+            "concurrency_engine": engine or None,
+            "concurrency_class": kind,
+            "usable_engines": list(self._usable_engines_cache),
+        }
+
+    @serialized_method
+    def set_concurrency(self, concurrency: int) -> None:
+        self._concurrency = max(0, int(concurrency))
+
+    def get_concurrency(self) -> int:
+        return self._concurrency
+
+    @serialized_method
+    def set_speaker(self, speaker: str) -> None:
+        self._speaker = str(speaker or "").strip()
+
+    def get_speaker(self) -> str:
+        return self._speaker
+
+    @serialized_method
+    def invalidate_engine_plan(self) -> None:
+        """Apply a changed engine order on the next worker cycle."""
+        self._engine_probe_cache = None
+        self._usable_engines_cache = []
+        self._engine_probe_ts = 0.0
+
+    # -------------------- events / counters --------------------
+
+
+
+    def _log_cycle_task_result(self, task: Dict[str, Any], outcome: str) -> None:
+        """Write one compact terminal line with canonical backend-table progress."""
+        if self.LANE != "word":
+            return
+        payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+        word = str(payload.get("word") or payload.get("content") or "").strip()
+        language = str(payload.get("language") or "en").strip().lower() or "en"
+        if outcome == TASK_OUTCOME_SKIPPED:
+            # The task was dropped before synthesis (claim rejected or
+            # duplicate dispatch): audit the drop without recording a result.
+            self._log_event(
+                "task_skipped",
+                str(task.get("_skip_reason") or "skipped before synthesis"),
+                {
+                    "task_id": task.get("task_id"),
+                    "word": word,
+                    "text": word,
+                    "language": language,
+                    "stage": "skipped",
+                },
+            )
+            return
+        success = outcome == TASK_OUTCOME_COMPLETED
+        if bool(task.get("_delivery_staged")):
+            self._log_event(
+                "delivery_staged",
+                "audio cached; durable Laravel delivery is pending "
+                "(reason=word_audio_delivery)",
+                {
+                    "task_id": task.get("task_id"),
+                    "stage": "uploading",
+                    "current_provider": task.get("_terminal_provider"),
+                },
+            )
+            return
+        backend_progress = word_audio_backend_progress.record_result(success)
+        provider = str(task.get("_terminal_provider") or "").strip()
+        info: Dict[str, Any] = {
+            "task_id": task.get("task_id"),
+            "word": word,
+            "text": word,
+            "language": language,
+            "stage": "completed" if success else "failed",
+            "progress": GLOBAL_TASK_PROGRESS_TOTAL if success else 0,
+            "progress_total": GLOBAL_TASK_PROGRESS_TOTAL,
+            "backend_progress_current": int(backend_progress.get("current") or 0),
+            "backend_progress_total": int(backend_progress.get("total") or 0),
+        }
+        if provider:
+            info["current_provider"] = provider
+        detail = f"via {provider}" if success and provider else (
+            "completed" if success else "failed"
+        )
+        self._log_event("task_done" if success else "task_fail", detail, info)
+
+    def set_cached_task_head(self, task_id: Any, queue_position: int, dedup_key: Any = "") -> None:
+        """Apply one Laravel queue-head ticket through the shared queue library.
+
+        Part2 realtime entry (M2 ``apply_head_ticket``): the heap move,
+        whole-Queue dedup (a Part1 member keeps its front copy), and the
+        wake all happen inside ``audio_queue_center``. ``dedup_key`` is the
+        event's canonical identity (``{language}:{md5}`` /
+        ``{language}:{content_id}``) used when the ticket's Laravel task_id
+        has no local counterpart (full-pull-filled lanes)."""
+        audio_queue_center.apply_head_ticket(self.QUEUE_KEY, task_id, queue_position, dedup_key)
+
+    def _initialize_lane_from_laravel(self) -> Dict[str, Any]:
+        """M1 intake: initial Laravel full sync -> fills the queue's Part2."""
+        return self._pull_once(prefer_remote=True)
+
+    def _apply_lane_laravel_diff(self) -> Dict[str, Any]:
+        """M2 intake: one timed Laravel diff round -> Part2 update only."""
+        return self._fetch_mirror_from_diffs(self._pull_task_types())
+
+    def _persist_head_ticket(self, task_id: Any, queue_position: int) -> None:
+        """Persist one Part2 head ticket in the durable segment store.
+
+        Registered with the shared queue library as the head-ticket
+        applier; the in-process heap ordering itself is the library's."""
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        diff_task_segment_store.move_to_head(
+            self._diff_segment_scope(base_url),
+            task_id,
+            queue_position,
+        )
+
+    def _complete_queued_task(self, task: Dict[str, Any], outcome: str) -> None:
+        """Report one popped task's terminal outcome to the shared queue library.
+
+        The library releases the whole-Queue dedup/Part1 state and records the
+        outcome for owners watching the item (orchestration fill progress).
+        """
+        audio_queue_center.complete(
+            self.QUEUE_KEY,
+            task,
+            ok=outcome == TASK_OUTCOME_COMPLETED,
+            provider=str(task.get("_terminal_provider") or ""),
+            error=str(task.get("_skip_reason") or task.get("_batch_audio_error") or ""),
+        )
+
+    def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
+        """Re-align the lane heap with the synced backend pending claim order.
+
+        The ordered diff is authoritative: mirrored entries missing from it
+        were finished or claimed elsewhere, so they are pruned here — before
+        the drain would pop them into a doomed just-in-time claim (HTTP 409).
+        """
+        pruned = audio_queue_center.apply_backlog_order(self.QUEUE_KEY, ordered_ids)["pruned"]
+        if pruned:
+            ColorPrint.gray(
+                f"{self._log_prefix} pruned {pruned} queued task(s) "
+                "no longer pending on Laravel"
+            )
+
+    def accept_task(
+        self,
+        task: Dict[str, Any],
+        base_url: str = "",
+        allow_backlog: bool = False,
+    ) -> Dict[str, Any]:
+        """Queue one typed-pull or compatibility-RPC task for synthesis.
+
+        The task type and Laravel base URL are recorded for the typed result
+        route. Exception-safe so compatibility RPC callers are not interrupted.
+        allow_backlog admits the full synced backlog (external RPC callers
+        keep the concurrency-shaped capacity check).
+        """
+        if not isinstance(task, dict) or task.get("task_id") in (None, ""):
+            return {"success": False, "error": "task with task_id is required"}
+        if not self._is_enabled() or self._lane_halt_requested():
+            return {"success": False, "error": f"{self.LANE} audio lane is disabled"}
+        try:
+            endpoint = (base_url or "").strip() or self.api_url
+            queued_task = dict(task)
+            if self.LANE == "sentence" and not str(queued_task.get("task_type") or "").strip():
+                queued_task["task_type"] = self.QUEUE_KEY
+            if self._queue.contains(queued_task):
+                return {
+                    "success": True,
+                    "task_id": task.get("task_id"),
+                    "duplicate": True,
+                }
+            concurrency, _engine = self._effective_concurrency()
+            # Capacity is the in-flight work, never the queued backlog (a
+            # full pull may hold ~100k local entries).
+            local_load = max(0, int(self._processing))
+            local_capacity = concurrency
+            if not allow_backlog and local_load >= local_capacity:
+                return {
+                    "success": False,
+                    "retryable": True,
+                    "error": f"{self.LANE} audio worker is at configured concurrency capacity",
+                    "capacity": local_capacity,
+                    "queued": len(self._queue),
+                    "processing": max(0, int(self._processing)),
+                }
+            queued_task["_laravel_base_url"] = endpoint
+            self._remember_task_types([queued_task], endpoint)
+            queued = audio_queue_center.accept_task(self.QUEUE_KEY, queued_task)
+            self._start_drain()
+            return {
+                "success": True,
+                "task_id": task.get("task_id"),
+                "duplicate": not queued,
+            }
+        except Exception as e:  # noqa: BLE001 — RPC entry must never raise
+            ColorPrint.red(f"{self._log_prefix} accept_task error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _start_drain(self) -> None:
+        """Spawn ONE background drain cycle (non-reentrant via the cycle signal)."""
+        if THREAD_BUS.is_shutdown_requested():
+            return
+        if not self._drain_guard.compare_and_set(False, True):
+            return  # previous cycle still in flight — it drains the whole heap
+        THREAD_BUS.signal(self._cycle_signal, True)
+        try:
+            start_bus_task(self._drain_cycle, thread_name=f"{self.LANE}-audio-worker-cycle")
+        except Exception as e:  # noqa: BLE001
+            THREAD_BUS.signal(self._cycle_signal, False)
+            self._drain_guard.set(False)
+            ColorPrint.red(f"{self._log_prefix} drain start error: {e}")
+
+    def request_start(self) -> None:
+        """Clear the lane stop and resume the kept Queue.
+
+        An immediate stop is only a state flag (``_lane_halt_requested``): the
+        drain halts between batches while the Queue and its snapshot stay
+        intact (queued rows hold no Laravel claim; claims are taken just in
+        time at task start), so a restart simply drains the same backlog.
+        """
+        super().request_start()
+        if len(self._queue) > 0:
+            self._start_drain()
+
+    def _drain_cycle(self) -> None:
+        """One ordered drain cycle over the local dispatch heap. Runs on a
+        background bus thread and is fully exception-safe."""
+        processed = succeeded = failed = skipped = 0
+        try:
+            if len(self._queue) == 0:
+                return
+
+            concurrency, engine = self._effective_concurrency()
+            if self.LANE == "word":
+                batch_size = batch_constants.group_size()
+                while True:
+                    if self._lane_halt_requested():
+                        break
+                    tasks = []
+                    for _index in range(batch_size):
+                        task = audio_queue_center.pop_next(self.QUEUE_KEY)
+                        if task is None:
+                            break
+                        tasks.append(task)
+                    if not tasks:
+                        break
+                    self._log_event(
+                        "batch",
+                        f"Kokoro batch size={len(tasks)} device={runtime_profile.WORD_BATCH_DEVICE}",
+                    )
+                    outcomes = self._process_claimed_batch(tasks)
+                    for entry in outcomes:
+                        task = entry["task"]
+                        outcome = entry["outcome"]
+                        processed += 1
+                        if outcome == TASK_OUTCOME_SKIPPED:
+                            skipped += 1
+                        else:
+                            success = outcome == TASK_OUTCOME_COMPLETED
+                            if success:
+                                succeeded += 1
+                            else:
+                                failed += 1
+                            self._record_task_result(
+                                success,
+                                time.monotonic() - float(entry["started"]),
+                            )
+                        self._log_cycle_task_result(task, outcome)
+                        self._complete_queued_task(task, outcome)
+            elif concurrency > 1 and len(self._queue) > 1:
+                self._log_event(
+                    "parallel",
+                    f"fan-out x{concurrency} (planned={engine or '?'}, usable_engines={len(self._usable_engines_cache)})",
+                )
+                payloads = [{"worker": self} for _index in range(concurrency)]
+                results = map_bus_tasks(
+                    _run_audio_synth_lane,
+                    payloads,
+                    max_workers=concurrency,
+                    thread_prefix=f"{self.LANE.title()}AudioSynth",
+                )
+                for result in results:
+                    processed += int(result.get("processed") or 0)
+                    succeeded += int(result.get("succeeded") or 0)
+                    failed += int(result.get("failed") or 0)
+                    skipped += int(result.get("skipped") or 0)
+            else:
+                while True:
+                    if self._lane_halt_requested():
+                        break
+                    task = audio_queue_center.pop_next(self.QUEUE_KEY)
+                    if task is None:
+                        break
+                    processed += 1
+                    started = time.monotonic()
+                    outcome = self._process_claimed(task)
+                    if outcome == TASK_OUTCOME_SKIPPED:
+                        skipped += 1
+                    else:
+                        success = outcome == TASK_OUTCOME_COMPLETED
+                        if success:
+                            succeeded += 1
+                        else:
+                            failed += 1
+                        self._record_task_result(success, time.monotonic() - started)
+                    self._log_cycle_task_result(task, outcome)
+                    self._complete_queued_task(task, outcome)
+
+            if processed == 0:
+                return
+
+            self._record_cycle(processed, succeeded, failed)
+            # Drain-cycle completion boundary: persist the whole-Queue snapshot
+            # so a restart never resurrects the tasks this cycle consumed.
+            audio_queue_center.persist_snapshot(
+                self.QUEUE_KEY, source=audio_queue_cache.SOURCE_DRAIN
+            )
+            queue_progress = self._queue_progress.get(self.QUEUE_KEY, {})
+            line = (
+                f"{self._log_prefix} Cycle summary: "
+                f"progress={int(queue_progress.get('completed') or 0)}/"
+                f"{int(queue_progress.get('total') or 0)} "
+                f"succeeded={succeeded} failed={failed}"
+            )
+            if skipped:
+                line += f" skipped={skipped}"
+            (ColorPrint.green if failed == 0 else ColorPrint.yellow)(line)
+            self._log_event(
+                "cycle_summary",
+                f"processed={processed} ok={succeeded} fail={failed} skipped={skipped}",
+                mirror=self.LANE != "word",
+            )
+        except Exception as e:  # noqa: BLE001 — never raise out of the cycle thread
+            ColorPrint.red(f"{self._log_prefix} Cycle error: {e}")
+        finally:
+            THREAD_BUS.signal(self._cycle_signal, False)
+            self._drain_guard.set(False)
+            if len(self._queue) > 0 and not self._lane_halt_requested():
+                # Tasks dispatched mid-cycle remain queued - run ONE follow-up
+                # drain so they are not stuck behind the next RPC dispatch.
+                self._start_drain()
+            elif self._is_enabled() and not self._lane_halt_requested() and self._pull_capacity() > 0:
+                self.request_pull()
+
+    # -------------------- introspection --------------------
+
+    def get_status(self) -> Dict[str, Any]:
+        """Service status snapshot (read-only, pycore-local worker state only)."""
+        running = bool(THREAD_BUS.get_signal(self._cycle_signal, False))
+        state = self._state_snapshot()
+        current_tasks = state["current_tasks"]
+        current = current_tasks[0] if current_tasks else None
+        current_keys = []
+        for ct in current_tasks:
+            if not isinstance(ct, dict):
+                continue
+            lang = str(ct.get("language") or "").strip()
+            key = str(ct.get("content_id") or ct.get("md5") or "").strip()
+            if lang and key:
+                current_keys.append(f"{lang}:{key}")
+        queued = len(self._queue)
+        status = {
+            "service": f"Laravel {self.LANE.title()}-Audio Worker",
+            "worker_id": self.worker_id,
+            "worker_name": self.worker_name,
+            "selected_speaker": self._speaker or None,
+            "processor_types": self._effective_processor_types(),
+            "capabilities": self._effective_capabilities(),
+            "enabled": self._is_enabled(),
+            "cycle_running": running,
+            "queued": queued,
+            "processing": int(state["processing"]),
+            "current_task": current,
+            "current_tasks": current_tasks,
+            "current_keys": current_keys,
+            "event_count": state["event_count"],
+            "event_revision": state["event_revision"],
+            "total_claimed": state["total_claimed"],
+            "total_succeeded": state["total_succeeded"],
+            "total_failed": state["total_failed"],
+            "last_cycle": state["last_cycle"],
+            "inflight_tasks": len(self._inflight),
+            "circuit_open": self._circuit_is_open(),
+            "result_5xx_streak": self._result_5xx_streak,
+            "initialized": self._initialized,
+            "delivery_outbox_running": laravel_delivery_outbox.running(self._delivery_kind),
+            "delivery_outbox": laravel_delivery_outbox.stats(self._delivery_kind),
+            "usable_engines": list(self._usable_engines_cache),
+            "planned_engine": (
+                runtime_profile.WORD_BATCH_ENGINE
+                if self.LANE == "word"
+                else self._required_engine() or self._engine_probe_cache or None
+            ),
+        }
+        if self.LANE == "word":
+            status["batch_running"] = running
+            status["batch_engine"] = runtime_profile.WORD_BATCH_ENGINE
+            status["batch_profile"] = runtime_profile.WORD_BATCH_PROFILE
+            status["batch_device"] = runtime_profile.WORD_BATCH_DEVICE
+            status["batch_size"] = batch_constants.group_size()
+            status["backend_progress"] = word_audio_backend_progress.snapshot()
+        status["queue_progress"] = dict(self._queue_progress.get(self.QUEUE_KEY) or {})
+        return status
+
+
+class LaravelWordAudioWorker(BaseLaravelAudioWorker):
+    """Word-audio lane: global_tasks task_type word_audio on remote_audio."""
+
+    LANE = "word"
+    QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
+    CAPABILITY = "audio"
+    PRIORITY_PROFILE = runtime_profile.WORD_BATCH_PROFILE
+    ASSIST_CAPABILITY = "tts"
+    WORKER_NAME_TAG = "word-audio"
+    LOG_PREFIX = "[WordAudioWorker]"
+    STATE_OWNER_KEY = "tts.word_audio_worker.state"
+    STATE_OWNER_NAME = "WordAudioWorkerState"
+    STATE_OWNER_TIMEOUT = 180.0
+    REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
+    CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
+    LOG_ACCEPTED_RESULTS = False
+    PROGRESS_EVENTS_ENABLED = True
+
+    def _pull_once(self, prefer_remote: bool = False) -> Dict[str, Any]:
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        try:
+            word_audio_backend_progress.refresh(base_url)
+        except Exception as exc:  # noqa: BLE001 - progress is best-effort metadata
+            ColorPrint.yellow(
+                f"{self._log_prefix} Backend table progress refresh failed: {exc}"
+            )
+        return super()._pull_once(prefer_remote=prefer_remote)
+
+
+class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
+    """Sentence-audio lane: global_tasks task_type sentence_audio on remote_sentence_audio.
+
+    SPECIAL OPTIMIZATION (specially optimized script, 特殊优化的脚本):
+    this lane is contract-tiered (queue_center_contract.json language_priority
+    = ["en"]) so the remote Laravel claim head completes ALL English sentence
+    tasks before any other language, and every log line mirrors the remote
+    English completion progress pulled from Laravel (progress language_tiers).
+    Do not generalize this lane's logging/tiering away — it is intentionally
+    optimized for the English-first sentence backlog requirement.
+    """
+
+    LANE = "sentence"
+    QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
+    RESULT_TASK_TYPE = QUEUE_KEY
+    CAPABILITY = "sentence_audio"
+    PRIORITY_PROFILE = "sentence"
+    REQUIRED_ENGINE = QWEN3TTS_ENGINE
+    ASSIST_CAPABILITY = "sentence_audio"
+    WORKER_ID_PREFIX = "pycore-sentence"
+    WORKER_NAME_TAG = "sentence-audio"
+    LOG_PREFIX = "[SentenceAudioWorker]"
+
+    STATE_OWNER_KEY = "tts.sentence_audio_worker.state"
+    STATE_OWNER_NAME = "SentenceAudioWorkerState"
+    REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
+    CONCURRENCY_DEFAULT = TTS_SENTENCE_WORKER_CONCURRENCY
+    # Qwen3-TTS is a managed HTTP server with its own FIFO queue; allow the
+    # shared worker fan-out to keep multiple local sentences in flight.
+    CONCURRENCY_LIMIT = 3
+
+
+laravel_word_audio_worker = LaravelWordAudioWorker()
+laravel_sentence_audio_worker = LaravelSentenceAudioWorker()

@@ -21,24 +21,24 @@ THREAD_BUS Integration:
 import io
 import wave
 import platform
-import tempfile
 import threading
+from pycore.pyfoundations.serialized_worker import start_bus_task
 import time
 from pathlib import Path
 from typing import Optional, Callable, Any
 
-from pycore.pyfoundations import ColorPrint
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.third_party import (
-    get_third_package_pyaudio,
-    get_third_package_pyaudiowpatch,
-    get_third_package_numpy,
-)
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_pyaudio, get_third_package_pyaudiowpatch
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 from pycore.pyutils.whisper_stt.audio_utils import (
     get_whisper_cache_dir,
     WHISPER_SAMPLE_RATE,
     WHISPER_CHANNELS,
 )
+
+from pycore.pyutils.whisper_stt.audio_utils import convert_to_whisper_format
+
 
 
 class AudioCaptureConfig:
@@ -140,8 +140,10 @@ class MicrophoneCapture:
         )
 
         self._is_recording = True
-        self._recording_thread = threading.Thread(target=self._record_loop, daemon=True)
-        self._recording_thread.start()
+        self._recording_thread = start_bus_task(
+            self._record_loop,
+            thread_name="MicrophoneCaptureThread",
+        )
 
         ColorPrint.green("[MicrophoneCapture] Recording started")
         return True
@@ -375,8 +377,10 @@ class SystemAudioCapture:
         )
 
         self._is_recording = True
-        self._recording_thread = threading.Thread(target=self._record_loop, daemon=True)
-        self._recording_thread.start()
+        self._recording_thread = start_bus_task(
+            self._record_loop,
+            thread_name="SystemAudioCaptureThread",
+        )
 
         ColorPrint.green(f"[SystemAudioCapture] Recording started (device: {self._loopback_device.get('name', 'Unknown')})")
         return True
@@ -460,7 +464,6 @@ class SystemAudioCapture:
         self._frames = []
 
         # Convert to Whisper format (16kHz mono)
-        from pycore.pyutils.whisper_stt.audio_utils import convert_to_whisper_format
         converted_path = convert_to_whisper_format(output_path)
         if converted_path and converted_path != output_path:
             output_path.unlink(missing_ok=True)

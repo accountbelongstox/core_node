@@ -6,20 +6,22 @@ Only handles PRIMARY server functionality, no client logic.
 Uses global_config for shared state.
 """
 
-import os
 import json
-import threading
-import socket
-from pathlib import Path
-from typing import Optional, Dict, List
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from typing import Any, Optional
+from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 
-from ..core.config import get_global_config, DEFAULT_ROOT_DIR
-from ..core.logging import setup_logging
-from ..core.database import get_sync_database
+from pycore.pyutils.launcher.device_sync.core.config import get_global_config
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
+import pycore.pyutils.launcher.device_sync.routes as routes
+from pycore.pyutils.launcher.device_sync.sse_protocol import serve_sync_events
+from pycore.pyutils.launcher.device_sync.static_assets import serve_device_sync_asset
 
-logger = setup_logging(__name__)
+import time
+
 
 
 class PrimaryServerHandler(BaseHTTPRequestHandler):
@@ -27,7 +29,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
         """Override to use our logger"""
-        logger.debug(f"{self.address_string()} - {format % args}")
+        ColorPrint.debug(f"{self.address_string()} - {format % args}")
 
     def do_GET(self):
         """Handle GET requests"""
@@ -35,22 +37,30 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
         path = parsed_path.path
         config = get_global_config()
 
+        if path == routes.ROUTES_PATH:
+            self._send_json(routes.PUBLIC_ROUTES)
+            return
+        if path.startswith(routes.ASSETS_PATH_PREFIX) and serve_device_sync_asset(self, path):
+            return
+
         # Check API access control (except for root and status)
-        if path.startswith('/api/') and path != '/api/status':
+        if path.startswith(routes.API_PREFIX) and path not in routes.PUBLIC_API_PATHS:
             if not config.api_enabled:
                 self.send_error(403, "API access is disabled")
                 return
 
         # Route handling
-        if path == '/':
+        if path == routes.ROOT_PATH:
             self._handle_root()
-        elif path == '/api/status':
+        elif path == routes.STATUS_PATH:
             self._handle_status()
-        elif path == '/api/files':
+        elif path == routes.FILES_PATH:
             self._handle_files_list()
-        elif path.startswith('/api/file/'):
+        elif path == routes.EVENTS_PATH:
+            self._handle_sync_events()
+        elif path.startswith(routes.FILE_PATH_PREFIX):
             self._handle_file_download(path)
-        elif path == '/api/devices':
+        elif path == routes.DEVICES_PATH:
             self._handle_devices()
         else:
             self.send_error(404, "Not Found")
@@ -60,192 +70,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
         self.send_error(405, "Method Not Allowed")
 
     def _handle_root(self):
-        """Handle root path - comprehensive dashboard"""
-        config = get_global_config()
-        db = get_sync_database()
-
-        # Get statistics
-        db_stats = db.get_stats()
-        recent_transfers = db.get_recent_transfers(limit=10)
-        recent_scans = db.get_recent_scans(limit=5)
-        recent_connections = db.get_recent_connections(limit=10)
-
-        # Build connected clients HTML
-        connected_clients_html = ""
-        if config.connected_clients:
-            connected_clients_html = "<h3>Connected Clients</h3><ul>"
-            for client in config.connected_clients:
-                connected_clients_html += f"""
-                <li>
-                    <strong>{client.get('ip', 'Unknown')}</strong>
-                    {f" - {client.get('hostname', '')}" if client.get('hostname') else ""}
-                    {f" ({client.get('device_id', '')[:8]}...)" if client.get('device_id') else ""}
-                </li>
-                """
-            connected_clients_html += "</ul>"
-        else:
-            connected_clients_html = "<h3>Connected Clients</h3><p>No clients currently connected</p>"
-
-        # Build online devices HTML
-        online_devices_html = ""
-        if config.online_devices:
-            online_devices_html = "<h3>Network Devices</h3><ul>"
-            for device in config.online_devices:
-                device_mode = device.get('mode', 'unknown').upper()
-                online_devices_html += f"""
-                <li>
-                    <strong>{device.get('ip', 'Unknown')}</strong> - {device_mode}
-                    {f" ({device.get('hostname', '')})" if device.get('hostname') else ""}
-                </li>
-                """
-            online_devices_html += "</ul>"
-        else:
-            online_devices_html = "<h3>Network Devices</h3><p>No other devices discovered</p>"
-
-        # Build recent transfers HTML
-        transfers_html = ""
-        if recent_transfers:
-            transfers_html = "<h3>Recent File Transfers</h3><table><tr><th>Time</th><th>Operation</th><th>File</th><th>Size</th><th>Status</th></tr>"
-            for transfer in recent_transfers:
-                size_mb = transfer['file_size'] / (1024 * 1024)
-                transfers_html += f"""
-                <tr>
-                    <td>{transfer['timestamp']}</td>
-                    <td>{transfer['operation']}</td>
-                    <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{transfer['file_path']}</td>
-                    <td>{size_mb:.2f} MB</td>
-                    <td class="status-{transfer['status']}">{transfer['status']}</td>
-                </tr>
-                """
-            transfers_html += "</table>"
-        else:
-            transfers_html = "<h3>Recent File Transfers</h3><p>No transfers recorded</p>"
-
-        # Build recent scans HTML
-        scans_html = ""
-        if recent_scans:
-            scans_html = "<h3>Recent Scans</h3><table><tr><th>Time</th><th>Files Found</th><th>Duration</th><th>Scan node_modules</th></tr>"
-            for scan in recent_scans:
-                scans_html += f"""
-                <tr>
-                    <td>{scan['timestamp']}</td>
-                    <td>{scan['files_found']}</td>
-                    <td>{scan['duration_seconds']:.2f}s</td>
-                    <td>{'Yes' if scan['scan_node_modules'] else 'No'}</td>
-                </tr>
-                """
-            scans_html += "</table>"
-
-        html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <title>Device Sync - PRIMARY Server Dashboard</title>
-    <meta http-equiv="refresh" content="30">
-    <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fa; }}
-        .container {{ max-width: 1200px; margin: 0 auto; }}
-        h1 {{ color: #2c3e50; margin-bottom: 10px; }}
-        .subtitle {{ color: #7f8c8d; margin-bottom: 30px; }}
-        .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .card h2 {{ margin-top: 0; color: #34495e; font-size: 18px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }}
-        .card h3 {{ color: #2c3e50; font-size: 16px; margin-top: 20px; margin-bottom: 10px; }}
-        .info {{ margin: 8px 0; line-height: 1.6; }}
-        .label {{ font-weight: 600; color: #555; display: inline-block; min-width: 140px; }}
-        .value {{ color: #2c3e50; }}
-        .status-badge {{ display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 12px; font-weight: 600; }}
-        .status-badge.active {{ background: #d4edda; color: #155724; }}
-        .status-badge.enabled {{ background: #cce5ff; color: #004085; }}
-        .status-badge.disabled {{ background: #f8d7da; color: #721c24; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }}
-        th {{ background: #ecf0f1; padding: 8px; text-align: left; font-weight: 600; color: #2c3e50; }}
-        td {{ padding: 8px; border-bottom: 1px solid #ecf0f1; }}
-        tr:hover {{ background: #f8f9fa; }}
-        .status-success {{ color: #27ae60; font-weight: 600; }}
-        .status-failed {{ color: #e74c3c; font-weight: 600; }}
-        ul {{ margin: 10px 0; padding-left: 20px; }}
-        li {{ margin: 5px 0; }}
-        a {{ color: #3498db; text-decoration: none; }}
-        a:hover {{ text-decoration: underline; }}
-        .stats-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 15px 0; }}
-        .stat-box {{ text-align: center; padding: 15px; background: #f8f9fa; border-radius: 5px; }}
-        .stat-number {{ font-size: 24px; font-weight: bold; color: #3498db; }}
-        .stat-label {{ font-size: 12px; color: #7f8c8d; margin-top: 5px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔄 Device Sync - PRIMARY Server</h1>
-        <div class="subtitle">Monitoring Dashboard (Auto-refresh every 30s)</div>
-
-        <div class="grid">
-            <div class="card">
-                <h2>📊 Server Status</h2>
-                <div class="info"><span class="label">Mode:</span> <span class="status-badge active">PRIMARY</span></div>
-                <div class="info"><span class="label">Hostname:</span> <span class="value">{config.hostname}</span></div>
-                <div class="info"><span class="label">IP Address:</span> <span class="value">{config.local_ip or 'Unknown'}</span></div>
-                <div class="info"><span class="label">Port:</span> <span class="value">{config.http_port}</span></div>
-                <div class="info"><span class="label">Root Dir:</span> <span class="value">{DEFAULT_ROOT_DIR}</span></div>
-                <div class="info"><span class="label">Device ID:</span> <span class="value">{config.device_id[:16] if config.device_id else 'N/A'}...</span></div>
-                <div class="info"><span class="label">API Access:</span> <span class="status-badge {'enabled' if config.api_enabled else 'disabled'}">{('Enabled' if config.api_enabled else 'Disabled').upper()}</span></div>
-                <div class="info"><span class="label">Scan node_modules:</span> <span class="value">{'Yes' if config.scan_node_modules else 'No'}</span></div>
-            </div>
-
-            <div class="card">
-                <h2>📈 Statistics</h2>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <div class="stat-number">{config.file_cache_count}</div>
-                        <div class="stat-label">Files Cached</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{config.total_scans}</div>
-                        <div class="stat-label">Total Scans</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{db_stats['total_transfers']}</div>
-                        <div class="stat-label">Transfers</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">{len(config.connected_clients)}</div>
-                        <div class="stat-label">Clients</div>
-                    </div>
-                </div>
-                <div class="info"><span class="label">Last Scan:</span> <span class="value">{config.last_scan_time or 'Never'}</span></div>
-            </div>
-        </div>
-
-        <div class="grid">
-            <div class="card">
-                {connected_clients_html}
-                {online_devices_html}
-            </div>
-
-            <div class="card">
-                <h2>🔗 API Endpoints</h2>
-                <ul>
-                    <li><a href="/api/status">/api/status</a> - Server status (always accessible)</li>
-                    <li><a href="/api/files">/api/files</a> - File list (requires API access)</li>
-                    <li><a href="/api/devices">/api/devices</a> - Online devices</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="card">
-            {transfers_html}
-        </div>
-
-        <div class="card">
-            {scans_html}
-        </div>
-    </div>
-</body>
-</html>"""
-
-        self.send_response(200)
-        self.send_header('Content-Type', 'text/html; charset=utf-8')
-        self.end_headers()
-        self.wfile.write(html.encode('utf-8'))
+        serve_device_sync_asset(self, routes.ROOT_PATH)
 
     def _handle_status(self):
         """Handle /api/status"""
@@ -266,23 +91,19 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
     def _handle_files_list(self):
         """Handle /api/files - return file list"""
-        import time
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
 
         # Record connection
         client_ip = self.client_address[0]
-        db.record_connection('client_connect', client_ip, request_path='/api/files')
+        record_store.record_connection(
+            'client_connect',
+            client_ip,
+            request_path=routes.FILES_PATH,
+        )
 
-        # Add to connected clients list if not already there
         client_info = {'ip': client_ip, 'last_seen': time.time()}
-        if not any(c['ip'] == client_ip for c in config.connected_clients):
-            config.connected_clients.append(client_info)
-        else:
-            # Update last seen time
-            for c in config.connected_clients:
-                if c['ip'] == client_ip:
-                    c['last_seen'] = time.time()
+        config.upsert_connected_client(client_info)
 
         if not config.root_dir or not config.root_dir.exists():
             self._send_json({'error': 'Root directory not found'}, 500)
@@ -290,14 +111,14 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         # Build file cache if needed (use global cache)
         if not config.file_cache:
-            logger.info("Building file cache...")
+            ColorPrint.info("Building file cache...")
             start_time = time.time()
             config.build_file_cache()
             duration = time.time() - start_time
-            logger.info(f"File cache built: {len(config.file_cache)} files")
+            ColorPrint.info(f"File cache built: {len(config.file_cache)} files")
 
-            # Record scan to database
-            db.record_scan(
+            # Record the scan in the bounded history store
+            record_store.record_scan(
                 scan_type='full',
                 files_found=len(config.file_cache),
                 duration_seconds=duration,
@@ -312,21 +133,30 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         self._send_json(response)
 
+    def _handle_sync_events(self):
+        """Hold an SSE connection and notify a SECONDARY when it should sync."""
+        config = get_global_config()
+        serve_sync_events(
+            self,
+            config,
+            lambda: config.isPrimaryServer and config.server_running,
+        )
+
     def _handle_file_download(self, path):
         """Handle /api/file/{path} - download file"""
         config = get_global_config()
-        db = get_sync_database()
+        record_store = get_sync_record_store()
         client_ip = self.client_address[0]
 
         # Extract file path from URL
-        file_path_encoded = path[len('/api/file/'):]
+        file_path_encoded = path[len(routes.FILE_PATH_PREFIX):]
         file_path = urllib.parse.unquote(file_path_encoded)
 
         full_path = config.root_dir / file_path
 
         if not full_path.exists():
             # Record failed transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -340,7 +170,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         if not full_path.is_file():
             # Record failed transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -358,7 +188,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
                 content = f.read()
 
             # Record successful transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -373,11 +203,11 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(content)
 
-            logger.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
+            ColorPrint.info(f"File downloaded by {client_ip}: {file_path} ({len(content)} bytes)")
 
         except Exception as e:
             # Record failed transfer
-            db.record_transfer(
+            record_store.record_transfer(
                 session_id=None,
                 operation='download',
                 file_path=file_path,
@@ -386,7 +216,7 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
                 remote_device=client_ip,
                 error_message=str(e)
             )
-            logger.error(f"Failed to send file {file_path}: {e}")
+            ColorPrint.error(f"Failed to send file {file_path}: {e}")
             self.send_error(500, f"Failed to read file: {e}")
 
     def _handle_devices(self):
@@ -416,21 +246,26 @@ class SimplePrimaryServer:
     def __init__(self):
         """Initialize primary server"""
         self.config = get_global_config()
-        self.server: Optional[HTTPServer] = None
-        self.server_thread: Optional[threading.Thread] = None
+        self.server: Optional[ThreadingHTTPServer] = None
+        self.server_thread: Optional[Any] = None
         self.running = False
+        self._running_signal = f"device_sync.primary.running.{id(self)}"
+        THREAD_BUS.signal(self._running_signal, False)
 
     def start(self):
         """Start PRIMARY server"""
         if self.running:
-            logger.warning("Server already running")
+            ColorPrint.warning("Server already running")
             return
 
-        logger.info(f"Starting PRIMARY server on port {self.config.http_port}...")
+        ColorPrint.info(f"Starting PRIMARY server on port {self.config.http_port}...")
 
         try:
             # Create HTTP server
-            self.server = HTTPServer(('0.0.0.0', self.config.http_port), PrimaryServerHandler)
+            self.server = ThreadingHTTPServer(
+                ('0.0.0.0', self.config.http_port),
+                PrimaryServerHandler,
+            )
 
             # Update network info if not set
             if not self.config.local_ip:
@@ -438,16 +273,20 @@ class SimplePrimaryServer:
 
             # Start server thread
             self.running = True
-            self.server_thread = threading.Thread(target=self._server_loop, daemon=True)
-            self.server_thread.start()
+            THREAD_BUS.signal(self._running_signal, True)
+            self.server_thread = start_bus_task(
+                self._server_loop,
+                thread_name="PrimaryServerThread",
+            )
 
             self.config.server_running = True
 
-            logger.info(f"✓ PRIMARY server started on {self.config.local_ip}:{self.config.http_port}")
+            ColorPrint.info(f"✓ PRIMARY server started on {self.config.local_ip}:{self.config.http_port}")
 
         except Exception as e:
-            logger.error(f"Failed to start server: {e}", exc_info=True)
+            ColorPrint.error(f"Failed to start server: {e}")
             self.running = False
+            THREAD_BUS.signal(self._running_signal, False)
             raise
 
     def stop(self):
@@ -455,9 +294,10 @@ class SimplePrimaryServer:
         if not self.running:
             return
 
-        logger.info("Stopping PRIMARY server...")
+        ColorPrint.info("Stopping PRIMARY server...")
 
         self.running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         if self.server:
             self.server.shutdown()
@@ -468,16 +308,16 @@ class SimplePrimaryServer:
 
         self.config.server_running = False
 
-        logger.info("PRIMARY server stopped")
+        ColorPrint.info("PRIMARY server stopped")
 
     def _server_loop(self):
         """Server main loop"""
         try:
             self.server.serve_forever()
         except Exception as e:
-            if self.running:
-                logger.error(f"Server error: {e}", exc_info=True)
+            if THREAD_BUS.get_signal(self._running_signal, False):
+                ColorPrint.error(f"Server error: {e}")
 
     def is_running(self) -> bool:
         """Check if server is running"""
-        return self.running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))

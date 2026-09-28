@@ -1,7 +1,7 @@
 # Journey Feature - My Itinerary & Orders
 
 ## Overview
-This feature implements a tabbed interface for "My Itinerary" (我的行程) and "All Orders" (全部订单) with centralized data management.
+This feature implements a tabbed interface for "My Itinerary" and "All Orders" with centralized data management.
 
 ## Architecture
 
@@ -33,8 +33,8 @@ services_app_travel/
 ## Features
 
 ### 1. Tab Navigation
-- **My Itinerary Tab (我的行程)**: Displays travel inspiration and hot picks
-- **All Orders Tab (全部订单)**: Displays order list with filters
+- **My Itinerary Tab**: Displays travel inspiration and hot picks
+- **All Orders Tab**: Displays order list with filters
 
 ### 2. Data Centralization
 All data is managed through centralized services:
@@ -151,7 +151,7 @@ final results = await journeyService.searchHotContents('keyword');
 To test the implementation:
 
 1. Navigate to the Journey screen
-2. Switch between "我的行程" and "全部订单" tabs
+2. Switch between "My Itinerary" and "All Orders" tabs
 3. Pull to refresh on "My Itinerary" tab
 4. Filter orders on "All Orders" tab
 5. Search for orders using the search bar

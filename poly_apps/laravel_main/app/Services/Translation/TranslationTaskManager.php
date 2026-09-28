@@ -3,6 +3,7 @@
 namespace App\Services\Translation;
 
 use App\Providers\PathMapper;
+use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Log;
 
 class TranslationTaskManager
@@ -12,18 +13,18 @@ class TranslationTaskManager
     private $cacheFile;
     private $lockFile;
     
-    const STATUS_PENDING = 'pending';
-    const STATUS_PROCESSING = 'processing';
-    const STATUS_COMPLETED = 'completed';
-    const STATUS_FAILED = 'failed';
-    const STATUS_CANCELLED = 'cancelled';
-    
     const CACHE_EXPIRY = 86400 * 7;
     
     const MODE_SINGLE_TASK = 'single';
     const MODE_MULTI_TASK = 'multi';
     
     private $taskMode = self::MODE_SINGLE_TASK;
+
+    /** Legacy file-cache adapter; lifecycle values come from the shared task contract. */
+    public static function status(string $role): string
+    {
+        return QueueCenterContract::taskStatus($role);
+    }
     
     public function __construct()
     {
@@ -70,7 +71,7 @@ class TranslationTaskManager
             if ($cached) {
                 $task = [
                     'task_id' => $taskId,
-                    'status' => self::STATUS_COMPLETED,
+                    'status' => self::status('completed'),
                     'params' => $params,
                     'result' => $cached['result'],
                     'cached' => true,
@@ -87,7 +88,7 @@ class TranslationTaskManager
         
         $task = [
             'task_id' => $taskId,
-            'status' => self::STATUS_PENDING,
+            'status' => self::status('pending'),
             'params' => $params,
             'result' => null,
             'cached' => false,
@@ -121,8 +122,8 @@ class TranslationTaskManager
         $cancelledCount = 0;
         
         foreach ($tasks as $taskId => $task) {
-            if ($task['status'] === self::STATUS_PENDING || $task['status'] === self::STATUS_PROCESSING) {
-                $task['status'] = self::STATUS_CANCELLED;
+            if ($task['status'] === self::status('pending') || $task['status'] === self::status('processing')) {
+                $task['status'] = self::status('cancelled');
                 $task['completed_at'] = time();
                 $task['error'] = 'Cancelled by new task submission (single-task mode)';
                 $task['processing_time'] = $task['completed_at'] - ($task['started_at'] ?? $task['created_at']);
@@ -153,9 +154,9 @@ class TranslationTaskManager
         
         $task['status'] = $status;
         
-        if ($status === self::STATUS_PROCESSING) {
+        if ($status === self::status('processing')) {
             $task['started_at'] = time();
-        } elseif ($status === self::STATUS_COMPLETED) {
+        } elseif ($status === self::status('completed')) {
             $task['completed_at'] = time();
             $task['result'] = $result;
             $task['processing_time'] = $task['completed_at'] - ($task['started_at'] ?? $task['created_at']);
@@ -163,7 +164,7 @@ class TranslationTaskManager
             if ($result && !$task['cached']) {
                 $this->saveToCache($task['params'], $result);
             }
-        } elseif ($status === self::STATUS_FAILED) {
+        } elseif ($status === self::status('failed')) {
             $task['completed_at'] = time();
             $task['error'] = $error;
             $task['processing_time'] = $task['completed_at'] - ($task['started_at'] ?? $task['created_at']);

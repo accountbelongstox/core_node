@@ -1,15 +1,4 @@
 @echo off
-REM ### AI SPECIAL ATTENTION RULES START ###
-REM When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-REM 1. Write all code in English only.
-REM 2. Never execute, create, or modify test code.
-REM 3. Never create or update documentation (*.md).
-REM 4. Never write summaries during development or thinking process.
-REM 5. Declare all variables at the beginning of the file.
-REM 6. No parameters allowed for install/start/deploy/build scripts - use hardcoded configuration
-REM 7. Do not modify these rules.
-REM VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-REM ### AI SPECIAL ATTENTION RULES END ###
 
 REM flutter_bloom Start Script (BAT Entry Point)
 REM Complexity: Complex - Triggers PowerShell script for poly-flutter application startup

@@ -1,21 +1,9 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Step number for this script
 $STEP_NUMBER = 3
 
 # Import variable management functions
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
 
 function Test-AndInstallWinGet {
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Checking WinGet installation..." -Type "Info"
@@ -89,11 +77,11 @@ function Test-WingetAuthorization {
     
     try {
         # Test if winget can run basic commands without prompting
-        $null = & winget --version 2>$null
-        if ($LASTEXITCODE -eq 0) {
+        $wingetVersion = & winget --version 2>$null
+        if (-not [string]::IsNullOrWhiteSpace([string]$wingetVersion)) {
             # Test source list command which often triggers authorization prompts
-            $null = & winget source list 2>$null
-            if ($LASTEXITCODE -eq 0) {
+            $sources = & winget source list 2>$null
+            if (("$sources").Contains('winget')) {
                 Write-ColorMessage -Message "[Step $STEP_NUMBER] Winget is properly authorized and working" -Type "Success"
                 return $true
             }

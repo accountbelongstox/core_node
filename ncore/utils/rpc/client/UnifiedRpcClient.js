@@ -244,7 +244,7 @@
                     return;
                 }
 
-                this._httpGet(`${this.baseUrl}/query/${requestId}`)
+                this._httpGet(`${this.baseUrl}/query/${encodeURIComponent(requestId)}?clientId=${encodeURIComponent(this.options.clientId)}`)
                     .then((response) => {
                         if (response.success) {
                             resolve(response.result);

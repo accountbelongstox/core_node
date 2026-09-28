@@ -27,6 +27,7 @@ class TableNamespaces:
     UTIL_CACHE = "util_cache"
     UTIL_SPEECH = "util_speech"
     UTIL_CLIPBOARD = "util_clipboard"
+    UTIL_LARAVEL = "util_laravel"
 
     # ===== Voice App Namespace =====
     APP_VOICE = "app_voice"

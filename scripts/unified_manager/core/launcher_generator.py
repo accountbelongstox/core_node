@@ -5,15 +5,21 @@ Generates service launcher scripts with dependency checking
 """
 
 import os
+import sys
 from pathlib import Path
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import get_unified_manager_launcher_dir
 from typing import Optional
 
 
 class LauncherGenerator:
     """Generates launcher scripts for different framework types"""
 
-    def __init__(self, launcher_dir: str = "/var/_core_node/unified_manager/temp_scripts"):
-        self.launcher_dir = Path(launcher_dir)
+    def __init__(self, launcher_dir: Optional[str] = None):
+        self.launcher_dir = Path(launcher_dir) if launcher_dir else get_unified_manager_launcher_dir()
         self.launcher_dir.mkdir(parents=True, exist_ok=True)
         os.chmod(self.launcher_dir, 0o755)
 

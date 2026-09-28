@@ -1,0 +1,42 @@
+{
+  "task_id": "pycore-ai-D7",
+  "role": "pycore-ai",
+  "verdict": "approved",
+  "findings": {
+    "PRAO-07": {
+      "status": "confirmed",
+      "detail": "pycore/pyctl/ai/prompt_derive.py:27 imports AI_SOURCE_PROMPT_DERIVE and AI_SOURCE_PROMPT_REWRITE from pycore/pyctl/agent_history/ai_sources.py. The source default at :129 is AI_SOURCE_PROMPT_DERIVE and at :143 is AI_SOURCE_PROMPT_REWRITE. inspect.signature was re-run and gives 'agent_history_prompt_derive' and 'agent_history_prompt_rewrite', which equal the constants. The defaults now match the ids that prompt_derive_service.py:57 and prompt_rewrite_service.py:58 already pass. The literal grep for '\"prompt_derive_en\"' and '\"prompt_rewrite_en\"' still matches :31 and :45. Those lines are CONFIG_KEY_PROMPT_DERIVE_EN and CONFIG_KEY_PROMPT_REWRITE_EN, the single definitions of the persisted template config keys (ui_service.py imports them). They are not source ids, so keeping them is correct. The verify grep was broader than the item's intent."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "The item's stated aim is 'lands under an id the attempts panel lists'. That holds for rewrite (AI_SOURCE_PROMPT_REWRITE is in OPENROUTER_ATTEMPT_SOURCES). It does not hold for derive, because AI_SOURCE_PROMPT_DERIVE is not in that tuple (ai_sources.py:15-19). This matches R3 in docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md, which asks for three panel sources, and the item names AI_SOURCE_PROMPT_DERIVE explicitly. If derive attempts should appear in the panel, the orchestrator should give pycore-assist the job of adding the id to OPENROUTER_ATTEMPT_SOURCES. The owner's cross-scope note already covers this.",
+    "prompt_derive.py:27 is the first import from pyctl/ai into pyctl/agent_history, a sideways import inside pyctl. The item requires it, and ai_sources.py has no imports, so there is no cycle. Moving the source ids down into a shared lower module later would remove the sideways import. That is not required now.",
+    "This is outside the task's scope and is recorded for the orchestrator. Diffing numstat with and without --ignore-space-at-eol against 74e7770 shows EOL churn in pycore/pyutils/common/queue_center_contract.py: 47/15 changed lines in the working tree against HEAD, or 40/8 when line endings are ignored. That file belongs to the owner of pyutils/common, not pycore-ai. The commander.py delta comes from the foreign capture commit f4f2234."
+  ],
+  "checks": [
+    "git diff and git diff --ignore-space-at-eol --numstat on prompt_derive.py (HEAD and 74e7770): both give '3 2', so there is no EOL churn. The HEAD blob and the working tree both have 0 CR bytes, and git ls-files --eol reports i/lf w/lf.",
+    "f4f2234 did not touch prompt_derive.py, ai_sources.py or the two services, so HEAD is a valid base for this file.",
+    "python -B -m py_compile pycore/pyctl/ai/prompt_derive.py: rc=0",
+    "python -B import check: the prompt_derive defaults equal the ai_sources constants, and prompt_derive_service and prompt_rewrite_service both import OK.",
+    "Scope (section 8): prompt_derive.py is under pycore/pyctl/ai/, which is in pycore-ai's scope. B2 shared UI list is empty and no UI was written. No config/ change, so contracts.md does not apply.",
+    "AGENTS.md: the change is in English, adds no user-facing text, puts the import at the top of the file, adds no duplicate constant (it reuses the central ids) and adds no tests."
+  ],
+  "notes": "PRAO-07 approved. prompt_derive.py:129 and :143 now default to the central ai_sources ids. The remaining literal grep hits at :31 and :45 are the config-key constants, which stay. The derive id is not in OPENROUTER_ATTEMPT_SOURCES, which is a panel decision outside this scope (pycore-assist).",
+  "checked_at": "2026-09-27",
+  "lead_confirmation": {
+    "by": "pycore-lead",
+    "at": "2026-09-27",
+    "scope": "Confirm only (done_before_outage_unreviewed); no re-review.",
+    "result": "approved stands",
+    "checks": [
+      "prompt_derive.py mtime 17:09 precedes the 17:30 verdict; git diff 74e7770 --numstat equals --ignore-space-at-eol (3 2); i/lf w/lf, 0 CR bytes.",
+      "The change is now in HEAD 5bbb23682 (user commit 'win0.0.1', 17:33); working tree equals HEAD for the file.",
+      "python -B -m py_compile pycore/pyctl/ai/prompt_derive.py: rc=0.",
+      "inspect.signature defaults: agent_history_prompt_derive == AI_SOURCE_PROMPT_DERIVE, agent_history_prompt_rewrite == AI_SOURCE_PROMPT_REWRITE.",
+      "Literal grep hits only :31 CONFIG_KEY_PROMPT_DERIVE_EN and :45 CONFIG_KEY_PROMPT_REWRITE_EN (config keys, not source ids).",
+      "merge_meta changed files: prompt_derive.py (pycore-ai scope) and reports/pycore-ai.md; no out-of-scope writes."
+    ],
+    "deferred_to_orchestrator": "AI_SOURCE_PROMPT_DERIVE missing from OPENROUTER_ATTEMPT_SOURCES (ai_sources.py:15-19); owner of pyctl/agent_history decides."
+  }
+}

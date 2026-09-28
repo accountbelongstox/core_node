@@ -1,0 +1,128 @@
+{
+  "task_id": "wordnew-link-G1",
+  "role": "wordnew-link",
+  "reviewer": "wordnew-lead",
+  "round": 1,
+  "verdict": "approved",
+  "base": "74e7770",
+  "head": "24674d1a6 (user sweep commits 'win0.0.1'). Every G1 file is committed: the working tree equals HEAD for all 18 source files, so the review diffs 74e7770..HEAD. Hunks in the same files from other tasks were not attributed to this member: the i18n getMessage and unknownActionResponse sweep, pullAcrossTaskTypes (mcp-chrome-3), and the EXTENSION_ID export in update-extension-id.cjs.",
+  "checked_at": "2026-09-27 21:22 +1000",
+  "findings": {
+    "MCHR-15": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "service_supervisor.py:488-493: --wake calls extension_is_connected() first. The connected branch only logs. wake_extension(force=True) runs only in the else branch.",
+        "Verified by py_compile (exit 0).",
+        "Re-ran the in-process stub run with python -B: connected=True gives rc 0 and wake calls []; connected=False gives rc 0 and wake calls [True].",
+        "Callers: start.sh:654 and start.ps1:490 (the one-time build path)."
+      ]
+    },
+    "MCHR-05": {
+      "claimed": "done (static; MCHR-05-live deferred to the user)",
+      "result": "confirmed statically; live check deferred as the item allows",
+      "evidence": [
+        "service_supervisor.py:66 adds --parent-pid.",
+        "attach_owner_process (:88-97) opens a SYNCHRONIZE handle on Windows and uses os.kill(pid, 0) on POSIX.",
+        "supervise() checks owner_process_alive() first on every 2 s loop pass and breaks (:408-410). The supervisor has no child processes of its own; the only spawn is a detached Chrome Popen.",
+        "An owned supervisor waits for a busy singleton while its owner is alive (:513-519). This avoids a respawn plus request_recovery every 5 s.",
+        "release_owner_process() runs on both exit paths.",
+        "My in-process Windows check: attach True / alive True, then after kill alive False. A dead PID whose handle is released attaches False. A dead PID whose handle a parent still holds attaches True, but alive is False, so supervise exits on its first pass.",
+        "start.ps1:196-213 -ServiceRun appends --parent-pid $PID to the supervisor (as the dev-watch already had). It starts both processes with Start-Process -PassThru and restarts whichever HasExited every $ServiceRestartSeconds, which covers a crashed supervisor.",
+        "The new variables are declared at the top (:73-75). $SupervisorProcess already was (:38).",
+        "The logon task action is powershell.exe -File start.ps1 -ServiceRun (:468-473), so $PID is the task process. Stop-UserLogonTask and Unregister-UserLogonTask (StartupManager.ps1:330-356) stop it. The supervisor then exits within about 2 s, and dev-watch within 3 s (dev-watch.mjs:77-86, taskkill /T on its watchers). The converge path sleeps 5 s after the stop (:232-233), so the set is gone before the build.",
+        "The PowerShell Parser reports 0 errors. Line endings are LF, as at the base.",
+        "The removed AI rules header is from the user's cleaner commit 5bbb23682, not this member, and it was not re-added."
+      ]
+    },
+    "MCHR-32": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "storage-keys.ts drops SEMANTIC_ENGINE_STATE, USER_PREFERENCES and VECTOR_INDEX. A grep over apps/mcp-chrome (node_modules excluded) finds no user of these keys or their string values.",
+        "native-host-common.cjs holds the only per-browser table (userManifestSegments, systemManifestSegments, registry paths, detection data) and registerUserHost().",
+        "browser-config.ts requires it through path.resolve(__dirname,'..','..','..','..','scripts','native-host-common.cjs'). tsc emits dist/scripts/browser-config.js (tsconfig outDir dist, rootDir src), and both depths resolve (node check: src true, dist true). The native-server is already monorepo-bound through constant/index.ts, which requires config/service_contract.",
+        "utils.ts tryRegisterUserLevelHost (register:dev, CLI register, postinstall) and register-local-dev.cjs both call registerUserHost.",
+        "cli.ts update-port, which wrote config/service_contract.json, is removed. A grep over scripts, pycore, apps, docs_fix and the Laravel app finds no 'update-port' caller and no writeFile to service_contract.",
+        "Node smoke test on Windows (v24) and Debian (v22): user and system paths and the HKCU/HKLM keys for chrome, chromium and firefox are identical to the removed TS table. The Chrome manifest gets allowed_origins with the contract extension_id. The Firefox manifest gets allowed_extensions with the contract firefox_extension_id.",
+        "node --check passes on register-local-dev, unregister-local-dev and update-extension-id. SUPPORTED_BROWSERS stays Chrome and Chromium for the dev scripts.",
+        "tsc --noEmit (app/native-server, Debian WSL, portable node v22.20.0, free RAM 4.78 GB) shows 7 errors, the same as the baseline, all from the stale packages/shared dist. None is in browser-config.ts, utils.ts or cli.ts."
+      ]
+    },
+    "MCHR-33": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "api-endpoints.ts: built-in endpoints carry labelKey (8 apiEndpoint* keys), description becomes optional for custom endpoints, and getEndpointLabel() is the single resolver. A hostKey not in the map falls back to the URL.",
+        "ApiSettings.vue:85 and :211-213 and EndpointDropdown.vue:64 render through getEndpointLabel.",
+        "No other consumer reads ApiEndpoint.description. Built-in endpoints come from the constant (ApiManager.getAllEndpoints), and only custom endpoints are stored.",
+        "There is no import cycle: i18n imports only ExtensionStorage and storage-keys.",
+        "All 6 locales parse as JSON, contain all 8 keys with real translations, and have equal key counts (724).",
+        "Line endings match the base: CRLF in de, ja, ko and zh_TW; the en and zh_CN files keep their 28 LF lines.",
+        "grep: 'Production Cloud Server' appears only in _locales/en/messages.json:770."
+      ]
+    },
+    "MCHR-36": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "The Bing runtime extends SimpleWorkerRuntimeBase<WorkerConfig> (runtime.ts:158).",
+        "start (:280-315) goes through super.start: register, prepareActivation, then the heartbeat, realtime wake, queue diff and poll loop.",
+        "stop (:343-381) calls super.stop, and repoint (:387-394) calls super.repoint.",
+        "updateConfig uses repoint for an endpoint change (:581-584) and restartHeartbeat for an interval change (:590-593).",
+        "The claim path in service.ts cycle(), pullAndProcessTasks: takePrefetchedHeadTasks, then base pullTasksAcrossTypes (rotatesPullTaskTypes=false keeps dictionary before word_translation), then noteFastSignals. The cycleInFlight guard replaces the old polling flag.",
+        "releaseUndispatchedTasks in finally releases claimed tasks that were not started, through the old client, before cycleInFlight clears. Base start waits on cycleInFlight.",
+        "prepareActivation catches pool errors, and enqueuePending catches its own errors, so neither turns into a registration retry.",
+        "K6: enqueuePending, pull, release and queueDiff all go through WorkerApiClient (the native-host signer). queueDiff hits /api/queue-center/queues/{queue}/diff (client.key), and isDiffQueue accepts every contract task type key, dictionary types included.",
+        "The four hooks moved from SimpleWorkerBase are byte-identical. The SimpleWorkerBase subclasses are chatgpt, gemini, notebooklm, prompt-translate, puter, qwen-tts and AssistPollingWorkerBase.",
+        "grep over the bing-*.ts files finds none of heartbeatPolling, taskPolling, IntervalController, fastRepollTimeout, wakeUnsubscribe, queueCenterWakeService, reconfiguring, this.polling, registerWorker(, heartbeatOnce, startPolling, subscribeRealtimeWake or processTask(.",
+        "vue-tsc --noEmit (app/chrome-extension, Debian WSL, node v22.20.0) shows 5 errors, the same as the baseline, all from the stale packages/shared dist."
+      ]
+    },
+    "MCHR-37": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "There is one Gemini AsyncMutex, the private generationMutex at gemini-image.ts:113. gemini-image-generate.ts no longer has its own mutex and uses geminiImageTool.runExclusive(). Moving the mutex into the tab owner avoids an import cycle, and the requirement is met: one shared mutex, no second implementation.",
+        "execute() status goes through statusExclusive (:124), and execute() start goes through startExclusive (:147). The popup listener uses the same two entry points.",
+        "startExclusive does a bounded 20 s acquire, releases on a throw or a failed start, and otherwise holds a job lease.",
+        "The job lease settles on done, failed or unknown status, or on expiry (the deadline plus 5 s). An uncollected job goes through cancel() before the release (settleJobLease, in a finally).",
+        "cancel() is called only under the mutex: from generateOnce inside runExclusive, and from settleJobLease while the lease is held.",
+        "A timed-out waiter frees a late grant at once (:371-381).",
+        "status() now treats a failed job as final (:288-292).",
+        "vue-tsc shows the baseline errors only."
+      ]
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "utils.ts:246 stores config.userManifestPath in the result's error field, so the registration summary at :257 prints '[X] Chrome: Failed - <manifest path>'. The real reason is logged earlier by registerUserHost. Fix: have registerUserHost return the error message, or print the path under its own label.",
+    "gemini-image.ts:35-36: TAB_BUSY_ERROR and JOB_ABANDONED_ERROR are English literals that now reach the popup error line (useGeminiImage.ts:66 and :87). They follow this file's existing English MCP-protocol error convention, so they are accepted for the tool. A follow-up should map the busy and abandoned states to _locales keys on the popup path.",
+    "Bing race: if updateConfig with a new apiUrl arrives while a start is still in flight, base repoint's this.start() joins the running startOperation (AsyncOperationController returns the in-flight promise). That startOnce then sees isRunning=false after super.start and returns, so the worker stays stopped until the next Start. The race is rare; a follow-up could queue the repoint after startOperation.",
+    "Bing now also runs the base queue-diff poll: 3 GETs per second per worker, even during an outage or cooldown. Only the prefetch is gated (runtime.ts:451-454). A follow-up could add a base hook that skips the diff poll while the worker is paused.",
+    "service_supervisor.py:73 windows_kernel32() rebuilds the WinDLL and its argtypes on every 2 s owner check. Caching it once would be cheaper. Nit.",
+    "start.ps1:198 `$SupervisorArguments += @(...)` appends to an array, not to a string. The repository uses the same pattern (ClaudeTeamCommon.ps1:688-695), so I accept it under the no-string-append rule.",
+    "Worst-case interactive start latency is the 20 s lock wait plus start()'s own tab-ready wait of up to 20 s, which can exceed the 30 s bridge timeout while the tab is busy. With an idle tab, latency is unchanged.",
+    "Chrome-only manifest lookups remain outside the table: build_orchestrator.py:95-102, service_supervisor.py manifest_candidates, start.ps1:427 (the HKCU check), start.sh:583 and native-host.ts:132-137. They are not per-browser tables, so the verify step holds; a follow-up could source them from native-host-common.cjs or the contract.",
+    "MCHR-05-live (second run and uninstall on Windows) is the user's. A supervisor started before this change has no --parent-pid and survives one more uninstall, until logoff or reboot."
+  ],
+  "cross_scope": [
+    "user: MCHR-05-live acceptance on Windows (the second -ServiceRun and -UninstallService leave no python or node survivors).",
+    "orchestrator (G2 CKA-01): rebuild packages/shared/dist. All 12 baseline tsc/vue-tsc errors (ClientKeySign*, SIGN_CLIENT_REQUEST*, EXTENSION_ID, FIREFOX_EXTENSION_ID) come from the stale dist."
+  ],
+  "checks": [
+    "git diff 74e7770..HEAD on all 18 G1 source files; the working tree equals HEAD for each.",
+    "Line endings of every G1 file match the base: LF files stay LF; CRLF files (cli.ts, api-endpoints.ts, ApiSettings.vue, EndpointDropdown.vue, gemini-image-generate.ts, gemini-image-listener.ts and the locales) stay CRLF; the mixed en and zh_CN files keep their 28 LF lines.",
+    "PowerShell Parser on start.ps1: 0 errors.",
+    "python -m py_compile service_supervisor.py: exit 0.",
+    "In-process python -B checks: owner tracking (Windows), and --wake gating with stubs.",
+    "node --check on native-host-common.cjs, register-local-dev.cjs, unregister-local-dev.cjs and update-extension-id.cjs.",
+    "Node smoke test of native-host-common.cjs on Windows node v24.11.1 and Debian node v22.20.0.",
+    "tsc --noEmit -p tsconfig.json (app/native-server, Debian WSL): 7 errors, the baseline.",
+    "vue-tsc --noEmit -p tsconfig.json (app/chrome-extension, Debian WSL): 5 errors, the baseline.",
+    "Locale JSON parse and key check (6 locales x 8 keys).",
+    "Greps: no update-port and no service_contract writes; the per-browser table only in native-host-common.cjs; none of the removed Bing loop members; one Gemini AsyncMutex; the 'Production Cloud Server' literal only in the en locale; the removed storage keys unused.",
+    "Boundaries: every changed source file is under apps/mcp-chrome/ (wordnew-link scope). No config/*_contract.json, test file or fenced file was touched, and no AI rules header was re-added.",
+    "Free RAM was 4.78 GB (>= 3 GB) before the type checks."
+  ]
+}

@@ -1,0 +1,105 @@
+# -*- coding: utf-8 -*-
+"""Register Task Center controllers on HTTP API."""
+
+from pycore.callmodule.rpc_routes import route_names
+from pycore.pyctl.queue_center.task_center_service import (
+    QueueCenterControlRequest,
+    get_audio_lane_state,
+    get_queue_center_snapshot,
+    get_local_task_detail,
+    set_queue_center_control,
+)
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DELIVERY
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
+
+DELIVERY_ERROR_KIND_UNSUPPORTED = str(QUEUE_CENTER_DELIVERY["error_codes"]["kind_unsupported"])
+
+
+def register_local_task_center_routes(server) -> None:
+    """Register Task Center controllers."""
+
+    def control_handler(params, _request_id, _context):
+        request = params
+        control_name = request.get("control_name")
+        if not control_name:
+            return {"success": False, "error": "control_name is required"}
+        control = QueueCenterControlRequest(
+            enabled=request.get("enabled", False),
+            laravel_endpoint=request.get("laravel_endpoint"),
+            requested_by=request.get("requested_by"),
+            reason=request.get("reason"),
+            graceful_stop=request.get("graceful_stop", False),
+        )
+        return set_queue_center_control(control_name, control)
+
+    def local_detail_handler(params, _request_id, _context):
+        task_id = params.get("task_id")
+        if not task_id:
+            return {"success": False, "error": "task_id is required"}
+        return get_local_task_detail(task_id)
+
+    def snapshot_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        return {
+            "success": True,
+            "data": get_queue_center_snapshot(bool(request.get("refresh"))),
+        }
+
+    def audio_lane_state_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        return get_audio_lane_state(
+            str(request.get("owner") or ""),
+            int(request.get("item_limit") or 10),
+        )
+
+    def event_page_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        lane = str(request.get("lane") or "").strip().lower()
+        workers = {
+            "word": laravel_word_audio_worker,
+            "sentence": laravel_sentence_audio_worker,
+        }
+        worker = workers.get(lane)
+        if worker is None:
+            return {"success": False, "error": "lane must be word or sentence"}
+        return {
+            "success": True,
+            "data": worker.get_event_page(
+                int(request.get("page") or 1),
+                int(request.get("page_size") or 20),
+            ),
+        }
+
+    def delivery_status_handler(_params, _request_id, _context):
+        return {"success": True, "data": laravel_delivery_outbox.status()}
+
+    def delivery_retry_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        kind = str(request.get("kind") or "").strip()
+        kinds = laravel_delivery_outbox.kinds()
+        if kind and kind not in kinds:
+            return {"success": False, "error_code": DELIVERY_ERROR_KIND_UNSUPPORTED}
+        retried = {name: laravel_delivery_outbox.retry_dead_letters(name) for name in ([kind] if kind else kinds)}
+        if request.get("reconcile"):
+            namespace = str(request.get("namespace") or "").strip()
+            if namespace:
+                laravel_delivery_outbox.reconcile(namespace, kinds=[kind] if kind else None)
+            else:
+                laravel_delivery_outbox.reconcile_reachable()
+        laravel_delivery_outbox.kick(kind or None)
+        return {"success": True, "retried": retried, "data": laravel_delivery_outbox.status()}
+
+    routes = (
+        (route_names.UI_QUEUE_CENTER_SNAPSHOT, snapshot_handler),
+        (route_names.UI_QUEUE_CENTER_AUDIO_LANE_STATE, audio_lane_state_handler),
+        (route_names.UI_QUEUE_CENTER_EVENT_PAGE, event_page_handler),
+        (route_names.UI_LARAVEL_DELIVERY_STATUS, delivery_status_handler),
+        (route_names.UI_LARAVEL_DELIVERY_RETRY, delivery_retry_handler),
+        (route_names.UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL, control_handler),
+        (route_names.UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL, local_detail_handler),
+    )
+    server.register_routes(routes, group="task_center")

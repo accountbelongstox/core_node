@@ -1,59 +1,40 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
-class AppQyV1PersonalDictionariesModel extends Model
+class AppQyV1PersonalDictionariesModel extends AppQyV1Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $appKey = AppKeys::APPQYV1;
 
     /**
      * The table associated with the model.
      *
      * @var string
      */
-    protected $table;
 
     /**
      * Constructor to set table name from database bridge
      */
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('PERSONAL_DICTIONARIES');
-    }
+    protected ?string $appTableMapKey = 'PERSONAL_DICTIONARIES';
 
     protected $fillable = [
         'uid',
         'personal_dicts',
     ];
 
-    protected $casts = [
-        'personal_dicts' => 'json',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'personal_dicts' => 'json',
+        ];
+    }
 
     public function user()
     {
@@ -91,5 +72,15 @@ class AppQyV1PersonalDictionariesModel extends Model
             'total_personal_dicts' => count($this->personal_dicts ?? []),
         ];
     }
-}
 
+    public static function findForUser(int $userId, bool $excludeDeleted = false): ?self
+    {
+        $query = static::query()->where('uid', $userId);
+
+        if ($excludeDeleted) {
+            $query->whereNull('deleted_at');
+        }
+
+        return $query->first();
+    }
+}

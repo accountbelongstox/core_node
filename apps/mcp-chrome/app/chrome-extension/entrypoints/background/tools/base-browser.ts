@@ -1,6 +1,7 @@
-import { ToolExecutor } from '@/common/tool-handler';
+import { ToolExecutor, toErrorMessage } from '@/common/tool-handler';
 import type { ToolResult } from '@/common/tool-handler';
 import { TIMEOUTS, ERROR_MESSAGES } from '@/common/constants';
+import { withTimeout } from '@/utils/async';
 
 const PING_TIMEOUT_MS = 300;
 
@@ -24,27 +25,29 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
 
     // check if script is already injected
     try {
-      const response = await Promise.race([
-        chrome.tabs.sendMessage(tabId, { action: `${this.name}_ping` }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`${this.name} Ping action to tab ${tabId} timed out`)),
-            PING_TIMEOUT_MS,
-          ),
-        ),
-      ]);
+      const response = await withTimeout(
+        // Include the files being injected so a tool that injects MORE THAN ONE
+        // content script under a single tool name (e.g. the Bing dictionary tool:
+        // bing-dictionary-helper + bing-media-fetcher) can answer the probe only
+        // for ITS OWN file. Single-file helpers ignore the extra field.
+        chrome.tabs.sendMessage(tabId, { action: `${this.name}_ping`, files }),
+        PING_TIMEOUT_MS,
+        `${this.name} Ping action to tab ${tabId} timed out`,
+      );
 
       if (response && response.status === 'pong') {
         console.log(
           `pong received for action '${this.name}' in tab ${tabId}. Assuming script is active.`,
         );
         return;
-      } else {
-        console.warn(`Unexpected ping response in tab ${tabId}:`, response);
       }
+      // A non-pong response just means the script isn't loaded yet; fall through to inject.
     } catch (error) {
-      console.error(
-        `ping content script failed: ${error instanceof Error ? error.message : String(error)}`,
+      // Expected on first use / after the content script is evicted (the tab was
+      // discarded or the page reloaded). This is the normal pre-injection probe,
+      // not a failure — log at debug level so it doesn't spam the console.
+      console.debug(
+        `ping content script (${this.name}) miss, will inject: ${toErrorMessage(error)}`,
       );
     }
 
@@ -57,8 +60,7 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
       });
       console.log(`'${files.join(', ')}' injection successful for tab ${tabId}`);
     } catch (injectionError) {
-      const errorMessage =
-        injectionError instanceof Error ? injectionError.message : String(injectionError);
+      const errorMessage = toErrorMessage(injectionError);
       console.error(
         `Content script '${files.join(', ')}' injection failed for tab ${tabId}: ${errorMessage}`,
       );
@@ -71,9 +73,11 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
   /**
    * Send message to tab
    */
-  protected async sendMessageToTab(tabId: number, message: any): Promise<any> {
+  protected async sendMessageToTab(tabId: number, message: any, frameId?: number): Promise<any> {
     try {
-      const response = await chrome.tabs.sendMessage(tabId, message);
+      const response: any = frameId === undefined
+        ? await chrome.tabs.sendMessage(tabId, message)
+        : await chrome.tabs.sendMessage(tabId, message, { frameId });
 
       if (response && response.error) {
         throw new Error(String(response.error));
@@ -81,7 +85,7 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
 
       return response;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       console.error(
         `Error sending message to tab ${tabId} for action ${message?.action || 'unknown'}: ${errorMessage}`,
       );
@@ -90,6 +94,79 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
         throw error;
       }
       throw new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Try to get a tab by ID
+   */
+  protected async tryGetTab(tabId?: number): Promise<chrome.tabs.Tab | null> {
+    if (typeof tabId !== 'number') return null;
+    try {
+      return await chrome.tabs.get(tabId);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get active tab or throw error
+   */
+  protected async getActiveTabOrThrow(): Promise<chrome.tabs.Tab> {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      throw new Error(ERROR_MESSAGES.TAB_NOT_FOUND);
+    }
+    return tab;
+  }
+
+  /**
+   * Get active tab in window or throw error
+   */
+  protected async getActiveTabOrThrowInWindow(windowId?: number): Promise<chrome.tabs.Tab> {
+    const query: chrome.tabs.QueryInfo = { active: true };
+    if (typeof windowId === 'number') {
+      query.windowId = windowId;
+    } else {
+      query.currentWindow = true;
+    }
+    const [tab] = await chrome.tabs.query(query);
+    if (!tab) {
+      throw new Error(ERROR_MESSAGES.TAB_NOT_FOUND);
+    }
+    return tab;
+  }
+
+  /**
+   * Resolve the tab a tool should operate on. An explicit tabId wins and lets a
+   * caller target a background/non-active tab; otherwise the active tab of the
+   * current window is used. Returns null when neither resolves so callers can
+   * surface a uniform TAB_NOT_FOUND error.
+   */
+  protected async resolveTargetTab(tabId?: number): Promise<chrome.tabs.Tab | null> {
+    if (typeof tabId === 'number') {
+      return this.tryGetTab(tabId);
+    }
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab || null;
+  }
+
+  /**
+   * Ensure tab/window is focused
+   */
+  protected async ensureFocus(
+    tab: chrome.tabs.Tab,
+    options?: { activate?: boolean; focusWindow?: boolean },
+  ): Promise<void> {
+    const { activate = true, focusWindow = true } = options || {};
+    if (tab.id === undefined) return;
+
+    if (activate) {
+      await chrome.tabs.update(tab.id, { active: true });
+    }
+
+    if (focusWindow && tab.windowId !== undefined) {
+      await chrome.windows.update(tab.windowId, { focused: true });
     }
   }
 }

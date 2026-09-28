@@ -5,13 +5,12 @@ Router - Route matching and dispatching
 """
 
 import re
-import threading
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Callable
 
 # Import from pycore following standards
-from pycore.pyfoundations import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Import route handlers
 from pycore.pyutils.flutter_dev_tools.routes.app_routes import AppRoutesHandler
@@ -23,6 +22,9 @@ from pycore.pyutils.flutter_dev_tools.routes.config_routes import ConfigRoutesHa
 from pycore.pyutils.flutter_dev_tools.routes.system_routes import SystemRoutesHandler
 from pycore.pyutils.flutter_dev_tools.routes.static_routes import StaticRoutesHandler
 
+import traceback
+
+
 
 class Router:
     """
@@ -32,17 +34,17 @@ class Router:
     Supports path parameters (e.g., /api/apps/:app/tree)
     """
 
-    def __init__(self, static_dir: Path, shutdown_event: threading.Event):
+    def __init__(self, static_dir: Path, shutdown_signal: str):
         """
         Initialize router
 
         Args:
             static_dir: Static files directory
-            shutdown_event: Event for server shutdown
+            shutdown_signal: THREAD_BUS signal for server shutdown
         """
         self.color_print = ColorPrint()
         self.static_dir = static_dir
-        self.shutdown_event = shutdown_event
+        self.shutdown_signal = shutdown_signal
 
         # Route patterns (path_pattern, handler_method, method)
         self.routes: List[Tuple[str, str, str]] = []
@@ -188,7 +190,6 @@ class Router:
 
         except Exception as e:
             self.color_print.print_red(f"[Router] Handler error: {e}")
-            import traceback
             traceback.print_exc()
             request_handler.send_error(500, "Internal Server Error")
 
@@ -210,7 +211,7 @@ class Router:
             'pageview': PageViewRoutesHandler(request_handler),
             'comparison': ComparisonRoutesHandler(request_handler),
             'config': ConfigRoutesHandler(request_handler),
-            'system': SystemRoutesHandler(request_handler, self.shutdown_event),
+            'system': SystemRoutesHandler(request_handler, self.shutdown_signal),
             'static': StaticRoutesHandler(request_handler, self.static_dir),
         }
 

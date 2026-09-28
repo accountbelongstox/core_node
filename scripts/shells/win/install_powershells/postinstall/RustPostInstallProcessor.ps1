@@ -1,25 +1,13 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Rust Post-Installation Processor
 # Handles Rust toolchain configuration, Cargo setup, and development environment optimization
 
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
 
 # Note: Environment variables (RUST_HOME, CARGO_HOME, PATH) are handled by
-# Set-MultipleEnvironmentVariablesForPackage in Step12_InstallApplications.ps1
+# Set-MultipleEnvironmentVariablesForPackage in Step21_InstallApplications.ps1
 
 function Configure-CargoSettings {
     param (
@@ -136,21 +124,24 @@ function Install-RustComponents {
         if (Test-Path $rustupPath) {
             Write-Host "$LogPrefix Installing rustfmt..." -ForegroundColor Yellow
             & $rustupPath component add rustfmt 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $rustfmtPath = Join-Path (Split-Path $RustPath -Parent) "rustfmt.exe"
+            if (Test-Path -LiteralPath $rustfmtPath) {
                 Write-Host "$LogPrefix rustfmt installed successfully" -ForegroundColor Green
             }
             
             # Install clippy (linter)
             Write-Host "$LogPrefix Installing clippy..." -ForegroundColor Yellow
             & $rustupPath component add clippy 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $clippyPath = Join-Path (Split-Path $RustPath -Parent) "clippy-driver.exe"
+            if (Test-Path -LiteralPath $clippyPath) {
                 Write-Host "$LogPrefix clippy installed successfully" -ForegroundColor Green
             }
             
             # Install rust-src (source code for standard library)
             Write-Host "$LogPrefix Installing rust-src..." -ForegroundColor Yellow
             & $rustupPath component add rust-src 2>&1 | Out-Null
-            if ($LASTEXITCODE -eq 0) {
+            $componentList = & $rustupPath component list --installed 2>&1
+            if ("$componentList" -match 'rust-src') {
                 Write-Host "$LogPrefix rust-src installed successfully" -ForegroundColor Green
             }
         } else {
@@ -177,7 +168,7 @@ function Test-RustInstallation {
     try {
         # Test Rust compiler version
         $rustVersion = & $RustPath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if (("$rustVersion").Contains('rustc')) {
             Write-Host "$LogPrefix Rust compiler check passed" -ForegroundColor Green
             $versionLine = ($rustVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -190,7 +181,7 @@ function Test-RustInstallation {
         $cargoPath = Join-Path (Split-Path $RustPath -Parent) "cargo.exe"
         if (Test-Path $cargoPath) {
             $cargoVersion = & $cargoPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if (("$cargoVersion").Contains('cargo')) {
                 Write-Host "$LogPrefix Cargo check passed" -ForegroundColor Green
                 $cargoVersionLine = ($cargoVersion | Select-Object -First 1).ToString()
                 Write-Host "$LogPrefix $cargoVersionLine" -ForegroundColor Cyan

@@ -1,6 +1,9 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { prepareFirefoxUploadFile } from './file-upload-firefox';
+
+const FILE_UPLOAD_HELPER_SCRIPT = 'inject-scripts/file-upload-helper.js';
 
 interface FileUploadToolParams {
   selector: string; // CSS selector for the file input element
@@ -46,6 +49,12 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       return createErrorResponse(
         'One of filePath, fileUrl, or base64Data must be provided',
       );
+    }
+
+    // Firefox has no chrome.debugger/CDP: materialize the file bytes in the
+    // background and set input.files from a content script instead.
+    if (import.meta.env.FIREFOX) {
+      return this.executeFirefox(args);
     }
 
     let tabId: number | undefined;
@@ -142,14 +151,18 @@ class FileUploadTool extends BaseBrowserToolExecutor {
         },
       );
 
-      // Trigger change event to ensure the page reacts to the file upload
+      // Trigger change event to ensure the page reacts to the file upload.
+      // Embed the selector via JSON.stringify so backslashes and other
+      // JS-string-special characters in valid CSS selectors (e.g. escaped
+      // attribute values) do not corrupt the string literal and silently make
+      // querySelector return null.
       await chrome.debugger.sendCommand(
         { tabId },
         'Runtime.evaluate',
         {
           expression: `
             (function() {
-              const element = document.querySelector('${selector.replace(/'/g, "\\'")}');
+              const element = document.querySelector(${JSON.stringify(selector)});
               if (element) {
                 const event = new Event('change', { bubbles: true });
                 element.dispatchEvent(event);
@@ -164,21 +177,13 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       // Clean up debugger
       await this.detachDebugger(tabId);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'File(s) uploaded successfully',
-              files: files,
-              selector: selector,
-              fileCount: files.length,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: 'File(s) uploaded successfully',
+        files,
+        selector,
+        fileCount: files.length,
+      });
     } catch (error) {
       console.error('Error in file upload operation:', error);
       
@@ -188,35 +193,65 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       }
 
       return createErrorResponse(
-        `Error uploading file: ${error instanceof Error ? error.message : String(error)}`,
+        `Error uploading file: ${toErrorMessage(error)}`,
       );
     }
   }
 
   /**
-   * Attach debugger to a tab
+   * Attach debugger to a tab.
+   *
+   * TargetInfo.extensionId is only populated for background_page targets, so
+   * for page (tab) targets it is always undefined and cannot be used to tell
+   * whether THIS extension attached the debugger. Instead: reuse an attachment
+   * we already own this service-worker lifetime (activeDebuggers); otherwise
+   * attempt to attach. A pre-existing attachment (a stale one left by a prior
+   * service-worker lifetime that was killed mid-upload, or an overlapping
+   * call) surfaces as "Another debugger is already attached" / "Cannot attach
+   * to the target with an attached client" - recover by detaching (which only
+   * affects this extension's own attachment) and reattaching. A genuine
+   * DevTools/third-party attachment survives the detach and rethrows.
    */
   private async attachDebugger(tabId: number): Promise<void> {
-    // Check if debugger is already attached
-    const targets = await chrome.debugger.getTargets();
-    const existingTarget = targets.find(
-      (t) => t.tabId === tabId && t.attached,
-    );
-
-    if (existingTarget) {
-      if (existingTarget.extensionId === chrome.runtime.id) {
-        // Our extension already attached
-        console.log('Debugger already attached by this extension');
-        return;
-      } else {
-        throw new Error(
-          'Debugger is already attached to this tab by another extension or DevTools',
-        );
-      }
+    // Reuse an attachment this extension already owns in the current lifetime.
+    if (this.activeDebuggers.has(tabId)) {
+      console.log(`Debugger already attached to tab ${tabId} by this extension`);
+      return;
     }
 
-    // Attach debugger
-    await chrome.debugger.attach({ tabId }, '1.3');
+    try {
+      await chrome.debugger.attach({ tabId }, '1.3');
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      const alreadyAttached =
+        msg.includes('Another debugger') ||
+        msg.includes('Cannot attach to the target with an attached client');
+      if (!alreadyAttached) {
+        throw error;
+      }
+      // A stale self-attachment (e.g. SW killed mid-upload) blocks reattach.
+      // detach only tears down this extension's own connection, then retry.
+      try {
+        await chrome.debugger.detach({ tabId });
+      } catch {
+        // detach throws if this extension never attached (e.g. DevTools owns
+        // it); fall through so the reattach error below surfaces.
+      }
+      try {
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } catch (reattachError: any) {
+        const rmsg = reattachError?.message || String(reattachError);
+        if (
+          rmsg.includes('Another debugger') ||
+          rmsg.includes('Cannot attach to the target with an attached client')
+        ) {
+          throw new Error(
+            'Debugger is already attached to this tab by another extension or DevTools',
+          );
+        }
+        throw reattachError;
+      }
+    }
     this.activeDebuggers.set(tabId, true);
     console.log(`Debugger attached to tab ${tabId}`);
   }
@@ -247,6 +282,56 @@ class FileUploadTool extends BaseBrowserToolExecutor {
   }
 
   /**
+   * Firefox implementation: no CDP available. The file bytes are obtained in
+   * the background context (native host chunked read for local paths, fetch
+   * for URLs, direct decode for base64) and handed to an ISOLATED-world
+   * content script that builds File objects via DataTransfer and assigns them
+   * to the target input element, then dispatches input/change events.
+   */
+  private async executeFirefox(args: FileUploadToolParams): Promise<ToolResult> {
+    const { selector, filePath, fileUrl, base64Data, fileName } = args;
+
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tabs[0]?.id) {
+        return createErrorResponse('No active tab found');
+      }
+      const tabId = tabs[0].id;
+
+      const file = await prepareFirefoxUploadFile({ filePath, fileUrl, base64Data, fileName });
+
+      await this.injectContentScript(tabId, [FILE_UPLOAD_HELPER_SCRIPT]);
+
+      const result = await this.sendMessageToTab(tabId, {
+        action: 'setFileInputFiles',
+        selector: selector,
+        files: [
+          {
+            name: file.name,
+            type: file.type,
+            lastModified: Date.now(),
+            bytes: file.bytes,
+          },
+        ],
+      });
+
+      return createJsonResponse({
+        success: true,
+        message: 'File(s) uploaded successfully',
+        files: [file.name],
+        selector,
+        fileCount: result?.fileCount ?? 1,
+        size: file.size,
+      });
+    } catch (error) {
+      console.error('Error in Firefox file upload operation:', error);
+      return createErrorResponse(
+        `Error uploading file: ${toErrorMessage(error)}`,
+      );
+    }
+  }
+
+  /**
    * Prepare file from URL or base64 data using native messaging host
    */
   private async prepareFileFromRemote(options: {
@@ -260,6 +345,7 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       const requestId = `file-upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const timeout = setTimeout(() => {
         console.error('File preparation request timed out');
+        chrome.runtime.onMessage.removeListener(handleMessage);
         resolve(null);
       }, 30000); // 30 second timeout
 

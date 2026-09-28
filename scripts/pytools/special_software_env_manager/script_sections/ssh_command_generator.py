@@ -2,6 +2,7 @@
 SSH Command Generator
 
 Generates SSH connection scripts for Windows and Linux.
+
 """
 
 from typing import Dict
@@ -16,19 +17,7 @@ class SSHCommandGenerator:
         ssh_conn_key = f"SSH_CONNECTION_{file_number}"
         password_key_name = f"SSH_PASSWORD_{file_number}"
 
-        header = f"""# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
-<#
+        header = f"""<#
 .SYNOPSIS
     {config_name} Global File #{file_number}
 
@@ -94,18 +83,38 @@ Write-Host "Loading SSH Configuration" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Detect Python executable (Windows prioritizes 'python' over 'python3')
+# Ensure GlobalVars loaded so $Global:PYTHON_EXE_PATH / $Global:PYTHON_DIR are available (same as DevInstaller / Run DevInstaller)
+$globalVarsPath = Join-Path $winCommonDirPath "GlobalVars.ps1"
+. $globalVarsPath
+
+# Resolve Python: prefer GLOBAL PYTHON EXE (DevInstaller), then python.exe in PATH (avoid Store "python" alias)
 $pythonExecutable = $null
-if (Get-Command python -ErrorAction SilentlyContinue) {{
-    $pythonExecutable = "python"
-}} elseif (Get-Command python3 -ErrorAction SilentlyContinue) {{
-    $pythonExecutable = "python3"
-}} else {{
-    Write-Host "[ERROR] Python not found. Cannot load SSH secrets." -ForegroundColor Red
+if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {{
+    $pythonExecutable = $Global:PYTHON_EXE_PATH
+}} elseif ($Global:PYTHON_DIR -and (Test-Path -LiteralPath $Global:PYTHON_DIR)) {{
+    $pythonExeFromDir = Join-Path $Global:PYTHON_DIR "python.exe"
+    if (Test-Path -LiteralPath $pythonExeFromDir) {{
+        $pythonExecutable = $pythonExeFromDir
+    }}
+}}
+if (-not $pythonExecutable) {{
+    $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source) {{
+        $pythonExecutable = $pythonCmd.Source
+    }}
+}}
+if (-not $pythonExecutable) {{
+    $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source) {{
+        $pythonExecutable = $pythonCmd.Source
+    }}
+}}
+if (-not $pythonExecutable) {{
+    Write-Host "[ERROR] Python not found. Cannot load SSH secrets. Run DevInstaller (dd menu -> Run DevInstaller) to install Python, or add python.exe to PATH." -ForegroundColor Red
 }}
 
 # Use relative path from script location to project root
-$secretReaderScript = Join-Path $projectRootPath "scripts\pytools\special_software_env_manager\secret_read.py"
+$secretReaderScript = Join-Path $projectRootPath "scripts\\pytools\\special_software_env_manager\\secret_read.py"
 $fixScriptPath = Join-Path $winCommonDirPath "SecretDecryptionCheck.ps1"
 $fixInstruction = "Run dd.cmd (Secret Decryption Fix) or powershell -ExecutionPolicy Bypass -File `"$fixScriptPath`""
 Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
@@ -145,7 +154,7 @@ if ($sshConnection) {{
 
 $sshPassword = Get-SSHSecret "{password_key_name}"
 if ($sshPassword) {{
-    Write-Host "[SUCCESS] SSH password loaded = $sshPassword" -ForegroundColor Green
+    Write-Host "[SUCCESS] SSH password loaded ($($sshPassword.Length) chars; displayed only when a password login is needed)" -ForegroundColor Green
 }} else {{
     Write-Host "[INFO] No password configured (using SSH key authentication)" -ForegroundColor Yellow
 }}
@@ -166,6 +175,50 @@ if ([string]::IsNullOrWhiteSpace($sshConnection)) {{
 }}
 
 if ($sshPassword) {{
+    # Extract user and host from connection string (e.g. root@1.2.3.4)
+    $sshUser = ""
+    $sshHost = ""
+    if ($sshConnection -match '^(.+)@(.+)$') {{
+        $sshUser = $Matches[1]
+        $sshHost = $Matches[2]
+    }}
+
+    # SSH Key setup guide
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "  SSH Key Setup Guide (passwordless login)" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  After login, run these commands on the SERVER to enable" -ForegroundColor White
+    Write-Host "  SSH key authentication (no password next time):" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  --- Step 1: Generate key on LOCAL machine (if not exists) ---" -ForegroundColor Yellow
+    Write-Host ""
+    $localKeyPath = Join-Path $env:USERPROFILE ".ssh\\id_ed25519"
+    $localPubPath = "$localKeyPath.pub"
+    Write-Host "  # Check if key already exists:" -ForegroundColor DarkGray
+    Write-Host "  if (!(Test-Path `"$localPubPath`")) {{ ssh-keygen -t ed25519 -f `"$localKeyPath`" -N `"`" }}" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  --- Step 2: Copy key to server (run on LOCAL) ---" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  # Option A: One-liner (works on all distros):" -ForegroundColor DarkGray
+    Write-Host "  type `"$localPubPath`" | ssh $sshConnection `"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`"" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  # Option B: If ssh-copy-id is available (Git Bash / WSL):" -ForegroundColor DarkGray
+    Write-Host "  ssh-copy-id -i `"$localPubPath`" $sshConnection" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  --- Step 3: Verify (run on LOCAL) ---" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  ssh $sshConnection `"echo 'SSH key auth OK'`"" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  --- Notes ---" -ForegroundColor Yellow
+    Write-Host "  * Works on Debian/Ubuntu/CentOS/RHEL/AlmaLinux/Fedora" -ForegroundColor DarkGray
+    Write-Host "  * Safe if server already has other keys (appends, not overwrites)" -ForegroundColor DarkGray
+    Write-Host "  * Safe if local machine has other keys (ed25519 is separate from rsa)" -ForegroundColor DarkGray
+    Write-Host "  * If server has SELinux: ssh $sshConnection `"restorecon -Rv ~/.ssh`"" -ForegroundColor DarkGray
+    Write-Host "  * If using custom port: ssh -p PORT $sshConnection" -ForegroundColor DarkGray
+    Write-Host ""
+
     # Display password for copy-paste
     Write-Host "============================================================" -ForegroundColor Yellow
     Write-Host "  SSH PASSWORD (Copy this to clipboard):" -ForegroundColor Yellow
@@ -205,17 +258,6 @@ $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         password_key_name = f"SSH_PASSWORD_{file_number}"
 
         header = f"""#!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # {config_name} Global File #{file_number}
@@ -300,9 +342,9 @@ else
     exit 1
 fi
 
-SECRET_MANAGER_SCRIPT="$projectRootPath/pycore/pyfoundations/secret_manager.py"
+SECRET_READER_SCRIPT="$projectRootPath/scripts/pytools/special_software_env_manager/secret_read.py"
 echo "[DEBUG] Python executable: $PYTHON_EXECUTABLE"
-echo "[DEBUG] Secret manager script: $SECRET_MANAGER_SCRIPT"
+echo "[DEBUG] Secret reader script: $SECRET_READER_SCRIPT"
 echo ""
 
 # Function to get secret value
@@ -310,11 +352,9 @@ get_secret_value() {{
     local key_name="$1"
     echo "[DEBUG] Loading secret key: $key_name" >&2
 
-    # Switch to project root for Python execution
-    cd "$projectRootPath"
-
+    # secret_read.py is standalone (no pycore imports); no cd/PYTHONPATH needed
     local value
-    value=$("$PYTHON_EXECUTABLE" "$SECRET_MANAGER_SCRIPT" get_secret_key "$key_name" 2>/dev/null)
+    value=$("$PYTHON_EXECUTABLE" "$SECRET_READER_SCRIPT" "$key_name")
     local exit_code=$?
 
     if [ $exit_code -eq 0 ] && [ -n "$value" ]; then
@@ -336,7 +376,7 @@ fi
 
 SSH_PASSWORD=$(get_secret_value "{password_key_name}")
 if [ -n "$SSH_PASSWORD" ]; then
-    echo "[SUCCESS] SSH password loaded: $SSH_PASSWORD"
+    echo "[SUCCESS] SSH password loaded (${{#SSH_PASSWORD}} chars; displayed only when a password login is needed)"
 else
     echo "[INFO] No password configured (using SSH key authentication)"
 fi
@@ -358,7 +398,80 @@ if [ -z "$SSH_CONNECTION" ]; then
     exit 1
 fi
 
-if [ -n "$SSH_PASSWORD" ]; then
+# =============================================================================
+# SSH Key Authentication (keys installed by 27_install_git_ssh.sh)
+# =============================================================================
+# Git SSH and this server's login use the same key pair, so try key-based
+# auth first and only fall back to the password flow when no key works.
+SSH_KEY_AUTH_OK=false
+SSH_IDENTITY_ARGS=()
+SSH_KEY_CANDIDATES=(
+    "$HOME/.ssh/id_ed25519"
+    "/etc/ssh/keys/id_ed25519"
+    "/root/.ssh/id_ed25519"
+)
+
+probe_ssh_key_auth() {{
+    ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "$@" "$SSH_CONNECTION" true 2>/dev/null
+}}
+
+# 1) Default identity (ssh-agent or default key files)
+if probe_ssh_key_auth; then
+    SSH_KEY_AUTH_OK=true
+else
+    # 2) Explicit key files installed by 27_install_git_ssh.sh
+    for key_file in "${{SSH_KEY_CANDIDATES[@]}}"; do
+        if [ -f "$key_file" ] && [ -r "$key_file" ]; then
+            if probe_ssh_key_auth -i "$key_file"; then
+                SSH_KEY_AUTH_OK=true
+                SSH_IDENTITY_ARGS=(-i "$key_file")
+                break
+            fi
+        fi
+    done
+fi
+
+if [ "$SSH_KEY_AUTH_OK" = true ]; then
+    echo "[INFO] SSH key authentication succeeded (git SSH key and server login share the same key)"
+    echo "Executing: ssh ${{SSH_IDENTITY_ARGS[*]}} $SSH_CONNECTION"
+    echo ""
+
+    ssh "${{SSH_IDENTITY_ARGS[@]}}" "$SSH_CONNECTION" "$@"
+elif [ -n "$SSH_PASSWORD" ]; then
+    # SSH Key setup guide
+    LOCAL_KEY="$HOME/.ssh/id_ed25519"
+    LOCAL_PUB="$LOCAL_KEY.pub"
+    echo ""
+    echo "============================================================"
+    echo "  SSH Key Setup Guide (passwordless login)"
+    echo "============================================================"
+    echo ""
+    echo "  After login, run these commands to enable SSH key auth:"
+    echo ""
+    echo "  --- Step 1: Generate key on LOCAL machine (if not exists) ---"
+    echo ""
+    echo "  [ -f \\\"$LOCAL_PUB\\\" ] || ssh-keygen -t ed25519 -f \\\"$LOCAL_KEY\\\" -N \\\"\\\""
+    echo ""
+    echo "  --- Step 2: Copy key to server (run on LOCAL) ---"
+    echo ""
+    echo "  # Option A: ssh-copy-id (Debian/Ubuntu/CentOS/Fedora):"
+    echo "  ssh-copy-id -i \\\"$LOCAL_PUB\\\" $SSH_CONNECTION"
+    echo ""
+    echo "  # Option B: Manual (works on all distros):"
+    echo "  cat \\\"$LOCAL_PUB\\\" | ssh $SSH_CONNECTION \\\"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\\\""
+    echo ""
+    echo "  --- Step 3: Verify (run on LOCAL) ---"
+    echo ""
+    echo "  ssh $SSH_CONNECTION \\\"echo 'SSH key auth OK'\\\""
+    echo ""
+    echo "  --- Notes ---"
+    echo "  * Works on Debian/Ubuntu/CentOS/RHEL/AlmaLinux/Fedora"
+    echo "  * Safe if server already has other keys (appends, not overwrites)"
+    echo "  * Safe if local machine has other keys (ed25519 is separate from rsa)"
+    echo "  * If server has SELinux: ssh $SSH_CONNECTION \\\"restorecon -Rv ~/.ssh\\\""
+    echo "  * If using custom port: ssh -p PORT $SSH_CONNECTION"
+    echo ""
+
     # Display password for copy-paste
     echo "============================================================"
     echo "  SSH PASSWORD (Copy this to clipboard):"

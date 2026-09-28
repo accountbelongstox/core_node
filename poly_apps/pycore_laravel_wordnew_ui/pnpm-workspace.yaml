@@ -1,0 +1,15 @@
+# pnpm 11: a dependency's build/postinstall scripts are NOT run unless approved here
+# (security). `strictDepBuilds` defaults to true, so an UNREVIEWED build aborts `pnpm install`
+# with ERR_PNPM_IGNORED_BUILDS (and `pnpm exec`/`pnpm run` re-trigger the same check).
+# pnpm auto-adds unreviewed deps below with the placeholder "set this to true or false" —
+# set each to `true` to approve (or `false` to deny).
+#
+# NOTE: pnpm <=10 used `onlyBuiltDependencies: [...]`; that key was REMOVED in pnpm 11. The
+# pnpm actually installed here is 11.8.0 (the root package.json `packageManager: pnpm@10.32.0`
+# pin is not in effect via corepack), so `allowBuilds` is the ONLY effective gate.
+#
+# esbuild runs a postinstall to wire up its native binary, so the Vite dev server needs it.
+allowBuilds:
+  core-js: false
+  es5-ext: false
+  esbuild: true

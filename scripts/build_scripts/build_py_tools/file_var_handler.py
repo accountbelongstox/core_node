@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 
-import os
-import platform
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import (
+    get_global_var_dir,
+    global_var_read_names,
+    global_var_write_name,
+    iter_global_var_dirs,
+)
 
 class FileVarHandler:
     def __init__(self):
@@ -10,26 +20,13 @@ class FileVarHandler:
         self._ensure_var_dir()
 
     def _get_var_dir(self):
-        system = platform.system()
-        if system == "Linux":
-            return Path("/var/_core_node/global_var")
-        elif system == "Windows":
-            user_profile = os.environ.get("USERPROFILE")
-            if not user_profile:
-                raise Exception("USERPROFILE environment variable not found")
-            return Path(user_profile) / ".core_node" / ".global_vars"
-        else:
-            raise Exception(f"Unsupported operating system: {system}")
+        return get_global_var_dir()
 
     def _ensure_var_dir(self):
         self.var_dir.mkdir(parents=True, exist_ok=True)
 
-    def _normalize_key(self, key):
-        return key.upper().replace(" ", "_").replace("-", "_")
-
     def _get_file_path(self, key):
-        normalized_key = self._normalize_key(key)
-        return self.var_dir / normalized_key
+        return self.var_dir / global_var_write_name(key)
 
     def set_var(self, key, value):
         file_path = self._get_file_path(key)
@@ -41,10 +38,12 @@ class FileVarHandler:
             return False
 
     def get_var(self, key, default_value=""):
-        file_path = self._get_file_path(key)
         try:
-            if file_path.exists():
-                return file_path.read_text(encoding="utf-8").strip()
+            for legacy_dir in iter_global_var_dirs():
+                for candidate_name in global_var_read_names(key):
+                    legacy_path = legacy_dir / candidate_name
+                    if legacy_path.is_file():
+                        return legacy_path.read_text(encoding="utf-8").strip()
             return default_value
         except Exception as e:
             print(f"Error reading variable {key}: {e}")
@@ -53,7 +52,7 @@ class FileVarHandler:
     def remove_var(self, key):
         file_path = self._get_file_path(key)
         try:
-            if file_path.exists():
+            if file_path.is_file():
                 file_path.unlink()
             return True
         except Exception as e:

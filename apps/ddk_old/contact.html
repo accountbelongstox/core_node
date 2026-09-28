@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多多开 - 联系我们</title>
+    <style>
+        @font-face {
+            font-family: 'TencentW7';
+            src: url('assets/fonts/W7.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        
+        body {
+            font-family: 'TencentW7', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2 {
+            color: #1a73e8;
+        }
+        /* 联系我们部分的样式 */
+        .contact-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .contact-title {
+            color: #1a73e8;
+            margin-bottom: 20px;
+        }
+        .contact-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+        .contact-item {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .contact-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: white;
+            border: 1px solid #e0e0e0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .contact-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .contact-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .qr-code {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-top: 12px;
+            z-index: 1000;
+        }
+        .qr-code img {
+            width: 180px;
+            height: auto;
+            border-radius: 4px;
+        }
+        .qr-code::after {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 8px solid transparent;
+            border-bottom-color: white;
+        }
+        .contact-item:hover .qr-code {
+            display: block;
+        }
+
+        /* 招募代理部分的样式 */
+        .agent-recruitment {
+            margin-top: 30px;
+            padding: 20px;
+            background: #e8f0fe;
+            border-radius: 12px;
+        }
+        .agent-recruitment h1 {
+            color: #1a73e8;
+            margin-bottom: 20px;
+        }
+        .agent-recruitment p {
+            font-size: 18px; /* 放大字体 */
+            font-weight: bold; /* 加粗字体 */
+            line-height: 1.8;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <h1>联系我们</h1>
+    
+    <!-- 联系我们部分 -->
+    <div class="contact-section">
+        <h2 class="contact-title">客服支持</h2>
+        <div class="contact-buttons">
+            <div class="contact-item">
+                <a href="tencent://message/?uin=3227329&Site=&Menu=yes" class="contact-btn">
+                    <img src="./assets/images/qq_logo.png" alt="QQ" style="width: 36px; height: 18px;">
+                </a>
+                <span class="contact-label">QQ 客服</span>
+                <div class="qr-code">
+                    <img src="./assets/images/qq.jpg" alt="QQ二维码">
+                </div>
+            </div>
+            <div class="contact-item">
+                <div class="contact-btn">
+                    <img src="./assets/images/wechat_logo.png" alt="WeChat" style="width: 24px; height: 24px;">
+                </div>
+                <span class="contact-label">微信客服</span>
+                <div class="qr-code">
+                    <img src="./assets/images/wechat.png" alt="微信二维码">
+                </div>
+            </div>
+        </div>
+        <p style="color: #666; font-size: 14px;">工作时间：周一至周日 9:00-22:00</p>
+    </div>
+
+    <div class="agent-recruitment">
+        <h1>招募代理</h1>
+        <p>我们正在寻找合作伙伴，共同拓展市场，如果您有兴趣成为我们的代理，欢迎加入！</p>
+        <p>请通过二维码添加微信，<strong>请务必注明来意（如：申请代理）</strong>，以便我们尽快处理。</p>
+    </div>
+</body>
+</html> 

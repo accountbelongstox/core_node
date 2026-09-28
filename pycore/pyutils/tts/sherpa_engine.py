@@ -1,0 +1,301 @@
+"""
+Sherpa-ONNX offline TTS engine wrapper.
+
+Official perfect-support environment (see pycore/tts_install_assets/tts_model_tiers.py):
+  pip install sherpa-onnx; optional +cuda wheel via SHERPA_ONNX_CUDA_SPEC.
+  GPU hosts may use the full Kokoro model and CPU-only hosts the int8 model;
+  this wrapper explicitly selects the CPU execution provider for both.
+  SHERPA_TTS_MODEL_DIR defaults to <cache>/tts/sherpa.
+
+Pure-offline, CPU, zero-cost, identical on Windows/Linux (`pip install
+sherpa-onnx`, no system deps — espeak data ships inside the model). The model is
+downloaded by the offline-TTS prerequisite into a model dir; this wrapper
+auto-detects Kokoro (multi-lang zh/en) or VITS/Piper layout there and synthesizes
+to MP3.
+
+Config (all optional):
+  SHERPA_TTS_MODEL_DIR  - model directory (default: <cache>/tts/sherpa)
+  SHERPA_TTS_SID        - speaker id (default 0)
+"""
+
+import os
+from pathlib import Path
+from typing import Any, List, Optional, Tuple
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue, SerializedWorkerThread, call_serialized
+from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
+from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
+from pycore.pyutils.tts.audio_utils import samples_to_mp3
+from pycore.pyutils.tts import chunked_synthesis
+from pycore.pyutils.tts.tts_text_sanitize import sanitize_tts_text
+
+_MODEL_QUEUE = "tts.sherpa.model"
+_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, "SherpaTTSModelThread")
+_MODEL_WORKER.start()
+_KOKORO_PHONEMIZER_LANGUAGE_ENV = "SHERPA_KOKORO_LANG"
+_KOKORO_PHONEMIZER_LANGUAGE_DEFAULT = "en-gb-x-rp"
+_tts: Any = None
+# Readable without entering the model queue (never waits behind a synthesis).
+_MODEL_LOADED = SerializedValue(False, "SherpaTTSModelLoadedStateThread")
+
+
+def model_dir() -> Path:
+    env = (os.environ.get("SHERPA_TTS_MODEL_DIR") or "").strip()
+    if env:
+        return Path(env)
+    return get_shared_download_cache_dir() / "tts" / "sherpa"
+
+
+def _find(root: Path, pattern: str) -> Optional[Path]:
+    if not root.is_dir():
+        return None
+    matches = sorted(root.rglob(pattern))
+    return matches[0] if matches else None
+
+
+def _kokoro_lexicons(model_root: Path) -> List[Path]:
+    """Kokoro multi-lang lexicons to load: gb-en + zh by default.
+
+    The official package ships BOTH lexicon-us-en.txt and lexicon-gb-en.txt,
+    whose headwords overlap ~159k (both literally start with `kokoro`), and
+    sherpa logs "Duplicated word ... Ignore it." for every overlap at load —
+    pure noise: the FIRST loaded pronunciation wins. Upstream guidance
+    (k2-fsa sherpa-onnx kokoro docs): pass only the lexicons you need.
+    The configured phonemizer dialect selects the matching English lexicon;
+    SHERPA_KOKORO_LEXICONS=a,b gives a full explicit filename list."""
+    all_lex = sorted(model_root.rglob("lexicon-*.txt"))
+    explicit = (os.environ.get("SHERPA_KOKORO_LEXICONS") or "").strip()
+    if explicit:
+        wanted = {name.strip() for name in explicit.split(",") if name.strip()}
+        return [path for path in all_lex if path.name in wanted]
+    configured_language = _kokoro_phonemizer_language().lower()
+    use_gb = (
+        configured_language.startswith("en-gb")
+        or (os.environ.get("SHERPA_KOKORO_LEXICON_GB") or "").strip() == "1"
+    )
+    picked = [
+        path for path in all_lex
+        if path.name != ("lexicon-us-en.txt" if use_gb else "lexicon-gb-en.txt")
+    ]
+    return picked or all_lex
+
+
+def _kokoro_phonemizer_language() -> str:
+    return (
+        os.environ.get(_KOKORO_PHONEMIZER_LANGUAGE_ENV)
+        or _KOKORO_PHONEMIZER_LANGUAGE_DEFAULT
+    ).strip()
+
+
+def _speaker_id(primary_env: str = "SHERPA_TTS_SID") -> int:
+    raw_value = os.environ.get(primary_env, os.environ.get("SHERPA_TTS_SID", "0")) or "0"
+    try:
+        return int(raw_value)
+    except ValueError:
+        return 0
+
+
+def _build_config(model_root: Path) -> Any:
+    """Auto-detect Kokoro / VITS / Matcha layout in the model dir -> config."""
+    sherpa = get_third_package_sherpa_onnx()
+    if sherpa is None:
+        return None
+
+    onnx = _find(model_root, "*.onnx")
+    tokens = _find(model_root, "tokens.txt")
+    if not onnx or not tokens:
+        return None
+
+    # Kokoro multi-lang ships lexicon-us-en.txt / lexicon-gb-en.txt /
+    # lexicon-zh.txt; the official config passes the needed ones comma-joined
+    # so Chinese token ids resolve. Passing only one (e.g. lexicon-us-en.txt)
+    # makes Chinese text fail with "unknown token". Single-lexicon models
+    # (lexicon.txt) pass it as-is.
+    multi_lex = _kokoro_lexicons(model_root)
+    single_lex = _find(model_root, "lexicon.txt")
+    if multi_lex:
+        lexicon = ",".join(str(p) for p in multi_lex)
+    elif single_lex:
+        lexicon = str(single_lex)
+    else:
+        lexicon = None
+
+    if lexicon:
+        kokoro = sherpa.OfflineTtsKokoroModelConfig(
+            model=str(onnx),
+            tokens=str(tokens),
+            lexicon=lexicon,
+            voices=str(_find(model_root, "voices.bin") or ""),
+            data_dir=str(_find(model_root, "espeak-ng-data") or model_root),
+            dict_dir=str(_find(model_root, "dict") or ""),
+        )
+        if hasattr(kokoro, "lang"):
+            kokoro.lang = _kokoro_phonemizer_language()
+        return sherpa.OfflineTtsConfig(
+            model=sherpa.OfflineTtsModelConfig(kokoro=kokoro, provider="cpu")
+        )
+
+    vits = sherpa.OfflineTtsVitsModelConfig(
+        model=str(onnx),
+        tokens=str(tokens),
+        lexicon=str(_find(model_root, "lexicon.txt") or ""),
+        data_dir=str(_find(model_root, "espeak-ng-data") or model_root),
+        dict_dir=str(_find(model_root, "dict") or ""),
+    )
+    return sherpa.OfflineTtsConfig(
+        model=sherpa.OfflineTtsModelConfig(vits=vits, provider="cpu")
+    )
+
+
+def _get_tts() -> Any:
+    global _tts
+    if _tts is not None:
+        return _tts
+    root = model_dir()
+    config = _build_config(root)
+    if config is None:
+        ColorPrint.red(f"[sherpa-tts] no usable model in {root}")
+        return None
+    sherpa = get_third_package_sherpa_onnx()
+    if sherpa is None:
+        return None
+    try:
+        _tts = sherpa.OfflineTts(config)
+        _MODEL_LOADED.set(True)
+        ColorPrint.green(f"[sherpa-tts] loaded model from {root}")
+        return _tts
+    except Exception as e:
+        ColorPrint.red(f"[sherpa-tts] model load failed: {e}")
+        return None
+
+
+def available() -> bool:
+    """sherpa-onnx importable AND a model (.onnx + tokens.txt) is present."""
+    if get_third_package_sherpa_onnx() is None:
+        return False
+    root = model_dir()
+    return root.is_dir() and _find(root, "*.onnx") is not None and _find(root, "tokens.txt") is not None
+
+
+def _generate_one(
+    tts: Any,
+    text: str,
+    sid: int,
+    speed: float,
+    is_kokoro: bool,
+    log_prefix: str,
+) -> Optional[Tuple[Any, int]]:
+    sherpa = get_third_package_sherpa_onnx()
+    if sherpa is None:
+        return None
+    try:
+        generation_config = sherpa.GenerationConfig()
+        generation_config.sid = sid
+        generation_config.speed = float(speed)
+        if is_kokoro:
+            generation_config.extra = {
+                "lang": _kokoro_phonemizer_language(),
+            }
+        audio = tts.generate(text, generation_config)
+    except (AttributeError, TypeError):
+        try:
+            audio = tts.generate(text, sid, speed=float(speed))
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.red(f"[{log_prefix}] generate failed: {exc}")
+            return None
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.red(f"[{log_prefix}] generate failed: {exc}")
+        return None
+
+    samples = getattr(audio, "samples", None)
+    sample_rate = int(getattr(audio, "sample_rate", 22050) or 22050)
+    if samples is None:
+        return None
+    return samples, sample_rate
+
+
+def _generate_samples(
+    tts: Any,
+    text: str,
+    sid: int,
+    speed: float,
+    is_kokoro: bool,
+    engine: str,
+    log_prefix: str,
+) -> Optional[Tuple[Any, int]]:
+    cleaned = sanitize_tts_text(text)
+    if not cleaned:
+        ColorPrint.yellow(f"[{log_prefix}] text empty after sanitization; skipped")
+        return None
+
+    samples, sample_rate, error, stats = chunked_synthesis.synthesize_samples_chunked(
+        engine,
+        cleaned,
+        lambda chunk: _generate_one(
+            tts,
+            chunk,
+            sid,
+            speed,
+            is_kokoro,
+            log_prefix,
+        ),
+    )
+    if samples is None:
+        ColorPrint.red(f"[{log_prefix}] generate failed: {error or 'no audio'}")
+        return None
+    if stats.get("chunked"):
+        ColorPrint.gray(
+            f"[{log_prefix}] generated {stats['chunk_count']} ordered text chunks"
+        )
+    return samples, sample_rate
+
+
+def _synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+    """Synthesize `text` to `output_mp3` (offline). Returns False on failure."""
+    tts = _get_tts()
+    if tts is None:
+        return False
+    root = model_dir()
+    generated = _generate_samples(
+        tts,
+        text,
+        _speaker_id(),
+        speed,
+        bool(_kokoro_lexicons(root)),
+        "sherpa",
+        "sherpa-tts",
+    )
+    if generated is None:
+        return False
+    samples, sample_rate = generated
+    return samples_to_mp3(samples, sample_rate, output_mp3)
+
+
+def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+    return call_serialized(
+        _MODEL_QUEUE,
+        _synthesize,
+        text,
+        lang,
+        output_mp3,
+        speed,
+        timeout=900.0,
+    )
+
+
+def is_model_loaded() -> bool:
+    return bool(_MODEL_LOADED.get())
+
+
+def _unload_model() -> None:
+    global _tts
+    _tts = None
+    _MODEL_LOADED.set(False)
+
+
+def unload_model() -> None:
+    call_serialized(_MODEL_QUEUE, _unload_model)
+
+
+__all__ = ["available", "synthesize", "model_dir", "is_model_loaded", "unload_model"]

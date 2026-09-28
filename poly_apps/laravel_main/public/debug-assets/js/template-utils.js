@@ -18,7 +18,9 @@ const TemplateUtils = {
         }
 
         try {
-            const response = await fetch(url);
+            const separator = url.includes('?') ? '&' : '?';
+            const version = window.DEBUG_ASSET_VERSION || Date.now();
+            const response = await fetch(`${url}${separator}v=${version}`);
             if (!response.ok) {
                 throw new Error(`Failed to load template: ${url}`);
             }

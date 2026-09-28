@@ -1,18 +1,8 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Providers;
 
+use App\Support\ServiceContract;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
@@ -23,10 +13,74 @@ use Illuminate\Support\Facades\Log;
  * the logic in gvar_common.sh map_web_path() to ensure consistency
  * between shell scripts and PHP code.
  * 
- * Replaces: DatabasePathHelper, ExternalStorageHelper, WebPathHelper
+ * Canonical path mapping for application and runtime storage.
  */
 class PathMapper
 {
+    /** Var-center keys that stay SHARED (unprefixed) across the OSes of one
+     * machine: secrets and cross-OS contract/selector values. Every other key
+     * is stored on disk as <OS tag>_<KEY> (see osVarTag) so Windows and Linux
+     * on a dual-boot machine never overwrite each other. SYNC: pycore
+     * core_node_dirs._SHARED_GVAR_KEYS / runtime_environment.sh
+     * CORE_NODE_SHARED_GVAR_KEYS / CommonFunc.ps1 $script:SharedGlobalVarKeys. */
+    private const SHARED_GVAR_KEYS = [
+        'POSTGRES_PASSWORD',
+        'MERCURE_PUBLISHER_JWT',
+        'MERCURE_SUBSCRIBER_JWT',
+        'DNSPOD_API_TOKEN',
+        'DNSPOD_EMAIL',
+        'TAILSCALE_DOMAIN_1',
+        'DOMAIN_API_REGION_PREFIX',
+        'DOMAIN_UI_BINDING',
+        'START_WEB_SERVER',
+        'WEB_SERVER_PLANE',
+        'PHP_RUNTIME_PLANE',
+        'SELECTED_REGION',
+        'GIT_PUSH_BRANCH',
+        'GIT_UPDATE_TYPE',
+    ];
+
+    /** Path names that service_contract.json#paths does not carry. The drive
+     * roots, www/data dir names, Linux www roots, legacy data dir, NTFS types
+     * and the drive layout come from the contract through ServiceContract.
+     * SYNC: pycore core_node_dirs.py / ncore system_paths.js /
+     * SharedCacheEnv.ps1 / runtime_environment.sh. */
+    public const CACHE_DIR_NAME = 'cache';
+    public const LEGACY_USER_DATA_DIR_NAME = '.core_node';
+    public const LEGACY_GLOBAL_VAR_DIR_NAME = '.global_vars';
+    public const UNIFIED_MANAGER_DIR_NAME = 'unified_manager';
+    public const UNIFIED_MANAGER_LAUNCHER_DIR_NAME = 'temp_scripts';
+    public const WINDOWS_TMP_DIR_NAME = '.tmp';
+    private const LEGACY_WINDOWS_PROGRAMING_USERS_SUBPATH = 'programing\\Users';
+    /** Var-center key of the program drive the Windows center selected
+     * (SharedCacheEnv.ps1 $Global:WINDOWS_PROGRAM_DRIVE_ROOT). */
+    private const WINDOWS_PROGRAM_DRIVE_VAR = 'WINDOWS_PROGRAM_DRIVE_ROOT';
+
+    private static function windowsWwwBase(): string
+    {
+        return ServiceContract::windowsDataDriveRoot() . ServiceContract::wwwDirName();
+    }
+
+    /** Linux WWW base honoring the dual-boot extra level (/www/www vs /www). */
+    private static function linuxWwwBase(): string
+    {
+        return self::wwwNtfsRootMounted() ? ServiceContract::linuxNtfsNestedWwwRoot() : ServiceContract::linuxWwwRoot();
+    }
+
+    private static function legacyWindowsProgramingUsersDir(): string
+    {
+        return ServiceContract::windowsDataDriveRoot() . self::LEGACY_WINDOWS_PROGRAMING_USERS_SUBPATH;
+    }
+
+    private static function userHomeDir(): string
+    {
+        $home = (string) (getenv('HOME') ?: getenv('USERPROFILE') ?: '');
+        if ($home === '' && function_exists('posix_getpwuid') && function_exists('posix_geteuid')) {
+            $home = (string) (posix_getpwuid(posix_geteuid())['dir'] ?? '');
+        }
+        return rtrim($home, '/\\');
+    }
+
     /**
      * Map web path based on environment (PHP version of gvar_common.sh map_web_path)
      * 
@@ -44,25 +98,47 @@ class PathMapper
         
         // Get base path - Windows uses fixed D:\www, Linux uses environment-aware mapping
         if ($isWindows) {
-            $basePath = "D:\\www";
+            $basePath = self::windowsWwwBase();
         } else {
-            // Linux: Environment-aware path mapping
-            $isWsl = self::isWSL();
-            $isProduction = self::isProduction();
+            // Linux: the web/data base is what the shell installer DETECTED + PERSISTED
+            // (cross-language source of truth), else a full blkid/blockdev/findmnt
+            // detection re-implemented in getBaseDataDirectory(). The chosen disk is
+            // honored AS-IS -- NO production short-circuit and NO POSIX coercion: a
+            // Windows NTFS DATA disk is SHARED with Windows. When that disk's ROOT is
+            // mounted at /www, /www == D:\ and the SAME logical tree gains ONE EXTRA
+            // LEVEL on Linux: D:\www == /www/www (NOT /www); on a Linux-only machine
+            // /www is a plain native dir and there is NO extra level.
+            // Priority: the persisted WWW_PATH central variable (single source of
+            // truth, written by 3_setting_base.sh) -> live NTFS-root-mount detection
+            // -> legacy data-base rule. PostgreSQL is unaffected -- its data dir
+            // stays on native ext4 (pg_mount -> /var/lib/postgresql/d).
             $dataBase = self::getBaseDataDirectory();
-            
-            if ($isWsl) {
-                $basePath = $dataBase . '/www';
-            } elseif ($isProduction) {
-                $basePath = '/www';
+            $wwwPathVar = self::readPersistedVar('WWW_PATH');
+            $linuxWwwRoot = ServiceContract::linuxWwwRoot();
+            if (self::isWSL()) {
+                $basePath = $dataBase . '/' . ServiceContract::wwwDirName();
+            } elseif ($wwwPathVar !== '' && is_dir($wwwPathVar)) {
+                $basePath = $wwwPathVar;
+            } elseif (self::wwwNtfsRootMounted()) {
+                $basePath = self::linuxWwwBase();
+            } elseif ($dataBase === '/' || $dataBase === $linuxWwwRoot) {
+                $basePath = $linuxWwwRoot;
             } else {
-                $basePath = ($dataBase === '/www') ? '/www' : $dataBase . '/www';
+                $basePath = $dataBase . '/' . ServiceContract::wwwDirName();
             }
         }
         
         // Path separator based on OS
         $separator = $isWindows ? '\\' : '/';
-        
+
+        // Development-tooling location (node/python/go/...): the contract
+        // drive layout's tool root. Linux is pinned to the ext4 base of
+        // drive_layout.tool_root.linux; Windows uses the recorded program
+        // drive (else drive_layout.program_drive_fallback). Mirrors
+        // gvar_storage_common.sh get_dev_compile_base and system_paths.py.
+        [$compileBase, $devSuffix] = self::getDevCompileParts($isWindows);
+        $compileDir = $compileBase . $separator . '_' . $devSuffix;
+
         // Map paths - structure is the same, only base path differs
         $mappedPath = match($pathKey) {
             'wwwroot' => $basePath . $separator . 'wwwroot',
@@ -70,10 +146,41 @@ class PathMapper
             'shared-data' => $basePath . $separator . 'shared-data',
             'backup' => $basePath . $separator . 'backup',
             'www' => $basePath,
+            // Unified core_node runtime data root (see getCoreNodeRuntimeDir):
+            // D:\www\core_node on Windows, /www/www/core_node on a dual-boot
+            // Linux, /www/core_node on a Linux-only machine.
+            'core_node_data' => self::getCoreNodeRuntimeDir(),
+            // Shared download cache (HF / pip / whisper / torch models). Mirrors
+            // gvar_common.sh + system_paths.py "cache": D:\www\cache on Windows,
+            // /www/www/cache on a dual-boot Linux (extra level), /www/cache on a
+            // Linux-only machine. NOTE: getSharedDownloadCacheDir() keeps the
+            // native /var/_core_node/cache for the Linux-only case.
+            'cache' => $basePath . $separator . self::CACHE_DIR_NAME,
+            // Development tooling roots (node/python/go/...). See getDevCompileParts().
+            'compile_dir' => $compileDir,
+            'dev_system' => $compileDir,
+            'applications_dir' => $compileDir . $separator . 'applications',
+            'npm_global' => $compileDir . $separator . 'npm-global',
             'laravel_data_dir' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db',
+            'app_external_data' => $basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'external_data',
+            // PostgreSQL data root on the shared web/data disk (native Windows +
+            // native Linux server). Mirrors gvar_common.sh + system_paths.py
+            // "postgresql". On WSL the cluster uses the ext4 image at pg_mount.
+            'postgresql' => $basePath . $separator . 'wwwroot' . $separator . 'postgresql',
             'nginx' => $isWindows ? 'nginx.exe' : self::findActualPath('/etc/nginx'),
             'php' => $isWindows ? 'php.exe' : self::findActualPath('/etc/php'),
-            'logs' => $isWindows ? ($basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'logs') : self::findLaravelLogPath($basePath),
+            'logs' => self::findLaravelLogPath($basePath),
+            // Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
+            // persistence). Mirrors gvar_common.sh + system_paths.py "pg_mount":
+            // a native Linux path (off drvfs) so pg gets a postgres-owned, 0700
+            // data dir. WSL-only concept; kept for parity (Windows uses sqlite).
+            'pg_mount' => '/var/lib/postgresql/d',
+
+            // Unified App Manager log namespace ROOT (scripts/app_manager/linux_sh).
+            // Linux-server concept; fixed path mirrors gvar_common.sh +
+            // system_paths.py. Retired predecessor: 'app_manager_logs_old'.
+            'app_manager_logs' => $isWindows ? ($basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'logs' . $separator . '_core_node') : '/opt/_core_node/logs',
+            'app_manager_logs_old' => '/opt/core_node_unified_manager/logs',
 
             // Script paths - same structure, just normalize separators
             'scripts_dir' => str_replace('/', $separator, self::getCoreNodeDir() . '/scripts'),
@@ -109,8 +216,11 @@ class PathMapper
     }
 
     /**
-     * Get base data directory (PHP version of get_base_data_directory)
-     * Priority: WSL /mnt/d -> NTFS mount -> Data disk mount -> /www
+     * Get base data directory (PHP version of gvar_common.sh::get_base_data_directory).
+     * Priority: WSL /mnt/d -> run-anchor adopt (disk the checkout lives on) -> the base
+     * the shell installer DETECTED + PERSISTED (source of truth) -> full blkid/blockdev/
+     * findmnt detection re-implemented here -> '/'. The dedup in mapWebPath() collapses
+     * '/' and '/www' to /www, so all three languages converge.
      */
     private static function getBaseDataDirectory(): string
     {
@@ -118,18 +228,508 @@ class PathMapper
         if (self::isWSL()) {
             return '/mnt/d';
         }
-        
-        // Priority 2: Check for NTFS or data disk mounts
-        // For PHP, we'll check common mount points
-        $commonMounts = ['/mnt/d', '/mnt/e', '/data', '/www'];
-        foreach ($commonMounts as $mount) {
-            if (is_dir($mount) && is_writable($mount)) {
-                return $mount;
+
+        // Priority 1.5: the disk where THIS checkout physically lives wins (matches sh P1.5).
+        // getCoreNodeDir() -> <base>/programing/core_node ; strip to <base>.
+        $coreNode = rtrim(self::getCoreNodeDir(), '/');
+        $suffix = '/programing/core_node';
+        if (substr($coreNode, -strlen($suffix)) === $suffix) {
+            $runBase = substr($coreNode, 0, -strlen($suffix));
+            if ($runBase !== '' && self::pathHostsProject($runBase)) {
+                return $runBase;
             }
         }
-        
-        // Fallback: /www
-        return '/www';
+
+        // Priority 2: the base the shell installer detected + persisted (source of truth).
+        $persisted = self::readPersistedBase();
+        if ($persisted !== null) {
+            return $persisted;
+        }
+
+        // Priority 3: the shell provided no base -> full disk detection here.
+        $detected = self::detectLargestDiskBase();
+        if ($detected !== null) {
+            return $detected;
+        }
+
+        // Fallback: root '/' (mapWebPath collapses it to /www).
+        return '/';
+    }
+
+    /** Run a shell command, return trimmed stdout or '' (never throws). */
+    private static function shellTrim(string $cmd): string
+    {
+        if (!function_exists('shell_exec')) {
+            return '';
+        }
+        $out = @shell_exec($cmd . ' 2>/dev/null');
+        return $out === null ? '' : trim((string) $out);
+    }
+
+    /** Unified core_node runtime data root (no dot-prefixed names). Single
+     * PHP source of truth; mirrors pycore core_node_dirs.get_core_node_data_dir,
+     * runtime_environment.sh CORE_NODE_DATA_DIR and GlobalVars.ps1 USER_DIR:
+     *   Windows:              D:\www\core_node
+     *   Linux NTFS dual-boot: /www/www/core_node  (== D:\www\core_node)
+     *   Linux native:         /www/core_node
+     * CORE_NODE_DATA_DIR (already exported) wins on every platform. Linux
+     * falls back to the legacy data dir, then the home fallback, only when
+     * the preferred dir is not writable (mirrors get_core_node_data_dir).
+     * Every name and root comes from service_contract.json#paths. */
+    public static function getCoreNodeRuntimeDir(): string
+    {
+        static $resolved = null;
+        $env = trim((string) getenv('CORE_NODE_DATA_DIR'));
+        $candidates = [];
+        $home = '';
+        if ($env !== '') {
+            return rtrim($env, '/\\');
+        }
+        if (self::isWindows()) {
+            return self::windowsWwwBase() . '\\' . ServiceContract::coreNodeDataDirName();
+        }
+        if ($resolved !== null) {
+            return $resolved;
+        }
+        $candidates = [
+            self::linuxWwwBase() . '/' . ServiceContract::coreNodeDataDirName(),
+            ServiceContract::legacyLinuxDataDir(),
+        ];
+        foreach ($candidates as $candidate) {
+            self::ensureDirectory($candidate);
+            if (is_dir($candidate) && is_writable($candidate)) {
+                $resolved = $candidate;
+                return $resolved;
+            }
+        }
+        $home = ServiceContract::homeDataDirFallback(self::userHomeDir());
+        $resolved = $home !== '' ? $home : $candidates[0];
+        return $resolved;
+    }
+
+    /** Unified manager launcher/wrapper script dir:
+     * <core_node_data_dir>/unified_manager/temp_scripts (mirrors
+     * unified_config.sh TEMP_SCRIPT_DIR). */
+    public static function getUnifiedManagerLauncherDir(): string
+    {
+        return self::getCoreNodeRuntimeDir() . DIRECTORY_SEPARATOR . self::UNIFIED_MANAGER_DIR_NAME
+            . DIRECTORY_SEPARATOR . self::UNIFIED_MANAGER_LAUNCHER_DIR_NAME;
+    }
+
+    /** Var-center directory candidates (canonical first, legacy after).
+     * Mirrors pycore core_node_dirs.iter_global_var_dirs. */
+    private static function globalVarDirectories(): array
+    {
+        $home = self::userHomeDir();
+        $user = (string) (getenv('USERNAME') ?: getenv('USER') ?: 'default');
+        $globalVarDirName = ServiceContract::globalVarDirName();
+        $dirs = [self::getCoreNodeRuntimeDir() . DIRECTORY_SEPARATOR . $globalVarDirName];
+        if (self::isWindows()) {
+            $dirs[] = self::legacyWindowsProgramingUsersDir() . '\\' . $user . '\\'
+                . self::LEGACY_USER_DATA_DIR_NAME . '\\' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
+            if ($home !== '') {
+                $dirs[] = $home . '\\' . self::LEGACY_USER_DATA_DIR_NAME . '\\' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
+            }
+        } else {
+            $dirs[] = ServiceContract::legacyLinuxDataDir() . '/' . $globalVarDirName;
+            if ($home !== '') {
+                $dirs[] = $home . '/' . self::LEGACY_USER_DATA_DIR_NAME . '/' . $globalVarDirName;
+                $dirs[] = $home . '/' . self::LEGACY_USER_DATA_DIR_NAME . '/' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
+            }
+        }
+        return array_values(array_unique($dirs));
+    }
+
+    /** OS tag for per-OS var-center keys: DEBIAN_13, UBUNTU_26, WIN10, WIN11.
+     * Linux parses /etc/os-release (ID + VERSION_ID major, mirroring
+     * dd_helper/system_functions.sh CURRENT_SYSTEM); Windows derives
+     * WIN10/WIN11 from the kernel build number (>= 22000 is Windows 11).
+     * SYNC: pycore core_node_dirs.get_os_var_tag / runtime_environment.sh
+     * OS_VAR_TAG / CommonFunc.ps1 Get-OsVarTag. */
+    private static function osVarTag(): string
+    {
+        static $tag = null;
+        if ($tag !== null) {
+            return $tag;
+        }
+        $tag = 'UNKNOWN';
+        if (self::isWindows()) {
+            $version = (string) php_uname('v');
+            if (preg_match('/build\s+(\d+)/i', $version, $m) || preg_match('/^(\d+)/', trim($version), $m)) {
+                $tag = ((int) $m[1] >= 22000) ? 'WIN11' : 'WIN10';
+            } else {
+                $tag = 'WIN10';
+            }
+            return $tag;
+        }
+        $osId = '';
+        $version = '0';
+        $lines = @file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (is_array($lines)) {
+            foreach ($lines as $line) {
+                if (strpos($line, 'ID=') === 0) {
+                    $osId = strtoupper(trim(explode('=', $line, 2)[1], " \t\"'"));
+                } elseif (strpos($line, 'VERSION_ID=') === 0) {
+                    $version = explode('.', trim(explode('=', $line, 2)[1], " \t\"'"))[0];
+                }
+            }
+        }
+        if ($osId !== '') {
+            $tag = $osId . '_' . ($version !== '' ? $version : '0');
+        }
+        return $tag;
+    }
+
+    /** Candidate on-disk names for a var-center key, first match wins: the
+     * OS-tagged name, then the bare name (pre-tagging values and unmigrated
+     * machines). Shared keys are always bare. */
+    private static function persistedVarReadNames(string $key): array
+    {
+        $normalized = strtoupper((string) preg_replace('/[^A-Za-z0-9_]/', '', $key));
+        if (in_array($normalized, self::SHARED_GVAR_KEYS, true)) {
+            return [$normalized];
+        }
+        return [self::osVarTag() . '_' . $normalized, $normalized];
+    }
+
+    /** First line of a var-center file ('' when absent/unreadable). Mirrors
+     * system_paths.py::_read_persisted_var; the canonical store lives at
+     * <core_node_data_dir>/global_var/<KEY> (written by sh set_var/
+     * set_env_and_var), with the legacy /var/_core_node/global_var as
+     * read-fallback so pre-migration installs keep working. */
+    private static function readPersistedVar(string $key): string
+    {
+        foreach (self::globalVarDirectories() as $dir) {
+            foreach (self::persistedVarReadNames($key) as $name) {
+                $file = $dir . '/' . $name;
+                if (!is_file($file) || !is_readable($file)) {
+                    continue;
+                }
+                $val = (string) @file_get_contents($file);
+                return trim((string) strtok($val, "\r\n"));
+            }
+        }
+        return '';
+    }
+
+    /** True when /www is the ROOT of a mounted NTFS dual-boot disk (the Windows
+     * D:\ root on a dual-boot machine, bound there by 3_setting_base.sh). Then
+     * the SAME logical tree gains ONE EXTRA LEVEL on Linux:
+     *   Windows D:\www == Linux /www/www  (NOT /www).
+     * On a Linux-only machine /www is a plain native dir (same device as /) or
+     * a native ext4/xfs data-disk mount and there is NO extra level -- the
+     * extra level exists ONLY for the NTFS dual-boot share, so the /www
+     * mount's fstype MUST be NTFS-family (ntfs/ntfs3/fuseblk/ntfs-3g;
+     * bind-mounts of an NTFS root report the source fstype). A distinct
+     * non-NTFS /www device never triggers it.
+     * SINGLE Laravel definition; the shell twin lives ONCE in
+     * runtime_environment.sh (CORE_NODE_WWW_BASE) and the pycore twin
+     * in core_node_dirs.www_data_root_mounted (system_paths.py delegates). */
+    private static function wwwNtfsRootMounted(): bool
+    {
+        static $mounted = null;
+        $root = '';
+        if ($mounted !== null) {
+            return $mounted;
+        }
+        $mounted = false;
+        if (self::isWindows() || !is_dir(ServiceContract::linuxNtfsNestedWwwRoot())) {
+            return $mounted;
+        }
+        $root = ServiceContract::linuxWwwRoot();
+        $fsWww = (string) strtok(self::shellTrim('findmnt -n -o FSTYPE --target ' . escapeshellarg($root)), "\r\n");
+        if (!in_array($fsWww, ServiceContract::ntfsFileSystemTypes(), true)) {
+            return $mounted;
+        }
+        $srcWww = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target ' . escapeshellarg($root)), "\r\n");
+        $srcRoot = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target /'), "\r\n");
+        $mounted = $srcWww !== '' && $srcRoot !== '' && $srcWww !== $srcRoot;
+        return $mounted;
+    }
+
+    /** Cross-OS shared model cache when /www is the mounted NTFS/data disk
+     * root: Windows D:\www\cache == Linux /www/www/cache. Windows downloads
+     * every model into D:\www\cache (SharedCacheEnv.ps1), so reusing the same
+     * tree means each model downloads ONCE for both OSes. Model weights are
+     * device-agnostic -- the same tree serves GPU (CUDA) and CPU runs on
+     * unchanged hardware. Returns null on Linux-only machines (native cache). */
+    private static function linuxCrossOsCacheDir(): ?string
+    {
+        $wwwPathVar = self::readPersistedVar('WWW_PATH');
+        $candidate = null;
+        if ($wwwPathVar !== '' && $wwwPathVar !== ServiceContract::linuxWwwRoot() && is_dir($wwwPathVar)) {
+            $candidate = rtrim($wwwPathVar, '/') . '/' . self::CACHE_DIR_NAME;
+        } elseif (self::wwwNtfsRootMounted()) {
+            $candidate = self::linuxWwwBase() . '/' . self::CACHE_DIR_NAME;
+        }
+        if ($candidate === null) {
+            return null;
+        }
+        self::ensureDirectory($candidate);
+        return is_dir($candidate) && is_writable($candidate) ? $candidate : null;
+    }
+
+    /** True when base/programing/core_node is a real checkout (.git or package.json). */
+    private static function pathHostsProject(string $base): bool
+    {
+        $proj = rtrim($base, '/') . '/programing/core_node';
+        return is_dir($proj) && (file_exists($proj . '/.git') || is_file($proj . '/package.json'));
+    }
+
+    /** True when $path is a real mountpoint on a device different from root's device. */
+    private static function isRealDistinctMount(string $path): bool
+    {
+        if (!is_dir($path)) {
+            return false;
+        }
+        $src = self::shellTrim('findmnt -n -o SOURCE --target ' . escapeshellarg($path));
+        $rootSrc = self::shellTrim('findmnt -n -o SOURCE --target /');
+        return $src !== '' && $src !== $rootSrc;
+    }
+
+    /** The base the shell installer detected + persisted (cross-language source of truth). */
+    private static function readPersistedBase(): ?string
+    {
+        $val = self::readPersistedVar('BASE_DATA_DIR');
+        $linuxWwwRoot = '';
+        if ($val === '') {
+            return null;
+        }
+        // Mirrors gvar_storage_common.sh Priority 2: re-validate the persisted base
+        // against the CURRENT free-space policy on every run, so a stale cache left
+        // by an older script version cannot override it.
+        if (self::pathHostsProject($val)) {
+            return $val;
+        }
+        $linuxWwwRoot = ServiceContract::linuxWwwRoot();
+        if ($val === $linuxWwwRoot || $val === '/mnt/d') {
+            return $val;
+        }
+        if (self::isRealDistinctMount($val)) {
+            $diskFree = @disk_free_space($val);
+            $rootFree = @disk_free_space('/');
+            $diskFree = ($diskFree === false) ? 0.0 : (float) $diskFree;
+            $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
+            return $diskFree > $rootFree ? $val : $linuxWwwRoot;
+        }
+        return null;
+    }
+
+    /** Largest device whose TYPE is ntfs ($wantNtfs) or a POSIX data fs; ranked by raw bytes. */
+    private static function largestDeviceOfType(bool $wantNtfs): array
+    {
+        $bestSize = 0;
+        $bestDev = '';
+        $blk = self::shellTrim('blkid');
+        if ($blk === '') {
+            return [0, ''];
+        }
+        $dataTypes = ['ext2', 'ext3', 'ext4', 'xfs', 'btrfs'];
+        foreach (preg_split('/\r?\n/', $blk) as $line) {
+            if ($line === '') {
+                continue;
+            }
+            $dev = (string) strtok($line, ':');
+            $low = strtolower($line);
+            if ($wantNtfs) {
+                if (strpos($low, 'type="ntfs"') === false) {
+                    continue;
+                }
+            } else {
+                $isData = false;
+                foreach ($dataTypes as $t) {
+                    if (strpos($low, 'type="' . $t . '"') !== false) {
+                        $isData = true;
+                        break;
+                    }
+                }
+                if (!$isData) {
+                    continue;
+                }
+                $tgt = self::shellTrim('findmnt -n -o TARGET --source ' . escapeshellarg($dev));
+                if (in_array($tgt, ['/', '/boot', '/boot/efi'], true)) {
+                    continue;
+                }
+            }
+            $size = (int) self::shellTrim('blockdev --getsize64 ' . escapeshellarg($dev));
+            if ($size > $bestSize) {
+                $bestSize = $size;
+                $bestDev = $dev;
+            }
+        }
+        return [$bestSize, $bestDev];
+    }
+
+    /**
+     * Free-space-aware disk detection (used only when the shell provided no base).
+     * Mirrors gvar_common.sh Priority 3: candidates are the largest NTFS and largest
+     * POSIX data devices, each resolved to its current mount; the root filesystem
+     * wins (as /www) when '/' has at least as much AVAILABLE space as the best
+     * candidate -- ties included. Only a disk with strictly more free space is used.
+     * Unmeasurable paths count as 0.
+     */
+    private static function detectLargestDiskBase(): ?string
+    {
+        [, $nDev] = self::largestDeviceOfType(true);
+        [, $dDev] = self::largestDeviceOfType(false);
+        $bestPath = '';
+        $bestFree = 0.0;
+        foreach ([$nDev, $dDev] as $dev) {
+            if ($dev === '') {
+                continue;
+            }
+            $tgt = (string) strtok(self::shellTrim('findmnt -n -o TARGET --source ' . escapeshellarg($dev)), "\r\n");
+            if ($tgt === '' || !is_dir($tgt)) {
+                continue;
+            }
+            $free = @disk_free_space($tgt);
+            $free = ($free === false) ? 0.0 : (float) $free;
+            if ($free > $bestFree) {
+                $bestFree = $free;
+                $bestPath = $tgt;
+            }
+        }
+        if ($bestPath === '') {
+            return null;
+        }
+        $rootFree = @disk_free_space('/');
+        $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
+        return $rootFree >= $bestFree ? ServiceContract::linuxWwwRoot() : $bestPath;
+    }
+
+    /**
+     * True when the filesystem backing $path supports POSIX ownership/permissions
+     * (ext2/3/4, xfs, btrfs, zfs, ...). The web DATA root REQUIRES this (PostgreSQL needs a
+     * postgres-owned 0700 data dir, Laravel chown/chmods storage); NTFS/exFAT/FUSE
+     * cannot, so they fall back to /www. Mirrors gvar_common.sh _fs_is_posix_capable()
+     * and system_paths.py _fs_is_posix_capable(): walk up to the nearest existing
+     * ancestor, then resolve fstype via the longest matching mountpoint in /proc/mounts.
+     */
+    private static function fsIsPosixCapable(string $path): bool
+    {
+        $posixFs = ['ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs', 'reiserfs', 'jfs', 'f2fs', 'overlay'];
+        $p = $path;
+        while ($p !== '' && $p !== '/' && !file_exists($p)) {
+            $p = dirname($p);
+        }
+        if ($p === '') {
+            return false;
+        }
+        $target = realpath($p);
+        if ($target === false) {
+            $target = $p;
+        }
+        $mounts = @file('/proc/mounts', FILE_IGNORE_NEW_LINES);
+        if ($mounts === false) {
+            return false;
+        }
+        $bestMp = '';
+        $bestFs = '';
+        foreach ($mounts as $line) {
+            $parts = preg_split('/\s+/', trim($line));
+            if ($parts === false || count($parts) < 3) {
+                continue;
+            }
+            $mountPoint = $parts[1];
+            $fstype = $parts[2];
+            if (($target === $mountPoint || strpos($target, rtrim($mountPoint, '/') . '/') === 0)
+                && strlen($mountPoint) >= strlen($bestMp)) {
+                $bestMp = $mountPoint;
+                $bestFs = $fstype;
+            }
+        }
+        return in_array($bestFs, $posixFs, true);
+    }
+
+    /**
+     * Detect system name + major version (mirrors gvar_common.sh SYSTEM_NAME /
+     * SYSTEM_VERSION). Reads /etc/os-release ID / VERSION_ID, e.g. ['kali','2026'],
+     * ['ubuntu','24'], ['debian','13']. Falls back to php_uname when unavailable.
+     *
+     * @return array{0:string,1:string} [name, majorVersion]
+     */
+    private static function getSystemNameVersion(): array
+    {
+        $name = '';
+        $version = '';
+
+        if (is_readable('/etc/os-release')) {
+            $lines = @file('/etc/os-release', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+            foreach ($lines as $line) {
+                if ($name === '' && str_starts_with($line, 'ID=')) {
+                    $name = strtolower(trim(substr($line, 3), " \t\"'"));
+                } elseif ($version === '' && str_starts_with($line, 'VERSION_ID=')) {
+                    $version = trim(substr($line, 11), " \t\"'");
+                }
+            }
+        }
+
+        if ($name === '') {
+            $name = strtolower(php_uname('s'));
+        }
+        // Keep only the major version component (24.04 -> 24, 2026.1 -> 2026)
+        if ($version !== '' && str_contains($version, '.')) {
+            $version = explode('.', $version)[0];
+        }
+
+        return [$name, $version];
+    }
+
+    /**
+     * Compute the development-tooling base directory and its naming suffix
+     * from the contract drive layout (service_contract.json#paths.drive_layout).
+     * Mirrors gvar_storage_common.sh get_dev_compile_base() and system_paths.py.
+     *
+     * Linux (WSL too): always the ext4 base of drive_layout.tool_root.linux;
+     *        never the NTFS web/data base and no free-space switch.
+     * Windows: the program drive the Windows center recorded in the var
+     *        center, else drive_layout.program_drive_fallback; the drive is
+     *        never probed here. Suffix win{ver}.
+     *
+     * @return array{0:string,1:string} [base, suffix] e.g. ['D:','win10']
+     */
+    private static function getDevCompileParts(bool $isWindows): array
+    {
+        static $parts = [];
+        $cacheKey = (int) $isWindows;
+        $recordedDrive = '';
+        $release = '';
+        $suffix = '';
+        $sysName = '';
+        $sysVersion = '';
+
+        if (isset($parts[$cacheKey])) {
+            return $parts[$cacheKey];
+        }
+
+        if ($isWindows) {
+            $release = strtolower(php_uname('r'));
+            if (str_contains($release, '11')) {
+                $suffix = 'win11';
+            } elseif (str_contains($release, '10')) {
+                $suffix = 'win10';
+            } else {
+                $suffix = 'win' . $release;
+            }
+            $recordedDrive = rtrim(self::readPersistedVar(self::WINDOWS_PROGRAM_DRIVE_VAR), '/\\');
+            $parts[$cacheKey] = [
+                self::isWindowsDriveSpec($recordedDrive) ? strtoupper($recordedDrive) : ServiceContract::windowsProgramDriveFallback(),
+                $suffix,
+            ];
+            return $parts[$cacheKey];
+        }
+
+        [$sysName, $sysVersion] = self::getSystemNameVersion();
+        $suffix = $sysVersion !== '' ? "{$sysName}_{$sysVersion}" : $sysName;
+        $parts[$cacheKey] = [ServiceContract::linuxToolBase(), $suffix];
+
+        return $parts[$cacheKey];
+    }
+
+    /** True for a bare drive spec such as "E:". */
+    private static function isWindowsDriveSpec(string $value): bool
+    {
+        return strlen($value) === 2 && ctype_alpha($value[0]) && $value[1] === ':';
     }
 
     /**
@@ -256,28 +856,20 @@ class PathMapper
 
     /**
      * Find Laravel log path
-     * Maps to laravel_data_dir/log (laravel_db/log)
+     * Maps to laravel_data_dir/logs (laravel_db/logs)
      */
     private static function findLaravelLogPath(string $basePath): string
     {
         // Use proper path separator based on OS
         $separator = self::isWindows() ? '\\' : '/';
         $laravelDataDir = rtrim($basePath, '/\\') . $separator . 'wwwroot' . $separator . 'laravel_db';
-        $logPath = $laravelDataDir . $separator . 'log';
+        $logPath = $laravelDataDir . $separator . 'logs';
+
+        self::ensureDirectory($logPath);
         
-        // If log directory doesn't exist, try to create it
+        // If still doesn't exist, fallback (Windows: shared D:\.tmp, Linux: /var/log)
         if (!is_dir($logPath)) {
-            // Try to create parent directory first
-            if (!is_dir($laravelDataDir)) {
-                @mkdir($laravelDataDir, 0755, true);
-            }
-            // Create log directory
-            @mkdir($logPath, 0755, true);
-        }
-        
-        // If still doesn't exist, fallback (Windows: temp dir, Linux: /var/log)
-        if (!is_dir($logPath)) {
-            return self::isWindows() ? sys_get_temp_dir() : '/var/log';
+            return self::isWindows() ? self::getBaseTempDir() : '/var/log';
         }
         
         return $logPath;
@@ -293,6 +885,28 @@ class PathMapper
     public static function getWwwRoot(?string $subPath = ""): string
     {
         return self::mapWebPath('wwwroot', $subPath);
+    }
+
+    /**
+     * Base temp directory (no external-storage config overlay).
+     *
+     * Windows: D:\.tmp (mirrors pycore pygvar TMP_DIR / GlobalVars.ps1) so temp
+     * media and scratch files never land on the C: %TEMP% dir; falls back to
+     * sys_get_temp_dir() only when D: is unavailable. Linux: sys_get_temp_dir().
+     */
+    private static function getBaseTempDir(): string
+    {
+        $dataDriveRoot = '';
+        $base = '';
+        if (self::isWindows()) {
+            $dataDriveRoot = ServiceContract::windowsDataDriveRoot();
+        }
+        if ($dataDriveRoot !== '' && is_dir($dataDriveRoot)) {
+            $base = $dataDriveRoot . self::WINDOWS_TMP_DIR_NAME;
+            self::ensureDirectory($base);
+            return $base;
+        }
+        return sys_get_temp_dir();
     }
 
     /**
@@ -399,40 +1013,136 @@ class PathMapper
      */
     public static function getAppQyV1ExternalDataRoot(?string $subPath = ""): string
     {
-        $basePath = config('AppQyV1.paths.external_data_root', storage_path('app/external_data'));
-        if ($subPath !== null && $subPath !== '') {
-            $subPath = ltrim($subPath, '/');
-            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        // Backward-compatible explicit override: a path pinned via
+        // DICT_EXTERNAL_DATA_PATH / AppQyV1.paths.external_data_root is honored
+        // verbatim so hosts that already fixed a location keep working.
+        $configured = config('AppQyV1.paths.external_data_root');
+        $default = storage_path('app/external_data');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
         }
-        return $basePath;
+
+        // Default: route through the canonical cross-OS path map so the same
+        // logical location resolves correctly under WSL / Windows / Ubuntu and
+        // is identical for the sys:init CLI process and the Octane HTTP worker.
+        return self::mapWebPath('app_external_data', $subPath);
+    }
+
+    /**
+     * Canonical AppQyV1 word/sentence-TTS audio base directory.
+     *
+     * Single source of truth for where the edge-tts pipeline (EdgeTTSService)
+     * and the Bing-assist audio write-back store generated
+     * audio AND where the serve route /api/app_qy_v1/ai_tools/tts/audio/{...}
+     * reads it back — write target == serve base (no split-brain). Files live at
+     *   <laravel_db>/static/app_qy_v1/audio/{lang}/{type}/{file}
+     * with the relative path "{lang}/{type}/{file}" (stored in tts_files[].path)
+     * UNCHANGED — only the physical base moved from tts_data/audio into the
+     * unified static tree so laravel_db copies cleanly as a deployment data dir.
+     */
+    public static function getAppQyV1AudioBaseDir(?string $subPath = ""): string
+    {
+        $relative = 'app_qy_v1/audio';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getLaravelStaticDir($relative);
     }
 
     /**
      * Get AppQyV1 audio directory (word sounds)
      * Based on config('AppQyV1.paths.audio_directory')
+     *
+     * Canonical location is now the unified static audio base
+     * (getAppQyV1AudioBaseDir()) under the word_sounds namespace, so the
+     * write-back target equals the serve base. A pinned config override is still
+     * honored verbatim for hosts that fixed a location.
      */
     public static function getAppQyV1AudioDir(?string $subPath = ""): string
     {
-        $basePath = config('AppQyV1.paths.audio_directory', storage_path('app/external_data/audio/word_sounds'));
-        if ($subPath !== null && $subPath !== '') {
-            $subPath = ltrim($subPath, '/');
-            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        $configured = config('AppQyV1.paths.audio_directory');
+        $default = storage_path('app/external_data/audio/word_sounds');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
         }
-        return $basePath;
+
+        // Unified static tree: static/app_qy_v1/audio/word_sounds/...
+        $relative = 'word_sounds';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getAppQyV1AudioBaseDir($relative);
     }
 
     /**
      * Get AppQyV1 sentence sounds directory
      * Based on config('AppQyV1.paths.sentence_sounds')
+     *
+     * Canonical location is now the unified static audio base
+     * (getAppQyV1AudioBaseDir()) under the sentence_sounds namespace, so the
+     * sentence-library write target equals the serve base. A pinned config
+     * override is still honored verbatim.
      */
     public static function getAppQyV1SentenceSoundsDir(?string $subPath = ""): string
     {
-        $basePath = config('AppQyV1.paths.sentence_sounds', storage_path('app/external_data/audio/sentence_sounds'));
-        if ($subPath !== null && $subPath !== '') {
-            $subPath = ltrim($subPath, '/');
-            $basePath = rtrim($basePath, '/') . '/' . $subPath;
+        $configured = config('AppQyV1.paths.sentence_sounds');
+        $default = storage_path('app/external_data/audio/sentence_sounds');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
         }
-        return $basePath;
+
+        // Unified static tree: static/app_qy_v1/audio/sentence_sounds/...
+        $relative = 'sentence_sounds';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getAppQyV1AudioBaseDir($relative);
+    }
+
+    /**
+     * Get AppQyV1 word-images directory (Bing-assist sample images stored as
+     * local files from base64 bytes; the Bing image URLs are not server-fetchable).
+     * Mirrors getAppQyV1AudioDir(): config override, else the unified
+     * mapWebPath-backed external data root under image/word_images. Files live
+     * under a "{lang}/word/{md5}.{ext}" namespace.
+     */
+    public static function getAppQyV1WordImagesDir(?string $subPath = ""): string
+    {
+        $configured = config('AppQyV1.paths.word_images_directory');
+        $default = storage_path('app/external_data/image/word_images');
+        if ($configured !== null && $configured !== '' && $configured !== $default) {
+            $basePath = $configured;
+            if ($subPath !== null && $subPath !== '') {
+                $subPath = ltrim($subPath, '/');
+                $basePath = rtrim($basePath, '/') . '/' . $subPath;
+            }
+            return $basePath;
+        }
+
+        // Canonical location: the UNIFIED static tree under laravel_db/static so
+        // laravel_db copies cleanly as a deployment data dir (no scatter across
+        // external_data / tts_data). Served as /static/app_qy_v1/word_images/...
+        // Files: static/app_qy_v1/word_images/{lang}/word/{md5}.{ext}.
+        $relative = 'app_qy_v1/word_images';
+        if ($subPath !== null && $subPath !== '') {
+            $relative = $relative . '/' . ltrim($subPath, '/');
+        }
+        return self::getLaravelStaticDir($relative);
     }
 
     /**
@@ -483,15 +1193,13 @@ class PathMapper
      */
     public static function getDefaultDatabasePath(string $databaseName = 'database.sqlite', ?string $subPath = ""): string
     {
-        $defaultDatabasePath = env('DB_DATABASE');
         $laravelDatabaseDir = self::getLaravelDatabaseDir();
-
-        if ($defaultDatabasePath == "" || $defaultDatabasePath == null) {
-            $defaultDatabasePath = $laravelDatabaseDir;
-        }
+        $defaultDatabasePath = $laravelDatabaseDir;
 
         if (!file_exists($defaultDatabasePath)) {
-            mkdir($defaultDatabasePath, 0755, true);
+            // Race-safe (Octane workers / DrvFs): suppress + re-check so a
+            // concurrent create doesn't promote a "File exists" warning to a 500.
+            @mkdir($defaultDatabasePath, 0755, true);
         }
 
         // Use proper path separator based on OS
@@ -609,7 +1317,7 @@ class PathMapper
                 'cache' => self::mapWebPath('wwwroot', 'laravel_main/cache'),
                 'updates' => self::mapWebPath('wwwroot', 'laravel_main/updates'),
                 'logs' => self::mapWebPath('logs'),
-                'temp' => sys_get_temp_dir(),
+                'temp' => self::getBaseTempDir(),
                 default => throw new \InvalidArgumentException("External storage path not configured for type '{$type}' on OS '{$os}'")
             };
         } else {
@@ -826,7 +1534,13 @@ class PathMapper
     public static function ensureDirectory(string $path, int $permissions = 0755): bool
     {
         if (!is_dir($path)) {
-            if (!mkdir($path, $permissions, true)) {
+            // Race-safe under Octane (many workers) + WSL DrvFs: mkdir() can fail
+            // with "File exists" when ANOTHER worker created the dir between the
+            // is_dir() check and this call. Suppress the warning (otherwise
+            // Laravel's HandleExceptions promotes it to a 500) and treat
+            // "failed BUT it now exists" as success — only a genuinely-missing dir
+            // is an error.
+            if (!@mkdir($path, $permissions, true) && !is_dir($path)) {
                 return false;
             }
         }
@@ -905,7 +1619,54 @@ class PathMapper
         $cachedPath = $coreNodeDir;
         return $cachedPath;
     }
-    
+
+    /**
+     * Get a path under the shared pycore local-data root (D:\www\cache\pycore on Windows).
+     *
+     * Mirrors pycore system_paths.get_local_data_dir(). Callers MUST namespace their
+     * subtree (e.g. "appqyv1/books/<id>") so apps never collide.
+     *
+     * @param string|null $subPath Namespaced sub-path under pycore (e.g. "appqyv1/books").
+     * @return string Absolute path under the shared pycore dir (dir ensured).
+     */
+    public static function getCoreNodeDataDir(?string $subPath = ""): string
+    {
+        $base = 'pycore';
+        if ($subPath !== null && $subPath !== "") {
+            $base = $base . DIRECTORY_SEPARATOR . ltrim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $subPath), DIRECTORY_SEPARATOR);
+        }
+        return self::getSharedDownloadCacheDir($base);
+    }
+
+    /**
+     * Get the shared download cache dir (mirror of pycore system_paths.get_shared_download_cache_dir).
+     *
+     * Windows: D:\www\cache ; Linux dual-boot (/www = NTFS disk root): /www/www/cache
+     * (the SAME tree, ONE EXTRA LEVEL) ; Linux-only: /var/_core_node/cache.
+     * This is the SAME physical location pycore resolves, so PHP + Python land on identical paths.
+     * Respects the CORE_NODE_CACHE_DIR env var when already exported.
+     *
+     * @param string|null $subPath Namespaced sub-path under the cache root (e.g. "pycore/.ai_state").
+     * @return string Absolute path under the shared cache dir (dir ensured).
+     */
+    public static function getSharedDownloadCacheDir(?string $subPath = ""): string
+    {
+        $envVal = getenv('CORE_NODE_CACHE_DIR');
+        if ($envVal !== false && trim($envVal) !== '') {
+            $base = rtrim(trim($envVal), '/\\');
+        } elseif (self::isWindows()) {
+            $base = self::windowsWwwBase() . '\\' . self::CACHE_DIR_NAME;
+        } else {
+            $base = self::linuxCrossOsCacheDir() ?? ServiceContract::legacyLinuxDataDir() . '/' . self::CACHE_DIR_NAME;
+        }
+        $full = $base;
+        if ($subPath !== null && $subPath !== '') {
+            $full = rtrim($base, '/\\') . DIRECTORY_SEPARATOR . ltrim(str_replace(['\\', '/'], DIRECTORY_SEPARATOR, $subPath), DIRECTORY_SEPARATOR);
+        }
+        self::ensureDirectory($full);
+        return $full;
+    }
+
     /**
      * Get Laravel main directory path
      * Uses relative positioning from PathMapper file location
@@ -1016,7 +1777,7 @@ class PathMapper
      */
     public static function getNodeInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/14_install_node_22.sh';
+        $basePath = self::getInstallShellsDir() . '/17_install_node_toolchain_26.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1029,7 +1790,7 @@ class PathMapper
      */
     public static function getGoInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/53_install_golang22.sh';
+        $basePath = self::getInstallShellsDir() . '/91_install_golang22.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1042,7 +1803,7 @@ class PathMapper
      */
     public static function getFlutterInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/38_install_flutter.sh';
+        $basePath = self::getInstallShellsDir() . '/59_install_flutter.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1056,13 +1817,12 @@ class PathMapper
 
     /**
      * Get Node binary path
-     * Follows the installation script pattern from 14_install_node_22.sh
+     * Follows the installation script pattern from 17_install_node_toolchain_26.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/node (created by installation script)
-     * 2. NODE_HOME environment variable + /bin/node
-     * 3. which node command
-     * 4. Fallback to symlink path
+     * 2. which node command
+     * 3. Fallback to symlink path
      *
      * @return string Path to node binary
      */
@@ -1071,11 +1831,6 @@ class PathMapper
         $symlinkPath = self::mapWebPath('node_symlink');
         if (file_exists($symlinkPath)) {
             return $symlinkPath;
-        }
-
-        $nodeHome = getenv('NODE_HOME');
-        if ($nodeHome && file_exists("$nodeHome/bin/node")) {
-            return "$nodeHome/bin/node";
         }
 
         $result = \Illuminate\Support\Facades\Process::run('which node');
@@ -1091,7 +1846,7 @@ class PathMapper
 
     /**
      * Get Go binary path
-     * Follows the installation script pattern from 53_install_golang22.sh
+     * Follows the installation script pattern from 91_install_golang22.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/go (created by installation script)
@@ -1127,7 +1882,7 @@ class PathMapper
 
     /**
      * Get Flutter binary path
-     * Follows the installation script pattern from 38_install_flutter.sh
+     * Follows the installation script pattern from 59_install_flutter.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/flutter (created by installation script)
@@ -1360,4 +2115,3 @@ class PathMapper
         return null;
     }
 }
-

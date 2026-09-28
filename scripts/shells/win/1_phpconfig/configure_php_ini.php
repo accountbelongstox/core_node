@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 // All variable definitions at the beginning of the file
 $phpExePath = null;
@@ -20,6 +9,10 @@ $inputPath = null;
 $iniContent = '';
 $phpIniDev = '';
 $phpIniProd = '';
+$errorLogPath = '';
+$errorLogDirectory = '';
+$errorLogDirectoryReal = '';
+$errorLogPathNormalized = '';
 $duplicatesRemoved = 0;
 $opensslEnabled = false;
 $saveSuccess = false;
@@ -34,7 +27,6 @@ $configReplacements = [
     'memory_limit' => '512M',
     'max_input_vars' => '10000',
     'date.timezone' => 'UTC',
-    'error_log' => '"error.log"',
     'file_uploads' => 'On',
     'disable_functions' => '',
     'opcache.enable' => '1',
@@ -45,10 +37,11 @@ $configReplacements = [
 
 // All known extensions for duplicate cleaning
 $allKnownExtensions = [
-    'intl', 'gd', 'zip', 'fileinfo', 'pdo_mysql', 'pdo_sqlite', 
-    'mbstring', 'curl', 'openssl', 'redis', 'sqlite3', 'exif', 
+    'intl', 'gd', 'zip', 'fileinfo', 'pdo_mysql', 'pdo_sqlite',
+    'mbstring', 'curl', 'openssl', 'redis', 'sqlite3', 'exif',
     'swoole', 'bz2', 'yaml', 'mysqli', 'pdo', 'xml', 'json',
-    'bcmath', 'readline', 'soap', 'sockets', 'tokenizer'
+    'bcmath', 'readline', 'soap', 'sockets', 'tokenizer',
+    'pdo_pgsql', 'pgsql'
 ];
 
 // Extensions to verify and enable for Laravel
@@ -71,7 +64,17 @@ $extensions = [
     'swoole',
     'bz2',
     'yaml',
-    'tokenizer'
+    'tokenizer',
+    // pdo_pgsql loads pgsql as a dependency at runtime; enabling both causes
+    // "Module pgsql already loaded" warnings on every PHP subprocess spawn.
+    'pdo_pgsql'
+];
+
+// Extensions that are auto-loaded as runtime dependencies of other extensions in $extensions.
+// If both the dep and its parent are explicitly in php.ini, PHP logs "already loaded" on every
+// process spawn. disableExtension() comments out these lines to prevent that.
+$dependencyExtensions = [
+    'pgsql' => 'pdo_pgsql', // pdo_pgsql internally loads pgsql; listing both triggers the warning
 ];
 
 // ANSI color codes for better output
@@ -107,6 +110,16 @@ if (strtolower(basename($inputPath)) === 'php.exe') {
 if ($phpDir === null || !is_dir($phpDir)) {
     die("Error: PHP directory not found: " . ($phpDir ?? 'unknown') . "\n");
 }
+
+$errorLogPath = $argc >= 3 ? $argv[2] : $phpDir . DIRECTORY_SEPARATOR . 'error.log';
+$errorLogDirectory = dirname($errorLogPath);
+$errorLogDirectoryReal = realpath($errorLogDirectory);
+if ($errorLogDirectoryReal === false) {
+    die("Error: PHP error log directory not found: $errorLogDirectory\n");
+}
+$errorLogPath = $errorLogDirectoryReal . DIRECTORY_SEPARATOR . basename($errorLogPath);
+$errorLogPathNormalized = str_replace('\\', '/', $errorLogPath);
+$configReplacements['error_log'] = '"' . $errorLogPathNormalized . '"';
 
 $extDir = $phpDir . '\\ext';
 
@@ -303,16 +316,21 @@ function enableExtension($iniContent, $name) {
     }
     
     $iniContent = removeDuplicateExtensions($iniContent, $name);
-    
+
     $pattern = '/^\s*(;)?\s*extension\s*=\s*' . preg_quote($matchingDll, '/') . '\s*$/mi';
     $extensionPattern = '/^\s*(;)?\s*extension\s*=\s*.*?' . preg_quote($name, '/') . '.*?\.dll\s*$/mi';
-    
+    // Bare Windows form (e.g. extension=pdo_pgsql) - PHP resolves it to the DLL,
+    // so it is the same extension. Match it so enableExtension normalizes it to
+    // extension=php_<name>.dll in place and drops the duplicate, instead of
+    // appending a second .dll line (which caused "Module <name> already loaded").
+    $barePattern = '/^\s*(;)?\s*extension\s*=\s*' . preg_quote($name, '/') . '\s*$/mi';
+
     $lines = explode("\n", $iniContent);
     $resultLines = [];
     $found = false;
-    
+
     foreach ($lines as $line) {
-        if (preg_match($pattern, $line) || preg_match($extensionPattern, $line)) {
+        if (preg_match($pattern, $line) || preg_match($extensionPattern, $line) || preg_match($barePattern, $line)) {
             if (!$found) {
                 $resultLines[] = "extension=$matchingDll";
                 $found = true;
@@ -328,6 +346,23 @@ function enableExtension($iniContent, $name) {
     
     return implode("\n", $resultLines);
 }
+function disableExtension($iniContent, $name) {
+    // Comment out any active extension line for $name.
+    // Matches: extension=php_pgsql.dll, extension=pgsql.dll, extension=pgsql (all forms).
+    // Already-commented lines (starting with ;) are left untouched (idempotent).
+    $pattern = '/^\s*extension\s*=\s*(?:php_)?' . preg_quote($name, '/') . '(?:\.dll)?\s*$/im';
+    $lines = explode("\n", $iniContent);
+    $resultLines = [];
+    foreach ($lines as $line) {
+        if (preg_match($pattern, $line)) {
+            $resultLines[] = '; [auto-dep, disabled by configure_php_ini.php] ' . ltrim($line);
+        } else {
+            $resultLines[] = $line;
+        }
+    }
+    return implode("\n", $resultLines);
+}
+
 function downloadSwooleDll($extDir) {
     global $phpDir;
     
@@ -567,6 +602,21 @@ foreach ($extensions as $ext) {
         }
     } catch (Exception $e) {
         printStatus("Failed to verify extension $ext: " . $e->getMessage(), 'warning');
+    }
+}
+
+// Comment out extensions that are auto-loaded as runtime dependencies (prevents "already loaded" warnings)
+printSection("Disabling Auto-Loaded Dependency Extensions");
+foreach ($dependencyExtensions as $dep => $parent) {
+    if (!in_array($parent, $extensions)) {
+        continue;
+    }
+    $beforeLen = strlen($iniContent);
+    $iniContent = disableExtension($iniContent, $dep);
+    if (strlen($iniContent) !== $beforeLen) {
+        printStatus("Disabled: $dep (auto-dep of $parent — explicit line would cause duplicate-load warning)", 'warning');
+    } else {
+        printStatus("OK: $dep not explicitly loaded (clean)", 'success');
     }
 }
 

@@ -1,0 +1,42 @@
+{
+  "agent_history_article": {
+    "enabled": false,
+    "extract_as_article": false,
+    "reference_lang": "CN",
+    "target_lang": "EN",
+    "min_raw_words": 200,
+    "openrouter_model": "openrouter/free",
+    "prompt_article_cn": "",
+    "prompt_translate_en": "",
+    "prompt_derive_en": "",
+    "prompt_rewrite_en": "",
+    "prompt_rewrite_enabled": true,
+    "prompt_rewrite_audio": true,
+    "prompt_derive_sound": true,
+    "prompt_new_notify": true,
+    "live_prompt_monitor": true,
+    "video_enabled": false,
+    "video_username": "",
+    "video_batch_name": "default",
+    "video_concurrency": 2,
+    "phase": "idle",
+    "live_listen": false,
+    "enabled_tools": [],
+    "cursors": {},
+    "live_cursors": {},
+    "live_completed": {},
+    "backfill_targets": {},
+    "last_tool": "",
+    "cursor": {
+      "fragment_index": 0,
+      "after_ts": 0,
+      "after_fragment_id": "",
+      "raw_index": 0,
+      "attempts": 0
+    },
+    "last_error": null,
+    "last_error_at": null,
+    "last_run_at": null,
+    "published": []
+  }
+}

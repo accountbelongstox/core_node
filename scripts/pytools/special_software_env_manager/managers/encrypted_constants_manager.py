@@ -5,6 +5,7 @@ Encrypted Constants Manager Module
 Manages encrypted constants storage and retrieval from .secret_ignore directory.
 """
 
+import re
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
@@ -17,12 +18,32 @@ from config.path_config import get_path_config
 class EncryptedConstantsManager:
     """Manages encrypted constants storage and retrieval"""
 
-    def __init__(self, project_root: Path, file_number_manager: FileNumberManager, variable_input_handler: VariableInputHandler):
+    def __init__(self, project_root: Path, file_number_manager: FileNumberManager, variable_input_handler: VariableInputHandler,
+                 config_manager=None, script_manager=None):
         self.path_config = get_path_config(project_root)
         self.project_root = project_root
         self.file_number_manager = file_number_manager
         self.variable_input_handler = variable_input_handler
         self.raw_dir = self.path_config.raw_secret_dir
+        self.config_manager = config_manager
+        self.script_manager = script_manager
+
+    def _regenerate_scripts_for_saved(self, saved_secret_names: List[str]):
+        """Generate/update launcher scripts matching the saved secrets."""
+        if self.script_manager is None or self.config_manager is None:
+            return
+        if not saved_secret_names:
+            return
+        try:
+            generated = self.script_manager.regenerate_for_secret_names(
+                self.config_manager, saved_secret_names
+            )
+            if generated:
+                ColorMessage.write("Launcher scripts generated/updated:", 'success')
+                for script_path in generated:
+                    ColorMessage.write(f"   {script_path}", 'info')
+        except Exception as exc:
+            ColorMessage.write(f"[WARN] Script regeneration failed: {exc}", 'warning')
 
     def _select_file_number(self, config: Dict[str, Any]) -> tuple:
         """Select file number (create new or replace existing)"""
@@ -76,10 +97,7 @@ class EncryptedConstantsManager:
             
             if existing_value:
                 existing_values[var_name] = existing_value
-                display_value = existing_value
-                if len(display_value) > 70:
-                    display_value = display_value[:67] + "..."
-                ColorMessage.write(f"  {display_name}: {display_value}", 'info')
+                ColorMessage.write(f"  {display_name}: {existing_value}", 'info')
             else:
                 ColorMessage.write(f"  {display_name}: [Not set]", 'warning')
         
@@ -113,7 +131,7 @@ class EncryptedConstantsManager:
 
         ColorMessage.write("Enter values for encrypted constants:", 'info')
         if mode == 'replace':
-            ColorMessage.write("(Press Enter to keep current value)", 'info')
+            ColorMessage.write("(Enter=keep current; Space=clear to Not set, confirm [N/y])", 'info')
         else:
             ColorMessage.write("(Press Enter to skip a variable)", 'info')
         print()
@@ -124,7 +142,10 @@ class EncryptedConstantsManager:
             ColorMessage.write("-" * 60, 'info')
             existing_values = self._load_existing_values(config, file_number)
             print()
-            ColorMessage.write("Enter new values (press Enter to keep current value):", 'info')
+            ColorMessage.write(
+                "Enter new values (Enter=keep; Space=clear to Not set):",
+                'info'
+            )
             print()
 
         user_inputs = self.variable_input_handler.collect_variable_inputs(
@@ -148,26 +169,43 @@ class EncryptedConstantsManager:
         input("Press Enter to continue...")
 
     def _save_to_secret_ignore(self, user_inputs: Dict[str, str], file_number: int):
-        """Save values to .secret_ignore directory"""
+        """Save values to .secret_ignore directory. Empty string clears to [Not set]."""
         if not self.raw_dir.exists():
             self.raw_dir.mkdir(parents=True, exist_ok=True)
 
         saved_count = 0
+        cleared_count = 0
+        saved_secret_names = []
         for var_name, var_value in user_inputs.items():
             secret_key_name = f"{var_name}_{file_number}"
             secret_file = self.raw_dir / secret_key_name
 
             try:
+                if var_value == "" or var_value is None:
+                    if secret_file.exists():
+                        secret_file.unlink()
+                    ColorMessage.write(
+                        f"[OK] Cleared {secret_key_name} to [Not set] ({secret_file})",
+                        'success'
+                    )
+                    cleared_count += 1
+                    saved_secret_names.append(secret_key_name)
+                    continue
+
                 safe_write_secret(secret_file, var_value)
-                ColorMessage.write(f"[OK] Saved {var_name} (#{file_number}) to .secret_ignore", 'success')
+                ColorMessage.write(f"[OK] Saved {secret_key_name} -> {secret_file}", 'success')
                 saved_count += 1
+                saved_secret_names.append(secret_key_name)
             except Exception as e:
-                ColorMessage.write(f"[X] Error saving {var_name}: {e}", 'warning')
+                ColorMessage.write(f"[X] Error saving {secret_key_name}: {e}", 'warning')
 
         if saved_count > 0:
             ColorMessage.write(f"Saved {saved_count}/{len(user_inputs)} encrypted constants to .secret_ignore", 'success')
             ColorMessage.write(f"Location: {self.raw_dir}", 'info')
-            ColorMessage.write(f"File number: {file_number}", 'info')
+        if cleared_count > 0:
+            ColorMessage.write(f"Cleared {cleared_count} constant(s) to [Not set]", 'success')
+
+        self._regenerate_scripts_for_saved(saved_secret_names)
 
     def view_encrypted_constants(self, config_name: str, config: Dict[str, Any]):
         """View encrypted constants from .secret_ignore directory"""
@@ -209,7 +247,10 @@ class EncryptedConstantsManager:
         print()
 
         ColorMessage.write(f"Reading from: {self.raw_dir}", 'info')
-        ColorMessage.write(f"File number: {file_number}", 'info')
+        ColorMessage.write("Key files:", 'info')
+        for var in config['Variables']:
+            secret_key_name = f"{var['Name']}_{file_number}"
+            ColorMessage.write(f"  {secret_key_name} -> {self.raw_dir / secret_key_name}", 'info')
         print()
 
         found_count = 0
@@ -219,16 +260,12 @@ class EncryptedConstantsManager:
             secret_key_name = f"{var_name}_{file_number}"
             secret_file = self.raw_dir / secret_key_name
 
-            ColorMessage.write(f"{display_name}:", 'info', no_newline=True)
+            ColorMessage.write(f"{display_name} ({secret_key_name}):", 'info', no_newline=True)
             if secret_file.exists():
                 try:
                     value = safe_read_secret(secret_file).strip()
                     if value:
-                        if len(value) > 8:
-                            preview = value[:8] + "..."
-                        else:
-                            preview = "***"
-                        ColorMessage.write(f" {preview} (saved)", 'success')
+                        ColorMessage.write(f" {value} (saved)", 'success')
                         found_count += 1
                     else:
                         ColorMessage.write(" [Empty file]", 'warning')
@@ -243,6 +280,89 @@ class EncryptedConstantsManager:
         else:
             ColorMessage.write("No encrypted constants found for this version.", 'warning')
 
+        print()
+        input("Press Enter to continue...")
+
+    @staticmethod
+    def _normalize_custom_key(key: str) -> Optional[str]:
+        """Normalize an arbitrary custom KEY into a safe, env-var-style name.
+
+        - Spaces and hyphens become underscores.
+        - Any remaining filesystem/env-illegal characters are dropped.
+        - A leading digit is prefixed with '_' (env vars cannot start with a digit).
+
+        Returns the normalized key, or None if nothing usable remains.
+        """
+        candidate = key.strip().replace('-', '_').replace(' ', '_')
+        candidate = re.sub(r'[^A-Za-z0-9_]', '', candidate)
+        if not candidate:
+            return None
+        if candidate[0].isdigit():
+            candidate = f"_{candidate}"
+        return candidate
+
+    def custom_add(self):
+        """Add one or more custom KEY=VALUE secrets with an auto-incrementing index.
+
+        The user may enter ANY key name. For each key we auto-detect existing
+        ``{KEY}_N`` files in the .secret_ignore directory and save the new value
+        under the next free index (``{KEY}_1``, ``{KEY}_2``, ``{KEY}_3`` ...), so
+        previously saved values are never overwritten.
+        """
+        clear_screen()
+        ColorMessage.write("Custom Add - Add Any Custom KEY", 'info')
+        ColorMessage.write("=" * 60, 'info')
+        print()
+        ColorMessage.write("Enter any custom KEY name and its value.", 'info')
+        ColorMessage.write("The file name is auto-indexed (KEY_1, KEY_2, KEY_3 ...) so an", 'info')
+        ColorMessage.write("existing value is never overwritten.", 'info')
+        ColorMessage.write(f"Storage location: {self.raw_dir}", 'info')
+        print()
+
+        added_count = 0
+
+        while True:
+            raw_key = input("  Custom KEY name (press Enter to finish): ").strip()
+            if not raw_key:
+                break
+
+            key = self._normalize_custom_key(raw_key)
+            if key is None:
+                ColorMessage.write("  [X] Invalid KEY. Use letters, digits, and underscores.", 'error')
+                print()
+                continue
+
+            if key != raw_key:
+                ColorMessage.write(f"  [i] KEY normalized to: {key}", 'warning')
+
+            # Auto-detect existing entries and compute the next index for this key.
+            existing_numbers = self.file_number_manager.list_existing_encrypted_constants([key])
+            next_number = self.file_number_manager.get_next_encrypted_constant_number(key, [key])
+
+            if existing_numbers:
+                existing_str = ", ".join(f"{key}_{n}" for n in existing_numbers)
+                ColorMessage.write(f"  [i] Existing: {existing_str}", 'info')
+            ColorMessage.write(f"  [i] Will save as: {key}_{next_number}", 'success')
+
+            value = input(f"  Value for {key}_{next_number}: ").strip()
+            if not value:
+                ColorMessage.write("  [SKIP] No value entered, skipped.", 'warning')
+                print()
+                continue
+
+            self._save_to_secret_ignore({key: value}, next_number)
+            added_count += 1
+            print()
+
+            again = input("  Add another custom KEY? (y/N): ").strip().lower()
+            print()
+            if again != 'y':
+                break
+
+        if added_count > 0:
+            ColorMessage.write(f"Custom add complete. {added_count} secret(s) saved to .secret_ignore.", 'success')
+        else:
+            ColorMessage.write("No custom secrets were added.", 'warning')
         print()
         input("Press Enter to continue...")
 

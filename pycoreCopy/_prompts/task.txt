@@ -1,6 +1,0 @@
-
-  ncoreStart&Installer   pycoreStart&Installer  是否会同时调用pmpm安装以及使用 ./新完成的一个pycore来引入
-  D:\programing\core_node\pycore\__init__.py 初始化所有 包，注意如果 node model存在了由跳过。同时 先自动 pnpm add -g
-  pnpm一下，同时 是否调用了快捷方式生成了桌面图标。
-
-  

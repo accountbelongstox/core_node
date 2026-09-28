@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
@@ -26,6 +14,8 @@ import 'package:qyflutter/common/theme/base/theme_text_styles.dart';
 class NavigationItem {
   final IconData icon;
   final IconData? activeIcon;
+  final String? iconImage;
+  final String? activeIconImage;
   final String label;
   final String route;
   final VoidCallback? onTap;
@@ -36,6 +26,8 @@ class NavigationItem {
   const NavigationItem({
     required this.icon,
     this.activeIcon,
+    this.iconImage,
+    this.activeIconImage,
     required this.label,
     required this.route,
     this.onTap,
@@ -147,6 +139,11 @@ class EnhancedBottomNavigation extends StatelessWidget {
     final defaultSelectedColor = selectedItemColor ?? theme.primaryColor;
     final defaultUnselectedColor = unselectedItemColor ?? theme.unselectedWidgetColor;
 
+    final bool useImage = item.iconImage != null;
+    final String? imageAsset = useImage
+        ? (isActive ? (item.activeIconImage ?? item.iconImage) : item.iconImage)
+        : null;
+
     return Expanded(
       child: Material(
         color: ThemeColors.transparent,
@@ -163,11 +160,23 @@ class EnhancedBottomNavigation extends StatelessWidget {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Icon(
-                      isActive ? (item.activeIcon ?? item.icon) : item.icon,
-                      color: isActive ? defaultSelectedColor : defaultUnselectedColor,
-                      size: ThemeDimensions.iconSizeMedium,
-                    ),
+                    if (imageAsset != null)
+                      Image.asset(
+                        imageAsset,
+                        height: 24,
+                        fit: BoxFit.fitHeight,
+                        errorBuilder: (_, __, ___) => Icon(
+                          item.icon,
+                          color: isActive ? defaultSelectedColor : defaultUnselectedColor,
+                          size: ThemeDimensions.iconSizeMedium,
+                        ),
+                      )
+                    else
+                      Icon(
+                        isActive ? (item.activeIcon ?? item.icon) : item.icon,
+                        color: isActive ? defaultSelectedColor : defaultUnselectedColor,
+                        size: ThemeDimensions.iconSizeMedium,
+                      ),
                     if (item.badge != null)
                       Positioned(
                         top: -4,
@@ -245,6 +254,11 @@ class EnhancedBottomNavigation extends StatelessWidget {
     
     final double iconSize = isCenter ? 50 : 40;
 
+    final bool useImage = item.iconImage != null;
+    final String? imageAsset = useImage
+        ? (isActive ? (item.activeIconImage ?? item.iconImage) : item.iconImage)
+        : null;
+
     return Expanded(
       child: InkWell(
         highlightColor: ThemeColors.transparent,
@@ -260,7 +274,22 @@ class EnhancedBottomNavigation extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 color: focusColor,
               ),
-              child: Icon(
+              child: imageAsset != null
+                  ? Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: Image.asset(
+                        imageAsset,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Icon(
+                          item.icon,
+                          size: isCenter
+                              ? ThemeDimensions.iconSizeXXL
+                              : ThemeDimensions.iconSizeXL,
+                          color: iconColor,
+                        ),
+                      ),
+                    )
+                  : Icon(
                 isActive ? (item.activeIcon ?? item.icon) : item.icon,
                 size: isCenter
                     ? ThemeDimensions.iconSizeXXL

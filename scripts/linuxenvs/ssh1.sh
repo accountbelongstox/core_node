@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # SSH Connection Global File #1
@@ -86,9 +75,9 @@ else
     exit 1
 fi
 
-SECRET_MANAGER_SCRIPT="$projectRootPath/pycore/pyfoundations/secret_manager.py"
+SECRET_READER_SCRIPT="$projectRootPath/scripts/pytools/special_software_env_manager/secret_read.py"
 echo "[DEBUG] Python executable: $PYTHON_EXECUTABLE"
-echo "[DEBUG] Secret manager script: $SECRET_MANAGER_SCRIPT"
+echo "[DEBUG] Secret reader script: $SECRET_READER_SCRIPT"
 echo ""
 
 # Function to get secret value
@@ -96,11 +85,9 @@ get_secret_value() {
     local key_name="$1"
     echo "[DEBUG] Loading secret key: $key_name" >&2
 
-    # Switch to project root for Python execution
-    cd "$projectRootPath"
-
+    # secret_read.py is standalone (no pycore imports); no cd/PYTHONPATH needed
     local value
-    value=$("$PYTHON_EXECUTABLE" "$SECRET_MANAGER_SCRIPT" get_secret_key "$key_name" 2>/dev/null)
+    value=$("$PYTHON_EXECUTABLE" "$SECRET_READER_SCRIPT" "$key_name")
     local exit_code=$?
 
     if [ $exit_code -eq 0 ] && [ -n "$value" ]; then
@@ -122,7 +109,7 @@ fi
 
 SSH_PASSWORD=$(get_secret_value "SSH_PASSWORD_1")
 if [ -n "$SSH_PASSWORD" ]; then
-    echo "[SUCCESS] SSH password loaded: $SSH_PASSWORD"
+    echo "[SUCCESS] SSH password loaded (${#SSH_PASSWORD} chars; displayed only when a password login is needed)"
 else
     echo "[INFO] No password configured (using SSH key authentication)"
 fi
@@ -142,7 +129,80 @@ if [ -z "$SSH_CONNECTION" ]; then
     exit 1
 fi
 
-if [ -n "$SSH_PASSWORD" ]; then
+# =============================================================================
+# SSH Key Authentication (keys installed by 27_install_git_ssh.sh)
+# =============================================================================
+# Git SSH and this server's login use the same key pair, so try key-based
+# auth first and only fall back to the password flow when no key works.
+SSH_KEY_AUTH_OK=false
+SSH_IDENTITY_ARGS=()
+SSH_KEY_CANDIDATES=(
+    "$HOME/.ssh/id_ed25519"
+    "/etc/ssh/keys/id_ed25519"
+    "/root/.ssh/id_ed25519"
+)
+
+probe_ssh_key_auth() {
+    ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new "$@" "$SSH_CONNECTION" true 2>/dev/null
+}
+
+# 1) Default identity (ssh-agent or default key files)
+if probe_ssh_key_auth; then
+    SSH_KEY_AUTH_OK=true
+else
+    # 2) Explicit key files installed by 27_install_git_ssh.sh
+    for key_file in "${SSH_KEY_CANDIDATES[@]}"; do
+        if [ -f "$key_file" ] && [ -r "$key_file" ]; then
+            if probe_ssh_key_auth -i "$key_file"; then
+                SSH_KEY_AUTH_OK=true
+                SSH_IDENTITY_ARGS=(-i "$key_file")
+                break
+            fi
+        fi
+    done
+fi
+
+if [ "$SSH_KEY_AUTH_OK" = true ]; then
+    echo "[INFO] SSH key authentication succeeded (git SSH key and server login share the same key)"
+    echo "Executing: ssh ${SSH_IDENTITY_ARGS[*]} $SSH_CONNECTION"
+    echo ""
+
+    ssh "${SSH_IDENTITY_ARGS[@]}" "$SSH_CONNECTION" "$@"
+elif [ -n "$SSH_PASSWORD" ]; then
+    # SSH Key setup guide
+    LOCAL_KEY="$HOME/.ssh/id_ed25519"
+    LOCAL_PUB="$LOCAL_KEY.pub"
+    echo ""
+    echo "============================================================"
+    echo "  SSH Key Setup Guide (passwordless login)"
+    echo "============================================================"
+    echo ""
+    echo "  After login, run these commands to enable SSH key auth:"
+    echo ""
+    echo "  --- Step 1: Generate key on LOCAL machine (if not exists) ---"
+    echo ""
+    echo "  [ -f \"$LOCAL_PUB\" ] || ssh-keygen -t ed25519 -f \"$LOCAL_KEY\" -N \"\""
+    echo ""
+    echo "  --- Step 2: Copy key to server (run on LOCAL) ---"
+    echo ""
+    echo "  # Option A: ssh-copy-id (Debian/Ubuntu/CentOS/Fedora):"
+    echo "  ssh-copy-id -i \"$LOCAL_PUB\" $SSH_CONNECTION"
+    echo ""
+    echo "  # Option B: Manual (works on all distros):"
+    echo "  cat \"$LOCAL_PUB\" | ssh $SSH_CONNECTION \"mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys\""
+    echo ""
+    echo "  --- Step 3: Verify (run on LOCAL) ---"
+    echo ""
+    echo "  ssh $SSH_CONNECTION \"echo 'SSH key auth OK'\""
+    echo ""
+    echo "  --- Notes ---"
+    echo "  * Works on Debian/Ubuntu/CentOS/RHEL/AlmaLinux/Fedora"
+    echo "  * Safe if server already has other keys (appends, not overwrites)"
+    echo "  * Safe if local machine has other keys (ed25519 is separate from rsa)"
+    echo "  * If server has SELinux: ssh $SSH_CONNECTION \"restorecon -Rv ~/.ssh\""
+    echo "  * If using custom port: ssh -p PORT $SSH_CONNECTION"
+    echo ""
+
     # Display password for copy-paste
     echo "============================================================"
     echo "  SSH PASSWORD (Copy this to clipboard):"

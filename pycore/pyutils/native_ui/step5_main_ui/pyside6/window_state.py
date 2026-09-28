@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 
+from pycore.pyfoundations.system_paths import get_ui_state_cache_dir
+
+
 
 @dataclass
 class WindowState:
@@ -48,9 +51,9 @@ class WindowStateManager:
     """
     Window state manager for saving and loading window geometry.
 
-    Uses JSON files stored in user cache directory:
-    - Windows: C:\\Users\\{user}\\.core_node\\ui_state\\{app_id}_window.json
-    - Linux: /var/_core_node/ui_state/{app_id}_window.json
+    Uses JSON files stored in the shared UI-state cache directory:
+    - Windows: D:\\www\\core_node\\ui_state\\{app_id}_window.json
+    - Linux: /www/www/core_node/ui_state/{app_id}_window.json (or /www/core_node/ui_state)
 
     Example:
         manager = WindowStateManager(app_id="matrix")
@@ -78,7 +81,6 @@ class WindowStateManager:
 
     def _get_cache_dir(self) -> Path:
         """Get UI state cache directory"""
-        from pycore.pyfoundations.system_paths import get_ui_state_cache_dir
         return get_ui_state_cache_dir()
 
     def save_state(

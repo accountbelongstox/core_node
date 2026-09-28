@@ -1,21 +1,12 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Update Existing Services to Use Launcher Scripts
 # This script updates systemd service files to use launcher scripts
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+RUNTIME_ENVIRONMENT="$ROOT_DIR/scripts/shells/linux/common/runtime_environment.sh"
+source "$RUNTIME_ENVIRONMENT"
 
 # Color codes
 RED='\033[0;31m'
@@ -76,7 +67,7 @@ for service in "${services[@]}"; do
     echo "================================================"
 
     local service_file="/etc/systemd/system/${service}.service"
-    local launcher_script="/var/_core_node/unified_manager/temp_scripts/${service}.sh"
+    local launcher_script="$CORE_NODE_UNIFIED_MANAGER_LAUNCHER_DIR/${service}.sh"
 
     # Check if launcher script exists
     if [ ! -f "$launcher_script" ]; then
@@ -152,9 +143,9 @@ if [ $updated_count -gt 0 ]; then
             sudo systemctl start "$service"
             sleep 1
             if systemctl is-active --quiet "$service"; then
-                echo -e "${GREEN}âœ?$service started${NC}"
+                echo -e "${GREEN}$service started${NC}"
             else
-                echo -e "${RED}âœ?$service failed to start${NC}"
+                echo -e "${RED}$service failed to start${NC}"
                 echo "Check logs: sudo journalctl -u $service -n 20"
             fi
         done

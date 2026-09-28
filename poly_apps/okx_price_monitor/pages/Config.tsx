@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RPCClient } from '../services/rpc';
+import { HttpClient } from '../services/http';
 import { Save, RefreshCw, Power } from 'lucide-react';
 
 export const ConfigPage: React.FC = () => {
@@ -14,7 +14,7 @@ export const ConfigPage: React.FC = () => {
 
   const loadConfig = async () => {
     try {
-      const data = await RPCClient.getConfig();
+      const data = await HttpClient.getConfig();
       setConfig(data);
     } catch (err) {
       console.error(err);
@@ -28,7 +28,7 @@ export const ConfigPage: React.FC = () => {
     try {
       // In a real app we would construct the updates object from form state
       // For this demo, we assume the config object in state is what we want to save
-      await RPCClient.updateConfig(config);
+      await HttpClient.updateConfig(config);
       setStatus('success');
       setTimeout(() => setStatus('idle'), 3000);
     } catch (err) {

@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 // disguised.template.js
 // This is a template for encrypted files - DO NOT MODIFY
 
@@ -19,10 +7,10 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 // Embedded encrypted data and parameters
-const ENCRYPTED_DATA = Buffer.from('vsFbupBfYrxcmIB3M0a9t3AZWmNky2zXjNFHKflOZytE0KrgCKSD', 'base64');
-const OBFUSCATED_PARAMS = Buffer.from('Zg9YlpEd9smnXeLJiSalaSmbyF6D1vyQ4tbKdsY3DWzV+w37oA7Y4T2qo/CH6DLe7uUgDCNd+08TZHSJHipKqzCq9j/YUPlsg7Zp5fn8mvk7QDJ/ImcMGAWLIDPm059x2gCxtjo7Rzqf+YImDwMwW1f59NREViWwgKkauirVxwBUh80nqrXKOo5gU69t30kuWR+c5T85g65hjyv19nkjw5l9iK/f6QVRAxYlmovKS5qSwzNQlZr2m5iOMnZlw4fpEpSFz3qyB8oybR7NG+VWNi+7QV9jL6MUL1IvkPD1MdrghqRn8OX0R3XLdypc2zfQdnkb9OcjPPiC8X9bGaL/05+a0IYFYH/hkceTV08/Ax264lLw+KzK3GU40VdcCzPC6J3LSGjs5QzXq99FmQQWX9Mp5fO2q8h2o7TgfDVP1B4mlxQgiKRb8UEgoFMn2kyh1c8lmszsu6P0fypB+JmgfgfUvcyt290X+7c2ccSRd+FKInJwHyxEBKYeUtE75dP7', 'base64');
-const PARAMS_KEY = Buffer.from('mqRqXtfcradjkrCy+lZIFfqnoWJEezFKCCya1WG4J1Q=', 'base64');
-const PARAMS_IV = Buffer.from('0skRykFxtGeKF2hoxXglrw==', 'base64');
+const ENCRYPTED_DATA = Buffer.from('+4NeZ4uf8qCjrVtCitbpChC/S3YoNJVxsSAX8mU3v2wUXemgseOAwe52ZWlcTTx7uUnf', 'base64');
+const OBFUSCATED_PARAMS = Buffer.from('W9HqmmiUXN+vpZq8jevxGEdb9BHdvNhp3mKcbp0umo6Ok0xMPhup3dzDz7CLt/cQOfC43L20kzRF1ZhrENTwYLW30Q2dH8YGpC4/Fvg7YQQQk/sDJZnB9fIbnWacussdIhDd1VjH1HD9mdKp6dhY/TlniOErV2gPlijYDr4C40r90ldkP+asl1eowJ7bGal4ipZx0ZEC//vAbhFolS3nCIfzHdwic3dvNaO2DWK9BGq496BblxYgfDJe+VTP8T4dzhzop3tQQQQGXzm5SMrlyJp1rk4feun/vkDnb4Ss9bqUShIi93Yt+3AzoIPnFL3kEpuYiqyAaXRvRnnke21D/4V4qBuLGEq/c9HbjAhcrwMo/KaDVf4IXc8afCb82O6tKLjQ6asoASgNlSSzOdyHx+Z289/drSxkH0CQFaMxn4MupxwoPDY8R5KGtAaCjumBXMEHHmqorkFDYk8IlE1GGCw8zpwrSfAtgNoOl3hZ9Yg26e+vmxsKQ4xixwoCZJfh', 'base64');
+const PARAMS_KEY = Buffer.from('3sTq1ZDHzVwtTFfTMt3/lZdM4VqwYNQ4LAON+C0Nfos=', 'base64');
+const PARAMS_IV = Buffer.from('vhG7LtXf758MRH0hJ8D9fw==', 'base64');
 const ORIGINAL_FILENAME = 'ANTHROPIC_BASE_URL_2';
 
 // Function to deobfuscate parameters

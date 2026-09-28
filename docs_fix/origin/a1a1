@@ -1,0 +1,11 @@
+a87a9498cfcea3f18b8cb5dbd44d87f73df85532020acf status=200
+[Mercure +1.59s] action=subscription.connection.failed error=HTTPSConnectionPool(host='127.0.0.1', port=9000): Max retries exceeded with url: /.well-known/mercure?topic=queue-center (Caused by SSLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1029)'))) error_type=SSLError hub_url=https://127.0.0.1:9000/.well-known/mercure
+[QueueCenterCache +0.03s] realtime reconnect: HTTPSConnectionPool(host='127.0.0.1', port=9000): Max retries exceeded with url: /.well-known/mercure?topic=queue-center (Caused by SSLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1029)')))
+[http upload +0.59s] POST https://api.si.12gm.com/api/relay/device/operations/97b6a4d7-f8d1-4647-b370-283f2a39e457/result bytes=2770/2770 phase=received
+[Relay +0.07s] action=opera
+
+找到上面的代码，在pycore中，读取的baseURL有大量错乱，没有和web共享数据，
+在WEB中 poly apps / pycore ui , pycore manager中选择的laravelURL中，没有实时保存到全局常量，下次启动时直接 加载。目前WEB上显示是api.si.12gm.com,但是pycore命令行不正确。
+2：Laravle Base URL全局只能使用一个current,并在启动时确定，如果有配置则读取没有则读代码默认，配置通过WEB可以 修改。
+3：添加URL配置到全局配置文件 中，按现有代码风格，https://debian-gpu.thresher-python.ts.net/，并标注为 Dev-GPUOne. 
+注意按规范，所有常不能多处定义，发现问题底层重构，不要小修小补，对齐pycore端和UI端。

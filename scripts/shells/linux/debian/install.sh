@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -106,7 +95,10 @@ execute_installation_scripts() {
 echo "Core Node Installation Script"
 echo
 # Run selector to get configuration
-"$selector_common_file"
+if ! "$selector_common_file"; then
+    echo "Server configuration cancelled."
+    exit 0
+fi
 
 # Get the selected mode after selector runs
 INSTALL_MODE=$(get_var "INSTALL_MODE")
@@ -114,10 +106,14 @@ echo "Selected options:"
 echo "  Installation mode: $INSTALL_MODE"
 echo
 
-# Note: Services (MySQL, Redis, PostgreSQL, Docker, Nginx) are always installed
-# The START_* variables from selector_common.sh control whether to start them after installation
+# Note: a service switched OFF in the selector is not installed at all
+# (INSTALL_* follows the START_* toggles; the apt repo is skipped/removed too).
 echo "Services will be installed, START_* variables control service startup..."
 
+# The selector above is the only interactive step. From here on the chain runs
+# unattended: every prompt_read_default call returns its documented default
+# immediately instead of waiting on the TTY.
+export DD_AUTO_CONTINUE=true
 
 execute_installation_scripts
 

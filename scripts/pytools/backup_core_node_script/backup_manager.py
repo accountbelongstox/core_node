@@ -20,6 +20,11 @@ project_root = script_dir.parent.parent.parent
 pycore_path = project_root / "pycore"
 sys.path.insert(0, str(pycore_path))
 
+# Backup needs no ML deps; importing pyfoundations runs third_party.py's import-time
+# check_and_install_dependencies() (CUDA probe + heavy installs). Skip it (set BEFORE the
+# pyfoundations import). os is already imported above.
+os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
+
 from pyfoundations.color_print import ColorPrint
 
 class BackupManager:

@@ -1,0 +1,683 @@
+# -*- coding: utf-8 -*-
+"""Qwen3TTS domain adapter for the isolated service HTTP API."""
+
+from __future__ import annotations
+
+import json
+import urllib.parse
+import uuid
+from typing import Any, Callable, Dict, Optional, Tuple
+
+from pycore.pyfoundations.backoff_wait import BackoffWait
+from pycore.pyutils.common.http_client import HttpClient
+from pycore.pyutils.tts.qwen.config import (
+    queue_capacity_wait_seconds,
+    queue_recovery_budget_seconds,
+    request_timeout_seconds,
+    service_base_url as base_url,
+)
+
+_DEFAULT_TIMEOUT_S = request_timeout_seconds()
+_QUEUE_RECOVERY_INITIAL_BACKOFF_S = 0.25
+_QUEUE_RECOVERY_MAX_BACKOFF_S = 2.0
+_QUEUE_RECOVERY_STATUS_TIMEOUT_S = 3.0
+_QUEUE_RESULT_REQUEST_TIMEOUT_S = 30.0
+# A full server queue is waited out on the queue event stream (a finishing job
+# frees a slot), never by polling /status on a timer.
+_CAPACITY_EVENT_WAIT_S = 20.0
+_CAPACITY_POLL_CLIENT_PREFIX = "pycore-qwen-capacity-"
+_RETRYABLE_QUEUE_ERROR_MARKERS = (
+    "aborted",
+    "broken pipe",
+    "connection",
+    "eof",
+    "host unreachable",
+    "remote end closed",
+    "reset",
+    "timed out",
+    "timeout",
+    "winerror 10053",
+    "winerror 10054",
+)
+_HTTP_CLIENT = HttpClient(
+    default_timeout=_DEFAULT_TIMEOUT_S,
+    default_headers={"Accept": "*/*"},
+)
+ProgressCallback = Callable[[Dict[str, Any]], None]
+
+
+def request(
+    method: str,
+    path: str,
+    *,
+    query: Optional[Dict[str, Any]] = None,
+    json_body: Optional[Dict[str, Any]] = None,
+    timeout: float = _DEFAULT_TIMEOUT_S,
+    service_base_url: Optional[str] = None,
+) -> Tuple[int, Dict[str, str], bytes, Optional[str]]:
+    service_url = str(service_base_url or base_url()).rstrip("/")
+    url = f"{service_url}/{str(path or '').lstrip('/')}"
+    try:
+        response = _HTTP_CLIENT.request(
+            method,
+            url,
+            json=json_body,
+            query=query,
+            timeout=timeout,
+        )
+        return (
+            response.status_code,
+            response.headers,
+            response.content,
+            None,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return 0, {}, b"", str(exc)
+
+
+def get_json(
+    path: str,
+    *,
+    query: Optional[Dict[str, Any]] = None,
+    timeout: float = _DEFAULT_TIMEOUT_S,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+    status, _headers, body, transport_error = request(
+        "GET",
+        path,
+        query=query,
+        timeout=timeout,
+        service_base_url=service_base_url,
+    )
+    return _decode_json_response(status, body, transport_error)
+
+
+def post_json(
+    path: str,
+    payload: Dict[str, Any],
+    *,
+    timeout: float = _DEFAULT_TIMEOUT_S,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+    status, _headers, body, transport_error = request(
+        "POST",
+        path,
+        json_body=payload,
+        timeout=timeout,
+        service_base_url=service_base_url,
+    )
+    return _decode_json_response(status, body, transport_error)
+
+
+def synthesize_bytes(
+    payload: Dict[str, Any],
+    *,
+    timeout: float = _DEFAULT_TIMEOUT_S,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, bytes, Optional[str]]:
+    status, _headers, body, transport_error = request(
+        "POST",
+        "/synthesize",
+        json_body=payload,
+        timeout=timeout,
+        service_base_url=service_base_url,
+    )
+    if transport_error:
+        return False, b"", transport_error
+    if 200 <= status < 300 and body:
+        return True, body, None
+    return False, b"", _error_message(status, body)
+
+
+def synthesize_batch(
+    payload: Dict[str, Any],
+    *,
+    timeout: float = _DEFAULT_TIMEOUT_S,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, Any, Optional[str]]:
+    ok, response, error = post_json(
+        "/synthesize_batch",
+        payload,
+        timeout=timeout,
+        service_base_url=service_base_url,
+    )
+    return ok, response, error
+
+
+def queue_submit(
+    payload: Dict[str, Any],
+    *,
+    timeout: float = 30.0,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+    ok, response, error = post_json(
+        "/queue/submit",
+        payload,
+        timeout=max(0.1, float(timeout)),
+        service_base_url=service_base_url,
+    )
+    if not ok or not isinstance(response, dict):
+        return False, None, error or "qwen3tts queue submit failed"
+    job_id = str(response.get("job_id") or "")
+    if not job_id:
+        return False, None, "missing job_id in queue response"
+    return True, response, None
+
+
+def queue_status(
+    *,
+    timeout: float = 10.0,
+    service_base_url: Optional[str] = None,
+) -> Dict[str, Any]:
+    ok, response, error = get_json(
+        "/status",
+        timeout=timeout,
+        service_base_url=service_base_url,
+    )
+    if ok and isinstance(response, dict):
+        return response
+    return {"ok": False, "error": error or "queue status failed"}
+
+
+def queue_events(
+    client_id: str,
+    since_seq: int,
+    timeout_seconds: float = 20.0,
+    *,
+    request_timeout: Optional[float] = None,
+    service_base_url: Optional[str] = None,
+) -> Dict[str, Any]:
+    poll_timeout = max(0.0, float(timeout_seconds))
+    http_timeout = (
+        max(0.1, float(request_timeout))
+        if request_timeout is not None
+        else max(5.0, poll_timeout + 5.0)
+    )
+    ok, response, error = get_json(
+        "/queue/events/poll",
+        query={
+            "client_id": client_id,
+            "since_seq": max(0, int(since_seq or 0)),
+            "timeout_s": poll_timeout,
+        },
+        timeout=http_timeout,
+        service_base_url=service_base_url,
+    )
+    if ok and isinstance(response, dict):
+        return response
+    return {"success": False, "error": error or "queue event poll failed"}
+
+
+def acknowledge_events(
+    client_id: str,
+    seq: int,
+    *,
+    timeout: float = 10.0,
+    service_base_url: Optional[str] = None,
+) -> bool:
+    ok, response, _error = post_json(
+        "/queue/events/ack",
+        {"client_id": client_id, "seq": max(0, int(seq or 0))},
+        timeout=max(0.1, float(timeout)),
+        service_base_url=service_base_url,
+    )
+    return bool(ok and isinstance(response, dict) and response.get("success"))
+
+
+def queue_cancel(
+    job_id: str,
+    *,
+    service_base_url: Optional[str] = None,
+) -> bool:
+    ok, response, _error = post_json(
+        "/queue/cancel",
+        {"job_id": str(job_id or "")},
+        timeout=10.0,
+        service_base_url=service_base_url,
+    )
+    return bool(ok and isinstance(response, dict) and response.get("cancelled"))
+
+
+def _notify_progress(
+    callback: Optional[ProgressCallback],
+    value: Dict[str, Any],
+) -> None:
+    if callback is not None:
+        callback(dict(value))
+
+
+def queue_submit_and_wait(
+    payload: Dict[str, Any],
+    client_job_id: str,
+    *,
+    progress_callback: Optional[ProgressCallback] = None,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, bytes, Optional[str]]:
+    stable_id = str(client_job_id or "").strip() or uuid.uuid4().hex
+    request_payload = dict(payload or {})
+    request_payload["client_job_id"] = stable_id
+    ok, job, error = _submit_with_recovery(
+        request_payload,
+        stable_id,
+        progress_callback=progress_callback,
+        service_base_url=service_base_url,
+    )
+    if not ok or not isinstance(job, dict):
+        return False, b"", error or "qwen3tts queue submit failed"
+    job_id = str(job.get("job_id") or "")
+    _notify_progress(progress_callback, job)
+    if job.get("status") == "done":
+        return fetch_queue_result(
+            job_id,
+            service_base_url=service_base_url,
+        )
+    if job.get("status") in {"failed", "cancelled"}:
+        return False, b"", str(job.get("error") or job.get("status"))
+
+    poll_client_id = f"pycore-qwen-wait-{stable_id}"
+    cursor = 0
+    instance_id = str(job.get("event_instance_id") or "")
+    recovery_wait: Optional[BackoffWait] = None
+    while True:
+        response = queue_events(
+            poll_client_id,
+            cursor,
+            20.0,
+            request_timeout=25.0,
+            service_base_url=service_base_url,
+        )
+        if not response.get("success"):
+            poll_error = str(response.get("error") or "queue event poll failed")
+            reconciled = find_queue_job(
+                job_id,
+                stable_id,
+                timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
+                service_base_url=service_base_url,
+            )
+            if reconciled is not None:
+                job_id = str(reconciled.get("job_id") or job_id)
+                _notify_progress(progress_callback, reconciled)
+                terminal = _terminal_result(
+                    reconciled,
+                    job_id,
+                    service_base_url=service_base_url,
+                )
+                if terminal is not None:
+                    return terminal
+            if not _is_retryable_queue_error(poll_error):
+                return False, b"", poll_error
+            if recovery_wait is None:
+                recovery_wait = BackoffWait(
+                    queue_recovery_budget_seconds(),
+                    _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+                    _QUEUE_RECOVERY_MAX_BACKOFF_S,
+                )
+            if not recovery_wait.sleep():
+                return False, b"", (
+                    f"qwen3tts queue event recovery exceeded "
+                    f"{recovery_wait.budget_seconds:.0f}s (last error: {poll_error})"
+                )
+            continue
+        recovery_wait = None
+        next_instance = str(response.get("instance_id") or "")
+        if (instance_id and next_instance != instance_id) or response.get("replay_lost"):
+            reconciled = find_queue_job(
+                job_id,
+                stable_id,
+                timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
+                service_base_url=service_base_url,
+            )
+            if reconciled is not None:
+                job_id = str(reconciled.get("job_id") or job_id)
+                _notify_progress(progress_callback, reconciled)
+                terminal = _terminal_result(
+                    reconciled,
+                    job_id,
+                    service_base_url=service_base_url,
+                )
+                if terminal is not None:
+                    return terminal
+            else:
+                resubmit_ok, resubmitted, resubmit_error = _submit_with_recovery(
+                    request_payload,
+                    stable_id,
+                    progress_callback=progress_callback,
+                    service_base_url=service_base_url,
+                )
+                if not resubmit_ok or not isinstance(resubmitted, dict):
+                    return False, b"", resubmit_error or "qwen3tts queue recovery failed"
+                job_id = str(resubmitted.get("job_id") or job_id)
+                _notify_progress(progress_callback, resubmitted)
+                terminal = _terminal_result(
+                    resubmitted,
+                    job_id,
+                    service_base_url=service_base_url,
+                )
+                if terminal is not None:
+                    return terminal
+                next_instance = str(
+                    resubmitted.get("event_instance_id") or next_instance
+                )
+            cursor = max(0, int(response.get("seq") or 0))
+            if cursor:
+                acknowledge_events(
+                    poll_client_id,
+                    cursor,
+                    timeout=10.0,
+                    service_base_url=service_base_url,
+                )
+            instance_id = next_instance
+            continue
+        instance_id = next_instance or instance_id
+        events = response.get("events") if isinstance(response.get("events"), list) else []
+        for record in events:
+            if not isinstance(record, dict):
+                continue
+            cursor = max(cursor, int(record.get("seq") or 0))
+            event = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+            event_job_id = str(event.get("job_id") or "")
+            event_client_job_id = str(event.get("client_job_id") or "")
+            if event_job_id != job_id and event_client_job_id != stable_id:
+                continue
+            job_id = event_job_id or job_id
+            progress = event.get("job") if isinstance(event.get("job"), dict) else event
+            _notify_progress(progress_callback, progress)
+            terminal = _terminal_result(
+                event,
+                job_id,
+                service_base_url=service_base_url,
+            )
+            if terminal is not None:
+                return terminal
+        if cursor:
+            acknowledge_events(
+                poll_client_id,
+                cursor,
+                timeout=10.0,
+                service_base_url=service_base_url,
+            )
+
+
+def fetch_queue_result(
+    job_id: str,
+    *,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, bytes, Optional[str]]:
+    wait = BackoffWait(
+        queue_recovery_budget_seconds(),
+        _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+        _QUEUE_RECOVERY_MAX_BACKOFF_S,
+    )
+    result_path = f"/queue/result/{urllib.parse.quote(str(job_id or ''), safe='')}"
+    while True:
+        status, _headers, body, transport_error = request(
+            "GET",
+            result_path,
+            timeout=_QUEUE_RESULT_REQUEST_TIMEOUT_S,
+            service_base_url=service_base_url,
+        )
+        if 200 <= status < 300 and body:
+            return True, body, None
+        error = transport_error or _error_message(status, body)
+        retryable = bool(transport_error and _is_retryable_queue_error(error)) or status == 409
+        if not retryable:
+            return False, b"", error
+        if not wait.sleep():
+            return False, b"", (
+                f"qwen3tts result fetch recovery exceeded "
+                f"{wait.budget_seconds:.0f}s (last error: {error})"
+            )
+
+
+def find_queue_job(
+    job_id: str,
+    client_job_id: str,
+    *,
+    timeout: float = 10.0,
+    service_base_url: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    job, _snapshot = inspect_queue_job(
+        job_id,
+        client_job_id,
+        timeout=timeout,
+        service_base_url=service_base_url,
+    )
+    return job
+
+
+def inspect_queue_job(
+    job_id: str,
+    client_job_id: str,
+    *,
+    timeout: float = 10.0,
+    service_base_url: Optional[str] = None,
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Return one job and the queue snapshot used to locate it."""
+    snapshot = queue_status(timeout=timeout, service_base_url=service_base_url)
+    jobs = snapshot.get("jobs") if isinstance(snapshot.get("jobs"), list) else []
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        if str(job.get("job_id") or "") == job_id:
+            return job, snapshot
+        if str(job.get("client_job_id") or "") == client_job_id:
+            return job, snapshot
+    return None, snapshot
+
+
+def _await_queue_event(
+    poll_client_id: str,
+    since_seq: int,
+    timeout_seconds: float,
+    service_base_url: Optional[str],
+) -> Tuple[bool, int]:
+    """Block on the server queue event stream until the next event after
+    ``since_seq`` (or the timeout); returns (stream ok, new cursor)."""
+    response = queue_events(
+        poll_client_id,
+        since_seq,
+        max(0.0, timeout_seconds),
+        service_base_url=service_base_url,
+    )
+    if not response.get("success"):
+        return False, since_seq
+    cursor = max(since_seq, int(response.get("seq") or 0))
+    if cursor:
+        acknowledge_events(poll_client_id, cursor, timeout=10.0, service_base_url=service_base_url)
+    return True, cursor
+
+
+def _submit_with_recovery(
+    payload: Dict[str, Any],
+    client_job_id: str,
+    *,
+    progress_callback: Optional[ProgressCallback] = None,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+    """Submit with bounded retries: capacity contention and transport recovery
+    each own a separate wait budget; expiry fails the call (retryable for the
+    task) instead of waiting on the single-job queue forever."""
+    last_error = "qwen3tts queue submit failed"
+    wait_revision = 0
+    capacity_wait: Optional[BackoffWait] = None
+    recovery_wait: Optional[BackoffWait] = None
+    capacity_snapshot: Dict[str, Any] = {}
+    counts: Dict[str, Any] = {}
+    active = 0
+    queue_max = 0
+    capacity_client_id = f"{_CAPACITY_POLL_CLIENT_PREFIX}{client_job_id}"
+    capacity_cursor = -1
+    while True:
+        if capacity_wait is not None:
+            reconciled, capacity_snapshot = inspect_queue_job(
+                "",
+                client_job_id,
+                timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
+                service_base_url=service_base_url,
+            )
+            if reconciled is not None:
+                return True, reconciled, None
+            counts = capacity_snapshot.get("counts") if isinstance(capacity_snapshot.get("counts"), dict) else {}
+            queue_max = int(capacity_snapshot.get("queue_max") or 0)
+            active = int(counts.get("pending") or 0) + int(counts.get("running") or 0)
+            if queue_max > 0 and active >= queue_max:
+                if capacity_wait.expired:
+                    return False, None, (
+                        f"qwen3tts queue capacity wait exceeded {capacity_wait.budget_seconds:.0f}s "
+                        f"(last error: {last_error})"
+                    )
+                if capacity_cursor < 0:
+                    # First wait: take the current cursor without blocking.
+                    stream_ok, capacity_cursor = _await_queue_event(
+                        capacity_client_id, 0, 0.0, service_base_url,
+                    )
+                else:
+                    stream_ok, capacity_cursor = _await_queue_event(
+                        capacity_client_id,
+                        capacity_cursor,
+                        min(_CAPACITY_EVENT_WAIT_S, max(0.0, capacity_wait.budget_seconds - capacity_wait.elapsed)),
+                        service_base_url,
+                    )
+                if not stream_ok and not capacity_wait.sleep():
+                    return False, None, (
+                        f"qwen3tts queue capacity wait exceeded {capacity_wait.budget_seconds:.0f}s "
+                        f"(last error: {last_error})"
+                    )
+                continue
+        ok, job, error = queue_submit(
+            payload,
+            timeout=30.0,
+            service_base_url=service_base_url,
+        )
+        if ok and isinstance(job, dict):
+            return True, job, None
+        last_error = str(error or last_error)
+        if not _is_retryable_queue_error(last_error):
+            return False, None, last_error
+        reconciled = find_queue_job(
+            "",
+            client_job_id,
+            timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
+            service_base_url=service_base_url,
+        )
+        if reconciled is not None:
+            return True, reconciled, None
+        capacity_error = is_queue_capacity_error(last_error)
+        wait_revision += 1
+        _notify_progress(progress_callback, {
+            "status": "pending",
+            "progress_revision": wait_revision,
+            "progress": 0,
+            "progress_total": 0,
+            "progress_phase": (
+                "queue_capacity_wait"
+                if capacity_error
+                else "queue_recovery"
+            ),
+        })
+        if capacity_error:
+            if capacity_wait is None:
+                capacity_wait = BackoffWait(
+                    queue_capacity_wait_seconds(),
+                    _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+                    _QUEUE_RECOVERY_MAX_BACKOFF_S,
+                )
+            wait = capacity_wait
+        else:
+            if recovery_wait is None:
+                recovery_wait = BackoffWait(
+                    queue_recovery_budget_seconds(),
+                    _QUEUE_RECOVERY_INITIAL_BACKOFF_S,
+                    _QUEUE_RECOVERY_MAX_BACKOFF_S,
+                )
+            wait = recovery_wait
+        if not wait.sleep():
+            phase = "capacity wait" if capacity_error else "recovery"
+            return False, None, (
+                f"qwen3tts queue {phase} exceeded {wait.budget_seconds:.0f}s "
+                f"(last error: {last_error})"
+            )
+
+
+def _is_retryable_queue_error(error: Optional[str]) -> bool:
+    normalized = str(error or "").strip().lower()
+    if not normalized:
+        return True
+    if normalized.startswith("http 5"):
+        return True
+    if normalized.startswith(("http 408", "http 409", "http 425", "http 429")):
+        return True
+    if normalized.startswith("http 4"):
+        return False
+    return any(marker in normalized for marker in _RETRYABLE_QUEUE_ERROR_MARKERS)
+
+
+def is_queue_capacity_error(error: Optional[str]) -> bool:
+    """Return whether the single active Qwen job currently owns capacity."""
+    normalized = str(error or "").strip().lower()
+    return normalized.startswith("http 429") or "queue full" in normalized
+
+
+def _terminal_result(
+    value: Dict[str, Any],
+    job_id: str,
+    *,
+    service_base_url: Optional[str] = None,
+) -> Optional[Tuple[bool, bytes, Optional[str]]]:
+    status = str(value.get("status") or "")
+    if status == "done":
+        return fetch_queue_result(
+            job_id,
+            service_base_url=service_base_url,
+        )
+    if status in {"failed", "cancelled"}:
+        return False, b"", str(value.get("error") or status)
+    return None
+
+
+def _decode_json_response(
+    status: int,
+    body: bytes,
+    transport_error: Optional[str],
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+    if transport_error:
+        return False, None, transport_error
+    try:
+        parsed = json.loads(body.decode("utf-8")) if body else {}
+    except Exception as exc:  # noqa: BLE001
+        return False, None, f"HTTP {status}: invalid JSON response: {exc}"
+    if not isinstance(parsed, dict):
+        return False, None, f"HTTP {status}: JSON response must be an object"
+    if 200 <= status < 300:
+        return True, parsed, None
+    return False, parsed, _error_message(status, body)
+
+
+def _error_message(status: int, body: bytes) -> str:
+    detail = body.decode("utf-8", "replace") if body else "request failed"
+    try:
+        parsed = json.loads(detail)
+        if isinstance(parsed, dict):
+            detail = str(parsed.get("error") or parsed.get("message") or detail)
+    except Exception:  # noqa: BLE001
+        pass
+    return f"HTTP {status}: {detail}" if status else detail
+
+
+__all__ = [
+    "acknowledge_events",
+    "base_url",
+    "fetch_queue_result",
+    "find_queue_job",
+    "inspect_queue_job",
+    "get_json",
+    "post_json",
+    "queue_cancel",
+    "queue_events",
+    "queue_status",
+    "queue_submit",
+    "queue_submit_and_wait",
+    "request",
+    "synthesize_batch",
+    "synthesize_bytes",
+]

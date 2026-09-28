@@ -229,7 +229,7 @@ Route::prefix('certificates')->group(function () {
 - Use `ServerManagerV1CertificateManager` for certificate management (✅ Implemented)
 - Integrate with existing `ServerManagerV1DeployCommand` logic
 - Reuse `ServerManagerV1CertificateManagerCtl` SSL functionality
-- Maintain compatibility with shell script deployment (✅ Enhanced in 130_setup_domains.sh)
+- Maintain compatibility with shell script deployment (✅ Enhanced in 132_setup_domains.sh)
 - Support wildcard certificate generation with expanded domain coverage (✅ Implemented)
 - Automatic index.html file creation (✅ Implemented)
 - Certificate expansion for new subdomains (✅ Implemented)
@@ -264,7 +264,7 @@ Route::prefix('certificates')->group(function () {
 - Migration guide from CLI to API
 
 ## Notes
-- Current shell script (130_setup_domains.sh) should remain functional
+- Current shell script (132_setup_domains.sh) should remain functional
 - API should provide same functionality as CLI commands
 - JSON database structure already implemented in `ServerManagerV1DomainManager`
 - Consider implementing WebSocket for real-time deployment status updates

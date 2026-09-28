@@ -1,0 +1,6 @@
+{
+  "hostKey": "loopback",
+  "portKey": "mcp_chrome",
+  "path": "mcp",
+  "description": "Default HTTP MCP server contract references for STDIO proxy"
+}

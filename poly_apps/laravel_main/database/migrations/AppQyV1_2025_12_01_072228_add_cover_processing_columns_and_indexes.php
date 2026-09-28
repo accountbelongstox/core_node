@@ -21,6 +21,17 @@ return new class extends Migration
 
     public function up(): void
     {
+        // Ordering quirk: this file sorts BEFORE the create-table migration
+        // (AppQyV1_2025_12_20_000006_create_vocabulary_covers_table). On a fresh
+        // database (e.g. a new per-app PostgreSQL database) the table does not
+        // exist yet at this point and alignTableStructureFromArray would create a
+        // partial table with only `attempts`, then fail indexing `status`. Skip
+        // here; the create-table migration owns the FULL structure including
+        // `attempts` and idx_cover_processing.
+        if (!Schema::connection($this->connection)->hasTable($this->tableName)) {
+            return;
+        }
+
         // This migration only adds columns and indexes to existing table
         $tableStructure = [
             'columns' => [
@@ -54,14 +65,16 @@ return new class extends Migration
     public function down(): void
     {
         if (Schema::connection($this->connection)->hasTable($this->tableName)) {
-            Schema::connection($this->connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) {
-                $indexName = 'idx_cover_processing';
-                $indexes = Schema::connection($this->connection)->getConnection()
-                    ->select("SELECT name FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?", [$indexName, $this->tableName]);
-                if (!empty($indexes)) {
+            // Native, driver-agnostic index-existence check (sqlite + pgsql) via
+            // hasIndex() -- no raw pg_indexes / sqlite_master lookups.
+            $indexName = 'idx_cover_processing';
+            $hasIndex = Schema::connection($this->connection)->hasIndex($this->tableName, $indexName);
+
+            Schema::connection($this->connection)->table($this->tableName, function (\Illuminate\Database\Schema\Blueprint $table) use ($indexName, $hasIndex) {
+                if ($hasIndex) {
                     $table->dropIndex($indexName);
                 }
-                
+
                 if (Schema::connection($this->connection)->hasColumn($this->tableName, 'attempts')) {
                     $table->dropColumn('attempts');
                 }

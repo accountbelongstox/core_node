@@ -1,0 +1,19 @@
+{
+  "task_id": "codemart-4",
+  "role": "codemart",
+  "verdict": "approved",
+  "findings": {
+    "LB-020 (UI)": {"status": "fixed", "reason": "CmWalletPage reads the accepted deposit methods from bootstrap vocabulary.policy.deposit_payment_methods (laravel CodeMartV1Constants:759), falling back to bank_transfer; the selected method is clamped to the list; Pay-now shows only for accepted non-bank methods, so the old Alipay/WeChat placeholder URLs are hidden. Withdrawal methods are a separate flow and unchanged."},
+    "LB-008 (UI)": {"status": "fixed", "reason": "The project cancel/complete notice appends transitions.escrowRefunded from side_effects.escrow_refund.refunded_amount (laravel ProjectCtl:336 / ProjectStateService). The admin escrow table offers 'Refund remainder' only when refundable is true (AdminFinanceService:122); it posts admin/escrows/{id}/refund (routes/CodeMartV1Router/api.php:119) with optional notes, and the notice shows refunded_amount, or 'nothing left' when replayed (matching the service's return shape)."},
+    "LB-009 / LB-024 (UI)": {"status": "fixed", "reason": "errors.escrow_insufficient and errors.escrow_release_failed are reworded to match the server codes; the existing task_* codes are unchanged."},
+    "LB-025 (UI)": {"status": "fixed", "reason": "A replayed invoice (HTTP 200) shows wallet.invoiceExists instead of invoiceCreated (201)."},
+    "LB-019 (UI)": {"status": "fixed", "reason": "errors.sms_unavailable matches laravel's codedError sms_unavailable (503). The verification page tags unfinished optional steps and, when onboarding.phone_verification_available is false (BootstrapService:224), replaces the phone form with an info notice. Dashboard progress counts only required steps, matching the server's optional flag (BootstrapService:191,215)."},
+    "route table": {"status": "fixed", "reason": "CodeMart stays on auth:sanctum; api/logout moved to dashboard.auth:user (self-service), so no UI change is needed."}
+  },
+  "cross_end": "Every field codemart-4 reads exists in the current laravel tree: deposit_payment_methods, side_effects.escrow_refund, refundable, the escrow refund route and response (refunded_amount, replayed), phone_verification_available, optional and ERROR_SMS_UNAVAILABLE.",
+  "issues": [
+    "(orchestrator/laravel) the laravel side of these fields (the admin escrow refund endpoint and service, the bootstrap optional/phone_verification_available flags, deposit_payment_methods in the policy) was added after laravel-T2 was approved and has not been submitted for review. Route it into laravel-T7 or a new laravel task."
+  ],
+  "checks": "Diffs of CmWalletPage, CmProjectDetailPage, CmDashboardPage, CmVerificationPage, CmAdminApi and CmAdminFinancePages read; the new keys are present in en and zh; each consumed field was grepped in poly_apps/laravel_main.",
+  "checked_at": "2026-09-27T04:49:28+10:00"
+}

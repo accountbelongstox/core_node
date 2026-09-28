@@ -14,15 +14,17 @@ Reference: QtScrcpy's Device and Server classes
 """
 
 import asyncio
-import threading
+from contextlib import asynccontextmanager
 from typing import Dict, Optional, Callable
 from pathlib import Path
 from enum import Enum
 
-from pycore.pyutils.device_manager import DeviceManager
+from pycore.pyutils.device.device_manager import DeviceManager
 from pycore.pyutils.device.scrcpy_device import ScrcpyDevice, ServerParams, VideoCodec
 from pycore.pyutils.device.port_pool import PortPool
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider, await_bus_task
 
 
 class DeviceConnectionState(Enum):
@@ -77,6 +79,18 @@ class DeviceConnection:
         return self.retry_count < self.max_retries
 
 
+@asynccontextmanager
+async def _bus_lease(signal_name: str):
+    """Serialize one async device operation through a THREAD_BUS lease."""
+    while THREAD_BUS.has_signal(signal_name):
+        await asyncio.sleep(0.05)
+    THREAD_BUS.signal(signal_name, True)
+    try:
+        yield
+    finally:
+        THREAD_BUS.clear_signal(signal_name)
+
+
 class ConnectionManager:
     """
     Manages multiple device connections 
@@ -117,8 +131,8 @@ class ConnectionManager:
         self.connections: Dict[str, DeviceConnection] = {}
 
         # Initialization locks per device (prevent concurrent init)
-        # Use threading.Lock for cross-event-loop synchronization
-        self.init_locks: Dict[str, threading.Lock] = {}
+        # Device initialization is serialized with a THREAD_BUS lease.
+        self._connect_signal_prefix = f'pyutils.device.connection.{id(self)}'
 
         # Event callbacks
         self.on_connected: Optional[Callable[[str], None]] = None
@@ -153,11 +167,8 @@ class ConnectionManager:
         Raises:
             RuntimeError: If connection fails after retries
         """
-        # Get or create initialization lock for this device
-        if serial not in self.init_locks:
-            self.init_locks[serial] = threading.Lock()
-
-        with self.init_locks[serial]:
+        connect_signal = f'{self._connect_signal_prefix}.{serial}'
+        async with _bus_lease(connect_signal):
             # Check if already connected
             if serial in self.connections and not force_reconnect:
                 connection = self.connections[serial]
@@ -231,7 +242,6 @@ class ConnectionManager:
         Raises:
             RuntimeError: If all retry attempts fail
         """
-        loop = asyncio.get_event_loop()
         last_error = None
 
         # STEP 1: Verify and push jar (MANDATORY, IDEMPOTENT)
@@ -266,7 +276,7 @@ class ConnectionManager:
                 # Increased timeout to 60s for multi-device ADB queue delays
                 ColorPrint.blue(f"[ConnectionManager] Starting scrcpy-server for {connection.serial}...")
                 await asyncio.wait_for(
-                    loop.run_in_executor(None, connection.device.start_server),
+                    await_bus_task(connection.device.start_server),
                     timeout=60.0
                 )
 
@@ -388,8 +398,25 @@ class ConnectionManager:
         return list(self.connections.keys())
 
 
-# ✅ 延迟初始化（需要先初始化依赖组件）
-_connection_manager: Optional[ConnectionManager] = None
+def _create_connection_manager(
+    device_manager=None,
+    port_pool=None,
+    server_manager=None,
+    adb_path: str = "adb",
+) -> ConnectionManager:
+    if device_manager is None or port_pool is None or server_manager is None:
+        raise ValueError(
+            "device_manager, port_pool, and server_manager are required "
+            "for first initialization"
+        )
+    return ConnectionManager(device_manager, port_pool, server_manager, adb_path)
+
+
+_CONNECTION_MANAGER_PROVIDER = SerializedSingletonProvider(
+    _create_connection_manager,
+    "device.connection_manager.provider",
+    "ConnectionManagerProvider",
+)
 
 def get_connection_manager(
     device_manager=None,
@@ -409,19 +436,11 @@ def get_connection_manager(
     Returns:
         ConnectionManager全局实例
     """
-    global _connection_manager
-    if _connection_manager is None:
-        if device_manager is None or port_pool is None or server_manager is None:
-            raise ValueError(
-                "首次调用get_connection_manager()需要提供 "
-                "device_manager, port_pool, server_manager"
-            )
-        _connection_manager = ConnectionManager(
-            device_manager=device_manager,
-            port_pool=port_pool,
-            server_manager=server_manager,
-            adb_path=adb_path
-        )
-    return _connection_manager
+    return _CONNECTION_MANAGER_PROVIDER.get(
+        device_manager,
+        port_pool,
+        server_manager,
+        adb_path,
+    )
 
 __all__ = ['ConnectionManager', 'DeviceConnection', 'DeviceConnectionState', 'get_connection_manager']

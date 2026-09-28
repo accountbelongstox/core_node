@@ -23,8 +23,8 @@ fi
 mkdir -p "$BUILD_DIR/$PROJECT_DIR"
 cd "$BUILD_DIR/$PROJECT_DIR"
 
-export CFLAGS='-O2'
-export CXXFLAGS="$CFLAGS"
+CFLAGS='-O2'
+CXXFLAGS="$CFLAGS"
 
 if [[ -d "$DIRNAME" ]]
 then

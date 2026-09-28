@@ -15,39 +15,42 @@ Features:
 - Shutdown timeout handling
 
 Usage:
-    from pycore.pyutils.native_ui import ShutdownManager
-
-    # Get singleton instance
-    shutdown_mgr = ShutdownManager()
+    from pycore.pyutils.native_ui.step7_managers.shutdown_manager import shutdown_manager
 
     # Register pre-shutdown hooks
     def cleanup_resources():
         print("Cleaning up resources...")
 
-    shutdown_mgr.add_shutdown_hook(cleanup_resources, priority=10)
+    shutdown_manager.add_shutdown_hook(cleanup_resources, priority=10)
 
     # Request shutdown
-    shutdown_mgr.request_shutdown()
+    shutdown_manager.request_shutdown()
 
     # Or request restart
-    shutdown_mgr.request_restart()
+    shutdown_manager.request_restart()
 
     # Check shutdown state
-    if shutdown_mgr.is_shutdown_requested():
+    if shutdown_manager.is_shutdown_requested():
         print("Shutdown in progress")
 
     # Wait for shutdown completion
-    shutdown_mgr.wait_for_completion(timeout=10.0)
+    shutdown_manager.wait_for_completion(timeout=10.0)
 
 Author: Extracted from d3-check, adapted for pycore
 """
 
-import threading
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 import time
 from typing import List, Callable, Optional, Tuple
 from dataclasses import dataclass, field
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 @dataclass
@@ -74,37 +77,23 @@ class ShutdownManager:
     Singleton pattern implementation for global shutdown management.
     """
 
-    _instance: Optional['ShutdownManager'] = None
-    _lock = threading.Lock()
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize shutdown manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize shutdown manager."""
         # Shutdown state
-        self._shutdown_requested = threading.Event()
-        self._restart_requested = threading.Event()
-        self._shutdown_completed = threading.Event()
+        self._signal_prefix = f'pyutils.native_ui.shutdown.{id(self)}'
 
         # Shutdown hooks
         self._hooks: List[ShutdownHook] = []
-        self._hooks_lock = threading.Lock()
+        init_serialized_owner(
+            self,
+            'pyutils.native_ui.shutdown.hooks',
+            'NativeUIShutdownHooksThread',
+        )
 
         # UI quit callback (for GUI applications)
-        self._ui_quit_callback: Optional[Callable] = None
+        THREAD_BUS.signal(f'{self._signal_prefix}.ui_quit', None)
 
         ColorPrint.print_info("[ShutdownManager] Initialized (singleton)")
-        self._initialized = True
 
     def register_ui_quit_callback(self, callback: Callable):
         """
@@ -116,9 +105,10 @@ class ShutdownManager:
         Args:
             callback: Function to call to quit UI (e.g., root.quit())
         """
-        self._ui_quit_callback = callback
+        THREAD_BUS.signal(f'{self._signal_prefix}.ui_quit', callback)
         ColorPrint.print_info("[ShutdownManager] UI quit callback registered")
 
+    @serialized_method
     def add_shutdown_hook(
         self,
         name: str,
@@ -138,38 +128,39 @@ class ShutdownManager:
             priority: Execution priority (higher = earlier)
             timeout: Maximum execution time
         """
-        with self._hooks_lock:
-            hook = ShutdownHook(
-                name=name,
-                callback=callback,
-                priority=priority,
-                timeout=timeout
-            )
-            self._hooks.append(hook)
+        hook = ShutdownHook(
+            name=name,
+            callback=callback,
+            priority=priority,
+            timeout=timeout
+        )
+        self._hooks.append(hook)
+        self._hooks.sort(key=lambda h: h.priority, reverse=True)
+        ColorPrint.print_info(
+            f"[ShutdownManager] Added shutdown hook: {name} "
+            f"(priority={priority})"
+        )
 
-            # Sort by priority (descending)
-            self._hooks.sort(key=lambda h: h.priority, reverse=True)
-
-            ColorPrint.print_info(
-                f"[ShutdownManager] Added shutdown hook: {name} "
-                f"(priority={priority})"
-            )
-
+    @serialized_method
     def remove_shutdown_hook(self, name: str) -> bool:
         """Remove a shutdown hook by name"""
-        with self._hooks_lock:
-            for i, hook in enumerate(self._hooks):
-                if hook.name == name:
-                    del self._hooks[i]
-                    ColorPrint.print_info(
-                        f"[ShutdownManager] Removed shutdown hook: {name}"
-                    )
-                    return True
+        for index, hook in enumerate(self._hooks):
+            if hook.name == name:
+                del self._hooks[index]
+                ColorPrint.print_info(
+                    f"[ShutdownManager] Removed shutdown hook: {name}"
+                )
+                return True
 
         ColorPrint.print_warn(
             f"[ShutdownManager] Shutdown hook not found: {name}"
         )
         return False
+
+    @serialized_method
+    def _hook_snapshot(self) -> List[ShutdownHook]:
+        """Return the ordered shutdown-hook snapshot."""
+        return list(self._hooks)
 
     def request_shutdown(self):
         """
@@ -178,22 +169,23 @@ class ShutdownManager:
         This is the ONLY method that should be called to trigger shutdown.
         It sets the shutdown flag and quits UI if registered.
         """
-        if self._shutdown_requested.is_set():
+        if THREAD_BUS.has_signal(f'{self._signal_prefix}.requested'):
             return
 
         ColorPrint.print_warn("=" * 60)
         ColorPrint.print_warn("[ShutdownManager] Shutdown requested")
         ColorPrint.print_warn("=" * 60)
 
-        self._shutdown_requested.set()
+        THREAD_BUS.signal(f'{self._signal_prefix}.requested', True)
 
         # Quit UI if callback registered
-        if self._ui_quit_callback:
+        ui_quit_callback = THREAD_BUS.get_signal(f'{self._signal_prefix}.ui_quit')
+        if ui_quit_callback:
             try:
                 ColorPrint.print_info(
                     "[ShutdownManager] Quitting UI mainloop..."
                 )
-                self._ui_quit_callback()
+                ui_quit_callback()
             except Exception as e:
                 ColorPrint.print_error(
                     f"[ShutdownManager] Error quitting UI: {e}"
@@ -205,23 +197,24 @@ class ShutdownManager:
 
         This sets both restart and shutdown flags.
         """
-        if self._shutdown_requested.is_set():
+        if THREAD_BUS.has_signal(f'{self._signal_prefix}.requested'):
             return
 
         ColorPrint.print_warn("=" * 60)
         ColorPrint.print_warn("[ShutdownManager] Restart requested")
         ColorPrint.print_warn("=" * 60)
 
-        self._restart_requested.set()
-        self._shutdown_requested.set()
+        THREAD_BUS.signal(f'{self._signal_prefix}.restart', True)
+        THREAD_BUS.signal(f'{self._signal_prefix}.requested', True)
 
         # Quit UI if callback registered
-        if self._ui_quit_callback:
+        ui_quit_callback = THREAD_BUS.get_signal(f'{self._signal_prefix}.ui_quit')
+        if ui_quit_callback:
             try:
                 ColorPrint.print_info(
                     "[ShutdownManager] Quitting UI for restart..."
                 )
-                self._ui_quit_callback()
+                ui_quit_callback()
             except Exception as e:
                 ColorPrint.print_error(
                     f"[ShutdownManager] Error quitting UI: {e}"
@@ -237,13 +230,13 @@ class ShutdownManager:
         Returns:
             True if shutdown completed successfully
         """
-        if not self._shutdown_requested.is_set():
+        if not THREAD_BUS.has_signal(f'{self._signal_prefix}.requested'):
             ColorPrint.print_warn(
                 "[ShutdownManager] Shutdown not requested"
             )
             return False
 
-        if self._shutdown_completed.is_set():
+        if THREAD_BUS.has_signal(f'{self._signal_prefix}.completed'):
             ColorPrint.print_warn(
                 "[ShutdownManager] Shutdown already completed"
             )
@@ -252,8 +245,7 @@ class ShutdownManager:
         ColorPrint.print_info("[ShutdownManager] Starting shutdown sequence...")
 
         # Execute shutdown hooks
-        with self._hooks_lock:
-            hooks = self._hooks.copy()
+        hooks = self._hook_snapshot()
 
         for hook in hooks:
             try:
@@ -262,8 +254,10 @@ class ShutdownManager:
                 )
 
                 # Execute with timeout
-                thread = threading.Thread(target=hook.callback)
-                thread.start()
+                thread = start_bus_task(
+                    hook.callback,
+                    thread_name=f"ShutdownHookThread-{hook.name}",
+                )
                 thread.join(timeout=hook.timeout)
 
                 if thread.is_alive():
@@ -277,22 +271,22 @@ class ShutdownManager:
                     f"[ShutdownManager] Error in hook '{hook.name}': {e}"
                 )
 
-        self._shutdown_completed.set()
+        THREAD_BUS.signal(f'{self._signal_prefix}.completed', True)
         ColorPrint.print_success("[ShutdownManager] Shutdown sequence completed")
 
         return True
 
     def is_shutdown_requested(self) -> bool:
         """Check if shutdown has been requested"""
-        return self._shutdown_requested.is_set()
+        return THREAD_BUS.has_signal(f'{self._signal_prefix}.requested')
 
     def is_restart_requested(self) -> bool:
         """Check if restart has been requested"""
-        return self._restart_requested.is_set()
+        return THREAD_BUS.has_signal(f'{self._signal_prefix}.restart')
 
     def is_shutdown_completed(self) -> bool:
         """Check if shutdown sequence has completed"""
-        return self._shutdown_completed.is_set()
+        return THREAD_BUS.has_signal(f'{self._signal_prefix}.completed')
 
     def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
         """
@@ -304,7 +298,10 @@ class ShutdownManager:
         Returns:
             True if completed within timeout, False otherwise
         """
-        return self._shutdown_completed.wait(timeout=timeout)
+        return bool(THREAD_BUS.wait_signal(
+            f'{self._signal_prefix}.completed',
+            timeout=timeout,
+        ))
 
     def reset(self):
         """
@@ -312,26 +309,25 @@ class ShutdownManager:
 
         Use with caution - only for testing or restart scenarios.
         """
-        self._shutdown_requested.clear()
-        self._restart_requested.clear()
-        self._shutdown_completed.clear()
+        THREAD_BUS.clear_signal(f'{self._signal_prefix}.requested')
+        THREAD_BUS.clear_signal(f'{self._signal_prefix}.restart')
+        THREAD_BUS.clear_signal(f'{self._signal_prefix}.completed')
 
         ColorPrint.print_info("[ShutdownManager] State reset")
 
 
-def get_shutdown_manager() -> ShutdownManager:
-    """
-    Get the singleton ShutdownManager instance
+_SHUTDOWN_MANAGER_PROVIDER = SerializedSingletonProvider(
+    ShutdownManager,
+    "native_ui.shutdown_manager.provider",
+    "ShutdownManagerProvider",
+)
 
-    Returns:
-        ShutdownManager singleton instance
-    """
-    return ShutdownManager()
+shutdown_manager = _SHUTDOWN_MANAGER_PROVIDER.get()
 
 
 # Export
 __all__ = [
     'ShutdownManager',
     'ShutdownHook',
-    'get_shutdown_manager'
+    'shutdown_manager',
 ]

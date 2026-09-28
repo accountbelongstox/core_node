@@ -1,0 +1,15 @@
+{
+  "task_id": "wordnew-3",
+  "role": "wordnew",
+  "verdict": "approved",
+  "findings": {
+    "FU-019": {"status": "fixed", "reason": "wfNewEndpoints.switchEndpoint delegates to apiManager.switchEndpoint, which probes first and activates/persists only a healthy endpoint. The dialog disables Use during a switch and toasts api.toastSwitched or api.toastSwitchFailed (en/zh/ja/ko). No caller of the old blind setEndpoint remains in apps/wordnew."},
+    "FU-032": {"status": "fixed", "reason": "getWordAudio (its only caller is WordNewQueueCenter.pollWordAudio) now uses getFreshJSON, which goes to requestJSON with cacheMode 'network'. That bypasses queryServerResource and the 15-minute mirror TTL, so every attempt reaches Laravel and sees the audio become ready."},
+    "FU-042": {"status": "fixed", "reason": "wordnew part: WfNewQueuedTransport.queuedMessage returns translateActive('api.queuedOffline') in 4 locales. translateActive reads <html lang>, which ShellProvider keeps as a normalized shell code (en/zh/ja/ko/es/fr/de); unsupported codes fall back to en."}
+  },
+  "issues": [
+    "apps/wordnew/api/WfNewApiTransport.ts:143-157, WfNewApiHttp.ts:147 and runtime-store/WfNewServerMirror.ts also contain the wordnew-1 (FU-031) edits (resolveQueueOwner, clearOfflineWriteQueue, the logout clear). They are not covered by this verdict and are reviewed with wordnew-1 once the RequestQueue.ts assignment lands and MasterApiClient type-checks."
+  ],
+  "checks": "git diff read; core ApiManager.switchEndpoint read (probe, activate, persist only when healthy); getWordAudio callers grepped; locale keys present in en/zh/ja/ko; api.toastSelected has no remaining users.",
+  "checked_at": "2026-09-27T04:02:17+10:00"
+}

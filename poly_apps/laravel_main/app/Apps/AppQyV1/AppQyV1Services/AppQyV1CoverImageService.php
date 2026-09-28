@@ -124,6 +124,7 @@ class AppQyV1CoverImageService
 
             imagepng($mainImage, $mainFilePath);
             imagedestroy($mainImage);
+            app(AppQyV1ResourceIndexService::class)->recordStaticPath($mainFilePath);
 
             $result = [
                 'success' => true,
@@ -150,6 +151,7 @@ class AppQyV1CoverImageService
                     self::THUMBNAIL_HEIGHT,
                     $thumbnailPath
                 );
+                app(AppQyV1ResourceIndexService::class)->recordStaticPath($thumbnailPath);
 
                 $result['thumbnail'] = [
                     'filename' => $thumbnailFilename,
@@ -283,7 +285,7 @@ class AppQyV1CoverImageService
      */
     public static function getImageUrl(string $filename): string
     {
-        return url("/api/app_qy_v1/covers/{$filename}");
+        return "/api/app_qy_v1/covers/{$filename}";
     }
 
     /**
@@ -291,7 +293,15 @@ class AppQyV1CoverImageService
      */
     public static function getImagePath(string $filename): ?string
     {
-        $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::STORAGE_SUBDIR;
+        // Check VocabularyCoverService path first (AI-generated covers)
+        $vocabCoversDir = PathMapper::getStaticPath() . '/app_qy_v1/covers';
+        $vocabPath = $vocabCoversDir . DIRECTORY_SEPARATOR . $filename;
+        if (file_exists($vocabPath)) {
+            return $vocabPath;
+        }
+
+        // Fallback to GD-generated covers path
+        $storageDir = PathMapper::getLaravelStaticDir() . DIRECTORY_SEPARATOR . self::getStorageSubdir();
         $path = $storageDir . DIRECTORY_SEPARATOR . $filename;
 
         return file_exists($path) ? $path : null;
@@ -315,6 +325,7 @@ class AppQyV1CoverImageService
                 $files = glob($storageDir . DIRECTORY_SEPARATOR . $pattern);
                 foreach ($files as $file) {
                     if (file_exists($file) && unlink($file)) {
+                        app(AppQyV1ResourceIndexService::class)->forgetStaticPath($file);
                         $deleted++;
                     }
                 }

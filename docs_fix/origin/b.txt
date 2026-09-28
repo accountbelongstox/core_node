@@ -1,0 +1,74 @@
+FrankenPHP 原生黑科技（Mercure 协议） 是s m 时候的技术。FrankenPHP 内置的 Mercure 协议 完全有能力实现你所描述的 A/B 组跨组互转、全组广播（SM 能力） 需求。在 Laravel 13 中，Mercure 是一门非常先进的“替代 WebSocket 的新一代实时通信技术”。一、 核心原理解析：它是怎么工作的？与传统的 Swoole 或 Reverb (WebSocket) 依靠“持久双向 TCP 通道”不同，Mercure 走的是 单向常驻下行 + 标准 HTTP 上行 的现代 Pub/Sub 管道模式：客户端连服务器（订阅）：A、A1、B、B1 利用浏览器原生的 EventSource (SSE) 连接 FrankenPHP 暴露的同一个 HTTPS 端口，并分别订阅对应的主题。客户端发消息（上行）：A 发送消息时，不通过那个长连接，而是发送一个普通的 HTTPS POST 请求 到 Laravel Octane 路由。后端分发（组播）：Laravel 收到 POST 请求，判定 A 属于 A 组，目标是 B 组。Laravel 立即通过 FrankenPHP 内置的 Mercure Hub 投递给 B 组的主题，B 和 B1 瞬间在长连接中收到消息。二、 Laravel 13 下的具体实现方案1. 配置 config/octane.php在 Laravel 13 中启用 FrankenPHP 的 Mercure 支持，设置共享的密钥（JWT 签名验证安全）：php// config/octane.php
+return [
+    // ...
+    'mercure' => [
+        'anonymous' => true,
+        'publisher_jwt' => env('MERCURE_PUBLISHER_JWT', '!ChangeThisMercureHubJWTSecretKey!'),
+        'subscriber_jwt' => env('MERCURE_SUBSCRIBER_JWT', '!ChangeThisMercureHubJWTSecretKey!'),
+    ],
+];
+Use code with caution.2. 编写 Laravel 13 后端控制路由 (Octane)不需要引入任何庞大的连接池和端口管理。A 和 B 发消息时直接调用此 HTTPS 接口：php// app/Http/Controllers/MercureChatController.php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+
+class MercureChatController extends Controller
+{
+    public function transmit(Request $request)
+    {
+        $user = $request->user();
+        $message = $request->input('message');
+        
+        // 判定发送者和目标组
+        $senderGroup = $user->group; // 'A' 或 'B'
+        $targetGroup = ($senderGroup === 'A') ? 'B' : 'A';
+
+        // 核心：直接向 FrankenPHP 内置的 Mercure Hub 推送 B 组的主题
+        // 如果 B 和 B1 在线，它们会同时收到
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . config('octane.mercure.publisher_jwt')
+        ])->asForm()->post('http://127.0.0', [
+            'topic' => "https://example.com{$targetGroup}",
+            'data' => json_encode([
+                'sender' => $user->name,
+                'message' => $message,
+                'time' => now()->toIso8601String()
+            ])
+        ]);
+
+        return response()->json(['status' => 'transmitted']);
+    }
+}
+Use code with caution.3. 前端客户端实现 (A/A1/B/B1)前端连代码都变简单了，因为 现代浏览器原生支持 Mercure 底层的 SSE 协议，不需要装任何像 socket.io 或 pusher-js 这样的庞大类库。A 和 A1 客户端 JS 代码：javascript// 客户端 A 和 A1 订阅 A 组的主题
+const group = 'A';
+const url = new URL('https://example.com');
+url.searchParams.append('topic', `https://example.com{group}`);
+
+const eventSource = new EventSource(url);
+
+// 监听接收来自 B 组（发往 A 组主题）的消息
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log(`收到 B 组发送人 ${data.sender} 的消息: `, data.message);
+};
+
+// A 发消息时：直接走标准 HTTP
+function sendMessage(text) {
+    fetch('/api/transmit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+    });
+}
+Use code with caution.B 和 B1 客户端 JS 代码：javascript// 客户端 B 和 B1 订阅 B 组的主题
+const group = 'B';
+const url = new URL('https://example.com');
+url.searchParams.append('topic', `https://example.com{group}`);
+
+const eventSource = new EventSource(url);
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log(`收到 A 组发送人 ${data.sender} 的消息: `, data.message);
+};
+Use code with caution.三、 为什么 Mercure 是做这个功能的“黑科技”？天然完美的端口共享：无论 HTTP、HTTPS（FrankenPHP 会自动生成和续期免费证书）还是实时组播，全部跑在 443 这一个端口上，不需要在 Nginx 里配置任何繁琐的 Upgrade 转发策略。消除了有状态服务器的痛点：在 Swoole 或 Reverb 中，如果后端代码更新，重启 Worker 进程会导致所有 WebSocket 长连接强行断开，前端需要写复杂的重连重试。而 Mercure 的长连接由 FrankenPHP 底层的 Go (Caddy) 独立维护，Laravel Octane 的 PHP 代码不管怎么改、怎么重启，客户端长连接永远不会断开。原生支持断线自动补发：如果客户端网络波动，断开连接了 5 秒钟。只要它重新连上，Mercure 会自动根据上一次的 Last-Event-ID 把这 5 秒内错过的跨组消息补发给它，不需要你自己在 PHP 里写复杂的离线消息捞取逻辑。由于 Mercure 依赖 JWT Token 进行权限校验 以防止黑客恶意订阅别人的分组，你需要我为你写一段 在 Laravel 13 中为客户端动态生成 Mercure 订阅 Token 的权限控制代码吗？

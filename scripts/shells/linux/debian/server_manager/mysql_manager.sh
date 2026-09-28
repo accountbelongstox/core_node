@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Declare all variables at the beginning of the file
-# 6. For Bash scripts: Use absolute paths resolved from script location
-# 7. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -17,8 +6,9 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/arrow_menu.sh"
 
-MYSQL_CONFIG="/etc/mysql/mariadb.conf.d/50-server.cnf"
+MYSQL_CONFIG="/etc/mysql/mysql.conf.d/mysqld.cnf"
 MYSQL_CLI="mysql"
 
 COLOR_RESET="\033[0m"
@@ -31,7 +21,7 @@ COLOR_CYAN="\033[36m"
 check_mysql_installed() {
     if ! command -v mysql >/dev/null 2>&1; then
         echo -e "${COLOR_RED}MySQL/MariaDB is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 48_install_mysql.sh"
+        echo "Please run installation script first: 85_install_mysql.sh"
         return 1
     fi
     return 0
@@ -47,7 +37,7 @@ show_header() {
 
 show_mysql_status() {
     echo -e "${COLOR_BLUE}=== MySQL/MariaDB Service Status ===${COLOR_RESET}"
-    systemctl status mariadb --no-pager -l 2>/dev/null | head -20 || systemctl status mysql --no-pager -l 2>/dev/null | head -20
+    systemctl status mysql --no-pager -l 2>/dev/null | head -20 || systemctl status mariadb --no-pager -l 2>/dev/null | head -20
     echo ""
 }
 
@@ -83,9 +73,9 @@ start_mysql() {
     show_header
     echo -e "${COLOR_BLUE}=== Starting MySQL/MariaDB ===${COLOR_RESET}"
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    local service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     if systemctl is-active --quiet $service_name; then
@@ -111,9 +101,9 @@ stop_mysql() {
     show_header
     echo -e "${COLOR_BLUE}=== Stopping MySQL/MariaDB ===${COLOR_RESET}"
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    local service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     if ! systemctl is-active --quiet $service_name; then
@@ -138,9 +128,9 @@ restart_mysql() {
     show_header
     echo -e "${COLOR_BLUE}=== Restarting MySQL/MariaDB ===${COLOR_RESET}"
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    local service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     echo "Restarting MySQL/MariaDB service..."
@@ -162,9 +152,9 @@ list_databases() {
     echo -e "${COLOR_BLUE}=== MySQL/MariaDB Databases ===${COLOR_RESET}"
     echo ""
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    local service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     if ! systemctl is-active --quiet $service_name; then
@@ -185,9 +175,9 @@ list_users() {
     echo -e "${COLOR_BLUE}=== MySQL/MariaDB Users ===${COLOR_RESET}"
     echo ""
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    local service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     if ! systemctl is-active --quiet $service_name; then
@@ -208,9 +198,9 @@ show_connections() {
     echo -e "${COLOR_BLUE}=== MySQL/MariaDB Active Connections ===${COLOR_RESET}"
     echo ""
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    local service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     if ! systemctl is-active --quiet $service_name; then
@@ -231,9 +221,9 @@ create_database() {
     echo -e "${COLOR_BLUE}=== Create New Database ===${COLOR_RESET}"
     echo ""
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    local service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     if ! systemctl is-active --quiet $service_name; then
@@ -266,13 +256,17 @@ create_database() {
 }
 
 show_variables() {
-    show_header
-    echo -e "${COLOR_BLUE}=== MySQL/MariaDB Variables ===${COLOR_RESET}"
-    echo ""
+    local service_name="mysql"
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "Show all variables"
+        "Show specific variable"
+        "Back to MySQL/MariaDB Manager"
+    )
 
-    local service_name="mariadb"
-    if ! systemctl list-unit-files | grep -q "^mariadb.service"; then
-        service_name="mysql"
+    if ! systemctl list-unit-files | grep -q "^mysql.service"; then
+        service_name="mariadb"
     fi
 
     if ! systemctl is-active --quiet $service_name; then
@@ -281,12 +275,9 @@ show_variables() {
         return
     fi
 
-    echo "1) Show all variables"
-    echo "2) Show specific variable"
-    echo "0) Back to main menu"
-    echo ""
-
-    read -p "Select option: " choice
+    arrow_menu_select "MySQL/MariaDB Variables" menu_items 0 2
+    selected_index="$ARROW_MENU_SELECTED_INDEX"
+    choice=$((selected_index + 1))
 
     case $choice in
         1)
@@ -318,22 +309,26 @@ view_config() {
 }
 
 show_menu() {
-    show_header
-    show_mysql_status
+    local menu_items=(
+        "Start MySQL/MariaDB"
+        "Stop MySQL/MariaDB"
+        "Restart MySQL/MariaDB"
+        "Show Basic Information"
+        "List Databases"
+        "List Users"
+        "Show Active Connections"
+        "Create New Database"
+        "Show Variables"
+        "View Configuration File"
+        "Back to Service Manager"
+    )
 
-    echo -e "${COLOR_CYAN}Menu:${COLOR_RESET}"
-    echo "  1) Start MySQL/MariaDB"
-    echo "  2) Stop MySQL/MariaDB"
-    echo "  3) Restart MySQL/MariaDB"
-    echo "  4) Show Basic Information"
-    echo "  5) List Databases"
-    echo "  6) List Users"
-    echo "  7) Show Active Connections"
-    echo "  8) Create New Database"
-    echo "  9) Show Variables"
-    echo " 10) View Configuration File"
-    echo "  0) Exit"
-    echo ""
+    arrow_menu_select "MySQL/MariaDB Manager" menu_items 0 10 show_mysql_status
+    if [ "$ARROW_MENU_SELECTED_INDEX" -eq 10 ]; then
+        choice=0
+    else
+        choice=$((ARROW_MENU_SELECTED_INDEX + 1))
+    fi
 }
 
 main() {
@@ -343,7 +338,6 @@ main() {
 
     while true; do
         show_menu
-        read -p "Select option: " choice
 
         case $choice in
             1) start_mysql ;;

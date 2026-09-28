@@ -9,8 +9,12 @@ import re
 from http import HTTPStatus
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
-from pycore.pyutils.flutter_dev_tools.api import pageview_updater_api
-from pycore.pyutils.flutter_dev_tools.utils import path_utils
+import pycore.pyutils.flutter_dev_tools.api.pageview_updater_api as pageview_updater_api
+import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
+
+import json
+import traceback
+
 
 
 class PageViewRoutesHandler(BaseHandler):
@@ -106,7 +110,6 @@ class PageViewRoutesHandler(BaseHandler):
 
             if not boundary_match:
                 # JSON format
-                import json
                 data = json.loads(body.decode('utf-8'))
                 page_key = data.get("page_key", "")
                 description = data.get("description", "implemented")
@@ -149,6 +152,5 @@ class PageViewRoutesHandler(BaseHandler):
 
         except Exception as e:
             self.log_error(f"Failed to upload actual image for {app_name}: {e}")
-            import traceback
             traceback.print_exc()
             self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)

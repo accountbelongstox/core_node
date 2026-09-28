@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>DotApps.VocAnnotator</RootNamespace>
+    <AssemblyName>VocAnnotator</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\dotcore\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
+    <ProjectReference Include="..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
+  </ItemGroup>
+</Project>

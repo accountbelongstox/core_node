@@ -6,6 +6,8 @@ Generates environment variable loading sections for Windows and Linux.
 
 from typing import List, Dict, Any
 
+from utils.secret_display import is_secret_name
+
 
 class EnvLoadingSectionGenerator:
     """Generates environment variable loading sections"""
@@ -25,9 +27,14 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 
 # Secret files directory
-$secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
+$secretDir = Join-Path $projectRootPath ".secret_keys\\.secret_ignore"
 Write-Host "[DEBUG] Secret directory: $secretDir" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
+
+# Secret values are printed masked through the shared launcher helper.
+if (-not (Get-Command Get-AiCliMaskedSecret -ErrorAction SilentlyContinue)) {{
+    . (Join-Path $projectRootPath "scripts\\shells\\win\\win_common\\AiCliProvisionCommon.ps1")
+}}
 
 function Read-SecretFile {{
     <#
@@ -35,7 +42,7 @@ function Read-SecretFile {{
         Reads secret value from file with UTF-8 BOM handling.
     
     .DESCRIPTION
-        Enhanced function to read secret files from .secret_keys\.secret_ignore directory.
+        Enhanced function to read secret files from .secret_keys\\.secret_ignore directory.
         Handles UTF-8 BOM, empty lines, and provides detailed error messages.
     
     .PARAMETER FilePath
@@ -119,10 +126,6 @@ function Get-SecretValue {{
 
     if ($value) {{
         Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
-        if ($value.Length -gt 8) {{
-            $masked = $value.Substring(0, 4) + "***" + $value.Substring($value.Length - 4)
-            Write-Host "[DEBUG] Value preview (masked): $masked" -ForegroundColor DarkGray
-        }}
     }}
 
     return $value
@@ -135,21 +138,25 @@ function Get-SecretValue {{
             secret_key_name = f"{var['Name']}_{file_number}"
             display_name = var.get('DisplayName', var['Name'])
             default_value = var.get('DefaultValue', '')
+            shown_value = (
+                f"$(Get-AiCliMaskedSecret -Value $env:{var['Name']})" if is_secret_name(var['Name'])
+                else f"$($env:{var['Name']})"
+            )
             
             if default_value:
                 var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
 if (-not $env:{var['Name']}) {{
     $env:{var['Name']} = "{default_value}"
-    Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']}) (default)" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded {var['Name']} = {shown_value} (default)" -ForegroundColor Green
 }} else {{
-    Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']})" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded {var['Name']} = {shown_value}" -ForegroundColor Green
 }}
 
 """
             else:
                 var_loading_code += f"""$env:{var['Name']} = Get-SecretValue "{secret_key_name}"
 if ($env:{var['Name']}) {{
-    Write-Host "[SUCCESS] Loaded {var['Name']} = $($env:{var['Name']})" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded {var['Name']} = {shown_value}" -ForegroundColor Green
 }} else {{
     Write-Host "[WARNING] Failed to load {var['Name']}" -ForegroundColor Yellow
 }}
@@ -169,8 +176,9 @@ if ($env:{var['Name']}) {{
             secret_key_name = f"{var['Name']}_{file_number}"
             display_name = var.get('DisplayName', var['Name'])
             default_value = var.get('DefaultValue', '')
+            display_mode = "secret" if is_secret_name(var['Name']) else "plain"
             load_calls.append(
-                f"load_secret_value \"{secret_key_name}\" \"{var['Name']}\" \"{display_name}\" \"{default_value}\""
+                f"load_secret_value \"{secret_key_name}\" \"{var['Name']}\" \"{display_name}\" \"{default_value}\" \"{display_mode}\""
             )
 
         load_commands = "\n".join(load_calls)
@@ -189,6 +197,9 @@ echo ""
 secret_dir="$projectRootPath/.secret_keys/.secret_ignore"
 echo "[DEBUG] Secret directory: $secret_dir"
 echo "[DEBUG] Project root: $projectRootPath"
+
+# Secret values are printed masked through the shared launcher helper.
+declare -F ai_cli_mask_secret >/dev/null 2>&1 || . "$projectRootPath/scripts/shells/linux/common/ai_cli_provision_common.sh"
 
 read_secret_file() {{
     # =============================================================================
@@ -253,14 +264,17 @@ load_secret_value() {{
     # =============================================================================
     # Enhanced function to load secret value and set environment variable
     # =============================================================================
-    # Usage: load_secret_value <key_name> <env_name> <display_name> <default_value>
-    # Calls read_secret_file for actual file reading
+    # Usage: load_secret_value <key_name> <env_name> <display_name> <default_value> <secret|plain>
+    # Calls read_secret_file for actual file reading; secret values print masked
     # =============================================================================
     local key_name="$1"
     local env_name="$2"
     local display_name="$3"
     local default_value="$4"
+    local display_mode="${{5:-secret}}"
     local value=""
+    local shown_value=""
+    local shown_current=""
     local secret_file="$secret_dir/$key_name"
     local fix_instruction="Run dd.sh (Secret Decryption Fix) to decrypt secret files"
 
@@ -281,22 +295,26 @@ load_secret_value() {{
 
     if [ -n "$value" ]; then
         export "$env_name"="$value"
+        shown_value="$value"
+        [ "$display_mode" = "plain" ] || shown_value="$(ai_cli_mask_secret "$value")"
         if [ -n "$default_value" ] && [ "$value" = "$default_value" ]; then
-            echo "[SUCCESS] Loaded $display_name = $value (default)"
+            echo "[SUCCESS] Loaded $display_name = $shown_value (default)"
         else
-            echo "[SUCCESS] Loaded $display_name = $value"
+            echo "[SUCCESS] Loaded $display_name = $shown_value"
         fi
-        echo "[INFO] Command executed: export $env_name=\"$value\""
+        echo "[INFO] Command executed: export $env_name=\"$shown_value\""
         
         # Verify environment variable is correctly set
         current_value="${{!env_name}}"
+        shown_current="$current_value"
+        [ "$display_mode" = "plain" ] || shown_current="$(ai_cli_mask_secret "$current_value")"
         if [ "$current_value" = "$value" ]; then
             echo "[VERIFY] Environment variable $env_name is correctly set"
-            echo "[VERIFY] Current value: $current_value"
+            echo "[VERIFY] Current value: $shown_current"
         else
             echo "[WARNING] Environment variable $env_name verification failed"
-            echo "[WARNING] Expected: $value"
-            echo "[WARNING] Actual: $current_value"
+            echo "[WARNING] Expected: $shown_value"
+            echo "[WARNING] Actual: $shown_current"
         fi
         return 0
     fi

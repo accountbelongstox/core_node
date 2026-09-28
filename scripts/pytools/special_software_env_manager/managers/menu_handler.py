@@ -39,9 +39,18 @@ class MenuHandler:
             ColorMessage.write("=" * 80, 'info')
             print()
 
-            menu_items = []
+            # Layout: Custom Add is pinned first (always one keystroke away),
+            # then the provider entries sorted A->Z by display name, then the
+            # utility actions, with Back/Exit pinned last.
+            menu_items = [
+                {'Text': 'Custom Add (any KEY, auto-indexed)', 'Action': 'custom_add', 'HasSubMenu': False},
+            ]
 
-            for config_name, config in self.config_manager.get_all_configs().items():
+            sorted_configs = sorted(
+                self.config_manager.get_all_configs().items(),
+                key=lambda item: item[1].get('DisplayName', '').casefold()
+            )
+            for config_name, config in sorted_configs:
                 action = config['Common']
                 menu_items.append({
                     'Text': config['DisplayName'],
@@ -50,12 +59,7 @@ class MenuHandler:
                 })
 
             menu_items.extend([
-                {'Text': 'Restore Scripts from Secret Storage', 'Action': 'restore_scripts', 'HasSubMenu': False},
-                {'Text': 'Add Scripts Directory to PATH', 'Action': 'addpath', 'HasSubMenu': False},
                 {'Text': 'View All Environment Variables', 'Action': 'viewall', 'HasSubMenu': False},
-                {'Text': 'Refresh Current Terminal Environment', 'Action': 'refresh', 'HasSubMenu': False},
-                {'Text': 'Gitea Backup Management', 'Action': 'gitea_backup', 'HasSubMenu': False},
-                {'Text': 'Back to dd.sh Main Menu', 'Action': 'back', 'HasSubMenu': False},
                 {'Text': 'Exit', 'Action': 'exit', 'HasSubMenu': False}
             ])
 
@@ -64,20 +68,10 @@ class MenuHandler:
             if action is None:
                 continue
 
-            if action == 'addpath':
-                handlers['env_var_manager'].add_scripts_to_path()
+            if action == 'custom_add':
+                handlers['encrypted_constants_manager'].custom_add()
             elif action == 'viewall':
                 handlers['env_var_manager'].show_all_environment_variables(self.config_manager)
-            elif action == 'refresh':
-                handlers['env_var_manager'].refresh_current_terminal_environment()
-            elif action == 'restore_scripts':
-                handlers['script_manager'].restore_scripts_from_secrets(
-                    self.config_manager, handlers.get('secret_manager_available', False)
-                )
-            elif action == 'gitea_backup':
-                self._run_gitea_backup_management()
-            elif action == 'back':
-                return
             elif action == 'exit':
                 sys.exit(0)
             else:
@@ -108,6 +102,22 @@ class MenuHandler:
             storage_type = config.get('StorageType', 'environment_variable')
             has_command_prefix = bool(command_prefix)
             is_encrypted_constant = (storage_type == 'encrypted_constant')
+            script_only = bool(config.get('ScriptOnlyLauncher', False))
+            menu_tips = None
+            if script_only:
+                menu_tips = [
+                    "ScriptOnlyLauncher is ON: empty-native slots merge/reuse "
+                    "the lowest index (no new empty Create).",
+                    "Generated arkN scripts still idempotently install arkcli "
+                    "(and claude) via pnpm when missing.",
+                ]
+            elif (command_prefix or '').lower() == 'ark':
+                menu_tips = [
+                    "Tip: leave all optional fields empty to use native arkcli "
+                    "interactive profile / model / MCP selection at launch.",
+                    "Generated arkN scripts still idempotently install arkcli "
+                    "(and claude) via pnpm when missing.",
+                ]
 
             menu_items = []
 
@@ -161,10 +171,10 @@ class MenuHandler:
                 {'Text': 'Back to Main Menu', 'Action': 'back', 'HasSubMenu': False}
             ])
 
-            submenu_action = show_menu(f"{display_name} Menu", menu_items)
+            submenu_action = show_menu(f"{display_name} Menu", menu_items, tips=menu_tips)
 
             if submenu_action is None:
-                continue
+                return
 
             if submenu_action == 'addcommand':
                 handlers['command_handler'].add_global_command(config_name, config)
@@ -184,30 +194,6 @@ class MenuHandler:
                 handlers['env_var_manager'].restore_configuration(config_name, config)
             elif submenu_action == 'back':
                 return
-
-    def _run_gitea_backup_management(self):
-        """Run the Gitea backup management script"""
-        import subprocess
-        import os
-
-        # Get the script directory (3 levels up from this file)
-        script_dir = Path(__file__).resolve().parent.parent.parent.parent / 'shells' / 'linux' / 'menu_itemshells' / 'gitea_backup'
-        backup_script = script_dir / 'backup_management_main.sh'
-
-        if not backup_script.exists():
-            ColorMessage.write(f"Backup script not found: {backup_script}", 'error')
-            input("Press Enter to continue...")
-            return
-
-        try:
-            # Run the backup management script
-            ColorMessage.write("Starting Gitea Backup Management...", 'info')
-            print()
-            subprocess.run(['bash', str(backup_script)], check=False)
-            print()
-        except Exception as e:
-            ColorMessage.write(f"Error running backup script: {str(e)}", 'error')
-            input("Press Enter to continue...")
 
 
 __all__ = ['MenuHandler']

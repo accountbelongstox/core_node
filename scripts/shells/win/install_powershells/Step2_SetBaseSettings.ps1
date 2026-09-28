@@ -1,21 +1,11 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Import variable management functions and global variables
 $WinCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) "win_common"
 . (Join-Path $WinCommonDir "GlobalVars.ps1")
 . (Join-Path $WinCommonDir "CommonFunc.ps1")
+. (Join-Path $WinCommonDir "DiskReadinessCommon.ps1")
 
 $STEP_NUMBER = 2
+$fastStartupState = $null
 
 # Registry file path for Windows 10 context menu
 $REG_SUB_PATH = "shells/win/scripts/Step2_Win10ContextMenu.reg"
@@ -41,7 +31,7 @@ function Disable-AllFixedDisksBitLocker {
     }
 
     try {
-        $script:bitLockerVolumes = @(Get-BitLockerVolume -ErrorAction Stop)
+        $script:bitLockerVolumes = @(Get-FixedBitLockerVolumes)
     }
     catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to query BitLocker status: $($_.Exception.Message)" -Type "Error"
@@ -49,19 +39,11 @@ function Disable-AllFixedDisksBitLocker {
     }
 
     Write-ColorMessage -Message "[Step $STEP_NUMBER] BitLocker status overview (fixed disks):" -Type "Info"
-    $script:bitLockerVolumes | Where-Object {
-        $_.MountPoint -and ($_.VolumeType -eq "OperatingSystem" -or $_.VolumeType -eq "FixedData")
-    } | ForEach-Object {
+    $script:bitLockerVolumes | ForEach-Object {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) -> Type: $($_.VolumeType), Status: $($_.VolumeStatus), Protection: $($_.ProtectionStatus), Lock: $($_.LockStatus)" -Type "Info"
     }
 
-    $script:bitLockerTargets = @(
-        $script:bitLockerVolumes | Where-Object {
-            $_.MountPoint -and
-            ($_.VolumeType -eq "OperatingSystem" -or $_.VolumeType -eq "FixedData") -and
-            (($_.ProtectionStatus -eq "On") -or ($_.VolumeStatus -ne "FullyDecrypted"))
-        }
-    )
+    $script:bitLockerTargets = @($script:bitLockerVolumes | Where-Object { Test-BitLockerIncomplete -Volume $_ })
 
     if (-not $script:bitLockerTargets -or $script:bitLockerTargets.Count -eq 0) {
         Write-ColorMessage -Message $bitLockerAllClearNotice -Type "Success"
@@ -71,15 +53,23 @@ function Disable-AllFixedDisksBitLocker {
     Write-ColorMessage -Message $bitLockerDisableStartNotice -Type "Info"
 
     $script:bitLockerErrors.Clear()
-    $script:bitLockerTargets | ForEach-Object {
+    foreach ($volume in @($script:bitLockerTargets | Sort-Object { $_.VolumeType -eq "OperatingSystem" })) {
+        if ($volume.LockStatus -eq "Locked") {
+            $null = $script:bitLockerErrors.Add("[Step $STEP_NUMBER] Volume $($volume.MountPoint) is locked")
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($volume.MountPoint) is locked. Unlock it, then run this step again." -Type "Error"
+            continue
+        }
         try {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) -> Status: $($_.VolumeStatus), Protection: $($_.ProtectionStatus). Disabling..." -Type "Info"
-            Disable-BitLocker -MountPoint $_.MountPoint -ErrorAction Stop | Out-Null
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) BitLocker disable initiated." -Type "Success"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($volume.MountPoint) -> Status: $($volume.VolumeStatus), Protection: $($volume.ProtectionStatus). Disabling..." -Type "Info"
+            if (($volume.VolumeType -eq "OperatingSystem") -and [bool]$volume.AutoUnlockKeyStored) {
+                Clear-BitLockerAutoUnlock -ErrorAction Stop | Out-Null
+            }
+            Disable-BitLocker -MountPoint $volume.MountPoint -ErrorAction Stop | Out-Null
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($volume.MountPoint) BitLocker disable initiated." -Type "Success"
         }
         catch {
-            $null = $script:bitLockerErrors.Add("[Step $STEP_NUMBER] Volume $($_.MountPoint) disable failed: $($_.Exception.Message)")
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($_.MountPoint) disable failed: $($_.Exception.Message)" -Type "Error"
+            $null = $script:bitLockerErrors.Add("[Step $STEP_NUMBER] Volume $($volume.MountPoint) disable failed: $($_.Exception.Message)")
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Volume $($volume.MountPoint) disable failed: $($_.Exception.Message)" -Type "Error"
         }
     }
 
@@ -97,7 +87,8 @@ function Stop-DisableHttpIisServices {
         # Stop IIS services using iisreset
         Write-Host "[Step 2] Stopping IIS services..." -ForegroundColor Yellow
         $iisResetResult = & iisreset /stop 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        $w3svc = Get-Service W3SVC -ErrorAction SilentlyContinue
+        if ($w3svc -and $w3svc.Status -eq 'Stopped') {
             Write-Host "[Step 2] IIS services stopped successfully." -ForegroundColor Green
         } else {
             Write-Host "[Step 2] IIS services may not be running or already stopped." -ForegroundColor Yellow
@@ -106,7 +97,8 @@ function Stop-DisableHttpIisServices {
         # Stop HTTP service
         Write-Host "[Step 2] Stopping HTTP service..." -ForegroundColor Yellow
         $httpStopResult = & net stop http 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        $httpSvc = Get-Service HTTP -ErrorAction SilentlyContinue
+        if ($httpSvc -and $httpSvc.Status -eq 'Stopped') {
             Write-Host "[Step 2] HTTP service stopped successfully." -ForegroundColor Green
         } else {
             Write-Host "[Step 2] HTTP service may not be running or already stopped." -ForegroundColor Yellow
@@ -174,10 +166,7 @@ function Set-PluggedInPowerSettings {
     # Disable hybrid sleep (plugged in)
     powercfg /setacvalueindex SCHEME_CURRENT SUB_SLEEP HYBRIDSLEEP 0
 
-    # Disable hibernation
-    powercfg /hibernate off
-
-    Write-Host "[Step 2] Power settings updated for plugged-in mode: High Performance, disk, monitor, standby, hybrid sleep, and hibernation all set to never/off." -ForegroundColor Green
+    Write-Host "[Step 2] Power settings updated for plugged-in mode: High Performance, disk, monitor, standby and hybrid sleep all set to never/off." -ForegroundColor Green
 }
 
 function Set-FileExplorerSettings {
@@ -356,6 +345,10 @@ function Restart-ExplorerOnce {
 # Always check BitLocker status first (dual boot compatibility)
 Disable-AllFixedDisksBitLocker
 
+# Always keep Fast Startup and hibernation off (dual boot compatibility)
+$fastStartupState = Disable-FastStartup
+Show-FastStartupState -State $fastStartupState
+
 # Always stop and disable HTTP/IIS services (independent of base settings flag)
 Write-ColorMessage -Message "[Step $STEP_NUMBER] Stopping and disabling HTTP/IIS services..." -Type "Info"
 Stop-DisableHttpIisServices
@@ -435,21 +428,17 @@ function Set-Win10ContextMenuRegistry {
         # Import registry file (try reg.exe first, fallback to regedit.exe)
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Executing registry import with reg.exe..." -Type "Info"
         $result = Start-Process -FilePath "reg.exe" -ArgumentList "import", "`"$regFile`"" -Wait -PassThru -WindowStyle Hidden
-        
-        # If reg.exe fails, try regedit.exe as fallback
-        if ($result.ExitCode -ne 0) {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] reg.exe failed, trying regedit.exe as fallback..." -Type "Warning"
+
+        $contextMenuKey = 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\runas'
+        if (-not (Test-Path $contextMenuKey)) {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] reg.exe import did not create expected key, trying regedit.exe as fallback..." -Type "Warning"
             $result = Start-Process -FilePath "regedit.exe" -ArgumentList "/s", "`"$regFile`"" -Wait -PassThru -WindowStyle Hidden
         }
-        
-        if ($result.ExitCode -eq 0) {
+
+        if (Test-Path $contextMenuKey) {
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Registry imported successfully." -Type "Success"
         } else {
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Registry import failed with exit code: $($result.ExitCode)" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] Common exit codes:" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Exit code 1: File not found or invalid format" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Exit code 2: Syntax error in registry file" -Type "Error"
-            Write-ColorMessage -Message "[Step $STEP_NUMBER] - Exit code 5: Access denied (run as administrator)" -Type "Error"
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Registry import failed" -Type "Error"
             Write-ColorMessage -Message "[Step $STEP_NUMBER] Manual test commands:" -Type "Error"
             Write-ColorMessage -Message "[Step $STEP_NUMBER]   reg.exe import `"$regFile`"" -Type "Error"
             Write-ColorMessage -Message "[Step $STEP_NUMBER]   regedit.exe /s `"$regFile`"" -Type "Error"

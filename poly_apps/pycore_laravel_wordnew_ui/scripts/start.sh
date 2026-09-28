@@ -1,0 +1,592 @@
+#!/bin/bash
+
+# Single entry (Linux/Unix) for pycore_laravel_wordnew_ui (nexus-dash): bring up the
+# laravel_main backend and the dashboard frontend. Linux counterpart of start.ps1.
+# All paths derived dynamically (no hard-coded paths). Idempotent throughout.
+#
+# Default (orchestrate) needs NO parameters and asks exactly ONE question at the end:
+#   1. Add the dashboard to a background systemd service?
+#        default NO.     flags: --service | --no-service     env: AS_SERVICE=yes|no
+# Run mode defaults to the dev server (no prompt). Optional overrides for headless:
+#        --dist | --dev                                       env: RUN_DIST=yes|no
+# Prerequisites (node/bun, deps, dist build) are installed/built here, invoking the
+# canonical init-ensure installers under scripts/shells/linux.
+#
+# Service registration directly references the canonical merged script
+# scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh
+# (--ui-service); the retired 176_laravel_ui_service.sh was merged into 175.
+# bun is the base runtime for this pycore/laravel UI (deps, build, dev server).
+#
+# Run from repo: ./poly_apps/pycore_laravel_wordnew_ui/scripts/start.sh
+#   Dev foreground:   ./start.sh --no-service --dev
+#   Dev as service:   ./start.sh --service --dev
+#   Force reinstall:  -f | --force-install        Skip ends: --no-backend | --no-frontend
+#   Non-interactive:   --non-interactive
+#   Build detected APK: --build-apk[=wordnew] [--debug-apk|--release-apk]
+#
+# Internal actions (not usually called by hand):
+#   --serve [--dev|--dist]   run ONLY the frontend server (used by the systemd ExecStart)
+#   --prepare [--dev|--dist] install deps (+build dist), no server
+
+# --- All variables and file references (declared at top) ---
+ORIGINAL_DIR=$(pwd)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+POLY_APPS_DIR="$(cd "${APP_ROOT}/.." && pwd)"
+REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
+SELF="${SCRIPT_DIR}/start.sh"
+LARAVEL_START="${POLY_APPS_DIR}/laravel_main/scripts/start.sh"
+NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh"
+LARAVEL_MAIN_175="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh"
+FRANKENPHP_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/frankenphp_manager.sh"
+CADDY_STATIC_SITE_COMMON="${REPO_ROOT}/scripts/shells/linux/common/caddy_static_site_common.sh"
+WEB_ACCESS_COMMON="${REPO_ROOT}/scripts/shells/linux/common/web_access_common.sh"
+SERVICE_NAME="ncore-nexus-dash"
+SERVICE_DESC="Nexus Dash frontend (pycore_laravel_wordnew_ui)"
+# CPU cap (overridable). Memory is computed at registration: min(RAM/4, cap).
+SERVICE_CPU="${SERVICE_CPU:-50%}"
+SERVICE_MEM="${SERVICE_MEM:-}"
+SERVICE_MEM_CAP_MB="${SERVICE_MEM_CAP_MB:-1024}"
+LOG_DIR="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/pycore/logs"
+LARAVEL_LOG="${LOG_DIR}/laravel_main.start.log"
+PACKAGE_JSON="${APP_ROOT}/package.json"
+NODE_MODULES="${APP_ROOT}/node_modules"
+VITE_BIN="${APP_ROOT}/node_modules/vite/bin/vite.js"
+# This script runs under systemd (no TTY). Bun's installer is fully
+# non-interactive (no module-purge prompts), so the dashboard service converges
+# its own node_modules on every start without a TTY. bun install is idempotent:
+# it verifies the tree against bun.lock (migrating a legacy pnpm-lock.yaml on
+# first run) and only touches what changed.
+DIST_DIR="${APP_ROOT}/dist"
+DIST_INDEX="${APP_ROOT}/dist/index.html"
+# Fixed dashboard dev port (no env files). Single source:
+# config/service_contract.json via the shell adapter; overridable only via
+# the PORT env var. BIND_HOST is the contract's 0.0.0.0 (bind-all) address.
+source "${SCRIPT_DIR}/../../../scripts/shells/linux/common/service_contract_common.sh"
+DEV_PORT="${PORT:-$(sc_get ports.nexus_dash_frontend)}"
+BIND_HOST="$(sc_get hosts.any)"
+DEV_URL="http://localhost:${DEV_PORT}"
+DASHBOARD_WEB_ACCESS_CONFIG_FILE="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var/$(sc_get files.web_access_config)"
+STATIC_CADDYFILE="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/pycore/nexus-dash.Caddyfile"
+BUILD_INPUT_PATHS=(
+    "${APP_ROOT}/apps"
+    "${APP_ROOT}/core"
+    "${APP_ROOT}/flavors"
+    "${APP_ROOT}/public"
+    "${APP_ROOT}/resources"
+    "${APP_ROOT}/shared"
+    "${APP_ROOT}/shell"
+    "${APP_ROOT}/themes"
+    "${APP_ROOT}/index.html"
+    "${APP_ROOT}/index.tsx"
+    "${APP_ROOT}/package.json"
+    "${APP_ROOT}/bun.lock"
+    "${APP_ROOT}/tsconfig.json"
+    "${APP_ROOT}/vite.config.ts"
+)
+ACTION="orchestrate"
+APK_APP=""
+APK_BUILD_TYPE="ask"
+APK_ASSETS="ask"
+APK_CLEAN="ask"
+APK_OPEN="ask"
+APK_NON_INTERACTIVE=""
+PYTHON_BIN=""
+BUILD_APK_SCRIPT="${SCRIPT_DIR}/flavor/build_apk.py"
+BUILD_APK_ARGS=()
+RUN_MODE=""
+RUN_DIST="${RUN_DIST:-}"
+AS_SERVICE="${AS_SERVICE:-}"
+RUN_BACKEND=1
+RUN_FRONTEND=1
+FORCE_INSTALL="${FORCE_INSTALL:-}"
+BUN_BIN=""
+BUN_VERSION=""
+BUN_RESOLVE_READY="no"
+PNPM_MODULES_MARKER="${APP_ROOT}/node_modules/.pnpm"
+NEED_INSTALL=""
+NEED_BUILD=""
+SUDO=""
+GVDIR=""
+ARG=""
+LARAVEL_PID=""
+IDX=0
+HEALTH_HTML=""
+HEALTH_CSS=""
+IP_LIST=""
+IP=""
+NON_INTERACTIVE=""
+SERVICE_EXISTS=""
+BUILD_INPUT_PATH=""
+BUILD_SOURCE_NEWER=""
+FRANKENPHP_BIN=""
+
+# shellcheck source=/dev/null
+source "$FRANKENPHP_MANAGER"
+# shellcheck source=/dev/null
+source "$CADDY_STATIC_SITE_COMMON"
+# shellcheck source=/dev/null
+source "$WEB_ACCESS_COMMON"
+
+# Restore initial directory on any exit (normal, error, Ctrl+C)
+trap 'cd "$ORIGINAL_DIR" 2>/dev/null || true' EXIT
+
+# --- Logging helpers ---
+log()  { printf '[nexus-dash] %s\n' "$1"; }
+warn() { printf '[nexus-dash] %s\n' "$1"; }
+err()  { printf '[nexus-dash] %s\n' "$1" >&2; }
+
+# --- Prompt helpers (read from the controlling TTY; honor non-interactive) ---
+# DEFAULT YES: empty / anything but n -> yes. No TTY -> yes.
+ask_default_yes() {
+    local msg="$1" reply=""
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        printf '%s [Y/n] ' "$msg" > /dev/tty
+        read -r reply < /dev/tty || reply=""
+    fi
+    case "$reply" in [Nn]*) return 1 ;; *) return 0 ;; esac
+}
+# DEFAULT NO: empty / anything but y -> no. No TTY -> no.
+ask_default_no() {
+    local msg="$1" reply=""
+    if [ -t 0 ] && [ -r /dev/tty ]; then
+        printf '%s [y/N] ' "$msg" > /dev/tty
+        read -r reply < /dev/tty || reply=""
+    fi
+    case "$reply" in [Yy]*) return 0 ;; *) return 1 ;; esac
+}
+
+# Resolve bun into BUN_BIN: PATH lookup (canonical /usr/local/bin/bun symlink).
+resolve_bun() {
+    BUN_BIN=""
+    BUN_VERSION=""
+    BUN_RESOLVE_READY="no"
+    hash -r 2>/dev/null || true
+    if command -v bun >/dev/null 2>&1; then
+        BUN_BIN="$(command -v bun)"
+        BUN_VERSION="$("$BUN_BIN" --version 2>/dev/null)"
+        if [ -n "$BUN_VERSION" ]; then
+            BUN_RESOLVE_READY="yes"
+        fi
+    fi
+}
+
+# Ensure node + bun are available (installs both via the canonical .sh if missing;
+# 17_install_node_toolchain_26.sh is idempotent and provisions bun).
+ensure_node_bun() {
+    resolve_bun
+    if [ "$BUN_RESOLVE_READY" = "yes" ]; then
+        log "Using bun ${BUN_VERSION}: $BUN_BIN"
+        return
+    fi
+    if [ -f "$NODE_INSTALL_SCRIPT" ]; then
+        if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && [ -z "$SUDO" ]; then SUDO="sudo"; fi
+        GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+        $SUDO mkdir -p "$GVDIR" 2>/dev/null || true
+        printf 'true\n' | $SUDO tee "$GVDIR/INSTALL_NODE" >/dev/null 2>&1 || true
+        log "bun not found. Invoking node toolchain installer (INSTALL_NODE=true, installs bun idempotently):"
+        log "  $NODE_INSTALL_SCRIPT"
+        bash "$NODE_INSTALL_SCRIPT" || warn "node toolchain installer reported failure (continuing)."
+        hash -r 2>/dev/null || true
+    fi
+    resolve_bun
+    if [ "$BUN_RESOLVE_READY" != "yes" ]; then
+        err "bun not found on PATH. Install it manually: npm i -g bun"
+        exit 1
+    fi
+    log "Upgraded the frontend runtime to bun: ${BUN_VERSION} (${BUN_BIN})."
+}
+
+# True when the dev toolchain (vite) is present under node_modules.
+vite_ready() { [ -f "$VITE_BIN" ]; }
+
+# Idempotent dependency install. Policy: bun install converges node_modules IN PLACE --
+# it verifies the tree against bun.lock and only changes what differs, so an up-to-date
+# tree is a fast no-op. A from-scratch reinstall happens when node_modules is
+# missing/empty, when a legacy pnpm layout (.pnpm marker) is detected, or when
+# --force-install is passed explicitly.
+ensure_deps() {
+    if [ ! -f "$PACKAGE_JSON" ]; then err "package.json not found at: $PACKAGE_JSON"; exit 1; fi
+    cd "$APP_ROOT" || exit 1
+
+    local fresh_install=""
+    # One-time cutover from a pnpm-created node_modules (symlinked .pnpm layout):
+    # rebuild the tree once so no stale pnpm symlinks survive; the marker
+    # disappears after the first bun install.
+    if [ -e "$PNPM_MODULES_MARKER" ]; then
+        log "pnpm node_modules layout detected -> rebuilding it with bun..."
+        rm -rf "$NODE_MODULES"
+    fi
+    if [ -n "$FORCE_INSTALL" ]; then
+        log "Force reinstall requested: reinstalling all dependencies from scratch..."
+        if ! "$BUN_BIN" install --force; then err "bun install failed."; exit 1; fi
+        fresh_install=1
+    elif [ ! -d "$NODE_MODULES" ] || [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ]; then
+        log "node_modules missing -> installing dependencies..."
+        if ! "$BUN_BIN" install; then err "bun install failed."; exit 1; fi
+        fresh_install=1
+    else
+        # node_modules EXISTS -> update in place. bun install only touches what
+        # differs from bun.lock, so repeated runs converge without wiping anything.
+        log "node_modules present -> updating dependencies (bun install)..."
+        if ! "$BUN_BIN" install; then
+            warn "bun install did not complete cleanly; keeping existing node_modules."
+            warn "If the dev toolchain is broken below, re-run with --force-install to recreate it."
+        fi
+    fi
+
+    if ! vite_ready; then
+        if [ -n "$fresh_install" ]; then
+            err "bun install finished but vite is still missing. Remove node_modules + bun.lock, then re-run with --force-install."
+            exit 1
+        fi
+        warn "Dev toolchain (vite) not found under node_modules; keeping node_modules as requested."
+        warn "Run with --force-install if you want node_modules recreated from scratch."
+    fi
+    log "Dependencies ready."
+    cd "$ORIGINAL_DIR" || true
+}
+
+# Converge the production dist independently from dependency installation.
+# Every source input is compared with the built entry, so a valid output does
+# not suppress later source changes and an unchanged tree does not rebuild.
+build_dist() {
+    NEED_BUILD=""
+    BUILD_SOURCE_NEWER=""
+    if [ -n "$FORCE_INSTALL" ] || [ ! -f "$DIST_INDEX" ]; then
+        NEED_BUILD=1
+    else
+        for BUILD_INPUT_PATH in "${BUILD_INPUT_PATHS[@]}"; do
+            if [ -e "$BUILD_INPUT_PATH" ]; then
+                BUILD_SOURCE_NEWER="$(find "$BUILD_INPUT_PATH" -type f -newer "$DIST_INDEX" -print -quit 2>/dev/null)"
+            fi
+            if [ -n "$BUILD_SOURCE_NEWER" ]; then
+                NEED_BUILD=1
+                break
+            fi
+        done
+    fi
+    if [ -n "$NEED_BUILD" ]; then
+        log "Building production dist (bun run build -> vite build)..."
+        cd "$APP_ROOT" || exit 1
+        if ! "$BUN_BIN" run build; then err "bun run build failed."; exit 1; fi
+        cd "$ORIGINAL_DIR" || true
+    else
+        log "Production dist is current: ${DIST_DIR}"
+    fi
+    if [ ! -f "$DIST_INDEX" ]; then err "dist build missing index.html at: $DIST_INDEX"; exit 1; fi
+}
+
+# True when a HEALTHY dashboard server already answers on DEV_PORT (HTML +
+# compiled Tailwind v4 CSS). A stale v3/PostCSS server serves HTML but breaks
+# /themes/index.css, so it must NOT be treated as healthy.
+dashboard_healthy() {
+    command -v curl >/dev/null 2>&1 || return 1
+    HEALTH_HTML="$(curl -fsS --max-time 2 "http://localhost:${DEV_PORT}/pycore-manager" 2>/dev/null)" || return 1
+    printf '%s' "$HEALTH_HTML" | grep -q 'Nexus Dash' || return 1
+    HEALTH_CSS="$(curl -fsS --max-time 5 "http://localhost:${DEV_PORT}/themes/index.css" 2>/dev/null)" || return 1
+    [ "${#HEALTH_CSS}" -ge 10000 ] || return 1
+    if printf '%s' "$HEALTH_CSS" | grep -qE '@tailwind[[:space:]]+(base|components|utilities)'; then return 1; fi
+    return 0
+}
+
+# Free DEV_PORT before starting (idempotent restart). Stops only stale dev
+# servers (vite/node/pnpm/bun); a non-dev holder is reported, never killed.
+free_dev_port() {
+    local port="$1" pids="" pid="" cmd=""
+    if command -v ss >/dev/null 2>&1; then
+        pids=$(ss -ltnpH 2>/dev/null | grep -E "[:.]${port}[[:space:]]" | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u)
+    fi
+    if [ -z "$pids" ] && command -v lsof >/dev/null 2>&1; then
+        pids=$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null | sort -u)
+    fi
+    [ -z "$pids" ] && return 0
+    for pid in $pids; do
+        cmd=$(ps -p "$pid" -o args= 2>/dev/null)
+        if printf '%s' "$cmd" | grep -qiE 'vite|node|pnpm|bun'; then
+            warn "Freeing port ${port}: stopping stale dev server PID ${pid}"
+            kill "$pid" 2>/dev/null || true
+        else
+            warn "Port ${port} held by non-dev PID ${pid}: ${cmd}"
+        fi
+    done
+    sleep 1
+    if command -v ss >/dev/null 2>&1 && ss -ltnH 2>/dev/null | grep -qE "[:.]${port}[[:space:]]"; then return 1; fi
+    if command -v lsof >/dev/null 2>&1 && [ -n "$(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null)" ]; then return 1; fi
+    return 0
+}
+
+# Print accessible URLs (LAN, excluding loopback).
+print_urls() {
+    if command -v ip >/dev/null 2>&1; then
+        IP_LIST=$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -vE '^127\.|^0\.')
+    elif command -v hostname >/dev/null 2>&1; then
+        IP_LIST=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -vE '^127\.|^0\.|^$')
+    fi
+    log "Accessible URLs (ready to copy):"
+    log "  ${DEV_URL}"
+    if [ -n "$IP_LIST" ]; then
+        for IP in $IP_LIST; do log "  http://${IP}:${DEV_PORT}"; done
+    fi
+}
+
+# Foreground server. Development uses Vite; production uses the shared Caddy
+# static-site runtime with SPA fallback and immutable hashed assets.
+serve_dashboard() {
+    web_access_config_ensure
+    if [ "$WEB_ACCESS_CONFIG_READY" != "yes" ]; then
+        err "Web access config could not be converged: ${DASHBOARD_WEB_ACCESS_CONFIG_FILE}"
+        exit 1
+    fi
+    # Fail loud on an unreadable service contract: an empty port/host would
+    # silently drop vite to its defaults (5173) while nginx keeps proxying to
+    # the contract port -> 502 storm.
+    if [ -z "$DEV_PORT" ] || [ -z "$BIND_HOST" ]; then
+        err "Service contract unreadable (DEV_PORT='${DEV_PORT}' BIND_HOST='${BIND_HOST}'); refusing to start vite on default values."
+        err "Check config/service_contract.json and scripts/shells/linux/common/service_contract_common.sh."
+        exit 1
+    fi
+    if ! free_dev_port "$DEV_PORT"; then
+        err "Port ${DEV_PORT} is still in use. Stop the holder, or start on another port: PORT=<other> bash $SELF"
+        exit 1
+    fi
+    print_urls
+    cd "$APP_ROOT" || exit 1
+    if [ "$RUN_MODE" = "dist" ]; then
+        css_caddyfile_ensure "$BIND_HOST" "$DEV_PORT" "$DIST_DIR" "$DASHBOARD_WEB_ACCESS_CONFIG_FILE" "$STATIC_CADDYFILE"
+        if [ "$CSS_CADDYFILE_READY" != "yes" ]; then
+            err "Production static server configuration could not be converged: ${STATIC_CADDYFILE}"
+            exit 1
+        fi
+        FRANKENPHP_BIN="$(fm_get_binary)"
+        if [ -z "$FRANKENPHP_BIN" ]; then
+            err "The selected FrankenPHP runtime is unavailable. Run 93_install_frankenphp.sh."
+            exit 1
+        fi
+        log "Serving production dist with Caddy on ${BIND_HOST}:${DEV_PORT}"
+        exec "$FRANKENPHP_BIN" run --config "$STATIC_CADDYFILE" --adapter caddyfile
+    else
+        log "Starting dev server (bun x --bun vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
+        "$BUN_BIN" x --bun vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
+    fi
+}
+
+build_apk() {
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python3)"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v python)"
+    else
+        err "Python is required for APK flavor preparation."
+        exit 1
+    fi
+    if [ ! -f "$BUILD_APK_SCRIPT" ]; then
+        err "APK build script not found: $BUILD_APK_SCRIPT"
+        exit 1
+    fi
+    BUILD_APK_ARGS=("$BUILD_APK_SCRIPT" --root "$APP_ROOT" --build-type "$APK_BUILD_TYPE" --assets "$APK_ASSETS" --clean "$APK_CLEAN" --open "$APK_OPEN")
+    [ -n "$APK_APP" ] && BUILD_APK_ARGS+=(--app "$APK_APP")
+    [ -n "$APK_NON_INTERACTIVE" ] && BUILD_APK_ARGS+=(--non-interactive)
+    log "Starting APK build workflow."
+    "$PYTHON_BIN" "${BUILD_APK_ARGS[@]}"
+}
+
+# True (0) when this distro is running under WSL (any of the standard markers).
+is_wsl() {
+    grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null \
+        || [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]
+}
+
+# True (0) when systemd is the active init (PID 1) and systemctl can actually operate.
+# /run/systemd/system exists ONLY when systemd booted as PID 1; without it systemctl
+# fails with "System has not been booted with systemd as init system" / "Failed to
+# connect to bus" -- common on WSL distros not started with `systemd=true`. Checked up
+# front so we never leak those raw bus errors.
+systemd_available() {
+    [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
+}
+
+# Register/converge the dashboard systemd unit by delegating to the canonical
+# merged script: 175_laravel_main_start.sh --ui-service owns the fine-grained,
+# file-state-driven unit convergence (the retired 176_laravel_ui_service.sh
+# was merged there). Resource limits pass through as NEXUS_DASH_* overrides.
+register_dashboard_service() {
+    if [ ! -f "$LARAVEL_MAIN_175" ]; then err "175 laravel main start script not found: $LARAVEL_MAIN_175"; return 1; fi
+    NEXUS_DASH_SERVICE_CPU="$SERVICE_CPU" \
+    NEXUS_DASH_SERVICE_MEM="$SERVICE_MEM" \
+    NEXUS_DASH_SERVICE_MEM_CAP_MB="$SERVICE_MEM_CAP_MB" \
+        bash "$LARAVEL_MAIN_175" --ui-service --"$RUN_MODE"
+}
+
+# --- Parse arguments ---
+while [ "$#" -gt 0 ]; do
+    ARG="$1"
+    case "$ARG" in
+        --serve) ACTION="serve" ;;
+        --prepare) ACTION="prepare" ;;
+        --build-apk) ACTION="build-apk" ;;
+        --build-apk=*) ACTION="build-apk"; APK_APP="${ARG#*=}" ;;
+        --app)
+            shift
+            [ "$#" -gt 0 ] || { err "--app requires a value."; exit 2; }
+            APK_APP="$1"
+            ;;
+        --app=*) APK_APP="${ARG#*=}" ;;
+        --debug-apk) APK_BUILD_TYPE="debug" ;;
+        --release-apk) APK_BUILD_TYPE="release" ;;
+        --skip-apk-assets) APK_ASSETS="no" ;;
+        --clean-apk) APK_CLEAN="yes" ;;
+        --no-open-output) APK_OPEN="no" ;;
+        --non-interactive) APK_NON_INTERACTIVE=1; NON_INTERACTIVE=1 ;;
+        -f|--force-install) FORCE_INSTALL=1 ;;
+        --dist) RUN_DIST="yes" ;;
+        --dev) RUN_DIST="no" ;;
+        --service) AS_SERVICE="yes" ;;
+        --no-service) AS_SERVICE="no" ;;
+        --no-backend) RUN_BACKEND="" ;;
+        --no-frontend) RUN_FRONTEND="" ;;
+    esac
+    shift
+done
+
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+    if [ -n "$NON_INTERACTIVE" ]; then SUDO="sudo -n"; else SUDO="sudo"; fi
+fi
+
+log "Original directory: $ORIGINAL_DIR"
+log "Working directory:  $APP_ROOT"
+
+# =====================================================================
+# Internal actions: serve (systemd ExecStart) and prepare (no server).
+# These never prompt and never touch the backend.
+# =====================================================================
+if [ "$ACTION" = "serve" ] || [ "$ACTION" = "prepare" ]; then
+    if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
+    log "Action: ${ACTION} | mode: ${RUN_MODE}"
+    if [ "$ACTION" = "prepare" ] || [ "$RUN_MODE" = "dev" ]; then
+        ensure_node_bun
+        ensure_deps
+    fi
+    if [ "$ACTION" = "prepare" ] && [ "$RUN_MODE" = "dist" ]; then
+        build_dist
+    fi
+    if [ "$ACTION" = "prepare" ]; then
+        log "Prepare complete (${RUN_MODE} mode). Not starting a server."
+        exit 0
+    fi
+    serve_dashboard
+    exit
+fi
+
+if [ "$ACTION" = "build-apk" ]; then
+    ensure_node_bun
+    ensure_deps
+    build_apk
+    exit
+fi
+
+# =====================================================================
+# Default: orchestrate. Order is deliberate -> install ALL prerequisites
+# FIRST, and only THEN ask whether to install a background service.
+# =====================================================================
+if [ ! -f "$LARAVEL_START" ]; then
+    err "Laravel start script not found: $LARAVEL_START (backend launch will be skipped)"
+    RUN_BACKEND=""
+fi
+
+# 1) Frontend prerequisites FIRST: install node/bun + dependencies (no prompt).
+if [ -n "$RUN_FRONTEND" ]; then
+    log "Installing frontend prerequisites (node/bun + dependencies)..."
+    ensure_node_bun
+    ensure_deps
+fi
+
+# 2) Run mode (dist/dev): initialization defaults to development hot reload;
+# production dist remains an explicit --dist choice.
+if [ -z "$RUN_DIST" ]; then RUN_DIST="no"; fi
+if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
+log "Frontend mode: $( [ "$RUN_MODE" = dist ] && echo 'PRODUCTION dist (Vite build -> Caddy static service)' || echo 'DEV server (Vite, hot reload)' )"
+
+# 3) Finish prerequisites: build the dist when chosen.
+if [ -n "$RUN_FRONTEND" ] && [ "$RUN_MODE" = "dist" ]; then
+    build_dist
+fi
+
+# 4) AFTER all prerequisites are installed: ask whether to install a background service.
+# A systemd unit is only meaningful when systemd is the active init. If it is not (WSL
+# without `systemd=true`, containers, ...), don't ask and don't attempt it -- that would
+# only emit raw "not been booted with systemd" / bus errors. Show a differentiated hint
+# (WSL-aware) and run in the foreground/background nohup path instead.
+if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
+    if is_wsl; then
+        log "Background systemd service unavailable: this WSL distro was not booted with systemd."
+        log "  (systemctl would fail with 'System has not been booted with systemd as init system'.)"
+        log "  To enable it (optional): add to /etc/wsl.conf, then 'wsl --shutdown' from Windows and reopen:"
+        log "      [boot]"
+        log "      systemd=true"
+        log "  For now, the dashboard + backend will run without a systemd unit."
+    else
+        log "Background systemd service unavailable: systemd is not the active init (no /run/systemd/system)."
+        log "  Running under a non-systemd init/container -> no systemd unit will be registered."
+    fi
+    AS_SERVICE="no"
+fi
+if [ -n "$NON_INTERACTIVE" ] && [ -z "$AS_SERVICE" ]; then
+    SERVICE_EXISTS=$(systemctl show "$SERVICE_NAME" --property=LoadState --value 2>/dev/null || true)
+    if [ "$SERVICE_EXISTS" = "loaded" ]; then AS_SERVICE="yes"; else AS_SERVICE="no"; fi
+fi
+if [ -z "$AS_SERVICE" ]; then
+    if ask_default_no "Prerequisites ready. Add the dashboard to a background systemd service (via 175_laravel_main_start.sh --ui-service)?"; then
+        AS_SERVICE="yes"
+    else
+        AS_SERVICE="no"
+    fi
+fi
+log "Background service: ${AS_SERVICE}"
+
+# 5) Backend: laravel_main shares the same Y/n flow; we pass the choice so it never
+# re-prompts (no TTY). It runs in the background either way -- in service mode it
+# registers its own unit AFTER its own setup; otherwise it serves under nohup.
+if [ -n "$RUN_BACKEND" ]; then
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    if [ "$AS_SERVICE" = "yes" ]; then
+        log "Bringing up laravel_main backend (registers its own service after setup)..."
+        nohup bash "$LARAVEL_START" --service > "$LARAVEL_LOG" 2>&1 &
+        LARAVEL_PID=$!
+        log "laravel_main backend PID: $LARAVEL_PID  (logs: $LARAVEL_LOG)"
+        log "  Tail: tail -f \"$LARAVEL_LOG\""
+    else
+        log "Launching laravel_main backend in background..."
+        nohup bash "$LARAVEL_START" --no-service > "$LARAVEL_LOG" 2>&1 &
+        LARAVEL_PID=$!
+        log "laravel_main backend PID: $LARAVEL_PID  (logs: $LARAVEL_LOG)"
+        log "  Tail: tail -f \"$LARAVEL_LOG\"   Stop: kill $LARAVEL_PID"
+    fi
+fi
+
+# 6) Frontend: register the service (prereqs already done) or serve in the foreground.
+if [ -n "$RUN_FRONTEND" ]; then
+    if [ "$AS_SERVICE" = "yes" ]; then
+        log "Registering systemd service ${SERVICE_NAME} (ExecStart: bash ${SELF} --serve --${RUN_MODE})..."
+        if register_dashboard_service; then
+            log "Service ${SERVICE_NAME} registered and started."
+            log "  Manage: systemctl {status|restart|stop} ${SERVICE_NAME}"
+            log "  Boot:   systemctl is-enabled ${SERVICE_NAME}"
+            log "  Logs:   journalctl -u ${SERVICE_NAME} -f"
+        else
+            err "Service registration failed. Run the frontend manually: bash $SELF --serve --${RUN_MODE}"
+            exit 1
+        fi
+    else
+        if dashboard_healthy; then
+            log "Dashboard already running on ${DEV_URL} - skipping launch."
+        else
+            log "Launching nexus-dash frontend in foreground (Ctrl+C to stop)..."
+            serve_dashboard
+        fi
+    fi
+else
+    log "Frontend skipped (--no-frontend). Backend (if started) keeps running in background."
+fi
+
+cd "$ORIGINAL_DIR" || true

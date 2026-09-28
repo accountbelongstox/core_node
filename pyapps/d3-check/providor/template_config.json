@@ -9,10 +9,13 @@
       "zh",
       "en"
     ],
-    "description": "UI language settings"
+    "app_icon": "",
+    "description": "UI language and app icon (empty = default images/app_icon.ico or .png, or generated)"
   },
   "log_settings": {
     "log_level": "INFO",
+    "show_debug_logs": true,
+    "debug_log_latency": false,
     "log_levels": [
       "DEBUG",
       "INFO",
@@ -87,7 +90,14 @@
     "gem_upgrade_random_max": 3.0,
     "description": "Map status detection and rift mode configuration"
   },
+  "battlenet_asia_credentials": {
+    "email": "",
+    "password": "",
+    "description": "Cached Battle.net Asia login (email + password); filled by app dialog when login needed"
+  },
   "ros_settings": {
+    "battlenet_region_cache": null,
+    "battlenet_region_cache_description": "Cached Battle.net server region: asia | cn; used to try only that region on next detection",
     "auto_enable_latest_ros": true,
     "description": "Whether to automatically enable the latest ROS version",
     "ros_directory": "D:\\applications\\GamesBot\\ros-bot7.18\\ros-bot7.18",
@@ -196,6 +206,10 @@
     "launch_verification_delay": 5,
     "launch_verification_delay_description": "Delay before verifying Diablo III launch"
   },
+  "d3": {
+    "d3_path": "",
+    "description": "Diablo III executable path for window lookup by process"
+  },
   "monitoring": {
     "enabled": true,
     "enabled_description": "Enable continuous monitoring mode",
@@ -218,11 +232,21 @@
     "game_log_directory_description": "Game log directory path for monitoring (for future use)",
     "annotate_ui_elements": true,
     "bag_offset": {
-      "left": 9,
-      "right": 22,
+      "left": 0,
+      "right": 0,
       "top": 0,
       "bottom": 0,
-      "description": "Bag rectangle offset values (in pixels). Positive values: shrink inward, Negative values: expand outward"
+      "description": "Bag rectangle offset values (in pixels). Positive: shrink inward, Negative: expand outward. Only applied when use_in_calculation is true (ui_analysis.bag_offset)"
+    }
+  },
+  "ui_analysis": {
+    "bag_offset": {
+      "left": 0,
+      "right": 0,
+      "top": 0,
+      "bottom": 0,
+      "use_in_calculation": false,
+      "use_in_calculation_description": "When enabled, bag crop region uses the offset values; when disabled, offsets are skipped (all 0)"
     }
   },
   "performance": {
@@ -260,13 +284,10 @@
     "rosbot_logs_relative": "RoS-BoT/Logs",
     "d3check_temp_relative": ".d3check",
     "annotated_screenshots_relative": ".d3check/annotated_screenshots",
-    "logs_file_relative": "RoS-BoT/Logs/logs.txt",
-    "history_file_relative": "RoS-BoT/Logs/history.txt",
     "bot_program_absolute": "D:\\applications\\GamesBot",
     "keys_ini_absolute": "D:\\applications\\GamesBot\\Keys.ini"
   },
   "filenames": {
-    "logs_filename": "logs.txt",
     "bot_program_name": "RoS-BoT.exe"
   },
   "process_names": {
@@ -286,14 +307,22 @@
     "prevent_stuck_description": "是否开启防止卡住 (当击杀BOSS后有可能卡住导致没法点开升级宝石页)",
     "blue_portal_priority": false,
     "blue_portal_priority_description": "蓝门优先捡材料 (当蓝门结束时有可能背包满导致没有捡材料就回城)",
+    "smart_echo": false,
+    "smart_echo_description": "回响完成时暂停ROSBOT防游戏退出，等待后自动恢复",
+    "smart_echo_wait_seconds": 15,
+    "smart_echo_wait_seconds_description": "智能回响等待秒数",
     "startup": false,
     "startup_description": "开机启动",
     "monitor_start_rosbot": false,
     "monitor_start_rosbot_description": "启动监控时启动ROSBOT",
+    "firstborn_blue_gate_reuse": false,
+    "firstborn_blue_gate_reuse_description": "先民蓝门复用",
     "path": "",
     "path_description": "ROSBOT可执行文件路径",
-    "timeout_minutes": 30,
-    "timeout_minutes_description": "超时X分钟自动重启ROSBOT/暗黑"
+    "timeout_minutes": 8,
+    "timeout_minutes_description": "超时重启",
+    "test_mode": false,
+    "test_mode_description": "测试模式，默认不勾选"
   },
   "macro_configs": {
     "description": "Diablo 3 Macro configuration with namespace support",
@@ -337,23 +366,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       },
       "config2": {
         "skills": {
@@ -387,23 +421,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       },
       "config3": {
         "skills": {
@@ -437,23 +476,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       },
       "config4": {
         "skills": {
@@ -487,23 +531,28 @@
           },
           "left_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           },
           "right_click": {
             "key": "",
-            "strategy": "continuous",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
             "interval": 100,
             "delay": 0,
             "random_delay": 0
           }
         },
         "quick_switch": "F",
-        "movement": "Space",
-        "potion": "Q",
-        "potion_interval": 500
+        "water": "Q"
       }
     },
     "auxiliary_config": {
@@ -528,13 +577,15 @@
       },
       "kanai_reforge": {
         "enabled": false,
-        "strategy": "reforge_once"
+        "strategy": "reforge_once",
+        "mode": "until_ancient"
       },
       "kanai_upgrade": {
         "enabled": false
       },
       "kanai_convert": {
-        "enabled": false
+        "enabled": false,
+        "material": "forgotten_soul"
       },
       "drop_equipment": {
         "enabled": false,

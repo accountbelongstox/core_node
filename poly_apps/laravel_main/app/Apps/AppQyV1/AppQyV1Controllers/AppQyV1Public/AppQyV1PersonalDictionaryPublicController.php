@@ -1,27 +1,16 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\PDQBasePublic;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\ApiResponse;
 
-class AppQyV1PersonalDictionaryPublicController
+class AppQyV1PersonalDictionaryPublicController extends Controller
 {
     use ApiResponse;
 
@@ -35,13 +24,12 @@ class AppQyV1PersonalDictionaryPublicController
         if($sort_frequency == null)$sort_frequency = true;
         if($query_soft_delete == null)$query_soft_delete = false;
         $uid = Auth::id();
-        if ($query_soft_delete == true) {
-            $personDictModel = PersonalDictionaries::where('uid', $uid)->whereNull('deleted_at')->first();
-        } else {
-            $personDictModel = PersonalDictionaries::where('uid', $uid)->first();
-        }
+        $personDictModel = AppQyV1PersonalDictionariesModel::findForUser(
+            (int) $uid,
+            $query_soft_delete == true
+        );
         if (!$personDictModel) {
-            $personDictModel = new PersonalDictionaries(
+            $personDictModel = new AppQyV1PersonalDictionariesModel(
                 [
                     'uid' => $uid,
                 ]
@@ -52,7 +40,7 @@ class AppQyV1PersonalDictionaryPublicController
         $newDictionary = DictWrap::mergeAlreadyWrapDict($personal_words, $dictionaries);
         $personDictModel->personal_dicts = json_encode($newDictionary);
         $personDictModel->uid = $uid;
-        $personDictModel->save();
+        $personDictModel->saveRecord();
         return [
             "sort_frequency" => $sort_frequency,
             "query_soft_delete" => $query_soft_delete,
@@ -63,4 +51,3 @@ class AppQyV1PersonalDictionaryPublicController
 
 
 }
-

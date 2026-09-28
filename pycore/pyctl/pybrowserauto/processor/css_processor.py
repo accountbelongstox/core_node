@@ -10,7 +10,10 @@ import re
 from pathlib import Path
 from urllib.parse import urljoin
 from typing import Dict, Optional, List
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+from pycore.pyctl.pybrowserauto.core.url_rewriter import URLRewriter
+
 
 
 class CSSProcessor:
@@ -198,7 +201,6 @@ class CSSProcessor:
         if rewrite_urls:
             ColorPrint.blue('[CSSProcessor] Step 3: Rewrite URLs to relative paths')
 
-            from pycore.pyctl.pybrowserauto.core import URLRewriter
             rewriter = URLRewriter(css_url, self.file_mapper)
             processed_css = rewriter.rewrite_css(css_content, css_url, preserve_external=True)
 

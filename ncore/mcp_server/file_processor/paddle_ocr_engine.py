@@ -15,6 +15,7 @@ import tempfile
 import subprocess
 
 from ocr_config import OCRLimits, APIKeys
+from pycore.pyfoundations.ai_runtime_policy import PADDLE_CPU_PACKAGE
 
 class PaddleOCREngine:
     """PaddleOCR local engine for offline text recognition"""
@@ -317,7 +318,7 @@ def install_paddleocr_dependencies() -> Dict[str, Any]:
         # Install PaddlePaddle CPU version first
         result1 = subprocess.run([
             sys.executable, "-m", "pip", "install",
-            "paddlepaddle==3.0.0",
+            PADDLE_CPU_PACKAGE,
             "-i", "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
         ], capture_output=True, text=True, timeout=300)
 

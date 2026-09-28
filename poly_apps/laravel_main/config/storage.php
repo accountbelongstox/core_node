@@ -1,20 +1,15 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 use App\Providers\PathMapper;
 
-$wwwRoot = PathMapper::mapWebPath('wwwroot');
-$laravelPublicPath = PathMapper::getLaravelPublicPath();
+$wwwRoot = PathMapper::getWwwRoot();
+$uploadsPath = PathMapper::getLaravelUploadsDir();
+$staticPath = PathMapper::getLaravelStaticDir();
+$backupPath = PathMapper::getLaravelDataDir('backups');
+$cachePath = PathMapper::getLaravelCacheDir();
+$updatesPath = PathMapper::getLaravelDataDir('updates');
+$logsPath = PathMapper::getLaravelLogsDir();
+$tempPath = PathMapper::getLaravelTmpDir();
 
 return [
 
@@ -58,8 +53,8 @@ return [
         */
 
         'upload' => [
-            'windows' => $laravelPublicPath . '\uploads',
-            'linux' => $laravelPublicPath . '/uploads',
+            'windows' => $uploadsPath,
+            'linux' => $uploadsPath,
         ],
 
         /*
@@ -73,8 +68,8 @@ return [
         */
 
         'static' => [
-            'windows' => $laravelPublicPath . '\static',
-            'linux' => $laravelPublicPath . '/static',
+            'windows' => $staticPath,
+            'linux' => $staticPath,
         ],
 
         /*
@@ -87,8 +82,8 @@ return [
         */
 
         'backup' => [
-            'windows' => $laravelPublicPath . '\backups',
-            'linux' => $laravelPublicPath . '/backups',
+            'windows' => $backupPath,
+            'linux' => $backupPath,
         ],
 
         /*
@@ -101,8 +96,8 @@ return [
         */
 
         'cache' => [
-            'windows' => $laravelPublicPath . '\cache',
-            'linux' => $laravelPublicPath . '/cache',
+            'windows' => $cachePath,
+            'linux' => $cachePath,
         ],
 
         /*
@@ -115,8 +110,8 @@ return [
         */
 
         'updates' => [
-            'windows' => $laravelPublicPath . '\updates',
-            'linux' => $laravelPublicPath . '/updates',
+            'windows' => $updatesPath,
+            'linux' => $updatesPath,
         ],
 
         /*
@@ -129,8 +124,8 @@ return [
         */
 
         'logs' => [
-            'windows' => $laravelPublicPath . '\logs',
-            'linux' => $laravelPublicPath . '/logs',
+            'windows' => $logsPath,
+            'linux' => $logsPath,
         ],
 
         /*
@@ -143,8 +138,8 @@ return [
         */
 
         'temp' => [
-            'windows' => $laravelPublicPath . '\temp',
-            'linux' => $laravelPublicPath . '/temp',
+            'windows' => $tempPath,
+            'linux' => $tempPath,
         ],
 
     ],
@@ -158,7 +153,7 @@ return [
     |
     */
 
-    'auto_create' => env('EXTERNAL_STORAGE_AUTO_CREATE', true),
+    'auto_create' => true,
 
     /*
     |--------------------------------------------------------------------------

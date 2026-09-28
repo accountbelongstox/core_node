@@ -1,0 +1,26 @@
+{
+  "task_id": "shell-1",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "K2": {
+      "status": "fixed",
+      "reason": "Linux secret_ensure_client_key and Windows Initialize-ClientKeySecret read secret_key_sign_name and key_min_bytes from service_contract.json#client_key_auth. They generate only when the raw file is absent or empty, no <name>.js/.JS encrypted copy exists, and no bundle entry exists. The bundle match string '\"filename\": \"<name>\"' is exactly what every bundle writer produces (JSON.stringify(..., null, 2) in bundle_add_file/bundle_encrypt/migrate/remove). Because the checks look at encrypted copies, not at the queued decrypt result, a host that holds an encrypted copy never generates a divergent key. The key is 32 random bytes as base64url, written 0600 via mktemp+mv (Linux) or with an owner/SYSTEM/Administrators ACL (Windows), and is never printed. The existing re-encrypt prompt picks it up."
+    },
+    "IS-008": {
+      "status": "fixed",
+      "reason": "repair_owned_tree_777 prunes .secret_keys, .secrets and .git from the 777 walk for every caller. Secret stores get repair_private_tree (dirs 0700, .secret_ignore/raw files 0600, tracked encrypted copies go-rwx; git tracks only the x bit, so there is no git diff). .git gets chown plus go-w. The decrypt, re-encrypt and generate paths also repair the private tree right away. Runtime readers stay compatible: Octane runs as root, and pyservice drops to the desktop user, which is the permission user that owns the store."
+    },
+    "IS-010": {
+      "status": "fixed",
+      "reason": "All node secret-tool calls on Linux and Windows pass the password on stdin through secret_password_runner.js. The Windows twin of step 27, Step5_InstallGitSSH.ps1:105/:112, now uses Invoke-SecretPasswordTool (GlobalVars.ps1 is dot-sourced at :13) and clears $plainPassword/$plainConfirmPassword on every path. Prompts are hidden (secret_read_hidden, Read-Host -AsSecureString)."
+    }
+  },
+  "issues": [
+    "(resolved) Initialize-ClientKeySecret writes an empty file, restricts its ACL, then writes the key (no inherited-ACL window).",
+    "(resolved) secret_read_hidden installs a scoped INT trap that restores echo and puts back the caller's trap.",
+    "(accepted with reason) '--password-stdin' stays one declaration per language layer (runner, bash, PowerShell, and each of the two separate Python tools)."
+  ],
+  "checks": "Every changed file diff read. Grep for remaining password-on-argv callers (node <enc>.js pwd <password>, disguise.js/bundle_add_file/batch_decrypt) across scripts, dd.sh, pycore and ncore found Step5_InstallGitSSH.ps1 (open), test_decrypt.sh (a test, deferred), and pycore secret_manager.py:193 (handed to pycore). The encryption tools spawn no child processes. BOM and line endings of the .ps1 files are unchanged against HEAD, and the additions are ASCII. ensure_secret_keys_ready ordering was checked (generation before the re-encrypt scan; the decrypt is queued).",
+  "checked_at": "2026-09-27T04:42:00+10:00"
+}

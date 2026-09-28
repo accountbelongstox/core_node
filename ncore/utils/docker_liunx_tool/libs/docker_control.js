@@ -1,20 +1,9 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const Base = require('#@base');
     const os = require('os');
     const fs = require('fs');
     const path = require('path');
-    const { execSync } = require('child_process');
+    const { execSync, execFileSync } = require('child_process');
+    const logger = require('#@logger');
 
     class DockerControl extends Base {
         constructor() {
@@ -28,14 +17,17 @@ const Base = require('#@base');
         controlDockerService(action) {
             const validActions = ['start', 'stop'];
             if (!validActions.includes(action)) {
-                throw new Error('Invalid action. Use "start" or "stop".');
+                logger.error('Invalid action. Use "start" or "stop".');
+                return false;
             }
             try {
                 console.log(`Attempting to ${action} Docker service...`);
                 execSync(`systemctl ${action} docker`);
                 console.log(`Docker service ${action}ed successfully.`);
+                return true;
             } catch (error) {
                 console.error(`Failed to ${action} Docker service`, error);
+                return false;
             }
         }
 
@@ -152,14 +144,17 @@ const Base = require('#@base');
         controlContainer(containerName, action) {
             const validActions = ['start', 'stop', 'pause', 'restart'];
             if (!validActions.includes(action)) {
-                throw new Error('Invalid action. Use "start", "stop", "pause", or "restart".');
+                console.error('Invalid action. Use "start", "stop", "pause", or "restart".');
+                return false;
             }
             try {
                 console.log(`Attempting to ${action} container: ${containerName}`);
-                execSync(`docker ${action} ${containerName}`);
+                execFileSync('docker', [action, String(containerName)]);
                 console.log(`Container ${containerName} ${action}ed successfully.`);
+                return true;
             } catch (error) {
                 console.error(`Failed to ${action} container: ${containerName}`, error);
+                return false;
             }
         }
     }

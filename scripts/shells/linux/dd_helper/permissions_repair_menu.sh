@@ -8,9 +8,10 @@
 # =============================================================================
 
 # Source smart_permissions.sh and gvar_common.sh for repair functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/smart_permissions.sh"
-source "$SCRIPT_DIR/../common/gvar_common.sh"
+PERMISSIONS_REPAIR_MENU_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$PERMISSIONS_REPAIR_MENU_DIR/smart_permissions.sh"
+source "$PERMISSIONS_REPAIR_MENU_DIR/../common/gvar_common.sh"
+source "$PERMISSIONS_REPAIR_MENU_DIR/../common/arrow_menu.sh"
 
 # =============================================================================
 # Comprehensive Permission Repair Functions
@@ -20,125 +21,53 @@ fix_core_node_permissions_full() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
+    local real_group=""
+    local parent_dir=""
+    local build_dir=""
+    local laravel_db_dir=""
 
     echo "[INFO] Fixing Core Node full permissions..."
-    echo "[INFO] Project root: $project_root"
+    echo "[SAFE_PATH] project_root=$project_root"
     echo "[INFO] Real user: $real_user"
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+    parent_dir="$(dirname "$project_root")"
+    build_dir="$parent_dir/_build_dir"
+    laravel_db_dir="$(map_web_path "laravel_db" 2>/dev/null)"
 
-    # Calculate build directory path dynamically (no hardcoding)
-    local parent_dir="$(dirname "$project_root")"
-    local build_dir="$parent_dir/_build_dir"
-
-    # Full directories for comprehensive operation
-    local full_dirs=(
-        "$project_root"
-        "$project_root/scripts"
-        "$project_root/pycore"
-        "$project_root/ncore"
-        "$project_root/apps"
-        "$project_root/pyapps"
-        "$build_dir"
-    )
-
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "[INFO] Running as root - fixing full permissions"
-
-        # Fix all directories with proper permissions
-        for dir in "${full_dirs[@]}"; do
-            if [ ! -d "$dir" ]; then
-                echo "[INFO] Creating directory: $dir"
-                mkdir -p "$dir" 2>/dev/null
-            fi
-            if [ -d "$dir" ]; then
-                echo "[INFO] Setting 777 permissions for: $dir"
-                chmod -R 777 "$dir" 2>/dev/null
-                chown -R "$real_user:$real_user" "$dir" 2>/dev/null
-                # Ensure all .sh files are executable
-                find "$dir" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null
-            else
-                echo "[WARNING] Failed to create/access directory: $dir"
-            fi
-        done
-
-        # Fix Laravel database directory
-        local laravel_db_dir="/www/wwwroot/laravel_db"
-        if [ -d "$laravel_db_dir" ]; then
-            echo "[INFO] Fixing Laravel database directory permissions: $laravel_db_dir"
-            local detected_user=$(detect_system_user)
-            chown -R ${detected_user}:${detected_user} "$laravel_db_dir" 2>/dev/null
-            chmod -R 775 "$laravel_db_dir" 2>/dev/null
-            # Fix SQLite database files
-            find "$laravel_db_dir" -name "*.sqlite" -exec chmod 664 {} \; 2>/dev/null
-            # Fix JSON status files
-            find "$laravel_db_dir" -name "*.json" -exec chmod 664 {} \; 2>/dev/null
-            echo "[SUCCESS] Laravel database directory permissions fixed"
-        else
-            echo "[INFO] Laravel database directory not found (may not be needed)"
-        fi
-
-        echo "[SUCCESS] Full Core Node permissions fixed"
-    else
-        echo "[WARNING] Not running as root - cannot perform full permission fix"
-        echo "[INFO] Please run with sudo for comprehensive permission repair"
+    repair_owned_tree_777 "$project_root" "$real_user" "$real_group" || return $?
+    ensure_owned_tree_777 "$build_dir" "$real_user" "$real_group" || return $?
+    if [ -n "$laravel_db_dir" ] && [ -d "$laravel_db_dir" ]; then
+        repair_owned_tree_777 "$laravel_db_dir" "$real_user" "$real_group" || return $?
     fi
+    echo "[SUCCESS] Full Core Node permissions fixed"
 }
 
 fix_python_permissions() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    
+    local real_group=""
+
     echo "[INFO] Fixing Python-specific permissions..."
-    
-    local python_dirs=(
-        "$project_root/pycore"
-        "$project_root/pyapps"
-    )
-    
-    if [ "$(id -u)" -eq 0 ]; then
-        for dir in "${python_dirs[@]}"; do
-            if [ -d "$dir" ]; then
-                echo "[INFO] Setting Python permissions for: $dir"
-                chmod -R 755 "$dir" 2>/dev/null
-                chown -R "$real_user:$real_user" "$dir" 2>/dev/null
-                # Make Python files executable
-                find "$dir" -name "*.py" -exec chmod 644 {} \; 2>/dev/null
-                find "$dir" -name "__pycache__" -type d -exec chmod 755 {} \; 2>/dev/null
-            fi
-        done
-        echo "[SUCCESS] Python permissions fixed"
-    else
-        echo "[WARNING] Need root access to fix Python permissions"
-    fi
+    echo "[SAFE_PATH] project_root=$project_root"
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+    repair_owned_tree_777 "$project_root/pycore" "$real_user" "$real_group" || return $?
+    repair_owned_tree_777 "$project_root/pyapps" "$real_user" "$real_group" || return $?
+    echo "[SUCCESS] Python permissions fixed"
 }
 
 fix_node_permissions() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    
+    local real_group=""
+
     echo "[INFO] Fixing Node.js-specific permissions..."
-    
-    local node_dirs=(
-        "$project_root/ncore"
-        "$project_root/apps"
-    )
-    
-    if [ "$(id -u)" -eq 0 ]; then
-        for dir in "${node_dirs[@]}"; do
-            if [ -d "$dir" ]; then
-                echo "[INFO] Setting Node permissions for: $dir"
-                chmod -R 755 "$dir" 2>/dev/null
-                chown -R "$real_user:$real_user" "$dir" 2>/dev/null
-                # Make Node files executable
-                find "$dir" -name "*.js" -exec chmod 644 {} \; 2>/dev/null
-                find "$dir" -name "node_modules" -type d -exec chmod 755 {} \; 2>/dev/null
-            fi
-        done
-        echo "[SUCCESS] Node.js permissions fixed"
-    else
-        echo "[WARNING] Need root access to fix Node.js permissions"
-    fi
+    echo "[SAFE_PATH] project_root=$project_root"
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+    repair_owned_tree_777 "$project_root/ncore" "$real_user" "$real_group" || return $?
+    repair_owned_tree_777 "$project_root/apps" "$real_user" "$real_group" || return $?
+    echo "[SUCCESS] Node.js permissions fixed"
 }
 
 repair_ai_tools_comprehensive() {
@@ -161,27 +90,6 @@ repair_ai_tools_comprehensive() {
 # =============================================================================
 # Menu Functions
 # =============================================================================
-
-show_permissions_menu() {
-    echo ""
-    echo "============================================================"
-    echo "              Permissions Repair Menu"
-    echo "============================================================"
-    echo ""
-    echo "Choose repair operation:"
-    echo ""
-    echo "1) Essential Repair (Fast) - Core Node root & scripts only"
-    echo "2) Full Core Node Repair - All project directories"
-    echo "3) Python Permissions - pycore & pyapps directories"
-    echo "4) Node.js Permissions - ncore & apps directories"
-    echo "5) /var/_core_node Permissions - MyBest directories"
-    echo "6) Environment Variables Setup"
-    echo "7) AI Tools Repair - claude, codex, droid"
-    echo "8) Complete System Repair - All of the above"
-    echo "9) Back to main menu"
-    echo ""
-    echo "============================================================"
-}
 
 handle_permissions_choice() {
     local choice="$1"
@@ -206,7 +114,7 @@ handle_permissions_choice() {
             fix_node_permissions "$project_root" "$user_info"
             ;;
         5)
-            echo "[INFO] Running /var/_core_node permissions repair..."
+            echo "[INFO] Running core_node data root permissions repair..."
             fix_var_core_node_permissions "$project_root" "$user_info"
             ;;
         6)
@@ -248,15 +156,27 @@ handle_permissions_choice() {
 
 permissions_repair_menu() {
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
+    local selected_index=0
+    local choice=1
+    local menu_items=(
+        "Essential Repair (Fast) - Core Node root & scripts only"
+        "Full Core Node Repair - All project directories"
+        "Python Permissions - pycore & pyapps directories"
+        "Node.js Permissions - ncore & apps directories"
+        "core_node data root Permissions - MyBest directories"
+        "Environment Variables Setup"
+        "AI Tools Repair - claude, codex, droid"
+        "Complete System Repair - All of the above"
+        "Back to Linux System Tools"
+    )
     
     while true; do
-        show_permissions_menu
-        read -p "Enter your choice [1-9]: " choice
-        
-        if [ "$choice" = "9" ]; then
+        arrow_menu_select "Permissions Repair Menu" menu_items "$selected_index" 8
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 8 ]; then
             break
         fi
-        
+        choice=$((selected_index + 1))
         handle_permissions_choice "$choice" "$project_root"
     done
 }

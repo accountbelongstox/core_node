@@ -4,6 +4,10 @@
  * Under 200 lines
  */
 
+import { getCachedBackendTimeoutMs } from '@/utils/backend-timeout';
+import { delay as wait } from '@/utils/async';
+import { laravelFetch } from '@/services/LaravelTransport';
+
 export interface ApiResponse<T = any> {
   success: boolean;
   message: string;
@@ -18,6 +22,12 @@ export interface RequestConfig {
   retries?: number;
   retryDelay?: number;
 }
+
+const RETRYABLE_METHODS = new Set<RequestConfig['method']>([
+  'GET',
+  'PUT',
+  'DELETE',
+]);
 
 export class ApiError extends Error {
   constructor(
@@ -41,7 +51,10 @@ export abstract class BaseApiClient {
       'Content-Type': 'application/json',
       ...defaultHeaders,
     };
-    this.defaultTimeout = 30000; // 30 seconds
+    // Seed from the configurable backend-timeout cache (default 10 min). Live
+    // changes are picked up per-request via getCachedBackendTimeoutMs() below,
+    // so a settings change takes effect without reconstructing this client.
+    this.defaultTimeout = getCachedBackendTimeoutMs();
   }
 
   /**
@@ -55,29 +68,26 @@ export abstract class BaseApiClient {
       method = 'GET',
       headers = {},
       body,
-      timeout = this.defaultTimeout,
-      retries = 3,
       retryDelay = 1000,
     } = config;
+    const retries = config.retries ?? (RETRYABLE_METHODS.has(method) ? 3 : 0);
+    // An explicit per-call timeout wins; otherwise
+    // resolve the configurable backend timeout live from the cache.
+    const timeout = config.timeout ?? getCachedBackendTimeoutMs();
 
     const url = `${this.baseUrl}${endpoint}`;
     const requestHeaders = { ...this.defaultHeaders, ...headers };
+    const requestBody = body ? JSON.stringify(body) : undefined;
 
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        const response = await fetch(url, {
+        const response = await laravelFetch(url, {
           method,
           headers: requestHeaders,
-          body: body ? JSON.stringify(body) : undefined,
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutId);
+          body: requestBody,
+        }, timeout);
 
         const data = await response.json().catch(() => null);
 
@@ -176,7 +186,7 @@ export abstract class BaseApiClient {
    * Delay utility
    */
   protected delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return wait(ms);
   }
 
   /**

@@ -1,22 +1,11 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Http\System;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 
-class StatusController extends BaseController
+class StatusController extends Controller
 {
     /**
      * Get system status information
@@ -26,30 +15,26 @@ class StatusController extends BaseController
      */
     public function index(Request $request)
     {
-        try {
-            $systemInfo = [
-                'status' => 'online',
-                'timestamp' => now()->toISOString(),
-                'server_time' => now()->format('Y-m-d H:i:s'),
-                'version' => '1.0.0',
-                'environment' => app()->environment(),
-                'debug' => config('app.debug'),
-                'database' => $this->getDatabaseStatus(),
-                'storage' => $this->getStorageStatus(),
-                'memory' => $this->getMemoryStatus()
-            ];
+        // No controller-level try/catch (LARAVEL_GUIDE: trust the framework
+        // handler). The sub-status helpers below deliberately catch their own
+        // infra errors and report them AS DATA (status endpoint contract) —
+        // that is feature behaviour, not error swallowing, so it stays.
+        $systemInfo = [
+            'status' => 'online',
+            'timestamp' => now()->toISOString(),
+            'server_time' => now()->format('Y-m-d H:i:s'),
+            'version' => '1.0.0',
+            'environment' => app()->environment(),
+            'debug' => config('app.debug'),
+            'database' => $this->getDatabaseStatus(),
+            'storage' => $this->getStorageStatus(),
+            'memory' => $this->getMemoryStatus()
+        ];
 
-            return response()->json([
-                'success' => true,
-                'data' => $systemInfo
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Failed to get system status: ' . $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'data' => $systemInfo
+        ]);
     }
 
     /**
@@ -60,7 +45,7 @@ class StatusController extends BaseController
     protected function getDatabaseStatus(): array
     {
         try {
-            \DB::connection()->getPdo();
+            \App\Apps\ClashV1\ClashV1Models\ClashV1ConfigModel::databaseIsAvailable();
             return [
                 'status' => 'connected',
                 'driver' => config('database.default'),

@@ -1,0 +1,407 @@
+# -*- coding: utf-8 -*-
+"""Public CodeSync service wrappers around CodeSyncManager."""
+
+from __future__ import annotations
+
+import base64
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+import pycore.pyutils.codesync.routes as code_sync_routes
+from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
+from pycore.pyutils.codesync.manager import get_code_sync_manager
+from pycore.pyutils.common.client_key_auth import ERROR_MISSING as CLIENT_KEY_ERROR_MISSING
+from pycore.pyutils.codesync.workspace_exchange import (
+    DEFAULT_FILE_PAGE_SIZE,
+    WorkspaceExchangeError,
+    get_workspace_exchange,
+)
+
+
+def _p(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    return params if isinstance(params, dict) else {}
+
+
+def ping() -> Dict[str, Any]:
+    return {"status": "ok", "service": "code-sync"}
+
+
+def get_status() -> Dict[str, Any]:
+    return get_code_sync_manager().get_status()
+
+
+def peer_status() -> Dict[str, Any]:
+    try:
+        return get_code_sync_manager().get_local_peer_status()
+    except Exception as exc:  # noqa: BLE001
+        return {"role": "client", "distributing": False, "error": str(exc)}
+
+
+def peer_config(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    req = _p(params)
+    peers = req.get("peers")
+    if not isinstance(peers, list):
+        return {"success": False, "error": "peers must be a list"}
+    return get_code_sync_manager().apply_remote_config(
+        peers,
+        int(req.get("version") or 0),
+        float(req.get("updated_at") or 0.0),
+    )
+
+
+def peer_heartbeat(
+    params: Optional[Dict[str, Any]] = None,
+    *,
+    client_ip: Optional[str] = None,
+) -> Dict[str, Any]:
+    body = _p(params)
+    return get_code_sync_manager().receive_heartbeat(body, client_ip)
+
+
+def get_peers() -> Dict[str, Any]:
+    return get_code_sync_manager().get_peers()
+
+
+def get_sync_settings() -> Dict[str, Any]:
+    return get_code_sync_manager().get_sync_settings()
+
+
+def set_sync_settings(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return get_code_sync_manager().set_sync_settings(_p(params))
+
+
+def reset_sync_settings() -> Dict[str, Any]:
+    return get_code_sync_manager().reset_sync_settings()
+
+
+def get_sync_logs(
+    limit: int = 100,
+    page: int = 1,
+    since_revision: str = "",
+) -> Dict[str, Any]:
+    return get_code_sync_manager().get_sync_logs(
+        int(limit or 100),
+        int(page or 1),
+        str(since_revision or ""),
+    )
+
+
+def get_ui_runtime(
+    page: int = 1,
+    page_size: int = 100,
+    since_revision: str = "",
+) -> Dict[str, Any]:
+    return get_code_sync_manager().get_ui_runtime(
+        int(page or 1),
+        int(page_size or 100),
+        str(since_revision or ""),
+    )
+
+
+def get_file_tree() -> Dict[str, Any]:
+    return get_code_sync_manager().get_file_tree()
+
+
+def get_peer_file_tree(peer_id: str) -> Dict[str, Any]:
+    peer_id = str(peer_id or "").strip()
+    if not peer_id:
+        return {"success": False, "error": "peer_id required"}
+    return get_code_sync_manager().get_peer_file_tree(peer_id)
+
+
+def add_peer(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    req = _p(params)
+    name = str(req.get("name") or "").strip()
+    host = str(req.get("host") or "").strip()
+    if not name or not host:
+        return {"success": False, "error": "name and host required"}
+    return get_code_sync_manager().add_peer(
+        name,
+        host,
+        int(req.get("port") or PYCORE_HTTP_PORT),
+        str(req.get("role") or "client"),
+    )
+
+
+def remove_peer(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    peer_id = str(_p(params).get("id") or "").strip()
+    if not peer_id:
+        return {"success": False, "error": "id required"}
+    return get_code_sync_manager().remove_peer(peer_id)
+
+
+def update_peer(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    req = _p(params)
+    peer_id = str(req.get("id") or "").strip()
+    if not peer_id:
+        return {"success": False, "error": "id required"}
+    fields = {k: v for k, v in req.items() if k != "id" and v is not None}
+    return get_code_sync_manager().update_peer(peer_id, fields)
+
+
+def set_role(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    role = str(_p(params).get("role") or "client")
+    return get_code_sync_manager().set_role(role)
+
+
+def set_distribute(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    enabled = bool(_p(params).get("enabled"))
+    return get_code_sync_manager().set_distributing(enabled)
+
+
+def set_skip_update(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    enabled = bool(_p(params).get("enabled"))
+    return get_code_sync_manager().set_skip_update(enabled)
+
+
+def discover() -> Dict[str, Any]:
+    return get_code_sync_manager().discover()
+
+
+def set_server_mode() -> Dict[str, Any]:
+    get_code_sync_manager().set_server_mode()
+    return {"success": True, "message": "Switched to server mode"}
+
+
+def set_client_mode() -> Dict[str, Any]:
+    get_code_sync_manager().set_client_mode()
+    return {"success": True, "message": "Switched to client mode"}
+
+
+def stop_sync() -> Dict[str, Any]:
+    get_code_sync_manager().stop()
+    return {"success": True, "message": "Code sync stopped"}
+
+
+def register_client(
+    params: Optional[Dict[str, Any]] = None,
+    *,
+    client_ip: str = "unknown",
+) -> Dict[str, Any]:
+    manager = get_code_sync_manager()
+    if not manager.is_server_mode():
+        return {"success": False, "error": "Not in server mode", "status_code": 503}
+    server = manager.get_server()
+    if not server:
+        return {"success": False, "error": "Server not available", "status_code": 503}
+
+    client_id = str(_p(params).get("client_id") or "").strip()
+    if not client_id:
+        return {"success": False, "error": "client_id required"}
+    needs_initial_sync = server.register_client(client_id, client_ip or "unknown")
+    return {
+        "success": True,
+        "needs_initial_sync": needs_initial_sync,
+        "message": f"Client registered: {client_id}",
+    }
+
+
+def initial_sync(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    manager = get_code_sync_manager()
+    if not manager.is_server_mode():
+        return {"success": False, "error": "Not in server mode", "status_code": 503}
+    server = manager.get_server()
+    if not server:
+        return {"success": False, "error": "Server not available", "status_code": 503}
+
+    client_id = str(_p(params).get("client_id") or "").strip()
+    if not client_id:
+        return {"success": False, "error": "client_id required"}
+    files = server.get_initial_sync_files(client_id)
+    return {"success": True, "files": files}
+
+
+def get_changes(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    manager = get_code_sync_manager()
+    if not manager.is_server_mode():
+        return {"success": False, "error": "Not in server mode", "status_code": 503}
+    server = manager.get_server()
+    if not server:
+        return {"success": False, "error": "Server not available", "status_code": 503}
+
+    req = _p(params)
+    client_id = str(req.get("client_id") or "").strip()
+    if not client_id:
+        return {"success": False, "error": "client_id required"}
+    received_count = int(req.get("received_count") or 0)
+    skipped_count = int(req.get("skipped_count") or 0)
+    if received_count > 0 or skipped_count > 0:
+        server.update_client_stats(
+            client_id,
+            received_count=received_count,
+            skipped_count=skipped_count,
+        )
+    files = server.get_changed_files(client_id)
+    return {"success": True, "files": files}
+
+
+def download_file(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    manager = get_code_sync_manager()
+    if not manager.is_server_mode():
+        return {"success": False, "error": "Not in server mode", "status_code": 503}
+    server = manager.get_server()
+    if not server:
+        return {"success": False, "error": "Server not available", "status_code": 503}
+
+    normalized = str(_p(params).get("file_path") or "").replace("\\", "/")
+    if not normalized:
+        return {"success": False, "error": "file_path required"}
+
+    base = Path(server.root_dir).resolve()
+    try:
+        file_path = (base / normalized).resolve()
+    except Exception:  # noqa: BLE001
+        return {"success": False, "error": "Invalid path", "status_code": 400}
+    if file_path != base and base not in file_path.parents:
+        return {"success": False, "error": "Invalid path", "status_code": 400}
+    if not file_path.is_file():
+        return {"success": False, "error": f"File not found: {normalized}", "status_code": 404}
+
+    raw = file_path.read_bytes()
+    return {
+        "success": True,
+        "file_path": normalized,
+        "content_base64": base64.b64encode(raw).decode("ascii"),
+        "bytes": len(raw),
+    }
+
+
+def toggle_backup(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    manager = get_code_sync_manager()
+    if not manager.is_client_mode():
+        return {"success": False, "error": "Not in client mode", "status_code": 503}
+    client = manager.get_client()
+    if not client:
+        return {"success": False, "error": "Client not available", "status_code": 503}
+    enabled = bool(_p(params).get("enabled", True))
+    client.enable_backup = enabled
+    return {"success": True, "enabled": enabled}
+
+
+def apply_pending_update(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return get_code_sync_manager().apply_pending_update(
+        str(_p(params).get("rel") or "").strip()
+    )
+
+
+def clear_pending_update(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return get_code_sync_manager().clear_pending_update(
+        str(_p(params).get("rel") or "").strip()
+    )
+
+
+def _client_workspace(client_key: Dict[str, Any]):
+    if not client_key.get("ok"):
+        raise WorkspaceExchangeError(
+            401,
+            str(client_key.get("error_code") or CLIENT_KEY_ERROR_MISSING),
+        )
+    manager = get_code_sync_manager()
+    if not manager.is_client_mode():
+        raise WorkspaceExchangeError(503, "Workspace exchange is only available in client mode")
+    if bool(getattr(manager, "light", False)):
+        raise WorkspaceExchangeError(503, "Workspace exchange is unavailable in light mode")
+    return get_workspace_exchange(manager.sync_target_root())
+
+
+def _workspace_error(exc: WorkspaceExchangeError) -> Dict[str, Any]:
+    return {
+        "success": False,
+        "error": exc.detail,
+        "status_code": exc.status_code,
+    }
+
+
+def workspace_capabilities(client_key: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        result = _client_workspace(client_key).capabilities()
+        result["routes"] = {
+            "list_files": {
+                "method": "GET",
+                "path": code_sync_routes.WORKSPACE_FILES_PATH,
+            },
+            "read_file": {
+                "method": "GET",
+                "path": code_sync_routes.WORKSPACE_FILE_PATH,
+                "query": ["path"],
+            },
+            "write_file": {
+                "method": "PUT",
+                "path": code_sync_routes.WORKSPACE_FILE_PATH,
+                "query": ["path"],
+                "body": ["content_base64", "content_sha256"],
+            },
+            "upload_document": {
+                "method": "POST",
+                "path": code_sync_routes.WORKSPACE_DOCUMENTS_PATH,
+                "body": ["title", "content"],
+            },
+            "latest_document": {
+                "method": "GET",
+                "path": code_sync_routes.WORKSPACE_LATEST_DOCUMENT_PATH,
+            },
+        }
+        return result
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_list_files(
+    client_key: Dict[str, Any],
+    cursor: str = "",
+    limit: int = DEFAULT_FILE_PAGE_SIZE,
+    include_hash: bool = False,
+) -> Dict[str, Any]:
+    try:
+        return _client_workspace(client_key).list_files(cursor, limit, include_hash)
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_read_file(client_key: Dict[str, Any], file_path: str) -> Dict[str, Any]:
+    try:
+        return _client_workspace(client_key).read_file(file_path)
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_write_file(
+    client_key: Dict[str, Any],
+    file_path: str,
+    params: Optional[Dict[str, Any]] = None,
+    *,
+    if_match: str = "",
+    if_none_match: str = "",
+) -> Dict[str, Any]:
+    request = _p(params)
+    try:
+        return _client_workspace(client_key).write_file(
+            file_path,
+            request.get("content_base64"),
+            content_sha256=str(request.get("content_sha256") or ""),
+            if_match=if_match,
+            if_none_match=if_none_match,
+        )
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_write_document(
+    client_key: Dict[str, Any],
+    params: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    request = _p(params)
+    try:
+        return _client_workspace(client_key).write_document(
+            request.get("title"),
+            request.get("content"),
+        )
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_latest_document(client_key: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        return _client_workspace(client_key).latest_document()
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)

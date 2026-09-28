@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # Permissions Fixer Library (Unified)
@@ -39,10 +28,24 @@
 #     0 on success, non-zero on failure
 # =============================================================================
 
+# Variable declarations
+PERMISSIONS_FIXER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PERMISSIONS_FIXER_FS_HELPER="$PERMISSIONS_FIXER_DIR/fs_perm_helpers.sh"
+
+# Single-definition hub for CORE_NODE_WWW_BASE (the dual-boot NTFS extra-level
+# rule: D:\ == /www, so D:\www == /www/www). Must be sourced BEFORE reading the
+# variable below; never re-implement the findmnt detection inline.
+# shellcheck source=/dev/null
+source "$PERMISSIONS_FIXER_DIR/runtime_environment.sh"
+PERMISSIONS_FIXER_WWW_BASE="${CORE_NODE_WWW_BASE:-/www}"
+
+# shellcheck source=/dev/null
+source "$PERMISSIONS_FIXER_FS_HELPER"
+
 # Get real user (cached)
 get_target_user() {
-    local real_user=$(get_real_user)
-    echo "$real_user"
+    resolve_active_permission_owner >/dev/null
+    echo "$ACTIVE_PERMISSION_USER"
 }
 
 # Fix permissions for a specific directory
@@ -50,7 +53,12 @@ get_target_user() {
 fix_directory_permissions() {
     local dir_path="$1"
     local description="$2"
-    local real_user=$(get_target_user)
+    local real_user=""
+    local real_group=""
+
+    resolve_active_permission_owner >/dev/null
+    real_user="$ACTIVE_PERMISSION_USER"
+    real_group="$ACTIVE_PERMISSION_GROUP"
 
     if [ -z "$dir_path" ]; then
         echo "[ERROR] Directory path not provided"
@@ -64,20 +72,10 @@ fix_directory_permissions() {
 
     echo "[FIX] $description..."
     echo "  Path: $dir_path"
-    echo "  Owner: $real_user:$real_user"
+    echo "  Owner: $real_user:$real_group"
+    echo "  Permissions: 777"
 
-    # Fix ownership
-    sudo chown -R "$real_user:$real_user" "$dir_path" 2>/dev/null || {
-        echo "  [WARN] Could not change ownership (may already be correct)"
-    }
-
-    # Fix permissions
-    sudo chmod -R 755 "$dir_path" 2>/dev/null || {
-        echo "  [WARN] Could not change permissions (may already be correct)"
-    }
-
-    echo "  [OK] Permissions fixed"
-    return 0
+    repair_owned_tree_777 "$dir_path" "$real_user" "$real_group"
 }
 
 # Fix core_node directory permissions
@@ -104,7 +102,7 @@ fix_permissions_project_dir() {
 fix_permissions_build_dir() {
     local www_base=$(map_web_path "www" 2>/dev/null)
     if [ -z "$www_base" ]; then
-        www_base="/www/programing"
+        www_base="$PERMISSIONS_FIXER_WWW_BASE/programing"
     fi
 
     local build_dir="$www_base/_build_dir"
@@ -115,7 +113,7 @@ fix_permissions_build_dir() {
 fix_permissions_wwwroot_dir() {
     local wwwroot=$(map_web_path "wwwroot" 2>/dev/null)
     if [ -z "$wwwroot" ]; then
-        wwwroot="/www/wwwroot"
+        wwwroot="$PERMISSIONS_FIXER_WWW_BASE/wwwroot"
     fi
 
     fix_directory_permissions "$wwwroot" "WWW Root Directory"
@@ -123,9 +121,9 @@ fix_permissions_wwwroot_dir() {
 
 # Fix laravel_db directory permissions
 fix_permissions_laravel_db_dir() {
-    local laravel_db=$(map_web_path "laravel_data_dir" 2>/dev/null)
+    local laravel_db=$(map_web_path "laravel_db" 2>/dev/null)
     if [ -z "$laravel_db" ]; then
-        laravel_db="/www/wwwroot/laravel_db"
+        laravel_db="$PERMISSIONS_FIXER_WWW_BASE/wwwroot/laravel_db"
     fi
 
     fix_directory_permissions "$laravel_db" "Laravel Database Directory"
@@ -135,7 +133,7 @@ fix_permissions_laravel_db_dir() {
 fix_permissions_cache_dir() {
     local cache_dir=$(map_web_path "cache" 2>/dev/null)
     if [ -z "$cache_dir" ]; then
-        cache_dir="/www/cache"
+        cache_dir="$PERMISSIONS_FIXER_WWW_BASE/cache"
     fi
 
     fix_directory_permissions "$cache_dir" "Cache Directory"

@@ -72,7 +72,7 @@ class CommonAvatarPublic
         }
 
         if ($save) {
-            $user->save();
+            $user->saveRecord();
         }
 
         return $user;

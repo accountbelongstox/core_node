@@ -1,4 +1,4 @@
-# 网络记录页 (network_records_page)
+# Network Records Page (network_records_page)
 
 This directory contains detailed design specifications for the network_records_page page.
 

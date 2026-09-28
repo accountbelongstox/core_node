@@ -65,7 +65,7 @@ from datetime import datetime
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from pycore.pyutils.translator import GoogleTranslator
+from pycore.pyutils.translator.google_translator import GoogleTranslator
 
 
 async def translate_filename(filename: str, src_lang: str = 'zh-CN', verbose: bool = True, retry_count: int = 2) -> str:

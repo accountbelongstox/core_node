@@ -10,15 +10,27 @@ Handles:
 - Process cleanup on shutdown
 """
 
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import threading
+from contextlib import nullcontext
+from pycore.pyfoundations.serialized_worker import (
+    SerializedSingletonProvider,
+    init_serialized_owner,
+    serialized_method,
+)
 import time
 import socket
 from typing import Optional, Dict, List
 from pathlib import Path
 from dataclasses import dataclass
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import subprocess
+
+import traceback
+
+from pycore.pyutils.native_ui.step7_managers.shutdown_manager import shutdown_manager
+
+
 
 
 @dataclass
@@ -43,29 +55,19 @@ class ServerManager:
     - Thread-safe operations
     """
 
-    _instance: Optional['ServerManager'] = None
-    _lock = threading.Lock()
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize server manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize server manager."""
         self._servers: Dict[str, ServerProcess] = {}
-        self._servers_lock = threading.Lock()
+        init_serialized_owner(
+            self,
+            'pyutils.native_ui.server_manager',
+            'NativeUIServerManagerThread',
+            timeout=120.0,
+        )
+        self._servers_scope = nullcontext()
         self._shutdown_registered = False
 
         ColorPrint.print_info("[ServerManager] Initialized (singleton)")
-        self._initialized = True
 
     def is_port_available(self, port: int, host: str = '127.0.0.1') -> bool:
         """
@@ -123,6 +125,7 @@ class ServerManager:
             time.sleep(0.5)
         return False
 
+    @serialized_method
     def start_nuxt_dev_server(
         self,
         app_name: str,
@@ -140,7 +143,7 @@ class ServerManager:
         Returns:
             ServerProcess if successful, None otherwise
         """
-        with self._servers_lock:
+        with self._servers_scope:
             # Check if already started
             if app_name in self._servers:
                 ColorPrint.print_warn(f"[ServerManager] Nuxt server already running: {app_name}")
@@ -233,10 +236,10 @@ class ServerManager:
 
             except Exception as e:
                 ColorPrint.print_error(f"[ServerManager] Failed to start Nuxt dev server: {e}")
-                import traceback
                 traceback.print_exc()
                 return None
 
+    @serialized_method
     def start_vue_static_server(
         self,
         dist_path: Path,
@@ -252,7 +255,7 @@ class ServerManager:
         Returns:
             ServerProcess if successful, None otherwise
         """
-        with self._servers_lock:
+        with self._servers_scope:
             # Generate unique name for this dist
             server_name = f"vue_dist_{dist_path.name}"
 
@@ -319,10 +322,10 @@ class ServerManager:
 
             except Exception as e:
                 ColorPrint.print_error(f"[ServerManager] Failed to start static server: {e}")
-                import traceback
                 traceback.print_exc()
                 return None
 
+    @serialized_method
     def stop_server(self, name: str) -> bool:
         """
         Stop a managed server
@@ -333,7 +336,7 @@ class ServerManager:
         Returns:
             True if stopped successfully
         """
-        with self._servers_lock:
+        with self._servers_scope:
             if name not in self._servers:
                 ColorPrint.print_warn(f"[ServerManager] Server not found: {name}")
                 return False
@@ -369,11 +372,12 @@ class ServerManager:
                 ColorPrint.print_error(f"[ServerManager] Error stopping server {name}: {e}")
                 return False
 
+    @serialized_method
     def stop_all_servers(self):
         """Stop all managed servers"""
         ColorPrint.print_info("[ServerManager] Stopping all servers...")
 
-        with self._servers_lock:
+        with self._servers_scope:
             server_names = list(self._servers.keys())
 
         for name in server_names:
@@ -381,14 +385,16 @@ class ServerManager:
 
         ColorPrint.print_success("[ServerManager] All servers stopped")
 
+    @serialized_method
     def get_server_info(self, name: str) -> Optional[ServerProcess]:
         """Get information about a server"""
-        with self._servers_lock:
+        with self._servers_scope:
             return self._servers.get(name)
 
+    @serialized_method
     def list_servers(self) -> List[ServerProcess]:
         """List all managed servers"""
-        with self._servers_lock:
+        with self._servers_scope:
             return list(self._servers.values())
 
     def _register_shutdown_hook(self):
@@ -397,10 +403,8 @@ class ServerManager:
             return
 
         try:
-            from pycore.pyutils.native_ui.step7_managers.shutdown_manager import get_shutdown_manager
 
-            shutdown_mgr = get_shutdown_manager()
-            shutdown_mgr.add_shutdown_hook(
+            shutdown_manager.add_shutdown_hook(
                 name="server_manager_cleanup",
                 callback=self.stop_all_servers,
                 priority=50  # Higher priority = earlier execution
@@ -413,19 +417,18 @@ class ServerManager:
             ColorPrint.print_warn(f"[ServerManager] Failed to register shutdown hook: {e}")
 
 
-def get_server_manager() -> ServerManager:
-    """
-    Get the singleton ServerManager instance
+_SERVER_MANAGER_PROVIDER = SerializedSingletonProvider(
+    ServerManager,
+    "native_ui.server_manager.provider",
+    "ServerManagerProvider",
+)
 
-    Returns:
-        ServerManager singleton instance
-    """
-    return ServerManager()
+server_manager = _SERVER_MANAGER_PROVIDER.get()
 
 
 # Export
 __all__ = [
     'ServerManager',
     'ServerProcess',
-    'get_server_manager'
+    'server_manager',
 ]

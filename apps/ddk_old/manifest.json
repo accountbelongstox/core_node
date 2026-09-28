@@ -1,0 +1,170 @@
+{
+"update_url": "https://clients2.google.com/service/update2/crx",
+
+  "manifest_version": 3,
+  "name": "多多开 | 拼多多购物订单管理",
+  "version": "5.1.1",
+  "description": "管理您自己的拼多多买家账号订单。支持订单同步、关键词搜索、Excel导出等功能。本插件为第三方工具，与拼多多官方无关。",
+  "icons": {
+    "16": "assets/images/app-logo.png",
+    "48": "assets/images/app-logo.png",
+    "128": "assets/images/app-logo.png"
+  },
+  "permissions": [
+    "cookies",
+    "storage",
+    "activeTab",
+    "tabs",
+    "windows",
+    "unlimitedStorage",
+    "downloads",
+    "scripting",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "https://mobile.yangkeduo.com/*",
+    "https://mclient.alipay.com/*",
+    "https://air.1688.com/*",
+    "https://lingshouopen.waimai.meituan.com/*"
+  ],
+  "action": {
+    "default_title": "多多开 | 拼多多购物订单管理"
+  },
+  "background": {
+    "service_worker": "background.bundle.js",
+    "type": "module"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "block_competitor",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mobile.yangkeduo.com/transac_modify_invoice.html*"
+      ],
+      "js": [
+        "invoiceAutomate.bundle.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://mclient.alipay.com/h5pay/*"
+      ],
+      "js": [
+        "alipayDetector.bundle.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://mobile.yangkeduo.com/order_checkout.html*",
+        "https://mobile.yangkeduo.com/addresses.html*"
+      ],
+      "js": [
+        "multiAddressAutomation.bundle.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://mobile.yangkeduo.com/order.html*",
+        "https://mobile.yangkeduo.com/transac_combine_order.html*",
+        "https://mobile.yangkeduo.com/transac_orders_search_results.html*",
+        "https://mclient.alipay.com/h5pay/*"
+      ],
+      "js": [
+        "paymentAutomation.bundle.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://mobile.yangkeduo.com/duo_coupon_landing.html*"
+      ],
+      "js": [
+        "duoCouponLandingAutomation.bundle.js"
+      ],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://mobile.yangkeduo.com/goods*"
+      ],
+      "js": [
+        "goodsDetailHelper.bundle.js",
+        "goodsPageAutomation.bundle.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://mobile.yangkeduo.com/psnl_identify.html*"
+      ],
+      "js": [
+        "psnlIdentifyAutomation.bundle.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://mobile.yangkeduo.com/transac_batch_checkout.html*",
+        "*://mobile.yangkeduo.com/addresses.html*"
+      ],
+      "js": [
+        "transacBatchCheckoutAutomation.bundle.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://mobile.yangkeduo.com/likes.html*",
+        "https://mobile.yangkeduo.com/transac_batch_list_search.html*"
+      ],
+      "js": [
+        "likesPageHelper.bundle.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://air.1688.com/app/ctf-page/trade-order-list/buyer-order-list.html*",
+        "https://air.1688.com/app/ocms-fusion-components-1688/def_cbu_web_im/index.html*",
+        "https://air.1688.com/app/ocms-fusion-components-1688/def_cbu_web_im_core/index.html*"
+      ],
+      "js": [
+        "1688BatchMessage.bundle.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "dashboard.html",
+        "privacy.html",
+        "help.html",
+        "contact.html",
+        "qrCodeReplace.bundle.js",
+        "assets/批量下单模板_多地址.csv",
+        "assets/批量下单模板_默认地址.csv",
+        "src/lib/xlsx.min.full.js",
+        "assets/images/app-logo.png"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "incognito": "split"
+}

@@ -1,21 +1,14 @@
-import { stdin, stdout, stderr } from 'process';
-import { Server } from './server';
+import { stdin, stdout } from 'process';
+import type { Server } from './server';
 import { v4 as uuidv4 } from 'uuid';
 import { NativeMessageType } from 'chrome-mcp-shared';
-import { TIMEOUTS } from './constant';
+import { ERROR_MESSAGES, TIMEOUTS } from './constant';
 import fileHandler from './file-handler';
+import { signClientRequest } from './client-key-signer';
 import { SingletonDetector } from './server/singleton';
+import { createLogger } from './util/logger';
 
-// Log function for debugging
-function log(level: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [NativeHost] [${level}] ${message}`;
-  if (data) {
-    stderr.write(`${logMessage} ${JSON.stringify(data)}\n`);
-  } else {
-    stderr.write(`${logMessage}\n`);
-  }
-}
+const log = createLogger('NativeHost');
 
 interface PendingRequest {
   resolve: (value: any) => void;
@@ -23,10 +16,32 @@ interface PendingRequest {
   timeoutId: NodeJS.Timeout;
 }
 
+const HOST_SHUTDOWN_TIMEOUT_MS = 2000;
+
+export class ExtensionConnectionError extends Error {
+  constructor(message: string = ERROR_MESSAGES.EXTENSION_NOT_CONNECTED) {
+    super(message);
+    this.name = 'ExtensionConnectionError';
+  }
+}
+
+export class ExtensionRequestTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Request to browser extension timed out after ${timeoutMs}ms.`);
+    this.name = 'ExtensionRequestTimeoutError';
+  }
+}
+
 export class NativeMessagingHost {
   private associatedServer: Server | null = null;
   private pendingRequests: Map<string, PendingRequest> = new Map();
-  private keepAliveTimer: NodeJS.Timeout | null = null;
+  private extensionConnected = true;
+  private shutdownPromise: Promise<void> | null = null;
+  private shutdownExitCode = 0;
+
+  public isExtensionConnected(): boolean {
+    return this.extensionConnected;
+  }
 
   public setServer(serverInstance: Server): void {
     this.associatedServer = serverInstance;
@@ -40,7 +55,7 @@ export class NativeMessagingHost {
       log('INFO', 'Native Messaging Host started, waiting for messages from Chrome Extension');
     } catch (error: any) {
       log('ERROR', 'Failed to start Native Messaging Host', { error: error.message });
-      process.exit(1);
+      void this.shutdown('Native messaging host startup failed.', 1);
     }
   }
 
@@ -58,39 +73,47 @@ export class NativeMessagingHost {
           buffer = buffer.slice(4);
         }
 
-        if (expectedLength !== -1 && buffer.length >= expectedLength) {
+        while (expectedLength !== -1 && buffer.length >= expectedLength) {
           const messageBuffer = buffer.slice(0, expectedLength);
           buffer = buffer.slice(expectedLength);
 
           try {
             const message = JSON.parse(messageBuffer.toString());
-            this.handleMessage(message);
+            void this.handleMessage(message).catch((error) => {
+              log('ERROR', 'Native message handling failed', { error });
+              void this.shutdown('Native message handling failed.', 1);
+            });
           } catch (error: any) {
             this.sendError(`Failed to parse message: ${error.message}`);
           }
-          expectedLength = -1; // reset to get next data
+          expectedLength = -1;
+          if (buffer.length >= 4) {
+            expectedLength = buffer.readUInt32LE(0);
+            buffer = buffer.slice(4);
+          }
         }
       }
     });
 
     stdin.on('end', () => {
-      log('WARN', 'stdin ended - Chrome Extension Service Worker may have stopped');
-      log('INFO', 'Server will continue running - use STOP message to shut down');
-      // Don't call cleanup() - let server continue running
-      // Service Worker in MV3 may stop after inactivity, but server should persist
-
-      // Keep process alive by setting up a persistent interval if server is running
-      if (!this.keepAliveTimer && this.associatedServer) {
-        this.keepAliveTimer = setInterval(() => {
-          // Heartbeat to keep process alive - do nothing
-        }, 30000); // 30 seconds
-        log('INFO', 'Keep-alive timer started to prevent process exit');
-      }
+      void this.shutdown('Browser extension closed the native messaging port.');
     });
 
     stdin.on('error', (err) => {
       log('ERROR', 'stdin error occurred', { error: err });
-      // Don't call cleanup() automatically - only STOP message should shutdown
+      void this.shutdown('Native messaging input failed.');
+    });
+
+    // Stream errors are lifecycle events: once stdout is broken this process can
+    // no longer own a usable MCP server.
+    stdout.on('error', (err: NodeJS.ErrnoException) => {
+      const code = err?.code;
+      if (code === 'EPIPE' || code === 'ERR_STREAM_WRITE_AFTER_END') {
+        log('WARN', 'stdout write to extension failed (link down)', { code });
+      } else {
+        log('ERROR', 'stdout error', { error: err?.message });
+      }
+      void this.shutdown('Native messaging output failed.');
     });
   }
 
@@ -115,6 +138,11 @@ export class NativeMessagingHost {
       } else {
         // just ignore
       }
+      return;
+    }
+
+    if (message.type === NativeMessageType.SIGN_CLIENT_REQUEST) {
+      this.handleSignClientRequest(message);
       return;
     }
 
@@ -149,8 +177,30 @@ export class NativeMessagingHost {
           }
       }
     } catch (error: any) {
-      this.sendError(`Failed to handle directive message: ${error.message}`);
+      const errorMessage = `Failed to handle directive message: ${error.message}`;
+      try {
+        this.sendError(errorMessage);
+      } finally {
+        if (message.type === NativeMessageType.START) {
+          void this.shutdown(errorMessage);
+        }
+      }
     }
+  }
+
+  /**
+   * Answer a client-key sign request (one per Laravel call, so it is not logged).
+   */
+  private handleSignClientRequest(message: any): void {
+    if (!message.requestId) {
+      this.sendError('Sign request without a request id');
+      return;
+    }
+    this.sendMessage({
+      type: NativeMessageType.SIGN_CLIENT_REQUEST_RESPONSE,
+      responseToRequestId: message.requestId,
+      payload: signClientRequest(message.payload),
+    });
   }
 
   /**
@@ -204,22 +254,33 @@ export class NativeMessagingHost {
     timeoutMs: number = TIMEOUTS.DEFAULT_REQUEST_TIMEOUT,
   ): Promise<any> {
     return new Promise((resolve, reject) => {
+      // This is the single connection gate for every relay call.
+      if (!this.extensionConnected) {
+        reject(new ExtensionConnectionError());
+        return;
+      }
+
       const requestId = uuidv4(); // Generate unique request ID
 
       const timeoutId = setTimeout(() => {
         this.pendingRequests.delete(requestId); // Remove from Map after timeout
-        reject(new Error(`Request timed out after ${timeoutMs}ms`));
+        reject(new ExtensionRequestTimeoutError(timeoutMs));
       }, timeoutMs);
 
       // Store request's resolve/reject functions and timeout ID
       this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
 
-      // Send message with requestId to Chrome
-      this.sendMessage({
-        type: messageType, // Define a request type, e.g. 'request_data'
-        payload: messagePayload,
-        requestId: requestId, // <--- Key: include request ID
-      });
+      try {
+        this.sendMessage({
+          type: messageType,
+          payload: messagePayload,
+          requestId,
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        this.pendingRequests.delete(requestId);
+        reject(error);
+      }
     });
   }
 
@@ -232,15 +293,14 @@ export class NativeMessagingHost {
     if (!this.associatedServer) {
       const error = 'Server instance not set';
       log('ERROR', error);
-      this.sendError(`Internal error: ${error}`);
-      return;
+      throw new Error(error);
     }
 
     if (this.associatedServer.isRunning) {
-      log('WARN', 'Server is already running');
+      log('INFO', 'Server is already running for this native connection');
       this.sendMessage({
-        type: NativeMessageType.ERROR,
-        payload: { message: 'Server is already running' },
+        type: NativeMessageType.SERVER_STARTED,
+        payload: { port },
       });
       return;
     }
@@ -254,6 +314,7 @@ export class NativeMessagingHost {
       const errorMsg = `Cannot start server: ${detectionResult.message}`;
       log('ERROR', errorMsg);
       this.sendError(errorMsg);
+      void this.shutdown(errorMsg);
       return;
     }
 
@@ -262,7 +323,7 @@ export class NativeMessagingHost {
     }
 
     log('INFO', `Starting Fastify HTTP server on port ${port}...`);
-    await this.associatedServer.start(port, this);
+    await this.associatedServer.start(port);
     log('SUCCESS', `Fastify HTTP server started successfully on port ${port}`);
 
     log('INFO', 'Sending SERVER_STARTED message to Chrome Extension');
@@ -278,26 +339,24 @@ export class NativeMessagingHost {
    */
   private async stopServer(): Promise<void> {
     if (!this.associatedServer) {
-      this.sendError('Internal error: server instance not set');
-      return;
+      throw new Error('Server instance not set');
     }
 
-    if (!this.associatedServer.isRunning) {
-      this.sendMessage({
-        type: NativeMessageType.ERROR,
-        payload: { message: 'Server is not running' },
-      });
-      return;
+    if (this.associatedServer.isRunning) {
+      await this.associatedServer.stop();
     }
 
-    await this.associatedServer.stop();
     this.sendMessage({ type: NativeMessageType.SERVER_STOPPED });
+    void this.shutdown('Browser extension stopped the MCP server.');
   }
 
   /**
    * Send message to Chrome extension
    */
   public sendMessage(message: any): void {
+    if (!this.extensionConnected) {
+      throw new ExtensionConnectionError();
+    }
     const messageString = JSON.stringify(message);
     const messageBuffer = Buffer.from(messageString);
     const headerBuffer = Buffer.alloc(4);
@@ -315,36 +374,44 @@ export class NativeMessagingHost {
     });
   }
 
-
-
-  /**
-   * Clean up resources
-   */
-  private cleanup(): void {
-    // Clear keep-alive timer
-    if (this.keepAliveTimer) {
-      clearInterval(this.keepAliveTimer);
-      this.keepAliveTimer = null;
-    }
-
-    // Reject all pending requests
+  private rejectPendingRequests(reason: string): void {
     this.pendingRequests.forEach((pending) => {
       clearTimeout(pending.timeoutId);
-      pending.reject(new Error('Native host is shutting down or Chrome disconnected.'));
+      pending.reject(new ExtensionConnectionError(reason));
     });
     this.pendingRequests.clear();
+  }
 
-    if (this.associatedServer && this.associatedServer.isRunning) {
-      this.associatedServer
-        .stop()
-        .then(() => {
-          process.exit(0);
-        })
-        .catch(() => {
-          process.exit(1);
-        });
-    } else {
-      process.exit(0);
+  public shutdown(reason: string, exitCode: number = 0): Promise<void> {
+    if (exitCode !== 0) {
+      this.shutdownExitCode = exitCode;
+    }
+    if (this.shutdownPromise) {
+      return this.shutdownPromise;
+    }
+
+    this.extensionConnected = false;
+    this.rejectPendingRequests(reason);
+    this.shutdownPromise = this.stopServerAndExit(reason);
+    return this.shutdownPromise;
+  }
+
+  private async stopServerAndExit(reason: string): Promise<void> {
+    const hardExit = setTimeout(
+      () => process.exit(this.shutdownExitCode),
+      HOST_SHUTDOWN_TIMEOUT_MS,
+    );
+
+    log('INFO', 'Native messaging connection closed; stopping its MCP server', { reason });
+    try {
+      if (this.associatedServer?.isRunning) {
+        await this.associatedServer.stop();
+      }
+    } catch (error) {
+      log('ERROR', 'Failed to stop MCP server during native host shutdown', { error });
+    } finally {
+      clearTimeout(hardExit);
+      process.exit(this.shutdownExitCode);
     }
   }
 }

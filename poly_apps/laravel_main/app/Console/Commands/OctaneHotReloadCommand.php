@@ -296,7 +296,7 @@ class OctaneHotReloadCommand extends Command
             $output = [];
             $returnCode = 0;
 
-            exec('systemctl list-units --type=service --state=running 2>/dev/null | grep "octane-poly-" | awk \'{print $1}\'', $output, $returnCode);
+            exec('systemctl list-units --type=service --state=running 2>/dev/null | grep -E "(app-manager-laravel|octane-poly-)" | awk \'{print $1}\'', $output, $returnCode);
 
             if (empty($output)) {
                 $this->warn('No Octane worker services found');
@@ -313,7 +313,7 @@ class OctaneHotReloadCommand extends Command
                     continue;
                 }
 
-                if (!preg_match('/^(octane-poly-\d+)\.service$/', $serviceLine, $matches)) {
+                if (!preg_match('/^(app-manager-laravel[^\s.]+|octane-poly-\d+)\.service$/', $serviceLine, $matches)) {
                     continue;
                 }
 

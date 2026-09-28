@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # OpenAI Global File #1
@@ -58,7 +47,7 @@ projectRootPath="$(dirname "$scriptsDirPath")"
 # ============================================================================
 # CUSTOM USER DIRECTORY SETTING
 # ============================================================================
-# Automatically generates user directory at /tmp/Users/时间�?# Format: /tmp/Users/YYYYMMDD_HHMMSS
+# Automatically generates user directory at /tmp/Users/shi jian# Format: /tmp/Users/YYYYMMDD_HHMMSS
 # ============================================================================
 
 # Generate timestamp for directory name
@@ -102,9 +91,9 @@ usersDirectoryPath="$(dirname "$userProfilePath")"
 #   from pathlib import Path
 #   user_home = Path.home()  # Uses HOME
 # ============================================================================
-export HOME="$userProfilePath"
-export USER_HOME="$userProfilePath"
-export USER_DIR="$userProfilePath"
+HOME="$userProfilePath"
+USER_HOME="$userProfilePath"
+USER_DIR="$userProfilePath"
 
 echo "[INFO] Environment variables set for Node.js/React/Python applications:"
 echo "  HOME = $HOME"
@@ -139,6 +128,9 @@ echo ""
 
 secretManagerScript="$shellsDirPath/secret_manager/secret_manager.sh"
 secretManagerReady=false
+aiCliProvisionCommonPath="$shellsDirPath/linux/common/ai_cli_provision_common.sh"
+# Shared launcher helpers; secrets are printed through ai_cli_mask_secret.
+. "$aiCliProvisionCommonPath"
 
 if [ -f "$secretManagerScript" ]; then
     source "$secretManagerScript"
@@ -283,7 +275,7 @@ if [ -n "${OPENAI_API_BASE}" ]; then
     echo "  OPENAI_API_BASE=${OPENAI_API_BASE}"
 fi
 if [ -n "${OPENAI_API_KEY}" ]; then
-    echo "  OPENAI_API_KEY=${OPENAI_API_KEY}"
+    echo "  OPENAI_API_KEY=$(ai_cli_mask_secret "${OPENAI_API_KEY}")"
 fi
 
 

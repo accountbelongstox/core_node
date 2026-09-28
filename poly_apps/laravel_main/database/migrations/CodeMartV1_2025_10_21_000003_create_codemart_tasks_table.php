@@ -35,7 +35,7 @@ return new class extends Migration
                 'milestone_id' => ['type' => 'foreignId', 'nullable' => false],
                 'title' => ['type' => 'string', 'nullable' => false],
                 'description' => ['type' => 'text', 'nullable' => false],
-                'status' => ['type' => 'enum', 'values' => ['pending', 'in_progress', 'review', 'completed', 'blocked'], 'nullable' => false, 'default' => 'pending'],
+                'status' => ['type' => 'enum', 'values' => ['pending', 'open', 'assigned', 'in_progress', 'review', 'completed', 'blocked', 'cancelled'], 'nullable' => false, 'default' => 'pending'],
                 'priority' => ['type' => 'enum', 'values' => ['low', 'medium', 'high', 'urgent'], 'nullable' => false, 'default' => 'medium'],
                 'assigned_to' => ['type' => 'foreignId', 'nullable' => true],
                 'due_date' => ['type' => 'dateTime', 'nullable' => true],

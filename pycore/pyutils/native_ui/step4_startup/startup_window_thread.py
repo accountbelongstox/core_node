@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import time
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 """
-TkinterStartupThread - Thread-Safe Startup Window
+TkinterStartupThread - Thread-Safe Startup Window (orchestrator)
 
 Follows project multi-threading standards:
-- Directly inherits threading.Thread (not using Thread(target=func))
+- Directly inherits threading.Thread without target-based construction
 - Uses THREAD_BUS for all communication (no callbacks or parameters)
 - Signals ready/closed states via THREAD_BUS
 - Main thread can wait for signals without blocking
@@ -18,9 +22,14 @@ Standard thread lifecycle:
    - 'TkinterStartup_closed' - Window closed by user or programmatically
    - 'TkinterStartup_stopped' - Thread finished
 
+This module is the orchestrator. Pure Tkinter widget construction lives in
+``startup_ui_builder`` and the tray-mode handoff lives in ``startup_tray_runner``.
+Both are invoked from ``run()`` on the Tkinter thread (widgets are never created
+at import time and never from a foreign thread).
+
 Usage:
-    from pycore import THREAD_BUS
-    from pycore.pyutils.native_ui.startup_window_thread import TkinterStartupThread
+    from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+    from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
 
     # Start window
     startup = TkinterStartupThread(app_name="My App")
@@ -41,30 +50,22 @@ Usage:
     THREAD_BUS.wait_signal('TkinterStartup_closed', timeout=3.0)
 """
 
-import sys
-import queue
-import threading
-import time
 import os
+import threading
 from typing import Optional, Any
-from pathlib import Path
 
-# Import after standard imports to avoid circular import
-from pycore import THREAD_BUS, ColorPrint
-from pycore.pyfoundations.third_party import get_third_package_tkinter
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
 
-# Get tkinter via third_party manager (auto-installs python3-tk on Linux)
+# tkinter is needed here for type hints (tk.Tk / tk.Text / ttk.Progressbar ...) and
+# for the tk constants used in _append_log / _cleanup. Resolved via third_party manager.
 tk = get_third_package_tkinter()
 ttk = tk.ttk
 
-from pycore.pyutils.native_ui.step0_i18n import i18n, I18nKeys
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, TrayMenuItem as TkinterTrayMenuItem
-from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager, BusSignals
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
-
-Image = get_third_package_PIL_Image()
-ImageTk = get_third_package_PIL_ImageTk()
+from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+import pycore.pyutils.native_ui.step4_startup.startup_ui_builder as startup_ui_builder
+import pycore.pyutils.native_ui.step4_startup.startup_tray_runner as startup_tray_runner
 
 
 class TkinterStartupThread(threading.Thread):
@@ -100,38 +101,44 @@ class TkinterStartupThread(threading.Thread):
             enable_language_selector: Show language selector
             enable_tray: Enable system tray menu (persists after debug window closes)
         """
-        super().__init__()
-        self.daemon = False  # Non-daemon - main thread should wait
+        super().__init__(name="TkinterStartupThread", daemon=False)
 
-        # Window configuration
-        self.app_name = app_name
-        self.width = width
-        self.height = height
-        self.icon_path = icon_path
-        self.logo_path = logo_path
-        self.enable_language_selector = enable_language_selector
-        self.enable_tray = enable_tray
+        # Thread control
+        self._control_prefix = f'pyutils.native_ui.startup.{id(self)}'
+        self._config_queue = f'{self._control_prefix}.config'
+        self._stop_signal = f'{self._control_prefix}.stop'
+        self._close_signal = f'{self._control_prefix}.close'
+        self._running_signal = f'{self._control_prefix}.running'
+        self._log_queue_name = f'{self._control_prefix}.logs'
+        THREAD_BUS.send_message(self._config_queue, {
+            "app_name": app_name,
+            "width": width,
+            "height": height,
+            "icon_path": icon_path,
+            "logo_path": logo_path,
+            "enable_language_selector": bool(enable_language_selector),
+            "enable_tray": bool(enable_tray),
+        })
+        THREAD_BUS.signal(self._running_signal, False)
 
-        # UI components (created in run())
+    def run(self):
+        """Thread execution (called automatically by start())"""
+        thread_name = self.__class__.__name__
+        config = THREAD_BUS.receive_message(self._config_queue) or {}
+        self.app_name = config.get("app_name", "Application")
+        self.width = int(config.get("width") or 500)
+        self.height = int(config.get("height") or 400)
+        self.icon_path = config.get("icon_path")
+        self.logo_path = config.get("logo_path")
+        self.enable_language_selector = bool(config.get("enable_language_selector", True))
+        self.enable_tray = bool(config.get("enable_tray", False))
         self.root: Optional[tk.Tk] = None
         self.text_widget: Optional[tk.Text] = None
         self.progress_bar: Optional[ttk.Progressbar] = None
         self.status_label: Optional[tk.Label] = None
         self.language_var: Optional[tk.StringVar] = None
         self.language_frame: Optional[tk.Frame] = None
-
-        # Tray components (created if enable_tray is True)
         self.tray: Optional[Any] = None
-
-        # Thread control
-        self._stop_event = threading.Event()
-        self._log_queue = queue.Queue()
-        self._running = False
-        self._close_requested = threading.Event()  # Thread-safe close request flag
-
-    def run(self):
-        """Thread execution (called automatically by start())"""
-        thread_name = self.__class__.__name__
 
         # 1. Log startup
         ColorPrint.print_info(f"[{thread_name}] Thread starting")
@@ -142,323 +149,63 @@ class TkinterStartupThread(threading.Thread):
                                      thread_id=threading.get_ident())
 
         # 3. Set _running=True BEFORE initializing UI
-        # CRITICAL: Must be set before _initialize_ui() calls _process_logs()
-        self._running = True
+        # CRITICAL: Must be set before initialize_ui() calls _process_logs()
+        THREAD_BUS.signal(self._running_signal, True)
 
-        # 4. Initialize UI (will call _process_logs() which needs _running=True)
-        self._initialize_ui()
+        # 4. Initialize UI (will call _process_logs() which needs _running=True).
+        #    Called on the Tkinter thread - widgets are created here, not at import.
+        startup_ui_builder.initialize_ui(self)
 
-        # 5. Set running state + send ready signal
+        # 5. Register THREAD_BUS handler for request_close (so singleton/shutdown can close window)
+        def on_request_close(event_data):
+            ColorPrint.print_info("[TkinterStartupThread] Received ui.startup.request_close via THREAD_BUS")
+            THREAD_BUS.signal(self._stop_signal, True)
+            self.request_close()
+
+        THREAD_BUS.register_event_handler(BusSignals.STARTUP_REQUEST_CLOSE, on_request_close, priority=20)
+        self._request_close_handler = on_request_close
+
+        # 6. Set running state + send ready signal
         THREAD_BUS.set_thread_state(thread_name, 'running')
         THREAD_BUS.signal('TkinterStartup_ready', {
             'app_name': self.app_name,
             'window_size': (self.width, self.height)
         })
 
-        # 6. Run mainloop (blocks until window closes)
+        # 7. Run mainloop (blocks until window closes)
         self.root.mainloop()
 
-        # 7. Cleanup window resources
+        # 8. Unregister request_close handler
+        if getattr(self, '_request_close_handler', None):
+            try:
+                THREAD_BUS.unregister_event_handler(BusSignals.STARTUP_REQUEST_CLOSE, self._request_close_handler)
+            except Exception:
+                pass
+            self._request_close_handler = None
+
+        # 9. Cleanup window resources
         self._cleanup()
 
-        # 8. Check if tray should be started
+        # 10. Check if tray should be started
         ColorPrint.print_info(f"[{thread_name}] Mainloop ended, checking tray status...")
         ColorPrint.print_info(f"  enable_tray={self.enable_tray}")
-        ColorPrint.print_info(f"  stop_event.is_set()={self._stop_event.is_set()}")
+        ColorPrint.print_info(f"  stop_requested={THREAD_BUS.has_signal(self._stop_signal)}")
 
-        if self.enable_tray and not self._stop_event.is_set():
+        if self.enable_tray and not THREAD_BUS.has_signal(self._stop_signal):
             ColorPrint.print_info(f"[{thread_name}] Debug window closed, starting tray menu...")
-            self._run_tray_mode()
+            startup_tray_runner.run_tray_mode(self)
         else:
             if not self.enable_tray:
                 ColorPrint.print_warn(f"[{thread_name}] Tray not enabled, skipping tray mode")
-            if self._stop_event.is_set():
+            if THREAD_BUS.has_signal(self._stop_signal):
                 ColorPrint.print_warn(f"[{thread_name}] Stop event set, skipping tray mode")
 
-        # 9. Set stopped state + send stopped signal
+        # 11. Set stopped state + send stopped signal
         THREAD_BUS.set_thread_state(thread_name, 'stopped')
         THREAD_BUS.signal('TkinterStartup_stopped', True)
 
-        # 10. Log completion
+        # 12. Log completion
         ColorPrint.print_info(f"[{thread_name}] Thread stopped")
-
-    def _initialize_ui(self):
-        """Initialize Tkinter UI"""
-        # Create root window
-        self.root = tk.Tk()
-        initializing_text = i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING)
-        self.root.title(f"{self.app_name} - {initializing_text}")
-        self.root.geometry(f"{self.width}x{self.height}")
-
-        # Hide window initially
-        self.root.withdraw()
-
-        # Set icon if provided
-        if self.icon_path and Path(self.icon_path).exists():
-            try:
-                if self.icon_path.endswith('.ico'):
-                    self.root.iconbitmap(self.icon_path)
-                else:
-                    icon_image = tk.PhotoImage(file=self.icon_path)
-                    self.root.iconphoto(True, icon_image)
-            except:
-                pass
-
-        # Set close protocol
-        self.root.protocol("WM_DELETE_WINDOW", self._on_user_close)
-
-        # Create UI components
-        self._create_ui()
-
-        # Center window
-        self._center_window()
-
-        # Show window
-        self.root.deiconify()
-
-        # Start log processing
-        self._process_logs()
-
-    def _center_window(self):
-        """Center window on screen"""
-        self.root.update_idletasks()
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-
-        x = (screen_width - self.width) // 2
-        y = (screen_height - self.height) // 2
-
-        self.root.geometry(f"{self.width}x{self.height}+{x}+{y}")
-
-    def _create_ui(self):
-        """Create UI components"""
-        # Title frame
-        title_frame = tk.Frame(self.root, bg="#2c3e50", height=60)
-        title_frame.pack(fill=tk.X)
-        title_frame.pack_propagate(False)
-
-        # Logo + Title
-        if self.logo_path and Path(self.logo_path).exists():
-            try:
-                title_container = tk.Frame(title_frame, bg="#2c3e50")
-                title_container.pack(expand=True)
-
-                # Load and resize logo
-                logo_img = Image.open(self.logo_path)
-                logo_img = logo_img.resize((32, 32), Image.Resampling.LANCZOS)
-                logo_photo = ImageTk.PhotoImage(logo_img)
-
-                # Logo label
-                logo_label = tk.Label(
-                    title_container,
-                    image=logo_photo,
-                    bg="#2c3e50"
-                )
-                logo_label.image = logo_photo
-                logo_label.pack(side=tk.LEFT, padx=(0, 10))
-
-                # Title label
-                title_label = tk.Label(
-                    title_container,
-                    text=self.app_name,
-                    font=("Microsoft YaHei UI", 16, "bold"),
-                    bg="#2c3e50",
-                    fg="#ecf0f1"
-                )
-                title_label.pack(side=tk.LEFT)
-            except:
-                # Fallback to title only
-                title_label = tk.Label(
-                    title_frame,
-                    text=self.app_name,
-                    font=("Microsoft YaHei UI", 16, "bold"),
-                    bg="#2c3e50",
-                    fg="#ecf0f1"
-                )
-                title_label.pack(pady=15)
-        else:
-            # No logo, just title
-            title_label = tk.Label(
-                title_frame,
-                text=self.app_name,
-                font=("Microsoft YaHei UI", 16, "bold"),
-                bg="#2c3e50",
-                fg="#ecf0f1"
-            )
-            title_label.pack(pady=15)
-
-        # Content frame
-        content_frame = tk.Frame(self.root, bg="#34495e")
-        content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        # Log display
-        log_frame = tk.Frame(content_frame, bg="#34495e")
-        log_frame.pack(fill=tk.BOTH, expand=True)
-
-        scrollbar = tk.Scrollbar(log_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.text_widget = tk.Text(
-            log_frame,
-            wrap=tk.WORD,
-            bg="#1e1e1e",
-            fg="#d4d4d4",
-            font=("Consolas", 9),
-            state=tk.DISABLED,
-            yscrollcommand=scrollbar.set
-        )
-        self.text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.text_widget.yview)
-
-        # Configure text tags for colors
-        self.text_widget.tag_config("info", foreground="#4ec9b0")
-        self.text_widget.tag_config("success", foreground="#6a9955")
-        self.text_widget.tag_config("warning", foreground="#dcdcaa")
-        self.text_widget.tag_config("error", foreground="#f48771")
-        self.text_widget.tag_config("debug", foreground="#9cdcfe")
-
-        # Language selector (if enabled)
-        if self.enable_language_selector:
-            self._create_language_selector(self.root)
-
-        # Status frame
-        status_frame = tk.Frame(self.root, bg="#34495e", height=60)
-        status_frame.pack(fill=tk.X)
-        status_frame.pack_propagate(False)
-
-        # Progress bar
-        self.progress_bar = ttk.Progressbar(
-            status_frame,
-            mode='indeterminate',
-            length=self.width - 40
-        )
-        self.progress_bar.pack(pady=(10, 5))
-        self.progress_bar.start(10)
-
-        # Status label
-        self.status_label = tk.Label(
-            status_frame,
-            text=i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING),
-            bg="#34495e",
-            fg="#bdc3c7",
-            font=("Microsoft YaHei UI", 9)
-        )
-        self.status_label.pack()
-
-    def _create_language_selector(self, parent):
-        """Create language selector with radio buttons"""
-        self.language_frame = tk.Frame(parent, bg="#34495e")
-        self.language_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
-
-        # Title
-        lang_label = tk.Label(
-            self.language_frame,
-            text="Language / 语言 / 言語:",
-            bg="#34495e",
-            fg="#ecf0f1",
-            font=("Microsoft YaHei UI", 9, "bold")
-        )
-        lang_label.pack(anchor=tk.W, pady=(0, 5))
-
-        # Radio buttons container
-        radio_container = tk.Frame(self.language_frame, bg="#34495e")
-        radio_container.pack(anchor=tk.W)
-
-        # StringVar for selected language
-        self.language_var = tk.StringVar(value="auto")
-
-        # Auto option
-        auto_radio = tk.Radiobutton(
-            radio_container,
-            text="🌐 Follow System / 跟随系统 / システムに従う",
-            variable=self.language_var,
-            value="auto",
-            bg="#34495e",
-            fg="#ecf0f1",
-            selectcolor="#2c3e50",
-            activebackground="#34495e",
-            activeforeground="#ecf0f1",
-            font=("Microsoft YaHei UI", 9),
-            command=self._on_language_change
-        )
-        auto_radio.pack(anchor=tk.W, padx=5)
-
-        # Language options
-        supported_languages = i18n.get_supported_languages()
-        lang_display = {
-            "en": "🇬🇧 English",
-            "zh": "🇨🇳 简体中文",
-            "ja": "🇯🇵 日本語"
-        }
-
-        for lang in supported_languages:
-            display_name = lang_display.get(lang, lang.upper())
-
-            radio = tk.Radiobutton(
-                radio_container,
-                text=display_name,
-                variable=self.language_var,
-                value=lang,
-                bg="#34495e",
-                fg="#ecf0f1",
-                selectcolor="#2c3e50",
-                activebackground="#34495e",
-                activeforeground="#ecf0f1",
-                font=("Microsoft YaHei UI", 9),
-                command=self._on_language_change
-            )
-            radio.pack(anchor=tk.W, padx=5)
-
-    def _on_language_change(self):
-        """Handle language change"""
-        selected = self.language_var.get()
-
-        if selected == "auto":
-            system_lang = i18n._detect_system_language()
-            supported = i18n.get_supported_languages()
-
-            if system_lang in supported:
-                i18n.set_language(system_lang)
-            else:
-                i18n.set_language(supported[0])
-        else:
-            i18n.set_language(selected)
-
-        # Update window title
-        new_app_name = i18n.get("app.name", default=self.app_name)
-
-        if self.root:
-            initializing_text = i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING)
-            title_text = i18n.get("window.title.initializing",
-                                              default=f"{new_app_name} - {initializing_text}")
-            self.root.title(title_text)
-
-        # Update status label if it exists and current status matches a known key
-        if self.status_label:
-            current_status = self.status_label.cget("text")
-            # Try to identify and re-translate the current status
-            # This is a best-effort approach to maintain the current status semantic
-            status_key_map = {
-                "Initializing": I18nKeys.STARTUP_STATUS_INITIALIZING,
-                "初始化": I18nKeys.STARTUP_STATUS_INITIALIZING,
-                "初期化": I18nKeys.STARTUP_STATUS_INITIALIZING,
-                "Ready": I18nKeys.STARTUP_STATUS_READY,
-                "就绪": I18nKeys.STARTUP_STATUS_READY,
-                "準備完了": I18nKeys.STARTUP_STATUS_READY,
-                "Loading": I18nKeys.STARTUP_STATUS_LOADING,
-                "加载": I18nKeys.STARTUP_STATUS_LOADING,
-                "読み込み": I18nKeys.STARTUP_STATUS_LOADING,
-            }
-            # Check if current status starts with any known key
-            for key_substr, i18n_key in status_key_map.items():
-                if key_substr in current_status:
-                    self.status_label.config(text=i18n.get(i18n_key))
-                    break
-
-        # Log change
-        current_lang = i18n.get_current_language()
-        lang_name = i18n.get(f"language.name.{current_lang}", default=current_lang)
-        self.log(f"Language changed to: {lang_name}", level="info")
 
     def _process_logs(self):
         """Process log messages from queue"""
@@ -467,30 +214,33 @@ class TkinterStartupThread(threading.Thread):
 
         # IMPORTANT: Check close request FIRST, before checking _running
         # This ensures external close requests are processed even if window was closed by user
-        if self._close_requested.is_set():
-            ColorPrint.print_info(f"[TkinterStartupThread] Close requested, closing window... (root={self.root is not None}, running={self._running})")
-            if self.root and self._running:
+        if THREAD_BUS.has_signal(self._close_signal):
+            running = bool(THREAD_BUS.get_signal(self._running_signal, False))
+            ColorPrint.print_info(f"[TkinterStartupThread] Close requested, closing window... (root={self.root is not None}, running={running})")
+            if self.root and running:
                 ColorPrint.print_info("[TkinterStartupThread] Calling _close_window()...")
                 self._close_window()
             else:
-                ColorPrint.print_warn(f"[TkinterStartupThread] Cannot close: root={self.root is not None}, running={self._running}")
+                ColorPrint.print_warn(f"[TkinterStartupThread] Cannot close: root={self.root is not None}, running={running}")
             return
 
         # Now check if we should continue processing
-        if not self._running or not self.root:
+        if not THREAD_BUS.get_signal(self._running_signal, False) or not self.root:
             # ColorPrint.print_warn(f"[_process_logs] Stopping: running={self._running}, root={self.root is not None}")
             return
 
         # Process all pending logs
-        while not self._log_queue.empty():
-            try:
-                log_data = self._log_queue.get_nowait()
-                self._append_log(log_data['message'], log_data['level'])
-            except queue.Empty:
+        while True:
+            log_data = THREAD_BUS.receive_message(self._log_queue_name)
+            if not isinstance(log_data, dict):
                 break
+            if log_data.get("kind") == "status":
+                self._update_status_label(str(log_data.get("status") or ""))
+            else:
+                self._append_log(log_data['message'], log_data['level'])
 
         # Schedule next check
-        if self._running and self.root:
+        if THREAD_BUS.get_signal(self._running_signal, False) and self.root:
             self.root.after(100, self._process_logs)
 
     def _append_log(self, message: str, level: str = "info"):
@@ -503,137 +253,9 @@ class TkinterStartupThread(threading.Thread):
         self.text_widget.see(tk.END)
         self.text_widget.config(state=tk.DISABLED)
 
-    def _run_tray_mode(self):
-        """
-        Run tray-only mode (after debug window closes)
-
-        Gets tray configuration from THREAD_BUS manager and runs system tray.
-        Blocks until tray.stop() is called.
-        """
-        # Get tray configuration from THREAD_BUS manager
-        bus_mgr = get_bus_manager()
-        tray_config = bus_mgr.get_tray_config()
-
-        if not tray_config or not tray_config.enabled:
-            ColorPrint.print_warn("[TkinterStartupThread] No tray config found or tray disabled")
-            return
-
-        ColorPrint.print_success("[TkinterStartupThread] Tray config found in THREAD_BUS")
-
-        # Store original tray_config for language updates
-        self._tray_config = tray_config
-
-        # Build initial menu items
-        menu_items = self._build_tray_menu_items(tray_config)
-
-        # Create tray
-        self.tray = TkinterSystemTray(
-            app_name=tray_config.app_name,
-            icon_path=tray_config.icon_path,
-            menu_items=menu_items
-        )
-
-        # Register event handler for TRAY_STOP signal (event-driven architecture)
-        def on_tray_stop(event_data):
-            """Handle TRAY_STOP event - stop the tray"""
-            source = event_data.get('source', 'unknown')
-            ColorPrint.print_warn(f"[TkinterStartupThread] Received TRAY_STOP signal (source: {source})")
-            if self.tray:
-                self.tray.stop()
-
-        THREAD_BUS.register_event_handler(BusSignals.TRAY_STOP, on_tray_stop, priority=20)
-        ColorPrint.print_success("[TkinterStartupThread] Registered TRAY_STOP event handler")
-
-        # Register event handler for UI redraw (language change)
-        def on_ui_redraw(event_data):
-            """Handle UI redraw event - update tray menu when language changes"""
-            reason = event_data.get('reason', '')
-            if reason == 'language_changed' and self.tray and self._tray_config:
-                ColorPrint.print_info("[TkinterStartupThread] Language changed, updating tray menu...")
-                # Rebuild menu items with new translations
-                new_menu_items = self._build_tray_menu_items(self._tray_config)
-                self.tray.update_menu(new_menu_items)
-                ColorPrint.print_success("[TkinterStartupThread] Tray menu updated with new language")
-
-        bus_mgr.on_ui_redraw(on_ui_redraw)
-        ColorPrint.print_success("[TkinterStartupThread] Registered UI redraw event handler")
-
-        ColorPrint.print_info("[TkinterStartupThread] Starting system tray...")
-
-        # Signal that tray is starting
-        THREAD_BUS.set_thread_state('TkinterStartupThread', 'tray_running')
-
-        # Run tray (blocks until stopped)
-        self.tray.run()
-
-        ColorPrint.print_info("[TkinterStartupThread] Tray stopped")
-
-    def _build_tray_menu_items(self, tray_config):
-        """
-        Build tray menu items from tray_config
-        
-        Dynamically translates text_key using i18n.get() based on current language.
-        Supports submenus and recursively builds nested menu items.
-        
-        Args:
-            tray_config: TrayConfig object
-            
-        Returns:
-            List of TrayMenuItem objects for TkinterSystemTray
-        """
-        menu_items = []
-        for item in tray_config.menu_items:
-            if item.text_key == "---":
-                menu_items.append(TkinterTrayMenuItem.SEPARATOR)
-            else:
-                # Dynamically get translation from i18n.get(text_key) based on current language
-                display_text = i18n.get(item.text_key)
-                
-                # Handle submenu if present
-                submenu_items = None
-                if item.submenu:
-                    submenu_items = []
-                    for sub_item in item.submenu:
-                        if sub_item.text_key == "---":
-                            submenu_items.append(TkinterTrayMenuItem.SEPARATOR)
-                        else:
-                            sub_display_text = i18n.get(sub_item.text_key)
-                            # For checkable items, update checked state based on current language
-                            checked = False
-                            if sub_item.checkable:
-                                # Extract language from signal (format: mcpserver.tray.set_language.{lang})
-                                if sub_item.signal and '.set_language.' in sub_item.signal:
-                                    lang_code = sub_item.signal.split('.')[-1]
-                                    checked = (lang_code == i18n.get_current_language())
-                                else:
-                                    checked = sub_item.checked
-                            
-                            submenu_item = TkinterTrayMenuItem(
-                                text=sub_display_text,
-                                action_signal=sub_item.signal,
-                                enabled=sub_item.enabled,
-                                default=sub_item.default
-                            )
-                            submenu_items.append(submenu_item)
-                
-                # Create TkinterTrayMenuItem with action_signal (tkinter_system_tray format)
-                menu_item = TkinterTrayMenuItem(
-                    text=display_text,
-                    action_signal=item.signal,  # Convert 'signal' to 'action_signal'
-                    enabled=item.enabled,
-                    default=item.default
-                )
-                # Add submenu if present (TkinterTrayMenuItem needs submenu support)
-                if submenu_items:
-                    menu_item.submenu = submenu_items
-                
-                menu_items.append(menu_item)
-        
-        return menu_items
-
     def _cleanup(self):
         """Cleanup resources"""
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Stop progress bar BEFORE destroying window
         if self.progress_bar:
@@ -686,7 +308,7 @@ class TkinterStartupThread(threading.Thread):
     def _close_window(self):
         """Actually close the window"""
         ColorPrint.print_info("[TkinterStartupThread] _close_window() called")
-        self._running = False
+        THREAD_BUS.signal(self._running_signal, False)
 
         # Send closed signal
         THREAD_BUS.signal('TkinterStartup_closed', True)
@@ -711,14 +333,22 @@ class TkinterStartupThread(threading.Thread):
             message: Log message
             level: Log level (info, success, warning, error, debug)
         """
-        self._log_queue.put({
+        THREAD_BUS.send_message(self._log_queue_name, {
             'message': message,
             'level': level
         })
 
     def _colorprint_callback(self, message: str, color_type: str, log_level: str = None):
         """
-        ColorPrint callback - receives all ColorPrint output
+        ColorPrint callback - receives all ColorPrint output.
+
+        This is a bound method on purpose: callers register it via
+        ``ColorPrint.register_callback(startup_thread._colorprint_callback)`` and
+        unregister the same bound object (see launcher_with_startup,
+        launch_native_app, startup_controller, ui_thread). It must stay a method
+        on TkinterStartupThread so the registered/unregistered objects match.
+        ``ColorPrintCapture`` (startup_window.py) is a separate stdout/stderr
+        stream redirector and is NOT a replacement for this callback contract.
 
         Args:
             message: Message text
@@ -743,15 +373,10 @@ class TkinterStartupThread(threading.Thread):
         Args:
             status: Status text
         """
-        if self.root and self.status_label:
-            try:
-                # Check if root window still exists before using after()
-                if self.root.winfo_exists():
-                    # Use dedicated method instead of lambda (follows pycore standards)
-                    self.root.after(0, self._update_status_label, status)
-            except Exception as e:
-                # Silently ignore errors if window is being destroyed
-                pass
+        THREAD_BUS.send_message(self._log_queue_name, {
+            "kind": "status",
+            "status": status,
+        })
 
     def _update_status_label(self, status: str):
         """
@@ -772,16 +397,13 @@ class TkinterStartupThread(threading.Thread):
         IMPORTANT: Does not use root.after() to avoid "main thread is not in main loop" error.
         Instead, sets a flag that is checked by _process_logs() which runs in the Tkinter thread.
 
-        ALSO: If tray is running, stop it immediately (since _process_logs() won't run in tray mode).
+        ALSO: If this startup thread owns a tray, stop that tray immediately
+        (the independent runtime tray must remain alive).
         """
         ColorPrint.print_info("[TkinterStartupThread] Close request received from external thread")
-        self._close_requested.set()
-
-        # CRITICAL FIX: If tray is running, stop it immediately
-        # This fixes the bug where program hangs on exit when tray is running
-        if self.tray:
-            ColorPrint.print_warn("[TkinterStartupThread] Stopping tray immediately...")
-            self.tray.stop()
+        THREAD_BUS.signal(self._close_signal, True)
+        if getattr(self, "enable_tray", False) and getattr(self, "tray", None) is not None:
+            THREAD_BUS.trigger_event("tray.request_stop", {})
 
     def stop(self):
         """
@@ -796,24 +418,19 @@ class TkinterStartupThread(threading.Thread):
         ColorPrint.print_info("[TkinterStartupThread] Stop requested")
 
         # Signal stop event (prevents entering tray mode after window closes)
-        self._stop_event.set()
+        THREAD_BUS.signal(self._stop_signal, True)
 
-        # Stop tray if running (must be done BEFORE request_close to avoid race condition)
-        if self.tray:
-            ColorPrint.print_info("[TkinterStartupThread] Stopping tray...")
-            self.tray.stop()
-
-        # Close window if still running
+        if getattr(self, "enable_tray", False) and getattr(self, "tray", None) is not None:
+            THREAD_BUS.trigger_event("tray.request_stop", {})
         self.request_close()
 
     def is_running(self) -> bool:
         """Check if window is running"""
-        return self._running
+        return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
 
 # Test
 if __name__ == "__main__":
-    from pycore import THREAD_BUS
 
     ColorPrint.print_info("=== Testing TkinterStartupThread ===")
 

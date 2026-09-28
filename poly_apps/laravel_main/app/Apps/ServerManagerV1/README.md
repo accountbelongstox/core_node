@@ -1,888 +1,888 @@
 # ServerManagerV1
 
-## 系统概述
+## System Overview
 
-ServerManagerV1 是一个服务器管理应用，提供域名管理、SSL 证书管理、Nginx 配置管理等核心功能。系统采用环境感知设计，能够自动适配 WSL 开发环境和生产环境，通过统一的路径映射机制确保跨环境的一致性。
+ServerManagerV1 is a server management application for domain management, SSL certificates, Nginx configuration, and related operations. It is environment-aware and adapts to WSL development and production through unified path mapping for cross-environment consistency.
 
-## 设计思路
+## Design Approach
 
-### 核心设计理念
+### Core Design Principles
 
-1. **环境感知架构**
-   - 系统能够自动检测运行环境（WSL/Production/Development）
-   - 通过 `PathMapper` 统一管理路径映射，实现跨环境透明访问
-   - 避免硬编码路径，所有路径通过配置类动态解析
+1. **Environment-aware architecture**
+   - Automatically detects runtime environment (WSL / Production / Development)
+   - Unified path mapping via `PathMapper` for transparent cross-environment access
+   - No hard-coded paths; all paths resolved dynamically through config classes
 
-2. **配置与代码分离**
-   - 使用 JSON 文件存储配置数据，而非数据库
-   - 配置数据存储在环境感知的路径下，自动适配不同环境
-   - 支持配置文件的备份和恢复机制
+2. **Configuration separated from code**
+   - Configuration stored in JSON files, not a database
+   - Config lives under environment-aware paths
+   - Backup and restore for config files
 
-3. **统一路径管理**
-   - 所有路径访问通过 `ServerManagerV1PathConfig` 统一管理
-   - 路径配置基于 `PathMapper` 实现环境感知
-   - 确保路径在不同环境下的一致性
+3. **Unified path management**
+   - All path access goes through `ServerManagerV1PathConfig`
+   - Path config is environment-aware via `PathMapper`
+   - Consistent paths across environments
 
-4. **安全优先**
-   - 敏感信息（API 密钥、证书等）通过 `GlobalSecretReader` 统一读取
-   - 文件访问采用白名单机制，限制可访问的路径范围
-   - 命令执行限制在预定义的安全脚本范围内
+4. **Security first**
+   - Secrets (API keys, certificates, etc.) via `GlobalSecretReader`
+   - File access whitelist limits reachable paths
+   - Command execution limited to predefined safe scripts
 
-## 目录结构
+## Directory Structure
 
 ### ServerManagerV1CLI
-命令行接口层，提供 Artisan 命令封装。
+CLI layer wrapping Artisan commands.
 
 **Commands/**
-- `ServerManagerV1BaseCommand`: 基础命令类，提供通用功能
-- `ServerManagerV1CertificateCommand`: SSL 证书管理命令
-- `ServerManagerV1WebsiteCommand`: 网站管理命令（已集成域名冲突检测）
-- `ServerManagerV1DeployCommand`: 部署管理命令
-- `ServerManagerV1DeploySelfCommand`: 快速部署本项目命令（poly 类型快捷方式）
-- `ServerManagerV1SSLCommand`: SSL 配置管理命令
-- `ServerManagerV1SyncCommand`: 双向配置同步命令（nginx ↔ database）
-- `ServerManagerV1NginxInspectCommand`: Nginx 配置检查命令（只读，不修改数据库）
-- `ServerManagerV1AdvancedCommand`: 高级管理命令（搜索、验证、备份、批量操作等）
+- `ServerManagerV1BaseCommand`: Base command with shared behavior
+- `ServerManagerV1CertificateCommand`: SSL certificate management
+- `ServerManagerV1WebsiteCommand`: Website management (domain conflict detection built in)
+- `ServerManagerV1DeployCommand`: Deployment management
+- `ServerManagerV1DeploySelfCommand`: Quick deploy of this project (`poly` shortcut)
+- `ServerManagerV1SSLCommand`: SSL configuration management
+- `ServerManagerV1SyncCommand`: Bidirectional sync (nginx ↔ database)
+- `ServerManagerV1NginxInspectCommand`: Nginx config inspection (read-only; does not modify database)
+- `ServerManagerV1AdvancedCommand`: Advanced ops (search, validate, backup, batch, etc.)
 
 **Templates/**
-- Nginx 配置模板文件，用于生成不同类型的网站配置
+- Nginx config templates for different site types
 
 ### ServerManagerV1Config
-配置管理层，集中管理所有路径和配置常量。
+Configuration layer for paths and constants.
 
-- `ServerManagerV1PathConfig`: 路径配置类，提供环境感知的路径访问方法
+- `ServerManagerV1PathConfig`: Environment-aware path accessors
 
 ### ServerManagerV1Controllers
-Web API 控制器层，提供 HTTP 接口。
+Web API controller layer.
 
-- `ServerManagerV1BaseCtl`: 基础控制器，提供通用功能和响应格式
-- `ServerManagerV1CertificateManagerCtl`: 证书管理 API
-- `ServerManagerV1DomainManagerCtl`: 域名管理 API（通过 DomainManager 实现）
-- `ServerManagerV1NginxManagerCtl`: Nginx 配置管理 API
-- `ServerManagerV1SystemInfoCtl`: 系统信息查询 API
-- `ServerManagerV1FileManagerCtl`: 文件管理 API
-- `ServerManagerV1CodeExecutorCtl`: 代码执行 API（受限）
-- `ServerManagerV1UnifiedManagerCtl`: 统一管理器 API
+- `ServerManagerV1BaseCtl`: Base controller and response format
+- `ServerManagerV1CertificateManagerCtl`: Certificate management API
+- `ServerManagerV1DomainManagerCtl`: Domain management API (via DomainManager)
+- `ServerManagerV1NginxManagerCtl`: Nginx configuration API
+- `ServerManagerV1SystemInfoCtl`: System information API
+- `ServerManagerV1FileManagerCtl`: File management API
+- `ServerManagerV1CodeExecutorCtl`: Constrained code execution API
+- `ServerManagerV1UnifiedManagerCtl`: Unified manager API
 
 ### ServerManagerV1Utils
-工具类层，提供核心业务逻辑。
+Utility layer with core business logic.
 
-- `ServerManagerV1DomainManager`: 域名配置管理，使用 JSON 文件存储
-- `ServerManagerV1CertificateManager`: 证书管理，支持通配符和子域名扩展
-- `ServerManagerV1SSLConfigReader`: SSL 配置读取器，从加密配置中读取
-- `ServerManagerV1Utils`: 通用工具方法
-- `ServerManagerV1PathResolver`: 路径解析器（已废弃，使用 PathMapper）
-- `ServerManagerV1SecretReader`: 密钥读取器（已废弃，使用 GlobalSecretReader）
+- `ServerManagerV1DomainManager`: Domain config in JSON files
+- `ServerManagerV1CertificateManager`: Certificates with wildcard/subdomain expansion
+- `ServerManagerV1SSLConfigReader`: Reads SSL config from encrypted storage
+- `ServerManagerV1Utils`: Shared helpers
+- `ServerManagerV1PathResolver`: Deprecated; use PathMapper
+- `ServerManagerV1SecretReader`: Deprecated; use GlobalSecretReader
 
 ### ServerManagerV1Gvar
-全局变量和常量定义。
+Global variables and constants.
 
-- `ServerManagerV1Constants`: 应用常量，包括安全配置、路径白名单等
+- `ServerManagerV1Constants`: App constants, security config, path whitelist, etc.
 
 ### ServerManagerV1TablesMaps
-数据表映射定义（用于未来可能的数据库迁移）。
+Table map definitions (for possible future DB migration).
 
-## 路径映射机制
+## Path Mapping
 
-### 设计思路
+### Design Approach
 
-系统通过 `PathMapper` 实现环境感知的路径映射：
+Environment-aware mapping via `PathMapper`:
 
-1. **基础路径映射**
-   - `wwwroot`: Web 根目录
-   - `nginxconfig`: Nginx 配置目录
-   - `shared-data`: 共享数据目录
-   - `backup`: 备份目录
-   - `laravel_data_dir`: Laravel 数据目录
+1. **Base path mappings**
+   - `wwwroot`: Web root
+   - `nginxconfig`: Nginx config directory
+   - `shared-data`: Shared data directory
+   - `backup`: Backup directory
+   - `laravel_data_dir`: Laravel data directory
 
-2. **环境检测**
-   - WSL 环境：检测 `/mnt/c/Users` 目录存在
-   - 生产环境：非 WSL 且无桌面环境
-   - 开发环境：其他情况
+2. **Environment detection**
+   - WSL: `/mnt/c/Users` exists
+   - Production: not WSL and no desktop session
+   - Development: otherwise
 
-3. **路径解析流程**
-   - 首先通过 `PathMapper::getCoreNodeDir()` 获取核心目录
-   - 然后通过 `PathMapper::mapWebPath()` 映射具体路径
-   - 所有路径访问统一通过 `ServerManagerV1PathConfig` 方法
+3. **Resolution flow**
+   - `PathMapper::getCoreNodeDir()` for core directory
+   - `PathMapper::mapWebPath()` for concrete paths
+   - All access via `ServerManagerV1PathConfig` methods
 
-### 路径配置原则
+### Path configuration rules
 
-- 所有路径必须通过配置类访问，禁止硬编码
-- 系统路径（如 `/etc/nginx`）使用 `findActualPath()` 动态查找
-- 应用路径通过 `mapWebPath()` 映射，确保跨环境一致性
+- Access paths only through config classes; no hard-coding
+- System paths (e.g. `/etc/nginx`) via `findActualPath()`
+- App paths via `mapWebPath()` for cross-environment consistency
 
-## 配置管理
+## Configuration Management
 
-### 配置文件存储
+### Config file storage
 
-1. **域名配置**
-   - 存储位置：`laravel_data_dir/servermanager/domains/domains.json`
-   - 格式：JSON 格式，包含域名、SSL 配置、部署信息等
+1. **Domain config**
+   - Location: `laravel_data_dir/servermanager/domains/domains.json`
+   - JSON: domains, SSL, deployment metadata, etc.
 
-2. **证书配置**
-   - 存储位置：`laravel_data_dir/servermanager/certificates/certificates.json`
-   - 格式：JSON 格式，包含证书信息、域名列表、过期时间等
+2. **Certificate config**
+   - Location: `laravel_data_dir/servermanager/certificates/certificates.json`
+   - JSON: certificate info, domain list, expiry, etc.
 
-3. **SSL 配置**
-   - 存储位置：`.secret_keys/.secret_ignore/` 目录下的加密文件
-   - 读取：通过 `GlobalSecretReader` 读取，支持加密文件
+3. **SSL config**
+   - Location: encrypted files under `.secret_keys/.secret_ignore/`
+   - Read via `GlobalSecretReader` (encrypted files supported)
 
-### 配置读取流程
+### Config read flow
 
-1. SSL 配置通过 `ServerManagerV1SSLConfigReader` 读取
-2. 域名配置通过 `ServerManagerV1DomainManager` 管理
-3. 证书配置通过 `ServerManagerV1CertificateManager` 管理
-4. 所有配置支持缓存机制，提高读取效率
+1. SSL via `ServerManagerV1SSLConfigReader`
+2. Domains via `ServerManagerV1DomainManager`
+3. Certificates via `ServerManagerV1CertificateManager`
+4. Caching supported for all config reads
 
-## 安全设计
+## Security Design
 
-### 文件访问控制
+### File access control
 
-1. **白名单机制**
-   - 通过 `ServerManagerV1Constants::getAllowedDownloadPaths()` 定义可访问路径
-   - 文件访问前必须验证路径在白名单内
-   - 支持环境感知的路径验证
+1. **Whitelist**
+   - Allowed paths from `ServerManagerV1Constants::getAllowedDownloadPaths()`
+   - Verify path is whitelisted before access
+   - Environment-aware path validation
 
-2. **命令执行限制**
-   - 仅允许执行预定义的脚本
-   - 通过 `ServerManagerV1Constants::SYSTEM_COMMANDS` 定义允许的命令
-   - 命令执行前进行参数验证
+2. **Command restrictions**
+   - Only predefined scripts may run
+   - Allowed commands in `ServerManagerV1Constants::SYSTEM_COMMANDS`
+   - Validate arguments before execution
 
-3. **敏感信息管理**
-   - 所有密钥通过 `GlobalSecretReader` 统一读取
-   - 支持加密存储，读取时自动处理
-   - 密钥文件存储在 `.secret_keys` 目录下
+3. **Secrets**
+   - All secrets via `GlobalSecretReader`
+   - Encrypted storage with transparent decrypt on read
+   - Key files under `.secret_keys`
 
-## 扩展性设计
+## Extensibility
 
-### 新增功能模块
+### Adding features
 
-1. **添加新的 CLI 命令**
-   - 继承 `ServerManagerV1BaseCommand`
-   - 实现具体的业务逻辑
-   - 在 `routes/console.php` 中注册命令
+1. **New CLI command**
+   - Extend `ServerManagerV1BaseCommand`
+   - Implement business logic
+   - Register in `routes/console.php`
 
-2. **添加新的 API 接口**
-   - 继承 `ServerManagerV1BaseCtl`
-   - 实现标准的响应格式
-   - 在 `routes/api.php` 中注册路由
+2. **New API endpoint**
+   - Extend `ServerManagerV1BaseCtl`
+   - Use standard response format
+   - Register route in `routes/api.php`
 
-3. **添加新的工具类**
-   - 放置在 `ServerManagerV1Utils` 目录
-   - 遵循单一职责原则
-   - 使用统一的路径配置和错误处理
+3. **New utility class**
+   - Place under `ServerManagerV1Utils`
+   - Single responsibility
+   - Shared path config and error handling
 
-### 路径扩展
+### Path extensions
 
-1. **新增路径映射**
-   - 在 `PathMapper::mapWebPath()` 中添加新的映射规则
-   - 在 `ServerManagerV1PathConfig` 中添加对应的访问方法
-   - 更新路径白名单（如需要）
+1. **New path mapping**
+   - Add rule in `PathMapper::mapWebPath()`
+   - Add accessor on `ServerManagerV1PathConfig`
+   - Update whitelist if needed
 
-2. **环境适配**
-   - 在 `PathMapper` 中添加环境检测逻辑
-   - 确保新路径在不同环境下正确映射
+2. **Environment adaptation**
+   - Extend environment detection in `PathMapper`
+   - Verify mapping in all environments
 
-## 数据存储策略
+## Data Storage Strategy
 
-### JSON 文件存储
+### JSON file storage
 
-系统采用 JSON 文件而非数据库存储配置，原因：
+Config is stored as JSON files instead of a database because:
 
-1. **简化部署**：无需数据库迁移，配置文件可直接备份
-2. **版本控制**：配置文件可纳入版本控制
-3. **易于调试**：可直接查看和编辑配置文件
-4. **性能考虑**：小规模配置数据，文件读取性能足够
+1. **Simpler deploy**: no DB migration; configs are easy to back up
+2. **Version control**: configs can live in git
+3. **Debugging**: inspect and edit files directly
+4. **Performance**: small config sets; file I/O is sufficient
 
-### 存储位置
+### Storage location
 
-- 所有配置存储在 `laravel_data_dir/servermanager/` 目录下
-- 通过 `PathMapper` 确保路径在不同环境下正确解析
-- 支持配置文件的自动创建和目录初始化
+- All config under `laravel_data_dir/servermanager/`
+- Paths resolved via `PathMapper` per environment
+- Auto-create config files and directories
 
-## 错误处理
+## Error Handling
 
-### 统一错误响应
+### Unified error responses
 
-1. **API 错误响应**
-   - 通过 `ServerManagerV1BaseCtl` 提供统一的错误响应格式
-   - 包含错误码、错误消息、详细信息
-   - 支持异常捕获和日志记录
+1. **API errors**
+   - Standard format from `ServerManagerV1BaseCtl`
+   - Error code, message, details
+   - Exception capture and logging
 
-2. **CLI 错误处理**
-   - 通过 `ServerManagerV1BaseCommand` 提供统一的错误输出
-   - 支持详细的错误信息和堆栈跟踪
-   - 提供修复建议
+2. **CLI errors**
+   - Standard output from `ServerManagerV1BaseCommand`
+   - Detailed messages and stack traces
+   - Remediation hints where applicable
 
-### 日志记录
+### Logging
 
-- 所有关键操作记录日志
-- 错误信息包含上下文信息
-- 支持不同级别的日志输出
+- Log all critical operations
+- Errors include context
+- Multiple log levels
 
-## 依赖关系
+## Dependencies
 
-### 核心依赖
+### Core dependencies
 
-1. **PathMapper**: 路径映射核心类，提供环境感知的路径解析
-2. **GlobalSecretReader**: 密钥读取类，统一管理敏感信息
-3. **ServerManagerV1PathConfig**: 路径配置类，提供统一的路径访问接口
+1. **PathMapper**: environment-aware path resolution
+2. **GlobalSecretReader**: unified secret access
+3. **ServerManagerV1PathConfig**: unified path accessors
 
-### 废弃的类
+### Deprecated classes
 
-以下类已废弃，不应继续使用：
+Do not use these deprecated classes:
 
-- `ServerManagerV1PathResolver`: 已由 `PathMapper` 替代
-- `ServerManagerV1SecretReader`: 已由 `GlobalSecretReader` 替代
+- `ServerManagerV1PathResolver`: replaced by `PathMapper`
+- `ServerManagerV1SecretReader`: replaced by `GlobalSecretReader`
 
-## 开发规范
+## Development Guidelines
 
-### 路径访问规范
+### Path access
 
-- 禁止硬编码路径，必须使用 `ServerManagerV1PathConfig` 方法
-- 新增路径必须在 `ServerManagerV1PathConfig` 中添加对应方法
-- 路径访问前应检查路径是否存在
+- No hard-coded paths; use `ServerManagerV1PathConfig`
+- New paths need matching accessors on `ServerManagerV1PathConfig`
+- Check path exists before use
 
-### 配置访问规范
+### Config access
 
-- 使用对应的 Manager 类访问配置（DomainManager、CertificateManager）
-- 配置修改后必须调用保存方法
-- 配置读取支持缓存，避免频繁文件操作
+- Use DomainManager / CertificateManager for config
+- Call save after config changes
+- Reads are cached to limit file I/O
 
-### 安全规范
+### Security
 
-- 文件访问前必须验证路径在白名单内
-- 命令执行前必须验证命令在允许列表中
-- 敏感信息必须通过 `GlobalSecretReader` 读取
+- Whitelist paths before file access
+- Verify command is allowed before execution
+- Read secrets only via `GlobalSecretReader`
 
-## 命令示例
+## Command Examples
 
-**更新日期：2025-01-27**
+**Updated: 2025-01-27**
 
-### SSL 证书管理
+### SSL certificate management
 
 ```bash
-# 添加证书（自动生成通配符和子域名证书）
+# Add certificate (auto wildcard + subdomain certs)
 php artisan servermanager:certificate add example.com
 
-# 添加证书并指定子域名前缀
+# Add certificate with subdomain prefixes
 php artisan servermanager:certificate add example.com --prefixes=si,sz,local,api
 
-# 查找证书
+# Find certificate
 php artisan servermanager:certificate find api.example.com
 
-# 列出所有证书
+# List all certificates
 php artisan servermanager:certificate list
 
-# 显示证书摘要
+# Certificate summary
 php artisan servermanager:certificate summary
 
-# 更新证书状态
+# Update certificate status
 php artisan servermanager:certificate update example.com --status=active
 ```
 
-### 网站管理
+### Website management
 
-#### 网站类型说明
+#### Website types
 
-ServerManagerV1 支持三种网站类型：
+ServerManagerV1 supports three site types:
 
-- **html**: 静态 HTML 网站
-  - 用于部署纯静态内容（HTML、CSS、JS、图片等）
-  - 文档根目录：`/www/wwwroot/domain/`
-  - 不需要 PHP 支持
+- **html**: Static HTML site
+  - Pure static content (HTML, CSS, JS, images, etc.)
+  - Document root: `/www/wwwroot/domain/`
+  - No PHP required
 
-- **laravel**: 独立的 Laravel 项目
-  - 用于部署一个独立的 Laravel 应用
-  - 文档根目录：`/www/wwwroot/domain/public/`
-  - 需要完整的 Laravel 项目结构
-  - 支持 PHP-FPM 或 Swoole/Octane 模式
+- **laravel**: Standalone Laravel project
+  - Deploy a separate Laravel app
+  - Document root: `/www/wwwroot/domain/public/`
+  - Requires full Laravel project layout
+  - PHP-FPM or Swoole/Octane
 
-- **poly**: Laravel Main 项目（本项目）
-  - 用于将当前的 ServerManagerV1 所在的 Laravel 项目部署为网站
-  - 文档根目录：`/www/programing/core_node/poly_apps/laravel_main/public/`
-  - 所有 poly 类型的域名共享同一个 Laravel 项目
-  - 适合 API 端点、管理后台等场景
-  - 支持 PHP-FPM 或 Swoole/Octane 模式
+- **poly**: Laravel Main project (this repo)
+  - Deploy this ServerManagerV1 Laravel project as a site
+  - Document root: `/www/programing/core_node/poly_apps/laravel_main/public/`
+  - All `poly` domains share one Laravel codebase
+  - Good for API endpoints and admin UIs
+  - PHP-FPM or Swoole/Octane
 
-#### PHP 模式说明
+#### PHP modes
 
-ServerManagerV1 支持两种 PHP 运行模式：
+Two PHP runtime modes:
 
-- **fpm**: PHP-FPM 模式（默认）
-  - 传统的 PHP-FPM 进程管理
-  - 适合传统 PHP 应用
-  - 每个请求独立处理
+- **fpm**: PHP-FPM (default)
+  - Classic PHP-FPM process model
+  - Traditional PHP apps
+  - One request per worker lifecycle
 
-- **swoole**: Swoole/Octane 模式
-  - 基于 Swoole 的高性能长驻内存模式
-  - 使用 Laravel Octane 框架
-  - 适合高并发 API 服务
-  - 自动管理 Swoole systemd 服务
-  - 多个域名可共享同一 Swoole 服务（基于目录）
-  - 端口范围：9000-9999（自动分配）
+- **swoole**: Swoole/Octane
+  - Long-lived Swoole workers
+  - Laravel Octane
+  - High-concurrency APIs
+  - Manages Swoole systemd service
+  - Multiple domains can share one Swoole service (by directory)
+  - Ports 9000–9999 (auto-assigned)
 
-#### 基本操作
+#### Basic operations
 
 ```bash
-# 添加 Laravel 网站（独立项目，默认 PHP-FPM 模式）
+# Add Laravel site (standalone, default PHP-FPM)
 php artisan servermanager:website add example.com --type=laravel
 
-# 添加 Laravel 网站（Swoole/Octane 模式）
+# Add Laravel site (Swoole/Octane)
 php artisan servermanager:website add example.com --type=laravel --php-mode=swoole
 
-# 添加静态 HTML 网站
+# Add static HTML site
 php artisan servermanager:website add local.example.com --type=html
 
-# 添加 Poly 应用网站（Laravel Main 项目，推荐使用 Swoole 模式）
+# Add poly site (Laravel Main; Swoole recommended)
 php artisan servermanager:website add api.example.com --type=poly --php-mode=swoole
 
-# 添加网站并启用 SSL（自动模式）
+# Add site with SSL (auto)
 php artisan servermanager:website add example.com --type=laravel --ssl=auto
 
-# 完整示例：添加 API 网站（Poly + Swoole + SSL）
+# Example: API site (poly + Swoole + SSL)
 php artisan servermanager:website add api.example.com --type=poly --php-mode=swoole --ssl=auto
 
-# 列出所有网站
+# List all sites
 php artisan servermanager:website list
 
-# 查看网站状态
+# Site status
 php artisan servermanager:website status example.com
 
-# 显示网站摘要
+# Site summary
 php artisan servermanager:website summary
 
-# 删除网站
+# Remove site
 php artisan servermanager:website remove example.com
 ```
 
-**参数说明**：
-- `--type`: 网站类型（html|laravel|poly，默认：laravel）
-- `--php-mode`: PHP 运行模式（fpm|swoole，默认：fpm）
-- `--ssl`: SSL 模式（auto|true|false，默认：auto）
+**Options:**
+- `--type`: Site type (`html`|`laravel`|`poly`; default `laravel`)
+- `--php-mode`: PHP mode (`fpm`|`swoole`; default `fpm`)
+- `--ssl`: SSL mode (`auto`|`true`|`false`; default `auto`)
 
-**注意**：
-- 使用 `--php-mode=swoole` 时，系统会自动启动和管理 Swoole systemd 服务
-- 多个域名指向同一目录时，会共享同一个 Swoole 服务
-- Swoole 服务端口会自动分配（9000-9999 范围）
-- 更新域名配置（如从 FPM 切换到 Swoole）时，重新运行 add 命令即可，Laravel 会自动处理切换
+**Notes:**
+- With `--php-mode=swoole`, Swoole systemd service is managed automatically
+- Domains with the same directory share one Swoole service
+- Swoole port auto-assigned in 9000–9999
+- Re-run `add` to switch modes (e.g. FPM → Swoole); Laravel handles the transition
 
-### SSL 配置管理
+### SSL configuration
 
 ```bash
-# 生成 SSL 证书
+# Generate SSL certificate
 php artisan servermanager:ssl generate example.com --email=admin@example.com
 
-# 续期特定证书
+# Renew one certificate
 php artisan servermanager:ssl renew example.com
 
-# 续期所有证书
+# Renew all certificates
 php artisan servermanager:ssl renew --all
 
-# 列出所有证书
+# List all certificates
 php artisan servermanager:ssl list
 
-# 查看证书状态
+# Certificate status
 php artisan servermanager:ssl status example.com
 
-# 查看 SSL 配置
+# Show SSL config
 php artisan servermanager:ssl config
 ```
 
-### 部署管理
+### Deployment
 
-#### 快速部署本项目
+#### Quick deploy this project
 
 ```bash
-# 快速部署当前 Laravel Main 项目为 nginx 网站（默认 FPM 模式）
-# 这是 --type=poly 的快捷方式
+# Deploy Laravel Main as nginx site (default FPM)
+# Shortcut for `--type=poly`
 php artisan servermanager:deploy-self api.example.com
 
-# 部署为 Swoole/Octane 模式（推荐用于 API 服务）
+# Deploy with Swoole/Octane (recommended for APIs)
 php artisan servermanager:deploy-self api.example.com --php-mode=swoole
 
-# 完整示例：Swoole + SSL
+# Example: Swoole + SSL
 php artisan servermanager:deploy-self api.example.com --php-mode=swoole --ssl=auto
 
-# 预览部署（不实际执行）
+# Dry-run deploy
 php artisan servermanager:deploy-self api.example.com --dry-run
 
-# 部署但不重载 nginx
+# Deploy without nginx reload
 php artisan servermanager:deploy-self api.example.com --no-reload
 ```
 
-**说明**：
-- `deploy-self` 命令是 `website add --type=poly` 的快捷方式
-- 自动将域名指向当前 Laravel 项目的 public 目录
-- 所有使用 `deploy-self` 部署的域名共享同一个 Laravel 项目
-- 适合部署 API 端点、管理后台等场景
-- 推荐使用 `--php-mode=swoole` 以获得更好的性能
+**Notes:**
+- `deploy-self` is shorthand for `website add --type=poly`
+- Points domain at this Laravel project's `public/`
+- All `deploy-self` domains share one Laravel app
+- Good for APIs and admin backends
+- Prefer `--php-mode=swoole` for performance
 
-**参数说明**：
-- `--php-mode`: PHP 运行模式（fpm|swoole，默认：fpm）
-- `--ssl`: SSL 模式（auto|true|false，默认：auto）
-- `--dry-run`: 预览模式，不实际执行
-- `--no-reload`: 不重载 nginx
+**Options:**
+- `--php-mode`: PHP mode (`fpm`|`swoole`; default `fpm`)
+- `--ssl`: SSL mode (`auto`|`true`|`false`; default `auto`)
+- `--dry-run`: Preview only
+- `--no-reload`: Skip nginx reload
 
-#### 部署其他应用
+#### Deploy other apps
 
 ```bash
-# 部署独立的 Laravel 应用（创建新项目目录）
+# Deploy standalone Laravel app (new directory)
 php artisan servermanager:deploy example.com laravel
 
-# 部署 Poly 应用
+# Deploy poly app
 php artisan servermanager:deploy example.com poly-app
 
-# 部署 Ncore 应用
+# Deploy Ncore app
 php artisan servermanager:deploy example.com ncore-app
 
-# 部署静态网站
+# Deploy static site
 php artisan servermanager:deploy example.com static
 
-# 部署代理网站
+# Deploy proxy site
 php artisan servermanager:deploy example.com proxy
 ```
 
-### 配置同步与 Nginx 检查
+### Config sync and Nginx inspection
 
-**更新日期：2025-01-27**
+**Updated: 2025-01-27**
 
-ServerManagerV1 支持双向配置同步和独立的 Nginx 配置检查功能。
+Bidirectional config sync and read-only Nginx inspection.
 
-#### 双向配置同步
+#### Bidirectional sync
 
-系统支持两个方向的配置同步：
+Two sync directions:
 
-1. **DATABASE → NGINX**：从数据库重新生成所有 nginx 配置（默认行为）
-2. **NGINX → DATABASE**：从现有 nginx 配置导入到数据库（新功能）
+1. **DATABASE → NGINX**: Regenerate all nginx configs from DB (default)
+2. **NGINX → DATABASE**: Import existing nginx configs into DB
 
 ```bash
-# 查看当前同步状态
+# Show sync status
 php artisan servermanager:sync --status
 
 # ========================================
-# 方向 1: DATABASE → NGINX（默认）
+# Direction 1: DATABASE → NGINX (default)
 # ========================================
 
-# 从数据库同步到 nginx（预览模式）
+# DB → nginx (dry run)
 php artisan servermanager:sync --dry-run
 
-# 从数据库同步到 nginx（执行）
+# DB → nginx (apply)
 php artisan servermanager:sync
-# 或明确指定方向
+# Or specify direction explicitly
 php artisan servermanager:sync --to-nginx
 
-# 此操作会：
-# 1. 删除所有现有的 nginx 配置文件（除了 default）
-# 2. 根据数据库中的域名配置重新生成 nginx 配置
-# 3. 为 nginx_enabled=true 的域名创建启用链接
+# This will:
+# 1. Remove existing nginx configs (except default)
+# 2. Regenerate nginx from domain records
+# 3. Enable sites with `nginx_enabled=true`
 
 # ========================================
-# 方向 2: NGINX → DATABASE（新功能）
+# Direction 2: NGINX → DATABASE (new)
 # ========================================
 
-# 从 nginx 导入到数据库（预览模式）
+# nginx → DB (dry run)
 php artisan servermanager:sync --from-nginx --dry-run
 
-# 从 nginx 导入到数据库（合并模式，跳过已存在的域名）
+# nginx → DB (merge; skip existing domains)
 php artisan servermanager:sync --from-nginx
 
-# 从 nginx 导入到数据库（覆盖模式，更新已存在的域名）
+# nginx → DB (overwrite existing domains)
 php artisan servermanager:sync --from-nginx --overwrite
 
-# 此操作会：
-# 1. 扫描 nginx sites-available 目录中的所有配置文件
-# 2. 解析每个配置文件，提取域名信息（server_name、root、SSL、PHP版本等）
-# 3. 将解析的信息导入到数据库
-# 4. 默认使用合并模式（--merge），跳过已存在的域名
-# 5. 使用 --overwrite 可以更新已存在的域名配置
+# This will:
+# 1. Scan nginx sites-available
+# 2. Parse server_name, root, SSL, PHP version, etc.
+# 3. Import into database
+# 4. Default merge skips existing domains
+# 5. `--overwrite` updates existing domains
 ```
 
-#### Nginx 配置检查（独立功能）
+#### Nginx inspection (standalone)
 
-使用 `servermanager:nginx-inspect` 命令可以检查 nginx 配置而不修改数据库。
+`servermanager:nginx-inspect` inspects nginx without changing the database.
 
 ```bash
-# 查看所有 nginx 配置（表格形式）
+# List all nginx configs (table)
 php artisan servermanager:nginx-inspect
 
-# 查看摘要信息
+# Summary
 php artisan servermanager:nginx-inspect --summary
 
-# 查看详细信息（包含摘要）
+# Detailed view (includes summary)
 php artisan servermanager:nginx-inspect --detailed
 
-# 查看特定域名的详细配置
+# Details for one domain
 php artisan servermanager:nginx-inspect local.api.12gm.com
 
-# 按类型过滤
+# Filter by type
 php artisan servermanager:nginx-inspect --type=laravel
 php artisan servermanager:nginx-inspect --type=poly
 php artisan servermanager:nginx-inspect --type=html
 
-# 按 SSL 状态过滤
-php artisan servermanager:nginx-inspect --ssl         # 只显示启用 SSL 的站点
-php artisan servermanager:nginx-inspect --no-ssl      # 只显示未启用 SSL 的站点
+# Filter by SSL
+php artisan servermanager:nginx-inspect --ssl         # SSL-enabled sites only
+php artisan servermanager:nginx-inspect --no-ssl      # Non-SSL sites only
 
-# 按启用状态过滤
-php artisan servermanager:nginx-inspect --enabled     # 只显示已启用的站点
-php artisan servermanager:nginx-inspect --disabled    # 只显示已禁用的站点
+# Filter by enabled state
+php artisan servermanager:nginx-inspect --enabled     # Enabled sites only
+php artisan servermanager:nginx-inspect --disabled    # Disabled sites only
 
-# 组合过滤
+# Combined filters
 php artisan servermanager:nginx-inspect --type=poly --ssl --enabled
 
-# 输出为 JSON 格式
+# JSON output
 php artisan servermanager:nginx-inspect --json
 php artisan servermanager:nginx-inspect local.api.12gm.com --json
 ```
 
-#### 典型使用场景
+#### Typical workflows
 
-##### 场景 1：从头开始导入现有 nginx 配置
+##### Scenario 1: Import existing nginx config from scratch
 
 ```bash
-# 1. 检查当前 nginx 配置
+# 1. Inspect current nginx
 php artisan servermanager:nginx-inspect --summary
 
-# 2. 预览导入结果
+# 2. Preview import
 php artisan servermanager:sync --from-nginx --dry-run
 
-# 3. 执行导入
+# 3. Run import
 php artisan servermanager:sync --from-nginx
 
-# 4. 验证导入结果
+# 4. Verify domains
 php artisan servermanager:website list
 ```
 
-##### 场景 2：从数据库重建所有 nginx 配置
+##### Scenario 2: Rebuild all nginx from database
 
 ```bash
-# 1. 备份当前配置（可选）
+# 1. Backup (optional)
 php artisan servermanager:advanced backup
 
-# 2. 查看同步状态
+# 2. Sync status
 php artisan servermanager:sync --status
 
-# 3. 预览同步操作
+# 3. Preview sync
 php artisan servermanager:sync --dry-run
 
-# 4. 执行同步
+# 4. Run sync
 php artisan servermanager:sync
 
-# 5. 重载 nginx
+# 5. Reload nginx
 sudo systemctl reload nginx
 ```
 
-##### 场景 3：比对 nginx 和数据库的差异
+##### Scenario 3: Compare nginx vs database
 
 ```bash
-# 查看同步状态（显示孤立配置和缺失配置）
+# Sync status (orphan/missing configs)
 php artisan servermanager:sync --status
 
-# 查看 nginx 中的所有配置
+# All nginx configs
 php artisan servermanager:nginx-inspect
 
-# 查看数据库中的所有域名
+# All domains in database
 php artisan servermanager:website list
 ```
 
-#### 配置解析说明
+#### Config parsing
 
-`parseNginxConfig()` 方法可以从 nginx 配置文件中提取以下信息：
+`parseNginxConfig()` extracts:
 
-- **域名**：从文件名提取
-- **server_name**：从 `server_name` 指令提取
-- **root**：从 `root` 指令提取文档根目录
-- **SSL 状态**：检测 `listen 443 ssl` 指令
-- **SSL 证书路径**：提取 `ssl_certificate` 和 `ssl_certificate_key`
-- **PHP 版本**：从 `fastcgi_pass unix:/var/run/php/php8.4-fpm.sock` 提取
-- **网站类型**：
-  - 检测 `try_files $uri $uri/ /index.php` → `laravel`
-  - 检测路径包含 `/poly_apps/laravel_main` → `poly`
-  - 默认 → `html`
-- **监听端口**：从 `listen` 指令提取
+- **Domain**: from filename
+- **server_name**: from directive
+- **root**: document root
+- **SSL**: `listen 443 ssl`
+- **Cert paths**: `ssl_certificate` / `ssl_certificate_key`
+- **PHP version**: from `fastcgi_pass` socket path
+- **Site type**:
+  - `try_files $uri $uri/ /index.php` → `laravel`
+  - path contains `/poly_apps/laravel_main` → `poly`
+  - default → `html`
+- **Listen port**: from `listen`
 
-#### 注意事项
+#### Notes
 
-1. **DATABASE → NGINX 同步会删除所有现有配置**：此操作会清除所有 nginx 配置文件（除了 default 和 ssl-challenges），然后重新生成。建议先使用 `--dry-run` 预览。
+1. **DATABASE → NGINX deletes existing configs** (except default/ssl-challenges). Use `--dry-run` first.
 
-2. **NGINX → DATABASE 同步默认使用合并模式**：已存在的域名会被跳过，使用 `--overwrite` 可以更新现有域名。
+2. **NGINX → DATABASE** defaults to merge; `--overwrite` updates existing domains.
 
-3. **同步后需要重载 nginx**：配置修改后需要执行 `sudo systemctl reload nginx` 使配置生效。
+3. **Reload nginx** after sync: `sudo systemctl reload nginx`.
 
-4. **nginx-inspect 是只读操作**：此命令不会修改任何配置，可以安全地用于检查和诊断。
+4. **`nginx-inspect` is read-only** — safe for diagnostics.
 
-### 高级管理操作
+### Advanced management
 
-**更新日期：2025-01-27**
+**Updated: 2025-01-27**
 
-ServerManagerV1 提供高级管理命令 `servermanager:advanced`，支持搜索、验证、备份、批量操作等功能。
+`servermanager:advanced` supports search, validation, backup, and batch ops.
 
-#### 域名搜索与查询
+#### Domain search
 
 ```bash
-# 搜索所有 Laravel 类型的网站
+# Search Laravel sites
 php artisan servermanager:advanced search --type=laravel
 
-# 搜索启用 SSL 的活跃网站
+# Active sites with SSL
 php artisan servermanager:advanced search --status=active --ssl=true
 
-# 搜索特定 PHP 版本的网站
+# Sites by PHP version
 php artisan servermanager:advanced search --php-version=8.4
 
-# 按关键词搜索（域名或目录）
+# Keyword search (domain or directory)
 php artisan servermanager:advanced search --search=example
 
-# 组合搜索
+# Combined search
 php artisan servermanager:advanced search --type=poly --status=active --ssl=true
 
-# 查看按站点分组的域名（多域名站点）
+# Domains grouped by site directory
 php artisan servermanager:advanced grouped
 ```
 
-#### 配置验证
+#### Validation
 
 ```bash
-# 验证所有域名配置
-# 检查：目录存在性、nginx配置文件、SSL证书、PHP-FPM socket等
+# Validate all domain configs
+# Checks: directories, nginx files, SSL certs, PHP-FPM sockets, etc.
 php artisan servermanager:advanced validate
 ```
 
-#### 备份与恢复
+#### Backup and restore
 
 ```bash
-# 备份所有域名配置
+# Backup all domain configs
 php artisan servermanager:advanced backup
 
-# 列出可用备份（在 restore 时如果不指定文件会自动显示）
+# List backups (shown when restore omits --file)
 php artisan servermanager:advanced restore
 
-# 从备份恢复（替换模式 - 删除所有现有域名）
+# Restore from backup (replace all domains)
 php artisan servermanager:advanced restore --file=/path/to/backup.json
 
-# 从备份恢复（合并模式 - 保留现有域名）
+# Restore from backup (merge)
 php artisan servermanager:advanced restore --file=/path/to/backup.json --merge
 ```
 
-#### 导入与导出
+#### Import and export
 
 ```bash
-# 导出为 JSON 格式
+# Export JSON
 php artisan servermanager:advanced export --format=json
 
-# 导出为 CSV 格式
+# Export CSV
 php artisan servermanager:advanced export --format=csv
 
-# 导出为 Nginx 列表格式
+# Export nginx list format
 php artisan servermanager:advanced export --format=nginx
 
-# 从文件导入（合并模式）
+# Import file (merge)
 php artisan servermanager:advanced import --file=/path/to/domains.json --format=json --merge
 
-# 从文件导入（替换模式）
+# Import file (replace)
 php artisan servermanager:advanced import --file=/path/to/domains.json --format=json
 ```
 
-#### 批量操作
+#### Batch operations
 
 ```bash
-# 批量启用域名
+# Batch enable domains
 php artisan servermanager:advanced batch-enable \
     --domains=example.com \
     --domains=test.com \
     --domains=staging.com
 
-# 批量禁用域名（保留文件，移除 nginx 链接）
+# Batch disable (keep files; remove nginx links)
 php artisan servermanager:advanced batch-disable \
     --domains=example.com \
     --domains=test.com \
     --reason="Maintenance"
 
-# 说明：批量禁用后：
-#   - nginx 配置文件保留
-#   - sites-enabled 中的符号链接被删除
-#   - 网站文件完全保留
-#   - 域名状态更新为 disabled
+# Notes: after batch disable:
+#   - nginx config files remain
+#   - sites-enabled symlinks removed
+#   - site files untouched
+#   - domain status → disabled
 ```
 
-#### 域名历史记录
+#### Domain history
 
 ```bash
-# 查看所有域名操作历史（最近50条）
+# Last 50 domain operations
 php artisan servermanager:advanced history
 
-# 查看特定域名的历史
+# History for one domain
 php artisan servermanager:advanced history --search=example.com
 
-# 查看更多历史记录
+# More history rows
 php artisan servermanager:advanced history --limit=100
 ```
 
-#### 域名别名与重定向
+#### Aliases and redirects
 
 ```bash
-# 添加 www 重定向（301 永久重定向）
+# www redirect (301 permanent)
 php artisan servermanager:advanced alias \
     --source=www.example.com \
     --target=example.com \
     --redirect-code=301
 
-# 添加临时重定向（302 临时重定向）
+# Temporary redirect (302)
 php artisan servermanager:advanced alias \
     --source=old.example.com \
     --target=new.example.com \
     --redirect-code=302
 
-# 说明：
-#   - 自动生成 nginx 重定向配置
-#   - 支持 HTTP 和 HTTPS 重定向
-#   - 如果目标域名启用了 SSL，源域名也会使用相同证书
+# Notes:
+#   - Auto-generates nginx redirect config
+#   - HTTP and HTTPS redirects
+#   - Source uses target SSL cert when target has SSL
 ```
 
-#### 站点模板
+#### Site templates
 
 ```bash
-# 查看可用模板
+# List templates
 php artisan servermanager:advanced templates
 
-# 可用模板：
-#   - laravel_api: Laravel API 应用（API + CORS + 限流）
-#   - laravel_full: Laravel 全栈应用（Web + API + Auth）
-#   - static_spa: 静态 SPA（Vue/React）
-#   - wordpress: WordPress CMS 站点
+# Available templates:
+#   - laravel_api: Laravel API (API + CORS + rate limits)
+#   - laravel_full: Full-stack Laravel (web + API + auth)
+#   - static_spa: Static SPA (Vue/React)
+#   - wordpress: WordPress CMS
 ```
 
-## 扩展功能详解
+## Extended Features
 
-### 域名冲突检测
+### Domain conflict detection
 
-`ServerManagerV1WebsiteCommand` 已集成自动冲突检测功能：
+`ServerManagerV1WebsiteCommand` includes automatic conflict detection:
 
 ```bash
-# 添加域名时自动检测冲突
+# Conflicts checked when adding a domain
 php artisan servermanager:website add example.com --type=laravel
 
-# 如果域名已存在，系统会：
-# 1. 显示当前配置信息
-# 2. 分析变更影响（是否是站点迁移）
-# 3. 检查旧站点是否还有其他域名
-# 4. 询问是否继续
+# If domain exists, the CLI will:
+# 1. Show current config
+# 2. Analyze impact (site migration?)
+# 3. Check whether old site has other domains
+# 4. Prompt to continue
 ```
 
-**冲突检测场景**：
+**Conflict scenarios:**
 
-1. **配置更新**（相同目录）：
-   - 只更新域名配置
-   - 不影响其他域名
+1. **Config update** (same directory):
+   - Update domain record only
+   - Other domains unchanged
 
-2. **站点迁移**（不同目录）：
-   - 域名从旧站点迁移到新站点
-   - 如果旧站点只有这一个域名，会有警告
-   - 旧站点文件会被保留
+2. **Site migration** (different directory):
+   - Domain moves to new site directory
+   - Warns if old site had only this domain
+   - Old site files are kept
 
-### 多域名站点管理
+### Multi-domain sites
 
-多个域名可以指向同一个站点目录：
+Multiple domains can share one site directory:
 
 ```bash
-# example.com 和 www.example.com 共享同一目录
+# example.com and www.example.com share one directory
 php artisan servermanager:website add example.com --type=laravel
 php artisan servermanager:website add www.example.com --type=laravel
 
-# 查看按站点分组的域名
+# Domains grouped by directory
 php artisan servermanager:advanced grouped
 
-# 输出示例：
+# Example output:
 # 📁 /www/wwwroot/example.com (laravel)
 #    Domains: 2
 #    ✅ 🔒 example.com
 #    ✅ 🔒 www.example.com
 ```
 
-### 站点启用/禁用
+### Enable / disable sites
 
-启用和禁用功能通过 `ServerManagerV1DomainManager` 提供：
+Enable/disable via `ServerManagerV1DomainManager`:
 
 ```php
-// 禁用站点（保留文件和配置，仅删除 nginx 启用链接）
+// Disable site (keep files; remove nginx enable link)
 ServerManagerV1DomainManager::disableSite('example.com', [
     'reason' => 'Maintenance'
 ]);
 
-// 重新启用站点（重新生成 nginx 配置和链接）
+// Re-enable site (regenerate nginx config and link)
 ServerManagerV1DomainManager::enableSite('example.com');
 ```
 
-### 配置验证
+### Configuration validation
 
-自动验证所有域名配置的完整性：
+Validates all domain configurations:
 
-- ✅ 检查 www_dir 目录是否存在
-- ✅ 检查 nginx 配置文件
-- ✅ 检查 sites-enabled 符号链接
-- ✅ 检查 SSL 证书文件
-- ✅ 检查 PHP-FPM socket
+- ✅ `www_dir` exists
+- ✅ nginx config file exists
+- ✅ sites-enabled symlink
+- ✅ SSL certificate files
+- ✅ PHP-FPM socket
 
-### 数据一致性保障
+### Data consistency
 
-所有扩展功能遵循以下原则：
+Extended features follow these rules:
 
-1. **路径映射**：使用 `PathMapper::mapWebPath()` 动态解析路径
-2. **统一配置**：通过 `ServerManagerV1PathConfig` 访问路径
-3. **操作日志**：所有操作记录到 Laravel 日志
-4. **历史记录**：关键操作保存到 `history.json`
-5. **原子操作**：配置修改采用先验证后保存的方式
+1. **Path mapping**: `PathMapper::mapWebPath()`
+2. **Unified config**: `ServerManagerV1PathConfig`
+3. **Logging**: Laravel log for all operations
+4. **History**: critical ops in `history.json`
+5. **Atomic writes**: validate then save
 
-### API 接口
+### API usage
 
-所有功能均可通过 `ServerManagerV1DomainManager` 类在代码中调用：
+All features are callable via `ServerManagerV1DomainManager`:
 
 ```php
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
 
-// 域名冲突检测
+// Domain conflict check
 $conflict = ServerManagerV1DomainManager::checkDomainConflict('example.com');
 
-// 查找站点的所有域名
+// Find all domains for a site directory
 $domains = ServerManagerV1DomainManager::findSitesByDirectory('/www/wwwroot/example.com');
 
-// 搜索域名
+// Search domains
 $results = ServerManagerV1DomainManager::searchDomains([
     'type' => 'laravel',
     'status' => 'active',
     'ssl_enabled' => true
 ]);
 
-// 批量操作
+// Batch operations
 $results = ServerManagerV1DomainManager::batchEnableSites(['domain1.com', 'domain2.com']);
 $results = ServerManagerV1DomainManager::batchDisableSites(['domain3.com'], ['reason' => 'Test']);
 
-// 备份与恢复
+// Backup and restore
 $backup = ServerManagerV1DomainManager::backupDomains();
 $restore = ServerManagerV1DomainManager::restoreDomains('/path/to/backup.json', true);
 
-// 导入导出
+// Import / export
 $export = ServerManagerV1DomainManager::exportDomains('csv');
 $import = ServerManagerV1DomainManager::importDomains('/path/to/file.json', 'json', true);
 
-// 配置验证
+// Validate configs
 $validation = ServerManagerV1DomainManager::validateAllConfigurations();
 
-// 域名历史
+// Domain history
 $history = ServerManagerV1DomainManager::getHistory('example.com', 50);
 
-// 域名别名
+// Domain alias
 ServerManagerV1DomainManager::addDomainAlias('www.example.com', 'example.com', 301);
 
-// 站点模板
+// Site templates
 $templates = ServerManagerV1DomainManager::getTemplates();
 ServerManagerV1DomainManager::applyTemplate('api.example.com', 'laravel_api');
 ```
 
-## 未来规划
+## Roadmap
 
-1. **数据库迁移支持**: 通过 `ServerManagerV1TablesMaps` 定义表结构，支持未来迁移到数据库
-2. **配置验证增强**: 添加更严格的配置验证机制
-3. **性能优化**: 优化配置读取和缓存机制
-4. **监控和告警**: 添加系统监控和告警功能
+1. **Database migration**: table defs in `ServerManagerV1TablesMaps` for future DB storage
+2. **Stronger validation**
+3. **Performance**: config read/cache tuning
+4. **Monitoring and alerts**
 

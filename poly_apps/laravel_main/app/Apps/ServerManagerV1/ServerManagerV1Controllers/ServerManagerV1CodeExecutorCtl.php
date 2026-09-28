@@ -4,12 +4,16 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
+use App\Services\Logs\LaravelLogTailService;
+use App\Utils\FileSystemManager;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
 {
+    private const LOG_TAIL_BYTES = 1048576;
+
     /**
      * Hardcoded predefined scripts for security
      */
@@ -112,8 +116,8 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 'id' => 11,
                 'name' => 'Restart Laravel Octane Server',
                 'category' => 'system_maintenance',
-                'description' => 'Restart the octane-poly-9000 Octane service to reload code changes',
-                'command' => 'systemctl restart octane-poly-9000',
+                'description' => 'Restart the app-manager-laravel_main Octane service to reload code changes',
+                'command' => 'systemctl restart app-manager-laravel_main',
                 'timeout' => 30,
                 'requires_sudo' => false
             ]
@@ -141,12 +145,12 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 });
             }
             
-            return $this->successResponse([
+            return $this->success([
                 'scripts' => array_values($scripts),
                 'total_scripts' => count($scripts),
                 'categories' => ServerManagerV1Constants::SCRIPT_CATEGORIES,
                 'security_note' => 'Only predefined hardcoded scripts can be executed'
-            ], 'Available scripts retrieved successfully');
+            ], __('server_manager.messages.available_scripts_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_list_scripts');
@@ -173,8 +177,8 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             $scripts = $this->getPredefinedScripts();
             
             if (!isset($scripts[$scriptId])) {
-                return $this->errorResponse(
-                    'Script not found. Use /executor/scripts to list available scripts.',
+                return $this->error(
+                    __('server_manager.messages.script_not_found_use_executor_scripts_to'),
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
             }
@@ -183,8 +187,8 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             
             // Security check: no sudo scripts for now
             if ($script['requires_sudo']) {
-                return $this->errorResponse(
-                    'Scripts requiring sudo are not allowed in this environment.',
+                return $this->error(
+                    __('server_manager.messages.scripts_requiring_sudo_are_not_allowed_in'),
                     ServerManagerV1Constants::RESPONSE_FORBIDDEN
                 );
             }
@@ -242,7 +246,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 ? 'Script executed successfully' 
                 : 'Script execution failed';
             
-            return $this->successResponse($executionResult, $message);
+            return $this->success($executionResult, $message);
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_run_script');
@@ -261,17 +265,16 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
         
         try {
             // Since we don't have database access, return recent log entries from Laravel logs
-            $logFile = storage_path('logs/laravel.log');
+            $buffer = $this->readLogTail();
             $logs = [];
-            
-            if (file_exists($logFile)) {
-                $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-                $lines = array_reverse($lines); // Most recent first
-                
+
+            if ($buffer !== '') {
+                $lines = array_reverse(array_filter(explode("\n", $buffer)));
+
                 $executionLogs = [];
                 $count = 0;
                 $limit = (int)$request->input('limit', 50);
-                
+
                 foreach ($lines as $line) {
                     if (strpos($line, 'ServerManagerV1: Script execution') !== false && $count < $limit) {
                         $executionLogs[] = [
@@ -282,16 +285,16 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                         $count++;
                     }
                 }
-                
+
                 $logs = $executionLogs;
             }
             
-            return $this->successResponse([
+            return $this->success([
                 'logs' => $logs,
                 'total_logs' => count($logs),
                 'log_source' => 'Laravel application logs',
                 'note' => 'Database logging not available due to SQLite driver issues'
-            ], 'Execution logs retrieved successfully');
+            ], __('server_manager.messages.execution_logs_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_get_logs');
@@ -312,33 +315,31 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             $executionId = $request->input('execution_id');
             
             if (!$executionId) {
-                return $this->errorResponse(
+                return $this->error(
                     'execution_id parameter is required',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
             
             // Since we don't have database, we'll check recent logs
-            $logFile = storage_path('logs/laravel.log');
             $status = [
                 'execution_id' => $executionId,
                 'status' => 'unknown',
                 'found' => false
             ];
-            
-            if (file_exists($logFile)) {
-                $content = file_get_contents($logFile);
-                if (strpos($content, $executionId) !== false) {
-                    $status['found'] = true;
-                    if (strpos($content, $executionId . '.*completed') !== false) {
-                        $status['status'] = 'completed';
-                    } elseif (strpos($content, $executionId . '.*started') !== false) {
-                        $status['status'] = 'running';
-                    }
+
+            $buffer = $this->readLogTail();
+            if ($buffer !== '' && strpos($buffer, $executionId) !== false) {
+                $status['found'] = true;
+                $quotedId = preg_quote($executionId, '/');
+                if (preg_match('/' . $quotedId . '[^\n]*completed/', $buffer)) {
+                    $status['status'] = 'completed';
+                } elseif (preg_match('/' . $quotedId . '[^\n]*started/', $buffer)) {
+                    $status['status'] = 'running';
                 }
             }
             
-            return $this->successResponse($status, 'Execution status retrieved');
+            return $this->success($status, __('server_manager.messages.execution_status_retrieved'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_get_status');
@@ -348,6 +349,26 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
     /**
      * Extract timestamp from log line
      */
+    /**
+     * Bounded tail of the active Laravel log. Full-file reads of an
+     * unbounded log fatal on memory_limit; rotation-aware resolution keeps
+     * this correct under the daily channel.
+     */
+    private function readLogTail(): string
+    {
+        $logFile = app(LaravelLogTailService::class)->resolveActiveLogPath();
+        if (!FileSystemManager::isFile($logFile)) {
+            return '';
+        }
+        $fileSize = FileSystemManager::filesize($logFile);
+        if ($fileSize === false || $fileSize <= 0) {
+            return '';
+        }
+        $readBytes = min(self::LOG_TAIL_BYTES, $fileSize);
+        $buffer = FileSystemManager::readFileSegment($logFile, $fileSize - $readBytes, $readBytes);
+        return $buffer === false ? '' : $buffer;
+    }
+
     private function extractTimestamp(string $line): string
     {
         if (preg_match('/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/', $line, $matches)) {

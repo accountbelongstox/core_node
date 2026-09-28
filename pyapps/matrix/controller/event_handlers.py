@@ -9,7 +9,8 @@ This module only registers event handlers, does not start any threads.
 
 import webbrowser
 
-from pycore import ColorPrint, THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 def register_matrix_event_handlers(

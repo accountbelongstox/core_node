@@ -3,6 +3,21 @@ import 'package:provider/provider.dart';
 import '../../../provider_app_travel/user_provider_app_travel.dart';
 import '../../../constants_app_travel/cities_app_travel.dart';
 
+const Map<int, String> _monthSubtitleMap = {
+  1: '人少景美',
+  2: '春节出游',
+  3: '春暖花开',
+  4: '赏樱花',
+  5: '五一小长假',
+  6: '端午出游',
+  7: '盛夏避暑',
+  8: '暑假亲子',
+  9: '秋高气爽',
+  10: '国庆长假',
+  11: '天凉好个秋',
+  12: '玩雪泡温泉',
+};
+
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
 
@@ -13,18 +28,8 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> {
   int _selectedMonthIndex = 0;
 
-  final List<Map<String, String>> _monthTabs = [
-    {'label': '11月', 'subtitle': '天凉好个秋'},
-    {'label': '赏秋', 'subtitle': ''},
-    {'label': '12月', 'subtitle': '玩雪泡温泉'},
-    {'label': '1月', 'subtitle': '人少景美'},
-  ];
-
-  final Map<String, dynamic> _featuredDestination = {
-    'image': 'assets/apps/app_travel/images/inspiration_november.png',
-    'title': '11月去哪儿玩',
-    'recommend': 40319,
-  };
+  late final List<Map<String, String>> _monthTabs;
+  late final Map<String, dynamic> _featuredDestination;
 
   final List<Map<String, dynamic>> _destinations = [
     {
@@ -48,6 +53,29 @@ class _ExploreScreenState extends State<ExploreScreen> {
       'subtitle': '赏银杏，泡温泉',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initFromCurrentDate();
+  }
+
+  void _initFromCurrentDate() {
+    final now = DateTime.now();
+    final currentMonth = now.month;
+    _monthTabs = List.generate(4, (i) {
+      final m = ((currentMonth - 1 + i) % 12) + 1;
+      return {
+        'label': '$m月',
+        'subtitle': _monthSubtitleMap[m] ?? '',
+      };
+    });
+    _featuredDestination = {
+      'image': 'assets/apps/app_travel/images/inspiration_november.png',
+      'title': '${currentMonth}月去哪儿玩',
+      'recommend': 40319,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {

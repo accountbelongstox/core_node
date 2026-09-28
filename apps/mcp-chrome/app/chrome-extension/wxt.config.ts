@@ -1,25 +1,92 @@
 import { defineConfig } from 'wxt';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import { resolve } from 'path';
+import { readFileSync, writeFileSync } from 'fs';
+import { join, resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite';
+import { FIREFOX_EXTENSION_ID } from 'chrome-mcp-shared';
 
 // Load configuration from config.cjs
 const configPath = resolve(__dirname, 'config.cjs');
 const config = require(configPath);
 const CHROME_EXTENSION_KEY = config.CHROME_EXTENSION_KEY;
+const REPOSITORY_ROOT = resolve(__dirname, '../../../..');
+const MCP_CHROME_ROOT = resolve(__dirname, '../..');
+const SERVICE_CONTRACT = JSON.parse(
+  readFileSync(join(REPOSITORY_ROOT, 'config', 'service_contract.json'), 'utf8'),
+);
+const MCP_CHROME_LAYOUT = SERVICE_CONTRACT.mcp_chrome;
 
-// Configure output directory using relative path (cross-platform compatible)
-// From: /www/programing/core_node/apps/mcp-chrome/app/chrome-extension
-// To: /www/programing/_build_dir
-const OUTPUT_DIR = resolve(__dirname, '../../../../../_build_dir');
+// Detect the target browser from the wxt CLI args (this file is plain TS run by
+// the wxt CLI, so process.argv is the only reliable pre-config signal). Used to
+// pick the output dir template: external scripts depend on the Chrome output
+// directory named in config/service_contract.json (mcp_chrome.*).
+const CLI_ARGS = process.argv;
+const IS_FIREFOX_TARGET = CLI_ARGS.some(
+  (arg, i) =>
+    ((arg === '-b' || arg === '--browser') && CLI_ARGS[i + 1] === 'firefox') ||
+    arg === '-b=firefox' ||
+    arg === '--browser=firefox',
+);
+
+// Chrome permission list (unchanged historical set).
+const CHROME_PERMISSIONS = [
+  'nativeMessaging',
+  'tabs',
+  'activeTab',
+  'scripting',
+  'downloads',
+  'webRequest',
+  'debugger',
+  'history',
+  'bookmarks',
+  'offscreen',
+  'tabCapture',
+  'storage',
+  'unlimitedStorage',
+  'alarms',
+  'tabGroups',
+];
+
+// Firefox permission list: Chrome list minus APIs Firefox does not implement
+// (debugger, offscreen, tabCapture, tabGroups) plus the blocking webRequest and
+// StreamFilter (filterResponseData) permissions that replace CDP network capture.
+const FIREFOX_PERMISSIONS = [
+  'nativeMessaging',
+  'tabs',
+  'activeTab',
+  'scripting',
+  'downloads',
+  'webRequest',
+  'webRequestBlocking',
+  'webRequestFilterResponse',
+  'history',
+  'bookmarks',
+  'storage',
+  'alarms',
+];
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+  // Visible build root <mcp-chrome>/<mcp_chrome.build_output_dir>; the static
+  // outDirTemplate replaces WXT's "{{browser}}-mv{{manifestVersion}}" so dev and
+  // production builds share one unpacked-extension folder.
+  outDir: join(MCP_CHROME_ROOT, MCP_CHROME_LAYOUT.build_output_dir),
+  outDirTemplate: IS_FIREFOX_TARGET
+    ? MCP_CHROME_LAYOUT.firefox_extension_dir
+    : MCP_CHROME_LAYOUT.extension_dir,
+  hooks: {
+    // Production builds leave a stamp the unpacked extension polls to reload
+    // itself; dev (serve) builds are reloaded by WXT's own dev client.
+    'build:done': (wxt) => {
+      if (wxt.config.command !== 'build') return;
+      writeFileSync(
+        join(wxt.config.outDir, MCP_CHROME_LAYOUT.build_stamp_file),
+        JSON.stringify({ buildId: `${Date.now()}` }),
+      );
+    },
+  },
   modules: ['@wxt-dev/module-vue'],
-  outDir: OUTPUT_DIR,
-  // Disable automatic .env loading since we use config.js
-  env: {},
-  runner: {
+  webExt: {
     // 方案1: 禁用自动启动（推荐）
     disabled: true,
 
@@ -33,48 +100,102 @@ export default defineConfig({
     //   '--remote-debugging-port=9222',
     // ],
   },
-  manifest: {
-    // Use environment variable for the key, fallback to undefined if not set
-    key: CHROME_EXTENSION_KEY,
-    default_locale: 'en',
-    name: '__MSG_extensionName__',
-    description: '__MSG_extensionDescription__',
-    permissions: [
-      'nativeMessaging',
-      'tabs',
-      'activeTab',
-      'scripting',
-      'downloads',
-      'webRequest',
-      'debugger',
-      'history',
-      'bookmarks',
-      'offscreen',
-      'tabCapture',
-      'storage',
-    ],
-    host_permissions: ['<all_urls>'],
-    web_accessible_resources: [
-      {
+  manifest: ({ browser }) => {
+    // Shared manifest keys, identical on Chrome and Firefox.
+    const shared = {
+      default_locale: 'en',
+      name: '__MSG_extensionName__',
+      description: '__MSG_extensionDescription__',
+      // https://developer.chrome.com/docs/extensions/reference/manifest/icons
+      // https://developer.chrome.com/docs/extensions/reference/api/action#manifest
+      icons: {
+        16: 'icon/16.png',
+        32: 'icon/32.png',
+        48: 'icon/48.png',
+        96: 'icon/96.png',
+        128: 'icon/128.png',
+      },
+      action: {
+        // Localized via _locales/<code>/messages.json — never hardcode here.
+        // (Without this, newer WXT injects a placeholder "Default Popup Title".)
+        default_title: '__MSG_extensionName__',
+        default_icon: {
+          16: 'icon/16.png',
+          32: 'icon/32.png',
+          48: 'icon/48.png',
+        },
+      },
+      host_permissions: ['<all_urls>'],
+      content_security_policy: {
+        extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
+      },
+    };
+
+    if (browser === 'firefox') {
+      // Firefox: no Chrome key, gecko id required for native messaging
+      // (allowed_extensions in the host manifest must match this id).
+      // COOP/COEP omitted: those manifest keys are Chrome-only; wasm runs
+      // single-threaded on Firefox. No offscreen documents on Firefox, so
+      // audio-recorder.html is not web-accessible there.
+      return {
+        ...shared,
+        browser_specific_settings: {
+          gecko: {
+            id: FIREFOX_EXTENSION_ID,
+            strict_min_version: '128.0',
+          },
+        },
+        permissions: FIREFOX_PERMISSIONS,
+        web_accessible_resources: [
+          {
+            resources: [
+              '/models/*', // Allow access to public/models/ files
+              '/workers/*', // Allow access to workers
+              '/wasm/*', // bzip2 WASM for Duoreader .pz decode
+            ],
+            matches: ['<all_urls>'],
+          },
+        ],
+      };
+    }
+
+    // Chrome: unchanged historical manifest.
+    return {
+      // Use environment variable for the key, fallback to undefined if not set
+      key: CHROME_EXTENSION_KEY,
+      ...shared,
+      permissions: CHROME_PERMISSIONS,
+      web_accessible_resources: [
+        {
         resources: [
           '/models/*', // Allow access to public/models/ files
           '/workers/*', // Allow access to workers
+          '/wasm/*', // bzip2 WASM for Duoreader .pz decode
           '/offscreen/audio-recorder.html', // Audio recording offscreen document
         ],
-        matches: ['<all_urls>'],
+          matches: ['<all_urls>'],
+        },
+      ],
+      cross_origin_embedder_policy: {
+        value: 'require-corp',
       },
-    ],
-    cross_origin_embedder_policy: {
-      value: 'require-corp',
-    },
-    cross_origin_opener_policy: {
-      value: 'same-origin',
-    },
-    content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';",
-    },
+      cross_origin_opener_policy: {
+        value: 'same-origin',
+      },
+    };
   },
   vite: (env) => ({
+    // The TASK tab imports config/queue_center_contract.json directly from the
+    // repository root. This keeps mcp-chrome, Laravel, Pycore, Pycore UI, and
+    // Laravel-manager on one task model. WXT build already resolves outside the
+    // extension package; this allowlist gives the Vite dev server the same
+    // boundary, so scripts/start.ps1 and scripts/start.sh must not copy a second
+    // contract file that could drift.
+    server: {
+      fs: {
+        allow: [REPOSITORY_ROOT],
+      },
+    },
     plugins: [
       tailwindcss(),
       viteStaticCopy({
@@ -82,6 +203,10 @@ export default defineConfig({
           {
             src: 'inject-scripts/*.js',
             dest: 'inject-scripts',
+          },
+          {
+            src: 'public/wasm/*',
+            dest: 'wasm',
           },
           {
             src: ['workers/*'],
@@ -94,9 +219,34 @@ export default defineConfig({
         ],
       }) as any,
     ],
+    resolve: {
+      // Explicitly register the WXT @ / ~ aliases for Vite/rolldown. Earlier
+      // WXT versions injected these automatically, but after upgrading to
+      // Vite 8 + rolldown the bundler no longer sees them, so imports like
+      // `@/composables/...` were treated as literal paths and failed to
+      // resolve ([UNLOADABLE_DEPENDENCY] os error 3). Map all four WXT alias
+      // forms to the chrome-extension srcDir (this directory).
+      alias: {
+        '@': resolve(__dirname, '.'),
+        '~': resolve(__dirname, '.'),
+        '@@': resolve(__dirname, '.'),
+        '~~': resolve(__dirname, '.'),
+      },
+      // Ensure chrome-mcp-shared is resolved correctly
+      preserveSymlinks: false,
+    },
+    optimizeDeps: {
+      // Include chrome-mcp-shared in optimization to ensure all exports are available
+      include: ['chrome-mcp-shared'],
+    },
     build: {
-      // 我们的构建产物需要兼容到es6
-      target: 'es2015',
+      // MV3 extensions only ever run in modern Chrome (Chrome 88+), so there is no
+      // reason to down-level to ES2015. Crucially, deps like @xenova/transformers and
+      // hnswlib-wasm-static use BigInt literals (1n/0n), which CANNOT be transpiled to
+      // ES2015 — targeting es2015 makes rolldown ship them as-is and spam
+      // [TOLERATED_TRANSFORM] warnings on every build. es2020 natively supports BigInt
+      // (and optional chaining / nullish coalescing), which clears those warnings.
+      target: 'es2020',
       // 非生产环境下生成sourcemap
       sourcemap: env.mode !== 'production',
       // 禁用gzip 压缩大小报告，因为压缩大型文件可能会很慢
@@ -104,6 +254,24 @@ export default defineConfig({
       // chunk大小超过1500kb是触发警告
       chunkSizeWarningLimit: 1500,
       minify: false,
+      // Ensure all exports from chrome-mcp-shared are included
+      commonjsOptions: {
+        include: [/chrome-mcp-shared/, /node_modules/],
+      },
+      rollupOptions: {
+        // onnxruntime-web's minified WASM loader glue uses direct eval(). It's a
+        // vendor file we can't change and the eval is internal/required, so we
+        // silence just the [EVAL] diagnostic (our own code never uses direct
+        // eval, so suppressing this code is safe).
+        onwarn(warning: any, defaultHandler: (w: any) => void) {
+          if (warning && warning.code === 'EVAL') return;
+          defaultHandler(warning);
+        },
+        output: {
+          // Preserve all exports from shared package
+          preserveModules: false,
+        },
+      },
     },
   }),
 });

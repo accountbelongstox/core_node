@@ -5,18 +5,6 @@
 # Super launch allows applications to run with special parameters (e.g., --no-sandbox for VSCode)
 # This library manages the setup of /usr/local/super_bin and /usr/local/super_scripts
 
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Ensure super directories exist
 ensure_super_directories() {
     local super_bin_dir="/usr/local/super_bin"
@@ -283,7 +271,7 @@ fix_all_super_launch_scripts() {
 
         # Check if corresponding executable exists in super_bin
         if [ ! -f "$super_bin_path" ]; then
-            $log_func "  âš?Skipping $script_name (no executable in super_bin)"
+            $log_func "  Skipping $script_name (no executable in super_bin)"
             skipped_count=$((skipped_count + 1))
             continue
         fi
@@ -295,7 +283,7 @@ fix_all_super_launch_scripts() {
         if echo "$script_content" | grep -qE "(^|[[:space:]])${script_name}([[:space:]]|\$)"; then
             # Check if it's already using the full path
             if ! echo "$script_content" | grep -q "$super_bin_path"; then
-                $log_func "  ðŸ”§ Fixing $script_name (infinite loop detected)"
+                $log_func "   Fixing $script_name (infinite loop detected)"
 
                 # Replace exec_name with full path
                 local fixed_content=$(echo "$script_content" | sed -E "s#(^|[[:space:]])${script_name}([[:space:]]|\$)#\1${super_bin_path}\2#g")
@@ -308,12 +296,12 @@ EOF
                 $USE_SUDO chmod 755 "$script_file"
 
                 fixed_count=$((fixed_count + 1))
-                $log_func "    âœ?Fixed: $script_file"
+                $log_func "    Fixed: $script_file"
             else
-                $log_func "  âœ?$script_name (already fixed)"
+                $log_func "  $script_name (already fixed)"
             fi
         else
-            $log_func "  âœ?$script_name (no issues detected)"
+            $log_func "  $script_name (no issues detected)"
         fi
     done
 

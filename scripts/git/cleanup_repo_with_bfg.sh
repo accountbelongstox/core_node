@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Cleanup Git Repository with BFG Repo-Cleaner
 # Universal script for cleaning large files from Git history
@@ -18,9 +7,11 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPTS_DIR="$(dirname "$SCRIPT_DIR")"
 PROJECT_ROOT="$(dirname "$SCRIPTS_DIR")"
+ARROW_MENU_SCRIPT="$PROJECT_ROOT/scripts/shells/linux/common/arrow_menu.sh"
 
 USER_HOME="${HOME}"
-TOOLS_DIR="${USER_HOME}/.core_node/tools"
+# Centralized per-user state dir (CORE_NODE_DATA_DIR, default /var/_core_node).
+TOOLS_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/tools"
 BFG_JAR="${TOOLS_DIR}/bfg.jar"
 BFG_URL="https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar"
 
@@ -31,22 +22,11 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-show_menu() {
-    clear
-    echo "================================================================"
-    echo -e "${CYAN}BFG Repo-Cleaner - Git History Cleanup${NC}"
-    echo "================================================================"
-    echo ""
-    echo "Options:"
-    echo "  1. Remove files larger than 100MB"
-    echo "  2. Remove files larger than 50MB"
-    echo "  3. Remove files larger than 10MB"
-    echo "  4. Remove specific file by name"
-    echo "  5. Remove specific files by pattern (*.hprof, *.log, etc.)"
-    echo "  6. Back to previous menu"
+source "$ARROW_MENU_SCRIPT"
+
+show_bfg_warning() {
     echo ""
     echo -e "${YELLOW}WARNING: This will rewrite Git history!${NC}"
-    echo "================================================================"
 }
 
 ensure_bfg_downloaded() {
@@ -116,36 +96,36 @@ ensure_git_filter_repo() {
                 if command -v sudo &> /dev/null; then
                     if sudo cp "$filter_repo_path" /usr/local/bin/git-filter-repo 2>/dev/null; then
                         sudo chmod +x /usr/local/bin/git-filter-repo
-                        echo -e "${GREEN}‚ú?Installed to /usr/local/bin/git-filter-repo${NC}"
+                        echo -e "${GREEN}Installed to /usr/local/bin/git-filter-repo${NC}"
                     else
-                        echo -e "${YELLOW}‚ö?No permission for /usr/local/bin, using ~/.local/bin${NC}"
+                        echo -e "${YELLOW}No permission for /usr/local/bin, using ~/.local/bin${NC}"
                         mkdir -p ~/.local/bin
                         cp "$filter_repo_path" ~/.local/bin/git-filter-repo
                         chmod +x ~/.local/bin/git-filter-repo
                         export PATH="$HOME/.local/bin:$PATH"
-                        echo -e "${GREEN}‚ú?Installed to ~/.local/bin/git-filter-repo${NC}"
+                        echo -e "${GREEN}Installed to ~/.local/bin/git-filter-repo${NC}"
                     fi
                 else
                     cp "$filter_repo_path" /usr/local/bin/git-filter-repo 2>/dev/null || {
-                        echo -e "${YELLOW}‚ö?No permission for /usr/local/bin, using ~/.local/bin${NC}"
+                        echo -e "${YELLOW}No permission for /usr/local/bin, using ~/.local/bin${NC}"
                         mkdir -p ~/.local/bin
                         cp "$filter_repo_path" ~/.local/bin/git-filter-repo
                         chmod +x ~/.local/bin/git-filter-repo
                         export PATH="$HOME/.local/bin:$PATH"
-                        echo -e "${GREEN}‚ú?Installed to ~/.local/bin/git-filter-repo${NC}"
+                        echo -e "${GREEN}Installed to ~/.local/bin/git-filter-repo${NC}"
                     }
                 fi
             fi
 
             if command -v git-filter-repo &> /dev/null; then
-                echo -e "${GREEN}‚ú?git-filter-repo installed successfully${NC}"
+                echo -e "${GREEN}git-filter-repo installed successfully${NC}"
                 git filter-repo --help > /dev/null 2>&1
                 if [ $? -eq 0 ]; then
-                    echo -e "${GREEN}‚ú?git-filter-repo is working${NC}"
+                    echo -e "${GREEN}git-filter-repo is working${NC}"
                 fi
                 return 0
             else
-                echo -e "${RED}‚ú?Failed to install git-filter-repo${NC}"
+                echo -e "${RED}Failed to install git-filter-repo${NC}"
                 echo ""
                 echo -e "${YELLOW}Please install manually:${NC}"
                 echo -e "  ${CYAN}pip3 install --user --break-system-packages git-filter-repo${NC}"
@@ -388,7 +368,7 @@ remove_directory() {
     git branch "$backup_branch" 2>/dev/null
 
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}‚ú?Backup branch created successfully${NC}"
+        echo -e "${GREEN}Backup branch created successfully${NC}"
     else
         echo -e "${RED}Failed to create backup branch${NC}"
         return 1
@@ -401,9 +381,9 @@ remove_directory() {
     for dir_path in $dir_paths; do
         if [ -d "$dir_path" ]; then
             rm -rf "$dir_path"
-            echo -e "${GREEN}‚ú?Removed from HEAD: $dir_path${NC}"
+            echo -e "${GREEN}Removed from HEAD: $dir_path${NC}"
         else
-            echo -e "${YELLOW}‚ö?Directory not found in current HEAD: $dir_path${NC}"
+            echo -e "${YELLOW}Directory not found in current HEAD: $dir_path${NC}"
         fi
     done
 
@@ -413,9 +393,9 @@ remove_directory() {
 
     echo -e "${BLUE}Committing changes...${NC}"
     if git commit -m "Remove large files from HEAD before BFG cleanup" 2>/dev/null; then
-        echo -e "${GREEN}‚ú?Changes committed${NC}"
+        echo -e "${GREEN}Changes committed${NC}"
     else
-        echo -e "${YELLOW}‚ö?No changes to commit (already clean)${NC}"
+        echo -e "${YELLOW}No changes to commit (already clean)${NC}"
     fi
 
     echo ""
@@ -434,13 +414,13 @@ remove_directory() {
     local exit_code=$?
 
     echo ""
-    echo -e "${CYAN}‚è?Waiting 5 seconds for cleanup to settle...${NC}"
+    echo -e "${CYAN}Waiting 5 seconds for cleanup to settle...${NC}"
     sleep 5
     echo ""
 
     if [ $exit_code -eq 0 ]; then
         echo ""
-        echo -e "${GREEN}‚ú?Directories successfully removed from Git history${NC}"
+        echo -e "${GREEN}Directories successfully removed from Git history${NC}"
 
         echo ""
         echo -e "${BLUE}Restoring remote URL to default...${NC}"
@@ -451,14 +431,14 @@ remove_directory() {
         du -sh .git
 
         echo ""
-        echo -e "${CYAN}üì¶ Backup branch created: $backup_branch${NC}"
+        echo -e "${CYAN} Backup branch created: $backup_branch${NC}"
         echo -e "${YELLOW}To recover old changes:${NC}"
         echo -e "  ${CYAN}git checkout $backup_branch${NC}"
 
         echo ""
-        echo -e "${YELLOW}‚ö†Ô∏è  IMPORTANT: Local changes have been cleaned.${NC}"
-        echo -e "${YELLOW}‚ö†Ô∏è  DO NOT push to remote unless you want to update it.${NC}"
-        echo -e "${YELLOW}‚ö†Ô∏è  If you want to push:${NC}"
+        echo -e "${YELLOW}[WARN]  IMPORTANT: Local changes have been cleaned.${NC}"
+        echo -e "${YELLOW}[WARN]  DO NOT push to remote unless you want to update it.${NC}"
+        echo -e "${YELLOW}[WARN]  If you want to push:${NC}"
         echo -e "  ${CYAN}git push origin --force --all${NC}"
         echo -e "  ${CYAN}git push origin --force --tags${NC}"
 
@@ -467,7 +447,7 @@ remove_directory() {
         return 0
     else
         echo ""
-        echo -e "${RED}‚ú?git-filter-repo failed${NC}"
+        echo -e "${RED}git-filter-repo failed${NC}"
         echo ""
         echo -e "${BLUE}Attempting to restore remote URL...${NC}"
         restore_remote_url
@@ -478,6 +458,18 @@ remove_directory() {
 }
 
 main() {
+    local choice
+    local selected_index
+    local -a bfg_menu_items=(
+        "Remove files larger than 100MB"
+        "Remove files larger than 50MB"
+        "Remove files larger than 10MB"
+        "Remove specific file by name"
+        "Remove specific files by pattern (*.hprof, *.log, etc.)"
+        "Remove directory from history"
+        "Back to previous menu"
+    )
+
     cd "$PROJECT_ROOT"
 
     if ! check_prerequisites; then
@@ -491,8 +483,9 @@ main() {
     fi
 
     while true; do
-        show_menu
-        read -p "Select an option (1-7): " choice
+        arrow_menu_select "BFG Repo-Cleaner - Git History Cleanup" bfg_menu_items 0 6 show_bfg_warning
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        choice=$((selected_index + 1))
 
         case "$choice" in
             1)

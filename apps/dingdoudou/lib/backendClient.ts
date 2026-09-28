@@ -1,0 +1,142 @@
+// Backend client — used ONLY when there is no super-code. Talks to the Laravel
+// DingDuoDuoV1 sub-app for member login + license verification.
+//
+// Base routes (Laravel): /api/ding_duo_duo_v1/...
+//   POST license/verify     { device_id, token? }  -> license payload
+//   POST license/heartbeat  { device_id, token }   -> refreshed license
+//   POST member/register    { username, password, password_confirmation, email?, device_id } -> { token, member }
+//   POST member/login       { username, password, device_id } -> { token, member }
+//   GET  recharge/packages                          -> packages[]
+//   POST recharge/create    { token, package_id }   -> { pay_url }
+
+import type { BackendConfig, LicenseMode, LicenseState } from './types';
+import { errorText } from './value';
+import { normalizeBackendUrl } from './backendUrl';
+import { AppError } from './appError';
+
+interface BackendLicenseDTO {
+  mode?: LicenseMode;
+  tier?: string;
+  features?: string[];
+  permissions?: string[];
+  max_binds?: number;
+  expires_at?: number | string | null;
+  label?: string;
+  remark?: string;
+  username?: string;
+  token?: string;
+}
+
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function toLicenseMode(mode: BackendLicenseDTO['mode']): LicenseMode {
+  return mode === 'super' || mode === 'locked' ? mode : 'member';
+}
+
+function toLicense(dto: BackendLicenseDTO, token?: string): LicenseState {
+  const mode = toLicenseMode(dto.mode);
+  const credential = token ?? dto.token;
+  let expiresAt: number | null = null;
+  if (dto.expires_at != null) {
+    const n = typeof dto.expires_at === 'number' ? dto.expires_at : Date.parse(String(dto.expires_at));
+    expiresAt = Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : null;
+  }
+  return {
+    mode,
+    code: mode === 'super' ? credential : undefined,
+    token: credential,
+    tier: dto.tier ?? 'free',
+    features: dto.features ?? dto.permissions ?? [],
+    maxBinds: dto.max_binds ?? 1,
+    expiresAt,
+    label: mode === 'member' ? dto.remark ?? dto.username ?? dto.label : undefined,
+    verifiedAt: Date.now(),
+    offline: false,
+  };
+}
+
+async function call<T>(cfg: BackendConfig, path: string, body?: unknown): Promise<T> {
+  const url = `${normalizeBackendUrl(cfg.baseUrl)}/api/ding_duo_duo_v1/${path}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(cfg.memberToken ? { 'X-DD-Token': cfg.memberToken } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const json: unknown = await res.json().catch(() => null);
+    if (!res.ok) {
+      const message = errorText(json);
+      if (message) throw new Error(message);
+      throw new AppError('backend.requestFailed', { status: res.status });
+    }
+    if (json && typeof json === 'object' && 'success' in json && json.success === false) {
+      const message = errorText(json);
+      if (message) throw new Error(message);
+      throw new AppError('backend.requestFailed');
+    }
+    if (json && typeof json === 'object' && 'data' in json) {
+      return (json as { data: T }).data;
+    }
+    return json as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new AppError('backend.timeout');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function memberLogin(
+  cfg: BackendConfig,
+  username: string,
+  password: string,
+): Promise<LicenseState> {
+  const data = await call<{ token: string; member: BackendLicenseDTO }>(cfg, 'member/login', {
+    username,
+    password,
+    device_id: cfg.deviceId,
+  });
+  return toLicense(data.member ?? {}, data.token);
+}
+
+export async function memberRegister(
+  cfg: BackendConfig,
+  username: string,
+  password: string,
+  passwordConfirmation: string,
+  email?: string,
+): Promise<LicenseState> {
+  const data = await call<{ token: string; member: BackendLicenseDTO }>(cfg, 'member/register', {
+    username,
+    password,
+    password_confirmation: passwordConfirmation,
+    email: email || undefined,
+    device_id: cfg.deviceId,
+  });
+  return toLicense(data.member ?? {}, data.token);
+}
+
+export async function verifyLicense(cfg: BackendConfig): Promise<LicenseState> {
+  const data = await call<BackendLicenseDTO>(cfg, 'license/verify', {
+    device_id: cfg.deviceId,
+    token: cfg.memberToken,
+  });
+  return toLicense(data, cfg.memberToken);
+}
+
+export async function heartbeat(cfg: BackendConfig): Promise<LicenseState> {
+  const data = await call<BackendLicenseDTO>(cfg, 'license/heartbeat', {
+    device_id: cfg.deviceId,
+    token: cfg.memberToken,
+  });
+  return toLicense(data, cfg.memberToken);
+}

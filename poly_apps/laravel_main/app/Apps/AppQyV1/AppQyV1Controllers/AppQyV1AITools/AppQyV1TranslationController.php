@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Services\OpenRouterClient;
 use App\Services\DeepSeekClient;
 use App\Services\GeminiClient;
@@ -81,7 +82,7 @@ class AppQyV1TranslationController extends Controller
             provider: $provider
         );
         
-        return $this->success($result, 'Translation completed successfully');
+        return $this->success($result, __('app_qy_v1.messages.translation_completed_successfully'));
     }
     
     public function batchTranslate(Request $request): JsonResponse
@@ -118,21 +119,21 @@ class AppQyV1TranslationController extends Controller
             );
         }
         
-        return $this->success(['results' => $results], 'Batch translation completed successfully');
+        return $this->success(['results' => $results], __('app_qy_v1.messages.batch_translation_completed_successfully'));
     }
     
     public function getLanguages(Request $request): JsonResponse
     {
         return $this->success([
             'languages' => $this->translationService->getAvailableLanguages(),
-        ], 'Languages retrieved successfully');
+        ], __('app_qy_v1.messages.languages_retrieved_successfully'));
     }
     
     public function getTypes(Request $request): JsonResponse
     {
         return $this->success([
             'types' => $this->translationService->getAvailableTypes(),
-        ], 'Types retrieved successfully');
+        ], __('app_qy_v1.messages.types_retrieved_successfully'));
     }
     
     public function getModels(Request $request): JsonResponse
@@ -182,7 +183,7 @@ class AppQyV1TranslationController extends Controller
         
         return $this->success([
             'models' => $uniqueModels,
-        ], 'Models retrieved successfully');
+        ], __('app_qy_v1.messages.models_retrieved_successfully'));
     }
     
     public function simpleTranslateWithGoogle(Request $request): JsonResponse
@@ -235,14 +236,14 @@ class AppQyV1TranslationController extends Controller
             'src_lang' => $srcLang,
             'dest_lang' => $destLang,
             'provider' => 'google',
-        ], 'Translation completed successfully');
+        ], __('app_qy_v1.messages.translation_completed_successfully'));
     }
     
     public function getTemplates(Request $request): JsonResponse
     {
         return $this->success([
             'templates' => $this->translationService->getLanguageTemplates(),
-        ], 'Templates retrieved successfully');
+        ], __('app_qy_v1.messages.templates_retrieved_successfully'));
     }
     
     public function learningMode(Request $request): JsonResponse
@@ -298,10 +299,9 @@ class AppQyV1TranslationController extends Controller
                     if ($generateAudio && isset($translation['translation'])) {
                         $ttsService = new \App\Services\EdgeTTS\EdgeTTSService();
                         $audioResult = $ttsService->generateAudio($translation['translation'], $targetLang, 'sentence');
-                        $audioResult = $this->fixAudioUrl($audioResult);
 
                         if ($audioResult['success']) {
-                            $results[$targetLang]['audio_url'] = $audioResult['audio_url'];
+                            $results[$targetLang]['audio_url'] = AppQyV1TtsUrl::forPath($audioResult['audio_path']);
                         }
                     }
                 } else {
@@ -319,31 +319,29 @@ class AppQyV1TranslationController extends Controller
             'status' => 'completed',
             'result' => $results,
             'processing_time' => 0,
-        ], 'Learning mode translation completed successfully');
+        ], __('app_qy_v1.messages.learning_mode_translation_completed_successfully'));
     }
     
+    /**
+     * Async word translation is now handled by the global_tasks pipeline.
+     * Use the queue endpoints instead of these per-task helpers:
+     *   POST app_qy_v1/ai_tools/translation/queue/batch/add    (enqueue words)
+     *   POST app_qy_v1/ai_tools/translation/queue/batch/status (read status)
+     * See AppQyV1TranslationQueueController and docs TRANSLATION_PIPELINE.md.
+     */
     public function getTaskStatus(Request $request, string $taskId): JsonResponse
     {
-        return $this->error('Task system not yet implemented in AppQyV1', 501);
+        return $this->error(
+            __('app_qy_v1.messages.per_task_polling_is_superseded_by_the'),
+            410
+        );
     }
-    
+
     public function processNextTask(Request $request): JsonResponse
     {
-        return $this->error('Task system not yet implemented in AppQyV1', 501);
-    }
-
-    /**
-     * Fix audio_url path to use AppQyV1 route prefix
-     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
-     */
-    private function fixAudioUrl(array $result): array
-    {
-        if (isset($result['audio_url'])) {
-            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
-                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
-            }
-        }
-
-        return $result;
+        return $this->error(
+            __('app_qy_v1.messages.manual_task_processing_is_superseded_by_the'),
+            410
+        );
     }
 }

@@ -1,28 +1,17 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const logger = require('./logger');
 
-let secretKeysCache, secretKeysDir, encryptedDir, rawDir, isProduction;
+let secretKeysCache, secretKeysDir, encryptedDir, rawDir, isProduction, secretNamePattern;
 
 secretKeysCache = new Map();
 secretKeysDir = null;
 encryptedDir = null;
 rawDir = null;
 isProduction = process.env.NODE_ENV === 'production' || process.env.IS_PRODUCTION === 'true';
+secretNamePattern = /^[A-Za-z0-9_]+$/;
 
 function initializeDirectories() {
   let coreNodeDir;
@@ -205,6 +194,31 @@ function getAllSecretKeys(password) {
   return keys;
 }
 
+function readRawSecret(keyName, rawDirPath) {
+  let filePath, content;
+
+  if (!secretNamePattern.test(String(keyName || ''))) {
+    logger.error('Invalid secret name: only letters, digits and underscore are allowed');
+    return null;
+  }
+
+  initializeDirectories();
+  filePath = path.join(rawDirPath || rawDir, keyName);
+
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    content = fs.readFileSync(filePath, 'utf8').trim();
+  } catch (error) {
+    logger.warn('Failed to read raw secret ' + keyName + ': ' + (error.code || error.message));
+    return null;
+  }
+
+  return content || null;
+}
+
 function clearCache() {
   secretKeysCache.clear();
 }
@@ -226,6 +240,7 @@ function hasSecretKey(keyName) {
 module.exports = {
   getSecretKey,
   getAllSecretKeys,
+  readRawSecret,
   clearCache,
   hasSecretKey,
 };

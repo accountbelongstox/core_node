@@ -19,8 +19,8 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyutils.device.adb_manager import ADBManager
-from pycore.pyutils.rpc_v2.discovery.network_scanner import NetworkScanner
-from pycore import ColorPrint
+from pycore.pyutils.rpc_v2.discovery import rpc_service_scanner
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class DeviceDiscovery:
@@ -28,8 +28,7 @@ class DeviceDiscovery:
 
     def __init__(self, adb_path: str = "adb"):
         self.adb_path = adb_path
-        # ✅ Use global singleton NetworkScanner (DO NOT instantiate with NetworkScanner())
-        self.network_scanner = network_scanner
+        self.network_scanner = rpc_service_scanner
 
     def discover_usb_devices(self) -> List[Dict[str, Any]]:
         """

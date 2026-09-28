@@ -6,10 +6,27 @@ Provides menu interface for configuration with arrow key navigation
 
 import sys
 import os
+import json
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.launcher.grid_profile import (
+    DEFAULT_AUTO_GRID,
+    DEFAULT_GRID_COLUMNS,
+    DEFAULT_GRID_ROWS,
+    DEFAULT_TOGGLE,
+    TERMINAL_TOGGLE_CHOICES,
+    TERMINAL_TOGGLE_GRIDS,
+    TERMINAL_TOGGLE_SEQUENCE,
+    TOGGLE_DISABLE,
+    GridI18nKeys,
+    describe_auto_profiles,
+    next_terminal_toggle,
+    normalize_toggle,
+)
+from pycore.pyutils.launcher.launcher_text import launcher_text
 
-# Try to import msvcrt for Windows keyboard input
 try:
     import msvcrt
     HAS_MSVCRT = True
@@ -58,10 +75,10 @@ class InteractiveMenu:
                         except:
                             pass
         else:
-            # Fallback for non-Windows: use simple input
             try:
                 import termios
                 import tty
+
                 fd = sys.stdin.fileno()
                 old_settings = termios.tcgetattr(fd)
                 try:
@@ -78,18 +95,15 @@ class InteractiveMenu:
                                 'C': 'right'
                             }
                             return arrow_map.get(ch3, '')
-                        else:
-                            return 'esc'
-                    elif ch == '\r' or ch == '\n':
-                        return 'enter'
-                    elif ch == '\x1b':
                         return 'esc'
-                    else:
-                        return ch.lower()
+                    if ch in ('\r', '\n'):
+                        return 'enter'
+                    return ch.lower()
                 finally:
                     termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-            except:
-                # Final fallback
+            except ImportError:
+                return input().strip().lower()
+            except Exception:
                 return input().strip().lower()
         return ''
     
@@ -109,18 +123,18 @@ class InteractiveMenu:
             # Clear screen and show menu
             os.system('cls' if os.name == 'nt' else 'clear')
             
-            print("\n" + "=" * 60)
-            print(title)
-            print("=" * 60)
+            ColorPrint.plain("\n" + "=" * 60)
+            ColorPrint.plain(title)
+            ColorPrint.plain("=" * 60)
             
             for i, item in enumerate(items):
                 if i == selected_index:
-                    print(f"> {item} <")  # Highlight selected item
+                    ColorPrint.plain(f"> {item} <")  # Highlight selected item
                 else:
-                    print(f"  {item}")
+                    ColorPrint.plain(f"  {item}")
             
-            print("=" * 60)
-            print("Use UP/DOWN arrows to navigate, LEFT/RIGHT to confirm, ESC to cancel")
+            ColorPrint.plain("=" * 60)
+            ColorPrint.plain("Use UP/DOWN arrows to navigate, LEFT/RIGHT to confirm, ESC to cancel")
             
             key = self.get_key()
             
@@ -141,17 +155,16 @@ class InteractiveMenu:
         # Build menu items dynamically from APP_DEFINITIONS
         menu_items = []
         toggle_callbacks = []
-        app_order = []  # Track order: ['terminal', 'chrome', 'chrome_beta', 'cursor', ...]
+        app_order = []  # Track order: ['terminal', 'chrome', 'chrome_beta', 'antigravity', ...]
         
         # First: Terminal (special case)
-        term_config = self.config_manager.get_terminal_config()
-        term_toggle = term_config.get('toggle', 'X6')
-        term_enabled = term_config.get('enabled', True)
-        term_status = f"{term_toggle}" if term_enabled else "DISABLE"
-        menu_items.append(f"Terminal: {term_status}")
+        menu_items.append(f"Terminal: {self._terminal_status()}")
         toggle_callbacks.append(self._toggle_terminal)
         app_order.append('terminal')
-        
+        menu_items.append(self._auto_grid_menu_label())
+        toggle_callbacks.append(self._toggle_auto_grid)
+        app_order.append('auto_grid')
+
         # Then: All apps from APP_DEFINITIONS, with special handling for chrome
         for app_name in all_apps:
             if app_name == 'chrome':
@@ -177,8 +190,8 @@ class InteractiveMenu:
                 menu_items.append(f"{app_name.upper()}: {enabled}")
                 
                 # Create toggle callback for each app
-                if app_name == 'cursor':
-                    toggle_callbacks.append(self._toggle_cursor)
+                if app_name == 'antigravity':
+                    toggle_callbacks.append(self._toggle_antigravity)
                 else:
                     toggle_callbacks.append(lambda name=app_name: self._toggle_other_app(name))
                 
@@ -220,12 +233,9 @@ class InteractiveMenu:
             menu_items = []
             
             # Terminal
-            term_config = self.config_manager.get_terminal_config()
-            term_toggle = term_config.get('toggle', 'X6')
-            term_enabled = term_config.get('enabled', True)
-            term_status = f"{term_toggle}" if term_enabled else "DISABLE"
-            menu_items.append(f"Terminal: {term_status}")
-            
+            menu_items.append(f"Terminal: {self._terminal_status()}")
+            menu_items.append(self._auto_grid_menu_label())
+
             # All apps from APP_DEFINITIONS, with special handling for chrome
             for app_name in all_apps:
                 if app_name == 'chrome':
@@ -252,9 +262,9 @@ class InteractiveMenu:
             # Clear screen and show menu
             os.system('cls' if os.name == 'nt' else 'clear')
             
-            print("\n" + "=" * 60)
-            print(title)
-            print("=" * 60)
+            ColorPrint.plain("\n" + "=" * 60)
+            ColorPrint.plain(title)
+            ColorPrint.plain("=" * 60)
             
             for i, item in enumerate(menu_items):
                 toggle_hint = ""
@@ -262,12 +272,12 @@ class InteractiveMenu:
                     toggle_hint = " [LEFT/RIGHT to toggle]"
                 
                 if i == selected_index:
-                    print(f"> {item} <{toggle_hint}")
+                    ColorPrint.plain(f"> {item} <{toggle_hint}")
                 else:
-                    print(f"  {item}")
+                    ColorPrint.plain(f"  {item}")
             
-            print("=" * 60)
-            print("UP/DOWN: Navigate | LEFT/RIGHT: Toggle | ESC: Exit")
+            ColorPrint.plain("=" * 60)
+            ColorPrint.plain("UP/DOWN: Navigate | LEFT/RIGHT: Toggle | ESC: Exit")
             
             key = self.get_key()
             
@@ -300,24 +310,21 @@ class InteractiveMenu:
         """
         while True:
             # Refresh menu items with current status
-            term_config = self.config_manager.get_terminal_config()
             chrome_config = self.config_manager.get_app_config('chrome')
-            cursor_config = self.config_manager.get_app_config('cursor')
-            
-            term_toggle = term_config.get('toggle', 'X6')
-            term_enabled = term_config.get('enabled', True)
-            term_status = f"{term_toggle}" if term_enabled else "DISABLE"
+            antigravity_config = self.config_manager.get_app_config('antigravity')
+
+            term_status = self._terminal_status()
             chrome_enabled = chrome_config.get('enabled', True)
             chrome_status = "ON" if chrome_enabled else "OFF"
-            cursor_enabled = cursor_config.get('enabled', True)
-            cursor_status = "ON" if cursor_enabled else "OFF"
-            
+            antigravity_enabled = antigravity_config.get('enabled', True)
+            antigravity_status = "ON" if antigravity_enabled else "OFF"
+
             # Update menu items with current status
             if len(items) >= 3:
                 items = [
                     f"1. Terminal: {term_status}",
                     f"2. Chrome: {chrome_status}",
-                    f"3. Cursor: {cursor_status}",
+                    f"3. Antigravity: {antigravity_status}",
                     items[3] if len(items) > 3 else "4. Other Applications",
                     items[4] if len(items) > 4 else "5. Find Applications (Refresh Cache)",
                     items[5] if len(items) > 5 else "6. View Current Configuration",
@@ -327,9 +334,9 @@ class InteractiveMenu:
             # Clear screen and show menu
             os.system('cls' if os.name == 'nt' else 'clear')
             
-            print("\n" + "=" * 60)
-            print(title)
-            print("=" * 60)
+            ColorPrint.plain("\n" + "=" * 60)
+            ColorPrint.plain(title)
+            ColorPrint.plain("=" * 60)
             
             for i, item in enumerate(items):
                 toggle_hint = ""
@@ -337,12 +344,12 @@ class InteractiveMenu:
                     toggle_hint = " [LEFT/RIGHT to toggle]"
                 
                 if i == selected_index:
-                    print(f"> {item} <{toggle_hint}")  # Highlight selected item
+                    ColorPrint.plain(f"> {item} <{toggle_hint}")  # Highlight selected item
                 else:
-                    print(f"  {item}")
+                    ColorPrint.plain(f"  {item}")
             
-            print("=" * 60)
-            print("UP/DOWN: Navigate | LEFT/RIGHT: Toggle | ENTER: Configure | ESC: Cancel")
+            ColorPrint.plain("=" * 60)
+            ColorPrint.plain("UP/DOWN: Navigate | LEFT/RIGHT: Toggle | ENTER: Configure | ESC: Cancel")
             
             key = self.get_key()
             
@@ -361,38 +368,49 @@ class InteractiveMenu:
             elif key == 'esc':
                 return -1
     
-    def _toggle_terminal(self):
-        """Toggle terminal configuration (X4 -> X6 -> X8 -> DISABLE -> X4)"""
+    def _terminal_status(self):
+        """Displayed terminal toggle: the normalized preset, or DISABLE."""
         term_config = self.config_manager.get_terminal_config()
-        current_toggle = term_config.get('toggle', 'X6')
-        toggle_sequence = ['X4', 'X6', 'X8', 'DISABLE']
-        
-        try:
-            current_index = toggle_sequence.index(current_toggle)
-            next_index = (current_index + 1) % len(toggle_sequence)
-        except ValueError:
-            next_index = 1  # Default to X6
-        
-        next_toggle = toggle_sequence[next_index]
-        enabled = next_toggle != 'DISABLE'
-        
-        self.config_manager.set('terminal.toggle', next_toggle)
-        self.config_manager.set('terminal.enabled', enabled)
-        
-        # Update grid based on toggle
-        if next_toggle == 'X4':
-            self.config_manager.set('terminal.columns', 2)
-            self.config_manager.set('terminal.rows', 2)
-        elif next_toggle == 'X6':
-            self.config_manager.set('terminal.columns', 3)
-            self.config_manager.set('terminal.rows', 2)
-        elif next_toggle == 'X8':
-            self.config_manager.set('terminal.columns', 4)
-            self.config_manager.set('terminal.rows', 2)
-        
-        # Save immediately
+        if not term_config.get('enabled', True):
+            return TOGGLE_DISABLE
+        return normalize_toggle(term_config.get('toggle', DEFAULT_TOGGLE))
+
+    def _auto_grid_state_label(self):
+        auto_grid = self.config_manager.get_terminal_config().get('auto_grid', DEFAULT_AUTO_GRID)
+        return launcher_text.get(GridI18nKeys.STATE_ON if auto_grid else GridI18nKeys.STATE_OFF)
+
+    def _auto_grid_menu_label(self):
+        return launcher_text.get(GridI18nKeys.MENU_AUTO_GRID,
+                                 profiles=describe_auto_profiles(),
+                                 state=self._auto_grid_state_label())
+
+    def _toggle_auto_grid(self):
+        """Toggle resolution-based terminal grid on/off"""
+        auto_grid = self.config_manager.get_terminal_config().get('auto_grid', DEFAULT_AUTO_GRID)
+        self.config_manager.set('terminal.auto_grid', not auto_grid)
         self.config_manager.save_config()
-    
+
+    def _apply_terminal_toggle(self, toggle):
+        """Store a toggle preset with its grid (DISABLE keeps columns/rows) and save"""
+        self.config_manager.set('terminal.toggle', toggle)
+        self.config_manager.set('terminal.enabled', toggle != TOGGLE_DISABLE)
+        grid = TERMINAL_TOGGLE_GRIDS.get(toggle)
+        if grid is not None:
+            self.config_manager.set('terminal.columns', grid[0])
+            self.config_manager.set('terminal.rows', grid[1])
+        self.config_manager.save_config()
+
+    def _toggle_item_label(self, index, toggle):
+        grid = TERMINAL_TOGGLE_GRIDS.get(toggle)
+        if grid is None:
+            return launcher_text.get(GridI18nKeys.MENU_TOGGLE_DISABLE_ITEM, index=index, toggle=toggle)
+        return launcher_text.get(GridI18nKeys.MENU_TOGGLE_ITEM, index=index, toggle=toggle,
+                                 count=grid[0] * grid[1])
+
+    def _toggle_terminal(self):
+        """Advance the terminal toggle through TERMINAL_TOGGLE_SEQUENCE (wraps after DISABLE)"""
+        self._apply_terminal_toggle(next_terminal_toggle(self._terminal_status()))
+
     def _toggle_chrome(self):
         """Toggle Chrome enabled/disabled"""
         chrome_config = self.config_manager.get_app_config('chrome')
@@ -437,72 +455,61 @@ class InteractiveMenu:
         
         self.config_manager.save_config()
     
-    def _toggle_cursor(self):
-        """Toggle Cursor enabled/disabled"""
-        cursor_config = self.config_manager.get_app_config('cursor')
-        enabled = not cursor_config.get('enabled', True)
-        self.config_manager.set('applications.cursor.enabled', enabled)
+    def _toggle_antigravity(self):
+        """Toggle Antigravity enabled/disabled"""
+        antigravity_config = self.config_manager.get_app_config('antigravity')
+        enabled = not antigravity_config.get('enabled', True)
+        self.config_manager.set('applications.antigravity.enabled', enabled)
         # Save immediately
         self.config_manager.save_config()
     
     def show_terminal_menu(self):
         """Show terminal configuration menu"""
         os.system('cls' if os.name == 'nt' else 'clear')
-        print("\n" + "-" * 60)
-        print("Terminal Configuration")
-        print("-" * 60)
+        ColorPrint.plain("\n" + "-" * 60)
+        ColorPrint.plain("Terminal Configuration")
+        ColorPrint.plain("-" * 60)
         term_config = self.config_manager.get_terminal_config()
         
-        print(f"Current settings:")
-        print(f"  Enabled: {term_config.get('enabled', True)}")
-        print(f"  Toggle: {term_config.get('toggle', 'X6')} (X4/X6/X8/DISABLE)")
-        print(f"  Columns: {term_config.get('columns', 3)}")
-        print(f"  Rows: {term_config.get('rows', 2)}")
-        print("\nOptions:")
-        
+        ColorPrint.plain(f"Current settings:")
+        ColorPrint.plain(f"  Enabled: {term_config.get('enabled', True)}")
+        ColorPrint.plain(launcher_text.get(GridI18nKeys.MENU_CURRENT_TOGGLE,
+                                           toggle=normalize_toggle(term_config.get('toggle', DEFAULT_TOGGLE)),
+                                           choices=TERMINAL_TOGGLE_CHOICES))
+        ColorPrint.plain(f"  Columns: {term_config.get('columns', DEFAULT_GRID_COLUMNS)}")
+        ColorPrint.plain(f"  Rows: {term_config.get('rows', DEFAULT_GRID_ROWS)}")
+        ColorPrint.plain(launcher_text.get(GridI18nKeys.MENU_CURRENT_AUTO_GRID,
+                                           profiles=describe_auto_profiles(),
+                                           state=self._auto_grid_state_label()))
+        ColorPrint.plain("\nOptions:")
+
         menu_items = [
-            "1. Toggle Terminal (X4/X6/X8/DISABLE)",
+            launcher_text.get(GridI18nKeys.MENU_TOGGLE_ENTRY, choices=TERMINAL_TOGGLE_CHOICES),
             "2. Set Grid Layout (Columns x Rows)",
             "0. Back"
         ]
-        
+
         selected = self.show_menu_with_selection("Terminal Configuration", menu_items, 0)
-        
+
         if selected == -1 or selected == 2:
             return
-        
+
         if selected == 0:
             # Toggle Terminal
-            toggle_items = [
-                "1. X4 (4 windows)",
-                "2. X6 (6 windows)",
-                "3. X8 (8 windows)",
-                "4. DISABLE",
-                "0. Back"
-            ]
-            
-            toggle_selected = self.show_menu_with_selection("Toggle Terminal", toggle_items, 1)
-            
-            if toggle_selected >= 0 and toggle_selected < 4:
-                toggle_map = ['X4', 'X6', 'X8', 'DISABLE']
-                toggle_value = toggle_map[toggle_selected]
-                
-                self.config_manager.set('terminal.toggle', toggle_value)
-                self.config_manager.set('terminal.enabled', toggle_value != 'DISABLE')
-                
-                # Update grid based on toggle
-                if toggle_value == 'X4':
-                    self.config_manager.set('terminal.columns', 2)
-                    self.config_manager.set('terminal.rows', 2)
-                elif toggle_value == 'X6':
-                    self.config_manager.set('terminal.columns', 3)
-                    self.config_manager.set('terminal.rows', 2)
-                elif toggle_value == 'X8':
-                    self.config_manager.set('terminal.columns', 4)
-                    self.config_manager.set('terminal.rows', 2)
-                
-                self.config_manager.save_config()
-                print(f"\nUpdated: Toggle set to {toggle_value}")
+            toggle_items = [self._toggle_item_label(index, toggle)
+                            for index, toggle in enumerate(TERMINAL_TOGGLE_SEQUENCE, start=1)]
+            toggle_items.append("0. Back")
+            current_toggle = self._terminal_status()
+            if current_toggle not in TERMINAL_TOGGLE_SEQUENCE:
+                current_toggle = DEFAULT_TOGGLE
+
+            toggle_selected = self.show_menu_with_selection(
+                "Toggle Terminal", toggle_items, TERMINAL_TOGGLE_SEQUENCE.index(current_toggle))
+
+            if 0 <= toggle_selected < len(TERMINAL_TOGGLE_SEQUENCE):
+                toggle_value = TERMINAL_TOGGLE_SEQUENCE[toggle_selected]
+                self._apply_terminal_toggle(toggle_value)
+                ColorPrint.plain(f"\nUpdated: Toggle set to {toggle_value}")
                 input("\nPress Enter to continue...")
         
         elif selected == 1:
@@ -514,25 +521,25 @@ class InteractiveMenu:
                 self.config_manager.set('terminal.columns', cols)
                 self.config_manager.set('terminal.rows', rows)
                 self.config_manager.save_config()
-                print(f"Updated: Grid set to {cols}x{rows}")
+                ColorPrint.plain(f"Updated: Grid set to {cols}x{rows}")
                 input("\nPress Enter to continue...")
             except ValueError:
-                print("Invalid input")
+                ColorPrint.plain("Invalid input")
                 input("\nPress Enter to continue...")
     
     def show_chrome_menu(self):
         """Show Chrome configuration menu"""
         os.system('cls' if os.name == 'nt' else 'clear')
-        print("\n" + "-" * 60)
-        print("Chrome Configuration")
-        print("-" * 60)
+        ColorPrint.plain("\n" + "-" * 60)
+        ColorPrint.plain("Chrome Configuration")
+        ColorPrint.plain("-" * 60)
         chrome_config = self.config_manager.get_app_config('chrome')
         
-        print(f"Current settings:")
-        print(f"  Enabled: {chrome_config.get('enabled', True)}")
-        print(f"  Version: {chrome_config.get('version', 'stable')}")
+        ColorPrint.plain(f"Current settings:")
+        ColorPrint.plain(f"  Enabled: {chrome_config.get('enabled', True)}")
+        ColorPrint.plain(f"  Version: {chrome_config.get('version', 'stable')}")
         # Path is not shown here - it's in cache, not config
-        print("\nOptions:")
+        ColorPrint.plain("\nOptions:")
         
         menu_items = [
             "1. Enable/Disable Chrome",
@@ -551,7 +558,7 @@ class InteractiveMenu:
             enabled = not chrome_config.get('enabled', True)
             self.config_manager.set('applications.chrome.enabled', enabled)
             self.config_manager.save_config()
-            print(f"\nChrome {'enabled' if enabled else 'disabled'}")
+            ColorPrint.plain(f"\nChrome {'enabled' if enabled else 'disabled'}")
             input("\nPress Enter to continue...")
         
         elif selected == 1:
@@ -575,15 +582,15 @@ class InteractiveMenu:
                     # Path is automatically saved to cache by find_chrome_by_version
                     pass
                 self.config_manager.save_config()
-                print(f"\nVersion set to: {version}")
+                ColorPrint.plain(f"\nVersion set to: {version}")
                 if chrome_path:
-                    print(f"Found Chrome {version}: {chrome_path}")
-                    print("Path saved to cache (app_cache.json)")
+                    ColorPrint.plain(f"Found Chrome {version}: {chrome_path}")
+                    ColorPrint.plain("Path saved to cache (app_cache.json)")
                 input("\nPress Enter to continue...")
         
         elif selected == 2:
             # Find Chrome
-            print("\nSearching for Chrome...")
+            ColorPrint.plain("\nSearching for Chrome...")
             self.app_finder.find_chrome_versions(force_refresh=True)
             chrome_config = self.config_manager.get_app_config('chrome')
             version = chrome_config.get('version', 'stable')
@@ -591,63 +598,63 @@ class InteractiveMenu:
             if chrome_path:
                 # Path is automatically saved to cache by find_chrome_by_version
                 # Do NOT save to config - paths belong in cache only
-                print(f"Found Chrome {version}: {chrome_path}")
-                print("Path saved to cache (app_cache.json)")
+                ColorPrint.plain(f"Found Chrome {version}: {chrome_path}")
+                ColorPrint.plain("Path saved to cache (app_cache.json)")
             else:
-                print("Chrome not found")
+                ColorPrint.plain("Chrome not found")
             input("\nPress Enter to continue...")
     
-    def show_cursor_menu(self):
-        """Show Cursor configuration menu"""
+    def show_antigravity_menu(self):
+        """Show Antigravity configuration menu"""
         os.system('cls' if os.name == 'nt' else 'clear')
-        print("\n" + "-" * 60)
-        print("Cursor Configuration")
-        print("-" * 60)
-        cursor_config = self.config_manager.get_app_config('cursor')
-        
-        print(f"Current settings:")
-        print(f"  Enabled: {cursor_config.get('enabled', True)}")
+        ColorPrint.plain("\n" + "-" * 60)
+        ColorPrint.plain("Antigravity Configuration")
+        ColorPrint.plain("-" * 60)
+        antigravity_config = self.config_manager.get_app_config('antigravity')
+
+        ColorPrint.plain(f"Current settings:")
+        ColorPrint.plain(f"  Enabled: {antigravity_config.get('enabled', True)}")
         # Path is not shown here - it's in cache, not config
-        print("\nOptions:")
-        
+        ColorPrint.plain("\nOptions:")
+
         menu_items = [
-            "1. Enable/Disable Cursor",
-            "2. Find Cursor (Refresh)",
+            "1. Enable/Disable Antigravity",
+            "2. Find Antigravity (Refresh)",
             "0. Back"
         ]
-        
-        selected = self.show_menu_with_selection("Cursor Configuration", menu_items, 0)
-        
+
+        selected = self.show_menu_with_selection("Antigravity Configuration", menu_items, 0)
+
         if selected == -1 or selected == 2:
             return
-        
+
         if selected == 0:
-            enabled = not cursor_config.get('enabled', True)
-            self.config_manager.set('applications.cursor.enabled', enabled)
+            enabled = not antigravity_config.get('enabled', True)
+            self.config_manager.set('applications.antigravity.enabled', enabled)
             self.config_manager.save_config()
-            print(f"\nCursor {'enabled' if enabled else 'disabled'}")
+            ColorPrint.plain(f"\nAntigravity {'enabled' if enabled else 'disabled'}")
             input("\nPress Enter to continue...")
-        
+
         elif selected == 1:
-            print("\nSearching for Cursor...")
-            cursor_path = self.app_finder.find_app('cursor', force_refresh=True)
-            if cursor_path:
+            ColorPrint.plain("\nSearching for Antigravity...")
+            antigravity_path = self.app_finder.find_app('antigravity', force_refresh=True)
+            if antigravity_path:
                 # Path is automatically saved to cache by find_app
                 # Do NOT save to config - paths belong in cache only
-                print(f"Found Cursor: {cursor_path}")
-                print("Path saved to cache (app_cache.json)")
+                ColorPrint.plain(f"Found Antigravity: {antigravity_path}")
+                ColorPrint.plain("Path saved to cache (app_cache.json)")
             else:
-                print("Cursor not found")
+                ColorPrint.plain("Antigravity not found")
             input("\nPress Enter to continue...")
     
     def show_other_apps_menu(self):
         """Show other applications menu with toggle support"""
-        # Get all apps except chrome and cursor (they have their own menus)
+        # Get all apps except chrome and antigravity (they have their own menus)
         all_apps = list(self.app_finder.APP_DEFINITIONS.keys())
-        apps = [app for app in all_apps if app not in ['chrome', 'cursor']]
+        apps = [app for app in all_apps if app not in ['chrome', 'antigravity']]
         
         if not apps:
-            print("No other applications configured.")
+            ColorPrint.plain("No other applications configured.")
             input("\nPress Enter to continue...")
             return
         
@@ -675,19 +682,19 @@ class InteractiveMenu:
             app_name = apps[selected]
             # Show find option
             os.system('cls' if os.name == 'nt' else 'clear')
-            print(f"\n{app_name.upper()} Options:")
-            print("1. Find Application (Refresh)")
-            print("0. Back")
+            ColorPrint.plain(f"\n{app_name.upper()} Options:")
+            ColorPrint.plain("1. Find Application (Refresh)")
+            ColorPrint.plain("0. Back")
             choice = input("\nSelect option: ").strip()
             
             if choice == '1':
-                print(f"\nSearching for {app_name}...")
+                ColorPrint.plain(f"\nSearching for {app_name}...")
                 app_path = self.app_finder.find_app(app_name, force_refresh=True)
                 if app_path:
-                    print(f"Found {app_name}: {app_path}")
-                    print("Path saved to cache (app_cache.json)")
+                    ColorPrint.plain(f"Found {app_name}: {app_path}")
+                    ColorPrint.plain("Path saved to cache (app_cache.json)")
                 else:
-                    print(f"{app_name} not found")
+                    ColorPrint.plain(f"{app_name} not found")
                 input("\nPress Enter to continue...")
     
     def _show_other_apps_menu_with_toggle(self, title, apps, items, toggle_callbacks, selected_index=0):
@@ -704,9 +711,9 @@ class InteractiveMenu:
             # Clear screen and show menu
             os.system('cls' if os.name == 'nt' else 'clear')
             
-            print("\n" + "=" * 60)
-            print(title)
-            print("=" * 60)
+            ColorPrint.plain("\n" + "=" * 60)
+            ColorPrint.plain(title)
+            ColorPrint.plain("=" * 60)
             
             for i, item in enumerate(menu_items):
                 toggle_hint = ""
@@ -714,12 +721,12 @@ class InteractiveMenu:
                     toggle_hint = " [LEFT/RIGHT to toggle]"
                 
                 if i == selected_index:
-                    print(f"> {item} <{toggle_hint}")
+                    ColorPrint.plain(f"> {item} <{toggle_hint}")
                 else:
-                    print(f"  {item}")
+                    ColorPrint.plain(f"  {item}")
             
-            print("=" * 60)
-            print("UP/DOWN: Navigate | LEFT/RIGHT: Toggle | ENTER: Find App | ESC: Back")
+            ColorPrint.plain("=" * 60)
+            ColorPrint.plain("UP/DOWN: Navigate | LEFT/RIGHT: Toggle | ENTER: Find App | ESC: Back")
             
             key = self.get_key()
             
@@ -748,31 +755,30 @@ class InteractiveMenu:
     def show_config(self):
         """Show current configuration"""
         os.system('cls' if os.name == 'nt' else 'clear')
-        print("\n" + "=" * 60)
-        print("Current Configuration")
-        print("=" * 60)
+        ColorPrint.plain("\n" + "=" * 60)
+        ColorPrint.plain("Current Configuration")
+        ColorPrint.plain("=" * 60)
         
-        import json
         config = self.config_manager.config
-        print(json.dumps(config, indent=2, ensure_ascii=False))
+        ColorPrint.plain(json.dumps(config, indent=2, ensure_ascii=False))
         input("\nPress Enter to continue...")
     
     def refresh_all_apps(self):
         """Refresh all application cache (not config)"""
         os.system('cls' if os.name == 'nt' else 'clear')
-        print("\nSearching for all applications...")
+        ColorPrint.plain("\nSearching for all applications...")
         results = self.app_finder.find_all_apps(force_refresh=True)
         
         # Cache is automatically saved by AppFinder.find_all_apps
         # Do NOT automatically update config - cache is separate from config
         
-        print("\nFound applications (saved to cache):")
+        ColorPrint.plain("\nFound applications (saved to cache):")
         for app_name, app_path in results.items():
             status = app_path if app_path else "Not found"
-            print(f"  {app_name}: {status}")
+            ColorPrint.plain(f"  {app_name}: {status}")
         
-        print("\nNote: Paths are saved to app_cache.json, not config.json")
-        print("Use individual app menus to save paths to config if needed.")
+        ColorPrint.plain("\nNote: Paths are saved to app_cache.json, not config.json")
+        ColorPrint.plain("Use individual app menus to save paths to config if needed.")
         
         input("\nPress Enter to continue...")
     

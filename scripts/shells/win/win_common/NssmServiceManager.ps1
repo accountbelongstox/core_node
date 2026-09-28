@@ -1,0 +1,308 @@
+# NSSM-backed Windows background service registration, shared by native-Windows app
+# start scripts (poly_apps/*/scripts/start.ps1). Windows counterpart of
+# scripts/shells/linux/common/debian_service_manager.sh: a plain PowerShell script or
+# `composer`/`pnpm` command is not a valid SCM binary (it never calls
+# StartServiceCtrlDispatcher), so NSSM wraps it as a resident child process the Service
+# Control Manager can start/stop/restart. Register-NssmService is idempotent: a missing
+# service is installed, an existing one has its configuration refreshed in place and is
+# (re)started -- safe to call on every run.
+
+# Resolve nssm.exe: PATH -> well-known install locations. Returns $null if not found.
+function Find-NssmExe {
+    $candidateNames = @("nssm", "nssm.exe")
+    foreach ($name in $candidateNames) {
+        $cmd = Get-Command $name -ErrorAction SilentlyContinue
+        if ($cmd) { return $cmd.Source }
+    }
+    $wellKnownPaths = @(
+        (Join-Path $env:ProgramFiles "nssm\nssm.exe"),
+        (Join-Path ${env:ProgramFiles(x86)} "nssm\nssm.exe")
+    )
+    foreach ($path in $wellKnownPaths) {
+        if ($path -and (Test-Path -LiteralPath $path)) { return $path }
+    }
+    return $null
+}
+
+# Refresh this process's PATH from the registry: a tool just installed by winget/an
+# installer script is otherwise invisible until a new shell starts.
+function Update-SessionPathFromRegistry {
+    $machinePath = [System.Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = @($machinePath, $userPath) -join ";"
+}
+
+# Run a DevInstaller Step*.ps1 as a live, visible subprocess (never dot-sourced: these
+# are one-shot installer scripts, not reusable libraries, and each is already idempotent
+# on its own -- mirrors how start.sh always subprocess-invokes its *_INSTALL_SCRIPT
+# files). Existing Step-script logic is never modified here, only invoked on demand.
+function Invoke-DevInstallerStep {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRootDir,
+        [Parameter(Mandatory = $true)][string]$StepScriptName
+    )
+    $stepPath = Join-Path $RepoRootDir "scripts\shells\win\install_powershells\$StepScriptName"
+    if (-not (Test-Path -LiteralPath $stepPath)) {
+        Write-Host "[NssmServiceManager] DevInstaller step not found: $stepPath" -ForegroundColor Red
+        return $false
+    }
+    Write-Host "[NssmServiceManager] Running DevInstaller step (idempotent, live output below): $StepScriptName" -ForegroundColor Yellow
+    powershell -NoProfile -ExecutionPolicy Bypass -File $stepPath
+    Update-SessionPathFromRegistry
+    return (Test-Path -LiteralPath $stepPath)
+}
+
+# Idempotent winget resolution: reuse an existing install, else bootstrap it via the
+# canonical DevInstaller step (Step3_InitWinget.ps1) -- needed before Ensure-Nssm (and
+# any other winget-based install) can run on a fresh machine.
+function Ensure-Winget {
+    param([Parameter(Mandatory = $true)][string]$RepoRootDir)
+    if (Get-Command winget -ErrorAction SilentlyContinue) { return $true }
+    Invoke-DevInstallerStep -RepoRootDir $RepoRootDir -StepScriptName "Step3_InitWinget.ps1" | Out-Null
+    return [bool](Get-Command winget -ErrorAction SilentlyContinue)
+}
+
+# Idempotent NSSM resolution: reuse an existing install, else auto-install via winget
+# (mirrors the Linux pattern of resolving a tool then invoking its canonical installer
+# on demand -- see install_powershells/Step40_InstallNSSM.ps1 for the DevInstaller-menu
+# entry point that wraps this same function). RepoRootDir is used only to locate
+# Step3_InitWinget.ps1 when winget itself is missing.
+function Ensure-Nssm {
+    param([Parameter(Mandatory = $true)][string]$RepoRootDir)
+    $existing = Find-NssmExe
+    if ($existing) { return $existing }
+
+    if (-not (Ensure-Winget -RepoRootDir $RepoRootDir)) {
+        Write-Host "[NssmServiceManager] NSSM not found and winget is unavailable -> cannot auto-install." -ForegroundColor Yellow
+        return $null
+    }
+
+    Write-Host "[NssmServiceManager] NSSM not found -> installing via winget (idempotent, live output below)..." -ForegroundColor Yellow
+    winget install --id NSSM.NSSM -e --accept-package-agreements --accept-source-agreements
+    Update-SessionPathFromRegistry
+
+    $installed = Find-NssmExe
+    if ($installed) {
+        Write-Host "[NssmServiceManager] NSSM installed: $installed" -ForegroundColor Green
+    } else {
+        Write-Host "[NssmServiceManager] NSSM install via winget did not produce a usable nssm.exe." -ForegroundColor Red
+    }
+    return $installed
+}
+
+# Launch a child PowerShell script with a GUARANTEED environment variable set.
+# Start-Process's default ShellExecute path does not reliably propagate env vars set
+# via $env: just before the call (ShellExecuteEx does not always hand off the calling
+# process's current block) -- this bypasses ShellExecute entirely via
+# System.Diagnostics.Process, whose EnvironmentVariables starts as a copy of the
+# current process's environment, so an explicit override is always inherited by the
+# child. Used to pre-answer another script's own AS_SERVICE/INCLUDE_UI prompt without
+# adding a script parameter (both start.ps1 scripts must stay parameter-free).
+function Start-ChildScriptWithEnv {
+    param(
+        [Parameter(Mandatory = $true)][string]$PwshExePath,
+        [Parameter(Mandatory = $true)][string]$ScriptPath,
+        [string[]]$ScriptArgs = @(),
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [hashtable]$EnvironmentVars = @{},
+        [switch]$Wait,
+        [switch]$Hidden
+    )
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $PwshExePath
+    $startInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" $($ScriptArgs -join ' ')".TrimEnd()
+    $startInfo.WorkingDirectory = $WorkingDirectory
+    $startInfo.UseShellExecute = $false
+    if ($Hidden) {
+        $startInfo.CreateNoWindow = $true
+        $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    }
+    foreach ($key in $EnvironmentVars.Keys) {
+        $startInfo.EnvironmentVariables[$key] = $EnvironmentVars[$key]
+    }
+    $proc = [System.Diagnostics.Process]::Start($startInfo)
+    if ($Wait) { $proc.WaitForExit() }
+    return $proc
+}
+
+# DEFAULT YES prompt.
+function Read-YesNoDefaultYes {
+    param([string]$Message)
+    Write-Host "$Message [Y/n] " -ForegroundColor Yellow -NoNewline
+    $reply = Read-Host
+    return (-not ($reply -match '^[Nn]'))
+}
+
+# DEFAULT NO prompt.
+function Read-YesNoDefaultNo {
+    param([string]$Message)
+    Write-Host "$Message [y/N] " -ForegroundColor Yellow -NoNewline
+    $reply = Read-Host
+    return [bool]($reply -match '^[Yy]')
+}
+
+# Idempotent install-or-update + (re)start of an NSSM-wrapped service.
+# -NoRestart keeps an already running (or starting) service running after the refresh.
+function Register-NssmService {
+    param(
+        [Parameter(Mandatory = $true)][string]$NssmPath,
+        [Parameter(Mandatory = $true)][string]$ServiceName,
+        [Parameter(Mandatory = $true)][string]$DisplayName,
+        [Parameter(Mandatory = $true)][string]$Description,
+        [Parameter(Mandatory = $true)][string]$ExePath,
+        [Parameter(Mandatory = $true)][string]$Arguments,
+        [Parameter(Mandatory = $true)][string]$WorkingDirectory,
+        [string[]]$EnvironmentExtra = @(),
+        [string]$StdoutLog = "",
+        [string]$StderrLog = "",
+        [switch]$NoRestart
+    )
+
+    $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $existing) {
+        Write-Host "[NssmServiceManager] Installing service: $ServiceName" -ForegroundColor Cyan
+        & $NssmPath install $ServiceName $ExePath $Arguments
+        $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if (-not $existing) {
+            Write-Host "[NssmServiceManager] nssm install failed for $ServiceName (service not registered)" -ForegroundColor Red
+            return $false
+        }
+    } else {
+        Write-Host "[NssmServiceManager] Service $ServiceName already registered -> refreshing configuration." -ForegroundColor Yellow
+        & $NssmPath set $ServiceName Application $ExePath
+        & $NssmPath set $ServiceName AppParameters $Arguments
+    }
+
+    & $NssmPath set $ServiceName DisplayName $DisplayName
+    & $NssmPath set $ServiceName Description $Description
+    & $NssmPath set $ServiceName AppDirectory $WorkingDirectory
+    & $NssmPath set $ServiceName Start SERVICE_AUTO_START
+    & $NssmPath set $ServiceName AppRestartDelay 5000
+    # Without these, NSSM's documented default (https://nssm.cc/usage, "Console window") is to
+    # allocate a real console and connect it to the child's stdin/stdout/stderr. PHP's
+    # stream_isatty(STDIN) then reports true for a service with nobody attending its console,
+    # so any interactive-looking prompt in the child (e.g. artisan's Y/N confirmations) blocks
+    # forever instead of skipping -- this hung laravel_main's sys:init before port 9000 ever
+    # opened. AppNoConsole disables the console entirely; AppStdin NUL is a belt-and-suspenders
+    # explicit redirect so a read from stdin returns immediately instead of blocking.
+    & $NssmPath set $ServiceName AppNoConsole 1
+    & $NssmPath set $ServiceName AppStdin "NUL"
+    if ($EnvironmentExtra.Count -gt 0) {
+        & $NssmPath set $ServiceName AppEnvironmentExtra ($EnvironmentExtra -join "`r`n")
+    }
+    if ($StdoutLog) {
+        & $NssmPath set $ServiceName AppStdout $StdoutLog
+        & $NssmPath set $ServiceName AppRotateFiles 1
+    }
+    if ($StderrLog) {
+        & $NssmPath set $ServiceName AppStderr $StderrLog
+    }
+
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if (-not $svc) {
+        Write-Host "[NssmServiceManager] Service $ServiceName not found after registration." -ForegroundColor Red
+        return $false
+    }
+    if ($NoRestart -and ((Get-ServiceRunState -ServiceName $ServiceName) -eq "running")) {
+        Write-Host "[NssmServiceManager] Service $ServiceName already running -> configuration refreshed, no restart." -ForegroundColor Green
+    } elseif ($svc.Status -eq "Running") {
+        Write-Host "[NssmServiceManager] Restarting service: $ServiceName" -ForegroundColor Cyan
+        Restart-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-Host "[NssmServiceManager] Starting service: $ServiceName" -ForegroundColor Cyan
+        Start-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 1
+    $svc.Refresh()
+    Write-Host "[NssmServiceManager] Service $ServiceName status: $($svc.Status)" -ForegroundColor Green
+    return $true
+}
+
+# SCM run state of any Windows service (NSSM, WinSW or native): running | stopped | absent.
+# A service that is starting counts as running so callers never start it twice.
+function Get-ServiceRunState {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $runningStates = @("Running", "StartPending", "ContinuePending")
+    if (-not $svc) { return "absent" }
+    if ($runningStates -contains [string]$svc.Status) { return "running" }
+    return "stopped"
+}
+
+# Host PID of a running Windows service (NSSM/WinSW wrapper or native) plus every
+# descendant PID; empty when the service is absent or stopped. Callers exclude these
+# PIDs from kill sets so a service is never killed as a stale process.
+function Get-ServiceProcessTreeIds {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue
+    $processTable = @()
+    $treeIds = @()
+    $pendingIds = @()
+    $parentId = 0
+    $childIds = @()
+    if ((-not $serviceInfo) -or ([int]$serviceInfo.ProcessId -le 0)) { return @() }
+
+    $processTable = @(Get-CimInstance -ClassName Win32_Process -ErrorAction SilentlyContinue)
+    $treeIds = @([int]$serviceInfo.ProcessId)
+    $pendingIds = @([int]$serviceInfo.ProcessId)
+    while ($pendingIds.Count -gt 0) {
+        $parentId = $pendingIds[0]
+        $pendingIds = @($pendingIds | Select-Object -Skip 1)
+        $childIds = @($processTable | Where-Object {
+            ([int]$_.ParentProcessId -eq $parentId) -and ($treeIds -notcontains [int]$_.ProcessId)
+        } | ForEach-Object { [int]$_.ProcessId })
+        $treeIds += $childIds
+        $pendingIds += $childIds
+    }
+    return $treeIds
+}
+
+# Idempotent stop + delete of an NSSM-wrapped service (no-op when absent). Needs admin.
+# Returns $true when the service no longer exists afterwards.
+function Remove-NssmService {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $nssmPath = $null
+    if (-not $svc) { return $true }
+
+    Write-Host "[NssmServiceManager] Removing service: $ServiceName" -ForegroundColor Cyan
+    if ([string]$svc.Status -ne "Stopped") {
+        Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    }
+    $nssmPath = Find-NssmExe
+    if ($nssmPath) {
+        & $nssmPath remove $ServiceName confirm | Out-Null
+    } else {
+        & sc.exe delete $ServiceName | Out-Null
+    }
+    Start-Sleep -Seconds 1
+    if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+        Write-Host "[NssmServiceManager] Service $ServiceName is still registered (access denied or pending deletion)." -ForegroundColor Yellow
+        return $false
+    }
+    Write-Host "[NssmServiceManager] Service $ServiceName removed." -ForegroundColor Green
+    return $true
+}
+
+# Retire an NSSM service from inside its own body, without nssm.exe (a LocalSystem body
+# sees only the machine PATH, while winget installs nssm per user): NSSM reads
+# Parameters\AppExit when the application exits, so "Exit" stops the service instead of
+# restarting it, and the Disabled start type keeps it from starting again. Needs the
+# service account (LocalSystem) or admin. Returns $true when the exit action is "Exit".
+function Disable-NssmService {
+    param([Parameter(Mandatory = $true)][string]$ServiceName)
+    $serviceKey = Join-Path "HKLM:\SYSTEM\CurrentControlSet\Services" $ServiceName
+    $parametersKey = Join-Path $serviceKey "Parameters"
+    $appExitKey = Join-Path $parametersKey "AppExit"
+    $appExitItem = $null
+    if (-not (Test-Path -LiteralPath $serviceKey)) { return $false }
+
+    if (-not (Test-Path -LiteralPath $appExitKey)) {
+        New-Item -Path $appExitKey -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+    Set-Item -LiteralPath $appExitKey -Value "Exit" -ErrorAction SilentlyContinue
+    Set-Service -Name $ServiceName -StartupType Disabled -ErrorAction SilentlyContinue
+    $appExitItem = Get-Item -LiteralPath $appExitKey -ErrorAction SilentlyContinue
+    if (-not $appExitItem) { return $false }
+    return ([string]$appExitItem.GetValue("") -eq "Exit")
+}

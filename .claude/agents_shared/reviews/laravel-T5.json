@@ -1,0 +1,18 @@
+{
+  "task_id": "laravel-T5",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "FU-030 (server side)": {"status": "fixed", "reason": "DatabaseManagerService backup and restore hold a per-connection cache lock (3900 s, above the 3600 s pg timeout); the data-sync receiver backups share it, and a concurrent request fails fast with 409 db_manager.connection_busy instead of running against the same database. The new 'idempotent' middleware (after auth) on backup/restore and on server-manager restart/toggle-autostart stores the response per caller + method + path + Idempotency-Key and replays it (Idempotent-Replayed: true); a replay while running gets 409."},
+    "toggle-autostart target state": {"status": "fixed", "reason": "The body 'enabled' (boolean) is required and the service is set to that state (a no-op when already there), so a retry converges instead of flipping back."},
+    "FU-031 (server-side dedupe)": {"status": "fixed", "reason": "'idempotent' is on app_qy_v1/group/update_progress, learning/sentence-words/played and recitation/log, matching the Idempotency-Key wordnew persists per queued entry (wordnew-1). A replay after a lost response no longer duplicates."}
+  },
+  "cross_end": "BLOCKING ACROSS ENDS (owner laravel-manager): toggle-autostart now requires body {enabled}, but laravel-manager's ServerManagerAPI.serviceControl still posts {} (laravel-manager-2/-6). Until laravel-manager-10 sends the explicit target, every Auto-start toggle in laravel-manager returns 422. Reported to the orchestrator.",
+  "issues": [
+    "app/Http/Middleware/IdempotentRequest.php:65 (non-blocking) every response below 500 is stored for 24 h, including 409 db_manager.connection_busy and 429. A caller that reuses its key after a transient conflict would replay the conflict for a day. Store only 2xx and deterministic 4xx (for example 400/404/422), not 409, 423 or 429.",
+    "(non-blocking) stored responses (backup/restore results) stay in the database cache for 24 h; acceptable, they carry no secrets.",
+    "ServerManagerController.php also carries LB-034 i18n hunks (laravel-T6); not covered here."
+  ],
+  "checks": "IdempotentRequest.php read in full (the caller scope is user, then client-key machine id, then IP); the DatabaseManagerService lock and ServerManagerController toggle diffs read; route placement taken from the owner's route:list.",
+  "checked_at": "2026-09-27T04:38:26+10:00"
+}

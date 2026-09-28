@@ -1,25 +1,23 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 """
 Print Helper
 Provides consistent logging and output formatting with file logging
 """
 
 import os
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+# Make pycore importable so the cache path resolves via the centralized
+# system_paths module (matches FlutterGlobalVar.ps1 D:\programing\Users\<user>\.core_node).
+_REPO_ROOT = Path(__file__).resolve()
+while _REPO_ROOT != _REPO_ROOT.parent and not (_REPO_ROOT / 'pycore').is_dir():
+    _REPO_ROOT = _REPO_ROOT.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 class PrintHelper:
     """Helper class for consistent logging and output with file logging"""
@@ -35,9 +33,9 @@ class PrintHelper:
         # Equivalent to: unified_vars.temp_dir / "logs"
         # where unified_vars.temp_dir = flutter_build_base / ".cache" / "flutter_bloom"
         # and flutter_build_base = core_node_base / ".flutter_build"
-        # and core_node_base = Path.home() / ".core_node"
+        # and core_node_base = get_system_cache_dir()
 
-        core_node_base = Path.home() / ".core_node"
+        core_node_base = get_system_cache_dir()
         flutter_build_base = core_node_base / ".flutter_build"
         temp_dir = flutter_build_base / ".cache" / "flutter_bloom"
         log_dir = temp_dir / "logs"

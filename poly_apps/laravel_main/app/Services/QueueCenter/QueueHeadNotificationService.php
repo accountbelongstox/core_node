@@ -1,0 +1,104 @@
+<?php
+
+namespace App\Services\QueueCenter;
+
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Models\GlobalTask;
+use App\Support\QueueCenterContract;
+
+class QueueHeadNotificationService
+{
+    private const REVISION_PREFIX = 'queue_center:head_notifications:v3:revision:';
+    private const EMITTED_PREFIX = 'queue_center:head_notifications:v3:emitted:';
+
+    // Part1/Part2 contract (docs_fix/REQUIREMENTS_20260922_AUDIO_QUEUE_HEAD_PART1_PART2.md):
+    // the emitted {queue}_head event is the Part2 fill path into pycore —
+    // wordnew notifies Laravel FIRST, so when pycore applies this event the
+    // ticket DEFAULTS to landing in Part2, deduped against pycore's whole
+    // Queue (an item already held in Part1 keeps its single front copy).
+    // pycore NEVER pushes head state back to Laravel.
+    //
+    // Direct-emit (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md): the
+    // notification is published in the SAME request that moved the head —
+    // the 2s queue_head_notification_task poller is decommissioned (kept
+    // disabled as an operator safety net; its flush() below stays valid).
+    public function record(string $queue): void
+    {
+        $revision = QueueCenterCacheStore::increment($this->revisionKey($queue));
+        $this->emitHeadEvent($queue, $revision);
+    }
+
+    /**
+     * Poller entry of the decommissioned queue_head_notification_task. Kept
+     * for the disabled safety-net task: emits any revision recorded but not
+     * yet emitted (e.g. a direct emit that raced a hub outage).
+     */
+    public function flush(): int
+    {
+        $cache = QueueCenterCacheStore::get();
+        $emitted = 0;
+        foreach (QueueCenterContract::queuePositionOrderedControlNames() as $queue) {
+            $revision = (int) $cache->get($this->revisionKey($queue), 0);
+            $emittedRevision = (int) $cache->get($this->emittedKey($queue), 0);
+            if ($revision <= $emittedRevision) {
+                continue;
+            }
+
+            if ($this->emitHeadEvent($queue, $revision)) {
+                $emitted++;
+            }
+        }
+
+        return $emitted;
+    }
+
+    /**
+     * Build and emit the {queue}_head event for the current pending head task
+     * and mark the revision emitted. Returns true when an event was sent.
+     */
+    private function emitHeadEvent(string $queue, int $revision): bool
+    {
+        $cache = QueueCenterCacheStore::get();
+        $events = QueueCenterContract::realtime()['events'] ?? [];
+
+        $event = $events[$queue . '_head'] ?? null;
+        $task = GlobalTask::pendingHeadTask($queue);
+        if (!is_string($event) || $event === '' || !($task instanceof GlobalTask)) {
+            $cache->forever($this->emittedKey($queue), $revision);
+
+            return false;
+        }
+        $payload = is_array($task->payload) ? $task->payload : [];
+        $item = [
+            'queue' => $queue,
+            'task_id' => (string) $task->task_id,
+            'dedup_key' => (string) ($task->group_key ?? ''),
+            'language' => $payload['language'] ?? null,
+            'queue_position' => (int) $task->queue_position,
+            'md5' => $payload['md5'] ?? null,
+            'word' => $payload['word'] ?? ($payload['content'] ?? null),
+            'content_id' => $payload['content_id'] ?? null,
+            'text' => $payload['text'] ?? ($payload['content'] ?? null),
+        ];
+        AppQyV1TranslationEventModel::emit($event, [
+            'queue' => $queue,
+            'count' => 1,
+            'items' => [$item],
+            'head_task_id' => (string) ($item['task_id'] ?? ''),
+            'queue_position' => (int) ($item['queue_position'] ?? 0),
+        ]);
+        $cache->forever($this->emittedKey($queue), $revision);
+
+        return true;
+    }
+
+    private function revisionKey(string $queue): string
+    {
+        return self::REVISION_PREFIX . sha1($queue);
+    }
+
+    private function emittedKey(string $queue): string
+    {
+        return self::EMITTED_PREFIX . sha1($queue);
+    }
+}

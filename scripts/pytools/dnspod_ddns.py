@@ -29,6 +29,15 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pycore.pyfoundations.service_contract import root_domain
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+DEFAULT_ROOT_DOMAIN = root_domain()
+
 class DNSPodDDNS:
     """DNSPod Dynamic DNS Update Tool"""
     
@@ -36,7 +45,7 @@ class DNSPodDDNS:
         # DNSPod API configuration - supports environment variables and parameters
         self.api_config = {
             'auth_token': secret_key or os.getenv('DNSPOD_API_TOKEN', self._load_server_config()),
-            'domain': domain or os.getenv('DNSPOD_DOMAIN', '12gm.com'),
+            'domain': domain or os.getenv('DNSPOD_DOMAIN', DEFAULT_ROOT_DOMAIN),
             'subdomain': subdomain or os.getenv('DNSPOD_SUBDOMAIN', 'local'),
             'record_type': 'A',
             'record_line': 'default'
@@ -53,8 +62,9 @@ class DNSPodDDNS:
         self.monitor_thread = None
         
         # Configuration file path
-        self.config_file = Path.home() / '.core_node' / 'dnspod_ddns' / 'config.json'
-        self.log_file = Path.home() / '.core_node' / 'dnspod_ddns' / 'ddns.log'
+        core_node_dir = get_system_cache_dir()
+        self.config_file = core_node_dir / 'dnspod_ddns' / 'config.json'
+        self.log_file = core_node_dir / 'dnspod_ddns' / 'ddns.log'
         
         # Create configuration directory
         self.config_file.parent.mkdir(exist_ok=True)
@@ -127,7 +137,7 @@ class DNSPodDDNS:
             print()
             print("Method 1 - Environment Variables:")
             print("  set DNSPOD_API_TOKEN=your_api_token")
-            print("  set DNSPOD_DOMAIN=12gm.com")
+            print(f"  set DNSPOD_DOMAIN={DEFAULT_ROOT_DOMAIN}")
             print("  set DNSPOD_SUBDOMAIN=local")
             print()
             print("Method 2 - Command Line Arguments:")
@@ -876,7 +886,7 @@ def main():
     # API configuration parameters
     parser.add_argument('--secret-id', help='DNSPod Secret ID')
     parser.add_argument('--secret-key', help='DNSPod Secret Key')
-    parser.add_argument('--domain', help='Domain name (default: 12gm.com)')
+    parser.add_argument('--domain', help=f'Domain name (default: {DEFAULT_ROOT_DOMAIN})')
     parser.add_argument('--subdomain', help='Subdomain name (default: local)')
     
     args = parser.parse_args()

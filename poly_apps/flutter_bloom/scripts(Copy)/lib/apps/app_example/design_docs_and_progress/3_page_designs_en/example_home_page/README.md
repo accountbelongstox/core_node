@@ -1,26 +1,26 @@
-# {page_name} - 页面设计
+# {page_name} — Page Design
 
-**英文名称**: {page_name}
-**中文名称**: {page_name_cn}
-**创建时间**: 2025-11-19
+**English name**: {page_name}
+**Chinese name**: {page_name_cn}
+**Created**: 2025-11-19
 
-## 页面概述
+## Page Overview
 
-（填写页面功能描述）
+(Fill in page feature description)
 
-## 文件说明
+## Files
 
-- `README.md`: 本文件
-- `pageview_map.json`: UI元素映射（连接Flutter代码）
-- `design_specs.md`: 详细设计规格（颜色、字体、间距等）
+- `README.md`: This file
+- `pageview_map.json`: UI element mapping (links to Flutter code)
+- `design_specs.md`: Detailed design specs (colors, fonts, spacing, etc.)
 
-## 开发状态
+## Development Status
 
-- [ ] 设计完成
-- [ ] UI实现
-- [ ] 功能实现
-- [ ] 测试完成
+- [ ] Design complete
+- [ ] UI implemented
+- [ ] Features implemented
+- [ ] Testing complete
 
-## 更新记录
+## Changelog
 
-- 2025-11-19: 初始化页面设计
+- 2025-11-19: Initial page design

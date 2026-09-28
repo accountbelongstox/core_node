@@ -4,18 +4,18 @@ namespace App\Traits;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Contracts\Validation\Validator;
-use App\Apps\AppQyV1\AppQyV1Constants\AppQyV1ErrorCodes;
+use App\Constants\ErrorCodes;
 
 /**
  * API Response Trait
  * Standardized JSON response format for all API endpoints
  * NO try-catch blocks - trust data structures
  *
- * 扩展功能:
- * - 支持错误码 (errorWithCode)
- * - 自动提取 supported_params (validationErrorWithParams)
- * - 快捷方法 (created, noContent, conflict)
- * - 支持附加数据的 notFound/unauthorized
+ * Extended features:
+ * - Supports error codes (errorWithCode)
+ * - Automatically extracts supported_params (validationErrorWithParams)
+ * - Shortcut methods (created, noContent, conflict)
+ * - notFound/unauthorized with additional data support
  */
 trait ApiResponse
 {
@@ -40,6 +40,27 @@ trait ApiResponse
             'code' => $code,
             'status' => 'error',
         ], $code);
+    }
+
+    /**
+     * Return a standard error envelope with an application code and details.
+     */
+    protected function codedError(
+        string $errorCode,
+        string $message,
+        $details = null,
+        int $httpCode = 400
+    ): JsonResponse {
+        return response()->json([
+            'success' => false,
+            'data' => $details,
+            'details' => $details,
+            'error' => $message,
+            'message' => $message,
+            'error_code' => $errorCode,
+            'code' => $httpCode,
+            'status' => 'error',
+        ], $httpCode);
     }
 
     protected function unauthorized(string $message = 'Unauthorized. Authentication required.'): JsonResponse
@@ -69,11 +90,28 @@ trait ApiResponse
         ], 422);
     }
 
-    // ==================== 新增方法 ====================
+    /**
+     * Auth error response with error_code for frontend i18n (login/register).
+     */
+    protected function authErrorResponse(string $errorCode, int $httpCode = 422): JsonResponse
+    {
+        $message = ErrorCodes::getMessage($errorCode);
+        return response()->json([
+            'success' => false,
+            'data' => null,
+            'error' => $message,
+            'message' => $message,
+            'error_code' => $errorCode,
+            'code' => $httpCode,
+            'status' => 'error',
+        ], $httpCode);
+    }
+
+    // ==================== New Methods ====================
 
     /**
-     * 使用错误码返回错误响应
-     * 支持多语言错误消息
+     * Return an error response using an error code
+     * Supports multilingual error messages
      */
     protected function errorWithCode(
         string $errorCode,
@@ -82,8 +120,8 @@ trait ApiResponse
         $data = null,
         string $locale = 'en'
     ): JsonResponse {
-        $message = $customMessage ?? AppQyV1ErrorCodes::getMessage($errorCode, $locale);
-        $code = $httpCode ?? AppQyV1ErrorCodes::getHttpCode($errorCode);
+        $message = $customMessage ?? ErrorCodes::getMessage($errorCode, $locale);
+        $code = $httpCode ?? ErrorCodes::getHttpCode($errorCode);
 
         return response()->json([
             'success' => false,
@@ -97,8 +135,8 @@ trait ApiResponse
     }
 
     /**
-     * 验证失败响应 - 自动提取 supported_params
-     * 从验证器规则中自动提取参数列表
+     * Validation failure response - automatically extracts supported_params
+     * Automatically extracts the parameter list from the validator rules
      */
     protected function validationErrorWithParams(Validator $validator): JsonResponse
     {
@@ -115,7 +153,7 @@ trait ApiResponse
     }
 
     /**
-     * 支持附加数据的 notFound
+     * notFound with additional data support
      */
     protected function notFoundWithData(string $message, $data = null): JsonResponse
     {
@@ -123,7 +161,7 @@ trait ApiResponse
     }
 
     /**
-     * 支持附加数据的 unauthorized
+     * unauthorized with additional data support
      */
     protected function unauthorizedWithData(string $message, $data = null): JsonResponse
     {
@@ -131,7 +169,7 @@ trait ApiResponse
     }
 
     /**
-     * 创建成功响应 (201)
+     * Resource created successfully response (201)
      */
     protected function created($data = null, string $message = 'Resource created successfully'): JsonResponse
     {
@@ -139,7 +177,7 @@ trait ApiResponse
     }
 
     /**
-     * 无内容响应 (204)
+     * No content response (204)
      */
     protected function noContent(): JsonResponse
     {
@@ -147,7 +185,7 @@ trait ApiResponse
     }
 
     /**
-     * 冲突错误响应 (409)
+     * Conflict error response (409)
      */
     protected function conflict(string $message = 'Resource conflict', $data = null): JsonResponse
     {
@@ -155,7 +193,7 @@ trait ApiResponse
     }
 
     /**
-     * 分页响应
+     * Paginated response
      */
     protected function paginated($items, string $message = 'Success'): JsonResponse
     {
@@ -170,38 +208,38 @@ trait ApiResponse
             ], $message);
         }
 
-        // 普通数组
+        // Plain array
         return $this->success($items, $message);
     }
 
-    // ==================== 快捷错误方法 (基于错误码) ====================
+    // ==================== Shortcut Error Methods (based on error codes) ====================
 
     /**
-     * 分组未找到
+     * Group not found
      */
     protected function groupNotFound($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::GROUP_NOT_FOUND, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::GROUP_NOT_FOUND, null, null, $data);
     }
 
     /**
-     * 词库未找到
+     * Library not found
      */
     protected function libraryNotFound($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::LIBRARY_NOT_FOUND, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::LIBRARY_NOT_FOUND, null, null, $data);
     }
 
     /**
-     * 单词未找到
+     * Word not found
      */
     protected function wordNotFound($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::WORD_NOT_FOUND, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::WORD_NOT_FOUND, null, null, $data);
     }
 
     /**
-     * 语言不匹配
+     * Language mismatch
      */
     protected function languageMismatch(string $libraryLang, string $groupLang, $data = null): JsonResponse
     {
@@ -211,22 +249,22 @@ trait ApiResponse
             'group_language' => $groupLang,
         ], $data ?? []);
 
-        return $this->errorWithCode(AppQyV1ErrorCodes::LANGUAGE_MISMATCH, $message, null, $additionalData);
+        return $this->errorWithCode(ErrorCodes::LANGUAGE_MISMATCH, $message, null, $additionalData);
     }
 
     /**
-     * 词库已添加
+     * Library already added
      */
     protected function libraryAlreadyAdded($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::LIBRARY_ALREADY_ADDED, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::LIBRARY_ALREADY_ADDED, null, null, $data);
     }
 
     /**
-     * 词库未关联
+     * Library not linked
      */
     protected function libraryNotLinked($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::LIBRARY_NOT_LINKED, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::LIBRARY_NOT_LINKED, null, null, $data);
     }
 }

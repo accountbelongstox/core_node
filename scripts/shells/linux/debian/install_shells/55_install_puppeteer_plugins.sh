@@ -1,0 +1,169 @@
+#!/bin/bash
+
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+SCRIPT_INDEX="55"
+
+# Source global variables
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+
+# Get USE_SUDO variable
+USE_SUDO=$(get_var "USE_SUDO")
+if [ -z "$USE_SUDO" ]; then
+    USE_SUDO="sudo"
+fi
+
+echo "[$SCRIPT_INDEX] Installing Puppeteer Anti-Detection Plugins..."
+
+# Install xvfb for virtual display (required for puppeteer-real-browser on Linux)
+echo "[$SCRIPT_INDEX] Installing xvfb for virtual display..."
+$USE_SUDO apt-get update
+$USE_SUDO apt-get install -y xvfb
+
+# Install required system dependencies for Chromium
+echo "[$SCRIPT_INDEX] Installing Chromium dependencies..."
+
+# For Ubuntu 24.04+, libasound2 is replaced by pipewire-audio
+if $USE_SUDO apt-cache show pipewire-audio >/dev/null 2>&1; then
+    AUDIO_PACKAGE="pipewire-audio"
+elif $USE_SUDO apt-cache show libasound2 >/dev/null 2>&1; then
+    AUDIO_PACKAGE="libasound2"
+else
+    AUDIO_PACKAGE=""
+    echo "[$SCRIPT_INDEX] Warning: No audio package found, continuing without it..."
+fi
+
+# Build package list
+CHROMIUM_DEPS="libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libatspi2.0-0"
+
+if [ -n "$AUDIO_PACKAGE" ]; then
+    CHROMIUM_DEPS="$CHROMIUM_DEPS $AUDIO_PACKAGE"
+fi
+
+$USE_SUDO apt-get install -y $CHROMIUM_DEPS
+
+# Ensure pnpm is available and PATH is set
+echo "[$SCRIPT_INDEX] Configuring pnpm environment..."
+
+# Idempotency: this script may run under no TTY (installer / systemd). Auto-confirm pnpm's
+# node_modules format-purge so `pnpm add -g` below recreates the store instead of aborting
+# with ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY on a re-run after a pnpm version change.
+export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
+
+# Resolve the pnpm binary by ABSOLUTE path: install-time shells may run with a
+# minimal PATH (no /usr/local/bin yet). resolve_tool_bin checks PATH, the gvar
+# constant, the var-center <TOOL>_BIN, and the toolchain tree.
+PNPM_CMD="$(resolve_tool_bin pnpm 2>/dev/null || true)"
+
+# Get pnpm global bin directory (validate: the store may hold pre-fix garbage)
+PNPM_GLOBAL_BIN=$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null)
+case "$PNPM_GLOBAL_BIN" in /*) ;; *) PNPM_GLOBAL_BIN="" ;; esac
+
+if [ -z "$PNPM_GLOBAL_BIN" ]; then
+    # Fallback: try to get from pnpm config
+    if [ -n "$PNPM_CMD" ]; then
+        PNPM_GLOBAL_BIN=$("$PNPM_CMD" config get global-bin-dir 2>/dev/null)
+    fi
+fi
+
+# Export PATH to include pnpm global bin
+if [ -n "$PNPM_GLOBAL_BIN" ]; then
+    echo "[$SCRIPT_INDEX] Adding pnpm global bin to PATH: $PNPM_GLOBAL_BIN"
+    export PATH="$PNPM_GLOBAL_BIN:$PATH"
+else
+    echo "[$SCRIPT_INDEX] Warning: Could not determine pnpm global bin directory"
+fi
+
+# Guarantee `pnpm add -g` can resolve a global bin dir for THIS process regardless
+# of which user/config installed pnpm: export PNPM_HOME (pnpm uses it as the global
+# bin dir) and persist global-bin-dir when it is still unconfigured. Prevents
+# ERR_PNPM_NO_GLOBAL_BIN_DIR when the per-user pnpm config is absent.
+PNPM_GLOBAL_DIR_VAR=$(get_var "PNPM_GLOBAL_DIR" 2>/dev/null)
+if [ -z "$PNPM_GLOBAL_BIN" ] && [ -n "$PNPM_GLOBAL_DIR_VAR" ]; then
+    PNPM_GLOBAL_BIN="$PNPM_GLOBAL_DIR_VAR/bin"
+    export PATH="$PNPM_GLOBAL_BIN:$PATH"
+fi
+if [ -n "$PNPM_GLOBAL_DIR_VAR" ]; then
+    export PNPM_HOME="$PNPM_GLOBAL_DIR_VAR"
+fi
+if [ -n "$PNPM_CMD" ]; then
+    PNPM_CFG_BIN_DIR=$("$PNPM_CMD" config get global-bin-dir 2>/dev/null)
+    if [ -z "$PNPM_CFG_BIN_DIR" ] || [ "$PNPM_CFG_BIN_DIR" = "undefined" ]; then
+        if [ -n "$PNPM_GLOBAL_BIN" ]; then
+            echo "[$SCRIPT_INDEX] pnpm global-bin-dir not configured; setting it to $PNPM_GLOBAL_BIN"
+            "$PNPM_CMD" config set global-bin-dir "$PNPM_GLOBAL_BIN" 2>/dev/null || true
+        fi
+        if [ -z "${PNPM_HOME:-}" ] && [ -n "$PNPM_GLOBAL_BIN" ]; then
+            export PNPM_HOME="$PNPM_GLOBAL_BIN"
+        fi
+    fi
+fi
+
+# Verify pnpm is accessible
+if [ -z "$PNPM_CMD" ]; then
+    echo "[$SCRIPT_INDEX] ERROR: pnpm not found"
+    echo "[$SCRIPT_INDEX] Please run 37_ensure_pnpm_packages.sh first"
+else
+    echo "[$SCRIPT_INDEX] pnpm version: $("$PNPM_CMD" --version)"
+    echo "[$SCRIPT_INDEX] pnpm location: $PNPM_CMD"
+
+    # Function to install pnpm package
+    install_pnpm_package() {
+        local package=$1
+        # Idempotency: skip if the global package is already installed so re-runs are
+        # fast no-ops and never re-resolve the whole global store.
+        if "$PNPM_CMD" list -g "$package" >/dev/null 2>&1 && "$PNPM_CMD" list -g "$package" 2>/dev/null | grep -q "$package"; then
+            echo "[$SCRIPT_INDEX] $package already installed, skipping"
+            return
+        fi
+        echo "[$SCRIPT_INDEX] Installing $package..."
+        # npm_config_confirm_modules_purge=false is already exported at script top (no-TTY purge guard).
+        if "$PNPM_CMD" add -g "$package"; then
+            echo "[$SCRIPT_INDEX] $package installed successfully"
+        else
+            echo "[$SCRIPT_INDEX] Failed to install $package"
+        fi
+    }
+
+    # Install rebrowser packages (best anti-detection)
+    echo "[$SCRIPT_INDEX] Installing rebrowser packages..."
+    install_pnpm_package "rebrowser-puppeteer-core"
+    install_pnpm_package "rebrowser-puppeteer"
+
+    # Install puppeteer-real-browser
+    echo "[$SCRIPT_INDEX] Installing puppeteer-real-browser..."
+    install_pnpm_package "puppeteer-real-browser"
+
+    # Install puppeteer-extra and plugins
+    echo "[$SCRIPT_INDEX] Installing puppeteer-extra and plugins..."
+    install_pnpm_package "puppeteer-extra"
+    install_pnpm_package "puppeteer-extra-plugin-stealth"
+    install_pnpm_package "puppeteer-extra-plugin-adblocker"
+    install_pnpm_package "puppeteer-extra-plugin-anonymize-ua"
+    install_pnpm_package "puppeteer-extra-plugin-user-preferences"
+    install_pnpm_package "puppeteer-extra-plugin-recaptcha"
+    install_pnpm_package "puppeteer-extra-plugin-block-resources"
+
+    # Apply rebrowser patches only to a vanilla puppeteer-core install.
+    # rebrowser-puppeteer / rebrowser-puppeteer-core ship with the patches already
+    # applied (official drop-in replacements), so they must not be patched again.
+    # `pnpm list -g <pkg>` exits 0 even when the package is absent, so verify the
+    # package.json on disk instead of trusting the exit code.
+    echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
+    pnpm_global_root="$("$PNPM_CMD" root -g 2>/dev/null)"
+    if [ -n "$pnpm_global_root" ] && [ -f "$pnpm_global_root/puppeteer-core/package.json" ]; then
+        echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
+        "$PNPM_CMD" dlx rebrowser-patches@latest patch --packagePath "$pnpm_global_root/puppeteer-core" || true
+    else
+        echo "[$SCRIPT_INDEX] No vanilla puppeteer-core found; rebrowser packages are pre-patched, skipping"
+    fi
+
+    echo "[$SCRIPT_INDEX] Puppeteer anti-detection plugins installation completed"
+    echo "[$SCRIPT_INDEX] Installed packages:"
+    echo "[$SCRIPT_INDEX]   - rebrowser-puppeteer-core (best anti-detection)"
+    echo "[$SCRIPT_INDEX]   - rebrowser-puppeteer"
+    echo "[$SCRIPT_INDEX]   - puppeteer-real-browser"
+    echo "[$SCRIPT_INDEX]   - puppeteer-extra + stealth, adblocker, anonymize-ua plugins"
+fi

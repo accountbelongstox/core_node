@@ -3,7 +3,7 @@
 from typing import Generator, Optional
 from io import BytesIO
 
-from pycore.pyfoundations.third_party import get_third_package_av, get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_av, get_third_package_numpy
 
 av = get_third_package_av()
 numpy = get_third_package_numpy()

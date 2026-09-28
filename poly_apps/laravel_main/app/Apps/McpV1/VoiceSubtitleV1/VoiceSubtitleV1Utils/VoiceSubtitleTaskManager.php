@@ -129,7 +129,7 @@ class VoiceSubtitleTaskManager
             return $this->tasks[$taskId];
         }
 
-        $task = GlobalTask::where('task_id', $taskId)->where('app_name', $this->appName)->first();
+        $task = GlobalTask::findForAppByTaskId($this->appName, $taskId);
         if (!$task) {
             return null;
         }
@@ -141,10 +141,7 @@ class VoiceSubtitleTaskManager
 
     public function getRecentTasks(int $limit = 20): array
     {
-        return GlobalTask::where('app_name', $this->appName)
-            ->orderByDesc('created_at')
-            ->limit($limit)
-            ->get()
+        return GlobalTask::recentForApp($this->appName, $limit)
             ->map(function (GlobalTask $task) {
                 return $this->convertModelToArray($task);
             })
@@ -158,9 +155,7 @@ class VoiceSubtitleTaskManager
             return [];
         }
 
-        $tasks = GlobalTask::where('app_name', $this->appName)
-            ->whereIn('task_id', $taskIds)
-            ->get()
+        $tasks = GlobalTask::tasksForAppByIds($this->appName, $taskIds)
             ->mapWithKeys(function (GlobalTask $task) {
                 $array = $this->convertModelToArray($task);
                 return [$array['task_id'] => $array];
@@ -182,9 +177,7 @@ class VoiceSubtitleTaskManager
             unset($this->tasks[$taskId]);
         }
 
-        return GlobalTask::where('app_name', $this->appName)
-            ->whereIn('task_id', $taskIds)
-            ->delete();
+        return GlobalTask::deleteForAppByIds($this->appName, $taskIds);
     }
 
     private function initializeSteps(string $type): array
@@ -247,9 +240,7 @@ class VoiceSubtitleTaskManager
     private function loadExistingTasks(): void
     {
         try {
-            GlobalTask::where('app_name', $this->appName)
-                ->orderBy('created_at')
-                ->get()
+            GlobalTask::allForApp($this->appName)
                 ->each(function (GlobalTask $task) {
                     $array = $this->convertModelToArray($task);
                     $this->tasks[$array['task_id']] = $array;
@@ -270,8 +261,8 @@ class VoiceSubtitleTaskManager
         $task = $this->tasks[$taskId];
 
         try {
-            GlobalTask::updateOrCreate(
-                ['task_id' => $taskId],
+            GlobalTask::upsertTaskRecord(
+                $taskId,
                 [
                     'app_name' => $task['app_name'] ?? $this->appName,
                     'task_type' => $task['task_type'] ?? null,

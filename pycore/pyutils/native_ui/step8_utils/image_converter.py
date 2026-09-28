@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from PIL import Image, ImageDraw, ImageFont
 """
 Image Converter Module
 
@@ -14,7 +15,7 @@ Features:
 - Automatic format detection
 
 Usage:
-    from pycore.pyutils.native_ui.image_converter import convert_image_for_pil
+    from pycore.pyutils.native_ui.step8_utils.image_converter import convert_image_for_pil
 
     # Convert SVG to PNG (cached)
     png_path = convert_image_for_pil("logo.svg", size=(32, 32))
@@ -26,14 +27,15 @@ import hashlib
 from pathlib import Path
 from typing import Optional, Tuple
 
-from pycore.pyfoundations.third_party import get_third_package_PIL
+from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
 
-PIL = get_third_package_PIL()
+import time
 
-Image = PIL.Image
 
-from pycore import ColorPrint
-from pycore.pyfoundations import APP_CACHE_DIR
+Image = get_third_package_PIL_Image()
+
+from pycore.pyfoundations.system_paths import APP_CACHE_DIR
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # Image conversion cache directory
@@ -107,7 +109,6 @@ def _convert_svg_to_png(
     """
     # Try method 1: cairosvg (best quality)
     try:
-        import cairosvg
         if size:
             cairosvg.svg2png(
                 url=str(svg_path),
@@ -129,8 +130,6 @@ def _convert_svg_to_png(
 
     # Try method 2: svglib + reportlab
     try:
-        from svglib.svglib import svg2rlg
-        from reportlab.graphics import renderPM
 
         drawing = svg2rlg(str(svg_path))
         if size:
@@ -152,7 +151,6 @@ def _convert_svg_to_png(
 
     # Method 3: Create a placeholder PNG (last resort)
     try:
-        from PIL import Image, ImageDraw, ImageFont
 
         # Create blank image
         img_size = size or (64, 64)
@@ -269,7 +267,6 @@ def clear_image_cache(older_than_days: int = 30):
     Args:
         older_than_days: Remove cache files older than this many days
     """
-    import time
 
     current_time = time.time()
     cutoff_time = current_time - (older_than_days * 24 * 60 * 60)

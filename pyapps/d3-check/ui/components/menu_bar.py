@@ -6,9 +6,11 @@ Application menu bar with language selection
 """
 
 import tkinter as tk
+import sys
+import os
 from typing import Optional, Callable
-from d3utils.i18n_manager import I18nManager
-i18n_manager = I18nManager()
+
+from providor.i18n_manager import i18n_manager
 
 class MenuBar:
     """Menu bar component with language selection"""
@@ -49,21 +51,11 @@ class MenuBar:
 
     def _switch_language(self, language: str):
         """
-        Switch application language
-
-        Args:
-            language: Language code to switch to
+        Switch application language. Call only with valid language code from supported list.
         """
-        try:
-            i18n_manager.set_language(language)
-            if self.on_language_change:
-                self.on_language_change(language)
-        except Exception as e:
-            import sys
-            import os
-
-            from providor.common_imports import ColorPrint
-            ColorPrint.red(f"[MenuBar] Failed to switch language: {e}")
+        i18n_manager.set_language(language)
+        if self.on_language_change:
+            self.on_language_change(language)
 
     def update_labels(self):
         """Update menu labels after language change"""

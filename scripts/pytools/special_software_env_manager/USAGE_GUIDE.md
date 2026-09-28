@@ -81,10 +81,12 @@ special_software_env_manager/
 ├── __main__.py                              # 模块运行入口
 ├── main.py                                  # 主入口脚本
 ├── special_software_env_manager.py          # 主程序逻辑
-├── common_utils.py                          # 通用工具函数
-├── config_manager.py                        # 配置管理
-├── command_content_generator_windows.py     # Windows脚本生成器
-├── command_content_generator_linux.py       # Linux脚本生成器
+├── secret_read.py                           # 独立的密钥解密辅助脚本
+├── utils/                                   # common_utils.py, secret_manager.py, smart_recognition.py, local_test_helper.py
+├── config/                                  # config_manager.py, path_config.py
+├── generators/                              # command_content_generator_windows.py, command_content_generator_linux.py
+├── managers/                                # environment_variable_manager.py, script_manager.py, backup_manager.py, menu_handler.py, command_handler.py, app_scanner.py, file_number_manager.py, variable_input_handler.py, encrypted_constants_manager.py
+├── script_sections/                         # env_loading_section.py, ssh_command_generator.py, backup_restore_section.py, mcp_section.py, user_directory_section.py
 └── README.txt                               # 简要说明
 ```
 
@@ -121,7 +123,7 @@ special_software_env_manager/
 
 ## CommandContentGenerator 的两个版本
 
-### Windows版本 (command_content_generator_windows.py)
+### Windows版本 (generators/command_content_generator_windows.py)
 
 **唯一需要在Windows和Linux上不同的部分**
 
@@ -133,9 +135,9 @@ special_software_env_manager/
 - 预启动脚本执行
 - 升级检查和提示
 
-代码位置：`scripts/pytools/special_software_env_manager/command_content_generator_windows.py`
+代码位置：`scripts/pytools/special_software_env_manager/generators/command_content_generator_windows.py`
 
-### Linux版本 (command_content_generator_linux.py)
+### Linux版本 (generators/command_content_generator_linux.py)
 
 **唯一需要在Windows和Linux上不同的部分**
 
@@ -145,13 +147,13 @@ special_software_env_manager/
 - 环境变量由外部管理
 - 无复杂逻辑
 
-代码位置：`scripts/pytools/special_software_env_manager/command_content_generator_linux.py`
+代码位置：`scripts/pytools/special_software_env_manager/generators/command_content_generator_linux.py`
 
 ## 开发说明
 
 ### 添加新的AI工具
 
-1. 在 `config_manager.py` 中添加配置：
+1. 在 `config/config_manager.py` 中添加配置：
    ```python
    @staticmethod
    def get_your_tool_config() -> Dict[str, Any]:

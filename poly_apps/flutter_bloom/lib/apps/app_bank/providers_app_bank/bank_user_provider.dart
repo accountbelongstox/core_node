@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import '../../../common/provider_status/user_provider.dart';
 import '../../../common/storage_tools/storage_manager.dart';
 import '../../../common/storage/unified_storage.dart';
@@ -13,7 +14,7 @@ import '../config_app_bank/bank_storage_keys.dart';
 
 /// Bank User Provider extending the base user provider
 /// Manages bank user data with persistent storage, caching, and authentication metadata
-class BankUserProvider extends BaseUserProvider {
+class BankUserProvider extends BaseUserProvider with WidgetsBindingObserver {
 
   BankUserModel? _user;
   BankGlobalData? _globalData;
@@ -22,6 +23,7 @@ class BankUserProvider extends BaseUserProvider {
   bool _isProfileBalanceVisible = false;
   bool _isInvestmentBalanceVisible = false;
   bool _isInitialized = false;
+  AppLifecycleState? _lastAppLifecycleState;
   AuthMetadata _authMetadata = const AuthMetadata();
   List<BankCardModel> _bankCards = [];
   double _holdingsTotal = 0.0;
@@ -126,6 +128,7 @@ class BankUserProvider extends BaseUserProvider {
       // Sync user data to UnifiedStorage
       await _syncToUnifiedStorage();
 
+      WidgetsBinding.instance.addObserver(this);
       _isInitialized = true;
       notifyListeners();
     } catch (e) {
@@ -192,21 +195,11 @@ class BankUserProvider extends BaseUserProvider {
     }
   }
 
-  /// Load balance visibility states from storage
+  /// Load balance visibility states (always hidden on cold start; not persisted)
   Future<void> _loadBalanceVisibilityStates() async {
-    try {
-      _isDashboardBalanceVisible = await _storage.getValue<bool>(
-              BankStorageKeys.boxName, BankStorageKeys.dashboardBalanceVisibleKey) ??
-          false;
-      _isProfileBalanceVisible =
-          await _storage.getValue<bool>(BankStorageKeys.boxName, BankStorageKeys.profileBalanceVisibleKey) ??
-              false;
-      _isInvestmentBalanceVisible = await _storage.getValue<bool>(
-              BankStorageKeys.boxName, BankStorageKeys.investmentBalanceVisibleKey) ??
-          false;
-    } catch (e) {
-      debugPrint('Error loading balance visibility states: $e');
-    }
+    _isDashboardBalanceVisible = false;
+    _isProfileBalanceVisible = false;
+    _isInvestmentBalanceVisible = false;
   }
 
   /// Load bank cards from storage
@@ -405,20 +398,6 @@ class BankUserProvider extends BaseUserProvider {
           BankStorageKeys.boxName, BankStorageKeys.authMetadataKey, _authMetadata.toMap());
     } catch (e) {
       debugPrint('Error saving auth metadata: $e');
-    }
-  }
-
-  /// Save balance visibility states to storage
-  Future<void> _saveBalanceVisibilityStates() async {
-    try {
-      await _storage.putValue(
-          BankStorageKeys.boxName, BankStorageKeys.dashboardBalanceVisibleKey, _isDashboardBalanceVisible);
-      await _storage.putValue(
-          BankStorageKeys.boxName, BankStorageKeys.profileBalanceVisibleKey, _isProfileBalanceVisible);
-      await _storage.putValue(
-          BankStorageKeys.boxName, BankStorageKeys.investmentBalanceVisibleKey, _isInvestmentBalanceVisible);
-    } catch (e) {
-      debugPrint('Error saving balance visibility states: $e');
     }
   }
 
@@ -665,45 +644,61 @@ class BankUserProvider extends BaseUserProvider {
     notifyListeners();
   }
 
-  /// Toggle dashboard balance visibility
+  /// Reset all balance visibility to hidden (e.g. when app resumed from background)
+  void resetAllBalanceVisibilityToHidden() {
+    if (_isDashboardBalanceVisible ||
+        _isProfileBalanceVisible ||
+        _isInvestmentBalanceVisible) {
+      _isDashboardBalanceVisible = false;
+      _isProfileBalanceVisible = false;
+      _isInvestmentBalanceVisible = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final wasInBackground = _lastAppLifecycleState == AppLifecycleState.paused ||
+        _lastAppLifecycleState == AppLifecycleState.inactive;
+    _lastAppLifecycleState = state;
+    if (state == AppLifecycleState.resumed && wasInBackground) {
+      resetAllBalanceVisibilityToHidden();
+    }
+  }
+
+  /// Toggle dashboard balance visibility (session-only, not persisted)
   void toggleDashboardBalanceVisibility() {
     _isDashboardBalanceVisible = !_isDashboardBalanceVisible;
-    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
-  /// Toggle profile balance visibility
+  /// Toggle profile balance visibility (session-only, not persisted)
   void toggleProfileBalanceVisibility() {
     _isProfileBalanceVisible = !_isProfileBalanceVisible;
-    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
-  /// Set dashboard balance visibility
+  /// Set dashboard balance visibility (session-only, not persisted)
   void setDashboardBalanceVisibility(bool visible) {
     _isDashboardBalanceVisible = visible;
-    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
-  /// Set profile balance visibility
+  /// Set profile balance visibility (session-only, not persisted)
   void setProfileBalanceVisibility(bool visible) {
     _isProfileBalanceVisible = visible;
-    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
-  /// Toggle investment balance visibility
+  /// Toggle investment balance visibility (session-only, not persisted)
   void toggleInvestmentBalanceVisibility() {
     _isInvestmentBalanceVisible = !_isInvestmentBalanceVisible;
-    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
-  /// Set investment balance visibility
+  /// Set investment balance visibility (session-only, not persisted)
   void setInvestmentBalanceVisibility(bool visible) {
     _isInvestmentBalanceVisible = visible;
-    _saveBalanceVisibilityStates();
     notifyListeners();
   }
 
@@ -982,6 +977,7 @@ class BankUserProvider extends BaseUserProvider {
   /// Dispose resources
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 }

@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 from gitput_unified_modules.utils import write_color_text, get_core_node_dir
-from pycore.pyfoundations.pybasecommon import Commander
+from pycore.pyfoundations.pybasecommon.commander import Commander
 
 
 def run_git_command(command: str, cwd: Optional[Path] = None, capture_output: bool = False) -> str:
@@ -150,13 +150,14 @@ def pull_branch(branch: str, no_edit: bool = True) -> Tuple[bool, str]:
         return False, str(e)
 
 
-def push_branch(branch: str, set_upstream: bool = True) -> bool:
+def push_branch(branch: str, set_upstream: bool = True, force: bool = False) -> bool:
     """Push branch to remote"""
     try:
+        force_flag = "--force " if force else ""
         if set_upstream:
-            run_git_command(f"git push --set-upstream origin {branch}")
+            run_git_command(f"git push {force_flag}--set-upstream origin {branch}")
         else:
-            run_git_command(f"git push origin {branch}")
+            run_git_command(f"git push {force_flag}origin {branch}")
         return True
     except Exception:
         return False

@@ -1,0 +1,24 @@
+Build: 636780088
+Title: 武僧上帝水人5+3 - Diablo III Character Planner
+URL: https://maxroll.gg/d3/d3planner/636780088
+CSV: None
+Images: 18
+Equipment image URLs:
+https://d3planner-assets.maxroll.gg/icons/1177925444.png
+https://d3planner-assets.maxroll.gg/icons/1939725235.png
+https://d3planner-assets.maxroll.gg/icons/1809314690.png
+https://d3planner-assets.maxroll.gg/icons/3170650022.png
+https://d3planner-assets.maxroll.gg/icons/3027915107.png
+https://d3planner-assets.maxroll.gg/icons/3022954451.png
+https://d3planner-assets.maxroll.gg/icons/1797554470.png
+https://d3planner-assets.maxroll.gg/icons/4141667653.png
+https://d3planner-assets.maxroll.gg/icons/2320289309.png
+https://d3planner-assets.maxroll.gg/icons/3020225501.png
+https://d3planner-assets.maxroll.gg/icons/1776172409.png
+https://d3planner-assets.maxroll.gg/icons/3721133819.png
+https://d3planner-assets.maxroll.gg/icons/3692270350.png
+https://d3planner-assets.maxroll.gg/icons/3027915072.png
+https://d3planner-assets.maxroll.gg/icons/3692270351.png
+https://d3planner-assets.maxroll.gg/icons/3027915103.png
+https://d3planner-assets.maxroll.gg/icons/1400973003.png
+https://d3planner-assets.maxroll.gg/icons/1939725230.png

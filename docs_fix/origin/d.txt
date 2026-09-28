@@ -1,0 +1,131 @@
+1:修复pycore BUG [AgentHistoryArticle +0.76s] pipeline tick error: name 'time' is not defined
+
+2 http://127.0.0.1:13054/pycore-manager/agent-history 其中的所有 Agent / Claude / Codex / Cursor / Gemini / Kimi / Antigravity / Cline / Ark CLI修改为勾选，勾选了那个就Auto process history点击时处理那个。同时勾选后会测试提取一条信息，能提取显示绿色。
+2.1：无论是否 Auto process history 启动，勾选的所有都显示提示词历史。
+2。2Generation records 为什么生成的没有看到双语版本，点开▶ Show full text才看到。而且生成的音频和双语也没有正确的在wordnew显示。
+2。3 Generation records 生成的双语版本和音频，没有上传到laravel main，并最终在Daily Reading中显示，Daily Reading需要显示英文版本。而目前显示错了，同时点击play from this article 也没有在路由上体现${articleId}.
+2.4 play from this article  点开后弹出新的路由和页面，建立新的页，而不是在home弹窗。
+2.5 注意是监控得和提取 Agent / Claude / Codex / Cursor / Gemini / Kimi / Antigravity / Cline / Ark CLI 被勾选的最新的提示词，如果发现有新的提示词将插入队首，而不是一直处理一个history，队列内容是变动的。并平均处理每个ai，交给openroute 生成内容并生成音频。
+2。6 play from this article 点开后的页要显示与 Word Groups 、 Default Vocabulary Group 的联动数据面板。
+
+如果发现构架不合理并重构代码。必要的情况查找官方文档。
+注意4个端，pycore / pycore UI / wordnew UI / laralvemain
+ 
+以下考虑到 docs\QUEUE_CENTER_DATA_CONTRACT_AUDIT_2026-07-28.md其中的新修改如果发现构架不合理并重构代码。必要的情况查找官方文档。
+注意4个端，pycore / pycore UI / wordnew UI / laralvemain
+ 
+
+ 3：功能增强。
+ 以下考虑到 docs\QUEUE_CENTER_DATA_CONTRACT_AUDIT_2026-07-28.md其中的新修改如果发现构架不合理并重构代码。必要的情况查找官方文档。
+注意4个端，pycore / pycore UI / wordnew UI / laralvemain
+不要使用多AGENTS
+ 3.1：功能增强。
+Apps
+Home
+Laravel Manager
+Pycore Manager
+Vortex Sandbox
+WordNew
+  WordNew                                               │
+ │   ···  当切换路由时，只有该子APP的网络连接会活动。其    │
+ │   他暂停并保存状态（可搜索文档如何实现，或直接暂停网    │
+ │   络活动），                                            │
+···
+
+4，修正BUG ···[managed +0.63s] qwen3tts: foreign process holds the service port — reclaiming
+[TranslationWorker +0.11s] Posted 'processing' for task task_8f4eeaaa-5fb5-4fca-933f-7c8d67466a89
+[tts +0.40s] stopped foreign qwen3tts server (pid=31852) on port 57210
+
+5：修正BUG
+[TranslationWorker +0.20s] Result POST for task task_8d4fc31c-babd-4d71-99f0-1f19caa61f84 failed (timed out); retry 2/2 in 1.5s
+[QueueCenter +0.44s] Slice 'scheduler' completed in 1797ms (request_id: 1785247165721, source: local, status: success, cache_age_ms: None, laravel_url: None, http_status: None)
+[TranslationWorker +0.09s] Pull transient error (timed out); will retry next tick
+
+6：pycore-manager/queue-center
+Queue overview unavailable — pycore (:59000) may be offline.
+Heartbeat workers unavailable — pycore (:59000) may be offline.
+Backend unreachable
+而后端已经启动 .\pyservice.ps1 -SkipVoxcpm2
+查找rpc v2的BUG，特别是那里导致的卡顿，以及程序 运行后中间UI连接，UI先连接再启动后端的几种情况下的BUG。
+Missing word translations
+0
+Laravel owns the queue; pycore translates with Google first and shared fallbacks.
+Transport: Offline
+Queue Source: Unreachable
+Queue Count: 0 | Event Count: 0
+Backend unreachable
+
+6.1 很多任务在UI端并没有显式开启，后端就在处理了，调整代码构架修正这个BUG，按规范。
+pycore-manager/queue-center，所有后台任务都和UI对应。只有UI启动后后台才开始处理，现在有可能 后台的处理逻辑更新
+需要全面对齐，合并重复实现功能，数据结构中心化。并考虑到 docs\QUEUE_CENTER_DATA_CONTRACT_AUDIT_2026-07-28.md 其中的新修改
+注意这里的任务要求是后端的所有task，以下只是示例日志···
+TaskManager +0.05s] Task task_remote_audio_20260729_000119_7c7538ea executor completed
+[TaskManager +0.02s] Task task_remote_audio_20260729_000119_b5000bc9 executor completed
+[TaskManager +0.01s] Task completed: task_remote_audio_20260729_000119_7c7538ea
+[TaskManager +0.03s] Task completed: task_remote_audio_20260729_000119_b5000bc9
+[TaskManager +0.03s] Task task_remote_audio_20260729_000120_e242f67e: 0%
+[TaskManager +0.05s] Task task_remote_audio_20260729_000120_93eb09c8: 0%
+[TaskManager +0.02s] Executing task task_remote_audio_20260729_000120_e242f67e...
+[TaskManager +0.06s] Executing task task_remote_audio_20260729_000120_93eb09c8...
+[laravel +0.04s] GET /api/worker/tasks/pull -> 200 (303ms) success=True
+[laravel +0.23s] POST /api/worker/tasks/result -> 200 (277ms) success=True
+[laravel +0.04s] POST /api/worker/tasks/result -> 200 (259ms) success=True
+[TranslationWorker +0.04s] Posted 'processing' for task task_9359f7f7-7649-42de-8d4c-2fd7509e312a
+[TranslationWorker +0.02s] Posted 'processing' for task task_b65c3d06-35ed-439b-b0db-664319306612
+[laravel +1.06s] POST /api/worker/tasks/result -> 200 (401ms) success=True
+[TranslationWorker +0.03s] Posted 'completed' for task task_1f275ddf-3c80-43eb-a28d-4c38afb82169
+[TaskManager +0.28s] Task task_remote_audio_20260729_000119_a23f24c6 executor completed
+[TaskManager +0.02s] Task completed: task_remote_audio_20260729_000119_a23f24c6
+[TaskManager +0.05s] Task task_remote_audio_20260729_000120_b9ee670e: 0%
+[TaskManager +0.03s] Executing task task_remote_audio_20260729_000120_b9ee670e
+...
+
+6.2 根据新修正的任务对齐方案，apps/mcp-chrome对齐任务中心，同时
+error
+[Word-Validity Runner] Failed to fetch 
+Word-Validity Runner] SQLSTATE[42P01]: Undefined table: 7 ERROR: relation "app_qy_v1_lang_dictionary_models" does not exist LINE 1: select "id", "content", "md5" from "app_qy_v1_lang_dictionar... ^ (Connection: appqyv1, Host: 127.0.0.1, Port: 5432, Database: app_qy_v1_database, SQL: select "id", "content", "md5" from "app_qy_v1_lang_dictionary_models" where ("validity_checked_at" is null or ("has_translation" = 0 and "is_valid" = 1)) order by "query_count" desc, "id" asc limit 200)
+6.2.2：apps/mcp chrome 的Task TAB中的● RUNNING Stop 点击时，没有任何效果。确保请求了laravel并根据勾选的功能使用浏览器处理。
+
+7：BUG 
+[laravel +0.01s] POST /api/worker/tasks/result -> 409 (230ms) success=False error=Worker not assigned to this task or task was reassigned
+[TranslationWorker +0.04s] Result for task task_bfceb4c7-e565-4f38-8273-a793dded8d17 rejected (409: task reassigned / not ours) - dropping
+
+[laravel +0.09s] POST /api/worker/tasks/result -> 409 (217ms) success=False error=Worker not assigned to this task or task was reassigned
+[TranslationWorker +0.01s] Result for task task_2be169cd-c211-4fd4-97ae-4705949a3328 rejected (409: task reassigned / not ours) - dropping
+[laravel +0.02s] POST /api/worker/tasks/result -> 409 (229ms) success=False error=Worker not assigned to this task or task was reassigned
+[TranslationWorker +0.01s] Result for task task_334a02d4-3770-4d4b-a857-c7d4705f9542 rejected (409: task reassigned / not ours) - dropping
+
+
+
+8.1 /pycore-manager/queue-center.
+pycore: Current URL 为什么没有连接到后台，全面找到pycore UI / PYCORE  的RPC V2 的BUG
+查看是不是线程构架不合理导致rpc v2线程没有响应
+按规范修改，特别是线程规范。
+Queue overview unavailable — pycore (:59000) may be offline. 同时任务中心全部没有连接，为什么后端任务又开始跑了，要求调整的构架呢。
+[TaskManager +0.01s] Created task: task_remote_audio_20260729_075601_9fcdfc01 (remote_audio)
+[TaskManager +0.01s] Queued task task_remote_audio_20260729_075601_9fcdfc01 (type=remote_audio; <= 4 concurrent)
+[TaskManager +0.01s] Created task: task_remote_audio_20260729_075601_22e00cbd (remote_audio)
+[TaskManager +0.00s] Queued task task_remote_audio_20260729_075601_22e00cbd (type=remote_audio; <= 4 concurrent)
+[TaskManager +0.01s] Created task: task_remote_audio_20260729_075601_5c04d584 (remote_audio)
+[TaskManager +0.00s] Queued task task_remote_audio_20260729_075601_5c04d584 (type=remote_audio; <= 4 concurrent)
+[managed +0.15s] starting qwen3tts: D:\.dev_win10\py_venv_qwen3tts_3.13\Scripts\python.exe D:\programing\core_node\pycore\tts_install_assets\qwen3tts_api_server.py (log: D:\programing\Users\mpc\.core_node\logs\services\tts_qwen3tts.log)
+[laravel +3.67s] GET /api/worker/tasks/pull -> 200 (1185ms) success=True
+[laravel +4.29s] G
+所有任务都要启动后明确在UI开启，对齐设置数据载入逻辑，保存逻辑。以及RPC V2的逻辑。
+
+8.2 Laravel endpoint 的保存为什么下次启动后总是重置，特别在代码中注明，这个前后端都要保存一份。如果前端连接上后端后，sync以前端的为准。
+8.3 修正pycore -> Backend unreachable,
+9: /pycore-manager/agent-history 
+Cursor: RPC timeout after 30000ms: ui.agent_history.test_extract
+Codex: RPC timeout after 30000ms: ui.agent_history.test_extract
+RPC timeout after 30000ms: ui.operation.snapshot
+为什么没有连接到后台，全面找到pycore UI / PYCORE  的RPC V2 的BUG
+查看是不是线程构架不合理导致rpc v2线程没有响应
+10：cache_age_ms: None, laravel_url: None, http_status: None)
+[AssistOverview +0.01s] Diagnostics: {'laravel_base_url': 'http://43.163.112.77:9000', 'resolved_url': 'http://43.163.112.77:9000/api/app_qy_v1/assist/overview', 'http_status': None, 'response_time_ms': 8161, 'response_body_keys': [], 'success': False, 'data_type': None}
+
+以上考虑到 docs\QUEUE_CENTER_DATA_CONTRACT_AUDIT_2026-07-28.md其中的新修改如果发现构架不合理并重构代码。必要的情况查找官方文档。
+注意4个端，pycore / pycore UI / wordnew UI / laralvemain
+ 
+
+

@@ -12,8 +12,11 @@ import os
 import glob
 from pathlib import Path
 
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon import Commander
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import Commander
+
+from pycore.pyfoundations.third_party.api import get_third_package_pyside6
+
 
 
 def check_pyside6_installed():
@@ -26,7 +29,6 @@ def check_pyside6_installed():
     ColorPrint.blue("[PySide6Checker] Checking PySide6 installation...")
 
     # Import PySide6 using lazy loader
-    from pycore.pyfoundations.third_party import get_third_package_pyside6
 
     PySide6 = get_third_package_pyside6()
 
@@ -135,7 +137,6 @@ def check_qtwebengine_features():
     }
 
     # Try to import QtWebEngine
-    from pycore.pyfoundations.third_party import get_third_package_pyside6
     PySide6 = get_third_package_pyside6()
 
     if not PySide6:
@@ -143,7 +144,6 @@ def check_qtwebengine_features():
 
     # Check if QtWebEngineCore is available
     try:
-        from PySide6 import QtWebEngineCore
         features['webengine_available'] = True
         ColorPrint.green("[PySide6Checker] ✓ QtWebEngine available")
 
@@ -228,7 +228,7 @@ def print_codec_solutions():
 
     ColorPrint.yellow("\nOption 1: Use Software Decoder in Backend (Recommended)")
     ColorPrint.blue("  - Use FFmpeg/PyAV to decode H.264 on backend")
-    ColorPrint.blue("  - Send RGB/RGBA frames via WebSocket")
+    ColorPrint.blue("  - Serve RGB/RGBA frames through an application HTTP endpoint")
     ColorPrint.blue("  - Render on HTML canvas")
     ColorPrint.blue("  - No QtWebEngine codec needed")
 
@@ -236,7 +236,7 @@ def print_codec_solutions():
     ColorPrint.blue("  - Send YUV420P frames from backend")
     ColorPrint.blue("  - Use WebGL shader for YUV-to-RGB conversion")
     ColorPrint.blue("  - Already implemented in your Matrix app")
-    ColorPrint.blue("  - Endpoint: ws://localhost:48000/video/yuv/{device_id}")
+    ColorPrint.blue("  - Video transport: HTTP endpoint supplied by the application")
 
     ColorPrint.yellow("\nOption 3: Install PySide6 with Codec Support (Advanced)")
     ColorPrint.blue("  - Some third-party PySide6 builds include codecs")

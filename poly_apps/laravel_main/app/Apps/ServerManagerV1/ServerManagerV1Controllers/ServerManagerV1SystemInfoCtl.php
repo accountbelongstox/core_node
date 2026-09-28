@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1StaticResourceAnalyzer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -22,6 +23,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
         try {
             $systemInfo = [
                 'basic_info' => $this->getBasicSystemInfo(),
+                'laravel_info' => $this->getLaravelInfo(),
                 'php_config' => $this->getPhpConfig(),
                 'hardware_info' => $this->getHardwareInfo(),
                 'network_info' => $this->getNetworkInfo(),
@@ -31,13 +33,37 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 'system_status' => $this->getSystemStatus()
             ];
 
-            return $this->successResponse($systemInfo, 'System information retrieved successfully');
+            return $this->success($systemInfo, __('server_manager.messages.system_information_retrieved_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'system_info');
         }
     }
-    
+
+    /**
+     * Laravel application info block consumed by the SystemInfo "Laravel Info"
+     * card (environment, debug, urls, locale, and cache state).
+     */
+    private function getLaravelInfo(): array
+    {
+        $app = app();
+
+        return [
+            'environment' => $app->environment(),
+            'debug_mode' => (bool) config('app.debug'),
+            'app_url' => config('app.url'),
+            'app_name' => config('app.name'),
+            'laravel_version' => $app->version(),
+            'locale' => $app->getLocale(),
+            'cache_info' => [
+                'config_cached' => $app->configurationIsCached(),
+                'routes_cached' => $app->routesAreCached(),
+                'events_cached' => $app->eventsAreCached(),
+                'views_cached' => count(glob($app->storagePath('framework/views/*.php')) ?: []) > 0,
+            ],
+        ];
+    }
+
     /**
      * Get running processes
      */
@@ -52,15 +78,15 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
             $result = ServerManagerV1Utils::executeCommand('ps', ['aux']);
             
             if (!$result['success']) {
-                return $this->errorResponse('Failed to retrieve process list');
+                return $this->error(__('server_manager.messages.failed_to_retrieve_process_list'));
             }
             
             $processes = $this->parseProcessList($result['output']);
             
-            return $this->successResponse([
+            return $this->success([
                 'processes' => $processes,
                 'total_count' => count($processes)
-            ], 'Process list retrieved successfully');
+            ], __('server_manager.messages.process_list_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'processes');
@@ -108,7 +134,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 ]
             ];
 
-            return $this->successResponse($response, 'Service status retrieved successfully');
+            return $this->success($response, __('server_manager.messages.service_status_retrieved_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'services');
@@ -232,7 +258,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
         try {
             $permissions = $this->getDirectoryPermissions();
             
-            return $this->successResponse($permissions, 'Directory permissions retrieved successfully');
+            return $this->success($permissions, __('server_manager.messages.directory_permissions_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'permissions');
@@ -257,10 +283,58 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 'log_sizes' => $this->getLogSizes()
             ];
             
-            return $this->successResponse($storage, 'Storage analysis retrieved successfully');
+            return $this->success($storage, __('server_manager.messages.storage_analysis_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'storage');
+        }
+    }
+
+    /**
+     * Static resources summary (laravel_db/static — audio, video, images, etc.)
+     */
+    public function getStaticResources(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'static_resources');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $analyzer = new ServerManagerV1StaticResourceAnalyzer();
+            $summary = $analyzer->analyze($request->boolean('fresh'));
+            $summary['disk_usage'] = $this->getDiskUsageDetailed();
+
+            return $this->success($summary, __('server_manager.messages.static_resources_summary_retrieved_successfully'));
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'static_resources');
+        }
+    }
+
+    /**
+     * List files in a static subdirectory with search, sort, pagination.
+     */
+    public function listStaticResourceFiles(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'static_resource_files');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $analyzer = new ServerManagerV1StaticResourceAnalyzer();
+            $result = $analyzer->listFiles(
+                (string) $request->input('path', ''),
+                (string) $request->input('q', ''),
+                (string) $request->input('sort', 'name'),
+                (string) $request->input('order', 'asc'),
+                max(1, (int) $request->input('page', 1)),
+                max(10, min(500, (int) $request->input('per_page', 100)))
+            );
+
+            return $this->success($result, __('server_manager.messages.static_resource_files_retrieved_successfully'));
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'static_resource_files');
         }
     }
     

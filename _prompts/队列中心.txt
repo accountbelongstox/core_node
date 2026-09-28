@@ -1,0 +1,55 @@
+队列中心统一重构要求（第一至第四部分、历次 BUG 修复与最新补充的合并版）：
+1. Laravel main 是唯一队列中心和排序权威，启动后由自身定时任务增量发现任务，并分发给 pycore / apps/mcp-chrome。
+2. 全面按规范对齐 pycore、pycore UI、Laravel main、apps/mcp-chrome；公共契约、常量、DTO、路径和状态只定义一次。
+3. 所有任务统一使用 `/api/worker/tasks/{TaskType}/{TaskAction}` 的 typed pull、accept、result，不再使用笼统 result type。
+4. Laravel 为单词和句子提供统一的文件优先音频网关；文件存在立即返回，缺失则创建或复用任务并提取/插入队首。
+5. 单词音频和句子音频的队首调整只使用单调 `queue_position`；不调整、不传递、不依赖 `priority` 或 `tts_priority`。
+6. “插入队首”必须是真正移动现有待处理任务或把新任务放到队首，不得用提高 priority 模拟。
+7. WordNew 只请求 Laravel 音频网关，禁止直接调用 Pycore；后台扫描发现的缺失任务进入队尾，交互缺失请求进入队首。
+8. 单词和句子保持独立队列、独立 diff cursor、独立 backlog 水位，但复用公共音频网关、队首、回执和处理基类。
+9. Laravel 提供最快的 cursor diff API；处理端每 1 秒请求一次，只交换 revision、head IDs、统计和有限元数据。
+10. diff 未变化或命中缓存时继续处理上一片；diff 变化说明队首调整，处理端立即补拉新的有限任务片。
+11. 已经 processing 的任务必须继续完成，不得因队首变化取消或重算；新队首插入尚未处理的本地任务片前方。
+12. pycore 和 mcp-chrome 始终只领取、保存、处理队列前方的有界片段，不得拉取全队列或建立无界 payload 缓存。
+13. 每片完成或出现容量后立即补拉下一片；领取原子化，多个 Worker 不得重复执行同一任务。
+14. 拉取、状态、日志和 UI 必须携带统一的 `completed/total`（`xxx/xxxx`）以及 pending/assigned/processing/failed 统计。
+15. Laravel 的实时队首通知按双方约定间隔合并发送；diff 1 秒轮询是权威补偿通道，不依赖立即通知。
+16. 单词使用 `word_audio.head`，句子使用 `sentence_audio.head`；消费者只重排已领取映射并按容量补拉。
+17. 队列交换严格分三层：持久化 diff-ID cursor、持久化有界 ID 页、按请求惰性物化的实际数据段，禁止重新合并。
+18. 初始化只按主键高水位建立 ID 页；后续只扫描新 ID，跳过已记录 ID，不全表重扫、不加载全部 pending payload 排重。
+19. 每个 ID 页独立持久化和确认；一次只处理一页，失败保留重试，未消费页优先保留，已消费历史有界。
+20. backlog 足够时只更新 ID 页；完整业务行仅可由 UI 当前页或 Worker claim 按一页 IDs 查询，完成后压缩为元数据。
+21. 任务置顶只更新 queue_position、revision/high-water 与 head ID 页；不得为重排复制或查询完整 payload。
+22. word_translation、word_validity、word_media、word_audio、sentence_audio、article sentence audio 共用 diff feeder 基类。
+23. 健康检查、租约回收、显式对账只是状态维护，不能错误地当成新任务发现。
+24. Pycore Queue Center、sentence queue、Laravel Manager 列表都按前端当前页惰性物化；heartbeat 不取完整列表。
+25. WordNew 可见句子/单词请求、轮询映射和 Promise 必须服从 data-segment 与并发上限，完成/取消/重置后清理。
+26. Pycore UI `/pycore-manager/queue-center` 显式控制单词/句子处理；UI 关闭后已启用 Worker 仍持续运行且不阻塞 UI。
+27. 句子音频由 Pycore 的 QwenTTS 通道处理，并与其他 QwenTTS 任务共享有界调度，禁止阻塞和重复包装调用。
+28. Pycore 本地保留音频缓存，先完成本地合成和验证，再可靠回传 Laravel；失败必须可重试且不得丢任务。
+29. Agent History 先本地合成整篇音频，再与文章一起提交并获得真实 audio_url；文章内缺失句子仍逐句入 sentence_audio。
+30. WordNew 缺失资源统一显示等待、Laravel 已接收/置顶、Worker 已领取、本地处理、完成或失败回执。
+31. Daily Reading、Vocabulary Library、Shelf/Study、Book Reader 复用同一资源状态组件，页面不得复制轮询和图标逻辑。
+32. Pycore 与 mcp-chrome 各只显示一个聚合在线图标；同类任一 Worker 在线即在线，领取时追加统一领取标记。
+33. Laravel 保留所有独立 Worker 在线状态并通过 `worker.presence` 发布；Stop 立即 unregister，异常退出由心跳超时回收。
+34. 缺翻译单词由 word_translation 交给 mcp-chrome；已有翻译不重复创建，回执语义与音频一致。
+35. mcp-chrome Ready 后增量载入单词有效性、Book 封面、词组封面等统计，并通过公共 Worker 基类持续处理。
+36. “单词有效性”判断是否为真实单词，不是音频有效性；DeepSeek Web 批量同时返回有效性与缺失翻译，默认英文且语言可多选。
+37. Cover and poster search 用公共 Google 搜索至少取得 5 张 Book 封面；AI word-group cover generation 只生成多风格词组封面。
+38. 所有 DB 结构变更和索引必须同时对齐 Laravel main `sys:init` 幂等初始化；Laravel 仅支持项目规定的 PostgreSQL 路径。
+39. Laravel 控制器不得直接查询 DB；查询、队首、diff、Worker 状态、回执和网关逻辑集中到 Model/Service。
+40. 去除重复接口、重复包装、重复状态定义和慢查询；优先升级公共中心类库，避免 UI 卡顿与后端阻塞。
+41. `code-last-modified` 覆盖全部配置代码目录并优先单次原生扫描；原生、PHP fallback、冷缓存锁各有独立短预算。
+42. 遵守仓库 AGENTS.md 与各端 development guide；代码、注释、日志为英文，UI 文案走 i18n，不创建或修改测试。
+43. 不使用多 Agent，不执行 Git、构建、测试、服务或破坏性操作；开发进度文档仅在当次明确要求且不违反上级规范时写入。
+44. diff 变化触发的拉取必须远端队首优先，禁止被旧的本地恢复段短路；普通恢复仍先处理已领取且未开始的任务。
+45. 每个消费者窗口保留契约定义的队首容量；窗口已满时保持 diff 待处理，容量释放后立即补拉队首。
+46. 新队首片与本地恢复片合并后必须按公共契约重新排序；当前 processing 不参与重排，未开始任务才允许调整顺序。
+47. 消费者仅在远端拉取成功且数据段落盘后推进 queue cursor；拉取失败、容量不足或落盘失败时保留旧 cursor 重试。
+48. 本地数据段必须严格有界，禁止用截断旧记录腾空间；所有已领取 payload 只能在终态回执、明确重分配或可靠释放后压缩。
+49. mcp-chrome 的 pull 必须串行化；Stop、异常退出和未派发批次必须释放本地 delivered 标记，重启后可恢复且不丢任务。
+50. pycore 与 mcp-chrome 的正常拉取先填充非保留窗口，diff 或队首通知使用保留窗口远端优先补拉，并继续原任务计算。
+51. 多 task type 消费者必须聚合各队列 pending_fast、pending_urgent 与 completed/total，禁止被最后一个响应覆盖。
+52. 单词和句子音频 Worker、缓存堆、DTO 与日志只比较或展示 queue_position；priority 仅保留给契约允许的非音频任务。
+53. 单词、句子及遗留音频入口必须进入同一 Laravel 音频网关与队首服务，禁止遗留同步合成或绕过 typed queue。
+54. Laravel 的创建、置顶、领取、终态、重试、回收和取消均须推进对应 diff；队列字段、索引和默认值同时由迁移与 sys:init 幂等对齐。

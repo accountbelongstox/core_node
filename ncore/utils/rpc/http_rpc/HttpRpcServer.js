@@ -1,19 +1,8 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const { EventEmitter } = require('events');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('#@logger');
 const { RPC_CONSTANTS, getSessionManager, getRequestManager, getResponseCache } = require('../common');
+const { normalizeClientId } = require('../common/session_manager');
 const AuthManager = require('../ws_rpc/libs/AuthManager');
 const RateLimiter = require('../ws_rpc/libs/RateLimiter');
 const PerformanceMonitor = require('../ws_rpc/libs/PerformanceMonitor');
@@ -21,6 +10,7 @@ const MiddlewareChain = require('../ws_rpc/libs/MiddlewareChain');
 const InterceptorManager = require('../ws_rpc/libs/InterceptorManager');
 
 const MSG_TYPES = RPC_CONSTANTS.MESSAGE_TYPES;
+const ANONYMOUS_CLIENT_ID = 'anonymous';
 const ERROR_CODES = RPC_CONSTANTS.ERROR_CODES;
 const EVENTS = RPC_CONSTANTS.EVENTS;
 
@@ -29,10 +19,10 @@ class HttpRpcServer extends EventEmitter {
         super();
 
         if (!expressApp) {
-            throw new Error('Express app instance is required');
+            logger.error('HTTP RPC Server: an Express app instance is required');
         }
 
-        this.app = expressApp;
+        this.app = expressApp || null;
         this.basePath = options.basePath || '/rpc';
         this.requestTimeout = options.requestTimeout || 30000;
         this.maxPayloadSize = options.maxPayloadSize || 1048576;
@@ -74,6 +64,10 @@ class HttpRpcServer extends EventEmitter {
     start() {
         if (this.started) {
             logger.warn('HTTP RPC Server already started');
+            return;
+        }
+        if (!this.app) {
+            logger.error('HTTP RPC Server cannot start without an Express app');
             return;
         }
 
@@ -199,7 +193,7 @@ class HttpRpcServer extends EventEmitter {
 
             const message = req.body;
             requestId = message.id || uuidv4();
-            clientId = message.clientId || this._getSessionId(req);
+            clientId = normalizeClientId(message.clientId) || this._getRequesterId(req);
             sessionId = this.sessionManager.createSession(clientId);
 
             this.sessionManager.updateActivity(sessionId);
@@ -266,7 +260,7 @@ class HttpRpcServer extends EventEmitter {
                 timestamp: Date.now()
             };
 
-            this.responseCache.set(requestId, responseData, 1800000);
+            this.responseCache.set(requestId, responseData, 1800000, clientId);
 
             this._sendResponse(res, requestId, true, processedResult);
             this.performance.endRequest(requestId, true);
@@ -288,7 +282,7 @@ class HttpRpcServer extends EventEmitter {
             };
 
             if (requestId) {
-                this.responseCache.set(requestId, errorData, 1800000);
+                this.responseCache.set(requestId, errorData, 1800000, clientId);
                 this.performance.endRequest(requestId, false, error);
             }
 
@@ -307,7 +301,8 @@ class HttpRpcServer extends EventEmitter {
                 });
             }
 
-            const cachedResponse = this.responseCache.get(requestId, true);
+            const requesterId = normalizeClientId(req.query.clientId) || this._getRequesterId(req);
+            const cachedResponse = this.responseCache.get(requestId, true, requesterId);
 
             if (!cachedResponse) {
                 return res.status(404).json({
@@ -331,6 +326,9 @@ class HttpRpcServer extends EventEmitter {
     }
 
     _sendResponse(res, requestId, success, result = null, code = null, error = null) {
+        if (res.headersSent) {
+            return;
+        }
         res.json({
             type: MSG_TYPES.RESPONSE,
             id: requestId,
@@ -343,12 +341,19 @@ class HttpRpcServer extends EventEmitter {
     }
 
     _sendError(res, httpCode, rpcCode, message) {
+        if (res.headersSent) {
+            return;
+        }
         res.status(httpCode).json({
             type: MSG_TYPES.ERROR,
             code: rpcCode,
             error: message,
             timestamp: Date.now()
         });
+    }
+
+    _getRequesterId(req) {
+        return normalizeClientId(this._getSessionId(req)) || ANONYMOUS_CLIENT_ID;
     }
 
     _getSessionId(req) {

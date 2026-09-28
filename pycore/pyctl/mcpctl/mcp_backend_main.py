@@ -5,7 +5,7 @@ MCP Backend Server - RPC v2 Architecture (Refactored 2025-11-19)
 
 Architecture:
 - Uses pycore.pylauncher (new refactored version)
-- Uses pycore.pyutils.rpc_v2 (FastAPIRPCServer)
+- Uses pycore.pyutils.rpc_v2 (HttpServer)
 - Does NOT directly implement HTTP server
 - All business logic reused from backend/handlers
 
@@ -18,17 +18,25 @@ import time
 import uuid
 from pathlib import Path
 
+import argparse
+
+
 # Add project root
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore import ColorPrint, THREAD_BUS
-from pycore.pylauncher import LauncherConfig, ServiceLauncher
-from pycore.pygvar import MCP_BACKEND_RPC_PORT
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
+from pycore.pyfoundations.network_constants import (
+    HTTP_API_PREFIX,
+    HTTP_BIND_HOST,
+    HTTP_ROUTES_PATH,
+)
+from pycore.pyfoundations.pygvar import MCP_BACKEND_RPC_PORT
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
-from pycore.pyctl.mcpctl.backend import handlers
+from pycore.pyctl.mcpctl.backend.handlers.context import set_handler_context
 from pycore.pyctl.mcpctl.backend.rpc_routes import register_mcp_routes
-from pycore.pyctl.mcpctl.global_state import get_global_state
 from pyapps.mcp.controller import (
     get_file_info_controller_singleton,
     get_database_controller_singleton,
@@ -47,7 +55,6 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     ColorPrint.blue("=" * 70)
 
     # Initialize global state manager
-    global_state = get_global_state()
     ColorPrint.blue("[Backend] Global state manager initialized")
 
     # Create launcher configuration using new API
@@ -58,7 +65,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
             'heartbeat': {},  # Always enabled by default
             'rpc_v2': {
                 'port': MCP_BACKEND_RPC_PORT,
-                'host': '0.0.0.0',
+                'host': HTTP_BIND_HOST,
                 'debug': True
             }
         }
@@ -72,7 +79,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
         ColorPrint.red("[FAILED] Could not start services")
         return False
 
-    # Get RPC v2 service instance (FastAPIRPCServerRunner)
+    # Get the RPC v2 runner.
     rpc_runner = launcher.get_service('rpc_v2')
     if not rpc_runner:
         ColorPrint.red("[FAILED] RPC v2 service not started")
@@ -111,13 +118,12 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     codebase_controller = get_codebase_controller_singleton()
     ColorPrint.green("[Backend] All controllers initialized (File, Database, Codebase)")
 
-    # Set global controllers for handlers (复用业务逻辑)
-    handlers.file_processing.backend_info = backend_info
-    handlers.file_processing.file_controller = file_controller
-    handlers.database.backend_info = backend_info
-    handlers.database.db_controller = db_controller
-    handlers.codebase.backend_info = backend_info
-    handlers.codebase.codebase_controller = codebase_controller
+    set_handler_context(
+        backend_info,
+        file_controller,
+        db_controller,
+        codebase_controller,
+    )
 
     # Register MCP routes to RPC v2 server (使用 rpc_routes.py)
     ColorPrint.blue("[Backend] Registering MCP routes to RPC v2 server...")
@@ -133,8 +139,14 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
         rpc_server.add_static_dir("/", str(WEB_DIR))
         ColorPrint.green(f"[Backend] Web UI mounted at http://localhost:{MCP_BACKEND_RPC_PORT}/")
 
-    ColorPrint.blue(f"[Backend] RPC HTTP: http://localhost:{MCP_BACKEND_RPC_PORT}/rpc/<route>")
-    ColorPrint.blue(f"[Backend] RPC WebSocket: ws://localhost:{MCP_BACKEND_RPC_PORT}/rpc/ws")
+    ColorPrint.blue(
+        f"[Backend] RPC HTTP: http://localhost:{MCP_BACKEND_RPC_PORT}"
+        f"{HTTP_API_PREFIX}/<route>"
+    )
+    ColorPrint.blue(
+        f"[Backend] HTTP controllers: "
+        f"http://localhost:{MCP_BACKEND_RPC_PORT}{HTTP_ROUTES_PATH}"
+    )
     ColorPrint.yellow("\n[Backend] Server running...")
     ColorPrint.yellow("Press Ctrl+C to stop\n")
 
@@ -167,7 +179,6 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
 
 def main():
     """Main entry point"""
-    import argparse
 
     parser = argparse.ArgumentParser(description="MCP Backend Server (RPC v2 Architecture)")
     parser.add_argument(

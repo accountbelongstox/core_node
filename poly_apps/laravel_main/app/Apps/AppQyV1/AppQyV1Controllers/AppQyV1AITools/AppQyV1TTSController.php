@@ -4,12 +4,13 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSQueueService;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TTSQueueModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1TTSCheckBatchRequest;
 use App\Traits\ApiResponse;
+use App\Traits\ServesTTSAudio;
 use App\Helpers\AuthHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +34,7 @@ use Illuminate\Http\JsonResponse;
 class AppQyV1TTSController extends Controller
 {
     use ApiResponse;
+    use ServesTTSAudio;
 
     /**
      * NO try-catch allowed - trust Laravel validation
@@ -40,13 +42,11 @@ class AppQyV1TTSController extends Controller
      */
 
     private $ttsService;
-    private $queueService;
     private $unifiedQueueService;
 
     public function __construct()
     {
         $this->ttsService = new EdgeTTSService();
-        $this->queueService = new AppQyV1TTSQueueService();
         $this->unifiedQueueService = new AppQyV1UnifiedTTSQueueService();
     }
     
@@ -79,7 +79,7 @@ class AppQyV1TTSController extends Controller
         $firstResult = $result['results'][0] ?? null;
 
         if (!$firstResult) {
-            return $this->error('Failed to process request', 500, [
+            return $this->error(__('app_qy_v1.messages.failed_to_process_request'), 500, [
                 'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
             ]);
         }
@@ -97,7 +97,7 @@ class AppQyV1TTSController extends Controller
                 'text' => $request->input('text'),
                 'language' => $request->input('language'),
                 'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
-            ], 'Audio generated successfully');
+            ], __('app_qy_v1.messages.audio_generated_successfully'));
         }
 
         // Task queued, return task ID for polling
@@ -115,7 +115,7 @@ class AppQyV1TTSController extends Controller
             'status' => $status,
             'message' => 'Task added to queue. Poll /api/app_qy_v1/ai_tools/tts/queue/task/{task_id} for status.',
             'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
-        ], 'Task queued successfully');
+        ], __('app_qy_v1.messages.task_queued_successfully'));
     }
     
     /**
@@ -178,54 +178,46 @@ class AppQyV1TTSController extends Controller
         return $this->success([
             'results' => $legacyResults,
             'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
-        ], 'Batch generation processed successfully');
+        ], __('app_qy_v1.messages.batch_generation_processed_successfully'));
     }
     
     public function serveAudio(string $language, string $type, string $filename)
     {
-        $relativePath = "{$language}/{$type}/{$filename}";
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
-        
-        if (!$fullPath) {
+        $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/{$type}/{$filename}");
+
+        if (!$response) {
             return response()->json([
                 'success' => false,
                 'error' => 'Audio file not found',
             ], 404);
         }
-        
-        return response()->file($fullPath, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'public, max-age=31536000',
-        ]);
+
+        return $response;
     }
-    
+
     public function serveAudioWithSpeed(string $language, string $type, string $speed, string $filename)
     {
-        $relativePath = "{$language}/{$type}/{$speed}/{$filename}";
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
-        
-        if (!$fullPath) {
-            return $this->notFound('Audio file not found');
+        $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/{$type}/{$speed}/{$filename}");
+
+        if (!$response) {
+            return $this->notFound(__('app_qy_v1.messages.audio_file_not_found'));
         }
-        
-        return response()->file($fullPath, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'public, max-age=31536000',
-        ]);
+
+        return $response;
     }
     
     public function getLanguages(Request $request): JsonResponse
     {
         return $this->success([
             'languages' => $this->ttsService->getSupportedLanguages(),
-        ], 'Languages retrieved successfully');
+        ], __('app_qy_v1.messages.languages_retrieved_successfully'));
     }
 
     public function getVoices(Request $request): JsonResponse
     {
         return $this->success([
             'voices' => $this->ttsService->getAvailableVoices(),
-        ], 'Voices retrieved successfully');
+        ], __('app_qy_v1.messages.voices_retrieved_successfully'));
     }
 
     public function getOptions(Request $request): JsonResponse
@@ -255,14 +247,14 @@ class AppQyV1TTSController extends Controller
                 'default' => 0,
                 'unit' => 'Hz',
             ],
-        ], 'Options retrieved successfully');
+        ], __('app_qy_v1.messages.options_retrieved_successfully'));
     }
 
     /**
      * Add batch words to TTS queue
      * Frontend sends words without audio, backend queues for async generation
      *-----------------------------------------------------------------------------------------------------------------------
-     * POST /api/app_qy_v1/tts/queue_batch
+     * POST /api/app_qy_v1/ai_tools/tts/queue_batch
      */
     public function queueBatch(Request $request): JsonResponse
     {
@@ -272,7 +264,6 @@ class AppQyV1TTSController extends Controller
             'words.*.text' => 'nullable|string|max:255',
             'words.*.language' => 'nullable|string|max:10',
             'words.*.languageCode' => 'nullable|string|max:10',
-            'words.*.priority' => 'nullable|integer|min:0|max:100',
         ]);
 
         $queued = [];
@@ -290,12 +281,7 @@ class AppQyV1TTSController extends Controller
             if (!$language) {
                 $language = 'en'; // Default to English if not provided
             }
-            $priority = 0;
-            if (isset($item['priority'])) {
-                $priority = $item['priority'];
-            }
-
-            $result = $this->queueService->requestAudio($word, $language, $priority);
+            $result = $this->unifiedQueueService->requestAudio($word, $language);
 
             if ($result === null) {
                 $queued[] = [
@@ -318,25 +304,25 @@ class AppQyV1TTSController extends Controller
             'available' => $available,
             'queued_count' => count($queued),
             'available_count' => count($available),
-        ], 'Batch request processed successfully');
+        ], __('app_qy_v1.messages.batch_request_processed_successfully'));
     }
 
     /**
      * Get queue statistics
      *
-     * GET /api/app_qy_v1/tts/queue/stats
+     * GET /api/app_qy_v1/ai_tools/tts/queue/stats
      */
     public function getQueueStats(Request $request): JsonResponse
     {
-        $stats = $this->queueService->getQueueStats();
+        $stats = $this->unifiedQueueService->getQueueStats();
 
-        return $this->success($stats, 'Queue statistics retrieved');
+        return $this->success($stats, __('app_qy_v1.messages.queue_statistics_retrieved'));
     }
 
     /**
      * Get queue status for specific word
      *
-     * GET /api/app_qy_v1/tts/queue/status
+     * GET /api/app_qy_v1/ai_tools/tts/queue/status
      */
     public function checkQueueStatus(Request $request): JsonResponse
     {
@@ -345,16 +331,16 @@ class AppQyV1TTSController extends Controller
             'language' => 'required|string',
         ]);
 
-        $status = $this->queueService->getQueueStatus(
+        $status = $this->unifiedQueueService->getQueueStatus(
             $validated['word'],
             $validated['language']
         );
 
         if ($status === null) {
-            return $this->notFound('Word not found in queue');
+            return $this->notFound(__('app_qy_v1.messages.word_not_found_in_queue'));
         }
 
-        return $this->success($status, 'Queue status retrieved');
+        return $this->success($status, __('app_qy_v1.messages.queue_status_retrieved'));
     }
 
     /**
@@ -371,9 +357,12 @@ class AppQyV1TTSController extends Controller
      * }
      *
      * Response includes:
-     * - results: array of words found in queue with their status
-     * - not_found: array of words not in queue (either already available or never requested)
+     * - results: array of words with TTS tracking state and their status
+     * - not_found: array of words never queued (either already available or never requested)
      * - summary: statistics of the batch check
+     *
+     * Queue-less: status is read from the canonical tts_cache_{lang} row
+     * (tts_status / tts_* columns) instead of the decommissioned tts_queue.
      */
     public function checkBatchStatus(AppQyV1TTSCheckBatchRequest $request): JsonResponse
     {
@@ -387,57 +376,73 @@ class AppQyV1TTSController extends Controller
             'failed' => 0,
             'not_found' => 0,
         ];
+        $hashesByLanguage = [];
+
+        foreach ($request->input('words') as $item) {
+            $hashesByLanguage[strtolower($item['language'])][] = md5($item['word']);
+        }
+
+        $entriesByLanguage = AppQyV1LangDictionaryModel::rowsByLanguageHashes($hashesByLanguage);
 
         foreach ($request->input('words') as $item) {
             $word = $item['word'];
-            $language = $item['language'];
+            $language = strtolower($item['language']);
             $md5 = md5($word);
 
-            $queueItem = AppQyV1TTSQueueModel::where('word_md5', $md5)
-                ->where('language', $language)
-                ->first();
+            $dictEntry = $entriesByLanguage[$language]->get($md5);
 
-            if ($queueItem) {
-                $audioUrl = null;
-                if ($queueItem->audio_path) {
-                    $audioUrl = "/api/app_qy_v1/ai_tools/tts/audio/{$language}/word/{$queueItem->audio_path}";
+            if ($dictEntry && $dictEntry->tts_status !== null) {
+                $audioPath = null;
+                if (is_array($dictEntry->tts_files)) {
+                    foreach ($dictEntry->tts_files as $ttsFile) {
+                        if (isset($ttsFile['path'])) {
+                            $audioPath = $ttsFile['path'];
+                            break;
+                        }
+                    }
                 }
+
+                $audioUrl = null;
+                if ($audioPath) {
+                    // tts_files paths are full relative paths ("{lang}/word/...").
+                    $audioUrl = AppQyV1TtsUrl::forPath($audioPath);
+                }
+
+                $status = AppQyV1DictionaryTTSCoordinator::statusOf($dictEntry);
+                $retryCount = (int) $dictEntry->tts_attempts;
 
                 $result = [
-                    'word' => $queueItem->word,
-                    'language' => $queueItem->language,
-                    'status' => $queueItem->status,
-                    'audio_path' => $queueItem->audio_path,
+                    'word' => $dictEntry->content,
+                    'language' => $language,
+                    'status' => $status,
+                    'audio_path' => $audioPath,
                     'audio_url' => $audioUrl,
-                    'priority' => $queueItem->priority,
                 ];
 
-                if ($queueItem->retry_count > 0) {
-                    $result['retry_count'] = $queueItem->retry_count;
+                if ($retryCount > 0) {
+                    $result['retry_count'] = $retryCount;
                 }
 
-                if ($queueItem->error_message) {
-                    $result['error_message'] = $queueItem->error_message;
+                if ($dictEntry->tts_error) {
+                    $result['error_message'] = $dictEntry->tts_error;
                 }
 
-                if ($queueItem->requested_at) {
-                    $result['requested_at'] = $queueItem->requested_at->toISOString();
+                if ($dictEntry->tts_requested_at) {
+                    $result['requested_at'] = $dictEntry->tts_requested_at->toISOString();
                 }
 
-                if ($queueItem->started_at) {
-                    $result['started_at'] = $queueItem->started_at->toISOString();
+                if ($dictEntry->tts_locked_at) {
+                    $result['started_at'] = $dictEntry->tts_locked_at->toISOString();
                 }
 
-                if ($queueItem->completed_at) {
-                    $result['completed_at'] = $queueItem->completed_at->toISOString();
+                if ($dictEntry->tts_completed_at) {
+                    $result['completed_at'] = $dictEntry->tts_completed_at->toISOString();
                 }
 
                 $results[] = $result;
-                $summary[$queueItem->status]++;
+                $summary[$status]++;
 
             } else {
-                $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
-
                 if ($dictEntry && isset($dictEntry->tts_files) && !empty($dictEntry->tts_files)) {
                     $hasAudio = false;
                     foreach ($dictEntry->tts_files as $ttsFile) {
@@ -479,21 +484,7 @@ class AppQyV1TTSController extends Controller
             'results' => $results,
             'not_found' => $notFound,
             'summary' => $summary,
-        ], 'Batch status check completed');
+        ], __('app_qy_v1.messages.batch_status_check_completed'));
     }
 
-    /**
-     * Fix audio_url path to use AppQyV1 route prefix
-     * Convert /tts/audio/... to /api/app_qy_v1/ai_tools/tts/audio/...
-     */
-    private function fixAudioUrl(array $result): array
-    {
-        if (isset($result['audio_url'])) {
-            if (strpos($result['audio_url'], '/tts/audio/') === 0) {
-                $result['audio_url'] = str_replace('/tts/audio/', '/api/app_qy_v1/ai_tools/tts/audio/', $result['audio_url']);
-            }
-        }
-
-        return $result;
-    }
 }

@@ -743,6 +743,7 @@ class Step4ImageReplacementController:
                 else:
                     details += f"  Smart Resize: OFF - Will use original size for all targets"
 
+                details += "\n\n  >> LEFT/RIGHT: toggle Smart Resize | ENTER: confirm | ESC: back to list / defaults"
                 return details
 
             def toggle_smart_resize(items: List[Dict], selected_index: int) -> str:

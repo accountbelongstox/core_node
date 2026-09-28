@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
-use App\Http\Controllers\Auth\AvatarPublic;
 use App\Services\AvatarService;
 use App\Constants\AppKeys;
 use Illuminate\Support\Facades\Validator;
@@ -29,7 +28,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $userProfile = [
@@ -42,14 +41,16 @@ class UserProfileController extends Controller
             'avatar_url' => $this->getAvatarUrl($user->avatar),
             'bio' => $user->bio,
             'location' => $user->location,
-            'rolelevel' => $user->rolelevel,
+            'rolelevel' => (int) ($user->rolelevel ?? 0),
+            'role_level' => (int) ($user->rolelevel ?? 0),
             'rolename' => $user->rolename,
+            'role_name' => $user->rolename,
             'is_active' => $user->is_active ?? 1,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
         ];
 
-        return $this->success(['user' => $userProfile], 'Profile retrieved successfully');
+        return $this->success(['user' => $userProfile], __('api.messages.profile_retrieved_successfully'));
     }
 
     /**
@@ -60,7 +61,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -118,7 +119,7 @@ class UserProfileController extends Controller
         }
 
         if (!empty($updateData)) {
-            $user->update($updateData);
+            $user->updateRecord($updateData);
         }
 
         $userProfile = [
@@ -131,12 +132,14 @@ class UserProfileController extends Controller
             'avatar_url' => $this->getAvatarUrl($user->avatar),
             'bio' => $user->bio,
             'location' => $user->location,
-            'rolelevel' => $user->rolelevel,
+            'rolelevel' => (int) ($user->rolelevel ?? 0),
+            'role_level' => (int) ($user->rolelevel ?? 0),
             'rolename' => $user->rolename,
+            'role_name' => $user->rolename,
             'is_active' => $user->is_active ?? 1,
         ];
 
-        return $this->success(['user' => $userProfile], 'Profile updated successfully');
+        return $this->success(['user' => $userProfile], __('api.messages.profile_updated_successfully'));
     }
 
     /**
@@ -147,12 +150,12 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
             'current_password' => 'required|string',
-            'new_password' => 'required|string|min:8',
+            'new_password' => 'required|string',
             'confirm_password' => 'required|string|same:new_password',
         ]);
 
@@ -163,14 +166,14 @@ class UserProfileController extends Controller
         if (!Hash::check($request->current_password, $user->password)) {
             return $this->validationError(
                 ['current_password' => ['Current password is incorrect.']],
-                'Current password is incorrect'
+                __('api.messages.current_password_is_incorrect')
             );
         }
 
         $user->password = Hash::make($request->new_password);
-        $user->save();
+        $user->saveRecord();
 
-        return $this->success([], 'Password changed successfully');
+        return $this->success([], __('api.messages.password_changed_successfully'));
     }
 
     /**
@@ -181,7 +184,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $defaultPreferences = [
@@ -198,7 +201,7 @@ class UserProfileController extends Controller
 
         $preferences = array_merge($defaultPreferences, $userPreferences);
 
-        return $this->success($preferences, 'Preferences retrieved successfully');
+        return $this->success($preferences, __('api.messages.preferences_retrieved_successfully'));
     }
 
     /**
@@ -209,7 +212,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -240,9 +243,9 @@ class UserProfileController extends Controller
         $updatedPreferences = array_merge($defaultPreferences, $currentPreferences, $validated);
 
         $user->preferences = $updatedPreferences;
-        $user->save();
+        $user->saveRecord();
 
-        return $this->success($updatedPreferences, 'Preferences updated successfully');
+        return $this->success($updatedPreferences, __('api.messages.preferences_updated_successfully'));
     }
 
     /**
@@ -269,4 +272,3 @@ class UserProfileController extends Controller
         return AvatarService::getAvatarUrl($avatar);
     }
 }
-

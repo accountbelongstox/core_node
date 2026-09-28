@@ -2,15 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Controller Functions Package
-Specialized handlers for different game interfaces
+Specialized handlers for different game interfaces.
+
+Import directly from submodules (no secondary encapsulation):
+  from controller.ctl_func.blacksmith_handler import get_blacksmith_handler, BlacksmithHandler
+  from controller.ctl_func.kanai_cube_handler import get_kanai_cube_handler, KanaiCubeHandler
 """
-
-from .blacksmith_handler import get_blacksmith_handler, BlacksmithHandler
-from .kanai_cube_handler import get_kanai_cube_handler, KanaiCubeHandler
-
-__all__ = [
-    'get_blacksmith_handler',
-    'BlacksmithHandler',
-    'get_kanai_cube_handler',
-    'KanaiCubeHandler'
-]

@@ -1,5 +1,5 @@
-version: '3.8'
-
+# Compose Spec: the top-level 'version' field is obsolete and ignored by the
+# docker compose plugin (v2+); it is intentionally omitted.
 services:
   mysql84:
     container_name: mysql84

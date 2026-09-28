@@ -1,31 +1,19 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
-    OpenAI Environment Variables Menu Module
+    Codex CLI Environment Variables Menu Module
 .DESCRIPTION
-    Provides menu functions for managing OpenAI environment variables
+    Provides menu functions for managing Codex CLI (OpenAI) environment variables
 #>
 
 #region Configuration
 
-function Get-OpenAIConfig {
+function Get-CodexConfig {
     return @{
-        Title = "OpenAI Environment Variables"
-        Description = "Set up OpenAI environment variables for API access"
-        Common = "openai"
-        CommandPrefix = "openai"
-        DisplayName = "OpenAI"
+        Title = "Codex CLI Environment Variables"
+        Description = "Set up Codex CLI environment variables for API access"
+        Common = "codex"
+        CommandPrefix = "codex"
+        DisplayName = "Codex CLI"
         SmartRecognition = @{
             Enabled = $true
             AllowedTypes = @("token", "url")
@@ -34,34 +22,30 @@ function Get-OpenAIConfig {
             @{
                 Name = "OPENAI_API_KEY"
                 DisplayName = "OPENAI_API_KEY"
-                Description = "OpenAI API key"
+                Description = "OpenAI API key for Codex CLI"
                 IsSecret = $true
                 InputType = "Token"
             },
             @{
                 Name = "OPENAI_BASE_URL"
                 DisplayName = "OPENAI_BASE_URL"
-                Description = "OpenAI API base URL (optional)"
+                Description = "OpenAI-compatible API base URL (proxy/relay, leave empty for api.openai.com)"
                 IsSecret = $false
                 InputType = "Url"
-            },
-            @{
-                Name = "OPENAI_ORG_ID"
-                DisplayName = "OPENAI_ORG_ID"
-                Description = "OpenAI Organization ID (optional)"
-                IsSecret = $false
-                InputType = "Token"
             }
         )
     }
 }
 
+# Backward-compatible alias
+function Get-OpenAIConfig { Get-CodexConfig }
+
 #endregion
 
 #region Menu Functions
 
-function Show-OpenAISubMenu {
-    $config = Get-OpenAIConfig
+function Show-CodexSubMenu {
+    $config = Get-CodexConfig
     $configDisplayName = $config.DisplayName
 
     $menuItems = @(
@@ -101,9 +85,9 @@ function Show-OpenAISubMenu {
 
                 switch ($action) {
                     'addcommand' {
-                        $configName = "OpenAI"
+                        $configName = "Codex CLI"
                         if (-not $script:EnvironmentConfigs.ContainsKey($configName)) {
-                            $script:EnvironmentConfigs[$configName] = Get-OpenAIConfig
+                            $script:EnvironmentConfigs[$configName] = Get-CodexConfig
                         }
 
                         Show-ExistingFilesMenu -ConfigName $configName -Files (Get-ExistingFiles -ConfigName $configName)
@@ -125,16 +109,16 @@ function Show-OpenAISubMenu {
                         $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
                     }
                     'viewscripts' {
-                        $configName = "OpenAI"
+                        $configName = "Codex CLI"
                         if (-not $script:EnvironmentConfigs.ContainsKey($configName)) {
-                            $script:EnvironmentConfigs[$configName] = Get-OpenAIConfig
+                            $script:EnvironmentConfigs[$configName] = Get-CodexConfig
                         }
                         Show-ListScripts -ConfigName $configName
                     }
                     'restore' {
-                        $configName = "OpenAI"
+                        $configName = "Codex CLI"
                         if (-not $script:EnvironmentConfigs.ContainsKey($configName)) {
-                            $script:EnvironmentConfigs[$configName] = Get-OpenAIConfig
+                            $script:EnvironmentConfigs[$configName] = Get-CodexConfig
                         }
 
                         $savedConfigData = Show-RestoreConfigurationMenu -ConfigName $configName
@@ -152,4 +136,3 @@ function Show-OpenAISubMenu {
 }
 
 #endregion
-

@@ -8,33 +8,8 @@ $PY_TOOLS_DIR = Join-Path $SCRIPT_DIR "build_py_tools"
 $GLOBAL_VARS_PS1 = Join-Path $CORE_NODE_DIR "scripts\shells\win\win_common\GlobalVars.ps1"
 $VALIDATION_HELPER_PS1 = Join-Path $PY_TOOLS_DIR "validation_helper.ps1"
 
-if (Test-Path $GLOBAL_VARS_PS1) {
-    . $GLOBAL_VARS_PS1
-} else {
-    Write-Host "Error: GlobalVars.ps1 not found" -ForegroundColor Red
-    exit 1
-}
-
-if (Test-Path $VALIDATION_HELPER_PS1) {
-    . $VALIDATION_HELPER_PS1
-} else {
-    Write-Host "Error: validation_helper.ps1 not found" -ForegroundColor Red
-    exit 1
-}
-
-function Get-GlobalVar {
-    param(
-        [string]$Key,
-        [string]$DefaultValue = ""
-    )
-    $normalizedKey = $Key.ToUpper() -replace '[^A-Z0-9_]', '_'
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $normalizedKey
-
-    if (Test-Path $filePath) {
-        return (Get-Content $filePath -Raw).Trim()
-    }
-    return $DefaultValue
-}
+. $GLOBAL_VARS_PS1
+. $VALIDATION_HELPER_PS1
 
 Write-Host ""
 Write-Host "==============================================================================="
@@ -105,19 +80,19 @@ switch ($PROJECT_TYPE) {
                     $EFFECTIVE_ACTION = "build"
 
                     Write-Host ""
-                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
-                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
+                    Write-Host "| ACTION CONVERSION (Windows Platform Limitation)                         |" -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
                     Write-Host "  User selected action  : $SELECTED_ACTION" -ForegroundColor Cyan
                     Write-Host "  User selected platform: $SELECTED_PLATFORM" -ForegroundColor Cyan
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Windows constraint    : Cannot create systemd services" -ForegroundColor Yellow
                     Write-Host "  Required operation    : Build only (no deployment service)" -ForegroundColor Yellow
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Effective action      : $EFFECTIVE_ACTION" -ForegroundColor Green
                     Write-Host ""
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
 
                     # Run validation for build mode
@@ -238,19 +213,19 @@ switch ($PROJECT_TYPE) {
                     $EFFECTIVE_ACTION = "build"
 
                     Write-Host ""
-                    Write-Host "╔═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
-                    Write-Host "�? ACTION CONVERSION (Windows Platform Limitation)                         �? -ForegroundColor Yellow
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
+                    Write-Host "| ACTION CONVERSION (Windows Platform Limitation)                         |" -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
                     Write-Host "  User selected action  : $SELECTED_ACTION" -ForegroundColor Cyan
                     Write-Host "  User selected platform: $SELECTED_PLATFORM" -ForegroundColor Cyan
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Windows constraint    : Cannot create systemd services" -ForegroundColor Yellow
                     Write-Host "  Required operation    : Build only (no deployment service)" -ForegroundColor Yellow
-                    Write-Host "  ────────────────────────────────────────────────────────────────────────"
+                    Write-Host "  ------------------------------------------------------------------------"
                     Write-Host "  Effective action      : $EFFECTIVE_ACTION" -ForegroundColor Green
                     Write-Host ""
-                    Write-Host "╚═══════════════════════════════════════════════════════════════════════════�? -ForegroundColor Yellow
+                    Write-Host "=============================================================================" -ForegroundColor Yellow
                     Write-Host ""
 
                     # Run validation for build mode

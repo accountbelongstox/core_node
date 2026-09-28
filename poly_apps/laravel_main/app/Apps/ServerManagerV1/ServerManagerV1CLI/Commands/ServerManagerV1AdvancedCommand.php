@@ -44,7 +44,7 @@ class ServerManagerV1AdvancedCommand extends ServerManagerV1BaseCommand
     public function handle(): int
     {
         // PRE-REQUISITE: Fix PHP configuration before any operations
-        // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
+        // This ensures open_basedir restrictions are correct (matches 34_configure_php85.sh)
         $this->initializeCommand();
         
         $action = $this->argument('action');

@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const EventEmitter = require('events');
 const fs = require('fs');
 const path = require('path');
@@ -49,15 +37,24 @@ class CompressionQueue extends EventEmitter {
         } = options;
 
         if (!type || !['compression', 'extraction'].includes(type)) {
-            throw new Error('Invalid task type. Must be "compression" or "extraction"');
+            const error = new Error('Invalid task type. Must be "compression" or "extraction"');
+            logger.error(error.message);
+            this.notifyRejectedTask(singleFileCallback, error);
+            return null;
         }
 
         if (type === 'compression' && !sourcePath) {
-            throw new Error('sourcePath is required for compression tasks');
+            const error = new Error('sourcePath is required for compression tasks');
+            logger.error(error.message);
+            this.notifyRejectedTask(singleFileCallback, error);
+            return null;
         }
 
         if (type === 'extraction' && !archivePath) {
-            throw new Error('archivePath is required for extraction tasks');
+            const error = new Error('archivePath is required for extraction tasks');
+            logger.error(error.message);
+            this.notifyRejectedTask(singleFileCallback, error);
+            return null;
         }
 
         const taskId = this.generateTaskId();
@@ -100,6 +97,12 @@ class CompressionQueue extends EventEmitter {
         this.emit('taskAdded', task);
 
         return taskId;
+    }
+
+    notifyRejectedTask(singleFileCallback, error) {
+        if (typeof singleFileCallback === 'function') {
+            singleFileCallback(false, error, null);
+        }
     }
 
     removeTask(taskId) {

@@ -1,0 +1,943 @@
+<?php
+
+namespace App\Models\Concerns;
+
+use App\Models\GlobalTask;
+use App\Support\QueueCenterContract;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Query\Expression;
+
+trait GlobalTaskQueueQueries
+{
+    use GlobalTaskAssistQueueQueries;
+
+    public static function tableExists(): bool
+    {
+        $model = new static();
+
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+    }
+
+    public static function findNewestLiveByGroupKey(
+        string $taskType,
+        string $groupKey,
+        array $liveStatuses
+    ): ?GlobalTask {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->where('group_key', $groupKey)
+            ->whereIn('status', $liveStatuses)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * Newest task per group_key across $taskTypes in one query; $statuses
+     * null means any status.
+     *
+     * @return array<string,GlobalTask> group_key => task
+     */
+    public static function newestByGroupKeys(array $taskTypes, array $groupKeys, ?array $statuses = null): array
+    {
+        if ($taskTypes === [] || $groupKeys === []) {
+            return [];
+        }
+        $newestIds = self::query()
+            ->selectRaw('MAX(id)')
+            ->whereIn('task_type', $taskTypes)
+            ->whereIn('group_key', $groupKeys)
+            ->when($statuses !== null, static function (EloquentBuilder $query) use ($statuses): void {
+                $query->whereIn('status', $statuses);
+            })
+            ->groupBy('group_key');
+
+        return self::query()
+            ->whereIn('id', $newestIds)
+            ->get()
+            ->keyBy(static fn (GlobalTask $task): string => (string) $task->group_key)
+            ->all();
+    }
+
+    /**
+     * Failed tasks updated since $updatedAfter that are still the newest task
+     * of their group_key across $taskTypes (single query).
+     */
+    public static function newestFailedInGroupsSince(array $taskTypes, $updatedAfter, int $limit): EloquentCollection
+    {
+        $table = (new static())->getTable();
+
+        return self::query()
+            ->whereIn('task_type', $taskTypes)
+            ->where('status', self::status('failed'))
+            ->whereNotNull('group_key')
+            ->where('updated_at', '>=', $updatedAfter)
+            ->whereNotExists(static function ($newer) use ($table, $taskTypes): void {
+                $newer->selectRaw('1')
+                    ->from($table . ' as newer')
+                    ->whereIn('newer.task_type', $taskTypes)
+                    ->whereColumn('newer.group_key', $table . '.group_key')
+                    ->whereColumn('newer.id', '>', $table . '.id');
+            })
+            ->orderByDesc('updated_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function pendingOfTaskTypesCreatedBefore(array $taskTypes, $createdBefore, int $limit): EloquentCollection
+    {
+        return self::query()
+            ->where('status', self::status('pending'))
+            ->whereIn('task_type', $taskTypes)
+            ->where('created_at', '<=', $createdBefore)
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function statusCountsForTaskType(string $taskType): Collection
+    {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->groupBy('status')
+            ->selectRaw('status, count(*) as aggregate')
+            ->pluck('aggregate', 'status');
+    }
+
+    /**
+     * Per-language status counts for a task type (rows: language_key,
+     * status_key, aggregate). Backs the language_priority progress tiers
+     * exposed to pull responses so remote workers can log tier completion.
+     */
+    public static function languageStatusCountsForTaskType(string $taskType): EloquentCollection
+    {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->groupByRaw("lower(trim(payload->>'language')), status")
+            ->selectRaw("lower(trim(payload->>'language')) as language_key, status as status_key, count(*) as aggregate")
+            ->get();
+    }
+
+    public static function liveCountsByTypeAndStatus(array $statuses): EloquentCollection
+    {
+        return self::query()
+            ->whereIn('status', $statuses)
+            ->groupBy('task_type', 'status')
+            ->selectRaw('task_type, status, count(*) as total')
+            ->get();
+    }
+
+    public static function liveCountsByCapabilityLaneAndStatus(array $statuses): EloquentCollection
+    {
+        return self::query()
+            ->whereIn('status', $statuses)
+            ->groupBy('capability', 'execution_type', 'status')
+            ->selectRaw('capability, execution_type, status, count(*) as total')
+            ->get();
+    }
+
+    public static function incrementPriorityForIds(array $ids, int $increment): int
+    {
+        return self::query()
+            ->whereIn('id', $ids)
+            ->update(['priority' => new Expression('priority + ' . $increment)]);
+    }
+
+    public static function liveTaskCount(
+        string $appName,
+        array $taskTypes,
+        array $statuses,
+        array $payloadFilters = []
+    ): int {
+        return (int) self::liveTaskQuery($appName, $taskTypes, $statuses, $payloadFilters)->count();
+    }
+
+    /**
+     * Payloads of the matching live tasks (oldest first, bounded).
+     *
+     * @return array<int, array>
+     */
+    public static function liveTaskPayloads(
+        string $appName,
+        array $taskTypes,
+        array $statuses,
+        array $payloadFilters,
+        int $limit
+    ): array {
+        return self::liveTaskQuery($appName, $taskTypes, $statuses, $payloadFilters)
+            ->orderBy('id')
+            ->limit(max(1, $limit))
+            ->get(['payload'])
+            ->map(static fn ($task): array => is_array($task->payload) ? $task->payload : [])
+            ->all();
+    }
+
+    private static function liveTaskQuery(string $appName, array $taskTypes, array $statuses, array $payloadFilters)
+    {
+        $query = self::query()
+            ->where('app_name', $appName)
+            ->whereIn('task_type', $taskTypes)
+            ->whereIn('status', $statuses);
+
+        foreach ($payloadFilters as $field => $value) {
+            $query->where('payload->' . $field, $value);
+        }
+
+        return $query;
+    }
+
+    public static function hasBacklogAtLeast(string $taskType, array $statuses, int $target): bool
+    {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->whereIn('status', $statuses)
+            ->orderBy('id')
+            ->offset(max(0, $target - 1))
+            ->limit(1)
+            ->exists();
+    }
+
+    /**
+     * Language-scoped backlog probe: true when the live rows of one payload
+     * language already reach the target. Lets a tiered scan keep feeding an
+     * unsaturated language while a saturated sibling is paused.
+     */
+    public static function hasBacklogAtLeastForLanguage(
+        string $taskType,
+        array $statuses,
+        int $target,
+        string $language
+    ): bool {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->whereIn('status', $statuses)
+            ->whereRaw("lower(trim(payload->>'language')) = ?", [strtolower(trim($language))])
+            ->orderBy('id')
+            ->offset(max(0, $target - 1))
+            ->limit(1)
+            ->exists();
+    }
+
+    /**
+     * Bounded page of failed rows of one payload language for the failed-task
+     * resurfacing sweep (QueueCenterAudioScanTask). Columns only; the caller
+     * re-validates the source row before re-enqueueing.
+     */
+    public static function failedLanguagePage(
+        string $taskType,
+        string $language,
+        int $limit,
+        int $afterId = 0
+    ): EloquentCollection {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->where('status', self::status('failed'))
+            ->where('id', '>', $afterId)
+            ->whereRaw("lower(trim(payload->>'language')) = ?", [strtolower(trim($language))])
+            ->orderBy('id')
+            ->limit(max(1, $limit))
+            ->get(['id', 'group_key', 'payload']);
+    }
+
+    public static function claimedCountsByWorker(array $statuses): Collection
+    {
+        return self::query()
+            ->whereIn('status', $statuses)
+            ->whereNotNull('assigned_to')
+            ->groupBy('assigned_to')
+            ->selectRaw('assigned_to, count(*) as total')
+            ->pluck('total', 'assigned_to');
+    }
+
+    public static function queuePageTaskIds(
+        string $taskType,
+        array $liveStatuses,
+        int $page,
+        int $limit
+    ): array {
+        $query = self::query()->where('task_type', $taskType);
+        $bindings = implode(', ', array_fill(0, count($liveStatuses), '?'));
+        $total = (int) (clone $query)->count();
+        $query->orderByRaw("CASE WHEN status IN ({$bindings}) THEN 0 ELSE 1 END", $liveStatuses);
+        self::applyTaskLanguageOrder($query, $taskType);
+        $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+        $taskIds = $query
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->forPage($page, $limit)
+            ->pluck('task_id')
+            ->all();
+
+        return ['total' => $total, 'task_ids' => $taskIds];
+    }
+
+    public static function tasksByTaskIds(array $taskIds, ?string $taskType = null, ?array $columns = null): array
+    {
+        $positions = array_flip(array_map('strval', $taskIds));
+        $query = self::query()->whereIn('task_id', $taskIds);
+
+        if ($taskType !== null) {
+            $query->where('task_type', $taskType);
+        }
+
+        return $query
+            ->get($columns ?? ['*'])
+            ->sortBy(static fn (GlobalTask $task): int => $positions[(string) $task->task_id] ?? PHP_INT_MAX)
+            ->values()
+            ->all();
+    }
+
+    public static function liveQueuePage(
+        string $taskType,
+        array $liveStatuses,
+        int $page,
+        int $limit,
+        ?string $language,
+        array $columns
+    ): array {
+        $query = self::query()
+            ->where('task_type', $taskType)
+            ->whereIn('status', $liveStatuses);
+
+        if ($language !== null && $language !== '') {
+            $query->where('payload->language', $language);
+        }
+
+        $total = (int) (clone $query)->count();
+        $orderedQuery = clone $query;
+        self::applyTaskLanguageOrder($orderedQuery, $taskType);
+        $orderedQuery->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+        $tasks = $orderedQuery
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->forPage($page, $limit)
+            ->get($columns);
+        $languageCounts = (clone $query)
+            ->selectRaw("lower(trim(payload->>'language')) as language_key, count(*) as aggregate")
+            ->groupByRaw("lower(trim(payload->>'language'))")
+            ->pluck('aggregate', 'language_key');
+
+        return [
+            'total' => $total,
+            'tasks' => $tasks,
+            'language_counts' => $languageCounts,
+        ];
+    }
+
+    public static function queueRowsAfterId(
+        string $taskType,
+        int $cursor,
+        int $limit
+    ): EloquentCollection {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->where('id', '>', $cursor)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get(['id', 'task_id', 'status', 'queue_position']);
+    }
+
+    public static function receiptTasks(array $taskIds): EloquentCollection
+    {
+        return self::query()
+            ->whereIn('task_id', $taskIds)
+            ->get([
+                'task_id',
+                'task_type',
+                'status',
+                'queue_position',
+                'priority',
+                'progress',
+                'timeout_seconds',
+                'assigned_to',
+                'assigned_at',
+                'updated_at',
+            ])
+            ->keyBy('task_id');
+    }
+
+    public static function pendingHeadTaskIds(
+        string $taskType,
+        int $limit
+    ): array {
+        $query = self::query()->pending()
+            ->where('task_type', $taskType);
+        self::applyTaskLanguageOrder($query, $taskType);
+        $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+
+        return $query
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('task_id')
+            ->map(static fn ($taskId): string => (string) $taskId)
+            ->values()
+            ->all();
+    }
+
+    public static function pendingHeadTask(string $taskType): ?GlobalTask
+    {
+        $query = self::query()->pending()->where('task_type', $taskType);
+        self::applyTaskLanguageOrder($query, $taskType);
+        $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+
+        return $query
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->first();
+    }
+
+    public static function movePendingToQueueHead(
+        string $taskId,
+        string $pendingStatus,
+        int $attempts
+    ): array {
+        $model = new static();
+        $task = null;
+        $queuePosition = 0;
+
+        $status = $model->getConnection()->transaction(
+            static function () use ($taskId, $pendingStatus, &$task, &$queuePosition): string {
+                $task = self::query()
+                    ->where('task_id', $taskId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($task === null) {
+                    return 'not_found';
+                }
+
+                if ((string) $task->status !== $pendingStatus) {
+                    return 'not_queued';
+                }
+
+                $taskType = (string) $task->task_type;
+                $task->getConnection()->select(
+                    'SELECT pg_advisory_xact_lock(hashtext(?))',
+                    ['queue-head:' . $taskType]
+                );
+                $queuePosition = ((int) self::query()
+                    ->where('task_type', $taskType)
+                    ->max('queue_position')) + 1;
+                $task->queue_position = $queuePosition;
+                $task->save();
+
+                return 'moved_to_head';
+            },
+            $attempts
+        );
+
+        return [
+            'status' => $status,
+            'task' => $task,
+            'queue_position' => $queuePosition,
+        ];
+    }
+
+    public static function purgeTerminalBatches(array $batches, int $limit): int
+    {
+        $purged = 0;
+
+        foreach ($batches as $batch) {
+            $remaining = $limit - $purged;
+            if ($remaining <= 0) {
+                break;
+            }
+
+            $ids = self::query()
+                ->whereIn('status', $batch['statuses'])
+                ->where('updated_at', '<', $batch['before'])
+                ->limit($remaining)
+                ->pluck('id');
+
+            if ($ids->isNotEmpty()) {
+                $purged += self::query()->whereIn('id', $ids)->delete();
+            }
+        }
+
+        return $purged;
+    }
+
+    public static function retagPendingTasks(
+        array $taskTypes,
+        array $fromExecutionTypes,
+        string $toExecutionType,
+        ?string $capability = null
+    ): int {
+        $updates = ['execution_type' => $toExecutionType];
+        if ($capability !== null) {
+            $updates['capability'] = $capability;
+        }
+
+        return self::query()
+            ->whereIn('task_type', $taskTypes)
+            ->whereIn('execution_type', $fromExecutionTypes)
+            ->where('status', self::status('pending'))
+            ->update($updates);
+    }
+
+    public static function expireNeverAssignedPending($cutoff, int $limit): int
+    {
+        $rows = self::query()
+            ->where('status', self::status('pending'))
+            ->whereNull('assigned_to')
+            ->whereNull('assigned_at')
+            ->where('created_at', '<', $cutoff)
+            ->limit($limit)
+            ->get(['id', 'execution_type']);
+        $expired = 0;
+
+        foreach ($rows as $task) {
+            $expired += self::query()
+                ->where('id', $task->id)
+                ->where('status', self::status('pending'))
+                ->update([
+                    'status' => self::status('failed'),
+                    'error' => 'expired: no worker registered for lane ' . $task->execution_type,
+                    'updated_at' => now(),
+                ]);
+        }
+
+        return $expired;
+    }
+
+    public static function createTaskRecord(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
+
+    public static function lockByTaskId(string $taskId): ?self
+    {
+        return self::query()->where('task_id', $taskId)->lockForUpdate()->first();
+    }
+
+    public static function assignedWorkerId(string $taskId): ?string
+    {
+        $workerId = self::query()->where('task_id', $taskId)->value('assigned_to');
+
+        return is_string($workerId) && $workerId !== '' ? $workerId : null;
+    }
+
+    public static function pendingClaimCandidatesForTaskType(
+        string $taskType,
+        int $limit
+    ): EloquentCollection {
+        $query = self::query()
+            ->where('status', self::status('pending'))
+            ->where('task_type', $taskType);
+        // Language tiers are the PRIMARY priority (contract language_priority):
+        // they order BEFORE queue_position so a tiered backlog (sentence_audio
+        // 'en' first) always completes before any later tier, regardless of
+        // enqueue order. Tier SQL lives here, in the model query concern.
+        self::applyTaskLanguageOrder($query, $taskType);
+        $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+
+        return $query
+            ->oldest('created_at')
+            ->orderBy('id')
+            ->limit(min(32, $limit + 8))
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
+     * THE single ordered-claim SQL authority for typed claims: composes the
+     * contract language_priority tiers (tier 0 first, non-matching languages
+     * last) onto a pending-task query. No-op for task types without tiers.
+     * SPECIAL OPTIMIZATION (specially optimized script, 特殊优化的脚本):
+     * tiers order BEFORE queue_position so the tiered backlog (sentence_audio
+     * 'en' first) always completes first. Mirrored by pycore's AudioTaskQueue
+     * tier ordering so the Laravel claim head and the local worker drain
+     * order never diverge.
+     */
+    private static function applyTaskLanguageOrder(EloquentBuilder $query, string $taskType): EloquentBuilder
+    {
+        $tiers = QueueCenterContract::taskLanguagePriority($taskType);
+        if ($tiers === []) {
+            return $query;
+        }
+        $placeholders = implode(',', array_fill(0, count($tiers), '?'));
+        return $query->orderByRaw(
+            "CASE WHEN lower(trim(payload->>'language')) IN ({$placeholders}) THEN 0 ELSE 1 END",
+            $tiers
+        );
+    }
+
+    public static function pendingClaimCandidatesForExecutionType(
+        string $executionType,
+        int $limit
+    ): EloquentCollection {
+        $priorityNeutralTaskTypes = QueueCenterContract::queuePositionOrderedTaskTypes();
+        $placeholders = implode(',', array_fill(0, max(1, count($priorityNeutralTaskTypes)), '?'));
+        // Fast-lane/processor-type claims span multiple task types: apply the
+        // SAME tiered task types through the same model-layer authority so a
+        // tiered lane ('en'-first sentence_audio) can never be bypassed by a
+        // non-typed claim path.
+        [$tierClause, $tierBindings] = self::executionTypeLanguageOrderClause($priorityNeutralTaskTypes);
+        return self::query()
+            ->where('status', self::status('pending'))
+            ->where('execution_type', $executionType)
+            ->orderByRaw(
+                $tierClause
+                    . 'queue_position DESC, '
+                    . "CASE WHEN task_type IN ({$placeholders}) THEN 0 ELSE priority END DESC",
+                array_merge(
+                    $tierBindings,
+                    $priorityNeutralTaskTypes === [] ? [''] : array_values($priorityNeutralTaskTypes)
+                )
+            )
+            ->oldest('created_at')
+            ->limit($limit)
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
+     * Execution-type claim variant of the language tier clause: ranks rows of
+     * any tiered task type whose payload language matches that type's tiers
+     * ahead of everything else in the same claim batch.
+     */
+    private static function executionTypeLanguageOrderClause(array $taskTypes): array
+    {
+        $tiered = [];
+        foreach ($taskTypes as $taskType) {
+            $tiers = QueueCenterContract::taskLanguagePriority((string) $taskType);
+            if ($tiers !== []) {
+                $tiered[] = [$taskType, $tiers];
+            }
+        }
+        if ($tiered === []) {
+            return ['', []];
+        }
+        $cases = [];
+        $bindings = [];
+        foreach ($tiered as [$taskType, $tiers]) {
+            $placeholders = implode(',', array_fill(0, count($tiers), '?'));
+            $cases[] = "(task_type = ? AND lower(trim(payload->>'language')) IN ({$placeholders}))";
+            $bindings[] = $taskType;
+            $bindings = array_merge($bindings, $tiers);
+        }
+        return ['CASE WHEN ' . implode(' OR ', $cases) . ' THEN 0 ELSE 1 END, ', $bindings];
+    }
+
+    public static function pendingSignals(
+        string $taskType,
+        int $minimumPriority,
+        string $fastExecutionType,
+        array $capabilities
+    ): array {
+        $capabilityClause = 'capability IS NULL';
+        $bindings = [$minimumPriority, $fastExecutionType];
+
+        if ($capabilities !== []) {
+            $placeholders = implode(',', array_fill(0, count($capabilities), '?'));
+            $capabilityClause .= " OR capability IN ({$placeholders})";
+            $bindings = array_merge($bindings, $capabilities);
+        }
+
+        $row = self::query()
+            ->where('status', self::status('pending'))
+            ->where('task_type', $taskType)
+            ->selectRaw(
+                'SUM(CASE WHEN priority >= ? THEN 1 ELSE 0 END) AS pending_urgent, '
+                    . 'SUM(CASE WHEN execution_type = ? AND (' . $capabilityClause . ') THEN 1 ELSE 0 END) AS pending_fast',
+                $bindings
+            )
+            ->first();
+
+        return [
+            'pending_urgent' => (int) ($row->pending_urgent ?? 0),
+            'pending_fast' => (int) ($row->pending_fast ?? 0),
+        ];
+    }
+
+    public static function countUrgentPendingForExecutionTypes(array $executionTypes, int $minimumPriority): int
+    {
+        return self::query()
+            ->where('status', self::status('pending'))
+            ->whereIn('execution_type', $executionTypes)
+            ->where('priority', '>=', $minimumPriority)
+            ->count();
+    }
+
+    public static function countFastPendingForCapabilities(string $executionType, array $capabilities): int
+    {
+        return self::query()
+            ->where('status', self::status('pending'))
+            ->where('execution_type', $executionType)
+            ->where(function ($query) use ($capabilities): void {
+                $query->whereNull('capability');
+                if ($capabilities !== []) {
+                    $query->orWhereIn('capability', $capabilities);
+                }
+            })
+            ->count();
+    }
+
+    public static function timedOutTaskIds(): array
+    {
+        return self::query()
+            ->whereIn('status', [self::status('assigned'), self::status('processing')])
+            ->whereNotNull('timeout_at')
+            ->where('timeout_at', '<=', now())
+            ->pluck('task_id')
+            ->all();
+    }
+
+    public static function lockedTasksHeldByWorker(string $workerId): EloquentCollection
+    {
+        return self::query()
+            ->where('assigned_to', $workerId)
+            ->whereIn('status', [self::status('assigned'), self::status('processing')])
+            ->lockForUpdate()
+            ->get();
+    }
+
+    public static function taskListPage(array $filters, int $limit, int $offset): array
+    {
+        $query = self::query();
+
+        foreach (['status', 'app_name', 'execution_type'] as $column) {
+            if (isset($filters[$column]) && $filters[$column] !== '') {
+                $query->where($column, $filters[$column]);
+            }
+        }
+
+        return [
+            'total' => $query->count(),
+            'tasks' => $query
+                ->select([
+                    'task_id', 'app_name', 'task_type', 'execution_type', 'status',
+                    'progress', 'assigned_to', 'created_at', 'capability',
+                    'queue_position', 'priority', 'is_fast_tier',
+                ])
+                ->latest('created_at')
+                ->skip(max(0, $offset))
+                ->take(max(1, $limit))
+                ->get(),
+        ];
+    }
+
+    public static function statusTotals(): Collection
+    {
+        return self::query()
+            ->groupBy('status')
+            ->selectRaw('status, count(*) as total')
+            ->pluck('total', 'status');
+    }
+
+    public static function terminalHistory(int $cursorId, string $taskType, int $limit): EloquentCollection
+    {
+        $query = self::query()->whereIn('status', self::statuses('terminal'));
+
+        if ($cursorId > 0) {
+            $query->where('id', '<', $cursorId);
+        }
+
+        if ($taskType !== '' && $taskType !== 'all') {
+            self::applyTerminalTaskTypeFilter($query, $taskType);
+        }
+
+        return $query
+            ->select([
+                'id', 'task_id', 'app_name', 'task_type', 'execution_type',
+                'capability', 'status', 'assigned_to', 'payload', 'result',
+                'error', 'retry_count', 'created_at', 'updated_at', 'completed_at',
+            ])
+            ->latest('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    protected static function applyTerminalTaskTypeFilter($query, string $taskType): void
+    {
+        $filter = QueueCenterContract::taskHistoryFilter($taskType);
+        $exact = $filter['exact'];
+        $tokenRules = $filter['token_rules'];
+        if ($tokenRules === []) {
+            $query->whereIn('task_type', $exact);
+            return;
+        }
+
+        $query->where(function ($bucketQuery) use ($exact, $tokenRules): void {
+            $bucketQuery->whereIn('task_type', $exact);
+            foreach ($tokenRules as $rule) {
+                $allTokens = array_values($rule['all'] ?? []);
+                $anyTokens = array_values($rule['any'] ?? []);
+                $bucketQuery->orWhere(function ($ruleQuery) use ($allTokens, $anyTokens): void {
+                    foreach ($allTokens as $token) {
+                        $ruleQuery->whereLike('task_type', '%' . $token . '%', caseSensitive: false);
+                    }
+                    if ($anyTokens !== []) {
+                        $ruleQuery->where(function ($anyQuery) use ($anyTokens): void {
+                            foreach ($anyTokens as $index => $token) {
+                                if ($index === 0) {
+                                    $anyQuery->whereLike('task_type', '%' . $token . '%', caseSensitive: false);
+                                } else {
+                                    $anyQuery->orWhereLike('task_type', '%' . $token . '%', caseSensitive: false);
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    public static function filteredStatusCounts(
+        string $appName,
+        string $taskType,
+        ?string $capability = null,
+        ?string $excludedCapability = null
+    ): Collection {
+        $query = self::query()->where('app_name', $appName)->where('task_type', $taskType);
+
+        if ($capability !== null) {
+            $query->where('capability', $capability);
+        }
+        if ($excludedCapability !== null) {
+            $query->where(function ($filter) use ($excludedCapability): void {
+                $filter->whereNull('capability')->orWhere('capability', '!=', $excludedCapability);
+            });
+        }
+
+        return $query->groupBy('status')->selectRaw('status, count(*) as total')->pluck('total', 'status');
+    }
+
+    public static function activePayloadSamples(
+        string $appName,
+        string $taskType,
+        int $limit,
+        ?string $capability = null,
+        ?string $excludedCapability = null
+    ): EloquentCollection {
+        $query = self::query()
+            ->where('app_name', $appName)
+            ->where('task_type', $taskType)
+            ->whereIn('status', [self::status('pending'), self::status('assigned'), self::status('processing')]);
+        self::applyTaskLanguageOrder($query, $taskType);
+        $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+        if ($capability !== null) {
+            $query->where('capability', $capability);
+        }
+        if ($excludedCapability !== null) {
+            $query->where(function ($filter) use ($excludedCapability): void {
+                $filter->whereNull('capability')->orWhere('capability', '!=', $excludedCapability);
+            });
+        }
+
+        return $query->orderBy('created_at')->orderBy('id')->limit($limit)->get(['payload']);
+    }
+
+    public static function pendingPayloadTasks(string $appName, string $taskType, string $language): EloquentCollection
+    {
+        return self::query()
+            ->where('app_name', $appName)
+            ->where('task_type', $taskType)
+            ->where('status', self::status('pending'))
+            ->where('payload->language', $language)
+            ->get(['task_id', 'payload', 'priority']);
+    }
+
+    public static function filteredPageForAppType(
+        string $appName,
+        string $taskType,
+        array $statuses,
+        int $offset,
+        int $limit,
+        array $columns = ['*'],
+        bool $newestFirst = false
+    ): array {
+        $query = self::query()
+            ->where('app_name', $appName)
+            ->where('task_type', $taskType);
+
+        if ($statuses !== []) {
+            $query->whereIn('status', $statuses);
+        }
+
+        $total = (clone $query)->count();
+        if ($newestFirst) {
+            $query->orderByDesc('id');
+        } else {
+            self::applyTaskLanguageOrder($query, $taskType);
+            $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+            $query->orderBy('created_at')->orderBy('id');
+        }
+
+        return [
+            'total' => $total,
+            'rows' => $query->offset($offset)->limit($limit)->get($columns),
+        ];
+    }
+
+    public static function findForAppTypeByTaskId(string $appName, string $taskType, string $taskId): ?self
+    {
+        return self::query()
+            ->where('app_name', $appName)
+            ->where('task_type', $taskType)
+            ->where('task_id', $taskId)
+            ->first();
+    }
+
+    public static function findForAppByTaskId(string $appName, string $taskId): ?self
+    {
+        return self::query()
+            ->where('app_name', $appName)
+            ->where('task_id', $taskId)
+            ->first();
+    }
+
+    public static function recentForApp(string $appName, int $limit): EloquentCollection
+    {
+        return self::query()
+            ->where('app_name', $appName)
+            ->orderByDesc('created_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function recentForTaskType(string $taskType, int $limit, array $columns = ['*']): EloquentCollection
+    {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get($columns);
+    }
+
+    public static function tasksForAppByIds(string $appName, array $taskIds): EloquentCollection
+    {
+        return self::query()
+            ->where('app_name', $appName)
+            ->whereIn('task_id', $taskIds)
+            ->get();
+    }
+
+    public static function deleteForAppByIds(string $appName, array $taskIds): int
+    {
+        return self::query()
+            ->where('app_name', $appName)
+            ->whereIn('task_id', $taskIds)
+            ->delete();
+    }
+
+    public static function allForApp(string $appName): EloquentCollection
+    {
+        return self::query()->where('app_name', $appName)->orderBy('created_at')->get();
+    }
+
+    public static function upsertTaskRecord(string $taskId, array $attributes): self
+    {
+        return self::query()->updateOrCreate(['task_id' => $taskId], $attributes);
+    }
+
+    public static function activeTaskExists(string $taskId, array $statuses): bool
+    {
+        return self::query()->where('task_id', $taskId)->whereIn('status', $statuses)->exists();
+    }
+
+}

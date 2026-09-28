@@ -1,15 +1,8 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_CONTRACT_COMMON="$SCRIPT_DIR/../../linux/common/service_contract_common.sh"
+. "$SERVICE_CONTRACT_COMMON"
 
 # 1. Initialize variables
 DOCKER_USERNAME="cy00000000x"
@@ -18,7 +11,7 @@ IMAGE_NAME="${CONTAINER_NAME}_image"
 PORT_MAPPING="-p 18100:18100 -p 18200:18200"
 DATA_CACHE_DIR="/home/clash_subscribe_data/.data_cache"
 DATA_VOLUME_MAPPING="${DATA_CACHE_DIR}:/usr/src/app/.data_cache"
-LOCAL_REGISTRY="192.168.100.6:15000"
+LOCAL_REGISTRY="$(sc_require hosts.lan_storage_secondary):$(sc_require ports.docker_registry)"
 
 # Ensure the data cache directory exists
 mkdir -p "$DATA_CACHE_DIR"

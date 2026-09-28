@@ -159,9 +159,12 @@ verify_backup() {
     
     print_step_from_common_functions "Verifying backup file integrity..."
     
-    local extension="${backup_file##*.}"
-    case "$extension" in
-        tar.gz|tgz)
+    # Match the FULL filename, not just the last ".ext": "${file##*.}" of a
+    # "foo.tar.gz" is "gz" (NOT "tar.gz"), which previously fell through to the
+    # no-op default and silently skipped integrity checks for every .tar.gz backup
+    # (gitea uses .zip so it was unaffected; laravel/core_node .tar.gz were not verified).
+    case "$backup_file" in
+        *.tar.gz|*.tgz)
             if tar -tzf "$backup_file" &>/dev/null; then
                 print_success_from_common_functions "Backup file integrity verified (tar.gz)"
                 return 0
@@ -170,7 +173,7 @@ verify_backup() {
                 return 1
             fi
             ;;
-        zip)
+        *.zip)
             if unzip -t "$backup_file" &>/dev/null; then
                 print_success_from_common_functions "Backup file integrity verified (zip)"
                 return 0

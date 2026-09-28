@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * Global Configuration - Shared configuration for Ncore Module Caller
  *
@@ -18,9 +6,13 @@
 
 const os = require('os');
 const path = require('path');
+const serviceContract = require('#@/config/service_contract.js');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 
-const DEFAULT_HTTP_PORT = 58000;
+const DEFAULT_HTTP_PORT = serviceContract.port('ncore_backend');
 const DEFAULT_NCORE_ROOT = path.join(__dirname, '..');
+const DEFAULT_ALLOWED_CALLS = [];
+const MODULE_PATH_SEPARATOR = '/';
 
 let _globalConfig = null;
 
@@ -35,7 +27,7 @@ class GlobalConfig {
         this.httpPort = DEFAULT_HTTP_PORT;
 
         // Network settings
-        this.host = '0.0.0.0';
+        this.host = localRpcGuard.defaultBindHost();
         this.localIp = null;
 
         // Runtime state
@@ -51,8 +43,7 @@ class GlobalConfig {
         this.maxHistorySize = 100;
 
         // Security
-        this.allowedModules = [];
-        this.blockedModules = [];
+        this.allowedCalls = DEFAULT_ALLOWED_CALLS.slice();
 
         // Browser options
         this.autoLaunchBrowser = true;
@@ -133,31 +124,53 @@ class GlobalConfig {
     }
 
     /**
-     * Check if module is allowed to be called
+     * Normalize a module path relative to ncoreRoot; absolute or escaping paths are rejected
+     * @param {string} modulePath - Module path
+     * @returns {string|null}
+     */
+    normalizeModulePath(modulePath) {
+        const normalized = path.posix.normalize(String(modulePath || '').replace(/\\/g, MODULE_PATH_SEPARATOR));
+
+        if (!normalized || normalized === '.' || path.isAbsolute(String(modulePath || '')) || normalized.startsWith(MODULE_PATH_SEPARATOR)
+            || normalized === '..' || normalized.startsWith('../') || /^[A-Za-z]:/.test(normalized)) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    /**
+     * Check if a module/function pair is in the explicit allow-list
+     * @param {string} modulePath - Module path relative to ncoreRoot
+     * @param {string} functionName - Exported function name
+     * @returns {Object} { allowed: boolean, reason: string, modulePath: string|null }
+     */
+    isCallAllowed(modulePath, functionName) {
+        const normalized = this.normalizeModulePath(modulePath);
+
+        if (!normalized || !functionName) {
+            return { allowed: false, reason: 'call_not_allowed', modulePath: null };
+        }
+
+        for (const entry of this.allowedCalls) {
+            if (this.normalizeModulePath(entry.module) === normalized && entry.function === functionName) {
+                return { allowed: true, reason: 'call_allowed', modulePath: normalized };
+            }
+        }
+
+        return { allowed: false, reason: 'call_not_allowed', modulePath: null };
+    }
+
+    /**
+     * Check if module appears in the explicit allow-list
      * @param {string} modulePath - Module path
      * @returns {Object} { allowed: boolean, reason: string }
      */
     isModuleAllowed(modulePath) {
-        // Check blocked list first
-        for (const blocked of this.blockedModules) {
-            if (modulePath.startsWith(blocked)) {
-                return { allowed: false, reason: `Module '${modulePath}' is blocked` };
-            }
-        }
+        const normalized = this.normalizeModulePath(modulePath);
+        const allowed = Boolean(normalized) && this.allowedCalls.some((entry) => this.normalizeModulePath(entry.module) === normalized);
 
-        // If allowedModules is empty, allow all (except blocked)
-        if (this.allowedModules.length === 0) {
-            return { allowed: true, reason: 'All modules allowed' };
-        }
-
-        // Check allowed list
-        for (const allowed of this.allowedModules) {
-            if (modulePath.startsWith(allowed)) {
-                return { allowed: true, reason: `Module matches allowed pattern '${allowed}'` };
-            }
-        }
-
-        return { allowed: false, reason: `Module '${modulePath}' not in allowed list` };
+        return { allowed, reason: allowed ? 'call_allowed' : 'call_not_allowed' };
     }
 
     /**
@@ -175,8 +188,7 @@ class GlobalConfig {
             allowFileImport: this.allowFileImport,
             debugMode: this.debugMode,
             callHistoryCount: this.callHistory.length,
-            allowedModules: this.allowedModules,
-            blockedModules: this.blockedModules,
+            allowedCalls: this.allowedCalls,
             autoLaunchBrowser: this.autoLaunchBrowser,
             browserType: this.browserType
         };
@@ -239,6 +251,10 @@ function initGlobalConfig(options = {}) {
 
     if (options.browserType) {
         _globalConfig.browserType = options.browserType;
+    }
+
+    if (Array.isArray(options.allowedCalls)) {
+        _globalConfig.allowedCalls = options.allowedCalls.filter((entry) => entry && entry.module && entry.function);
     }
 
     _globalConfig.updateNetworkInfo();

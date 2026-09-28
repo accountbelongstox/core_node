@@ -2,20 +2,35 @@
 # -*- coding: utf-8 -*-
 """
 CONFIG Binding Utility
-通用的UI控件与CONFIG数据绑定工具
-支持复选框、下拉框、输入框等控件的自动联动
+Generic UI control to CONFIG data binding. Supports checkbox, combobox, entry, etc. with automatic sync.
 """
 
 import tkinter as tk
 from tkinter import ttk
 from typing import Any, Callable, Optional, Union, Dict, List
-from providor.providor_index import CONFIG, save_config
-from providor.common_imports import ColorPrint
-from d3utils.i18n_manager import i18n_manager
+from providor.providor_index import CONFIG, get_config_value_safe, set_config_value_async
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from share.values.config_change_hub import get_config_change_hub
+from .tk_variables import var_str, var_bool
+from ..widgets import ThemedEntry, ThemedCombobox, ThemedSpinbox
+
+
+def _parse_float_safe(value_str: str, default: float) -> float:
+    """Parse float from string without raising. Returns default when invalid."""
+    s = str(value_str).strip()
+    if not s or s in ("-", ".", "-."):
+        return default
+    if s.count(".") > 1:
+        return default
+    minus = 1 if s.startswith("-") else 0
+    rest = s[minus:].replace(".", "", 1)
+    if not rest.isdigit():
+        return default
+    return float(s)
 
 
 class ConfigBinding:
-    """CONFIG数据绑定工具类"""
+    """CONFIG binding utility class."""
 
     # Registry to track all bindings: {key_path: [var1, var2, ...]}
     _bindings: Dict[str, List[tk.Variable]] = {}
@@ -25,203 +40,164 @@ class ConfigBinding:
 
     @staticmethod
     def _register_binding(key_path: str, var: tk.Variable):
-        """Register a variable binding for a config key"""
+        """Register a variable binding for a config key. Use log_registration_summary() once after UI build to log all."""
         if key_path not in ConfigBinding._bindings:
             ConfigBinding._bindings[key_path] = []
         ConfigBinding._bindings[key_path].append(var)
-        ColorPrint.debug(f"[ConfigBinding] Registered binding for '{key_path}'")
+
+    @staticmethod
+    def log_registration_summary():
+        """Log one line with total bindings count. Call after all panels created."""
+        n = len(ConfigBinding._bindings)
+        if n == 0:
+            return
+        ColorPrint.debug(f"[ConfigBinding] Registered {n} bindings")
 
     @staticmethod
     def _update_bindings(key_path: str, new_value: Any):
-        """Update all registered bindings for a config key"""
+        """Update all registered bindings for a config key. BooleanVar gets bool; others get str."""
         if ConfigBinding._updating:
             return
 
         ConfigBinding._updating = True
         try:
-            if key_path in ConfigBinding._bindings:
-                for var in ConfigBinding._bindings[key_path]:
-                    current_value = var.get()
+            if key_path not in ConfigBinding._bindings:
+                return
+            for var in ConfigBinding._bindings[key_path]:
+                current_value = var.get()
+                if isinstance(var, tk.BooleanVar):
+                    b = new_value if isinstance(new_value, bool) else (str(new_value).strip().lower() in ("1", "true", "yes"))
+                    if bool(current_value) != b:
+                        var.set(b)
+                else:
                     if str(current_value) != str(new_value):
                         var.set(str(new_value))
-                        ColorPrint.debug(f"[ConfigBinding] Updated UI binding for '{key_path}' to '{new_value}'")
         finally:
             ConfigBinding._updating = False
 
     @staticmethod
     def get_config_value(key_path: str, default_value: Any = None) -> Any:
         """
-        根据键路径获取CONFIG中的值
-        
-        Args:
-            key_path: 键路径，如 "ui_analysis.bag_offset.left"
-            default_value: 默认值
-            
-        Returns:
-            配置值
+        Get value from CONFIG by key path (thread-safe for main and D3 extension thread).
         """
-        try:
-            keys = key_path.split('.')
-            value = CONFIG
-            
-            for key in keys:
-                if isinstance(value, dict) and key in value:
-                    value = value[key]
-                else:
-                    return default_value
-                    
-            return value
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBinding] Error getting config value for '{key_path}': {e}")
-            return default_value
-    
+        return get_config_value_safe(key_path, default_value)
+
     @staticmethod
     def set_config_value(key_path: str, value: Any) -> bool:
         """
-        根据键路径设置CONFIG中的值
-        
-        Args:
-            key_path: 键路径，如 "ui_analysis.bag_offset.left"
-            value: 要设置的值
-            
-        Returns:
-            是否设置成功
+        Set value in CONFIG by key path. Uses async update so UI never blocks on config worker or file I/O.
+        Only notifies config_change_hub when this is a direct write (not re-entry from _update_bindings trace).
         """
-        try:
-            keys = key_path.split('.')
-            config_ref = CONFIG
-            
-            # 确保路径存在
-            for key in keys[:-1]:
-                if key not in config_ref:
-                    config_ref[key] = {}
-                config_ref = config_ref[key]
-            
-            # 设置最终值
-            config_ref[keys[-1]] = value
-
-            # 保存配置
-            save_config()
-
-            ColorPrint.green(f"[ConfigBinding] Updated config '{key_path}' = {value}")
-
-            # Update all UI bindings for this key
+        if ConfigBinding._updating:
+            set_config_value_async(key_path, value)
             ConfigBinding._update_bindings(key_path, value)
-
-            # 特殊处理：语言切换
-            if key_path == "ui_settings.current_language":
-                i18n_manager.set_language(value)
-                ColorPrint.blue(f"[ConfigBinding] Triggered language change to: {value}")
-
             return True
-            
-        except Exception as e:
-            ColorPrint.red(f"[ConfigBinding] Error setting config value for '{key_path}': {e}")
-            return False
+        set_config_value_async(key_path, value)
+        ColorPrint.green(f"[ConfigBinding] Updated config '{key_path}' = {value}")
+        ConfigBinding._update_bindings(key_path, value)
+        get_config_change_hub().notify_config_changed(key_path)
+        return True
     
     @staticmethod
     def create_input_binding(parent: tk.Widget, key_path: str, default_value: str = "", 
                            width: int = 20, **kwargs) -> tk.Entry:
         """
-        创建与CONFIG绑定的输入框
-        
+        Create Entry bound to CONFIG.
+
         Args:
-            parent: 父控件
-            key_path: CONFIG键路径
-            default_value: 默认值
-            width: 输入框宽度
-            **kwargs: 其他Entry参数
-            
+            parent: Parent widget
+            key_path: CONFIG key path
+            default_value: Default value
+            width: Entry width
+            **kwargs: Other Entry args
+
         Returns:
-            绑定的Entry控件
+            Bound Entry widget
         """
-        # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-
-        # 创建变量
-        var = tk.StringVar(master=parent, value=str(current_value))
-
-        # Register binding for two-way sync
+        var = var_str(parent, str(current_value))
         ConfigBinding._register_binding(key_path, var)
-
-        # 创建输入框
-        entry = tk.Entry(parent, textvariable=var, width=width, **kwargs)
-
-        # 绑定变化事件 (UI -> CONFIG)
+        entry = ThemedEntry.create(parent, textvariable=var, width=width, **kwargs)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
 
         var.trace_add('write', on_change)
 
         return entry
-    
+
+    @staticmethod
+    def create_input_binding_with_initial(parent: tk.Widget, key_path: str, initial_value: str,
+                                         default_value: str = "", width: int = 20, **kwargs) -> tk.Entry:
+        """Create Entry bound to CONFIG using pre-fetched initial_value (no main-thread config read). Use when building UI from a config snapshot fetched in a worker thread."""
+        var = var_str(parent, str(initial_value))
+        ConfigBinding._register_binding(key_path, var)
+        entry = ThemedEntry.create(parent, textvariable=var, width=width, **kwargs)
+        def on_change(*args):
+            ConfigBinding.set_config_value(key_path, var.get())
+        var.trace_add('write', on_change)
+        return entry
+
     @staticmethod
     def create_checkbox_binding(parent: tk.Widget, key_path: str, text: str = "", 
                               default_value: bool = False, **kwargs) -> tk.Checkbutton:
         """
-        创建与CONFIG绑定的复选框
-        
+        Create Checkbutton bound to CONFIG.
+
         Args:
-            parent: 父控件
-            key_path: CONFIG键路径
-            text: 复选框文本
-            default_value: 默认值
-            **kwargs: 其他Checkbutton参数
-            
+            parent: Parent widget
+            key_path: CONFIG key path
+            text: Checkbutton label
+            default_value: Default value
+            **kwargs: Other Checkbutton args
+
         Returns:
-            绑定的Checkbutton控件
+            Bound Checkbutton widget
         """
-        # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-
-        # 创建变量
-        var = tk.BooleanVar(master=parent, value=bool(current_value))
-
-        # Register binding for two-way sync
+        var = var_bool(parent, bool(current_value))
         ConfigBinding._register_binding(key_path, var)
-
-        # 创建复选框
         checkbox = tk.Checkbutton(parent, text=text, variable=var, **kwargs)
-
-        # 绑定变化事件 (UI -> CONFIG)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
 
         var.trace_add('write', on_change)
 
         return checkbox
-    
+
+    @staticmethod
+    def create_checkbox_binding_with_initial(parent: tk.Widget, key_path: str, initial_value: bool,
+                                            text: str = "", default_value: bool = False, **kwargs) -> tk.Checkbutton:
+        """Create Checkbutton bound to CONFIG using pre-fetched initial_value (no main-thread config read)."""
+        var = var_bool(parent, bool(initial_value))
+        ConfigBinding._register_binding(key_path, var)
+        checkbox = tk.Checkbutton(parent, text=text, variable=var, **kwargs)
+        def on_change(*args):
+            ConfigBinding.set_config_value(key_path, var.get())
+        var.trace_add('write', on_change)
+        return checkbox
+
     @staticmethod
     def create_combobox_binding(parent: tk.Widget, key_path: str, values: List[str], 
                               default_value: str = "", width: int = 15, **kwargs) -> ttk.Combobox:
         """
-        创建与CONFIG绑定的下拉框
-        
+        Create Combobox bound to CONFIG.
+
         Args:
-            parent: 父控件
-            key_path: CONFIG键路径
-            values: 下拉选项列表
-            default_value: 默认值
-            width: 下拉框宽度
-            **kwargs: 其他Combobox参数
-            
+            parent: Parent widget
+            key_path: CONFIG key path
+            values: Option list
+            default_value: Default value
+            width: Combobox width
+            **kwargs: Other Combobox args
+
         Returns:
-            绑定的Combobox控件
+            Bound Combobox widget
         """
-        # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-
-        # 创建变量
-        var = tk.StringVar(master=parent, value=str(current_value))
-
-        # Register binding for two-way sync
+        var = var_str(parent, str(current_value))
         ConfigBinding._register_binding(key_path, var)
-
-        # 创建下拉框
-        combobox = ttk.Combobox(parent, textvariable=var, values=values,
-                               width=width, state='readonly', **kwargs)
-
-        # 绑定变化事件 (UI -> CONFIG)
+        combobox = ThemedCombobox.create(parent, textvariable=var, values=values,
+                                        width=width, state='readonly', **kwargs)
         def on_change(*args):
             ConfigBinding.set_config_value(key_path, var.get())
 
@@ -235,65 +211,71 @@ class ConfigBinding:
                              default_value: Union[int, float] = 0, width: int = 10, 
                              **kwargs) -> tk.Spinbox:
         """
-        创建与CONFIG绑定的数字选择框
-        
+        Create Spinbox bound to CONFIG.
+
         Args:
-            parent: 父控件
-            key_path: CONFIG键路径
-            from_: 最小值
-            to: 最大值
-            increment: 步长
-            default_value: 默认值
-            width: 控件宽度
-            **kwargs: 其他Spinbox参数
-            
+            parent: Parent widget
+            key_path: CONFIG key path
+            from_: Min value
+            to: Max value
+            increment: Step
+            default_value: Default value
+            width: Spinbox width
+            **kwargs: Other Spinbox args
+
         Returns:
-            绑定的Spinbox控件
+            Bound Spinbox widget
         """
-        # 获取当前配置值
         current_value = ConfigBinding.get_config_value(key_path, default_value)
-
-        # 创建变量
-        var = tk.StringVar(master=parent, value=str(current_value))
-
-        # Register binding for two-way sync
+        var = var_str(parent, str(current_value))
         ConfigBinding._register_binding(key_path, var)
-
-        # 创建数字选择框
-        spinbox = tk.Spinbox(parent, textvariable=var, from_=from_, to=to,
-                           increment=increment, width=width, **kwargs)
-
-        # 绑定变化事件 (UI -> CONFIG)
+        spinbox = ThemedSpinbox.create(parent, from_=from_, to=to, increment=increment,
+                                      textvariable=var, width=width, **kwargs)
         def on_change(*args):
             value_str = var.get()
             if isinstance(increment, int):
                 ConfigBinding.set_config_value(key_path, int(value_str) if value_str.isdigit() else default_value)
             else:
-                try:
-                    ConfigBinding.set_config_value(key_path, float(value_str))
-                except ValueError:
-                    ConfigBinding.set_config_value(key_path, default_value)
+                ConfigBinding.set_config_value(key_path, _parse_float_safe(value_str, default_value))
 
         var.trace_add('write', on_change)
 
         return spinbox
-    
+
+    @staticmethod
+    def create_spinbox_binding_with_initial(parent: tk.Widget, key_path: str, initial_value: Union[int, float, str],
+                                           from_: Union[int, float] = 0, to: Union[int, float] = 100,
+                                           increment: Union[int, float] = 1, default_value: Union[int, float] = 0,
+                                           width: int = 10, **kwargs) -> tk.Spinbox:
+        """Create Spinbox bound to CONFIG using pre-fetched initial_value (no main-thread config read)."""
+        var = var_str(parent, str(initial_value))
+        ConfigBinding._register_binding(key_path, var)
+        spinbox = ThemedSpinbox.create(parent, from_=from_, to=to, increment=increment,
+                                       textvariable=var, width=width, **kwargs)
+        def on_change(*args):
+            value_str = var.get()
+            if isinstance(increment, int):
+                ConfigBinding.set_config_value(key_path, int(value_str) if value_str.isdigit() else default_value)
+            else:
+                ConfigBinding.set_config_value(key_path, _parse_float_safe(value_str, default_value))
+        var.trace_add('write', on_change)
+        return spinbox
+
     @staticmethod
     def bind_existing_widget(widget: tk.Widget, key_path: str, 
                            value_getter: Callable = None, 
                            value_setter: Callable = None,
                            event: str = None) -> None:
         """
-        为现有控件绑定CONFIG联动
-        
+        Bind existing widget to CONFIG.
+
         Args:
-            widget: 要绑定的控件
-            key_path: CONFIG键路径
-            value_getter: 获取控件值的函数
-            value_setter: 设置控件值的函数
-            event: 监听的事件名称
+            widget: Widget to bind
+            key_path: CONFIG key path
+            value_getter: Function to get widget value
+            value_setter: Function to set widget value
+            event: Event name to listen
         """
-        # 默认的获取和设置函数
         if value_getter is None:
             if hasattr(widget, 'get'):
                 value_getter = widget.get
@@ -308,23 +290,14 @@ class ConfigBinding:
             else:
                 raise ValueError("Widget must have 'set' method or provide value_setter")
         
-        # 设置初始值
         initial_value = ConfigBinding.get_config_value(key_path)
         if initial_value is not None:
-            try:
-                value_setter(initial_value)
-            except Exception as e:
-                ColorPrint.red(f"[ConfigBinding] Error setting initial value: {e}")
-        
-        # 绑定变化事件
+            value_setter(initial_value)
         def on_change(*args):
-            try:
-                value = value_getter()
-                ConfigBinding.set_config_value(key_path, value)
-            except Exception as e:
-                ColorPrint.red(f"[ConfigBinding] Error in change handler: {e}")
+            value = value_getter()
+            ConfigBinding.set_config_value(key_path, value)
         
-        # 根据控件类型绑定事件
+        # Bind event by widget type
         if event:
             widget.bind(event, on_change)
         elif isinstance(widget, (tk.Entry, tk.Text)):

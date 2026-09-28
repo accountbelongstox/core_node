@@ -5,32 +5,71 @@ namespace App\Services;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+use Throwable;
 
 /**
- * Safe Migration Helper - 安全迁移辅助类
- * 
- * 提供幂等性数据库迁移工具，确保：
- * - 永远不会删除表或数据
- * - 只在表不存在时创建表
- * - 只在字段不存在时添加字段
- * - 支持字段类型扩展（如 string(50) -> string(255)），但不收缩
- * - 支持索引对齐（添加缺失索引）
- * - 确保代码向数据库结构对齐（不是重建表）
- * 
- * 使用场景：
- * - 表不存在：创建表及所有字段
- * - 表存在但字段缺失：添加缺失字段
- * - 表存在但字段类型需要扩展：扩展字段类型（不收缩）
- * - 表存在但索引缺失：添加缺失索引
+ * Safe Migration Helper — the canonical engine for ALL idempotent
+ * initialization (sys:init initializers AND migrations).
+ *
+ * INITIALIZATION CONTRACT (binding for every initializer/migration):
+ *
+ * 1. IDEMPOTENT BY CONSTRUCTION. Re-running any initialization N times
+ *    converges to the same state. Always probe before acting (hasTable /
+ *    hasColumn / indexExists / pg_indexes); never act blindly.
+ *
+ * 2. TABLES ARE NEVER DROPPED OR REBUILT — not even when empty. A legacy
+ *    table that becomes dead is simply left in place (a dead table costs
+ *    nothing; any drop risks data). copy-drop-rename rebuilds are equally
+ *    forbidden. There is intentionally NO drop-table helper in this class.
+ *
+ * 3. EXISTING TABLES (WITH DATA) ARE ADJUSTED IN PLACE to the new
+ *    structure, idempotently:
+ *      - add missing columns / indexes / foreign keys (probe-first);
+ *      - reconcile an index whose name matches but whose uniqueness or
+ *        columns drifted (drop + re-add in place — a name-only probe would
+ *        silently keep a non-unique index that ON CONFLICT upserts need);
+ *      - WIDEN column lengths (never shrink — a shrink fails on longer
+ *        values and silent truncation is data loss);
+ *      - RELAX nullability (never enforce NOT NULL on existing rows);
+ *      - align defaults (PostgreSQL SET DEFAULT is metadata-only);
+ *      - drop a column (dropColumn with a hasColumn guard, or the opt-in
+ *        'shrink_columns' alignment) — a column drop is a legal in-place
+ *        structure adjustment, NOT a table deletion.
+ *
+ * 4. INDEXES WITH A WHERE PREDICATE (partial indexes) go exclusively
+ *    through safeAddPgPartialIndex() — Blueprint cannot express them.
+ *
+ * 5. ROW-LEVEL DATA REPAIR (dedup, cancel, backfill) never happens via
+ *    raw deletes here; it goes through the canonical service path
+ *    (e.g. TaskManagerService::cancelTask) in bounded batches.
+ *
+ * 6. DATA-MUTATION migrations extend
+ *    App\Support\Migrations\TransactionalMigration so a mid-run failure
+ *    rolls back and every retry starts from a clean state.
+ *
+ * Use cases:
+ * - Table missing: create the table and all columns
+ * - Table exists but a column is missing: add the missing column
+ * - Table exists but a column type needs widening: expand in place
+ * - Table exists but a column is obsolete: drop the column in place
+ * - Table exists but an index is missing: add the missing index
  */
 class SafeMigrationHelper
 {
+    private const LOG_TAG = '[SafeMigrationHelper]';
+
+    private const PRIMARY_KEY_COLUMN_TYPES = ['increments', 'bigIncrements', 'id'];
+
+    private const COMPOSITE_COLUMN_TYPES = ['timestamps', 'softDeletes', 'softDeletesTz'];
+
     /**
-     * 安全创建表（如果不存在）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param callable $tableDefinition 表定义闭包
+     * Safely create a table (if it does not exist)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param callable $tableDefinition Table definition closure
      * @return array ['status' => 'created'|'exists', 'message' => string]
      */
     public static function safeCreateTable(
@@ -55,12 +94,12 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全添加字段（如果不存在）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $columnName 字段名
-     * @param callable $columnDefinition 字段定义闭包，接收 Blueprint $table 参数
+     * Safely add a column (if it does not exist)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $columnName Column name
+     * @param callable $columnDefinition Column definition closure, receives the Blueprint $table argument
      * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
      */
     public static function safeAddColumn(
@@ -96,19 +135,19 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全修改字段类型（仅扩展，不收缩）
-     * 
-     * 支持的扩展操作：
+     * Safely modify a column type (widen only, never shrink)
+     *
+     * Supported expansion operations:
      * - string(50) -> string(255) ✅
      * - string(255) -> text ✅
      * - integer -> bigInteger ✅
-     * - 不支持收缩操作（会跳过）
+     * - Shrink operations are not supported (they are skipped)
      * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $columnName 字段名
-     * @param string $newType 新类型（'string', 'text', 'bigInteger' 等）
-     * @param array $options 选项 ['length' => int, 'nullable' => bool, 'default' => mixed]
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $columnName Column name
+     * @param string $newType New type ('string', 'text', 'bigInteger', etc.)
+     * @param array $options Options ['length' => int, 'nullable' => bool, 'default' => mixed]
      * @return array ['status' => 'modified'|'skipped'|'error', 'message' => string]
      */
     public static function safeModifyColumn(
@@ -134,7 +173,7 @@ class SafeMigrationHelper
             ];
         }
         
-        // 获取当前字段信息
+        // Get the current column info
         $columnInfo = self::getColumnInfo($connection, $tableName, $columnName);
         if (!$columnInfo) {
             return [
@@ -143,7 +182,7 @@ class SafeMigrationHelper
             ];
         }
         
-        // 检查是否需要修改（类型扩展）
+        // Check whether modification is needed (type widening)
         $needsModify = self::shouldModifyColumn($columnInfo, $newType, $options);
         if (!$needsModify) {
             return [
@@ -152,18 +191,18 @@ class SafeMigrationHelper
             ];
         }
         
-        // 执行修改（SQLite 需要特殊处理）
+        // Perform the modification (SQLite needs special handling)
         $driver = DB::connection($connection)->getDriverName();
         if ($driver === 'sqlite') {
-            // SQLite 不支持直接修改列类型，需要重建表
-            // 但为了安全，我们只允许扩展操作，且不删除数据
+            // SQLite does not support direct column type changes; it would require rebuilding the table.
+            // For safety we only allow expansion operations and never delete data.
             return [
                 'status' => 'skipped',
                 'message' => "SQLite does not support column type modification. Column {$tableName}.{$columnName} kept as is."
             ];
         }
         
-        // MySQL/PostgreSQL 支持修改
+        // MySQL/PostgreSQL support modification
         $schema->table($tableName, function (Blueprint $table) use ($columnName, $newType, $options) {
             $column = null;
             $length = $options['length'] ?? null;
@@ -225,25 +264,35 @@ class SafeMigrationHelper
         
         // Generate index name
         if ($indexName === null) {
+            $equivalentIndex = self::findEquivalentIndex($connection, $tableName, $columns, true);
+            if ($equivalentIndex !== null) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Unique index {$equivalentIndex['name']} on {$tableName} already covers the columns"
+                ];
+            }
             $indexName = self::generateIndexName($tableName, $columns);
         }
         
-        // Check if index exists
-        if (self::indexExists($connection, $tableName, $indexName)) {
-            return [
-                'status' => 'exists',
-                'message' => "Unique index {$indexName} on {$tableName} already exists"
-            ];
-        }
-        
-        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
-            if (is_array($columns)) {
-                $table->unique($columns, $indexName);
-            } else {
-                $table->unique($columns, $indexName);
+        // Check if index exists — a name-only match is NOT enough: the existing
+        // index must also match in uniqueness and columns. A drifted index
+        // (e.g. created non-unique under the same name) is reconciled in place
+        // (drop + re-add below) so ON CONFLICT inference keeps working.
+        $existingIndex = self::getIndexInfo($connection, $tableName, $indexName);
+        if ($existingIndex !== null) {
+            if (self::indexMatches($existingIndex, $columns, true)) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Unique index {$indexName} on {$tableName} already exists"
+                ];
             }
+            self::dropIndexInPlace($connection, $tableName, $indexName, (bool) ($existingIndex['unique'] ?? false));
+        }
+
+        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
+            $table->unique($columns, $indexName);
         });
-        
+
         return [
             'status' => 'added',
             'message' => "Unique index {$indexName} on {$tableName} added successfully"
@@ -274,25 +323,34 @@ class SafeMigrationHelper
             ];
         }
         
-        // 生成索引名称
+        // Generate the index name
         if ($indexName === null) {
+            $equivalentIndex = self::findEquivalentIndex($connection, $tableName, $columns, false);
+            if ($equivalentIndex !== null) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Index {$equivalentIndex['name']} on {$tableName} already covers the columns"
+                ];
+            }
             $indexName = self::generateIndexName($tableName, $columns);
         }
         
-        // 检查索引是否存在
-        if (self::indexExists($connection, $tableName, $indexName)) {
-            return [
-                'status' => 'exists',
-                'message' => "Index {$indexName} on {$tableName} already exists"
-            ];
-        }
-        
-        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
-            if (is_array($columns)) {
-                $table->index($columns, $indexName);
-            } else {
-                $table->index($columns, $indexName);
+        // Check whether the index already exists — with the expected columns.
+        // A UNIQUE index satisfies a plain-index requirement (it is stronger),
+        // but a column-set drift is reconciled in place (drop + re-add below).
+        $existingIndex = self::getIndexInfo($connection, $tableName, $indexName);
+        if ($existingIndex !== null) {
+            if (self::indexMatches($existingIndex, $columns, false)) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Index {$indexName} on {$tableName} already exists"
+                ];
             }
+            self::dropIndexInPlace($connection, $tableName, $indexName, (bool) ($existingIndex['unique'] ?? false));
+        }
+
+        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
+            $table->index($columns, $indexName);
         });
         
         return [
@@ -302,15 +360,71 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全添加外键（如果不存在）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $column 字段名
-     * @param string $referencedTable 引用表名
-     * @param string $referencedColumn 引用字段名（默认 'id'）
-     * @param string|null $foreignKeyName 外键名称（可选）
-     * @param string $onDelete 删除行为（默认 'cascade'）
+     * Safely add a PostgreSQL PARTIAL (filtered) index, unique or plain.
+     *
+     * Blueprint cannot express a WHERE predicate, so this is raw DDL — the
+     * single supported place for partial indexes. Idempotent via the shared
+     * indexExists() probe; re-runs are no-ops. PostgreSQL-only: callers must
+     * target a pgsql connection. A UNIQUE variant fails loudly (exception) if
+     * existing rows already violate the predicate — repair the data first.
+     *
+     * @param string        $connection Connection name (pgsql)
+     * @param string        $tableName  Table name
+     * @param string        $indexName  Explicit index name (required: partial
+     *                                  indexes carry semantics in their name)
+     * @param array<string> $columns    Index columns (identifiers, quoted here)
+     * @param string        $whereSql   Predicate WITHOUT the WHERE keyword
+     * @param bool          $unique     Create a UNIQUE partial index
+     * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
+     */
+    public static function safeAddPgPartialIndex(
+        string $connection,
+        string $tableName,
+        string $indexName,
+        array $columns,
+        string $whereSql,
+        bool $unique = true
+    ): array {
+        $schema = Schema::connection($connection);
+
+        if (!$schema->hasTable($tableName)) {
+            return [
+                'status' => 'error',
+                'message' => "Table {$tableName} does not exist"
+            ];
+        }
+
+        if (self::indexExists($connection, $tableName, $indexName)) {
+            return [
+                'status' => 'exists',
+                'message' => "Index {$indexName} on {$tableName} already exists"
+            ];
+        }
+
+        $quote = static fn (string $identifier): string => '"' . str_replace('"', '""', $identifier) . '"';
+        $columnList = implode(', ', array_map($quote, $columns));
+        $uniqueSql = $unique ? 'UNIQUE ' : '';
+
+        DB::connection($connection)->statement(
+            "CREATE {$uniqueSql}INDEX {$quote($indexName)} ON {$quote($tableName)} ({$columnList}) WHERE {$whereSql}"
+        );
+
+        return [
+            'status' => 'added',
+            'message' => "Partial index {$indexName} on {$tableName} added successfully"
+        ];
+    }
+
+    /**
+     * Safely add a foreign key (if it does not exist)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $column Column name
+     * @param string $referencedTable Referenced table name
+     * @param string $referencedColumn Referenced column name (default 'id')
+     * @param string|null $foreignKeyName Foreign key name (optional)
+     * @param string $onDelete On-delete behavior (default 'cascade')
      * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
      */
     public static function safeAddForeignKey(
@@ -338,12 +452,12 @@ class SafeMigrationHelper
             ];
         }
         
-        // 生成外键名称
+        // Generate the foreign key name
         if ($foreignKeyName === null) {
             $foreignKeyName = self::generateForeignKeyName($tableName, $column);
         }
         
-        // 检查外键是否存在
+        // Check whether the foreign key already exists
         if (self::foreignKeyExists($connection, $tableName, $foreignKeyName)) {
             return [
                 'status' => 'exists',
@@ -365,11 +479,11 @@ class SafeMigrationHelper
     }
 
     /**
-     * 批量安全添加字段
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param array $columns 字段定义数组 ['column_name' => callable]
+     * Safely add multiple columns in bulk
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param array $columns Column definition array ['column_name' => callable]
      * @return array ['added' => [], 'skipped' => [], 'errors' => []]
      */
     public static function safeAddColumns(
@@ -402,75 +516,55 @@ class SafeMigrationHelper
     }
 
     /**
-     * 获取字段信息
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $columnName 字段名
+     * Get column information
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $columnName Column name
      * @return array|null
      */
     private static function getColumnInfo(string $connection, string $tableName, string $columnName): ?array
     {
-        $driver = DB::connection($connection)->getDriverName();
-        
-        if ($driver === 'sqlite') {
-            // SQLite 查询字段信息
-            $result = DB::connection($connection)->select(
-                "PRAGMA table_info({$tableName})"
-            );
-            
-            foreach ($result as $column) {
-                if ($column->name === $columnName) {
-                    return [
-                        'type' => $column->type,
-                        'notnull' => $column->notnull,
-                        'default' => $column->dflt_value,
-                    ];
-                }
-            }
-        } else {
-            // MySQL/PostgreSQL 查询字段信息
-            $database = DB::connection($connection)->getDatabaseName();
-            $result = DB::connection($connection)->select(
-                "SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT 
-                 FROM INFORMATION_SCHEMA.COLUMNS 
-                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
-                [$database, $tableName, $columnName]
-            );
-            
-            if (!empty($result)) {
-                $info = $result[0];
+        // ONE driver-agnostic path: Laravel's native getColumns() returns the
+        // same shape on sqlite / pgsql / mysql. Its 'type' string already
+        // carries the length (e.g. "varchar(255)", "character varying(255)"),
+        // which the shared shouldModifyColumn()/columnNeedsModification() regex
+        // and stripos() type-matching consume. No PRAGMA / information_schema.
+        $columns = Schema::connection($connection)->getColumns($tableName);
+
+        foreach ($columns as $column) {
+            if (($column['name'] ?? null) === $columnName) {
                 return [
-                    'type' => $info->COLUMN_TYPE ?? null,
-                    'nullable' => ($info->IS_NULLABLE ?? 'NO') === 'YES',
-                    'default' => $info->COLUMN_DEFAULT ?? null,
+                    'type' => $column['type'] ?? ($column['type_name'] ?? null),
+                    'nullable' => (bool) ($column['nullable'] ?? false),
+                    'default' => $column['default'] ?? null,
                 ];
             }
         }
-        
+
         return null;
     }
 
     /**
-     * 判断是否需要修改字段
-     * 
-     * @param array $currentInfo 当前字段信息
-     * @param string $newType 新类型
-     * @param array $options 选项
+     * Determine whether a column needs modification
+     *
+     * @param array $currentInfo Current column info
+     * @param string $newType New type
+     * @param array $options Options
      * @return bool
      */
     private static function shouldModifyColumn(array $currentInfo, string $newType, array $options): bool
     {
         $currentType = strtolower($currentInfo['type'] ?? '');
         
-        // 类型扩展规则
+        // Type expansion rules
         $typeExpansions = [
             'string' => ['varchar', 'char', 'string'],
             'text' => ['varchar', 'char', 'string', 'text'],
             'bigInteger' => ['int', 'integer', 'bigint', 'biginteger'],
         ];
         
-        // 检查是否需要扩展类型
+        // Check whether the type needs to be widened
         if (isset($typeExpansions[$newType])) {
             $canExpand = false;
             foreach ($typeExpansions[$newType] as $expandableType) {
@@ -481,18 +575,18 @@ class SafeMigrationHelper
             }
             
             if (!$canExpand) {
-                return false; // 不支持的类型扩展
+                return false; // Unsupported type expansion
             }
-            
-            // 检查长度扩展（仅适用于 string）
+
+            // Check length expansion (string type only)
             if ($newType === 'string' && isset($options['length'])) {
-                // 提取当前长度
+                // Extract the current length
                 preg_match('/\((\d+)\)/', $currentType, $matches);
                 $currentLength = $matches[1] ?? 255;
-                
-                // 只允许扩展，不允许收缩
+
+                // Only allow widening, never shrinking
                 if ($options['length'] <= $currentLength) {
-                    return false; // 收缩操作，不允许
+                    return false; // Shrink operation: not allowed
                 }
             }
             
@@ -503,69 +597,215 @@ class SafeMigrationHelper
     }
 
     /**
-     * 检查索引是否存在
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $indexName 索引名称
+     * Check whether an index exists
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $indexName Index name
      * @return bool
      */
     private static function indexExists(string $connection, string $tableName, string $indexName): bool
     {
-        $driver = DB::connection($connection)->getDriverName();
-        
-        if ($driver === 'sqlite') {
-            $result = DB::connection($connection)->select(
-                "SELECT name FROM sqlite_master WHERE type='index' AND name=? AND tbl_name=?",
-                [$indexName, $tableName]
-            );
-            return !empty($result);
-        } else {
-            $database = DB::connection($connection)->getDatabaseName();
-            $result = DB::connection($connection)->select(
-                "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS 
-                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?",
-                [$database, $tableName, $indexName]
-            );
-            return !empty($result);
+        // Native, driver-agnostic (sqlite / pgsql / mysql): hasIndex() matches
+        // by index NAME against getIndexes() metadata. pgsql lower-cases index
+        // names in its processor, so match case-insensitively to stay
+        // equivalent to the previous catalog lookups.
+        $schema = Schema::connection($connection);
+
+        if ($schema->hasIndex($tableName, $indexName)) {
+            return true;
         }
+
+        foreach ($schema->getIndexes($tableName) as $index) {
+            if (strcasecmp((string) ($index['name'] ?? ''), $indexName) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
-     * 检查外键是否存在
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param string $foreignKeyName 外键名称
+     * Fetch one index's metadata (name / columns / unique / primary) by name.
+     * Native, driver-agnostic via getIndexes(); matched case-insensitively
+     * because pgsql lower-cases identifiers. null when absent.
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $indexName Index name
+     * @return array|null
+     */
+    private static function getIndexInfo(string $connection, string $tableName, string $indexName): ?array
+    {
+        foreach (Schema::connection($connection)->getIndexes($tableName) as $index) {
+            if (strcasecmp((string) ($index['name'] ?? ''), $indexName) === 0) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Any existing index that satisfies an unnamed index requirement. Tables
+     * created through Blueprint carry its auto names ({table}_{cols}_index /
+     * _unique), not generateIndexName(), so a name-only probe would add a
+     * duplicate index on every table on the run after its creation. Column
+     * order must match exactly: a composite index with another leading column
+     * serves different queries. A pgsql partial (WHERE) index covers only part
+     * of the rows, so it never satisfies a full-table requirement.
+     */
+    private static function findEquivalentIndex(string $connection, string $tableName, $columns, bool $requireUnique): ?array
+    {
+        $expectedColumns = self::normalizeIndexColumns($columns);
+        $partialIndexNames = self::pgPartialIndexNames($connection, $tableName);
+
+        foreach (Schema::connection($connection)->getIndexes($tableName) as $index) {
+            if (in_array(strtolower((string) ($index['name'] ?? '')), $partialIndexNames, true)) {
+                continue;
+            }
+            $actualColumns = self::normalizeIndexColumns($index['columns'] ?? []);
+            if ($actualColumns === $expectedColumns && (!$requireUnique || !empty($index['unique']))) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Index column list as lower-case strings, in declared order.
+     *
+     * @param string|array $columns
+     * @return array<int, string>
+     */
+    private static function normalizeIndexColumns($columns): array
+    {
+        return array_map('strtolower', array_map('strval', is_array($columns) ? $columns : [$columns]));
+    }
+
+    /**
+     * Lower-case names of the table's pgsql partial (WHERE) indexes. getIndexes()
+     * carries no predicate, so pg_index.indpred is read directly; other drivers
+     * return [].
+     *
+     * @return array<int, string>
+     */
+    private static function pgPartialIndexNames(string $connection, string $tableName): array
+    {
+        $db = DB::connection($connection);
+
+        if ($db->getDriverName() !== 'pgsql') {
+            return [];
+        }
+
+        $rows = $db->selectFromWriteConnection(
+            'select ic.relname as name from pg_index i '
+            . 'join pg_class tc on tc.oid = i.indrelid '
+            . 'join pg_namespace tn on tn.oid = tc.relnamespace '
+            . 'join pg_class ic on ic.oid = i.indexrelid '
+            . 'where tc.relname = ? and tn.nspname = current_schema() and i.indpred is not null',
+            [$db->getTablePrefix() . $tableName]
+        );
+
+        return array_map(static fn ($row): string => strtolower((string) $row->name), $rows);
+    }
+
+    /**
+     * Whether an existing index satisfies the requirement: same column set
+     * (order- and case-insensitive) and, when uniqueness is required, actually
+     * UNIQUE. A UNIQUE index also satisfies a plain-index requirement (it is
+     * strictly stronger); the reverse is never true — ON CONFLICT upserts and
+     * FK inference require the real constraint.
+     *
+     * @param array        $index         Index metadata from getIndexInfo()
+     * @param string|array $columns       Required columns
+     * @param bool         $requireUnique Whether a UNIQUE index is required
+     * @return bool
+     */
+    private static function indexMatches(array $index, $columns, bool $requireUnique): bool
+    {
+        $expectedColumns = self::normalizeIndexColumns($columns);
+        $actualColumns = self::normalizeIndexColumns($index['columns'] ?? []);
+        sort($expectedColumns);
+        sort($actualColumns);
+        if ($expectedColumns !== $actualColumns) {
+            return false;
+        }
+
+        return $requireUnique ? (bool) ($index['unique'] ?? false) : true;
+    }
+
+    /**
+     * Drop an index in place during reconciliation. Blueprint-created unique
+     * indexes are constraint-backed, so they go through dropUnique (DROP
+     * CONSTRAINT on pgsql); plain indexes go through dropIndex.
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $indexName Index name
+     * @param bool   $wasUnique Whether the existing index is UNIQUE
+     */
+    private static function dropIndexInPlace(string $connection, string $tableName, string $indexName, bool $wasUnique): void
+    {
+        Schema::connection($connection)->table($tableName, function (Blueprint $table) use ($indexName, $wasUnique) {
+            if ($wasUnique) {
+                $table->dropUnique($indexName);
+            } else {
+                $table->dropIndex($indexName);
+            }
+        });
+    }
+
+    /**
+     * Check whether a foreign key exists
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $foreignKeyName Foreign key name
      * @return bool
      */
     private static function foreignKeyExists(string $connection, string $tableName, string $foreignKeyName): bool
     {
-        $driver = DB::connection($connection)->getDriverName();
-        
-        if ($driver === 'sqlite') {
-            // SQLite 外键检查
-            $result = DB::connection($connection)->select(
-                "SELECT name FROM sqlite_master WHERE type='table' AND sql LIKE ?",
-                ["%CONSTRAINT {$foreignKeyName}%"]
-            );
-            return !empty($result);
-        } else {
-            $database = DB::connection($connection)->getDatabaseName();
-            $result = DB::connection($connection)->select(
-                "SELECT CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?",
-                [$database, $tableName, $foreignKeyName]
-            );
-            return !empty($result);
+        // Native, driver-agnostic (sqlite / pgsql / mysql) via getForeignKeys(),
+        // which returns ['name','columns'(list),'foreign_table',...].
+        //
+        // On pgsql / mysql the constraint carries a real name, so match by name
+        // (case-insensitive; pgsql lower-cases identifiers). SQLite does NOT
+        // persist FK constraint names (getForeignKeys() reports name => null),
+        // so the old code matched the generated name's substring in the CREATE
+        // SQL. We keep equivalent behaviour without raw SQL: the generated name
+        // is "fk_{table}_{column}", so derive the column and check whether an
+        // FK on that column exists. This avoids any sqlite_master lookup.
+        $foreignKeys = Schema::connection($connection)->getForeignKeys($tableName);
+
+        foreach ($foreignKeys as $fk) {
+            $name = $fk['name'] ?? null;
+            if ($name !== null && strcasecmp((string) $name, $foreignKeyName) === 0) {
+                return true;
+            }
         }
+
+        // Name-less (sqlite) fallback: match by the column encoded in the
+        // conventional generated name "fk_{table}_{column}".
+        $prefix = 'fk_' . $tableName . '_';
+        if (str_starts_with($foreignKeyName, $prefix)) {
+            $column = substr($foreignKeyName, strlen($prefix));
+            foreach ($foreignKeys as $fk) {
+                if (in_array($column, $fk['columns'] ?? [], true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
-     * 生成索引名称
-     * 
-     * @param string $tableName 表名
-     * @param string|array $columns 字段
+     * Generate an index name
+     *
+     * @param string $tableName Table name
+     * @param string|array $columns Columns
      * @return string
      */
     private static function generateIndexName(string $tableName, $columns): string
@@ -575,10 +815,10 @@ class SafeMigrationHelper
     }
 
     /**
-     * 生成外键名称
-     * 
-     * @param string $tableName 表名
-     * @param string $column 字段名
+     * Generate a foreign key name
+     *
+     * @param string $tableName Table name
+     * @param string $column Column name
      * @return string
      */
     private static function generateForeignKeyName(string $tableName, string $column): string
@@ -587,21 +827,21 @@ class SafeMigrationHelper
     }
 
     /**
-     * 完整表结构对齐 - 核心方法
-     * 
-     * 功能：
-     * 1. 表不存在则创建
-     * 2. 添加缺失字段
-     * 3. 收缩多余字段（可选，默认关闭）
-     * 4. 修正字段属性（类型、长度、nullable、default等）
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param callable $tableDefinition 表定义闭包，定义完整的表结构
-     * @param array $options 选项
-     *   - 'shrink_columns' => bool 是否收缩多余字段（默认false，避免数据丢失）
-     *   - 'modify_columns' => bool 是否修正字段属性（默认true）
-     *   - 'add_indexes' => bool 是否添加缺失索引（默认true）
+     * Full table structure alignment - core method
+     *
+     * Features:
+     * 1. Create the table if it does not exist
+     * 2. Add missing columns
+     * 3. Shrink extra columns (optional, disabled by default)
+     * 4. Correct column properties (type, length, nullable, default, etc.)
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param callable $tableDefinition Table definition closure that defines the full table structure
+     * @param array $options Options
+     *   - 'shrink_columns' => bool Whether to drop extra columns (default false, to avoid data loss)
+     *   - 'modify_columns' => bool Whether to correct column properties (default true)
+     *   - 'add_indexes' => bool Whether to add missing indexes (default true)
      * @return array ['status' => string, 'actions' => array, 'message' => string]
      */
     public static function alignTableStructure(
@@ -617,7 +857,7 @@ class SafeMigrationHelper
         $schema = Schema::connection($connection);
         $actions = [];
         
-        // 步骤1: 如果表不存在，创建表
+        // Step 1: create the table if it does not exist
         if (!$schema->hasTable($tableName)) {
             $schema->create($tableName, $tableDefinition);
             $actions[] = ['action' => 'created_table', 'message' => "Table {$tableName} created"];
@@ -627,31 +867,25 @@ class SafeMigrationHelper
                 'message' => "Table {$tableName} created successfully"
             ];
         }
-        
-        // 步骤2: 获取期望的表结构定义
+
+        // Step 2: get the expected table structure definition
         $expectedStructure = self::extractTableStructure($tableDefinition);
-        
-        // 步骤3: 获取当前表结构
+
+        // Step 3: get the current table structure
         $currentColumns = $schema->getColumnListing($tableName);
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
+
+        // Step 4: add missing columns
+        $actions = array_merge(
+            $actions,
+            self::addMissingColumns($connection, $tableName, $expectedStructure['columns'], $currentColumns)
+        );
         
-        // 步骤4: 添加缺失字段
-        $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
-        foreach ($missingColumns as $columnName) {
-            $columnDef = $expectedStructure['columns'][$columnName];
-            $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
-                self::applyColumnDefinition($table, $colName, $columnDef);
-            });
-            if ($result['status'] === 'added') {
-                $actions[] = ['action' => 'added_column', 'column' => $columnName, 'message' => $result['message']];
-            }
-        }
-        
-        // 步骤5: 收缩多余字段（如果启用）
+        // Step 5: drop extra columns (if enabled)
         if ($shrinkColumns) {
             $extraColumns = array_diff($currentColumns, array_keys($expectedStructure['columns']));
             foreach ($extraColumns as $columnName) {
-                // 跳过主键和系统字段
+                // Skip the primary key and system columns
                 if (in_array($columnName, ['id', 'created_at', 'updated_at'])) {
                     continue;
                 }
@@ -662,19 +896,19 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤6: 修正字段属性（如果启用）
+        // Step 6: correct column properties (if enabled)
         if ($modifyColumns) {
             foreach ($expectedStructure['columns'] as $columnName => $columnDef) {
                 if (!in_array($columnName, $currentColumns)) {
-                    continue; // 已在上一步添加
+                    continue; // Already added in the previous step
                 }
-                
+
                 $currentInfo = $currentColumnInfo[$columnName] ?? null;
                 if (!$currentInfo) {
                     continue;
                 }
-                
-                // 检查是否需要修改
+
+                // Check whether modification is needed
                 $needsModify = self::columnNeedsModification($currentInfo, $columnDef);
                 if ($needsModify) {
                     $result = self::modifyColumnProperties($connection, $tableName, $columnName, $columnDef, $currentInfo);
@@ -685,7 +919,7 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤7: 添加缺失索引
+        // Step 7: add missing indexes
         if ($addIndexes && !empty($expectedStructure['indexes'])) {
             foreach ($expectedStructure['indexes'] as $indexDef) {
                 $result = self::safeAddIndex(
@@ -711,18 +945,104 @@ class SafeMigrationHelper
     }
 
     /**
-     * 提取表结构定义（从闭包）
-     * 
-     * 注意：此方法难以实现，因为需要解析闭包内容
-     * 推荐使用 alignTableStructureFromArray 方法，直接传入数组定义
-     * 
-     * @param callable $tableDefinition 表定义闭包
+     * Additive reconcile of an existing table (contract §3): adds every
+     * declared column that is missing, with its declared type, nullability
+     * and default, so a NOT NULL column with a default backfills existing
+     * rows. Never drops, renames or retypes a column. A NOT NULL column
+     * without a default is added nullable when existing rows (or SQLite)
+     * could not satisfy it. A failing column does not stop the others; the
+     * failures are raised together afterwards.
+     */
+    private static function addMissingColumns(
+        string $connection,
+        string $tableName,
+        array $columns,
+        array $currentColumns
+    ): array {
+        $actions = [];
+        $failures = [];
+        $driver = DB::connection($connection)->getDriverName();
+        $tableHasRows = null;
+
+        foreach (array_diff(array_keys($columns), $currentColumns) as $columnName) {
+            $columnDef = $columns[$columnName];
+            $type = $columnDef['type'] ?? 'string';
+            $isPrimaryKey = in_array($type, self::PRIMARY_KEY_COLUMN_TYPES, true) || $columnName === 'id';
+
+            if ($driver === 'sqlite' && $isPrimaryKey) {
+                $actions[] = ['action' => 'skipped_column', 'column' => $columnName, 'message' => "SQLite cannot add PRIMARY KEY column to existing table. Table {$tableName} was retained unchanged; use an in-place compatible migration."];
+                continue;
+            }
+
+            if (!$isPrimaryKey && self::isNotNullWithoutDefault($columnDef)) {
+                $tableHasRows ??= DB::connection($connection)->table($tableName)->exists();
+                if ($driver === 'sqlite' || $tableHasRows) {
+                    $columnDef['nullable'] = true;
+                    Log::warning(self::LOG_TAG . " Column {$tableName}.{$columnName} is declared NOT NULL without a default; adding it nullable because existing rows cannot satisfy it", [
+                        'connection' => $connection,
+                        'type' => $type,
+                    ]);
+                }
+            }
+
+            try {
+                $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
+                    self::applyColumnDefinition($table, $colName, $columnDef);
+                });
+            } catch (Throwable $e) {
+                $failures[] = "{$columnName}: {$e->getMessage()}";
+                Log::error(self::LOG_TAG . " Failed to add missing column {$tableName}.{$columnName}", [
+                    'connection' => $connection,
+                    'type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+
+            if ($result['status'] === 'added') {
+                $actions[] = ['action' => 'added_column', 'column' => $columnName, 'message' => $result['message']];
+                Log::warning(self::LOG_TAG . " Added missing column {$tableName}.{$columnName}", [
+                    'connection' => $connection,
+                    'type' => $type,
+                    'nullable' => !empty($columnDef['nullable']),
+                    'default' => $columnDef['default'] ?? null,
+                ]);
+            }
+        }
+
+        if ($failures !== []) {
+            throw new RuntimeException("Table {$tableName}: missing columns could not be added: " . implode('; ', $failures));
+        }
+
+        return $actions;
+    }
+
+    private static function isNotNullWithoutDefault(array $columnDef): bool
+    {
+        if (!empty($columnDef['nullable']) || !empty($columnDef['useCurrent'])) {
+            return false;
+        }
+
+        if (in_array($columnDef['type'] ?? 'string', self::COMPOSITE_COLUMN_TYPES, true)) {
+            return false;
+        }
+
+        return !isset($columnDef['default']);
+    }
+
+    /**
+     * Extract the table structure definition (from a closure)
+     *
+     * Note: this method is hard to implement because it would require parsing the closure body.
+     * Prefer the alignTableStructureFromArray method and pass an array definition directly.
+     *
+     * @param callable $tableDefinition Table definition closure
      * @return array ['columns' => array, 'indexes' => array]
      */
     private static function extractTableStructure(callable $tableDefinition): array
     {
-        // 注意：此方法需要复杂的闭包解析，目前返回空结构
-        // 推荐使用 alignTableStructureFromArray 方法替代
+        // Note: this method would need complex closure parsing; for now it returns an empty structure.
+        // Prefer the alignTableStructureFromArray method instead.
         return [
             'columns' => [],
             'indexes' => [],
@@ -730,8 +1050,8 @@ class SafeMigrationHelper
     }
 
     /**
-     * 应用字段定义到Blueprint
-     * 
+     * Apply a column definition to the Blueprint
+     *
      * @param Blueprint $table
      * @param string $columnName
      * @param array $columnDef
@@ -854,8 +1174,13 @@ class SafeMigrationHelper
                 $column = $table->macAddress($columnName);
                 break;
             case 'morphs':
-                // Special case: morphs() creates tokenable_type and tokenable_id
-                $table->morphs($columnName);
+                // Special case: morphs() creates tokenable_type and tokenable_id;
+                // the NOT NULL relax of addMissingColumns() maps to nullableMorphs().
+                if (!empty($columnDef['nullable'])) {
+                    $table->nullableMorphs($columnName);
+                } else {
+                    $table->morphs($columnName);
+                }
                 return;
             case 'foreignId':
                 $column = $table->foreignId($columnName);
@@ -914,8 +1239,8 @@ class SafeMigrationHelper
     }
 
     /**
-     * 安全删除字段（仅在启用收缩时使用）
-     * 
+     * Safely drop a column (only used when shrinking is enabled)
+     *
      * @param string $connection
      * @param string $tableName
      * @param string $columnName
@@ -941,7 +1266,7 @@ class SafeMigrationHelper
         
         $driver = DB::connection($connection)->getDriverName();
         if ($driver === 'sqlite') {
-            // SQLite不支持直接删除列，需要重建表
+            // SQLite does not support dropping columns directly; it would require rebuilding the table
             return [
                 'status' => 'skipped',
                 'message' => "SQLite does not support dropping columns. Column {$columnName} kept."
@@ -959,8 +1284,8 @@ class SafeMigrationHelper
     }
 
     /**
-     * 获取所有字段的详细信息
-     * 
+     * Get detailed info for all columns
+     *
      * @param string $connection
      * @param string $tableName
      * @return array
@@ -981,41 +1306,33 @@ class SafeMigrationHelper
     }
 
     /**
-     * 检查字段是否需要修改
-     * 
+     * Check whether a column needs modification
+     *
      * @param array $currentInfo
      * @param array $expectedDef
      * @return bool
      */
     private static function columnNeedsModification(array $currentInfo, array $expectedDef): bool
     {
-        // 检查类型
         $currentType = strtolower($currentInfo['type'] ?? '');
         $expectedType = strtolower($expectedDef['type'] ?? 'string');
-        
-        // 检查nullable
-        $currentNullable = $currentInfo['nullable'] ?? false;
-        $expectedNullable = $expectedDef['nullable'] ?? true;
-        
-        // 检查默认值
-        $currentDefault = $currentInfo['default'] ?? null;
-        $expectedDefault = $expectedDef['default'] ?? null;
-        
-        // 检查长度（对于string类型）
+
+        // String length: only WIDENING triggers an in-place change. A shrink
+        // attempt (expected < current) is skipped — narrowing a column that
+        // holds longer values would fail on PostgreSQL and brick sys:init,
+        // and silent truncation is data loss.
         if ($expectedType === 'string' && isset($expectedDef['length'])) {
             preg_match('/\((\d+)\)/', $currentType, $matches);
-            $currentLength = $matches[1] ?? 255;
-            if ($expectedDef['length'] != $currentLength) {
-                return true;
-            }
+            $currentLength = (int) ($matches[1] ?? 255);
+            return (int) $expectedDef['length'] > $currentLength;
         }
-        
+
         return false;
     }
 
     /**
-     * 修改字段属性
-     * 
+     * Modify column properties
+     *
      * @param string $connection
      * @param string $tableName
      * @param string $columnName
@@ -1033,7 +1350,7 @@ class SafeMigrationHelper
         $driver = DB::connection($connection)->getDriverName();
         
         if ($driver === 'sqlite') {
-            // SQLite不支持直接修改列，跳过
+            // SQLite does not support modifying columns directly; skip
             return [
                 'status' => 'skipped',
                 'message' => "SQLite does not support column modification. Column {$columnName} kept as is."
@@ -1060,11 +1377,16 @@ class SafeMigrationHelper
                     $column = $table->string($columnName);
             }
             
-            if (isset($expectedDef['nullable']) && $expectedDef['nullable']) {
+            // Data-safe property adjustments only: RELAXING nullability is
+            // always safe; enforcing NOT NULL on rows that contain NULLs
+            // would fail, so it is never applied here. Defaults are a
+            // metadata-only SET DEFAULT on PostgreSQL (existing rows keep
+            // their values), so they are safe to align.
+            if (!empty($expectedDef['nullable'])) {
                 $column->nullable();
             }
             
-            if (isset($expectedDef['default'])) {
+            if (array_key_exists('default', $expectedDef)) {
                 $column->default($expectedDef['default']);
             }
             
@@ -1078,13 +1400,19 @@ class SafeMigrationHelper
     }
 
     /**
-     * 定义表结构并对齐（便捷方法）
-     * 
-     * 使用表结构数组定义，更易于使用
-     * 
-     * @param string $connection 连接名称
-     * @param string $tableName 表名
-     * @param array $tableStructure 表结构定义
+     * Define a table structure and align it (convenience method)
+     *
+     * Implements contract §3 in-place adjustment: create-if-missing, add
+     * missing columns (probe-first), optionally drop extra columns
+     * ('shrink_columns', a legal column-level adjustment), widen-only
+     * column correction, add missing indexes/foreign keys. Every step is
+     * idempotent; no table is ever dropped or rebuilt.
+     *
+     * Uses a table structure array definition, which is easier to use
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param array $tableStructure Table structure definition
      *   [
      *     'columns' => [
      *       'column_name' => [
@@ -1104,7 +1432,7 @@ class SafeMigrationHelper
      *       ...
      *     ],
      *   ]
-     * @param array $options 选项
+     * @param array $options Options
      * @return array
      */
     public static function alignTableStructureFromArray(
@@ -1113,26 +1441,60 @@ class SafeMigrationHelper
         array $tableStructure,
         array $options = []
     ): array {
-        // 转换为闭包形式
+        // Convert to closure form
         $tableDefinition = function (Blueprint $table) use ($tableStructure) {
-            // 创建字段
+            // Create columns
+            $columnIndexMap = [];
+            $columnUniqueMap = [];
             foreach ($tableStructure['columns'] ?? [] as $columnName => $columnDef) {
                 self::applyColumnDefinition($table, $columnName, $columnDef);
+
+                // Record indexes created via column definitions to avoid creating a duplicate single-column index on the same column
+                if (!empty($columnDef['index'])) {
+                    $columnIndexMap[$columnName] = true;
+                }
+                if (!empty($columnDef['unique'])) {
+                    $columnUniqueMap[$columnName] = true;
+                }
             }
-            
-            // 创建索引
+
+            // Create indexes (avoid duplicating column-level index)
             foreach ($tableStructure['indexes'] ?? [] as $indexDef) {
                 $columns = $indexDef['columns'] ?? [];
                 $name = $indexDef['name'] ?? null;
-                if (is_array($columns)) {
-                    $table->index($columns, $name);
+                $isUnique = $indexDef['unique'] ?? false;
+
+                // Normalize the column list
+                $columnsList = is_array($columns) ? $columns : [$columns];
+
+                // Skip a single-column spec already covered by its column
+                // definition: a column-level unique creates the SAME
+                // auto-generated constraint name as the spec ({table}_{col}_unique
+                // on pgsql), so emitting both aborts the CREATE TABLE with a
+                // duplicate-constraint error. A column-level unique also
+                // satisfies a plain-index spec (it is strictly stronger).
+                if (
+                    $name === null
+                    && count($columnsList) === 1
+                    && (
+                        (!$isUnique && (isset($columnIndexMap[$columnsList[0]]) || isset($columnUniqueMap[$columnsList[0]])))
+                        || ($isUnique && isset($columnUniqueMap[$columnsList[0]]))
+                    )
+                ) {
+                    continue;
+                }
+
+                // Honor the declared uniqueness: a unique spec must produce a
+                // UNIQUE index (ON CONFLICT upserts infer from it), not a plain one.
+                if ($isUnique) {
+                    $table->unique($columns, $name);
                 } else {
                     $table->index($columns, $name);
                 }
             }
         };
         
-        // 保存索引定义供后续使用
+        // Save the index definitions for later use
         $expectedStructure = [
             'columns' => $tableStructure['columns'] ?? [],
             'indexes' => $tableStructure['indexes'] ?? [],
@@ -1141,7 +1503,7 @@ class SafeMigrationHelper
         $schema = Schema::connection($connection);
         $actions = [];
         
-        // 步骤1: 如果表不存在，创建表
+        // Step 1: create the table if it does not exist
         if (!$schema->hasTable($tableName)) {
             $schema->create($tableName, $tableDefinition);
             $actions[] = ['action' => 'created_table', 'message' => "Table {$tableName} created"];
@@ -1151,24 +1513,18 @@ class SafeMigrationHelper
                 'message' => "Table {$tableName} created successfully"
             ];
         }
-        
-        // 步骤2: 获取当前表结构
+
+        // Step 2: get the current table structure
         $currentColumns = $schema->getColumnListing($tableName);
         $currentColumnInfo = self::getAllColumnsInfo($connection, $tableName);
+
+        // Step 3: add missing columns
+        $actions = array_merge(
+            $actions,
+            self::addMissingColumns($connection, $tableName, $expectedStructure['columns'], $currentColumns)
+        );
         
-        // 步骤3: 添加缺失字段
-        $missingColumns = array_diff(array_keys($expectedStructure['columns']), $currentColumns);
-        foreach ($missingColumns as $columnName) {
-            $columnDef = $expectedStructure['columns'][$columnName];
-            $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {
-                self::applyColumnDefinition($table, $colName, $columnDef);
-            });
-            if ($result['status'] === 'added') {
-                $actions[] = ['action' => 'added_column', 'column' => $columnName, 'message' => $result['message']];
-            }
-        }
-        
-        // 步骤4: 收缩多余字段（如果启用）
+        // Step 4: drop extra columns (if enabled)
         $shrinkColumns = $options['shrink_columns'] ?? false;
         if ($shrinkColumns) {
             $extraColumns = array_diff($currentColumns, array_keys($expectedStructure['columns']));
@@ -1183,7 +1539,7 @@ class SafeMigrationHelper
             }
         }
         
-        // 步骤5: 修正字段属性（如果启用）
+        // Step 5: correct column properties (if enabled)
         $modifyColumns = $options['modify_columns'] ?? true;
         if ($modifyColumns) {
             foreach ($expectedStructure['columns'] as $columnName => $columnDef) {

@@ -19,7 +19,7 @@ hiddenimports = [
     'pycore.pyutils',
     'pycore.pyutils.native_ui',
     'pycore.pyutils.rpc',
-    'pycore.pygvar',
+    'pycore.pyfoundations.pygvar',
     'pycore.pyheartbeat',
     'pycore.database',
 

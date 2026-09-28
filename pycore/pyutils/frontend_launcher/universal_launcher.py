@@ -21,14 +21,14 @@ THREAD_BUS Integration:
 
 import os
 import re
-import socket
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-from pycore.pyfoundations.color_print import ColorPrint
-import threading
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.http_client import http_endpoint_ok
 import time
 from dataclasses import dataclass
-from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from pycore.pyfoundations.serialized_worker import BusTaskThread, start_bus_task
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import List, Optional, Tuple
 import subprocess
@@ -123,8 +123,8 @@ class UniversalFrontendLauncher:
     def __init__(self, config: UniversalFrontendConfig):
         self.config = config
         self.process: Optional[subprocess.Popen] = None
-        self._static_http_thread: Optional[threading.Thread] = None
-        self._static_server: Optional[ThreadingHTTPServer] = None
+        self._static_http_thread: Optional[BusTaskThread] = None
+        self._static_server: Optional[HTTPServer] = None
         self._last_install_check: Optional[float] = None
 
     def start_dev_and_wait(self) -> bool:
@@ -178,10 +178,12 @@ class UniversalFrontendLauncher:
             ColorPrint.red(f"[UniversalFrontend] Cannot start static server, static_dir missing: {self.config.static_dir}")
             return False
         handler = self._build_static_handler(self.config.static_dir)
-        server = ThreadingHTTPServer((host, port), handler)
+        server = HTTPServer((host, port), handler)
         self._static_server = server
-        thread = threading.Thread(target=server.serve_forever, name="UniversalFrontendStaticServer", daemon=True)
-        thread.start()
+        thread = start_bus_task(
+            server.serve_forever,
+            thread_name="UniversalFrontendStaticServer",
+        )
         self._static_http_thread = thread
 
         # THREAD_BUS Integration: Register shutdown handler
@@ -284,20 +286,7 @@ class UniversalFrontendLauncher:
         return False
 
     def _http_ok(self, host: str, port: int, path: str) -> bool:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(2)
-        code = sock.connect_ex((host, port))
-        if code != 0:
-            sock.close()
-            return False
-        request = f"GET {path} HTTP/1.0\r\nHost: {host}\r\n\r\n".encode("ascii")
-        sock.sendall(request)
-        response = sock.recv(1024)
-        sock.close()
-        if not response:
-            return False
-        status_line = response.split(b"\r\n", 1)[0]
-        return b"200" in status_line
+        return http_endpoint_ok(host, port, path)
 
     def _build_static_handler(self, directory: Path):
         class StaticHandler(SimpleHTTPRequestHandler):
@@ -364,7 +353,7 @@ class UniversalFrontendLauncher:
             if stripped:
                 output_lines.append(stripped)
                 if self.config.show_output:
-                    print(f"  {stripped}")
+                    ColorPrint.plain(f"  {stripped}")
 
         process.wait()
 
@@ -470,7 +459,7 @@ class UniversalFrontendLauncher:
             if stripped:
                 output_lines.append(stripped)
                 if self.config.show_output:
-                    print(f"  {stripped}")
+                    ColorPrint.plain(f"  {stripped}")
 
         process.wait()
 

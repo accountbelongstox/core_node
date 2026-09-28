@@ -1,0 +1,96 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@capacitor/core": [
+        "./apps/wordnew/platform/capacitor-web-shims/core.ts"
+      ],
+      "@capacitor/preferences": [
+        "./apps/wordnew/platform/capacitor-web-shims/preferences.ts"
+      ],
+      "@capacitor/dialog": [
+        "./apps/wordnew/platform/capacitor-web-shims/dialog.ts"
+      ],
+      "@capacitor/toast": [
+        "./apps/wordnew/platform/capacitor-web-shims/toast.ts"
+      ],
+      "@capacitor/status-bar": [
+        "./apps/wordnew/platform/capacitor-web-shims/status-bar.ts"
+      ],
+      "@capacitor/keyboard": [
+        "./apps/wordnew/platform/capacitor-web-shims/keyboard.ts"
+      ],
+      "@capacitor/app": [
+        "./apps/wordnew/platform/capacitor-web-shims/app.ts"
+      ],
+      "@capacitor/geolocation": [
+        "./apps/wordnew/platform/capacitor-web-shims/geolocation.ts"
+      ],
+      "@capacitor/network": [
+        "./apps/wordnew/platform/capacitor-web-shims/network.ts"
+      ],
+      "@capacitor/device": [
+        "./apps/wordnew/platform/capacitor-web-shims/device.ts"
+      ],
+      "@capacitor-community/voice-recorder": [
+        "./apps/wordnew/platform/capacitor-web-shims/voice-recorder.ts"
+      ],
+      "@capacitor/haptics": [
+        "./apps/wordnew/platform/capacitor-web-shims/haptics.ts"
+      ],
+      "@capacitor-community/text-to-speech": [
+        "./apps/wordnew/platform/capacitor-web-shims/text-to-speech.ts"
+      ],
+      "@capacitor-community/speech-recognition": [
+        "./apps/wordnew/platform/capacitor-web-shims/speech-recognition.ts"
+      ],
+      "@capacitor-community/keep-awake": [
+        "./apps/wordnew/platform/capacitor-web-shims/keep-awake.ts"
+      ],
+      "@capacitor/local-notifications": [
+        "./apps/wordnew/platform/capacitor-web-shims/local-notifications.ts"
+      ],
+      "@capacitor/filesystem": [
+        "./apps/wordnew/platform/capacitor-web-shims/filesystem.ts"
+      ],
+      "@capacitor/camera": [
+        "./apps/wordnew/platform/capacitor-web-shims/camera.ts"
+      ],
+      "@capacitor-community/sqlite": [
+        "./apps/wordnew/platform/capacitor-web-shims/community-sqlite.ts"
+      ],
+      "@capacitor/browser": [
+        "./apps/wordnew/platform/capacitor-web-shims/browser.ts"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "vite.config.ts"
+  ]
+}

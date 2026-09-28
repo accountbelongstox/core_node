@@ -1,16 +1,6 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
+use App\Support\ServiceContract;
 
 return [
 
@@ -27,19 +17,19 @@ return [
     |
     */
 
-    'paths' => ['*', 'api/*', 'sanctum/csrf-cookie',"avatar/*"],
+    'paths' => ['*', 'api/*', 'api/health', 'api_info', 'sanctum/csrf-cookie',"avatar/*"],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => env('CORS_ALLOWED_ORIGINS') ? explode(',', env('CORS_ALLOWED_ORIGINS')) : ["*"],
+    'allowed_origins' => ServiceContract::webAccessStringList('corsOrigins'),
 
-    'allowed_origins_patterns' => env('CORS_ALLOWED_ORIGINS_PATTERNS') ? explode(',', env('CORS_ALLOWED_ORIGINS_PATTERNS')) : ["*"],
+    'allowed_origins_patterns' => [],
 
     'allowed_headers' => ['*'],
 
     'exposed_headers' => ["*"],
 
-    'max_age' => 0,
+    'max_age' => 86400,
 
     'supports_credentials' =>  true,
 

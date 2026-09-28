@@ -8,7 +8,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from collections import deque
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.database.models.app_okx.coin_price_history_model import CoinPriceHistoryModelFactory
 from pycore.database.models.app_okx.time_deduplicator import GlobalTimestampDeduplicator
 

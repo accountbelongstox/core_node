@@ -1,24 +1,14 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\StaticServer;
+
+use App\Http\Controllers\Controller;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
-class FileController
+class FileController extends Controller
 {
     public function getContent(Request $request)
     {
@@ -31,8 +21,8 @@ class FileController
         }
 
         $path = $request->input('path');
-        
-        // 安全检查：确保路径在允许的范围内
+
+        // Security check: ensure the path is within the allowed scope
         if (!$this->isPathAllowed($path)) {
             return response()->json(['error' => 'Access denied'], 403);
         }
@@ -59,7 +49,7 @@ class FileController
         $path = $request->input('path');
         $content = $request->input('content');
 
-        // 安全检查：确保路径在允许的范围内
+        // Security check: ensure the path is within the allowed scope
         if (!$this->isPathAllowed($path)) {
             return response()->json(['error' => 'Access denied'], 403);
         }
@@ -74,20 +64,20 @@ class FileController
 
     private function isPathAllowed($path)
     {
-        // 实现路径安全检查逻辑
-        // 例如：检查路径是否在允许的目录内，是否包含危险的路径遍历等
-        
-        // 禁止访问 .env 文件
+        // Implement path security check logic
+        // For example: verify the path is inside an allowed directory and does not contain dangerous path traversal, etc.
+
+        // Disallow access to the .env file
         if (basename($path) === '.env') {
             return false;
         }
 
-        // 禁止路径遍历
+        // Disallow path traversal
         if (str_contains($path, '..')) {
             return false;
         }
 
-        // 只允许访问特定目录
+        // Only allow access to specific directories
         $allowedPaths = [
             'resources/js',
             'resources/css',

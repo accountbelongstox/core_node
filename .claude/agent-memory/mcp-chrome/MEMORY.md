@@ -1,0 +1,3 @@
+- [Mixed line endings](mixed-line-endings.md) — mcp-chrome files keep CRLF/mixed bytes; scripted edits normalize them; restore from HEAD per line
+- [Native host stdio and shared dist](native-host-stdio-and-shared-dist.md) — host stdout is native messaging (ncore logs need MCP_MODE); chrome-mcp-shared type-checks against dist
+- [Role merged into wordnew-link](role-merged-into-wordnew-link.md) — D22 reorg moved apps/mcp-chrome ownership to wordnew-link; check its report before duplicating work

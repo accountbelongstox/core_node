@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Linux Desktop Applications Configuration
 # This file defines applications that can be installed via snap, apt, or other package managers
@@ -36,11 +25,19 @@ readonly METHOD_SNAP="snap"
 readonly METHOD_FLATPAK="flatpak"
 readonly METHOD_WEB="web"
 readonly METHOD_NPM="npm"
+readonly METHOD_PNPM="pnpm"
 readonly METHOD_PIPX="pipx"
 readonly METHOD_UV_TOOL="uv_tool"
 readonly METHOD_CURL="curl"
 readonly METHOD_MICROSOFT_APT="microsoft_apt"
 readonly METHOD_APPIMAGE="appimage"
+# Debian-native methods (official apt repositories / deb downloads / tarballs)
+readonly METHOD_DEB_REPO="deb_repo"
+readonly METHOD_TARBALL="tarball"
+readonly METHOD_GITHUB_DEB="github_deb"
+# "none" = installed by a dedicated installer script; the desktop apps
+# installer only verifies and repairs links for it.
+readonly METHOD_NONE="none"
 
 # Snap confinement modes
 readonly SNAP_CONFINEMENT_STRICT="strict"
@@ -101,6 +98,12 @@ declare -gA DEV_PACKAGES=(
     ["powershell_package_id"]="powershell"
     ["powershell_install_method"]="$METHOD_SNAP"
     ["powershell_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    # Debian: official Microsoft repository (learn.microsoft.com/powershell/scripting/install/install-debian).
+    # The Debian 13 prod repo is signed with the key shipped inside Microsoft's
+    # config .deb (EE4D7792F748182B), not the legacy microsoft.asc key.
+    ["powershell_debian_install_method"]="$METHOD_DEB_REPO"
+    ["powershell_debian_package_id"]="powershell"
+    ["powershell_debian_install_spec"]="https://packages.microsoft.com/config/debian/13/packages-microsoft-prod.deb|microsoft-prod.gpg|deb [arch=amd64,arm64,armhf signed-by=/etc/apt/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/13/prod trixie main|microsoft-prod.list|"
     ["powershell_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["powershell_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["powershell_description"]="PowerShell cross-platform shell and scripting language"
@@ -111,6 +114,10 @@ declare -gA DEV_PACKAGES=(
     ["postman_exec"]="postman"
     ["postman_package_id"]="postman"
     ["postman_install_method"]="$METHOD_SNAP"
+    # Debian: official tarball (learning.postman.com/docs/getting-started/installation/installation-and-updates)
+    ["postman_debian_install_method"]="$METHOD_TARBALL"
+    ["postman_debian_package_id"]="https://dl.pstmn.io/download/latest/linux_64"
+    ["postman_debian_install_spec"]="/opt/Postman|Postman"
     ["postman_category"]="$CATEGORY_API_TOOLS"
     ["postman_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["postman_description"]="API development and testing tool"
@@ -122,6 +129,9 @@ declare -gA DEV_PACKAGES=(
     ["termius_exec"]="termius-app"
     ["termius_package_id"]="termius-app"
     ["termius_install_method"]="$METHOD_SNAP"
+    # Debian: official .deb download (termius.com/download/linux)
+    ["termius_debian_install_method"]="$METHOD_WEB"
+    ["termius_debian_package_id"]="https://termius.com/download/linux/Termius.deb"
     ["termius_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["termius_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["termius_description"]="SSH client and terminal"
@@ -134,47 +144,14 @@ declare -gA DEV_PACKAGES=(
     ["android_studio_package_id"]="android-studio"
     ["android_studio_install_method"]="$METHOD_SNAP"
     ["android_studio_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    # Debian: installed by install_shells/61_install_android_studio.sh from the
+    # official developer.android.com tarball; snap is not needed.
+    ["android_studio_debian_install_method"]="$METHOD_NONE"
     ["android_studio_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
     ["android_studio_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["android_studio_description"]="Android development IDE"
     ["android_studio_verify_command"]=""
     ["android_studio_super"]="true"
-
-    # IntelliJ IDEA Community
-    ["intellij_name"]="IntelliJ IDEA Community"
-    ["intellij_exec"]="intellij-idea-community"
-    ["intellij_package_id"]="intellij-idea-community"
-    ["intellij_install_method"]="$METHOD_SNAP"
-    ["intellij_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["intellij_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["intellij_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["intellij_description"]="Java IDE by JetBrains"
-    ["intellij_verify_command"]=""
-    ["intellij_super"]="true"
-    
-    # PyCharm Community
-    ["pycharm_name"]="PyCharm Community"
-    ["pycharm_exec"]="pycharm-community"
-    ["pycharm_package_id"]="pycharm-community"
-    ["pycharm_install_method"]="$METHOD_SNAP"
-    ["pycharm_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["pycharm_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["pycharm_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["pycharm_description"]="Python IDE by JetBrains"
-    ["pycharm_verify_command"]=""
-    ["pycharm_super"]="true"
-
-    # CLion C++ IDE
-    ["clion_name"]="CLion"
-    ["clion_exec"]="clion"
-    ["clion_package_id"]="clion"
-    ["clion_install_method"]="$METHOD_SNAP"
-    ["clion_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
-    ["clion_category"]="$CATEGORY_DEVELOPMENT_TOOLS"
-    ["clion_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
-    ["clion_description"]="C/C++ IDE by JetBrains"
-    ["clion_verify_command"]=""
-    ["clion_super"]="true"
 
     # Sublime Text
     ["sublime_name"]="Sublime Text"
@@ -182,6 +159,10 @@ declare -gA DEV_PACKAGES=(
     ["sublime_package_id"]="sublime-text"
     ["sublime_install_method"]="$METHOD_SNAP"
     ["sublime_snap_confinement"]="$SNAP_CONFINEMENT_CLASSIC"
+    # Debian: official apt repository (sublimetext.com/docs/linux_repositories.html)
+    ["sublime_debian_install_method"]="$METHOD_DEB_REPO"
+    ["sublime_debian_package_id"]="sublime-text"
+    ["sublime_debian_install_spec"]="https://download.sublimetext.com/sublimehq-pub.gpg|sublimehq-pub.gpg|deb [signed-by=/etc/apt/keyrings/sublimehq-pub.gpg] https://download.sublimetext.com/ apt/stable/|sublime-text.list|"
     ["sublime_category"]="$CATEGORY_TEXT_EDITORS"
     ["sublime_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["sublime_description"]="Sophisticated text editor"
@@ -193,6 +174,10 @@ declare -gA DEV_PACKAGES=(
     ["insomnia_exec"]="insomnia"
     ["insomnia_package_id"]="insomnia"
     ["insomnia_install_method"]="$METHOD_SNAP"
+    # Debian: official .deb from GitHub releases (github.com/Kong/insomnia/releases)
+    ["insomnia_debian_install_method"]="$METHOD_GITHUB_DEB"
+    ["insomnia_debian_package_id"]="insomnia"
+    ["insomnia_debian_install_spec"]="Kong/insomnia|Insomnia.Core-.*\\.deb$"
     ["insomnia_category"]="$CATEGORY_API_TOOLS"
     ["insomnia_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["insomnia_description"]="REST API testing tool"
@@ -204,6 +189,10 @@ declare -gA DEV_PACKAGES=(
     ["beekeeper_exec"]="beekeeper-studio"
     ["beekeeper_package_id"]="beekeeper-studio"
     ["beekeeper_install_method"]="$METHOD_SNAP"
+    # Debian: official apt repository (docs.beekeeperstudio.io/installation/linux)
+    ["beekeeper_debian_install_method"]="$METHOD_DEB_REPO"
+    ["beekeeper_debian_package_id"]="beekeeper-studio"
+    ["beekeeper_debian_install_spec"]="https://deb.beekeeperstudio.io/beekeeper.key|beekeeper-studio.gpg|deb [signed-by=/etc/apt/keyrings/beekeeper-studio.gpg] https://deb.beekeeperstudio.io stable main|beekeeper-studio.list|"
     ["beekeeper_category"]="$CATEGORY_DATABASE_TOOLS"
     ["beekeeper_groups"]="$GROUP_DEVELOPMENT $GROUP_ALL"
     ["beekeeper_description"]="SQL editor and database manager"
@@ -229,6 +218,11 @@ declare -gA APP_PACKAGES=(
     ["firefox_exec"]="firefox"
     ["firefox_package_id"]="firefox"
     ["firefox_install_method"]="$METHOD_SNAP"
+    # Debian: official Mozilla apt repository (support.mozilla.org/kb/install-firefox-linux);
+    # pin origin so the Mozilla build wins over Debian's firefox-esr transitional package.
+    ["firefox_debian_install_method"]="$METHOD_DEB_REPO"
+    ["firefox_debian_package_id"]="firefox"
+    ["firefox_debian_install_spec"]="https://packages.mozilla.org/apt/repo-signing-key.gpg|packages.mozilla.org.gpg|deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.gpg] https://packages.mozilla.org/apt mozilla main|mozilla.list|packages.mozilla.org"
     ["firefox_category"]="$CATEGORY_BROWSERS"
     ["firefox_groups"]="$GROUP_ESSENTIAL $GROUP_ALL"
     ["firefox_description"]="Mozilla Firefox web browser"
@@ -247,8 +241,12 @@ declare -gA APP_PACKAGES=(
     # Opera Browser
     ["opera_name"]="Opera"
     ["opera_exec"]="opera"
-    ["opera_package_id"]="opera-browser-stable"
+    ["opera_package_id"]="opera"
     ["opera_install_method"]="$METHOD_SNAP"
+    # Debian: official Opera apt repository (deb.opera.com, see opera.com download page)
+    ["opera_debian_install_method"]="$METHOD_DEB_REPO"
+    ["opera_debian_package_id"]="opera-stable"
+    ["opera_debian_install_spec"]="https://deb.opera.com/archive.key|opera-archive.gpg|deb [signed-by=/etc/apt/keyrings/opera-archive.gpg] https://deb.opera.com/opera-stable/ stable non-free|opera-stable.list|"
     ["opera_category"]="$CATEGORY_BROWSERS"
     ["opera_groups"]="$GROUP_ALL"
     ["opera_description"]="Opera web browser"
@@ -256,35 +254,15 @@ declare -gA APP_PACKAGES=(
     ["opera_itemkey"]="--no-sandbox"
 
 
-    # Hey Mail
-    ["hey_mail_name"]="Hey Mail"
-    ["hey_mail_exec"]="hey"
-    ["hey_mail_package_id"]="https://download.hey.com/Hey-latest-amd64.deb"
-    ["hey_mail_install_method"]="$METHOD_WEB"
-    ["hey_mail_category"]="$CATEGORY_COMMUNICATION"
-    ["hey_mail_groups"]="$GROUP_COMMUNICATION $GROUP_ALL"
-    ["hey_mail_description"]="Hey email client"
-    ["hey_mail_verify_command"]=""
-
-    # Gemini Desktop
-    ["gemini_desktop_name"]="Gemini Desktop"
-    ["gemini_desktop_exec"]="gemini"
-    ["gemini_desktop_package_id"]="https://gemini.google.com/desktop"
-    ["gemini_desktop_install_method"]="$METHOD_WEB"
-    ["gemini_desktop_category"]="$CATEGORY_AI_TOOLS"
-    ["gemini_desktop_groups"]="$GROUP_ALL"
-    ["gemini_desktop_description"]="Google Gemini AI desktop app"
-    ["gemini_desktop_verify_command"]=""
-
 )
 
-# AI Tools definitions (moved from 36_install_ai_tools.sh)
+# AI Tools definitions (moved from 38_install_ai_tools.sh)
 declare -gA AI_PACKAGES=(
     # Gemini CLI
     ["gemini_name"]="Google Gemini CLI"
     ["gemini_exec"]="gemini"
     ["gemini_package_id"]="@google/gemini-cli"
-    ["gemini_install_method"]="$METHOD_NPM"
+    ["gemini_install_method"]="$METHOD_PNPM"
     ["gemini_category"]="$CATEGORY_AI_TOOLS"
     ["gemini_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["gemini_description"]="Google Gemini CLI - Advanced AI assistant with multimodal capabilities"
@@ -294,7 +272,7 @@ declare -gA AI_PACKAGES=(
     ["claude_name"]="Anthropic Claude Code"
     ["claude_exec"]="claude"
     ["claude_package_id"]="@anthropic-ai/claude-code"
-    ["claude_install_method"]="$METHOD_NPM"
+    ["claude_install_method"]="$METHOD_PNPM"
     ["claude_category"]="$CATEGORY_AI_TOOLS"
     ["claude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["claude_description"]="Anthropic Claude Code - AI-powered coding assistant with advanced reasoning"
@@ -304,7 +282,7 @@ declare -gA AI_PACKAGES=(
     ["codex_name"]="OpenAI Codex"
     ["codex_exec"]="codex"
     ["codex_package_id"]="@openai/codex"
-    ["codex_install_method"]="$METHOD_NPM"
+    ["codex_install_method"]="$METHOD_PNPM"
     ["codex_category"]="$CATEGORY_AI_TOOLS"
     ["codex_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["codex_description"]="OpenAI Codex - AI system that translates natural language to code"
@@ -320,6 +298,39 @@ declare -gA AI_PACKAGES=(
     ["cursor_agent_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["cursor_agent_description"]="Cursor Agent - AI-first code editor with intelligent code completion"
     ["cursor_agent_verify_command"]="--version"
+
+    # Kimi Code CLI
+    # Official: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started
+    ["kimi_name"]="Kimi Code CLI"
+    ["kimi_exec"]="kimi"
+    ["kimi_package_id"]="https://code.kimi.com/kimi-code/install.sh"
+    ["kimi_install_method"]="$METHOD_CURL"
+    ["kimi_category"]="$CATEGORY_AI_TOOLS"
+    ["kimi_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["kimi_description"]="Kimi Code CLI - AI coding agent for the terminal by Moonshot AI"
+    ["kimi_verify_command"]="--version"
+
+    # Cline CLI (formerly 141_install_cline_cli.sh; via desktop applications AI group)
+    # Official: https://docs.cline.bot/getting-started/installing-cline
+    ["cline_name"]="Cline CLI"
+    ["cline_exec"]="cline"
+    ["cline_package_id"]="cline"
+    ["cline_install_method"]="$METHOD_PNPM"
+    ["cline_category"]="$CATEGORY_AI_TOOLS"
+    ["cline_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["cline_description"]="Cline CLI - AI coding agent for terminal workflows"
+    ["cline_verify_command"]="--version"
+
+    # Volcano Engine Ark CLI (formerly 137_install_arkcli.sh; via desktop applications AI group)
+    # Official: https://github.com/volcengine/ark-cli (npm: @volcengine/ark-cli)
+    ["arkcli_name"]="Volcano Ark CLI"
+    ["arkcli_exec"]="arkcli"
+    ["arkcli_package_id"]="@volcengine/ark-cli"
+    ["arkcli_install_method"]="$METHOD_PNPM"
+    ["arkcli_category"]="$CATEGORY_AI_TOOLS"
+    ["arkcli_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+    ["arkcli_description"]="Volcano Engine Ark CLI - Ark MaaS toolbox for agents"
+    ["arkcli_verify_command"]="--version"
 
     # SuperClaude
     ["superclaude_name"]="SuperClaude Framework"
@@ -345,7 +356,7 @@ declare -gA AI_PACKAGES=(
     ["auggie_name"]="Augment Code Auggie"
     ["auggie_exec"]="auggie"
     ["auggie_package_id"]="@augmentcode/auggie"
-    ["auggie_install_method"]="$METHOD_NPM"
+    ["auggie_install_method"]="$METHOD_PNPM"
     ["auggie_category"]="$CATEGORY_AI_TOOLS"
     ["auggie_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
     ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
@@ -373,16 +384,19 @@ BASE_PACKAGE_LIST=(
 
 DEV_PACKAGE_LIST=(
     "powershell" "postman" "termius" "android_studio"
-    "intellij" "pycharm" "clion" "sublime" "insomnia" "beekeeper"
+    "sublime" "insomnia" "beekeeper"
     "text_editor"
 )
 
 APP_PACKAGE_LIST=(
-    "firefox" "libreoffice" "opera" "hey_mail" "gemini_desktop"
+    "firefox" "libreoffice" "opera"
 )
 
+# NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
+# the dedicated install_shells/171_install_claude_code.sh step (official native
+# installer), the single source of truth shared with the dd.sh AI workflow.
 AI_PACKAGE_LIST=(
-    "gemini" "claude" "codex" "cursor_agent" "superclaude" "opencode" "auggie" "droid"
+    "gemini" "codex" "cursor_agent" "kimi" "cline" "arkcli" "superclaude" "opencode" "auggie" "droid"
 )
 
 MCP_PACKAGE_LIST=(
@@ -575,6 +589,53 @@ get_package_id() {
     get_app_property "$app_name" "package_id"
 }
 
+# Detect whether the current host is Debian itself (not a derivative such as
+# Ubuntu or Kali). Derivatives keep their own (snap-based) defaults.
+is_debian_host() {
+    local os_id=""
+    os_id="$(. /etc/os-release 2>/dev/null; printf '%s' "${ID:-}")"
+    [ "$os_id" = "debian" ]
+}
+
+# Resolve the install method for the current host. On Debian, apps that default
+# to snap declare a native override via <app>_debian_install_method (official
+# apt repository / deb download / tarball / dedicated installer), so snapd is
+# not required. An override of "none" means a dedicated installer script owns
+# the app and this installer should not install it.
+get_effective_install_method() {
+    local app_name="$1"
+    local method=""
+    if is_debian_host; then
+        method=$(get_app_property "$app_name" "debian_install_method")
+    fi
+    if [ -z "$method" ]; then
+        method=$(get_app_property "$app_name" "install_method")
+    fi
+    echo "$method"
+}
+
+# Resolve the package ID for the current host (Debian override first).
+get_effective_package_id() {
+    local app_name="$1"
+    local package_id=""
+    if is_debian_host; then
+        package_id=$(get_app_property "$app_name" "debian_package_id")
+    fi
+    if [ -z "$package_id" ]; then
+        package_id=$(get_app_property "$app_name" "package_id")
+    fi
+    echo "$package_id"
+}
+
+# Method-specific spec for Debian-native installs:
+#   deb_repo:   key_url|keyring_name|repo_line|list_name|pin_origin(optional)
+#   tarball:    dest_dir|exec_relpath   (package_id is the tarball URL)
+#   github_deb: owner/repo|asset_regex  (latest release .deb)
+get_debian_install_spec() {
+    local app_name="$1"
+    get_app_property "$app_name" "debian_install_spec"
+}
+
 # Function to check if application needs super (sudo) privileges
 get_super() {
     local app_name="$1"
@@ -595,26 +656,30 @@ get_itemkey() {
 # Function to create symlink in /usr/local/bin
 create_launch_script() {
     local app_name="$1"
-    local link_name="$app_name"
-    local link_path="/usr/local/bin/$link_name"
-
-    local install_method=$(get_install_method "$app_name")
+    local install_method=$(get_effective_install_method "$app_name")
     local exec_name=$(get_app_property "$app_name" "exec")
 
     if [ -z "$exec_name" ]; then
         return 0
     fi
 
+    local link_name="$exec_name"
+    local link_path="/usr/local/bin/$link_name"
+
     local target_path=""
 
     case "$install_method" in
-        "$METHOD_NPM")
-            local npm_bin=$(npm config get prefix 2>/dev/null)/bin
-            if [ -n "$npm_bin" ] && [ -d "$npm_bin" ]; then
-                target_path="$npm_bin/$exec_name"
+        "$METHOD_NPM"|"$METHOD_PNPM")
+            if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+                target_path="$PNPM_GLOBAL_BIN_DIR/$exec_name"
             else
-                # Fallback to which if npm bin not available
-                target_path=$(which "$exec_name" 2>/dev/null)
+                local npm_bin
+                npm_bin=$(npm config get prefix 2>/dev/null)/bin
+                if [ -n "$npm_bin" ] && [ -d "$npm_bin" ]; then
+                    target_path="$npm_bin/$exec_name"
+                else
+                    target_path=$(which "$exec_name" 2>/dev/null)
+                fi
             fi
             ;;
         "$METHOD_SNAP")
@@ -623,7 +688,7 @@ create_launch_script() {
                 target_path=$(which "$exec_name" 2>/dev/null)
             fi
             ;;
-        "$METHOD_APT"|"$METHOD_FLATPAK"|"$METHOD_PIPX"|"$METHOD_UV_TOOL"|"$METHOD_CURL"|"$METHOD_WEB"|"$METHOD_APPIMAGE"|"$METHOD_MICROSOFT_APT")
+        "$METHOD_APT"|"$METHOD_FLATPAK"|"$METHOD_PIPX"|"$METHOD_UV_TOOL"|"$METHOD_CURL"|"$METHOD_WEB"|"$METHOD_APPIMAGE"|"$METHOD_MICROSOFT_APT"|"$METHOD_DEB_REPO"|"$METHOD_TARBALL"|"$METHOD_GITHUB_DEB")
             target_path=$(which "$exec_name" 2>/dev/null)
             ;;
         *)
@@ -634,6 +699,21 @@ create_launch_script() {
     if [ -z "$target_path" ] || [ ! -e "$target_path" ]; then
         return 0
     fi
+
+    # Never create a self-referential symlink (which resolves the link itself
+    # to /usr/local/bin/<name> when run as root) and never link into root's
+    # home -- that is unreachable for regular users. Root-home payloads are
+    # handled by relocate_root_home_install in installation_library.sh.
+    local real_target=""
+    real_target=$(readlink -f "$target_path" 2>/dev/null || true)
+    if [ "$target_path" = "$link_path" ] || [ "$real_target" = "$link_path" ]; then
+        return 0
+    fi
+    case "$real_target" in
+        /root/*)
+            return 0
+            ;;
+    esac
 
     # Check if link already points to correct target
     if [ -L "$link_path" ]; then
@@ -694,3 +774,4 @@ export -f app_in_group mcp_in_group get_apps_by_package_group
 export -f get_apps_by_group get_install_method get_package_id
 export -f get_itemkey get_super create_launch_script
 export -f get_snap_confinement is_snap_fallback_enabled get_repo_type has_special_repo
+export -f is_debian_host get_effective_install_method get_effective_package_id get_debian_install_spec

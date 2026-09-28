@@ -1,13 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class CodeMartV1MilestoneModel extends Model
+class CodeMartV1MilestoneModel extends CodeMartV1Model
 {
-    protected $connection = 'codemartv1';
     protected $table = 'codemart_v1_milestones';
 
     protected $fillable = [
@@ -52,5 +51,25 @@ class CodeMartV1MilestoneModel extends Model
     public function isCompleted(): bool
     {
         return $this->status === 'completed';
+    }
+
+    public function isClosed(): bool
+    {
+        return in_array($this->status, CodeMartV1Constants::MILESTONE_CLOSED_STATUSES, true);
+    }
+
+    public static function nextOrderForProject(int $projectId): int
+    {
+        return ((int) static::query()->where('project_id', $projectId)->max('order')) + 1;
+    }
+
+    public static function findWithProject(int $milestoneId): ?self
+    {
+        return static::query()->with('project')->find($milestoneId);
+    }
+
+    public static function lockById(int $milestoneId): ?self
+    {
+        return static::query()->whereKey($milestoneId)->lockForUpdate()->first();
     }
 }

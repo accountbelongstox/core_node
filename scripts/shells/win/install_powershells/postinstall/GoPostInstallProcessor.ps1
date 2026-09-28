@@ -1,25 +1,13 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Go Post-Installation Processor
 # Handles Go toolchain configuration, module setup, and development environment optimization
 
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
 
 # Note: Environment variables (GOROOT, GOPATH, PATH) are handled by
-# Set-MultipleEnvironmentVariablesForPackage in Step12_InstallApplications.ps1
+# Set-MultipleEnvironmentVariablesForPackage in Step21_InstallApplications.ps1
 
 function Configure-GoProxy {
     param (
@@ -106,7 +94,10 @@ function Install-GoTools {
             Write-Host "$LogPrefix Installing $tool..." -ForegroundColor Yellow
             try {
                 & $GoPath install "$tool@latest" 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
+                $toolName = Split-Path $tool -Leaf
+                $goPathValue = (& $GoPath env GOPATH 2>&1 | Select-Object -First 1).ToString().Trim()
+                $toolBinPath = Join-Path $goPathValue "bin\$toolName.exe"
+                if (Test-Path -LiteralPath $toolBinPath) {
                     Write-Host "$LogPrefix $tool installed successfully" -ForegroundColor Green
                 } else {
                     Write-Host "$LogPrefix Failed to install $tool" -ForegroundColor Yellow
@@ -137,7 +128,7 @@ function Test-GoInstallation {
     try {
         # Test Go version
         $goVersion = & $GoPath version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if (("$goVersion").Contains('go version')) {
             Write-Host "$LogPrefix Go version check passed" -ForegroundColor Green
             $versionLine = ($goVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -148,7 +139,7 @@ function Test-GoInstallation {
         
         # Test Go environment
         $goEnv = & $GoPath env GOROOT GOPATH GOPROXY 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if ("$goEnv" -match 'GOROOT=') {
             Write-Host "$LogPrefix Go environment check passed" -ForegroundColor Green
             foreach ($line in $goEnv) {
                 Write-Host "$LogPrefix $line" -ForegroundColor Cyan

@@ -10,8 +10,8 @@ Supports Windows and Linux/macOS.
 import os
 import platform
 from typing import List, Optional
-from pycore.pyfoundations.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon import exec_silent
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
 
 
 def kill_process_on_port(port: int, force: bool = True) -> bool:

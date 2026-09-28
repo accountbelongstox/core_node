@@ -2,14 +2,25 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 
-class StaticResourceController
+class StaticResourceController extends Controller
 {
     private $baseDirectory;
+
+    // Recursive scan bounds for getFileTree. The dashboard tree is rendered
+    // recursively on the frontend, so the backend must return nested children
+    // in one call (otherwise files uploaded into a subfolder never appear).
+    // These caps keep a pathological / very large media tree from exploding;
+    // $scanNodeBudget is reset per request in getFileTree.
+    private $scanMaxDepth = 10;
+    private $scanNodeBudget = 0;
+    private const SCAN_NODE_LIMIT = 12000;
 
     public function __construct()
     {
@@ -47,7 +58,8 @@ class StaticResourceController
             ], 404);
         }
 
-        $items = $this->scanDirectory($fullPath, $path);
+        $this->scanNodeBudget = self::SCAN_NODE_LIMIT;
+        $items = $this->scanDirectory($fullPath, $path, 0);
 
         return response()->json([
             'items' => $items,
@@ -134,9 +146,84 @@ class StaticResourceController
         $extension = pathinfo($fullPath, PATHINFO_EXTENSION);
         $mimeType = $this->getMimeType($fullPath, $extension);
 
+        $disposition = $request->boolean('download') ? 'attachment' : 'inline';
+
         return response()->file($fullPath, [
             'Content-Type' => $mimeType,
-            'Content-Disposition' => 'inline; filename="' . basename($fullPath) . '"'
+            'Content-Disposition' => $disposition . '; filename="' . basename($fullPath) . '"'
+        ]);
+    }
+
+    public function writeFile(Request $request)
+    {
+        $relativePath = null;
+        $content = null;
+        $fullPath = null;
+        $extension = null;
+
+        $relativePath = $request->input('path');
+
+        if (!$relativePath) {
+            return response()->json([
+                'error' => 'Path is required'
+            ], 400);
+        }
+
+        $content = $request->input('content');
+
+        if (!is_string($content)) {
+            return response()->json([
+                'error' => 'Content is required'
+            ], 400);
+        }
+
+        $fullPath = $this->baseDirectory . DIRECTORY_SEPARATOR . $relativePath;
+
+        if (!$this->isPathSafe($fullPath)) {
+            return response()->json([
+                'error' => 'Access denied'
+            ], 403);
+        }
+
+        if (FileSystemManager::exists($fullPath) && FileSystemManager::isDir($fullPath)) {
+            return response()->json([
+                'error' => 'Target is a directory'
+            ], 409);
+        }
+
+        $extension = pathinfo($fullPath, PATHINFO_EXTENSION);
+
+        if (FileSystemManager::exists($fullPath)) {
+            $mimeType = $this->getMimeType($fullPath, $extension);
+
+            if (!$this->isTextFile($mimeType)) {
+                return response()->json([
+                    'error' => 'Cannot overwrite a non-text file'
+                ], 415);
+            }
+        } else {
+            $parentDir = dirname($fullPath);
+
+            if (!FileSystemManager::exists($parentDir) || !FileSystemManager::isDir($parentDir)) {
+                return response()->json([
+                    'error' => 'Parent directory not found'
+                ], 404);
+            }
+        }
+
+        if (!FileSystemManager::writeFile($fullPath, $content)) {
+            return response()->json([
+                'error' => 'Failed to write file'
+            ], 500);
+        }
+
+        clearstatcache();
+
+        return response()->json([
+            'success' => true,
+            'path' => $relativePath,
+            'size' => FileSystemManager::filesize($fullPath),
+            'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath))
         ]);
     }
 
@@ -476,13 +563,23 @@ class StaticResourceController
 
     private function sanitizeFileName($filename)
     {
-        $filename = str_replace(' ', '_', $filename);
+        $filename = trim((string) $filename);
 
-        $filename = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $filename);
+        // Whitespace runs -> single underscore.
+        $filename = preg_replace('/\s+/u', '_', $filename);
 
-        $filename = preg_replace('/_+/', '_', $filename);
+        // Strip ONLY characters unsafe on common filesystems / in URLs
+        // (path separators, Windows-reserved, control chars). Unicode letters and
+        // digits (CJK, accented, …) are PRESERVED so a name survives the round-trip
+        // instead of being flattened to "____" by the old ASCII-only filter.
+        $filename = preg_replace('#[\\\\/:*?"<>|\x00-\x1F\x7F]#u', '_', $filename);
 
-        $filename = trim($filename, '_');
+        $filename = preg_replace('/_+/u', '_', $filename);
+        $filename = trim($filename, "_. ");
+
+        if ($filename === '') {
+            $filename = 'file_' . substr(md5(uniqid('', true)), 0, 8);
+        }
 
         return $filename;
     }
@@ -501,13 +598,14 @@ class StaticResourceController
         return strpos($realPath, $this->baseDirectory) === 0;
     }
 
-    private function scanDirectory($directory, $relativePath)
+    private function scanDirectory($directory, $relativePath, $depth = 0)
     {
         $items = [];
         $entries = null;
         $name = null;
         $fullPath = null;
         $relPath = null;
+        $children = null;
 
         $entries = FileSystemManager::scandir($directory);
 
@@ -516,16 +614,29 @@ class StaticResourceController
                 continue;
             }
 
+            if ($this->scanNodeBudget <= 0) {
+                break;
+            }
+            $this->scanNodeBudget--;
+
             $name = $entry;
             $fullPath = $directory . DIRECTORY_SEPARATOR . $entry;
             $relPath = $relativePath ? $relativePath . DIRECTORY_SEPARATOR . $entry : $entry;
 
             if (FileSystemManager::isDir($fullPath)) {
+                // Recurse so nested files are returned in ONE call: the React
+                // tree renders children recursively, so a file uploaded into a
+                // subfolder is visible right after the post-upload refresh.
+                // Bounded by $scanMaxDepth + the per-request node budget.
+                $children = $depth < $this->scanMaxDepth
+                    ? $this->scanDirectory($fullPath, $relPath, $depth + 1)
+                    : [];
                 $items[] = [
                     'name' => $name,
                     'type' => 'directory',
                     'path' => $relPath,
-                    'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath))
+                    'modified' => date('Y-m-d H:i:s', FileSystemManager::filemtime($fullPath)),
+                    'children' => $children
                 ];
             } else {
                 $extension = pathinfo($fullPath, PATHINFO_EXTENSION);

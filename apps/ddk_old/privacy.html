@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多多开 - 隐私政策</title>
+    <style>
+        @font-face {
+            font-family: 'TencentW7';
+            src: url('assets/fonts/W7.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        body {
+            font-family: 'TencentW7', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1, h2 { color: #1a73e8; }
+        .section { margin-bottom: 30px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>多多开 - 隐私政策</h1>
+    <p><strong>最后更新日期：2026年5月13日</strong></p>
+
+    <div class="section">
+        <h2>1. 我们收集哪些数据</h2>
+        <p>多多开是一个拼多多买家订单管理工具。为了提供服务，我们收集以下数据：</p>
+        <table>
+            <tr><th>数据类型</th><th>具体内容</th><th>收集目的</th></tr>
+            <tr>
+                <td>账号信息</td>
+                <td>用户名、加密后的密码</td>
+                <td>用户注册与登录，验证身份</td>
+            </tr>
+            <tr>
+                <td>拼多多账号数据</td>
+                <td>拼多多登录 Cookie、账号昵称、用户ID</td>
+                <td>代您从拼多多平台获取订单信息</td>
+            </tr>
+            <tr>
+                <td>订单数据</td>
+                <td>订单编号、商品信息、价格、物流单号、收货地址、订单状态</td>
+                <td>订单管理、搜索、导出、物流跟踪。订单数据仅存储在您的本地设备中，多多开后台不存储您的订单数据。</td>
+            </tr>
+            <tr>
+                <td>ERP 配置数据</td>
+                <td>ERP 系统连接信息（AppKey、AppSecret、接口地址）</td>
+                <td>将订单状态和物流信息同步至您的 ERP 系统</td>
+            </tr>
+            <tr>
+                <td>使用数据</td>
+                <td>套餐类型、功能使用记录</td>
+                <td>计费与服务权限管理</td>
+            </tr>
+            <tr>
+                <td>偏好设置</td>
+                <td>搜索偏好、显示设置、仓库地址</td>
+                <td>提供个性化使用体验</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>2. 数据如何使用</h2>
+        <ul>
+            <li><strong>提供核心服务</strong>：使用您的拼多多 Cookie 代您请求拼多多接口，获取订单列表和详情。</li>
+            <li><strong>订单管理功能</strong>：对订单进行搜索、筛选、导出 Excel、物流跟踪。</li>
+            <li><strong>ERP 同步</strong>：根据您的配置，将订单状态和物流信息同步至您指定的 ERP 系统。</li>
+            <li><strong>批量操作</strong>：批量下单、批量支付、批量退款、批量上传物流单号等。</li>
+            <li><strong>计费管理</strong>：根据订阅套餐进行功能权限控制。</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>3. 数据存储位置</h2>
+        <table>
+            <tr><th>数据类别</th><th>存储位置</th><th>说明</th></tr>
+            <tr>
+                <td>拼多多 Cookie</td>
+                <td>Chrome 本地存储</td>
+                <td>仅存储在您的浏览器中</td>
+            </tr>
+            <tr>
+                <td>订单缓存</td>
+                <td>Chrome 本地存储 + IndexedDB</td>
+                <td>缓存于本地以提升访问速度</td>
+            </tr>
+            <tr>
+                <td>用户账号信息</td>
+                <td>多多开后端服务器</td>
+                <td>仅存储用户名、加密密码、套餐信息。不存储订单数据。</td>
+            </tr>
+            <tr>
+                <td>ERP 配置</td>
+                <td>Chrome 本地存储 + 多多开后端</td>
+                <td>用于 ERP 连接与同步</td>
+            </tr>
+            <tr>
+                <td>偏好设置</td>
+                <td>Chrome 本地存储</td>
+                <td>仅存储在您的浏览器中</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>4. 数据共享与第三方</h2>
+        <p>在您明确授权和配置的前提下，您的数据会在以下场景中发送至指定服务器：</p>
+        <table>
+            <tr><th>第三方</th><th>共享的数据</th><th>目的</th></tr>
+            <tr>
+                <td>多多开后端服务<br>(pdd.duoduokai.top)</td>
+                <td>用户名、加密密码、套餐类型、ERP 配置、订单链接转换请求<br/><em>（不存储订单数据）</em></td>
+                <td>用户认证、计费、链接转换</td>
+            </tr>
+            <tr>
+                <td>拼多多平台<br>(mobile.yangkeduo.com)</td>
+                <td>通过您的 Cookie 向拼多多发起请求，获取和操作您的订单数据</td>
+                <td>订单拉取、支付、地址管理、发票管理等</td>
+            </tr>
+            <tr>
+                <td>支付宝<br>(mclient.alipay.com)</td>
+                <td>支付页面自动检测，不传输用户数据、不涉及密码</td>
+                <td>支付流程自动化辅助</td>
+            </tr>
+            <tr>
+                <td>1688 平台<br>(air.1688.com)</td>
+                <td>批量消息发送（通过您的登录状态）</td>
+                <td>1688 批量消息管理</td>
+            </tr>
+            <tr>
+                <td>ERP 系统</td>
+                <td>订单状态、物流单号、商品明细、金额信息</td>
+                <td>将拼多多订单同步至您指定的 ERP 系统</td>
+            </tr>
+        </table>
+        <p><strong>我们不会将您的数据出售、出租或分享给任何广告商、数据经纪商或其他未经授权的第三方。</strong>以上所有第三方交互均为实现您所使用的功能所必需。</p>
+    </div>
+
+    <div class="section">
+        <h2>5. 权限说明</h2>
+        <p>插件申请的浏览器权限及其用途：</p>
+        <table>
+            <tr><th>权限</th><th>用途</th></tr>
+            <tr><td>cookies</td><td>管理拼多多账号的登录 Cookie，使您无需重复登录</td></tr>
+            <tr><td>storage / unlimitedStorage</td><td>在本地存储订单缓存、用户设置、ERP 配置</td></tr>
+            <tr><td>activeTab / tabs / windows</td><td>打开拼多多页面以获取订单、处理支付等</td></tr>
+            <tr><td>scripting</td><td>在拼多多页面上运行辅助脚本，实现自动化操作</td></tr>
+            <tr><td>downloads</td><td>导出订单为 Excel 文件并下载到您的设备</td></tr>
+            <tr><td>host_permissions</td><td>访问拼多多、支付宝、1688、ERP 系统的页面以提供自动化服务</td></tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>6. 数据安全</h2>
+        <ul>
+            <li>密码在传输前经过加密处理，后端存储加密后的密码哈希值（仅指多多开登录密码，不涉及拼多多密码）</li>
+            <li>所有与多多开后端的通信使用 HTTPS 加密传输</li>
+            <li>拼多多 Cookie 仅存储在您的本地浏览器中，不会上传至我们的服务器</li>
+            <li>ERP AppSecret 等敏感配置加密存储于本地</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>7. 数据保留与删除</h2>
+        <ul>
+            <li><strong>本地数据</strong>：存储在 Chrome 本地存储和 IndexedDB 中的订单缓存、设置等数据，在您卸载插件时将被完全清除。您也可以随时在浏览器中手动清除这些数据。</li>
+            <li><strong>后端数据</strong>：您的账号信息、套餐信息存储在我们的后端服务器。如需删除账号及所有相关数据，请联系我们。</li>
+            <li><strong>ERP 同步缓存</strong>：用于防止重复同步的订单指纹数据存储在本地 IndexedDB，仅在您本地保留。</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>8. 用户权利</h2>
+        <p>您对自己的数据享有以下权利：</p>
+        <ul>
+            <li><strong>访问权</strong>：您可以在插件中查看所有已同步的订单数据</li>
+            <li><strong>删除权</strong>：您可以随时卸载插件以清除所有本地数据，或联系我们删除后端账号数据</li>
+            <li><strong>知情权</strong>：我们通过本隐私政策向您完整披露数据收集和使用的所有情况</li>
+            <li><strong>选择权</strong>：您可以自由选择是否使用 ERP 同步功能，是否绑定拼多多账号</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>9. 联系我们</h2>
+        <p>如果您对本隐私政策有任何疑问，或需要行使您的数据权利，请通过以下方式联系我们：</p>
+        <ul>
+            <li>官网：<a href="https://www.duoduokai.com.cn">www.duoduokai.com.cn</a></li>
+            <li>在 Chrome Web Store 扩展页面留言</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>10. 免责声明</h2>
+        <p>多多开是第三方工具，与拼多多官方无关。使用本插件时，请同时遵守拼多多平台的相关规则和条款。本隐私政策可能不时更新，更新后的政策将在本页面公布。</p>
+    </div>
+</body>
+</html>

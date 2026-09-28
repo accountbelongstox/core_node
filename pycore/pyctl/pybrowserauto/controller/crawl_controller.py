@@ -8,7 +8,11 @@ Orchestrates the PyBrowserAuto offline download process.
 
 import time
 from typing import Dict, Optional, List, Callable
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+from pycore.pyutils.pybrowser.fetchers.http_fetcher import HTTPFetcher
+from pycore.pyutils.pybrowser.fetchers.browser_fetcher import BrowserFetcher
+
 
 
 class CrawlController:
@@ -96,7 +100,7 @@ class CrawlController:
         Initialize fetcher
 
         Args:
-            fetcher_type: Type of fetcher ('http', 'browser', 'iframe', 'tampermonkey')
+            fetcher_type: Type of fetcher ('http' or 'browser')
             fetcher_options: Fetcher initialization options
 
         Returns:
@@ -107,22 +111,12 @@ class CrawlController:
         ColorPrint.blue(f'[CrawlController] Initializing {fetcher_type} fetcher')
 
         # Import fetchers from PyBrowser
-        from pycore.pyutils.pybrowser.fetchers import (
-            HTTPFetcher,
-            BrowserFetcher,
-            IframeFetcher,
-            TampermonkeyFetcher
-        )
 
         # Create fetcher based on type
         if fetcher_type == 'http':
             self.fetcher = HTTPFetcher()
         elif fetcher_type == 'browser':
             self.fetcher = BrowserFetcher()
-        elif fetcher_type == 'iframe':
-            self.fetcher = IframeFetcher()
-        elif fetcher_type == 'tampermonkey':
-            self.fetcher = TampermonkeyFetcher()
         else:
             ColorPrint.red(f'[CrawlController] Unknown fetcher type: {fetcher_type}')
             return False

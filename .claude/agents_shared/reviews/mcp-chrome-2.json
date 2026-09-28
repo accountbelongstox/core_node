@@ -1,0 +1,18 @@
+{
+  "task_id": "mcp-chrome-2",
+  "role": "mcp-chrome",
+  "verdict": "approved",
+  "findings": {
+    "FU-001": {
+      "status": "fixed",
+      "reason": "The native server (12306) replaces @fastify/cors (origin: true) with ncore's shared K7 guard (local_rpc_guard.createFastifyGuard, onRequest + preParsing), so there is no second implementation; the own request-guard.ts is deleted. Options: allowedOrigins = the fixed EXTENSION_ID origin plus the launching extension origin from the browser argv (validated as chrome-extension://[a-p]{32}), and allowLoopbackOrigins false. Result: a loopback peer with a loopback Host and either no Origin (local MCP clients, the next native host) or the extension origin is allowed; any other web origin, and any DNS-rebinding Host, falls to K3 and is refused, including the /singleton shutdown. CORS reflects only the extension origin."
+    }
+  },
+  "issues": [
+    "(non-blocking) native-server/package.json still lists @fastify/cors, now unused; left in place to avoid an unrequested install/lockfile change.",
+    "(note) The native host now loads ncore modules from the repository (ncore.ts with REPO_ROOT, same depth for src and dist) and sets MCP_MODE=mcp first so ncore logs go to stderr, not the native-messaging stdout. It therefore needs the repository checkout, the same assumption the existing constant/index.ts already makes for config/service_contract.",
+    "(resubmission) the Chrome extension id has one definition, service_contract.json#mcp_chrome.extension_id, exported by packages/shared (EXTENSION_ID) and re-exported by native-server scripts/constant.ts; native-host-common.cjs and update-extension-id.cjs read it. The guard options use it."
+  ],
+  "checks": "ncore.ts, the server/index.ts, constant/index.ts and singleton.ts diffs read; local_rpc_guard.authorizeRequest traced with allowLoopbackOrigins false; dist layout (native-server/dist) checked for the REPO_ROOT depth; FU-001 cases reported by the owner through ncore authorizeRequest.",
+  "checked_at": "2026-09-27T04:36:57+10:00"
+}

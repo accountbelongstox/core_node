@@ -1,23 +1,10 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Auth\Middleware\Authenticate as Middleware;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Http\Middleware\MidPublic\ApiDebugTokenAuth;
 use App\Http\Common\CommonUserGen;
@@ -41,13 +28,25 @@ class CustomAuthenticate extends Middleware
         $bearerToken = $request->bearerToken();
         if ($bearerToken) {
             if (Auth::guard('sanctum')->check()) {
+                // Sanctum authenticated the token on its own guard, but the
+                // default (web) guard stays empty, so $request->user() /
+                // AuthHelper::requireAuth() would return null and controllers
+                // would 401 a logged-in user. Propagate the identity to the
+                // default guard, mirroring the user_token / debug branches.
+                $sanctumUser = Auth::guard('sanctum')->user();
+                if ($sanctumUser) {
+                    Auth::login($sanctumUser);
+                    $request->setUserResolver(function () use ($sanctumUser) {
+                        return $sanctumUser;
+                    });
+                }
                 return $next($request);
             }
         }
         $user = null;
         $userToken = $request->header(CommonGvar::AuthUserToken);
         if ($userToken) {
-            $user = User::where('user_token', $userToken)->first();
+            $user = User::findByUserToken($userToken);
             if ($user) {
                 Auth::login($user);
                 return $next($request);
@@ -70,6 +69,18 @@ class CustomAuthenticate extends Middleware
             return $next($request);
         }
 
+        // PddToolV1 (订多多) ROOT-level SaaS surface must emit the FastAPI
+        // {"detail":"Could not validate credentials"} shape the Chrome extension
+        // reads, instead of the generic {success:false} envelope below.
+        $pddPaths = [
+            'login', 'register', 'users/me', 'users/me/*',
+            'batch-orders', 'batch-orders/*', 'convert-order-link',
+            'recharge', 'recharge/*', 'pay/*', 'erp/*', 'pdd/health',
+        ];
+        if ($request->is(...$pddPaths)) {
+            return response()->json(['detail' => 'Could not validate credentials'], 401);
+        }
+
         return response()->json([
             'success' => false,
             'message' => 'Unauthenticated. Please login first.',
@@ -77,4 +88,3 @@ class CustomAuthenticate extends Middleware
         ], 401);
     }
 }
-

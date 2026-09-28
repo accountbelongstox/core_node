@@ -1,20 +1,9 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const Base = require('#@base');
     const os = require('os');
     const fs = require('fs');
     const path = require('path');
     const { execSync } = require('child_process');
+    const logger = require('#@logger');
 
     class ComposeControl extends Base {
         constructor() {
@@ -29,9 +18,10 @@ const Base = require('#@base');
         setComposeDir(dirPath) {
             if (fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory()) {
                 this.composeDir = dirPath;
-            } else {
-                throw new Error(`Invalid directory path: ${dirPath}`);
+                return true;
             }
+            logger.error(`Invalid directory path: ${dirPath}`);
+            return false;
         }
 
         /**
@@ -39,20 +29,24 @@ const Base = require('#@base');
          */
         compileCompose() {
             if (!this.composeDir) {
-                throw new Error('Compose directory is not set.');
+                logger.error('Compose directory is not set.');
+                return false;
             }
 
             const composeFilePath = path.join(this.composeDir, 'compose-template.yaml');
 
             if (!fs.existsSync(composeFilePath)) {
-                throw new Error(`docker-compose.yaml file not found in directory: ${this.composeDir}`);
+                logger.error(`docker-compose.yaml file not found in directory: ${this.composeDir}`);
+                return false;
             }
 
             try {
                 // 使用 docker-compose 编译 compose.yaml
                 execSync(`docker-compose -f ${composeFilePath} config`, { stdio: 'inherit' });
+                return true;
             } catch (error) {
-                throw new Error(`Error compiling docker-compose.yaml: ${error.message}`);
+                logger.error(`Error compiling docker-compose.yaml: ${error.message}`);
+                return false;
             }
         }
     }

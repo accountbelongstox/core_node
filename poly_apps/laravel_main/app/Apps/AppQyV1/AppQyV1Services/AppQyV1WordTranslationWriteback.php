@@ -1,0 +1,763 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Services;
+
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Word Translation Write-back
+ *
+ * Single source of truth for persisting word_translation results into the
+ * canonical dictionary table (tts_cache_{lang}, AppQyV1LangDictionaryModel).
+ * Used by both WordTranslationTaskProcessor (worker results) and the Laravel
+ * AI self-filler timer.
+ *
+ * To keep the read side of the loop intact, each word is written in two shapes:
+ *   1. translations[target_language] = translation
+ *      Flat map read by the FE status endpoint and by the statistics aggregate
+ *      (with_translation counter).
+ *   2. translations['word_translation'] gets a [target_language, translation]
+ *      pair appended. This is the exact structure
+ *      AppQyV1VocabularyLibraryPublicController::getLibraryWords decodes
+ *      (it surfaces $trans[1] of every word_translation entry), so the words
+ *      list endpoint shows the translation without further changes.
+ *
+ * has_translation is set true and translation_provider records the source
+ * (google / openrouter:model / etc.).
+ */
+class AppQyV1WordTranslationWriteback
+{
+    /**
+     * Persist a batch of word results for one (language, target_language) pair.
+     * Rows are matched by md5(word); a missing row is created minimally so a
+     * translation is never lost.
+     *
+     * Each entry is ['word' => ..., 'translation' => ...] plus optional rich
+     * fields produced by the Bing assist worker. AUDIO and IMAGES are
+     * BINARY/BASE64 only — the Bing media URLs are not fetchable server-side, so
+     * the chrome side captures the bytes in-page; there is NO server-side URL
+     * fetch here. All rich fields are optional and never clobber existing data
+     * (fill-missing):
+     *   - 'phonetic' / 'us_phonetic' / 'uk_phonetic' (strings)
+     *   - 'image_base64' (Bing sample images: base64 string list, or a list of
+     *     { base64, mime? }) -> decoded, validated by magic bytes, stored as
+     *     LOCAL files; their relative paths go into image_files
+     *   - 'audio_base64' (base64 audio from Bing or a TTS worker) -> stored via
+     *     AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes
+     *
+     * $invalidWords is a list of ['word' => ...] (or bare strings) the worker
+     * could not resolve on Bing (confirmed no-entry); each is flagged
+     * is_valid=false via markValidity so the enqueue side stops re-queuing it.
+     *
+     * $regionRedirectWords is the same shape: words that persistently landed on a
+     * non-dict (region/redirect) page after retries. They are flagged invalid
+     * too, but with validity_source='region-redirect' so the cause is auditable
+     * and distinguishable from a confirmed no-entry.
+     *
+     * @param string $taskId              Originating global task id (logging only)
+     * @param string $language            Source/library language (name or code)
+     * @param string $targetLanguage      Target language code (e.g. "zh")
+     * @param string $provider            Translation provider label
+     * @param array  $translations        List of per-word result entries (see above)
+     * @param array  $invalidWords        Words with no online dictionary entry
+     * @param array  $regionRedirectWords Words stuck on a region/redirect page
+     * @return array  ['processed' => int, 'failed' => int, 'invalidated' => int,
+     *                'audio_saved' => int, 'images_saved' => int]
+     */
+    public static function apply(
+        string $taskId,
+        string $language,
+        string $targetLanguage,
+        string $provider,
+        array $translations,
+        array $invalidWords = [],
+        array $regionRedirectWords = []
+    ): array {
+        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+        $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
+        $processed = 0;
+        $failed = 0;
+        $invalidated = 0;
+        // Binaries actually written to disk after commit — reported back to the
+        // worker so it can log the backend's audio/image reception result.
+        $audioSaved = 0;
+        $imagesSaved = 0;
+        $mcpImageSubmission = str_starts_with($provider, 'mcp-chrome');
+
+        // Audio writes do file I/O, so they are deferred to after the row-lock
+        // transaction commits (collected as [md5 => raw audio bytes]).
+        $audioQueue = [];
+
+        // Image writes also do file I/O; deferred to after-commit, collected as
+        // [md5 => ['content' => word, 'images' => [base64 entries]]].
+        $imageQueue = [];
+
+        // Map each word to its md5 once (was a findByMd5 per word).
+        $md5ByWord = [];
+        foreach ($translations as $item) {
+            $word = $item['word'] ?? null;
+            if (is_string($word) && $word !== '') {
+                $md5ByWord[$word] = md5($word);
+            }
+        }
+
+        // Words successfully persisted in this batch, queued for after-commit
+        // broadcast. The word.translated signal must fire AFTER the dictionary
+        // write commits, never while the row lock is held, so collect here and
+        // emit once the transaction has committed.
+        $broadcastQueue = [];
+
+        // Atomic read-modify-write: two workers writing DIFFERENT target languages
+        // of the SAME word would otherwise both read the same translations JSON,
+        // each add their key, and the last save would clobber the other's key.
+        // Run the whole batch inside ONE transaction on the dictionary connection
+        // and SELECT ... FOR UPDATE the rows so concurrent writers serialize on
+        // them. One batch lock per call (whereIn result order) -> no cross-row
+        // ordering deadlock. Run on the model's own connection (the processor's
+        // outer transaction is on the default/global_tasks connection; the
+        // self-filler path calls apply() with no surrounding transaction at all).
+        // Probe the optional image_status column ONCE (not per row) so the
+        // "checked, none available" marker degrades to a no-op on hosts whose
+        // image_status migration has not run yet.
+        $availableColumns = AppQyV1LangDictionaryModel::languageColumns(
+            $langCode,
+            ['image_status', 'bing_resource_urls']
+        );
+        $hasImageStatusColumn = $availableColumns['image_status'];
+        $hasBingUrlsColumn = $availableColumns['bing_resource_urls'];
+
+        AppQyV1LangDictionaryModel::runLanguageTransaction($langCode, function () use (
+            $translations,
+            $md5ByWord,
+            $langCode,
+            $targetCode,
+            $provider,
+            $taskId,
+            $hasImageStatusColumn,
+            $hasBingUrlsColumn,
+            $mcpImageSubmission,
+            &$processed,
+            &$failed,
+            &$broadcastQueue,
+            &$audioQueue,
+            &$imageQueue
+        ) {
+            // Pre-load every word's dictionary row in ONE locked query. Enqueue
+            // already created these rows, so they almost always exist; a rare miss
+            // falls back to createOrFind in the loop.
+            $rows = empty($md5ByWord)
+                ? collect()
+                : AppQyV1LangDictionaryModel::lockedRowsByHashes($langCode, array_values($md5ByWord));
+
+            foreach ($translations as $item) {
+                $word = $item['word'] ?? null;
+                $translationText = $item['translation'] ?? null;
+                $hasTranslation = is_string($translationText) && $translationText !== '';
+
+                // Images are BASE64-ONLY (same rule as audio): the Bing image URLs
+                // are not fetchable server-side, so the chrome side captures the
+                // bytes in-page and submits image_base64. Each entry is a base64
+                // string or { base64, mime? }. No image-URL fetch anywhere.
+                $imageBase64 = self::normalizeImageBase64($item);
+                $hasImages = !empty($imageBase64);
+
+                // Worker's authoritative "Bing has NO sample images for this word"
+                // signal (only when EXPLICITLY false — absent = legacy worker =
+                // unknown, never mark). Used to set the terminal image_status='none'
+                // so the word is never re-queued for images.
+                $imagesNone = array_key_exists('images_available', $item)
+                    && $item['images_available'] === false;
+
+                // Audio is BASE64-ONLY: the Bing pronunciation URL is not openable
+                // server-side (it requires the live page referrer/session), so the
+                // chrome side captures the bytes in-page and submits audio_base64.
+                // No audio_url download anywhere.
+                $audioBase64 = $item['audio_base64'] ?? null;
+                $hasPhonetic = !empty($item['phonetic']) || !empty($item['us_phonetic']) || !empty($item['uk_phonetic']);
+                $hasAudio = is_string($audioBase64) && $audioBase64 !== '';
+
+                // An entry must carry at least one usable field. A bare word with
+                // nothing attached is a no-op, not a translation.
+                if ($word === null || $word === '' ||
+                    (!$hasTranslation && !$hasPhonetic && !$hasImages && !$hasAudio)) {
+                    $failed++;
+                    continue;
+                }
+
+                // Word-correctness guard: if the worker reported the Bing PAGE
+                // headword and it does NOT match the requested word (normalized for
+                // case/whitespace/URL-escapes/NBSP), the plugin input got confused
+                // (typed into the wrong tab / a redirect rendered a different entry).
+                // SKIP it as $failed — NEVER save under this word's md5 and NEVER
+                // invalidate — so the empty-store gate re-pends the task for a clean
+                // retry instead of contaminating the row with another word's data.
+                $pageWord = $item['page_word'] ?? null;
+                if (is_string($pageWord) && $pageWord !== ''
+                    && self::normalizeForCompare($pageWord) !== self::normalizeForCompare((string) $word)) {
+                    Log::warning('[AppQyV1WordTranslationWriteback] page-word mismatch — skipping (input confusion)', [
+                        'task_id' => $taskId,
+                        'requested' => $word,
+                        'page_word' => $pageWord,
+                    ]);
+                    $failed++;
+                    continue;
+                }
+
+                try {
+                    $entry = $rows->get($md5ByWord[$word] ?? md5($word));
+
+                    // Create a minimal row if the word is not in the dictionary
+                    // yet, so a freshly enqueued word still receives its
+                    // translation. createOrFind issues its own SELECT/INSERT inside
+                    // this transaction; re-read it FOR UPDATE so the merge below is
+                    // also lock-protected against a concurrent target writer.
+                    if (!$entry) {
+                        AppQyV1LangDictionaryModel::createOrFind($langCode, $word);
+                        $entry = AppQyV1LangDictionaryModel::lockByHash($langCode, md5($word));
+                        if ($entry) {
+                            $rows->put($entry->md5, $entry);
+                        }
+                    }
+
+                    if (!$entry) {
+                        $failed++;
+                        continue;
+                    }
+
+                    $dirty = false;
+
+                    // --- Translation text (when the worker found definitions) ---
+                    if ($hasTranslation) {
+                        $current = $entry->translations;
+                        if (!is_array($current)) {
+                            $current = [];
+                        }
+                        $storedTranslation = $current[$targetCode] ?? null;
+                        $translationMissing = !is_string($storedTranslation)
+                            || trim($storedTranslation) === '';
+
+                        if ($translationMissing) {
+                            // 1. Flat map keyed by target language (status endpoint reads
+                            //    this).
+                            $current[$targetCode] = $translationText;
+
+                            // 2. Nested word_translation list (getLibraryWords reads
+                            //    $trans[1]).
+                            $wordTranslation = [];
+                            if (isset($current['word_translation']) && is_array($current['word_translation'])) {
+                                $wordTranslation = $current['word_translation'];
+                            }
+
+                            $hasTargetPair = false;
+                            foreach ($wordTranslation as $pair) {
+                                if (is_array($pair) && isset($pair[0]) && $pair[0] === $targetCode) {
+                                    $hasTargetPair = true;
+                                    break;
+                                }
+                            }
+                            if (!$hasTargetPair) {
+                                $wordTranslation[] = [$targetCode, $translationText];
+                            }
+                            $current['word_translation'] = array_values($wordTranslation);
+
+                            $entry->translations = $current;
+                            $entry->has_translation = true;
+                            $entry->translation_provider = $provider;
+                            $dirty = true;
+
+                            // Queue the multi-worker coordination signal (Phase-C
+                            // `word.translated`) for after-commit. It must not fire
+                            // while the row lock is held.
+                            $broadcastQueue[] = [
+                                'word' => $word,
+                                'translation' => $translationText,
+                            ];
+                        }
+                    }
+
+                    // A successful dictionary/AI result is also a positive
+                    // validity verdict. Mark only unchecked/previously-invalid
+                    // rows so an existing explicit valid source is preserved.
+                    if ($entry->validity_checked_at === null || $entry->is_valid !== true) {
+                        $entry->is_valid = true;
+                        $entry->validity_checked_at = now();
+                        $entry->validity_source = $provider;
+                        $entry->validity_note = null;
+                        $dirty = true;
+                    }
+
+                    // --- Phonetics (fill-missing — never overwrite existing) ---
+                    if (!empty($item['phonetic']) && empty($entry->phonetic)) {
+                        $entry->phonetic = $item['phonetic'];
+                        $dirty = true;
+                    }
+                    if (!empty($item['us_phonetic']) && empty($entry->us_phonetic)) {
+                        $entry->us_phonetic = $item['us_phonetic'];
+                        $dirty = true;
+                    }
+                    if (!empty($item['uk_phonetic']) && empty($entry->uk_phonetic)) {
+                        $entry->uk_phonetic = $item['uk_phonetic'];
+                        $dirty = true;
+                    }
+
+                    // --- Images: queue base64 for after-commit file storage ---
+                    // Fill-missing — only when the row has no images yet; the
+                    // decode/validate/write-file + image_files update happens after
+                    // the lock is released (file I/O must not run under the lock).
+                    if ($hasImages && (empty($entry->image_files) || $mcpImageSubmission)) {
+                        $imageQueue[$entry->md5] = [
+                            'content' => $entry->content,
+                            'images' => $imageBase64,
+                            'provider' => $provider,
+                        ];
+                    }
+
+                    // Terminal "checked, none available": the worker confirmed Bing
+                    // has no sample images for this (translated) word and none are
+                    // stored — mark image_status='none' so the enqueue side never
+                    // re-queues it for images. Skip when we're storing images this
+                    // pass, when the row already has images, or already 'completed'.
+                    if ($imagesNone && !$hasImages && empty($entry->image_files)
+                        && $hasImageStatusColumn && $entry->image_status !== 'completed') {
+                        $entry->image_status = 'none';
+                        $entry->image_completed_at = now();
+                        $entry->image_locked_at = null;
+                        $entry->image_locked_by = null;
+                        $dirty = true;
+                    }
+
+                    // Persist the full remote Bing URLs (fill-missing) so missing
+                    // media can be re-fetched in-page later WITHOUT a re-translate.
+                    if ($hasBingUrlsColumn && empty($entry->bing_resource_urls)) {
+                        $bingUrls = self::extractBingResourceUrls($item);
+                        if ($bingUrls !== null) {
+                            $entry->bing_resource_urls = $bingUrls;
+                            $dirty = true;
+                        }
+                    }
+
+                    if ($dirty) {
+                        $entry->saveRecord();
+                    }
+
+                    // --- Audio: decode now, persist after commit (file I/O) ---
+                    // Multi-variant: each translations[] item may carry variant_key
+                    // ("" = primary). Queue every item; storeWordAudioBytes does
+                    // per-variant fill-missing (never clobber an existing file).
+                    if ($hasAudio) {
+                        $bytes = base64_decode($audioBase64, true);
+                        if ($bytes !== false && $bytes !== '') {
+                            $audioQueue[] = [
+                                'md5' => $entry->md5,
+                                'bytes' => $bytes,
+                                'mime' => (string) ($item['audio_mime'] ?? $item['mime'] ?? ''),
+                                'variant_key' => (string) ($item['variant_key'] ?? ''),
+                                'accent' => $item['accent'] ?? null,
+                                'gender' => $item['gender'] ?? null,
+                                'provider' => (string) ($item['provider'] ?? $item['engine'] ?? $provider),
+                            ];
+                        }
+                    }
+
+                    $processed++;
+                } catch (\Throwable $e) {
+                    Log::error('[AppQyV1WordTranslationWriteback] Failed to write translation', [
+                        'task_id' => $taskId,
+                        'word' => $word,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $failed++;
+                }
+            }
+        });
+
+        // After the dictionary write has committed (lock released), announce each
+        // freshly persisted word so every other pycore worker can SKIP it
+        // ("one finished -> others skip"). Best-effort only; the dictionary row is
+        // the source of truth, so a broadcast failure must never fail write-back.
+        foreach ($broadcastQueue as $signal) {
+            $word = $signal['word'];
+            $translationText = $signal['translation'];
+            app(AppQyV1TranslationRealtimeService::class)->wordTranslated(
+                $word,
+                $langCode,
+                $targetCode,
+                $translationText,
+                $provider
+            );
+        }
+
+        // Persist Bing pronunciation audio after the lock is released — file I/O
+        // must not run inside the row-lock transaction. The coordinator validates
+        // format magic, writes to the deterministic EdgeTTS path, and flips has_audio
+        // (fill-missing). Best-effort: an audio failure never fails translation.
+        if (!empty($audioQueue)) {
+            $coordinator = new AppQyV1DictionaryTTSCoordinator();
+            foreach ($audioQueue as $aq) {
+                $md5 = $aq['md5'];
+                try {
+                    $meta = array_filter([
+                        'accent' => $aq['accent'] ?? null,
+                        'gender' => $aq['gender'] ?? null,
+                    ], static fn ($v) => $v !== null && $v !== '');
+                    if ($coordinator->storeWordAudioBytes(
+                        $langCode,
+                        $md5,
+                        $aq['bytes'],
+                        $aq['provider'] ?? 'bing',
+                        $aq['variant_key'] ?: null,
+                        $meta,
+                        $aq['mime'] ?? null
+                    )) {
+                        $audioSaved++;
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('[AppQyV1WordTranslationWriteback] audio store failed', [
+                        'task_id' => $taskId,
+                        'md5' => $md5,
+                        'variant_key' => $aq['variant_key'] ?? '',
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        // Persist Bing sample images after the lock is released — file I/O must
+        // not run inside the row-lock transaction. Each queued image is decoded,
+        // validated by magic bytes, written to the local word-images dir, and the
+        // resulting LOCAL relative paths are stored into image_files (fill-missing,
+        // re-checked: only when the row still has no images). Best-effort: an image
+        // failure never fails translation.
+        foreach ($imageQueue as $md5 => $payload) {
+            try {
+                $imagesSaved += self::storeWordImages(
+                    $langCode,
+                    (string) $md5,
+                    $payload['content'] ?? '',
+                    $payload['images'] ?? [],
+                    $payload['provider'] ?? $provider
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[AppQyV1WordTranslationWriteback] image store failed', [
+                    'task_id' => $taskId,
+                    'md5' => $md5,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $validityResults = [];
+
+        // Flag words the worker could not resolve on Bing as invalid so the
+        // enqueue side stops re-queuing them (getWordsNeedingTranslation /
+        // stackWords both filter is_valid).
+        foreach ($invalidWords as $invalid) {
+            $invalidWord = is_array($invalid) ? ($invalid['word'] ?? null) : $invalid;
+            if (!is_string($invalidWord) || $invalidWord === '') {
+                continue;
+            }
+
+            $validityResults[] = [
+                'md5' => md5($invalidWord),
+                'is_valid' => false,
+                'source' => 'bing-assist',
+                'note' => 'No Bing dictionary result',
+            ];
+        }
+
+        // Flag words stuck on a Bing region/redirect (non-dict) page after retries
+        // as invalid too, with a distinct source so the cause stays auditable. They
+        // become placeholder rows (is_valid=false, has_translation=false) that the
+        // enqueue side skips, ending the infinite region-redirect re-queue loop.
+        foreach ($regionRedirectWords as $redirect) {
+            $redirectWord = is_array($redirect) ? ($redirect['word'] ?? null) : $redirect;
+            if (!is_string($redirectWord) || $redirectWord === '') {
+                continue;
+            }
+
+            $validityResults[] = [
+                'md5' => md5($redirectWord),
+                'is_valid' => false,
+                'source' => 'region-redirect',
+                'note' => 'Bing region/redirect — no dictionary page',
+            ];
+        }
+
+        if ($validityResults !== []) {
+            try {
+                $validityOutcome = AppQyV1LangDictionaryModel::markValidities($langCode, $validityResults);
+                $invalidated += $validityOutcome['updated'];
+            } catch (\Throwable $e) {
+                Log::warning('[AppQyV1WordTranslationWriteback] validity batch update failed', [
+                    'task_id' => $taskId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Translation writes change has_translation coverage -> invalidate the
+        // cached dashboard dictionary metrics for the source language.
+        if ($processed > 0) {
+            AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
+        }
+
+        Log::info('[AppQyV1WordTranslationWriteback] Word translations written', [
+            'task_id' => $taskId,
+            'language' => $langCode,
+            'target_language' => $targetCode,
+            'provider' => $provider,
+            'processed' => $processed,
+            'failed' => $failed,
+            'invalidated' => $invalidated,
+            'audio_saved' => $audioSaved,
+            'images_saved' => $imagesSaved,
+        ]);
+
+        return [
+            'processed' => $processed,
+            'failed' => $failed,
+            'invalidated' => $invalidated,
+            'audio_saved' => $audioSaved,
+            'images_saved' => $imagesSaved,
+        ];
+    }
+
+    /**
+     * Normalize a word for the page-headword EQUALITY compare (NOT for the md5
+     * key — the row is still keyed by the raw requested word). Handles the
+     * transcoding differences between what was typed and what Bing renders:
+     * percent-decoding, NBSP, collapsed/trimmed whitespace, surrounding
+     * quotes/periods, and case. Internal apostrophes (don't) are preserved.
+     */
+    private static function normalizeForCompare(string $s): string
+    {
+        $v = $s;
+        if (strpos($v, '%') !== false) {
+            $decoded = rawurldecode($v);
+            if (is_string($decoded) && $decoded !== '') {
+                $v = $decoded;
+            }
+        }
+        $v = str_replace("\xC2\xA0", ' ', $v); // NBSP -> space
+        $collapsed = preg_replace('/\s+/u', ' ', $v);
+        $v = is_string($collapsed) ? $collapsed : $v;
+        // Strip surrounding whitespace + straight/curly double-quotes + periods.
+        $stripped = preg_replace('/^[\s".\x{2018}\x{2019}\x{201C}\x{201D}]+|[\s".\x{2018}\x{2019}\x{201C}\x{201D}]+$/u', '', $v);
+        $v = is_string($stripped) ? $stripped : trim($v);
+        return mb_strtolower($v, 'UTF-8');
+    }
+
+    /**
+     * Build the bing_resource_urls JSON from a worker entry's image_urls/audio_url
+     * (the full remote *.bing.net / dict/mediamp3 URLs). Returns null when neither
+     * is present (so the fill-missing write is skipped).
+     *
+     * @return array{images: array<int,string>, audio: ?string}|null
+     */
+    private static function extractBingResourceUrls(array $item): ?array
+    {
+        $images = [];
+        if (isset($item['image_urls']) && is_array($item['image_urls'])) {
+            foreach ($item['image_urls'] as $u) {
+                if (is_string($u) && $u !== '') {
+                    $images[] = $u;
+                }
+            }
+        }
+        $audio = (isset($item['audio_url']) && is_string($item['audio_url']) && $item['audio_url'] !== '')
+            ? $item['audio_url']
+            : null;
+        if (empty($images) && $audio === null) {
+            return null;
+        }
+        return ['images' => $images, 'audio' => $audio];
+    }
+
+    /**
+     * Normalize an entry's image payload into a flat list of base64 strings.
+     * Accepts `image_base64` as a list of base64 strings OR a list of
+     * { base64, mime? } objects (mime is advisory only — the real type is
+     * decided by magic bytes at store time). Returns [] when absent/empty.
+     *
+     * @return array<int, string>  base64 strings
+     */
+    private static function normalizeImageBase64(array $item): array
+    {
+        $raw = $item['image_base64'] ?? null;
+        if ($raw === null) {
+            return [];
+        }
+        if (is_string($raw)) {
+            $raw = [$raw];
+        }
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $img) {
+            if (is_string($img) && $img !== '') {
+                $out[] = $img;
+            } elseif (is_array($img) && isset($img['base64']) && is_string($img['base64']) && $img['base64'] !== '') {
+                $out[] = $img['base64'];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Decode + validate + store a word's Bing sample images as LOCAL files, then
+     * write their relative paths into image_files (fill-missing).
+     *
+     * Mirrors AppQyV1DictionaryTTSCoordinator::storeWordAudioBytes: the row is
+     * re-read here (after the lock released), and images are written ONLY when the
+     * row still has none — existing images are never clobbered. Each base64 entry
+     * is decoded, validated by image magic bytes (PNG/JPEG/GIF/WebP), and written
+     * to PathMapper::getAppQyV1WordImagesDir("{lang}/word/{md5}_{i}.{ext}"). The
+     * stored image_files value is the list of bare relative paths (served via
+     * AppQyV1ImageUrl). No external image-URL fetch anywhere.
+     *
+     * @param array<int, string> $base64List
+     * @return int Number of image files actually written (0 when none/skipped).
+     */
+    private static function storeWordImages(
+        string $langCode,
+        string $md5,
+        string $content,
+        array $base64List,
+        string $provider
+    ): int
+    {
+        if ($md5 === '' || empty($base64List)) {
+            return 0;
+        }
+
+        $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
+        if (!$entry) {
+            return 0;
+        }
+        $hasMcpMarker = $entry->hasTableColumn('image_mcp_submitted_at');
+        $mcpSubmission = str_starts_with($provider, 'mcp-chrome');
+        $replaceExisting = $mcpSubmission && (
+            $hasMcpMarker
+                ? $entry->getAttribute('image_mcp_submitted_at') === null
+                : !str_starts_with((string) ($entry->image_provider ?? ''), 'mcp-chrome')
+        );
+        if (!empty($entry->image_files) && !$replaceExisting) {
+            return 0;
+        }
+
+        $baseDir = PathMapper::getAppQyV1WordImagesDir($langCode . '/word');
+        FileSystemManager::ensureDirectoryExists($baseDir);
+
+        $relativePaths = [];
+        $index = 0;
+        foreach ($base64List as $b64) {
+            // Strip an optional data-URI prefix ("data:image/png;base64,....").
+            if (is_string($b64) && str_starts_with($b64, 'data:')) {
+                $comma = strpos($b64, ',');
+                if ($comma !== false) {
+                    $b64 = substr($b64, $comma + 1);
+                }
+            }
+            $bytes = base64_decode((string) $b64, true);
+            if ($bytes === false || $bytes === '' || strlen($bytes) < 64) {
+                continue;
+            }
+
+            $ext = self::imageExtFromMagic($bytes);
+            if ($ext === null) {
+                // Not a recognized image (PNG/JPEG/GIF/WebP) — reject.
+                continue;
+            }
+
+            $suffix = $index === 0 ? '' : ('_' . $index);
+            $relative = $langCode . '/word/' . $md5 . $suffix . '.' . $ext;
+            $fullPath = PathMapper::getAppQyV1WordImagesDir($relative);
+            FileSystemManager::ensureDirectoryExists(dirname($fullPath));
+
+            if (@file_put_contents($fullPath, $bytes) === false) {
+                continue;
+            }
+            clearstatcache(true, $fullPath);
+            if (!file_exists($fullPath) || filesize($fullPath) !== strlen($bytes)) {
+                @unlink($fullPath);
+                continue;
+            }
+            app(AppQyV1ResourceIndexService::class)->recordStaticPath($fullPath);
+
+            $relativePaths[] = $relative;
+            $index++;
+        }
+
+        if (empty($relativePaths)) {
+            return 0;
+        }
+
+        // Re-check fill-missing right before the write (a concurrent path may have
+        // filled images between the read above and now).
+        $entry->refreshRecord();
+        if (!empty($entry->image_files) && !$replaceExisting) {
+            return 0;
+        }
+        $entry->image_files = $relativePaths;
+        $entry->image_provider = $provider !== '' ? $provider : 'mcp-chrome-search';
+
+        // Reflect queue completion on the image_* process-state columns (mirrors
+        // the tts_* completion transition) so the image queue/coordinator sees
+        // the row as done. Guarded with hasAttribute-style isset so a host whose
+        // image_* migration has not run yet still stores images without error.
+        if ($entry->hasTableColumn('image_status')) {
+            $entry->image_status = 'completed';
+            $entry->image_completed_at = now();
+            $entry->image_locked_at = null;
+            $entry->image_locked_by = null;
+        }
+        if ($mcpSubmission && $hasMcpMarker) {
+            $entry->image_mcp_submitted_at = now();
+        }
+
+        $entry->saveRecord();
+
+        Log::info('[AppQyV1WordTranslationWriteback] Word images stored', [
+            'language' => $langCode,
+            'md5' => $md5,
+            'count' => count($relativePaths),
+        ]);
+
+        return count($relativePaths);
+    }
+
+    /**
+     * Decide an image file extension from magic bytes. Returns null when the
+     * bytes are not a recognized raster image (PNG / JPEG / GIF / WebP).
+     */
+    private static function imageExtFromMagic(string $bytes): ?string
+    {
+        $len = strlen($bytes);
+        if ($len < 12) {
+            return null;
+        }
+        // PNG: 89 50 4E 47 0D 0A 1A 0A
+        if (substr($bytes, 0, 8) === "\x89PNG\x0d\x0a\x1a\x0a") {
+            return 'png';
+        }
+        // JPEG: FF D8 FF
+        if (substr($bytes, 0, 3) === "\xff\xd8\xff") {
+            return 'jpg';
+        }
+        // GIF: "GIF87a" / "GIF89a"
+        if (substr($bytes, 0, 6) === 'GIF87a' || substr($bytes, 0, 6) === 'GIF89a') {
+            return 'gif';
+        }
+        // WebP: "RIFF"...."WEBP"
+        if (substr($bytes, 0, 4) === 'RIFF' && substr($bytes, 8, 4) === 'WEBP') {
+            return 'webp';
+        }
+        return null;
+    }
+
+}

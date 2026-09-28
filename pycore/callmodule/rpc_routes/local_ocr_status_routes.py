@@ -1,0 +1,10 @@
+# -*- coding: utf-8 -*-
+"""HTTP Routes for ocr_status."""
+
+
+from pycore.callmodule.rpc_routes.route_names import UI_OCR_STATUS_TEST
+import pycore.pyutils.ocr_cluster.status_service as ocr
+
+
+def register_local_ocr_status_routes(server):
+    server.post(path=UI_OCR_STATUS_TEST, handler=ocr.test)

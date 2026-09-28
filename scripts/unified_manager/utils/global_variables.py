@@ -2,16 +2,24 @@
 r"""
 Unified Global Variable Manager
 Centralized variable storage system for cross-platform compatibility
-Stores variables in: C:\Users\用户名\.core_node\.build_global_vars / /var/_core_node/_build_global_vars/
+Stores variables in: D:\www\core_node\build_global_vars / <core_node_data_dir>/build_global_vars/
 Format: filename=key, file_content=value
 """
 
 # Import statements - all at top
 import os
+import sys
 import platform
 from pathlib import Path
 from typing import Optional, Dict, Any
 import json
+
+# Make pycore importable so the vars dir resolves via the centralized
+# system_paths module (one source of truth for the core_node data root).
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 # Import after Path is available
 from variable_keys import VariableKeys, StatusValues
@@ -25,23 +33,18 @@ class GlobalVariableManager:
         self._ensure_directory_exists()
 
     def _get_global_vars_directory(self) -> Path:
-        """Get the global variables directory based on platform"""
-        system = platform.system()
+        """Get the global variables directory (centralized via system_paths).
 
-        if system == "Windows":
-            # C:\Users\用户名\.core_node\.build_global_vars
-            user_home = Path.home()
-            vars_dir = user_home / ".core_node" / ".build_global_vars"
-        else:
-            # Linux: Always use /var/_core_node/_build_global_vars/
-            vars_dir = Path("/var/_core_node/_build_global_vars")
-
-        return vars_dir
+        Windows: D:\\www\\core_node\\build_global_vars
+        Linux:   <core_node_data_dir>/build_global_vars (else ~/core_node/build_global_vars)
+        """
+        # Delegate to the canonical per-user state dir (system_paths).
+        return get_system_cache_dir() / 'build_global_vars'
 
     def _has_write_permission(self, directory: Path) -> bool:
         """Check if we have write permission to directory"""
         try:
-            # For system directories like /var/_core_node, we need to check parent write permission
+            # For shared system directories, we need to check parent write permission
             # and ability to create the full path
             test_path = directory
 
@@ -81,6 +84,8 @@ class GlobalVariableManager:
             raise ValueError("Variable key cannot be empty")
 
         var_file = self.vars_dir / key
+        if var_file.is_dir():
+            raise IsADirectoryError(var_file)
 
         # Convert value to string
         if isinstance(value, (dict, list)):
@@ -102,7 +107,7 @@ class GlobalVariableManager:
 
         var_file = self.vars_dir / key
 
-        if var_file.exists():
+        if var_file.is_file():
             try:
                 content = var_file.read_text(encoding='utf-8').strip()
                 return content if content else str(default)
@@ -140,7 +145,7 @@ class GlobalVariableManager:
             return False
 
         var_file = self.vars_dir / key
-        if var_file.exists():
+        if var_file.is_file():
             try:
                 var_file.unlink()
                 return True
@@ -179,7 +184,7 @@ class GlobalVariableManager:
         if not key:
             return False
         var_file = self.vars_dir / key
-        return var_file.exists()
+        return var_file.is_file()
 
     # Convenience methods using VariableKeys
     def write_status(self, status: str) -> None:

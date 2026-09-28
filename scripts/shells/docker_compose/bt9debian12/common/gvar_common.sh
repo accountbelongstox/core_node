@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Global variable directory
 GLOBAL_VAR_DIR="/usr/core_node/global_var"
@@ -105,10 +94,14 @@ set_global_var() {
     key=$(echo "$key" | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')
     local file_path="$GLOBAL_VAR_DIR/$key"
 
+    # Announce only ONCE per value (silent on unchanged re-set across re-inits).
+    local prev_val=""
+    [ -f "$file_path" ] && prev_val="$($USE_SUDO cat "$file_path" 2>/dev/null || cat "$file_path" 2>/dev/null)"
+
     # Write value to file
     echo "$val" | $USE_SUDO tee "$file_path" >/dev/null
     if [[ $? -eq 0 ]]; then
-        if [[ "$print" == "true" ]]; then
+        if [[ "$print" == "true" ]] && [ "$prev_val" != "$val" ]; then
             echo "Successfully set global variable: $key -> $val"
         fi
         return 0
@@ -268,4 +261,3 @@ is_centos() {
 
 ensure_dir
 # Export the GLOBAL_VAR_DIR
-export GLOBAL_VAR_DIR

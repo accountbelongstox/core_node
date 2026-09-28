@@ -1,18 +1,6 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
-
-use Illuminate\Support\Str;
+use App\Constants\LaravelConfig;
 use App\Providers\PathMapper;
 
 return [
@@ -26,12 +14,12 @@ return [
     | incoming requests. Laravel supports a variety of storage options to
     | persist session data. Database storage is a great default choice.
     |
-    | Supported: "file", "cookie", "database", "apc",
-    |            "memcached", "redis", "dynamodb", "array"
+    | Supported: "file", "cookie", "database", "memcached",
+    |            "redis", "dynamodb", "array"
     |
     */
 
-    'driver' => env('SESSION_DRIVER', 'database'),
+    'driver' => LaravelConfig::SESSION_DRIVER,
 
     /*
     |--------------------------------------------------------------------------
@@ -45,9 +33,9 @@ return [
     |
     */
 
-    'lifetime' => (int) env('SESSION_LIFETIME', 120),
+    'lifetime' => LaravelConfig::SESSION_LIFETIME,
 
-    'expire_on_close' => env('SESSION_EXPIRE_ON_CLOSE', false),
+    'expire_on_close' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -60,7 +48,7 @@ return [
     |
     */
 
-    'encrypt' => env('SESSION_ENCRYPT', false),
+    'encrypt' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -89,7 +77,7 @@ return [
     |
     */
 
-    'connection' => env('SESSION_CONNECTION'),
+    'connection' => LaravelConfig::DATABASE_CONNECTION,
 
     /*
     |--------------------------------------------------------------------------
@@ -102,7 +90,7 @@ return [
     |
     */
 
-    'table' => env('SESSION_TABLE', 'sessions'),
+    'table' => 'sessions',
 
     /*
     |--------------------------------------------------------------------------
@@ -113,11 +101,11 @@ return [
     | define the cache store which should be used to store the session data
     | between requests. This must match one of your defined cache stores.
     |
-    | Affects: "apc", "dynamodb", "memcached", "redis"
+    | Affects: "dynamodb", "memcached", "redis"
     |
     */
 
-    'store' => env('SESSION_STORE'),
+    'store' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -144,7 +132,7 @@ return [
     */
 
 
-    'cookie' => env('SESSION_COOKIE', 'gsessionid'),
+    'cookie' => LaravelConfig::SESSION_COOKIE,
 
     /*
     |--------------------------------------------------------------------------
@@ -157,7 +145,7 @@ return [
     |
     */
 
-    'path' => env('SESSION_PATH', '/'),
+    'path' => '/',
 
     /*
     |--------------------------------------------------------------------------
@@ -170,7 +158,7 @@ return [
     |
     */
 
-    'domain' => env('SESSION_DOMAIN'),
+    'domain' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -183,7 +171,7 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    'secure' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -196,7 +184,7 @@ return [
     |
     */
 
-    'http_only' => env('SESSION_HTTP_ONLY', true),
+    'http_only' => true,
 
     /*
     |--------------------------------------------------------------------------
@@ -213,7 +201,7 @@ return [
     |
     */
 
-    'same_site' => env('SESSION_SAME_SITE', 'lax'),
+    'same_site' => 'lax',
 
     /*
     |--------------------------------------------------------------------------
@@ -226,6 +214,17 @@ return [
     |
     */
 
-    'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
+    'partitioned' => false,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Session Serialization
+    |--------------------------------------------------------------------------
+    |
+    | Laravel 13 uses JSON to prevent PHP object deserialization in sessions.
+    |
+    */
+
+    'serialization' => LaravelConfig::SESSION_SERIALIZATION,
 
 ];

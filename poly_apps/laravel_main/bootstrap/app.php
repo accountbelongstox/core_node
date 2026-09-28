@@ -1,67 +1,130 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
-
+use App\Http\Middleware\ApplyRequestLocale;
+use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ClientKeyOnly;
+use App\Http\Middleware\ClientKeyOrDashboard;
 use App\Http\Middleware\ClientTokenAuth;
 use App\Http\Middleware\CustomAuthenticate;
 use App\Http\Middleware\GoLatency;
+use App\Http\Middleware\IdempotentRequest;
 use App\Http\Middleware\LocalAccessOnly;
+use App\Http\Middleware\LocalDebugOrSanctum;
 use App\Http\Middleware\RemoveFrameworkFingerprints;
 use Illuminate\Foundation\Application;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
-use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Illuminate\Http\Request;
+use App\Services\OctaneTimerService;
 
-return Application::configure(basePath: dirname(__DIR__))
+$application = null;
+$requestForgeryExclusions = [
+    'api/*',
+    'clipboard/*',
+    'api_params_cache/*',
+    'translation/*',
+    'tts/*',
+    'static-resources/*',
+    'login',
+    'register',
+    'users/me/*',
+    'batch-orders',
+    'batch-orders/*',
+    'convert-order-link',
+    'recharge/*',
+    'pay/*',
+    'erp/*',
+];
+
+$application = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         apiPrefix: 'api',
         commands: __DIR__.'/../routes/console.php',
-        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+        // Middleware-free extra routes: the /static/* bare-Octane fallback
+        // (production nginx intercepts /static before Laravel sees it).
+        then: function () {
+            require __DIR__.'/../routes/static.php';
+            // PddToolV1 ROOT-level SaaS surface (/login, /register, /users/me, ...)
+            // MUST NOT carry the /api prefix (the 订多多 Chrome extension calls these
+            // bare paths). Wired here, alongside routes/static.php, so they bypass
+            // the api/web middleware groups; per-route 'custom.authenticate' (Sanctum
+            // bearer token) guards the protected ones.
+            require __DIR__.'/../routes/PddToolV1Router/PddToolV1Root.php';
+        },
     )
-    ->withProviders([
-        \App\Providers\AppServiceProvider::class,
-    ])
-    ->withMiddleware(function (Middleware $middleware) {
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        ['prefix' => 'api', 'middleware' => ['api', 'auth:sanctum']],
+    )
+    ->withSchedule(function (Schedule $schedule) {
+        if (config('octane.server') !== 'swoole') {
+            $schedule->call([OctaneTimerService::class, 'heartbeat'])
+                ->name('octane-timer-heartbeat')
+                ->withoutOverlapping(1)
+                ->everySecond();
+            // Slow (EXECUTION_BACKGROUND) timer tasks run in their own process
+            // so they never stall the one-second heartbeat.
+            $schedule->command('octane-timer:background')
+                ->name('octane-timer-background')
+                ->withoutOverlapping(5)
+                ->everyMinute()
+                ->runInBackground();
+        }
+    })
+    ->withMiddleware(function (Middleware $middleware) use ($requestForgeryExclusions) {
+        // API-only app: never redirect unauthenticated guests to a web login
+        // route (none exists). Returning null throws AuthenticationException,
+        // which bootstrap/app.php renders as a JSON 401 envelope.
+        $middleware->redirectGuestsTo(fn (): ?string => null);
+
+        // Response language from Accept-Language, set on every request.
+        $middleware->prepend(ApplyRequestLocale::class);
+
         $middleware->api(prepend: [
             GoLatency::class,
             EnsureFrontendRequestsAreStateful::class,
         ]);
 
+        // Trust ONLY the same-machine reverse proxy (nginx -> Octane over
+        // loopback). Without this, every request relayed by nginx carries
+        // REMOTE_ADDR=127.0.0.1, so $request->ip() would report loopback for
+        // remote visitors and the dashboard loopback debug-bypass
+        // (LocalDebugOrSanctum / DebugAuthService) would silently log every
+        // outside user in as admin. Trusting the loopback proxy makes
+        // $request->ip() resolve the real client from X-Forwarded-For, so the
+        // bypass only ever triggers for genuine same-machine requests.
+        $middleware->trustProxies(at: [
+            '127.0.0.1',
+            '::1',
+        ], headers: Request::HEADER_X_FORWARDED_FOR
+            | Request::HEADER_X_FORWARDED_HOST
+            | Request::HEADER_X_FORWARDED_PORT
+            | Request::HEADER_X_FORWARDED_PROTO);
+
         $middleware->alias([
+            'auth' => Authenticate::class,
             'remove.framework.fingerprints' => RemoveFrameworkFingerprints::class,
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
             'client.token' => ClientTokenAuth::class,
             'custom.authenticate' => CustomAuthenticate::class,
             'local.only' => LocalAccessOnly::class,
+            'dashboard.auth' => LocalDebugOrSanctum::class,
+            'client.key' => ClientKeyOnly::class,
+            'client.key_or_dashboard' => ClientKeyOrDashboard::class,
+            'idempotent' => IdempotentRequest::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
-        $middleware->validateCsrfTokens(except: [
-            'api/*',
-            'clipboard/*',
-            'api_params_cache/*',
-            'translation/*',
-            'tts/*',
-        ]);
+        $middleware->preventRequestForgery(except: $requestForgeryExclusions);
 
         $middleware->web(append: [
             HandleAppearance::class,
@@ -71,15 +134,53 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Laravel 13 renders every API or explicitly JSON-preferring request as
+        // JSON while the application-specific renderers below retain their
+        // established response envelopes and status codes.
+        $exceptions->shouldRenderJsonWhen(
+            fn (Request $request): bool => $request->is('api/*') || $request->expectsJson(),
+        );
+
         // Show all errors with full stack traces in debug mode
         $exceptions->dontReport([]);
+
+        // PddToolV1 (订多多) root SaaS surface must emit FastAPI {"detail":"..."} errors
+        // (the Chrome extension reads err.detail). Registered FIRST so it wins over the
+        // generic {success:false} renderers for these specific root paths only.
+        $exceptions->render(function (Throwable $e, Request $request) {
+            $pddPaths = [
+                'login', 'register', 'users/me', 'users/me/*',
+                'batch-orders', 'batch-orders/*', 'convert-order-link',
+                'recharge', 'recharge/*', 'pay/*', 'erp/*', 'pdd/health',
+            ];
+            if ($request->is(...$pddPaths)) {
+                // Unauthenticated on a protected PddTool root path (custom.authenticate
+                // throws AuthenticationException / aborts 401) must use the FastAPI
+                // {"detail":"Could not validate credentials"} shape the 订多多 extension
+                // reads, NOT the generic {success:false} envelope.
+                if ($e instanceof \Illuminate\Auth\AuthenticationException) {
+                    return response()->json(['detail' => 'Could not validate credentials'], 401);
+                }
+                $status = 500;
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                    $status = $e->getStatusCode();
+                }
+                if ($status === 401) {
+                    return response()->json(['detail' => 'Could not validate credentials'], 401);
+                }
+                return response()->json(
+                    ['detail' => $e->getMessage() !== '' ? $e->getMessage() : 'Internal server error'],
+                    $status
+                );
+            }
+        });
 
         // Handle authentication exceptions for API routes
         $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, Request $request) {
             if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated. Please login first.',
+                    'message' => __('dashboard_auth.login_required'),
                     'code' => 'AUTH_REQUIRED',
                     'error' => 'Unauthenticated'
                 ], 401);
@@ -98,9 +199,68 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
-        // Render all exceptions with full details
+        // Validation errors -> 422 with field errors. Registered BEFORE the
+        // catch-all Throwable renderer below (which would otherwise emit 500 for
+        // a validation failure on every API route).
+        $exceptions->render(function (\Illuminate\Validation\ValidationException $e, Request $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => 'VALIDATION_ERROR',
+                    'errors' => $e->errors(),
+                ], 422);
+            }
+        });
+
+        $exceptions->render(function (\App\Apps\Relay\RelayExceptions\RelayDomainException $e, Request $request) {
+            if ($request->is('api/relay/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'error_code' => $e->relayErrorCode(),
+                    'server_time_unix' => microtime(true),
+                    'code' => $e->getStatusCode(),
+                ], $e->getStatusCode());
+            }
+        });
+
+        // Data-sync domain failures (session state conflicts, invalid peer
+        // addresses, missing sessions) are client-actionable, not server
+        // faults: surface the real message with a 4xx status instead of the
+        // generic production 500 "Internal server error". Scoped to the
+        // db-manager surface (both the dashboard routes and the sync-peer
+        // routes, so a peer node also receives the real reason).
+        $exceptions->render(function (\InvalidArgumentException $e, Request $request) {
+            if ($request->is('api/dashboard/db-manager/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => 422,
+                ], 422);
+            }
+        });
+        $exceptions->render(function (\RuntimeException $e, Request $request) {
+            if ($request->is('api/dashboard/db-manager/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                    'code' => 409,
+                ], 409);
+            }
+        });
+
+        // Render all other exceptions. The HTTP status is derived from the
+        // exception type — an HttpException (abort(404)/403/405/429/...) keeps its
+        // own status — defaulting to 500, so API responses carry the correct code
+        // instead of collapsing every error to 500.
         $exceptions->render(function (Throwable $e, Request $request) {
             if ($request->expectsJson() || $request->is('api/*')) {
+                $status = 500;
+                if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                    $status = $e->getStatusCode();
+                }
+
                 if (config('app.debug')) {
                     // Return detailed JSON for API requests
                     return response()->json([
@@ -124,15 +284,26 @@ return Application::configure(basePath: dirname(__DIR__))
                             'file' => $e->getPrevious()->getFile(),
                             'line' => $e->getPrevious()->getLine(),
                         ] : null,
-                    ], 500);
+                    ], $status);
                 }
 
-                // Production mode - minimal error info
+                // Production mode - minimal error info. Non-500 HTTP errors expose
+                // their (safe) message; a true 500 stays generic.
                 return response()->json([
                     'success' => false,
-                    'message' => 'Internal server error',
-                    'code' => 500,
-                ], 500);
+                    'message' => $status === 500 ? 'Internal server error' : $e->getMessage(),
+                    'code' => $status,
+                ], $status);
             }
         });
     })->create();
+
+// Runtime configuration is owned by LaravelConfig and RuntimeConfigurationStore.
+// Point Dotenv at a deliberately absent file so repository .env files are never loaded.
+$application->loadEnvironmentFrom('.environment-disabled');
+
+// Translations live in lang/. Laravel prefers resources/lang whenever that
+// directory exists, so an empty stray one would silently disable every __() key.
+$application->useLangPath($application->basePath('lang'));
+
+return $application;

@@ -4,8 +4,8 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Helpers\GlobalSecretReader;
 use App\Services\AI\UnifiedRateLimiter;
+use App\Utils\SecretStore;
 
 class GeminiClient
 {
@@ -57,6 +57,58 @@ class GeminiClient
     public function hasApiKey(): bool
     {
         return !empty($this->apiKey);
+    }
+
+    /**
+     * Live availability probe for the AI status endpoint.
+     *
+     * Lists models via the Generative Language REST API. Returns the same shape
+     * as OpenRouterClient::probe / pycore ai_probe (available / models / error /
+     * latency_ms). Gemini model names come back as "models/gemini-..." ids.
+     */
+    public function probe(int $maxModels = 5, int $timeout = 20): array
+    {
+        $result = [
+            'available' => false,
+            'models' => [],
+            'error' => $this->apiKey ? null : 'No API key configured',
+            'latency_ms' => null,
+        ];
+
+        if (!$this->apiKey) {
+            return $result;
+        }
+
+        $start = microtime(true);
+        try {
+            $response = Http::withHeaders($this->buildHeaders())
+                ->timeout($timeout)
+                ->get(self::BASE_URL . '/models');
+
+            if ($response->successful()) {
+                $models = $response->json()['models'] ?? [];
+                $ids = [];
+                foreach ($models as $model) {
+                    $id = $model['name'] ?? ($model['displayName'] ?? null);
+                    if ($id) {
+                        $ids[] = $id;
+                    }
+                    if (count($ids) >= $maxModels) {
+                        break;
+                    }
+                }
+                $result['available'] = true;
+                $result['models'] = $ids;
+            } else {
+                $body = $response->json();
+                $result['error'] = $body['error']['message'] ?? ('HTTP ' . $response->status());
+            }
+        } catch (\Exception $e) {
+            $result['error'] = $e->getMessage();
+        }
+
+        $result['latency_ms'] = round((microtime(true) - $start) * 1000, 1);
+        return $result;
     }
 
     private function buildHeaders(?string $apiKey = null): array
@@ -591,8 +643,8 @@ class GeminiClient
 
         $sources = [
             $apiKeyOverride,
-            GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_1'),
-            GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_2'),
+            SecretStore::get('GOOGLE_API_KEY_1'),
+            SecretStore::get('GOOGLE_API_KEY_2'),
         ];
 
         foreach ($sources as $candidate) {

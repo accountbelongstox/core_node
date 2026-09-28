@@ -1,11 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Configuration Package
-
-Exports configuration manager
-"""
-
-from pycore.pyutils.pybrowser.config.config_manager import ConfigManager
-
-__all__ = ['ConfigManager']
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

@@ -1,0 +1,176 @@
+#!/bin/bash
+
+# Nginx installation step (dd.sh chain). This script is the STEP-GRANULAR
+# ORCHESTRATOR; every primitive it invokes lives in the shared management
+# architecture (scripts/shells/linux/common/nginx_manager.sh, built on
+# nginx_common.sh + domain_setup_common.sh). No implementation is duplicated
+# here - each step_run wraps exactly one manager primitive so every sub-step
+# (conflicts, edge-port guard, repo, package, layout, main config, default
+# vhost, symlinks, bin link, site repair, HTTP/3 migration, service, state,
+# verify) is independently idempotent and re-runnable.
+#
+# SYNC CONTRACT: vhost/TLS templates and repair semantics are shared with the
+# Laravel end (ServerManagerV1NginxManagerCtl + ServerManagerV1NginxConfigBuilder);
+# see the contract block in common/nginx_manager.sh. Change both ends together.
+
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+SCRIPT_INDEX="33"
+NGINX_STEP_NAMESPACE="26_install_nginx"
+
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/step_state.sh"
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh"
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/nginx_manager.sh"
+
+# Web-server choice (merged selector constant; default frankenphp) is read
+# BEFORE any plane mutation: nginx installs only when it is the selected
+# web server (DESIGN_20260817_2115 PART_0 P0-A3) - the frankenphp plane
+# logs the skip and installs/adopts nothing. 132's nginx-ensure sets the
+# constant to "nginx" before invoking this step, so explicit plane switches
+# always pass here.
+START_WEB_SERVER=""
+START_WEB_SERVER=$(get_global_var "START_WEB_SERVER" "frankenphp")
+START_NGINX="false"
+[ "$START_WEB_SERVER" = "nginx" ] && START_NGINX="true"
+if [ "$START_NGINX" != "true" ]; then
+    echo "[$SCRIPT_INDEX] SKIP: START_WEB_SERVER=${START_WEB_SERVER} (frankenphp plane active); nginx not installed"
+    exit 0
+fi
+
+# Plane mutual exclusion (DESIGN_20260817_2115 PART_0): installing nginx
+# adopts the nginx plane - the frankenphp runtime is disabled (service stop
+# + record ONLY, binary/Caddyfile/Mercure keys preserved). `--no-mutex`
+# skips the counterpart disable for advanced use.
+FRANKENPHP_PLANE_DISABLE_SCRIPT="${PARENT_DIR_LEVEL_2}/common/frankenphp_plane_disable.sh"
+MUTEX_SKIP="false"
+for nginx_arg in "$@"; do
+    case "$nginx_arg" in
+        --no-mutex) MUTEX_SKIP="true" ;;
+    esac
+done
+if [ "$MUTEX_SKIP" != "true" ]; then
+    bash "$FRANKENPHP_PLANE_DISABLE_SCRIPT"
+    set_web_server_plane "nginx"
+else
+    echo "[$SCRIPT_INDEX] [WARN] --no-mutex: frankenphp plane left untouched; manage the plane manually"
+fi
+
+echo "[$SCRIPT_INDEX] Nginx Installation Script (official mainline, HTTP/3 ready)"
+echo "[$SCRIPT_INDEX] Web server choice: $START_WEB_SERVER (START_NGINX: $START_NGINX)"
+echo "[$SCRIPT_INDEX] NGINX INSTALLATION (idempotent, step-granular)"
+
+# STEP 1: conflicting web servers
+# Trust-based flow: no exit-code chaining; every later step self-detects its
+# own prerequisites (binary existence, config test) and no-ops when unmet.
+step_run "$NGINX_STEP_NAMESPACE" "conflicts-cleared" "v2-caddy-apache" nm_conflicts_clear
+
+# STEP 1b: edge-port guard (80/TCP, 443/TCP, 443/UDP for QUIC). Always runs
+# (NOT step-fingerprinted): the scan itself is the idempotency check - no-op
+# when free, otherwise foreign occupiers (e.g. hysteria on UDP/443, docker
+# publishers) are stopped and offered for uninstall (y/N, default No) so the
+# nginx master can always bind. nginx's own sockets are never touched.
+nm_edge_ports_ensure
+
+# STEP 2: official nginx.org mainline repository
+step_run "$NGINX_STEP_NAMESPACE" "official-repo" "mainline-v1" nginx_ensure_official_repo || {
+    echo "[$SCRIPT_INDEX] [WARN] Official repository setup failed; falling back to distro package"
+}
+
+# STEP 3: legacy installation replacement (interactive, configs preserved)
+nginx_replace_legacy_install "false"
+
+# STEP 3b: purge distro variant packages that conflict with the official
+# package (per-package idempotent; a kept legacy install is never broken)
+nm_purge_legacy_packages
+
+# STEP 3c: replace every foreign nginx install on the system (quarantines
+# non-active foreign prefixes; our marked source build is kept)
+nm_replace_foreign_nginx
+
+# STEP 4: install/upgrade nginx package from the mainline repository
+# (self-idempotent: compares the installed version with the apt candidate on
+# every run, upgrades in place when the candidate is newer, sites preserved)
+nm_install_or_upgrade
+if [ -z "$(nginx_get_binary)" ]; then
+    echo "[$SCRIPT_INDEX] [WARN] No nginx binary after the install step; later steps self-detect and no-op"
+fi
+
+# STEP 5: optional source build for full QUIC 0-RTT early data
+nginx_offer_source_build "false"
+
+# STEP 6: directory layout (v3: symlink-aware ensure via nginx_ensure_directory)
+step_run "$NGINX_STEP_NAMESPACE" "directory-layout" "v3" nm_layout_ensure
+
+# STEP 7: canonical nginx.conf (content-hash idempotent)
+nm_main_config
+
+# STEP 8: default vhost (content-hash idempotent)
+nm_default_vhost
+
+# STEP 9: default landing page (content-hash idempotent)
+nm_default_page
+
+# STEP 10: config view symlinks into mapped nginxconfig
+step_run "$NGINX_STEP_NAMESPACE" "config-symlinks" "v2" nm_symlinks_ensure
+
+# STEP 11: unify all nginx binaries/symlinks to one canonical install.
+# Always runs (NOT step-fingerprinted): every alias/link check inside is
+# self-detecting and no-ops when correct, so link drift (loops, dangling,
+# stale targets) is repaired on every run.
+nginx_binary_for_step=$(nginx_get_binary)
+if [ -n "$nginx_binary_for_step" ]; then
+    nginx_unify_binaries || echo "[$SCRIPT_INDEX] [WARN] binary unify reported issues"
+else
+    echo "[$SCRIPT_INDEX] [WARN] No nginx binary for unify step"
+fi
+
+# STEP 11b: fine-grained site repair (dangling links, broken managed sites);
+# always runs - it is self-checking and no-ops on a healthy tree.
+nginx_repair_sites || {
+    echo "[$SCRIPT_INDEX] [WARN] Site repair reported issues (see above)"
+}
+
+# STEP 11c: migrate existing HTTPS sites to the canonical HTTP/3 stanza
+# (legacy inline-http2 -> http2 on + QUIC listeners + Alt-Svc + early data);
+# per-file idempotent, sites and certificates are preserved.
+nm_http3_migrate || {
+    echo "[$SCRIPT_INDEX] [WARN] HTTP/3 migration reported issues (see above)"
+}
+
+# STEP 12: configuration test (informational; the service step self-gates on
+# nginx -t, so a broken config never blocks later independent steps)
+if ! $USE_SUDO nginx -t; then
+    echo "[$SCRIPT_INDEX] [WARN] nginx -t failed after configuration; the service step will skip starting"
+fi
+
+# STEP 13: service enable/start per the merged web-server choice
+service_wanted="stop"
+[ "$START_WEB_SERVER" = "nginx" ] && service_wanted="start"
+step_run "$NGINX_STEP_NAMESPACE" "service-state" "$service_wanted" nm_service_state "$service_wanted" || {
+    echo "[$SCRIPT_INDEX] [WARN] Service step reported failure"
+}
+
+# STEP 13b: re-unify after service start (guards against package/service races)
+nginx_binary_post_service=$(nginx_get_binary)
+if [ -n "$nginx_binary_post_service" ]; then
+    step_run "$NGINX_STEP_NAMESPACE" "bin-unify-post-service" "$nginx_binary_post_service" nginx_unify_binaries
+fi
+
+# STEP 14: persist state for downstream consumers (Laravel ServerManager)
+nm_store_info
+
+# STEP 15: verification (informational; the summary below reports the state)
+nm_verify || {
+    echo "[$SCRIPT_INDEX] [WARN] Verification reported issues; check /var/log/nginx/error.log and journalctl -xeu nginx"
+}
+
+echo "[$SCRIPT_INDEX] =============================================="
+echo "[$SCRIPT_INDEX] NGINX READY: $(nginx_get_version) (HTTP/3: $(nginx_has_http3 && echo yes || echo no), QUIC 0-RTT: $(nginx_quic_early_data_supported && echo yes || echo no))"
+echo "[$SCRIPT_INDEX] Sites: $(nginx_get_sites_enabled) | Root: $(nm_www_root)"
+echo "[$SCRIPT_INDEX] Management CLI: $PARENT_DIR_LEVEL_2/common/nginx_manager.sh"
+echo "[$SCRIPT_INDEX] =============================================="

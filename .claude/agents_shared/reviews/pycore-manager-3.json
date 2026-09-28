@@ -1,0 +1,11 @@
+{
+  "task_id": "pycore-manager-3",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-026": {"status": "fixed", "reason": "pycore-manager parts: the local humanBytes copies in PcWordAudioPage and PcSubtitleSearchPage are removed in favour of utils/pcFormat.humanBytes (wrapping core/utils/formatBytes), and the identical local Badge components are replaced by vocabShared.PresenceBadge. The CodeMart part was done in codemart-5."}
+  },
+  "issues": [],
+  "checks": "Diffs read; grep confirms no local humanBytes or Badge definitions remain in those two pages.",
+  "checked_at": "2026-09-27T04:21:16+10:00"
+}

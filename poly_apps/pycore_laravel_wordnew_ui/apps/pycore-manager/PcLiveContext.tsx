@@ -1,0 +1,175 @@
+/**
+ * PcLiveContext — bridges the pycore HTTP event bus into React for the
+ * pycore-manager end. Mirrors desktop-manager/src/state/LiveContext.tsx.
+ *
+ * Connects through the Pycore Manager API boundary on mount and exposes:
+ *   - logs:        rolling buffer of backend `pycore_log` lines (cap 1000)
+ *   - httpConnected: live HTTP event connection status
+ *   - clearLogs(): empty the buffer
+ *   - latestSettings: most recent backend `system_settings_update` payload
+ *   - onSystemSettings(): subscribe to backend settings pushes
+ *
+ * Wrap the pycore layout with <PcLiveProvider> (done in PcProviders / PcLayout) so the global
+ * floating log and any page can read the same buffer via usePcLive().
+ */
+import React, {
+  createContext, useContext, useEffect, useRef, useState, useCallback,
+} from 'react';
+import {
+  connectPycoreHttp, onHttpStatus, onHttpDiag,
+} from '@/apps/pycore-manager/api';
+import { appendHttpDebug } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+
+const LOG_CAP = 1000;
+const LOG_FLUSH_MS = 250;
+
+export interface PcLogLine {
+  message: string;
+  level: string;
+  color: string;
+  ts: number;
+}
+
+type SettingsHandler = (settings: Record<string, unknown>) => void;
+
+interface PcLiveContextValue {
+  logs: PcLogLine[];
+  httpConnected: boolean;
+  clearLogs: () => void;
+  latestSettings: Record<string, unknown> | null;
+  /** Subscribe to backend-pushed system settings. Returns an unsubscribe fn. */
+  onSystemSettings: (handler: SettingsHandler) => () => void;
+}
+
+const PcLiveContext = createContext<PcLiveContextValue | null>(null);
+
+export function PcLiveProvider({ children }: { children: React.ReactNode }) {
+  const [logs, setLogs] = useState<PcLogLine[]>([]);
+  const [httpConnected, setHttpConnected] = useState(false);
+  const [latestSettings, setLatestSettings] = useState<Record<string, unknown> | null>(null);
+  const settingsHandlers = useRef<Set<SettingsHandler>>(new Set());
+  const pendingLogs = useRef<PcLogLine[]>([]);
+  const logFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearLogs = useCallback(() => {
+    pendingLogs.current = [];
+    setLogs([]);
+  }, []);
+
+  const flushLogs = useCallback(() => {
+    logFlushTimer.current = null;
+    const batch = pendingLogs.current;
+    if (batch.length === 0) return;
+    pendingLogs.current = [];
+    setLogs((prev) => {
+      const next = prev.concat(batch);
+      return next.length > LOG_CAP ? next.slice(next.length - LOG_CAP) : next;
+    });
+  }, []);
+
+  const pushLog = useCallback((line: PcLogLine) => {
+    pendingLogs.current.push(line);
+    if (logFlushTimer.current) return;
+    logFlushTimer.current = setTimeout(flushLogs, LOG_FLUSH_MS);
+  }, [flushLogs]);
+
+  const onSystemSettings = useCallback((handler: SettingsHandler) => {
+    settingsHandlers.current.add(handler);
+    return () => { settingsHandlers.current.delete(handler); };
+  }, []);
+
+  useEffect(() => {
+    const offStatus = onHttpStatus(setHttpConnected);
+
+    // Surface HTTP event connection diagnostics into the
+    // log panel so a failed connection is visible even with dev-tools off.
+    // Subscribe BEFORE connecting so the first "connecting …" line is captured.
+    const offDiag = onHttpDiag(({ level, message }) => {
+      if (level === 'debug') return;
+      pushLog({ message: `[http] ${message}`, level, color: '', ts: Date.now() });
+    });
+
+    connectPycoreHttp();
+
+    const offLog = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.pycoreLog, (data: any) => {
+      const line: PcLogLine = {
+        message: typeof data?.message === 'string' ? data.message : String(data?.message ?? ''),
+        level: typeof data?.level === 'string' ? data.level : 'info',
+        color: typeof data?.color === 'string' ? data.color : '',
+        ts: Date.now(),
+      };
+      pushLog(line);
+    });
+
+    const offSettings = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.systemSettingsUpdate, (data: any) => {
+      const s = (data && typeof data.settings === 'object' && data.settings)
+        ? data.settings as Record<string, unknown>
+        : null;
+      if (!s) return;
+      setLatestSettings(s);
+      settingsHandlers.current.forEach((h) => { h(s); });
+    });
+
+    // pycore -> Laravel request records (LaravelClient -> LaravelHttpRecorder ->
+    // SSE broadcast) feed the HTTP debugger's 'laravel' direction rows.
+    const offLaravelHttp = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.laravelHttp, (data: any) => {
+      appendHttpDebug({
+        direction: 'laravel',
+        method: typeof data?.method === 'string' ? data.method : '',
+        path: typeof data?.path === 'string' ? data.path : '',
+        fullUrl: typeof data?.url === 'string' ? data.url : undefined,
+        paramsSummary: typeof data?.params_summary === 'string' ? data.params_summary : '',
+        status: Number(data?.status) || 0,
+        ms: Number(data?.ms) || 0,
+        error: data?.error ? String(data.error) : null,
+        transport: typeof data?.transport === 'string' ? data.transport : undefined,
+        httpVersion: typeof data?.http_version === 'string' ? data.http_version : undefined,
+        progress: Number.isFinite(Number(data?.progress)) ? Number(data.progress) : undefined,
+        transferredBytes: Number.isFinite(Number(data?.transferred_bytes)) ? Number(data.transferred_bytes) : undefined,
+        totalBytes: Number.isFinite(Number(data?.total_bytes)) ? Number(data.total_bytes) : undefined,
+        transferId: typeof data?.transfer_id === 'string' ? data.transfer_id : undefined,
+        phase: typeof data?.phase === 'string' ? data.phase : undefined,
+      });
+    });
+
+    return () => {
+      offStatus(); offDiag(); offLog(); offSettings(); offLaravelHttp();
+      if (logFlushTimer.current) clearTimeout(logFlushTimer.current);
+    };
+  }, [pushLog]);
+
+  const value: PcLiveContextValue = {
+    logs, httpConnected, clearLogs, latestSettings, onSystemSettings,
+  };
+  return <PcLiveContext.Provider value={value}>{children}</PcLiveContext.Provider>;
+}
+
+// Shared no-op fallback: an HMR (react-refresh) module swap can briefly leave
+// a mounted provider of the OLD context identity while consumers re-render
+// with the NEW one. Throwing there crashes the whole app in a loop; degrading
+// to an empty buffer keeps the UI alive until the next consistent render.
+const PC_LIVE_FALLBACK: PcLiveContextValue = {
+  logs: [],
+  httpConnected: false,
+  clearLogs: () => {},
+  latestSettings: null,
+  onSystemSettings: () => () => {},
+};
+let pcLiveFallbackWarned = false;
+
+export function usePcLive(): PcLiveContextValue {
+  const ctx = useContext(PcLiveContext);
+  if (!ctx) {
+    if (!pcLiveFallbackWarned) {
+      pcLiveFallbackWarned = true;
+      console.warn(
+        '[PcLive] usePcLive outside <PcLiveProvider>; '
+        + 'using an empty live buffer (HMR context swap or wiring bug).',
+      );
+    }
+    return PC_LIVE_FALLBACK;
+  }
+  return ctx;
+}

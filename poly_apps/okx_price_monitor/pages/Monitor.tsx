@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RPCClient } from '../services/rpc';
+import { HttpClient } from '../services/http';
 import { CoinSummary } from '../types';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -14,7 +14,7 @@ export const MonitorPage: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const data = await RPCClient.getAllSummaries(297);
+      const data = await HttpClient.getAllSummaries(297);
       // Sort by volume by default for better visualization
       const sorted = data.summaries.sort((a, b) => b.volume_24h - a.volume_24h);
       setSummaries(sorted);

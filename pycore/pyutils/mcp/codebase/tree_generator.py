@@ -10,6 +10,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 logger = logging.getLogger(__name__)
 
@@ -341,8 +342,11 @@ class DirectoryTreeGenerator:
         return "\n".join(content)
 
 
-# Singleton instance
-_tree_generator_singleton: Optional[DirectoryTreeGenerator] = None
+_TREE_GENERATOR_PROVIDER = SerializedSingletonProvider(
+    DirectoryTreeGenerator,
+    "mcp.directory_tree.provider",
+    "MCPDirectoryTreeProviderThread",
+)
 
 
 def get_directory_tree_generator_singleton(
@@ -350,7 +354,4 @@ def get_directory_tree_generator_singleton(
     enable_global_access: bool = True
 ) -> DirectoryTreeGenerator:
     """Get singleton instance of DirectoryTreeGenerator"""
-    global _tree_generator_singleton
-    if _tree_generator_singleton is None:
-        _tree_generator_singleton = DirectoryTreeGenerator(project_root, enable_global_access)
-    return _tree_generator_singleton
+    return _TREE_GENERATOR_PROVIDER.get(project_root, enable_global_access)

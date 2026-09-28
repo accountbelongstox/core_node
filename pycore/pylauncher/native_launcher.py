@@ -14,7 +14,7 @@ Architecture:
     pycore/pyutils/native_ui/launch_native_app
 
 Usage:
-    from pycore.pylauncher import launch_with_native_ui
+    from pycore.pylauncher.native_launcher import launch_with_native_ui
 
     launch_with_native_ui(
         app_id="my_app",
@@ -28,8 +28,9 @@ Usage:
 from typing import Callable, Optional, List, Dict, Tuple, Union, Literal
 from pathlib import Path
 
-from pycore import ColorPrint
-from pycore.pyutils.native_ui import NativeUIConfig, launch_native_app
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
+from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
 
 
 def launch_with_native_ui(
@@ -204,7 +205,7 @@ def launch_with_native_ui(
         debug: Debug mode
 
     Example:
-        from pycore.pylauncher import launch_with_native_ui
+        from pycore.pylauncher.native_launcher import launch_with_native_ui
 
         launch_with_native_ui(
             app_id="my_app",

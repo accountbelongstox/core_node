@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'package:flutter/material.dart';
 import 'package:qyflutter/common/widgets/enhanced_bottom_navigation.dart';
 import 'package:qyflutter/common/localization/localization_manager.dart';
@@ -21,6 +9,7 @@ import '../profile/views/profile_screen.dart';
 import '../../router_app_travel/routes_provider_app_travel.dart';
 import '../../localization_app_travel/localization_keys_app_travel.dart';
 import '../../resources_app_travel/colors_app_travel.dart';
+import '../../resources_app_travel/assets_images_app_travel.dart';
 
 class MainScaffold extends StatefulWidget {
   final int initialIndex;
@@ -84,28 +73,37 @@ class _MainScaffoldState extends State<MainScaffold> {
         onTap: _onNavItemTapped,
         showLabels: true,
         selectedItemColor: TravelColors.travelPrimary,
+        backgroundColor: Colors.white,
         items: [
           NavigationItem(
             icon: Icons.home_outlined,
             activeIcon: Icons.home,
+            iconImage: AssetsImagesAppTravel.travelNavTabHome,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabHome,
             label: TravelLocalizationKeys.travelHome.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.calendar_today_outlined,
             activeIcon: Icons.calendar_today,
+            iconImage: AssetsImagesAppTravel.travelNavTabJourney,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabJourney,
             label: TravelLocalizationKeys.travelJourney.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.chat_bubble_outline,
             activeIcon: Icons.chat_bubble,
+            iconImage: AssetsImagesAppTravel.travelNavTabService,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabService,
             label: TravelLocalizationKeys.travelCustomerService.tr(context),
             route: TravelAppRoutesProvider.routeHome,
           ),
           NavigationItem(
             icon: Icons.explore_outlined,
             activeIcon: Icons.explore,
+            iconImage: AssetsImagesAppTravel.travelNavTabExplore,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabExplore,
             label: TravelLocalizationKeys.travelExploreWorld.tr(context),
             route: TravelAppRoutesProvider.routeSearch,
             badge: TravelLocalizationKeys.travelTravelGuide.tr(context),
@@ -114,6 +112,8 @@ class _MainScaffoldState extends State<MainScaffold> {
           NavigationItem(
             icon: Icons.person_outline,
             activeIcon: Icons.person,
+            iconImage: AssetsImagesAppTravel.travelNavTabMine,
+            activeIconImage: AssetsImagesAppTravel.travelNavTabMine,
             label: TravelLocalizationKeys.travelMine.tr(context),
             route: TravelAppRoutesProvider.routeProfile,
           ),

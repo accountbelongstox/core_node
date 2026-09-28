@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Models;
+
+use Illuminate\Support\Facades\DB;
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+
+class AppQyV1ArticleWordModel extends AppQyV1Model
+{
+    
+    protected ?string $appTableSuffix = 'article_words';
+    
+    protected $fillable = [
+        'article_id',
+        'word_md5',
+        'word',
+        'language',
+        'frequency',
+        'is_new_for_user',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_new_for_user' => 'boolean',
+        ];
+    }
+
+    /**
+     * Get the article that owns this word
+     */
+    public function article()
+    {
+        return $this->belongsTo(AppQyV1ArticleModel::class, 'article_id', 'article_id');
+    }
+
+    /**
+     * Get the dictionary entry for this word
+     */
+    public function dictionaryEntry(string $langCode)
+    {
+        return AppQyV1LangDictionaryModel::findByMd5($langCode, (string) $this->word_md5);
+    }
+
+    /**
+     * Batch create article words
+     * Uses DictionaryService to handle dictionary operations
+     */
+    public static function createFromArticleWords(string $articleId, array $words, array $wordFrequency, string $language): array
+    {
+        $langCode = self::mapLanguageToCode($language);
+        $now = now();
+
+        $insertData = [];
+        $dictionaryWords = [];
+        $wordMd5s = [];
+
+        $dictionaryInfo = AppQyV1DictionaryService::queryAndAdd($language, $words);
+
+        foreach ($words as $word) {
+            // Canonical key convention: raw md5($content), matching the
+            // dictionary tts_cache_{lang}.md5 column so dictionaryEntry() joins.
+            $wordMd5 = md5($word);
+            $frequency = $wordFrequency[$word] ?? 1;
+
+            $insertData[] = [
+                'article_id' => $articleId,
+                'word_md5' => $wordMd5,
+                'word' => $word,
+                'language' => $langCode,
+                'frequency' => $frequency,
+                'is_new_for_user' => false,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+            $wordMd5s[] = $wordMd5;
+        }
+
+        $wordMd5s = array_values(array_unique($wordMd5s));
+        $staleQuery = self::query()->where('article_id', $articleId);
+        if ($wordMd5s !== []) {
+            $staleQuery->whereNotIn('word_md5', $wordMd5s);
+        }
+        $staleQuery->delete();
+
+        if (!empty($insertData)) {
+            self::upsert(
+                $insertData,
+                ['article_id', 'word_md5'],
+                ['word', 'language', 'frequency', 'is_new_for_user', 'updated_at']
+            );
+        }
+
+        return $dictionaryInfo;
+    }
+
+    /**
+     * Normalize a language name OR code to the canonical CODE (§2 — codes only).
+     * Delegates to AppQyV1TableMaps::normalizeLangCode so a code passes through
+     * unchanged (the article pipeline now sends codes); falls back to 'en'.
+     */
+    private static function mapLanguageToCode(string $language): string
+    {
+        $code = AppQyV1TableMaps::normalizeLangCode($language);
+        return $code !== '' ? $code : 'en';
+    }
+
+    public static function deleteForArticle(string $articleId): int
+    {
+        return self::query()->where('article_id', $articleId)->delete();
+    }
+}

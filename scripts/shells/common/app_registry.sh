@@ -2,18 +2,6 @@
 # Central Application Registry
 # This file contains centralized application definitions and configurations
 
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Registry version
 APP_REGISTRY_VERSION="1.0.0"
 
@@ -206,19 +194,19 @@ export_legacy_config() {
     local app_name="$1"
     
     if [[ "$app_name" == "cursor" ]]; then
-        export CURSOR_INSTALL_DIR=$(get_app_config "cursor" "install_dir")
-        export CURSOR_EXTRACTED_DIR=$(get_app_config "cursor" "extracted_dir")
-        export CURSOR_DESKTOP_FILE=$(get_app_config "cursor" "desktop_file")
-        export CURSOR_INSTALLED_FLAG=$(get_app_config "cursor" "installed_flag")
-        export CURSOR_LAUNCHER_SCRIPT=$(get_app_config "cursor" "launcher_script")
-        export CURSOR_DOWNLOAD_URL=$(get_app_config "cursor" "url")
+CURSOR_INSTALL_DIR=$(get_app_config "cursor" "install_dir")
+CURSOR_EXTRACTED_DIR=$(get_app_config "cursor" "extracted_dir")
+CURSOR_DESKTOP_FILE=$(get_app_config "cursor" "desktop_file")
+CURSOR_INSTALLED_FLAG=$(get_app_config "cursor" "installed_flag")
+CURSOR_LAUNCHER_SCRIPT=$(get_app_config "cursor" "launcher_script")
+CURSOR_DOWNLOAD_URL=$(get_app_config "cursor" "url")
     elif [[ "$app_name" == "vscode" ]]; then
-        export VSCODE_INSTALL_DIR=$(get_app_config "vscode" "install_dir")
-        export VSCODE_DEB_DIR=$(get_app_config "vscode" "deb_dir")
-        export VSCODE_DESKTOP_FILE=$(get_app_config "vscode" "desktop_file")
-        export VSCODE_INSTALLED_FLAG=$(get_app_config "vscode" "installed_flag")
-        export VSCODE_LAUNCHER_SCRIPT=$(get_app_config "vscode" "launcher_script")
-        export VSCODE_DOWNLOAD_URL=$(get_app_config "vscode" "url")
+VSCODE_INSTALL_DIR=$(get_app_config "vscode" "install_dir")
+VSCODE_DEB_DIR=$(get_app_config "vscode" "deb_dir")
+VSCODE_DESKTOP_FILE=$(get_app_config "vscode" "desktop_file")
+VSCODE_INSTALLED_FLAG=$(get_app_config "vscode" "installed_flag")
+VSCODE_LAUNCHER_SCRIPT=$(get_app_config "vscode" "launcher_script")
+VSCODE_DOWNLOAD_URL=$(get_app_config "vscode" "url")
     fi
 }
 

@@ -1,0 +1,12 @@
+{
+  "task_id": "mcp-chrome-5",
+  "role": "mcp-chrome",
+  "verdict": "approved",
+  "findings": {
+    "lead ruling B9 (one definition of the extension ids)": {"status": "fixed", "reason": "FIREFOX_EXTENSION_ID is read from service_contract.json#mcp_chrome.firefox_extension_id in packages/shared/src/constants.ts next to EXTENSION_ID and HOST_NAME. native-server scripts/constant.ts re-exports both, and wxt.config.ts uses FIREFOX_EXTENSION_ID for the gecko id. Grep finds no literal of either id left in source outside built output."},
+    "mcp-chrome-1 hardening": {"status": "fixed", "reason": "entrypoints/background/native-host.ts: the CLIENT_KEY_SIGN relay answers only extension pages (sender.id === chrome.runtime.id && !sender.tab)."}
+  },
+  "issues": [],
+  "checks": "Diffs of shared constants, native-server scripts/constant.ts, wxt.config.ts, native-host-common.cjs, update-extension-id.cjs and the background relay read; the contract holds firefox_extension_id; grep for id literals.",
+  "checked_at": "2026-09-27T04:36:57+10:00"
+}

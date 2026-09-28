@@ -1,17 +1,5 @@
 #!/bin/bash
 
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Network Bridge Router - Extended Linux Router for Dual Interface Forwarding
 # Implements: Internet -> Interface A -> Interface B -> Router C -> Internet
 # Based on lnxrouter with enhanced dual-interface bridging capabilities
@@ -44,7 +32,7 @@ ENABLE_SERVICE=0
 # Service management variables
 SERVICE_NAME="network-bridge-router"
 SERVICE_DESCRIPTION="Network Bridge Router Service"
-DEBIAN_SERVICE_MANAGER="$SCRIPT_DIR/debian_service_manager.sh"
+DEBIAN_SERVICE_MANAGER="$SCRIPT_DIR/systemd_service_manager.sh"
 
 # Runtime state variables
 RUNNING=0
@@ -567,7 +555,7 @@ exec "$0" -i "$INPUT_INTERFACE" -o "$OUTPUT_INTERFACE" -r "$ROUTER_IP" --daemon
 EOF
     chmod +x "$service_script"
 
-    # Install service using debian_service_manager
+    # Install service using systemd_service_manager
     "$DEBIAN_SERVICE_MANAGER" install "$SERVICE_NAME" "$service_script" "$SERVICE_DESCRIPTION" || {
         log_message "ERROR" "Failed to install service"
         return 1

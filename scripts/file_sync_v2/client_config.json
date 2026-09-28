@@ -1,0 +1,34 @@
+{
+  "print_paths_only": false,
+  "servers": [
+    {
+      "host_key": "cloud",
+      "port_key": "file_sync",
+      "enabled": true
+    },
+    {
+      "host_key": "file_sync_secondary",
+      "port_key": "file_sync",
+      "enabled": true,
+      "include": [
+        "webclaude_group/webclaude_go-gateway",
+        "scripts/file_sync_v2",
+        "scripts/shells"
+      ]
+    }
+  ],
+  "local_dir": "../../",
+  "use_watch": true,
+  "watch_debounce_seconds": 0.35,
+  "interval_seconds": 2.0,
+  "exclude": [
+    "pyapps/d3-check",
+    "pyapps/GameAISDK",
+    "public/core_node_init",
+    "oldapps",
+    ".secret_keys",
+    ".cursor",
+    ".agents",
+    "docs/old_documents"
+  ]
+}

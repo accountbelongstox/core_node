@@ -1,17 +1,12 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$sharedCacheEnvPath = Join-Path $PSScriptRoot 'SharedCacheEnv.ps1'
+$sharedCacheLoaded = Get-Variable -Name 'PycoreSharedCacheEnvLoaded' -Scope Script -ErrorAction SilentlyContinue
+. (Join-Path $PSScriptRoot 'AiRuntimePolicy.ps1')
+if ($null -eq $sharedCacheLoaded -or -not [bool]$sharedCacheLoaded.Value) {
+    . $sharedCacheEnvPath
+    Set-Variable -Name 'PycoreSharedCacheEnvLoaded' -Scope Script -Value $true
+}
 
 function Test-AdminPrivileges {
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -87,8 +82,7 @@ try {
         }
     }
 } catch {
-    Write-Error "Failed to determine core node root directory: $($_.Exception.Message)"
-    exit 1
+    throw "Failed to determine core node root directory: $($_.Exception.Message)"
 }
 
 $Global:CORE_NODE_DIR = $Global:BASE_DIR
@@ -100,11 +94,26 @@ $Global:BACKUP_NAME_PREFIX = "core_node"
 
 # Check if current script is running from BASE_DIR or its subdirectories
 $Global:IS_RUNNING_FROM_BASE_DIR = $PSScriptRoot -like "$Global:BASE_DIR*"
-$Global:IS_RUNNING_FROM_BASE_DIR_SUBDIR = $PSScriptRoot -like "$Global:BASE_DIR\*"  
+$Global:IS_RUNNING_FROM_BASE_DIR_SUBDIR = $PSScriptRoot -like (Join-Path $Global:BASE_DIR "*")
 $Global:APPS_DIR = Join-Path $BASE_DIR "apps"
 $Global:TEMP_DIR = "D:\.tmp"
 $Global:DOWNLOADS_DIR = Join-Path $TEMP_DIR "Downloads"
 $Global:LOGS_DIR = Join-Path $TEMP_DIR ".logs"
+# Redirect this session's temp variables onto the project temp drive so every
+# child process (pip, installers, downloaders) never builds on C:.
+if (-not (Test-Path -LiteralPath $Global:TEMP_DIR)) {
+    New-Item -ItemType Directory -Force -Path $Global:TEMP_DIR | Out-Null
+}
+$env:TEMP = $Global:TEMP_DIR
+$env:TMP = $Global:TEMP_DIR
+$env:PIP_NO_WARN_SCRIPT_LOCATION = '1'
+# Large accelerator wheels (torch, nvidia_cudnn_cuXX, paddle ~2GB) outlast pip's
+# 15s read timeout on slow or shared links; resume-retries restarts an
+# interrupted stream from its byte offset (pip >= 24, older pip ignores it).
+# Mirrors linux base_libs/pip_lock.sh vpip defaults; caller-set values win.
+if (-not $env:PIP_DEFAULT_TIMEOUT) { $env:PIP_DEFAULT_TIMEOUT = '120' }
+if (-not $env:PIP_RETRIES) { $env:PIP_RETRIES = '10' }
+if (-not $env:PIP_RESUME_RETRIES) { $env:PIP_RESUME_RETRIES = '10' }
 $Global:LOG_FILE = Join-Path $LOGS_DIR "devops_setup.log"
 $Global:STEP_COUNT = 1
 
@@ -121,31 +130,53 @@ $Global:AGGRESSIVE_CLEANUP_ENABLED = $false  # Set to $true to enable aggressive
 $Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
 $Global:WINENVS_DIR = ".winenvs"  # Windows environment scripts directory name
 $Global:APP_INSTALL_DIR = "D:\applications"
-$Global:PROJECT_ROOT_DIR = "D:\programing"
-$Global:PROJECT_DIR = "$PROJECT_ROOT_DIR\core_node"
-$Global:PROJECT_SCRIPTS_DIR = "$PROJECT_DIR\scripts"
-$Global:PROJECT_WIN_SCRIPTS_DIR = "$PROJECT_SCRIPTS_DIR\shells\win"
-$Global:INLINE_WINENVS_DIR = "$PROJECT_SCRIPTS_DIR\winenvs"  # Inline scripts directory - scripts in memory travel with code
+$Global:CURSOR_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "cursor"
+$Global:WEIXIN_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "Weixin"
+$Global:WEIXIN_EXE_PATH = Join-Path $Global:WEIXIN_INSTALL_DIR "Weixin.exe"
+$Global:QQ_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "QQ"
+$Global:QQ_EXE_PATH = Join-Path $Global:QQ_INSTALL_DIR "QQ.exe"
+$Global:PROJECT_ROOT_DIR = $Global:WINDOWS_PROGRAMING_DIR
+$Global:PROJECT_DIR = Join-Path $PROJECT_ROOT_DIR "core_node"
+$Global:PROJECT_SCRIPTS_DIR = Join-Path $PROJECT_DIR "scripts"
+$Global:PROJECT_WIN_SCRIPTS_DIR = Join-Path $PROJECT_SCRIPTS_DIR "shells\win"
+$Global:INLINE_WINENVS_DIR = Join-Path $PROJECT_SCRIPTS_DIR "winenvs"  # Inline scripts directory - scripts in memory travel with code
 $Global:CHOCO_DIR = "C:\ProgramData\chocolatey"
-$Global:SCOOP_CACHE_DIR = "$TEMP_DIR\scoop"
-$Global:SCOOP_DIR = "$LANG_COMPILER_DIR\scoop"
-$Global:SCOOP_APPS_DIR = "$LANG_COMPILER_DIR\scoop\apps"
-$Global:SCOOP_EXE = "$SCOOP_DIR\shims\scoop.cmd"
-$Global:SCOOP_GLOBAL_DIR = "$LANG_COMPILER_DIR\scoop\apps"
-$Global:CHOCO_EXE = "$CHOCO_DIR\choco.exe"
-$Global:CHOCO_CACHE_DIR = "$TEMP_DIR\chocolatey"
+$Global:SCOOP_CACHE_DIR = Join-Path $TEMP_DIR "scoop"
+$Global:SCOOP_DIR = Join-Path $LANG_COMPILER_DIR "scoop"
+$Global:SCOOP_APPS_DIR = Join-Path $LANG_COMPILER_DIR "scoop\apps"
+$Global:SCOOP_EXE = Join-Path $SCOOP_DIR "shims\scoop.cmd"
+$Global:SCOOP_GLOBAL_DIR = Join-Path $LANG_COMPILER_DIR "scoop\apps"
+$Global:CHOCO_EXE = Join-Path $CHOCO_DIR "choco.exe"
+$Global:CHOCO_CACHE_DIR = Join-Path $TEMP_DIR "chocolatey"
 
-$Global:USER_DIR = "$env:USERPROFILE\.core_node"
-$Global:USER_CACHE_DIR = Join-Path $env:USERPROFILE ".core_node\.cache"
+$Global:PROGRAMING_USERS_DIR = $Global:WINDOWS_PROGRAMING_USERS_DIR
+$Global:PROGRAMING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
+# Unified core_node runtime data root (no dot-prefixed names). Mirrors
+# pycore core_node_dirs / runtime_environment.sh CORE_NODE_DATA_DIR /
+# PathMapper::getCoreNodeRuntimeDir: D:\www\core_node (== Linux /www/www/core_node).
+$Global:USER_DIR = $Global:CORE_NODE_DATA_DIR
+$Global:PI_COMMON_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiYolo"
+$Global:PI_KIMI_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiKimi"
+$Global:PI_CLAUDE_CODE_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiClaudeCode"
+$Global:PI_CODEX_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiCodex"
+$Global:PI_VOLC_AGENT_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiVolcAgent"
+$Global:PI_VOLC_CODING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiVolcCoding"
+$Global:PI_COMMON_AGENT_DIR = Join-Path $Global:PI_COMMON_USER_DIR ".pi\agent"
+$Global:PI_KIMI_AGENT_DIR = Join-Path $Global:PI_KIMI_USER_DIR ".pi\agent"
+$Global:PI_CLAUDE_CODE_AGENT_DIR = Join-Path $Global:PI_CLAUDE_CODE_USER_DIR ".pi\agent"
+$Global:PI_CODEX_AGENT_DIR = Join-Path $Global:PI_CODEX_USER_DIR ".pi\agent"
+$Global:PI_VOLC_AGENT_AGENT_DIR = Join-Path $Global:PI_VOLC_AGENT_USER_DIR ".pi\agent"
+$Global:PI_VOLC_CODING_AGENT_DIR = Join-Path $Global:PI_VOLC_CODING_USER_DIR ".pi\agent"
+$Global:USER_CACHE_DIR = Join-Path $Global:CORE_NODE_CACHE_DIR 'core_node'
 if (-not (Test-Path $Global:USER_CACHE_DIR)) {
     New-Item -ItemType Directory -Path $Global:USER_CACHE_DIR -Force | Out-Null
 }
 
-$Global:APP_INSTALLED_FLAG_DIR = "$Global:USER_DIR\.app_installed_flag"
-$Global:GIT_CONFIG_DIR = "$Global:USER_DIR\.git_config"
-$Global:USER_CONFIG_DIR = "$Global:USER_DIR\.core_node\.config"
-$Global:SCRIPTS_DIR = "$Global:USER_DIR\.scripts"
-$Global:WINGET_FLAG_FILE = "$Global:USER_DIR\.winget_set_flag_file"
+$Global:APP_INSTALLED_FLAG_DIR = Join-Path $Global:USER_DIR "app_installed_flag"
+$Global:GIT_CONFIG_DIR = Join-Path $Global:USER_DIR "git_config"
+$Global:USER_CONFIG_DIR = Join-Path $Global:USER_DIR "config"
+$Global:SCRIPTS_DIR = Join-Path $Global:USER_DIR "scripts"
+$Global:WINGET_FLAG_FILE = Join-Path $Global:USER_DIR "winget_set_flag_file"
 
 # Desktop Category Constants
 $Global:DESKTOP_CATEGORY_DEVELOPMENT_TOOLS = "DevelopmentTools"
@@ -171,335 +202,28 @@ $Global:DESKTOP_CATEGORY_FINANCE = "Finance"
 $Global:DESKTOP_CATEGORY_SHOPPING = "Shopping"
 $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS = "AICLITools"
 # Global variables directory (must-be-defined-first)
-$Global:GLOBAL_VAR_DIR = Join-Path $Global:USER_DIR ".global_vars"
+$Global:GLOBAL_VAR_DIR = Join-Path $Global:USER_DIR "global_var"
 
 # Common encryption/decryption functions for GlobalVars
-function Invoke-GlobalVarEncryption {
-    param([string]$Content, [string]$Password)
-    
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Content)
-    $passwordBytes = [System.Text.Encoding]::UTF8.GetBytes($Password)
-    
-    # Generate salt and IV
-    $salt = New-Object byte[] 32
-    $iv = New-Object byte[] 16
-    [System.Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($salt)
-    [System.Security.Cryptography.RNGCryptoServiceProvider]::Create().GetBytes($iv)
-    
-    # Derive key from password
-    $pbkdf2 = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passwordBytes, $salt, 10000)
-    $key = $pbkdf2.GetBytes(32)
-    
-    # Encrypt content
-    $aes = [System.Security.Cryptography.Aes]::Create()
-    $aes.Key = $key
-    $aes.IV = $iv
-    $encryptor = $aes.CreateEncryptor()
-    $encryptedBytes = $encryptor.TransformFinalBlock($bytes, 0, $bytes.Length)
-    
-    # Combine salt + IV + encrypted data
-    $result = New-Object byte[] ($salt.Length + $iv.Length + $encryptedBytes.Length)
-    [Array]::Copy($salt, 0, $result, 0, $salt.Length)
-    [Array]::Copy($iv, 0, $result, $salt.Length, $iv.Length)
-    [Array]::Copy($encryptedBytes, 0, $result, $salt.Length + $iv.Length, $encryptedBytes.Length)
-    
-    return [Convert]::ToBase64String($result)
+if ($null -eq (Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ErrorAction SilentlyContinue)) {
+    $global:SharedGlobalVarKeys = @()
 }
+. (Join-Path $PSScriptRoot 'GlobalVarStoreCommon.ps1')
 
-function Invoke-GlobalVarDecryption {
-    param([string]$EncryptedContent, [string]$Password)
-    
-    try {
-        $encryptedBytes = [Convert]::FromBase64String($EncryptedContent)
-        $passwordBytes = [System.Text.Encoding]::UTF8.GetBytes($Password)
-        
-        # Extract salt, IV, and encrypted data
-        $salt = New-Object byte[] 32
-        $iv = New-Object byte[] 16
-        $encrypted = New-Object byte[] ($encryptedBytes.Length - 48)
-        
-        [Array]::Copy($encryptedBytes, 0, $salt, 0, 32)
-        [Array]::Copy($encryptedBytes, 32, $iv, 0, 16)
-        [Array]::Copy($encryptedBytes, 48, $encrypted, 0, $encrypted.Length)
-        
-        # Derive key from password
-        $pbkdf2 = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($passwordBytes, $salt, 10000)
-        $key = $pbkdf2.GetBytes(32)
-        
-        # Decrypt content
-        $aes = [System.Security.Cryptography.Aes]::Create()
-        $aes.Key = $key
-        $aes.IV = $iv
-        $decryptor = $aes.CreateDecryptor()
-        $decryptedBytes = $decryptor.TransformFinalBlock($encrypted, 0, $encrypted.Length)
-        
-        return [System.Text.Encoding]::UTF8.GetString($decryptedBytes)
-    } catch {
-        return $null
-    }
-}
-
-function Get-SecurePasswordForGlobalVar {
-    param([string]$Prompt = "Enter password")
-    
-    $securePassword = Read-Host -Prompt $Prompt -AsSecureString
-    $ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-    try {
-        return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
-    } finally {
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
-    }
-}
-function Get-GlobalVar {
-    param (
-        [string]$key,
-        [object]$defaultValue = $null
-    )
-
-    # Use simplified secret keys directory structure
-    $globalVarsDir = Join-Path $Global:CORE_NODE_DIR "ncore\global_vars"
-    $secretKeysDir = Join-Path $globalVarsDir "secret_keys"
-    $rawDir = Join-Path $secretKeysDir "raw"
-    $encryptedDir = Join-Path $secretKeysDir "already_encrypted"
-
-    # Try to get decrypted content using the new system
-    $decryptedContent = Get-SecretContent -KeyName $key
-
-    if ($null -ne $decryptedContent -and -not [string]::IsNullOrWhiteSpace($decryptedContent)) {
-        return $decryptedContent.Trim()
-    }
-
-    # Fallback to regular global var file
-    # Ensure directory exists
-    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
-    }
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    if (Test-Path $filePath) {
-        $value = Get-Content $filePath -Raw
-        if (-not [string]::IsNullOrWhiteSpace($value)) {
-            return $value
-        }
-    }
-    return $defaultValue
-}
-
-<#
-.SYNOPSIS
-    Decrypts files using disguise.js system with batch processing capability
-
-.DESCRIPTION
-    This function handles decryption of .js encrypted files using the disguise.js system.
-    It supports batch decryption of all encrypted files with a single password input.
-
-.PARAMETER EncryptedFilePath
-    Path to the encrypted .js file
-
-.PARAMETER KeyName
-    Name of the key being decrypted (for user prompts)
-
-.EXAMPLE
-    $content = Get-SecretContent -EncryptedFilePath "path/to/file.js" -KeyName "API_KEY"
-#>
-function Get-SecretContent {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$KeyName
-    )
-
-    # Variables declaration
-    $scriptsDir = Join-Path $Global:CORE_NODE_DIR "scripts"
-    $secretKeysDir = Join-Path $Global:CORE_NODE_DIR ".secret_keys"
-    $rawDir = Join-Path $secretKeysDir ".secret_ignore"
-    $encryptedDir = Join-Path $secretKeysDir "already_encrypted"
-    $rawFile = Join-Path $rawDir $KeyName
-    $encryptedFile = Join-Path $encryptedDir "$KeyName.js"
-
-    # First check if raw file exists
-    if (Test-Path $rawFile) {
-        $content = Get-Content -Path $rawFile -Raw -Encoding UTF8
-        if (-not [string]::IsNullOrWhiteSpace($content)) {
-            return $content.Trim()
-        }
-    }
-
-    # Check if encrypted file exists
-    if (-not (Test-Path $encryptedFile)) {
-        return $null
-    }
-
-    # Check if we need to perform batch decryption
-    if (-not $script:BatchDecryptionCompleted) {
-        Write-Host "[DECRYPT] Checking for encrypted files requiring batch decryption..." -ForegroundColor Cyan
-
-        # Find all encrypted .js files that don't have corresponding raw files
-        $encryptedFiles = @()
-        if (Test-Path $encryptedDir) {
-            $allEncryptedFiles = Get-ChildItem -Path $encryptedDir -Filter "*.js"
-
-            foreach ($encFile in $allEncryptedFiles) {
-                $rawFileName = [System.IO.Path]::GetFileNameWithoutExtension($encFile.Name)
-                $rawFilePath = Join-Path $rawDir $rawFileName
-
-                if (-not (Test-Path $rawFilePath)) {
-                    $encryptedFiles += $encFile
-                }
-            }
-        }
-
-        if ($encryptedFiles.Count -gt 0) {
-            Write-Host "[DECRYPT] Found $($encryptedFiles.Count) encrypted files requiring decryption" -ForegroundColor Yellow
-
-            # Find disguise.js
-            $disguiseJs = $null
-            if (Test-Path $scriptsDir) {
-                $disguiseJs = Get-ChildItem -Path $scriptsDir -Name "disguise.js" -Recurse | Select-Object -First 1
-                if ($disguiseJs) {
-                    $disguiseJs = Join-Path $scriptsDir $disguiseJs
-                }
-            }
-
-            if ($disguiseJs) {
-                Write-Host "[DECRYPT] Found decryption tool: $disguiseJs" -ForegroundColor Green
-
-                # Get password for batch decryption
-                Write-Host "[DECRYPT] Enter decryption password for all encrypted files: " -NoNewline -ForegroundColor Yellow
-                $password = Read-Host -AsSecureString
-                $plaintextPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password))
-
-                if (-not [string]::IsNullOrWhiteSpace($plaintextPassword)) {
-                    # Ensure raw directory exists
-                    if (-not (Test-Path $rawDir)) {
-                        New-Item -ItemType Directory -Path $rawDir -Force | Out-Null
-                    }
-
-                    # Decrypt each file
-                    $successCount = 0
-                    foreach ($encryptedFile in $encryptedFiles) {
-                        Write-Host "[DECRYPT] Decrypting: $($encryptedFile.Name)" -ForegroundColor Cyan
-
-                        try {
-                            # Use node to decrypt the .js file
-                            $result = & node $encryptedFile.FullName pwd $plaintextPassword $rawDir 2>&1
-
-                            if ($LASTEXITCODE -eq 0) {
-                                Write-Host "[DECRYPT] SUCCESS: Decrypted $($encryptedFile.Name)" -ForegroundColor Green
-                                $successCount++
-                            } else {
-                                Write-Host "[DECRYPT] WARNING: Failed to decrypt $($encryptedFile.Name)" -ForegroundColor Yellow
-                                Write-Host "[DECRYPT] Error: $result" -ForegroundColor Yellow
-                            }
-                        } catch {
-                            Write-Host "[DECRYPT] ERROR: Exception decrypting $($encryptedFile.Name) - $($_.Exception.Message)" -ForegroundColor Red
-                        }
-                    }
-
-                    Write-Host "[DECRYPT] Batch decryption completed: $successCount/$($encryptedFiles.Count) files decrypted" -ForegroundColor Cyan
-                } else {
-                    Write-Host "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" -ForegroundColor Yellow
-                }
-
-                # Clear password from memory
-                $plaintextPassword = $null
-            } else {
-                Write-Host "[DECRYPT] WARNING: disguise.js not found in scripts directory" -ForegroundColor Yellow
-            }
-        }
-
-        # Mark batch decryption as completed for this session
-        $script:BatchDecryptionCompleted = $true
-    }
-
-    # Try to read the decrypted file again
-    if (Test-Path $rawFile) {
-        $content = Get-Content -Path $rawFile -Raw -Encoding UTF8
-        if (-not [string]::IsNullOrWhiteSpace($content)) {
-            return $content.Trim()
-        }
-    }
-
-    return $null
-}
-
-# Initialize batch decryption flag
-$script:BatchDecryptionCompleted = $false
-function Set-GlobalVar {
-    param (
-        [string]$key,
-        [string]$value
-    )
-    
-    # Ensure directory exists
-    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
-    }
-    
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    Set-Content -Path $filePath -Value $value -Force
-}
-function Get-AllGlobalVars {
-    # Ensure directory exists
-    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
-    }
-
-    $vars = @{}
-    $maxFileSizeMB = 10
-    $maxFileSizeBytes = $maxFileSizeMB * 1MB
-
-    # Removed verbose output - reading GlobalVars silently now
-
-    Get-ChildItem $Global:GLOBAL_VAR_DIR -File -ErrorAction SilentlyContinue | ForEach-Object {
-        $fileSizeMB = [math]::Round($_.Length / 1MB, 2)
-        $fileSizeKB = [math]::Round($_.Length / 1KB, 2)
-
-        # Silent mode - only show errors
-        # if ($_.Length -gt 1MB) {
-        #     Write-Host "  Reading file: $($_.Name) (Size: $fileSizeMB MB)" -ForegroundColor Yellow
-        # } else {
-        #     Write-Host "  Reading file: $($_.Name) (Size: $fileSizeKB KB)" -ForegroundColor Gray
-        # }
-
-        # Check if file exceeds size limit
-        if ($_.Length -gt $maxFileSizeBytes) {
-            Write-Host "    WARNING: File exceeds ${maxFileSizeMB}MB limit - DELETING: $($_.Name)" -ForegroundColor Red
-            try {
-                Remove-Item -Path $_.FullName -Force -ErrorAction Stop
-                Write-Host "    DELETED: $($_.Name)" -ForegroundColor Red
-            } catch {
-                Write-Host "    ERROR: Failed to delete file - $($_.Exception.Message)" -ForegroundColor Red
-            }
-            $vars[$_.Name] = ""
-            return
-        }
-
-        try {
-            $vars[$_.Name] = Get-Content $_.FullName -Raw -ErrorAction Stop
-            # Write-Host "    OK" -ForegroundColor Green  # Removed - silent mode
-        } catch [System.OutOfMemoryException] {
-            Write-Host "    ERROR: Out of memory reading file: $($_.Name)" -ForegroundColor Red
-            Write-Host "    File size: $fileSizeMB MB - DELETING" -ForegroundColor Red
-            try {
-                Remove-Item -Path $_.FullName -Force -ErrorAction Stop
-                Write-Host "    DELETED: $($_.Name)" -ForegroundColor Red
-            } catch {
-                Write-Host "    ERROR: Failed to delete file - $($_.Exception.Message)" -ForegroundColor Red
-            }
-            $vars[$_.Name] = ""
-        } catch {
-            Write-Host "    ERROR: $($_.Exception.Message)" -ForegroundColor Red
-            $vars[$_.Name] = ""
-        }
-    }
-
-    return $vars
+$Global:LEGACY_GLOBAL_VAR_DIRS = @(
+    (Join-Path (Join-Path $Global:PROGRAMING_USER_DIR '.core_node') '.global_vars'),
+    (Join-Path (Join-Path $env:USERPROFILE '.core_node') '.global_vars')
+) | Select-Object -Unique
+$legacyGlobalVarDir = ''
+foreach ($legacyGlobalVarDir in $Global:LEGACY_GLOBAL_VAR_DIRS) {
+    Import-LegacyGlobalVarDirectory -LegacyDirectory $legacyGlobalVarDir
 }
 
 
 # Git related global variables
-$Global:GIT_INSTALL_DIR = "$Global:APP_INSTALL_DIR\Git"
+$Global:GIT_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "Git"
 $Global:GIT_EXE_PATH = Join-Path $Global:GIT_INSTALL_DIR "cmd\git.exe"
-$Global:GIT_FLAG_FILE = "$Global:USER_DIR\.git_set"
+$Global:GIT_FLAG_FILE = Join-Path $Global:USER_DIR "git_set"
 $Global:GIT_WINGET_ID = "Git.Git"
 $Global:GIT_DEFAULT_USER = "DevOps User"
 $Global:GIT_DEFAULT_EMAIL = "devops@example.com"
@@ -508,22 +232,69 @@ $Global:GIT_DEFAULT_EMAIL = "devops@example.com"
 $Global:NODE_VERSION = "24.11.1"
 $Global:NODE_DIR = Join-Path $Global:LANG_COMPILER_DIR "node-v$Global:NODE_VERSION"
 $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
+# Secret tools get their password on stdin through this runner, never on a command line.
+$Global:SECRET_ENCRYPTION_TOOLS_DIR = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "encryption_tools"
+$Global:SECRET_PASSWORD_RUNNER_JS = Join-Path $Global:SECRET_ENCRYPTION_TOOLS_DIR "secret_password_runner.js"
+$Global:SECRET_PASSWORD_ARG = "--password-stdin"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
 $Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
+$Global:PNPM_GLOBAL_DIR = Join-Path $Global:NODE_DIR "pnpm-global"
+$Global:PNPM_GLOBAL_BIN_DIR = Join-Path $Global:PNPM_GLOBAL_DIR ".bin"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
+$Global:BUN_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "bun"
+$Global:BUN_BIN_DIR = Join-Path $Global:BUN_INSTALL_DIR "bin"
+$Global:BUN_EXE_PATH = Join-Path $Global:BUN_BIN_DIR "bun.exe"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
-# Python 3.11 standalone installation (no conda)
-$Global:PYTHON_VERSION = "3.11"
-$Global:PYTHON_VERSION_COMPACT = "311"
-$Global:PYTHON_WINGET_ID = "Python.Python.3.11"
-$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR "python311"
+# Standalone system Python policy (no conda) — paths composed from LANG_COMPILER_DIR
+$Global:AI_POLICY_VERSION = Get-AiRuntimePolicyValue -Name 'AI_POLICY_VERSION' -Default '0'
+$Global:PYTHON_VERSION = Get-AiRuntimePolicyValue -Name 'AI_PYTHON_VERSION' -Default '3.13'
+$Global:PYTHON_VERSION_COMPACT = ($Global:PYTHON_VERSION -replace '\.', '')
+$Global:PYTHON_WINGET_ID = "Python.Python.$($Global:PYTHON_VERSION)"
+$Global:PYTHON_DIR = Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHON_VERSION_COMPACT)")
+$Global:PYTHON_SCRIPTS_DIR = Join-Path $Global:PYTHON_DIR "Scripts"
 $Global:PYTHON_EXE_PATH = Join-Path $Global:PYTHON_DIR "python.exe"
-$Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pip.exe"
-$Global:UV_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\uv.exe"
-$Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\pipx.exe"
-$Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_DIR "Scripts\poetry.exe"
-$Global:PYTHON_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR "python312.install_success.flag"
+$Global:PIP_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pip.exe"
+
+# Dedicated Python 3.10 interpreter for the five self-contained TTS engines
+# (cosyvoice, fishspeech, voxcpm2, gptsovits, melotts). Registered separately
+# from the default host interpreter; never overrides PYTHON_DIR.
+$Global:PYTHON310_VERSION = Get-AiRuntimePolicyValue -Name 'AI_PYTHON310_VERSION' -Default '3.10'
+$Global:PYTHON310_VERSION_COMPACT = ($Global:PYTHON310_VERSION -replace '\.', '')
+$Global:PYTHON310_WINGET_ID = "Python.Python.$($Global:PYTHON310_VERSION)"
+$Global:PYTHON310_DIR = Join-Path $Global:LANG_COMPILER_DIR ("python$($Global:PYTHON310_VERSION_COMPACT)")
+$Global:PYTHON310_SCRIPTS_DIR = Join-Path $Global:PYTHON310_DIR "Scripts"
+$Global:PYTHON310_EXE_PATH = Join-Path $Global:PYTHON310_DIR "python.exe"
+$env:PYTHON310_EXE_PATH = $Global:PYTHON310_EXE_PATH
+$Global:PYTHON310_PIP_PATH = Join-Path $Global:PYTHON310_SCRIPTS_DIR "pip.exe"
+$Global:PYTHON310_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR ("python$($Global:PYTHON310_VERSION_COMPACT).install_success.flag")
+$Global:PYTHON_GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py'
+$Global:PYTHON310_ARCHIVE_URL = 'https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip'
+$Global:PYTHON310_ARCHIVE_FILE = Join-Path $Global:DOWNLOADS_DIR 'python-3.10.11-embed-amd64.zip'
+$Global:PYTHON312_VERSION = Get-AiRuntimePolicyValue -Name 'AI_PYTHON312_VERSION' -Default '3.12'
+$Global:PYTHON312_DIR = Join-Path $Global:LANG_COMPILER_DIR 'python312'
+$Global:PYTHON312_SCRIPTS_DIR = Join-Path $Global:PYTHON312_DIR 'Scripts'
+$Global:PYTHON312_EXE_PATH = Join-Path $Global:PYTHON312_DIR 'python.exe'
+$Global:PYTHON312_PIP_PATH = Join-Path $Global:PYTHON312_SCRIPTS_DIR 'pip.exe'
+$Global:PYTHON312_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR 'python312.install_success.flag'
+$Global:PYTHON312_ARCHIVE_URL = 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip'
+$Global:PYTHON312_ARCHIVE_FILE = Join-Path $Global:DOWNLOADS_DIR 'python-3.12.10-embed-amd64.zip'
+$env:PYTHON312_EXE_PATH = $Global:PYTHON312_EXE_PATH
+$Global:UV_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "uv.exe"
+$Global:PIPX_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "pipx.exe"
+$Global:POETRY_EXE_PATH = Join-Path $Global:PYTHON_SCRIPTS_DIR "poetry.exe"
+$Global:PYTHON_FLAG_FILE = Join-Path $Global:USER_CACHE_DIR ("python$($Global:PYTHON_VERSION_COMPACT).install_success.flag")
+
+# Bucket-A shared transformers pin — mirrors linux/common/common_functions.sh
+# ($LLM_TRANSFORMERS_SPEC). DeepSeek-VL/DeepSeek-OCR/Qwen2.5/NLLB-200/Bark all install
+# transformers at THIS one version in the single system Python 3.13, so they never race
+# (Windows has no shared venv; every LLM step shares one interpreter). 4.46.3 satisfies
+# all of them. Set $env:LLM_TRANSFORMERS_SPEC to bump it everywhere at once.
+# Contract: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+$Global:LLM_TRANSFORMERS_SPEC = if ($env:LLM_TRANSFORMERS_SPEC) { $env:LLM_TRANSFORMERS_SPEC } else { Get-AiRuntimePolicyValue -Name 'AI_SHARED_TRANSFORMERS_SPEC' -Default 'transformers' }
+
+# NVIDIA tools (optional override; default to System32 nvidia-smi.exe)
+$Global:NVidiaSmiPath = Join-Path $env:SystemRoot 'System32\nvidia-smi.exe'
 
 # Repository Configuration - Auto-switch based on region
 $Global:GITEE_BASE_URL = "https://gitee.com/accountbelongstox/core_node/raw/main"
@@ -616,6 +387,10 @@ function Get-RegionRemoteBaseUrl {
     return Get-RegionURL -SubPath "scripts/shells/win/install_powershells"
 }
 
+function Get-RegionInstallerScriptsListUrl {
+    return Get-RegionURL -SubPath "scripts/shells/win/win_common/InstallerScriptsList.ps1"
+}
+
 function Get-RegionTestInstallerUrl {
     return Get-RegionURL -SubPath "scripts/shells/win/TestInstaller.ps1"
 }
@@ -626,16 +401,28 @@ $Global:GITEE_SCRIPTS_URL = "$Global:CURRENT_BASE_URL/scripts"
 $Global:GITEE_UTILS_URL = "$Global:CURRENT_BASE_URL/ncore/utils"
 
 # Environment Scripts related global variables
-$Global:SET_ENV_JS_PATH = "$Global:SCRIPTS_DIR\winpath.js"
+$Global:SET_ENV_JS_PATH = Join-Path $Global:SCRIPTS_DIR "winpath.js"
 $Global:SET_ENV_JS_URL = "$Global:GITEE_UTILS_URL/win_tool/libs/winpath.js"
 
 # Global 7-Zip Variables
 $Global:SEVENZIP_TEMP_DIR = $Global:TEMP_DIR
-$Global:SEVENZIP_INSTALL_DIR = "$Global:LANG_COMPILER_DIR\7z"
+$Global:SEVENZIP_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "7z"
 $Global:SEVENZIP_DOWNLOAD_URL = "https://www.7-zip.org/a/7z2408-x64.exe"
 $Global:SEVENZIP_EXE_PATH = Join-Path $Global:SEVENZIP_INSTALL_DIR "7z.exe"
 $Global:SEVENZIP_TMP_NAME = "7z2408-x64.exe"
 $Global:SEVENZIP_TMP_PATH = Join-Path $Global:SEVENZIP_TEMP_DIR $Global:SEVENZIP_TMP_NAME
+
+# Global Security Tools (Sysinternals Suite) Variables
+# Portable forensic/behavior-analysis toolkit (Process Monitor "procmon",
+# Autoruns "au", Process Explorer, Sigcheck, TCPView, Handle, ListDLLs, Sysmon,
+# PsExec, Strings, AccessChk...). Used to attribute rogue processes that tamper
+# with non-default Chrome installs. Installed under LANG_COMPILER_DIR and linked
+# into .winenvs so the tools and helper scripts are globally available.
+$Global:SECURITY_TOOLS_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "Sysinternals"
+$Global:SECURITY_TOOLS_DOWNLOAD_URL = "https://download.sysinternals.com/files/SysinternalsSuite.zip"
+$Global:SECURITY_TOOLS_ZIP_NAME = "SysinternalsSuite.zip"
+$Global:SECURITY_TOOLS_ZIP_PATH = Join-Path $Global:DOWNLOADS_DIR $Global:SECURITY_TOOLS_ZIP_NAME
+$Global:SECURITY_TOOLS_SENTINEL_EXE = Join-Path $Global:SECURITY_TOOLS_INSTALL_DIR "Procmon.exe"
 
 # Global UVX Variables
 $Global:UVX_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "uvx"
@@ -651,8 +438,8 @@ $Global:PHP_VERSIONS = @(
     }
 )
 $Global:PHP_CONFIGFILE_URL = "$Global:GITEE_SCRIPTS_URL/shells/win/1_phpconfig/configure_php_ini.php"
-$Global:PHP_CONFIGFILE_PATH = "$Global:SCRIPTS_DIR\configure_php_ini.php"
-$Global:PHP_CONFIGFILE_LOCAL_PATH = "$Global:PROJECT_WIN_SCRIPTS_DIR\1_phpconfig\configure_php_ini.php"
+$Global:PHP_CONFIGFILE_PATH = Join-Path $Global:SCRIPTS_DIR "configure_php_ini.php"
+$Global:PHP_CONFIGFILE_LOCAL_PATH = Join-Path $Global:PROJECT_WIN_SCRIPTS_DIR "1_phpconfig\configure_php_ini.php"
 
 # Note: Java configuration moved to ApplicationsList.ps1 for consistency
 # Note: FFmpeg configuration moved to ApplicationsList.ps1 for consistency
@@ -665,7 +452,7 @@ $Global:ANDROID_DIR = "C:\Program Files\Android"
 $Global:ANDROID_STUDIO_DIR = Join-Path $ANDROID_DIR "Android Studio"
 $Global:ANDROID_STUDIO_EXE_PATH = Join-Path $ANDROID_STUDIO_DIR "bin\studio64.exe"
 $Global:ANDROID_SDK_DIR = Join-Path $ANDROID_DIR "Sdk"
-$Global:ANDROID_STUDIO_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\AndroidStudio_Installed_flag"
+$Global:ANDROID_STUDIO_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "AndroidStudio_Installed_flag"
 
 # Note: Go configuration moved to ApplicationsList.ps1 for consistency
 
@@ -673,7 +460,15 @@ $Global:ANDROID_STUDIO_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\AndroidStudio_In
 $Global:FLUTTER_VERSION = "3.35.5-stable"
 $Global:FLUTTER_DIR = Join-Path $Global:LANG_COMPILER_DIR "flutter"
 $Global:FLUTTER_EXE_PATH = Join-Path $Global:FLUTTER_DIR "bin\flutter.bat"
-$Global:FLUTTER_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\Flutter_Installed_flag"
+$Global:FLUTTER_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "Flutter_Installed_flag"
+
+# Global Go install constants
+$Global:GO_RELEASE_API_URL = "https://go.dev/dl/?mode=json"
+$Global:GO_DOWNLOAD_BASE_URL = "https://go.dev/dl"
+$Global:GO_DEFAULT_VERSION = "1.26.6"
+$Global:GO_ARCHIVE_NAME_TEMPLATE = "go{0}.windows-{1}.zip"
+$Global:GO_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "Go"
+$Global:GO_EXECUTABLE = "go.exe"
 
 # Flutter mirror configuration
 $Global:FLUTTER_MIRRORS = @{
@@ -786,7 +581,7 @@ function Initialize-AllGlobalVars {
     if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
         New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
     }
-    Get-ChildItem $Global:GLOBAL_VAR_DIR | ForEach-Object {
+    Get-ChildItem -LiteralPath $Global:GLOBAL_VAR_DIR -File | ForEach-Object {
         $name = $_.Name
         $value = Get-Content $_.FullName -Raw
         Set-Variable -Name $name -Value $value -Scope Global
@@ -837,19 +632,19 @@ $Global:CHINESE_CHUANSUO = [char]0x7A7F + [char]0x68AD  # chuansuo (Shuttle)
 $Global:ENABLE_DEFENDER_EXE_URL = "$Global:GITEE_SCRIPTS_URL/shells/win/encrypt_scripts/enable-defender.exe.js"
 $Global:ENABLE_DEFENDER_TMP_PATH = Join-Path $Global:USER_CACHE_DIR "enable-defender.exe.js"
 $Global:ENABLE_DEFENDER_EXE_PATH = Join-Path $Global:USER_CACHE_DIR "enable-defender.exe"
-$Global:WSL_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\WSL_Installed_flag"
-$Global:STEP8_DV_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\Step8_DV_Installed.flag"
+$Global:WSL_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "WSL_Installed_flag"
+$Global:STEP8_DV_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "Step8_DV_Installed.flag"
 $Global:STEP2_BASE_SETTINGS_FLAG = Join-Path $Global:USER_CACHE_DIR "Step2_BaseSettings_Completed.flag"
 $Global:STEP2_EXPLORER_RESTART_FLAG = Join-Path $Global:USER_CACHE_DIR "Step2_ExplorerRestart_Completed.flag"
 $Global:STEP2_WIN10_CONTEXT_MENU_FLAG = Join-Path $Global:USER_CACHE_DIR "Step2_Win10ContextMenu_Completed.flag"
 $Global:TEMP_REG_DIR = Join-Path $Global:USER_CACHE_DIR "reg_files"
 
 # WSL related global variables
-$Global:UBUNTU_VERSION = "24.04"
 $Global:UBUNTU_DEFAULT_PASSWORD = "123456"
-$Global:UBUNTU_WSL_DOWNLOAD_URL = "https://releases.ubuntu.com/noble/ubuntu-24.04.3-wsl-amd64.wsl"
-$Global:UBUNTU_WSL_FILENAME = "ubuntu-24.04.3-wsl-amd64.wsl"
-$Global:UBUNTU_WSL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:UBUNTU_WSL_FILENAME
+$Global:DEBIAN_VERSION = "13"
+$Global:DEBIAN_WSL_DOWNLOAD_URL = "https://salsa.debian.org/debian/WSL/-/jobs/9606244/artifacts/raw/Debian_WSL_AMD64_v1.26.0.0.wsl"
+$Global:DEBIAN_WSL_FILENAME = "Debian_WSL_AMD64_v1.26.0.0.wsl"
+$Global:DEBIAN_WSL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:DEBIAN_WSL_FILENAME
 $Global:WSL2_KERNEL_UPDATE_URL = "https://wslstorestorage.blob.core.windows.net/wslblob/wsl_update_x64.msi"
 $Global:WSL2_KERNEL_FILENAME = "wsl_update_x64.msi"
 $Global:WSL2_KERNEL_LOCAL_PATH = Join-Path $Global:TEMP_DIR $Global:WSL2_KERNEL_FILENAME

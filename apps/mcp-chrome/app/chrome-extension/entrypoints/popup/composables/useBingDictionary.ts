@@ -4,7 +4,10 @@
  */
 
 import { ref } from 'vue';
-import { apiManager } from '@/services/ApiManager';
+import { usePersistedRef } from '@/composables/usePersistedRef';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { BING_DICT_MSG } from '@/common/message-types';
+import { getMessage } from '@/utils/i18n';
 
 export interface Translation {
   type: string;
@@ -16,13 +19,42 @@ export interface Example {
   translation?: string;
 }
 
+export interface DetailedDefinition {
+  cn: string;
+  en: string;
+}
+
+export interface SynonymGroup {
+  type: string;
+  words: string;
+}
+
+export interface WebDefinition {
+  type: string;
+  content: string;
+}
+
 export interface WordResult {
   word: string;
-  phonetic?: string;
+  usPhonetic?: string;
+  ukPhonetic?: string;
+  // Pronunciation audio: a single fallback plus the two separate US/UK tracks
+  // (Bing usually serves both), so each phonetic gets its own play button.
   pronunciation?: string;
+  usAudioUrl?: string;
+  ukAudioUrl?: string;
+  // Short part-of-speech glosses.
   translations: Translation[];
+  // Detailed Collins/Oxford definitions (Chinese gloss + English explanation).
+  detailedDefinitions: DetailedDefinition[];
+  // Example sentences (English + Chinese translation).
   examples: Example[];
-  synonyms: string[];
+  // Synonym / antonym groups.
+  synonyms: SynonymGroup[];
+  // Web definitions / advanced blocks.
+  webDefinitions: WebDefinition[];
+  // Sample image data URLs.
+  images: string[];
 }
 
 export interface HistoryItem {
@@ -31,10 +63,12 @@ export interface HistoryItem {
 }
 
 export function useBingDictionary() {
-  const searchQuery = ref('');
+  // searchQuery + currentResult are persisted so reopening the popup restores the
+  // last lookup (the word box and its full result) without re-scraping Bing.
+  const searchQuery = usePersistedRef('bingSearchQuery', '');
   const isLoading = ref(false);
   const error = ref('');
-  const currentResult = ref<WordResult | null>(null);
+  const currentResult = usePersistedRef<WordResult | null>('bingLastResult', null);
   const history = ref<HistoryItem[]>([]);
 
   const lookupWord = async (word?: string) => {
@@ -47,26 +81,42 @@ export function useBingDictionary() {
     currentResult.value = null;
 
     try {
-      const baseUrl = apiManager.getCurrentBaseUrl();
-      const response = await fetch(`${baseUrl}/api/dictionary/bing?word=${encodeURIComponent(query)}`);
+      // Look the word up by scraping Bing dictionary LOCALLY (same path the
+      // worker uses) rather than calling a backend endpoint. laravel_main does
+      // not expose a dictionary lookup API — only the worker task queue — so the
+      // extension owns single-word lookups itself.
+      const response = await chrome.runtime.sendMessage({
+        type: BING_DICT_MSG,
+        action: 'test_scrape',
+        words: [query],
+        mode: 'worker',
+      });
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+      if (!response || !response.success) {
+        throw new Error((response && response.error) || getMessage('lookupWordFailed'));
       }
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to lookup word');
+      const r = (response.results || [])[0];
+      if (!r || !r.ok) {
+        throw new Error(r?.invalid ? getMessage('noDictionaryEntry') : r?.error || getMessage('noResult'));
       }
 
       currentResult.value = {
-        word: query,
-        phonetic: data.phonetic,
-        pronunciation: data.pronunciation,
-        translations: data.translations || [],
-        examples: data.examples || [],
-        synonyms: data.synonyms || [],
+        word: r.word || query,
+        usPhonetic: r.usPhonetic || undefined,
+        ukPhonetic: r.ukPhonetic || undefined,
+        pronunciation: r.audioUrl || r.usAudioUrl || r.ukAudioUrl || undefined,
+        usAudioUrl: r.usAudioUrl || undefined,
+        ukAudioUrl: r.ukAudioUrl || undefined,
+        translations: (r.definitions || []).map((d: any) => ({
+          type: d.partOfSpeech || '',
+          text: d.definition,
+        })),
+        detailedDefinitions: r.detailedDefinitions || [],
+        examples: (r.examples || []).map((e: any) => ({ text: e.en, translation: e.cn })),
+        synonyms: r.synonyms || [],
+        webDefinitions: r.webDefinitions || [],
+        images: r.imageUrls || [],
       };
 
       addToHistory(query);
@@ -75,20 +125,24 @@ export function useBingDictionary() {
         searchQuery.value = '';
       }
     } catch (err: any) {
-      error.value = err.message || 'Failed to lookup word';
+      error.value = err.message || getMessage('lookupWordFailed');
       console.error('[Bing Dictionary] Lookup failed:', err);
     } finally {
       isLoading.value = false;
     }
   };
 
-  const playPronunciation = () => {
-    if (!currentResult.value?.pronunciation) return;
-
-    const audio = new Audio(currentResult.value.pronunciation);
+  // Play any pronunciation track (base64 data URL or remote mp3).
+  const playAudio = (url?: string | null) => {
+    if (!url) return;
+    const audio = new Audio(url);
     audio.play().catch(err => {
       console.error('[Bing Dictionary] Failed to play audio:', err);
     });
+  };
+
+  const playPronunciation = () => {
+    playAudio(currentResult.value?.pronunciation);
   };
 
   const addToHistory = (word: string) => {
@@ -112,7 +166,10 @@ export function useBingDictionary() {
 
   const clearHistory = async () => {
     history.value = [];
-    await chrome.storage.local.remove('bing_dictionary_history');
+    // Also reset the persisted current view so [CLEAR] fully empties the panel.
+    currentResult.value = null;
+    searchQuery.value = '';
+    await chrome.storage.local.remove(STORAGE_KEYS.BING_DICTIONARY_HISTORY);
   };
 
   const formatTime = (timestamp: number): string => {
@@ -135,7 +192,7 @@ export function useBingDictionary() {
 
   const saveHistory = async () => {
     try {
-      await chrome.storage.local.set({ bing_dictionary_history: history.value });
+      await chrome.storage.local.set({ [STORAGE_KEYS.BING_DICTIONARY_HISTORY]: history.value });
     } catch (err) {
       console.error('[Bing Dictionary] Failed to save history:', err);
     }
@@ -143,9 +200,9 @@ export function useBingDictionary() {
 
   const loadHistory = async () => {
     try {
-      const result = await chrome.storage.local.get('bing_dictionary_history');
-      if (result.bing_dictionary_history) {
-        history.value = result.bing_dictionary_history;
+      const result = await chrome.storage.local.get(STORAGE_KEYS.BING_DICTIONARY_HISTORY);
+      if (result[STORAGE_KEYS.BING_DICTIONARY_HISTORY]) {
+        history.value = result[STORAGE_KEYS.BING_DICTIONARY_HISTORY];
       }
     } catch (err) {
       console.error('[Bing Dictionary] Failed to load history:', err);
@@ -160,6 +217,7 @@ export function useBingDictionary() {
     history,
     lookupWord,
     playPronunciation,
+    playAudio,
     clearHistory,
     formatTime,
     loadHistory,

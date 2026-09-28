@@ -1,0 +1,91 @@
+{
+  "task_id": "pycore-ai-D7P2",
+  "role": "pycore-ai",
+  "reviewer": "pycore-lead",
+  "verdict": "changes_requested",
+  "scope": {
+    "window": "f4f223414..HEAD. Every pycore change in this window is in 5bbb23682 (17:33); b20962b4f touches no pycore file. The working tree equals HEAD for pycore. Reviews still diff against 74e7770.",
+    "separation": "The pycore-5 D10 hunks were approved at 16:48 and committed later in 5bbb23682. They are identified by the 'Changed files (pycore-5, D10 session)' list and the 'X4 detail' in reports/pycore.md: the md5= threading through record/entry/publish/save_to_cache/synthesize_words_to_cache/build_local_task, word_md5 with the transitional fallback, promote_local_head md5 passing, laravel_audio_delivery, laravel_audio_worker_execution, word_audio_full_sync, kokoro_batch, snapshot_service and the realtime formats in queue_center_contract. They are not re-judged here.",
+    "d7p2_hunks": [
+      "pycore/pyutils/tts/audio_resource_ledger.py:16-18,40-42,53: resource_key falls back to '<lang>:text:<cleaned_word>'; hashlib removed; word_md5 returns '' for a text key",
+      "pycore/pyctl/tts/audio_resource_delivery.py:312-322: the single upload sends md5 only when the ledger key carries one; hashlib removed",
+      "pycore/pyutils/tts/audio_queue_center.py:117-148: build_local_task identity is real md5 or 'text:<cleaned_word>', and the payload carries cleaned_word instead of an invented md5",
+      "pycore/pyutils/tts/audio_queue_center.py:43-45,85-88,171-172,765,798,808-823: per-lane restore-complete signal, restore_complete and wait_for_restore",
+      "pycore/pyctl/assist/capability_sync.py:15,22-36,44-64: an audio-lane request_start waits on a bus task for wait_for_restore",
+      "pycore/pyctl/tts/audio_lane_full_sync.py:44-46,111-121: the full pull waits for the lane restore",
+      "pycore/pyutils/tts/runtime_profile.py:4-8,25-28: docstring (RESTARTTRAY-05)",
+      "pycore/pyutils/tts/word_audio_cache.py:200-216: note_stored creates the language mapping lazily (AOQSD-16)",
+      "pycore/pyutils/tts/memory_gate.py:151: nvidia-smi timeout (p4-04 part)"
+    ],
+    "not_judged_here": "These hunks are in the same window but outside pycore-ai's path scope. pycore/pyctl/runtime/event_handlers.py (the boot chain runs apply_assist_runtime at the end of the boot-chain thread) is a pycore-runtime path. queue_center_contract.audio_dedup_key and QUEUE_CENTER_DELIVERY (pyutils/common) and the local_queue_head_routes _MD5_RE are pycore-runtime-D7P2's. They were checked for fit only: the audio_dedup_key fallback, the build_local_task identity and the ledger key all produce 'en:text:hello' for ('en', 'Hello'). The boot order agrees with the gate."
+  },
+  "findings": {
+    "LDRI-12 / CKA-23 (X4, the three pycore-ai sites)": {
+      "status": "changes_requested",
+      "detail": "The three md5(lower(strip)) fallbacks are gone (audio_resource_ledger.py:41-42, audio_resource_delivery.py:312-321, audio_queue_center.py:138-148), and the key follows contract word_identity.fallback_when_md5_absent. A sweep of pyctl/tts, pyutils/tts, audio_orchestration, rpc_routes and queue_center_contract finds no remaining word-identity recompute; the one hashlib.md5 hit, laravel_audio_worker_state.py:551, is the article md5. Two regressions follow from the producer change, B1 and B2."
+    },
+    "RESTARTTRAY-03 / AOQSD-19 / AOQSD-41 (cache-first boot gate)": {
+      "status": "done_with_changes",
+      "detail": "The gate is condition-driven. THREAD_BUS.wait_signal does not consume the signal (thread_bus/bus.py:227-261), so the capability_sync waiter and the full-sync waiter on the same lane do not steal it, and nothing clears the restore signal names. activate_audio_lane restores synchronously before start_background and request_pull, and at boot apply_assist_runtime now runs after the restore (event_handlers). The only change asked for here is the duplicated timeout constant (B4). The non-boot assist_config path is M-4, the follow-up in pycore-ai-G1. AOQSD-41 is runtime-unverified: the offline render and drain belong to the long-run rounds."
+    },
+    "RESTARTTRAY-05": {
+      "status": "fixed",
+      "detail": "The runtime_profile.py docstring now matches pycore_module_caller.py:253-273: the background pin starts after the --tts-selfcheck gate, and readers go through the idempotent pin_runtime_profile at runtime_profile.py:143-145."
+    },
+    "AOQSD-16": {
+      "status": "changes_requested",
+      "detail": "The fix covers the new-directory case, but it exposes a partial index while load_all is still running. See B3."
+    },
+    "p4-04 (memory_gate part)": {
+      "status": "fixed",
+      "detail": "memory_gate.py:151 now passes timeout=NVIDIA_SMI_TIMEOUT_SECONDS, the one constant in pyfoundations/network_constants.py:107, which is imported at :25-26. :219 already had it. The rest of p4-04 is open (see non_blocking)."
+    }
+  },
+  "issues": [
+    "B1 (correctness, X4 consumer): pycore/pyctl/tts/laravel_audio_worker_state.py:566-589. build_local_task (audio_queue_center.py:138-148) no longer writes payload.md5 for a word without a Laravel md5. The lane worker's _normalize still fails such a task with 'word_audio payload carried no md5' (:588-589). As a result, every md5-less local word task that a word_audio lane worker pops is reported failed and never synthesized: the orchestration Part1 fill (orch_promote.py:57) and a manual promote without md5. Probe: _normalize(build_local_task('word_audio','en','Hello','orchestration')) returns that error. Fix: require md5 only for Laravel-sourced tasks. A task with _local_source and payload.cleaned_word goes on with md5 '', so kokoro_batch, save_to_cache and the ledger key it '<lang>:text:<cleaned_word>'. Keep the error for a Laravel task without md5.",
+    "B2 (correctness, retry poison): pycore/pyctl/tts/audio_resource_delivery.py:312-329. A word without a Laravel md5 now uploads with no md5, but no server resolves by cleaned_word yet: LDRI-11 is still open (items_wordnew.json, laravel-qyapp-D7), and AppQyV1WordMediaController.php:153-157 answers 400 'md5, lang and audio_base64 are required'. That lands in the RuntimeError branch (:328-329). RESOURCE_KIND has no permanent_error (register :62-72), so each such clip retries every 300 s at most, forever, on every server, including the local Laravel. Before this change the row ended in not_found or stored. Once LDRI-11 lands, the contract rejection WORD_NOT_FOUND must also end the row. Fix: when clip_md5 is empty, treat a 4xx rejection as terminal, except 408/409/425/429. That is the rule in laravel_audio_delivery._terminal_report_error, so share one helper instead of copying it. Return OUTCOME_DONE with a skip reason, the same as the batch path's no_target/invalid at :271-275. Prefer reading the rejection code from contract word_identity.fallback_when_md5_absent.rejection_code through a queue_center_contract accessor. That file is pycore-runtime's, so route the request through pycore-lead.",
+    "B3 (correctness, AOQSD-16 regression): pycore/pyutils/tts/word_audio_cache.py:200-216 (note_stored) with :192-197 (_lookup). note_stored now creates a mapping for a language that load_all has not installed yet, or before load_all starts. _lookup returns that partial mapping as if the language were loaded. lookup_many and find_cached_many then answer from the words stored so far and report every other cached word of the language as a miss, instead of returning None and falling back to the directory scan. Probe: storing 'salut' into an unloaded 'fr' makes a lookup of the on-disk 'bonjour' and 'merci' return only 'salut'. During the boot load, orchestration resumes at route registration and the lanes start right after the restore, so cached words are generated again. That is the AOQSD-16 failure, and it breaks lookup_many's 'None when not loaded' contract. Fix: keep stores for a language that is not installed in a pending map that _install merges (newest wins), and keep _lookup returning None for such a language. Create a live mapping from a store only after load_all has finished, which is the case of a language directory created after boot. Base that decision on a load-finished state, not on _loading.",
+    "B4 (rule: centralize constants; AGENTS.md, PYTHON_PYCORE.md): pycore/pyctl/assist/capability_sync.py:27 _AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS = 180.0 and pycore/pyctl/tts/audio_lane_full_sync.py:46 RESTORE_WAIT_TIMEOUT_SECONDS = 180.0 define one value twice. Fix: declare it once at the top of pycore/pyutils/tts/audio_queue_center.py next to wait_for_restore, export it in __all__ (or make it wait_for_restore's default timeout), and use it at capability_sync.py:35 and audio_lane_full_sync.py:121. Both callers also ignore a False return (a timeout), so log it at both sites. The pycore-runtime-D7P2 review asks the same for capability_sync.py:35."
+  ],
+  "non_blocking": [
+    "M-4 is still present: pyctl/assist/service.py:111-112 calls apply_assist_runtime with no activate_audio_lane. A lane that was OFF at boot and is enabled there waits 180 s (capability_sync.py:35) and never restores. On that path _toggle_callback (capability_sync.py:120-126) has already enabled the lane's heartbeat poll, which does a remote diff and pull, so that poll is not gated either. The G1 fix (activate before apply) covers both. It belongs to pycore-ai-G1, and G1 may run in the same writer lane as B1-B4. B4 and M-4 both touch the restore gate, so do them together.",
+    "pycore/pyutils/tts/audio_queue_center.py:812-814: restore_complete() has no caller yet. Keep it: pycore-runtime-D7P2 B3 gates the snapshot_service head-ticket wake on it, and the persister gate below can use it too.",
+    "Sequenced after pycore-runtime-D7P2 B1: adopt its contract-derived helpers (word_identity_content and word_identity_md5 in queue_center_contract.py) at audio_resource_ledger.py:42 and :52 and audio_queue_center.py:140. Today the '<lang>:text:<cleaned_word>' format is built in three places plus a parser. Ask pycore-runtime to export the fallback rejection_code from the same word_identity read, so B2 has a contract source.",
+    "Error visibility: an audio lane's request_start now runs in a bus task (capability_sync.py:32-36, 59-64) and returns before the try/except that logs lifecycle failures (:65-71). start_bus_task without a response_signal swallows exceptions, so a failed request_start for word_audio or sentence_audio is now silent. pycore-lead F-1 fixes this centrally (BusTaskThread logs failed fire-and-forget callbacks), so no local except is needed. Do not add one either, per AOQSD-36.",
+    "pycore/pyutils/tts/audio_queue_center.py:761-798: a restore that raises after _claim_restore never signals, so every later gate waits the full timeout. Signal in a finally (no except), as event_handlers._run_audio_lane_boot_chain does.",
+    "RESTARTTRAY-03 residual (pre-existing): flush_dirty (audio_queue_center.py:846-866) is not gated on the restore. A lane can be mutated before its restore: orchestration resume can promote into Part1 before the boot chain's load_snapshot, or the lane's switch is OFF. The persister can then write the unrestored in-memory queue over the saved snapshot. Recommended: hold a lane's dirty state until its restore completes, or restore on first mutation.",
+    "Legacy data from before X4: snapshot tasks and ledger rows can still carry pycore-invented md5s (orchestration local task payload.md5, and ledger keys '<lang>:<md5(lower)>'). Those clips keep uploading under that md5. Optional: rebuild orchestration and manual local word tasks through build_local_task at restore. Ledger rows cannot be told apart from the real md5 of a lower-case word, so leave them.",
+    "Cross-end (orchestrator, LDRI-11): the pycore keys lower-case the word, but the upload body (audio_resource_delivery.py:315) and the batch item (:266) send cleaned_word as the original-case text. Contract fallback_when_md5_absent does not define how cleaned_word is normalized. Pin it (lower-cased), so that LDRI-11 resolves case-insensitively and the two fields agree.",
+    "Carried from the pycore-runtime-D7 review, still in pycore-ai scope: audio_lane_full_sync.py:118,140,142 return codes under 'error' instead of 'error_code', and audio_queue_center.py:404,481,760 return the English text 'unknown lane <lane>'. Use the one AUDIO_LANE_UNKNOWN code (route_names.py:309 and the literal at audio_lane_activation.py:45).",
+    "Open phase-2 items that HEAD does not cover, still with pycore-ai:",
+    "- LDRI-55: the engine_policy.py:305-306 pass-through.",
+    "- AOQSD-36: except at audio_lane_full_sync.py:125 and word_audio_cache.py:140, 239 and 282.",
+    "- AOQSD-29: the per-item synced state.",
+    "- p4-03-pycore: word and sentence full sync still do not use queue_center_endpoint.",
+    "- the p4-04 remainder: the qwen in-progress race, the dead add_to_queue at azure_speech_client.py:209, and AT-049. _torch_cuda.py:132 is pyfoundations and belongs to pycore-lead.",
+    "RESTARTTRAY-09 and PRAO-38 are runtime runs for the long-run rounds.",
+    "Outside this lane (pycore-runtime path): the docstring at event_handlers.py:445-451 says both boot steps run to completion on the calling thread. word_audio_cache_index.start_background_load() runs on its own bus task; only the lane activation is synchronous."
+  ],
+  "checks": [
+    "git log and show --stat: every pycore change after f4f223414 is in 5bbb23682, and b20962b4f has no pycore path. The working tree is clean for pycore.",
+    "EOL gate: git diff --numstat equals --ignore-space-at-eol for the 9 window files, against both 74e7770 and f4f223414. capability_sync.py (133/133) and memory_gate.py (346/346) are fully CRLF at 74e7770, f4f223414 and HEAD. The other 7 files are LF. There is no churn.",
+    "py_compile (cfile in the scratchpad) and ast.parse pass on all 9 files.",
+    "Scratch probe d7p2_probe.py was run with python -B, PYTHONDONTWRITEBYTECODE=1 and PIP_NO_INDEX=1. It registered no routes and wrote nothing to the data dir; free RAM was 5.9 GB. Results:",
+    "- build_local_task('word_audio','en','Hello','orchestration') gives payload {word, content, language, cleaned_word:'hello'} with no md5, and task_id 'orchestration-word-en-text:hello'.",
+    "- audio_dedup_key_from_task, orch resource_queue_key and resource_key all give 'en:text:hello', and word_md5 gives ''. A real-md5 key with a variant gives the md5.",
+    "- The lane worker _normalize on that task returns 'word_audio payload carried no md5' (B1).",
+    "- WordAudioCacheIndex returns None before any store, and after one store into an unloaded language it returns a partial map (B3).",
+    "- wait_for_restore and restore_complete exist.",
+    "Read the ThreadBus signal semantics (bus.py:166-272): wait_signal does not consume. No clear_signal or clear_all_signals call touches the audio_queue_center.restore_complete.* names.",
+    "Read the Laravel side (read-only): AppQyV1WordMediaController.php:144-157 still requires md5. LDRI-11 is an open item in items_wordnew.json.",
+    "Rules: the code is English and adds no user-facing text, tests or try/except. Imports and constants are at the top. The gate uses start_bus_task and a condition wait, with no polling. The layering is pyctl to pyutils. The only rule finding is the duplicated constant (B4)."
+  ],
+  "decisions": [
+    "items_pycore.json has no pycore-ai-D7P2 entry. The items came from merge_meta.json deferred (RESTARTTRAY-03 merged with AOQSD-19/41, RESTARTTRAY-05, AOQSD-16, LDRI-12, p4-04), .claude/agents_shared/d7/phase2_items.json, and REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md §8.0 and §8.3.",
+    "Attribution is by path owner under D22 because the lane left no report. The event_handlers.py, queue_center_contract.py and local_queue_head_routes.py hunks are pycore-runtime's and are not judged in this verdict.",
+    "B4 is blocking even though it is small. Centralized constants is an explicit code-leader rule, and the member is being re-assigned anyway.",
+    "B2 is fixed in pycore rather than by waiting for LDRI-11. Servers without LDRI-11 (api.si.12gm.com at 74e7770, and legacy servers on the single-upload path) would otherwise keep retrying forever."
+  ],
+  "notes": "changes_requested. The X4 producer change is correct against the contract, but it breaks the lane worker's md5 requirement (B1) and creates retry poison on servers without the cleaned_word resolver (B2). The AOQSD-16 index fix returns partial results during the boot load (B3). One constant is duplicated (B4). RESTARTTRAY-05 and the memory_gate timeout are accepted as they are. The gate design is accepted, and M-4 stays in pycore-ai-G1. B1-B4 are the extra assignment for pycore-ai. G1 may proceed in the same writer lane.",
+  "checked_at": "2026-09-27T20:15:00+10:00"
+}

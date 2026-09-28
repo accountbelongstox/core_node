@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Romanization Module
 
@@ -15,23 +14,24 @@ pronunciation. For example:
 - Arabic: مرحبا → marhaban
 """
 
+from pycore.pyfoundations.third_party.api import get_third_package_googletrans_Translator
+
 import asyncio
 import hashlib
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional, List, Dict
-from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import map_web_path
 
 try:
-    from pycore.pyfoundations.third_party import (
-        get_third_package_googletrans_Translator,
-    )
     Translator = get_third_package_googletrans_Translator()
     GOOGLETRANS_AVAILABLE = True
 except ImportError:
     GOOGLETRANS_AVAILABLE = False
     Translator = None
+
 
 
 @dataclass
@@ -69,7 +69,6 @@ class RomanizationCache:
         cache_file = self.cache_dir / f"{cache_key}.json"
         if cache_file.exists():
             try:
-                import json
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
@@ -80,7 +79,6 @@ class RomanizationCache:
         cache_key = self._get_cache_key(text)
         cache_file = self.cache_dir / f"{cache_key}.json"
         try:
-            import json
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception:

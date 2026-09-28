@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from pycore.pyfoundations.third_party.api import get_third_package_eng_to_ipa
 """
 Phonetic Transcription Module
 
@@ -22,12 +23,14 @@ from dataclasses import dataclass, asdict
 from pycore.pyfoundations.system_paths import map_web_path
 
 try:
-    from pycore.pyfoundations.third_party import get_third_package_eng_to_ipa
     eng_to_ipa_module = get_third_package_eng_to_ipa()
     IPA_AVAILABLE = True
 except ImportError:
     IPA_AVAILABLE = False
     eng_to_ipa_module = None
+
+import json
+
 
 
 @dataclass
@@ -63,7 +66,6 @@ class PhoneticCache:
         cache_file = self.cache_dir / f"{cache_key}.json"
         if cache_file.exists():
             try:
-                import json
                 with open(cache_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
             except Exception:
@@ -74,7 +76,6 @@ class PhoneticCache:
         cache_key = self._get_cache_key(text, preserve_punctuation)
         cache_file = self.cache_dir / f"{cache_key}.json"
         try:
-            import json
             with open(cache_file, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception:

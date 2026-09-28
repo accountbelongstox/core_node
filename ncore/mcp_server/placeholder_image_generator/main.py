@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import asyncio
+import builtins
+import functools
 import json
 import os
 import sys
@@ -13,6 +15,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import tempfile
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
+
+# MCP stdio: stdout carries JSON-RPC only, every diagnostic line goes to stderr
+print = functools.partial(builtins.print, file=sys.stderr)
+IMAGE_SAVE_FORMATS = {
+    '.jpg': 'JPEG', '.jpeg': 'JPEG', '.png': 'PNG', '.bmp': 'BMP',
+    '.gif': 'GIF', '.tiff': 'TIFF', '.webp': 'WEBP'
+}
+LOSSY_SAVE_FORMATS = {'JPEG', 'WEBP'}
+from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 
 # Add MCP imports after package installation check
 mcp = None
@@ -42,7 +59,7 @@ class PackageManager:
         try:
             subprocess.check_call([
                 sys.executable, "-m", "pip", "install", package_name
-            ], timeout=300)  # 5 minute timeout to prevent hanging
+            ], stdout=sys.stderr, timeout=300)  # 5 minute timeout to prevent hanging
             return True
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             return False
@@ -107,8 +124,7 @@ class URLRateLimiter:
     def __init__(self):
         """Initialize rate limiter with cache directory"""
         # Use user's home directory for cache
-        self.user_dir = Path.home()
-        self.cache_dir = self.user_dir / ".core_node" / "placeholder_image_generator"
+        self.cache_dir = get_core_node_data_dir() / "placeholder_image_generator"
         self._ensure_cache_directory()
         print(f"[RATE_LIMITER] Cache directory: {self.cache_dir}")
 
@@ -188,8 +204,7 @@ class PlaceholderDatabase:
     """Manages JSON database for placeholder image records"""
 
     def __init__(self):
-        self.user_dir = Path.home()
-        self.db_dir = self.user_dir / ".core_node" / "mcp_server" / "placeholder_images"
+        self.db_dir = get_core_node_data_dir() / "mcp_server" / "placeholder_images"
         self.db_file = self.db_dir / "placeholder_records.json"
         self._ensure_db_directory()
         self._load_database()
@@ -256,7 +271,7 @@ class PlaceholderImageGenerator:
 
     BING_IMAGE_API = "https://bing.img.run/rand_1366x768.php"
     BING_FETCH_TIMEOUT = 10
-    UNSPLASH_ACCESS_KEY = "sUgzcLPI22a7oOMYMCrO4gVdO3jOyXzOplktg5BGOCs"
+    UNSPLASH_ACCESS_KEY_SECRET = "UNSPLASH_ACCESS_KEY"
     UNSPLASH_RANDOM_API = "https://api.unsplash.com/photos/random"
     UNSPLASH_SEARCH_API = "https://api.unsplash.com/search/photos"
     UNSPLASH_FETCH_TIMEOUT = 15
@@ -393,8 +408,13 @@ class PlaceholderImageGenerator:
         try:
             import requests
 
+            access_key = get_secret_key_indexed(self.UNSPLASH_ACCESS_KEY_SECRET)
+            if not access_key:
+                print(f"[WARNING] Unsplash key missing: {self.UNSPLASH_ACCESS_KEY_SECRET}_1; run dd.sh (Linux) or dd.cmd (Windows) to decrypt the shared secret store")
+                return None, None
+
             headers = {
-                "Authorization": f"Client-ID {self.UNSPLASH_ACCESS_KEY}"
+                "Authorization": f"Client-ID {access_key}"
             }
 
             if search_query:
@@ -851,7 +871,13 @@ class PlaceholderImageGenerator:
                 print(f"[INFO] Generating DEFAULT placeholder: {width}x{height}")
                 image = self._generate_default_placeholder(width, height, path_obj.name)
 
-            image.save(normalized_path, 'JPEG', quality=90)
+            save_format = IMAGE_SAVE_FORMATS.get(Path(normalized_path).suffix.lower(), 'JPEG')
+            if save_format == 'JPEG' and image.mode not in ('RGB', 'L'):
+                image = image.convert('RGB')
+            if save_format in LOSSY_SAVE_FORMATS:
+                image.save(normalized_path, save_format, quality=90)
+            else:
+                image.save(normalized_path, save_format)
 
             self.database.add_record(
                 normalized_path,

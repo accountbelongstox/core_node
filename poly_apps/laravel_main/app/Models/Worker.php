@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesMainConnection;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 
 class Worker extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesMainConnection;
 
     protected $table = 'workers';
 
@@ -23,23 +28,174 @@ class Worker extends Model
         'completed_tasks',
         'failed_tasks',
         'current_task_id',
+        // Phase 2 — capability tags advertised at registration for remote_fast routing.
+        'capabilities',
+        'mcp_chrome_last_attempt_at',
+        'last_marker',
     ];
 
-    protected $casts = [
-        'processor_types' => 'array',
-        'metadata' => 'array',
-        'last_heartbeat_at' => 'datetime',
-        'completed_tasks' => 'integer',
-        'failed_tasks' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'processor_types' => 'array',
+            'metadata' => 'array',
+            'capabilities' => 'array',
+            'last_heartbeat_at' => 'datetime',
+            'mcp_chrome_last_attempt_at' => 'datetime',
+            'completed_tasks' => 'integer',
+            'failed_tasks' => 'integer',
+        ];
+    }
 
     // Worker status constants
     const STATUS_ONLINE = 'online';
     const STATUS_OFFLINE = 'offline';
     const STATUS_BUSY = 'busy';
 
+    /**
+     * Capability tags this worker advertised (empty array when none / NULL in DB).
+     *
+     * @return array<int,string>
+     */
+    public function capabilityList(): array
+    {
+        return is_array($this->capabilities)
+            ? array_values(array_filter($this->capabilities, 'is_string'))
+            : [];
+    }
+
+    /**
+     * Whether this worker advertises a given capability tag.
+     */
+    public function hasCapability(string $capability): bool
+    {
+        return in_array($capability, $this->capabilityList(), true);
+    }
+
     // Heartbeat timeout (seconds)
     const HEARTBEAT_TIMEOUT = 120;
+
+    public static function tableExists(): bool
+    {
+        $model = new static();
+
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+    }
+
+    public static function presenceRows(int $limit): EloquentCollection
+    {
+        return self::query()
+            ->orderByDesc('last_heartbeat_at')
+            ->limit($limit)
+            ->get([
+                'worker_id',
+                'worker_name',
+                'processor_types',
+                'capabilities',
+                'status',
+                'last_heartbeat_at',
+                'hostname',
+            ]);
+    }
+
+    public static function purgeOfflineBefore($cutoff): int
+    {
+        return self::query()
+            ->where('status', self::STATUS_OFFLINE)
+            ->where(function ($query) use ($cutoff): void {
+                $query->where('last_heartbeat_at', '<', $cutoff)
+                    ->orWhere(function ($neverSeenQuery) use ($cutoff): void {
+                        $neverSeenQuery->whereNull('last_heartbeat_at')
+                            ->where('created_at', '<', $cutoff);
+                    });
+            })
+            ->delete();
+    }
+
+    public static function findByWorkerId(string $workerId): ?self
+    {
+        return self::query()->where('worker_id', $workerId)->first();
+    }
+
+    public static function lockByWorkerId(string $workerId): ?self
+    {
+        return self::query()->where('worker_id', $workerId)->lockForUpdate()->first();
+    }
+
+    public static function onlineWorkers(): EloquentCollection
+    {
+        return self::query()->online()->get();
+    }
+
+    public static function processorTypesFor(string $workerId): array
+    {
+        $worker = self::query()->where('worker_id', $workerId)->first(['processor_types']);
+
+        return $worker && is_array($worker->processor_types)
+            ? array_values(array_filter($worker->processor_types, 'is_string'))
+            : [];
+    }
+
+    public static function capabilitiesFor(string $workerId): array
+    {
+        $worker = self::query()->where('worker_id', $workerId)->first(['capabilities']);
+
+        return $worker?->capabilityList() ?? [];
+    }
+
+    public static function offlineCandidateIds($cutoff): array
+    {
+        return self::query()
+            ->where('last_heartbeat_at', '<', $cutoff)
+            ->whereNotNull('last_heartbeat_at')
+            ->where('status', '!=', self::STATUS_OFFLINE)
+            ->pluck('worker_id')
+            ->all();
+    }
+
+    public static function registerWorker(string $workerId, array $attributes): self
+    {
+        return self::query()->updateOrCreate(['worker_id' => $workerId], $attributes);
+    }
+
+    public static function orderedWorkers(): EloquentCollection
+    {
+        return self::query()->orderBy('status')->orderBy('worker_name')->get();
+    }
+
+    public static function statistics($aliveCutoff): array
+    {
+        $row = self::query()
+            ->selectRaw('count(*) as total')
+            ->selectRaw(
+                'sum(case when status = ? and last_heartbeat_at >= ? then 1 else 0 end) as online',
+                [self::STATUS_ONLINE, $aliveCutoff]
+            )
+            ->selectRaw(
+                'sum(case when status = ? and last_heartbeat_at >= ? then 1 else 0 end) as busy',
+                [self::STATUS_BUSY, $aliveCutoff]
+            )
+            ->selectRaw('coalesce(sum(completed_tasks), 0) as total_completed')
+            ->selectRaw('coalesce(sum(failed_tasks), 0) as total_failed')
+            ->first();
+        $total = (int) ($row->total ?? 0);
+        $online = (int) ($row->online ?? 0);
+        $busy = (int) ($row->busy ?? 0);
+
+        return [
+            'total' => $total,
+            'online' => $online,
+            'busy' => $busy,
+            'offline' => max(0, $total - $online - $busy),
+            'total_completed' => (int) ($row->total_completed ?? 0),
+            'total_failed' => (int) ($row->total_failed ?? 0),
+        ];
+    }
+
+    public static function initializationStats(): array
+    {
+        return self::statistics(now()->subSeconds(self::HEARTBEAT_TIMEOUT));
+    }
 
     /**
      * Mark worker as online
@@ -103,16 +259,28 @@ class Worker extends Model
     {
         $this->current_task_id = $taskId;
         $this->status = self::STATUS_BUSY;
+        $this->last_heartbeat_at = now();
         $this->save();
     }
 
     /**
      * Release current task
      */
-    public function releaseTask()
+    public function releaseTask(?string $taskId = null)
     {
-        $this->current_task_id = null;
-        $this->status = self::STATUS_ONLINE;
+        $nextTaskId = GlobalTask::query()
+            ->where('assigned_to', $this->worker_id)
+            ->whereIn('status', GlobalTask::statuses('live'))
+            ->when($taskId !== null, static function (Builder $query) use ($taskId): void {
+                $query->where('task_id', '!=', $taskId);
+            })
+            ->orderBy('assigned_at')
+            ->value('task_id');
+
+        $this->current_task_id = is_string($nextTaskId) ? $nextTaskId : null;
+        $this->status = $this->current_task_id === null
+            ? self::STATUS_ONLINE
+            : self::STATUS_BUSY;
         $this->save();
     }
 
@@ -137,17 +305,11 @@ class Worker extends Model
     /**
      * Scope: Get online workers
      */
-    public function scopeOnline($query)
+    #[Scope]
+    protected function online(Builder $query): Builder
     {
-        return $query->where('status', self::STATUS_ONLINE)
+        return $query->whereIn('status', [self::STATUS_ONLINE, self::STATUS_BUSY])
             ->where('last_heartbeat_at', '>=', now()->subSeconds(self::HEARTBEAT_TIMEOUT));
     }
 
-    /**
-     * Scope: Get workers that can process a specific execution type
-     */
-    public function scopeCanProcess($query, string $executionType)
-    {
-        return $query->whereJsonContains('processor_types', $executionType);
-    }
 }

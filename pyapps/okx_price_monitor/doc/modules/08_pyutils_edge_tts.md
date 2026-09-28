@@ -300,7 +300,7 @@ text = parser.extract_text("/path/to/document.pdf")
 ## Data Models
 
 ```python
-from pycore.pyutils.common.tts_models import (
+from pycore.pyfoundations.speech_models import (
     DocumentModel,
     SentenceModel,
     WordModel,
@@ -349,7 +349,7 @@ class ItemStatus(Enum):
 ## Queue Operations
 
 ```python
-from pycore.pyutils.common.tts_queue_ops import TTSQueueOps
+from pycore.pyfoundations.speech_queue_ops import TTSQueueOps
 
 queue = TTSQueueOps()
 

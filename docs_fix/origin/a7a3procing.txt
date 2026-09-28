@@ -1,0 +1,204 @@
+
+› docs_fix\origin\a7a3.txt 查看其中的BUG，特别是从5开始，之
+  后读前面的开发过程 docs_fix\origin\a7a2.txt
+  docs_fix\origin\a7a1.txt 以及开发进度文档(在docs fix/A7A*)
+  注意光看文档不一定能知道代码情况，需要本机运行命令实测，然
+  后修复，按规范。注意，如果发现问题就要底层重构，而不是小修
+  小补，不要弹出选择或询问窗口，而是全部按我要求自主决策。
+  注意，需要查询官方文档，同时找到原因就先写到文档 ./
+  docs_fix/A7A 规范命名中，并边找问题边追加，禁止全面分析完
+  再写文档，需要找到一点追加一点，同时确保找出所有问题了再根
+  据文档开始修改代码。注意要按项目规范。
+
+
+• 我会先读取 BUG 清单（重点是第 5 项及之后）、此前开发记录和
+  项目规范，再结合本机命令与官方文档逐项定位。每确认一个原因
+  就追加到 docs_fix/A7A* 问题文档，完成全部排查后再统一修改代
+  码。
+
+• Ran pwd; rg --files -g 'AGENTS.md' -g '*A7A*' -g 'a7a*.txt'
+  │ -g '*GUIDE*.md' docs_fix development-guides . 2>/dev/
+  │ null
+  └ development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md
+    development-guides/NODE_NCORE_GUIDE.md
+    … +58 lines (ctrl + t to view transcript)
+    ./poly_apps/matrixui/FRONTEND_API_CORRECTION_GUIDE.md
+    ./poly_apps/matrixui/FRONTEND_VIDEO_FIX_GUIDE.md
+
+• Ran cat AGENTS.md docs_fix/origin/a7a3.txt docs_fix/origin/
+  │ a7a2.txt docs_fix/origin/a7a1.txt docs_fix/
+  │ A7A3_RELAY_TRANSPORT_RECOVERY.md docs_fix/
+  │ … +2 lines
+  └ # Codex Global Instructions
+
+    … +345 lines (ctrl + t to view transcript)
+    no credentials or device control were available in this
+    session.
+
+• Ran cat development-guides/PYTHON_PYCORE.md
+  │ development-guides/LARAVEL_GUIDE.md development-guides/
+  └ config/pycore_relay_contract.json
+    scripts/shells/linux/debian/
+    … +72 lines (ctrl + t to view transcript)
+    pycore/pyctl/relay/__init__.py
+    pycore/pyctl/relay/laravel_relay_operation_processor.py
+
+• Ran cat poly_apps/pycore_laravel_wordnew_ui/apps/
+  │ pycore-manager/pages/vocabulary/VocabTranslateTab.tsx
+  │ pycore/pyctl/relay/laravel_relay_agent_service.py
+  └ /**
+     * Translate tab - source/target language,
+    … +847 lines (ctrl + t to view transcript)
+• Searched the web for https://mercure.rocks/docs/hub/config
+
+• Ran rg -n 'toArray|function vp'
+  │ poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager
+  │ /pages/vocabulary/vocabShared.tsx; rg -n
+  │ … +10 lines
+  └ poly_apps/laravel_main/app/Apps/AppQyV1/
+    AppQyV1ApiInfo.php:381:                "path" => "/api/
+    … +239 lines (ctrl + t to view transcript)
+    first.","code":"AUTH_REQUIRED","error":"Unauthenticated"}
+    HTTP 401 connect=0.079314 total=0.138029
+
+• Explored
+  └ Read vocabShared.tsx, RelayEnrollmentService.php,
+         event_handlers.py, laravel_relay_agent_service.py,
+         relay_identity.py
+
+⚠ Heads up, you have less than 10% of your 5h limit left.
+  Run /status for a breakdown.
+
+• Added docs_fix/A7A4_RUNTIME_REGISTRATION_RECOVERY.md (+17
+-0)
+     1 +# A7A4 Runtime registration recovery
+     2 +
+     3 +## Findings
+     4 +
+     5 +1. BUG 5: `vocabShared.toArray` casts the first truth
+        y wrapper field to an array without validating it. An
+         object-valued `languages` or `data` escapes the shar
+        ed boundary and crashes every consumer that calls `ma
+        p`. Fix the shared response contract, not the select
+        renderer.
+     6 +2. BUG 6: the device control loop cannot recover `enr
+        ollment_not_found` (404). A persisted pending enrollm
+        ent absent from the coordinator is polled indefinitel
+        y. Its recovery branch also rotates signing keys for
+        every 401/403, including transient signature errors,
+        which can destroy a valid enrollment relationship. Re
+        covery must distinguish missing enrollment, missing c
+        redential, revocation, and transport failure.
+     7 +3. Runtime evidence: the local FrankenPHP and UI serv
+        ices are running. An unauthenticated public roster re
+        quest returned `401 AUTH_REQUIRED` in 0.138 seconds.
+        This establishes reachability only; it does not estab
+        lish authenticated roster or operation health.
+     8 +
+     9 +## Official references
+    10 +
+    11 +- https://developer.mozilla.org/en-US/docs/Web/JavaSc
+        ript/Reference/Global_Objects/Array/isArray
+    12 +- https://mercure.rocks/docs/hub/config
+    13 +- https://frankenphp.dev/docs/worker/
+    14 +
+    15 +## Scope
+    16 +
+    17 +Record each finding before implementation. Inspect al
+        l seven reported bugs and earlier lifecycle requireme
+        nts. Runtime diagnostics are explicitly requested; do
+         not create, change, or run test suites, use Git, or
+        perform destructive operations.
+  │ poly_apps/laravel_main/app/Apps/Relay/RelayControllers/
+  │ RelayDeviceCtl.php
+  │ … +7 lines
+  └ {"success":true,"data":{"languages":
+    {"af":"Afrikaans","am":"Amharic","ar":"Arabic","as":"Assa
+    … +21 lines (ctrl + t to view transcript)
+    message":"Languages retrieved
+    successfully","code":200,"status":"success"}
+
+─────────────────────────────────────────────────────────────
+
+• 第 5 项已拿到线上响应：语言接口返回的是 {语言代码: 名称} 字
+  典，而共享转换函数把它强制当作数组，直接导致 languages.map
+  崩溃。注册链路还发现了错误分类问题：当前客户端遇到任何 403
+  都会轮换密钥；我正在继续核查自动认领入口和实际服务日志，避
+  免把空设备列表误判为单纯的网络故障。
+
+• Ran rg -n 'autoClaimPending' poly_apps/laravel_main; cat
+  │ poly_apps/laravel_main/app/Apps/Relay/RelayServices/
+  │ RelayDeviceService.php; cat poly_apps/laravel_main/app/
+  │ … +7 lines
+  └ <?php
+
+    … +353 lines (ctrl + t to view transcript)
+    22:06:18 Running [octane-timer-heartbeat] ..............
+    27s DONE
+
+• Ran cat poly_apps/laravel_main/config/relay.php config/
+  │ pycore_relay_contract.json; cat poly_apps/laravel_main/
+  │ app/Services/Relay/RelayDeviceIdentity.php; cat
+  │ … +4 lines
+  └ cat: poly_apps/laravel_main/config/relay.php: No such
+    file or directory
+    … +1232 lines (ctrl + t to view transcript)
+    export const laravelRelayRoster = new
+    LaravelRelayRoster();
+
+⚠ Heads up, you have less than 5% of your 5h limit left.
+  Run /status for a breakdown.
+
+• Ran rg -n 'Relay|relay' poly_apps/laravel_main/storage/
+  │ logs/laravel.log | tail -25; rg -n 'psql|DB_DATABASE|
+  │ database.*=>' poly_apps/laravel_main/config/
+  │ … +13 lines
+  └ 42:        'database' => $pgDatabase,
+    130:            'database' =>
+    … +71 lines (ctrl + t to view transcript)
+    rg              rg pycore_module_caller|callmodule_main|
+    frankenphp|vite
+
+• Ran rg -n 'RELAY_|CORE_NODE_MAIN|pgDatabase' poly_apps/
+  │ laravel_main/app/Providers/GlobalTablesMap.php
+  │ poly_apps/laravel_main/config/database.php; runuser -u
+  │ … +11 lines
+  └ postgres
+    core_node_main
+    … +73 lines (ctrl + t to view transcript)
+    499:  const responseBody = await
+    responseBytes(completed);
+
+• Ran runuser -u postgres -- psql -d core_node_main -Atc
+  │ "SELECT tablename FROM pg_tables WHERE
+  │ schemaname='public' AND (tablename LIKE '%relay%' OR
+  │ … +10 lines
+  └ (no output)
+
+• Ran runuser -u postgres -- psql -d core_node_main -c
+  │ "SELECT state,count(*),max(updated_at) FROM
+  │ global_relay_enrollments GROUP BY state; SELECT
+  │ device_id,owner_user_id,current_credential_version,last
+  │ … +16 lines
+  └               device_id               | owner_user_id |
+    current_credential_version |    last_seen_at     |
+    … +320 lines (ctrl + t to view transcript)
+    result = _probe_endpoint({"url": url, "timeout": timeout
+    or PROBE_TIMEOUT})
+
+■ You've hit your usage limit. Upgrade to Pro
+(https://chatgpt.com/explore/pro), visit
+https://chatgpt.com/codex/settings/usage to purchase more
+credits or try again at 9:43 AM.
+
+• Automatically switched to Luna Reserve medium due to usage
+limits.
+
+
+  You’re now using Luna, a faster model for simpler tasks.
+  Add credits or upgrade to continue using the most
+  advanced models, or wait for usage to reset after 09:43.
+
+› 1. Upgrade
+  2. Add Credits
+  3. Continue with Luna Reserve

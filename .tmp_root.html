@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="">
+    <title>Laravel API Debug Interface</title>
+    <link rel="stylesheet" href="/debug-assets/css/tailwind.min.css">
+    <link rel="stylesheet" href="/debug-assets/css/debug-interface.css">
+</head>
+<!--
+  Laravel built-in debug interface: only API Testing Dashboard and SSO Authentication remain.
+  All other management features and actual code are developed in poly_apps/pycore_laravel_wordnew_ui/.
+-->
+<body>
+    <div class="mobile-nav" id="mobile-nav">
+        <button class="mobile-nav-toggle" id="mobile-nav-toggle">☰</button>
+        <span class="mobile-nav-title" id="mobile-nav-title">API Debug Center</span>
+    </div>
+
+    <div class="mobile-overlay" id="mobile-overlay"></div>
+
+    <div class="layout">
+        <div class="sidebar" id="main-sidebar">
+            <div class="sidebar-header" id="sidebar-header">
+                <span class="sidebar-toggle-btn">☰</span>
+                <h1>API Debug Center</h1>
+            </div>
+            <ul class="menu-items">
+                <li class="menu-item">
+                    <a href="#" class="active" data-section="api-testing">
+                        <span class="menu-icon">🚀</span>
+                        <span class="menu-text">API Testing Dashboard</span>
+                        <span class="menu-tooltip">API Testing Dashboard</span>
+                    </a>
+                </li>
+                <li class="menu-item">
+                    <a href="#" data-section="sso">
+                        <span class="menu-icon">🔐</span>
+                        <span class="menu-text">SSO Authentication</span>
+                        <span class="menu-tooltip">Single Sign-On Authentication</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="main-content">
+            <div class="content-header">
+                <h2 id="page-title">API Testing Dashboard</h2>
+                <p id="page-description">Test and debug your Laravel API endpoints</p>
+            </div>
+
+            <div id="content-sections-container" class="content-sections-container">
+                <iframe id="section-iframe" class="section-iframe" src="/debug-assets/debug-tools/sections/api-testing-section.html" sandbox="allow-same-origin allow-scripts allow-forms allow-popups"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', '/csrf-token', false);
+                xhr.send(null);
+                if (xhr.status === 200) {
+                    const data = JSON.parse(xhr.responseText);
+                    let metaTag = document.querySelector('meta[name="csrf-token"]');
+                    if (metaTag) {
+                        metaTag.setAttribute('content', data.csrf_token);
+                    } else {
+                        metaTag = document.createElement('meta');
+                        metaTag.name = 'csrf-token';
+                        metaTag.setAttribute('content', data.csrf_token);
+                        document.head.appendChild(metaTag);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load CSRF token:', error);
+                let metaTag = document.querySelector('meta[name="csrf-token"]');
+                if (!metaTag) {
+                    metaTag = document.createElement('meta');
+                    metaTag.name = 'csrf-token';
+                    metaTag.setAttribute('content', '');
+                    document.head.appendChild(metaTag);
+                }
+            }
+        })();
+    </script>
+    <script src="/debug-assets/js/api-client.js"></script>
+    <script src="/debug-assets/js/debug-interface.js"></script>
+</body>
+</html>

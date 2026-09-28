@@ -1,37 +1,40 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Declare all variables at the beginning of the file
 $FILES = @(
+    'config/service_contract.json',
     'scripts/shells/win/dd.ps1',
     'scripts/shells/win/main_powershells/EnvironmentDetection.ps1',
     'scripts/shells/win/win_common/CommonFunc.ps1',
+    'scripts/shells/win/win_common/DiskReadinessCommon.ps1',
+    'scripts/shells/win/win_common/NssmServiceManager.ps1',
     'scripts/shells/win/win_common/StringEscapeUtils.ps1',
     'scripts/shells/win/win_common/registry_templates/all_files_context.reg',
     'scripts/shells/win/win_common/registry_templates/file_context.reg',
     'scripts/shells/win/win_common/registry_templates/folder_context.reg',
     'scripts/shells/win/win_common/registry_templates/new_document.reg',
     'scripts/shells/win/win_common/ApplicationsList.ps1',
+    'scripts/shells/win/win_common/AiRuntimePolicy.ps1',
     'scripts/shells/win/win_common/GlobalVars.ps1',
+    'scripts/shells/win/win_common/SharedCacheEnv.ps1',
     'scripts/shells/win/win_common/IconExtractor.ps1',
     'scripts/shells/win/win_common/SimpleIconExtractor.ps1',
     'scripts/shells/win/win_common/WindowsPathFunction.ps1',
     'scripts/shells/win/win_common/WindowsServiceManager.ps1',
+    'scripts/shells/win/win_common/FrankenPhpManager.ps1',
+    'scripts/shells/win/win_common/FrankenPhpCertificateManager.ps1',
+    'scripts/shells/win/win_common/ServiceContract.ps1',
+    'scripts/shells/win/win_common/WinswServiceManager.ps1',
     'scripts/shells/win/win_common/PackageManagerInvokes.ps1',
     'scripts/shells/win/win_common/PostInstallCallbackProcessor.ps1',
+    'scripts/shells/win/win_common/CudaIndex.ps1',
+    'scripts/shells/win/win_common/TorchCpuGuard.ps1',
+    'scripts/shells/win/win_common/PaddleCpuGuard.ps1',
+    'scripts/shells/win/win_common/PythonPrereqInstallCommon.ps1',
     'scripts/shells/win/win_common/DesktopIconManager.ps1',
     'scripts/shells/win/win_common/StartupManager.ps1',
     'scripts/shells/win/win_common/SecretDecryptionCheck.ps1',
-    'scripts/shells/win/install_powershells/InstallerScriptsList.ps1',
+    'scripts/shells/win/win_common/SecretEncryptionCheck.ps1',
+    'scripts/shells/win/win_common/InstallerScriptsList.ps1',
+    'scripts/shells/common/pi_harness_settings.js',
     'scripts/shells/win/install_powershells/Step1_InitializeBaseDirectories.ps1',
     'scripts/shells/win/install_powershells/Step2_SetBaseSettings.ps1',
     'scripts/shells/win/install_powershells/Step3_InitWinget.ps1',
@@ -39,31 +42,60 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step5_InstallGitSSH.ps1',
     'scripts/shells/win/install_powershells/Step6_InstallGit.ps1',
     'scripts/shells/win/install_powershells/Step7_FixCoreNodeProjectLocation.ps1',
-    'scripts/shells/win/install_powershells/Step9_InstallPython.ps1',
-    'scripts/shells/win/install_powershells/Step10_InstallScoopWithChinaMirror.ps1',
-    'scripts/shells/win/install_powershells/Step11_ExtendWindowsUpdate.ps1',
-    'scripts/shells/win/install_powershells/Step12_InstallPHP.ps1',
-    'scripts/shells/win/install_powershells/Step13_SetFileAssociations.ps1',
-    'scripts/shells/win/install_powershells/Step14_DV.ps1',
-    'scripts/shells/win/install_powershells/Step15_Install7ipBase.ps1',
-    'scripts/shells/win/install_powershells/Step16_InstallApplications.ps1',
-    'scripts/shells/win/install_powershells/Step30_InstallChrome.ps1',
-    'scripts/shells/win/install_powershells/Step31_InstallPuppeteerPlugins.ps1',
-    'scripts/shells/win/install_powershells/Step51_InstallApkTool.ps1',
-    'scripts/shells/win/install_powershells/Step60_InstallAndroidStudio.ps1',
-    'scripts/shells/win/install_powershells/Step61_InstallAndroidPlatformTools.ps1',
-    'scripts/shells/win/install_powershells/Step70_InstallFlutter.ps1',
-    'scripts/shells/win/install_powershells/Step84_InstallWSL.ps1',
-    'scripts/shells/win/install_powershells/Step85_InstallWSLUbuntu24.ps1',
-    'scripts/shells/win/install_powershells/Step86_SetRootLoginWSLUbuntuDebian.ps1',
-    'scripts/shells/win/install_powershells/Step87_InstallVisualStudio.ps1',
-    'scripts/shells/win/install_powershells/Step88_InstallQtBuildTools.ps1',
-    'scripts/shells/win/install_powershells/Step89_InstallQt.ps1',
-    'scripts/shells/win/install_powershells/Step94_InstallQtOfficial.ps1',
-    'scripts/shells/win/install_powershells/Step99_InstallDeepSeek.ps1',
-    'scripts/shells/win/install_powershells/Step100_InstallDeepSeekOCR.ps1',
-    'scripts/shells/win/install_powershells/Step101_InstallQwen25.ps1',
-    'scripts/shells/win/install_powershells/Step102_InstallNLLB200.ps1',
+    'scripts/shells/win/install_powershells/Step8_InstallDefaultPython.ps1',
+    'scripts/shells/win/install_powershells/Step9_InstallCudaNvidiaPrereq.ps1',
+    'scripts/shells/win/install_powershells/Step10_InstallPythonPrereqPackages.ps1',
+    'scripts/shells/win/install_powershells/Step11_InstallFasterWhisper.ps1',
+    'scripts/shells/win/install_powershells/Step12_InstallEdgeTts.ps1',
+    'scripts/shells/win/install_powershells/Step13_InstallPython310_312.ps1',
+    'scripts/shells/win/install_powershells/Step64_InstallPython312.ps1',
+    'scripts/shells/win/win_common/IsolatedPythonInstallCommon.ps1',
+    'scripts/shells/win/install_powershells/Step14_InstallScoopWithChinaMirror.ps1',
+    'scripts/shells/win/install_powershells/Step15_ExtendWindowsUpdate.ps1',
+    'scripts/shells/win/install_powershells/Step16_InstallPHP.ps1',
+    'scripts/shells/win/install_powershells/Step17_InstallPostgreSQL.ps1',
+    'scripts/shells/win/install_powershells/Step18_SetFileAssociations.ps1',
+    'scripts/shells/win/install_powershells/Step19_DV.ps1',
+    'scripts/shells/win/install_powershells/Step20_Install7ipBase.ps1',
+    'scripts/shells/win/install_powershells/Step21_InstallApplications.ps1',
+    'scripts/shells/win/install_powershells/Step22_InstallChrome.ps1',
+    'scripts/shells/win/install_powershells/Step23_InstallPuppeteerPlugins.ps1',
+    'scripts/shells/win/install_powershells/Step24_InstallSecurityTools.ps1',
+    'scripts/shells/win/install_powershells/Step25_InstallApkTool.ps1',
+    'scripts/shells/win/install_powershells/Step26_InstallAndroidStudio.ps1',
+    'scripts/shells/win/install_powershells/Step27_InstallAndroidPlatformTools.ps1',
+    'scripts/shells/win/install_powershells/Step28_InstallFlutter.ps1',
+    'scripts/shells/win/install_powershells/Step29_InstallWSL.ps1',
+    'scripts/shells/win/install_powershells/Step30_InstallWSLDebian13.ps1',
+    'scripts/shells/win/install_powershells/Step31_SetRootLoginWSLUbuntuDebian.ps1',
+    'scripts/shells/win/install_powershells/Step32_InstallVisualStudio.ps1',
+    'scripts/shells/win/install_powershells/Step33_InstallQtBuildTools.ps1',
+    'scripts/shells/win/install_powershells/Step34_InstallQt.ps1',
+    'scripts/shells/win/install_powershells/Step35_InstallQtOfficial.ps1',
+    'scripts/shells/win/install_powershells/Step36_InstallDeepSeek.ps1',
+    'scripts/shells/win/install_powershells/Step37_InstallDeepSeekOCR.ps1',
+    'scripts/shells/win/install_powershells/Step38_InstallQwen25.ps1',
+    'scripts/shells/win/install_powershells/Step39_InstallNLLB200.ps1',
+    'scripts/shells/win/install_powershells/Step40_InstallNSSM.ps1',
+    'scripts/shells/win/install_powershells/Step41_InstallPiHarness.ps1',
+    'scripts/shells/win/install_powershells/Step51_InstallChatTts.ps1',
+    'scripts/shells/win/install_powershells/Step52_InstallCosyVoice.ps1',
+    'scripts/shells/win/install_powershells/Step53_InstallF5Tts.ps1',
+    'scripts/shells/win/install_powershells/Step54_InstallGptsovits.ps1',
+    'scripts/shells/win/install_powershells/Step55_InstallMelotts.ps1',
+    'scripts/shells/win/install_powershells/Step56_InstallFishspeech.ps1',
+    'scripts/shells/win/install_powershells/Step57_InstallKokoro.ps1',
+    'scripts/shells/win/install_powershells/Step58_InstallVoxcpm2.ps1',
+    'scripts/shells/win/install_powershells/Step59_InstallBark.ps1',
+    'scripts/shells/win/install_powershells/Step60_InstallParler.ps1',
+    'scripts/shells/win/install_powershells/Step61_InstallQwen3Tts.ps1',
+    'scripts/shells/win/install_powershells/Step93_InstallFrankenPHP.ps1',
+    'scripts/shells/win/install_powershells/Step94_InstallComposer.ps1',
+    'scripts/shells/win/install_powershells/Step96_ConfigurePHP85.ps1',
+    'scripts/shells/win/install_powershells/Step175_LaravelMainStart.ps1',
+    'scripts/shells/win/main_powershells/PreparePycorePrerequisites.ps1',
+    'scripts/shells/win/main_powershells/PycorePrerequisitesList.ps1',
+    'scripts/shells/win/install_powershells/postinstall/WeChatInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/GoPostInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/JavaPostInstallProcessor.ps1',
     'scripts/shells/win/install_powershells/postinstall/NodePostInstallProcessor.ps1',
@@ -75,14 +107,15 @@ $FILES = @(
     'scripts/shells/win/menu_itemshells/InitializationManager.ps1',
     'scripts/shells/win/menu_itemshells/ScriptScanner.ps1',
     'scripts/shells/win/menu_itemshells/TestInstaller.ps1',
-    'scripts/shells/win/menu_itemshells/WSLUbuntuManager.ps1',
+    'scripts/shells/win/menu_itemshells/WSLDebianManager.ps1',
     'scripts/shells/win/tools/ScriptProcessor.ps1'
 )
 
 ## Dynamic configuration based on region to reduce complexity
 # Function to determine base URL based on region preference
 function Get-RepoBaseUrl {
-    $globalVarDir = "$env:USERPROFILE\.core_node\.global_vars"
+    $username = $env:USERNAME
+    $globalVarDir = Join-Path (Join-Path "D:\www" "core_node") "global_var"
     $regionFile = Join-Path $globalVarDir "SELECTED_REGION"
     
     $selectedRegion = "Global"  # Default to Global if no preference set
@@ -99,7 +132,7 @@ function Get-RepoBaseUrl {
 }
 
 $RepoBaseUrl = Get-RepoBaseUrl
-$LocalDataDir = "$env:USERPROFILE\.core_node"
+$LocalDataDir = Join-Path "D:\www" "core_node"
 
 # Common function for safe file downloads with atomic overwrite
 function Invoke-SafeDownload {
@@ -170,10 +203,6 @@ foreach ($rel in $FILES) {
 
 if ($failed.Count -gt 0) {
     Write-Host ("Completed with failures: {0}" -f ($failed -join ', ')) -ForegroundColor Yellow
-    exit 2
+} else {
+    Write-Host 'All files downloaded successfully.' -ForegroundColor Green
 }
-
-Write-Host 'All files downloaded successfully.' -ForegroundColor Green
-exit 0
-
-

@@ -36,7 +36,7 @@ D:\programing\core_node\pycore\
 │   ├── control/             # 控制协议 ✅ 已实现
 │   ├── group/               # 群控算法 ✅ 已实现
 │   └── api/                 # FastAPI 工具 ✅ 已实现
-└── pygvar/                  # 全局变量（已有）
+└── pygvar.py                # 全局变量（已有）
 ```
 
 ### 实现状态

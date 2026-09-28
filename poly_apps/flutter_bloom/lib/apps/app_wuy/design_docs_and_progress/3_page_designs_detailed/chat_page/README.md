@@ -1,4 +1,4 @@
-# 聊天页 (chat_page)
+# Chat Page (chat_page)
 
 This directory contains detailed design specifications for the chat_page page.
 

@@ -1,0 +1,245 @@
+#!/bin/bash
+# Include common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
+source "$COMMON_DIR/common_functions.sh"
+
+# Script identification and path setup
+SCRIPT_INDEX="65"
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+
+# Source global variables
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+
+# Declare variables
+INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "65_install_ruby")
+LOG_FILE="$SCRIPT_TEMP_DIR/ruby_install_$(date +%Y%m%d_%H%M%S).log"
+
+# Ruby installation directories using map_web_path
+RUBY_INSTALL_DIR=$(map_web_path "compile_dir" "applications/ruby")
+RUBY_GEM_HOME=$(map_web_path "compile_dir" "applications/ruby/gems")
+RUBY_GEM_BIN_DIR=$(map_web_path "compile_dir" "applications/ruby/gems/bin")
+
+# Logging function
+log_message() {
+    local message="$1"
+    echo "[$SCRIPT_INDEX][$(date '+%Y-%m-%d %H:%M:%S')] $message" | tee -a "$LOG_FILE"
+}
+
+log_message "Starting Ruby programming language installation..."
+log_message "Install mode: $INSTALL_MODE"
+
+# Function to check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Function to install Ruby via apt
+install_ruby_apt() {
+    log_message "Installing Ruby via apt..."
+    
+    if command_exists ruby; then
+        log_message "Ruby is already installed"
+        ruby --version | head -1 | tee -a "$LOG_FILE"
+        return 0
+    fi
+    
+    # Update package lists
+    log_message "Updating package lists with timeout..."
+    if timeout 300 $USE_SUDO apt update; then
+        log_message "Package lists updated successfully"
+    else
+        log_message "Warning: Package update timed out or failed, continuing anyway"
+    fi
+    
+    # Install Ruby and development dependencies
+    log_message "Installing Ruby and development dependencies..."
+    local ruby_packages=(
+        "ruby-full"
+        "ruby-dev"
+        "build-essential"
+        "zlib1g-dev"
+        "liblzma-dev"
+        "libssl-dev"
+        "libreadline-dev"
+        "libyaml-dev"
+        "libxml2-dev"
+        "libxslt1-dev"
+        "libcurl4-openssl-dev"
+        "libffi-dev"
+    )
+    
+    if timeout 600 $USE_SUDO apt install -y "${ruby_packages[@]}"; then
+        log_message "Successfully installed Ruby via apt"
+        
+        # Verify installation
+        if command_exists ruby; then
+            ruby --version | head -1 | tee -a "$LOG_FILE"
+            gem --version | head -1 | tee -a "$LOG_FILE"
+        fi
+        
+        return 0
+    else
+        log_message "Failed to install Ruby via apt"
+        return 1
+    fi
+}
+
+# Function to install rbenv (Ruby version manager)
+install_rbenv() {
+    log_message "Installing rbenv (Ruby version manager)..."
+    
+    if command_exists rbenv; then
+        log_message "rbenv is already installed"
+        return 0
+    fi
+    
+    # Clone rbenv repository
+    local user_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local rbenv_dir="$user_home/.rbenv"
+    if [ -d "$rbenv_dir" ]; then
+        log_message "rbenv directory already exists, updating..."
+        cd "$rbenv_dir" && git pull
+    else
+        log_message "Cloning rbenv repository..."
+        if git clone https://github.com/rbenv/rbenv.git "$rbenv_dir"; then
+            log_message "rbenv cloned successfully"
+        else
+            log_message "Failed to clone rbenv"
+            return 1
+        fi
+    fi
+    
+    # Clone ruby-build plugin
+    local ruby_build_dir="$rbenv_dir/plugins/ruby-build"
+    if [ -d "$ruby_build_dir" ]; then
+        log_message "ruby-build plugin already exists, updating..."
+        cd "$ruby_build_dir" && git pull
+    else
+        log_message "Cloning ruby-build plugin..."
+        if git clone https://github.com/rbenv/ruby-build.git "$ruby_build_dir"; then
+            log_message "ruby-build plugin cloned successfully"
+        else
+            log_message "Failed to clone ruby-build plugin"
+            return 1
+        fi
+    fi
+    
+    # Add rbenv to PATH
+    export PATH="$rbenv_dir/bin:$PATH"
+    
+    return 0
+}
+
+# Function to setup Ruby environment
+setup_ruby_environment() {
+    log_message "Setting up Ruby environment..."
+
+    # Create gem directories in COMPILE_DIR for consistency
+    log_message "Creating gem directories at: $RUBY_GEM_HOME"
+    mkdir -p "$RUBY_GEM_HOME" "$RUBY_GEM_BIN_DIR"
+
+    # Set environment for current session
+    export GEM_HOME="$RUBY_GEM_HOME"
+    export PATH="$RUBY_GEM_BIN_DIR:$PATH"
+
+    # Add gem paths to shell profiles
+    local user_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local shell_profiles=(
+        "$user_home/.bashrc"
+        "$user_home/.zshrc"
+        "$user_home/.profile"
+    )
+
+    local gem_config_lines=(
+        "export GEM_HOME=\"$RUBY_GEM_HOME\""
+        "export PATH=\"$RUBY_GEM_BIN_DIR:\$PATH\""
+    )
+
+    for profile in "${shell_profiles[@]}"; do
+        if [ -f "$profile" ]; then
+            local needs_update=false
+            for line in "${gem_config_lines[@]}"; do
+                if ! grep -q "GEM_HOME" "$profile" || ! grep -q "$RUBY_GEM_HOME" "$profile"; then
+                    needs_update=true
+                    break
+                fi
+            done
+
+            if [ "$needs_update" = true ]; then
+                log_message "Adding Ruby gem configuration to $profile"
+                echo "" >> "$profile"
+                echo "# Ruby gem configuration (using COMPILE_DIR)" >> "$profile"
+                for line in "${gem_config_lines[@]}"; do
+                    echo "$line" >> "$profile"
+                done
+            else
+                log_message "Ruby gem configuration already present in $profile"
+            fi
+        fi
+    done
+
+    # Install common Ruby gems
+    log_message "Installing common Ruby gems to $RUBY_GEM_HOME..."
+
+    local common_gems=(
+        "bundler"         # Dependency manager
+        "rake"            # Build tool
+        "rubocop"         # Code linter
+        "pry"             # Enhanced REPL
+    )
+
+    for gem_name in "${common_gems[@]}"; do
+        log_message "Installing gem: $gem_name"
+        if gem install "$gem_name"; then
+            log_message "Successfully installed $gem_name to $RUBY_GEM_BIN_DIR"
+        else
+            log_message "Failed to install $gem_name"
+        fi
+    done
+}
+
+# Main installation logic
+main() {
+    log_message "=========================================="
+    log_message "Starting Ruby Programming Language Installation"
+    log_message "Install Mode: $INSTALL_MODE"
+    log_message "Ruby Install Directory: $RUBY_INSTALL_DIR"
+    log_message "Gem Directory: $RUBY_GEM_HOME"
+    log_message "Gem Bin Directory: $RUBY_GEM_BIN_DIR"
+    log_message "=========================================="
+
+    # Install Ruby via apt
+    if install_ruby_apt; then
+        log_message "Ruby installation successful"
+
+        # Setup environment and common gems
+        setup_ruby_environment
+
+        # Optionally install rbenv for version management
+        log_message "Installing rbenv for Ruby version management..."
+        install_rbenv
+
+        log_message "=========================================="
+        log_message "Ruby Installation Complete"
+        log_message "Log file: $LOG_FILE"
+        log_message "Ruby Install Directory: $RUBY_INSTALL_DIR"
+        log_message "Gem Home: $RUBY_GEM_HOME"
+        log_message "Gem Bin: $RUBY_GEM_BIN_DIR"
+        log_message "=========================================="
+        log_message "Note: You may need to restart your shell to use Ruby gems"
+        log_message "To use gems immediately, run: export GEM_HOME=$RUBY_GEM_HOME && export PATH=$RUBY_GEM_BIN_DIR:\$PATH"
+    else
+        log_message "=========================================="
+        log_message "Ruby Installation Failed"
+        log_message "Log file: $LOG_FILE"
+        log_message "=========================================="
+        exit 1
+    fi
+}
+
+# Execute main function
+main "$@"

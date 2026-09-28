@@ -1,9 +1,0 @@
-poly_apps\matrix_ui_react\FRONTEND_BACKEND_ALIGNMENT.md 根据 这个完成 poly_apps\matrix_ui_react 其中需要 扩展的UI功能 ，注意直接与API联动，扩展出左菜单，顶部菜单，右菜单，样多和风格沿用现在的，对于无关元素你可以修改，使用多语言，不要在代码中硬编码非多语言，model中心化、API使用 现在的 Key 调用，全部使用websockt连接 。
-
-
-
- 干你M的、干你妈的狗B-AI，
- python .\scripts\pytools\directory_tree.py poly_apps\react_native\scripts\build_scripts
-Generating directory tree: D:\programing\core_node\poly_apps\react_native\scripts\build_scripts
-Directory tree saved to: D:\programing\core_node\poly_apps\react_native\scripts\build_scripts\build_scripts_tree.md
-这是给你的全局查看文件，考虑到所有文件全局重构解决错误。

@@ -1,18 +1,11 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # App Launcher Module
 # Provides app launching functions for unified manager
+LAUNCHER_MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LAUNCHER_ARROW_MENU="$LAUNCHER_MODULE_DIR/../../shells/linux/common/arrow_menu.sh"
+
+source "$LAUNCHER_ARROW_MENU"
 
 # Show service installation options for current app
 show_service_installation_options() {
@@ -22,45 +15,31 @@ show_service_installation_options() {
     local current_script="$4"
     local working_dir="$5"
     local command="$6"
+    local options=(
+        "Just run temporarily (development mode)"
+        "Install as system service"
+        "Install as system service + Laravel reverse proxy (with domain)"
+        "Back to main menu"
+    )
 
-    echo -e "\033[36m=== Installation Options ================\033[0m"
-    echo -e "\033[33m1)\033[0m Just run temporarily (development mode)"
-    echo -e "\033[33m2)\033[0m Install as system service"
-    echo -e "\033[33m3)\033[0m Install as system service + Laravel reverse proxy (with domain)"
-    echo -e "\033[33m4)\033[0m Back to main menu"
-    echo ""
-    echo -ne "\033[36mSelect installation option (1-4): \033[0m"
-
-    while true; do
-        read -n 1 -r option
-        echo ""
-
-        case "$option" in
-            "1")
+    arrow_menu_select "Installation Options" options 0 3
+    case "$ARROW_MENU_SELECTED_INDEX" in
+            0)
                 echo -e "\033[32mRunning temporarily in development mode...\033[0m"
                 run_app_temporarily "$app_name" "$app_path" "$current_script" "$working_dir" "$command"
-                return 0
                 ;;
-            "2")
+            1)
                 echo -e "\033[32mInstalling as system service...\033[0m"
                 install_as_system_service "$app_name" "$app_path" "$app_type" "$current_script"
-                return 0
                 ;;
-            "3")
+            2)
                 echo -e "\033[32mInstalling as system service with Laravel reverse proxy...\033[0m"
                 install_with_laravel_proxy "$app_name" "$app_path" "$app_type" "$current_script"
-                return 0
                 ;;
-            "4")
+            3)
                 echo -e "\033[33mReturning to main menu...\033[0m"
-                return 0
                 ;;
-            *)
-                echo -e "\033[31mInvalid option. Please select 1-4.\033[0m"
-                echo -ne "\033[36mSelect installation option (1-4): \033[0m"
-                ;;
-        esac
-    done
+    esac
 }
 
 # Run app temporarily without installing as service
@@ -162,7 +141,7 @@ install_as_system_service() {
 
     if [ $result -eq 0 ]; then
         echo ""
-        echo -e "\033[32mâœ?System service installation completed!\033[0m"
+        echo -e "\033[32mSystem service installation completed!\033[0m"
         echo -e "\033[36mService: ${current_script%Start}-$app_name.service\033[0m"
         echo -e "\033[36mPort: $port\033[0m"
         echo ""
@@ -175,7 +154,7 @@ install_as_system_service() {
         echo ""
         echo -e "\033[36mDirect access: http://localhost:$port\033[0m"
     else
-        echo -e "\033[31mâœ?System service installation failed\033[0m"
+        echo -e "\033[31mSystem service installation failed\033[0m"
     fi
 
     echo ""
@@ -232,7 +211,7 @@ install_with_laravel_proxy() {
 
     if [ $result -eq 0 ]; then
         echo ""
-        echo -e "\033[32mâœ?Laravel reverse proxy installation completed!\033[0m"
+        echo -e "\033[32mLaravel reverse proxy installation completed!\033[0m"
         echo -e "\033[36mService: ${current_script%Start}-$app_name.service\033[0m"
         echo -e "\033[36mDomain: http://$domain\033[0m"
         echo -e "\033[36mPort: $port\033[0m"
@@ -244,13 +223,13 @@ install_with_laravel_proxy() {
         echo -e "  Enable:  sudo systemctl enable ${current_script%Start}-$app_name"
         echo -e "  Logs:    sudo journalctl -u ${current_script%Start}-$app_name -f"
         echo ""
-        echo -e "\033[36mðŸŒ Domain Access: http://$domain\033[0m"
-        echo -e "\033[36mðŸ”— Direct Access: http://localhost:$port\033[0m"
+        echo -e "\033[36m Domain Access: http://$domain\033[0m"
+        echo -e "\033[36m Direct Access: http://localhost:$port\033[0m"
         echo ""
         echo -e "\033[33mAdd to your /etc/hosts file for local testing:\033[0m"
         echo -e "\033[90m127.0.0.1 $domain\033[0m"
     else
-        echo -e "\033[31mâœ?Laravel reverse proxy installation failed\033[0m"
+        echo -e "\033[31mLaravel reverse proxy installation failed\033[0m"
     fi
 
     echo ""
@@ -403,67 +382,67 @@ launch_current_app() {
             echo ""
             echo -e "\033[36m=== Project Files Detected ==============\033[0m"
             if [ -f "$app_path/package.json" ]; then
-                echo -e "\033[32mâœ?package.json found\033[0m"
+                echo -e "\033[32mpackage.json found\033[0m"
                 if grep -q '"react"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†?React dependency detected\033[0m"
+                    echo -e "  \033[90mReact dependency detected\033[0m"
                 fi
                 if grep -q '"vue"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†?Vue dependency detected\033[0m"
+                    echo -e "  \033[90mVue dependency detected\033[0m"
                 fi
                 if grep -q '"nuxt"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†?Nuxt dependency detected\033[0m"
+                    echo -e "  \033[90mNuxt dependency detected\033[0m"
                 fi
                 if grep -q '"react-native"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "  \033[90mâ†?React Native dependency detected\033[0m"
+                    echo -e "  \033[90mReact Native dependency detected\033[0m"
                 fi
 
                 echo -e "  \033[90mAvailable scripts:\033[0m"
                 if grep -q '"start"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€?start\033[0m"
+                    echo -e "    \033[90mstart\033[0m"
                 fi
                 if grep -q '"dev"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€?dev\033[0m"
+                    echo -e "    \033[90mdev\033[0m"
                 fi
                 if grep -q '"build"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€?build\033[0m"
+                    echo -e "    \033[90mbuild\033[0m"
                 fi
                 if grep -q '"serve"' "$app_path/package.json" 2>/dev/null; then
-                    echo -e "    \033[90mâ€?serve\033[0m"
+                    echo -e "    \033[90mserve\033[0m"
                 fi
             fi
 
             if [ -f "$app_path/vite.config.ts" ]; then
-                echo -e "\033[32mâœ?vite.config.ts found\033[0m"
+                echo -e "\033[32mvite.config.ts found\033[0m"
             elif [ -f "$app_path/vite.config.js" ]; then
-                echo -e "\033[32mâœ?vite.config.js found\033[0m"
+                echo -e "\033[32mvite.config.js found\033[0m"
             fi
 
             if [ -f "$app_path/tsconfig.json" ]; then
-                echo -e "\033[32mâœ?tsconfig.json found (TypeScript)\033[0m"
+                echo -e "\033[32mtsconfig.json found (TypeScript)\033[0m"
             fi
 
             if [ -f "$app_path/composer.json" ]; then
-                echo -e "\033[32mâœ?composer.json found (PHP/Laravel)\033[0m"
+                echo -e "\033[32mcomposer.json found (PHP/Laravel)\033[0m"
             fi
 
             if [ -f "$app_path/artisan" ]; then
-                echo -e "\033[32mâœ?artisan found (Laravel)\033[0m"
+                echo -e "\033[32martisan found (Laravel)\033[0m"
             fi
 
             if [ -f "$app_path/pubspec.yaml" ]; then
-                echo -e "\033[32mâœ?pubspec.yaml found (Flutter)\033[0m"
+                echo -e "\033[32mpubspec.yaml found (Flutter)\033[0m"
             fi
 
             if [ -f "$app_path/nuxt.config.ts" ]; then
-                echo -e "\033[32mâœ?nuxt.config.ts found\033[0m"
+                echo -e "\033[32mnuxt.config.ts found\033[0m"
             elif [ -f "$app_path/nuxt.config.js" ]; then
-                echo -e "\033[32mâœ?nuxt.config.js found\033[0m"
+                echo -e "\033[32mnuxt.config.js found\033[0m"
             fi
 
             if [ -d "$app_path/node_modules" ]; then
-                echo -e "\033[32mâœ?node_modules exists\033[0m"
+                echo -e "\033[32mnode_modules exists\033[0m"
             else
-                echo -e "\033[33mâš?node_modules missing (will install)\033[0m"
+                echo -e "\033[33mnode_modules missing (will install)\033[0m"
             fi
 
             echo -e "\033[36m========================================\033[0m"
@@ -480,22 +459,10 @@ launch_current_app() {
         local script_path="$app_path/scripts/$current_script"
 
         if [ -f "$script_path" ]; then
-            echo ""
-            echo -e "\033[36m=== Script Execution =====================\033[0m"
-            echo -e "\033[33mScript Path:\033[0m $script_path"
-            echo ""
-            echo -e "\033[33mScript Execution Options:\033[0m"
-            echo -e "\033[33m1)\033[0m Run script directly"
-            echo -e "\033[33m2)\033[0m Back to main menu"
-            echo ""
-            echo -ne "\033[36mSelect option (1-2): \033[0m"
-
-            while true; do
-                read -n 1 -r option
-                echo ""
-
-                case "$option" in
-                    "1")
+            local script_options=("Run script directly" "Back to main menu")
+            arrow_menu_select "Script Execution: $script_path" script_options 0 1
+            case "$ARROW_MENU_SELECTED_INDEX" in
+                    0)
                         echo -e "\033[32mExecuting script...\033[0m"
                         echo ""
 
@@ -506,18 +473,11 @@ launch_current_app() {
                         echo ""
                         echo -e "\033[36mScript finished. Press any key to return to menu...\033[0m"
                         read -n 1 -r
-                        return 0
                         ;;
-                    "2")
+                    1)
                         echo -e "\033[33mReturning to main menu...\033[0m"
-                        return 0
                         ;;
-                    *)
-                        echo -e "\033[31mInvalid option. Please select 1 or 2.\033[0m"
-                        echo -ne "\033[36mSelect option (1-2): \033[0m"
-                        ;;
-                esac
-            done
+            esac
         else
             echo -e "\033[31mScript not found: $script_path\033[0m"
             read -p "Press Enter to continue..."

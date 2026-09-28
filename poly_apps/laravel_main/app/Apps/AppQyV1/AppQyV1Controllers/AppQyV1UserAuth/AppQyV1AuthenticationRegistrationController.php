@@ -1,20 +1,8 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
@@ -24,12 +12,14 @@ use App\Models\InviteCode;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use App\Services\UnifiedAuthService;
+use App\Constants\AppKeys;
 use App\Services\AvatarService;
 use App\Http\Common\CommonAuthService;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 
-class AppQyV1AuthenticationRegistrationController extends BaseController
+class AppQyV1AuthenticationRegistrationController extends Controller
 {
     use ApiResponse;
 
@@ -56,11 +46,17 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             'username' => ['required', 'string', 'max:255'],
             // [Removed] Password 'min:6' validation removed - no minimum requirement
             'password' => ['required', 'string', 'max:255'],
+            // Optional learning-language selection (multi-select) and native
+            // language. Codes are revalidated against the supported-language
+            // catalog below; unknown codes are dropped rather than rejected.
+            'learning_languages' => ['sometimes', 'array'],
+            'learning_languages.*' => ['string', 'max:10'],
+            'native_language' => ['sometimes', 'string', 'max:10'],
         ]);
 
         if (CommonUserGen::checkUsernameIsExist($request->username)) {
             Log::info('[AppQyV1Registration] Username already exists', ['username' => $request->username]);
-            return $this->error('Username already exists', 400);
+            return $this->error(__('app_qy_v1.messages.username_already_exists'), 400);
         }
 
         $email = "";
@@ -101,14 +97,14 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         $roleName = 'user';
 
         if ($inviteCode) {
-            $invite = InviteCode::where('code', $inviteCode)->first();
+            $invite = InviteCode::findByCode($inviteCode);
 
             if (!$invite) {
                 Log::warning('[AppQyV1Registration] Invalid invite code', [
                     'code' => $inviteCode,
                     'username' => $request->username
                 ]);
-                return $this->error('Invalid invite code', 400);
+                return $this->error(__('app_qy_v1.messages.invalid_invite_code'), 400);
             }
 
             if (!$invite->canBeUsed()) {
@@ -120,7 +116,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
                     'max_uses' => $invite->max_uses,
                     'expires_at' => $invite->expires_at
                 ]);
-                return $this->error('Invite code is expired or already used', 400);
+                return $this->error(__('app_qy_v1.messages.invite_code_is_expired_or_already_used'), 400);
             }
 
             $roleLevel = $invite->getRoleLevel();
@@ -149,7 +145,11 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             ],
         ];
 
-        $unifiedResult = UnifiedAuthService::register($credentials, 'AppQyV1');
+        // AppKeys::APPQYV1 === 'appqyv1', the connection key defined in
+        // config/database.php. Passing the PascalCase literal 'AppQyV1' here
+        // caused "Database connection [AppQyV1] not configured." (the
+        // UnifiedAuthService 2nd arg is used as $userModel->setConnection()).
+        $unifiedResult = UnifiedAuthService::register($credentials, AppKeys::APPQYV1);
 
         if (!$unifiedResult['success']) {
             $errorMessage = $unifiedResult['error'];
@@ -161,10 +161,10 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             ]);
 
             if (strpos(strtolower($errorMessage), 'already exists') !== false) {
-                if (!empty($email) && User::where('email', $email)->exists()) {
-                    $errorMessage = 'Email already exists';
+                if (!empty($email) && User::emailExists($email)) {
+                    $errorMessage = __('app_qy_v1.messages.email_already_exists');
                 } else {
-                    $errorMessage = 'Username already exists';
+                    $errorMessage = __('app_qy_v1.messages.username_already_exists');
                 }
             }
 
@@ -172,7 +172,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         }
 
         $user = $unifiedResult['user'];
-        $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user);
+        $user = \App\Http\Common\CommonAvatarPublic::createAvatar($user, true);
         event(new \Illuminate\Auth\Events\Registered($user));
 
         if ($inviteCode && isset($invite)) {
@@ -187,7 +187,46 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             ]);
         }
 
-        AppQyV1WordGroupPublicController::ensureDefaultGroupIfNotExist($user->id, $user->username);
+        // Persist the chosen learning languages (multi-select) and native
+        // language. Each code is validated against the supported-language
+        // catalog (AppQyV1LanguageConfigService); unknown codes are dropped so a
+        // bad value never reaches storage. When none is supplied the downstream
+        // default of ['en'] is used (see below).
+        $supportedLanguages = AppQyV1LanguageConfigService::getTTSLanguages();
+
+        $selectedLearningLanguages = [];
+        if ($request->has('learning_languages') && is_array($request->learning_languages)) {
+            foreach ($request->learning_languages as $languageCodeInput) {
+                if (is_string($languageCodeInput) && isset($supportedLanguages[$languageCodeInput])) {
+                    if (!in_array($languageCodeInput, $selectedLearningLanguages, true)) {
+                        $selectedLearningLanguages[] = $languageCodeInput;
+                    }
+                }
+            }
+        }
+
+        $needsSave = false;
+        if (!empty($selectedLearningLanguages)) {
+            $user->learning_languages = $selectedLearningLanguages;
+            $needsSave = true;
+        }
+        if ($request->has('native_language') && is_string($request->native_language)) {
+            if (isset($supportedLanguages[$request->native_language])) {
+                $user->native_language = $request->native_language;
+                $needsSave = true;
+            }
+        }
+        if ($needsSave) {
+            $user->saveRecord();
+        }
+
+        $defaultGroupLanguages = !empty($selectedLearningLanguages)
+            ? $selectedLearningLanguages
+            : ['en'];
+        AppQyV1LanguageStudyGroupService::ensureLanguageGroupsExist(
+            (int) $user->id,
+            $defaultGroupLanguages
+        );
 
         $loginToken = $user->createToken('auth_token')->plainTextToken;
         $userTokenData = CommonAuthService::generateUserToken($user->id, 'AppQyV1');
@@ -244,6 +283,6 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             'role_name' => $roleName
         ]);
 
-        return $this->success($responseData, 'User registered successfully');
+        return $this->success($responseData, __('app_qy_v1.messages.user_registered_successfully'));
     }
 }

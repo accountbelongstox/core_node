@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const HtmlParse = require('#@ncore/utils/htmltool/libs/htmlparse.js');
 const logger = require('#@logger');
 const global_dir = require('#@global_dir');
@@ -103,7 +91,11 @@ class CrawlController {
   }
 
   async start(argv = process.argv.slice(2)) {
-    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs, screenshot, debug } = this.parseArguments(argv);
+    const parsedArgs = this.parseArguments(argv);
+    if (!parsedArgs) {
+      return;
+    }
+    const { targetUrl, depth, fetcherType, scopeType, autoConfirm, autoOpenFolder, disableJs, screenshot, debug } = parsedArgs;
     this.domainContext = new DomainContext(targetUrl);
     this.resourceProcessor = new UnifiedResourceProcessor(
       this.domainContext,
@@ -743,7 +735,8 @@ class CrawlController {
 
     if (argv.length <= index) {
       this.printUsage();
-      throw new Error('Missing URL argument');
+      logger.error('Missing URL argument');
+      return null;
     }
 
     const rawUrl = argv[index];
@@ -783,7 +776,8 @@ class CrawlController {
 
     if (!rawUrl || !this.isValidUrl(rawUrl)) {
       this.printUsage();
-      throw new Error(`Invalid URL: ${rawUrl}`);
+      logger.error(`Invalid URL: ${rawUrl}`);
+      return null;
     }
 
     return {
@@ -949,6 +943,18 @@ class CrawlController {
           url: url,
           linkText: '',
           error: lastError.message,
+          timestamp: new Date().toISOString(),
+          mode: this.fetcherType
+        });
+        continue;
+      }
+
+      if (this.fetcherType !== 'iframe' && !fetchResult) {
+        logger.error(`Fetcher returned no result for ${url}`);
+        this.failedUrls.push({
+          url: url,
+          linkText: '',
+          error: 'Fetcher returned no result',
           timestamp: new Date().toISOString(),
           mode: this.fetcherType
         });

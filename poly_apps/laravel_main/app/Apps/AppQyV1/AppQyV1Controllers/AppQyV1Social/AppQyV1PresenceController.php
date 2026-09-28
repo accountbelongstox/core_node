@@ -1,0 +1,99 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserPresenceModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
+
+/**
+ * Presence heartbeat + batch read (SOCIAL_FEATURE_SPECIFICATION.md §3/§4).
+ *
+ * Heartbeat upserts app_qy_v1_user_presence(last_seen_at=now, status). On an
+ * offline->online transition it emits friend.online to the user's friends.
+ * Read collapses a heartbeat older than 60s to offline.
+ */
+class AppQyV1PresenceController extends Controller
+{
+    use ApiResponse;
+
+    private const ALLOWED_STATUSES = ['online', 'away', 'studying', 'offline'];
+
+    /**
+     * POST /social/presence/heartbeat {status?}
+     */
+    public function heartbeat(Request $request)
+    {
+        $currentUser = $request->user();
+        $validator = null;
+        $status = null;
+        $result = [];
+        $friendIds = [];
+
+        if (!$currentUser) {
+            return $this->unauthorized();
+        }
+
+        $validator = Validator::make($request->all(), [
+            'status' => ['nullable', 'string', 'in:' . implode(',', self::ALLOWED_STATUSES)],
+        ]);
+        if ($validator->fails()) {
+            return $this->validationErrorWithParams($validator);
+        }
+
+        $status = $request->input('status');
+        $result = AppQyV1UserPresenceModel::heartbeat((int) $currentUser->id, $status);
+
+        // Offline -> online transition: notify friends (best-effort SSE). The
+        // symmetric offline push is driven by AppQyV1PresenceSweepTask, which
+        // detects the lapsed heartbeat and emits friend.offline to this same
+        // audience (AppQyV1UserPresenceModel::audienceFor).
+        if (!$result['previously_online'] && $result['status'] !== AppQyV1UserPresenceModel::STATUS_OFFLINE) {
+            $friendIds = AppQyV1UserPresenceModel::audienceFor((int) $currentUser->id);
+            foreach ($friendIds as $fid) {
+                AppQyV1SocialEventModel::emit($fid, 'friend.online', [
+                    'user_id' => (int) $currentUser->id,
+                    'status' => $result['status'],
+                ]);
+            }
+        }
+
+        return $this->success([
+            'status' => $result['status'],
+            'transitioned_online' => !$result['previously_online'] && $result['status'] !== AppQyV1UserPresenceModel::STATUS_OFFLINE,
+        ], 'Heartbeat recorded');
+    }
+
+    /**
+     * GET /social/presence?user_ids=a,b,c  -> { [user_id]: {status, last_seen_at} }
+     */
+    public function batch(Request $request)
+    {
+        $currentUser = $request->user();
+        $raw = '';
+        $ids = [];
+        $presence = [];
+
+        if (!$currentUser) {
+            return $this->unauthorized();
+        }
+
+        $raw = (string) $request->query('user_ids', '');
+        if ($raw !== '') {
+            foreach (explode(',', $raw) as $part) {
+                $part = trim($part);
+                if ($part !== '' && ctype_digit($part)) {
+                    $ids[(int) $part] = (int) $part;
+                }
+            }
+        }
+        $ids = array_values($ids);
+
+        $presence = AppQyV1UserPresenceModel::effectiveFor($ids);
+
+        return $this->success(['presence' => $presence]);
+    }
+}

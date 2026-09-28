@@ -1,21 +1,14 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Set UTF-8 encoding for proper Chinese character handling
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+$globalVarsPath = Join-Path $PSScriptRoot 'GlobalVars.ps1'
+$globalVarsLoaded = Get-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -ErrorAction SilentlyContinue
 
 # Import variable management functions and global variables
-. "$PSScriptRoot\GlobalVars.ps1"
+if ($null -eq $globalVarsLoaded -or -not [bool]$globalVarsLoaded.Value) {
+    . $globalVarsPath
+    Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
+}
 
 # Define WindowsPathFunction.ps1 path for centralized management
 $script:WindowsPathFunctionPath = Join-Path $PSScriptRoot "WindowsPathFunction.ps1"
@@ -137,8 +130,8 @@ function Wait-ForUninstallProcesses {
     
     Write-CategoryLog -Message "Checking for hanging uninstall processes..." -Category "UNINSTALL_WAIT" -Color "Yellow"
     
-    # Find all processes with "uninstall" in their name
-    $uninstallProcesses = Get-UninstallProcesses
+    # Find all processes with "uninstall" in their name (force array for single-object return)
+    $uninstallProcesses = @(Get-UninstallProcesses)
     
     # Ensure we have an array and safe count access
     if (-not $uninstallProcesses -or $uninstallProcesses.Count -eq 0) {
@@ -159,8 +152,8 @@ function Wait-ForUninstallProcesses {
         Start-Sleep -Seconds $checkInterval
         $waitTime += $checkInterval
         
-        # Check current uninstall processes
-        $currentProcesses = Get-UninstallProcesses
+        # Check current uninstall processes (force array for single-object return)
+        $currentProcesses = @(Get-UninstallProcesses)
         
         # Safe count access
         $currentCount = if ($currentProcesses) { $currentProcesses.Count } else { 0 }
@@ -176,7 +169,7 @@ function Wait-ForUninstallProcesses {
     # If we reach here, processes are still hanging
     Write-CategoryLog -Message "Timeout reached, attempting to kill hanging uninstall processes..." -Category "UNINSTALL_WAIT" -Color "Red"
     
-    $remainingProcesses = Get-UninstallProcesses
+    $remainingProcesses = @(Get-UninstallProcesses)
     
     foreach ($proc in $remainingProcesses) {
         try {
@@ -342,6 +335,25 @@ function Write-ColorMessage {
     }
     
     Write-Host -ForegroundColor $color "$prefix$Message"
+}
+
+function Wait-MenuContinue {
+    param(
+        [Parameter()]
+        [string]$Message = "Press Enter to continue"
+    )
+
+    Write-Host ""
+    Write-Host "$Message..." -ForegroundColor Yellow
+
+    Start-Sleep -Milliseconds 30
+    while ([Console]::KeyAvailable) {
+        [void][Console]::ReadKey($true)
+    }
+
+    do {
+        $key = [Console]::ReadKey($true)
+    } while ($key.Key -ne 'Enter')
 }
 
 # Function to prompt user with timeout
@@ -599,11 +611,13 @@ function Find-ExecutableByKeyword {
         "C:\Program Files",
         "C:\Program Files (x86)",
         "$env:USERPROFILE",
-        "$env:USERPROFILE\bin"
-    )
+        (Join-Path $env:USERPROFILE "bin")
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
     if ($IncludeSystemPaths) {
         $searchPaths += $systemPaths
     }
+    # Drop null/empty entries from AdditionalScanPaths and other sources
+    $searchPaths = @($searchPaths | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
     # Build search keywords array and remove duplicates
     $allKeywords = @($Keywords)
     if ($AdditionalKeywords -and $AdditionalKeywords.Count -gt 0) {
@@ -618,7 +632,10 @@ function Find-ExecutableByKeyword {
     
     # Search in specified paths first
     foreach ($searchPath in $searchPaths) {
-        if (Test-Path $searchPath) {
+        if ([string]::IsNullOrWhiteSpace([string]$searchPath)) {
+            continue
+        }
+        if (Test-Path -LiteralPath $searchPath) {
             # Add to searched paths list if not already present
             if ($searchPath -notin $searchedPaths) {
                 $searchedPaths += $searchPath
@@ -1036,7 +1053,7 @@ function Repair-WingetInstallation {
         else {
             # Standard copy for other applications
             # Use -ErrorAction SilentlyContinue to handle broken symlinks gracefully
-            Copy-Item -Path "$foundInstallDir\*" -Destination $ExpectedInstallDir -Recurse -Force -ErrorAction SilentlyContinue
+            Copy-Item -Path (Join-Path $foundInstallDir "*") -Destination $ExpectedInstallDir -Recurse -Force -ErrorAction SilentlyContinue
         }
         
         # Verify the copy was successful - search for executable in the copied directory
@@ -1233,8 +1250,15 @@ function Invoke-WingetCommand {
             $uninstallExitCode = $uninstallProcess.ExitCode
             $uninstallCompleted = $true
 
+            # 0x800401F5 / -2147221003 = Application not found (nothing installed to remove)
+            $uninstallNothingToDo = ($uninstallExitCode -eq 0) -or ($uninstallExitCode -eq -2147221003) -or ([uint32]$uninstallExitCode -eq [uint32]0x800401F5)
             if ($uninstallExitCode -eq 0) {
                 Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
+            }
+            elseif ($uninstallNothingToDo) {
+                Write-Host "       No existing installation of $Id to uninstall (exit code: $uninstallExitCode), skipping registry cleanup" -ForegroundColor Yellow
+                $uninstallCompleted = $true
+                $uninstallExitCode = 0
             }
             else {
                 Write-Host "       Failed to clean old installation of $Id (exit code: $uninstallExitCode), attempting precise registry cleanup..." -ForegroundColor Yellow
@@ -1585,11 +1609,11 @@ function Repair-InstallerPermissions {
         
         $tempLocations = @(
             "$env:TEMP",
-            "$env:LOCALAPPDATA\Temp",
+            (Join-Path $env:LOCALAPPDATA "Temp"),
             "C:\Windows\Temp",
             "C:\Windows\Installer",
-            "$env:LOCALAPPDATA\Microsoft\Windows\INetCache",
-            "$env:LOCALAPPDATA\Microsoft\Windows\WebCache"
+            (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\INetCache"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\WebCache")
         )
         
         foreach ($location in $tempLocations) {
@@ -1630,9 +1654,9 @@ function Repair-InstallerPermissions {
         Write-Host "       [REPAIR] Cleaning WinGet cache..." -ForegroundColor Cyan
         
         $wingetCachePaths = @(
-            "$env:LOCALAPPDATA\Temp\WinGet",
-            "$env:LOCALAPPDATA\Microsoft\WinGet\Packages",
-            "$env:LOCALAPPDATA\Microsoft\WinGet\Cache"
+            (Join-Path $env:LOCALAPPDATA "Temp\WinGet"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Cache")
         )
         
         foreach ($cachePath in $wingetCachePaths) {
@@ -1641,7 +1665,7 @@ function Repair-InstallerPermissions {
                     $cacheSize = (Get-ChildItem -Path $cachePath -Recurse -ErrorAction SilentlyContinue | 
                         Measure-Object -Property Length -Sum).Sum
                     
-                    Remove-Item -Path "$cachePath\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    Remove-Item -Path (Join-Path $cachePath "*") -Recurse -Force -ErrorAction SilentlyContinue
                     $repairResults.CacheCleared++
                     $repairResults.DiskSpaceFreed += $cacheSize
                     Write-Host "       [REPAIR] Cleared WinGet cache: $cachePath" -ForegroundColor Green
@@ -1826,10 +1850,10 @@ function Reset-WinGetEnvironment {
         Write-Host "       [RESET] Clearing WinGet cache..." -ForegroundColor Cyan
         
         $wingetCachePaths = @(
-            "$env:LOCALAPPDATA\Microsoft\WinGet",
-            "$env:LOCALAPPDATA\Temp\WinGet",
-            "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache",
-            "$env:TEMP\winget*"
+            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet"),
+            (Join-Path $env:LOCALAPPDATA "Temp\WinGet"),
+            (Join-Path $env:LOCALAPPDATA "Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache"),
+            (Join-Path $env:TEMP "winget*")
         )
         
         foreach ($cachePath in $wingetCachePaths) {
@@ -2217,67 +2241,6 @@ function Ensure-GlobalVarsEncoding {
         }
     }
 }
-
-# Function to read a global variable value
-function Get-GlobalVar {
-    param (
-        [string]$key
-    )
-    
-    # Ensure directory exists
-    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
-    }
-    
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    if (Test-Path $filePath) {
-        # Read file with UTF-8 encoding without BOM
-        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
-        # Remove any null bytes and return
-        return $content -replace "`0", ""
-    }
-    return $null
-}
-
-# Function to write a global variable value
-function Set-GlobalVar {
-    param (
-        [string]$key,
-        [string]$value
-    )
-    
-    # Ensure directory exists
-    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
-    }
-    
-    $filePath = Join-Path $Global:GLOBAL_VAR_DIR $key
-    # Create UTF-8 encoding without BOM
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    # Remove any null bytes from the value
-    $cleanValue = $value -replace "`0", ""
-    # Write content with UTF-8 encoding without BOM
-    [System.IO.File]::WriteAllText($filePath, $cleanValue, $utf8NoBom)
-}
-
-# Function to list all global variables
-function Get-AllGlobalVars {
-    # Ensure directory exists
-    if (-not (Test-Path $Global:GLOBAL_VAR_DIR)) {
-        New-Item -ItemType Directory -Path $Global:GLOBAL_VAR_DIR -Force | Out-Null
-    }
-    
-    $vars = @{}
-    Get-ChildItem $Global:GLOBAL_VAR_DIR | ForEach-Object {
-        $vars[$_.Name] = Get-Content $_.FullName -Raw
-    }
-    return $vars
-}
-
-# Set-WindowsPathByJS function has been deprecated and removed
-# Use WindowsPathFunction.ps1 instead for environment variable management
-
-
 
 function Add-FileContextMenu {
     param(

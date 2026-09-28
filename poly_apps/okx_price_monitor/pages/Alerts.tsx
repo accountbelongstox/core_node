@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RPCClient } from '../services/rpc';
+import { HttpClient } from '../services/http';
 import { Alert, PageRoute } from '../types';
 import { Bell, AlertTriangle, CheckCircle, Clock, Trash2, Settings } from 'lucide-react';
 
@@ -13,7 +13,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ onNavigate }) => {
 
   const fetchAlerts = async () => {
     try {
-      const data = await RPCClient.getAlerts();
+      const data = await HttpClient.getAlerts();
       // Sort alerts by timestamp descending
       setAlerts(data.alerts.sort((a, b) => b.timestamp - a.timestamp));
     } catch (err) {

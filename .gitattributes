@@ -1,2 +1,11 @@
 *.exe filter=lfs diff=lfs merge=lfs -text
 *.zip filter=lfs diff=lfs merge=lfs -text
+
+# Shell scripts must always be LF — CRLF breaks them under Linux/WSL bash
+# ($'\r': command not found / syntax error near $'{\r'). Windows-only scripts
+# stay CRLF.
+*.sh text eol=lf
+*.bash text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

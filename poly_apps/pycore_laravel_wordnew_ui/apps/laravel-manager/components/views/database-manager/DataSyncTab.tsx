@@ -1,0 +1,776 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
+import { ArrowRightLeft, LogIn, LogOut, Pause, Play, Radar, RefreshCw, Server, ShieldCheck, XCircle } from 'lucide-react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
+import { dataSyncModel } from '@/apps/laravel-manager/models';
+import {
+  DATA_SYNC_MAX_MANAGED_ENDPOINTS,
+  DATA_SYNC_PEER_UNREACHABLE_ERROR,
+  DATA_SYNC_PROTOCOL_MISMATCH_ERROR,
+  DATA_SYNC_SAME_NODE_ERROR,
+  type DataSyncDirectionProbe,
+  type DataSyncManagedEndpoint,
+  type ManagedDataSyncSession,
+} from '@/apps/laravel-manager/models/DataSyncModel';
+import { DataSyncApiError, type DataSyncSessionSnapshot } from '@/apps/laravel-manager/api';
+import { formatBytes } from '@/core/utils/formatBytes';
+import { commonClasses } from '@/shared/styles/theme';
+import { AlertBox, EmptyState, Field, StatusBadge } from '../../common';
+import LoginModal from '../../../auth/LmLoginModal';
+
+const POLL_INTERVAL_MS = 2000;
+const HISTORY_LIMIT = 6;
+const ACTIVE_STATUSES = ['queued', 'running', 'paused'];
+const DRIVER_ROLES = ['source', 'fetcher'];
+const WRITER_ROLES = ['receiver', 'fetcher'];
+
+type Translate = TFunction;
+
+function statusTone(status: string): 'success' | 'error' | 'warning' | 'info' {
+  if (status === 'completed') return 'success';
+  if (status === 'failed') return 'error';
+  if (status === 'paused' || status === 'cancelled') return 'warning';
+  return 'info';
+}
+
+/** Counterpart role for a sync pair: source↔receiver (push), fetcher↔exporter (pull). */
+function counterpartRoleOf(session: ManagedDataSyncSession): string {
+  if (session.counterpart?.session?.role) return session.counterpart.session.role;
+  switch (session.role) {
+    case 'source': return 'receiver';
+    case 'fetcher': return 'exporter';
+    case 'receiver': return 'source';
+    default: return 'fetcher';
+  }
+}
+
+interface EndpointStatusPanelProps {
+  title: string;
+  endpoint: string;
+  session: DataSyncSessionSnapshot | null;
+  reachable?: boolean;
+  error?: string;
+  t: Translate;
+}
+
+const EndpointStatusPanel: React.FC<EndpointStatusPanelProps> = ({
+  title,
+  endpoint,
+  session,
+  reachable,
+  error,
+  t,
+}) => (
+  <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-3 min-w-0">
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</div>
+        <div className="text-xs font-mono break-all text-slate-700 dark:text-slate-300">{endpoint}</div>
+        {session && <div className="text-[10px] font-mono text-slate-400 break-all">{session.id}</div>}
+      </div>
+      {session && (
+        <StatusBadge status={t(`dbSync.status.${session.status}`)} tone={statusTone(session.status)} />
+      )}
+    </div>
+    {!session ? (
+      <AlertBox variant={reachable === false ? 'warning' : 'info'} icon={false}>
+        {error || t(reachable === false ? 'dbSync.counterpartOffline' : 'dbSync.counterpartPending')}
+      </AlertBox>
+    ) : (
+      <>
+        <div>
+          <div className="flex justify-between text-xs text-slate-500 mb-1">
+            <span>{t('dbSync.progress')}</span><span>{session.progress}%</span>
+          </div>
+          <div className="h-2 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden">
+            <div className="h-full bg-indigo-600 transition-all" style={{ width: `${session.progress}%` }} />
+          </div>
+        </div>
+        {session.error && <AlertBox variant="error">{session.error}</AlertBox>}
+        <div className="space-y-1.5 max-h-[32rem] overflow-y-auto pr-1">
+          {session.steps.map((step) => (
+            <div key={step.key} className="flex items-start gap-2 rounded border border-slate-200 dark:border-slate-700 p-2">
+              <span className="w-6 h-6 flex-shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] text-slate-500">{step.index}</span>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium text-slate-700 dark:text-slate-300">{t(`dbSync.steps.${step.key}`)}</div>
+                {step.detail && <div className="text-[10px] text-slate-500 break-all mt-0.5">{step.detail}</div>}
+              </div>
+              <StatusBadge
+                status={t(`dbSync.stepStatus.${step.status}`)}
+                tone={step.status === 'completed' ? 'success' : step.status === 'failed' ? 'error' : step.status === 'running' ? 'info' : 'idle'}
+                withDot={false}
+              />
+            </div>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+);
+
+const SyncResultsPanel: React.FC<{ session: ManagedDataSyncSession; t: Translate }> = ({ session, t }) => {
+  const database = session.context?.database_results;
+  const resource = session.context?.resource_results;
+  const skipped = [
+    ...(database?.skipped ?? []).map((item) => `${item.table}: ${item.reason}`),
+    ...(resource?.skipped ?? []),
+  ];
+  if (!database && !resource) return null;
+
+  return (
+    <div className="rounded border border-slate-200 dark:border-slate-700 p-3 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+      <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('dbSync.results.title')}</div>
+      {database && <div>{t('dbSync.results.rows', { ...database, conflicts: database.conflicts ?? 0 })}</div>}
+      {database && <div>{t('dbSync.results.tables', { tables: database.tables ?? 0, skipped: database.skipped_count ?? 0 })}</div>}
+      {database?.incomplete && database.incomplete.length > 0 && (
+        <div>{t('dbSync.results.incomplete', { count: database.incomplete.length })}</div>
+      )}
+      {resource && (
+        <div>{t('dbSync.results.files', {
+          transferred: resource.transferred_files,
+          present: resource.already_present,
+          skipped: resource.skipped_count,
+          planned: resource.planned_files,
+        })}</div>
+      )}
+      {resource && (
+        <div>{t('dbSync.results.bytes', {
+          transferred: formatBytes(resource.transferred_bytes),
+          planned: formatBytes(resource.planned_bytes),
+        })}</div>
+      )}
+      {skipped.length > 0 && (
+        <details>
+          <summary className="cursor-pointer">{t('dbSync.results.skippedTitle')} ({skipped.length})</summary>
+          <div className="mt-1 max-h-48 overflow-y-auto font-mono text-[10px] break-all space-y-0.5">
+            {skipped.map((item) => <div key={item}>{item}</div>)}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+};
+
+export const DataSyncTab: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const [endpoints, setEndpoints] = useState<DataSyncManagedEndpoint[]>(() => dataSyncModel.endpoints());
+  const [oldEndpointId, setOldEndpointId] = useState(() => dataSyncModel.endpoints().find((endpoint) => endpoint.current)?.id ?? '');
+  const [newServerInput, setNewServerInput] = useState('');
+  const [databases, setDatabases] = useState(true);
+  const [resources, setResources] = useState(true);
+  const [compression, setCompression] = useState(false);
+  const [sessions, setSessions] = useState<ManagedDataSyncSession[]>([]);
+  const [machineCodes, setMachineCodes] = useState<Record<string, string>>({});
+  const [selectedKey, setSelectedKey] = useState('');
+  const [pendingTarget, setPendingTarget] = useState('');
+  const [busy, setBusy] = useState(false);
+  // The workspace poll owns nodeError; actionError stays until the next user action.
+  const [nodeError, setNodeError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [probe, setProbe] = useState<DataSyncDirectionProbe | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [probeError, setProbeError] = useState<string | null>(null);
+  const [authEndpoint, setAuthEndpoint] = useState<DataSyncManagedEndpoint | null>(null);
+  const [dismissedAuthIds, setDismissedAuthIds] = useState<string[]>([]);
+  const [peerAuthVersion, setPeerAuthVersion] = useState(0);
+
+  const managedEndpoints = useMemo(() => endpoints.filter((endpoint) => endpoint.managed), [endpoints]);
+  const managedCount = managedEndpoints.length;
+  const oldEndpoint = useMemo(
+    () => endpoints.find((endpoint) => endpoint.id === oldEndpointId) ?? null,
+    [endpoints, oldEndpointId],
+  );
+  const newServerNode = useMemo(
+    () => (newServerInput.trim() === '' ? null : dataSyncModel.resolveNewServer(newServerInput)),
+    [newServerInput, peerAuthVersion],
+  );
+  // The pair must span two machines: probing or syncing a node onto itself is
+  // rejected. Compared by machine code — IPs cannot tell machines apart
+  // behind loopback port-forwards or LAN addresses.
+  const sameNodeSelected = Boolean(oldEndpoint && newServerNode && dataSyncModel.sameNode(oldEndpoint, newServerNode, machineCodes));
+  // The session view follows the selected pair (old server dropdown + new
+  // server input), never window.location: only sessions owned by those two
+  // endpoints are listed or auto-selected.
+  const pairSessions = useMemo(() => {
+    const pairIds = new Set([oldEndpointId, newServerNode?.id ?? '']);
+    return sessions.filter((session) => pairIds.has(session.manager_endpoint.id));
+  }, [sessions, oldEndpointId, newServerNode]);
+  // Last-seen snapshot per session key: a slow or temporarily failing endpoint
+  // poll must not flip the detail panel to another session.
+  const lastSeenRef = useRef(new Map<string, ManagedDataSyncSession>());
+  useEffect(() => {
+    sessions.forEach((session) => lastSeenRef.current.set(session.manager_key, session));
+  }, [sessions]);
+  // A selection outside the current pair is released so the panel re-anchors
+  // to the selected endpoints.
+  useEffect(() => {
+    if (selectedKey === '') return;
+    const owner = lastSeenRef.current.get(selectedKey)?.manager_endpoint.id;
+    if (owner && owner !== oldEndpointId && owner !== (newServerNode?.id ?? '')) {
+      setSelectedKey('');
+    }
+  }, [selectedKey, oldEndpointId, newServerNode]);
+  const activePairSessions = useMemo(
+    () => pairSessions.filter((session) => ACTIVE_STATUSES.includes(session.status)),
+    [pairSessions],
+  );
+  // The session that was running most recently in this page view: it keeps
+  // its final state visible after finishing. Sessions that were already dead
+  // when the page loaded are never recorded here.
+  const lastActiveKeyRef = useRef('');
+  useEffect(() => {
+    const current = activePairSessions.find((session) => session.manager_endpoint.id === oldEndpointId)
+      ?? activePairSessions[0];
+    if (current) lastActiveKeyRef.current = current.manager_key;
+  }, [activePairSessions, oldEndpointId]);
+  const selected = useMemo(
+    () => sessions.find((session) => session.manager_key === selectedKey)
+      ?? (selectedKey !== '' ? lastSeenRef.current.get(selectedKey) : undefined)
+      // The backend that owns a session is authoritative: prefer the active
+      // session on the selected OLD server, then the new server, then the
+      // session that was running most recently in this page view (so a
+      // finished run keeps its final state visible). Dead relics from before
+      // this page view are never auto-shown.
+      ?? activePairSessions.find((session) => session.manager_endpoint.id === oldEndpointId)
+      ?? activePairSessions.find((session) => session.manager_endpoint.id === (newServerNode?.id ?? ''))
+      ?? (lastActiveKeyRef.current !== ''
+        ? (sessions.find((session) => session.manager_key === lastActiveKeyRef.current)
+          ?? lastSeenRef.current.get(lastActiveKeyRef.current))
+        : undefined)
+      // Otherwise the newest session of the pair, so a finished run keeps
+      // its final result visible after a reload.
+      ?? pairSessions[0]
+      ?? null,
+    [sessions, pairSessions, activePairSessions, selectedKey, oldEndpointId, newServerNode],
+  );
+  const writerActiveOn = useCallback(
+    (endpointId: string) => sessions.find((session) => session.manager_endpoint.id === endpointId
+      && WRITER_ROLES.includes(session.role)
+      && ACTIVE_STATUSES.includes(session.status)) ?? null,
+    [sessions],
+  );
+  const receiverActive = useMemo(() => writerActiveOn(oldEndpointId), [writerActiveOn, oldEndpointId]);
+  const newServerWriterActive = useMemo(
+    () => (newServerNode ? writerActiveOn(newServerNode.id) : null),
+    [writerActiveOn, newServerNode],
+  );
+  const manifestDraftActive = useMemo(
+    () => sessions.find((session) => session.manager_endpoint.id === oldEndpointId && session.role === 'source' && !session.target && !session.target_input && ACTIVE_STATUSES.includes(session.status)) ?? null,
+    [sessions, oldEndpointId],
+  );
+  const selectedDriver = useMemo(
+    () => selected && DRIVER_ROLES.includes(selected.role) && ACTIVE_STATUSES.includes(selected.status) ? selected : null,
+    [selected],
+  );
+  const selectedActive = useMemo(
+    () => selected && ACTIVE_STATUSES.includes(selected.status) ? selected : null,
+    [selected],
+  );
+  const displayedSessions = useMemo(() => {
+    const linkedPassive = new Set(pairSessions
+      .filter((session) => DRIVER_ROLES.includes(session.role) && session.counterpart?.session_id)
+      .map((session) => `${session.counterpart?.endpoint}:${session.counterpart?.session_id}`));
+
+    // Single-active-session contract: at most one live session per node,
+    // followed by the few finished sessions each backend retains.
+    return pairSessions.filter((session) => DRIVER_ROLES.includes(session.role)
+      || !linkedPassive.has(`${session.manager_endpoint.syncTarget}:${session.id}`))
+      .sort((left, right) => Number(ACTIVE_STATUSES.includes(right.status)) - Number(ACTIVE_STATUSES.includes(left.status)))
+      .slice(0, HISTORY_LIMIT);
+  }, [pairSessions]);
+
+  useEffect(() => {
+    setPendingTarget(selected?.context?.awaiting_target ? selected.target_input ?? '' : '');
+  }, [selected?.id, selected?.context?.awaiting_target, selected?.target_input]);
+
+  useEffect(() => {
+    // The old server may be any known node, managed or not.
+    if (endpoints.some((endpoint) => endpoint.id === oldEndpointId)) return;
+    setOldEndpointId(endpoints.find((endpoint) => endpoint.current)?.id ?? endpoints[0]?.id ?? '');
+  }, [endpoints, oldEndpointId]);
+
+  // A changed pair invalidates the negotiated direction.
+  useEffect(() => {
+    setProbe(null);
+    setProbeError(null);
+  }, [newServerInput, oldEndpointId]);
+
+  const pairIdsRef = useRef<[string, string]>(['', '']);
+  useEffect(() => {
+    pairIdsRef.current = [oldEndpointId, newServerNode?.id ?? ''];
+  }, [oldEndpointId, newServerNode]);
+
+  // Poll ordering: a poll applies only when it started after the last applied
+  // poll and after the last local session update (a just-cancelled session
+  // must not flip back to running from a poll that was already in flight).
+  const pollStartedRef = useRef(0);
+  const pollAppliedRef = useRef(0);
+  const localUpdateFloorRef = useRef(0);
+
+  const loadWorkspace = useCallback(async () => {
+    const seq = ++pollStartedRef.current;
+    const workspace = await dataSyncModel.workspace();
+    if (seq <= pollAppliedRef.current || seq <= localUpdateFloorRef.current) return;
+    pollAppliedRef.current = seq;
+    setEndpoints(workspace.endpoints);
+    setSessions(workspace.sessions);
+    setMachineCodes(workspace.machineCodes);
+    setSelectedKey((current) => {
+      const [oldId, newId] = pairIdsRef.current;
+      const pool = workspace.sessions.filter((session) =>
+        session.manager_endpoint.id === oldId || session.manager_endpoint.id === newId);
+      const active = pool.find((session) => session.manager_endpoint.id === oldId && ACTIVE_STATUSES.includes(session.status))
+        ?? pool.find((session) => session.manager_endpoint.id === newId && ACTIVE_STATUSES.includes(session.status));
+      if (current) {
+        const selectedSession = workspace.sessions.find((session) => session.manager_key === current);
+        // A live selection sticks, and so does a run that was live in this
+        // page view (its final state stays visible after finishing).
+        if (selectedSession && ACTIVE_STATUSES.includes(selectedSession.status)) return current;
+        if (current === lastActiveKeyRef.current) return current;
+        // A finished selection yields to a fresh run; a dead relic from
+        // before this page view is released so the panel clears.
+        return active?.manager_key ?? '';
+      }
+      return active?.manager_key ?? '';
+    });
+    setNodeError(workspace.errors.length > 0
+      ? `${t('dbSync.errors.nodes')}: ${workspace.errors.map((item) => {
+        const reason = item.message === DATA_SYNC_PROTOCOL_MISMATCH_ERROR
+          ? t('dbSync.errors.protocol')
+          : item.message || t('dbSync.errors.load');
+        return `${item.endpointId} (${reason})`;
+      }).join(', ')}`
+      : null);
+
+    // A remote node answering 401 owns a separate login state: offer the
+    // endpoint-scoped peer login instead of the shared login modal.
+    const unauthorized = workspace.errors.find((item) => item.status === 401
+      && item.endpointId !== workspace.endpoints.find((endpoint) => endpoint.current)?.id);
+    if (unauthorized && !dismissedAuthIds.includes(unauthorized.endpointId)) {
+      const node = workspace.endpoints.find((endpoint) => endpoint.id === unauthorized.endpointId)
+        ?? dataSyncModel.resolveNewServer(unauthorized.endpointId);
+      if (node) setAuthEndpoint((current) => current ?? node);
+    }
+  }, [t, dismissedAuthIds]);
+
+  useEffect(() => {
+    void loadWorkspace();
+    const timer = window.setInterval(() => void loadWorkspace(), POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadWorkspace]);
+
+  const replaceSession = (session: ManagedDataSyncSession) => {
+    localUpdateFloorRef.current = pollStartedRef.current;
+    setSessions((current) => current.map((item) => item.manager_key === session.manager_key ? session : item));
+  };
+
+  const prependSession = (session: ManagedDataSyncSession) => {
+    localUpdateFloorRef.current = pollStartedRef.current;
+    setSessions((current) => [session, ...current]);
+    setSelectedKey(session.manager_key);
+  };
+
+  const toggleManagedEndpoint = (endpointId: string) => {
+    const selectedIds = endpoints
+      .filter((endpoint) => endpoint.managed !== (endpoint.id === endpointId))
+      .map((endpoint) => endpoint.id);
+    setEndpoints(dataSyncModel.setManagedEndpoints(selectedIds));
+    void loadWorkspace();
+  };
+
+  const runProbe = useCallback(async () => {
+    if (!oldEndpointId || newServerInput.trim() === '' || sameNodeSelected) return;
+    setProbing(true);
+    setProbeError(null);
+    try {
+      setProbe(await dataSyncModel.probeDirection(oldEndpointId, newServerInput));
+    } catch (probeFailure) {
+      setProbe(null);
+      if (probeFailure instanceof DataSyncApiError && probeFailure.status === 401 && newServerNode) {
+        setAuthEndpoint((current) => current ?? newServerNode);
+      }
+      setProbeError(
+        probeFailure instanceof Error && probeFailure.message === DATA_SYNC_SAME_NODE_ERROR
+          ? t('dbSync.sameNode')
+          : probeFailure instanceof Error && probeFailure.message === DATA_SYNC_PEER_UNREACHABLE_ERROR
+          ? t('dbSync.directionNone')
+          : (probeFailure instanceof Error && probeFailure.message ? probeFailure.message : t('dbSync.errors.probe')),
+      );
+    } finally {
+      setProbing(false);
+    }
+  }, [oldEndpointId, newServerInput, sameNodeSelected, newServerNode, t]);
+
+  const afterPeerLogin = useCallback(async () => {
+    setPeerAuthVersion((version) => version + 1);
+    await loadWorkspace();
+    // Authorization is fresh: retry immediately and negotiate which node is
+    // the externally reachable server.
+    if (newServerInput.trim() !== '') {
+      void runProbe();
+    }
+  }, [loadWorkspace, newServerInput, runProbe]);
+
+  const start = async () => {
+    if (!oldEndpointId || sameNodeSelected) return;
+    setBusy(true);
+    setActionError(null);
+    setNotice(null);
+    try {
+      // No manual probe yet: negotiate the direction first so Start follows
+      // the same reachability rules as Detect direction. This is what lets a
+      // "Current URL" new server fall back to pull mode instead of pushing
+      // to a loopback address the old server reads as itself.
+      let direction = probe;
+      if (!direction && newServerInput.trim() !== '') {
+        direction = await dataSyncModel.probeDirection(oldEndpointId, newServerInput);
+        setProbe(direction);
+      }
+      if (direction?.direction === 'pull') {
+        // The fetcher drives the pull: keep its sessions visible by managing
+        // the node when it is a registry endpoint outside the managed pair.
+        if (!direction.newServer.managed && !direction.newServer.adhoc) {
+          setEndpoints(dataSyncModel.setManagedEndpoints([direction.newServer.id]));
+        }
+        const session = await dataSyncModel.startFetch(direction.newServer.id, {
+          target: direction.oldServer.syncTarget,
+          databases,
+          resources,
+          compression,
+        });
+        prependSession(session);
+        if (session.cancelled_sessions?.length) {
+          setNotice(t('dbSync.autoCancelled', { count: session.cancelled_sessions.length }));
+        }
+      } else {
+        if (oldEndpoint && !oldEndpoint.managed && !oldEndpoint.adhoc) {
+          setEndpoints(dataSyncModel.setManagedEndpoints([oldEndpoint.id]));
+        }
+        const session = await dataSyncModel.start(oldEndpointId, {
+          target: direction ? direction.newServer.syncTarget : newServerInput,
+          databases,
+          resources,
+          compression,
+        });
+        prependSession(session);
+        setNewServerInput('');
+        if (session.cancelled_sessions?.length) {
+          setNotice(t('dbSync.autoCancelled', { count: session.cancelled_sessions.length }));
+        }
+      }
+    } catch (startError) {
+      if (startError instanceof DataSyncApiError && startError.status === 401 && newServerNode) {
+        setAuthEndpoint((current) => current ?? newServerNode);
+      }
+      setActionError(
+        startError instanceof Error && startError.message === DATA_SYNC_PEER_UNREACHABLE_ERROR
+          ? t('dbSync.directionNone')
+          : startError instanceof Error && startError.message === DATA_SYNC_SAME_NODE_ERROR
+          ? t('dbSync.sameNode')
+          : startError instanceof Error && startError.message === DATA_SYNC_PROTOCOL_MISMATCH_ERROR
+          ? t('dbSync.errors.protocol')
+          : (startError instanceof Error && startError.message ? startError.message : t('dbSync.errors.start')),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const togglePause = async () => {
+    if (!selectedDriver) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const session = selectedDriver.status === 'paused'
+        ? await dataSyncModel.resume(selectedDriver)
+        : await dataSyncModel.pause(selectedDriver);
+      replaceSession(session);
+    } catch (toggleError) {
+      setActionError(toggleError instanceof Error && toggleError.message ? toggleError.message : t('dbSync.errors.control'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancelSelected = async () => {
+    if (!selectedActive) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      replaceSession(await dataSyncModel.cancel(selectedActive));
+    } catch (cancelError) {
+      setActionError(cancelError instanceof Error && cancelError.message ? cancelError.message : t('dbSync.errors.control'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const bindTarget = async () => {
+    if (!selectedDriver || pendingTarget.trim() === '') return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      replaceSession(await dataSyncModel.setTarget(selectedDriver, pendingTarget));
+    } catch (targetError) {
+      setActionError(targetError instanceof Error && targetError.message ? targetError.message : t('dbSync.errors.target'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className={`${commonClasses.card} p-4 space-y-4`}>
+        <div className="flex items-center gap-2">
+          <ArrowRightLeft className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="font-semibold text-slate-800 dark:text-slate-200">{t('dbSync.title')}</h3>
+        </div>
+        <AlertBox variant="info" icon={false}>{t('dbSync.description')}</AlertBox>
+
+        <Field label={t('dbSync.managedNodes')}>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+            {endpoints.map((endpoint) => (
+              <label key={endpoint.id} className="flex items-center gap-2 rounded border border-slate-200 dark:border-slate-700 p-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={endpoint.managed}
+                  disabled={endpoint.current || (!endpoint.managed && managedCount >= DATA_SYNC_MAX_MANAGED_ENDPOINTS)}
+                  onChange={() => toggleManagedEndpoint(endpoint.id)}
+                />
+                <span className={`w-2 h-2 rounded-full ${endpoint.healthy === true ? 'bg-emerald-500' : endpoint.healthy === false ? 'bg-red-500' : 'bg-slate-400'}`} />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium truncate">{endpoint.description}</span>
+                  <span className="block font-mono text-[10px] text-slate-500 truncate">{endpoint.baseUrl}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="mt-1 text-[10px] text-slate-500">{t('dbSync.maxTwoEndpoints')}</div>
+          {managedEndpoints.filter((endpoint) => !endpoint.current).map((endpoint) => {
+            const auth = peerAuthVersion >= 0 ? dataSyncModel.peerAuth(endpoint.id) : null;
+            return (
+              <div key={`auth-${endpoint.id}`} className="mt-1 flex items-center gap-2 text-xs">
+                {auth ? (
+                  <>
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-slate-600 dark:text-slate-400 truncate">
+                      {endpoint.description} — {t('dbSync.peerLoggedInAs', { name: auth.username })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { dataSyncModel.logoutPeer(endpoint.id); setPeerAuthVersion((version) => version + 1); void loadWorkspace(); }}
+                      className="flex items-center gap-1 text-slate-500 hover:text-red-500"
+                    >
+                      <LogOut className="w-3 h-3" />{t('dbSync.peerLogout')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-amber-600 dark:text-amber-400 truncate">{endpoint.description} — {t('dbSync.peerAuthRequired')}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setDismissedAuthIds((ids) => ids.filter((id) => id !== endpoint.id)); setAuthEndpoint(endpoint); }}
+                      className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:text-indigo-500"
+                    >
+                      <LogIn className="w-3 h-3" />{t('dbSync.peerLogin')}
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </Field>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Field label={t('dbSync.oldServer')}>
+            <select value={oldEndpointId} onChange={(event) => setOldEndpointId(event.target.value)} className={`${commonClasses.select} w-full`}>
+              {endpoints.map((endpoint) => <option key={endpoint.id} value={endpoint.id}>{endpoint.description} · {endpoint.baseUrl}</option>)}
+            </select>
+          </Field>
+          <Field label={t('dbSync.newServer')}>
+            <input
+              list="data-sync-targets"
+              value={newServerInput}
+              onChange={(event) => setNewServerInput(event.target.value)}
+              placeholder={t('dbSync.targetPlaceholder')}
+              disabled={Boolean(receiverActive)}
+              className={`${commonClasses.input} w-full`}
+            />
+            <datalist id="data-sync-targets">
+              {endpoints.filter((endpoint) => endpoint.id !== oldEndpointId).map((endpoint) => (
+                <option key={endpoint.id} value={endpoint.syncTarget}>{endpoint.description}</option>
+              ))}
+            </datalist>
+          </Field>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input type="checkbox" checked={databases} onChange={(event) => setDatabases(event.target.checked)} disabled={Boolean(receiverActive)} />
+            <span><strong>{t('dbSync.databases')}</strong><span className="block text-xs text-slate-500">{t('dbSync.databasesHint')}</span></span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input type="checkbox" checked={resources} onChange={(event) => { setResources(event.target.checked); if (!event.target.checked) setCompression(false); }} disabled={Boolean(receiverActive)} />
+            <span><strong>{t('dbSync.resources')}</strong><span className="block text-xs text-slate-500">{t('dbSync.resourcesHint')}</span></span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input type="checkbox" checked={compression} onChange={(event) => setCompression(event.target.checked)} disabled={Boolean(receiverActive) || !resources} />
+            <span><strong>{t('dbSync.compression')}</strong><span className="block text-xs text-slate-500">{t('dbSync.compressionHint')}</span></span>
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={start} disabled={busy || !oldEndpointId || sameNodeSelected || Boolean(receiverActive) || (!databases && !resources) || (probe?.direction === 'pull' ? Boolean(newServerWriterActive) : (newServerInput.trim() === '' && Boolean(manifestDraftActive)))} className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}>
+            <Play className="w-4 h-4" />
+            {probe?.direction === 'pull' ? t('dbSync.startFetch') : newServerInput.trim() === '' ? t('dbSync.collectManifest') : t('dbSync.start')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runProbe()}
+            disabled={probing || !oldEndpointId || newServerInput.trim() === '' || sameNodeSelected}
+            className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}
+          >
+            <Radar className="w-4 h-4" />{probing ? t('dbSync.probing') : t('dbSync.probeDirection')}
+          </button>
+          <button type="button" onClick={() => void loadWorkspace()} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
+            <RefreshCw className="w-4 h-4" />{t('dbSync.refresh')}
+          </button>
+          {selectedDriver && (
+            <button type="button" onClick={togglePause} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
+              {selectedDriver.status === 'paused' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+              {selectedDriver.status === 'paused' ? t('dbSync.resume') : t('dbSync.pause')}
+            </button>
+          )}
+          {selectedActive && (
+            <button type="button" onClick={cancelSelected} disabled={busy} className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-50`}>
+              <XCircle className="w-4 h-4" />{t('dbSync.cancel')}
+            </button>
+          )}
+        </div>
+        {sameNodeSelected && <AlertBox variant="warning">{t('dbSync.sameNode')}</AlertBox>}
+        {probe && (
+          <AlertBox variant="info" icon={false}>
+            {t(probe.direction === 'push' ? 'dbSync.directionPush' : 'dbSync.directionPull', {
+              old: probe.oldServer.description,
+              new: probe.newServer.description,
+            })}
+          </AlertBox>
+        )}
+        {probeError && <AlertBox variant="warning">{probeError}</AlertBox>}
+        {receiverActive && <AlertBox variant="warning">{t('dbSync.receiverBlocked')}</AlertBox>}
+        {!receiverActive && probe?.direction === 'pull' && newServerWriterActive && <AlertBox variant="warning">{t('dbSync.fetcherBlocked')}</AlertBox>}
+        {!receiverActive && newServerInput.trim() === '' && manifestDraftActive && <AlertBox variant="warning">{t('dbSync.manifestDraftBlocked')}</AlertBox>}
+        {actionError && <AlertBox variant="error">{actionError}</AlertBox>}
+        {nodeError && <AlertBox variant="error">{nodeError}</AlertBox>}
+        {notice && <AlertBox variant="info">{notice}</AlertBox>}
+      </div>
+
+      {displayedSessions.length > 0 && (
+        <div className={`${commonClasses.card} p-4 space-y-3`}>
+          <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">{activePairSessions.length > 0 ? t('dbSync.currentSession') : t('dbSync.history')}</div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+            {displayedSessions.map((session) => (
+              <button key={session.manager_key} type="button" onClick={() => setSelectedKey(session.manager_key)} className={`rounded-lg border p-3 text-left transition ${selected?.manager_key === session.manager_key ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-indigo-300'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium truncate">{t(`dbSync.roles.${session.role}`)} · {session.manager_endpoint.description} → {session.counterpart?.endpoint ?? t('dbSync.targetPending')}</div>
+                    <div className="text-[10px] font-mono text-slate-500 truncate">{session.id}</div>
+                  </div>
+                  <StatusBadge status={t(`dbSync.status.${session.status}`)} tone={statusTone(session.status)} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2 text-[10px] text-slate-500">
+                  <div>{t(`dbSync.roles.${session.role}`)}: {session.progress}%</div>
+                  <div>{t(`dbSync.roles.${counterpartRoleOf(session)}`)}: {session.counterpart?.session?.progress ?? 0}%</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!selected ? (
+        <div className={commonClasses.card}><EmptyState icon={Server} message={t('dbSync.empty')} /></div>
+      ) : (
+        <div className={`${commonClasses.card} p-4 space-y-4`}>
+          {selectedDriver && selected.context?.awaiting_target && (
+            <div className="rounded border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50 dark:bg-indigo-950/20 p-3 space-y-3">
+              <AlertBox variant="info" icon={false}>{t('dbSync.targetRequired')}</AlertBox>
+              <Field label={t('dbSync.newServer')}>
+                <input list="data-sync-targets" value={pendingTarget} onChange={(event) => setPendingTarget(event.target.value)} placeholder={t('dbSync.targetPlaceholder')} className={`${commonClasses.input} w-full`} />
+              </Field>
+              <button type="button" onClick={bindTarget} disabled={busy || pendingTarget.trim() === ''} className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 disabled:opacity-50`}>
+                <ArrowRightLeft className="w-4 h-4" />{t('dbSync.bindTarget')}
+              </button>
+            </div>
+          )}
+
+          {selected.context?.cancel_requested && (
+            <AlertBox variant="warning" icon={false}>{t('dbSync.cancelling')}</AlertBox>
+          )}
+
+          {selected.context?.local_manifest && (
+            <div className="rounded border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('dbSync.manifestTitle')}</div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs text-slate-600 dark:text-slate-400">
+                <div>{t('dbSync.manifestDatabases')}: {selected.context.local_manifest.databases ?? 0}</div>
+                <div>{t('dbSync.manifestTables')}: {selected.context.local_manifest.tables ?? 0}</div>
+                <div>{t('dbSync.manifestRows')}: {selected.context.local_manifest.rows ?? 0}</div>
+                <div>{t('dbSync.manifestResourceRoots')}: {selected.context.local_manifest.resource_roots ?? 0}</div>
+                <div>{t('dbSync.manifestResourceFiles')}: {selected.context.local_manifest.resource_files ?? 0}</div>
+                <div>{t('dbSync.manifestResourceBytes')}: {formatBytes(selected.context.local_manifest.resource_bytes ?? 0)}</div>
+              </div>
+            </div>
+          )}
+
+          <SyncResultsPanel session={selected} t={t} />
+
+          {selected.backup_directory && (
+            <div className="flex items-start gap-2 rounded border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/20 p-3">
+              <ShieldCheck className="w-4 h-4 mt-0.5 text-emerald-600" />
+              <div><div className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{t('dbSync.backupDirectory')}</div><div className="font-mono text-xs break-all text-slate-700 dark:text-slate-300">{selected.backup_directory}</div></div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <EndpointStatusPanel
+              title={t(`dbSync.roles.${selected.role}`)}
+              endpoint={selected.manager_endpoint.baseUrl}
+              session={selected}
+              t={t}
+            />
+            <EndpointStatusPanel
+              title={t(`dbSync.roles.${counterpartRoleOf(selected)}`)}
+              endpoint={selected.counterpart?.endpoint ?? t('dbSync.targetPending')}
+              session={selected.counterpart?.session ?? null}
+              reachable={selected.counterpart?.reachable}
+              error={selected.counterpart?.error}
+              t={t}
+            />
+          </div>
+        </div>
+      )}
+
+      <LoginModal
+        isOpen={authEndpoint !== null}
+        onClose={() => {
+          if (authEndpoint) {
+            setDismissedAuthIds((ids) => (ids.includes(authEndpoint.id) ? ids : [...ids, authEndpoint.id]));
+          }
+          setAuthEndpoint(null);
+        }}
+        onSuccess={() => {
+          setAuthEndpoint(null);
+          void afterPeerLogin();
+        }}
+        lang={i18n.language?.toLowerCase().startsWith('zh') ? 'zh' : 'en'}
+        titleOverride={t('dbSync.peerLoginTitle')}
+        subtitleOverride={t('dbSync.peerLoginSubtitle', { endpoint: authEndpoint?.baseUrl ?? '' })}
+        authenticate={async (username, password) => {
+          if (!authEndpoint) return;
+          await dataSyncModel.loginPeer(authEndpoint.id, username, password);
+        }}
+      />
+    </div>
+  );
+};

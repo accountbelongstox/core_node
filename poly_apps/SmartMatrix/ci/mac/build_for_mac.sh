@@ -5,21 +5,21 @@ echo ---------------------------------------------------------------
 echo check ENV
 echo ---------------------------------------------------------------
 
-# 从环境变量获取必要参数
-# 例如 /Users/barry/Qt5.12.5/5.12.5
+# cong huanjing bian liang huo qu bi yao can shu
+# li ru /Users/barry/Qt5.12.5/5.12.5
 echo ENV_QT_PATH $ENV_QT_PATH
 
-# 获取绝对路径，保证其他目录执行此脚本依然正确
+# huo qu jue dui lu jing, bao zheng qi ta mulu zhi xing ci jiao benyi ran zheng que
 {
 cd $(dirname "$0")
 script_path=$(pwd)
 cd -
 } &> /dev/null # disable output
-# 设置当前目录，cd的目录影响接下来执行程序的工作目录
+# she zhidang qian mulu, cd de mulu ying xiang jie xia lai zhi xing cheng xu de gong zuo mulu
 old_cd=$(pwd)
 cd $(dirname "$0")
 
-# 启动参数声明
+# qi dong can shu sheng ming
 build_mode=RelWithDebInfo
 cpu_arch=arm64
 
@@ -29,7 +29,7 @@ echo ---------------------------------------------------------------
 echo check build param[Debug/Release/MinSizeRel/RelWithDebInfo]
 echo ---------------------------------------------------------------
 
-# 编译参数检查
+# bian yi can shu jian cha
 build_mode=$(echo $1)
 if [[ $build_mode != "Release" && $build_mode != "Debug" && $build_mode != "MinSizeRel" && $build_mode != "RelWithDebInfo" ]]; then
     echo "error: unkonow build mode -- $1"
@@ -48,7 +48,7 @@ if [[ $cpu_arch != "x64" && $cpu_arch != "arm64" ]]; then
     exit 1
 fi
 
-# 提示
+# ti shi
 echo current build mode: $build_mode
 echo current cpu mode: $cpu_arch
 
@@ -67,12 +67,12 @@ echo ---------------------------------------------------------------
 echo begin cmake build
 echo ---------------------------------------------------------------
 
-# 删除输出目录
+# shan chu shu chu mulu
 output_path=$script_path../../output
 if [ -d "$output_path" ]; then
     rm -rf $output_path
 fi
-# 删除编译目录
+# shan chu bian yi mulu
 build_path=$script_path/../build_temp
 if [ -d "$build_path" ]; then
     rm -rf $build_path
@@ -99,6 +99,6 @@ echo ---------------------------------------------------------------
 echo finish!!!
 echo ---------------------------------------------------------------
 
-# 恢复当前目录
+# hui fu dang qian mulu
 cd $old_cd
 exit 0

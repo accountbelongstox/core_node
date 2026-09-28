@@ -1,21 +1,11 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const { execCmdResultText, pipeExecCmd } = require('#@commander');
 const { LANG_COMPILER_DIR } = require('#@global_dir');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const gconfig = require('#@gconfig');
 const {isDebug} = require('#@global_vars');
+const { getXdgCacheHome } = require('../../../foundation/common/system_paths');
 
 let log;
 try {
@@ -212,6 +202,32 @@ class PythonVenv {
         }
     }
 
+    getPipCacheDir() {
+        if (process.env.PIP_CACHE_DIR) {
+            return process.env.PIP_CACHE_DIR;
+        }
+        // Centralized cache root (respects XDG_CACHE_HOME / CORE_NODE_CACHE_DIR;
+        // D:\www\cache on Windows, /var/_core_node/cache on Linux) - see system_paths.
+        return path.join(getXdgCacheHome(), 'pip');
+    }
+
+    async ensurePipCacheDir(pipPath) {
+        const cacheDir = this.getPipCacheDir();
+        try {
+            if (!fs.existsSync(cacheDir)) {
+                fs.mkdirSync(cacheDir, { recursive: true });
+            }
+            const current = await execCmdResultText(`"${pipPath}" config get global.cache-dir`);
+            if ((current || '').trim() !== cacheDir) {
+                await execCmdResultText(`"${pipPath}" config set global.cache-dir "${cacheDir}"`);
+            }
+            return true;
+        } catch (error) {
+            log.error('Error configuring pip cache-dir:', error);
+            return false;
+        }
+    }
+
     async configurePython(printResult = false) {
         let result = {
 
@@ -233,6 +249,7 @@ class PythonVenv {
 
             // Check cache first
             if (gconfig.getConfig('PY_CONFIG_DONE')) {
+                await this.ensurePipCacheDir(pipPath);
                 result.success = true
                 result.pythonPath = pythonPath
                 result.pipPath = pipPath
@@ -268,6 +285,8 @@ class PythonVenv {
             const configCmd = `"${pipPath}" config set global.index-url ${mirrorUrl}`;
 
             await execCmdResultText(configCmd);
+
+            await this.ensurePipCacheDir(pipPath);
 
             // Verify configuration
             const verifyConfig = await this.checkPipConfig(pipPath);

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Chrome MCP Server Startup Script (Linux/macOS)
-# Entry script - only responsible for calling Python and executing commands
-# No business logic here
+# Shell owns build/watch orchestration; Python is called after builds to recover
+# the MCP connection.
 
 set -e
 
@@ -13,24 +13,232 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 DARK_GRAY='\033[0;90m'
 NC='\033[0m' # No Color
+MCP_WATCH_CHOICE="${MCP_CHROME_WATCH_MODE:-}"
+MCP_WATCH_MODE="dev"
+MCP_SERVICE_CHOICE="${MCP_CHROME_AS_SERVICE:-}"
+MCP_SERVICE_ACTION=""
+MCP_SERVICE_MODE="none"
+MCP_SERVICE_NAME=""
+MCP_SERVICE_DESC=""
+MCP_SERVICE_CPU=""
+MCP_SERVICE_MEM=""
+MCP_SERVICE_USER=""
+MCP_SERVICE_EXEC=""
+MCP_SERVICE_SESSION_ENV=""
+MCP_SERVICE_MANAGER=""
+MCP_ARG=""
+MCP_DEV_PID=""
+MCP_SUPERVISOR_PID=""
+MCP_SCRIPT_DIR=""
+MCP_PROJECT_ROOT=""
+MCP_CORE_NODE_ROOT=""
+MCP_LINUX_COMMON_DIR=""
+MCP_GVAR_COMMON=""
+MCP_VENV_PYTHON_COMMON=""
+MCP_SERVICE_CONTRACT_COMMON=""
+MCP_PORT=""
+MCP_PYTHON_EXE=""
+MCP_COMMON_LIB_DIR=""
+MCP_COMPILE_CHOICE=""
+MCP_DEV_NVM=""
+MCP_PYTHON_SCRIPT=""
+MCP_VARS_DIR=""
+MCP_NODE_VERSION=""
+MCP_BUN_VERSION=""
+MCP_BUILD_OUTPUT_DIR=""
+MCP_GLOBAL_LOG_DIR=""
+MCP_NODE_SEARCH_DIRS=()
+mcp_ui_title=""
+mcp_step1=""
+mcp_step2=""
+mcp_step3=""
+mcp_step4=""
+mcp_step5=""
+mcp_step6=""
+mcp_shared_path=""
+mcp_native_path=""
+mcp_run_host_sh=""
+mcp_extension_path=""
+mcp_manifest_json=""
+mcp_system_manifest_path=""
 
 # Get project root directory - use MCP prefix to avoid conflicts
 MCP_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MCP_PROJECT_ROOT="$( cd "$MCP_SCRIPT_DIR/.." && pwd )"
+MCP_CORE_NODE_ROOT="$(cd "$MCP_PROJECT_ROOT/../.." && pwd)"
+MCP_LINUX_COMMON_DIR="$MCP_CORE_NODE_ROOT/scripts/shells/linux/common"
+MCP_GVAR_COMMON="$MCP_LINUX_COMMON_DIR/gvar_common.sh"
+MCP_VENV_PYTHON_COMMON="$MCP_LINUX_COMMON_DIR/venv_python_common.sh"
+MCP_SERVICE_CONTRACT_COMMON="$MCP_LINUX_COMMON_DIR/service_contract_common.sh"
+MCP_SERVICE_MANAGER="$MCP_LINUX_COMMON_DIR/systemd_service_manager.sh"
 
+for MCP_ARG in "$@"; do
+    case "$MCP_ARG" in
+        --service) MCP_SERVICE_CHOICE="yes" ;;
+        --no-service) MCP_SERVICE_CHOICE="no" ;;
+        --uninstall-service) MCP_SERVICE_ACTION="uninstall" ;;
+    esac
+done
+
+# WXT imports config/queue_center_contract.json from the repository root
+# directly. Do not copy the task contract here; wxt.config.ts explicitly allows
+# that root so Laravel, Pycore, both UIs, and mcp-chrome read one source.
 # Import variable management library and key definitions
 source "$MCP_SCRIPT_DIR/var_keys.sh"
 source "$MCP_SCRIPT_DIR/var_manager.sh"
+source "$MCP_GVAR_COMMON"
+source "$MCP_VENV_PYTHON_COMMON"
+source "$MCP_SERVICE_CONTRACT_COMMON"
+MCP_PYTHON_EXE="$VENV_PYTHON3"
+MCP_PORT="$(sc_require ports.mcp_chrome)"
+MCP_SERVICE_NAME="$(sc_require mcp_chrome.service_name)"
+MCP_SERVICE_DESC="$(sc_require mcp_chrome.service_description)"
+MCP_SERVICE_CPU="$(sc_require mcp_chrome.service_cpu_quota)"
+MCP_SERVICE_MEM="$(sc_require mcp_chrome.service_memory_max)"
 
 # Source get_real_user.sh for permission management (only if running as root)
-MCP_COMMON_LIB_DIR="/www/programing/core_node/scripts/shells/linux/common"
+MCP_COMMON_LIB_DIR="$MCP_LINUX_COMMON_DIR"
 if [ "$(id -u)" -eq 0 ] && [ -f "$MCP_COMMON_LIB_DIR/get_real_user.sh" ]; then
     source "$MCP_COMMON_LIB_DIR/get_real_user.sh" 2>/dev/null || true
+fi
+
+# The system service starts the shell-owned watcher and lets Python only monitor
+# build artifacts and wake the native MCP connection.
+if [ -n "$INVOCATION_ID" ]; then
+    # Under systemd PATH is minimal; source nvm and extend PATH so bun resolves.
+    for MCP_DEV_NVM in "$HOME/.nvm" "/usr/local/nvm" "/opt/nvm"; do
+        if [ -s "$MCP_DEV_NVM/nvm.sh" ]; then
+            # shellcheck disable=SC1090
+            source "$MCP_DEV_NVM/nvm.sh" >/dev/null 2>&1 || true
+            break
+        fi
+    done
+    export PATH="$HOME/.bun/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
+    if ! command -v bun >/dev/null 2>&1; then
+        echo "[start.sh] bun not found in PATH" >&2
+        exit 127
+    fi
+    echo "[start.sh] starting shell-owned MCP Chrome watcher"
+    cd "$MCP_PROJECT_ROOT"
+    bun run dev &
+    MCP_DEV_PID=$!
+    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode dev --recover-on-start &
+    MCP_SUPERVISOR_PID=$!
+    trap 'kill "$MCP_DEV_PID" "$MCP_SUPERVISOR_PID" 2>/dev/null || true' EXIT INT TERM
+    # Either child ending ends the unit; systemd restarts the whole set.
+    wait -n
+    exit
+fi
+
+# ======================================
+# Background service (systemd, desktop user, boot auto-start)
+# ======================================
+
+mcp_service_installed() {
+    systemctl cat "$MCP_SERVICE_NAME" >/dev/null 2>&1
+}
+
+mcp_service_run_as_root() {
+    if [ "$(id -u)" -eq 0 ]; then
+        bash -c "$1" _ "${@:2}"
+    else
+        sudo bash -c "$1" _ "${@:2}"
+    fi
+}
+
+mcp_service_converge() {
+    MCP_SERVICE_USER="$(detect_system_user 2>/dev/null || true)"
+    if [ -z "$MCP_SERVICE_USER" ] || [ "$MCP_SERVICE_USER" = "root" ]; then
+        MCP_SERVICE_USER="${SUDO_USER:-$(id -un)}"
+    fi
+    MCP_SERVICE_SESSION_ENV="$(source "$MCP_SERVICE_MANAGER" >/dev/null 2>&1; systemd_desktop_session_env "$MCP_SERVICE_USER")"
+    MCP_SERVICE_EXEC="/bin/bash $MCP_SCRIPT_DIR/start.sh"
+    if [ -n "$MCP_SERVICE_SESSION_ENV" ]; then
+        MCP_SERVICE_EXEC="$MCP_SERVICE_SESSION_ENV $MCP_SERVICE_EXEC"
+    fi
+    echo -e "${CYAN}  Converging service $MCP_SERVICE_NAME (user: $MCP_SERVICE_USER)...${NC}"
+    mcp_service_run_as_root 'source "$1"; converge_systemd_service "$2" "$3" "$4" "$5" "$6" always 5s "$7" "$8"' \
+        "$MCP_SERVICE_MANAGER" "$MCP_SERVICE_NAME" "$MCP_SERVICE_DESC" "$MCP_SERVICE_EXEC" "$MCP_PROJECT_ROOT" "$MCP_SERVICE_USER" "$MCP_SERVICE_CPU" "$MCP_SERVICE_MEM"
+}
+
+mcp_service_uninstall() {
+    if ! mcp_service_installed; then
+        echo -e "${YELLOW}  Service $MCP_SERVICE_NAME is not installed.${NC}"
+        return
+    fi
+    mcp_service_run_as_root 'source "$1"; remove_systemd_service "$2"' "$MCP_SERVICE_MANAGER" "$MCP_SERVICE_NAME"
+}
+
+if [ "$MCP_SERVICE_ACTION" = "uninstall" ]; then
+    mcp_service_uninstall
+    exit 0
 fi
 
 echo -e "\n${CYAN}========================================${NC}"
 echo -e "${CYAN}  Chrome MCP Server - Linux/macOS${NC}"
 echo -e "${CYAN}========================================\n${NC}"
+
+if [ "$HAS_DESKTOP_ENVIRONMENT" = "false" ]; then
+    if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
+        echo -e "${YELLOW}  Server environment (no desktop); auto-continue skips Chrome MCP compilation.${NC}"
+        exit 0
+    fi
+    read -rp "Server environment detected (no desktop). Compile Chrome MCP plugin anyway? [y/N] " MCP_COMPILE_CHOICE || MCP_COMPILE_CHOICE=""
+    case "$MCP_COMPILE_CHOICE" in
+        y|Y|yes|YES|Yes)
+            echo -e "${GREEN}  Proceeding with compilation.${NC}"
+            ;;
+        *)
+            echo -e "${YELLOW}  Skipping Chrome MCP compilation.${NC}"
+            exit 0
+            ;;
+    esac
+fi
+
+# Idempotent service choice: an installed unit is converged without asking;
+# otherwise ask once (default No). MCP_CHROME_AS_SERVICE / --service /
+# --no-service pre-answer; unattended runs take the default.
+if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
+    echo -e "${YELLOW}  systemd is not the active init; background service unavailable.${NC}"
+elif mcp_service_installed; then
+    MCP_SERVICE_MODE="converge"
+    echo -e "${GREEN}  Background service $MCP_SERVICE_NAME is installed; it will be converged after the build.${NC}"
+else
+    if [ -z "$MCP_SERVICE_CHOICE" ]; then
+        prompt_read_default MCP_SERVICE_CHOICE "no" 30 "Install MCP Chrome as a background service (auto-start at boot, hot reload)? [y/N] "
+    fi
+    case "$MCP_SERVICE_CHOICE" in
+        y|Y|yes|YES|Yes) MCP_SERVICE_MODE="install" ;;
+    esac
+fi
+
+# The service's watcher writes the same build folder: pause it for this build;
+# convergence starts it again afterwards.
+if [ "$MCP_SERVICE_MODE" = "converge" ] && systemctl is-active --quiet "$MCP_SERVICE_NAME"; then
+    echo -e "${CYAN}  Pausing $MCP_SERVICE_NAME during the build...${NC}"
+    mcp_service_run_as_root 'systemctl stop "$1"' "$MCP_SERVICE_NAME"
+fi
+
+# Unattended chains (dd.sh exports DD_AUTO_CONTINUE=true) must not block on the
+# prompt or park in foreground watch mode: take a one-time build instead. The
+# background service owns watch mode when it is installed.
+if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ] || [ "$MCP_SERVICE_MODE" != "none" ]; then
+    MCP_WATCH_CHOICE="once"
+fi
+if [ -z "$MCP_WATCH_CHOICE" ]; then
+    read -rp "Enable development watch mode? [Y/n] " MCP_WATCH_CHOICE || MCP_WATCH_CHOICE=""
+fi
+case "$MCP_WATCH_CHOICE" in
+    n|N|no|NO|No|once|ONCE|Once)
+        MCP_WATCH_MODE="once"
+        echo -e "${YELLOW}  One-time build selected.${NC}"
+        ;;
+    *)
+        MCP_WATCH_MODE="dev"
+        echo -e "${GREEN}  Development watch mode selected.${NC}"
+        ;;
+esac
+echo ""
 
 # Change to project root
 cd "$MCP_PROJECT_ROOT"
@@ -71,34 +279,140 @@ mcp_fix_build_permissions() {
     fi
 }
 
-# Helper function: Clean old build directories
-mcp_clean_old_build_dirs() {
-    echo -e "${CYAN}  Cleaning old build directories...${NC}"
+# ======================================
+# Step 0: Ensure PATH and fix node/bun symlinks (idempotent, works under sudo)
+# ======================================
 
-    # Clean native-server dist (may have wrong permissions from previous root build)
-    local mcp_native_dist="$MCP_PROJECT_ROOT/app/native-server/dist"
-    if [ -d "$mcp_native_dist" ]; then
-        rm -rf "$mcp_native_dist" 2>/dev/null || {
-            echo -e "${YELLOW}  [WARN] Removing old native-server dist directory${NC}"
-            if [ "$(id -u)" -eq 0 ]; then
-                rm -rf "$mcp_native_dist"
+# Well-known Node.js install locations on Linux
+MCP_NODE_SEARCH_DIRS=(
+    /opt/_kali_2026/node
+    /opt/node
+    /usr/local/node
+    /usr/local/lib/nodejs
+)
+
+mcp_find_node_bin_dir() {
+    local mcp_found_bin_dir=""
+    local mcp_existing=""
+
+    # Search for node binary in well-known locations
+    for mcp_search_dir in "${MCP_NODE_SEARCH_DIRS[@]}"; do
+        if [ ! -d "$mcp_search_dir" ]; then
+            continue
+        fi
+        # Find node-* directories (versioned installs)
+        for mcp_ver_dir in "$mcp_search_dir"/node-v*; do
+            if [ -x "$mcp_ver_dir/bin/node" ]; then
+                mcp_found_bin_dir="$mcp_ver_dir/bin"
+                break 2
             fi
-        }
+        done
+    done
+
+    if [ -z "$mcp_found_bin_dir" ]; then
+        mcp_existing=$(command -v node 2>/dev/null)
+        if [ -n "$mcp_existing" ] && [ -x "$mcp_existing" ]; then
+            mcp_found_bin_dir=$(dirname "$mcp_existing")
+        fi
     fi
 
-    # Clean extension .output (may have wrong permissions from previous root build)
-    local mcp_extension_output="$MCP_PROJECT_ROOT/app/chrome-extension/.output"
-    if [ -d "$mcp_extension_output" ]; then
-        rm -rf "$mcp_extension_output" 2>/dev/null || {
-            echo -e "${YELLOW}  [WARN] Removing old extension output directory${NC}"
-            if [ "$(id -u)" -eq 0 ]; then
-                rm -rf "$mcp_extension_output"
-            fi
-        }
-    fi
-
-    echo -e "${GREEN}  [OK] Old build directories cleaned${NC}"
+    printf '%s' "$mcp_found_bin_dir"
 }
+
+mcp_ensure_symlink() {
+    local mcp_binary_name="$1"
+    local mcp_source_path="$2"
+    local mcp_link="/usr/local/bin/$mcp_binary_name"
+    local mcp_current_target=""
+    local mcp_expected_target=""
+
+    if [ -z "$mcp_source_path" ] || [ ! -e "$mcp_source_path" ]; then
+        return
+    fi
+
+    if [ -L "$mcp_link" ]; then
+        mcp_current_target=$(readlink -f "$mcp_link" 2>/dev/null)
+        mcp_expected_target=$(readlink -f "$mcp_source_path" 2>/dev/null)
+        if [ "$mcp_current_target" = "$mcp_expected_target" ]; then
+            return
+        fi
+    fi
+
+    # Create or repair symlink
+    if [ "$(id -u)" -eq 0 ]; then
+        ln -sf "$mcp_source_path" "$mcp_link" 2>/dev/null
+    else
+        sudo ln -sf "$mcp_source_path" "$mcp_link" 2>/dev/null
+    fi
+
+    # Ensure executable by all users
+    chmod a+x "$mcp_source_path" 2>/dev/null || true
+}
+
+mcp_ensure_node_deps() {
+    # 1. Augment PATH with standard locations (safe to prepend; idempotent)
+    export PATH="/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:$PATH"
+
+    # 2. Find Node.js bin directory
+    local mcp_node_bin_dir
+    mcp_node_bin_dir=$(mcp_find_node_bin_dir)
+    if [ -z "$mcp_node_bin_dir" ]; then
+        echo -e "${RED}  [ERROR] Node.js not found in any known location${NC}"
+        echo -e "${YELLOW}  Run prerequisite: scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh${NC}"
+        exit 1
+    fi
+
+    # Add Node.js bin to PATH
+    export PATH="$mcp_node_bin_dir:$PATH"
+
+    # 3. Repair /usr/local/bin symlinks for node/npm/npx (idempotent)
+    for mcp_bin in node npm npx; do
+        if [ -x "$mcp_node_bin_dir/$mcp_bin" ]; then
+            mcp_ensure_symlink "$mcp_bin" "$mcp_node_bin_dir/$mcp_bin"
+        fi
+    done
+
+    # 4. Verify node works
+    if ! command -v node &>/dev/null; then
+        echo -e "${RED}  [ERROR] Node.js binary not executable at $mcp_node_bin_dir/node${NC}"
+        exit 1
+    fi
+
+    # 5. Ensure bun is available
+    if command -v bun &>/dev/null; then
+        # bun found - repair symlink if in node bin dir
+        if [ -e "$mcp_node_bin_dir/bun" ]; then
+            mcp_ensure_symlink "bun" "$mcp_node_bin_dir/bun"
+        fi
+        return
+    fi
+
+    # bun not found - try to install it
+    echo -e "${YELLOW}  bun not found, auto-installing...${NC}"
+    export npm_config_confirm_modules_purge=false
+
+    if [ -x "$mcp_node_bin_dir/npm" ]; then
+        "$mcp_node_bin_dir/npm" install -g bun --config.confirm-modules-purge=false 2>&1 | tail -3
+    else
+        npm install -g bun --config.confirm-modules-purge=false 2>&1 | tail -3
+    fi
+
+    # Repair symlink after install
+    if [ -e "$mcp_node_bin_dir/bun" ]; then
+        mcp_ensure_symlink "bun" "$mcp_node_bin_dir/bun"
+    fi
+
+    # Final check
+    if ! command -v bun &>/dev/null; then
+        echo -e "${RED}  [ERROR] bun auto-install failed${NC}"
+        echo -e "${YELLOW}  Install bun manually: npm install -g bun${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}  [OK] bun auto-installed successfully${NC}"
+}
+
+# Run dependency repair early (before Python and build steps)
+mcp_ensure_node_deps
 
 # ======================================
 # Step 1: Call Python for processing
@@ -109,19 +423,8 @@ echo ""
 MCP_PYTHON_SCRIPT="$MCP_SCRIPT_DIR/build_orchestrator.py"
 
 # Check if Python is installed
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}ERROR: Python 3 is not installed or not in PATH${NC}"
-    echo -e "${YELLOW}Please install Python 3.7+ from https://www.python.org/${NC}"
-    exit 1
-fi
-
 # Run Python script
-if ! python3 "$MCP_PYTHON_SCRIPT"; then
-    mcp_error=$(mcp_get_var "$VAR_KEY_ERROR" || echo "Unknown error")
-    echo ""
-    echo -e "${RED}ERROR: Python processing failed: $mcp_error${NC}"
-    exit 1
-fi
+"$MCP_PYTHON_EXE" "$MCP_PYTHON_SCRIPT"
 
 echo ""
 
@@ -129,70 +432,12 @@ echo ""
 # Step 2: Read variables and execute build commands
 # ======================================
 
-# DEBUG: Print all variable keys
-echo -e "${CYAN}[DEBUG] ========== VARIABLE KEYS ==========${NC}"
-echo -e "${CYAN}[DEBUG] VAR_KEY_UI_TITLE = $VAR_KEY_UI_TITLE${NC}"
-echo -e "${CYAN}[DEBUG] VAR_KEY_UI_STEP_1 = $VAR_KEY_UI_STEP_1${NC}"
-echo -e "${CYAN}[DEBUG] VAR_KEY_EXTENSION_PATH = $VAR_KEY_EXTENSION_PATH${NC}"
-echo -e "${CYAN}[DEBUG] VAR_KEY_NATIVE_PATH = $VAR_KEY_NATIVE_PATH${NC}"
-echo -e "${CYAN}[DEBUG] VAR_KEY_CMD_BUILD_EXTENSION = $VAR_KEY_CMD_BUILD_EXTENSION${NC}"
-
-# DEBUG: Test mcp_get_var function before using it
-echo -e "${CYAN}[DEBUG] ========== TESTING GET_VAR FUNCTION ==========${NC}"
-echo -e "${CYAN}[DEBUG] Function type: $(type -t mcp_get_var 2>&1)${NC}"
-
-# Show the actual function definition
-echo -e "${CYAN}[DEBUG] Function definition:${NC}"
-declare -f mcp_get_var | head -15
-
-# Test raw cat first
-echo -e "${CYAN}[DEBUG] Raw cat test:${NC}"
-cat /var/_core_node/_build_global_vars/mcpchrome_ui_title
-echo ""
-
-# Test head -c directly
-echo -e "${CYAN}[DEBUG] Raw head -c test:${NC}"
-head -c 99999 /var/_core_node/_build_global_vars/mcpchrome_ui_title 2>/dev/null
-echo ""
-
-# Test mcp_get_var direct output with explicit file descriptor
-echo -e "${CYAN}[DEBUG] mcp_get_var direct test (fd 1):${NC}"
-mcp_get_var "mcpchrome_ui_title" >&1
-echo ""
-
-# Test command substitution
-echo -e "${CYAN}[DEBUG] Command substitution test:${NC}"
-test_result=$(cat /var/_core_node/_build_global_vars/mcpchrome_ui_title)
-echo -e "${CYAN}[DEBUG] cat result = '$test_result'${NC}"
-test_result2=$(mcp_get_var "mcpchrome_ui_title")
-echo -e "${CYAN}[DEBUG] mcp_get_var result = '$test_result2'${NC}"
-
-# DEBUG: Print variable files
-echo -e "${CYAN}[DEBUG] ========== VARIABLE FILES ==========${NC}"
 MCP_VARS_DIR=$(mcp_get_vars_dir)
-echo -e "${CYAN}[DEBUG] VARS_DIR = $MCP_VARS_DIR${NC}"
-echo -e "${CYAN}[DEBUG] Variable files:${NC}"
-ls -la "$MCP_VARS_DIR" 2>&1 | grep mcpchrome | head -10
-
-# DEBUG: Read and print actual variable values
-echo -e "${CYAN}[DEBUG] ========== VARIABLE VALUES ==========${NC}"
-echo -e "${CYAN}[DEBUG] Reading UI_TITLE...${NC}"
-mcp_ui_title=$(mcp_get_var "$VAR_KEY_UI_TITLE")
-echo -e "${CYAN}[DEBUG] UI_TITLE value = '$mcp_ui_title'${NC}"
-
-echo -e "${CYAN}[DEBUG] Reading EXTENSION_PATH...${NC}"
-mcp_ext_path_value=$(mcp_get_var "$VAR_KEY_EXTENSION_PATH")
-echo -e "${CYAN}[DEBUG] EXTENSION_PATH value = '$mcp_ext_path_value'${NC}"
-
-echo -e "${CYAN}[DEBUG] Reading NATIVE_PATH...${NC}"
-mcp_native_path_value=$(mcp_get_var "$VAR_KEY_NATIVE_PATH")
-echo -e "${CYAN}[DEBUG] NATIVE_PATH value = '$mcp_native_path_value'${NC}"
 
 # Read UI title
 mcp_ui_title=$(mcp_get_var "$VAR_KEY_UI_TITLE")
 if [ -z "$mcp_ui_title" ]; then
     mcp_ui_title="Chrome MCP Server Setup"
-    echo -e "${YELLOW}  [DEBUG] UI_TITLE is empty, using default${NC}"
 fi
 echo -e "${CYAN}========================================${NC}"
 echo -e "${CYAN}  $mcp_ui_title${NC}"
@@ -203,7 +448,6 @@ echo ""
 mcp_step1=$(mcp_get_var "$VAR_KEY_UI_STEP_1")
 if [ -z "$mcp_step1" ]; then
     mcp_step1="Checking dependencies..."
-    echo -e "${YELLOW}  [DEBUG] UI_STEP_1 is empty, using default${NC}"
 fi
 echo -e "${YELLOW}[1/6] $mcp_step1${NC}"
 
@@ -215,11 +459,11 @@ else
     exit 1
 fi
 
-if command -v pnpm &> /dev/null; then
-    MCP_PNPM_VERSION=$(pnpm --version)
-    echo -e "${GREEN}  [OK] pnpm: v$MCP_PNPM_VERSION${NC}"
+if command -v bun &> /dev/null; then
+    MCP_BUN_VERSION=$(bun --version)
+    echo -e "${GREEN}  [OK] bun: v$MCP_BUN_VERSION${NC}"
 else
-    echo -e "${RED}  [ERROR] ERROR: pnpm not installed${NC}"
+    echo -e "${RED}  [ERROR] ERROR: bun not installed${NC}"
     exit 1
 fi
 
@@ -228,44 +472,23 @@ echo ""
 mcp_step2=$(mcp_get_var "$VAR_KEY_UI_STEP_2")
 if [ -z "$mcp_step2" ]; then
     mcp_step2="Installing dependencies..."
-    echo -e "${YELLOW}  [DEBUG] UI_STEP_2 is empty, using default${NC}"
 fi
 echo -e "${YELLOW}[2/6] $mcp_step2${NC}"
 
-mcp_should_install=$(mcp_get_var "$VAR_KEY_SHOULD_INSTALL" || echo "false")
-if [ "$mcp_should_install" = "true" ]; then
-    mcp_cmd_install=$(mcp_get_var "$VAR_KEY_CMD_INSTALL")
-    echo -e "${CYAN}  Installing dependencies...${NC}"
-    eval "$mcp_cmd_install"
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}  [ERROR] ERROR: Failed to install dependencies${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}  [OK] Dependencies installed${NC}"
-else
-    echo -e "${GREEN}  [OK] Dependencies already installed${NC}"
-fi
-
-# Clean old build directories before building
-echo ""
-mcp_clean_old_build_dirs
+echo -e "${CYAN}  Installing dependencies...${NC}"
+bun install
+echo -e "${GREEN}  [OK] Dependency state aligned${NC}"
 
 # Step 3: Build Shared package
 echo ""
 mcp_step3=$(mcp_get_var "$VAR_KEY_UI_STEP_3")
 if [ -z "$mcp_step3" ]; then
     mcp_step3="Building shared package..."
-    echo -e "${YELLOW}  [DEBUG] UI_STEP_3 is empty, using default${NC}"
 fi
 echo -e "${YELLOW}[3/6] $mcp_step3${NC}"
 
-mcp_cmd_build_shared=$(mcp_get_var "$VAR_KEY_CMD_BUILD_SHARED")
 echo -e "${CYAN}  Building chrome-mcp-shared...${NC}"
-eval "$mcp_cmd_build_shared"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}  [ERROR] ERROR: Failed to build shared package${NC}"
-    exit 1
-fi
+bun run build:shared
 
 mcp_shared_path=$(mcp_get_var "$VAR_KEY_SHARED_PATH")
 if [ -d "$mcp_shared_path" ]; then
@@ -277,17 +500,11 @@ echo ""
 mcp_step4=$(mcp_get_var "$VAR_KEY_UI_STEP_4")
 if [ -z "$mcp_step4" ]; then
     mcp_step4="Building Native Server..."
-    echo -e "${YELLOW}  [DEBUG] UI_STEP_4 is empty, using default${NC}"
 fi
 echo -e "${YELLOW}[4/6] $mcp_step4${NC}"
 
-mcp_cmd_build_native=$(mcp_get_var "$VAR_KEY_CMD_BUILD_NATIVE")
 echo -e "${CYAN}  Building mcp-chrome-bridge...${NC}"
-eval "$mcp_cmd_build_native"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}  [ERROR] ERROR: Failed to build Native Server${NC}"
-    exit 1
-fi
+bun run build:native
 
 mcp_native_path=$(mcp_get_var "$VAR_KEY_NATIVE_PATH")
 mcp_run_host_sh="$mcp_native_path/run_host.sh"
@@ -317,19 +534,6 @@ if [ -f "$mcp_run_host_sh" ]; then
     # Fix permissions for native server dist
     mcp_fix_build_permissions "$mcp_native_path"
 
-    # Auto-register Native Host for local development (system-level requires root)
-    echo -e "${CYAN}  Auto-registering Native Host to system directory...${NC}"
-    if [ "$(id -u)" -eq 0 ]; then
-        # Already root, run directly
-        node "$MCP_SCRIPT_DIR/register-local-dev.cjs" > /dev/null 2>&1 && \
-            echo -e "${GREEN}  [OK] Native Host registered successfully${NC}" || \
-            echo -e "${YELLOW}  [WARN] Auto-registration failed${NC}"
-    else
-        # Not root, try with sudo
-        sudo node "$MCP_SCRIPT_DIR/register-local-dev.cjs" > /dev/null 2>&1 && \
-            echo -e "${GREEN}  [OK] Native Host registered successfully (with sudo)${NC}" || \
-            echo -e "${YELLOW}  [WARN] Auto-registration failed (run with sudo for system-level registration)${NC}"
-    fi
 fi
 
 # Step 5: Build Chrome Extension
@@ -337,100 +541,46 @@ echo ""
 mcp_step5=$(mcp_get_var "$VAR_KEY_UI_STEP_5")
 if [ -z "$mcp_step5" ]; then
     mcp_step5="Building Chrome Extension..."
-    echo -e "${YELLOW}  [DEBUG] UI_STEP_5 is empty, using default${NC}"
 fi
 echo -e "${YELLOW}[5/6] $mcp_step5${NC}"
 
 # Get build output directory from Python-computed variable (cross-platform)
 MCP_BUILD_OUTPUT_DIR=$(mcp_get_var "$VAR_KEY_BUILD_OUTPUT_DIR")
-echo -e "${CYAN}[DEBUG] BUILD_OUTPUT_DIR from Python: $MCP_BUILD_OUTPUT_DIR${NC}"
 
 # Create build directory with proper permissions before building
 mcp_create_build_dir_with_permissions "$MCP_BUILD_OUTPUT_DIR"
 
-echo -e "${CYAN}[DEBUG] ========== BUILD EXTENSION DEBUG ==========${NC}"
-echo -e "${CYAN}[DEBUG] PROJECT_ROOT = $MCP_PROJECT_ROOT${NC}"
-echo -e "${CYAN}[DEBUG] BUILD_OUTPUT_DIR = $MCP_BUILD_OUTPUT_DIR${NC}"
-
-echo -e "${CYAN}[DEBUG] Reading build command from variable...${NC}"
-echo -e "${CYAN}[DEBUG] VAR_KEY_CMD_BUILD_EXTENSION = $VAR_KEY_CMD_BUILD_EXTENSION${NC}"
-echo -e "${CYAN}[DEBUG] VARS_DIR = $(mcp_get_vars_dir)${NC}"
-echo -e "${CYAN}[DEBUG] Variable file path: $(mcp_get_vars_dir)/$VAR_KEY_CMD_BUILD_EXTENSION${NC}"
-echo -e "${CYAN}[DEBUG] File exists? $(test -f "$(mcp_get_vars_dir)/$VAR_KEY_CMD_BUILD_EXTENSION" && echo "YES" || echo "NO")${NC}"
-echo -e "${CYAN}[DEBUG] File content (direct cat): $(cat "$(mcp_get_vars_dir)/$VAR_KEY_CMD_BUILD_EXTENSION" 2>&1)${NC}"
-
-mcp_cmd_build_extension=$(mcp_get_var "$VAR_KEY_CMD_BUILD_EXTENSION")
-echo -e "${CYAN}[DEBUG] Build command from mcp_get_var: '$mcp_cmd_build_extension'${NC}"
-echo -e "${CYAN}[DEBUG] Build command length: ${#mcp_cmd_build_extension}${NC}"
-
-if [ -z "$mcp_cmd_build_extension" ]; then
-    echo -e "${RED}[ERROR] Build command is EMPTY!${NC}"
-    exit 1
-fi
-
-eval "$mcp_cmd_build_extension"
-mcp_build_exit_code=$?
-
-echo -e "${CYAN}[DEBUG] Build exit code: $mcp_build_exit_code${NC}"
-
-if [ $mcp_build_exit_code -ne 0 ]; then
-    echo -e "${RED}  [ERROR] Failed to build Chrome Extension${NC}"
-    exit 1
-fi
+bun run build:extension
 
 mcp_extension_path=$(mcp_get_var "$VAR_KEY_EXTENSION_PATH")
-echo -e "${CYAN}[DEBUG] Extension path from variable: '$mcp_extension_path'${NC}"
-
 if [ -z "$mcp_extension_path" ]; then
     echo -e "${RED}[ERROR] EXTENSION_PATH is EMPTY!${NC}"
-    echo -e "${CYAN}[DEBUG] VAR_KEY_EXTENSION_PATH = $VAR_KEY_EXTENSION_PATH${NC}"
-    echo -e "${CYAN}[DEBUG] Variable file:${NC}"
-    ls -la "$MCP_VARS_DIR/$VAR_KEY_EXTENSION_PATH" 2>&1
-    cat "$MCP_VARS_DIR/$VAR_KEY_EXTENSION_PATH" 2>&1
+    exit 1
 fi
 
 mcp_manifest_json="$mcp_extension_path/manifest.json"
-echo -e "${CYAN}[DEBUG] Looking for manifest at: $mcp_manifest_json${NC}"
-
 if [ -f "$mcp_manifest_json" ]; then
     echo -e "${GREEN}  [OK] Chrome Extension built successfully${NC}"
-    echo -e "${CYAN}  [DEBUG] Manifest file found${NC}"
     # Fix permissions after successful build
     mcp_fix_build_permissions "$MCP_BUILD_OUTPUT_DIR"
 else
-    echo -e "${RED}  [ERROR] Extension build completed but manifest not found${NC}"
-    echo -e "${CYAN}  [DEBUG] Checking actual build output locations:${NC}"
-
-    # Check WXT default output
-    if [ -f "$MCP_PROJECT_ROOT/app/chrome-extension/.output/chrome-mv3/manifest.json" ]; then
-        echo -e "${YELLOW}  [DEBUG] Found manifest in default location: $MCP_PROJECT_ROOT/app/chrome-extension/.output/chrome-mv3/${NC}"
-    fi
-
-    # Check configured output
-    if [ -f "$MCP_BUILD_OUTPUT_DIR/chrome-mcp-extension/chrome-mv3/manifest.json" ]; then
-        echo -e "${YELLOW}  [DEBUG] Found manifest in configured location: $MCP_BUILD_OUTPUT_DIR/chrome-mcp-extension/chrome-mv3/${NC}"
-    fi
-
-    # List what's actually in the directories
-    echo -e "${CYAN}  [DEBUG] Contents of BUILD_OUTPUT_DIR ($MCP_BUILD_OUTPUT_DIR):${NC}"
+    echo -e "${RED}  [ERROR] Extension build completed but manifest not found at $mcp_manifest_json${NC}"
     ls -la "$MCP_BUILD_OUTPUT_DIR" 2>&1 | head -10
-
     exit 1
 fi
 
 # Step 6: Register Native Messaging Host
 echo ""
-mcp_step6=$(mcp_get_var "$VAR_KEY_UI_STEP_6" || echo "Registering Native Messaging Host...")
+mcp_step6=$(mcp_get_var "$VAR_KEY_UI_STEP_6" "Registering Native Messaging Host...")
 echo -e "${YELLOW}[6/6] $mcp_step6${NC}"
 
-mcp_cmd_register=$(mcp_get_var "$VAR_KEY_CMD_REGISTER")
 echo -e "${CYAN}  Using local development registration...${NC}"
-eval "$mcp_cmd_register"
+node "$MCP_SCRIPT_DIR/register-local-dev.cjs"
 
 # Verify system-level registration
 echo ""
 echo -e "${CYAN}  Registration Verification:${NC}"
-mcp_system_manifest_path="/etc/opt/chrome/native-messaging-hosts/com.chromemcp.nativehost.json"
+mcp_system_manifest_path="/etc/opt/chrome/native-messaging-hosts/$(sc_require mcp_chrome.native_host_name).json"
 if [ -f "$mcp_system_manifest_path" ]; then
     echo -e "${GREEN}  [OK] Chrome manifest registered (system-level)${NC}"
     echo -e "${DARK_GRAY}    Location: $mcp_system_manifest_path${NC}"
@@ -474,10 +624,32 @@ echo ""
 echo -e "${YELLOW}[STEP 2] Start MCP Service:${NC}"
 echo -e "${WHITE}  1. Click the extension icon in Chrome toolbar${NC}"
 echo -e "${WHITE}  2. Click 'Connect' button in popup${NC}"
-echo -e "${GREEN}  3. Service will start on: http://127.0.0.1:12306${NC}"
+echo -e "${GREEN}  3. Service will start on: http://$(sc_require hosts.loopback):${MCP_PORT}${NC}"
 
 echo ""
 echo -e "${CYAN}========================================${NC}"
 echo -e "${GREEN}  [OK] Setup completed successfully!${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
+
+if [ "$MCP_SERVICE_MODE" != "none" ]; then
+    mcp_service_converge
+    echo -e "${GREEN}  Watch mode and Chrome recovery run in service $MCP_SERVICE_NAME (journalctl -u $MCP_SERVICE_NAME -f).${NC}"
+    echo -e "${WHITE}  Remove it with: bash $MCP_SCRIPT_DIR/start.sh --uninstall-service${NC}"
+elif [ "$MCP_WATCH_MODE" = "dev" ]; then
+    echo -e "${YELLOW}  Launching watch mode...${NC}"
+    echo -e "${WHITE}  Automatic rebuilds enabled. Press Ctrl+C to stop.${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    echo -e "${CYAN}[Watch] Starting shell-owned development compilation...${NC}"
+    bun run dev &
+    MCP_DEV_PID=$!
+    trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
+    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode "$MCP_WATCH_MODE" --recover-on-start --foreground
+    kill "$MCP_DEV_PID" 2>/dev/null || true
+else
+    echo -e "${YELLOW}  One-time build complete.${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --wake
+fi

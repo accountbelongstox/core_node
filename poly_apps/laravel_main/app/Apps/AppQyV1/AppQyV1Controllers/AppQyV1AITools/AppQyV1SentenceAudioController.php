@@ -1,0 +1,476 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
+
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use Illuminate\Contracts\Validation\Validator as ValidatorContract;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Sentence-library audio worker + resolution surface (pycore + FE).
+ *
+ * laravel_main side of development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md
+ * §4.1-§4.3. The FILE on disk is the source of truth; the sentences.has_audio /
+ * audio columns are caches reconciled from the filesystem.
+ *
+ * Routes (routes/AppQyV1Router/AppQyV1AITools.php, NO-AUTH worker surface, the
+ * same trust level as /ai_tools/tts/worker/* and /assist/*):
+ *   POST /api/app_qy_v1/ai_tools/tts/sentence/claim   (compatibility claim)
+ *   POST /api/app_qy_v1/ai_tools/tts/sentence/report  (pycore validated report)
+ *   GET  /api/app_qy_v1/ai_tools/tts/sentence/audio   (FE file-first resolve)
+ *   GET  /api/app_qy_v1/ai_tools/tts/sentence/without_audio (pycore full pull)
+ *
+ * Plus the dedicated /static serve route that maps the public sentence-audio
+ * URL back onto PathMapper::getAppQyV1SentenceSoundsDir():
+ *   GET  /static/app_qy_v1/sentence_sounds/{language}/{filename}
+ */
+class AppQyV1SentenceAudioController extends Controller
+{
+    use ApiResponse;
+
+    private const CACHE_CONTROL = 'public, max-age=31536000';
+    private const ERROR_VALIDATION_FAILED = 'SENTENCE_AUDIO_VALIDATION_FAILED';
+
+    private const MIME_MAP = [
+        'mp3' => 'audio/mpeg',
+        'aac' => 'audio/aac',
+        'm4a' => 'audio/mp4',
+        'wav' => 'audio/wav',
+    ];
+
+    private AppQyV1SentenceAudioService $service;
+    private AppQyV1AudioGateway $audioGateway;
+    private AppQyV1DurableOffsetUploadService $uploadService;
+
+    public function __construct(
+        ?AppQyV1SentenceAudioService $service = null,
+        ?AppQyV1AudioGateway $audioGateway = null,
+        ?AppQyV1DurableOffsetUploadService $uploadService = null
+    )
+    {
+        $this->service = $service ?: new AppQyV1SentenceAudioService();
+        $this->audioGateway = $audioGateway ?: new AppQyV1AudioGateway(null, $this->service);
+        $this->uploadService = $uploadService ?: new AppQyV1DurableOffsetUploadService();
+    }
+
+    /**
+     * POST /api/app_qy_v1/ai_tools/tts/sentence/claim  (§4.1)
+     * Body: { worker_id: string, language?: string|null, limit?: int }
+     * limit<=0 -> counts only (FE summary); limit>0 -> lease + return tasks.
+     */
+    public function claim(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'worker_id' => 'required|string|max:100',
+            'language' => 'nullable|string|max:20',
+            'limit' => 'nullable|integer|min:0|max:50',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+
+        try {
+            $result = $this->service->claim(
+                $request->input('worker_id'),
+                $request->input('language'),
+                (int) $request->input('limit', 50)
+            );
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] claim failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during claim'], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $result,
+        ]);
+    }
+
+    /**
+     * POST /api/app_qy_v1/ai_tools/tts/sentence/report  (§6)
+     *
+     * Sentences are keyed by content_id + language against the per-language
+     * tables {prefix}_sentences_{lang}. `hash` is accepted as an alias for
+     * content_id (legacy `sentence_id` is still accepted as a fallback).
+     *
+     * Multipart (success): { content_id, language, worker_id, success:"true",
+     *                        provider?, audio:<file mp3> }  (or audio_base64).
+     * Form (failure):       { content_id, language, worker_id, success:"false",
+     *                        provider?, error? }.
+     */
+    public function report(Request $request): JsonResponse
+    {
+        $success = false;
+        $audioBinary = null;
+        $contentId = null;
+        $offsetReceipt = null;
+        $publicReceipt = [];
+        $variantMeta = [];
+        $result = [];
+        $httpStatus = 0;
+
+        $validator = Validator::make($request->all(), [
+            'content_id' => 'nullable|string|max:64',
+            'text' => 'nullable|string|max:16000',
+            'hash' => 'nullable|string|max:64',
+            'sentence_id' => 'nullable|string|max:64',
+            'language' => 'required|string|max:20',
+            'worker_id' => 'required|string|max:100',
+            'success' => 'required',
+            'provider' => 'nullable|string|max:100',
+            'error' => 'nullable|string|max:2000',
+            'audio_base64' => 'nullable|string',
+            'variant_key' => 'nullable|string|max:32',
+            'accent' => 'nullable|string|max:16',
+            'gender' => 'nullable|string|max:16',
+            'source' => 'nullable|string|max:32',
+            'voice_type' => 'nullable|string|max:32',
+            'upload_protocol' => 'nullable|string|in:offset-v1',
+            'upload_offset' => 'required_with:upload_protocol|integer|min:0',
+            'upload_length' => 'required_with:upload_protocol|integer|min:100',
+            'audio_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
+            'chunk_sha256' => ['required_with:upload_protocol', 'nullable', 'string', 'regex:/^[a-f0-9]{64}$/'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+
+        $success = filter_var($request->input('success'), FILTER_VALIDATE_BOOLEAN);
+        $contentId = $request->input('content_id')
+            ?? $request->input('hash')
+            ?? $request->input('sentence_id');
+        if ($contentId === null || $contentId === '') {
+            return response()->json([
+                'success' => false,
+                'error' => 'Provide content_id (or hash)',
+            ], 422);
+        }
+
+        if ($success) {
+            if ($request->filled('upload_protocol')) {
+                $offsetReceipt = $this->uploadService->receive(
+                    'sentence_tts',
+                    (string) $contentId . ':' . (string) $request->input('language')
+                        . ':' . (string) $request->input('variant_key', ''),
+                    (string) $request->getContent(),
+                    (int) $request->input('upload_offset'),
+                    (int) $request->input('upload_length'),
+                    (string) $request->input('audio_sha256'),
+                    (string) $request->input('chunk_sha256')
+                );
+                if ($offsetReceipt === null) {
+                    return response()->json(['success' => false, 'error' => 'Invalid durable audio chunk'], 422);
+                }
+                $publicReceipt = $this->uploadService->publicReceipt($offsetReceipt);
+                if (!($offsetReceipt['upload_complete'] ?? false)) {
+                    return response()->json(['success' => true, 'data' => $publicReceipt]);
+                }
+                $audioBinary = $this->uploadService->completedBytes($offsetReceipt);
+                if ($audioBinary === false) {
+                    return response()->json(['success' => false, 'error' => 'Completed audio upload is unreadable'], 500);
+                }
+            } elseif ($request->hasFile('audio')) {
+                $file = $request->file('audio');
+                if (!$file->isValid()) {
+                    return response()->json(['success' => false, 'error' => 'Audio upload failed'], 422);
+                }
+                $audioBinary = @file_get_contents($file->getRealPath());
+                if ($audioBinary === false) {
+                    $audioBinary = null;
+                }
+            } elseif ($request->filled('audio_base64')) {
+                $decoded = base64_decode($request->input('audio_base64'), true);
+                if ($decoded === false) {
+                    return response()->json(['success' => false, 'error' => 'audio_base64 is not valid base64'], 422);
+                }
+                $audioBinary = $decoded;
+            }
+
+            // NOTE: a missing file is NOT rejected here — the report path is
+            // idempotent and acks already_done when the file is already on disk
+            // (a worker re-reporting a sentence pycore already generated).
+        }
+
+        try {
+            $variantMeta = array_filter([
+                'accent' => $request->input('accent'),
+                'gender' => $request->input('gender'),
+                'source' => $request->input('source'),
+                'voice_type' => $request->input('voice_type'),
+            ], static fn ($v) => $v !== null && $v !== '');
+            $result = $this->service->report(
+                (string) $contentId,
+                (string) $request->input('language'),
+                $request->input('worker_id'),
+                $success,
+                $audioBinary,
+                $request->input('provider'),
+                $request->input('error'),
+                $request->input('variant_key'),
+                $variantMeta ?: null,
+                $request->input('text')
+            );
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] report failed', [
+                'content_id' => $contentId,
+                'language' => $request->input('language'),
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['success' => false, 'error' => 'Internal error ingesting result'], 500);
+        }
+
+        $httpStatus = $result['http_status'];
+        unset($result['http_status']);
+        if (($result['error'] ?? null) === null) {
+            unset($result['error']);
+        }
+        if ($offsetReceipt !== null) {
+            if ($result['ok'] ?? false) {
+                $this->uploadService->discardCompleted($offsetReceipt);
+            }
+            return response()->json([
+                'success' => (bool) ($result['ok'] ?? false),
+                'data' => array_merge($publicReceipt, $result),
+            ], $httpStatus);
+        }
+
+        return response()->json($result, $httpStatus);
+    }
+
+    /**
+     * GET /api/app_qy_v1/ai_tools/tts/sentence/audio  (§6) — FILE-FIRST.
+     * Query: ?hash=<content_id>&language=<lang>  OR  ?text=<sentence>&language=<lang>
+     *
+     * Optional ?variant_key=<key> resolves a specific suffixed variant;
+     * ?accent=<us|uk|...> resolves the first on-disk variant whose spec matches
+     * that accent. ?passive=1 reads current state without queue writes.
+     * Delegates to AppQyV1SentenceAudioService::resolve() (variant-aware disk
+     * lookup via relativePathFor + audio_files entry).
+     */
+    public function audio(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'hash' => 'nullable|string|max:64',
+            'text' => 'nullable|string',
+            'language' => 'nullable|string|max:20',
+            'variant_key' => 'nullable|string|max:32',
+            'accent' => 'nullable|string|max:16',
+            'passive' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+
+        $hash = $request->query('hash');
+        $text = $request->query('text');
+        $language = $request->query('language');
+        $variantKey = $request->query('variant_key');
+        $accent = $request->query('accent');
+        $passive = $request->boolean('passive');
+
+        if (($hash === null || $hash === '') && ($text === null || $text === '')) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Provide hash (sentence_id or content_id) or text+language',
+            ], 422);
+        }
+
+        try {
+            $result = $this->audioGateway->requestSentence(
+                $hash,
+                $text,
+                $language,
+                $variantKey,
+                $accent,
+                !$passive
+            );
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] resolve failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during resolve'], 500);
+        }
+
+        $status = ($result['success'] ?? false) ? 200 : 422;
+
+        return response()->json($result, $status);
+    }
+
+    /**
+     * POST /api/app_qy_v1/ai_tools/tts/sentence/audio/head
+     * Body: { items: [{ text, language }] }
+     *
+     * Book-reader chapter/page switch: move every visible missing-audio sentence
+     * to the global queue head in one round-trip.
+     */
+    public function moveAudioToHead(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'items' => 'required|array|min:1|max:400',
+            'items.*.text' => 'required|string',
+            'items.*.language' => 'required|string|max:20',
+        ]);
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+        try {
+            $result = $this->audioGateway->requestSentenceBatch((array) $request->input('items'));
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] move-to-head batch failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during queue-head update'], 500);
+        }
+        return response()->json(array_merge(['success' => true], $result), 200);
+    }
+
+    /**
+     * GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio
+     *   ?language=<code>&cursor_id=<id>&limit=<=1000
+     *
+     * READ-ONLY keyset listing of library sentences still lacking audio
+     * (has_audio false or NULL) — the sentence_audio backlog. pycore's sentence
+     * full pull pages it into Part2 (the Laravel backlog part) of its local
+     * sentence_audio Queue (docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md
+     * §5.4) and reports generated audio through /sentence/report by content_id;
+     * it never enqueues into Laravel's queue here. Without `language` it
+     * returns the per-language backlog sizes so the caller can plan the pull.
+     *
+     * Response: { success, data: { language, items:[{id, content_id, text,
+     * language}], next_cursor, has_more, total? } } or
+     * { success, data: { languages:[{language, without_audio}] } }.
+     */
+    public function withoutAudio(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'language' => 'nullable|string|max:20',
+            'cursor_id' => 'nullable|integer|min:0',
+            'limit' => 'nullable|integer|min:1|max:1000',
+        ]);
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+        $language = trim((string) $request->query('language', ''));
+        if ($language === '') {
+            $languages = [];
+            foreach (AppQyV1TableMaps::getSupportedLanguages() as $code) {
+                $count = AppQyV1LangSentenceModel::withoutAudioCount((string) $code);
+                if ($count > 0) {
+                    $languages[] = ['language' => (string) $code, 'without_audio' => $count];
+                }
+            }
+            return response()->json(['success' => true, 'data' => ['languages' => $languages]]);
+        }
+        $code = AppQyV1TableMaps::normalizeLangCode($language);
+        $cursor = (int) $request->query('cursor_id', 0);
+        $limit = (int) $request->query('limit', 1000);
+        $rows = AppQyV1LangSentenceModel::withoutAudioKeysetPage($code, $cursor, $limit + 1);
+        $hasMore = $rows->count() > $limit;
+        $rows = $rows->take($limit)->values();
+        $last = $rows->last();
+        $data = [
+            'language' => $code,
+            'items' => $rows->map(static fn ($row): array => [
+                'id' => (int) $row->id,
+                'content_id' => (string) $row->content_id,
+                'text' => (string) $row->text,
+                'language' => (string) ($row->language ?: $code),
+            ])->all(),
+            'next_cursor' => $last !== null ? (int) $last->id : $cursor,
+            'has_more' => $hasMore,
+        ];
+        if ($cursor === 0) {
+            $data['total'] = AppQyV1LangSentenceModel::withoutAudioCount($code);
+        }
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * GET /api/app_qy_v1/ai_tools/tts/sentence/missing
+     * Query: language?, page?, per_page?
+     */
+    public function missing(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'language' => 'nullable|string|max:20',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+        if ($validator->fails()) {
+            return $this->validationFailed($validator);
+        }
+        try {
+            $data = $this->service->listMissing(
+                $request->query('language'),
+                (int) $request->query('page', 1),
+                (int) $request->query('per_page', 50)
+            );
+        } catch (\Throwable $e) {
+            Log::error('[SentenceAudio] missing list failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error'], 500);
+        }
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
+    /**
+     * GET /static/app_qy_v1/sentence_sounds/{language}/{filename}
+     *
+     * Serves a sentence-audio file from PathMapper::getAppQyV1SentenceSoundsDir()
+     * — the bare-Octane fallback equivalent of the cover/media /static serving.
+     * In production nginx maps /static/ straight onto the wwwroot static dir; in
+     * local dev nothing served the sentence_sounds path, so this route resolves
+     * the same public URL produced by AppQyV1SentenceAudioUrl.
+     */
+    public function serve(string $language, string $filename): Response
+    {
+        // Reject any path-traversal in the two captured segments before mapping.
+        if (str_contains($language, '/') || str_contains($language, '\\')
+            || str_contains($filename, '/') || str_contains($filename, '\\')
+            || str_contains($language, '..') || str_contains($filename, '..')) {
+            abort(404);
+        }
+
+        $relative = $language . '/' . $filename;
+        $resolved = realpath($this->service->fullPathFor($relative));
+        if ($resolved === false || !is_file($resolved)) {
+            abort(404);
+        }
+
+        // SECURITY: the resolved file must stay inside the sentence sounds root.
+        $baseReal = realpath($this->service->fullPathFor(''));
+        if ($baseReal === false) {
+            abort(404);
+        }
+        $prefix = rtrim($baseReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        if (!str_starts_with($resolved, $prefix)) {
+            abort(403);
+        }
+
+        $extension = strtolower(pathinfo($resolved, PATHINFO_EXTENSION));
+        $contentType = self::MIME_MAP[$extension] ?? 'application/octet-stream';
+
+        return response()->file($resolved, [
+            'Content-Type' => $contentType,
+            'Cache-Control' => self::CACHE_CONTROL,
+        ]);
+    }
+
+    private function validationFailed(ValidatorContract $validator): JsonResponse
+    {
+        return $this->codedError(
+            self::ERROR_VALIDATION_FAILED,
+            __('app_qy_v1.messages.sentence_audio_validation_failed', ['detail' => $validator->errors()->first()]),
+            ['errors' => $validator->errors()->toArray()],
+            422
+        );
+    }
+}

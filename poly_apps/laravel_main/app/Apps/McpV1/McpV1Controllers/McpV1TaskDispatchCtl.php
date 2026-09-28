@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Validator;
  * Handles task dispatch and queue management for MCP bridge
  * Supports both MCP (Model Context Protocol) and web query interfaces
  *
- * Following Laravel 12.x MCP specifications
- * @see https://laravel.com/docs/12.x/mcp
+ * Following Laravel 13.x MCP specifications
+ * @see https://laravel.com/docs/13.x/mcp
  *
  * MCP Endpoints: /api/mcp/v1/task-dispatch/*
  * Web Endpoints: /api/mcp/v1/task-dispatch/* (same)
@@ -477,6 +477,49 @@ class McpV1TaskDispatchCtl extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'Failed to update task status',
+                'details' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete a task from a category queue
+     *
+     * MCP & Web: DELETE /api/mcp/v1/task-dispatch/queue/{categoryId}/tasks/{taskId}
+     *
+     * @param Request $request
+     * @param string $categoryId
+     * @param string $taskId
+     * @return JsonResponse
+     */
+    public function deleteTask(Request $request, string $categoryId, string $taskId): JsonResponse
+    {
+        Log::info('McpV1: Delete task', [
+            'category' => $categoryId,
+            'task' => $taskId
+        ]);
+
+        try {
+            $result = $this->queueService->deleteTask($categoryId, $taskId);
+
+            return response()->json([
+                'success' => true,
+                'data' => $result,
+                'meta' => [
+                    'mcp_compatible' => true,
+                    'timestamp' => now()->toIso8601String()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('McpV1: Failed to delete task', [
+                'category' => $categoryId,
+                'task' => $taskId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to delete task',
                 'details' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }

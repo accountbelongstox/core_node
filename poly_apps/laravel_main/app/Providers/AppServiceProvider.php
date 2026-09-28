@@ -1,22 +1,17 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Providers;
 
+use App\Apps\Relay\RelayServices\RelayContract;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Database\Eloquent\Model;
+use App\Support\DatabaseQueryMonitor;
+use App\Services\UserConfig\UserConfigService;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeployCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeploySelfCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1SSLCommand;
@@ -31,6 +26,8 @@ use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1StaticAp
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1PolyAppsCommand;
 use App\Console\Commands\CheckCertbotCommand;
 use App\Console\Commands\NuxtServiceRefreshCommand;
+use App\Apps\AppQyV1\AppQyV1Commands\AppQyV1ResourceIndexCommand;
+use App\Apps\CodeMartV1\CodeMartV1Commands\CodeMartV1AdminPasswordCommand;
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -38,7 +35,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Octane keeps singleton instances for the lifetime of a worker. A
+        // scoped binding shares the memoized user configuration within one
+        // request and releases it before the next request lifecycle begins.
+        $this->app->scoped(UserConfigService::class);
     }
 
     /**
@@ -46,6 +46,33 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Model::shouldBeStrict(!app()->isProduction());
+        DatabaseQueryMonitor::register();
+        RateLimiter::for('relay-device', static function (Request $request): Limit {
+            $deviceId = (string) $request->header(RelayContract::header('device_id'), '');
+            $lane = (string) $request->route()?->getActionMethod();
+
+            return Limit::perMinute(RelayContract::rateLimit('device_requests_per_minute'))
+                ->by(($deviceId !== '' ? $deviceId : (string) $request->ip()).':'.$lane);
+        });
+        RateLimiter::for('relay-owner', static function (Request $request): Limit {
+            $lane = (string) $request->route()?->getActionMethod();
+
+            return Limit::perMinute(RelayContract::rateLimit('owner_requests_per_minute'))
+                ->by((string) $request->ip().':'.$lane);
+        });
+        RateLimiter::for('relay-enrollment-claim', static function (Request $request): Limit {
+            return Limit::perMinute(RelayContract::rateLimit('enrollment_claims_per_minute'))
+                ->by((string) $request->ip());
+        });
+
+        // Dashboard auth mutations (login/register/elevate): brute-force guard
+        // per client IP, following the Laravel authentication rate-limiting
+        // convention. Identity polling (/auth/status, /auth/user) is exempt.
+        RateLimiter::for('dashboard-auth', static function (Request $request): Limit {
+            return Limit::perMinute(10)->by((string) $request->ip());
+        });
+
         Response::macro('goStyle', function () {
             return Response::make()
                 ->header('X-Go-Type', 'application/go')
@@ -73,6 +100,8 @@ class AppServiceProvider extends ServiceProvider
                 ServerManagerV1PolyAppsCommand::class,
                 CheckCertbotCommand::class,
                 NuxtServiceRefreshCommand::class,
+                AppQyV1ResourceIndexCommand::class,
+                CodeMartV1AdminPasswordCommand::class,
             ]);
         }
     }

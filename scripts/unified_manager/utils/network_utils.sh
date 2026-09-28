@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Network Utils Module
 # Provides network-related utility functions for launchers
@@ -21,14 +10,14 @@ get_all_ips() {
     echo "=== Available Network Addresses ==="
 
     # Get localhost
-    echo "  âž? Local:    http://localhost:$port/"
-    echo "  âž? Local:    http://127.0.0.1:$port/"
+    echo "   Local:    http://localhost:$port/"
+    echo "   Local:    http://127.0.0.1:$port/"
 
     # Get all network interfaces
     local ips=$(ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | cut -d' ' -f2)
     if [ -n "$ips" ]; then
         for ip in $ips; do
-            echo "  âž? Network:  http://$ip:$port/"
+            echo "   Network:  http://$ip:$port/"
         done
     fi
 
@@ -37,7 +26,7 @@ get_all_ips() {
     if [ -n "$all_ips" ]; then
         for ip in $all_ips; do
             if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo "  âž? Interface: http://$ip:$port/"
+                echo "   Interface: http://$ip:$port/"
             fi
         done
     fi
@@ -45,7 +34,7 @@ get_all_ips() {
     # Try to get public IP
     local public_ip=$(curl -s --connect-timeout 3 ifconfig.me 2>/dev/null || curl -s --connect-timeout 3 ipinfo.io/ip 2>/dev/null)
     if [ -n "$public_ip" ] && [[ "$public_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "  âž? Public:   http://$public_ip:$port/"
+        echo "   Public:   http://$public_ip:$port/"
     fi
 
     echo "========================================"

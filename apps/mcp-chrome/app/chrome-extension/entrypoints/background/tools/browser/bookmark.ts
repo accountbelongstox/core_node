@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { getMessage } from '@/utils/i18n';
@@ -325,31 +325,22 @@ class BookmarkSearchTool extends BaseBrowserToolExecutor {
         }),
       );
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: true,
-                totalResults: resultsWithPath.length,
-                query: query || null,
-                folderSearched: targetFolderNode
-                  ? targetFolderNode.title || targetFolderNode.id
-                  : 'All bookmarks',
-                bookmarks: resultsWithPath,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(
+        {
+          success: true,
+          totalResults: resultsWithPath.length,
+          query: query || null,
+          folderSearched: targetFolderNode
+            ? targetFolderNode.title || targetFolderNode.id
+            : 'All bookmarks',
+          bookmarks: resultsWithPath,
+        },
+        { space: 2 },
+      );
     } catch (error) {
       console.error('Error searching bookmarks:', error);
       return createErrorResponse(
-        `Error searching bookmarks: ${error instanceof Error ? error.message : String(error)}`,
+        `Error searching bookmarks: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -405,7 +396,7 @@ class BookmarkAddTool extends BaseBrowserToolExecutor {
             folderNode = await createFolderPath(parentId);
           } catch (createError) {
             return createErrorResponse(
-              `Failed to create folder path: ${createError instanceof Error ? createError.message : String(createError)}`,
+              `Failed to create folder path: ${toErrorMessage(createError)}`,
             );
           }
         }
@@ -453,33 +444,24 @@ class BookmarkAddTool extends BaseBrowserToolExecutor {
       // Get bookmark path
       const path = await getBookmarkFolderPath(newBookmark.id);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: true,
-                message: 'Bookmark added successfully',
-                bookmark: {
-                  id: newBookmark.id,
-                  title: newBookmark.title,
-                  url: newBookmark.url,
-                  dateAdded: newBookmark.dateAdded,
-                  folderPath: path,
-                },
-                folderCreated: createFolder && parentId ? 'Folder created if necessary' : false,
-              },
-              null,
-              2,
-            ),
+      return createJsonResponse(
+        {
+          success: true,
+          message: 'Bookmark added successfully',
+          bookmark: {
+            id: newBookmark.id,
+            title: newBookmark.title,
+            url: newBookmark.url,
+            dateAdded: newBookmark.dateAdded,
+            folderPath: path,
           },
-        ],
-        isError: false,
-      };
+          folderCreated: createFolder && parentId ? 'Folder created if necessary' : false,
+        },
+        { space: 2 },
+      );
     } catch (error) {
       console.error('Error adding bookmark:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
 
       // Provide more specific error messages for common error cases, such as trying to bookmark chrome:// URLs
       if (errorMessage.includes("Can't bookmark URLs of type")) {
@@ -557,7 +539,7 @@ class BookmarkDeleteTool extends BaseBrowserToolExecutor {
             folderPath: path,
           });
         } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error);
+          const errorMsg = toErrorMessage(error);
           errors.push(
             `Failed to delete bookmark "${bookmark.title}" (ID: ${bookmark.id}): ${errorMsg}`,
           );
@@ -579,19 +561,11 @@ class BookmarkDeleteTool extends BaseBrowserToolExecutor {
         result.errors = errors;
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result, { space: 2 });
     } catch (error) {
       console.error('Error deleting bookmark:', error);
       return createErrorResponse(
-        `Error deleting bookmark: ${error instanceof Error ? error.message : String(error)}`,
+        `Error deleting bookmark: ${toErrorMessage(error)}`,
       );
     }
   }

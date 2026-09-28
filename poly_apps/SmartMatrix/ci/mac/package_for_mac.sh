@@ -1,10 +1,10 @@
-# 获取绝对路径，保证其他目录执行此脚本依然正确
+# huo qu jue dui lu jing, bao zheng qi ta mulu zhi xing ci jiao benyi ran zheng que
 {
 cd $(dirname "$0")
 script_path=$(pwd)
 cd -
 } &> /dev/null # disable output
-# 设置当前目录，cd的目录影响接下来执行程序的工作目录
+# she zhidang qian mulu, cd de mulu ying xiang jie xia lai zhi xing cheng xu de gong zuo mulu
 old_cd=$(pwd)
 cd $(dirname "$0")
 
@@ -32,6 +32,6 @@ if [ $? -ne 0 ] ;then
     exit 1
 fi
 
-# 恢复当前目录
+# hui fu dang qian mulu
 cd $old_cd
 exit 0

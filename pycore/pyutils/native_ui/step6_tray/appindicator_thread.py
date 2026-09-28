@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import print_appindicator_status
 """
 AppIndicator System Tray Thread
 
@@ -10,17 +11,21 @@ Thread-safe AppIndicator wrapper following project threading standards:
 """
 
 import threading
-from typing import Optional, List
+from typing import Optional, List, Any
 from pathlib import Path
 
-from pycore import THREAD_BUS, ColorPrint
+from pycore.pyfoundations.desktop_session import current_desktop_session
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from .appindicator_system_tray import (
+from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
     AppIndicatorSystemTray,
-    AppIndicatorMenuItem,
     APPINDICATOR_AVAILABLE,
     check_appindicator_available
 )
+from pycore.pyutils.native_ui.step6_tray._types import AppIndicatorMenuItem, build_appindicator_menu_items
+
+import platform
 
 
 class AppIndicatorSystemTrayThread(threading.Thread):
@@ -62,17 +67,20 @@ class AppIndicatorSystemTrayThread(threading.Thread):
 
         if not APPINDICATOR_AVAILABLE:
             raise RuntimeError(
-                "AppIndicator3 not available. Install with:\n"
-                "  sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
+                "AppIndicator not available. Install with:\n"
+                "  (modern Ubuntu) sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
+                "  (legacy)        sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
             )
 
-        self.app_id = app_id
-        self.app_name = app_name
-        self.icon_path = icon_path
-        self.icon_name = icon_name
-        self.menu_items = menu_items or []
-        self.trigger_shutdown_on_exit = trigger_shutdown_on_exit
-        self.tray: Optional[AppIndicatorSystemTray] = None
+        self._config_queue = f"native_ui.appindicator.config.{id(self)}"
+        THREAD_BUS.send_message(self._config_queue, {
+            "app_id": app_id,
+            "app_name": app_name,
+            "icon_path": icon_path,
+            "icon_name": icon_name,
+            "menu_items": list(menu_items or []),
+            "trigger_shutdown_on_exit": bool(trigger_shutdown_on_exit),
+        })
 
         ColorPrint.blue(f"[AppIndicatorThread] Initialized - App: {app_name}")
 
@@ -83,29 +91,31 @@ class AppIndicatorSystemTrayThread(threading.Thread):
             return
 
         ColorPrint.green("[AppIndicatorThread] Starting tray...")
+        config = THREAD_BUS.receive_message(self._config_queue) or {}
 
         # Create tray instance
-        self.tray = AppIndicatorSystemTray(
-            app_id=self.app_id,
-            app_name=self.app_name,
-            icon_path=self.icon_path,
-            icon_name=self.icon_name,
-            trigger_shutdown_on_exit=self.trigger_shutdown_on_exit
+        tray = AppIndicatorSystemTray(
+            app_id=config.get("app_id", "pycore-app"),
+            app_name=config.get("app_name", "Application"),
+            icon_path=config.get("icon_path"),
+            icon_name=config.get("icon_name"),
+            trigger_shutdown_on_exit=bool(config.get("trigger_shutdown_on_exit", True)),
         )
 
         # Set menu items
-        if self.menu_items:
-            self.tray.set_menu_items(self.menu_items)
+        menu_items = config.get("menu_items") or []
+        if menu_items:
+            tray.set_menu_items(menu_items)
 
         # Signal that tray is starting
         THREAD_BUS.trigger_event('tray.thread.started', {
-            'app_id': self.app_id,
+            'app_id': config.get("app_id", "pycore-app"),
             'backend': 'appindicator'
         })
 
         # Run tray (blocks until stopped)
         ColorPrint.green(f"[AppIndicatorThread] Tray running...")
-        self.tray.run()
+        tray.run()
 
         # Signal that tray has stopped
         THREAD_BUS.trigger_event('tray.thread.stopped', {})
@@ -117,9 +127,7 @@ class AppIndicatorSystemTrayThread(threading.Thread):
 
         This method is thread-safe via GLib.idle_add() in the tray implementation.
         """
-        if self.tray:
-            ColorPrint.blue(f"[AppIndicatorThread] Requesting stop...")
-            self.tray.stop()
+        THREAD_BUS.trigger_event("tray.request_stop", {})
 
     def update_menu(self, menu_items: List[AppIndicatorMenuItem]):
         """
@@ -128,8 +136,7 @@ class AppIndicatorSystemTrayThread(threading.Thread):
         Args:
             menu_items: New list of menu items
         """
-        if self.tray:
-            self.tray.update_menu(menu_items)
+        THREAD_BUS.trigger_event("tray.update_menu", {"menu_items": list(menu_items)})
 
     def get_tray(self) -> Optional[AppIndicatorSystemTray]:
         """
@@ -137,7 +144,8 @@ class AppIndicatorSystemTrayThread(threading.Thread):
 
         Note: Direct access should be minimized. Prefer THREAD_BUS events.
         """
-        return self.tray
+        ColorPrint.yellow("[AppIndicatorThread] Direct tray access is unavailable")
+        return None
 
 
 # Utility function
@@ -148,8 +156,6 @@ def is_appindicator_recommended() -> bool:
     Returns:
         True if running on Linux with GNOME Shell and AppIndicator available
     """
-    import platform
-    import subprocess
 
     if platform.system() != "Linux":
         return False
@@ -157,27 +163,11 @@ def is_appindicator_recommended() -> bool:
     if not check_appindicator_available():
         return False
 
-    # Check if running GNOME Shell
-    try:
-        session = subprocess.run(
-            ["echo", "$XDG_CURRENT_DESKTOP"],
-            capture_output=True,
-            text=True,
-            shell=True,
-            timeout=1
-        )
-        desktop = session.stdout.strip().lower()
-
-        if "gnome" in desktop or "ubuntu" in desktop:
-            return True
-    except:
-        pass
-
-    return False
+    session = current_desktop_session()
+    return session.is_gnome or 'ubuntu' in session.desktop_names
 
 
 if __name__ == "__main__":
-    from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import print_appindicator_status
 
     print_appindicator_status()
 

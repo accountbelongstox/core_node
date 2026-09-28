@@ -20,6 +20,8 @@ import sys
 import subprocess
 from pathlib import Path
 from typing import Optional, List
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 
 class AppExecutableLauncher:
@@ -143,49 +145,52 @@ class AppExecutableLauncher:
         """
         if not app_directory.exists():
             if not silent:
-                print(f'[Launcher] App directory not found: {app_directory}')
+                ColorPrint.plain(f'[Launcher] App directory not found: {app_directory}')
             return False
 
         # Search for main executable first
         main_executable = self.search_executable_file(app_directory, 'main')
         if main_executable:
             if not silent:
-                print(f'[Launcher] Found main executable: {main_executable}')
+                ColorPrint.plain(f'[Launcher] Found main executable: {main_executable}')
 
             success = self.launch_executable(main_executable)
             if success:
                 if not silent:
-                    print(f'[Launcher] Successfully launched: {main_executable}')
+                    ColorPrint.plain(f'[Launcher] Successfully launched: {main_executable}')
                 return True
             else:
                 if not silent:
-                    print(f'[Launcher] Failed to launch: {main_executable}')
+                    ColorPrint.plain(f'[Launcher] Failed to launch: {main_executable}')
                 return False
 
         # Search for app-specific executable
         app_executable = self.search_executable_file(app_directory, app_name)
         if app_executable:
             if not silent:
-                print(f'[Launcher] Found app-specific executable: {app_executable}')
+                ColorPrint.plain(f'[Launcher] Found app-specific executable: {app_executable}')
 
             success = self.launch_executable(app_executable)
             if success:
                 if not silent:
-                    print(f'[Launcher] Successfully launched: {app_executable}')
+                    ColorPrint.plain(f'[Launcher] Successfully launched: {app_executable}')
                 return True
             else:
                 if not silent:
-                    print(f'[Launcher] Failed to launch: {app_executable}')
+                    ColorPrint.plain(f'[Launcher] Failed to launch: {app_executable}')
                 return False
 
         # No executable found (this is normal, not an error)
         if not silent:
-            print(f'[Launcher] No executable files found in: {app_directory}')
+            ColorPrint.plain(f'[Launcher] No executable files found in: {app_directory}')
         return False
 
 
-# Global singleton instance
-_app_executable_launcher = None
+_APP_EXECUTABLE_LAUNCHER_PROVIDER = SerializedSingletonProvider(
+    AppExecutableLauncher,
+    "app_executable_launcher.provider",
+    "AppExecutableLauncherProvider",
+)
 
 
 def get_app_executable_launcher() -> AppExecutableLauncher:
@@ -195,7 +200,4 @@ def get_app_executable_launcher() -> AppExecutableLauncher:
     Returns:
         AppExecutableLauncher instance
     """
-    global _app_executable_launcher
-    if _app_executable_launcher is None:
-        _app_executable_launcher = AppExecutableLauncher()
-    return _app_executable_launcher
+    return _APP_EXECUTABLE_LAUNCHER_PROVIDER.get()

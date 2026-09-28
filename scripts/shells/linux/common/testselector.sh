@@ -1,20 +1,13 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
-source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
+source "$SCRIPT_DIR/gvar_common.sh"
 
-# Test Scripts Selector
+# Test Scripts Selector (input-based: type a number or name fragment, first match runs)
+
+# Global variables for script selection
+TEST_SELECTOR_INPUT=""
+TEST_SELECTOR_MATCHED_SCRIPT=""
 
 # Get install_shells directory path
 get_install_shells_dir() {
@@ -39,7 +32,7 @@ get_install_scripts() {
         done < <(find "$install_shells_dir" -maxdepth 1 -name "*.sh" -print0)
 
         # Sort scripts by numeric prefix
-        IFS=$'\n' sorted=($(sort -n -t: -k1 <<<"${scripts[*]}"))
+        IFS=$'\n' sorted=($(sort -t: -k1,1n -k2,2 <<<"${scripts[*]}"))
         unset IFS
 
         # Extract just the file paths
@@ -51,26 +44,49 @@ get_install_scripts() {
     fi
 }
 
-# Display test scripts menu
-show_test_scripts_menu() {
-    local scripts=($(get_install_scripts))
-    local script_count=${#scripts[@]}
-    
-    clear
-    echo "Test Scripts Menu ($script_count scripts)"
+show_test_scripts_context() {
     echo "GLOBAL_VAR_DIR: ${GLOBAL_VAR_DIR}"
-    echo ""
-    echo "Available installation scripts:"
-    echo "--------------------------------------"
-    
-    for script_path in "${scripts[@]}"; do
-        local script_name=$(basename "$script_path")
-        printf "  %s\n" "$script_name"
+}
+
+# Trim leading/trailing whitespace from TEST_SELECTOR_INPUT
+test_selector_trim_input() {
+    TEST_SELECTOR_INPUT="${TEST_SELECTOR_INPUT#"${TEST_SELECTOR_INPUT%%[![:space:]]*}"}"
+    TEST_SELECTOR_INPUT="${TEST_SELECTOR_INPUT%"${TEST_SELECTOR_INPUT##*[![:space:]]}"}"
+}
+
+# Match TEST_SELECTOR_INPUT against the sorted script list; first match wins.
+# Digits: exact numeric-prefix match first (93 -> 93_x.sh, not 193_x.sh), then substring fallback.
+# Text: case-insensitive substring match on the script basename.
+# Result stored in TEST_SELECTOR_MATCHED_SCRIPT; returns 0 on match, 1 otherwise.
+find_matching_script() {
+    local user_input="$1"
+    shift
+    local -a candidate_scripts=("$@")
+    local input_lower="${user_input,,}"
+    local candidate=""
+    local candidate_name=""
+
+    TEST_SELECTOR_MATCHED_SCRIPT=""
+
+    if [[ "$input_lower" =~ ^[0-9]+$ ]]; then
+        for candidate in "${candidate_scripts[@]}"; do
+            candidate_name="$(basename "$candidate")"
+            if [[ "$candidate_name" =~ ^${input_lower}_ ]]; then
+                TEST_SELECTOR_MATCHED_SCRIPT="$candidate"
+                return 0
+            fi
+        done
+    fi
+
+    for candidate in "${candidate_scripts[@]}"; do
+        candidate_name="$(basename "${candidate,,}")"
+        if [[ "$candidate_name" == *"$input_lower"* ]]; then
+            TEST_SELECTOR_MATCHED_SCRIPT="$candidate"
+            return 0
+        fi
     done
-    
-    echo ""
-    echo "Enter script index to execute (e.g., 1, 11, 12, etc.)"
-    echo "Press 'b' to go back, 'q' to quit"
+
+    return 1
 }
 
 # Execute selected test script
@@ -80,6 +96,7 @@ execute_test_script() {
     
     clear
     echo "  Executing: $script_name"
+    echo "  Path: $script_path"
     echo ""
     
     if [ ! -f "$script_path" ]; then
@@ -108,10 +125,11 @@ execute_test_script() {
     return $exit_code
 }
 
-# Main test scripts menu loop
+# Main test scripts menu loop (input-based selection)
 test_scripts_main() {
     local scripts=($(get_install_scripts))
     local script_count=${#scripts[@]}
+    local script_index
     
     if [ $script_count -eq 0 ]; then
         clear
@@ -124,51 +142,36 @@ test_scripts_main() {
     fi
     
     while true; do
-        show_test_scripts_menu
-        
-        # Read user input
-        echo -n "Your choice: "
-        read -r user_input
-        
-        case "$user_input" in
-            [bB])  # B to go back
-                exit 0
-                ;;
-            [qQ])  # Q to quit
-                echo "Exiting..."
-                exit 0
-                ;;
-            [0-9]*)  # Number input
-                # Find script by its actual index (from filename)
-                local found_script=""
-                for script_path in "${scripts[@]}"; do
-                    local script_name=$(basename "$script_path")
-                    if [[ $script_name =~ ^${user_input}_ ]]; then
-                        found_script="$script_path"
-                        break
-                    fi
-                done
-                
-                if [ -n "$found_script" ]; then
-                    execute_test_script "$found_script"
-                else
-                    echo "Script with index '$user_input' not found."
-                    echo "Press any key to continue..."
-                    read -n 1
-                fi
-                ;;
-            "")  # Empty input
-                echo "Please enter a script index, 'b' to go back, or 'q' to quit."
-                echo "Press any key to continue..."
-                read -n 1
-                ;;
-            *)  # Invalid input
-                echo "Invalid input: '$user_input'"
-                echo "Please enter a script index, 'b' to go back, or 'q' to quit."
-                echo "Press any key to continue..."
-                read -n 1
-                ;;
-        esac
+        clear
+        echo "=========================================="
+        echo "Test Installation Scripts"
+        echo "=========================================="
+        show_test_scripts_context
+        echo ""
+        echo "Enter a number or name to select a script (first match runs):"
+        echo "Press Enter (empty input), q or lowercase b to go back"
+        echo ""
+        for script_index in "${!scripts[@]}"; do
+            echo "  $(basename "${scripts[$script_index]}")"
+        done
+        echo ""
+        read -r -p "Select script (number/name, b=back): " TEST_SELECTOR_INPUT
+        test_selector_trim_input
+
+        # Back keys: empty input, q/Q, and lowercase b (b is reserved and never
+        # participates in keyword matching). Uppercase B still matches by keyword.
+        if [ -z "$TEST_SELECTOR_INPUT" ] || [ "$TEST_SELECTOR_INPUT" = "q" ] || [ "$TEST_SELECTOR_INPUT" = "Q" ] || [ "$TEST_SELECTOR_INPUT" = "b" ]; then
+            return 0
+        fi
+
+        if find_matching_script "$TEST_SELECTOR_INPUT" "${scripts[@]}"; then
+            execute_test_script "$TEST_SELECTOR_MATCHED_SCRIPT"
+        else
+            echo ""
+            echo "No matching script found for: $TEST_SELECTOR_INPUT"
+            echo "Press any key to continue..."
+            read -n 1
+        fi
     done
 }
 

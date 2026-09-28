@@ -1,13 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1PhoneVerificationModel extends Model
+class CodeMartV1PhoneVerificationModel extends CodeMartV1Model
 {
-    protected $connection = 'codemartv1';
-    protected $table = 'codemart_phone_verifications';
+    protected $table = CodeMartV1TablesMaps::PHONE_VERIFICATIONS_TABLE;
 
     protected $fillable = [
         'user_id',
@@ -41,5 +40,20 @@ class CodeMartV1PhoneVerificationModel extends Model
     public function isVerified(): bool
     {
         return $this->verified_at !== null;
+    }
+
+    public static function storeOtp(int $userId, array $attributes): self
+    {
+        return static::query()->updateOrCreate(['user_id' => $userId], $attributes);
+    }
+
+    public static function forUser(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
+
+    public static function isVerifiedForUser(int $userId): bool
+    {
+        return static::query()->where('user_id', $userId)->whereNotNull('verified_at')->exists();
     }
 }

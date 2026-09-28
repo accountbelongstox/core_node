@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-NCore Backend Server - Unified HTTP Backend (Port 58000)
+NCore Backend Server - Unified HTTP Backend
 
 Provides HTTP API for all ncore MCP tools:
 - File processing (OCR, PDF, Office docs)
@@ -12,11 +12,11 @@ Provides HTTP API for all ncore MCP tools:
 - Browser automation (future)
 
 Architecture:
-    MCP Proxy → HTTP → NCore Backend (58000)
+    MCP Proxy → HTTP → NCore Backend
 
 Usage:
     python ncore_backend_main.py
-    python ncore_backend_main.py --host 0.0.0.0 --port 58000
+    python ncore_backend_main.py --host <host> --port <port>
 """
 
 import sys
@@ -28,13 +28,21 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyfoundations.third_party import get_third_package_fastapi, get_third_package_uvicorn
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi, get_third_package_uvicorn
 
 fastapi = get_third_package_fastapi()
 FastAPI = fastapi.FastAPI
 APIRouter = fastapi.APIRouter
 
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.service_contract import build_url, host, port
+from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
+from pycore.pyutils.rpc_v2.http.local_rpc_middleware import LocalRpcGuardMiddleware
+
+NCORE_HOST = host("localhost")
+NCORE_PORT = port("ncore_backend")
+NCORE_BASE_URL = build_url("http", NCORE_HOST, NCORE_PORT)
+ALLOWED_ORIGINS = allowed_origins((NCORE_PORT,))
 
 
 # Create FastAPI app
@@ -46,15 +54,17 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware
+# CORS middleware: the shared K7 origin allow-list, never a wildcard
 from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=sorted(ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# K7 gate shared with pycore's HTTP servers (outermost middleware)
+app.add_middleware(LocalRpcGuardMiddleware, origins=ALLOWED_ORIGINS)
 
 
 # ============================================================
@@ -68,7 +78,7 @@ async def health_check():
         "status": "ok",
         "service": "ncore_backend",
         "version": "1.0.0",
-        "port": 58000
+        "port": NCORE_PORT
     }
 
 
@@ -260,13 +270,13 @@ async def startup_event():
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("NCore Backend Server Started")
     ColorPrint.blue("=" * 70)
-    ColorPrint.green("Dashboard:      http://localhost:58000/docs")
-    ColorPrint.green("Health check:   http://localhost:58000/health")
-    ColorPrint.green("File API:       POST http://localhost:58000/file/*")
-    ColorPrint.green("Codebase API:   POST http://localhost:58000/codebase/*")
-    ColorPrint.green("Placeholder API: POST http://localhost:58000/placeholder/*")
-    ColorPrint.green("AI API:         POST http://localhost:58000/ai/*")
-    ColorPrint.green("Database API:   POST http://localhost:58000/database/*")
+    ColorPrint.green(f"Dashboard:      {NCORE_BASE_URL}/docs")
+    ColorPrint.green(f"Health check:   {NCORE_BASE_URL}/health")
+    ColorPrint.green(f"File API:       POST {NCORE_BASE_URL}/file/*")
+    ColorPrint.green(f"Codebase API:   POST {NCORE_BASE_URL}/codebase/*")
+    ColorPrint.green(f"Placeholder API: POST {NCORE_BASE_URL}/placeholder/*")
+    ColorPrint.green(f"AI API:         POST {NCORE_BASE_URL}/ai/*")
+    ColorPrint.green(f"Database API:   POST {NCORE_BASE_URL}/database/*")
     ColorPrint.blue("=" * 70)
 
 
@@ -279,11 +289,12 @@ async def shutdown_event():
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="NCore Backend Server")
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
-    parser.add_argument('--port', type=int, default=58000, help='Port to bind to')
+    parser.add_argument('--host', default='', help='Host to bind to (loopback unless the LAN bind setting is on)')
+    parser.add_argument('--port', type=int, default=NCORE_PORT, help='Port to bind to')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 
     args = parser.parse_args()
+    args.host = resolve_bind_host(args.host)
 
     uvicorn = get_third_package_uvicorn()
 

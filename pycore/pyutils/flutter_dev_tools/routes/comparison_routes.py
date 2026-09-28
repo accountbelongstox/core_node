@@ -8,8 +8,11 @@ import base64
 from http import HTTPStatus
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
-from pycore.pyutils.flutter_dev_tools.api import comparison_api
-from pycore.pyutils.flutter_dev_tools.utils import path_utils
+import pycore.pyutils.flutter_dev_tools.api.comparison_api as comparison_api
+import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
+
+import traceback
+
 
 
 class ComparisonRoutesHandler(BaseHandler):
@@ -70,7 +73,6 @@ class ComparisonRoutesHandler(BaseHandler):
 
         except Exception as e:
             self.log_error(f"Failed to create comparison for {app_name}: {e}")
-            import traceback
             traceback.print_exc()
             self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)
 

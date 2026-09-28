@@ -1,0 +1,168 @@
+import type { StorageKey } from './StorageKey';
+
+export const STORAGE_MANAGER_CHANGED_EVENT = 'core-storage-manager-changed';
+
+export interface StorageManagerChangedDetail {
+  key: StorageKey;
+  rawValue: string | null;
+}
+
+/**
+ * StorageManager
+ * Small, type-friendly wrapper for browser localStorage.
+ *
+ * - Safe JSON parse/stringify
+ * - Optional default values
+ * - SSR/Non-browser guard
+ */
+export class StorageManager {
+  private static isBrowser(): boolean {
+    return typeof window !== 'undefined' && !!window.localStorage;
+  }
+
+  private static notifyChanged(key: StorageKey, rawValue: string | null): void {
+    if (!this.isBrowser()) return;
+    window.dispatchEvent(new CustomEvent<StorageManagerChangedDetail>(
+      STORAGE_MANAGER_CHANGED_EVENT,
+      { detail: { key, rawValue } },
+    ));
+  }
+
+  static has(key: StorageKey): boolean {
+    if (!this.isBrowser()) return false;
+    try {
+      return window.localStorage.getItem(key) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  static get<T>(key: StorageKey, defaultValue?: T): T {
+    if (!this.isBrowser()) return defaultValue as T;
+
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw === null) return defaultValue as T;
+
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        return defaultValue as T;
+      }
+    } catch (error) {
+      console.error('[StorageManager] get failed:', { key, error });
+      return defaultValue as T;
+    }
+  }
+
+  static set<T>(key: StorageKey, value: T): void {
+    if (!this.isBrowser()) return;
+
+    try {
+      // Treat undefined as "remove" to avoid storing invalid JSON.
+      if (value === undefined) {
+        window.localStorage.removeItem(key);
+        this.notifyChanged(key, null);
+        return;
+      }
+
+      const rawValue = JSON.stringify(value);
+      window.localStorage.setItem(key, rawValue);
+      this.notifyChanged(key, rawValue);
+    } catch (error) {
+      console.error('[StorageManager] set failed:', { key, error });
+    }
+  }
+
+  static remove(key: StorageKey): void {
+    if (!this.isBrowser()) return;
+    try {
+      window.localStorage.removeItem(key);
+      this.notifyChanged(key, null);
+    } catch (error) {
+      console.error('[StorageManager] remove failed:', { key, error });
+    }
+  }
+
+  static getRaw(key: StorageKey): string | null {
+    if (!this.isBrowser()) return null;
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  static setRaw(key: StorageKey, value: string | null): void {
+    if (!this.isBrowser()) return;
+    try {
+      if (value === null) window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, value);
+      this.notifyChanged(key, value);
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+
+  static getSession<T>(key: StorageKey, defaultValue?: T): T {
+    if (typeof window === 'undefined' || !window.sessionStorage) return defaultValue as T;
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      if (raw === null) return defaultValue as T;
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        return defaultValue as T;
+      }
+    } catch {
+      return defaultValue as T;
+    }
+  }
+
+  static getSessionRaw(key: StorageKey): string | null {
+    if (typeof window === 'undefined' || !window.sessionStorage) return null;
+    try {
+      return window.sessionStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  static setSessionRaw(key: StorageKey, value: string | null): void {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    try {
+      if (value === null) window.sessionStorage.removeItem(key);
+      else window.sessionStorage.setItem(key, value);
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+
+  static setSession<T>(key: StorageKey, value: T): void {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    try {
+      window.sessionStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+
+  static hasSession(key: StorageKey): boolean {
+    if (typeof window === 'undefined' || !window.sessionStorage) return false;
+    try {
+      return window.sessionStorage.getItem(key) !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  static removeSession(key: StorageKey): void {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      /* best-effort persistence */
+    }
+  }
+}
+

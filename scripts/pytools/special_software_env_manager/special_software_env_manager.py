@@ -11,7 +11,16 @@ Usage:
     python special_software_env_manager.py
 """
 
+import os
+# This is an env-variable / secret manager: it imports pyfoundations ONLY for get_secret_key.
+# Importing pyfoundations runs third_party.py's import-time check_and_install_dependencies()
+# (CUDA probe + heavy GUI/ML installs such as PySide6 ~629M) — pure waste for a secret reader.
+# Skip it (must be set BEFORE any import that can pull pyfoundations). Mirrors the convention
+# in scripts/pycore/run_callmodule_service.py and the 152 launcher helper.
+os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
+
 import sys
+import platform
 import traceback
 from pathlib import Path
 
@@ -89,7 +98,9 @@ class SpecialSoftwareEnvManager:
         self.encrypted_constants_manager = EncryptedConstantsManager(
             self.project_root,
             self.file_number_manager,
-            self.variable_input_handler
+            self.variable_input_handler,
+            config_manager=self.config_manager,
+            script_manager=self.script_manager
         )
         self.command_handler = CommandHandler(
             self.file_number_manager,
@@ -118,11 +129,14 @@ def main():
     """Main entry point"""
     clear_screen()
 
-    # Check for admin privileges
-    if not is_admin():
-        ColorMessage.write("This script requires administrator/root privileges.", 'error')
-        ColorMessage.write("Please run as administrator/root to manage system environment variables.", 'warning')
-        input("Press any key to continue...")
+    # Elevation is needed ONLY on Windows (setting real SYSTEM env vars via the registry). On
+    # Linux/WSL this tool writes PROJECT-LOCAL env scripts (scripts/linuxenvs) + project secrets
+    # — all owned by the invoking user — so root is NOT required, and running as root would
+    # create root-owned files the user's other tools (run as the user) cannot read.
+    if platform.system() == 'Windows' and not is_admin():
+        ColorMessage.write("This script requires administrator privileges to set system environment variables.", 'error')
+        ColorMessage.write("Please run as administrator.", 'warning')
+        input("Press Enter to continue...")
 
     # Create and run manager
     manager = SpecialSoftwareEnvManager()

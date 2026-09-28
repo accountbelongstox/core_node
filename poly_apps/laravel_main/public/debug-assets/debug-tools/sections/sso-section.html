@@ -218,7 +218,7 @@
             <div id="sso-config-section" class="p-8">
                 <div class="mb-6">
                     <h3 class="text-lg font-bold text-gray-900 mb-1">Configuration Status</h3>
-                    <p class="text-sm text-gray-600">Environment variables configuration</p>
+                    <p class="text-sm text-gray-600">Runtime configuration store</p>
                 </div>
                 <div class="space-y-4 mb-6">
                     <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 transition-all hover:border-gray-300 hover:bg-gray-100">
@@ -257,7 +257,7 @@
                         <line x1="12" y1="8" x2="12.01" y2="8"/>
                     </svg>
                     <div class="text-sm text-blue-900 leading-relaxed">
-                        <strong>Note:</strong> Configure these environment variables in your <code class="bg-blue-100 px-1.5 py-0.5 rounded text-blue-800 font-mono text-xs">.env</code> file to enable SSO functionality.
+                        <strong>Note:</strong> Persist these values through <code class="bg-blue-100 px-1.5 py-0.5 rounded text-blue-800 font-mono text-xs">RuntimeConfigurationStore</code>. The start Shell loads the store before Laravel starts.
                     </div>
                 </div>
             </div>

@@ -7,7 +7,16 @@ Database models for storing cryptocurrency price trends.
 """
 
 from datetime import datetime
-from pycore.database import get_db, BaseModel, Column, String, Float, Integer, DateTime, JSON
+from pycore.database.exports import (
+    get_db,
+    BaseModel,
+    Column,
+    String,
+    Float,
+    Integer,
+    DateTime,
+    JSON,
+)
 
 
 class CoinPriceTrend(BaseModel):

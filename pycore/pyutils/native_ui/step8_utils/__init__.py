@@ -1,8 +1,2 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Native UI Module
-"""
-
-# Exports will be added as needed
-__all__ = []
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

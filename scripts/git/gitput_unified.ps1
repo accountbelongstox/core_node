@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 param(
     [Parameter(Mandatory=$false)]
     [ValidateSet("gitee", "github", "local", "")]
@@ -37,9 +25,36 @@ $BACKUP_ENABLED = if ($Backup) { "true" } else { "false" }
 $currentBranch = ""
 $script:CommitMessage = $null
 $script:ForcePushChoice = $null
+$script:PullCompleted = $false
+$currentBranchPreview = ""
+$giteeBackupNotice = "Gitee is configured as a backup remote only."
+$giteeForcePushChoice = "Y"
+$giteeForcePushPrompt = "Force push to Gitee as a backup? [Y/n]: "
+$giteePreferLocalMerge = $false
+$giteePushChoice = ""
+$giteePushEnabled = $false
+$giteePushPrompt = "Push this branch to the Gitee backup? [N/y]: "
+$hasGiteeTarget = $false
+$hasPrimaryPushTarget = $false
+$preferLocalMergeOnFailure = $false
+$targetForcePushChoice = "N"
+$CommitMessageTimeoutSeconds = 3  # Auto-continue with the default commit message after this many idle seconds
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
+$globalVarsPath = Join-Path $winCommonDir 'GlobalVars.ps1'
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
+$githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
+. $githubHostRefreshScript
+$giteeHostRefreshScript = Join-Path $scriptPath "gitee_host_refresh.ps1"
+. $giteeHostRefreshScript
+# D20: shared GitHub-SSH-origin read/write, so gitput_unified.ps1 and syncgit
+# (dd.cmd/dd.ps1, scripts/winenvs/syncgit.ps1) have one behavior for the
+# "origin" step instead of a second definition here.
+$gitSyncCommonScript = Join-Path $winCommonDir "GitSyncCommon.ps1"
+. $gitSyncCommonScript
+if (-not $Global:GLOBAL_VAR_DIR) {
+    . $globalVarsPath
+}
 
 # Initialize skip encrypt cache
 function Initialize-SkipEncryptCache {
@@ -136,8 +151,7 @@ function Test-WinCommonFiles {
         "StartupManager.ps1",
         "WindowsPathFunction.ps1",
         "WindowsServiceManager.ps1",
-        "CommonFunc.7z.gz.js",
-        "applicationsXml\ApplicationsList.xml"
+        "CommonFunc.7z.gz.js"
     )
     
     $missingFiles = @()
@@ -171,20 +185,6 @@ function Test-WinCommonFiles {
     
     Write-Host ""
     return $missingFiles.Count -eq 0
-}
-
-# Global variable management function
-function Get-GlobalVar {
-    param (
-        [string]$Key
-    )
-    $globalVarDir = Join-Path $env:USERPROFILE ".core_node\.global_vars"
-    $filePath = Join-Path $globalVarDir $Key
-    if (Test-Path $filePath) {
-        $content = Get-Content -Path $filePath -Encoding UTF8 -TotalCount 1
-        return $content -replace "`0", ""
-    }
-    return $null
 }
 
 # Function to detect platform and distribution
@@ -227,13 +227,58 @@ function Get-CommitMessage {
         return $script:CommitMessage
     }
 
-    # Get platform info for default message
+    # Default message: tool + OS + timestamp + pre-pull local-only (commit before pull).
     $platformInfo = Get-PlatformInfo
-    $defaultMessage = "$platformInfo-$timestamp"
+    $defaultMessage = "[gitput_unified] $platformInfo @ $timestamp | pre-pull local-only"
 
-    # Ask user for input
-    Write-ColorText "Enter commit message (press Enter to use: $defaultMessage): " -ForegroundColor Yellow -NoNewline
-    $userInput = Read-Host
+    # Ask user for input. Auto-continue with the default message after
+    # $CommitMessageTimeoutSeconds of no typing (idle), so an unattended push
+    # does not block on this prompt. Any keystroke resets the idle timer so
+    # active typing is never cut off; Enter submits.
+    Write-ColorText "Enter commit message ($CommitMessageTimeoutSeconds`s timeout -> default: $defaultMessage): " -ForegroundColor Yellow -NoNewline
+
+    $userInput = ""
+    $inputBuilder = New-Object System.Text.StringBuilder
+    $timedOut = $false
+    $canReadKeys = $true
+    try { $null = [Console]::KeyAvailable } catch { $canReadKeys = $false }
+
+    if ($canReadKeys) {
+        $idleStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($true) {
+            if ([Console]::KeyAvailable) {
+                $keyInfo = [Console]::ReadKey($true)
+                if ($keyInfo.Key -eq [ConsoleKey]::Enter) {
+                    break
+                } elseif ($keyInfo.Key -eq [ConsoleKey]::Backspace) {
+                    if ($inputBuilder.Length -gt 0) {
+                        $inputBuilder.Length = $inputBuilder.Length - 1
+                        Write-Host -NoNewline "`b `b"
+                    }
+                } elseif (-not [char]::IsControl($keyInfo.KeyChar)) {
+                    $null = $inputBuilder.Append($keyInfo.KeyChar)
+                    Write-Host -NoNewline $keyInfo.KeyChar
+                }
+                $idleStopwatch.Restart()
+            } elseif ($idleStopwatch.Elapsed.TotalSeconds -ge $CommitMessageTimeoutSeconds) {
+                $timedOut = $true
+                break
+            } else {
+                Start-Sleep -Milliseconds 50
+            }
+        }
+        Write-Host ""
+        $userInput = $inputBuilder.ToString()
+    } else {
+        # Non-interactive console (no key API): fall back to a blocking read.
+        $userInput = Read-Host
+    }
+
+    if ($timedOut -and [string]::IsNullOrWhiteSpace($userInput)) {
+        $script:CommitMessage = $defaultMessage
+        Write-ColorText "No input for $CommitMessageTimeoutSeconds`s; using default commit message: $defaultMessage" -ForegroundColor Cyan
+        return $script:CommitMessage
+    }
 
     if ([string]::IsNullOrWhiteSpace($userInput)) {
         $script:CommitMessage = $defaultMessage
@@ -354,41 +399,36 @@ function Create-WorkingBackup {
     }
 }
 
-# Function to determine default remote based on region setting
+# Function to determine default remote (GitHub first; used for execution order and restore).
+# Reads the URL from git_remotes.conf via GitSyncCommon.ps1 (D20) -- the same
+# single definition syncgit reads -- instead of a second hardcoded constant.
 function Get-DefaultRemote {
     param([string]$ProjectName)
-    
-    $selectedRegion = Get-GlobalVar -Key "SELECTED_REGION"
-    if ($selectedRegion -eq "Global") {
-        return "git@github.com:accountbelongstox/$ProjectName.git"
-    } else {
-        # Default to China/Gitee if no region is set or if set to China
-        return "git@gitee.com:accountbelongstox/$ProjectName.git"
+
+    $githubSshUrl = Get-GitSyncGitHubSshUrl -RepoRoot $coreNodeDir
+    if (-not [string]::IsNullOrWhiteSpace($githubSshUrl)) {
+        return $githubSshUrl
     }
+
+    # Write-ColorText is defined later in this file, so a plain Write-Host is
+    # used here: Get-DefaultRemote runs before that point in the script.
+    Write-Host "Warning: no 'github=' entry in git_remotes.conf; falling back to the default GitHub SSH URL pattern" -ForegroundColor Yellow
+    return "git@github.com:accountbelongstox/$ProjectName.git"
 }
 
-# Load remote configurations from git_remotes.conf
+# Load remote configurations from git_remotes.conf. Delegates the parse to
+# GitSyncCommon.ps1's Get-GitSyncRemoteConfigs (D20, review round 1 B2) --
+# the one no-regex reader for this file -- instead of a second regex parse
+# here; keeps this function's own missing-file error and exit.
 function Load-RemoteConfigs {
-    $configFile = Join-Path $PSScriptRoot "git_remotes.conf"
-    $remoteConfigs = @{}
-    
-    if (-not (Test-Path $configFile)) {
+    $configFile = Get-GitSyncRemotesConfPath -RepoRoot $coreNodeDir
+
+    if (-not (Test-Path -LiteralPath $configFile)) {
         Write-Error "Configuration file not found: $configFile"
         exit 1
     }
-    
-    Get-Content $configFile | ForEach-Object {
-        $line = $_.Trim()
-        if ($line -and -not $line.StartsWith('#')) {
-            if ($line -match '^([^=]+)=(.+)$') {
-                $key = $matches[1].Trim()
-                $value = $matches[2].Trim()
-                $remoteConfigs[$key] = $value
-            }
-        }
-    }
-    
-    return $remoteConfigs
+
+    return (Get-GitSyncRemoteConfigs -RepoRoot $coreNodeDir)
 }
 
 # Remote configurations
@@ -436,22 +476,27 @@ function Write-ColorText {
     Write-Host $Text -ForegroundColor $ForegroundColor
 }
 
-# Function to get current remote URL
+# Function to get current remote URL. Delegates to GitSyncCommon.ps1's
+# Get-GitSyncCurrentRemoteUrl (D20, review round 1 B1/N2) -- the one safe
+# reader for `git remote get-url` under this script's
+# $ErrorActionPreference = "Stop" -- instead of a second try/catch here.
 function Get-CurrentRemote {
-    try {
-        return (git remote get-url origin 2>$null)
-    } catch {
+    $remoteUrl = Get-GitSyncCurrentRemoteUrl -RemoteName "origin"
+    if ($null -eq $remoteUrl) {
         return ""
     }
+    return $remoteUrl
 }
 
-# Function to set remote URL
+# Function to set remote URL. Delegates the actual git write to
+# Set-GitSyncRemoteUrl (GitSyncCommon.ps1, D20) -- the one function that runs
+# `git remote set-url`/`git remote add`, shared with syncgit -- instead of a
+# second copy of that git command here.
 function Set-RemoteUrl {
     param([string]$RemoteUrl)
-    
+
     try {
-        Write-ColorText "Executing: git remote set-url origin $RemoteUrl" -ForegroundColor DarkGray
-        git remote set-url origin $RemoteUrl
+        Set-GitSyncRemoteUrl -RemoteName "origin" -TargetUrl $RemoteUrl
         Write-ColorText "Remote set to: $RemoteUrl" -ForegroundColor Green
     } catch {
         Write-ColorText "Failed to set remote: $_" -ForegroundColor Red
@@ -656,9 +701,142 @@ function Handle-ConflictResolution {
     }
 }
 
+# Helper: format a KiB value as human-readable size
+function Get-HumanKb {
+    param([long]$Kb = 0)
+    if ($Kb -ge 1048576) { return ("{0:N2} GB" -f ($Kb / 1048576)) }
+    if ($Kb -ge 1024) { return ("{0:N2} MB" -f ($Kb / 1024)) }
+    return "$Kb KB"
+}
+
+function Get-LocalRepoSizeKb {
+    $loose = 0
+    $pack = 0
+    $countOutput = git count-objects -v 2>$null
+    foreach ($line in $countOutput) {
+        if ($line -match '^size:\s+(\d+)') { $loose = [long]$Matches[1] }
+        elseif ($line -match '^size-pack:\s+(\d+)') { $pack = [long]$Matches[1] }
+    }
+    return $loose + $pack
+}
+
+function Get-RemoteRepoSizeFromUrl {
+    param([string]$TargetUrl)
+
+    $remoteHost = ""
+    $ownerRepo = ""
+    if ($TargetUrl -match '^git@([^:]+):(.+)$') {
+        $remoteHost = $Matches[1]
+        $ownerRepo = $Matches[2]
+    } elseif ($TargetUrl -match '^https?://([^/]+)/(.+)$') {
+        $remoteHost = $Matches[1]
+        $ownerRepo = $Matches[2]
+    }
+    if ($ownerRepo.EndsWith(".git")) { $ownerRepo = $ownerRepo.Substring(0, $ownerRepo.Length - 4) }
+
+    $remoteKb = $null
+    $api = $null
+    if ($ownerRepo -and $remoteHost -eq "github.com") { $api = "https://api.github.com/repos/$ownerRepo" }
+    elseif ($ownerRepo -and $remoteHost -eq "gitee.com") { $api = "https://gitee.com/api/v5/repos/$ownerRepo" }
+    if ($api) {
+        try {
+            $resp = Invoke-RestMethod -Uri $api -TimeoutSec 8 -Headers @{ "User-Agent" = "gitput-unified" }
+            if ($null -ne $resp.size) { $remoteKb = [long]$resp.size }
+        } catch {
+            $remoteKb = $null
+        }
+    }
+
+    return @{
+        Host = $remoteHost
+        SizeKb = $remoteKb
+    }
+}
+
+function Show-RepoSizeOverview {
+    param(
+        [string[]]$Targets,
+        [hashtable]$Configs
+    )
+
+    $localKb = Get-LocalRepoSizeKb
+
+    Write-ColorText "" -ForegroundColor White
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "  REPOSITORY SIZE OVERVIEW" -ForegroundColor Cyan
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "  Local (git): $(Get-HumanKb $localKb)" -ForegroundColor White
+    Write-ColorText "" -ForegroundColor White
+
+    foreach ($target in $Targets) {
+        if (-not $Configs.ContainsKey($target)) { continue }
+        $targetUrl = $Configs[$target]
+        $remoteInfo = Get-RemoteRepoSizeFromUrl -TargetUrl $targetUrl
+        $remoteHost = $remoteInfo.Host
+        if (-not $remoteHost) { $remoteHost = $target }
+
+        if ($null -ne $remoteInfo.SizeKb) {
+            Write-ColorText "  Remote [$target] ($remoteHost): $(Get-HumanKb $remoteInfo.SizeKb)" -ForegroundColor White
+            $diff = $localKb - $remoteInfo.SizeKb
+            if ($diff -ge 0) {
+                Write-ColorText "    Local is larger by $(Get-HumanKb $diff)" -ForegroundColor DarkGray
+            } else {
+                Write-ColorText "    Remote is larger by $(Get-HumanKb (-$diff))" -ForegroundColor DarkGray
+            }
+        } else {
+            Write-ColorText "  Remote [$target] ($remoteHost): unavailable (private repo, no network, or unsupported host)" -ForegroundColor Yellow
+        }
+    }
+
+    Write-ColorText "" -ForegroundColor White
+    Write-ColorText "============================================================" -ForegroundColor Cyan
+    Write-ColorText "" -ForegroundColor White
+}
+
+# Pull remote changes and optionally resolve merge conflicts in favor of local changes.
+function Invoke-RemoteMerge {
+    param(
+        [string]$Branch,
+        [bool]$PreferLocalMergeOnFailure = $false
+    )
+
+    Write-ColorText "Executing: git pull origin $Branch --no-edit" -ForegroundColor DarkGray
+    git pull origin $Branch --no-edit
+    if ($LASTEXITCODE -eq 0) {
+        return $true
+    }
+    if (-not $PreferLocalMergeOnFailure) {
+        Write-ColorText "Pull failed, skipping this remote." -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-ColorText "Merge failed. Retrying with local changes preferred for conflicts." -ForegroundColor Yellow
+    git merge --abort 2>$null
+    Write-ColorText "Executing: git fetch origin $Branch" -ForegroundColor DarkGray
+    git fetch origin $Branch
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorText "Fetch failed, skipping this remote." -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-ColorText "Executing: git merge origin/$Branch -X ours --no-edit" -ForegroundColor DarkGray
+    git merge "origin/$Branch" -X ours --no-edit
+    if ($LASTEXITCODE -ne 0) {
+        Write-ColorText "Local-preferred merge failed, skipping this remote." -ForegroundColor Yellow
+        git merge --abort 2>$null
+        return $false
+    }
+
+    return $true
+}
+
 # Function to perform git operations
 function Invoke-GitOperations {
-    param([string]$TargetUrl)
+    param(
+        [string]$TargetUrl,
+        [string]$ForcePushChoice = "N",
+        [bool]$PreferLocalMergeOnFailure = $false
+    )
     
     Write-ColorText "----------------------------------------------------------------" -ForegroundColor DarkYellow
     Write-ColorText "Starting git operations for: $TargetUrl" -ForegroundColor Cyan
@@ -824,11 +1002,11 @@ function Invoke-GitOperations {
                         Write-ColorText "  - Input: $($file.FullName)" -ForegroundColor Gray
                         Write-ColorText "  - Password: $maskedPassword" -ForegroundColor Gray
                         Write-ColorText "  - Output Dir: $secretKeysEncryptedDir" -ForegroundColor Gray
-                        Write-ColorText "  - Command: node disguise.js `"$($file.FullName)`" `"$maskedPassword`" `"$secretKeysEncryptedDir`"" -ForegroundColor Gray
+                        Write-ColorText "  - Command: node secret_password_runner.js disguise.js `"$($file.FullName)`" $Global:SECRET_PASSWORD_ARG `"$secretKeysEncryptedDir`"" -ForegroundColor Gray
 
                         # Run disguise.js encryption
                         Write-ColorText "Running encryption..." -ForegroundColor Cyan
-                        $result = & node "$disguiseJsPath" "$($file.FullName)" "$globalPassword" "$secretKeysEncryptedDir" 2>&1
+                        $result = Invoke-SecretPasswordTool -Password $globalPassword -ToolPath $disguiseJsPath -ArgumentList @($file.FullName, $Global:SECRET_PASSWORD_ARG, $secretKeysEncryptedDir)
 
                         if ($LASTEXITCODE -eq 0) {
                             Write-ColorText "SUCCESS: Encrypted $($file.Name)" -ForegroundColor Green
@@ -878,8 +1056,16 @@ function Invoke-GitOperations {
         git push --set-upstream origin $currentBranch
         Write-ColorText "Executing: git branch --set-upstream-to=origin/$currentBranch $currentBranch" -ForegroundColor DarkGray
         git branch --set-upstream-to=origin/$currentBranch $currentBranch
-        Write-ColorText "Executing: git pull origin main" -ForegroundColor DarkGray
-        git pull origin main
+        if ($ForcePushChoice -match '^[Yy]$') {
+            Write-ColorText "FORCE PUSH MODE - skipping pull on new branch" -ForegroundColor Red
+        } elseif (-not $script:PullCompleted -or $PreferLocalMergeOnFailure) {
+            if (-not (Invoke-RemoteMerge -Branch $currentBranch -PreferLocalMergeOnFailure $PreferLocalMergeOnFailure)) {
+                return $false
+            }
+            $script:PullCompleted = $true
+        } else {
+            Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
+        }
     } else {
         # Stage all changes FIRST (before pull)
         Write-ColorText "Staging all changes..." -ForegroundColor Cyan
@@ -894,43 +1080,38 @@ function Invoke-GitOperations {
             Write-Host "INFO: File validation already completed in this session." -ForegroundColor Gray
         }
 
-        # STEP 1: Pre-commit to save current state before asking user input
-        Write-ColorText "Pre-committing current changes to protect local work..." -ForegroundColor Cyan
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        $preCommitMessage = "[AUTO] Pre-commit before user input - $timestamp"
-
-        # Check if there are changes to pre-commit
-        $stagedChanges = git diff --cached --quiet
-        if ($LASTEXITCODE -ne 0) {
-            Write-ColorText "Executing: git commit -m `"$preCommitMessage`"" -ForegroundColor DarkGray
-            git commit -m $preCommitMessage
-            Write-ColorText "Pre-commit completed successfully" -ForegroundColor Green
-        } else {
-            Write-ColorText "No changes to pre-commit" -ForegroundColor DarkGray
-        }
-
-        # STEP 2: Get final commit message from user
+        # Get the commit message from the user (auto-defaults after an idle timeout).
         $commitMessage = Get-CommitMessage
 
-        # STEP 3: Stage any new changes and create final commit
+        # Stage anything that changed while the prompt was open, then create the
+        # single commit for this push. One push cycle produces exactly one commit
+        # (no separate "[AUTO] Pre-commit" commit).
         Write-ColorText "Staging any new changes..." -ForegroundColor Cyan
         Write-ColorText "Executing: git add ." -ForegroundColor DarkGray
         git add .
 
-        Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
-        Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
-        git commit -m $commitMessage
-
-        # Use force push choice from main execution (already asked before starting operations)
-        if ($null -eq $script:ForcePushChoice) {
-            # Fallback: if somehow not set, default to normal push
-            $script:ForcePushChoice = "N"
-            Write-ColorText "Using default: Normal push mode" -ForegroundColor DarkGray
+        # Only commit when something is actually staged; a clean tree is not an error.
+        git diff --cached --quiet
+        if ($LASTEXITCODE -ne 0) {
+            Write-ColorText "Committing changes with message: $commitMessage" -ForegroundColor Cyan
+            Write-ColorText "Executing: git commit -m `"$commitMessage`"" -ForegroundColor DarkGray
+            git commit -m $commitMessage
         } else {
-            Write-ColorText "Using force push choice: $($script:ForcePushChoice)" -ForegroundColor DarkGray
+            Write-ColorText "Nothing new to commit; working tree already clean." -ForegroundColor DarkGray
         }
 
-        if ($script:ForcePushChoice -match '^[Yy]$') {
+        # Ensure local is fully committed before any pull/push (force or normal)
+        $statusOutput = git status --porcelain
+        if ($statusOutput) {
+            Write-ColorText "ERROR: Working tree not clean after commit; aborting to protect local work." -ForegroundColor Red
+            git status --short
+            return $false
+        }
+        Write-ColorText "Local commit verified: working tree is clean." -ForegroundColor Green
+
+        Write-ColorText "Using force push choice: $ForcePushChoice" -ForegroundColor DarkGray
+
+        if ($ForcePushChoice -match '^[Yy]$') {
             # Force push mode - skip pull completely
             Write-ColorText "=== FORCE PUSH MODE ===" -ForegroundColor Red
             Write-ColorText "Skipping pull (will overwrite remote changes)" -ForegroundColor Red
@@ -938,14 +1119,18 @@ function Invoke-GitOperations {
             Write-ColorText "Executing: git push --force --set-upstream origin $currentBranch" -ForegroundColor DarkGray
             git push --force --set-upstream origin $currentBranch
         } else {
-            # Normal push mode - pull first to prevent conflicts
+            # Normal push mode - pull only once per session (first remote)
             Write-ColorText "=== NORMAL PUSH MODE ===" -ForegroundColor Green
-            # Always pull to prevent push conflicts
-            Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
-            Write-ColorText "Executing: git pull origin $currentBranch --no-edit" -ForegroundColor DarkGray
-            git pull origin $currentBranch --no-edit
+            if (-not $script:PullCompleted -or $PreferLocalMergeOnFailure) {
+                Write-ColorText "Pulling and merging remote changes after commit..." -ForegroundColor Cyan
+                if (-not (Invoke-RemoteMerge -Branch $currentBranch -PreferLocalMergeOnFailure $PreferLocalMergeOnFailure)) {
+                    return $false
+                }
+                $script:PullCompleted = $true
+            } else {
+                Write-ColorText "Skipping pull - already synchronized in this session" -ForegroundColor Yellow
+            }
 
-            # Push changes to remote
             Write-ColorText "Pushing changes to remote..." -ForegroundColor Cyan
             Write-ColorText "Executing: git push --set-upstream origin $currentBranch" -ForegroundColor DarkGray
             git push --set-upstream origin $currentBranch
@@ -977,7 +1162,19 @@ try {
     # Change to project directory first
     Set-Location $coreNodeDir
     Write-ColorText "Changed to: $coreNodeDir" -ForegroundColor DarkCyan
-    
+
+    # D20: proactively ensure origin is the GitHub SSH remote before any
+    # push target is processed (review round 1, B1 -- matches Linux's
+    # gitput_unified.sh main() calling git_sync_ensure_github_ssh_origin at
+    # the same point). Idempotent (no-op when origin is already correct)
+    # and does not abort the push flow on failure, since each target below
+    # sets its own remote explicitly anyway.
+    try {
+        Invoke-GitSyncEnsureGitHubSshOrigin -RepoRoot $coreNodeDir | Out-Null
+    } catch {
+        Write-ColorText "Warning: GitHub SSH origin check failed: $_" -ForegroundColor Yellow
+    }
+
     # Create working directory backup if enabled
     if (-not (Create-WorkingBackup)) {
         Write-ColorText "Warning: Backup creation failed, but continuing..." -ForegroundColor Yellow
@@ -992,13 +1189,22 @@ try {
     # Determine target remote
     if (-not $TargetRemote) {
         Write-ColorText "No target specified, using all remotes" -ForegroundColor Yellow
-        $targets = @("gitee", "github", "local")
+        # local temporarily disabled (not reachable or not in use); restore with: @("github", "gitee", "local")
+        $targets = @("github", "gitee")
     } else {
         $targets = @($TargetRemote)
     }
     
     # Reorder targets to execute DEFAULT_REMOTE first
     $targets = Get-ExecutionOrder -Targets $targets
+    $currentBranchPreview = Get-CurrentBranch
+    foreach ($target in $targets) {
+        if ($target -eq "gitee") {
+            $hasGiteeTarget = $true
+        } else {
+            $hasPrimaryPushTarget = $true
+        }
+    }
     
     # Preview targets before pushing
     Write-ColorText "" -ForegroundColor White
@@ -1026,6 +1232,9 @@ try {
             $targetUrl = $remoteConfigs[$target]
             Write-ColorText "  [$targetIndex] $target" -ForegroundColor Yellow
             Write-ColorText "      URL: $targetUrl" -ForegroundColor DarkGray
+            if ($target -eq "gitee") {
+                Write-ColorText "      Branch: $currentBranchPreview" -ForegroundColor DarkGray
+            }
         }
         $targetIndex++
     }
@@ -1033,18 +1242,65 @@ try {
     Write-ColorText "============================================================" -ForegroundColor Cyan
     Write-ColorText "" -ForegroundColor White
     
-    # Ask once for force push decision (applies to all targets) - before starting operations
+    # Keep the default force-push choice for the primary remote, then configure Gitee separately.
     if (-not $Pull) {
-        Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
-        $script:ForcePushChoice = Read-Host
-        if ($script:ForcePushChoice -match '^[Yy]$') {
-            Write-ColorText "✓ Force push enabled for ALL targets" -ForegroundColor Red
-        } else {
-            Write-ColorText "✓ Normal push mode (with pull) for ALL targets" -ForegroundColor Green
+        if ($hasPrimaryPushTarget) {
+            Write-ColorText "Do you want to force push? [y/N]: " -ForegroundColor Yellow -NoNewline
+            $script:ForcePushChoice = Read-Host
+            if ($script:ForcePushChoice -match '^[Yy]$') {
+                Write-ColorText "[OK] Force push enabled for the primary remote" -ForegroundColor Red
+            } else {
+                $script:ForcePushChoice = "N"
+                Write-ColorText "[OK] Normal push mode (with pull) for the primary remote" -ForegroundColor Green
+            }
+            Write-ColorText "" -ForegroundColor White
+        }
+
+        if ($hasGiteeTarget) {
+            Write-ColorText $giteeBackupNotice -ForegroundColor Yellow
+            Write-ColorText "Branch: $currentBranchPreview" -ForegroundColor Cyan
+            Write-ColorText $giteePushPrompt -ForegroundColor Yellow -NoNewline
+            $giteePushChoice = Read-Host
+            if ($giteePushChoice -match '^[Yy]$') {
+                $giteePushEnabled = $true
+                Write-ColorText $giteeForcePushPrompt -ForegroundColor Yellow -NoNewline
+                $giteeForcePushChoice = Read-Host
+                if ($giteeForcePushChoice -match '^[Nn]$') {
+                    $giteePreferLocalMerge = $true
+                    Write-ColorText "[OK] Normal Gitee backup push; merge conflicts will prefer local changes" -ForegroundColor Green
+                } else {
+                    $giteeForcePushChoice = "Y"
+                    Write-ColorText "[OK] Force push enabled for the Gitee backup" -ForegroundColor Red
+                }
+            } else {
+                Write-ColorText "[OK] Gitee backup push skipped" -ForegroundColor Yellow
+            }
+            Write-ColorText "" -ForegroundColor White
+        }
+
+        Write-ColorText "Refresh GitHub HOST (GitHub520)? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $refreshHostChoice = Read-Host
+        if ($refreshHostChoice -match '^[Yy]$') {
+            if (Get-Command Invoke-GitHubHostRefresh -ErrorAction SilentlyContinue) {
+                $refreshScriptBlock = { param($t, $c) Write-ColorText $t -ForegroundColor $c }
+                Invoke-GitHubHostRefresh -WriteColorText $refreshScriptBlock
+            }
         }
         Write-ColorText "" -ForegroundColor White
+
+        Write-ColorText "Refresh Gitee HOST? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $refreshGiteeChoice = Read-Host
+        if ($refreshGiteeChoice -match '^[Yy]$') {
+            if (Get-Command Invoke-GiteeHostRefresh -ErrorAction SilentlyContinue) {
+                $refreshScriptBlock = { param($t, $c) Write-ColorText $t -ForegroundColor $c }
+                Invoke-GiteeHostRefresh -WriteColorText $refreshScriptBlock
+            }
+        }
+        Write-ColorText "" -ForegroundColor White
+
+        Show-RepoSizeOverview -Targets $targets -Configs $remoteConfigs
     }
-    
+
     $allSuccess = $true
     
     foreach ($target in $targets) {
@@ -1063,8 +1319,20 @@ try {
                 # For pull operations, only process the first (default) remote
                 break
             } else {
+                if ($target -eq "gitee" -and -not $giteePushEnabled) {
+                    Write-ColorText "`n=== Skipping Gitee backup ($targetUrl) ===" -ForegroundColor Yellow
+                    continue
+                }
+
+                $targetForcePushChoice = $script:ForcePushChoice
+                $preferLocalMergeOnFailure = $false
+                if ($target -eq "gitee") {
+                    $targetForcePushChoice = $giteeForcePushChoice
+                    $preferLocalMergeOnFailure = $giteePreferLocalMerge
+                }
+
                 Write-ColorText "`n=== Pushing to $target ($targetUrl) ===" -ForegroundColor Magenta
-                $success = Invoke-GitOperations $targetUrl
+                $success = Invoke-GitOperations -TargetUrl $targetUrl -ForcePushChoice $targetForcePushChoice -PreferLocalMergeOnFailure $preferLocalMergeOnFailure
                 if (-not $success) {
                     $allSuccess = $false
                     Write-ColorText "Failed to push to $target" -ForegroundColor Red

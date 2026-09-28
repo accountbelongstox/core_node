@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import List, Dict, Any
 import json
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 DESIGN_DIR_NAME = "design_docs_and_progress"
 
@@ -196,13 +197,13 @@ def update_pageview_map_descriptions(map_path: Path) -> bool:
         if current_descriptions != target_descriptions:
             content['descriptions'] = target_descriptions
             map_path.write_text(json.dumps(content, indent=2, ensure_ascii=False), encoding='utf-8')
-            print(f"[UPDATED] pageview_map.json descriptions: {map_path.parent.name}")
+            ColorPrint.plain(f"[UPDATED] pageview_map.json descriptions: {map_path.parent.name}")
             return True
 
         return False
 
     except Exception as e:
-        print(f"[ERROR] Failed to update {map_path}: {e}")
+        ColorPrint.plain(f"[ERROR] Failed to update {map_path}: {e}")
         return False
 
 
@@ -296,9 +297,9 @@ def auto_initialize_all_apps(apps_dir: Path) -> Dict[str, any]:
     Returns:
         Summary dictionary with statistics
     """
-    print("\n" + "=" * 60)
-    print("AUTO-INITIALIZATION: Design Documentation Structure")
-    print("=" * 60)
+    ColorPrint.plain("\n" + "=" * 60)
+    ColorPrint.plain("AUTO-INITIALIZATION: Design Documentation Structure")
+    ColorPrint.plain("=" * 60)
 
     apps = list_apps(apps_dir)
     total_apps = len(apps)
@@ -307,7 +308,7 @@ def auto_initialize_all_apps(apps_dir: Path) -> Dict[str, any]:
     files_updated = 0
 
     for app in apps:
-        print(f"\n[STEP] Processing: {app.name}")
+        ColorPrint.plain(f"\n[STEP] Processing: {app.name}")
 
         created = create_missing_items(app)
 
@@ -318,16 +319,16 @@ def auto_initialize_all_apps(apps_dir: Path) -> Dict[str, any]:
                     files_updated += 1
                 else:
                     files_created += 1
-            print(f"  [OK] Created/Updated {len(created)} items")
+            ColorPrint.plain(f"  [OK] Created/Updated {len(created)} items")
         else:
-            print(f"  [OK] All items exist")
+            ColorPrint.plain(f"  [OK] All items exist")
 
-    print("\n" + "=" * 60)
-    print(f"SUMMARY: {total_apps} apps processed")
-    print(f"  - Apps with changes: {apps_created}")
-    print(f"  - Files created: {files_created}")
-    print(f"  - Files updated: {files_updated}")
-    print("=" * 60 + "\n")
+    ColorPrint.plain("\n" + "=" * 60)
+    ColorPrint.plain(f"SUMMARY: {total_apps} apps processed")
+    ColorPrint.plain(f"  - Apps with changes: {apps_created}")
+    ColorPrint.plain(f"  - Files created: {files_created}")
+    ColorPrint.plain(f"  - Files updated: {files_updated}")
+    ColorPrint.plain("=" * 60 + "\n")
 
     return {
         "total_apps": total_apps,

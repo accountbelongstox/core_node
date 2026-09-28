@@ -1,4 +1,5 @@
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
 
 /**
  * Get storage statistics
@@ -96,17 +97,12 @@ export async function handleClearAllData(): Promise<{ success: boolean; error?: 
  * Initialize storage manager module message listeners
  */
 export const initStorageManagerListener = () => {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message.type === BACKGROUND_MESSAGE_TYPES.GET_STORAGE_STATS) {
-      handleGetStorageStats()
-        .then((result: { success: boolean; stats?: any; error?: string }) => sendResponse(result))
-        .catch((error: any) => sendResponse({ success: false, error: error.message }));
-      return true;
-    } else if (message.type === BACKGROUND_MESSAGE_TYPES.CLEAR_ALL_DATA) {
-      handleClearAllData()
-        .then((result: { success: boolean; error?: string }) => sendResponse(result))
-        .catch((error: any) => sendResponse({ success: false, error: error.message }));
-      return true;
-    }
+  registerRuntimeMessageHandler([
+    BACKGROUND_MESSAGE_TYPES.GET_STORAGE_STATS,
+    BACKGROUND_MESSAGE_TYPES.CLEAR_ALL_DATA,
+  ], (message: any) => {
+    return message.type === BACKGROUND_MESSAGE_TYPES.GET_STORAGE_STATS
+      ? handleGetStorageStats()
+      : handleClearAllData();
   });
 };

@@ -428,7 +428,7 @@ names:
 
 - `pycore.pyutils.image_tools` - Image preprocessing
 - `pycore.pyutils.ocr` - OCR for text detection
-- `pycore.pyutils.unified_detector` - Multi-model detection
+- `pycore.pyutils.window.unified_detector` - Multi-model detection
 
 ## Exports
 

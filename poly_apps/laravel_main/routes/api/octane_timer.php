@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Services\OctaneTimerService;
 use App\Helpers\PycoreCaller;
-use App\Providers\PathMapper;
 
 /**
  * Octane Timer Status API Routes
@@ -66,69 +65,71 @@ Route::prefix('octane/timer')->group(function () {
     });
 
     /**
-     * Get test timer heartbeat file content
+     * Get timer heartbeat status. Sourced from OctaneTimerService's own
+     * cross-process heartbeat (the last_alive tick stamp) -- NOT a separate
+     * *.txt file. That older diagnostic file was never written by anything in
+     * this codebase (dead since before this route's introduction); this now
+     * reports the SAME real signal OctaneTaskStatusService::getHeartbeatStatus()
+     * uses, so this route can never disagree with the main status endpoint.
      */
     Route::get('test/heartbeat', function () {
-        $tmpDir = PathMapper::getLaravelTmpDir();
-        $heartbeatFile = $tmpDir . '/octane_timer_heartbeat.txt';
+        $status = OctaneTimerService::getStatus();
+        $lastAlive = $status['last_alive'] ?? null;
 
-        if (!file_exists($heartbeatFile)) {
+        if ($lastAlive === null) {
             return response()->json([
                 'success' => false,
-                'error' => 'Heartbeat file not found - timer may not be running',
-                'file_path' => $heartbeatFile,
+                'error' => 'No timer heartbeat recorded yet (timer never ticked)',
             ], 404);
         }
 
-        $content = file_get_contents($heartbeatFile);
-        $lastModified = filemtime($heartbeatFile);
-        $secondsAgo = time() - $lastModified;
+        $secondsAgo = time() - $lastAlive;
+        $isFresh = (bool) ($status['running'] ?? false);
 
         return response()->json([
             'success' => true,
-            'file_path' => $heartbeatFile,
-            'content' => $content,
-            'last_modified' => date('Y-m-d H:i:s', $lastModified),
+            'last_modified' => date('Y-m-d H:i:s', $lastAlive),
             'seconds_ago' => $secondsAgo,
-            'is_fresh' => $secondsAgo < 3,
+            'is_fresh' => $isFresh,
         ]);
     });
 
     /**
-     * Get test timer date files
+     * Per-task last-run diagnostics. Sourced from OctaneTimerService's own
+     * task stats (last_run per registered task) -- NOT the older separate
+     * timer_date_*.txt files, which nothing in this codebase has ever written.
      */
     Route::get('test/date-files', function () {
-        $tmpDir = PathMapper::getLaravelTmpDir();
-        $files = glob($tmpDir . '/timer_date_*.txt');
+        $tasks = OctaneTimerService::getTaskStats();
+        $files = array_values(array_filter(array_map(
+            static function (array $stats, string $name) {
+                if (($stats['last_run'] ?? 0) <= 0) {
+                    return null;
+                }
+                return [
+                    'name' => $name,
+                    'last_run' => date('Y-m-d H:i:s', $stats['last_run']),
+                    'seconds_ago' => $stats['last_run_ago'] ?? null,
+                ];
+            },
+            $tasks,
+            array_keys($tasks)
+        )));
 
         if (empty($files)) {
             return response()->json([
                 'success' => false,
-                'error' => 'No date files found - timer may not be running',
-                'dir' => $tmpDir,
+                'error' => 'No task has ticked yet',
             ], 404);
         }
 
-        // Sort by modification time (newest first)
-        usort($files, function($a, $b) {
-            return filemtime($b) - filemtime($a);
-        });
-
-        $fileList = [];
-        foreach ($files as $file) {
-            $fileList[] = [
-                'name' => basename($file),
-                'path' => $file,
-                'created' => date('Y-m-d H:i:s', filemtime($file)),
-                'seconds_ago' => time() - filemtime($file),
-            ];
-        }
+        // Most recently run first.
+        usort($files, static fn (array $a, array $b) => strcmp($b['last_run'], $a['last_run']));
 
         return response()->json([
             'success' => true,
-            'dir' => $tmpDir,
-            'total_files' => count($fileList),
-            'files' => $fileList,
+            'total_files' => count($files),
+            'files' => $files,
         ]);
     });
 });

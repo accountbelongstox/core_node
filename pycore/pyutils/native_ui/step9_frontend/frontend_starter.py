@@ -7,9 +7,9 @@ Convenience function to start frontend based on configuration.
 """
 
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
-from .frontend_config import FrontendConfig
-from .frontend_thread import FrontendLauncherThread
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
+from pycore.pyutils.native_ui.step9_frontend.frontend_thread import FrontendLauncherThread
 
 
 def start_frontend_if_needed(

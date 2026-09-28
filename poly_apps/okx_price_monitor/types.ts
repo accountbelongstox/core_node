@@ -1,12 +1,3 @@
-export interface RPCResponse<T> {
-  success: boolean;
-  result?: {
-    success: boolean;
-    data: T;
-  };
-  error?: string;
-}
-
 export interface CoinSummary {
   coin: string;
   inst_id?: string;

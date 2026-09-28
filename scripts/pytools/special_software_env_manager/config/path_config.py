@@ -39,6 +39,7 @@ class PathConfig:
         self.secret_keys_dir = project_root / '.secret_keys'
         self.raw_secret_dir = self.secret_keys_dir / '.secret_ignore'
         self.encrypted_secret_dir = self.secret_keys_dir / 'already_encrypted'
+        self.secret_password_runner = self.scripts_dir / 'encryption_tools' / 'secret_password_runner.js'
         
         # App paths
         self.laravel_apps_dir = project_root / 'poly_apps' / 'laravel_main' / 'app' / 'Apps'

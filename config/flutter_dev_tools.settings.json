@@ -1,0 +1,40 @@
+{
+  "flutter_dev_tools": {
+    "server": {
+      "host": "127.0.0.1",
+      "port": 5757,
+      "auto_kill_old_instances": true,
+      "startup_wait_timeout": 3
+    },
+    "paths": {
+      "apps_base_dir": "lib/apps",
+      "design_docs_dirname": "design_docs_and_progress"
+    },
+    "features": {
+      "auto_expand_structure": true,
+      "auto_initialize_apps": true,
+      "image_analysis_enabled": true,
+      "comparison_system_enabled": true
+    },
+    "image_analysis": {
+      "color_palette_top_n": 10,
+      "ocr_model_type": "scene",
+      "auto_analyze_on_upload": true
+    },
+    "comparison": {
+      "external_storage_enabled": true,
+      "label_expected": "Expected Design",
+      "label_actual": "Actual Implementation",
+      "label_height": 80,
+      "separator_color": "#d1d5db",
+      "label_color_expected": "#2563eb",
+      "label_color_actual": "#dc2626"
+    },
+    "ui": {
+      "theme": "light",
+      "show_file_tree": true,
+      "show_prompts_panel": true,
+      "default_expand_all": true
+    }
+  }
+}

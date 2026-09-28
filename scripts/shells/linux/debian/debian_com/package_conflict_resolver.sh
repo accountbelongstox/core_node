@@ -1,13 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Package Conflict Resolver
 # Universal script to detect and resolve package conflicts
@@ -15,11 +6,10 @@
 
 SCRIPT_INDEX="[PKG_CONFLICT]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALLATION_LIBRARY_PATH="$(dirname "$(dirname "$SCRIPT_CURRENT_DIR")")/common/installation_library.sh"
 
 # Source required libraries
-if [ -f "$SCRIPT_CURRENT_DIR/installation_library.sh" ]; then
-    source "$SCRIPT_CURRENT_DIR/installation_library.sh"
-fi
+source "$INSTALLATION_LIBRARY_PATH"
 
 # Check required parameters
 if [ -z "$1" ] || [ -z "$2" ]; then

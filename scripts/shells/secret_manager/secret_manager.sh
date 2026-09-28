@@ -1,16 +1,11 @@
 #!/usr/bin/env bash
 
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of functions.
-# 6. For Shell (*.sh) scripts: Always use absolute paths, avoid relative paths like "../".
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
+# Source-once guard: repeated `source` is a no-op. NOT exported so child
+# bash processes still perform their own full load.
+if [ "${SECRET_MANAGER_LIB_LOADED:-false}" = "true" ]; then
+    return
+fi
+SECRET_MANAGER_LIB_LOADED="true"
 
 #=============================================================================
 # Secret Manager Library
@@ -35,19 +30,13 @@
 #=============================================================================
 
 BATCH_DECRYPTION_COMPLETED=false
+SECRET_MANAGER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SECRET_MANAGER_DIR/../linux/common/secret_tool_common.sh"
 
 # Source gvar_common.sh for get_core_node_dir function if not already loaded
 if ! type get_core_node_dir &>/dev/null; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    # Try linux/common first (backward compat) then sibling scripts in shells root
-    if [ -f "$SCRIPT_DIR/../linux/common/gvar_common.sh" ]; then
-        source "$SCRIPT_DIR/../linux/common/gvar_common.sh"
-    elif [ -f "$SCRIPT_DIR/gvar_common.sh" ]; then
-        source "$SCRIPT_DIR/gvar_common.sh"
-    else
-        echo "ERROR: gvar_common.sh not found. Cannot determine core_node directory." >&2
-        exit 1
-    fi
+    source "$SCRIPT_DIR/../linux/common/gvar_common.sh"
 fi
 
 #=============================================================================
@@ -188,14 +177,14 @@ secret_decrypt_all() {
         local key_name="${file_name%.js}"
         key_name="${key_name%.JS}"
         echo "[SECRET_DECRYPT_ALL] Decrypting: $file_name" >&2
-        echo "[SECRET_DECRYPT_ALL]   Executing: node \"$encrypted_file\" pwd \"********\" \"$output_dir\"" >&2
+        echo "[SECRET_DECRYPT_ALL]   Executing: node secret_password_runner.js \"$encrypted_file\" pwd $SECRET_PASSWORD_ARG \"$output_dir\"" >&2
 
         # Count files before decryption
         local files_before=$(find "$output_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
 
         # Run decryption
         local result
-        result=$(node "$encrypted_file" pwd "$password" "$output_dir" 2>&1)
+        result=$(secret_tool_run "$password" "" node "$encrypted_file" pwd "$SECRET_PASSWORD_ARG" "$output_dir" 2>&1)
 
         # Count files after decryption
         local files_after=$(find "$output_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
@@ -321,14 +310,8 @@ secret_encrypt_all() {
         local key_name=$(basename "$source_file")
         local output_file="$ENCRYPTED_DIR/$key_name.js"
         echo "[SECRET_ENCRYPT_ALL] Encrypting: $key_name -> $key_name.js" >&2
-        local content=$(cat "$source_file" 2>&1)
-        if [ $? -ne 0 ]; then
-            echo "[SECRET_ENCRYPT_ALL]   FAILED: Cannot read $key_name" >&2
-            ((fail_count++))
-            continue
-        fi
         local result
-        result=$(node "$disguise_js" "$key_name" "$password" "$content" "$ENCRYPTED_DIR" 2>&1)
+        result=$(secret_tool_run "$password" "" node "$disguise_js" "$source_file" "$SECRET_PASSWORD_ARG" "$ENCRYPTED_DIR" 2>&1)
         local exit_code=$?
         if [ $exit_code -eq 0 ] && [ -f "$output_file" ]; then
             echo "[SECRET_ENCRYPT_ALL]   SUCCESS: $key_name.js" >&2
@@ -412,7 +395,7 @@ secret_get_key() {
         fi
 
         # Display decryption command (hide password)
-        echo "[SECRET_GET_KEY] Executing: node \"$encrypted_file\" pwd \"********\" \"$temp_output_dir\"" >&2
+        echo "[SECRET_GET_KEY] Executing: node secret_password_runner.js \"$encrypted_file\" pwd $SECRET_PASSWORD_ARG \"$temp_output_dir\"" >&2
 
         # Check if node is available
         if ! command -v node &>/dev/null; then
@@ -423,7 +406,7 @@ secret_get_key() {
 
         # Decrypt to temporary directory
         local result
-        result=$(node "$encrypted_file" pwd "$password" "$temp_output_dir" 2>&1)
+        result=$(secret_tool_run "$password" "" node "$encrypted_file" pwd "$SECRET_PASSWORD_ARG" "$temp_output_dir" 2>&1)
 
         # Don't check exit code - directly look for any decrypted file in temp directory
         local decrypted_files=()
@@ -535,7 +518,7 @@ export -f secret_get_all_keys
 export -f _secret_get_directories
 export -f _secret_find_disguise_tool
 export -f _secret_read_password
+export -f secret_tool_run
+export SECRET_PASSWORD_RUNNER_JS SECRET_PASSWORD_ARG
 
 echo "[SECRET_MANAGER] Library loaded successfully" >&2
-
-

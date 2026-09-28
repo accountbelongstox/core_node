@@ -1,0 +1,525 @@
+# -*- coding: utf-8 -*-
+"""Persistent Ed25519 device identity and Relay request signing."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import os
+import secrets
+import uuid
+from typing import Any, Dict, Mapping, Optional, Tuple
+
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
+from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_cryptography_ed25519,
+    get_third_package_cryptography_serialization,
+)
+from pycore.pyutils.common.relay_activity_log import relay_activity_log
+from pycore.pyutils.common.relay_contract import relay_contract
+from pycore.pyutils.common.relay_request_clock import relay_request_clock
+
+
+RELAY_IDENTITY_FILE_NAME = "pycore_relay_identity.json"
+RELAY_LEGACY_IDENTITY_FILE_NAME = "pycore_relay_v2_identity.json"
+RELAY_IDENTITY_FILE_MODE = 0o600
+RELAY_IDENTITY_STORE = AtomicJsonStore(
+    APP_CONFIG_DIR / RELAY_IDENTITY_FILE_NAME,
+    lambda: {},
+    file_mode=RELAY_IDENTITY_FILE_MODE,
+)
+RELAY_LEGACY_IDENTITY_STORE = AtomicJsonStore(
+    APP_CONFIG_DIR / RELAY_LEGACY_IDENTITY_FILE_NAME,
+    lambda: {},
+    file_mode=RELAY_IDENTITY_FILE_MODE,
+)
+RELAY_KEY_VERSION_INITIAL = 1
+
+
+def _read_identity_document() -> Dict[str, Any]:
+    """Read canonical state and migrate an existing pre-consolidation file."""
+    document = RELAY_IDENTITY_STORE.read()
+    if document:
+        return document
+    legacy = RELAY_LEGACY_IDENTITY_STORE.read()
+    if legacy:
+        RELAY_IDENTITY_STORE.write(legacy)
+        if os.name != "nt":
+            os.chmod(RELAY_IDENTITY_STORE.path, RELAY_IDENTITY_FILE_MODE)
+        return legacy
+    return document
+
+
+def _base64url_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _base64url_decode(value: str) -> bytes:
+    text = str(value or "")
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def _positive_int(value: Any, default: int = 0) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return int(default)
+    return parsed if parsed > 0 else int(default)
+
+
+class RelayDeviceIdentity:
+    """Own independently repairable device, key, enrollment, and credential state."""
+
+    def __init__(self) -> None:
+        init_serialized_owner(
+            self,
+            "relay.identity.state",
+            "RelayIdentityStateThread",
+        )
+        self._announced_identity: Optional[Tuple[str, int, str]] = None
+
+    @serialized_method
+    def ensure_device_id(self) -> str:
+        document = _read_identity_document()
+        device_id = str(document.get("device_id") or "")
+        if device_id:
+            return device_id
+        device_id = str(uuid.uuid4())
+        document["device_id"] = device_id
+        self._write(document)
+        relay_activity_log.success("identity.device_id.created", device_id=device_id)
+        return device_id
+
+    @serialized_method
+    def ensure_signing_key(self) -> str:
+        document = _read_identity_document()
+        private_key = str(document.get("private_key") or "")
+        public_key = str(document.get("public_key") or "")
+        ed25519 = get_third_package_cryptography_ed25519()
+        serialization = get_third_package_cryptography_serialization()
+        if private_key:
+            try:
+                private_bytes = _base64url_decode(private_key)
+                if len(private_bytes) != 32:
+                    raise ValueError("relay_private_key_length_invalid")
+                existing = ed25519.Ed25519PrivateKey.from_private_bytes(
+                    private_bytes
+                )
+                public_bytes = existing.public_key().public_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PublicFormat.Raw,
+                )
+                derived_public_key = _base64url_encode(public_bytes)
+                key_version = _positive_int(
+                    document.get("key_version"),
+                    _positive_int(
+                        document.get("credential_version"),
+                        RELAY_KEY_VERSION_INITIAL,
+                    ),
+                )
+                repaired = public_key != derived_public_key or (
+                    _positive_int(document.get("key_version")) != key_version
+                )
+                if repaired:
+                    document["public_key"] = derived_public_key
+                    document["key_version"] = key_version
+                    self._write(document)
+                    relay_activity_log.success(
+                        "identity.signing_key.metadata.repaired",
+                        key_version=key_version,
+                    )
+                else:
+                    self._repair_permissions()
+                return derived_public_key
+            except Exception as error:
+                relay_activity_log.error(
+                    "identity.signing_key.private.invalid",
+                    key_version=document.get("key_version"),
+                    error_type=type(error).__name__,
+                    error=error,
+                )
+                raise RuntimeError("relay_private_key_invalid") from error
+        if (
+            public_key
+            or document.get("key_version") is not None
+            or document.get("credential_id")
+            or document.get("credential_version") is not None
+            or document.get("enrollment_id")
+        ):
+            relay_activity_log.error(
+                "identity.signing_key.incomplete",
+                public_key_present=bool(public_key),
+                credential_present=bool(document.get("credential_id")),
+                enrollment_present=bool(document.get("enrollment_id")),
+            )
+            raise RuntimeError("relay_signing_key_incomplete")
+        self._replace_signing_key(document, RELAY_KEY_VERSION_INITIAL)
+        self._write(document)
+        relay_activity_log.success(
+            "identity.signing_key.created",
+            key_version=RELAY_KEY_VERSION_INITIAL,
+        )
+        return str(document["public_key"])
+
+    @serialized_method
+    def ensure(self) -> Dict[str, Any]:
+        self.ensure_device_id()
+        self.ensure_signing_key()
+        self.ensure_enrollment_state()
+        self.ensure_credential_state()
+        document = self.document()
+        # Identity facts are process-static: announce them once per state
+        # (and again on rotation) instead of on every signed request.
+        announced = (
+            str(document["device_id"]),
+            int(document["key_version"]),
+            str(document.get("credential_id") or ""),
+        )
+        if announced != self._announced_identity:
+            self._announced_identity = announced
+            relay_activity_log.success(
+                "identity.ready",
+                device_id=document["device_id"],
+                key_version=document["key_version"],
+            )
+        return document
+
+    @serialized_method
+    def ensure_enrollment_state(self) -> bool:
+        document = _read_identity_document()
+        enrollment_fields = (
+            str(document.get("enrollment_id") or ""),
+            str(document.get("enrollment_claim_code") or ""),
+            str(document.get("enrollment_expires_at") or ""),
+        )
+        if all(enrollment_fields):
+            return True
+        if any(enrollment_fields):
+            self.clear_enrollment()
+            relay_activity_log.warning("identity.enrollment.incomplete.repaired")
+        return False
+
+    @serialized_method
+    def ensure_credential_state(self) -> bool:
+        document = _read_identity_document()
+        credential_id = str(document.get("credential_id") or "")
+        credential_version = _positive_int(document.get("credential_version"))
+        if credential_id and credential_version > 0:
+            key_version = _positive_int(document.get("key_version"))
+            if credential_version != key_version:
+                relay_activity_log.error(
+                    "identity.credential.key_version_conflict",
+                    credential_version=credential_version,
+                    key_version=key_version,
+                )
+                raise RuntimeError("relay_credential_key_version_conflict")
+            return True
+        if credential_id or document.get("credential_version") is not None:
+            self.clear_credential()
+            relay_activity_log.warning("identity.credential.incomplete.repaired")
+        return False
+
+    @serialized_method
+    def document(self) -> Dict[str, Any]:
+        return _read_identity_document()
+
+    @serialized_method
+    def device_id(self) -> str:
+        return str(self.ensure_device_id())
+
+    @serialized_method
+    def key_version(self) -> int:
+        document = _read_identity_document()
+        return _positive_int(
+            document.get("key_version"),
+            RELAY_KEY_VERSION_INITIAL,
+        )
+
+    @serialized_method
+    def public_key(self) -> str:
+        return self.ensure_signing_key()
+
+    @serialized_method
+    def credential_id(self) -> str:
+        return str(_read_identity_document().get("credential_id") or "")
+
+    @serialized_method
+    def has_credential(self) -> bool:
+        return self.ensure_credential_state()
+
+    @serialized_method
+    def save_enrollment(
+        self,
+        enrollment_id: str,
+        claim_code: str,
+        expires_at: str,
+    ) -> None:
+        if not str(enrollment_id) or not str(claim_code) or not str(expires_at):
+            raise ValueError("relay_enrollment_state_incomplete")
+        document = _read_identity_document()
+        document["enrollment_id"] = str(enrollment_id)
+        document["enrollment_claim_code"] = str(claim_code)
+        document["enrollment_expires_at"] = str(expires_at)
+        self._write(document)
+        relay_activity_log.success(
+            "identity.enrollment.saved",
+            device_id=document.get("device_id"),
+            enrollment_id=enrollment_id,
+            expires_at=expires_at,
+        )
+
+    @serialized_method
+    def save_credential(
+        self,
+        credential_id: str,
+        credential_version: int,
+    ) -> None:
+        if not str(credential_id) or int(credential_version) <= 0:
+            raise ValueError("relay_credential_incomplete")
+        document = _read_identity_document()
+        key_version = _positive_int(document.get("key_version"))
+        if int(credential_version) != key_version:
+            raise ValueError("relay_credential_key_version_conflict")
+        document["credential_id"] = str(credential_id)
+        document["credential_version"] = int(credential_version)
+        document.pop("enrollment_id", None)
+        document.pop("enrollment_claim_code", None)
+        document.pop("enrollment_expires_at", None)
+        self._write(document)
+        relay_activity_log.success(
+            "identity.credential.saved",
+            device_id=document.get("device_id"),
+            credential_id=credential_id,
+            credential_version=credential_version,
+        )
+
+    @serialized_method
+    def clear_enrollment(self) -> None:
+        document = _read_identity_document()
+        document.pop("enrollment_id", None)
+        document.pop("enrollment_claim_code", None)
+        document.pop("enrollment_expires_at", None)
+        self._write(document)
+        relay_activity_log.warning(
+            "identity.enrollment.cleared",
+            device_id=document.get("device_id"),
+        )
+
+    @serialized_method
+    def clear_credential(self) -> None:
+        document = _read_identity_document()
+        document.pop("credential_id", None)
+        document.pop("credential_version", None)
+        self._write(document)
+        relay_activity_log.warning(
+            "identity.credential.cleared",
+            device_id=document.get("device_id"),
+        )
+
+    @serialized_method
+    def prepare_reenrollment(self) -> bool:
+        document = _read_identity_document()
+        credential_version = _positive_int(document.get("credential_version"))
+        has_authorization_state = bool(
+            str(document.get("credential_id") or "")
+            or str(document.get("enrollment_id") or "")
+        )
+        if not has_authorization_state:
+            relay_activity_log.info(
+                "identity.reenrollment.already_prepared",
+                device_id=document.get("device_id"),
+                key_version=document.get("key_version"),
+            )
+            return False
+        next_key_version = max(
+            _positive_int(document.get("key_version")),
+            credential_version,
+        ) + 1
+        document.pop("credential_id", None)
+        document.pop("credential_version", None)
+        document.pop("enrollment_id", None)
+        document.pop("enrollment_claim_code", None)
+        document.pop("enrollment_expires_at", None)
+        self._replace_signing_key(document, next_key_version)
+        self._write(document)
+        relay_activity_log.warning(
+            "identity.reenrollment.prepared",
+            device_id=document.get("device_id"),
+            next_key_version=next_key_version,
+        )
+        return True
+
+    @serialized_method
+    def revoke_credential_if_current(
+        self,
+        credential_id: str,
+        credential_version: int,
+    ) -> bool:
+        document = _read_identity_document()
+        current_credential_id = str(document.get("credential_id") or "")
+        current_credential_version = _positive_int(
+            document.get("credential_version")
+        )
+        if (
+            not current_credential_id
+            or not secrets.compare_digest(current_credential_id, str(credential_id))
+            or current_credential_version != int(credential_version)
+        ):
+            relay_activity_log.info(
+                "identity.credential.revocation.ignored",
+                device_id=document.get("device_id"),
+                credential_id=credential_id,
+                credential_version=credential_version,
+                current_credential_id=current_credential_id,
+                current_credential_version=current_credential_version,
+            )
+            return False
+        document.pop("credential_id", None)
+        document.pop("credential_version", None)
+        if not str(document.get("enrollment_id") or ""):
+            next_key_version = max(
+                _positive_int(document.get("key_version")),
+                current_credential_version,
+            ) + 1
+            self._replace_signing_key(document, next_key_version)
+        self._write(document)
+        relay_activity_log.warning(
+            "identity.credential.revoked",
+            device_id=document.get("device_id"),
+            credential_id=credential_id,
+            credential_version=credential_version,
+            next_key_version=document.get("key_version"),
+            enrollment_pending=bool(document.get("enrollment_id")),
+        )
+        return True
+
+    @serialized_method
+    def enrollment_id(self) -> str:
+        return str(_read_identity_document().get("enrollment_id") or "")
+
+    @serialized_method
+    def enrollment_claim(self) -> Dict[str, str]:
+        document = _read_identity_document()
+        return {
+            "enrollment_id": str(document.get("enrollment_id") or ""),
+            "claim_code": str(document.get("enrollment_claim_code") or ""),
+            "expires_at": str(document.get("enrollment_expires_at") or ""),
+        }
+
+    @serialized_method
+    def descriptor(self, label: str, platform_name: str) -> Dict[str, Any]:
+        document = self.ensure()
+        capabilities = relay_contract.capabilities()
+        capability_digest = relay_contract.capability_digest()
+        return {
+            "device_id": str(document["device_id"]),
+            "label": str(label),
+            "platform": str(platform_name),
+            "public_key": str(document["public_key"]),
+            "key_algorithm": "ed25519",
+            "key_version": int(document["key_version"]),
+            "contract_digest": relay_contract.digest,
+            "capability_digest": capability_digest,
+            "capabilities": capabilities,
+        }
+
+    @serialized_method
+    def signed_headers(
+        self,
+        method: str,
+        path: str,
+        query: Mapping[str, Any],
+        body: bytes,
+        coordinator_url: str = "",
+    ) -> Dict[str, str]:
+        document = self.ensure()
+        endpoint = coordinator_url or relay_contract.public_url("laravel_api_origin")
+        timestamp = str(relay_request_clock.timestamp(endpoint))
+        nonce = secrets.token_urlsafe(24)
+        content_sha256 = hashlib.sha256(body).hexdigest()
+        normalized_method = str(method or "GET").upper()
+        normalized_path = relay_contract.canonical_path(path)
+        normalized_query = relay_contract.canonical_query(query)
+        credential_version = int(
+            document.get("credential_version") or document["key_version"]
+        )
+        canonical = "\n".join(
+            (
+                relay_contract.protocol_version,
+                str(credential_version),
+                normalized_method,
+                normalized_path,
+                normalized_query,
+                str(document["device_id"]),
+                timestamp,
+                nonce,
+                content_sha256,
+            )
+        ).encode("utf-8")
+        ed25519 = get_third_package_cryptography_ed25519()
+        private_key = ed25519.Ed25519PrivateKey.from_private_bytes(
+            _base64url_decode(str(document["private_key"]))
+        )
+        signature = _base64url_encode(private_key.sign(canonical))
+        headers = {
+            relay_contract.signature_header("protocol"): relay_contract.protocol_version,
+            relay_contract.signature_header("device_id"): str(document["device_id"]),
+            relay_contract.signature_header("credential_version"): str(credential_version),
+            relay_contract.signature_header("timestamp"): timestamp,
+            relay_contract.signature_header("nonce"): nonce,
+            relay_contract.signature_header("content_sha256"): content_sha256,
+            relay_contract.signature_header("signature"): signature,
+        }
+        credential_id = str(document.get("credential_id") or "")
+        if credential_id:
+            headers[relay_contract.signature_header("credential_id")] = credential_id
+        relay_activity_log.debug(
+            "identity.request.signed",
+            device_id=document["device_id"],
+            method=normalized_method,
+            path=normalized_path,
+            query=normalized_query,
+            body_length=len(body),
+            content_sha256=content_sha256,
+            credential_version=credential_version,
+        )
+        return headers
+
+    @staticmethod
+    def _replace_signing_key(document: Dict[str, Any], key_version: int) -> None:
+        ed25519 = get_third_package_cryptography_ed25519()
+        serialization = get_third_package_cryptography_serialization()
+        generated = ed25519.Ed25519PrivateKey.generate()
+        private_bytes = generated.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+        public_bytes = generated.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+        document["private_key"] = _base64url_encode(private_bytes)
+        document["public_key"] = _base64url_encode(public_bytes)
+        document["key_version"] = int(key_version)
+
+    @staticmethod
+    def _write(document: Dict[str, Any]) -> None:
+        RELAY_IDENTITY_STORE.write(document)
+        RelayDeviceIdentity._repair_permissions()
+
+    @staticmethod
+    def _repair_permissions() -> None:
+        if os.name != "nt":
+            os.chmod(RELAY_IDENTITY_STORE.path, RELAY_IDENTITY_FILE_MODE)
+
+
+relay_device_identity = RelayDeviceIdentity()
+
+
+__all__ = ["relay_device_identity"]

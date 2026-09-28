@@ -3,7 +3,10 @@
 # Provides utilities for generating wrapper scripts for systemd services
 
 # Base directory for wrapper scripts
-WRAPPER_SCRIPT_BASE_DIR="/var/_core_node/unified_manager/temp_scripts"
+WRAPPER_SCRIPT_MODULE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WRAPPER_SCRIPT_ROOT_DIR="$(cd "$WRAPPER_SCRIPT_MODULE_DIR/../../.." && pwd)"
+source "$WRAPPER_SCRIPT_ROOT_DIR/scripts/shells/linux/common/runtime_environment.sh"
+WRAPPER_SCRIPT_BASE_DIR="$CORE_NODE_UNIFIED_MANAGER_LAUNCHER_DIR"
 
 # Colors for logging
 COLOR_SUCCESS="\033[32m"

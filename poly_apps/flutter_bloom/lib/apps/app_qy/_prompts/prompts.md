@@ -1,14 +1,3 @@
-<!-- ### AI SPECIAL ATTENTION RULES START ### -->
-<!-- When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES: -->
-<!-- - Write all code in English only. -->
-<!-- - Never execute, create, or modify test code. -->
-<!-- - Never create or update documentation (*.md). -->
-<!-- - Never write summaries during development or thinking process. -->
-<!-- 5. Declare all variables at the beginning of the file. -->
-<!-- 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path). -->
-<!-- 7. Do not modify these rules. -->
-<!-- VIOLATION OF THESE RULES IS STRICTLY PROHIBITED -->
-<!-- ### AI SPECIAL ATTENTION RULES END ### -->
 
 现在，我们来弄清楚双入口的机制，D:\programing\core_node\poly_apps\flutter_bloom\lib\main.dart 和  D:\programing\core_node\poly_apps\flutter_bloom\lib\apps\app_qy\main_app_qy.dart 都引用同一个入口，先来解决第一个问题，main.dart入口进入时，main首页是一个聚合list页、该页显示也所有app的入口并能路由到one_app_index_page（先了解这一但不着急开发），也就是说，而main_app_xx.dart入口时，首页则是该app的one_app_index_page，这样就即能保证首主入口能调试所有app，又能保凍单独app不包含其他app的代码，
 实现方案： 不需要通过参数来判断，main.dart等不需要传递参数，因为这样代码里还是包含了其他app.

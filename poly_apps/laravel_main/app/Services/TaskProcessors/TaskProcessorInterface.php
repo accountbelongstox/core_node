@@ -21,14 +21,20 @@ interface TaskProcessorInterface
     public function canProcess(GlobalTask $task): bool;
 
     /**
-     * Process the task result
+     * Process the task result.
+     *
+     * Returns the number of canonical items actually persisted by the write-back
+     * (e.g. dictionary rows updated, records stored). The result-trust layer in
+     * TaskManagerService::submitResult uses this count: a "completed" worker
+     * result whose write-back stored 0 items is downgraded to 'failed' so an
+     * empty/partial success cannot masquerade as a real one.
      *
      * @param GlobalTask $task
      * @param array $result Result data from worker
      * @param bool $isDemoMode Whether this is demo mode
-     * @return void
+     * @return int Number of items stored (>= 0)
      */
-    public function processResult(GlobalTask $task, array $result, bool $isDemoMode): void;
+    public function processResult(GlobalTask $task, array $result, bool $isDemoMode): int;
 
     /**
      * Get processor priority (higher = process first)

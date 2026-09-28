@@ -1,25 +1,13 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Ruby Post-Installation Processor
 # Handles Ruby configuration, Gem setup, and development environment optimization
 
 # Import required modules
 $parentDir = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-. "$parentDir\win_common\GlobalVars.ps1"
-. "$parentDir\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path $parentDir "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path $parentDir "win_common") "CommonFunc.ps1")
 
 # Note: Environment variables (RUBY_HOME, PATH) are handled by
-# Set-MultipleEnvironmentVariablesForPackage in Step12_InstallApplications.ps1
+# Set-MultipleEnvironmentVariablesForPackage in Step21_InstallApplications.ps1
 
 function Configure-GemSettings {
     param (
@@ -88,10 +76,11 @@ function Configure-GemSettings {
             $addOutput = & $gemPath sources --add $gemSource 2>&1
             Write-Host "$LogPrefix Add output: $addOutput" -ForegroundColor Gray
 
-            if ($LASTEXITCODE -eq 0) {
+            $sourceList = & $gemPath sources --list 2>&1
+            if ("$sourceList" -match [regex]::Escape($gemSource)) {
                 Write-Host "$LogPrefix Gem mirror configured successfully" -ForegroundColor Green
             } else {
-                Write-Host "$LogPrefix Warning: Gem mirror configuration may have issues (exit code: $LASTEXITCODE)" -ForegroundColor Yellow
+                Write-Host "$LogPrefix Warning: Gem mirror configuration may have issues" -ForegroundColor Yellow
             }
 
             # List current sources for verification
@@ -160,7 +149,8 @@ function Install-EssentialGems {
             Write-Host "$LogPrefix Installing gem: $gem..." -ForegroundColor Yellow
             try {
                 & $gemPath install $gem 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
+                $gemList = & $gemPath list $gem 2>&1
+                if ("$gemList" -match [regex]::Escape($gem)) {
                     Write-Host "$LogPrefix $gem installed successfully" -ForegroundColor Green
                 } else {
                     Write-Host "$LogPrefix Failed to install $gem" -ForegroundColor Yellow
@@ -204,13 +194,15 @@ function Setup-BundlerConfig {
     try {
         # Configure bundler to use parallel jobs
         & $bundlerPath config --global jobs 4 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $jobsConfig = & $bundlerPath config --global jobs 2>&1
+        if ("$jobsConfig" -match '4') {
             Write-Host "$LogPrefix Configured Bundler to use 4 parallel jobs" -ForegroundColor Green
         }
         
         # Configure bundler to retry failed downloads
         & $bundlerPath config --global retry 3 2>&1 | Out-Null
-        if ($LASTEXITCODE -eq 0) {
+        $retryConfig = & $bundlerPath config --global retry 2>&1
+        if ("$retryConfig" -match '3') {
             Write-Host "$LogPrefix Configured Bundler to retry failed downloads 3 times" -ForegroundColor Green
         }
         
@@ -234,7 +226,7 @@ function Test-RubyInstallation {
     try {
         # Test Ruby version
         $rubyVersion = & $RubyPath --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
+        if (("$rubyVersion").Contains('ruby')) {
             Write-Host "$LogPrefix Ruby version check passed" -ForegroundColor Green
             $versionLine = ($rubyVersion | Select-Object -First 1).ToString()
             Write-Host "$LogPrefix $versionLine" -ForegroundColor Cyan
@@ -251,7 +243,7 @@ function Test-RubyInstallation {
         
         if (Test-Path $gemPath) {
             $gemVersion = & $gemPath --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
+            if (-not [string]::IsNullOrWhiteSpace([string]$gemVersion)) {
                 Write-Host "$LogPrefix Gem check passed" -ForegroundColor Green
                 $gemVersionLine = ($gemVersion | Select-Object -First 1).ToString()
                 Write-Host "$LogPrefix Gem version: $gemVersionLine" -ForegroundColor Cyan

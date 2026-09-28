@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # System Information Display Script
 # Displays system information and global variables
@@ -24,6 +13,7 @@ COMMON_DIR="$PARENT_DIR/common"
 
 # Source common functions - use dynamic relative path
 source "$COMMON_DIR/gvar_common.sh"
+source "$COMMON_DIR/arrow_menu.sh"
 
 selected_option=""
 current_system=""
@@ -146,32 +136,26 @@ show_global_vars() {
 # =============================================================================
 
 show_menu() {
-    while true; do
-        clear
-        echo "========================================="
-        echo "  System Information & Variables Menu"
-        echo "========================================="
-        echo ""
-        echo "1. Show Complete System Information"
-        echo "2. Show Global Variables"
-        echo "0. Exit"
-        echo ""
-        read -p "Select option: " selected_option
+    local selected_index=0
+    local menu_items=(
+        "Show Complete System Information"
+        "Show Global Variables"
+        "Back to Linux Management"
+    )
 
-        case "$selected_option" in
-            1)
+    while true; do
+        arrow_menu_select "System Information & Variables" menu_items "$selected_index" 2
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        case "$selected_index" in
+            0)
                 show_complete_system_info
                 ;;
-            2)
+            1)
                 show_global_vars
                 ;;
-            0)
+            2)
                 echo "Returning to main menu..."
                 exit 0
-                ;;
-            *)
-                echo "Invalid option. Press Enter to continue..."
-                read
                 ;;
         esac
     done

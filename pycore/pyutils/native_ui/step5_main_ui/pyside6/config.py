@@ -74,6 +74,7 @@ class PySide6UIConfig:
     tray_icon_path: Optional[str] = None  # None = use app icon
     tray_menu_items: List[Dict[str, Any]] = field(default_factory=list)
     minimize_to_tray: bool = False  # Minimize hides to tray instead
+    close_to_tray: bool = False  # Close button hides to tray instead of quitting
 
     # ========== WebView Configuration ==========
     enable_webview: bool = True

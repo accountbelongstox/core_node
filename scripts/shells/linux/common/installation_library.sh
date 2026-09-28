@@ -1,13 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Installation Library for Debian-based Systems
 # Supports multiple installation methods: apt, snap, flatpak, web, npm, pipx, uv, uvx, curl
@@ -25,7 +16,23 @@ SCRIPT_INDEX="[INSTALL_LIB]"
 
 # Source required files - use dynamic relative path
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEBIAN_COM_DIR="$(dirname "$SCRIPT_CURRENT_DIR")/debian/debian_com"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
+
+# Self-healing: remove git merge conflict markers from apt sources.
+# Synced files may contain unresolved <<<<<<< / ======= / >>>>>>> markers
+# which cause apt to fail with "Type '<<<<<<<' is not known".
+_sanitize_apt_sources() {
+    local fixed=0
+    for f in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
+        [ -f "$f" ] || continue
+        if grep -qE '^(<<<<<<<|=======|>>>>>>>)' "$f" 2>/dev/null; then
+            sed -i '/^<<<<<<< /d; /^=======/d; /^>>>>>>> /d' "$f" 2>/dev/null && fixed=1
+        fi
+    done
+    [ "$fixed" -eq 1 ] && echo "[SELF-HEAL] Removed git conflict markers from apt sources"
+}
+_sanitize_apt_sources
 
 # Logging function
 log_install() {
@@ -55,16 +62,18 @@ validate_package_exists() {
     local app_name="$3"
 
     case "$method" in
-        "npm")
-            # Check if npm package exists in registry
-            log_install "Validating NPM package: $package_id"
-            if npm info "$package_id" >/dev/null 2>&1; then
-                log_success "NPM package $package_id exists"
+        "npm"|"pnpm")
+            # Registry check via npm info when available; skip hard-fail if offline.
+            log_install "Validating registry package: $package_id"
+            local npm_info_bin=""
+            npm_info_bin="$(resolve_tool_bin npm 2>/dev/null || true)"
+            if [ -n "$npm_info_bin" ] && "$npm_info_bin" info "$package_id" >/dev/null 2>&1; then
+                log_success "Package $package_id exists in registry"
                 return 0
-            else
-                log_error "NPM package $package_id not found in registry"
-                return 1
             fi
+            # Soft-pass: install step will fail loudly if the package is truly missing.
+            log_warning "Could not validate $package_id via npm info; proceeding with pnpm install"
+            return 0
             ;;
         "apt")
             # Check if apt package exists
@@ -99,6 +108,138 @@ validate_package_exists() {
 # Check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Resolve the real (non-root) desktop user, or empty when the session is pure root.
+resolve_real_user() {
+    local real_user=""
+    if command -v get_real_user_from_common_functions >/dev/null 2>&1; then
+        real_user="$(get_real_user_from_common_functions 2>/dev/null || true)"
+    fi
+    if [ -z "$real_user" ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        real_user="$SUDO_USER"
+    fi
+    if [ "$real_user" = "root" ]; then
+        real_user=""
+    fi
+    printf '%s' "$real_user"
+}
+
+# Check whether the command is usable by the real desktop user. Installers run
+# as root, so a plain `command -v` cannot see root-only locations such as
+# /root/.local/bin -- the binary then "works" for root but not for users.
+command_usable_by_real_user() {
+    local exec_name="$1"
+    local real_user=""
+    real_user="$(resolve_real_user)"
+    if [ "$(id -u)" -ne 0 ] || [ -z "$real_user" ]; then
+        command_exists "$exec_name"
+        return $?
+    fi
+    su - "$real_user" -c "command -v '$exec_name'" >/dev/null 2>&1
+}
+
+# Move a root-home installation into a shared, world-readable location.
+# Vendor installers (curl scripts, uv, etc.) run as root and drop binaries
+# under /root/.local, /root/.opencode, /root/.kimi-code, ... -- unreachable for
+# regular users. Returns 1 when the path is not a root-home install or cannot
+# be relocated safely (uv/pipx venvs carry absolute shebangs; they must be
+# reinstalled with shared UV_TOOL_DIR/PIPX_HOME instead).
+relocate_root_home_install() {
+    local exec_name="$1"
+    local exec_path="$2"
+    local real_path=""
+    local app_root=""
+    local app_dir_name=""
+    local relative_rest=""
+    local shared_root="/usr/local/lib"
+
+    if [ -z "$(resolve_real_user)" ]; then
+        return 1
+    fi
+
+    real_path="$(readlink -f "$exec_path" 2>/dev/null || true)"
+    [ -n "$real_path" ] || real_path="$exec_path"
+    [ -e "$real_path" ] || return 1
+
+    case "$real_path" in
+        /root/*) ;;
+        *) return 1 ;;
+    esac
+
+    # Python venv tools cannot be copied; they need a shared reinstall.
+    case "$real_path" in
+        */.local/share/uv/tools/*|*/.local/pipx/*) return 1 ;;
+    esac
+
+    # Standalone binary sitting in a root-only bin directory.
+    if [ -f "$exec_path" ] && [ ! -L "$exec_path" ] && [ -f "$real_path" ]; then
+        log_install "Relocating standalone binary to /usr/local/bin/$exec_name"
+        $USE_SUDO rm -f "/usr/local/bin/$exec_name"
+        $USE_SUDO install -m 0755 "$real_path" "/usr/local/bin/$exec_name"
+        return 0
+    fi
+
+    # Versioned installation tree under a root home; copy the app root and
+    # re-link to the resolved binary inside the copy.
+    case "$real_path" in
+        /root/.local/share/*)
+            relative_rest="${real_path#/root/.local/share/}"
+            app_dir_name="${relative_rest%%/*}"
+            app_root="/root/.local/share/$app_dir_name"
+            relative_rest="${real_path#$app_root/}"
+            ;;
+        /root/.local/lib/*)
+            relative_rest="${real_path#/root/.local/lib/}"
+            app_dir_name="${relative_rest%%/*}"
+            app_root="/root/.local/lib/$app_dir_name"
+            relative_rest="${real_path#$app_root/}"
+            ;;
+        /root/.local/bin/*|/root/bin/*)
+            # Standalone binary reached through a symlink (e.g.
+            # /usr/local/bin/x -> /root/.local/bin/x): copy the real file.
+            if [ -f "$real_path" ]; then
+                log_install "Relocating standalone binary to /usr/local/bin/$exec_name"
+                $USE_SUDO rm -f "/usr/local/bin/$exec_name"
+                $USE_SUDO install -m 0755 "$real_path" "/usr/local/bin/$exec_name"
+                return 0
+            fi
+            return 1
+            ;;
+        /root/.[A-Za-z0-9_-]*/*)
+            app_dir_name="${real_path#/root/.}"
+            app_dir_name="${app_dir_name%%/*}"
+            relative_rest="${real_path#/root/.$app_dir_name/}"
+            app_root="/root/.$app_dir_name"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    if [ -z "$app_dir_name" ] || [ ! -d "$app_root" ]; then
+        return 1
+    fi
+
+    log_install "Relocating root-home install $app_root -> $shared_root/$app_dir_name"
+    $USE_SUDO mkdir -p "$shared_root"
+    $USE_SUDO rm -rf "${shared_root:?}/$app_dir_name"
+    if ! $USE_SUDO cp -a "$app_root" "$shared_root/$app_dir_name"; then
+        log_error "Failed to relocate $app_root"
+        return 1
+    fi
+    $USE_SUDO chmod -R a+rX "$shared_root/$app_dir_name"
+
+    local new_real_path="$shared_root/$app_dir_name/$relative_rest"
+    if [ ! -e "$new_real_path" ]; then
+        log_error "Relocated binary missing: $new_real_path"
+        return 1
+    fi
+
+    $USE_SUDO rm -f "/usr/local/bin/$exec_name"
+    $USE_SUDO ln -sf "$new_real_path" "/usr/local/bin/$exec_name"
+    log_success "Relocated $exec_name: /usr/local/bin/$exec_name -> $new_real_path"
+    return 0
 }
 
 # Check if a command is installed via snap
@@ -215,589 +356,8 @@ needs_cleanup_before_install() {
     return 1
 }
 
-# Install via APT
-install_via_apt() {
-    local package_id="$1"
-    local app_name="$2"
+source "$SCRIPT_CURRENT_DIR/installation_methods.sh"
 
-    log_install "Installing $app_name via APT: $package_id"
-
-    # Check if not snap package first (cleanup if needed)
-    if is_command_from_snap "$package_id"; then
-        log_warning "Found $package_id installed via snap, cleaning up first..."
-        force_cleanup_package "$package_id" "$app_name"
-        sleep 2
-    fi
-
-    # Update package list
-    log_install "Updating package lists..."
-    if timeout 300 $USE_SUDO apt update; then
-        log_success "Package lists updated successfully"
-    else
-        log_warning "Package update timed out or failed, continuing anyway"
-    fi
-
-    # Install package
-    log_install "Installing package..."
-    if timeout 600 $USE_SUDO apt install -y "$package_id"; then
-        log_success "Successfully installed $app_name via APT"
-        return 0
-    else
-        log_error "Failed to install $app_name via APT"
-        return 1
-    fi
-}
-
-# Install via SNAP
-install_via_snap() {
-    local package_id="$1"
-    local app_name="$2"
-    local snap_confinement="$3"  # Optional: strict or classic
-
-    log_install "Installing $app_name via SNAP: $package_id"
-
-    # Check if snapd is installed
-    if ! command_exists snap; then
-        log_install "Installing snapd first..."
-        $USE_SUDO apt update
-        if $USE_SUDO apt install -y snapd; then
-            log_success "snapd installed successfully"
-            # Enable snap services
-            $USE_SUDO systemctl enable --now snapd.socket || log_warning "Failed to enable snapd.socket"
-            $USE_SUDO ln -sf /var/lib/snapd/snap /snap 2>/dev/null || true
-        else
-            log_error "Failed to install snapd"
-            return 1
-        fi
-    fi
-
-    # Build snap install command with confinement if needed
-    local snap_install_cmd="$USE_SUDO snap install \"$package_id\""
-
-    # Add confinement flag if specified
-    if [ -n "$snap_confinement" ] && [ "$snap_confinement" != "strict" ]; then
-        snap_install_cmd="$snap_install_cmd --$snap_confinement"
-        log_install "Installing with $snap_confinement confinement mode"
-    fi
-
-    # Install snap package
-    if eval "$snap_install_cmd" 2>/dev/null; then
-        log_success "Successfully installed $app_name via SNAP"
-        return 0
-    else
-        # Capture error output for analysis
-        local snap_error_output
-        snap_error_output=$(eval "$snap_install_cmd" 2>&1 || true)
-        
-        # Check if error is due to confinement requirement
-        if [[ "$snap_error_output" == *"classic"* ]] && [[ "$snap_error_output" == *"confinement"* ]]; then
-            log_warning "Snap package requires classic confinement, retrying with --classic flag"
-            if $USE_SUDO snap install "$package_id" --classic 2>/dev/null; then
-                log_success "Successfully installed $app_name via SNAP with classic confinement"
-                return 0
-            else
-                log_error "Failed to install $app_name via SNAP even with classic confinement"
-                log_error "Error: $snap_error_output"
-                return 1
-            fi
-        else
-            log_error "Failed to install $app_name via SNAP"
-            log_error "Error: $snap_error_output"
-            return 1
-        fi
-    fi
-}
-
-# Install via FLATPAK
-install_via_flatpak() {
-    local package_id="$1"
-    local app_name="$2"
-
-    log_install "Installing $app_name via FLATPAK: $package_id"
-
-    # Check if not snap package first (cleanup if needed)
-    if is_command_from_snap "$package_id"; then
-        log_warning "Found $package_id installed via snap, cleaning up first..."
-        force_cleanup_package "$package_id" "$app_name"
-        sleep 2
-    fi
-
-    # Check if flatpak is installed
-    if ! command_exists flatpak; then
-        log_install "Installing flatpak first..."
-        $USE_SUDO apt update
-        if ! $USE_SUDO DEBIAN_FRONTEND=noninteractive apt install -y flatpak gnome-software-plugin-flatpak; then
-            log_error "Failed to install flatpak"
-            return 1
-        fi
-        log_success "flatpak installed successfully"
-    fi
-
-    # Ensure flathub repository is properly configured (system-wide)
-    log_install "Configuring flathub repository (system-wide)..."
-
-    # Remove existing flathub if it's corrupted
-    $USE_SUDO flatpak remote-delete flathub 2>/dev/null || true
-
-    # Add flathub repository system-wide
-    if ! $USE_SUDO flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo; then
-        log_warning "Failed to add flathub repository system-wide, trying direct method..."
-
-        # Try alternative method with GPG key
-        if ! $USE_SUDO flatpak remote-add --if-not-exists --gpg-import=https://flathub.org/repo/flathub.gpg flathub https://flathub.org/repo/flathub.flatpakrepo; then
-            log_error "Failed to add flathub repository with all methods"
-            return 1
-        fi
-    fi
-
-    # Verify flathub repository is accessible
-    if ! $USE_SUDO flatpak remote-ls flathub >/dev/null 2>&1; then
-        log_warning "Flathub repository not accessible, refreshing..."
-        $USE_SUDO flatpak update --appstream 2>/dev/null || true
-        sleep 2
-
-        # Try again
-        if ! $USE_SUDO flatpak remote-ls flathub >/dev/null 2>&1; then
-            log_error "Flathub repository still not accessible after refresh"
-        fi
-    fi
-
-    log_success "Flathub repository configured successfully"
-
-    # Try to install flatpak package (system-wide first)
-    log_install "Installing $app_name from flathub (system-wide)..."
-    if $USE_SUDO flatpak install -y flathub "$package_id"; then
-        log_success "Successfully installed $app_name via FLATPAK (system-wide)"
-
-        # Fix XDG_DATA_DIRS issue
-        log_install "Updating XDG_DATA_DIRS environment..."
-        local flatpak_exports="/var/lib/flatpak/exports/share"
-        if [ -d "$flatpak_exports" ]; then
-            # Add to /etc/environment
-            if ! grep -q "$flatpak_exports" /etc/environment 2>/dev/null; then
-                log_install "Adding $flatpak_exports to /etc/environment"
-                if grep -q "XDG_DATA_DIRS=" /etc/environment 2>/dev/null; then
-                    $USE_SUDO sed -i "s|XDG_DATA_DIRS=|XDG_DATA_DIRS=$flatpak_exports:|" /etc/environment
-                else
-                    echo "XDG_DATA_DIRS=$flatpak_exports:/usr/local/share:/usr/share" | $USE_SUDO tee -a /etc/environment > /dev/null
-                fi
-            fi
-        fi
-
-        # Fix permissions for flatpak installation
-        log_install "Fixing permissions for flatpak installation"
-        # Fix system flatpak directory
-        if [ -d "/var/lib/flatpak/app/$package_id" ]; then
-            fix_installation_permissions_from_common_functions "/var/lib/flatpak/app/$package_id" "755" "true" 2>&1 | while IFS= read -r line; do
-                log_install "$line"
-            done
-        fi
-
-        return 0
-    else
-        log_warning "Failed to install $app_name via FLATPAK (system), trying user mode..."
-
-        # Configure flathub for user mode
-        flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
-
-        # Try user mode installation
-        if flatpak install --user -y flathub "$package_id"; then
-            log_success "Successfully installed $app_name via FLATPAK (user mode)"
-
-            # Fix XDG_DATA_DIRS for user installation
-            local user_flatpak_exports="$HOME/.local/share/flatpak/exports/share"
-            if [ -d "$user_flatpak_exports" ]; then
-                log_install "Adding $user_flatpak_exports to XDG_DATA_DIRS"
-                if ! grep -q "$user_flatpak_exports" ~/.profile 2>/dev/null; then
-                    echo "export XDG_DATA_DIRS=\"$user_flatpak_exports:\$XDG_DATA_DIRS\"" >> ~/.profile
-                fi
-            fi
-
-            return 0
-        else
-            log_error "Failed to install $app_name via FLATPAK (both system and user mode)"
-            return 1
-        fi
-    fi
-}
-
-# Install via WEB (download .deb packages)
-install_via_web() {
-    local package_url="$1"
-    local app_name="$2"
-
-    log_install "Installing $app_name via WEB download: $package_url"
-
-    # Extract executable name from app_name for snap cleanup
-    local exec_name=$(echo "$app_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
-
-    # Check if not snap package first (cleanup if needed)
-    if is_command_from_snap "$exec_name"; then
-        log_warning "Found $exec_name installed via snap, cleaning up first..."
-        force_cleanup_package "$exec_name" "$app_name"
-        sleep 2
-    fi
-
-    # Create temporary directory
-    local temp_dir="/tmp/${app_name}_install_$$"
-    $USE_SUDO mkdir -p "$temp_dir"
-    cd "$temp_dir"
-    
-    # Download the package
-    local package_file="${app_name}.deb"
-    if wget -O "$package_file" "$package_url"; then
-        log_success "Downloaded $app_name package"
-        
-        # Install the .deb package
-        if $USE_SUDO dpkg -i "$package_file"; then
-            log_success "Successfully installed $app_name via WEB"
-            # Fix any dependency issues
-            $USE_SUDO apt-get install -f -y 2>/dev/null || true
-            cd - && $USE_SUDO rm -rf "$temp_dir"
-            return 0
-        else
-            log_warning "dpkg installation failed, trying to fix dependencies..."
-            $USE_SUDO apt-get install -f -y
-            if $USE_SUDO dpkg -i "$package_file"; then
-                log_success "Successfully installed $app_name after fixing dependencies"
-                cd - && $USE_SUDO rm -rf "$temp_dir"
-                return 0
-            else
-                log_error "Failed to install $app_name .deb package"
-                cd - && $USE_SUDO rm -rf "$temp_dir"
-                return 1
-            fi
-        fi
-    else
-        log_error "Failed to download $app_name from $package_url"
-        cd - && $USE_SUDO rm -rf "$temp_dir"
-        return 1
-    fi
-}
-
-# Install via NPM
-install_via_npm() {
-    local package_id="$1"
-    local app_name="$2"
-
-    log_install "Installing $app_name via NPM: $package_id"
-
-    # Check if npm is installed
-    if ! command_exists npm; then
-        log_install "Installing Node.js and npm first..."
-        $USE_SUDO apt update
-        if $USE_SUDO apt install -y nodejs npm; then
-            log_success "Node.js and npm installed successfully"
-        else
-            log_error "Failed to install Node.js and npm"
-            return 1
-        fi
-    fi
-
-    # Validate package exists before attempting installation
-    if ! validate_package_exists "npm" "$package_id" "$app_name"; then
-        log_error "Skipping $app_name - package not found in NPM registry"
-        return 2
-    fi
-
-    # Run pre-installation checks and auto-fix
-    log_install "Running pre-installation checks..."
-    local helper_dir="$SCRIPT_CURRENT_DIR"
-
-    if [ -f "$helper_dir/npm_pre_install_checker.sh" ]; then
-        bash "$helper_dir/npm_pre_install_checker.sh" "$package_id" "$app_name" 2>/dev/null || {
-            log_warning "Pre-installation check reported issues, but continuing with installation"
-        }
-    else
-        log_warning "Pre-installation checker not found, skipping checks"
-    fi
-
-    # Install npm package globally with timeout and retry logic
-    local max_retries=2
-    local retry_count=0
-
-    while [ $retry_count -lt $max_retries ]; do
-        if timeout 300 $USE_SUDO npm install -g "$package_id"; then
-            log_success "Successfully installed $app_name via NPM"
-
-            # Fix permissions for npm global binaries
-            log_install "Setting executable permissions for npm global binaries..."
-            local npm_global_bin
-            npm_global_bin=$($USE_SUDO npm config get prefix 2>/dev/null)
-            if [ -n "$npm_global_bin" ] && [ -d "$npm_global_bin/bin" ]; then
-                # Set executable permissions for all binaries in npm global bin directory
-                $USE_SUDO find "$npm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
-                log_success "Set executable permissions for binaries in: $npm_global_bin/bin"
-
-                # Also check for the specific package binary
-                local package_name=$(echo "$package_id" | sed 's/.*\///' | sed 's/@.*//')
-                local binary_path="$npm_global_bin/bin/$package_name"
-                if [ -f "$binary_path" ]; then
-                    $USE_SUDO chmod +x "$binary_path"
-                    log_success "Set executable permission for: $binary_path"
-                fi
-            else
-                log_warning "Could not determine npm global bin directory"
-            fi
-
-            return 0
-        else
-            log_error "NPM installation failed on attempt $((retry_count + 1))/$max_retries"
-
-            # On failure, run cleanup and try again
-            if [ $retry_count -eq 0 ]; then
-                log_install "Running cleanup before retry..."
-                if [ -f "$helper_dir/npm_cleanup_helper.sh" ]; then
-                    bash "$helper_dir/npm_cleanup_helper.sh" "$package_id" "$app_name" 2>/dev/null || true
-                fi
-                sleep 2
-            fi
-
-            ((retry_count++))
-            if [ $retry_count -lt $max_retries ]; then
-                log_warning "Retrying installation..."
-            fi
-        fi
-    done
-
-    log_error "Failed to install $app_name via NPM after $max_retries retries"
-    return 1
-}
-
-# Install via PIPX
-install_via_pipx() {
-    local package_id="$1"
-    local app_name="$2"
-    
-    log_install "Installing $app_name via PIPX: $package_id"
-    
-    # Check if pipx is installed
-    if ! command_exists pipx; then
-        log_install "Installing pipx first..."
-        $USE_SUDO apt update
-        if $USE_SUDO apt install -y python3-pip; then
-            $USE_SUDO pip3 install pipx
-            $USE_SUDO pipx ensurepath
-            log_success "pipx installed successfully"
-        else
-            log_error "Failed to install pipx"
-            return 1
-        fi
-    fi
-    
-    # Install pipx package
-    if $USE_SUDO pipx install "$package_id"; then
-        log_success "Successfully installed $app_name via PIPX"
-        return 0
-    else
-        log_error "Failed to install $app_name via PIPX"
-        return 1
-    fi
-}
-
-# Install via UV
-install_via_uv() {
-    local package_id="$1"
-    local app_name="$2"
-    
-    log_install "Installing $app_name via UV: $package_id"
-    
-    # Check if uv is installed
-    if ! command_exists uv; then
-        log_install "Installing uv first..."
-        if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-            source ~/.bashrc
-            log_success "uv installed successfully"
-        else
-            log_error "Failed to install uv"
-            return 1
-        fi
-    fi
-    
-    # Install uv package
-    if $USE_SUDO uv add "$package_id"; then
-        log_success "Successfully installed $app_name via UV"
-        return 0
-    else
-        log_error "Failed to install $app_name via UV"
-        return 1
-    fi
-}
-
-# Install via UV TOOL
-install_via_uv_tool() {
-    local package_id="$1"
-    local app_name="$2"
-    
-    log_install "Installing $app_name via UV TOOL: $package_id"
-    
-    # Check if uv is installed
-    if ! command_exists uv; then
-        log_install "Installing uv first..."
-        if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-            source ~/.bashrc
-            log_success "uv installed successfully"
-        else
-            log_error "Failed to install uv"
-            return 1
-        fi
-    fi
-    
-    # Install uv tool
-    if $USE_SUDO uv tool install "$package_id"; then
-        log_success "Successfully installed $app_name via UV TOOL"
-        return 0
-    else
-        log_error "Failed to install $app_name via UV TOOL"
-        return 1
-    fi
-}
-
-# Install via UVX
-install_via_uvx() {
-    local package_id="$1"
-    local app_name="$2"
-    
-    log_install "Installing $app_name via UVX: $package_id"
-    
-    # Check if uvx is installed (usually comes with uv)
-    if ! command_exists uvx; then
-        log_install "Installing uv (includes uvx) first..."
-        if curl -LsSf https://astral.sh/uv/install.sh | sh; then
-            source ~/.bashrc
-            log_success "uv/uvx installed successfully"
-        else
-            log_error "Failed to install uv/uvx"
-            return 1
-        fi
-    fi
-    
-    # Install uvx package
-    if uvx "$package_id"; then
-        log_success "Successfully installed $app_name via UVX"
-        return 0
-    else
-        log_error "Failed to install $app_name via UVX"
-        return 1
-    fi
-}
-
-# Install via CURL
-install_via_curl() {
-    local package_url="$1"
-    local app_name="$2"
-
-    log_install "Installing $app_name via CURL: $package_url"
-
-    # Extract executable name from app_name for snap cleanup
-    local exec_name=$(echo "$app_name" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
-
-    # Check if not snap package first (cleanup if needed)
-    if is_command_from_snap "$exec_name"; then
-        log_warning "Found $exec_name installed via snap, cleaning up first..."
-        force_cleanup_package "$exec_name" "$app_name"
-        sleep 2
-    fi
-
-    # Check if curl is installed
-    if ! command_exists curl; then
-        log_install "Installing curl first..."
-        $USE_SUDO apt update
-        if $USE_SUDO apt install -y curl; then
-            log_success "curl installed successfully"
-        else
-            log_error "Failed to install curl"
-            return 1
-        fi
-    fi
-
-    # Save current PATH
-    local original_path="$PATH"
-
-    # Use clean PATH with only essential system directories
-    # This avoids issues with circular symlinks in custom bin directories
-    local clean_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-
-    log_install "Executing installation script with clean PATH..."
-    log_install "Download URL: $package_url"
-
-    # Download and execute install script with clean environment
-    if PATH="$clean_path" curl -fsSL "$package_url" | PATH="$clean_path" $USE_SUDO bash; then
-        log_success "Successfully installed $app_name via CURL"
-        # Restore original PATH
-        export PATH="$original_path"
-        return 0
-    else
-        log_error "Failed to install $app_name via CURL"
-        log_error "This may be due to network issues or package unavailability"
-        # Restore original PATH
-        export PATH="$original_path"
-        return 1
-    fi
-}
-
-# Install via Microsoft APT repository
-install_via_microsoft_apt() {
-    local package_id="$1"
-    local app_name="$2"
-
-    log_install "Installing $app_name via Microsoft APT repository"
-
-    # Check if not snap package first (cleanup if needed)
-    if is_command_from_snap "$package_id"; then
-        log_warning "Found $package_id installed via snap, cleaning up first..."
-        force_cleanup_package "$package_id" "$app_name"
-        sleep 2
-    fi
-
-    # Install required dependencies
-    log_install "Installing required dependencies..."
-    $USE_SUDO apt update
-    $USE_SUDO apt install -y software-properties-common apt-transport-https wget curl gnupg
-
-    # Add Microsoft GPG key with fallback options
-    log_install "Adding Microsoft GPG key..."
-    local gpg_key_url="https://packages.microsoft.com/keys/microsoft.asc"
-    local gpg_key_file="/etc/apt/keyrings/packages.microsoft.gpg"
-
-    # Try method 1: Using apt-key add (older systems)
-    if wget -qO- "$gpg_key_url" | $USE_SUDO apt-key add -; then
-        log_success "Microsoft GPG key added successfully"
-    else
-        log_warning "apt-key method failed, trying keyring method..."
-
-        # Try method 2: Using gpg with keyrings directory
-        if wget -qO- "$gpg_key_url" | $USE_SUDO gpg --dearmor | $USE_SUDO tee "$gpg_key_file" > /dev/null; then
-            log_success "Microsoft GPG key installed to keyring"
-
-            # Create sources list entry with keyring reference
-            log_install "Adding Microsoft repository with keyring..."
-            if ! echo "deb [arch=amd64,arm64,armhf signed-by=$gpg_key_file] https://packages.microsoft.com/repos/code stable main" | $USE_SUDO tee /etc/apt/sources.list.d/vscode.list > /dev/null; then
-                log_error "Failed to add Microsoft repository"
-                return 1
-            fi
-        else
-            log_error "Failed to install Microsoft GPG key using both methods"
-            return 1
-        fi
-    fi
-
-    # Update package list
-    log_install "Updating package list..."
-    if ! $USE_SUDO apt update 2>&1; then
-        log_warning "apt update had issues, but continuing with installation attempt"
-    fi
-
-    # Install the package
-    log_install "Installing $package_id..."
-    if $USE_SUDO apt install -y "$package_id"; then
-        log_success "$app_name installed successfully via Microsoft APT"
-        return 0
-    else
-        log_error "Failed to install $app_name via Microsoft APT"
-        return 1
-    fi
-}
 
 # Universal installation function with cleanup support
 universal_install() {
@@ -805,8 +365,34 @@ universal_install() {
     local package_id="$2"
     local app_name="$3"
     local exec_name="$4"  # Optional executable name for cleanup
+    local snap_confinement="$5"  # Optional: snap confinement (e.g. classic)
+    local install_spec="$6"      # Optional: deb_repo/tarball/github_deb spec
 
     log_install "Universal install: $app_name using method $method"
+
+    # Heal root-home installs without reinstalling: when the binary resolves
+    # for root but not for the real desktop user, relocate it to a shared
+    # location. uv/pipx venvs refuse relocation and fall through to a normal
+    # (shared-directory) reinstall. Broken/stale links (e.g. a self-referential
+    # /usr/local/bin symlink) are skipped so the real payload in a root home
+    # is found instead.
+    if [ -n "$exec_name" ] && ! command_usable_by_real_user "$exec_name"; then
+        local existing_exec_path=""
+        local heal_candidate=""
+        existing_exec_path="$(command -v "$exec_name" 2>/dev/null || true)"
+        if [ -z "$existing_exec_path" ]; then
+            for heal_candidate in "$HOME/.local/bin/$exec_name" "$HOME/.opencode/bin/$exec_name" "$HOME/.kimi-code/bin/$exec_name" "/usr/local/bin/$exec_name"; do
+                if [ -e "$heal_candidate" ]; then
+                    existing_exec_path="$heal_candidate"
+                    break
+                fi
+            done
+        fi
+        if [ -n "$existing_exec_path" ] && relocate_root_home_install "$exec_name" "$existing_exec_path"; then
+            log_success "$app_name healed by relocation (root-home install)"
+            return 0
+        fi
+    fi
 
     # Perform cleanup if needed (for web and apt installations)
     if [ -n "$exec_name" ] && needs_cleanup_before_install "$exec_name" "$method"; then
@@ -825,7 +411,7 @@ universal_install() {
             install_result=$?
             ;;
         "snap")
-            install_via_snap "$package_id" "$app_name"
+            install_via_snap "$package_id" "$app_name" "$snap_confinement"
             install_result=$?
             ;;
         "flatpak")
@@ -836,15 +422,14 @@ universal_install() {
             install_via_web "$package_id" "$app_name"
             install_result=$?
             ;;
-        "npm")
-            install_via_npm "$package_id" "$app_name"
+        "npm"|"pnpm")
+            install_via_pnpm "$package_id" "$app_name"
             install_result=$?
-            # Fix NPM permissions after installation
             if [ $install_result -eq 0 ]; then
-                log_install "Fixing NPM permissions after installation"
-                fix_npm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
-                    log_install "$line"
-                done
+                log_install "Fixing pnpm global bin permissions after installation"
+                if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+                    $USE_SUDO find "$PNPM_GLOBAL_BIN_DIR" -type f -exec chmod +x {} \; 2>/dev/null || true
+                fi
             fi
             ;;
         "pipx")
@@ -869,6 +454,18 @@ universal_install() {
             ;;
         "microsoft_apt")
             install_via_microsoft_apt "$package_id" "$app_name"
+            install_result=$?
+            ;;
+        "deb_repo")
+            install_via_deb_repo "$package_id" "$app_name" "$install_spec"
+            install_result=$?
+            ;;
+        "tarball")
+            install_via_tarball "$package_id" "$app_name" "$install_spec" "$exec_name"
+            install_result=$?
+            ;;
+        "github_deb")
+            install_via_github_deb "$package_id" "$app_name" "$install_spec"
             install_result=$?
             ;;
         *)
@@ -897,7 +494,41 @@ universal_install() {
                 "$HOME/.config/$exec_name/bin/$exec_name"
                 "/opt/$exec_name/bin/$exec_name"
                 "/opt/$exec_name/$exec_name"
+                # snap apps (e.g. beekeeper-studio -> /snap/bin/...), flatpak exports,
+                # and standard system bins, so snap/apt/web installs are found too.
+                "/snap/bin/$exec_name"
+                "/var/lib/flatpak/exports/bin/$exec_name"
+                "/usr/local/bin/$exec_name"
+                "/usr/bin/$exec_name"
+                "/bin/$exec_name"
             )
+
+            # npm-installed global CLIs land in `npm prefix`/bin, which is often NOT
+            # on PATH (e.g. /opt/_<os>/node/<ver>/bin), so a tool like auggie would be
+            # "not found" even after a successful install. Add that dir to the search.
+            local npm_resolved_bin
+            npm_resolved_bin="$(resolve_tool_bin npm 2>/dev/null || true)"
+            if [ -n "$npm_resolved_bin" ]; then
+                local npm_prefix_bin
+                npm_prefix_bin="$("$npm_resolved_bin" config get prefix 2>/dev/null)/bin"
+                [ -d "$npm_prefix_bin" ] && search_paths+=("$npm_prefix_bin/$exec_name")
+            fi
+
+            # pnpm-installed global CLIs land in `pnpm config get global-bin-dir`,
+            # which is likewise often not on PATH inside installer shells.
+            local pnpm_global_bin_dir="${PNPM_GLOBAL_BIN_DIR:-}"
+            if [ -z "$pnpm_global_bin_dir" ] && command -v get_var >/dev/null 2>&1; then
+                pnpm_global_bin_dir="$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null || true)"
+            fi
+            case "$pnpm_global_bin_dir" in /*) ;; *) pnpm_global_bin_dir="" ;; esac
+            if [ -z "$pnpm_global_bin_dir" ]; then
+                local pnpm_resolved_bin
+                pnpm_resolved_bin="$(resolve_tool_bin pnpm 2>/dev/null || true)"
+                if [ -n "$pnpm_resolved_bin" ]; then
+                    pnpm_global_bin_dir="$("$pnpm_resolved_bin" config get global-bin-dir 2>/dev/null || true)"
+                fi
+            fi
+            [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ] && search_paths+=("$pnpm_global_bin_dir/$exec_name")
 
             # Also search for lowercase version if exec_name has uppercase
             local exec_lower=$(echo "$exec_name" | tr '[:upper:]' '[:lower:]')
@@ -919,9 +550,17 @@ universal_install() {
 
         # Process found executable
         if [ -n "$exec_path" ] && [ -f "$exec_path" ]; then
+            # A curl/vendor installer that ran as root may have dropped the
+            # payload under /root/... -- relocate it to a shared location so
+            # regular users can run it too.
+            if relocate_root_home_install "$exec_name" "$exec_path"; then
+                exec_path="/usr/local/bin/$exec_name"
+                needs_symlink=false
+            fi
+
             # Fix permissions for the executable
             log_install "Fixing permissions for: $exec_path"
-            fix_installation_permissions_from_common_functions "$exec_path" "755" "true" 2>&1 | while IFS= read -r line; do
+            fix_installation_permissions_from_common_functions "$exec_path" "777" "true" 2>&1 | while IFS= read -r line; do
                 log_install "$line"
             done
 
@@ -931,7 +570,7 @@ universal_install() {
                 if [ -n "$target_path" ] && [ -e "$target_path" ]; then
                     local target_dir=$(dirname "$target_path")
                     log_install "Fixing permissions for target directory: $target_dir"
-                    fix_installation_permissions_from_common_functions "$target_dir" "755" "true" 2>&1 | while IFS= read -r line; do
+                    fix_installation_permissions_from_common_functions "$target_dir" "777" "true" 2>&1 | while IFS= read -r line; do
                         log_install "$line"
                     done
                 fi
@@ -979,7 +618,9 @@ universal_install() {
 
 # Export functions for use by other scripts
 export -f install_via_apt install_via_snap install_via_flatpak install_via_web
-export -f install_via_npm install_via_pipx install_via_uv install_via_uv_tool
+export -f install_via_npm install_via_pnpm install_via_pipx install_via_uv install_via_uv_tool
 export -f install_via_uvx install_via_curl install_via_microsoft_apt universal_install
+export -f install_via_deb_repo install_via_tarball install_via_github_deb
 export -f log_install log_success log_error log_warning command_exists validate_package_exists
 export -f is_snap_package is_command_from_snap force_cleanup_package needs_cleanup_before_install
+export -f resolve_real_user command_usable_by_real_user relocate_root_home_install

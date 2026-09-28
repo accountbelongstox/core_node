@@ -7,6 +7,7 @@ Unified coordinate calculation methods for D4 operations
 
 import random
 from typing import Tuple, Optional
+from tkinter import messagebox
 from share.game_interface_data import (
     get_d4_interface_data,
     calculate_unified_scaled_coordinate,
@@ -129,7 +130,7 @@ def get_title_bar_random_point() -> Optional[Tuple[int, int]]:
     game_window_size is the OUTER window size (includes borders and title bar)
 
     Window structure (measured from actual D4 window):
-    - Window GetWindowRect: offset (731, 17), size 1826x1031
+    - Window GetWindowRect: offset (731, 17), size (example 1826x1031; D3 outer 1316x839 when client 1300x800)
     - Title bar clickable range: (740, 16) to (2550, 47)
     - Left border: 9px, Right border: 7px
     - Top offset: -1px (title bar starts above window rect)
@@ -186,8 +187,6 @@ def debug_show_title_bar_range():
 
     Uses module-level constants from game_interface_data
     """
-    from tkinter import messagebox
-
     d4_data = get_d4_interface_data()
 
     window_offset_x, window_offset_y = d4_data.window_offset
@@ -237,7 +236,7 @@ Expected Range (from measurement):
   Height: 31px
 
 Measurement Source:
-  Window GetWindowRect: offset (731, 17), size 1826x1031
+  Window GetWindowRect: offset (731, 17), size (example 1826x1031; D3 outer 1316x839 when client 1300x800)
   Actual clickable title bar: (740, 16) to (2550, 47)
 """
 

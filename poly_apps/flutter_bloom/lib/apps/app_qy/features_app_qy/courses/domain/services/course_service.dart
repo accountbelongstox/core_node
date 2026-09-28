@@ -3,7 +3,7 @@ library;
 
 import '../../../../../../../common/theme/app_theme.dart';
 import '../models/course_model.dart';
-import '../../data/course_service_data.dart';
+import '../../sources/course_service_data.dart';
 
 class CourseService {
   static const String _currentUserId = 'user_qy_001';

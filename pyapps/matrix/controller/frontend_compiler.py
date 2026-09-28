@@ -9,8 +9,9 @@ Uses pycore.pyutils.frontend_launcher for unified frontend management.
 
 from pathlib import Path
 
-from pycore import ColorPrint
-from pycore.pyutils.frontend_launcher import NuxtLauncher, FrontendConfig
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
+from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
 
 
 def compile_frontend_if_needed(

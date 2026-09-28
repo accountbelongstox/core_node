@@ -1,0 +1,24 @@
+BUG pyservice 2 ，为什么老是弹这个，自动运行的，同时查看脚本是否有逻辑错误问题、修正，请修正。
+ecommendation: native
+   source: VoxCPM official repo documents native install only; no official container image - https://github.com/OpenBMB/VoxCPM
+   [1] native (recommended, default)
+ Keys: number/N/D/arrows = switch, Enter = confirm highlighted, B/Q = cancel (no write)
+ Select [1] native -> auto-confirm in 20s (Enter = confirm)   Select [1] native -> auto-confirm in 20s (Enter = confirm)   Select [1] native -> auto-confirm in 20s (Enter = confirm)   Select [1] native -> auto-confirm in 19s (Enter = confirm)   Select [1] native -> auto-confirm in 19s (Enter = confirm)   Select [1] native -> auto-confirm in 19s (Enter = confirm)   Select [1] native -> auto-confirm in 19s (Enter = confirm)   Select [1] native -> auto-confirm in 19s (Enter = confirm)   Select [1] native -> auto-confirm in 18s (Enter = confirm)   Select [1] native -> auto-confirm in 18s (Enter = confirm)  
+
+BUG ：ch-guard] GPU present, installed cu130 torch group is usable; preserving installed versions.
+[Step60-Parler] [..] pip install parler-tts (git) + soundfile ...
+Collecting git+https://github.com/huggingface/parler-tts.git
+  Cloning https://github.com/huggingface/parler-tts.git to C:\Users\mpc\AppData\Local\Temp\pip-req-build-vkmevp22
+  Running command git clone --filter=blob:none --quiet https://github.com/huggingface/parler-tts.git 'C:\Users\mpc\AppData\Local\Temp\pip-req-build-vkmevp22'
+  不要使用任何C盘的目录，扫描pycore中，所有的临时目录使用常量中的D盘中的目录。并扫描还有那些地方使用C盘的修改过来（怩link连接到D盘的不算、跳过则可）
+BUG：
+Step61-Qwen3Tts] [..] converging isolated qwen-tts venv (first build takes minutes) ...
+[isolated-venv +0.00s] PASS: torch.cuda.is_available
+[isolated-venv +0.95s] preserving shared runtime: torch==2.11.0+cu130, torchvision==0.26.0+cu130, torchaudio==2.11.0+cu130
+[isolated-venv +0.00s] ensuring engine package: qwen-tts
+[isolated-venv +0.00s] D:\.dev_win10\py_venv_qwen3tts_3.13\Scripts\python.exe -m pip install --constraint D:\.tmp\pycore-shared-runtime-5syamjog.txt qwen-tts
+Requirement already satisfied: qwen-tts in D:\.dev_win10\py_venv_qwen3tts_3.13\Lib\site-packages (0.1.1)
+Requirement already satisfied: transformers==4.57.3 in D:\.dev_win10\py_venv_qwen3tts_3.13\Lib\site-packages (from qwen-tts) (4.57.3)
+Requirement already satisfied: accelerate==1.12.0 in D:\.dev_win10\py_venv_qwen3tts_3.13\Lib\site-packages (from qwen-tts) (1.12.0)
+Requirement already satisfied: gradio in D:
+已经安装过的为什么还在反复安装？幂等性呢。

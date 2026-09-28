@@ -1,0 +1,218 @@
+<?php
+
+namespace App\Apps\AppQyV1\AppQyV1Models;
+
+use App\Services\Realtime\OutboxCommitDispatcher;
+use Illuminate\Support\Facades\Log;
+
+/**
+ * Persistent real-time event outbox shared by Queue Center publishers.
+ * Relevant events publish to the Mercure hub immediately; rows remain
+ * available for bounded cursor replay after a client reconnects.
+ */
+class AppQyV1TranslationEventModel extends AppQyV1Model
+{
+    public const EVENT_ARTICLE_PUBLISHED = 'article.published';
+
+    public const EVENT_ARTICLE_AUDIO_READY = 'article.audio.ready';
+
+    private const APPLICATION_EVENTS = [
+        self::EVENT_ARTICLE_PUBLISHED,
+        self::EVENT_ARTICLE_AUDIO_READY,
+    ];
+
+    // created_at only (append-only log); no updated_at column.
+    public $timestamps = false;
+
+    protected $fillable = [
+        'event',
+        'data',
+        'created_at',
+        'published_at',
+        'publish_after',
+        'publish_attempts',
+        'last_publish_error',
+        'deduplication_key',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'id' => 'integer',
+            'created_at' => 'datetime',
+            'published_at' => 'datetime',
+            'publish_after' => 'datetime',
+            'publish_attempts' => 'integer',
+        ];
+    }
+
+    protected ?string $appTableSuffix = 'translation_events';
+
+    public static function applicationEvents(): array
+    {
+        return self::APPLICATION_EVENTS;
+    }
+
+    /**
+     * Append one committed event to the outbox. Mercure publication is owned
+     * by RealtimeOutboxPublisher through the runtime's bounded publisher task.
+     */
+    public static function emit(string $event, array $data): void
+    {
+        static::appendAfterCommit(
+            $event,
+            static function () use ($event, $data): void {
+                static::query()->create([
+                    'event' => $event,
+                    'data' => json_encode($data, JSON_UNESCAPED_UNICODE),
+                    'created_at' => now(),
+                    'publish_attempts' => 0,
+                ]);
+            }
+        );
+    }
+
+    public static function emitOnce(string $event, string $deduplicationKey, array $data): void
+    {
+        static::appendAfterCommit(
+            $event,
+            static function () use ($event, $deduplicationKey, $data): void {
+                static::query()->insertOrIgnore([[
+                    'event' => $event,
+                    'deduplication_key' => $deduplicationKey,
+                    'data' => json_encode(
+                        $data,
+                        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+                    ),
+                    'created_at' => now(),
+                    'publish_attempts' => 0,
+                ]]);
+            }
+        );
+    }
+
+    private static function appendAfterCommit(string $event, callable $append): void
+    {
+        $connectionName = (new static())->getConnectionName();
+
+        OutboxCommitDispatcher::dispatch(
+            static function () use ($event, $append): void {
+                try {
+                    $append();
+                } catch (\Throwable $exception) {
+                    Log::warning('[AppQyV1TranslationEvent] outbox append failed', [
+                        'event' => $event,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+
+                // Direct-emit (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+                // publish in the same request that created the event — the 1s
+                // realtime_outbox_publish_task poller is decommissioned. The
+                // outbox row stays the durable journal: a failed publish is
+                // retried by the next emit (or the disabled safety-net poller).
+                try {
+                    app(\App\Services\Realtime\RealtimeOutboxPublisher::class)->publishPending();
+                } catch (\Throwable $exception) {
+                    Log::warning('[AppQyV1TranslationEvent] direct publish failed', [
+                        'event' => $event,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+            },
+            $connectionName
+        );
+    }
+
+    public static function pendingForPublish(int $limit)
+    {
+        return static::query()
+            ->whereNull('published_at')
+            ->where(static function ($query): void {
+                $query->whereNull('publish_after')->orWhere('publish_after', '<=', now());
+            })
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function payload(): array
+    {
+        $payload = json_decode((string) $this->data, true);
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    public function markPublished(): void
+    {
+        $this->forceFill([
+            'published_at' => now(),
+            'publish_after' => null,
+            'last_publish_error' => null,
+        ])->save();
+    }
+
+    public function markPublishFailed(string $error): void
+    {
+        $attempts = (int) $this->publish_attempts + 1;
+        $retrySeconds = min(60, 2 ** min($attempts, 6));
+
+        $this->forceFill([
+            'publish_after' => now()->addSeconds($retrySeconds),
+            'publish_attempts' => $attempts,
+            'last_publish_error' => mb_substr($error, 0, 2000),
+        ])->save();
+    }
+
+    /**
+     * Fetch up to $limit events with id > $cursor, oldest first. Each item is
+     * ['id' => int, 'event' => string, 'data' => array].
+     */
+    public static function since(int $cursor, int $limit = 200): array
+    {
+        $rows = static::query()
+            ->where('id', '>', $cursor)
+            ->orderBy('id', 'asc')
+            ->limit($limit)
+            ->get(['id', 'event', 'data']);
+
+        $out = [];
+        foreach ($rows as $row) {
+            $decoded = json_decode((string) $row->data, true);
+            if (!is_array($decoded)) {
+                $decoded = [];
+            }
+            $out[] = [
+                'id' => (int) $row->id,
+                'event' => (string) $row->event,
+                'data' => $decoded,
+            ];
+        }
+        return $out;
+    }
+
+    /** Highest event id currently stored (0 when empty). New clients start here. */
+    public static function maxId(): int
+    {
+        return (int) static::query()->max('id');
+    }
+
+    /**
+     * Delete events older than $seconds. Best-effort; returns deleted row count.
+     * The publisher calls this occasionally to keep the outbox bounded.
+     */
+    public static function pruneOlderThan(int $seconds = 600): int
+    {
+        try {
+            return (int) static::query()
+                ->whereNotNull('published_at')
+                ->where('published_at', '<', now()->subSeconds($seconds))
+                ->delete();
+        } catch (\Throwable $e) {
+            Log::warning('[AppQyV1TranslationEvent] outbox prune failed', [
+                'error' => $e->getMessage(),
+            ]);
+            return 0;
+        }
+    }
+}

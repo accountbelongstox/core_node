@@ -28,7 +28,6 @@ generated_warning() {
 }
 
 for version; do
-	export version
 
 	rm -rf "$version"
 
@@ -43,7 +42,6 @@ for version; do
 	for dir in "${variants[@]}"; do
 		suite="$(dirname "$dir")" # "buster", etc
 		variant="$(basename "$dir")" # "cli", etc
-		export suite variant
 
 		alpineVer="${suite#alpine}" # "3.12", etc
 		if [ "$suite" != "$alpineVer" ]; then
@@ -51,14 +49,12 @@ for version; do
 		else
 			from="debian:$suite-slim"
 		fi
-		export from alpineVer
 
 		case "$variant" in
 			apache) cmd='["apache2-foreground"]' ;;
 			fpm) cmd='["php-fpm"]' ;;
 			*) cmd='["php", "-a"]' ;;
 		esac
-		export cmd
 
 		echo "processing $version/$dir ..."
 		mkdir -p "$version/$dir"

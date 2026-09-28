@@ -32,7 +32,7 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
     public function handle(): int
     {
         // PRE-REQUISITE: Fix PHP configuration before any operations
-        // This ensures open_basedir restrictions are correct (matches 32_configure_php84.sh)
+        // This ensures open_basedir restrictions are correct (matches 34_configure_php85.sh)
         $this->initializeCommand();
         
         $domain = $this->argument('domain');
@@ -242,17 +242,22 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
         if (!$this->createNginxConfig($domain, 'laravel', $variables)) {
             return false;
         }
-        
+
         // Enable site
         if (!$this->enableNginxSite($domain)) {
             return false;
         }
-        
+
         // Generate SSL certificate
         if (!$this->generateSSLIfNeeded($domain)) {
             return false;
         }
-        
+
+        // Re-render: the builder upgrades to HTTP/3 + TLS once certs exist
+        if (!$this->createNginxConfig($domain, 'laravel', $variables)) {
+            return false;
+        }
+
         // Test and reload nginx
         if (!$this->testNginxConfig()) {
             return false;
@@ -322,20 +327,25 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
         if (!$this->createNginxConfig($domain, $template, $variables)) {
             return false;
         }
-        
+
         // Enable site and SSL
         if (!$this->enableNginxSite($domain)) {
             return false;
         }
-        
+
         if (!$this->generateSSLIfNeeded($domain)) {
             return false;
         }
-        
+
+        // Re-render: the builder upgrades to HTTP/3 + TLS once certs exist
+        if (!$this->createNginxConfig($domain, $template, $variables)) {
+            return false;
+        }
+
         if (!$this->testNginxConfig() || !$this->reloadNginx()) {
             return false;
         }
-        
+
         $this->showDeploymentSummary($domain, "Poly App ($appType)", [
             'Application' => $appName,
             'Web Directory' => $wwwDir
@@ -381,20 +391,25 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
         if (!$this->createNginxConfig($domain, 'proxy', $variables)) {
             return false;
         }
-        
+
         // Enable site and SSL
         if (!$this->enableNginxSite($domain)) {
             return false;
         }
-        
+
         if (!$this->generateSSLIfNeeded($domain)) {
             return false;
         }
-        
+
+        // Re-render: the builder upgrades to HTTP/3 + TLS once certs exist
+        if (!$this->createNginxConfig($domain, 'proxy', $variables)) {
+            return false;
+        }
+
         if (!$this->testNginxConfig() || !$this->reloadNginx()) {
             return false;
         }
-        
+
         $this->showDeploymentSummary($domain, 'NCore App', [
             'Application' => $appName,
             'Proxy Target' => "http://localhost:$port"
@@ -427,20 +442,25 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
         if (!$this->createNginxConfig($domain, 'static', $variables)) {
             return false;
         }
-        
+
         // Enable site and SSL
         if (!$this->enableNginxSite($domain)) {
             return false;
         }
-        
+
         if (!$this->generateSSLIfNeeded($domain)) {
             return false;
         }
-        
+
+        // Re-render: the builder upgrades to HTTP/3 + TLS once certs exist
+        if (!$this->createNginxConfig($domain, 'static', $variables)) {
+            return false;
+        }
+
         if (!$this->testNginxConfig() || !$this->reloadNginx()) {
             return false;
         }
-        
+
         $this->showDeploymentSummary($domain, 'Static Website', [
             'Web Directory' => $wwwDir
         ]);
@@ -479,20 +499,25 @@ class ServerManagerV1DeployCommand extends ServerManagerV1BaseCommand
         if (!$this->createNginxConfig($domain, 'proxy', $variables)) {
             return false;
         }
-        
+
         // Enable site and SSL
         if (!$this->enableNginxSite($domain)) {
             return false;
         }
-        
+
         if (!$this->generateSSLIfNeeded($domain)) {
             return false;
         }
-        
+
+        // Re-render: the builder upgrades to HTTP/3 + TLS once certs exist
+        if (!$this->createNginxConfig($domain, 'proxy', $variables)) {
+            return false;
+        }
+
         if (!$this->testNginxConfig() || !$this->reloadNginx()) {
             return false;
         }
-        
+
         $this->showDeploymentSummary($domain, 'Reverse Proxy', [
             'Proxy Target' => $proxyTarget
         ]);

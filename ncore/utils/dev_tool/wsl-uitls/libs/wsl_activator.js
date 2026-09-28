@@ -1,21 +1,10 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { pipeExecCmd, execPowerShell, execCmd } = require('#@commander');
 const logger = require('#@/ncore/basic/libs/logger.js');
 const { getSettingsCenter } = require('#@global_vars');
+const serviceContract = require('../../../../../config/service_contract');
 const settingsScope = getSettingsCenter().scope('wsl');
 
 class WSLActivator {
@@ -26,7 +15,7 @@ class WSLActivator {
         this.curlPath = 'C:\\Windows\\System32\\curl.exe';
         this.powershellPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
         this.virtualSwitchName = 'LAN';
-        this.targetRepoUrl = 'http://git.local.12gm.com:5021/adminroot/core_node.git';
+        this.targetRepoUrl = serviceContract.url('http', serviceContract.serviceDomain('git_local'), serviceContract.port('git_http'), 'adminroot/core_node.git');
 
         // Define settings keys for tracking command execution
         this.SETTINGS_KEYS = {

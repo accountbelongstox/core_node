@@ -1,0 +1,48 @@
+<#
+.SYNOPSIS
+    Apply default user profile path mappings (all dot-prefixed folders) from dd Windows Management menu.
+#>
+
+#region Variable Declarations
+$script:PS_CURRENT_DIR = $PSScriptRoot
+$script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
+#endregion
+
+#region Bootstrap
+. (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "PathMappingLib.ps1")
+#endregion
+
+#region Main
+function Show-UserProfilePathMappingMenu {
+    $profileCoreNodePath = Join-Path $env:USERPROFILE '.core_node'
+    $profileCachePath = Join-Path $env:USERPROFILE '.cache'
+    $programingUserPath = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
+    $ok = $false
+
+    Clear-Host
+    Write-PathMapLog -Message "User profile path mapping (idempotent, mklink /J junctions)" -Type "Info"
+    Write-Host ""
+    Write-Host "  $profileCoreNodePath -> $Global:CORE_NODE_DATA_DIR"
+    Write-Host "  $profileCachePath -> $Global:CORE_NODE_CACHE_DIR"
+    Write-Host "  Other profile folders -> $programingUserPath"
+    Write-Host "  (all other dot-prefixed folders under the profile, except .ssh)"
+    Write-Host ""
+    Write-Host "  Close apps using mapped folders before mapping. Occupied directories are skipped with a warning."
+    Write-Host ""
+
+    $ok = Invoke-DefaultUserProfilePathMappings -UserName $env:USERNAME
+    Write-Host ""
+    if ($ok) {
+        Write-PathMapLog -Message "Path mapping finished successfully." -Type "Success"
+    }
+    else {
+        Write-PathMapLog -Message "Path mapping finished with errors." -Type "Error"
+    }
+}
+
+if ($MyInvocation.InvocationName -ne '.') {
+    Show-UserProfilePathMappingMenu
+    Wait-MenuContinue
+}
+#endregion

@@ -1,0 +1,89 @@
+<?php
+
+namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Public;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use App\Http\Controllers\Controller;
+use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1LicenseService;
+use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1MemberService;
+use App\Apps\DingDuoDuoV1\DingDuoDuoV1Enums\DingDuoDuoV1LicenseMode;
+use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
+
+/**
+ * Public license endpoints the 订多多 extension polls when the user has no
+ * super-code: verify resolves the entitlement; heartbeat additionally bumps the
+ * device's last-seen timestamp.
+ */
+class DingDuoDuoV1LicenseController extends Controller
+{
+    /**
+     * POST license/verify {device_id, token} -> resolved license payload.
+     */
+    public function verify(Request $request): JsonResponse
+    {
+        $deviceId = (string) $request->input('device_id', '');
+        $token = $this->resolveToken($request);
+
+        $license = DingDuoDuoV1LicenseService::resolveByToken($token, $deviceId);
+
+        if ($deviceId !== '') {
+            $this->touchDevice($deviceId, $license);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $license,
+        ]);
+    }
+
+    /**
+     * POST license/heartbeat {device_id, token} -> updates device last-seen and
+     * returns the (re-resolved) license.
+     */
+    public function heartbeat(Request $request): JsonResponse
+    {
+        $deviceId = (string) $request->input('device_id', '');
+        $token = $this->resolveToken($request);
+
+        $license = DingDuoDuoV1LicenseService::resolveByToken($token, $deviceId);
+
+        if ($deviceId !== '') {
+            $this->touchDevice($deviceId, $license);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $license,
+        ]);
+    }
+
+    /**
+     * Token from the body, falling back to the X-DD-Token header.
+     */
+    private function resolveToken(Request $request): string
+    {
+        $token = (string) $request->input('token', '');
+        if ($token === '') {
+            $token = (string) $request->header(DingDuoDuoV1Constants::MEMBER_TOKEN_HEADER, '');
+        }
+        return trim($token);
+    }
+
+    /**
+     * Bump the device heartbeat, attaching the member id when the license is a
+     * member entitlement (super / locked modes leave member_id untouched).
+     */
+    private function touchDevice(string $deviceId, array $license): void
+    {
+        $memberId = null;
+        if (($license['mode'] ?? null) === DingDuoDuoV1LicenseMode::Member->value) {
+            $memberId = isset($license['member_id']) ? (int) $license['member_id'] : null;
+            if ($memberId !== null && $memberId < 1) {
+                $memberId = null;
+            }
+        }
+
+        DingDuoDuoV1MemberService::upsertDevice($deviceId, $memberId);
+    }
+}

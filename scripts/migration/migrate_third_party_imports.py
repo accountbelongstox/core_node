@@ -7,14 +7,14 @@ This script updates all files that import from third_party to use the new
 lazy loading getter functions.
 
 Old pattern:
-    from pycore.pyfoundations.third_party import get_third_package_torch, get_third_package_cv2
+    from pycore.pyfoundations.third_party.api import get_third_package_torch, get_third_package_cv2
 
 torch = get_third_package_torch()
 cv2 = get_third_package_cv2()
     result = torch.zeros(10)
 
 New pattern:
-    from pycore.pyfoundations.third_party import get_third_package_torch, get_third_package_cv2
+    from pycore.pyfoundations.third_party.api import get_third_package_torch, get_third_package_cv2
     torch = get_third_package_torch()
     cv2 = get_third_package_cv2()
     result = torch.zeros(10)
@@ -104,7 +104,7 @@ def parse_imports(import_line: str) -> List[Tuple[str, str]]:
     Parse import statement to extract package names and aliases
 
     Args:
-        import_line: e.g. "from pycore.pyfoundations.third_party import torch, numpy as np"
+        import_line: e.g. "from pycore.pyfoundations.third_party.api import torch, numpy as np"
 
     Returns:
         List of (package_name, alias) tuples
@@ -153,7 +153,7 @@ def generate_new_import(imports: List[Tuple[str, str]]) -> str:
     if not getter_funcs:
         return None
 
-    return f"from pycore.pyfoundations.third_party import {', '.join(getter_funcs)}"
+    return f"from pycore.pyfoundations.third_party.api import {', '.join(getter_funcs)}"
 
 
 def generate_package_assignment(imports: List[Tuple[str, str]]) -> str:

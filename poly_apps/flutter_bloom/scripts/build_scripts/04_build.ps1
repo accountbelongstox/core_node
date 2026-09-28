@@ -117,7 +117,7 @@ if ($exitCode -eq 0) {
     # Scan for APK files after successful build
     Write-Host "[BUILD] Scanning for APK files..." -ForegroundColor Cyan
     $apkSearchPaths = @(
-                "build/app/outputs/flutter-apk",
+                "build/app/outputs/flutter-apk"
     )
 
     $foundApks = @()

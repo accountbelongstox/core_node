@@ -1,0 +1,3 @@
+- [Verify in-process without writes](verify-in-process-without-writes.md) — scratchpad kernel boot, array cache, lang keys, rolled-back PG DDL, in-process HTTP, rule-header files (AST parse), i18n sweep replacer
+- [Laravel route auth model](laravel-route-auth-model.md) — client.key / client.key_or_dashboard / dashboard.auth levels since 2026-09-27
+- [Windows file ops and temp dirs](windows-file-ops-and-temp-dirs.md) — FileSystemManager::delete is sudo-rm only; sudo shim + path-map redirect for purge tests; laravel_main PHP is LF (.gitattributes eol=lf); user sweep commits

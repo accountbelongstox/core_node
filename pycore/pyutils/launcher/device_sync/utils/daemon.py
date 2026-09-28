@@ -12,9 +12,16 @@ Features:
 
 import sys
 import os
-from pycore.pyfoundations.pybasecommon import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pathlib import Path
 import subprocess
+
+import time
+
+
+
 
 
 def is_console_attached() -> bool:
@@ -70,16 +77,16 @@ def restart_as_background() -> bool:
         pythonw_exe = python_dir / 'pythonw.exe'
 
         if not pythonw_exe.exists():
-            print("[Daemon] Warning: pythonw.exe not found")
-            print(f"[Daemon] Looked in: {pythonw_exe}")
-            print("[Daemon] Running with console window attached")
+            ColorPrint.plain("[Daemon] Warning: pythonw.exe not found")
+            ColorPrint.plain(f"[Daemon] Looked in: {pythonw_exe}")
+            ColorPrint.plain("[Daemon] Running with console window attached")
             return False
 
         # Build command
         cmd = [str(pythonw_exe), '-m', 'pycore.pyutils.launcher.device_sync'] + script_args
 
-        print("[Daemon] Restarting in background mode (Windows)...")
-        print(f"[Daemon] Command: {' '.join(cmd)}")
+        ColorPrint.plain("[Daemon] Restarting in background mode (Windows)...")
+        ColorPrint.plain(f"[Daemon] Command: {' '.join(cmd)}")
 
         # Start detached process
         try:
@@ -87,8 +94,7 @@ def restart_as_background() -> bool:
             CREATE_NEW_PROCESS_GROUP = 0x00000200
 
             # Create log file for debugging
-            import tempfile
-            log_dir = Path(tempfile.gettempdir()) / 'device_sync'
+            log_dir = TMP_DIR / 'device_sync'
             log_dir.mkdir(exist_ok=True)
             log_file = log_dir / 'device_sync.log'
 
@@ -102,8 +108,8 @@ def restart_as_background() -> bool:
                 pythonpath = f"{pythonpath};{env['PYTHONPATH']}"
             env['PYTHONPATH'] = pythonpath
 
-            print(f"[Daemon] Project root: {project_root}")
-            print(f"[Daemon] PYTHONPATH: {pythonpath}")
+            ColorPrint.plain(f"[Daemon] Project root: {project_root}")
+            ColorPrint.plain(f"[Daemon] PYTHONPATH: {pythonpath}")
 
             log_handle = open(log_file, 'w', encoding='utf-8')
 
@@ -117,23 +123,23 @@ def restart_as_background() -> bool:
                 stderr=log_handle
             )
 
-            print("[Daemon] Background process started")
-            print("[Daemon] This console will now exit")
-            print("[Daemon] Check system tray for Device Sync icon")
-            print(f"[Daemon] Log file: {log_file}")
+            ColorPrint.plain("[Daemon] Background process started")
+            ColorPrint.plain("[Daemon] This console will now exit")
+            ColorPrint.plain("[Daemon] Check system tray for Device Sync icon")
+            ColorPrint.plain(f"[Daemon] Log file: {log_file}")
 
             return True
 
         except Exception as e:
-            print(f"[Daemon] Failed to start background process: {e}")
+            ColorPrint.plain(f"[Daemon] Failed to start background process: {e}")
             return False
 
     else:
         # Linux/Unix: Use subprocess with start_new_session
         cmd = [sys.executable, '-m', 'pycore.pyutils.launcher.device_sync'] + script_args
 
-        print("[Daemon] Restarting in background mode (Linux)...")
-        print(f"[Daemon] Command: {' '.join(cmd)}")
+        ColorPrint.plain("[Daemon] Restarting in background mode (Linux)...")
+        ColorPrint.plain(f"[Daemon] Command: {' '.join(cmd)}")
 
         try:
             # Set up environment with PYTHONPATH
@@ -146,8 +152,8 @@ def restart_as_background() -> bool:
                 pythonpath = f"{pythonpath}:{env['PYTHONPATH']}"  # Linux uses : separator
             env['PYTHONPATH'] = pythonpath
 
-            print(f"[Daemon] Project root: {project_root}")
-            print(f"[Daemon] PYTHONPATH: {pythonpath}")
+            ColorPrint.plain(f"[Daemon] Project root: {project_root}")
+            ColorPrint.plain(f"[Daemon] PYTHONPATH: {pythonpath}")
 
             # Start detached process (new session)
             subprocess.Popen(
@@ -160,14 +166,14 @@ def restart_as_background() -> bool:
                 stderr=subprocess.DEVNULL
             )
 
-            print("[Daemon] Background process started")
-            print("[Daemon] This console will now exit")
-            print("[Daemon] Process is running in background")
+            ColorPrint.plain("[Daemon] Background process started")
+            ColorPrint.plain("[Daemon] This console will now exit")
+            ColorPrint.plain("[Daemon] Process is running in background")
 
             return True
 
         except Exception as e:
-            print(f"[Daemon] Failed to start background process: {e}")
+            ColorPrint.plain(f"[Daemon] Failed to start background process: {e}")
             return False
 
 
@@ -244,7 +250,6 @@ def auto_background_wrapper(main_func):
         # Check if we need to restart
         if ensure_background_mode():
             # We restarted - exit this process
-            import time
             time.sleep(1)  # Give user time to see message
             sys.exit(0)
 

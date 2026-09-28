@@ -1,4 +1,4 @@
-const translation = require('#@ncore/utils/translation');
+const translation = require('#@ncore/utils/translation/index.js');
 const logger = require('#@logger');
 
 async function testNLLB200() {

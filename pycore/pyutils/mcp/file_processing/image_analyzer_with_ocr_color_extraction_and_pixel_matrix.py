@@ -10,13 +10,22 @@ import hashlib
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont, get_third_package_numpy
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+    get_third_package_numpy,
+)
+
+import os
+
 
 PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
 numpy = get_third_package_numpy()
-from pycore.pyutils.ocr import ocr_manager
+from pycore.pyutils.common.ocr.manager import ocr_manager
 from pycore.pyutils.mcp.file_processing.color_palette_extractor_with_dominant_colors_and_histogram import (
     get_color_extractor_singleton
 )
@@ -128,7 +137,6 @@ class ImageAnalyzerWithOCRColorExtractionAndPixelMatrix:
         )
 
         # Calculate file size
-        import os
         file_size_bytes = os.path.getsize(image_path)
 
         # Calculate file hash
@@ -259,11 +267,12 @@ class ImageAnalyzerWithOCRColorExtractionAndPixelMatrix:
         return sha256_hash.hexdigest()
 
 
-_image_analyzer_instance = None
+_IMAGE_ANALYZER_PROVIDER = SerializedSingletonProvider(
+    ImageAnalyzerWithOCRColorExtractionAndPixelMatrix,
+    "mcp.image_analyzer.provider",
+    "MCPImageAnalyzerProviderThread",
+)
 
 def get_image_analyzer_singleton() -> ImageAnalyzerWithOCRColorExtractionAndPixelMatrix:
     """Get singleton instance of image analyzer"""
-    global _image_analyzer_instance
-    if _image_analyzer_instance is None:
-        _image_analyzer_instance = ImageAnalyzerWithOCRColorExtractionAndPixelMatrix()
-    return _image_analyzer_instance
+    return _IMAGE_ANALYZER_PROVIDER.get()

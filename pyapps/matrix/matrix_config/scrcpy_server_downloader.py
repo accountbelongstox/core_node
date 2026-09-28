@@ -13,8 +13,8 @@ This file is kept for backward compatibility.
 from pathlib import Path
 from typing import Optional, Callable
 
-from pycore import ColorPrint
-from pycore.pyutils.robust_downloader import RobustDownloader
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.robust_downloader import RobustDownloader
 
 
 class ScrcpyServerDownloader:
@@ -60,7 +60,7 @@ class ScrcpyServerDownloader:
             True if successfully copied, False otherwise
         """
         try:
-            from pycore.pyutils.scrcpy_init import get_initializer
+            from pycore.pyutils.device.scrcpy_init import get_initializer
 
             initializer = get_initializer()
 

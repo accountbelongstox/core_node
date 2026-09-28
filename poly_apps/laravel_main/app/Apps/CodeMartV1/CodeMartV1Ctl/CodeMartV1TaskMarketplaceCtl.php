@@ -4,7 +4,13 @@ namespace App\Apps\CodeMartV1\CodeMartV1Ctl;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1TaskStateService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -12,82 +18,134 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
 {
     use ApiResponse;
 
+    private const DEFAULT_MAX_BUDGET = 999999999;
+
+    private function pageParams(Request $request): array
+    {
+        $page = max(1, (int) $request->input('page', 1));
+        $pageSize = (int) $request->input('pageSize', CodeMartV1Constants::DEFAULT_PAGE_SIZE);
+        $pageSize = max(1, min(CodeMartV1Constants::MAX_PAGE_SIZE, $pageSize));
+
+        return [$page, $pageSize];
+    }
+
+    private function skillsFilter(Request $request): array
+    {
+        $skills = $request->input('skills', []);
+        if (is_string($skills)) {
+            $skills = explode(',', $skills);
+        }
+
+        return array_values(array_filter(array_map(
+            static fn ($skill): string => trim((string) $skill),
+            is_array($skills) ? $skills : []
+        ), static fn (string $skill): bool => $skill !== ''));
+    }
+
     public function browseTasks(Request $request): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $page = $request->input('page', 1);
-        $pageSize = $request->input('pageSize', 20);
-        $skills = $request->input('skills', []);
-        $minBudget = $request->input('min_budget', 0);
-        $maxBudget = $request->input('max_budget', 999999);
-
-        $model = new CodeMartV1TaskModel();
-        $dbConnection = $model->getConnection();
-        $query = $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('status', 'open')
-            ->whereNull('assigned_to')
-            ->whereBetween('budget_allocation', [$minBudget, $maxBudget]);
-
-        if (!empty($skills)) {
-            $query->where(function($q) use ($skills) {
-                foreach ($skills as $skill) {
-                    $q->orWhereRaw('JSON_CONTAINS(required_skills, ?)', [json_encode($skill)]);
-                }
-            });
-        }
-
-        $total = $query->count();
-        $tasks = $query
-            ->orderBy('created_at', 'desc')
-            ->offset(($page - 1) * $pageSize)
-            ->limit($pageSize)
-            ->get();
+        [$page, $pageSize] = $this->pageParams($request);
+        $result = CodeMartV1TaskModel::marketplacePage(
+            $this->skillsFilter($request),
+            (float) $request->input('min_budget', 0),
+            (float) $request->input('max_budget', self::DEFAULT_MAX_BUDGET),
+            $page,
+            $pageSize
+        );
+        $total = (int) $result['total'];
 
         return $this->success([
-            'tasks' => $tasks,
+            'tasks' => $result['tasks'],
             'pagination' => [
                 'page' => $page,
                 'pageSize' => $pageSize,
                 'total' => $total,
-                'totalPages' => ceil($total / $pageSize),
+                'totalPages' => (int) ceil($total / $pageSize),
             ],
         ]);
     }
 
+    /**
+     * Atomic claim by an active developer with a sufficient deposit. The
+     * project must accept work; the first accepted task moves the project
+     * from open to in_progress.
+     */
     public function acceptTask(Request $request, $taskId): JsonResponse
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $model = new CodeMartV1TaskModel();
-        $dbConnection = $model->getConnection();
-        $task = $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('id', $taskId)
-            ->where('status', 'open')
-            ->whereNull('assigned_to')
-            ->first();
-
-        if (!$task) {
-            return $this->notFound('Task not found or already assigned');
+        $userId = (int) $user->id;
+        if (!CodeMartV1UserRoleModel::forUserAndType($userId, CodeMartV1Constants::ROLE_DEVELOPER, CodeMartV1Constants::ROLE_STATUS_ACTIVE)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_DEVELOPER_ROLE_REQUIRED, __('codemart.messages.an_active_developer_role_is_required'), null, 403);
+        }
+        $depositPolicy = CodeMartV1DepositModel::policyForRole($userId, CodeMartV1Constants::ROLE_DEVELOPER);
+        if (!$depositPolicy['is_sufficient']) {
+            return $this->codedError(CodeMartV1Constants::ERROR_DEVELOPER_DEPOSIT_REQUIRED, __('codemart.messages.the_developer_deposit_has_not_been_paid'), $depositPolicy, 403);
         }
 
-        $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('id', $taskId)
-            ->update([
-                'assigned_to' => $user->id,
-                'status' => 'in_progress',
-                'assigned_at' => now(),
-                'updated_at' => now(),
-            ]);
+        $task = CodeMartV1TaskModel::findById((int) $taskId);
+        if (!$task) {
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
+        }
+        $project = $task->resolveProject();
+        if ($project && $project->isManagedBy($userId)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_OWN_PROJECT, __('codemart.messages.you_cannot_accept_tasks_of_your_own'), null, 403);
+        }
+
+        $accepted = CodeMartV1TaskModel::runInTransaction(function () use ($task, $project, $userId) {
+            if (!CodeMartV1TaskModel::acceptOpenTask((int) $task->id, $userId)) {
+                return false;
+            }
+            $task->refresh();
+
+            CodeMartV1DomainEventService::emit(
+                $userId,
+                CodeMartV1Constants::RESOURCE_TASK,
+                (int) $task->id,
+                CodeMartV1TaskStateService::ACTION_ACCEPTED,
+                CodeMartV1Constants::TASK_STATUS_OPEN,
+                CodeMartV1Constants::TASK_STATUS_ASSIGNED,
+                $project ? $project->managerIds() : [],
+                CodeMartV1Constants::NOTIFICATION_TYPE_TASK,
+                CodeMartV1Constants::NOTIFY_TASK_ACCEPTED,
+                CodeMartV1Constants::NOTIFY_TASK_ACCEPTED_BODY,
+                [
+                    'task_id' => (int) $task->id,
+                    'task_title' => (string) $task->title,
+                    'project_id' => $project ? (int) $project->id : null,
+                    'developer_id' => $userId,
+                ]
+            );
+
+            if ($project && $project->status === CodeMartV1Constants::PROJECT_STATUS_OPEN) {
+                CodeMartV1ProjectStateService::systemTransition(
+                    $project,
+                    CodeMartV1Constants::PROJECT_STATUS_IN_PROGRESS,
+                    $userId,
+                    CodeMartV1ProjectStateService::ACTION_FIRST_TASK_ACCEPTED,
+                    null,
+                    ['task_id' => (int) $task->id]
+                );
+            }
+
+            return true;
+        });
+
+        if (!$accepted) {
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_UNAVAILABLE, __('codemart.messages.task_is_not_open_already_assigned_or'), [
+                'status' => $task->status,
+                'project_status' => $project?->status,
+            ], 409);
+        }
 
         return $this->success([
-            'message' => 'Task accepted successfully',
-            'task_id' => $taskId,
+            'message' => __('codemart.messages.task_accepted_successfully'),
+            'task_id' => (int) $task->id,
+            'task' => $task,
         ]);
     }
 
@@ -96,15 +154,18 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $model = new CodeMartV1TaskModel();
-        $dbConnection = $model->getConnection();
-        $tasks = $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('assigned_to', $user->id)
-            ->whereIn('status', ['in_progress', 'review', 'completed'])
-            ->orderBy('updated_at', 'desc')
-            ->get();
+        [$page, $pageSize] = $this->pageParams($request);
+        $result = CodeMartV1TaskModel::assignedPage((int) $user->id, $page, $pageSize);
+        $total = (int) $result['total'];
 
-        return $this->success(['my_tasks' => $tasks]);
+        return $this->success([
+            'my_tasks' => $result['tasks']->items(),
+            'pagination' => [
+                'page' => $page,
+                'pageSize' => $pageSize,
+                'total' => $total,
+                'totalPages' => (int) ceil($total / $pageSize),
+            ],
+        ]);
     }
 }

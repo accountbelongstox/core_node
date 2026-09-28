@@ -2,13 +2,22 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class CodeMartV1WalletModel extends Model
+/**
+ * Wallet balances change only through the ledger methods below, which must be
+ * called on a row obtained from lockForUser() inside a DB transaction. Every
+ * movement appends an immutable wallet transaction row.
+ */
+class CodeMartV1WalletModel extends CodeMartV1Model
 {
-    protected $connection = 'codemartv1';
+    use RunsModelTransactions;
+
+    private const SCALE = 2;
+
     protected $table = 'codemart_v1_wallets';
 
     protected $fillable = [
@@ -35,79 +44,168 @@ class CodeMartV1WalletModel extends Model
         return $this->hasMany(CodeMartV1WalletTransactionModel::class, 'wallet_id');
     }
 
-    public function deposit(float $amount, string $description = '', array $metadata = []): CodeMartV1WalletTransactionModel
+    public static function forUser(int $userId, bool $create = false): ?self
     {
-        $this->increment('balance', $amount);
-        $this->increment('available_balance', $amount);
+        if (!$create) {
+            return static::query()->where('user_id', $userId)->first();
+        }
 
-        return CodeMartV1WalletTransactionModel::create([
-            'wallet_id' => $this->id,
-            'type' => 'deposit',
-            'amount' => $amount,
-            'balance_after' => $this->balance,
-            'description' => $description,
-            'metadata' => $metadata,
-            'status' => 'success',
-        ]);
+        return static::query()->firstOrCreate(
+            ['user_id' => $userId],
+            ['balance' => 0, 'available_balance' => 0, 'frozen_balance' => 0]
+        );
     }
 
-    public function withdrawal(float $amount, string $description = '', array $metadata = []): ?CodeMartV1WalletTransactionModel
+    /**
+     * Returns the user's wallet row locked FOR UPDATE, creating it without a
+     * unique-violation race when missing. Call inside a transaction.
+     */
+    public static function lockForUser(int $userId): self
     {
-        if ($this->available_balance < $amount) {
+        if (!static::query()->where('user_id', $userId)->exists()) {
+            static::query()->insertOrIgnore([
+                'user_id' => $userId,
+                'balance' => 0,
+                'available_balance' => 0,
+                'frozen_balance' => 0,
+                'currency' => CodeMartV1Constants::DEFAULT_CURRENCY,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        return static::query()->where('user_id', $userId)->lockForUpdate()->firstOrFail();
+    }
+
+    /**
+     * Locks several users' wallets in ascending user id order (deadlock-safe).
+     *
+     * @return array<int, self> keyed by user id
+     */
+    public static function lockForUsers(array $userIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $userIds)));
+        sort($ids);
+        $wallets = [];
+        foreach ($ids as $userId) {
+            $wallets[$userId] = static::lockForUser($userId);
+        }
+
+        return $wallets;
+    }
+
+    public function transactionPage(int $page, int $pageSize): array
+    {
+        $query = $this->transactions()->getQuery();
+        return self::paginateQuery(
+            $query->orderByDesc('created_at')->orderByDesc('id'),
+            'transactions',
+            $page,
+            $pageSize
+        );
+    }
+
+    public function hasAvailable(string $amount): bool
+    {
+        return bccomp((string) $this->available_balance, $amount, self::SCALE) >= 0;
+    }
+
+    public function credit(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): CodeMartV1WalletTransactionModel
+    {
+        $this->balance = bcadd((string) $this->balance, $amount, self::SCALE);
+        $this->available_balance = bcadd((string) $this->available_balance, $amount, self::SCALE);
+        $this->save();
+
+        return $this->appendLedger($type, $amount, $descriptionCode, $descriptionParams, $metadata + ['direction' => 'in']);
+    }
+
+    public function debit(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
+    {
+        if (!$this->hasAvailable($amount)) {
             return null;
         }
 
-        $this->decrement('balance', $amount);
-        $this->decrement('available_balance', $amount);
+        $this->balance = bcsub((string) $this->balance, $amount, self::SCALE);
+        $this->available_balance = bcsub((string) $this->available_balance, $amount, self::SCALE);
+        $this->save();
 
-        return CodeMartV1WalletTransactionModel::create([
-            'wallet_id' => $this->id,
-            'type' => 'withdrawal',
-            'amount' => $amount,
-            'balance_after' => $this->balance,
-            'description' => $description,
-            'metadata' => $metadata,
-            'status' => 'success',
-        ]);
+        return $this->appendLedger($type, $amount, $descriptionCode, $descriptionParams, $metadata + ['direction' => 'out']);
     }
 
-    public function holdFunds(float $amount, string $description = ''): ?CodeMartV1WalletTransactionModel
+    public function freeze(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
     {
-        if ($this->available_balance < $amount) {
+        if (!$this->hasAvailable($amount)) {
             return null;
         }
 
-        $this->decrement('available_balance', $amount);
-        $this->increment('frozen_balance', $amount);
+        $this->available_balance = bcsub((string) $this->available_balance, $amount, self::SCALE);
+        $this->frozen_balance = bcadd((string) $this->frozen_balance, $amount, self::SCALE);
+        $this->save();
 
-        return CodeMartV1WalletTransactionModel::create([
-            'wallet_id' => $this->id,
-            'type' => 'escrow_hold',
-            'amount' => $amount,
-            'balance_after' => $this->balance,
-            'description' => $description,
-            'status' => 'success',
-        ]);
+        return $this->appendLedger(
+            $type,
+            $amount,
+            $descriptionCode,
+            $descriptionParams,
+            $metadata + ['direction' => 'freeze'],
+            CodeMartV1Constants::WALLET_TX_STATUS_PENDING
+        );
     }
 
-    public function releaseFunds(float $amount, string $description = ''): bool
+    public function unfreeze(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
     {
-        if ($this->frozen_balance < $amount) {
-            return false;
+        if (bccomp((string) $this->frozen_balance, $amount, self::SCALE) < 0) {
+            return null;
         }
 
-        $this->decrement('frozen_balance', $amount);
-        $this->increment('available_balance', $amount);
+        $this->frozen_balance = bcsub((string) $this->frozen_balance, $amount, self::SCALE);
+        $this->available_balance = bcadd((string) $this->available_balance, $amount, self::SCALE);
+        $this->save();
 
-        CodeMartV1WalletTransactionModel::create([
+        return $this->appendLedger(
+            $type,
+            $amount,
+            $descriptionCode,
+            $descriptionParams,
+            $metadata + ['direction' => 'unfreeze'],
+            CodeMartV1Constants::WALLET_TX_STATUS_CANCELLED
+        );
+    }
+
+    public function settleFrozen(string $amount, string $type, string $descriptionCode, array $descriptionParams = [], array $metadata = []): ?CodeMartV1WalletTransactionModel
+    {
+        if (bccomp((string) $this->frozen_balance, $amount, self::SCALE) < 0) {
+            return null;
+        }
+
+        $this->frozen_balance = bcsub((string) $this->frozen_balance, $amount, self::SCALE);
+        $this->balance = bcsub((string) $this->balance, $amount, self::SCALE);
+        $this->save();
+
+        return $this->appendLedger($type, $amount, $descriptionCode, $descriptionParams, $metadata + ['direction' => 'out']);
+    }
+
+    /**
+     * Ledger rows store a description code (CodeMartV1Constants::LEDGER_*)
+     * plus params instead of text; the transaction model translates them.
+     */
+    private function appendLedger(
+        string $type,
+        string $amount,
+        string $descriptionCode,
+        array $descriptionParams,
+        array $metadata,
+        string $status = CodeMartV1Constants::WALLET_TX_STATUS_SUCCESS
+    ): CodeMartV1WalletTransactionModel {
+        return CodeMartV1WalletTransactionModel::create([
             'wallet_id' => $this->id,
-            'type' => 'escrow_release',
+            'type' => $type,
             'amount' => $amount,
-            'balance_after' => $this->balance,
-            'description' => $description,
-            'status' => 'success',
+            'balance_after' => (string) $this->balance,
+            'description_code' => $descriptionCode,
+            'description_params' => $descriptionParams,
+            'metadata' => $metadata,
+            'status' => $status,
         ]);
-
-        return true;
     }
 }

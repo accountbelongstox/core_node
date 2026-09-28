@@ -1,18 +1,7 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Laravel Octane Service Manager
-# Wrapper around debian_service_manager.sh for Octane/Swoole services
+# Wrapper around systemd_service_manager.sh for Octane/Swoole services
 # Service naming: octane-<domain>-<port>
 # Auto-restart: Every 48 hours via systemd timer
 #
@@ -44,7 +33,7 @@ CORE_NODE_ROOT="$(dirname "$SCRIPT_PARENT_DIR")"
 # Source app paths constants first
 source "$SCRIPT_CURRENT_DIR/app_paths.sh"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
-source "$SCRIPT_CURRENT_DIR/debian_service_manager.sh"
+source "$SCRIPT_CURRENT_DIR/systemd_service_manager.sh"
 
 OCTANE_SERVICE_PREFIX="octane-"
 SYSTEMD_DIR="/etc/systemd/system"
@@ -147,9 +136,17 @@ verify_service_config() {
         needs_fix=1
     fi
 
-    # Check ReadWritePaths includes /www/wwwroot/laravel_db
-    if ! grep -q "ReadWritePaths=.*/www/wwwroot/laravel_db" "$service_file"; then
-        echo -e "${YELLOW}[FIX NEEDED] Missing ReadWritePaths for /www/wwwroot/laravel_db${NC}"
+    # Check ReadWritePaths includes the mapped laravel_db dir (WWW base from
+    # the single definition in runtime_environment.sh: CORE_NODE_WWW_BASE).
+    local laravel_db_path=""
+    if declare -F map_web_path >/dev/null 2>&1; then
+        laravel_db_path="$(map_web_path "laravel_db" 2>/dev/null)"
+    fi
+    if [ -z "$laravel_db_path" ]; then
+        laravel_db_path="${CORE_NODE_WWW_BASE:-/www}/wwwroot/laravel_db"
+    fi
+    if ! grep -qF "$laravel_db_path" "$service_file"; then
+        echo -e "${YELLOW}[FIX NEEDED] Missing ReadWritePaths for $laravel_db_path${NC}"
         needs_fix=1
     fi
 
@@ -242,7 +239,7 @@ Type=simple
 User=${service_user}
 Group=${service_group}
 WorkingDirectory=${laravel_path}
-ExecStart=/usr/bin/php ${laravel_path}/artisan octane:start --host=127.0.0.1 --port=${port} --workers=${workers}
+ExecStart=/bin/bash ${laravel_path}/scripts/run_runtime.sh
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -262,6 +259,9 @@ SyslogIdentifier=${service_name}
 # SYNC WITH PHP: Line 647-649 (PATH-BASED) and Line 772-774 (LEGACY)
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NODE_PATH=/usr/local/lib/node_modules"
+Environment="OCTANE_HOST=127.0.0.1"
+Environment="PORT=${port}"
+Environment="WORKERS=${workers}"
 
 # Security (Relaxed for development/TTS requirements)
 # SYNC WITH PHP: Line 651-657 (PATH-BASED) and Line 776-786 (LEGACY)
@@ -606,7 +606,7 @@ Configuration Management (IDEMPOTENT):
     - User=root (fixes ubuntu or other users)
     - Group=root
     - ProtectSystem=full (fixes strict)
-    - ReadWritePaths includes /www/wwwroot/laravel_db
+    - ReadWritePaths includes the mapped laravel_db dir (NTFS-aware)
   Safe to run commands multiple times - automatically fixes configuration
 
 EOF

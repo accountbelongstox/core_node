@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of functions.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Secret Manager Library for PowerShell
@@ -41,17 +29,11 @@ $ErrorActionPreference = "Stop"
 $script:BatchDecryptionCompleted = $false
 
 # Source GlobalVars.ps1 if not already loaded
-if (-not (Get-Command Get-CoreNodeDir -ErrorAction SilentlyContinue)) {
-    $scriptDir = $PSScriptRoot
-    $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
-
-    if (Test-Path $globalVarsPath) {
-        . $globalVarsPath
-    } else {
-        Write-Error "ERROR: GlobalVars.ps1 not found. Cannot determine core_node directory."
-        exit 1
-    }
-}
+$scriptDir = $PSScriptRoot
+$globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+$serviceContractPath = Join-Path $scriptDir "ServiceContract.ps1"
+. $globalVarsPath
+. $serviceContractPath
 
 <#
 .SYNOPSIS
@@ -146,6 +128,97 @@ function Find-DisguiseTool {
     }
 
     return $null
+}
+
+<#
+.SYNOPSIS
+    Restrict a secret file to the current user, SYSTEM and Administrators
+#>
+function Protect-SecretFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $acl = $null
+    $rule = $null
+    $principals = @(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent().User,
+        (New-Object System.Security.Principal.SecurityIdentifier "S-1-5-18"),
+        (New-Object System.Security.Principal.SecurityIdentifier "S-1-5-32-544")
+    )
+
+    try {
+        $acl = Get-Acl -LiteralPath $Path
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($rule in @($acl.Access)) {
+            [void]$acl.RemoveAccessRule($rule)
+        }
+        foreach ($principal in $principals) {
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($principal, "FullControl", "Allow")))
+        }
+        Set-Acl -LiteralPath $Path -AclObject $acl
+    } catch {
+        Write-Host "[SECRET_CLIENT_KEY] WARNING: Could not restrict access to $Path - $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+<#
+.SYNOPSIS
+    Generate the shared client key when no copy of it exists
+
+.DESCRIPTION
+    config/service_contract.json#client_key_auth names the key. It is generated only
+    when no raw file, no encrypted copy and no batch-bundle entry exists; the encryption
+    check then offers to encrypt it. An encrypted copy is restored by the decryption
+    check instead. The value is never printed.
+#>
+function Initialize-ClientKeySecret {
+    $dirs = Get-SecretDirectories
+    $keyName = [string](Get-ServiceContractValue -ContractPath "client_key_auth.secret_key_sign_name")
+    $keyBytes = [int](Get-ServiceContractValue -ContractPath "client_key_auth.key_min_bytes")
+    $rawFile = Join-Path $dirs.RAW_DIR $keyName
+    $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR ("{0}.js" -f $keyName)
+    $bundleDir = Join-Path $dirs.SECRET_KEYS_DIR "already_batch_encrypted"
+    $bundleEntry = '"filename": "{0}"' -f $keyName
+    $bundleFiles = @()
+    $randomBytes = $null
+    $random = $null
+    $keyValue = ""
+
+    if ((Test-Path -LiteralPath $rawFile -PathType Leaf) -and ((Get-Item -LiteralPath $rawFile).Length -gt 0)) {
+        return
+    }
+    if (Test-Path -LiteralPath $encryptedFile -PathType Leaf) {
+        return
+    }
+    if (Test-Path -LiteralPath $bundleDir) {
+        $bundleFiles = @(Get-ChildItem -LiteralPath $bundleDir -Filter "*.js" -File -ErrorAction SilentlyContinue)
+        foreach ($bundleFile in $bundleFiles) {
+            if (Select-String -LiteralPath $bundleFile.FullName -SimpleMatch -Pattern $bundleEntry -Quiet) {
+                return
+            }
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $dirs.RAW_DIR)) {
+        New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
+    }
+    $randomBytes = New-Object byte[] $keyBytes
+    $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $random.GetBytes($randomBytes)
+    } finally {
+        $random.Dispose()
+    }
+    $keyValue = [Convert]::ToBase64String($randomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    # Restrict the still-empty file first, so the key never sits under the inherited ACL.
+    [System.IO.File]::WriteAllText($rawFile, "")
+    Protect-SecretFile -Path $rawFile
+    [System.IO.File]::WriteAllText($rawFile, $keyValue, (New-Object System.Text.UTF8Encoding $false))
+    $keyValue = $null
+    [Array]::Clear($randomBytes, 0, $randomBytes.Length)
+    Write-Host "[SECRET_CLIENT_KEY] Generated $keyName in $($dirs.RAW_DIR); encrypt it now and sync the encrypted copy to every host" -ForegroundColor Yellow
 }
 
 <#
@@ -248,13 +321,40 @@ function Invoke-SecretDecryptAll {
         $filePaths += $encryptedFile.FullName
     }
 
-    $allArgs = @($Password, $OutputDir) + $filePaths
+    $allArgs = @($Global:SECRET_PASSWORD_ARG, $OutputDir) + $filePaths
 
     try {
-        $result = & $Global:NODE_EXE_PATH $batchDecryptJs $allArgs 2>&1
+        $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $batchDecryptJs -ArgumentList $allArgs
 
-        if ($LASTEXITCODE -eq 0) {
+        $allDecrypted = $true
+        foreach ($encryptedFile in $encryptedFiles) {
+            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
+            $decryptedPath = Join-Path $OutputDir $baseName
+            if (-not ((Test-Path $decryptedPath) -and ((Get-Item $decryptedPath).Length -gt 0))) {
+                $allDecrypted = $false
+                break
+            }
+        }
+
+        if ($allDecrypted) {
             Write-Host $result
+
+            # Keep each decrypted raw file's timestamp in sync with its encrypted
+            # source. The encryption check is timestamp-based (raw newer than the
+            # ".js" means "needs re-encryption"), so without this a freshly
+            # decrypted file would look newer than its source and be falsely flagged.
+            if (Test-Path $OutputDir) {
+                $syncedFiles = Get-ChildItem -Path $OutputDir -File -ErrorAction SilentlyContinue
+                foreach ($syncedFile in $syncedFiles) {
+                    $sourceEncFile = Join-Path $dirs.ENCRYPTED_DIR "$($syncedFile.Name).js"
+                    if (Test-Path $sourceEncFile) {
+                        try {
+                            (Get-Item $syncedFile.FullName).LastWriteTime = (Get-Item $sourceEncFile).LastWriteTime
+                        } catch {
+                        }
+                    }
+                }
+            }
 
             # Set decryption timestamp cache and encrypted content hash cache for all decrypted files
             if (Get-Command Set-DecryptionTimestampCache -ErrorAction SilentlyContinue) {
@@ -402,7 +502,7 @@ function Invoke-SecretEncryptAll {
                 continue
             }
 
-            $result = & $Global:NODE_EXE_PATH $disguiseJs $keyName $Password $content $dirs.ENCRYPTED_DIR
+            $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($sourceFile.FullName, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
 
             if (Test-Path $outputFile) {
                 Write-Host "[SECRET_ENCRYPT_ALL]    SUCCESS: $keyName.js" -ForegroundColor Green
@@ -646,7 +746,7 @@ function Set-SecretKey {
     }
 
     try {
-        $result = & $Global:NODE_EXE_PATH $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR
+        $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($rawFile, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
 
         $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$KeyName.js"
         if (Test-Path $encryptedFile) {
@@ -806,7 +906,7 @@ function Set-SecretKeyBatch {
         $keyName = [System.IO.Path]::GetFileName($rawFile)
 
         try {
-            $result = & $Global:NODE_EXE_PATH $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR
+            $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($rawFile, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
 
             $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$keyName.js"
             if (Test-Path $encryptedFile) {
@@ -841,6 +941,32 @@ function Set-SecretKeyBatch {
     return $true
 }
 
+function Invoke-SecretMenuContinue {
+    param(
+        [Parameter()]
+        [switch]$NoFinalPause
+    )
+
+    if ($NoFinalPause) {
+        return
+    }
+
+    if (Get-Command Wait-MenuContinue -ErrorAction SilentlyContinue) {
+        Wait-MenuContinue
+        return
+    }
+
+    Write-Host ""
+    Write-Host "Press Enter to continue..." -ForegroundColor Yellow
+    Start-Sleep -Milliseconds 30
+    while ([Console]::KeyAvailable) {
+        [void][Console]::ReadKey($true)
+    }
+    do {
+        $key = [Console]::ReadKey($true)
+    } while ($key.Key -ne 'Enter')
+}
+
 <#
 .SYNOPSIS
     Clear all decrypted secrets and re-decrypt them
@@ -853,6 +979,11 @@ function Set-SecretKeyBatch {
     Clear-AndRedecryptSecrets
 #>
 function Clear-AndRedecryptSecrets {
+    param(
+        [Parameter()]
+        [switch]$NoFinalPause
+    )
+
     $dirs = Get-SecretDirectories
     $fileCount = 0
 
@@ -864,7 +995,7 @@ function Clear-AndRedecryptSecrets {
     if (-not (Test-Path $dirs.ENCRYPTED_DIR)) {
         Write-Host "[INFO] No encrypted directory found at: $($dirs.ENCRYPTED_DIR)" -ForegroundColor Yellow
         Write-Host ""
-        Read-Host "Press Enter to continue"
+        Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
         return $true
     }
 
@@ -893,7 +1024,7 @@ function Clear-AndRedecryptSecrets {
             if ($confirmChoice -notmatch "^[Yy](es)?$") {
                 Write-Host "[CANCELLED] Operation cancelled. No files were deleted." -ForegroundColor Green
                 Write-Host ""
-                Read-Host "Press Enter to continue"
+                Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
                 return $true
             }
 
@@ -906,7 +1037,7 @@ function Clear-AndRedecryptSecrets {
             } catch {
                 Write-Host "[ERROR] Failed to clear some files: $($_.Exception.Message)" -ForegroundColor Red
                 Write-Host ""
-                Read-Host "Press Enter to continue"
+                Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
                 return $false
             }
         }
@@ -921,20 +1052,30 @@ function Clear-AndRedecryptSecrets {
     $result = Invoke-SecretDecryptAll -OutputDir $dirs.RAW_DIR
 
     Write-Host ""
-    Read-Host "Press Enter to continue"
+    Invoke-SecretMenuContinue -NoFinalPause:$NoFinalPause
 
     return $result
 }
 
 <#
 .SYNOPSIS
-    Check which files need re-encryption using enhanced cache logic
+    Check which files need (re-)encryption using file timestamp comparison
+
+.DESCRIPTION
+    A raw file in RawDir needs encryption when either:
+      - it has no corresponding "<name>.js" file in EncryptedDir, or
+      - its LastWriteTime is newer than that of its "<name>.js" counterpart.
+    Files whose encrypted counterpart is up to date are skipped. This is a
+    deterministic timestamp rule and does not depend on the secret cache.
 
 .PARAMETER RawDir
     Directory containing decrypted files
 
 .PARAMETER EncryptedDir
     Directory containing encrypted files
+
+.PARAMETER Quiet
+    Suppress per-file status output (used during startup checks)
 
 .RETURNS
     Array of file names that need re-encryption
@@ -948,10 +1089,16 @@ function Get-FilesNeedingReEncryption {
         [string]$RawDir,
 
         [Parameter(Mandatory = $true)]
-        [string]$EncryptedDir
+        [string]$EncryptedDir,
+
+        [switch]$Quiet
     )
 
     $filesNeedReEncrypt = @()
+    $baseName = ""
+    $encFile = ""
+    $currentRawHash = $null
+    $cachedRawHash = $null
 
     if (-not (Test-Path $RawDir) -or -not (Test-Path $EncryptedDir)) {
         return $filesNeedReEncrypt
@@ -964,24 +1111,45 @@ function Get-FilesNeedingReEncryption {
         $encFile = Join-Path $EncryptedDir "$baseName.js"
 
         if (-not (Test-Path $encFile)) {
-            # No encrypted file exists - need to encrypt
+            # No encrypted file exists - needs encryption
             $filesNeedReEncrypt += $baseName
-        } else {
-            # Check if raw file was modified after decryption using cache
-            if (Get-Command Test-RawFileModifiedAfterDecryption -ErrorAction SilentlyContinue) {
-                if (Test-RawFileModifiedAfterDecryption -FileName $baseName -RawFile $rawFile.FullName) {
-                    # Raw file was modified after decryption - need re-encryption
-                    $filesNeedReEncrypt += $baseName
-                    Write-Host "[CACHE CHECK] $baseName modified after decryption - needs re-encryption" -ForegroundColor Yellow
-                } else {
-                    # Raw file was not modified after decryption - skip re-encryption
-                    Write-Host "[CACHE SKIP] $baseName unchanged since decryption - skipping re-encryption" -ForegroundColor Green
+            if (-not $Quiet) {
+                Write-Host "[ENCRYPT CHECK] $baseName has no encrypted file - needs encryption" -ForegroundColor Yellow
+            }
+        } elseif ((Get-Item $rawFile.FullName).LastWriteTime -gt (Get-Item $encFile).LastWriteTime) {
+            # Raw file mtime is newer than its encrypted counterpart. A bulk file
+            # operation (copy / restore / sync) can bump mtime without changing
+            # content, so confirm against the content-hash baseline before flagging.
+            $currentRawHash = $null
+            $cachedRawHash = $null
+
+            if (Get-Command Get-CachedRawContentHash -ErrorAction SilentlyContinue) {
+                $cachedRawHash = Get-CachedRawContentHash -FileName $baseName
+                $currentRawHash = (Get-FileHash -Path $rawFile.FullName -Algorithm SHA256 -ErrorAction SilentlyContinue).Hash
+            }
+
+            if ($cachedRawHash -and $currentRawHash -and ($cachedRawHash -eq $currentRawHash)) {
+                # Content is identical to the last encryption - the newer mtime is a
+                # false positive. Sync the raw timestamp back to the encrypted file
+                # so this pair reads as up to date next time, then skip.
+                try {
+                    (Get-Item $rawFile.FullName).LastWriteTime = (Get-Item $encFile).LastWriteTime
+                } catch {
+                }
+                if (-not $Quiet) {
+                    Write-Host "[ENCRYPT SKIP] $baseName newer mtime but identical content - synced timestamp, skipping" -ForegroundColor Green
                 }
             } else {
-                # Fallback to file timestamp comparison if cache functions not available
-                if ((Get-Item $rawFile.FullName).LastWriteTime -gt (Get-Item $encFile).LastWriteTime) {
-                    $filesNeedReEncrypt += $baseName
+                # No baseline recorded, or content genuinely changed - needs re-encryption
+                $filesNeedReEncrypt += $baseName
+                if (-not $Quiet) {
+                    Write-Host "[ENCRYPT CHECK] $baseName changed since encryption - needs re-encryption" -ForegroundColor Yellow
                 }
+            }
+        } else {
+            # Encrypted file is up to date - skip
+            if (-not $Quiet) {
+                Write-Host "[ENCRYPT SKIP] $baseName unchanged since encryption - skipping" -ForegroundColor Green
             }
         }
     }

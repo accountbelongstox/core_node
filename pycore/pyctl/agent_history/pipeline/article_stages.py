@@ -1,0 +1,127 @@
+# -*- coding: utf-8 -*-
+from typing import Any, Dict, Tuple
+
+from pycore.pyctl.agent_history.agent_history_fragments import sanitize_fragment_text, count_words
+from pycore.pyctl.ai.ai_free_text import (
+    ensure_free_text_available,
+    free_text_chat,
+    resolve_free_text_model,
+)
+from pycore.pyctl.agent_history.ai_sources import AI_SOURCE_ARTICLE, AI_SOURCE_TRANSLATE
+from pycore.pyctl.agent_history.pipeline.config import get_config
+from pycore.pyctl.agent_history.pipeline.prompt_templates import (
+    render_article_cn_prompt,
+    render_translate_en_prompt,
+)
+from pycore.pyutils.common.ai_request_failures import AiRequestError
+from pycore.pyutils.common.llm_content import parse_json_object
+from pycore.pyutils.laravel.article_contract import (
+    TITLE_MAX,
+    clip_on_boundary,
+    compose_title,
+)
+
+def _parse_json_obj(text: str) -> Dict[str, Any]:
+    """Parse the FIRST complete JSON object from model output.
+
+    Delegates to the shared content-conversion library
+    (:mod:`pycore.pyutils.common.llm_content`): fenced blocks, balanced
+    first-object scan, and near-JSON repairs (python literals, trailing
+    commas, smart quotes, truncation auto-close). Failures carry the full
+    decoder error plus the offending model-text excerpt.
+    """
+    return parse_json_object(text)
+
+def ensure_openrouter_available() -> None:
+    """Pre-dispatch free-quota guard (shared implementation in ai_free_text)."""
+    ensure_free_text_available()
+
+def generate_chinese_article(
+    raw_text: str,
+    request_context: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """Generate a Chinese article from raw fragments."""
+    cfg = get_config()
+    model = resolve_free_text_model(cfg.get("openrouter_model"))
+    ref = str(cfg.get("reference_lang") or "CN").upper()
+
+    prompt = render_article_cn_prompt(cfg, ref, raw_text)
+
+    res = free_text_chat(
+        [{"role": "user", "content": prompt}],
+        model=model,
+        source=AI_SOURCE_ARTICLE,
+        context=request_context,
+    )
+    
+    if not res.get("success"):
+        err = str(res.get("error") or "article generation failed")
+        raise AiRequestError(
+            f"OpenRouter CN failed: {err}",
+            code=str(res.get("error_code") or "unknown"),
+            retriable=bool(res.get("retriable")),
+            provider_reached=bool(res.get("provider_reached")),
+            retry_after_s=res.get("retry_after_s"),
+        )
+        
+    data = _parse_json_obj(str(res.get("text") or ""))
+    reference_cn = sanitize_fragment_text(str(data.get("reference_cn") or ""))
+    
+    if len(reference_cn) < 80:
+        raise ValueError("generated Chinese article too short")
+        
+    data["reference_cn"] = reference_cn
+    # Boundary normalization: the model may return any title length, the
+    # Laravel contract (title <= 255) is enforced in ONE place downstream,
+    # but the stored value is already clipped here so records, UI, and the
+    # retry lane never carry oversized titles at all.
+    data["title_cn"] = clip_on_boundary(str(data.get("title_cn") or "").strip(), TITLE_MAX)
+    data["used_model"] = model
+    
+    return data
+
+def translate_to_english(
+    article_cn: Dict[str, Any],
+    request_context: Dict[str, Any] | None = None,
+) -> Tuple[Dict[str, Any], str]:
+    """Translate the Chinese article to English."""
+    cfg = get_config()
+    model = resolve_free_text_model(cfg.get("openrouter_model"))
+
+    prompt = render_translate_en_prompt(
+        cfg,
+        str(article_cn.get('title_cn') or ''),
+        str(article_cn.get('reference_cn') or ''),
+    )
+
+    res = free_text_chat(
+        [{"role": "user", "content": prompt}],
+        model=model,
+        source=AI_SOURCE_TRANSLATE,
+        context=request_context,
+    )
+    
+    if not res.get("success"):
+        err = str(res.get("error") or "translation failed")
+        raise AiRequestError(
+            f"OpenRouter EN failed: {err}",
+            code=str(res.get("error_code") or "unknown"),
+            retriable=bool(res.get("retriable")),
+            provider_reached=bool(res.get("provider_reached")),
+            retry_after_s=res.get("retry_after_s"),
+        )
+        
+    data = _parse_json_obj(str(res.get("text") or ""))
+    article_en = sanitize_fragment_text(str(data.get("article_en") or ""))
+    
+    if count_words(article_en) < 120:
+        raise ValueError("translated article too short")
+        
+    data["article_en"] = article_en
+    # Single title-fallback implementation (article_contract.compose_title):
+    # explicit model title clipped to the contract, else the first sentence of
+    # the article, else the pipeline fallback. The CN title must never leak
+    # into title_en (wordnew Daily Reading renders the English version).
+    data["title_en"] = compose_title(data.get("title_en"), article_en)
+    
+    return data, "openrouter"

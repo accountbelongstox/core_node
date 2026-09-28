@@ -1,17 +1,7 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
@@ -22,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Utils\ParameterTool;
 use App\Traits\ApiResponse;
-class AppQyV1WordGroupQueryPublicController
+class AppQyV1WordGroupQueryPublicController extends Controller
 {
     use ApiResponse;
 
@@ -67,9 +57,9 @@ class AppQyV1WordGroupQueryPublicController
         if ($success == true) {
             $uid = Auth::id();
             if ($queryByGname) {
-                $existGroup = AppQyV1WordGroupModel::where('gname', $gcredential)->where('uid', $uid)->first();
+                $existGroup = AppQyV1WordGroupModel::findOwnedByName((int) $uid, $gcredential);
             } else {
-                $existGroup = AppQyV1WordGroupModel::where('gid', $gcredential)->where('uid', $uid)->first();
+                $existGroup = AppQyV1WordGroupModel::findOwnedByGid((int) $uid, $gcredential);
             }
             if (!$existGroup && $queryByGname == true) {
                 $newGid = Str::uuid()->toString();
@@ -123,6 +113,7 @@ class AppQyV1WordGroupQueryPublicController
             $sort_frequency = true;
         if (!$gcontent)
             $gcontent = "";
+        $join_sep = "\n";
         $new_gcontent = StrTool::combineIfNotIncluded($existGroup->gcontent, $gcontent, $join_sep);
         $words_content = implode("\n", $gwords);
         $frequency_content = $new_gcontent . "\n" . $words_content;
@@ -250,7 +241,10 @@ class AppQyV1WordGroupQueryPublicController
             $gname = StrTool::genGnameByTimeAndUUID();
             $existGroup->gname = $gname;
         }
-        $existGroup->save();
+        $existGroup->saveRecord();
+        // Merged group total: gwords JSON words + the group_word_progress
+        // row's total_words cache - disjoint sources, both count.
+        $groupWordsPivotCount = $existGroup->pivotWordsCount();
         $personalDict = PDAPublic::addPersonDictionaries($mergeWords, $sort_frequency, $query_soft_delete);
         $did = $personalDict['id'];
         $personal_words = $personalDict['data'];
@@ -274,7 +268,7 @@ class AppQyV1WordGroupQueryPublicController
             'words_frequency_count' => count($existGroup->words_frequency),
             'gwords_count' => StrTool::wordCount($existGroup->gwords),
             'gcontent_count' => $new_gcontent_count,
-            'total_words' => count($existGroup->gwords),
+            'total_words' => count($existGroup->gwords) + $groupWordsPivotCount,
             'personal_lenght' => $personal_lenght,
             'personal_query_soft_delete' => $personalDict["query_soft_delete"],
             'fetch_gcontent' => $isGetGcontent,
@@ -301,4 +295,3 @@ class AppQyV1WordGroupQueryPublicController
     }
 
 }
-

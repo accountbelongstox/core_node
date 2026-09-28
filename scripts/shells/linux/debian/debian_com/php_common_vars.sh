@@ -16,6 +16,17 @@ PHP_BINARY_NAME="php"
 # PHP_FPM_SOCKET_PATH=""  # Not used
 TARGET_LINK_PATH="/usr/local/bin/php"
 
+# Derived from PHP_VERSION -- single source of truth, so 31/32/33 never drift.
+# PHP_BIN: the versioned CLI binary (e.g. /usr/bin/php8.5).
+# PHP_ALT_PRIORITY: the update-alternatives priority for the 'php' link. MUST be the
+#   same in every step (31/32/33) or a later step re-registering at a lower priority
+#   can silently change which php is the system default that step 34 then consumes.
+PHP_BIN="/usr/bin/php${PHP_VERSION}"
+PHP_ALT_PRIORITY="85"
+PHP_CONFIG_ROOT=$(map_web_path "php")
+PHP_CONFIG_DIR="$PHP_CONFIG_ROOT/$PHP_VERSION"
+PHP_ERROR_LOG_PATH="$PHP_CONFIG_DIR/error.log"
+
 # PHP 8.5 specific packages (NO FPM - using Swoole)
 # Note: opcache is now a core extension in PHP 8.5, no separate package needed
 # IMPORTANT: Do NOT include "php8.5" metapackage as it pulls in php8.5-fpm
@@ -30,6 +41,7 @@ PHP85_CORE_PACKAGES=(
 # Note: php8.5-cli and php8.5-common are already in PHP85_CORE_PACKAGES, not listed here
 CORE_EXTENSIONS=(
     "php8.5-mysql"
+    "php8.5-pgsql"
     "php8.5-sqlite3"
     "php8.5-xml"
     "php8.5-curl"
@@ -42,6 +54,8 @@ CORE_EXTENSIONS=(
 )
 
 # Extension mapping: package_name -> module_name
+# Note: php8.5-pgsql provides BOTH the pgsql and pdo_pgsql modules; Laravel needs
+# pdo_pgsql on Linux (config/database.php defaults to pgsql), so it is required.
 declare -A EXTENSION_MAP=(
     ["curl"]="curl"
     ["mbstring"]="mbstring"
@@ -49,13 +63,14 @@ declare -A EXTENSION_MAP=(
     ["zip"]="zip"
     ["gd"]="gd"
     ["mysql"]="mysqli"
+    ["pgsql"]="pdo_pgsql"
     ["sqlite3"]="sqlite3"
     ["opcache"]="Zend OPcache"
     ["intl"]="intl"
     ["bcmath"]="bcmath"
 )
 
-REQUIRED_EXTENSIONS=("curl" "mbstring" "xml" "zip" "gd" "mysql" "sqlite3" "opcache" "intl" "bcmath")
+REQUIRED_EXTENSIONS=("curl" "mbstring" "xml" "zip" "gd" "mysql" "pgsql" "sqlite3" "opcache" "intl" "bcmath")
 
 # Laravel Octane Support - PECL Extensions
 OCTANE_PECL_EXTENSIONS=(
@@ -103,7 +118,7 @@ OPEN_BASEDIR_PATHS=""
 
 # PHP Configuration Files (FPM not used - using Swoole)
 PHP_INI_FILES=(
-    "/etc/php/8.5/cli/php.ini"
+    "$PHP_CONFIG_DIR/cli/php.ini"
 )
 
 # Web Server Configuration - Use map_web_path for proper path mapping

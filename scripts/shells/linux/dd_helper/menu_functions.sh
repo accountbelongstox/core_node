@@ -1,53 +1,43 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# Menu Functions
+# Menu actions opened from Linux Management (paths from constants.sh).
 # =============================================================================
 
-# Source constants (backup copy)
-source "$DD_HELPER_DIR/constants.sh"
-
-# Source linux management functions
-source "$DD_HELPER_DIR/linux_management.sh"
-
-# Build full paths from constants
 SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_RELATIVE"
 SERVICE_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SERVICE_MANAGER_SCRIPT_RELATIVE"
 INSTALL_TEST_MENU_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$INSTALL_TEST_MENU_SCRIPT_RELATIVE"
 SYSTEM_INFO_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SYSTEM_INFO_SCRIPT_RELATIVE"
 UNIFIED_MANAGER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$UNIFIED_MANAGER_SCRIPT_RELATIVE"
+AI_MCP_MANAGEMENT_MENU_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE"
 GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
 ROUTER_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$ROUTER_SCRIPT_RELATIVE"
+SYNC_ALL_MCP_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$SYNC_ALL_MCP_SCRIPT_RELATIVE"
+BACKUP_MANAGEMENT_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/gitea_backup/backup_management_main.sh"
 
 show_special_software_env_menu() {
-    export USE_SUDO
     bash "$SPECIAL_SOFTWARE_ENV_MANAGER_SCRIPT_PATH"
 }
 
 show_service_manager() {
-    export USE_SUDO
     bash "$SERVICE_MANAGER_SCRIPT_PATH"
 }
 
 show_backup_management() {
-    export USE_SUDO
-    local backup_script_path="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/gitea_backup/backup_management_main.sh"
-    if [ -f "$backup_script_path" ]; then
-        bash "$backup_script_path"
+    if [ -f "$BACKUP_MANAGEMENT_SCRIPT_PATH" ]; then
+        bash "$BACKUP_MANAGEMENT_SCRIPT_PATH"
     else
-        echo "Error: Backup management script not found at: $backup_script_path"
+        echo "Error: Backup management script not found at: $BACKUP_MANAGEMENT_SCRIPT_PATH"
     fi
+}
+
+# Sourced so the interactive menu runs in this shell (arrow-key UI).
+show_ai_mcp_management() {
+    echo "Opening AI & MCP Management menu..."
+    export USE_SUDO
+    # shellcheck source=/dev/null
+    . "$AI_MCP_MANAGEMENT_MENU_SCRIPT_PATH"
+    show_ai_mcp_management_menu
 }
 
 handle_menu_action() {
@@ -85,35 +75,41 @@ handle_menu_action() {
         "show_backup_management")
             show_backup_management
             ;;
+        "show_management_and_backup")
+            show_management_and_backup
+            ;;
+        "sync_all_mcp")
+            echo "Syncing all MCP services..."
+            bash "$SYNC_ALL_MCP_SCRIPT_PATH"
+            ;;
+        "show_ai_mcp_management")
+            show_ai_mcp_management
+            ;;
         "unified_manager")
             cd "$CORE_NODE_ROOT_DIR"
             bash "$UNIFIED_MANAGER_SCRIPT_PATH"
             ;;
-                "push_git")
-                    echo "Starting Git Push Operations..."
-                    echo "Target: $value"
-                    echo "Using unified git push script: $GITPUT_UNIFIED_SCRIPT_PATH"
-                    cd "$CORE_NODE_ROOT_DIR"
-                    if [ "$value" = "all" ]; then
-                        bash "$GITPUT_UNIFIED_SCRIPT_PATH"
-                    else
-                        bash "$GITPUT_UNIFIED_SCRIPT_PATH" "$value"
-                    fi
-                    if [ $? -eq 0 ]; then
-                        echo "Git push operations completed successfully"
-                    else
-                        echo "Git push operations failed"
-                    fi
-                    ;;
-                "show_linux_management_submenu")
-                    show_linux_management_submenu
-                    ;;
-                "exit_script")
-                    echo "Exiting the script."
-                    exit 0
-                    ;;
-            esac
-        }
+        "push_git")
+            echo "Starting Git Push Operations..."
+            echo "Target: $value"
+            echo "Using unified git push script: $GITPUT_UNIFIED_SCRIPT_PATH"
+            cd "$CORE_NODE_ROOT_DIR"
+            if [ "$value" = "all" ]; then
+                bash "$GITPUT_UNIFIED_SCRIPT_PATH"
+            else
+                bash "$GITPUT_UNIFIED_SCRIPT_PATH" "$value"
+            fi
+            echo "Git push operations completed"
+            ;;
+        "show_linux_management_submenu")
+            show_linux_management_submenu
+            ;;
+        "exit_script")
+            echo "Exiting the script."
+            exit
+            ;;
+    esac
+}
 
 load_saved_values() {
     for key in "${menu_order[@]}"; do

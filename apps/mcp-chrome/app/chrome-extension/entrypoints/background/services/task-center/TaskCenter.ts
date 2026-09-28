@@ -7,31 +7,25 @@
 
 import type {
   ITaskProcessor,
-  ProcessorConfig,
   ProcessorRegistryEntry,
+  ProcessorConfig,
   ProcessorStatus,
 } from './ITaskProcessor';
+// Canonical control-protocol types (shared with the popup) live in one module.
+import type {
+  TaskCenterConfig,
+  TaskCenterStats,
+  BackendHealth,
+} from '@/utils/task-center-types';
 
-export interface TaskCenterConfig {
-  apiUrl: string;
-  pollInterval?: number;
-  processors: {
-    [processorType: string]: ProcessorConfig;
-  };
-}
+// Re-export so existing importers of './TaskCenter' keep resolving these.
+export type {
+  TaskCenterConfig,
+  TaskCenterStats,
+  BackendHealth,
+} from '@/utils/task-center-types';
 
-export interface TaskCenterStats {
-  totalProcessors: number;
-  runningProcessors: number;
-  totalPending: number;
-  totalTranslated: number;
-  totalFailed: number;
-  processors: {
-    [processorType: string]: ProcessorStatus;
-  };
-}
-
-export type TaskCenterEventType = 'start' | 'stop' | 'processor_registered' | 'processor_started' | 'processor_stopped';
+export type TaskCenterEventType = 'start' | 'stop' | 'processor_registered' | 'processor_started' | 'processor_stopped' | 'processor_failed';
 
 export interface TaskCenterEvent {
   type: TaskCenterEventType;
@@ -164,60 +158,134 @@ class TaskCenterService {
     }
   }
 
+  /** Every processor runs on the center-level API base resolved for this run. */
+  private processorConfig(processorType: string, config: TaskCenterConfig): ProcessorConfig {
+    return { ...(config.processors?.[processorType] || {}), apiUrl: config.apiUrl };
+  }
+
+  private describeProcessorError(error: any): string {
+    const message = error?.message || String(error ?? 'unknown error');
+    const status = error?.statusCode ?? error?.status;
+    return status ? `${message} (HTTP ${status})` : message;
+  }
+
+  private enabledProcessorTypes(config: TaskCenterConfig): string[] {
+    if (Array.isArray(config.enabledProcessors)) {
+      return [...new Set(config.enabledProcessors)];
+    }
+    return Array.from(this.registry.entries())
+      .filter(([, entry]) => entry.enabled)
+      .map(([processorType]) => processorType);
+  }
+
+  private normalizedConfig(
+    config: TaskCenterConfig,
+    enabledProcessors: string[],
+  ): TaskCenterConfig {
+    return {
+      ...config,
+      processors: { ...(config.processors || {}) },
+      enabledProcessors: [...enabledProcessors],
+    };
+  }
+
+  private async reconcileProcessors(
+    enabledProcessors: string[],
+    config: TaskCenterConfig,
+  ): Promise<void> {
+    const allow = new Set(enabledProcessors);
+    const previousStates = new Map<string, { enabled: boolean; running: boolean }>();
+    const startedProcessors: string[] = [];
+    let startingProcessor: string | null = null;
+
+    for (const [processorType, entry] of this.registry.entries()) {
+      previousStates.set(processorType, {
+        enabled: entry.enabled,
+        running: entry.processor.getStatus().isRunning,
+      });
+    }
+
+    try {
+      for (const [processorType, entry] of this.registry.entries()) {
+        entry.enabled = allow.has(processorType);
+        if (!entry.enabled || entry.processor.getStatus().isRunning) continue;
+        startingProcessor = processorType;
+        await entry.processor.start(this.processorConfig(processorType, config));
+        startedProcessors.push(processorType);
+        this.emitEvent({
+          type: 'processor_started',
+          processorType,
+          timestamp: Date.now(),
+        });
+      }
+    } catch (error) {
+      const failedEntry = startingProcessor ? this.registry.get(startingProcessor) : null;
+      const failedPrevious = startingProcessor ? previousStates.get(startingProcessor) : null;
+      if (!failedPrevious?.running && failedEntry?.processor.getStatus().isRunning) {
+        failedEntry.processor.stop();
+      }
+      for (const processorType of startedProcessors.reverse()) {
+        const entry = this.registry.get(processorType);
+        if (entry?.processor.getStatus().isRunning) entry.processor.stop();
+      }
+      for (const [processorType, entry] of this.registry.entries()) {
+        const previous = previousStates.get(processorType);
+        if (previous) entry.enabled = previous.enabled;
+      }
+      if (startingProcessor) {
+        this.emitEvent({
+          type: 'processor_failed',
+          processorType: startingProcessor,
+          timestamp: Date.now(),
+        });
+      }
+      throw new Error(
+        `Failed to start processor ${startingProcessor || 'unknown'}: ${this.describeProcessorError(error)}`,
+      );
+    }
+
+    for (const [processorType, entry] of this.registry.entries()) {
+      if (allow.has(processorType)) continue;
+      const wasRunning = entry.processor.getStatus().isRunning;
+      if (wasRunning) entry.processor.stop();
+      entry.enabled = false;
+      if (wasRunning) {
+        this.emitEvent({
+          type: 'processor_stopped',
+          processorType,
+          timestamp: Date.now(),
+        });
+      }
+    }
+    this.config = config;
+  }
+
   /**
-   * Start Task Center (activate all enabled processors)
-   * This changes state only - processors remain hooked
+   * Start Task Center and activate its explicitly enabled processors.
+   * An empty allowlist is a valid observer-only runtime.
    */
   async startAll(config: TaskCenterConfig): Promise<void> {
     if (!this.initialized) {
       throw new Error('Task Center not initialized. Call initialize() first.');
     }
+    const wasRunning = this.isRunning;
+    const enabledProcessors = this.enabledProcessorTypes(config);
+    const normalizedConfig = this.normalizedConfig(config, enabledProcessors);
+    await this.reconcileProcessors(enabledProcessors, normalizedConfig);
+    if (!wasRunning) {
+      this.isRunning = true;
+      this.emitEvent({ type: 'start', timestamp: Date.now() });
+      console.log('[TaskCenter] ✅ Task Center activated');
+    }
+  }
 
-    if (this.isRunning) {
-      console.warn('[TaskCenter] Task Center already running');
+  async syncProcessors(enabledProcessors: string[], config: TaskCenterConfig): Promise<void> {
+    const normalizedConfig = this.normalizedConfig(config, enabledProcessors);
+    if (!this.isRunning) {
+      await this.startAll(normalizedConfig);
       return;
     }
-
-    this.config = config;
-    console.log('[TaskCenter] 🚀 Activating Task Center...');
-
-    const startPromises: Promise<void>[] = [];
-
-    for (const [processorType, entry] of this.registry.entries()) {
-      if (!entry.enabled) {
-        console.log(`[TaskCenter] ⏸  Processor ${processorType} disabled, skipping`);
-        continue;
-      }
-
-      const processorConfig = config.processors[processorType] || { apiUrl: config.apiUrl };
-
-      try {
-        console.log(`[TaskCenter] ▶️  Activating processor: ${processorType}`);
-        const startPromise = entry.processor.start(processorConfig);
-        startPromises.push(startPromise);
-
-        // Emit event after start
-        startPromise.then(() => {
-          this.emitEvent({
-            type: 'processor_started',
-            processorType,
-            timestamp: Date.now(),
-          });
-        });
-      } catch (error: any) {
-        console.error(`[TaskCenter] ❌ Failed to activate processor ${processorType}:`, error);
-      }
-    }
-
-    await Promise.allSettled(startPromises);
-
-    this.isRunning = true;
-    this.emitEvent({
-      type: 'start',
-      timestamp: Date.now(),
-    });
-
-    console.log('[TaskCenter] ✅ Task Center activated');
+    await this.reconcileProcessors(enabledProcessors, normalizedConfig);
   }
 
   /**
@@ -226,8 +294,7 @@ class TaskCenterService {
    */
   stopAll(): void {
     if (!this.isRunning) {
-      console.warn('[TaskCenter] Task Center not running');
-      return;
+      console.warn('[TaskCenter] Center flag is stopped; cleaning up any residual processors');
     }
 
     console.log('[TaskCenter] 🛑 Deactivating Task Center...');
@@ -298,6 +365,7 @@ class TaskCenterService {
   getStatus(): {
     isRunning: boolean;
     stats: TaskCenterStats;
+    backend: BackendHealth;
   } {
     const stats: TaskCenterStats = {
       totalProcessors: this.registry.size,
@@ -308,12 +376,34 @@ class TaskCenterService {
       processors: {},
     };
 
+    // Backend aggregation across the RUNNING workers only (a stopped worker's
+    // stale reachability is irrelevant). A worker exposes backendOnline (the
+    // SimpleWorkerBase health signal); workers without it fall back to isOnline.
+    let anyRunningReachable = false;
+    let worstFailures = -1;
+    let worstError: string | null = null;
+    let latestRequestAt: number | null = null;
+
     for (const [processorType, entry] of this.registry.entries()) {
       const status = entry.processor.getStatus();
       stats.processors[processorType] = status;
 
       if (status.isRunning) {
         stats.runningProcessors++;
+
+        const s: any = status.stats;
+        const reachable =
+          typeof s.backendOnline === 'boolean' ? s.backendOnline : s.isOnline === true;
+        if (reachable) anyRunningReachable = true;
+
+        const failures = typeof s.consecutiveFailures === 'number' ? s.consecutiveFailures : 0;
+        if (failures > worstFailures) {
+          worstFailures = failures;
+          worstError = typeof s.lastError === 'string' ? s.lastError : null;
+        }
+        if (typeof s.lastRequestAt === 'number') {
+          latestRequestAt = latestRequestAt === null ? s.lastRequestAt : Math.max(latestRequestAt, s.lastRequestAt);
+        }
       }
 
       stats.totalPending += status.stats.pending;
@@ -321,9 +411,18 @@ class TaskCenterService {
       stats.totalFailed += status.stats.failed;
     }
 
+    // Nothing running => nothing is failing; report online.
+    const backend: BackendHealth = {
+      online: stats.runningProcessors === 0 ? true : anyRunningReachable,
+      lastError: worstError,
+      lastRequestAt: latestRequestAt,
+      consecutiveFailures: worstFailures < 0 ? 0 : worstFailures,
+    };
+
     return {
       isRunning: this.isRunning,
       stats,
+      backend,
     };
   }
 

@@ -82,41 +82,33 @@ class HomeRecommend extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 0.0),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12.0),
-        child: Container(
-          height: 216.0,
-          child: Stack(
-            children: [
-              Positioned(
-                left: -80,
-                top: -216.0 * 0.1,
-                bottom: -216.0 * 0.1,
-                right: 0,
-                child: Transform.scale(
-                  scale: 1.0,
-                  child: Image.asset(
-                    AssetsIconsAppTravel.travelRecommendBg1,
-                    fit: BoxFit.cover,
-                  ),
-                ),
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                AssetsIconsAppTravel.travelRecommendBg1,
+                fit: BoxFit.cover,
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Row(
-                  children: [
-                    Expanded(child: _buildRecommendCard(context, recommendCards[0])),
-                    const SizedBox(width: 10.0),
-                    Expanded(child: _buildRecommendCard(context, recommendCards[1])),
-                    const SizedBox(width: 10.0),
-                    Expanded(child: _buildRecommendCard(context, recommendCards[2])),
-                    const SizedBox(width: 10.0),
-                    Expanded(child: _buildRecommendCard(context, recommendCards[3])),
-                    const SizedBox(width: 10.0),
-                    Expanded(child: _buildRecommendCard(context, recommendCards[4])),
-                  ],
-                ),
+            ),
+            Container(
+              height: 216.0,
+              padding: const EdgeInsets.fromLTRB(24.0, 0, 24.0, 48.0),
+              child: Row(
+                children: [
+                  Expanded(child: _buildRecommendCard(context, recommendCards[0])),
+                  const SizedBox(width: 10.0),
+                  Expanded(child: _buildRecommendCard(context, recommendCards[1])),
+                  const SizedBox(width: 10.0),
+                  Expanded(child: _buildRecommendCard(context, recommendCards[2])),
+                  const SizedBox(width: 10.0),
+                  Expanded(child: _buildRecommendCard(context, recommendCards[3])),
+                  const SizedBox(width: 10.0),
+                  Expanded(child: _buildRecommendCard(context, recommendCards[4])),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

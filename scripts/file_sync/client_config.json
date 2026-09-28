@@ -1,0 +1,19 @@
+{
+  "print_paths_only": false,
+  "server_host_key": "cloud",
+  "server_port_key": "file_sync",
+  "local_dir": "../../",
+  "use_watch": true,
+  "watch_debounce_seconds": 0.35,
+  "interval_seconds": 2.0,
+  "exclude": [
+    "pyapps/d3-check",
+    "pyapps/GameAISDK",
+    "public/core_node_init",
+    "oldapps",
+    ".secret_keys",
+    ".cursor",
+    ".agents",
+    "docs/old_documents"
+  ]
+}

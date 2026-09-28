@@ -32,15 +32,23 @@
 
         // File browser logic
         let currentPath = localStorage.getItem('downloadCurrentPath') || '/';
+        function renderFileListError(message) {
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = `<div style='color:#f00;padding:16px;'>${message}</div>`;
+        }
         function loadDir(dir) {
             if (!dir || dir === '' || dir === undefined) dir = '/';
             localStorage.setItem('downloadCurrentPath', dir);
             fetch(`/api/list?dir=${encodeURIComponent(dir)}`)
                 .then(res => {
-                    if (res.status === 403) return res.json().then(data => { throw new Error(data.error || 'Unauthorized directory'); });
+                    if (res.status === 403) return res.json().then(data => ({ __accessError: data.error || 'Unauthorized directory' }));
                     return res.json();
                 })
                 .then(data => {
+                    if (data.__accessError) {
+                        renderFileListError(data.__accessError);
+                        return;
+                    }
                     currentPath = data.path || '/';
                     localStorage.setItem('downloadCurrentPath', currentPath);
                     renderBreadcrumb(currentPath);
@@ -75,8 +83,7 @@
                     });
                 })
                 .catch(err => {
-                    const fileList = document.getElementById('fileList');
-                    fileList.innerHTML = `<div style='color:#f00;padding:16px;'>${err.message || 'Error loading directory'}</div>`;
+                    renderFileListError(err.message || 'Error loading directory');
                 });
         }
         function renderBreadcrumb(path) {

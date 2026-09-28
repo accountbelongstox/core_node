@@ -8,8 +8,9 @@ from http import HTTPStatus
 from pathlib import Path
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
-from pycore.pyutils.flutter_dev_tools.api import file_reader, file_writer
-from pycore.pyutils.flutter_dev_tools.utils import path_utils
+import pycore.pyutils.flutter_dev_tools.api.file_reader as file_reader
+import pycore.pyutils.flutter_dev_tools.api.file_writer as file_writer
+import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
 
 
 class FileRoutesHandler(BaseHandler):

@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # StartupManager.ps1 - Common startup management functions
 # Version: 1.0.0
 
@@ -17,10 +5,8 @@ $SCRIPT_ROOT = $PSScriptRoot
 $WIN_COMMON_DIR = $SCRIPT_ROOT
 $GLOBAL_VARS_PATH = Join-Path $WIN_COMMON_DIR "GlobalVars.ps1"
 
-# Load global variables if available
-if (Test-Path $GLOBAL_VARS_PATH) {
-    . $GLOBAL_VARS_PATH
-}
+# Load global variables from the trusted project path.
+. $GLOBAL_VARS_PATH
 
 # Define startup directories
 $SYSTEM_STARTUP_DIR = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup"
@@ -275,5 +261,100 @@ function Clear-InvalidStartupLinks {
     return $removedCount
 }
 
+# Idempotent per-user at-logon Scheduled Task. It runs in the interactive session
+# of the current user (desktop apps such as Chrome are reachable), never times
+# out, restarts after failures, and is re-registered only when its action drifts.
+function Register-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName,
+        [Parameter(Mandatory=$true)]
+        [string]$Execute,
+        [Parameter(Mandatory=$true)]
+        [string]$Arguments,
+        [Parameter(Mandatory=$true)]
+        [string]$WorkingDirectory,
+        [string]$Description = ""
+    )
+
+    $userId = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $existingAction = $null
+    $taskAction = $null
+    $taskTrigger = $null
+    $taskPrincipal = $null
+    $taskSettings = $null
+    $actionDrifted = $true
+
+    if ($existingTask) {
+        $existingAction = $existingTask.Actions | Select-Object -First 1
+        $actionDrifted = -not (
+            $existingAction.Execute -eq $Execute -and
+            $existingAction.Arguments -eq $Arguments -and
+            $existingAction.WorkingDirectory -eq $WorkingDirectory
+        )
+    }
+
+    if ($actionDrifted) {
+        if ($existingTask -and $existingTask.State -eq "Running") {
+            Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        }
+        $taskAction = New-ScheduledTaskAction -Execute $Execute -Argument $Arguments -WorkingDirectory $WorkingDirectory
+        $taskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
+        $taskPrincipal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
+        $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+            -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+        Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger -Principal $taskPrincipal `
+            -Settings $taskSettings -Description $Description -Force | Out-Null
+        Write-StartupMessage "Registered logon task: $TaskName" "Success"
+    } else {
+        Write-StartupMessage "Logon task already up to date: $TaskName"
+    }
+
+    if ((Get-ScheduledTask -TaskName $TaskName).State -ne "Running") {
+        Start-ScheduledTask -TaskName $TaskName
+    }
+    Write-StartupMessage "Logon task state: $((Get-ScheduledTask -TaskName $TaskName).State)"
+    return $true
+}
+
+function Test-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName
+    )
+
+    return [bool](Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)
+}
+
+function Stop-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName
+    )
+
+    $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($existingTask -and $existingTask.State -eq "Running") {
+        Stop-ScheduledTask -TaskName $TaskName
+    }
+}
+
+function Unregister-UserLogonTask {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TaskName
+    )
+
+    if (-not (Test-UserLogonTask -TaskName $TaskName)) {
+        Write-StartupMessage "Logon task not installed: $TaskName" "Warning"
+        return $false
+    }
+    Stop-UserLogonTask -TaskName $TaskName
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    Write-StartupMessage "Removed logon task: $TaskName" "Success"
+    return $true
+}
+
 # Functions are available when script is dot-sourced
-# Add-StartupLink, Remove-StartupLink, Get-StartupLinks, Clear-InvalidStartupLinks, Remove-ExistingStartupLinks
+# Add-StartupLink, Remove-StartupLink, Get-StartupLinks, Clear-InvalidStartupLinks, Remove-ExistingStartupLinks,
+# Register-UserLogonTask, Test-UserLogonTask, Stop-UserLogonTask, Unregister-UserLogonTask

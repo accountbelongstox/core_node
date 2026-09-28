@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 THREAD_BUS Manager for Native UI
 
@@ -13,7 +14,7 @@ Architecture:
     - Type-safe access methods
 
 Usage:
-    from pycore.pyutils.native_ui.thread_bus_manager import NativeUIBusManager
+    from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import NativeUIBusManager
 
     # Get singleton instance
     bus_mgr = NativeUIBusManager.get_instance()
@@ -31,110 +32,18 @@ Usage:
     bus_mgr.on_dependency_complete(callback_func)
 """
 
-import threading
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
-from pycore.pyfoundations.thread_bus import THREAD_BUS
-
-
-# ============================================================
-# Namespace Constants - Clear Key Organization
-# ============================================================
-
-class BusNamespaces:
-    """THREAD_BUS namespace organization"""
-
-    # PyCore dependency check namespace
-    PYCORE_DEPS = "pycore.deps"
-
-    # UI configuration namespace
-    UI_CONFIG = "ui.config"
-
-    # Tray system namespace
-    UI_TRAY = "ui.tray"
-
-    # Application state namespace
-    APP_STATE = "app.state"
-
-    # Startup window namespace
-    UI_STARTUP = "ui.startup"
-
-    # UI i18n namespace
-    UI_I18N = "ui.i18n"
-
-
-class BusKeys:
-    """Standardized THREAD_BUS keys with namespaces"""
-
-    # PyCore dependency keys
-    DEPS_CHECKED = f"{BusNamespaces.PYCORE_DEPS}.checked"
-    DEPS_ALL_PACKAGES = f"{BusNamespaces.PYCORE_DEPS}.all_packages"
-    DEPS_INSTALLED = f"{BusNamespaces.PYCORE_DEPS}.installed"
-    DEPS_MISSING = f"{BusNamespaces.PYCORE_DEPS}.missing"
-    DEPS_TOTAL = f"{BusNamespaces.PYCORE_DEPS}.total"
-    DEPS_PLATFORM = f"{BusNamespaces.PYCORE_DEPS}.platform"
-
-    # Tray configuration keys
-    TRAY_CONFIG = f"{BusNamespaces.UI_TRAY}.config"
-    TRAY_BACKEND = f"{BusNamespaces.UI_TRAY}.backend"
-    TRAY_READY = f"{BusNamespaces.UI_TRAY}.ready"
-    TRAY_VISIBLE = f"{BusNamespaces.UI_TRAY}.visible"
-
-    # Startup window keys
-    STARTUP_MODE = f"{BusNamespaces.UI_STARTUP}.mode"  # "debug_only" | "debug_with_tray"
-    STARTUP_THREAD_ID = f"{BusNamespaces.UI_STARTUP}.thread_id"
-
-    # I18n keys
-    I18N_CURRENT_LANGUAGE = f"{BusNamespaces.UI_I18N}.current_language"
-    I18N_SUPPORTED_LANGUAGES = f"{BusNamespaces.UI_I18N}.supported_languages"
-
-
-class BusSignals:
-    """Standardized THREAD_BUS signal names"""
-
-    # PyCore signals
-    DEPS_COMPLETE = "pycore.deps.complete"
-    DEPS_INSTALL_START = "pycore.deps.install_start"
-    DEPS_INSTALL_SUCCESS = "pycore.deps.install_success"
-
-    # Tray signals
-    TRAY_STARTED = "ui.tray.started"
-    TRAY_STOPPED = "ui.tray.stopped"
-    TRAY_SHOW = "ui.tray.show"
-    TRAY_RESTART = "ui.tray.restart"
-    TRAY_EXIT = "ui.tray.exit"
-    TRAY_MENU_CLICKED = "ui.tray.menu_clicked"
-
-    # Commands
-    TRAY_UPDATE_MENU = "ui.tray.update_menu"
-    TRAY_UPDATE_ICON = "ui.tray.update_icon"
-    TRAY_SHOW_MESSAGE = "ui.tray.show_message"
-    TRAY_STOP = "ui.tray.stop"
-
-    # Startup window signals
-    STARTUP_READY = "ui.startup.ready"
-    STARTUP_CLOSED = "ui.startup.closed"
-    STARTUP_STOPPED = "ui.startup.stopped"
-
-    # UI i18n signals
-    I18N_SET_LANGUAGE = "ui.i18n.set_language"  # Request to change language (via bus)
-    I18N_LANGUAGE_CHANGED = "ui.i18n.language_changed"  # Language changed notification
-    UI_REDRAW = "ui.redraw"  # Generic UI redraw signal (triggered by language change)
-
-
-# ============================================================
-# Data Classes for Type Safety
-# ============================================================
-
-@dataclass
-class DependencyInfo:
-    """Dependency check information"""
-    checked: bool = False
-    all_packages: List[str] = field(default_factory=list)
-    installed: List[str] = field(default_factory=list)
-    missing: List[str] = field(default_factory=list)
-    total: int = 0
-    platform: str = ""
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
+from pycore.pyfoundations.thread_bus_constants import (
+    BusNamespaces,
+    BusKeys,
+    BusSignals,
+    DependencyInfo,
+)
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 
 # ============================================================
@@ -149,35 +58,14 @@ class NativeUIBusManager:
     Singleton pattern for global access.
 
     Usage:
-        # Recommended: Use factory function
-        bus_mgr = get_bus_manager()
-
-        # Or direct instantiation (returns singleton)
-        bus_mgr = NativeUIBusManager()
+        from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager
     """
 
-    _instance: Optional['NativeUIBusManager'] = None
-    _lock = threading.Lock()
-
-    def __new__(cls):
-        """Singleton pattern implementation"""
-        if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
-                    cls._instance._initialized = False
-        return cls._instance
-
     def __init__(self):
-        """Initialize bus manager (only once)"""
-        if getattr(self, '_initialized', False):
-            return
-
+        """Initialize bus manager."""
         self._bus = THREAD_BUS
 
-        from pycore import ColorPrint
         ColorPrint.print_info("[NativeUIBusManager] Initialized (singleton)")
-        self._initialized = True
 
     @classmethod
     def get_instance(cls) -> 'NativeUIBusManager':
@@ -187,7 +75,7 @@ class NativeUIBusManager:
         Returns:
             NativeUIBusManager singleton instance
         """
-        return cls()
+        return bus_manager
 
     # ========================================================
     # Dependency Check Methods
@@ -397,13 +285,10 @@ class NativeUIBusManager:
                                       Must match the signal used in create_language_submenu()
                                       
         Usage:
-            from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import get_bus_manager
-            
-            bus_mgr = get_bus_manager()
-            bus_mgr.setup_language_change_handler("myapp.tray.set_language")
+            from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager
+
+            bus_manager.setup_language_change_handler("myapp.tray.set_language")
         """
-        from pycore.pyutils.native_ui.step0_i18n import i18n
-        from pycore import ColorPrint
         
         def handle_set_language(event_data):
             """Handle language change request"""
@@ -490,26 +375,16 @@ class NativeUIBusManager:
 # Convenience Functions
 # ============================================================
 
-def get_bus_manager() -> NativeUIBusManager:
-    """
-    Get NativeUIBusManager singleton instance
+_NATIVE_UI_BUS_MANAGER_PROVIDER = SerializedSingletonProvider(
+    NativeUIBusManager,
+    "native_ui.bus_manager.provider",
+    "NativeUIBusManagerProvider",
+)
 
-    Returns:
-        NativeUIBusManager instance
-    """
-    return NativeUIBusManager()
+bus_manager = _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
 
 
-def get_native_ui_bus_manager() -> NativeUIBusManager:
-    """
-    Get NativeUIBusManager singleton instance (consistent naming)
-
-    This is an alias for get_bus_manager() with consistent naming pattern.
-
-    Returns:
-        NativeUIBusManager singleton instance
-    """
-    return NativeUIBusManager()
+__all__ = ['bus_manager']
 
 
 # ============================================================
@@ -517,14 +392,13 @@ def get_native_ui_bus_manager() -> NativeUIBusManager:
 # ============================================================
 
 if __name__ == "__main__":
-    from pycore import ColorPrint
 
     ColorPrint.print_info("=" * 70)
     ColorPrint.print_info(" THREAD_BUS MANAGER TEST")
     ColorPrint.print_info("=" * 70)
 
     # Get manager
-    bus_mgr = get_bus_manager()
+    bus_mgr = bus_manager
 
     # Test 1: Record dependency info
     ColorPrint.print_success("\n[Test 1] Recording dependency info...")

@@ -1,0 +1,1258 @@
+# Resolve pycore/tts_install_assets from an install_powershells Step script directory.
+
+$script:LastReportedLocalModelPath = ''
+$script:TtsNativeBuildWingetId = 'Microsoft.VisualStudio.2022.BuildTools'
+$script:HfAuthTokenCache = $null
+$script:HfAuthTokenSource = ''
+$script:TtsNativeBuildInstallArguments = '--wait --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+$script:TtsNativeBuildModifyArguments = 'modify --installPath "{0}" --quiet --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+
+function Get-ShellsLinuxCommonDirFromInstallScript {
+    param([string]$InstallScriptRoot)
+    $shellsDir = Split-Path (Split-Path (Split-Path $InstallScriptRoot -Parent) -Parent) -Parent
+    return (Join-Path $shellsDir 'linux\common')
+}
+
+. (Join-Path $PSScriptRoot 'TorchCudaInstallCommon.ps1')
+. (Join-Path $PSScriptRoot 'PrerequisiteStepCommon.ps1')
+
+function Get-PycoreRepoRootFromInstallScript {
+    param([string]$InstallScriptRoot)
+    return (Split-Path (Split-Path (Split-Path (Split-Path $InstallScriptRoot -Parent) -Parent) -Parent) -Parent)
+}
+
+function Get-CoreNodeRepoRootFromWinCommon {
+    $root = $PSScriptRoot
+    foreach ($unused in 1..4) {
+        $root = Split-Path $root -Parent
+    }
+    return $root
+}
+
+function Refresh-ProcessPathEnv {
+    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    if ($machinePath -and $userPath) {
+        $env:Path = "$machinePath;$userPath"
+    } elseif ($machinePath) {
+        $env:Path = $machinePath
+    } elseif ($userPath) {
+        $env:Path = $userPath
+    }
+}
+
+function Test-SoxOnPath {
+    return [bool](Get-Command sox -ErrorAction SilentlyContinue)
+}
+
+function Find-SoxExecutable {
+    $cmd = Get-Command sox -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+
+    $localAppData = $env:LOCALAPPDATA
+    if (-not $localAppData) { return $null }
+
+    $wingetRoot = Join-Path $localAppData 'Microsoft\WinGet\Packages'
+    if (-not (Test-Path -LiteralPath $wingetRoot)) { return $null }
+
+    $hits = Get-ChildItem -Path $wingetRoot -Directory -Filter 'ChrisBagwell.SoX*' -ErrorAction SilentlyContinue
+    foreach ($pkgDir in $hits) {
+        $exe = Get-ChildItem -Path $pkgDir.FullName -Recurse -Filter 'sox.exe' -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($exe) { return $exe.FullName }
+    }
+    return $null
+}
+
+function Get-SoxPathCacheFile {
+    $userDataDir = $env:LOCALAPPDATA
+    if (-not $userDataDir) { return $null }
+    return (Join-Path $userDataDir 'pycore\cache\sox_path.txt')
+}
+
+function Add-SoxProcessPath {
+    param([Parameter(Mandatory = $true)][string]$ExecutablePath)
+
+    $parentDir = Split-Path $ExecutablePath -Parent
+    if (-not $parentDir) { return }
+
+    $pathEntries = @($env:Path -split ';' | Where-Object { $_ })
+    $normalizedParent = (Normalize-WindowsPath $parentDir).TrimEnd('\')
+    $hasEntry = @($pathEntries | Where-Object {
+        ((Normalize-WindowsPath $_).TrimEnd('\')) -ieq $normalizedParent
+    }).Count -gt 0
+    if (-not $hasEntry) {
+        $env:Path = "$parentDir;$env:Path"
+    }
+}
+
+function Ensure-SoxOnPath {
+    param(
+        [string]$Prefix = '',
+        [switch]$Force
+    )
+
+    $soxPath = $null
+    $soxCacheFile = Get-SoxPathCacheFile
+    $windowsPathFunctionPath = Join-Path $PSScriptRoot 'WindowsPathFunction.ps1'
+    $windowsPathFunctionLoaded = Get-Variable -Name 'PycoreWindowsPathFunctionLoaded' -Scope Script -ErrorAction SilentlyContinue
+    if ($null -eq $windowsPathFunctionLoaded -or -not [bool]$windowsPathFunctionLoaded.Value) {
+        . $windowsPathFunctionPath
+        Set-Variable -Name 'PycoreWindowsPathFunctionLoaded' -Scope Script -Value $true
+    }
+
+    if ((Test-SoxOnPath) -and -not $Force) {
+        $soxPath = (Get-Command sox -ErrorAction SilentlyContinue).Source
+    }
+
+    if (-not $soxPath -and -not $Force -and $soxCacheFile -and (Test-Path -LiteralPath $soxCacheFile -PathType Leaf)) {
+        $cachedPath = (Get-Content -LiteralPath $soxCacheFile -Raw -ErrorAction SilentlyContinue)
+        if ($cachedPath) { $cachedPath = $cachedPath.Trim() }
+        if ($cachedPath -and (Test-Path -LiteralPath $cachedPath -PathType Leaf)) {
+            $soxPath = $cachedPath
+            Add-SoxProcessPath -ExecutablePath $soxPath
+        } elseif ($soxCacheFile) {
+            Remove-Item -LiteralPath $soxCacheFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if (-not $soxPath) {
+        $soxPath = Find-SoxExecutable
+    }
+
+    if (-not $soxPath) {
+        $winget = Get-Command winget -ErrorAction SilentlyContinue
+        if ($winget) {
+            Write-Host ("{0} [..] winget install ChrisBagwell.SoX (pysox/qwen-tts runtime binary) ..." -f $Prefix) -ForegroundColor Yellow
+            $prevEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            & $winget.Source install --id ChrisBagwell.SoX -e --accept-source-agreements --accept-package-agreements --disable-interactivity
+            $ErrorActionPreference = $prevEap
+            Refresh-ProcessPathEnv
+            if (Test-SoxOnPath) {
+                $soxPath = (Get-Command sox -ErrorAction SilentlyContinue).Source
+            }
+        }
+    }
+
+    if (-not $soxPath) {
+        $chocoExe = $Global:CHOCO_EXE
+        if ($chocoExe -and (Test-Path -LiteralPath $chocoExe)) {
+            Write-Host ("{0} [..] choco install sox.portable (pysox/qwen-tts runtime binary) ..." -f $Prefix) -ForegroundColor Yellow
+            $prevEap = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            & $chocoExe install sox.portable -y --no-progress
+            $ErrorActionPreference = $prevEap
+            Refresh-ProcessPathEnv
+            if (Test-SoxOnPath) {
+                $soxPath = (Get-Command sox -ErrorAction SilentlyContinue).Source
+            }
+        }
+    }
+
+    if ($soxPath) {
+        Add-SoxProcessPath -ExecutablePath $soxPath
+        if ($soxCacheFile) {
+            $cacheDir = Split-Path $soxCacheFile -Parent
+            New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+            Set-Content -LiteralPath $soxCacheFile -Value $soxPath -Encoding ASCII
+        }
+        return $true
+    }
+
+    Write-Host ("{0} [!] SoX NOT on PATH - pysox (qwen-tts tokenizer) warns at import. Install: winget install ChrisBagwell.SoX" -f $Prefix) -ForegroundColor DarkYellow
+    return $false
+}
+
+function Test-PyModule {
+    param(
+        [Parameter(Mandatory = $true)][string]$Py,
+        [Parameter(Mandatory = $true)][string]$ModuleName
+    )
+
+    return (Test-PycorePythonModulePresent -PythonExe $Py -ModuleName $ModuleName)
+}
+
+function Get-PycoreTtsInstallAssetsDir {
+    param([string]$InstallScriptRoot = $PSScriptRoot)
+    $repoRoot = Get-PycoreRepoRootFromInstallScript -InstallScriptRoot $InstallScriptRoot
+    return (Join-Path $repoRoot 'pycore\tts_install_assets')
+}
+
+function Resolve-TtsModelTier {
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$InstallScriptRoot,
+        [switch]$Gpu
+    )
+    $assetsDir = Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $InstallScriptRoot
+    $tierScript = Join-Path $assetsDir 'tts_model_tiers.py'
+    $flag = if ($Gpu) { '--gpu' } else { '--cpu' }
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $value = (& $PythonExe $tierScript resolve $Key $flag 2>$null) -join ''
+    $ErrorActionPreference = $prevEap
+    $value = "$value".Trim()
+    if (-not $value) { return $null }
+    return $value
+}
+
+function Write-TtsOfficialEnv {
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$Engine,
+        [Parameter(Mandatory = $true)][string]$InstallScriptRoot,
+        [string]$Prefix = ''
+    )
+    $assetsDir = Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $InstallScriptRoot
+    $tierScript = Join-Path $assetsDir 'tts_model_tiers.py'
+    $line = & $PythonExe $tierScript official-env $Engine 2>$null
+    if ($line) {
+        Write-Host ("{0} official env ({1}): {2}" -f $Prefix, $Engine, $line) -ForegroundColor DarkGray
+    }
+}
+
+function Write-TtsIdempotentSkip {
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$Reason,
+        [Parameter(Mandatory = $true)][string]$InstallScriptRoot,
+        [string]$Prefix = ''
+    )
+    $assetsDir = Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $InstallScriptRoot
+    $tierScript = Join-Path $assetsDir 'tts_model_tiers.py'
+    $msg = & $PythonExe $tierScript idempotent $Reason 2>$null
+    if ($msg) {
+        Write-Host ("{0} {1}" -f $Prefix, $msg) -ForegroundColor Green
+    }
+}
+
+function Save-SttModelTier {
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$InstallScriptRoot,
+        [string]$WhisperModel = '',
+        [string]$FasterWhisperModel = ''
+    )
+    if (-not $WhisperModel -and -not $FasterWhisperModel) { return }
+    $repoRoot = Get-PycoreRepoRootFromInstallScript -InstallScriptRoot $InstallScriptRoot
+    $args = @()
+    if ($WhisperModel) { $args += "whisper='$WhisperModel'" }
+    if ($FasterWhisperModel) { $args += "faster_whisper='$FasterWhisperModel'" }
+    $call = "persist_stt_models($($args -join ', '))"
+    $py = @"
+import sys
+sys.path.insert(0, r'$repoRoot')
+from pycore.pyutils.common.model_tiers import persist_stt_models
+$call
+"@
+    try { & $PythonExe -c $py 2>$null | Out-Null } catch { }
+}
+
+function Resolve-HfMirrorBase {
+    if ($env:HF_ENDPOINT) { return $env:HF_ENDPOINT.TrimEnd('/') }
+    if ($env:GPTSOVITS_MIRROR) { return $env:GPTSOVITS_MIRROR.TrimEnd('/') }
+    return 'https://hf-mirror.com'
+}
+
+function Get-HfSecretRawDir {
+    # Raw secret store under the core_node root; same convention as
+    # pyfoundations.secret_manager and scripts/pytools/aitools/hf_secret.py.
+    $root = Get-CoreNodeRepoRootFromWinCommon
+    $rawDir = Join-Path (Join-Path $root '.secret_keys') '.secret_ignore'
+    if (Test-Path -LiteralPath $rawDir) { return $rawDir }
+    return $null
+}
+
+function Read-HfSecretFirstLine {
+    # First non-empty stripped line of a raw secret file (BOM-aware); '' on failure.
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $content = ''
+    try {
+        $content = [System.IO.File]::ReadAllText($Path)
+    } catch {
+        return ''
+    }
+    $content = $content.TrimStart([char]0xFEFF)
+    foreach ($line in ($content -split "`r?`n")) {
+        $trimmed = $line.Trim()
+        if ($trimmed) { return $trimmed }
+    }
+    return ''
+}
+
+function Get-HfTokenCandidates {
+    # Ordered @{Token; Source} list: env first (explicit operator choice), then
+    # EVERY .secret_keys/.secret_ignore/HF_TOKEN_<index> (auto-discovered in
+    # numeric order, not capped at 5), then the bare HF_TOKEN file. Duplicates
+    # are removed, order preserved.
+    $candidates = @()
+    $seen = @{}
+    $envToken = ''
+    if ($env:HF_TOKEN) { $envToken = $env:HF_TOKEN.Trim() }
+    if ($envToken) {
+        $candidates += @{ Token = $envToken; Source = 'env:HF_TOKEN' }
+        $seen[$envToken] = $true
+    }
+    $envHubToken = ''
+    if ($env:HUGGING_FACE_HUB_TOKEN) { $envHubToken = $env:HUGGING_FACE_HUB_TOKEN.Trim() }
+    if ($envHubToken -and -not $seen.ContainsKey($envHubToken)) {
+        $candidates += @{ Token = $envHubToken; Source = 'env:HUGGING_FACE_HUB_TOKEN' }
+        $seen[$envHubToken] = $true
+    }
+    $rawDir = Get-HfSecretRawDir
+    if ($rawDir) {
+        $indexedFiles = @(Get-ChildItem -Path $rawDir -File -Filter 'HF_TOKEN_*' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^HF_TOKEN_\d+$' } |
+            Sort-Object { [int]($_.Name -replace '^HF_TOKEN_', '') })
+        foreach ($file in $indexedFiles) {
+            $token = Read-HfSecretFirstLine -Path $file.FullName
+            if ($token -and -not $seen.ContainsKey($token)) {
+                $candidates += @{ Token = $token; Source = $file.Name }
+                $seen[$token] = $true
+            }
+        }
+        $barePath = Join-Path $rawDir 'HF_TOKEN'
+        if (Test-Path -LiteralPath $barePath) {
+            $bareToken = Read-HfSecretFirstLine -Path $barePath
+            if ($bareToken -and -not $seen.ContainsKey($bareToken)) {
+                $candidates += @{ Token = $bareToken; Source = 'HF_TOKEN' }
+                $seen[$bareToken] = $true
+            }
+        }
+    }
+    return $candidates
+}
+
+function Test-HfTokenWhoami {
+    # 'ok' = valid (HTTP 200); 'rejected' = 401/403; 'unverifiable' = network/tooling.
+    param([Parameter(Mandatory = $true)][string]$Token)
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) { return 'unverifiable' }
+    $probeCode = & $curl.Source -s -o NUL -w '%{http_code}' --connect-timeout 15 --header ('Authorization: Bearer {0}' -f $Token) 'https://huggingface.co/api/whoami-v2'
+    if ($LASTEXITCODE -ne 0) { return 'unverifiable' }
+    if ($probeCode -eq '200') { return 'ok' }
+    if ($probeCode -eq '401' -or $probeCode -eq '403') { return 'rejected' }
+    return 'unverifiable'
+}
+
+function Resolve-HfAuthToken {
+    # First usable hf_* token wins; rejected ones fall through to the next
+    # candidate. Result is cached per process and the pick is printed (masked)
+    # once. A resolved token is exported to $env:HF_TOKEN so child processes
+    # (pip, huggingface_hub, fish-speech) inherit the auth.
+    if ($null -ne $script:HfAuthTokenCache) { return $script:HfAuthTokenCache }
+    $script:HfAuthTokenCache = ''
+    foreach ($candidate in (Get-HfTokenCandidates)) {
+        $token = [string]$candidate.Token
+        $source = [string]$candidate.Source
+        $suffix = $token.Substring([Math]::Max(0, $token.Length - 4))
+        if ($token -notmatch '^hf_') {
+            Write-Host ("[hf] {0} (...{1}) is not an hf_* token; skipped" -f $source, $suffix) -ForegroundColor DarkGray
+            continue
+        }
+        $probe = Test-HfTokenWhoami -Token $token
+        if ($probe -eq 'ok') {
+            $script:HfAuthTokenCache = $token
+            $script:HfAuthTokenSource = $source
+            Write-Host ("[hf] HF auth: using {0} (...{1}); whoami OK" -f $source, $suffix) -ForegroundColor Green
+            break
+        }
+        if ($probe -eq 'rejected') {
+            Write-Host ("[hf] {0} (...{1}) rejected by Hugging Face (401/403); trying next candidate" -f $source, $suffix) -ForegroundColor DarkYellow
+            continue
+        }
+        $script:HfAuthTokenCache = $token
+        $script:HfAuthTokenSource = $source
+        Write-Host ("[hf] whoami unverifiable (network); using {0} (...{1}) unvalidated" -f $source, $suffix) -ForegroundColor DarkYellow
+        break
+    }
+    if (-not $script:HfAuthTokenCache) {
+        Write-Host "[hf] no usable HF token (env + .secret_keys HF_TOKEN_*); Hub downloads stay anonymous" -ForegroundColor DarkYellow
+    } else {
+        $env:HF_TOKEN = $script:HfAuthTokenCache
+    }
+    return $script:HfAuthTokenCache
+}
+
+function Get-HfRequestHeaders {
+    $headers = @{}
+    $token = Resolve-HfAuthToken
+    if ($token) { $headers['Authorization'] = ('Bearer {0}' -f $token) }
+    return $headers
+}
+
+function Invoke-HfRestGet {
+    # JSON GET with redirect following. Invoke-RestMethod on Windows PowerShell
+    # 5.1 does not follow 308 Permanent Redirect, and hf-mirror.com 308s the
+    # repo APIs to huggingface.co; curl.exe (already a hard dependency of the
+    # download path) follows them with -L.
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][hashtable]$Headers
+    )
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($curl) {
+        $curlHeaders = @()
+        # Plain -L drops Authorization on the cross-host 308 to huggingface.co
+        # (hf-mirror repo APIs), producing 401 on gated repos; --location-trusted
+        # implies -L and forwards the header to the redirect target.
+        $redirectFlag = '-L'
+        if ($Headers.ContainsKey('Authorization')) {
+            $curlHeaders = @('--header', ('Authorization: {0}' -f $Headers['Authorization']))
+            $redirectFlag = '--location-trusted'
+        }
+        $json = & $curl.Source -fsS $redirectFlag --connect-timeout 30 @curlHeaders $Uri
+        if ($LASTEXITCODE -eq 0 -and $json) {
+            return ($json | Out-String | ConvertFrom-Json)
+        }
+        throw "HTTP request failed (curl exit $LASTEXITCODE): $Uri"
+    }
+    return Invoke-RestMethod -Uri $Uri -Headers $Headers -TimeoutSec 30 -ErrorAction Stop
+}
+
+function Test-HfRepoExistence {
+    # 'exists' | 'missing' | 'unknown'. A 404 from the repo API is the only
+    # 'missing' verdict; network errors and auth failures return 'unknown' so
+    # a transient outage never clears an operator's explicit override.
+    param([Parameter(Mandatory = $true)][string]$RepoId)
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) { return 'unknown' }
+    $headers = Get-HfRequestHeaders
+    $curlHeaders = @()
+    $redirectFlag = '-L'
+    if ($headers.ContainsKey('Authorization')) {
+        $curlHeaders = @('--header', ('Authorization: {0}' -f $headers['Authorization']))
+        $redirectFlag = '--location-trusted'
+    }
+    $bases = @('https://huggingface.co')
+    $mirror = Resolve-HfMirrorBase
+    if ($mirror -and $mirror -ne $bases[0]) { $bases += $mirror }
+    $sawMissing = $false
+    foreach ($base in $bases) {
+        $url = ('{0}/api/models/{1}' -f $base.TrimEnd('/'), $RepoId)
+        $code = & $curl.Source -s -o NUL -w '%{http_code}' $redirectFlag --connect-timeout 15 @curlHeaders $url
+        if ($LASTEXITCODE -ne 0) { continue }
+        if ($code -eq '200') { return 'exists' }
+        if ($code -eq '404') { $sawMissing = $true }
+    }
+    if ($sawMissing) { return 'missing' }
+    return 'unknown'
+}
+
+function Test-HfGlobMatch {
+    param(
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [Parameter(Mandatory = $true)][string]$Pattern
+    )
+    if ($Pattern -eq '*') { return $true }
+    $regex = '^' + [regex]::Escape($Pattern).Replace('\*', '.*').Replace('\?', '.') + '$'
+    return ($FileName -match $regex)
+}
+
+function Test-HfAllowMatch {
+    # HF allow-list contract shared by the downloader and the readiness verifiers:
+    # empty pattern list matches everything, otherwise any glob hit qualifies.
+    param(
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [string[]]$Patterns = @('*')
+    )
+    if (-not $Patterns -or $Patterns.Count -eq 0) { return $true }
+    foreach ($pattern in $Patterns) {
+        if (Test-HfGlobMatch -FileName $FileName -Pattern $pattern) { return $true }
+    }
+    return $false
+}
+
+function Get-HfRepoTreeCatalog {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoId,
+        [string]$SubPath = ''
+    )
+    $catalog = @{}
+    $headers = Get-HfRequestHeaders
+    $sizeProperty = $null
+    $lfsProperty = $null
+    $bases = @('https://huggingface.co', (Resolve-HfMirrorBase))
+    foreach ($base in $bases) {
+        try {
+            $pathPart = if ($SubPath) { "/$SubPath" } else { '' }
+            $uri = ('{0}/api/models/{1}/tree/main{2}' -f $base.TrimEnd('/'), $RepoId, $pathPart)
+            $entries = Invoke-HfRestGet -Uri $uri -Headers $headers
+            if (-not $entries) { continue }
+            foreach ($entry in $entries) {
+                $name = [string]$entry.path
+                if (-not $name) { continue }
+                if ([string]$entry.type -eq 'directory') {
+                    $child = Get-HfRepoTreeCatalog -RepoId $RepoId -SubPath $name
+                    foreach ($key in $child.Keys) {
+                        $catalog[$key] = $child[$key]
+                    }
+                    continue
+                }
+                $size = 0L
+                $sizeProperty = $entry.PSObject.Properties['size']
+                $lfsProperty = $entry.PSObject.Properties['lfs']
+                if ($null -ne $sizeProperty -and $null -ne $sizeProperty.Value) {
+                    $size = [long]$sizeProperty.Value
+                } elseif ($null -ne $lfsProperty -and $null -ne $lfsProperty.Value) {
+                    $sizeProperty = $lfsProperty.Value.PSObject.Properties['size']
+                    if ($null -ne $sizeProperty) { $size = [long]$sizeProperty.Value }
+                }
+                $catalog[$name] = $size
+            }
+            if ($catalog.Count -gt 0) { return $catalog }
+        } catch {
+            Write-Host ("[hf] Catalog request failed for {0} at {1}: {2}" -f $RepoId, $base, $_.Exception.Message) -ForegroundColor DarkYellow
+        }
+    }
+    return $catalog
+}
+
+function Get-HfRepoFileCatalog {
+    param([Parameter(Mandatory = $true)][string]$RepoId)
+    $catalog = Get-HfRepoTreeCatalog -RepoId $RepoId
+    if ($catalog.Count -gt 0) {
+        return $catalog
+    }
+    $fallback = @{}
+    $headers = Get-HfRequestHeaders
+    $sizeProperty = $null
+    $lfsProperty = $null
+    $bases = @('https://huggingface.co', (Resolve-HfMirrorBase))
+    foreach ($base in $bases) {
+        try {
+            $uri = ('{0}/api/models/{1}' -f $base.TrimEnd('/'), $RepoId)
+            $resp = Invoke-HfRestGet -Uri $uri -Headers $headers
+            if ($resp.siblings) {
+                foreach ($entry in $resp.siblings) {
+                    $name = [string]$entry.rfilename
+                    if (-not $name) { continue }
+                    $size = 0L
+                    $sizeProperty = $entry.PSObject.Properties['size']
+                    $lfsProperty = $entry.PSObject.Properties['lfs']
+                    if ($null -ne $sizeProperty -and $null -ne $sizeProperty.Value) {
+                        $size = [long]$sizeProperty.Value
+                    } elseif ($null -ne $lfsProperty -and $null -ne $lfsProperty.Value) {
+                        $sizeProperty = $lfsProperty.Value.PSObject.Properties['size']
+                        if ($null -ne $sizeProperty) { $size = [long]$sizeProperty.Value }
+                    }
+                    $fallback[$name] = $size
+                }
+                return $fallback
+            }
+        } catch {
+            Write-Host ("[hf] Catalog fallback failed for {0} at {1}: {2}" -f $RepoId, $base, $_.Exception.Message) -ForegroundColor DarkYellow
+        }
+    }
+    return $fallback
+}
+
+function Get-HfRepoFileNames {
+    param([Parameter(Mandatory = $true)][string]$RepoId)
+    $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
+    if ($catalog.Count -gt 0) {
+        return @($catalog.Keys)
+    }
+    return @()
+}
+
+function Test-HfFileDownloadComplete {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [long]$ExpectedBytes = 0
+    )
+    if (-not (Test-Path -LiteralPath $Path)) { return $false }
+    $len = (Get-Item -LiteralPath $Path).Length
+    if ($ExpectedBytes -gt 0) { return ($len -ge $ExpectedBytes) }
+    return ($len -gt 0)
+}
+
+function Backup-InstallAssetPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string]$Prefix = ''
+    )
+    $parent = $null
+    $backupRoot = $null
+    $stamp = $null
+    $target = $null
+    $leaf = $null
+    $suffix = 0
+
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    $parent = Split-Path -Parent $Path
+    if (-not $parent) { $parent = (Get-Location).Path }
+    $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $backupRoot = Join-Path $parent ('.backup_{0}' -f $stamp)
+    while (Test-Path -LiteralPath $backupRoot) {
+        $suffix += 1
+        $backupRoot = Join-Path $parent ('.backup_{0}_{1}' -f $stamp, $suffix)
+    }
+    New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+    $leaf = Split-Path -Leaf $Path
+    $target = Join-Path $backupRoot $leaf
+    Move-Item -LiteralPath $Path -Destination $target -Force
+    Write-Host ("{0} [backup] moved {1} -> {2}" -f $Prefix, $Path, $target) -ForegroundColor Yellow
+    return $target
+}
+
+function Invoke-HfFileDownloadResumable {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoId,
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [Parameter(Mandatory = $true)][string]$OutPath,
+        [string]$MirrorBase = '',
+        [string]$Prefix = '',
+        [long]$CatalogBytes = 0
+    )
+    $headers = Get-HfRequestHeaders
+    $curlHeaders = @()
+    $curlRedirect = '-L'
+    if ($headers.ContainsKey('Authorization')) {
+        $curlHeaders = @('--header', ('Authorization: {0}' -f $headers['Authorization']))
+        $curlRedirect = '--location-trusted'
+    }
+    if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }
+    $parent = Split-Path -Parent $OutPath
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) {
+        New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    }
+    $expected = [long]$CatalogBytes
+    if ((Test-Path -LiteralPath $OutPath) -and $expected -le 0) {
+        $have = (Get-Item -LiteralPath $OutPath).Length
+        if ($have -gt 0) {
+            Write-Host ("{0} [idempotent] local file found: {1} ({2:N0} bytes); remote lookup skipped" -f $Prefix, $OutPath, $have) -ForegroundColor DarkGray
+            return $true
+        }
+    }
+    $url = ('{0}/{1}/resolve/main/{2}' -f $MirrorBase.TrimEnd('/'), $RepoId, $FileName)
+    if ($expected -le 0) {
+        try {
+            $head = Invoke-WebRequest -Uri $url -Headers $headers -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
+            if ($head.Headers['Content-Length']) {
+                $expected = [long]$head.Headers['Content-Length']
+            }
+        } catch { }
+    }
+    if ((Test-Path -LiteralPath $OutPath) -and $expected -gt 0) {
+        $have = (Get-Item -LiteralPath $OutPath).Length
+        if ($have -gt 0 -and $have -lt $expected) {
+            Write-Host ("{0} [resume] continuing incomplete {1} ({2:N0} / {3:N0} bytes)" -f $Prefix, $FileName, $have, $expected) -ForegroundColor Yellow
+        }
+    }
+    if (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected) {
+        Write-Host ("{0} [idempotent] skipping: {1}" -f $Prefix, $FileName) -ForegroundColor DarkGray
+        return $true
+    }
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) {
+        Write-Host ("{0} [!] curl.exe missing; cannot download {1}" -f $Prefix, $FileName) -ForegroundColor DarkYellow
+        return $false
+    }
+    & $curl.Source -f $curlRedirect -C - --retry 3 --connect-timeout 30 @curlHeaders -o $OutPath $url
+    if (-not (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected)) {
+        return $false
+    }
+    return $true
+}
+
+# Persistent model download contract:
+# - DestDir is independent from every Python venv and is never recreated here.
+# - Complete files are skipped by size/integrity checks.
+# - Partial files are resumed in place.
+# - A failed pass removes only the model sentinel so the next run revalidates;
+#   already downloaded model files and their directory remain untouched.
+
+# Resolve the newest local HF hub snapshot dir for a repo ($null when absent):
+# $HF_HUB_CACHE\models--<org>--<name>\snapshots\<rev>. The hub cache is shared
+# with Linux (D:\www\cache\huggingface\hub == /www/www/cache/huggingface/hub),
+# so a repo fetched by EITHER OS (transformers runtime, hf CLI, or the other
+# side's installer) is found here. Mirrors linux _hf_hub_repo_snapshot_dir().
+function Get-HfHubRepoSnapshotDir {
+    param([Parameter(Mandatory = $true)][string]$RepoId)
+    $hubRoot = ''
+    if ($env:HF_HUB_CACHE) { $hubRoot = $env:HF_HUB_CACHE }
+    elseif ($env:HUGGINGFACE_HUB_CACHE) { $hubRoot = $env:HUGGINGFACE_HUB_CACHE }
+    elseif ($env:HF_HOME) { $hubRoot = Join-Path $env:HF_HOME 'hub' }
+    elseif ($Global:CORE_NODE_CACHE_DIR) { $hubRoot = Join-Path $Global:CORE_NODE_CACHE_DIR 'huggingface\hub' }
+    if (-not $hubRoot) { return $null }
+    $repoDir = Join-Path $hubRoot ('models--' + ($RepoId -replace '/', '--'))
+    $snapshotsDir = Join-Path $repoDir 'snapshots'
+    if (-not (Test-Path -LiteralPath $snapshotsDir)) { return $null }
+    $snap = Get-ChildItem -LiteralPath $snapshotsDir -Directory -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $snap) { return $null }
+    return $snap.FullName
+}
+
+# Reuse a repo already present in the HF HUB cache by MATERIALIZING the
+# allow-listed files into the flat dest: plain copies dereferencing the hub's
+# blob symlinks, never new symlinks -- a cache shared across operating systems
+# must stay plain files (official HF_HUB_DISABLE_SYMLINKS guidance: symlinks
+# created on one OS are not always traversable on the other). Files already
+# present at the dest are kept (resume semantics). Returns $true only when the
+# dest afterwards satisfies the OFFLINE readiness contract (config.json + at
+# least one nonzero allow-listed weight file); the caller then writes the
+# sentinel. Mirrors linux _hf_flat_materialize_from_hub().
+function Copy-HfRepoFlatFromHubCache {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoId,
+        [Parameter(Mandatory = $true)][string]$DestDir,
+        [string[]]$AllowPatterns = @('*'),
+        [string]$Prefix = ''
+    )
+    $snapDir = Get-HfHubRepoSnapshotDir -RepoId $RepoId
+    $snapPrefix = ''
+    $copied = 0
+    if (-not $snapDir) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path $snapDir 'config.json') -PathType Leaf)) { return $false }
+    $snapPrefix = $snapDir.TrimEnd('\') + '\'
+    foreach ($src in Get-ChildItem -LiteralPath $snapDir -Recurse -File -Force -ErrorAction SilentlyContinue) {
+        $rel = $src.FullName.Substring($snapPrefix.Length)
+        if (-not (Test-HfAllowMatch -FileName ($rel -replace '\\', '/') -Patterns $AllowPatterns)) { continue }
+        $out = Join-Path $DestDir $rel
+        if ((Test-Path -LiteralPath $out -PathType Leaf) -and ((Get-Item -LiteralPath $out).Length -gt 0)) { continue }
+        $outParent = Split-Path -Parent $out
+        if (-not (Test-Path -LiteralPath $outParent)) { New-Item -ItemType Directory -Force -Path $outParent | Out-Null }
+        Copy-Item -LiteralPath $src.FullName -Destination $out -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $out -PathType Leaf)) { return $false }
+        $copied++
+    }
+    if (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId '' -AllowPatterns $AllowPatterns) {
+        Write-Host ("{0} [reuse] materialized {1} file(s) from shared HF hub cache: {2} (no download)" -f $Prefix, $copied, $snapDir) -ForegroundColor Green
+        return $true
+    }
+    return $false
+}
+
+function Install-HfRepoFlat {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoId,
+        [Parameter(Mandatory = $true)][string]$DestDir,
+        [Parameter(Mandatory = $true)][string]$SentinelPath,
+        [string[]]$AllowPatterns = @('*'),
+        [string]$Prefix = '',
+        [string]$MirrorBase = '',
+        [string]$SentinelValue = '',
+        [switch]$ReconcileCatalog
+    )
+    $localWeightFiles = @()
+    $localWeightBytes = 0L
+    New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
+    if (-not $SentinelValue) { $SentinelValue = $RepoId }
+    if (
+        -not $ReconcileCatalog -and
+        (Test-Path -LiteralPath $SentinelPath) -and
+        (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId $RepoId -AllowPatterns $AllowPatterns)
+    ) {
+        $localWeightFiles = @(Get-ChildItem -Path $DestDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue)
+        $localWeightBytes = [long](($localWeightFiles | Measure-Object -Property Length -Sum).Sum)
+        Set-Content -Path $SentinelPath -Value $SentinelValue -Encoding utf8
+        Write-Host ("{0} [idempotent] local model found: {1} ({2:N0} bytes); remote lookup skipped" -f $Prefix, $DestDir, $localWeightBytes) -ForegroundColor Green
+        return $true
+    }
+    # Cross-layout reuse (Windows <-> Linux dual-boot, transformers runtime):
+    # the SAME repo may already sit in the shared HF HUB cache even though this
+    # flat dest/sentinel was never populated (e.g. the other OS fetched it via
+    # the hub layout only). Materialize from the hub snapshot -- same-disk
+    # copy, no network -- before any remote lookup.
+    if (Copy-HfRepoFlatFromHubCache -RepoId $RepoId -DestDir $DestDir -AllowPatterns $AllowPatterns -Prefix $Prefix) {
+        Set-Content -Path $SentinelPath -Value $SentinelValue -Encoding utf8
+        return $true
+    }
+    if (-not $MirrorBase) { $MirrorBase = Resolve-HfMirrorBase }
+
+    $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
+    if ($catalog.Count -eq 0) {
+        Write-Host ("{0} [!] could not list repo files for {1}" -f $Prefix, $RepoId) -ForegroundColor DarkYellow
+        return $false
+    }
+
+    $wanted = @()
+    foreach ($name in $catalog.Keys) {
+        foreach ($pattern in $AllowPatterns) {
+            if (Test-HfGlobMatch -FileName $name -Pattern $pattern) {
+                $wanted += $name
+                break
+            }
+        }
+    }
+    Write-Host ("{0} [..] {1} of {2} files match allow-list (mirror {3})" -f $Prefix, $wanted.Count, $catalog.Count, $MirrorBase) -ForegroundColor DarkGray
+
+    # Gated-repo preflight: e.g. fishaudio checkpoints are gated ("gated":"auto"),
+    # so anonymous downloads 401 on EVERY file. Detect once with a HEAD probe and
+    # say exactly what to do instead of failing each file with a bare curl error.
+    if ($wanted.Count -gt 0) {
+        $curlProbe = Get-Command curl.exe -ErrorAction SilentlyContinue
+        if ($curlProbe) {
+            $probeHeaders = Get-HfRequestHeaders
+            $probeCurlHeaders = @()
+            $probeRedirect = '-L'
+            if ($probeHeaders.ContainsKey('Authorization')) {
+                $probeCurlHeaders = @('--header', ('Authorization: {0}' -f $probeHeaders['Authorization']))
+                $probeRedirect = '--location-trusted'
+            }
+            $probeUrl = ('{0}/{1}/resolve/main/{2}' -f $MirrorBase.TrimEnd('/'), $RepoId, $wanted[0])
+            $probeCode = & $curlProbe.Source -s -o NUL -w '%{http_code}' -I $probeRedirect --connect-timeout 15 @probeCurlHeaders $probeUrl
+            if ($probeCode -eq '401' -or $probeCode -eq '403') {
+                if ($probeHeaders.ContainsKey('Authorization')) {
+                    Write-Host ("{0} [!] {1} is gated and the configured HF token ({2}) has no access (HTTP {3}); accept the license at https://huggingface.co/{1} with that account." -f $Prefix, $RepoId, $script:HfAuthTokenSource, $probeCode) -ForegroundColor DarkYellow
+                } else {
+                    Write-Host ("{0} [!] {1} is a gated repo (HTTP {2}); accept the license at https://huggingface.co/{1}, then add an hf_* token as .secret_keys/.secret_ignore/HF_TOKEN_<index> and re-run." -f $Prefix, $RepoId, $probeCode) -ForegroundColor DarkYellow
+                }
+                return $false
+            }
+        }
+    }
+
+    $allOk = $true
+    foreach ($name in $wanted) {
+        $out = Join-Path $DestDir ($name -replace '/', '\')
+        $catalogBytes = 0L
+        if ($catalog.ContainsKey($name)) {
+            $catalogBytes = [long]$catalog[$name]
+        }
+        if (-not (Invoke-HfFileDownloadResumable -RepoId $RepoId -FileName $name -OutPath $out -MirrorBase $MirrorBase -Prefix $Prefix -CatalogBytes $catalogBytes)) {
+            $allOk = $false
+        }
+    }
+
+    if ($allOk -and $wanted.Count -gt 0) {
+        Set-Content -Path $SentinelPath -Value $SentinelValue -Encoding utf8
+        return $true
+    }
+    if (Test-Path -LiteralPath $SentinelPath) {
+        Remove-Item -LiteralPath $SentinelPath -Force -ErrorAction SilentlyContinue
+    }
+    return $false
+}
+
+function Test-NeuralTtsLocalWeightsReady {
+    # Readiness == the installer's download contract: only allow-listed files are
+    # verified. Foreign weight files under weights/ (legacy layouts, other engines)
+    # are ignored; when the HF catalog is reachable, every allow-listed catalog
+    # weight file must also be present locally at full size.
+    param(
+        [Parameter(Mandatory = $true)][string]$WeightsDir,
+        [string]$RepoId = '',
+        [string]$RequiredFileManifest = '',
+        [string[]]$AllowPatterns = @('*')
+    )
+    $catalog = @{}
+    $cfg = $null
+    $expectedBytes = 0L
+    $relativePath = ''
+    $resolvedWeightsDir = ''
+    $totalBytes = 0L
+    $weightFiles = @()
+    $requiredFile = $null
+    $requiredPath = ''
+    $resolvedRequiredPath = ''
+    $requiredPaths = @()
+    $catalogEntry = ''
+    $catalogLocalPath = ''
+    $catalogSuffix = ''
+
+    if (-not (Test-Path -LiteralPath $WeightsDir)) { return $false }
+    $cfg = Get-ChildItem -Path $WeightsDir -Recurse -Filter 'config.json' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $cfg) { return $false }
+
+    $resolvedWeightsDir = (Resolve-Path -LiteralPath $WeightsDir).Path.TrimEnd('\')
+    if ($RepoId) {
+        $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
+    }
+    if ($RequiredFileManifest) {
+        $requiredPaths = @(
+            Get-Content -LiteralPath $RequiredFileManifest |
+                Where-Object { $_ -and -not $_.StartsWith('#') }
+        )
+        foreach ($requiredPath in $requiredPaths) {
+            $resolvedRequiredPath = $requiredPath.Replace(
+                '/',
+                [System.IO.Path]::DirectorySeparatorChar
+            )
+            $requiredFile = Join-Path $WeightsDir $resolvedRequiredPath
+            if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+                return $false
+            }
+            if ((Get-Item -LiteralPath $requiredFile).Length -le 0) {
+                return $false
+            }
+        }
+    }
+
+    if ($catalog.Count -gt 0) {
+        foreach ($catalogEntry in $catalog.Keys) {
+            $catalogSuffix = [System.IO.Path]::GetExtension($catalogEntry).ToLowerInvariant()
+            if (-not (Test-HfAllowMatch -FileName $catalogEntry -Patterns $AllowPatterns)) { continue }
+            $catalogLocalPath = Join-Path $WeightsDir ($catalogEntry -replace '/', '\')
+            if (-not (Test-Path -LiteralPath $catalogLocalPath -PathType Leaf)) { return $false }
+            $expectedBytes = [long]$catalog[$catalogEntry]
+            if ((Get-Item -LiteralPath $catalogLocalPath).Length -le 0) { return $false }
+            if ($expectedBytes -gt 0 -and (Get-Item -LiteralPath $catalogLocalPath).Length -lt $expectedBytes) {
+                return $false
+            }
+        }
+    }
+
+    $weightFiles = @(
+        Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt', '*.pth', '*.ckpt' -File -ErrorAction SilentlyContinue |
+            Where-Object {
+                Test-HfAllowMatch -FileName ($_.FullName.Substring($resolvedWeightsDir.Length + 1).Replace('\', '/')) -Patterns $AllowPatterns
+            }
+    )
+    if (-not $weightFiles -or $weightFiles.Count -eq 0) { return $false }
+
+    foreach ($file in $weightFiles) {
+        if ($file.Length -le 0) { return $false }
+        $relativePath = $file.FullName.Substring($resolvedWeightsDir.Length + 1).Replace('\', '/')
+        $expectedBytes = 0L
+        if ($catalog.ContainsKey($relativePath)) {
+            $expectedBytes = [long]$catalog[$relativePath]
+        }
+        if ($expectedBytes -gt 0 -and $file.Length -lt $expectedBytes) {
+            return $false
+        }
+        $totalBytes += $file.Length
+    }
+    if ($script:LastReportedLocalModelPath -ne $WeightsDir) {
+        Write-Host ("[model-cache] local model found: {0} ({1:N0} bytes)" -f $WeightsDir, $totalBytes) -ForegroundColor DarkGray
+        $script:LastReportedLocalModelPath = $WeightsDir
+    }
+    return $true
+}
+
+function Get-WhisperModelDownloadUrl {
+    param([Parameter(Mandatory = $true)][string]$Model)
+    $map = @{
+        'tiny'       = 'https://openaipublic.azureedge.net/main/whisper/models/65147644a51805b8a4949454ea3baf911679d133517d4a5ebc44089d984332b/tiny.pt'
+        'tiny.en'    = 'https://openaipublic.azureedge.net/main/whisper/models/65147644a51805b8a4949454ea3baf911679d133517d4a5ebc44089d984332b/tiny.en.pt'
+        'base'       = 'https://openaipublic.azureedge.net/main/whisper/models/139c1045a4878f4603a1285e1630e4931b2ae6f634be1141045b1f1797c7435/base.pt'
+        'base.en'    = 'https://openaipublic.azureedge.net/main/whisper/models/25a8656b74f98eb9848ed2ceccc261d8628bba9ed516e8a86ac9738c6f1765c/base.en.pt'
+        'small'      = 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.pt'
+        'small.en'   = 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.en.pt'
+        'medium'     = 'https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89f0c00d4a6021bbea85ae283/medium.pt'
+        'medium.en'  = 'https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e89803ba5a0c5763e2bcf4f8d3a0ea7741dde9c265/medium.en.pt'
+        'large-v2'   = 'https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc532187b61f875ceec1a1baeda7af2a7ab0e9a6395ad8a89d/large-v2.pt'
+        'large-v3'   = 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a8937a99fd112907ae80315fedda765a69cfd366fb9bce46bada3b0d6010/large-v3.pt'
+        'large'      = 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a8937a99fd112907ae80315fedda765a69cfd366fb9bce46bada3b0d6010/large-v3.pt'
+    }
+    return $map[$Model]
+}
+
+function Install-WhisperModelWeights {
+    param(
+        [Parameter(Mandatory = $true)][string]$Model,
+        [Parameter(Mandatory = $true)][string]$CacheDir,
+        [string]$Prefix = ''
+    )
+    $url = Get-WhisperModelDownloadUrl -Model $Model
+    if (-not $url) {
+        Write-Host ("{0} [!] unknown whisper model '{1}'" -f $Prefix, $Model) -ForegroundColor DarkYellow
+        return $false
+    }
+    New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
+    $out = Join-Path $CacheDir ("{0}.pt" -f $Model)
+    $expected = 0L
+    if (Test-HfFileDownloadComplete -Path $out) {
+        $localBytes = (Get-Item -LiteralPath $out).Length
+        Write-Host ("{0} [idempotent] local whisper model found: {1} ({2:N0} bytes); remote lookup skipped" -f $Prefix, $out, $localBytes) -ForegroundColor Green
+        return $true
+    }
+    try {
+        $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 5 -TimeoutSec 30 -UseBasicParsing -ErrorAction Stop
+        if ($head.Headers['Content-Length']) { $expected = [long]$head.Headers['Content-Length'] }
+    } catch { }
+    if (Test-HfFileDownloadComplete -Path $out -ExpectedBytes $expected) {
+        Write-Host ("{0} [idempotent] skipping: whisper {1} already cached" -f $Prefix, $Model) -ForegroundColor Green
+        return $true
+    }
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if (-not $curl) {
+        Write-Host ("{0} [!] curl.exe missing; cannot download whisper {1}" -f $Prefix, $Model) -ForegroundColor DarkYellow
+        return $false
+    }
+    Write-Host ("{0} [..] downloading whisper '{1}' -> {2}" -f $Prefix, $Model, $out) -ForegroundColor Yellow
+    & $curl.Source -L -C - --retry 3 --connect-timeout 30 -o $out $url
+    return (Test-HfFileDownloadComplete -Path $out -ExpectedBytes $expected)
+}
+
+# --------------------------------------------------------------------------- #
+# Generic isolated per-engine TTS venv (Bucket B) - GENERALISES Step61's proven #
+# qwen3tts approach via pycore.pyutils.common.python_env.isolated_venv.         #
+# melotts + gptsovits pin a transformers that must NEVER touch the shared main  #
+# interpreter, so they run their api server inside a DEDICATED per-engine venv.  #
+# These helpers invoke the SYSTEM Python to build/verify/resolve that venv;      #
+# ensure_venv() is self-repairing (repairs a broken venv in place) and idempotent.#
+# See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md. #
+# --------------------------------------------------------------------------- #
+function ConvertTo-PyStringLiteral {
+    # Emit a Python single-quoted string literal. Backslashes are folded to forward
+    # slashes (safe for Windows filesystem paths passed to Python and for package
+    # specs / import code, none of which contain backslashes), quotes are escaped.
+    param([string]$Value)
+    $s = ($Value -replace '\\', '/')
+    $s = ($s -replace "'", "\'")
+    return ("'" + $s + "'")
+}
+
+function ConvertTo-PyListLiteral {
+    param([string[]]$Items)
+    if (-not $Items -or $Items.Count -eq 0) { return '[]' }
+    $parts = @()
+    foreach ($item in $Items) { $parts += (ConvertTo-PyStringLiteral -Value $item) }
+    return ('[' + ($parts -join ', ') + ']')
+}
+
+function Test-IsolatedTtsVenvProvisioned {
+    # Read-only health gate. Interpreter existence alone is not provisioning.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
+        [Parameter(Mandatory = $true)][string]$Engine
+    )
+    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
+    $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $prevEap = $ErrorActionPreference
+    $out = ''
+    $probeOutput = [System.Collections.Generic.List[string]]::new()
+    $probeLine = ''
+    $pyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.common.python_env import isolated_venv
+sys.stdout.write('__VENV_READY__' if isolated_venv.venv_provisioned($engineLit) else '__VENV_NOTREADY__')
+"@
+    # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
+    # check_and_install_dependencies() (it does pip ops and throws under Stop).
+    try {
+        $env:PYCORE_SKIP_DEP_CHECK = '1'
+        $ErrorActionPreference = 'Continue'
+        & $PythonExe -c $pyCode 2>&1 | ForEach-Object {
+            [void]$probeOutput.Add([string]$_)
+        }
+    } finally {
+        $ErrorActionPreference = $prevEap
+        $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    }
+    $out = $probeOutput -join "`n"
+    if ($out -match '__VENV_READY__') {
+        return $true
+    }
+    foreach ($probeLine in $probeOutput) {
+        if ($probeLine -notmatch '__VENV_NOTREADY__') {
+            Write-Host "[isolated-venv] postcondition probe: $probeLine" -ForegroundColor DarkYellow
+        }
+    }
+    return $false
+}
+
+function Resolve-IsolatedTtsVenvPython {
+    # Return the engine's isolated venv interpreter path (or '' when not provisioned).
+    # Used for post-build steps that must run inside the venv. Never builds.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
+        [Parameter(Mandatory = $true)][string]$Engine
+    )
+    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
+    $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $prevEap = $ErrorActionPreference
+    $out = ''
+    $pyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.common.python_env import isolated_venv
+sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
+"@
+    try {
+        $env:PYCORE_SKIP_DEP_CHECK = '1'
+        $ErrorActionPreference = 'Continue'
+        $out = (& $PythonExe -c $pyCode 2>$null) -join ''
+    } finally {
+        $ErrorActionPreference = $prevEap
+        $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    }
+    $out = "$out".Trim()
+    if ($out -and (Test-Path -LiteralPath $out)) { return $out }
+    return ''
+}
+
+function Get-TtsNativeBuildEnvironment {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $installations = @()
+    $installation = ''
+    $developerCommand = ''
+    $environment = @{}
+    $environmentLines = @()
+    $parts = @()
+    $compilerFound = $false
+    $sdkFound = $false
+    $runtimeHeadersFound = $false
+    $directory = ''
+    $line = $null
+    $previousPreference = $ErrorActionPreference
+    $PSNativeCommandUseErrorActionPreference = $false
+    if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) { return $null }
+    try {
+        $ErrorActionPreference = 'Continue'
+        $installations = @(& $vswhere -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath)
+        foreach ($installation in $installations) {
+            $environment = @{}
+            $compilerFound = $false
+            $sdkFound = $false
+            $runtimeHeadersFound = $false
+            $developerCommand = Join-Path $installation 'Common7\Tools\VsDevCmd.bat'
+            $environmentLines = @(& $env:ComSpec /d /c ('call "{0}" -no_logo -arch=x64 -host_arch=x64 >nul && set' -f $developerCommand) 2>&1)
+            foreach ($line in $environmentLines) {
+                if ($line -is [System.Management.Automation.ErrorRecord]) {
+                    Write-Host $line -ForegroundColor DarkYellow
+                    continue
+                }
+                $parts = ([string]$line).Split([char[]]'=', 2)
+                if ($parts.Count -eq 2 -and $parts[0]) { $environment[$parts[0]] = $parts[1] }
+            }
+            foreach ($directory in ([string]$environment['Path']).Split(';')) {
+                if ($directory -and (Test-Path -LiteralPath (Join-Path $directory 'cl.exe') -PathType Leaf)) { $compilerFound = $true; break }
+            }
+            foreach ($directory in ([string]$environment['INCLUDE']).Split(';')) {
+                if (-not $directory) { continue }
+                if (Test-Path -LiteralPath (Join-Path $directory 'Windows.h') -PathType Leaf) { $sdkFound = $true }
+                if (Test-Path -LiteralPath (Join-Path $directory 'stdio.h') -PathType Leaf) { $runtimeHeadersFound = $true }
+            }
+            if ($compilerFound -and $sdkFound -and $runtimeHeadersFound) { return $environment }
+        }
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    return $null
+}
+
+function Invoke-IsolatedTtsVenvEnsure {
+    # Build/verify an engine's isolated venv via isolated_venv.ensure_venv(). Runs the
+    # system Python LIVE (pip output streams to console; first build takes minutes) and
+    # re-reads the persisted provisioning state after that action completes.
+    # AI remediation plan: if Qwen3TTS repeatedly fails health checks, rebuild only its
+    # canonical venv with `python -m venv --clear --system-site-packages`. Do not copy
+    # the main interpreter's site-packages or delete the model cache/weights. Reinstall
+    # the Qwen requirements into the fresh venv, then report the exact failed probe if
+    # health is still false so an AI operator can perform the next repair.
+    # For policy-backed provision probes, ensure_venv() converges policy, module
+    # discovery, package metadata, and CUDA state independently. A repair is followed
+    # by the full import-health probe.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
+        [Parameter(Mandatory = $true)][string]$Engine,
+        [AllowNull()][string[]]$PipPackages = $null,
+        [AllowNull()][string[]]$Pins = $null,
+        [string]$HealthImports = '',
+        [switch]$Force
+    )
+    $rootLiteral = ($CoreNodeRoot -replace "'", "''")
+    $engineLit = ConvertTo-PyStringLiteral -Value $Engine
+    $pkgLit = if ($null -eq $PipPackages) { 'None' } else { ConvertTo-PyListLiteral -Items $PipPackages }
+    $pinLit = if ($null -eq $Pins) { 'None' } else { ConvertTo-PyListLiteral -Items $Pins }
+    $forceLiteral = if ($Force) { 'True' } else { 'False' }
+    $healthArg = if ($HealthImports) { 'health_imports=' + (ConvertTo-PyStringLiteral -Value $HealthImports) + ', ' } else { '' }
+    $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
+    $prevEap = $ErrorActionPreference
+    $actionLine = ''
+    $runtimeVersion = ''
+    $installPolicy = $null
+    $nativeBuildProperty = $null
+    $nativeBuildEnvironment = $null
+    $previousBuildEnvironment = @{}
+    $buildEnvironmentKey = ''
+    $winget = $null
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $vsInstaller = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\setup.exe'
+    $buildToolsInstallation = ''
+    $runtimeInstaller = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) 'install_powershells') 'Step13_InstallPython310_312.ps1'
+    $runtimePolicyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.common.python_env.runtime_policy import engine_spec, engine_isolation_mode, ISOLATION_MODE_SELF_CONTAINED
+spec = engine_spec($engineLit)
+sys.stdout.write(str(spec.get('python_recommended', '')) if engine_isolation_mode($engineLit) == ISOLATION_MODE_SELF_CONTAINED else '')
+"@
+    $runtimeVersion = ((& $PythonExe -c $runtimePolicyCode) | Out-String).Trim()
+    if ($runtimeVersion -in @('3.10', '3.12') -and -not [Environment]::GetEnvironmentVariable(('{0}_PYTHON' -f $Engine.ToUpperInvariant()), 'Process')) {
+        & $runtimeInstaller -Runtime ($runtimeVersion.Replace('.', '')) | Out-Host
+    }
+    Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'pending' | Out-Null
+    $installPolicy = Get-TtsEngineInstallPolicy -PythonExe $PythonExe -Engine $Engine
+    if ($null -eq $installPolicy) {
+        Write-Host "[isolated-venv] Install policy unavailable for ${Engine}: $script:TtsPolicyLastError" -ForegroundColor DarkYellow
+        return
+    }
+    $nativeBuildProperty = $installPolicy.PSObject.Properties['windows_native_build']
+    if ($null -ne $nativeBuildProperty -and $nativeBuildProperty.Value -eq $true) {
+        $nativeBuildEnvironment = Get-TtsNativeBuildEnvironment
+        if (-not $nativeBuildEnvironment) {
+            $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+            try {
+                $ErrorActionPreference = 'Continue'
+                if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+                    $buildToolsInstallation = (& $vswhere -latest -products Microsoft.VisualStudio.Product.BuildTools -property installationPath | Select-Object -First 1)
+                }
+                if ($buildToolsInstallation) {
+                    Write-Host '[isolated-venv] Windows C++ compiler/SDK missing; adding missing Build Tools components ...' -ForegroundColor Yellow
+                    Start-Process -FilePath $vsInstaller -ArgumentList ($script:TtsNativeBuildModifyArguments -f $buildToolsInstallation) -WindowStyle Hidden -Wait
+                } elseif ($winget) {
+                    Write-Host '[isolated-venv] Windows C++ compiler/SDK missing; installing Visual Studio Build Tools ...' -ForegroundColor Yellow
+                    & $winget.Source install --id $script:TtsNativeBuildWingetId --exact --accept-package-agreements --accept-source-agreements --override $script:TtsNativeBuildInstallArguments | Out-Host
+                }
+            } finally {
+                $ErrorActionPreference = $prevEap
+            }
+            $nativeBuildEnvironment = Get-TtsNativeBuildEnvironment
+        }
+        if (-not $nativeBuildEnvironment) {
+            Write-Host '[isolated-venv] Native build pending: install/repair Visual Studio Desktop development with C++ and a Windows SDK, then rerun. Existing venv and models are retained.' -ForegroundColor DarkYellow
+            return
+        }
+    }
+    $pyCode = @"
+import sys
+sys.path.insert(0, r'$rootLiteral')
+from pycore.pyutils.common.python_env import isolated_venv
+result = isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
+sys.stdout.write('__PYCORE_VENV_ENSURE_READY__\n' if result else '__PYCORE_VENV_ENSURE_PENDING__\n')
+"@
+    # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
+    # check_and_install_dependencies(); ensure_venv() does its own venv provisioning.
+    try {
+        if ($nativeBuildEnvironment) {
+            foreach ($buildEnvironmentKey in $nativeBuildEnvironment.Keys) {
+                $previousBuildEnvironment[$buildEnvironmentKey] = [Environment]::GetEnvironmentVariable($buildEnvironmentKey, 'Process')
+                [Environment]::SetEnvironmentVariable($buildEnvironmentKey, $nativeBuildEnvironment[$buildEnvironmentKey], 'Process')
+            }
+        }
+        $env:PYCORE_SKIP_DEP_CHECK = '1'
+        $ErrorActionPreference = 'Continue'
+        # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
+        # This invocation is an action only. Its return value and process exit code are
+        # not a provisioning contract.
+        & $PythonExe -c $pyCode | ForEach-Object {
+            $actionLine = [string]$_
+            if ($actionLine -eq '__PYCORE_VENV_ENSURE_READY__') {
+                Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'ready' | Out-Null
+            } elseif ($actionLine -ne '__PYCORE_VENV_ENSURE_PENDING__') {
+                Write-Host $actionLine
+            }
+        }
+    } finally {
+        foreach ($buildEnvironmentKey in $previousBuildEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($buildEnvironmentKey, $previousBuildEnvironment[$buildEnvironmentKey], 'Process')
+        }
+        $ErrorActionPreference = $prevEap
+        $env:PYCORE_SKIP_DEP_CHECK = $prevSkip
+    }
+}
+
+. (Join-Path $PSScriptRoot 'TtsCompatibilityCommon.ps1')

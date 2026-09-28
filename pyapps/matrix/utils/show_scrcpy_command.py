@@ -92,7 +92,7 @@ def show_scrcpy_command():
     print("\n3. 替换 <DEVICE_SERIAL> 为实际设备序列号，执行命令:")
     print("   (命令已在上面显示)")
     print("\n4. 或者直接使用 Matrix 的 DeviceManager:")
-    print("   from pycore.pyutils.device_manager import DeviceManager")
+    print("   from pycore.pyutils.device.device_manager import DeviceManager")
     print("   manager = DeviceManager.instance()")
     print("   device = await manager.connect_device('DEVICE_SERIAL')")
     print("\n" + "=" * 70)

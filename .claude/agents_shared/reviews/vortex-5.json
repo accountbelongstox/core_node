@@ -1,0 +1,21 @@
+{
+  "task_id": "vortex-5",
+  "role": "vortex",
+  "verdict": "approved",
+  "findings": {
+    "B9 pycore access notice (K7/K6 UX)": {
+      "status": "fixed",
+      "reason": "The shared classifyPycoreAccess (core/integrations/pycore/pycoreAccess.ts; writer grant in requirements section 6, line 142) turns a pycore rejection code into host_forbidden / origin_forbidden / client_key_rejected, with the codes read from the contract (ServiceContract CLIENT_KEY_ERROR_CODES / LOCAL_RPC_ERROR_CODES). Without a code it classifies the page (relay_only off-loopback; origin_not_allowed with the contract dashboard ports), else unreachable. The page-level fallback matters: a 403 to a disallowed origin carries no CORS headers, so the browser never sees its code. The Vortex panels keep failure: PycoreAccess | null and render VortexPycoreNotice (en/zh access.* keys that point to the HTTPS relay); plain network failures keep each panel's unreachable text."
+    },
+    "revision: keyed local_rpc codes": {
+      "status": "fixed",
+      "reason": "The contract local_rpc.error_codes is now a keyed object. ServiceContract.ts:53 spreads it (its type comes from the JSON). pycoreAccess.ts:16-17,40 derive LocalRpcRejection = keyof LOCAL_RPC_ERROR_CODES and pick the key whose value equals error.code. There is no array position and no suffix literal, so a reorder cannot swap host and origin. The consumers match the keys: PcRpcAccessBanner.tsx:50-52 host_forbidden/origin_forbidden, and vx en/zh access.host_forbidden/origin_forbidden through t(`access.${kind}`). Line endings: ServiceContract.ts keeps its HEAD mix, with the 7 new lines CRLF; pycoreAccess.ts is new and all CRLF."
+    }
+  },
+  "issues": [
+    "(resolved in the revision) the position-based code selection is replaced by the contract-key lookup.",
+    "(cross-end, pycore) pycore/pyutils/common/local_rpc_guard.py:30-31 still hardcodes ERROR_HOST_FORBIDDEN / ERROR_ORIGIN_FORBIDDEN. Read them from client_key_auth.local_rpc.error_codes by key in pycore's next task."
+  ],
+  "checks": "pycoreAccess.ts, the ServiceContract.ts additions, VortexPycoreNotice.tsx and the OkxQuantPanel diff read; the contract error_codes confirmed; en/zh access.* keys present. Revision re-checked: both files read, and consumer kinds match the contract keys. tsc was not run by the reviewer; the owner reports tsc --noEmit exit 0.",
+  "checked_at": "2026-09-27T05:14:11+10:00"
+}

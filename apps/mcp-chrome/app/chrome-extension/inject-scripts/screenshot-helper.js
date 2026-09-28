@@ -9,9 +9,11 @@ if (window.__SCREENSHOT_HELPER_INITIALIZED__) {
 } else {
   window.__SCREENSHOT_HELPER_INITIALIZED__ = true;
 
-  // Save original styles
-  let originalOverflowStyle = '';
-  let hiddenFixedElements = [];
+  // Stack-based state so nested preparePageForCapture / resetPageAfterCapture
+  // pairs do not overwrite each other (reentrancy guard).
+  const overflowStack = [];
+  const fixedElementStack = [];
+
 
   /**
    * Get fixed/sticky positioned elements
@@ -42,23 +44,25 @@ if (window.__SCREENSHOT_HELPER_INITIALIZED__) {
   }
 
   /**
-   * Hide fixed/sticky elements
+   * Hide fixed/sticky elements and return the snapshot so the caller can
+   * push it onto the reentrancy stack.
    */
   function hideFixedElements() {
-    hiddenFixedElements = getFixedElements();
-    hiddenFixedElements.forEach((item) => {
+    const items = getFixedElements();
+    items.forEach((item) => {
       item.element.style.display = 'none';
     });
+    return items;
   }
 
   /**
-   * Restore fixed/sticky elements
+   * Restore a previously-hidden set of fixed/sticky elements.
+   * @param {Array} items - The snapshot returned by hideFixedElements.
    */
-  function showFixedElements() {
-    hiddenFixedElements.forEach((item) => {
+  function showFixedElements(items) {
+    (items || []).forEach((item) => {
       item.element.style.display = item.originalDisplay || '';
     });
-    hiddenFixedElements = [];
   }
 
   // Listen for messages from the extension
@@ -71,11 +75,15 @@ if (window.__SCREENSHOT_HELPER_INITIALIZED__) {
 
     // Prepare page for capture
     else if (request.action === 'preparePageForCapture') {
-      originalOverflowStyle = document.documentElement.style.overflow;
+      // Push current state onto the reentrancy stack so nested calls do not
+      // overwrite each other.
+      overflowStack.push(document.documentElement.style.overflow);
       document.documentElement.style.overflow = 'hidden'; // Hide main scrollbar
       if (request.options?.fullPage) {
         // Only hide fixed elements for full page to avoid flicker
-        hideFixedElements();
+        fixedElementStack.push(hideFixedElements());
+      } else {
+        fixedElementStack.push(null);
       }
       // Give styles a moment to apply
       setTimeout(() => {
@@ -127,8 +135,8 @@ if (window.__SCREENSHOT_HELPER_INITIALIZED__) {
         return true; // Async response
       } else {
         sendResponse({ error: `Element with selector "${request.selector}" not found.` });
+        return false; // Synchronous response already sent
       }
-      return true; // Async response
     }
 
     // Scroll page
@@ -147,8 +155,12 @@ if (window.__SCREENSHOT_HELPER_INITIALIZED__) {
 
     // Reset page
     else if (request.action === 'resetPageAfterCapture') {
-      document.documentElement.style.overflow = originalOverflowStyle;
-      showFixedElements();
+      // Pop from the reentrancy stack; fall back to '' if the stack is empty
+      // (e.g. the matching prepare ran before this script instance existed).
+      const savedOverflow = overflowStack.length > 0 ? overflowStack.pop() : '';
+      document.documentElement.style.overflow = savedOverflow || '';
+      const savedFixed = fixedElementStack.length > 0 ? fixedElementStack.pop() : null;
+      if (savedFixed) showFixedElements(savedFixed);
       if (typeof request.scrollX !== 'undefined' && typeof request.scrollY !== 'undefined') {
         window.scrollTo({ left: request.scrollX, top: request.scrollY, behavior: 'instant' });
       }

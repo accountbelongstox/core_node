@@ -1,0 +1,823 @@
+#!/bin/bash
+# Antigravity Installation Script (Debian/Ubuntu)
+#
+# Usage:
+#   ./165_install_antigravity.sh   # Normal installation (no arguments)
+#
+# This script installs the Antigravity app from the official Google Artifact Registry
+# repo and creates desktop entries. By default, it runs with root privileges (pkexec)
+# and will prompt for password when launching the app.
+
+# Variable declarations
+SCRIPT_INDEX="165"
+SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
+PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+ANTIGRAVITY_PACKAGE="antigravity"
+REPO_LIST_FILE="/etc/apt/sources.list.d/antigravity.list"
+REPO_KEY_FILE="/etc/apt/keyrings/antigravity-repo-key.gpg"
+REPO_SOURCE_LINE="deb [signed-by=$REPO_KEY_FILE] https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/ antigravity-debian main"
+DESKTOP_ENTRY_SYSTEM="/usr/share/applications/antigravity.desktop"
+DESKTOP_ENTRY_NAME="Antigravity"
+DESKTOP_ENTRY_ICON="antigravity"
+USE_ROOT_MODE=true  # Default to root mode (pkexec)
+AGY_CLI_EXEC="agy"
+AGY_CLI_INSTALL_URL="https://antigravity.google/cli/install.sh"
+AGY_SHARED_BIN_DIR="/usr/local/bin"
+AGY_PROFILE_FILE="/etc/profile.d/agy.sh"
+
+# Source shared libraries
+source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/app_resource_limit.sh"
+source "$PARENT_DIR_LEVEL_2/common/desktop_browser_bridge.sh"
+
+# Initialize globals (detect desktop, sudo, etc.)
+init_global_vars
+
+# Helper: log prefix
+log() {
+    echo "[${SCRIPT_INDEX}] $1"
+}
+
+# No arguments supported (removed parameter parsing)
+
+ensure_requirements() {
+    if ! command -v apt >/dev/null 2>&1; then
+        log "This script supports Debian/Ubuntu (apt) only."
+        exit 1
+    fi
+
+    # Ensure sudo exists
+    check_and_install_sudo >/dev/null 2>&1
+}
+
+is_antigravity_installed() {
+    dpkg -s "$ANTIGRAVITY_PACKAGE" >/dev/null 2>&1
+}
+
+prompt_installation_decision() {
+    local default_answer
+    local prompt
+
+    if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
+        default_answer="Y"
+        prompt="[Y/n]"
+        echo "Desktop environment detected."
+    else
+        default_answer="N"
+        prompt="[y/N]"
+        echo "No desktop environment detected (server/WSL)."
+    fi
+
+    prompt_read_default user_input "$default_answer" 30 "Install $DESKTOP_ENTRY_NAME now? $prompt "
+
+    if [[ "$user_input" =~ ^[Yy]$ ]]; then
+        return 0
+    fi
+
+    echo "Installation skipped by user choice."
+    return 1
+}
+
+# Prompt for root mode selection
+prompt_root_mode_selection() {
+
+    echo ""
+    echo "=========================================="
+    echo "Root Privileges Configuration"
+    echo "=========================================="
+    echo ""
+    echo "Do you want to install $DESKTOP_ENTRY_NAME with root privileges (pkexec)?"
+    echo ""
+    echo "Root mode features:"
+    echo "  - Runs with elevated privileges via pkexec"
+    echo "  - Will prompt for password when launching"
+    echo "  - Useful for apps needing system access"
+    echo ""
+    echo "Normal mode:"
+    echo "  - Runs with user privileges"
+    echo "  - No password prompt"
+    echo ""
+    echo -n "Use root privileges (pkexec)? [Y/n]: "
+    prompt_read_default user_input "Y" 30
+
+    if [[ "$user_input" =~ ^[Nn]$ ]]; then
+        log "Installing in normal mode (no root)"
+        USE_ROOT_MODE=false
+    else
+        log "Installing in root mode (with pkexec)"
+        USE_ROOT_MODE=true
+    fi
+
+    return 0
+}
+
+# Function: Wait for apt lock to be released (max 60 seconds)
+wait_for_apt_lock() {
+    local max_wait=60
+    local waited=0
+    local lock_files=(
+        "/var/lib/dpkg/lock"
+        "/var/lib/dpkg/lock-frontend"
+        "/var/lib/apt/lists/lock"
+        "/var/cache/apt/archives/lock"
+    )
+
+    while [ $waited -lt $max_wait ]; do
+        local locks_held=false
+
+        for lock_file in "${lock_files[@]}"; do
+            if $USE_SUDO fuser "$lock_file" >/dev/null 2>&1; then
+                locks_held=true
+                break
+            fi
+        done
+
+        if [ "$locks_held" = false ]; then
+            if [ $waited -gt 0 ]; then
+                log "APT lock released after ${waited}s, continuing..."
+            fi
+            return 0
+        fi
+
+        if [ $waited -eq 0 ]; then
+            log "APT is locked by another process, waiting (max ${max_wait}s)..."
+        fi
+
+        sleep 1
+        waited=$((waited + 1))
+    done
+
+    log "ERROR: APT still locked after ${max_wait}s, skipping operation"
+    return 1
+}
+
+# Function: Add Antigravity repository
+add_repository() {
+    if [ -f "$REPO_LIST_FILE" ] && [ -f "$REPO_KEY_FILE" ]; then
+        log "Repository already configured."
+        return 0
+    fi
+
+    log "Adding Antigravity repository..."
+    log "Repository: https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/"
+
+    # Create keyring directory if not exists
+    $USE_SUDO mkdir -p "$(dirname "$REPO_KEY_FILE")"
+
+    # Download and add GPG key
+    log "Downloading repository signing key..."
+    if curl -fsSL https://us-central1-apt.pkg.dev/doc/repo-signing-key.gpg | $USE_SUDO gpg --dearmor --yes -o "$REPO_KEY_FILE"; then
+        log "Repository key added successfully"
+    else
+        log "ERROR: Failed to download repository key"
+        return 1
+    fi
+
+    # Add repository source
+    log "Adding repository source to $REPO_LIST_FILE"
+    echo "$REPO_SOURCE_LINE" | $USE_SUDO tee "$REPO_LIST_FILE" >/dev/null
+
+    if [ -f "$REPO_LIST_FILE" ]; then
+        log "Repository added successfully"
+        return 0
+    else
+        log "ERROR: Failed to add repository"
+        return 1
+    fi
+}
+
+# Function: Remove Antigravity repository
+remove_repository() {
+    log "Removing Antigravity repository..."
+
+    local repo_removed=false
+
+    # Remove repository list file
+    if [ -f "$REPO_LIST_FILE" ]; then
+        log "Removing repository source: $REPO_LIST_FILE"
+        $USE_SUDO rm -f "$REPO_LIST_FILE"
+        repo_removed=true
+    fi
+
+    # Remove repository key
+    if [ -f "$REPO_KEY_FILE" ]; then
+        log "Removing repository key: $REPO_KEY_FILE"
+        $USE_SUDO rm -f "$REPO_KEY_FILE"
+        repo_removed=true
+    fi
+
+    if [ "$repo_removed" = true ]; then
+        log "Repository removed successfully"
+        # Update apt cache to reflect repository removal
+        log "Updating package cache..."
+        $USE_SUDO apt update >/dev/null 2>&1 || true
+    else
+        log "No repository files found to remove"
+    fi
+
+    return 0
+}
+
+install_antigravity() {
+    # Source repository manager (trust-based programming)
+    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    source "$repo_manager_script"
+    
+    # Use repository manager with automatic backup and restore. sudo drops a
+    # leading VAR=value prefix (env_reset), so route it through env(1).
+    log "Installing $ANTIGRAVITY_PACKAGE with repository manager..."
+    add_antigravity_repository_from_apt_repository_manager \
+        "$USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install -y $ANTIGRAVITY_PACKAGE"
+    
+    if [ $? -eq 0 ]; then
+        log "Installation completed successfully"
+        return 0
+    else
+        log "ERROR: Failed to install package"
+        return 1
+    fi
+}
+
+# Function: Update Antigravity (add repo upgrade remove repo)
+update_antigravity() {
+    log "Updating $ANTIGRAVITY_PACKAGE..."
+    
+    # Source repository manager (trust-based programming)
+    local repo_manager_script="$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+    source "$repo_manager_script"
+    
+    # Use repository manager with automatic backup and restore (env(1) wrapper:
+    # sudo drops a bare VAR=value command prefix under env_reset).
+    add_antigravity_repository_from_apt_repository_manager \
+        "$USE_SUDO env DEBIAN_FRONTEND=noninteractive apt install --only-upgrade -y $ANTIGRAVITY_PACKAGE"
+    
+    if [ $? -eq 0 ]; then
+        log "Update completed"
+        return 0
+    else
+        log "WARNING: Package may already be at latest version or upgrade failed"
+        return 1
+    fi
+}
+
+# Function: Prompt user to update if already installed
+prompt_update_decision() {
+    local default_answer="Y"
+    local prompt="[Y/n]"
+
+    echo ""
+    log "$DESKTOP_ENTRY_NAME is already installed."
+    prompt_read_default user_input "$default_answer" 30 "Do you want to update it? $prompt "
+
+    if [[ "$user_input" =~ ^[Yy]$ ]]; then
+        return 0
+    fi
+
+    echo "Update skipped by user choice."
+    return 1
+}
+
+cleanup_antigravity() {
+    log "Removing $ANTIGRAVITY_PACKAGE and repository..."
+    $USE_SUDO apt remove -y "$ANTIGRAVITY_PACKAGE" >/dev/null 2>&1 || true
+    remove_repository
+    $USE_SUDO apt update >/dev/null 2>&1 || true
+
+    # Remove desktop entries (both old and new styles)
+    $USE_SUDO rm -f "$DESKTOP_ENTRY_SYSTEM"
+
+    # Remove user desktop entries
+    local target_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local user_desktop_entry="$target_home/.local/share/applications/antigravity.desktop"
+    rm -f "$user_desktop_entry" 2>/dev/null || true
+
+    # Remove core_node desktop entries (created by desktop_entry_manager)
+    local user_core_node_desktop="$target_home/.local/share/applications/core_node_antigravity.desktop"
+    rm -f "$user_core_node_desktop" 2>/dev/null || true
+    $USE_SUDO rm -f "/usr/share/applications/core_node_antigravity.desktop" 2>/dev/null || true
+
+    # Remove launcher script (created by desktop_entry_manager)
+    $USE_SUDO rm -f "/usr/local/super_scripts/antigravity.sh" 2>/dev/null || true
+
+    log "Cleanup completed."
+}
+
+# Scan and replace all existing Antigravity desktop entries
+scan_and_replace_desktop_entries() {
+    log "Scanning for existing Antigravity desktop entries..."
+
+    # Find the launcher script created by desktop_entry_manager.sh
+    local launcher_script_pattern="/usr/local/super_scripts/antigravity*launcher.sh"
+    local launcher_script=""
+
+    # Find existing launcher script (created by desktop_entry_manager)
+    for script in $launcher_script_pattern; do
+        if [[ -x "$script" ]]; then
+            launcher_script="$script"
+            break
+        fi
+    done
+
+    local original_binary="/usr/bin/antigravity"
+    local target_exec=""
+
+    # Determine target exec command based on root mode
+    if [[ "$USE_ROOT_MODE" == "true" ]]; then
+        if [[ -n "$launcher_script" ]]; then
+            target_exec="$launcher_script"
+            log "Will update desktop entries to use launcher script: $launcher_script"
+        else
+            log "WARNING: Launcher script not found, keeping original binary"
+            target_exec="$original_binary"
+        fi
+    else
+        target_exec="$original_binary"
+        log "Will update desktop entries to use original binary (normal mode)"
+    fi
+
+    # All possible desktop file locations
+    local search_paths=(
+        "/usr/share/applications"
+        "/usr/local/share/applications"
+        "$HOME/.local/share/applications"
+    )
+
+    # Add desktop user's path if different
+    if [[ -n "${ACTUAL_DESKTOP_USER_HOME:-}" ]] && [[ "$ACTUAL_DESKTOP_USER_HOME" != "$HOME" ]]; then
+        search_paths+=("$ACTUAL_DESKTOP_USER_HOME/.local/share/applications")
+    fi
+
+    local files_updated=0
+    local desktop_files=()
+
+    # Find all antigravity desktop files (EXCLUDE core_node_* files created by desktop_entry_manager)
+    for search_path in "${search_paths[@]}"; do
+        if [[ -d "$search_path" ]]; then
+            while IFS= read -r -d '' desktop_file; do
+                # Skip core_node_* files (managed by desktop_entry_manager)
+                if [[ "$desktop_file" == *"core_node_"* ]]; then
+                    continue
+                fi
+                desktop_files+=("$desktop_file")
+            done < <(find "$search_path" -maxdepth 1 -name "*antigravity*.desktop" -type f -print0 2>/dev/null)
+        fi
+    done
+
+    if [[ ${#desktop_files[@]} -eq 0 ]]; then
+        log "No existing Antigravity desktop entries found (excluding core_node entries)"
+        return 0
+    fi
+
+    log "Found ${#desktop_files[@]} Antigravity desktop file(s) to update"
+
+    # Update each desktop file
+    for desktop_file in "${desktop_files[@]}"; do
+        log "Processing: $desktop_file"
+
+        # Check current Exec= line to prevent recursion
+        local current_exec=$(grep "^Exec=" "$desktop_file" 2>/dev/null | sed 's/^Exec=//')
+
+        # Skip hidden entries (the package URL handler, our Hidden=true shadow
+        # overrides): they render no icon, so rewriting them is pointless.
+        if grep -qE '^(NoDisplay|Hidden)=true' "$desktop_file" 2>/dev/null; then
+            log "  Hidden entry, skipping"
+            continue
+        fi
+
+        # Skip if already pointing to the target
+        if [[ "$current_exec" == "$target_exec"* ]]; then
+            log "  Already correct, skipping"
+            continue
+        fi
+
+        # Skip if pointing to any launcher script (prevent recursion)
+        if [[ "$current_exec" == *"/super_scripts/"* ]]; then
+            log "  Already using launcher script, skipping"
+            continue
+        fi
+
+        # Update the desktop file
+        if [[ ! -w "$desktop_file" ]]; then
+            # Try with sudo
+            if [[ -n "$USE_SUDO" ]]; then
+                # Backup original
+                $USE_SUDO cp "$desktop_file" "$desktop_file.bak" 2>/dev/null || true
+
+                # Update Exec line (only when pointing at a package binary;
+                # the deb's real Exec is /usr/share/antigravity/antigravity).
+                # # delimiter: with | the escaped alternation would parse as a
+                # literal delimiter character and never match.
+                $USE_SUDO sed -i "s#^Exec=\(/usr/bin/antigravity\|/usr/share/antigravity/antigravity\)\(.*\)#Exec=$target_exec\2#g" "$desktop_file"
+
+                # Ensure Icon is correct
+                $USE_SUDO sed -i "s|^Icon=.*|Icon=antigravity|g" "$desktop_file"
+
+                # Ensure StartupWMClass is correct
+                if ! grep -q "^StartupWMClass=" "$desktop_file"; then
+                    echo "StartupWMClass=antigravity" | $USE_SUDO tee -a "$desktop_file" >/dev/null
+                fi
+
+                files_updated=$((files_updated + 1))
+                log "  Updated (with sudo)"
+            else
+                log "  Skipped (not writable, no sudo)"
+            fi
+        else
+            # Backup original
+            cp "$desktop_file" "$desktop_file.bak" 2>/dev/null || true
+
+            # Update Exec line (only when pointing at a package binary;
+            # the deb's real Exec is /usr/share/antigravity/antigravity).
+            # # delimiter: with | the escaped alternation would parse as a
+            # literal delimiter character and never match.
+            sed -i "s#^Exec=\(/usr/bin/antigravity\|/usr/share/antigravity/antigravity\)\(.*\)#Exec=$target_exec\2#g" "$desktop_file"
+
+            # Ensure Icon is correct
+            sed -i "s|^Icon=.*|Icon=antigravity|g" "$desktop_file"
+
+            # Ensure StartupWMClass is correct
+            if ! grep -q "^StartupWMClass=" "$desktop_file"; then
+                echo "StartupWMClass=antigravity" >> "$desktop_file"
+            fi
+
+            files_updated=$((files_updated + 1))
+            log "  Updated"
+        fi
+    done
+
+    log "Updated $files_updated desktop file(s)"
+
+    # Collapse the menu to a single Antigravity icon (managed core_node entry).
+    hide_duplicate_desktop_entries
+
+    # Refresh desktop database
+    refresh_desktop_database
+
+    return 0
+}
+
+# Hide package-provided Antigravity menu entries so exactly ONE icon (the
+# managed core_node entry) remains in the menu. XDG-canonical: a same-named
+# user entry containing Hidden=true shadows the system entry for the desktop
+# user without editing package-owned files (a package upgrade restores the
+# system file, but the shadow persists). Idempotent: an existing Hidden=true
+# override is left untouched; already-hidden entries (URL handler) are skipped.
+hide_duplicate_desktop_entries() {
+    local target_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local user_apps_dir="$target_home/.local/share/applications"
+    local entry_owner=""
+    local system_entry=""
+    local override_file=""
+    local hidden_count=0
+
+    entry_owner="$(stat -c '%U:%G' "$target_home" 2>/dev/null)"
+
+    for system_entry in /usr/share/applications/antigravity*.desktop /usr/local/share/applications/antigravity*.desktop; do
+        [[ -f "$system_entry" ]] || continue
+        [[ "$system_entry" == *"core_node_"* ]] && continue
+        # Already-hidden entries show no icon anyway (e.g. the URL handler).
+        if grep -qE '^(NoDisplay|Hidden)=true' "$system_entry" 2>/dev/null; then
+            continue
+        fi
+        override_file="$user_apps_dir/$(basename "$system_entry")"
+        if [ -f "$override_file" ] && grep -q '^Hidden=true' "$override_file" 2>/dev/null; then
+            continue
+        fi
+        if [ ! -d "$user_apps_dir" ]; then
+            mkdir -p "$user_apps_dir" 2>/dev/null || continue
+            [ -n "$entry_owner" ] && chown -R "$entry_owner" "$target_home/.local" 2>/dev/null
+        fi
+        if printf '[Desktop Entry]\nHidden=true\n' > "$override_file" 2>/dev/null; then
+            [ -n "$entry_owner" ] && chown "$entry_owner" "$override_file" 2>/dev/null
+            hidden_count=$((hidden_count + 1))
+            log "Hid duplicate menu entry: $system_entry (user override: $override_file)"
+        fi
+    done
+
+    if [ "$hidden_count" -gt 0 ]; then
+        log "Hid $hidden_count duplicate Antigravity menu entrie(s); only the managed core_node entry stays visible"
+    fi
+}
+
+# Refresh desktop icon cache and database
+refresh_desktop_database() {
+    log "Refreshing desktop database and icon cache..."
+
+    # Update desktop database
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database ~/.local/share/applications 2>/dev/null || true
+        $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
+        $USE_SUDO update-desktop-database /usr/local/share/applications 2>/dev/null || true
+        log "  Desktop database updated"
+    fi
+
+    # Update icon cache
+    if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+        gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
+        $USE_SUDO gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
+        log "  Icon cache updated"
+    fi
+
+    # Update MIME database
+    if command -v update-mime-database >/dev/null 2>&1; then
+        update-mime-database ~/.local/share/mime 2>/dev/null || true
+        $USE_SUDO update-mime-database /usr/share/mime 2>/dev/null || true
+        log "  MIME database updated"
+    fi
+
+    # Kill and restart any running panel/dock processes to reload icons
+    if pgrep -x gnome-shell >/dev/null 2>&1; then
+        # GNOME Shell - no need to restart, it will reload automatically
+        log "  GNOME Shell detected (will auto-reload)"
+    fi
+
+    log "Desktop refresh completed"
+}
+
+create_desktop_entry() {
+    local desktop_manager_script="$PARENT_DIR_LEVEL_1/debian_com/desktop_entry_manager.sh"
+
+    if [[ ! -x "$desktop_manager_script" ]]; then
+        log "WARNING: desktop_entry_manager.sh not found or not executable"
+        log "Falling back to simple desktop entry creation"
+        create_desktop_entry_fallback
+        return $?
+    fi
+
+    log "Creating desktop entry via desktop_entry_manager.sh"
+
+    local exec_path
+    exec_path="$(command -v antigravity || echo "/usr/bin/antigravity")"
+
+    # Verify binary exists
+    if [[ ! -x "$exec_path" ]]; then
+        log "ERROR: Antigravity binary not found at $exec_path"
+        return 1
+    fi
+
+    # NOTE: Recursion prevention is handled automatically by desktop_entry_manager.sh
+    # If $exec_path is already a launcher script, desktop_entry_manager.sh will extract
+    # the original binary and create a new launcher pointing to it. This prevents
+    # launcher-wrapping-launcher recursion when the script runs repeatedly.
+
+    # Parameters for desktop_entry_manager.sh --create-app:
+    # <name> <display_name> <binary> <icon> [category] [description] [wm_class] [userdata_dir] [use_root_mode]
+    local app_name="antigravity"
+    local app_display_name="Antigravity"
+    local app_binary="$exec_path"
+    local app_icon="antigravity"
+    local app_category="Utility;Development;"
+    local app_description="Antigravity Client"
+    local app_wm_class="antigravity"
+    local app_userdata_dir=""
+
+    # Root mode: the VS Code-derived CLI wrapper REFUSES to run as root unless an
+    # alternate --user-data-dir is passed (it exits 1 with a console-only message,
+    # which is why the menu icon silently did nothing). Pin the data dir to the
+    # desktop user's config path so login/state persist across launches.
+    if [[ "$USE_ROOT_MODE" == "true" ]]; then
+        local userdata_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+        app_userdata_dir="$userdata_home/.config/Antigravity"
+        if [[ ! -d "$app_userdata_dir" ]]; then
+            mkdir -p "$app_userdata_dir" 2>/dev/null || true
+            if [[ "$EUID" -eq 0 ]] && [[ -n "$ACTUAL_DESKTOP_USER" ]] && [[ "$ACTUAL_DESKTOP_USER" != "root" ]] && [[ -d "$app_userdata_dir" ]]; then
+                safe_chown_R "$ACTUAL_DESKTOP_USER:$ACTUAL_DESKTOP_USER" "$app_userdata_dir"
+            fi
+        fi
+        # Browser bridge: root-run Electron cannot spawn the user's browser (Google
+        # sign-in would silently fail); the bridge re-dispatches xdg-open to the
+        # desktop session. The DEM launcher prepends it to PATH automatically.
+        ensure_desktop_browser_bridge
+    fi
+
+    # Resource limit: create a machine-relative cgroup-v2 wrapper for Antigravity
+    # and launch THROUGH it. Root mode (pkexec) -> --system scope (a --user scope
+    # would not govern the root-re-execed Electron app); normal mode -> --user. The
+    # wrapper is passed to --create-app as the binary; desktop_entry_manager's
+    # extract_original_binary leaves it untouched (no DEM marker) -> no recursion.
+    # Raised caps for an IDE + agent runtime: the uniform 1G/10%-CPU default
+    # OOM-kills or starves the agent process ("Agent terminated due to error").
+    local arl_root_flag=""
+    [[ "$USE_ROOT_MODE" == "true" ]] && arl_root_flag="--root"
+    if APP_MEM_PCT=40 APP_MEM_CAP_MB=8192 APP_CPU_PCT=50 \
+        apply_app_resource_limit --id antigravity --exec "$exec_path" $arl_root_flag \
+        && [[ -x /usr/local/bin/antigravity-rlimit ]]; then
+        app_binary="/usr/local/bin/antigravity-rlimit"
+    fi
+
+    if ! "$desktop_manager_script" --create-app \
+        "$app_name" \
+        "$app_display_name" \
+        "$app_binary" \
+        "$app_icon" \
+        "$app_category" \
+        "$app_description" \
+        "$app_wm_class" \
+        "$app_userdata_dir" \
+        "$USE_ROOT_MODE"; then
+        log "WARNING: desktop_entry_manager.sh --create-app encountered an error"
+        log "Falling back to simple desktop entry creation"
+        create_desktop_entry_fallback
+        return $?
+    fi
+
+    log "Desktop entry created successfully"
+
+    # Scan and replace all existing Antigravity desktop entries
+    scan_and_replace_desktop_entries
+
+    if [[ "$USE_ROOT_MODE" == "true" ]]; then
+        log "Note: Application will launch with root privileges (pkexec)"
+        log "      You will be prompted for password when launching"
+    fi
+
+    return 0
+}
+
+# Fallback: Simple desktop entry creation (old method)
+create_desktop_entry_fallback() {
+    local exec_path
+    exec_path="$(command -v antigravity || echo "/usr/bin/antigravity")"
+    local startup_wm_class="antigravity"
+    local fallback_exec="$exec_path"
+
+    # Root mode: the CLI wrapper refuses root without --user-data-dir (icon click
+    # silently fails), so bake the flags into the Exec line directly.
+    if [[ "$USE_ROOT_MODE" == "true" ]]; then
+        local userdata_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+        fallback_exec="$exec_path --no-sandbox --user-data-dir=$userdata_home/.config/Antigravity"
+        mkdir -p "$userdata_home/.config/Antigravity" 2>/dev/null || true
+    fi
+
+    # System-wide menu entry in /usr/share/applications (read by ALL desktop
+    # environments, covers ALL users) via the shared library; idempotent.
+    create_desktop_shortcut_from_desktop_shortcut_manager \
+        --id antigravity \
+        --name "$DESKTOP_ENTRY_NAME" \
+        --exec "$fallback_exec" \
+        --icon "$DESKTOP_ENTRY_ICON" \
+        --comment "Antigravity Client" \
+        --categories "Utility;Development;" \
+        --startup-wmclass "$startup_wm_class" \
+        --startup-notify true
+
+    log "Fallback desktop entry created"
+
+    # Scan and replace all existing Antigravity desktop entries
+    scan_and_replace_desktop_entries
+
+    return 0
+}
+
+# Ensure Antigravity CLI (agy) is idempotently installed and accessible to all users
+ensure_agy_cli_installed() {
+    log "Checking Antigravity CLI ($AGY_CLI_EXEC)..."
+    local agy_bin=""
+    local candidate=""
+    local target_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local candidates=(
+        "$AGY_SHARED_BIN_DIR/$AGY_CLI_EXEC"
+        "$HOME/.local/bin/$AGY_CLI_EXEC"
+        "/root/.local/bin/$AGY_CLI_EXEC"
+        "$target_home/.local/bin/$AGY_CLI_EXEC"
+    )
+
+    # First check PATH
+    if command -v "$AGY_CLI_EXEC" >/dev/null 2>&1; then
+        agy_bin="$(command -v "$AGY_CLI_EXEC")"
+    else
+        for candidate in "${candidates[@]}"; do
+            if [ -x "$candidate" ]; then
+                agy_bin="$candidate"
+                break
+            fi
+        done
+    fi
+
+    # If missing, install via fast-path script
+    if [ -z "$agy_bin" ]; then
+        log "Installing $AGY_CLI_EXEC via official fast-path installer..."
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL "$AGY_CLI_INSTALL_URL" | bash
+        elif command -v wget >/dev/null 2>&1; then
+            wget -qO- "$AGY_CLI_INSTALL_URL" | bash
+        else
+            log "ERROR: curl or wget is required to install $AGY_CLI_EXEC."
+            return 1
+        fi
+
+        # Re-check candidate locations after installation
+        for candidate in "${candidates[@]}"; do
+            if [ -x "$candidate" ]; then
+                agy_bin="$candidate"
+                break
+            fi
+        done
+    else
+        log "$AGY_CLI_EXEC already installed at $agy_bin"
+    fi
+
+    if [ -z "$agy_bin" ] || [ ! -x "$agy_bin" ]; then
+        log "WARNING: Could not verify $AGY_CLI_EXEC binary after install."
+        return 1
+    fi
+
+    # Make available for all users in /usr/local/bin
+    local dest_shared="$AGY_SHARED_BIN_DIR/$AGY_CLI_EXEC"
+    if [ "$agy_bin" != "$dest_shared" ]; then
+        if [ "$EUID" -eq 0 ] || [ -n "$USE_SUDO" ]; then
+            $USE_SUDO mkdir -p "$AGY_SHARED_BIN_DIR"
+            # If binary sits under /root (mode 700), regular users cannot traverse it.
+            # Copy rather than symlink so all users can execute it.
+            if [[ "$agy_bin" == /root/* ]]; then
+                $USE_SUDO cp -f "$agy_bin" "$dest_shared"
+                $USE_SUDO chmod 0755 "$dest_shared"
+                log "Copied $AGY_CLI_EXEC to $dest_shared (0755) for all users."
+            else
+                $USE_SUDO ln -sf "$agy_bin" "$dest_shared"
+                $USE_SUDO chmod 0755 "$dest_shared" 2>/dev/null || true
+                log "Linked $AGY_CLI_EXEC to $dest_shared for all users."
+            fi
+        fi
+    fi
+
+    # Also ensure user's ~/.local/bin has it if desktop user exists
+    if [ -n "$target_home" ] && [ -d "$target_home" ] && [ "$target_home" != "/root" ]; then
+        local user_local_bin="$target_home/.local/bin"
+        local entry_owner="$(stat -c '%U:%G' "$target_home" 2>/dev/null || echo "")"
+        if [ ! -d "$user_local_bin" ]; then
+            mkdir -p "$user_local_bin" 2>/dev/null || $USE_SUDO mkdir -p "$user_local_bin"
+            [ -n "$entry_owner" ] && $USE_SUDO chown -R "$entry_owner" "$target_home/.local" 2>/dev/null
+        fi
+        if [ ! -e "$user_local_bin/$AGY_CLI_EXEC" ] && [ -x "$dest_shared" ]; then
+            ln -sf "$dest_shared" "$user_local_bin/$AGY_CLI_EXEC" 2>/dev/null || $USE_SUDO ln -sf "$dest_shared" "$user_local_bin/$AGY_CLI_EXEC"
+            [ -n "$entry_owner" ] && $USE_SUDO chown -h "$entry_owner" "$user_local_bin/$AGY_CLI_EXEC" 2>/dev/null
+        fi
+    fi
+
+    # Auto resource: configure /etc/profile.d/agy.sh so both root and regular users get PATH
+    if [ "$EUID" -eq 0 ] || [ -n "$USE_SUDO" ]; then
+        if [ ! -f "$AGY_PROFILE_FILE" ]; then
+            echo 'export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"' | $USE_SUDO tee "$AGY_PROFILE_FILE" >/dev/null
+            $USE_SUDO chmod 0644 "$AGY_PROFILE_FILE"
+            log "Configured $AGY_PROFILE_FILE for persistent environment PATH."
+        fi
+    fi
+
+    # Reload PATH in current shell
+    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+    hash -r 2>/dev/null || true
+    log "$AGY_CLI_EXEC is ready for root and regular users: $(command -v "$AGY_CLI_EXEC" 2>/dev/null || echo "$dest_shared")"
+    return 0
+}
+
+main() {
+    ensure_requirements
+
+    # Check if already installed
+    if is_antigravity_installed; then
+        # Idempotent limit refresh: always re-apply the resource limit + desktop entry
+        # FIRST so a re-run picks up updated caps even when the user declines the update
+        # prompt below (which exits before the limit step). No download/reinstall here.
+        # Preserve the scope mode baked in the existing wrapper (don't flip --user/--system).
+        if [ -f /usr/local/bin/antigravity-rlimit ]; then
+            grep -q '^ARL_SCOPE_MODE="system"' /usr/local/bin/antigravity-rlimit && USE_ROOT_MODE=true
+            grep -q '^ARL_SCOPE_MODE="user"'   /usr/local/bin/antigravity-rlimit && USE_ROOT_MODE=false
+        fi
+        create_desktop_entry || true
+
+        # Already installed - prompt for update
+        if prompt_update_decision; then
+            update_antigravity
+            log "$DESKTOP_ENTRY_NAME update finished."
+        fi
+        ensure_agy_cli_installed
+        exit 0
+    fi
+
+    # Not installed - handle installation based on environment
+    if [ "$HAS_DESKTOP_ENVIRONMENT" = true ]; then
+        # Desktop environment: Install directly but ask for root mode first
+        log "Desktop environment detected - installing $DESKTOP_ENTRY_NAME..."
+        prompt_root_mode_selection
+        install_antigravity
+        create_desktop_entry
+        ensure_agy_cli_installed
+        log "$DESKTOP_ENTRY_NAME installation finished."
+    else
+        # Non-desktop environment: Prompt user (default No)
+        if prompt_installation_decision; then
+            prompt_root_mode_selection
+            install_antigravity
+            create_desktop_entry
+            log "$DESKTOP_ENTRY_NAME installation finished."
+        fi
+        ensure_agy_cli_installed
+    fi
+}
+
+main

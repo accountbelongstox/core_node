@@ -8,6 +8,7 @@ __all__ = [
     'MCPSectionGenerator',
     'UserDirectorySectionGenerator',
     'EnvLoadingSectionGenerator',
-    'SSHCommandGenerator'
+    'SSHCommandGenerator',
+    'ArkLauncherSectionGenerator'
 ]
 

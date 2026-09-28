@@ -1,0 +1,16 @@
+{
+  "task_id": "vortex-1",
+  "role": "vortex",
+  "verdict": "approved",
+  "findings": {
+    "FU-033": {
+      "status": "fixed",
+      "reason": "Positions now carry margin; settleClose credits (margin + qty*(exit-entry)) * (1 - fee), so BUY 1000 at 5x then close at the same price returns ~998 instead of ~4990. The SELL fee is multiplied by (1 - fee) instead of divided. netWorth (also passed as simEquity to OkxAccountPanel) is cash + isolated equity, not cash + notional. Legacy localStorage positions derive margin via withMargin; averaging keeps margin additive and leverage = notional/margin; partial sells reduce qty and margin by the same share."
+    }
+  },
+  "issues": [
+    "apps/vortex/VortexApp.tsx:57 (non-blocking) HistoricTrade.time is widened to number|string, but every writer (:787, :836, :865) still stores a zh-CN formatted string and :2232 renders it raw. Finish this in vortex-3 (FU-042): write epoch ms and format it on render with the UI locale."
+  ],
+  "checks": "git diff read in full; consumers of Position/portfolioSummary/localStorage keys grepped in the app and shared layer (only VortexApp.tsx); scope apps/vortex/ only; no new UI strings; tsc --noEmit reported by owner.",
+  "checked_at": "2026-09-27T03:53:49+10:00"
+}

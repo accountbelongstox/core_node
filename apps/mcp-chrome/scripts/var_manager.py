@@ -10,6 +10,13 @@ import platform
 from pathlib import Path
 from typing import Optional, Dict
 
+# Make pycore importable so the vars dir resolves via the centralized
+# system_paths module (one source of truth for the .core_node path).
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 
 class VarManager:
     """Variable manager"""
@@ -32,24 +39,12 @@ class VarManager:
             return "linux"
 
     def _get_vars_dir(self) -> Path:
-        """Get variable storage directory"""
-        if self.platform == "windows":
-            # Windows: C:\Users\username\.core_node\.build_global_vars
-            home = Path.home()
-            return home / ".core_node" / ".build_global_vars"
-        else:
-            # Linux/macOS: /var/_core_node/_build_global_vars/
-            # If no permission to write to /var, use user directory
-            var_dir = Path("/var/_core_node/_build_global_vars")
-            if not var_dir.exists():
-                try:
-                    var_dir.mkdir(parents=True, exist_ok=True)
-                    return var_dir
-                except PermissionError:
-                    # Fallback to user directory
-                    home = Path.home()
-                    return home / ".core_node" / ".build_global_vars"
-            return var_dir
+        """Get variable storage directory (centralized via system_paths).
+
+        Windows: D:\\programing\\Users\\<user>\\.core_node\\.build_global_vars
+        Linux:   /var/_core_node/.build_global_vars (else ~/.core_node/.build_global_vars)
+        """
+        return get_system_cache_dir() / '.build_global_vars'
 
     def _ensure_vars_dir(self):
         """Ensure variable directory exists"""

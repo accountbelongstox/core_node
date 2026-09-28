@@ -13,7 +13,7 @@
 """
 
 from typing import Optional
-from pycore import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # 全局单例引用

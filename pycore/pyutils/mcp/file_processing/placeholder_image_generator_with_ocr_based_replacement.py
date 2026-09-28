@@ -10,14 +10,20 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 
-from pycore.pyfoundations.third_party import get_third_package_PIL_Image, get_third_package_PIL_ImageDraw, get_third_package_PIL_ImageFont, get_third_package_numpy
+from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_PIL_Image,
+    get_third_package_PIL_ImageDraw,
+    get_third_package_PIL_ImageFont,
+    get_third_package_numpy,
+)
 
 PIL_Image = get_third_package_PIL_Image()
 PIL_ImageDraw = get_third_package_PIL_ImageDraw()
 PIL_ImageFont = get_third_package_PIL_ImageFont()
 numpy = get_third_package_numpy()
-from pycore.pygvar import PYTOOLS_TMP_DIR
-from pycore.pyutils.ocr import ocr_manager
+from pycore.pyfoundations.pygvar import PYTOOLS_TMP_DIR
+from pycore.pyutils.common.ocr.manager import ocr_manager
 
 logger = logging.getLogger(__name__)
 
@@ -201,11 +207,12 @@ class PlaceholderImageGeneratorWithOCRBasedReplacement:
         }
 
 
-_placeholder_generator_instance = None
+_PLACEHOLDER_GENERATOR_PROVIDER = SerializedSingletonProvider(
+    PlaceholderImageGeneratorWithOCRBasedReplacement,
+    "mcp.placeholder_generator.provider",
+    "MCPPlaceholderGeneratorProviderThread",
+)
 
 def get_placeholder_generator_singleton() -> PlaceholderImageGeneratorWithOCRBasedReplacement:
     """Get singleton instance of placeholder image generator"""
-    global _placeholder_generator_instance
-    if _placeholder_generator_instance is None:
-        _placeholder_generator_instance = PlaceholderImageGeneratorWithOCRBasedReplacement()
-    return _placeholder_generator_instance
+    return _PLACEHOLDER_GENERATOR_PROVIDER.get()

@@ -1,0 +1,259 @@
+# -*- coding: utf-8 -*-
+"""User-data application service backed by the unified user-data store.
+
+Thin layer over the shared Pycore user-data store: persists system settings and the
+Video Extraction history/state, and broadcasts settings changes live to the UI.
+"""
+
+import os
+import re
+import sys
+import time
+import subprocess
+from pathlib import Path
+
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, USER_DATA_SECTION_VIDEO_EXTRACT, user_data_store
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyctl.runtime.user_data_models import (
+    SystemSettingsResponse,
+    VideoExtractHistoryEntry,
+    VideoExtractHistoryResponse,
+    ContentHistoryEntry,
+    ContentHistoryResponse,
+    OkResponse,
+    PickPathResponse,
+)
+
+from pycore.pyctl.runtime.system_settings_service import apply_system_settings_live
+from pycore.pyutils.common.local_rpc_guard import LAN_BIND_SETTING_KEY
+
+_SYSTEM_SETTINGS_BOOL_KEYS = ("monitorClipboard", "scheduledScreenshot", "notebooklmAutoConvert", LAN_BIND_SETTING_KEY)
+_SYSTEM_SETTINGS_NUMBER_KEYS = ("screenshotInterval",)
+_SYSTEM_SETTINGS_LANG_KEY = "lang"
+_SYSTEM_SETTINGS_LANG_PATTERN = re.compile(r"^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})?$")
+_SYSTEM_SETTINGS_ERROR_INVALID = "system_settings_invalid"
+
+
+def _system_settings_valid(settings) -> bool:
+    """Type check of the keys pycore acts on; other UI keys pass through."""
+    if not isinstance(settings, dict):
+        return False
+    if any(key in settings and not isinstance(settings[key], bool) for key in _SYSTEM_SETTINGS_BOOL_KEYS):
+        return False
+    if any(
+        key in settings and (isinstance(settings[key], bool) or not isinstance(settings[key], (int, float)))
+        for key in _SYSTEM_SETTINGS_NUMBER_KEYS
+    ):
+        return False
+    lang = settings.get(_SYSTEM_SETTINGS_LANG_KEY)
+    return lang is None or (isinstance(lang, str) and bool(_SYSTEM_SETTINGS_LANG_PATTERN.fullmatch(lang)))
+
+
+# Standalone script run in a short-lived child process to show a native folder/file
+# dialog. A subprocess (its own main thread) avoids any conflict with the Qt/PySide6
+# UI thread; tkinter ships with CPython so no extra dependency is needed.
+_PICK_DIALOG_SCRIPT = r"""
+import sys
+from pycore.pyfoundations.third_party.api import get_third_package_tkinter
+
+tk = get_third_package_tkinter()
+filedialog = tk.filedialog
+
+try:
+    mode = sys.argv[1] if len(sys.argv) > 1 else 'folder'
+    initial = sys.argv[2] if len(sys.argv) > 2 else ''
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        root.attributes('-topmost', True)
+    except Exception:
+        pass
+    if mode == 'file':
+        path = filedialog.askopenfilename(
+            initialdir=initial or None, title='Select a video file',
+            filetypes=[('Video files',
+                        '*.mp4 *.mkv *.mov *.avi *.wmv *.flv *.webm *.m4v *.mpg *.mpeg *.ts *.m2ts *.3gp'),
+                       ('All files', '*.*')])
+    else:
+        path = filedialog.askdirectory(initialdir=initial or None, title='Select a folder', mustexist=True)
+    try:
+        root.destroy()
+    except Exception:
+        pass
+    sys.stdout.write(path or '')
+except Exception as exc:
+    sys.stderr.write(str(exc))
+    sys.exit(2)
+"""
+
+SYSTEM_SETTINGS_SECTION = USER_DATA_SECTION_SYSTEM_SETTINGS
+VIDEO_EXTRACT_SECTION = USER_DATA_SECTION_VIDEO_EXTRACT
+
+
+def _default_base_dir() -> str:
+    """Default working directory for video-extract sources."""
+    return str(TMP_DIR)
+
+
+def _norm(path: str) -> str:
+    """Normalize a path for dedupe comparison."""
+    return os.path.normcase(os.path.abspath((path or "").strip()))
+
+
+class UserDataService:
+    def __init__(self):
+        self.store = user_data_store
+
+    # ----- seeding --------------------------------------------------------- #
+    def _ensure_seed(self) -> dict:
+        """Seed sane defaults into the video_extract section if it is empty."""
+        section = self.store.get_section(VIDEO_EXTRACT_SECTION)
+        if not section:
+            base_dir = _default_base_dir()
+            section = {
+                "base_dir": base_dir,
+                "entries": [{"path": base_dir, "mode": "folder", "added_at": time.time()}],
+                "last_options": {},
+            }
+            self.store.set_section(VIDEO_EXTRACT_SECTION, section)
+            ColorPrint.blue(f"[UserData] Seeded video_extract defaults (base_dir={base_dir})")
+        return section
+
+    # ----- system settings ------------------------------------------------- #
+    def get_system_settings(self) -> SystemSettingsResponse:
+        settings = self.store.get_section(SYSTEM_SETTINGS_SECTION)
+        return SystemSettingsResponse(success=True, settings=settings or None)
+
+    def set_system_settings(self, settings: dict) -> SystemSettingsResponse:
+        if not _system_settings_valid(settings):
+            return SystemSettingsResponse(success=False, error=_SYSTEM_SETTINGS_ERROR_INVALID)
+        stored = self.store.get_section(SYSTEM_SETTINGS_SECTION) or {}
+        if LAN_BIND_SETTING_KEY not in settings and LAN_BIND_SETTING_KEY in stored:
+            # Headless-only setting: a UI save that does not know it keeps it.
+            settings = {**settings, LAN_BIND_SETTING_KEY: stored[LAN_BIND_SETTING_KEY]}
+        self.store.set_section(SYSTEM_SETTINGS_SECTION, settings)
+        saved = self.store.get_section(SYSTEM_SETTINGS_SECTION)
+        # Broadcast live to any connected UI.
+        try:
+            THREAD_BUS.trigger_event(BusSignals.SYSTEM_SETTINGS_UPDATE, {"settings": saved})
+        except Exception as exc:
+            ColorPrint.yellow(f"[UserData] settings broadcast failed: {exc}")
+        # Keep the Python-side i18n (tray menu, native windows) in the same
+        # language as the web UI: applying is idempotent, set_language() no-ops
+        # when unchanged and broadcasts ui.i18n.language_changed when it changes.
+        lang = (saved or {}).get("lang")
+        if lang:
+            try:
+                i18n.set_language(lang)
+            except Exception as exc:
+                ColorPrint.yellow(f"[UserData] i18n language sync failed: {exc}")
+        try:
+            apply_system_settings_live(saved or {}, source="settings_save")
+        except Exception as exc:
+            ColorPrint.yellow(f"[UserData] system_settings live apply failed: {exc}")
+        return SystemSettingsResponse(success=True, settings=saved)
+
+    # ----- video-extract state -------------------------------------------- #
+    def get_video_extract(self) -> VideoExtractHistoryResponse:
+        section = self._ensure_seed()
+        return VideoExtractHistoryResponse(
+            success=True,
+            base_dir=section.get("base_dir", ""),
+            entries=[VideoExtractHistoryEntry(**e) for e in section.get("entries", [])],
+            last_options=section.get("last_options", {}),
+        )
+
+    def add_video_extract(self, path: str, mode: str) -> VideoExtractHistoryResponse:
+        section = self._ensure_seed()
+        entries = list(section.get("entries", []))
+        target = _norm(path)
+        # Dedupe by normalized path: drop any existing match, then append (stack).
+        entries = [e for e in entries if _norm(e.get("path", "")) != target]
+        entries.append({"path": path, "mode": mode, "added_at": time.time()})
+        section["entries"] = entries
+        self.store.set_section(VIDEO_EXTRACT_SECTION, section)
+        return VideoExtractHistoryResponse(
+            success=True,
+            base_dir=section.get("base_dir", ""),
+            entries=[VideoExtractHistoryEntry(**e) for e in entries],
+            last_options=section.get("last_options", {}),
+        )
+
+    def remove_video_extract(self, path: str) -> VideoExtractHistoryResponse:
+        section = self._ensure_seed()
+        target = _norm(path)
+        entries = [e for e in section.get("entries", []) if _norm(e.get("path", "")) != target]
+        section["entries"] = entries
+        self.store.set_section(VIDEO_EXTRACT_SECTION, section)
+        return VideoExtractHistoryResponse(
+            success=True,
+            base_dir=section.get("base_dir", ""),
+            entries=[VideoExtractHistoryEntry(**e) for e in entries],
+            last_options=section.get("last_options", {}),
+        )
+
+    def set_options(self, options: dict) -> OkResponse:
+        self._ensure_seed()
+        self.store.set(VIDEO_EXTRACT_SECTION, "last_options", options)
+        return OkResponse(success=True)
+
+    # ----- content-ingest history (books / subtitles / documents) --------- #
+    def get_content_history(self, limit: int = 200) -> ContentHistoryResponse:
+        """Return the cross-feature content-ingest history (newest first)."""
+        rows = self.store.get_content_history(limit=limit)
+        return ContentHistoryResponse(
+            success=True,
+            entries=[ContentHistoryEntry(**r) for r in rows],
+        )
+
+    def record_content(self, entry: dict) -> OkResponse:
+        """Append one content-ingest history entry to the capped ring."""
+        try:
+            self.store.record_content_history(entry)
+            return OkResponse(success=True)
+        except Exception as exc:  # best-effort; history never blocks a sync
+            ColorPrint.yellow(f"[UserData] record_content failed: {exc}")
+            return OkResponse(success=False, error=str(exc))
+
+    # ----- native folder/file picker -------------------------------------- #
+    def pick_path(self, mode: str = "folder", initial: str = None) -> PickPathResponse:
+        """
+        Open a native OS folder/file dialog and return the chosen absolute path.
+
+        Runs in a short-lived subprocess (avoids the Qt UI-thread restriction) so
+        webview-hosted UIs - where the browser cannot read a real filesystem path -
+        can still pick sources reliably. Returns canceled=True when dismissed, and
+        success=False with an error on headless/no-display environments (the UI then
+        falls back to manual path entry).
+        """
+        mode = "file" if (mode or "").lower() == "file" else "folder"
+        initial = initial if (initial and os.path.isdir(initial)) else (
+            initial and os.path.dirname(initial)) or ""
+        env = dict(os.environ)
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-c", _PICK_DIALOG_SCRIPT, mode, initial],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                env=env, timeout=300,
+            )
+        except subprocess.TimeoutExpired:
+            return PickPathResponse(success=False, canceled=True, error="picker timed out")
+        except Exception as exc:
+            return PickPathResponse(success=False, error=f"picker failed: {exc}")
+        if proc.returncode != 0:
+            return PickPathResponse(
+                success=False,
+                error=(proc.stderr or "no display / tkinter unavailable").strip())
+        path = (proc.stdout or "").strip()
+        if not path:
+            return PickPathResponse(success=True, path=None, canceled=True)
+        return PickPathResponse(success=True, path=path, canceled=False)
+
+
+user_data_service = UserDataService()

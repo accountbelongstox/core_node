@@ -1,33 +1,21 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Clash;
 
-use App\Models\ClashUrlsConfig;
-use App\Models\Group;
+use App\Http\Controllers\Controller;
+
+use App\Apps\ClashV1\ClashV1Models\ClashV1ConfigModel as ClashUrlsConfig;
+use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
-class ConfigController
+class ConfigController extends Controller
 {
     public function index($groupId)
     {
-        $configs = ClashUrlsConfig::where('group_id', $groupId)
-            ->orderBy('created_at', 'desc')
-            ->get()
+        $configs = ClashUrlsConfig::forGroup((int) $groupId)
             ->map(function ($config) {
-                // 计算剩余月份
+                // Calculate the remaining months
                 $expiryMonths = 0;
                 if ($config->expires_at) {
                     $now = Carbon::now();
@@ -70,7 +58,7 @@ class ConfigController
         ]);
 
         // Check if content already exists
-        if (ClashUrlsConfig::where('content', $request->content)->exists()) {
+        if (ClashUrlsConfig::contentExists($request->content)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Configuration with this content already exists'
@@ -88,7 +76,7 @@ class ConfigController
         $config->md5 = md5($request->content);
         $config->content = $request->content;
         $config->expires_at = $expiryDate;
-        $config->save();
+        $config->saveRecord();
 
         return response()->json([
             'success' => true,
@@ -116,7 +104,7 @@ class ConfigController
         $config->md5 = md5($request->content);
         $config->content = $request->content;
         $config->expires_at = $expiryDate;
-        $config->save();
+        $config->saveRecord();
 
         return response()->json([
             'success' => true,
@@ -127,7 +115,7 @@ class ConfigController
 
     public function destroy(ClashUrlsConfig $config)
     {
-        $config->delete();
+        $config->deleteRecord();
 
         return response()->json([
             'success' => true,

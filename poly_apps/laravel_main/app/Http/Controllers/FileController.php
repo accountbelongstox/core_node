@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Services\FileService;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+// Supertype of BinaryFileResponse / StreamedResponse / JsonResponse /
+// Illuminate\Http\Response, so response()->file()/download() type-check.
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -83,9 +85,21 @@ class FileController extends Controller
 
         $mimeType = FileService::getMimeType($filename);
 
+        // Avatars must always be served with an image Content-Type. If the
+        // extension is unknown, fall back to image/png rather than
+        // application/octet-stream so browsers render it inline.
+        if ($fileType === 'avatar' && strpos($mimeType, 'image/') !== 0) {
+            $mimeType = 'image/png';
+        }
+
+        $cacheControl = 'public, max-age=31536000';
+        if ($fileType === 'avatar') {
+            $cacheControl = 'public, max-age=86400';
+        }
+
         $headers = [
             'Content-Type' => $mimeType,
-            'Cache-Control' => 'public, max-age=31536000',
+            'Cache-Control' => $cacheControl,
         ];
 
         return response()->file($filePath, $headers);

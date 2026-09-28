@@ -8,7 +8,7 @@ Detects silence periods in audio for intelligent sentence segmentation.
 
 import time
 from typing import Optional
-from pycore.pyfoundations.third_party import get_third_package_numpy
+from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
 np = get_third_package_numpy()
 

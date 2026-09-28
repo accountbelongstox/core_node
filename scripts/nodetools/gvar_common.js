@@ -320,6 +320,16 @@ function mapWebPath(pathKey, subPath) {
         case 'logs':
             mappedPath = '/var/log';
             break;
+        case 'app_manager_logs':
+            // Unified App Manager log namespace ROOT (scripts/app_manager/linux_sh).
+            // Kept on the native Linux fs like 'logs'. Retired predecessor:
+            // 'app_manager_logs_old'. MUST stay in sync with gvar_common.sh.
+            mappedPath = '/opt/_core_node/logs';
+            break;
+        case 'app_manager_logs_old':
+            // Retired App Manager log root (formerly 'core_node_unified_manager').
+            mappedPath = '/opt/core_node_unified_manager/logs';
+            break;
         case 'programing':
             mappedPath = `${basePath}/programing`;
             break;
@@ -564,7 +574,9 @@ function ensureWebDirectory(pathKey, permissions = '755', owner) {
  * @returns {string} Path to temporary directory
  */
 function createScriptTempDir(scriptName) {
-    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : '/usr/tmp';
+    // /usr/tmp is absent on Debian/Ubuntu/Kali (legacy SysV alias for /var/tmp); use
+    // $TMPDIR when set, else /var/tmp (writable + persistent) on POSIX.
+    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : (process.env.TMPDIR || '/var/tmp');
     const scriptTempDir = path.join(GLOBAL_TEMP_DIR, scriptName);
     
     if (!safeExists(scriptTempDir)) {
@@ -582,7 +594,9 @@ function createScriptTempDir(scriptName) {
  * @param {string} scriptName - Name of the script
  */
 function cleanupScriptTempDir(scriptName) {
-    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : '/usr/tmp';
+    // /usr/tmp is absent on Debian/Ubuntu/Kali (legacy SysV alias for /var/tmp); use
+    // $TMPDIR when set, else /var/tmp (writable + persistent) on POSIX.
+    const GLOBAL_TEMP_DIR = IS_WINDOWS ? os.tmpdir() : (process.env.TMPDIR || '/var/tmp');
     const scriptTempDir = path.join(GLOBAL_TEMP_DIR, scriptName);
     
     if (safeExists(scriptTempDir)) {

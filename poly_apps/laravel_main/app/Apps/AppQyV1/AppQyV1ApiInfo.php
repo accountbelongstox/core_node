@@ -95,20 +95,6 @@ class AppQyV1ApiInfo
                 "auth_required" => false
             ],
             [
-                "path" => "/api/dict/v1/system/process-vocabulary",
-                "method" => "POST",
-                "feature" => "Process Vocabulary",
-                "description" => "Process vocabulary only",
-                "auth_required" => false
-            ],
-            [
-                "path" => "/api/dict/v1/system/vocabulary-status",
-                "method" => "GET",
-                "feature" => "Vocabulary Status",
-                "description" => "Get vocabulary processing status",
-                "auth_required" => false
-            ],
-            [
                 "path" => "/api/dict/v1/system/dictionary-statistics",
                 "method" => "GET",
                 "feature" => "Dictionary Statistics",
@@ -242,13 +228,74 @@ class AppQyV1ApiInfo
                 "parameters" => ["library_id"]
             ],
 
+            // Vocabulary-library cover tasks (global queue: chrome worker, Laravel AI fallback)
+            [
+                "path" => "/api/app_qy_v1/vocabulary/libraries/cover/tasks",
+                "method" => "POST",
+                "feature" => "Queue Library Cover Tasks",
+                "description" => "Idempotently queue one cover task per library (mode generate = AI image, search = web image search); returns { tasks, skipped }",
+                "auth_required" => false,
+                "parameters" => ["ids", "mode", "prompt"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/libraries/cover/tasks",
+                "method" => "GET",
+                "feature" => "Library Cover Task Status",
+                "description" => "Flat cover state plus the newest cover task per library; ids = comma-separated library ids (max 200)",
+                "auth_required" => false,
+                "parameters" => ["ids"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/libraries/{libraryId}/cover/ai-regenerate",
+                "method" => "POST",
+                "feature" => "Regenerate Library Cover (Synchronous AI)",
+                "description" => "Synchronously regenerate one library cover through the Laravel AI image gateway (prompt cache bypassed)",
+                "auth_required" => false,
+                "parameters" => ["libraryId", "prompt"]
+            ],
+
+            // Vocabulary export + document extraction (2026-06-12)
+            [
+                "path" => "/api/app_qy_v1/vocabulary/export/{format}",
+                "method" => "POST",
+                "feature" => "Vocabulary Export",
+                "description" => "Export vocabulary as a file download; format = csv|json|anki|text|pdf (pdf falls back to printable HTML when dompdf is absent)",
+                "auth_required" => false,
+                "parameters" => ["format", "language", "library_id", "limit", "include_phonetics", "include_translations"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/document/{id}/extract-words",
+                "method" => "POST",
+                "feature" => "Extract Words from Document",
+                "description" => "Tokenize an uploaded document and append unique words to its collection (idempotent)",
+                "auth_required" => true,
+                "parameters" => ["id"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/vocabulary/document/{id}/extract-sentences",
+                "method" => "POST",
+                "feature" => "Extract Sentences from Document",
+                "description" => "Split an uploaded document into sentences and store them in the shared sentence library (deduplicated)",
+                "auth_required" => true,
+                "parameters" => ["id"]
+            ],
+
             // Word Operations endpoints (words)
             [
-                "path" => "/api/words/daily",
+                "path" => "/api/app_qy_v1/words/daily",
                 "method" => "GET",
                 "feature" => "Daily Words",
-                "description" => "Get daily words",
-                "auth_required" => true
+                "description" => "Get daily words (flat array of {id, word, translation, phonetic})",
+                "auth_required" => true,
+                "parameters" => ["count", "language"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/system/init-compliance",
+                "method" => "GET",
+                "feature" => "Init Compliance Report",
+                "description" => "Read-only health of all sys:init items: marker flags, external-data migration, per-language tts_cache promotion, legacy deprecation, octane timer, app initializers",
+                "auth_required" => false,
+                "parameters" => []
             ],
             [
                 "path" => "/api/words/{id}",
@@ -307,52 +354,6 @@ class AppQyV1ApiInfo
                 "description" => "Enhanced word query with full data",
                 "auth_required" => true,
                 "parameters" => ["word"]
-            ],
-            [
-                "path" => "/api/dict/v1/untranslated",
-                "method" => "GET",
-                "feature" => "Untranslated Words",
-                "description" => "Get untranslated words",
-                "auth_required" => true
-            ],
-            [
-                "path" => "/api/dict/v1/untranslated/priority",
-                "method" => "GET",
-                "feature" => "Words by Priority",
-                "description" => "Get words by priority",
-                "auth_required" => true
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/translation",
-                "method" => "POST",
-                "feature" => "Submit Translation",
-                "description" => "Submit translation for word",
-                "auth_required" => true,
-                "parameters" => ["word", "translation"]
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/audio",
-                "method" => "POST",
-                "feature" => "Submit Audio",
-                "description" => "Submit audio for word",
-                "auth_required" => true,
-                "parameters" => ["word", "audio"]
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/images",
-                "method" => "POST",
-                "feature" => "Submit Images",
-                "description" => "Submit images for word",
-                "auth_required" => true,
-                "parameters" => ["word", "images"]
-            ],
-            [
-                "path" => "/api/dict/v1/word/{word}/complete",
-                "method" => "POST",
-                "feature" => "Submit Complete Word Data",
-                "description" => "Submit complete word data",
-                "auth_required" => true,
-                "parameters" => ["word", "data"]
             ],
 
             // User Profile & Stats endpoints (user)
@@ -502,6 +503,33 @@ class AppQyV1ApiInfo
                 "auth_required" => false,
                 "parameters" => ["language", "type", "filename"]
             ],
+            // Sentence-library audio pipeline (pycore worker + FE resolve).
+            // File on disk is the source of truth; see
+            // development-guides/SENTENCE_AUDIO_GENERATION_PIPELINE.md.
+            [
+                "path" => "/api/app_qy_v1/ai_tools/tts/sentence/claim",
+                "method" => "POST",
+                "feature" => "Claim Sentence Audio",
+                "description" => "Compatibility claim for sentences needing audio; canonical workers pull bounded queue-head slices (limit=0 returns counts only)",
+                "auth_required" => false,
+                "parameters" => ["worker_id", "language", "limit"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/ai_tools/tts/sentence/report",
+                "method" => "POST",
+                "feature" => "Report Sentence Audio",
+                "description" => "Worker report of a generated sentence MP3 (multipart on success); idempotent",
+                "auth_required" => false,
+                "parameters" => ["sentence_id", "worker_id", "success", "provider", "audio", "audio_base64", "error"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/ai_tools/tts/sentence/audio",
+                "method" => "GET",
+                "feature" => "Resolve Sentence Audio",
+                "description" => "File-first resolution of one sentence's audio by hash (sentence_id|content_id) or text+language",
+                "auth_required" => false,
+                "parameters" => ["hash", "text", "language"]
+            ],
             [
                 "path" => "/api/app_qy_v1/ai_tools/tts/generate",
                 "method" => "POST",
@@ -517,6 +545,191 @@ class AppQyV1ApiInfo
                 "description" => "Batch generate TTS audio",
                 "auth_required" => true,
                 "parameters" => ["texts", "language", "voice"]
+            ],
+
+            // Pycore delivery: server identity, Laravel-side diff, batch upload.
+            [
+                "path" => "/api/app_qy_v1/delivery/info",
+                "method" => "GET",
+                "feature" => "Delivery Info",
+                "description" => "Server id, diff kinds, limits and resource index status",
+                "auth_required" => false,
+                "parameters" => []
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/diff",
+                "method" => "POST",
+                "feature" => "Delivery Diff",
+                "description" => "Report which inventory items of one kind are missing or stale on this server",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "kind", "items", "session_id", "chunk_index", "chunk_count"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/batch",
+                "method" => "POST",
+                "feature" => "Delivery Batch Manifest",
+                "description" => "Register a batch of small audio items (word_audio, sentence_audio)",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "kind", "items"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/batch/{batch_id}/content",
+                "method" => "POST",
+                "feature" => "Delivery Batch Content",
+                "description" => "offset-v1 upload of the concatenated batch item bytes",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "upload_protocol", "upload_offset", "upload_length", "audio_sha256", "chunk_sha256"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/delivery/batch/{batch_id}",
+                "method" => "GET",
+                "feature" => "Delivery Batch Progress",
+                "description" => "Batch processing progress and per-item results",
+                "auth_required" => false,
+                "parameters" => ["machine_id"]
+            ],
+
+            // Pycore audio-orchestration output (ingest + wordnew read API).
+            [
+                "path" => "/api/app_qy_v1/orch_audio/ingest/tasks",
+                "method" => "POST",
+                "feature" => "Orchestrated Audio Task Ingest",
+                "description" => "Idempotent batch upsert of orchestration task metadata keyed by machine_id + task_id + meta_hash",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "tasks"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/ingest/segment-audio",
+                "method" => "POST",
+                "feature" => "Orchestrated Segment Audio Upload",
+                "description" => "offset-v1 resumable upload of one declared segment mp3 (content-addressed, idempotent)",
+                "auth_required" => false,
+                "parameters" => ["machine_id", "task_id", "index", "upload_protocol", "upload_offset", "upload_length", "audio_sha256", "chunk_sha256"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/tasks",
+                "method" => "GET",
+                "feature" => "Orchestrated Audio List",
+                "description" => "Paged orchestrated audio tasks with source filter",
+                "auth_required" => true,
+                "parameters" => ["source", "q", "page", "per_page"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/tasks/{id}",
+                "method" => "GET",
+                "feature" => "Orchestrated Audio Detail",
+                "description" => "Task, segment playlist, sentences and word resources with audio URLs",
+                "auth_required" => true,
+                "parameters" => ["id", "sentence_page", "sentence_per_page"]
+            ],
+
+            // Third-party image-assist protocol (mcp-chrome, 60-minute lease)
+            [
+                "path" => "/api/app_qy_v1/assist/claim",
+                "method" => "POST",
+                "feature" => "Assist Claim",
+                "description" => "Claim cover or poster image work under a 60-minute lease",
+                "auth_required" => false,
+                "parameters" => ["types", "limit", "claimer"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/assist/submit",
+                "method" => "POST",
+                "feature" => "Assist Submit",
+                "description" => "Submit a cover or poster image for a claimed unit",
+                "auth_required" => false,
+                "parameters" => ["type", "id", "media_type", "image_base64", "mime", "provider", "claimer"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/assist/release",
+                "method" => "POST",
+                "feature" => "Assist Release",
+                "description" => "Release claimed units back to the queue (retry semantics with optional error)",
+                "auth_required" => false,
+                "parameters" => ["type", "ids", "error", "claimer"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/assist/status",
+                "method" => "GET",
+                "feature" => "Assist Status",
+                "description" => "Cover and TTS queue counters including live assist leases",
+                "auth_required" => false
+            ],
+
+            // Book Study-Content Generation pipeline (mcp-chrome worker surface, 60-minute lease)
+            [
+                "path" => "/api/app_qy_v1/study-gen/sources",
+                "method" => "GET",
+                "feature" => "Study-Gen Sources",
+                "description" => "List books/articles with study-content generation progress (cached marker + live segment count)",
+                "auth_required" => false,
+                "parameters" => ["type", "page", "per_page", "q"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/claim",
+                "method" => "POST",
+                "feature" => "Study-Gen Claim",
+                "description" => "Plan a source on demand and lease up to 3 claimable ~500-char segments (60-minute lease)",
+                "auth_required" => false,
+                "parameters" => ["claimer", "source_type", "source_key", "segment_index", "limit", "languages", "target_chars"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/submit",
+                "method" => "POST",
+                "feature" => "Study-Gen Submit",
+                "description" => "Submit generated sentences/explanations/phrases/grammar points for a claimed segment (idempotent, done-gated)",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key", "segment_index", "claimer", "provider", "languages", "slots", "phrases", "grammar_points"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/release",
+                "method" => "POST",
+                "feature" => "Study-Gen Release",
+                "description" => "Release leased segments back to the queue (failed with error, else pending); done rows never demoted",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key", "segment_indexes", "claimer", "error"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/status",
+                "method" => "GET",
+                "feature" => "Study-Gen Status",
+                "description" => "Per-source segment snapshot: totals + per-segment status/languages_done/provider/attempts",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/study-gen/segment-content",
+                "method" => "GET",
+                "feature" => "Study-Gen Segment Content",
+                "description" => "Retrieval hook: a passage's phrases + grammar points by segment_index or covering seq",
+                "auth_required" => false,
+                "parameters" => ["source_type", "source_key", "segment_index", "seq"]
+            ],
+
+            // Cover pipeline dashboard endpoints
+            [
+                "path" => "/api/app_qy_v1/ai_tools/cover-status",
+                "method" => "GET",
+                "feature" => "Cover Pipeline Status",
+                "description" => "Cover generation task/queue status, Gemini and pycore provider health, recent failures",
+                "auth_required" => false
+            ],
+            [
+                "path" => "/api/app_qy_v1/ai_tools/cover-retry",
+                "method" => "POST",
+                "feature" => "Cover Pipeline Retry",
+                "description" => "Reset failed and stale-processing covers to pending and clear expired assist leases",
+                "auth_required" => false
+            ],
+
+            // Static file fallback (bare Octane; nginx serves /static in production)
+            [
+                "path" => "/static/{path}",
+                "method" => "GET",
+                "feature" => "Static File Fallback",
+                "description" => "Serve external static files (vocabulary covers, media clips) when no nginx front intercepts /static",
+                "auth_required" => false,
+                "parameters" => ["path"]
             ],
 
             // Other endpoints

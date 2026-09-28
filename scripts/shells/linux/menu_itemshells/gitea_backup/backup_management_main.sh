@@ -7,6 +7,7 @@ MAIN_VERSION="1.0.0"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../common/arrow_menu.sh"
 
 # Source all core modules
 source "$SCRIPT_DIR/backup_gitea_core.sh"
@@ -14,41 +15,49 @@ source "$SCRIPT_DIR/restore_gitea_core.sh"
 source "$SCRIPT_DIR/backup_list_manager.sh"
 source "$SCRIPT_DIR/backup_laravel_core.sh"
 source "$SCRIPT_DIR/restore_laravel_core.sh"
+source "$SCRIPT_DIR/backup_core_node_core.sh"
+source "$SCRIPT_DIR/restore_core_node_core.sh"
 
 # Main menu display
 show_backup_menu() {
+    local selected_index=0
+    local choice=0
+    local menu_items=(
+        "Gitea: Backup"
+        "Gitea: Restore from Backup"
+        "Gitea: List Backups"
+        "Gitea: Delete Backup"
+        "Gitea: Show Backup Details"
+        "Gitea: Cleanup Old Backups"
+        "Gitea: Test Backup Integrity"
+        "Gitea: Start Download Server"
+        "Laravel: Backup"
+        "Laravel: Restore from Backup"
+        "Laravel: List Backups"
+        "Laravel: Delete Backup"
+        "Laravel: Show Backup Details"
+        "Laravel: Cleanup Old Backups"
+        "Laravel: Test Backup Integrity"
+        "Laravel: Start Download Server"
+        "Core_node: Backup Project"
+        "Core_node: Restore from Backup"
+        "Core_node: List Backups"
+        "Core_node: Delete Backup"
+        "Core_node: Show Backup Details"
+        "Core_node: Cleanup Old Backups"
+        "Core_node: Test Backup Integrity"
+        "Core_node: Start Download Server"
+        "Back to Management & Backup"
+    )
+
     while true; do
-        clear
-        print_header_from_common_functions "Backup Management"
-
-        echo ""
-        echo "───────────────────────────────────────────────────────────────────────────────"
-        echo "Gitea Backup:"
-        echo "  1) Backup Gitea"
-        echo "  2) Restore Gitea from Backup"
-        echo "  3) List Gitea Backups"
-        echo "  4) Delete Gitea Backup"
-        echo "  5) Show Gitea Backup Details"
-        echo "  6) Cleanup Old Gitea Backups"
-        echo "  7) Test Gitea Backup Integrity"
-        echo "  8) Start Download Server for Gitea Backup"
-        echo ""
-        echo "Laravel Backup:"
-        echo "  9) Backup Laravel"
-        echo " 10) Restore Laravel from Backup"
-        echo " 11) List Laravel Backups"
-        echo " 12) Delete Laravel Backup"
-        echo " 13) Show Laravel Backup Details"
-        echo " 14) Cleanup Old Laravel Backups"
-        echo " 15) Test Laravel Backup Integrity"
-        echo " 16) Start Download Server for Laravel Backup"
-        echo ""
-        echo "  0) Return to Main Menu"
-        echo "───────────────────────────────────────────────────────────────────────────────"
-        echo ""
-        echo -n "Select an option [0-16]: "
-
-        read -r choice
+        arrow_menu_select "Backup Management" menu_items "$selected_index" 24
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        if [ "$selected_index" -eq 24 ]; then
+            choice=0
+        else
+            choice=$((selected_index + 1))
+        fi
 
         case "$choice" in
             1)
@@ -57,7 +66,7 @@ show_backup_menu() {
                 
                 if ! is_gitea_installed; then
                     print_error_from_common_functions "Gitea is not installed"
-                    print_info_from_common_functions "Install Gitea first using: 123_install_gitea.sh"
+                    print_info_from_common_functions "Install Gitea first using: 159_install_gitea.sh"
                 else
                     backup_gitea
                 fi
@@ -72,7 +81,7 @@ show_backup_menu() {
 
                 if ! is_gitea_installed; then
                     print_error_from_common_functions "Gitea is not installed"
-                    print_info_from_common_functions "Install Gitea first using: 123_install_gitea.sh"
+                    print_info_from_common_functions "Install Gitea first using: 159_install_gitea.sh"
                 else
                     local backup_file=$(select_backup)
                     if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then
@@ -239,12 +248,91 @@ show_backup_menu() {
                 echo "Press Enter to continue..."
                 read
                 ;;
+            17)
+                echo ""
+                print_header_from_common_functions "Backup Core_node Project"
+                backup_core_node
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            18)
+                echo ""
+                print_header_from_common_functions "Restore Core_node from Backup"
+                local backup_file=$(select_core_node_backup)
+                if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then
+                    restore_core_node "$backup_file"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            19)
+                echo ""
+                print_header_from_common_functions "List Core_node Backups"
+                list_core_node_backups
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            20)
+                echo ""
+                print_header_from_common_functions "Delete Core_node Backup"
+                delete_core_node_backup
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            21)
+                echo ""
+                print_header_from_common_functions "Show Core_node Backup Details"
+                show_core_node_backup_details
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            22)
+                echo ""
+                print_header_from_common_functions "Cleanup Old Core_node Backups"
+                echo ""
+                echo -n "Enter retention days (default: 30): "
+                read -r retention_days
+                if [[ -z "$retention_days" ]]; then
+                    retention_days=30
+                fi
+                cleanup_old_backups "core_node" "$retention_days" "core_node-backup-*.tar.gz"
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            23)
+                echo ""
+                print_header_from_common_functions "Test Core_node Backup Integrity"
+                local backup_file=$(select_core_node_backup)
+                if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then
+                    verify_backup "$backup_file"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
+            24)
+                echo ""
+                print_header_from_common_functions "Start Download Server for Core_node Backup"
+                local backup_file=$(select_core_node_backup)
+                if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then
+                    prompt_download_server "$backup_file" "core_node"
+                fi
+                echo ""
+                echo "Press Enter to continue..."
+                read
+                ;;
             0)
                 print_info_from_common_functions "Returning to main menu..."
                 return 0
                 ;;
             *)
-                print_error_from_common_functions "Invalid option. Please select 0-16."
+                print_error_from_common_functions "Invalid option. Please select 0-24."
                 sleep 2
                 ;;
         esac

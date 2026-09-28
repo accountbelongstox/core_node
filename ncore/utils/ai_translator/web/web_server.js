@@ -1,17 +1,5 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const logger = require('#@logger');
-const rpc = require('#@ncore/utils/rpc');
+const rpc = require('#@ncore/utils/rpc/index.js');
 const ApiRoutes = require('./routes/api.js');
 const WebRoutes = require('./routes/web.js');
 const path = require('path');
@@ -68,21 +56,6 @@ class WebServer {
         // JSON parsing middleware
         this.app.use(express.json({ limit: '10mb' }));
         this.app.use(express.urlencoded({ extended: true }));
-
-        // CORS middleware
-        if (this.config.webConfig.enableCors) {
-            this.app.use((req, res, next) => {
-                res.header('Access-Control-Allow-Origin', '*');
-                res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-                res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-                
-                if (req.method === 'OPTIONS') {
-                    res.sendStatus(200);
-                } else {
-                    next();
-                }
-            });
-        }
 
         // Request logging middleware
         this.app.use((req, res, next) => {

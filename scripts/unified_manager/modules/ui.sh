@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # UI Module
 # Provides user interface functions for unified manager
@@ -137,7 +126,7 @@ show_script_menu() {
 
     # Show current startup method
     echo -e "\033[36m=== Current Startup Method ===\033[0m"
-    echo -e "\033[32mâž?$current_script\033[0m"
+    echo -e "\033[32m$current_script\033[0m"
 
     # Show alternative methods if available
     if [ ${#scripts[@]} -gt 1 ]; then
@@ -217,7 +206,7 @@ show_script_menu() {
                             APPS_SCRIPT_INDEX[$app_index]=$method_index
                             APPS_CURRENT_SCRIPT[$app_index]="${scripts[$method_index]}"
                             save_cache
-                            echo -e "\033[32mâœ?Switched to: ${scripts[$method_index]}\033[0m"
+                            echo -e "\033[32mSwitched to: ${scripts[$method_index]}\033[0m"
                             sleep 1
                             # Refresh the menu
                             show_script_menu "$app_index"

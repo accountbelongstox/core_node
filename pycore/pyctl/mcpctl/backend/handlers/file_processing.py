@@ -4,25 +4,20 @@
 import logging
 from typing import Dict, Any
 from pycore.pyctl.mcpctl.debug_config import debug_print
+from pycore.pyctl.mcpctl.backend.handlers.context import get_backend_info, get_file_context
 
 # Use standard logging instead of ColorPrint (MCP standards requirement)
 logger = logging.getLogger(__name__)
 
-# Global controllers (initialized by main)
-backend_info = {}
-file_controller = None
-
-
 def handle_backend_info(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Get backend info handler (sync - immediate response)"""
     debug_print(f"[Backend] backend_info requested", "Backend")
-    return backend_info.copy()
+    return get_backend_info()
 
 
 async def handle_get_file_info_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Get file info with comprehensive analysis (OCR, document parsing, color analysis)"""
-    global file_controller
-
+    backend_info, file_controller = get_file_context()
     file_path = params.get("file_path", "")
     backend_id = backend_info.get("backend_id", "unknown")
 
@@ -65,7 +60,7 @@ async def handle_get_file_info_async(params: Dict[str, Any], request_id: str = N
 
 async def handle_generate_placeholder_image_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Generate placeholder image with OCR tool handler"""
-    global file_controller
+    backend_info, file_controller = get_file_context()
     try:
         result = await file_controller.generate_placeholder_image(
             original_image_path=params.get("original_image_path"),
@@ -85,7 +80,7 @@ async def handle_generate_placeholder_image_async(params: Dict[str, Any], reques
 
 async def handle_query_file_processing_history_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Query file processing history tool handler"""
-    global file_controller
+    backend_info, file_controller = get_file_context()
     try:
         result = await file_controller.query_processing_history(
             file_type=params.get("file_type"),
@@ -102,7 +97,7 @@ async def handle_query_file_processing_history_async(params: Dict[str, Any], req
 
 async def handle_clear_file_cache_async(params: Dict[str, Any], request_id: str = None, context: Dict = None) -> Dict[str, Any]:
     """Clear file cache tool handler"""
-    global file_controller
+    backend_info, file_controller = get_file_context()
     try:
         result = await file_controller.clear_cache(file_path=params.get("file_path"))
         result["backend_id"] = backend_info.get("backend_id", "unknown")

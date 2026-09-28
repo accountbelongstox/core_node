@@ -50,23 +50,31 @@ function setupEventListeners() {
 }
 
 async function checkAuthStatus() {
+    // /sso/user always answers 200 with an explicit `authenticated` flag;
+    // a missing session is a normal state and must not log an error.
     try {
         const response = await apiClient.get('/sso/user');
-        
-        if (response.success && response.data && response.data.user) {
-            currentUser = response.data.user;
+        const user = response.data && response.data.user;
+
+        if (user) {
+            currentUser = user;
             showUserSection();
             updateStatus('authenticated', 'Authenticated');
         } else {
+            currentUser = null;
             showLoginSection();
-            checkSsoRedirect();
         }
     } catch (error) {
-        console.error('checkAuthStatus error:', error);
+        currentUser = null;
         showLoginSection();
-        updateStatus('error', 'Not authenticated');
-        checkSsoRedirect();
+        if (error && error.status && error.status >= 500) {
+            console.error('checkAuthStatus error:', error);
+            updateStatus('error', 'Authentication check failed');
+        } else {
+            updateStatus('unauthenticated', 'Not authenticated');
+        }
     }
+    checkSsoRedirect();
 }
 
 function checkSsoRedirect() {
@@ -442,6 +450,14 @@ async function loadConfigInfo() {
             updateConfigItem('config-client-secret', 'badge-client-secret', clientSecret);
         }
     } catch (error) {
+        if (error && error.status === 401) {
+            // /api_info sits behind the dashboard login wall: hide the debug
+            // config panel for guests instead of logging an error.
+            if (configSection) {
+                configSection.style.display = 'none';
+            }
+            return;
+        }
         console.error('Failed to load config info:', error);
         if (configSection) {
             configSection.style.display = 'none';

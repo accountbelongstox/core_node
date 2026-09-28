@@ -25,10 +25,12 @@ scripts/shells/win/menu_itemshells/
 scripts/pytools/special_software_env_manager/
 ├── __init__.py (Package initialization)
 ├── special_software_env_manager.py (Main entry point - REPLACES SpecialSoftwareEnvManager.ps1)
-├── common_utils.py (Common utilities - REPLACES spacial_common_menu.ps1)
-├── config_manager.py (Configuration management - NEW)
-├── command_content_generator_windows.py (Windows script generator - REPLACES part of CommandContentGenerator.ps1)
-├── command_content_generator_linux.py (Linux script generator - NEW, replaces part of CommandContentGenerator.ps1)
+├── secret_read.py (Standalone secret-decrypt helper)
+├── utils/ (common_utils.py - REPLACES spacial_common_menu.ps1; plus secret_manager.py, smart_recognition.py, local_test_helper.py)
+├── config/ (config_manager.py - configuration management; plus path_config.py)
+├── generators/ (command_content_generator_windows.py - Windows script generator, REPLACES part of CommandContentGenerator.ps1; command_content_generator_linux.py - Linux script generator)
+├── managers/ (environment_variable_manager.py, script_manager.py, backup_manager.py, menu_handler.py, command_handler.py, app_scanner.py, file_number_manager.py, variable_input_handler.py, encrypted_constants_manager.py)
+├── script_sections/ (env_loading_section.py, ssh_command_generator.py, backup_restore_section.py, mcp_section.py, user_directory_section.py)
 ├── README.txt (Usage documentation)
 └── MIGRATION_SUMMARY.md (This file)
 ```
@@ -37,12 +39,12 @@ scripts/pytools/special_software_env_manager/
 
 ### 1. Platform-Independent Core
 - **Menu system**: Pure Python with cross-platform terminal handling
-- **Configuration management**: Centralized in `config_manager.py`
+- **Configuration management**: Centralized in `config/config_manager.py`
 - **Common utilities**: Platform-agnostic helper functions
 
 ### 2. Platform-Specific Script Generation
 
-#### Windows (`command_content_generator_windows.py`)
+#### Windows (`generators/command_content_generator_windows.py`)
 - Generates PowerShell `.ps1` scripts
 - Full environment variable management
 - SecretManager integration
@@ -50,7 +52,7 @@ scripts/pytools/special_software_env_manager/
 - Pre-launch and upgrade tasks
 - Stored in: `scripts/winenvs/`
 
-#### Linux (`command_content_generator_linux.py`)
+#### Linux (`generators/command_content_generator_linux.py`)
 - Generates bash `.sh` scripts
 - Simple command execution only
 - Environment variables managed by `linux_path_function.sh`
@@ -60,7 +62,7 @@ scripts/pytools/special_software_env_manager/
 ### 3. Consolidated Menu Functions
 - All AI tool menus (Claude, OpenAI, Droid, SSH) are handled in the main manager
 - Configuration-driven approach reduces code duplication
-- Each tool has a configuration in `config_manager.py`
+- Each tool has a configuration in `config/config_manager.py`
 
 ## Features Preserved
 
@@ -126,7 +128,7 @@ python scripts/pytools/run_special_software_env_manager.py
 - Made executable automatically on Unix systems
 
 ### Configuration System
-- All tool configurations centralized in `config_manager.py`
+- All tool configurations centralized in `config/config_manager.py`
 - Easy to add new tools by adding configuration
 - Variables support types: Url, Token, Password, Text
 
@@ -150,10 +152,10 @@ To complete the migration:
 
 - `special_software_env_manager/__init__.py` - Package init
 - `special_software_env_manager/special_software_env_manager.py` - Main entry (345 lines)
-- `special_software_env_manager/common_utils.py` - Utilities (274 lines)
-- `special_software_env_manager/config_manager.py` - Configurations (172 lines)
-- `special_software_env_manager/command_content_generator_windows.py` - Windows generator (376 lines)
-- `special_software_env_manager/command_content_generator_linux.py` - Linux generator (233 lines)
+- `special_software_env_manager/utils/common_utils.py` - Utilities (274 lines)
+- `special_software_env_manager/config/config_manager.py` - Configurations (172 lines)
+- `special_software_env_manager/generators/command_content_generator_windows.py` - Windows generator (376 lines)
+- `special_software_env_manager/generators/command_content_generator_linux.py` - Linux generator (233 lines)
 - `special_software_env_manager/README.txt` - Documentation
 - `special_software_env_manager/MIGRATION_SUMMARY.md` - This file
 - `pytools/run_special_software_env_manager.py` - Convenience launcher

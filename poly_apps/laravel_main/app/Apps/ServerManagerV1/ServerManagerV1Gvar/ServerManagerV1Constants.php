@@ -14,8 +14,13 @@ class ServerManagerV1Constants
     
     // Security Configuration
     public const MAX_FILE_DOWNLOAD_SIZE = 104857600; // 100MB
+    public const MAX_FILE_WRITE_SIZE = 2097152; // 2MB
     public const MAX_EXECUTION_TIME = 300; // 5 minutes
     public const MAX_LOG_ENTRIES = 1000;
+    public const ELEVATED_TOKEN_HEADER = 'X-Elevated-Token';
+    public const ELEVATED_TOKEN_TTL = 900; // 15 minutes
+    public const ELEVATED_AUTH_MAX_ATTEMPTS = 5;
+    public const ELEVATED_AUTH_LOCKOUT_SECONDS = 900;
     
     /**
      * Get allowed download paths (environment-aware)
@@ -23,10 +28,19 @@ class ServerManagerV1Constants
      */
     public static function getAllowedDownloadPaths(): array
     {
-        return [
+        // The REAL core_node checkout (e.g. /mnt/<disk>/programing/core_node) — must be
+        // whitelisted so the file/code browser can browse it. PathConfigController hands
+        // the FE this same getCoreNodeDir() path for `code_browser`; the old hardcoded
+        // '/www/programing/core_node' does not exist on non-/www hosts, so isPathAllowed()
+        // rejected the (correct) checkout root and the browser 403/404'd.
+        $coreNode = PathMapper::getCoreNodeDir();
+
+        $paths = array_filter([
+            $coreNode,
+            $coreNode ? $coreNode . '/scripts' : null,
+            $coreNode ? $coreNode . '/poly_apps' : null,
             PathMapper::mapWebPath('wwwroot') . '/core_node/scripts',
             PathMapper::mapWebPath('wwwroot') . '/core_node/poly_apps',
-            '/www/programing/core_node', // Allow access to programming directory
             PathMapper::mapWebPath('laravel_data_dir'),
             '/var/log',
             PathMapper::mapWebPath('nginx'),
@@ -34,7 +48,9 @@ class ServerManagerV1Constants
             PathMapper::mapWebPath('shared-data'),
             ServerManagerV1PathConfig::getLetsEncryptDir(),
             PathMapper::getLaravelTmpDir()
-        ];
+        ]);
+
+        return array_values(array_unique($paths));
     }
     
     /** @deprecated Use getAllowedDownloadPaths() instead */
@@ -119,6 +135,13 @@ class ServerManagerV1Constants
     // Authentication
     public const AUTH_HEADER = 'X-Server-Manager-Key';
     public const SESSION_TIMEOUT = 3600; // 1 hour
+
+    /**
+     * Canonical flock serializing every certbot invocation across the shell
+     * self-heal layer (cert_selfheal_common.sh) and this PHP end — identical
+     * value on both ends (SYNC CONTRACT), Ubuntu/Debian/Kali alike.
+     */
+    public const CERTBOT_FLOCK_LOCK = '/run/lock/core_node_certbot.lock';
     
     // Rate Limiting
     public const RATE_LIMIT_REQUESTS = 100;
@@ -169,7 +192,7 @@ class ServerManagerV1Constants
     public static function getCertbotInstallScript(): string
     {
         $coreNodeDir = PathMapper::getCoreNodeDir();
-        return $coreNodeDir ? $coreNodeDir . '/scripts/shells/linux/debian/install_shells/26_install_certbot.sh' : PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh';
+        return $coreNodeDir ? $coreNodeDir . '/scripts/shells/linux/debian/install_shells/35_install_certbot.sh' : PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/shells/linux/debian/install_shells/35_install_certbot.sh';
     }
     
     /** @deprecated Use getCertbotInstallScript() instead */

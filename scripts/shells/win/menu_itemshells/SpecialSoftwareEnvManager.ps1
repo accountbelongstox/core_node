@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Special Software Environment Variables Management Menu
@@ -73,7 +61,7 @@ $script:EnvironmentConfigs = @{}
 
 # Initialize configurations from modules
 $script:EnvironmentConfigs["Claude AI"] = Get-ClaudeConfig
-$script:EnvironmentConfigs["OpenAI"] = Get-OpenAIConfig
+$script:EnvironmentConfigs["Codex CLI"] = Get-CodexConfig
 $script:EnvironmentConfigs["Factory AI Droid"] = Get-DroidConfig
 $script:EnvironmentConfigs["SSH Connection"] = Get-SSHConfig
 
@@ -83,7 +71,7 @@ $script:EnvironmentConfigs["SSH Connection"] = Get-SSHConfig
 $script:ActionToConfigMapping = @{
     'claude' = 'Claude AI'
     'droid' = 'Factory AI Droid'
-    'openai' = 'OpenAI'
+    'codex' = 'Codex CLI'
     'ssh' = 'SSH Connection'
 }
 
@@ -158,7 +146,7 @@ function Show-SpecialSoftwareEnvMenu {
                 if ($hasSubMenu) {
                     switch ($action) {
                         'claude' { Show-ClaudeSubMenu }
-                        'openai' { Show-OpenAISubMenu }
+                        'codex' { Show-CodexSubMenu }
                         'droid' { Show-DroidSubMenu }
                         'ssh' { Show-SSHSubMenu }
                         default {

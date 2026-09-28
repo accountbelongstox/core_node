@@ -18,8 +18,15 @@ import subprocess
 from pathlib import Path
 from typing import List, Tuple
 
+# Make pycore importable so ADB_PATH resolves via the centralized system_paths
+# module (D:\programing\Users\<user>\.core_node\scrcpy\adb.exe on Windows).
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from pycore.pyfoundations.system_paths import get_system_cache_dir
+
 # Configuration
-ADB_PATH = Path.home() / ".core_node" / "scrcpy" / "adb.exe"
+ADB_PATH = get_system_cache_dir() / "scrcpy" / "adb.exe"
 JAR_PATH = Path(__file__).parent.parent / "resources" / "scrcpy-server.jar"
 
 # Official scrcpy naming convention (from MCP query):

@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\ItToolsV1\ItToolsV1Utils;
 
@@ -101,7 +90,7 @@ class ItToolsV1PdfUtil
         return $results;
     }
     
-    public static function mergePdfs(array $pdfPaths, string $outputPath = null): array
+    public static function mergePdfs(array $pdfPaths, ?string $outputPath = null): array
     {
         foreach ($pdfPaths as $path) {
             if (!file_exists($path)) {
@@ -178,7 +167,7 @@ class ItToolsV1PdfUtil
         ];
     }
     
-    public static function rotatePdf(string $pdfPath, int $rotation, array $pages = null): array
+    public static function rotatePdf(string $pdfPath, int $rotation, ?array $pages = null): array
     {
         if (!file_exists($pdfPath)) {
             throw new \InvalidArgumentException("PDF file not found: $pdfPath");
@@ -225,7 +214,7 @@ class ItToolsV1PdfUtil
         ];
     }
     
-    public static function addPasswordToPdf(string $pdfPath, string $userPassword, string $ownerPassword = null): array
+    public static function addPasswordToPdf(string $pdfPath, string $userPassword, ?string $ownerPassword = null): array
     {
         if (!file_exists($pdfPath)) {
             throw new \InvalidArgumentException("PDF file not found: $pdfPath");
@@ -233,7 +222,10 @@ class ItToolsV1PdfUtil
         
         $pdftk = self::getPdftkPath();
         $outputPath = tempnam(sys_get_temp_dir(), 'pdf_protected_') . '.pdf';
-        $owner = $ownerPassword ?: $userPassword;
+        // The owner password MUST differ from the user password: qpdf-backed pdftk
+        // rejects identical user/owner passwords ("PDF Viewers interpret this to mean
+        // your PDF has no owner password"). When no owner is supplied, use a random one.
+        $owner = $ownerPassword ?: bin2hex(random_bytes(16));
         
         $cmd = sprintf(
             "%s %s output %s user_pw %s owner_pw %s encrypt_128bit 2>&1",

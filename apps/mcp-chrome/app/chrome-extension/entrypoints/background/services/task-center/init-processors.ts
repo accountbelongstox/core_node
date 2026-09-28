@@ -6,8 +6,16 @@
 
 import { taskCenter } from './TaskCenter';
 import { bingDictionaryProcessor } from './processors/BingDictionaryProcessor';
-import { deepSeekProcessor } from './processors/DeepSeekProcessor';
-import { googleNewsProcessor } from './processors/GoogleNewsProcessor';
+import { webAiTranslateProcessor } from './processors/WebAiTranslateProcessor';
+import { chatGptProcessor } from './processors/ChatGPTProcessor';
+import { geminiProcessor } from './processors/GeminiProcessor';
+import { notebookLmProcessor } from './processors/NotebookLmProcessor';
+import { geminiImageProcessor } from './processors/GeminiImageProcessor';
+import { promptTranslateWebProcessor } from './processors/PromptTranslateWebProcessor';
+import { wordValidityWebProcessor } from './processors/WordValidityWebProcessor';
+import { puterAiTranslateProcessor } from './processors/PuterAiTranslateProcessor';
+import { mediaImageProcessor } from './processors/MediaImageProcessor';
+import { qwenTtsProcessor } from './processors/QwenTtsProcessor';
 
 /**
  * Initialize and register all task processors
@@ -18,11 +26,49 @@ export function initializeProcessors(): void {
   // Register Bing Dictionary Processor (enabled by default)
   taskCenter.registerProcessor(bingDictionaryProcessor, true);
 
-  // Register DeepSeek Processor (disabled by default, placeholder)
-  taskCenter.registerProcessor(deepSeekProcessor, false);
+  // Register Web-AI Translate Processor (B4: ENABLED). Advertises capability
+  // ai_translate (remote_fast lane). This is the Chrome claimant; Pycore is an
+  // independent Laravel claimant declared by the same central contract.
+  taskCenter.registerProcessor(webAiTranslateProcessor, true);
 
-  // Register Google News Processor (enabled by default for testing)
-  taskCenter.registerProcessor(googleNewsProcessor, true);
+  // Register ChatGPT / Gemini web-chat processors (DISABLED by default, opt-in).
+  // Routed by task_type (chatgpt_chat / gemini_chat) on their own lanes; they
+  // drive the live browser tab to send a prompt and capture text + audio.
+  taskCenter.registerProcessor(chatGptProcessor, false);
+  taskCenter.registerProcessor(geminiProcessor, false);
+
+  // Register NotebookLM / Gemini-Image processors (DISABLED by default,
+  // opt-in): Task Center v3 lanes (remote_notebooklm / remote_gemini). They
+  // drive the live notebooklm.google.com / gemini.google.com tab. Gemini-Image
+  // is the only extension consumer of `library_cover` and `gemini_image` tasks
+  // and also drains the assist `cover` pool.
+  taskCenter.registerProcessor(notebookLmProcessor, false);
+  taskCenter.registerProcessor(geminiImageProcessor, false);
+
+  // Register Prompt-Translate Web Processor (DISABLED by default, opt-in): the
+  // chrome fulfiller of the cross-stack `prompt_translation` pipeline — drives
+  // the preferred web provider (settings) and returns {english,cleaned,variants}.
+  taskCenter.registerProcessor(promptTranslateWebProcessor, false);
+
+  // Register Word-Validity Web Processor (DISABLED by default, opt-in): drives a
+  // web LLM (Gemini/DeepSeek/ChatGPT) to classify untranslated+unchecked words
+  // valid/invalid on the dedicated remote_validity lane, so translation skips junk.
+  taskCenter.registerProcessor(wordValidityWebProcessor, false);
+
+  // Qwen3-TTS uses the same runtime as the Extension diagnostic panel, but in
+  // Task Center it consumes Laravel remote_audio tasks and posts the bytes back.
+  taskCenter.registerProcessor(qwenTtsProcessor, false);
+
+  // Register Puter AI Translate Processor (DISABLED by default, opt-in):
+  // calls Puter's OpenAI-compatible REST API for translation (no API key, no
+  // browser tab). Advertises capability 'puter_translate' on the fast lane.
+  taskCenter.registerProcessor(puterAiTranslateProcessor, false);
+
+  // Poster + library-cover web search via Google/Bing (replaces pycore
+  // TMDB/OMDB). The only extension consumer of `poster` and
+  // `library_cover_search` tasks; while active it also drains the assist
+  // `poster` pool. AI cover generation belongs to Gemini-Image.
+  taskCenter.registerProcessor(mediaImageProcessor, false);
 
   console.log('[TaskCenter] Processors initialized');
 }

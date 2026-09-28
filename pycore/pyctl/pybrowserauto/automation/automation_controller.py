@@ -11,7 +11,7 @@ import time
 from typing import List, Dict, Any, Union
 from pathlib import Path
 
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.pybrowserauto.automation.screenshot_manager import ScreenshotManager
 from pycore.pyctl.pybrowserauto.automation.page_switcher import PageSwitcher
 from pycore.pyutils.pybrowser.utils.page_utils import PageWrapper
@@ -53,7 +53,7 @@ class AutomationController:
             True if successful, False otherwise
 
         Example:
-            from pycore.pyutils.pybrowser.implementations.browsers import ChromeBrowser
+            from pycore.pyutils.pybrowser.implementations.browsers.chrome_browser import ChromeBrowser
 
             controller = AutomationController()
             chrome = ChromeBrowser()

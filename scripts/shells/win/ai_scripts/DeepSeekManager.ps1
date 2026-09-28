@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     DeepSeek-VL Model Manager Library
@@ -236,35 +224,8 @@ function Get-DeepSeekConfig {
     String - Python command
 #>
 function Get-PythonCommand {
-    # Priority 1: Use absolute path from GlobalVars (Python 3.12 standalone)
-    if ($Global:PYTHON_EXE_PATH -and (Test-Path $Global:PYTHON_EXE_PATH)) {
+    if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
         return $Global:PYTHON_EXE_PATH
-    }
-
-    # Priority 2: Try python command in PATH
-    $pythonCmd = if ($script:IS_WINDOWS) { "python" } else { "python3" }
-
-    try {
-        $pythonVersion = & $pythonCmd --version 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            return $pythonCmd
-        }
-    }
-    catch {
-        Write-Host "Python not found with command: $pythonCmd" -ForegroundColor Yellow
-    }
-
-    # Priority 3: Try py launcher on Windows
-    if ($script:IS_WINDOWS) {
-        try {
-            $pythonVersion = & "py" --version 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                return "py"
-            }
-        }
-        catch {
-            Write-Host "Python not found with command: py" -ForegroundColor Yellow
-        }
     }
 
     return $null

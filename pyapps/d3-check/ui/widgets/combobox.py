@@ -7,13 +7,11 @@ from typing import List, Dict, Any, Optional, Callable
 import sys
 import os
 
-# Add project root to path for absolute imports
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-sys.path.insert(0, project_root)
+from share.project_path import ensure_d3_check_in_sys_path
+ensure_d3_check_in_sys_path()
 
 from ui.theme.theme import UITheme
-from d3utils.i18n_manager import I18nManager
-i18n_manager = I18nManager()
+from ui.utils.tk_variables import var_str
 from providor.providor_index import CONFIG, save_config
 
 
@@ -38,8 +36,8 @@ class ThemedCombobox:
         self.values = values
         self.on_change = on_change
         
-        # Create the combobox
-        self.var = tk.StringVar(value=default_value)
+        # Create the combobox (use factory so master is always set)
+        self.var = var_str(parent, default_value)
         self.combobox = ttk.Combobox(
             parent,
             textvariable=self.var,
@@ -65,28 +63,28 @@ class ThemedCombobox:
     
     def _apply_theme(self):
         """Apply consistent theme to combobox"""
-        style = ttk.Style()
+        style = ttk.Style(self.combobox)
         
         # Configure theme for combobox
         style.configure('Themed.TCombobox',
-                       fieldbackground=UITheme.get_color('combobox_bg'),
-                       background=UITheme.get_color('combobox_bg'),
-                       foreground=UITheme.get_color('combobox_fg'),
+                       fieldbackground=UITheme.get_color('input_bg'),
+                       background=UITheme.get_color('input_bg'),
+                       foreground=UITheme.get_color('text_primary'),
                        borderwidth=1,
                        relief='solid',
-                       arrowcolor=UITheme.get_color('combobox_arrow'))
+                       arrowcolor=UITheme.get_color('text_primary'))
         
         # Map states for consistent theming
         style.map('Themed.TCombobox',
-                 fieldbackground=[('readonly', UITheme.get_color('combobox_bg')),
-                                ('active', UITheme.get_color('combobox_bg')),
-                                ('focus', UITheme.get_color('combobox_bg'))],
-                 background=[('readonly', UITheme.get_color('combobox_bg')),
-                           ('active', UITheme.get_color('combobox_bg')),
-                           ('focus', UITheme.get_color('combobox_bg'))],
-                 foreground=[('readonly', UITheme.get_color('combobox_fg')),
-                           ('active', UITheme.get_color('combobox_fg')),
-                           ('focus', UITheme.get_color('combobox_fg'))])
+                 fieldbackground=[('readonly', UITheme.get_color('input_bg')),
+                                ('active', UITheme.get_color('input_bg')),
+                                ('focus', UITheme.get_color('input_bg'))],
+                 background=[('readonly', UITheme.get_color('input_bg')),
+                           ('active', UITheme.get_color('input_bg')),
+                           ('focus', UITheme.get_color('input_bg'))],
+                 foreground=[('readonly', UITheme.get_color('text_primary')),
+                           ('active', UITheme.get_color('text_primary')),
+                           ('focus', UITheme.get_color('text_primary'))])
         
         # Apply the style
         self.combobox.configure(style='Themed.TCombobox')

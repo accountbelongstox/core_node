@@ -1,0 +1,11 @@
+{
+  "task_id": "wordnew-4",
+  "role": "wordnew",
+  "verdict": "approved",
+  "findings": {
+    "route table adaptation (laravel_route_auth.md)": {"status": "fixed", "reason": "wordnew end-user calls stay Sanctum or public, and wordnew never signs or holds the client key (K6). The super-admin gateway matches the table: dictionary word writes/batch use dashboard.auth admin; cover tasks and translation enqueue-pending use client.key_or_dashboard; tts/generate uses dashboard.auth:user. adminErrorText maps 401 to admin.needLogin, 403 (AUTH_FORBIDDEN) to admin.needAdmin, else the backend message or admin.requestFailed (4 locales). It replaces 10 duplicated handlers with a hardcoded 'Request failed'; the admin request helper already attaches .status."}
+  },
+  "issues": [],
+  "checks": "Admin API, paths, index and the five admin component diffs read; new keys present in en/zh/ja/ko _a; the route table rows cross-checked.",
+  "checked_at": "2026-09-27T04:24:01+10:00"
+}

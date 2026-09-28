@@ -8,18 +8,10 @@
  */
 
 import http from 'http';
-import { stderr } from 'process';
+import { createLogger } from '../util/logger';
+import { SERVER_CONFIG } from '../constant';
 
-// Log function for debugging
-function log(level: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [Singleton] [${level}] ${message}`;
-  if (data) {
-    stderr.write(`${logMessage} ${JSON.stringify(data)}\n`);
-  } else {
-    stderr.write(`${logMessage}\n`);
-  }
-}
+const log = createLogger('Singleton');
 
 // ============================================================
 // Protocol Definition
@@ -121,7 +113,7 @@ export class SingletonDetector {
 
       const data = JSON.stringify(message);
       const options = {
-        hostname: '127.0.0.1',
+        hostname: SERVER_CONFIG.HOST,
         port: this.port,
         path: '/singleton',
         method: 'POST',
@@ -334,6 +326,7 @@ export class SingletonDetector {
 export class SingletonHandler {
   private appId: string;
   private canShutdownCallback: (() => boolean) | null = null;
+  private shutdownCallback: (() => Promise<void>) | null = null;
 
   constructor(appId: string) {
     this.appId = appId;
@@ -347,9 +340,21 @@ export class SingletonHandler {
   }
 
   /**
+   * Set callback that gracefully releases resources (close the HTTP server, end
+   * MCP sessions) right before the process exits on an accepted SHUTDOWN.
+   */
+  setShutdownCallback(callback: () => Promise<void>): void {
+    this.shutdownCallback = callback;
+  }
+
+  /**
    * Handle singleton protocol message
    */
   handleMessage(message: SingletonMessage): SingletonMessage | null {
+    if (!message || typeof message !== 'object') {
+      return null;
+    }
+
     // Validate protocol
     if (message.protocol !== PROTOCOL_VERSION) {
       log('WARN', `[Singleton] Invalid protocol: ${message.protocol}`);
@@ -395,10 +400,28 @@ export class SingletonHandler {
         if (allowed) {
           log('WARN', `[Singleton] 🔴 Shutdown accepted from PID ${pid}, will exit...`);
 
-          // Schedule shutdown after sending response
-          setTimeout(() => {
-            log('INFO', `[Singleton] Exiting process...`);
-            process.exit(0);
+          // Schedule shutdown after sending response. Release the port
+          // gracefully first: closing the HTTP server ends any connected MCP
+          // client's stream cleanly so it re-initializes, instead of a raw TCP
+          // reset from a bare process.exit() mid-request. A hard-exit timer
+          // guarantees we still exit even if the graceful close hangs (e.g. on a
+          // long-lived SSE stream).
+          setTimeout(async () => {
+            const hardExit = setTimeout(() => {
+              log('WARN', `[Singleton] Graceful shutdown timed out, forcing exit`);
+              process.exit(0);
+            }, 2000);
+            try {
+              if (this.shutdownCallback) {
+                await this.shutdownCallback();
+              }
+            } catch (err: any) {
+              log('ERROR', `[Singleton] Error during graceful shutdown:`, err?.message || err);
+            } finally {
+              clearTimeout(hardExit);
+              log('INFO', `[Singleton] Exiting process...`);
+              process.exit(0);
+            }
           }, 300);
 
           return {

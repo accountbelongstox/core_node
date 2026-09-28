@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🚀 Chrome/Puppeteer Symbolic Link Loop Fix Script"
+echo " Chrome/Puppeteer Symbolic Link Loop Fix Script"
 echo "================================================"
 echo ""
 

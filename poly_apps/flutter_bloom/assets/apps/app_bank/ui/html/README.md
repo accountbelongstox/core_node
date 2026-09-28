@@ -16,7 +16,7 @@ html/
 └── README.md           # 说明文档
 ```
 
-## 功能特性
+## Features
 
 ### 🎨 视觉设计
 - **现代化界面**: 采用现代扁平化设计语言
@@ -124,7 +124,7 @@ php -S localhost:8000
 2. 在 `index.html` 中添加对应的卡片结构
 3. 根据需要更新样式
 
-## 设计原则
+## Design Principles
 
 ### Material Design 3.0
 - 符合最新 Material Design 规范

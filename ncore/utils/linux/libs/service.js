@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -252,9 +240,6 @@ StandardError=append:${outputErrorLog}
 LogRateLimitIntervalSec=30
 LogRateLimitBurst=1000
 LogsDirectoryMode=0755
-LogsMaxSize=100M
-MaxRetentionSec=7day
-MaxFileSec=1day
 
 # Security
 NoNewPrivileges=false
@@ -275,7 +260,7 @@ function getServiceArgs() {
     }
 }
 
-async function installService(config) {
+async function installService(config = {}) {
     let {
         execPath,
         entry = '',
@@ -284,32 +269,47 @@ async function installService(config) {
 
     } = config;
 
+    if (process.platform !== 'linux') {
+        log.error('systemd services can only be installed on Linux');
+        return false;
+    }
+
     if (!execPath) execPath = getArg('exec');
     if (!entry) entry = getArg('entry');
+    if (!execPath) {
+        log.error('Service name and execPath are required');
+        return false;
+    }
+    config = { ...config, execPath, entry, args: config.args || args };
     let name = config.name
     if (!name) {
         name = generateServiceName(config)
     }
-    if (!name || !execPath) {
+    if (!name) {
         log.error('Service name and execPath are required');
+        return false;
     }
 
     const servicePath = path.join(serviceDir, `${name}.service`);
-    const serviceContent = createServiceContent(config);
 
     try {
         // Ensure executable exists
         if (!fs.existsSync(execPath)) {
             log.error(`Executable not found: ${execPath}`);
+            return false;
         }
+
+        const serviceContent = createServiceContent(config);
 
         // Write service file
         fs.writeFileSync(servicePath, serviceContent);
         log.success(`Service file created: ${servicePath}`);
 
         // Reload systemd and enable service
-        pipeExecCmd('systemctl daemon-reload');
-        pipeExecCmd(`systemctl enable ${name}.service`);
+        if (pipeExecCmd('systemctl daemon-reload') === null || pipeExecCmd(`systemctl enable ${name}.service`) === null) {
+            log.error(`Failed to enable service ${name}`);
+            return false;
+        }
         log.success('Service enabled successfully');
 
         pipeExecCmd(`systemctl restart ${name}.service`);
@@ -323,8 +323,10 @@ async function installService(config) {
         log.info(`- CPU: ${Math.floor((config.resources?.cpuShares || resources.defaultCpuShare) / 1024 * 100)}% (${config.resources?.cpuShares || resources.defaultCpuShare} shares)`);
         log.info(`- Memory: ${Math.floor((config.resources?.memoryLimit || resources.defaultMemoryLimit) / 1024 / 1024)}MB`);
 
+        return true;
     } catch (error) {
         log.error(`Failed to install service: ${error.message} ${error.stack}`);
+        return false;
     }
 }
 

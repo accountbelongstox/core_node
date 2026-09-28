@@ -1,24 +1,15 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1ClientAuth;
+
+use App\Http\Controllers\Controller;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use App\Traits\ApiResponse;
 
-class AppQyV1ResourceAccessController
+class AppQyV1ResourceAccessController extends Controller
 {
     use ApiResponse;
 
@@ -32,7 +23,7 @@ class AppQyV1ResourceAccessController
      */
     public function validateAccess(Request $request): JsonResponse
     {
-        $isDebugMode = env('APP_DEBUG', false);
+        $isDebugMode = (bool) config('app.debug');
 
         if ($isDebugMode) {
             return $this->validateDebugToken($request);
@@ -51,7 +42,7 @@ class AppQyV1ResourceAccessController
         if (!$token) {
             return response()->json([
                 'valid' => false,
-                'message' => 'Debug token required in development mode'
+                'message' => __('app_qy_v1.messages.debug_token_required')
             ], 401);
         }
 
@@ -61,7 +52,7 @@ class AppQyV1ResourceAccessController
         return response()->json([
             'valid' => $isValid,
             'mode' => 'debug',
-            'message' => $isValid ? 'Debug token valid' : 'Invalid debug token'
+            'message' => $isValid ? __('app_qy_v1.messages.debug_token_valid') : __('app_qy_v1.messages.debug_token_invalid')
         ]);
     }
 
@@ -75,7 +66,7 @@ class AppQyV1ResourceAccessController
         if (!$resourceKey) {
             return response()->json([
                 'valid' => false,
-                'message' => 'Resource access key required'
+                'message' => __('app_qy_v1.messages.resource_access_key_required')
             ], 401);
         }
 
@@ -85,7 +76,7 @@ class AppQyV1ResourceAccessController
         return response()->json([
             'valid' => $isValid,
             'mode' => 'production',
-            'message' => $isValid ? 'Resource access key valid' : 'Invalid resource access key'
+            'message' => $isValid ? __('app_qy_v1.messages.resource_access_key_valid') : __('app_qy_v1.messages.resource_access_key_invalid')
         ]);
     }
 
@@ -94,7 +85,7 @@ class AppQyV1ResourceAccessController
      */
     public function getAccessInfo(Request $request): JsonResponse
     {
-        $isDebugMode = env('APP_DEBUG', false);
+        $isDebugMode = (bool) config('app.debug');
 
         return response()->json([
             'mode' => $isDebugMode ? 'debug' : 'production',

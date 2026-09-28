@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * Launcher Configuration
  *
@@ -18,6 +6,8 @@
  *
  * Supports both modern dict-based API and legacy boolean flags.
  */
+
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 
 class LauncherConfig {
     constructor(options = {}) {
@@ -38,7 +28,7 @@ class LauncherConfig {
         this.enableHeartbeat = options.enableHeartbeat !== false;
         this.enableRpcV2 = options.enableRpcV2 || false;
         this.rpcV2Port = options.rpcV2Port || 58100;
-        this.rpcV2Host = options.rpcV2Host || '0.0.0.0';
+        this.rpcV2Host = resolveBindHost(options.rpcV2Host);
         this.rpcV2Debug = options.rpcV2Debug !== false;
         this.enableSpeech = options.enableSpeech || false;
         this.speechMode = options.speechMode || 'single';
@@ -92,7 +82,7 @@ class LauncherConfig {
             singleton: singleton,
             services: {
                 heartbeat: {},
-                rpc_v2: { port: port, host: '0.0.0.0', debug: true }
+                rpc_v2: { port: port, host: resolveBindHost(), debug: true }
             }
         });
     }

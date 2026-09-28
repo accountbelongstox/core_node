@@ -1,0 +1,27 @@
+{
+  "assist_laravel": {
+    "enabled": false,
+    "capabilities": {
+      "translation": false,
+      "ai_translate": false,
+      "tts": false,
+      "sentence_audio": false,
+      "subtitle": false,
+      "stt": false
+    }
+  },
+  "word_tts_auto": {
+    "concurrency": 0
+  },
+  "sentence_audio_auto": {
+    "concurrency": 0
+  },
+  "codesync_runtime": {
+    "distributing": false,
+    "skip_update": false
+  },
+  "autostart": {
+    "target": "pyservice",
+    "mechanism": "xdg"
+  }
+}

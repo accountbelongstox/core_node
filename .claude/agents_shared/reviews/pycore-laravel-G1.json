@@ -1,0 +1,107 @@
+{
+  "task_id": "pycore-laravel-G1",
+  "role": "pycore-laravel",
+  "reviewer": "pycore-lead",
+  "round": 1,
+  "verdict": "approved",
+  "base": "74e7770",
+  "head": "24674d1a6",
+  "scope_reviewed": "The G1 hunks are 4ddb4be8e..HEAD. That covers 2f31f9cd3 (ContractDocument.php, QueueCenterContract.php) and 0b6f362e3 (ServiceContract.php, PathMapper.php, LaravelConfig.php, config/cache.php, ServerIdentityHeader.php, routes/api.php, RelayContract.php, RelayDeviceService.php). The later commits 7a23f57d0 and 24674d1a6 touch no G1 file. The working tree is clean for poly_apps/laravel_main and config/. USER175-11 changed no code; its five files were checked against 74e7770 and the laravel-D7 verdict. The other hunks in the 74e7770 diff come from earlier tasks, not G1: QueueCenterContract realtimeEvent/realtimeTopic and the taskStreamEvent removal (f4f223414), and the D7 ServiceContract/ContractDocument work (5bbb23682, 120296148).",
+  "summary": "approved. All six items meet their requirements, and an independent in-process probe confirms them (39 of 40 checks pass; the one miss was a wrong probe of mine, replaced by a live check). One deviation is accepted: three '/opt' literals remain in PathMapper, none of them the tool root. Every file is in pycore-laravel's scope, no contract or fenced file was touched, and line endings are unchanged. The open points are lockstep and ruling follow-ups for other owners.",
+  "findings": {
+    "contract-readers": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "QueueCenterContract.php:79-147 adds the typed readers string, positiveInt, stringList and section, which go through ContractDocument with LABEL. It also adds wordIdentityFallback, wordIdentityFallbackKeyFormat, wordIdentityFallbackRejectionCode, delivery, deliveryServerIdentityHeader and deliveryServerIdentityBodyField, plus libraryCoverMaxIds at :269-273.",
+        "ServiceContract.php adds section(), the six path bases, driveLayout(), windowsProgramDriveFallback() and linuxToolBase(). dataSync() now goes through section('data_sync'), and ContractDocument::value() is private.",
+        "ServerIdentityHeader.php:14-18 header() returns QueueCenterContract::deliveryServerIdentityHeader(), replacing the HEADER constant. Its only user, routes/api.php:33, was updated. A repo grep finds no ServerIdentityHeader::HEADER and no ContractDocument::value.",
+        "In-process probe: every new accessor equals the raw json_decode of config/queue_center_contract.json or config/service_contract.json (header X-Core-Node-Server-Id, body_field server_id, max_ids 200, rejection_code WORD_NOT_FOUND). A missing key throws RuntimeException.",
+        "php artisan route:list --json exits 0 with 1086 routes. The 5 delivery routes and the 2 orch_audio ingest routes carry ServerIdentityHeader and ClientKeyOnly. The 2 orch_audio GET routes are Authenticate:sanctum (the UI read surface) and are unchanged.",
+        "Live: GET http://127.0.0.1:9000/api/health returns 200 with X-Core-Node-Server-Id twice."
+      ]
+    },
+    "CKA-08": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "PathMapper.php:43-57 no longer has WINDOWS_DATA_DRIVE_ROOT, WWW_DIR_NAME, LINUX_WWW_ROOT, CORE_NODE_DATA_DIR_NAME, GLOBAL_VAR_DIR_NAME, LEGACY_LINUX_DATA_DIR, LEGACY_WINDOWS_PROGRAMING_USERS_DIR or NTFS_FILE_SYSTEMS. Each former use reads through ServiceContract, and no external user of those constants remains (grep).",
+        "Before/after: the 4ddb4be8e PathMapper was loaded under a scratch namespace next to the current class. 33 values match: every snapshotted mapWebPath key, getCoreNodeRuntimeDir D:\\www\\core_node, the launcher dir, the shared cache, laravel_data D:\\www\\wwwroot\\laravel_db, the logs, the temp path, and the private getBaseTempDir, globalVarDirectories and getDevCompileParts(true).",
+        "The home fallback ServiceContract::homeDataDirFallback(home) resolves the contract's ~/core_node to <home>/core_node, the same value as before.",
+        "No ServiceContract/PathMapper recursion: document() uses the __FILE__-based getCoreNodeDir, and FileSystemManager::readFile(..., false) is plain PHP.",
+        "grep: '/var/_core_node' and 'ntfs3' appear only in comments (PathMapper.php:157, :398, :422, :1645)."
+      ]
+    },
+    "DRIVE-LAYOUT-php": {
+      "claimed": "done",
+      "result": "confirmed with accepted deviation",
+      "evidence": [
+        "PathMapper.php:691-733 getDevCompileParts. The Linux branch has one return, [ServiceContract::linuxToolBase(), <os>_<ver>]: no getBaseDataDirectory fallback and no free-space switch, and rootHasSufficientFreeSpace was deleted (no callers remain). The Windows branch reads the var-center key WINDOWS_PROGRAM_DRIVE_ROOT through readPersistedVar and accepts a bare drive spec (isWindowsDriveSpec). Otherwise it uses drive_layout.program_drive_fallback, and it never probes E:.",
+        "In-process: getDevCompileParts(true) returns ['D:','win10'], the same as base, and getDevCompileParts(false)[0] equals linuxToolBase() = /opt/core_node.",
+        "Scratch var-store probe: E:\\ and e: give E:, Z:/ gives Z:, and garbage or no record gives D:.",
+        "Accepted deviation: the verify says 'no /opt literal in PathMapper code lines', but three remain: :182 app_manager_logs /opt/_core_node/logs, :183 app_manager_logs_old and :844 /opt/nginx/conf. None is the tool root. They mirror gvar_common.sh and system_paths.py legacy literals, which D30 keeps until a migration, and the contract has no key for them. Deriving them from the D30 tool base would have moved them. Removing them needs an orchestrator contract key."
+      ]
+    },
+    "D9-01": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "LaravelConfig.php:15-16 sets CACHE_STORE 'failover' and CACHE_FAILOVER_STORES ['redis','database']. config/cache.php:62-65 adds the framework 'failover' store (vendor Illuminate/Cache/FailoverStore.php), so there is no second abstraction. SESSION_DRIVER stays 'database'.",
+        "In-process on this host (phpredis not loaded), inside a rolled-back transaction on the database cache connection: Cache::put and Cache::get work and the value is in the database store; CacheFailedOver fired for redis; Cache::lock()->get() is true; RateLimiter attempts count 1; after rollback the key is gone.",
+        "Live: GET /api/codemart/v1/public/home returns 200 with X-Ratelimit-Limit 120 and Remaining 119 (throttle:120,1,codemart_public; codemart_public is a key prefix, not a named limiter).",
+        "Failover latency: PhpRedisConnector::createClient calls establishConnection before it applies max_retries/backoff, so a stopped loopback Redis fails over at once (ECONNREFUSED)."
+      ]
+    },
+    "USER175-11": {
+      "claimed": "done (landed in laravel-D7; no G1 code change)",
+      "result": "confirmed",
+      "evidence": [
+        "grep for 'env(' over config, app, routes and bootstrap (excluding getenv) finds only Process::...->env at DatabaseManagerService.php:412 and :481.",
+        "In-process: services.codemart_seed_demo === true. codemart_bank_transfer has the keys bank_name, account_name, account_number, branch and swift_code, all null by default; RuntimeConfigurationServiceProvider fills them. logging.default is stack -> [daily], the daily level is warning, and the daily path equals PathMapper::mapWebPath('logs','laravel.log') = D:\\www\\wwwroot\\laravel_db\\logs\\laravel.log.",
+        "The laravel-remote handoff is recorded in reports/pycore-laravel.md: errors go to the daily laravel-YYYY-MM-DD.log, not syslog."
+      ]
+    },
+    "AHSC-35-relay": {
+      "claimed": "done",
+      "result": "confirmed",
+      "evidence": [
+        "RelayContract.php:12-18 has one DEVICE_EVENT_NAMES list, which includes agent_history_config_changed. It is spread into $requiredEvents (:577) and exposed as deviceEvents() (:175-178) through event(). RelayDeviceService.php:60 uses it, so the second hardcoded list is gone. The contract has no device-postable marker, so one Laravel list is the minimum.",
+        "No third allowlist: RelayDeviceCtl.php:99 validates event_type only as string max:128. The outbox (RelayOutboxRepository.php:24-37) resolves any contract event and its payload profile, and agent_history_config_changed has one.",
+        "In-process: deviceEvents() includes agent_history.config.changed. The digest 498009255be2...eb93 equals sha256 of config/pycore_relay_contract.json. On the container-built service in a rolled-back relay transaction, agent_history.config.changed gets 'Active device is unavailable.' (past the allowlist), while the control g1.review.bogus gets 'Device event type is not allowed.' (device_event_invalid)."
+      ]
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "DRIVE-LAYOUT-php, lockstep: PHP Linux compile_dir is now /opt/core_node/_<os>_<ver> (D30 contract, correct). The fenced gvar_storage_common.sh:362-380 get_dev_compile_base still echoes /opt, and pycore/pyfoundations/system_paths.py:214-238 _get_dev_compile_base still uses /opt plus a free-space or secondary-disk fallback (and WSL uses the secondary disk). Until both converge, PHP getGoBinaryPath/getPnpmBinaryPath miss $compileDir on Linux and fall back to /usr/local/bin and 'which'. Owners: pycore-lead (system_paths.py) and core-node-e9/shell-linux (gvar_storage_common.sh).",
+    "DRIVE-LAYOUT-php, robustness: ServiceContract::linuxToolBase() takes the dirname of the tool_root.linux template, and PathMapper re-appends '_'.<suffix>. That assumes the last template segment stays '_<os>_<ver>'. Resolve the placeholders instead (<os>, <ver>, <program_drive>, <sys>), as SharedCacheEnv.ps1:61 does, so a future template edit is followed exactly.",
+    "DRIVE-LAYOUT-php, Windows naming: the pre-existing <drive>\\_win{ver} (base D:\\_win10, kept per the verify) matches neither contract tool_root.windows (<program_drive>\\core_node_compiler\\.dev_<sys>, D fallback D:\\www\\.dev_<sys>) nor the installed D:\\.dev_win10 (GlobalVars.ps1:130). A recorded E: gives E:\\_win10, which no installer creates. Impact on Windows is minimal (the go/pnpm lookups there resolve to bare names), but the orchestrator should rule that PHP and pycore adopt tool_root.windows together.",
+    "WINDOWS_PROGRAM_DRIVE_ROOT is a new cross-end var-center key, defined only as a private const (PathMapper.php:57). Nobody writes it yet (shell-windows follow-up; SharedCacheEnv.ps1 is fenced for core-node-e9). Put the key name in service_contract.json#paths.drive_layout (orchestrator) so PHP, pycore and PowerShell stop hardcoding it.",
+    "getDevCompileParts is memoized per worker (static), so a newly recorded program drive takes effect after a worker restart. Acceptable; note it in the shell-windows handoff.",
+    "The PathMapper.php:130-134 and :680-688 comments say the code mirrors gvar_storage_common.sh and system_paths.py. That becomes true only after the lockstep lands.",
+    "D9-01: the TaskManagerService.php:53-56 comment (CACHE_STORE=database, no cache table) is now doubly stale. The config/database.php 'cache' Redis timeout/max_retries hardening is optional: loopback Redis fails fast, so it matters only for an unreachable non-loopback host. Both are pycore-laravel scope for a later round.",
+    "CKA-08: keeping the current Linux data-dir candidate order is accepted until the D24 ruling. ServiceContract::linuxDataDirCandidates() is ready but unused, and the switch needs runtime_environment.sh, core_node_dirs.py and PathMapper together (orchestrator).",
+    "Process: the member ran 'git update-index --refresh -q'. It changes no content, but it is outside the read-only git forms that AGENTS.md allows. Use git status, which refreshes the stat cache itself.",
+    "Announcement: ListAgents shows no wordnew-lead or codemart-lead session (only core-node-e9 and ct-laravel-remote). The accessor announcement travels in the G1 result's cross_scope and in reports/pycore-laravel.md for the orchestrator to route."
+  ],
+  "checks": [
+    "git (read-only): log, show and diff 74e7770..HEAD and 4ddb4be8e..HEAD. The G1 hunks are in 2f31f9cd3 and 0b6f362e3. git status is clean for poly_apps/laravel_main and config/.",
+    "Boundaries: every changed file is in pycore-laravel's map (app/Support, app/Providers, app/Constants, app/Http/Middleware, config/, root routes/api.php, app/Apps/Relay). The member edited no config/*_contract.json; the relay digest equals sha256 of the file. The fenced gvar_storage_common.sh, shared_cache_env.sh, gvar_common.sh, mount_common.sh, pyservice_entry.sh and SharedCacheEnv.ps1 are untouched by G1.",
+    "php -l passes on all 14 files (10 changed and 4 USER175-11 checked).",
+    "EOL: 0 CR at 74e7770 and at HEAD for every file (all LF). No AI rules header was re-added.",
+    "In-process scratchpad g1_review.php, run after checking free RAM (5.36 GB and 4.93 GB): 39 of 40 PASS. The one FAIL was my own probe of RateLimiter::limiter('codemart_public'); codemart_public is a throttle key prefix, not a named limiter, so the live header check replaced it.",
+    "PathMapper before/after: the 4ddb4be8e class under a scratch namespace against the current class gives 33 identical values, with getDevCompileParts(true) = ['D:','win10'].",
+    "Program-drive probe with a scratch CORE_NODE_DATA_DIR var store: E:\\ -> E:, e: -> E:, Z:/ -> Z:, garbage -> D:, none -> D:.",
+    "php artisan route:list --json: exit 0, 1086 routes. 7 machine routes carry ServerIdentityHeader and ClientKeyOnly; the 2 orch_audio GET routes are sanctum.",
+    "Live: health 200 with X-Core-Node-Server-Id (twice); CodeMart public home 200 with X-Ratelimit-Remaining 119. Workers were not restarted by the reviewer because no code changed in this review.",
+    "greps: env( finds only Process->env. No ServerIdentityHeader::HEADER, removed PathMapper constant, rootHasSufficientFreeSpace or ContractDocument::value reference remains. /var/_core_node and ntfs3 appear only in comments. /opt appears in code only at PathMapper.php:182, :183 and :844.",
+    "Vendor reading: FailoverStore::attemptOnAllStores tries redis on every call and dispatches CacheFailedOver once per failing streak. PhpRedisConnector connects before it sets max_retries."
+  ],
+  "decisions": [
+    "approved rather than changes_requested. Every stated behavior is met and probed. The one verify deviation (three non-tool-root '/opt' literals) cannot be closed inside the member's scope without moving legacy paths or editing the contract, so the recommended option (keep them, ask for a contract key) is accepted.",
+    "Linux following the D30 tool_root.linux ahead of shell and pycore is accepted. The contract is the single source, the item said to read tool_root.linux with no literal, and the PHP consumers have fallbacks. The lockstep debt belongs to pycore-lead (system_paths.py) and core-node-e9/shell-linux.",
+    "The Windows branch keeping <drive>\\_win{ver} is accepted, because the verify pins ['D:','win10']. Adopting tool_root.windows goes to an orchestrator ruling."
+  ],
+  "next_owner": "pycore-lead: group merge, and the system_paths.py _get_dev_compile_base lockstep onto drive_layout.tool_root.linux and the WINDOWS_PROGRAM_DRIVE_ROOT key. Orchestrator: the D24 data-dir lockstep ruling, a contract key for the App Manager log roots and for the program-drive var key, and the tool_root.windows adoption ruling; route the accessor announcement to wordnew-lead and codemart-lead. shell-windows: persist WINDOWS_PROGRAM_DRIVE_ROOT. core-node-e9/shell-linux: get_dev_compile_base onto tool_root.linux. pycore-laravel, later round: the TaskManagerService comment and the optional Redis cache timeout.",
+  "checked_at": "2026-09-27T21:12:00+10:00"
+}

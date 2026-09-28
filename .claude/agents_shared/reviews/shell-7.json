@@ -1,0 +1,14 @@
+{
+  "task_id": "shell-7",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "IS-005 class (all launchers, lead B9)": {"status": "fixed", "reason": "The secret-name rule is decided once (utils/secret_display.is_secret_name; script_manager's copy removed), and every mask uses the shared ai_cli_mask_secret/Get-AiCliMaskedSecret (no new masking code). The env-loading, codex, kimi and ssh generators mask their summaries, Loaded lines and command displays; outputs are regenerated through the generators (parity 0). The hand-written launchers (claudevolc/zhipu/alibaba/deepseek, piyolo, kimiyolo, openai1) are masked directly. A sweep of linuxenvs/winenvs for echo/Write-Host of *_API_KEY/*TOKEN/*SECRET values finds only non-secret lines (Volcengine base URL/model through a legacy variable name, the secret-reader path) and the two intentional copy/paste flows."},
+    "IS-010 class (codex Windows child command)": {"status": "fixed", "reason": "The child 'powershell -Command' now receives only $fullCommand (the tool command), which inherits the $env: values, instead of '$env:OPENAI_API_KEY=...; codex' on its argv; the printed display is a separate masked string. Linux keeps eval (a builtin, no argv) and prints only the masked display."}
+  },
+  "issues": [
+    "(note) Regenerating claude1-5, codex1-2 and kimi1-2 also brought in the generator's pending shared-provisioning section (ai_cli_provision / ai_cli_upgrade_prompt replacing the inline upgrade code). This is the generator's current output, recorded in the report, but it is a behaviour change beyond masking; watch the first launcher runs."
+  ],
+  "checks": "secret_display.py and the Windows codex generator diff read; the generated codex1.ps1 launch line checked (-Command $fullCommand); a grep sweep of linuxenvs/winenvs for unmasked secret prints; the claude6/9 deletions in the stat belong to shell-4.",
+  "checked_at": "2026-09-27T04:56:27+10:00"
+}

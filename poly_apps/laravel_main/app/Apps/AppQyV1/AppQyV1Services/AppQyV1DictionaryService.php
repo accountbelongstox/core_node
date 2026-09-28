@@ -1,46 +1,71 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1DictionaryService
 {
     /**
-     * Language code mapping
-     */
-    private const LANGUAGE_MAP = [
-        'english' => 'en',
-        'chinese' => 'zh',
-        'spanish' => 'es',
-        'french' => 'fr',
-        'german' => 'de',
-        'japanese' => 'ja',
-        'korean' => 'ko',
-        'vietnamese' => 'vi',
-        'lao' => 'lo',
-    ];
-
-    /**
      * Get language code from language name
      */
     public static function getLanguageCode(string $language): string
     {
-        $normalizedLanguage = strtolower($language);
-        return self::LANGUAGE_MAP[$normalizedLanguage] ?? $normalizedLanguage;
+        $normalizedLanguage = strtolower(trim($language));
+        $languageCode = AppQyV1VocabularyLibraryModel::languageNameToCode($normalizedLanguage);
+
+        if ($languageCode !== null) {
+            return $languageCode;
+        }
+
+        if (strlen($normalizedLanguage) === 2) {
+            return $normalizedLanguage;
+        }
+
+        return 'en';
+    }
+
+    public static function getLanguageName(string $language): string
+    {
+        $normalizedLanguage = strtolower(trim($language));
+        $languageName = AppQyV1VocabularyLibraryModel::languageCodeToName($normalizedLanguage);
+
+        return $languageName ?? $normalizedLanguage;
+    }
+
+    public static function decodeSimpleTranslations(?string $rawTranslations): ?array
+    {
+        $decodedTranslations = null;
+
+        if ($rawTranslations === null || $rawTranslations === '') {
+            return null;
+        }
+
+        $decodedTranslations = json_decode($rawTranslations, true);
+
+        return self::simpleTranslationsFromDecoded($decodedTranslations);
+    }
+
+    public static function simpleTranslationsFromDecoded(mixed $decodedTranslations): ?array
+    {
+        $simpleTranslations = [];
+
+        if (!is_array($decodedTranslations)) {
+            return null;
+        }
+
+        if (isset($decodedTranslations['word_translation']) && is_array($decodedTranslations['word_translation'])) {
+            foreach ($decodedTranslations['word_translation'] as $translation) {
+                if (is_array($translation) && count($translation) >= 2) {
+                    $simpleTranslations[] = $translation[1];
+                }
+            }
+        }
+
+        return $simpleTranslations === [] ? null : $simpleTranslations;
     }
 
     /**
@@ -65,16 +90,18 @@ class AppQyV1DictionaryService
         $existing = [];
         $missing = [];
         $untranslated = [];
+        $hashes = array_map(static fn ($word): string => md5((string) $word), $words);
+        $entries = AppQyV1LangDictionaryModel::rowsByHashes($langCode, $hashes)->keyBy('md5');
 
         foreach ($words as $word) {
-            $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
+            $entry = $entries->get(md5((string) $word));
 
             if ($entry) {
-                $hasTranslation = $entry->hasTranslation();
+                $hasTranslation = (bool) $entry->has_translation;
 
                 $existing[] = [
                     'word' => $word,
-                    'md5' => md5(strtolower($word)),
+                    'md5' => md5($word),
                     'has_translation' => $hasTranslation,
                     'query_count' => 0,
                 ];
@@ -109,32 +136,16 @@ class AppQyV1DictionaryService
         $skipped = 0;
         $failed = 0;
 
-        $wordsData = [];
-
-        foreach ($words as $word) {
-            $existing = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
-
-            if ($existing) {
-                $skipped++;
-                continue;
-            }
-
-            $wordsData[] = [
-                'word' => $word,
-            ];
-        }
-
-        if (!empty($wordsData)) {
-            try {
-                $results = AppQyV1MultiLangDictionaryModel::batchCreateOrUpdate($langCode, $wordsData);
-                $added = count($results);
-            } catch (\Throwable $e) {
-                Log::error('[AppQyV1DictionaryService] Failed to add words', [
-                    'language' => $langCode,
-                    'error' => $e->getMessage(),
-                ]);
-                $failed = count($wordsData);
-            }
+        try {
+            $outcome = AppQyV1LangDictionaryModel::ensureContents($langCode, $words);
+            $added = $outcome['created'];
+            $skipped = $outcome['existing'];
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1DictionaryService] Failed to add words', [
+                'language' => $langCode,
+                'error' => $e->getMessage(),
+            ]);
+            $failed = count($words);
         }
 
         return [
@@ -158,22 +169,25 @@ class AppQyV1DictionaryService
         $result = [];
         $missingWords = [];
         $isEnglish = in_array(strtolower($langCode), ['en', 'english']);
+        $hashes = array_map(static fn ($word): string => md5((string) $word), $words);
+        $entries = AppQyV1LangDictionaryModel::rowsByHashes($langCode, $hashes)->keyBy('md5');
 
         foreach ($words as $word) {
-            $wordMd5 = md5(strtolower($word));
-            $entry = AppQyV1MultiLangDictionaryModel::findByWord($langCode, $word);
+            $wordMd5 = md5($word);
+            $entry = $entries->get($wordMd5);
 
             if ($entry) {
-                $hasTranslation = $entry->hasTranslation();
-                $hasTts = $entry->tts_generated ?? false;
+                $hasTranslation = (bool) $entry->has_translation;
+                $hasTts = (bool) $entry->has_audio;
 
                 $translations = null;
                 if ($isEnglish) {
-                    $translations = $entry->translation;
+                    $translations = $entry->translations;
                 } else {
+                    $translationMap = is_array($entry->translations) ? $entry->translations : [];
                     $translations = [
-                        'en' => $entry->meaning_en,
-                        'zh' => $entry->meaning_zh,
+                        'en' => $translationMap['en'] ?? null,
+                        'zh' => $translationMap['zh'] ?? null,
                     ];
                 }
 
@@ -186,9 +200,7 @@ class AppQyV1DictionaryService
                     'translations' => $translations,
                 ];
             } else {
-                $missingWords[] = [
-                    'word' => $word,
-                ];
+                $missingWords[] = $word;
 
                 $result[] = [
                     'word' => $word,
@@ -203,7 +215,7 @@ class AppQyV1DictionaryService
 
         if (!empty($missingWords)) {
             try {
-                AppQyV1MultiLangDictionaryModel::batchCreateOrUpdate($langCode, $missingWords);
+                AppQyV1LangDictionaryModel::ensureContents($langCode, $missingWords);
                 Log::info('[AppQyV1DictionaryService] Added new words to dictionary', [
                     'language' => $langCode,
                     'count' => count($missingWords),
@@ -229,16 +241,12 @@ class AppQyV1DictionaryService
     {
         $langCode = self::getLanguageCode($language);
 
-        $total = AppQyV1MultiLangDictionaryModel::countAll($langCode);
-        $translated = AppQyV1MultiLangDictionaryModel::countByTranslation($langCode);
+        $total = AppQyV1LangDictionaryModel::rowCount($langCode);
+        $translated = AppQyV1LangDictionaryModel::translatedCount($langCode);
         $untranslated = $total - $translated;
 
-        $needingTTS = AppQyV1MultiLangDictionaryModel::forLanguage($langCode)
-            ->where(function($query) {
-                $query->where('tts_generated', false)
-                    ->orWhereNull('tts_generated');
-            })
-            ->count();
+        // Unified schema: audio presence is the has_audio boolean.
+        $needingTTS = AppQyV1LangDictionaryModel::missingAudioCount($langCode);
 
         return [
             'language' => $language,
@@ -261,14 +269,14 @@ class AppQyV1DictionaryService
     public static function getUntranslatedWords(string $language, int $limit = 100): array
     {
         $langCode = self::getLanguageCode($language);
-        $words = AppQyV1MultiLangDictionaryModel::getWordsNeedingTranslation($langCode, $limit);
+        $words = AppQyV1LangDictionaryModel::untranslatedRows($langCode, $limit);
 
         $result = [];
         foreach ($words as $word) {
             $result[] = [
-                'word' => $word->word,
-                'md5' => md5(strtolower($word->word)),
-                'query_count' => 0,
+                'word' => $word->content,
+                'md5' => $word->md5,
+                'query_count' => (int) $word->query_count,
             ];
         }
 
@@ -360,13 +368,23 @@ class AppQyV1DictionaryService
      */
     public static function scanAvailableLanguages(): array
     {
+        // Called by several Octane timer tasks every 30-60s; language tables
+        // rarely appear/empty out, so cache the multi-table count scan.
+        return Cache::remember(
+            'appqyv1:available_languages',
+            now()->addMinutes(5),
+            fn () => self::scanAvailableLanguagesUncached()
+        );
+    }
+
+    private static function scanAvailableLanguagesUncached(): array
+    {
         $wordTables = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getAllWordTables();
         $availableLanguages = [];
 
         foreach ($wordTables as $langCode => $tableName) {
             try {
-                $model = AppQyV1MultiLangDictionaryModel::forLanguage($langCode);
-                $count = $model->count();
+                $count = AppQyV1LangDictionaryModel::rowCount($langCode);
 
                 if ($count > 0) {
                     $availableLanguages[] = $langCode;
@@ -429,10 +447,20 @@ class AppQyV1DictionaryService
     {
         $langCode = strtolower($langCode);
 
+        // Primary: the local name->code map (english/chinese/...).
         foreach (self::LANGUAGE_MAP as $name => $code) {
             if ($code === $langCode) {
                 return $name;
             }
+        }
+
+        // Fallback: the canonical 80+ language code->name table. Without this a
+        // code such as 'en' (or any unlisted code) would leak through as a bare
+        // code, so getStatistics could not resolve the correct dictionary and
+        // scanning silently skipped that language.
+        $fullMap = \App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService::LANGUAGES;
+        if (isset($fullMap[$langCode])) {
+            return strtolower($fullMap[$langCode]);
         }
 
         return $langCode;

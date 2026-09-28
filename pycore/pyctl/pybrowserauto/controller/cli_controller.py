@@ -10,7 +10,18 @@ import sys
 import argparse
 from pathlib import Path
 from typing import Optional
-from pycore.pyfoundations.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+from urllib.parse import urlparse
+from pycore.pyctl.pybrowserauto.core.domain_context import DomainContext
+from pycore.pyctl.pybrowserauto.core.url_queue import URLQueue
+from pycore.pyctl.pybrowserauto.core.file_mapper import FileMapper
+from pycore.pyctl.pybrowserauto.core.url_rewriter import URLRewriter
+from pycore.pyctl.pybrowserauto.processor.resource_processor import ResourceProcessor
+from pycore.pyctl.pybrowserauto.processor.html_processor import HTMLProcessor
+from pycore.pyctl.pybrowserauto.processor.css_processor import CSSProcessor
+from pycore.pyctl.pybrowserauto.controller.crawl_controller import CrawlController
+
 
 
 class CLIController:
@@ -199,23 +210,10 @@ Examples:
         Returns:
             True if successful, False otherwise
         """
-        from urllib.parse import urlparse
 
         # Import components
-        from pycore.pyctl.pybrowserauto.core import (
-            DomainContext,
-            URLQueue,
-            FileMapper,
-            URLRewriter
-        )
 
-        from pycore.pyctl.pybrowserauto.processor import (
-            ResourceProcessor,
-            HTMLProcessor,
-            CSSProcessor
-        )
 
-        from pycore.pyctl.pybrowserauto.controller import CrawlController
 
         # Parse URL for origin
         parsed = urlparse(url)
