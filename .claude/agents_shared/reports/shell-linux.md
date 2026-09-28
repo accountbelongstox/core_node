@@ -517,6 +517,23 @@ Re-entered after the reset with no live memory of anything done between the last
 
 - None for actionable items. Waiting on: shell-windows round-2 review of shell-linux-12; orchestrator to confirm mount_common.sh fence status and assign a reviewer to the D24-D30/shell-linux-G2 work.
 - Next owner: ca-orchestrator (dispatch), shell-windows (shell-linux-12 round 2).
+
+### Update (still 2026-09-28): orchestrator ruling, holding for next task
+
+ca-orchestrator answered both flags from the entry above (see `docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`, decisions R1-R6):
+- (a) confirmed: the D24-D30 `mount_common.sh` block was written by a prior shell-linux session under its own fenced lane (this report's own findings 3-13 / SPL-117 entry, above, is the record). Not core-node-e9.
+- (b) both that block and shell-linux-G2 (`SPL-123`/`SPL-124`/`SPL-125`, now renumbered again to `SPL-124`/`SPL-125`/`SPL-126` by the external root lead per below) get their verdict from shell-windows, as shell group leader. Logged in the roster doc, held until the user's next task (R4).
+- New external fence (R6, root lead `ca-orchestrator` bridge session, a *different, higher-priority* workflow than this team): `.claude/agents_shared/shell_parity/*.md` (my ledger, `linux.md`) plus `scripts/shells/linux/common/claude_team_common.sh`, `scripts/ai_shtools/claude_code_install.sh`, `scripts/linuxenvs/claude*.sh`, `scripts/ai_ps1tools/_json_sync_helper.py`, `scripts/pytools/ai_tools/auto_add_mcp_linux.py` -- none of these are to be edited by this team until the root lead releases them. My SPL-121/122->SPL-124/125 renumbering (done just before this fence landed) was accepted and forwarded to the root lead; the ledger's GitHub-SSH row was further renumbered SPL-123->SPL-126 by that lead, not by me.
+- shell-linux-12 got its round-2 review while this fence was in effect: `changes_requested` again -- a new, pre-existing gap in `project_tree_bind_state` (a foreign mount can be misclassified as the script's own bind on a project's very first `ensure`, before the ext4 target directory exists). `project_tree_common.sh` itself is NOT in the R6 fence list, but per R4 ("carried backlog stays on hold until the user's next task") I am not fixing it proactively this pass.
+- Status: holding per R4. No files edited after the fence notices arrived. Waiting for the user's next task via ca-orchestrator.
+
+### shell-linux-12: closed (round 3 approved)
+
+shell-windows messaged that shell-linux-12 is `approved` at round 3 (`.claude/agents_shared/reviews/shell-linux-12.json`, confirmed read). Round 2's BIND-STATE-IDENTITY-GAP finding (`project_tree_bind_state` returning 0/"bound" for any mountpoint when `ext4_dir` didn't exist yet, instead of failing closed) is fixed on disk -- confirmed by reading `project_tree_common.sh:201-209`: `project_tree_bind_state` now returns `2` whenever the link path is a mountpoint but `ext4_dir` doesn't exist, same fail-closed path as a confirmed-different bind. I did not make this fix myself (holding per R4 since the last update); it landed on disk from elsewhere and shell-windows independently re-verified it live on their own native-Debian host (private mount namespace, unprivileged bind mounts) before approving. Task done, no further action.
+
+### R6 fence released -- synced, still holding per R4
+
+ca-orchestrator relayed that the root-lead bridge session (a separate parallel workflow, `docs_fix/TASK_20260928_PRIOR_WORKFLOW_COMPLETION.md`: `wf_2f18793a-cd6` follow-up, root uid 0) released the R6 fence on `claude_team_common.sh`, `claude_code_install.sh`, `scripts/linuxenvs/claude*.sh`, `_json_sync_helper.py`, `auto_add_mcp_linux.py` and `linux.md`. It left reviewer-approved (verdicts in `reviews/orch-wf1*-shell-linux-*.json`, all `approved`), **uncommitted** work in those files plus new ledger rows `SPL-127`-`SPL-135` (claude account readiness report/gate, pane readiness probe, `--respawn-blocked`, post-launch readiness wait, root-from-su env normalization, one shared remote-ssh-options constant, an `os.replace`-based atomic `~/.claude.json` writer with an fd-level `fchmod`/`fchown` fix from its own round-1 finding). Re-read every named file and the ledger; did not re-verify (already reviewer-approved, multiple rounds each) and made no edits -- per R4 a fence release does not itself authorize new work, only carried-backlog-on-hold continues. Recorded a durable memory note (`external-fence-protocol.md`) for next time this pattern recurs. `git status` confirms these files are modified-but-uncommitted; nothing committed by me (no git write requested by the user).
 ## shell-linux-G2: D20 `syncgit` / `dd.sh help` / gitput_unified.sh linkage
 
 - Status: done, awaiting reviewer.

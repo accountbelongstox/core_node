@@ -1,0 +1,28 @@
+{
+  "task": "orch-wf1b shell-windows-followup (close the 3 minor findings of orch-wf1-shell-windows.json)",
+  "base": "8c30ec34e (working tree, on top of the approved orch-wf1 hunks)",
+  "verdict": "approved",
+  "findings": [
+    {
+      "file": "/www/programing/core_node/scripts/shells/win/win_common/ClaudeTeamInstallCommon.ps1",
+      "line": "415-417 (ConvertFrom-ClaudeTeamAccountConfigText, trusted-project loop)",
+      "severity": "minor",
+      "issue": "Add-Member -NotePropertyName $projectKey sits outside the try. When a projects entry has an empty-string key and hasTrustDialogAccepted:true, Add-Member throws 'Cannot process argument because the value of argument \"name\" is not valid'. That is a terminating error under EAP=Stop, and it goes through Test-ClaudeTeamAccount into the launcher and Step21. An empty key also sends PS 7 to the fallback, because the default ConvertFrom-Json rejects empty property names. I reproduced this on both the PS 7 (-AsHashtable) path and the simulated 5.1 (JavaScriptSerializer) path. claude never writes an empty project key, so the input is implausible, but it contradicts the report's claim that the check 'never ends with a terminating error'.",
+      "fix": "Skip empty keys in the loop (-not [string]::IsNullOrEmpty($projectKey)), or build the trusted set inside the existing try so any failure returns $null (WARN plus 'missing')."
+    }
+  ],
+  "checks": {
+    "item1": "Done. ReadAllText, the empty check and ConvertFrom-Json now sit inside one try (lines 207-215). With a FileShare.None lock held open, the result is WARN plus 'missing' and no terminating error. Install-ClaudeTeamUserSettings returns early on Valid=$false, so it never writes over a settings.json it could not read. Test-ClaudeTeamRemoteControlEnvironment only uses .Settings, so it is safe. The deviation from the spec wording ('counts as empty') is deliberate: 'empty' would give 'login' and hold roles on a transient lock. It follows the orch-wf1 fix text and SPW-046, and the implementer surfaced it in deferred for the lead. I accept it.",
+    "item2": "Done. The fallback runs only when the first parse fails and the file had text. The parser choice is a capability check (Get-Command Parameters.ContainsKey('AsHashtable')), not a version check. The function returns only oauthAccount presence (no value), the raw hasCompletedOnboarding value and the projects whose hasTrustDialogAccepted is JSON true, and the downstream state logic is unchanged. My harness (scratchpad wf1b/h.ps1, snap pwsh, 17 cases, run on the PS 7 path and again with a JavaScriptSerializer stand-in that returns Dictionary<string,object> plus a ConvertFrom-Json proxy without -AsHashtable) gives the same results on both paths. valid: ready. Case-duplicate project keys with a trusted differently-cased parent: ready. Case-duplicate keys, one trusted and one false: ready. Case-duplicate keys untrusted, or trust as the string 'true': trust. Case-duplicate keys without oauthAccount: login. Case-duplicate top-level oauthAccount: ready. Case-duplicate keys with onboarding as the string 'true': onboarding. Empty top-level key: ready. Invalid, array and null roots: WARN plus missing. Empty file and missing file: login. Locked file: WARN plus missing. Empty project key: terminating (finding above).",
+    "item3": "Done. $ClaudeTeamLiveStates is declared once at line 55, next to the other constants. The running count (line 1650) and the lead lookup in Show-ClaudeTeamRemoteControlHint (line 1718) both use it. The only other literal is the single state assignment in Set-ClaudeTeamLiveRowState, which is not a duplicate list.",
+    "ledger": "SPW-046 describes the single try/catch, the case-tolerant fallback on both PowerShell versions and WARN plus 'missing' for locked, non-object or invalid files, notes the Linux difference inline and lists ConvertFrom-ClaudeTeamAccountConfigText. SPW-049 names $ClaudeTeamLiveStates.",
+    "parse": "Parser::ParseFile with snap pwsh: 0 errors in both .ps1 files.",
+    "line_endings": "The .gitattributes rule gives both .ps1 files eol=crlf. Line counts: ClaudeTeamInstallCommon.ps1 has 509 CRLF of 509 lines and ClaudeTeamCommon.ps1 has 1931 of 1931. The non-ASCII byte counts (0 and 14) match HEAD. windows.md is still LF (i/lf w/lf).",
+    "scope": "Since the orch-wf1 verdict, only the 3 assigned files and the shell-windows memory files changed on the shell-windows side. The other newer files (config/claude_team_roles.json, _json_sync_helper.py, ai_tools_common.py, linux.md, git_grant.json, the task doc) belong to the other lanes or the orchestrator.",
+    "rules": "Variables are declared at the top of the new function. There is no version regex and no exit-code return, and all text is English. The result is read-only and report-only."
+  },
+  "deferred_accepted": [
+    "The real Windows PowerShell 5.1 System.Web.Extensions branch has not been run on Windows. It has only a simulated return shape, and it falls back to the old WARN plus 'missing' when Add-Type fails.",
+    "The OK and WARN lines print twice through the Invoke-ClaudeTeamClaudeProvision re-check. This now happens only for a locked or truly invalid config."
+  ]
+}

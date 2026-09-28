@@ -11,4 +11,6 @@ Ruling R2 (docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md): the roster member in `
 
 **Why:** one writer per path. Reviews from D22 onward already name the roster members as the successors.
 
+On 2026-09-28 the catalog was changed to list the 13 alias roles as `enabled:true, window:false`. From then on a launch should open no alias panes, and the alias roles become on-demand teammates only.
+
 **How to apply:** at startup, if ListAgents shows alias `ct-*` sessions, send R2 once to every alias session and to the group leaders before they ask. Check that the catalog still matches before you reuse the map. Related: [[parallel-user-sessions]].

@@ -10,3 +10,5 @@
 - [SharedCacheEnv.ps1 load side effects](shared-cache-env-load-side-effects.md) — dot-sourcing it creates real D:\www\cache\* dirs; stub its globals/functions in scratch tests instead
 - [Parity "aligned" needs a field diff](parity-aligned-needs-field-diff.md) — a row can say aligned while hiding a field gap or an unverified algorithm/stale round; diff/verify the counterpart's actual code
 - [Bash exec optimization erases test argv](bash-exec-optimization-erases-test-argv.md) — `bash -c 'cmd' extra --name X &` loses extra argv (tail-call exec); use `cmd & wait` in a wrapper script to test /proc/PID/cmdline matching
+- [pwsh snap wrapper fails](pwsh-snap-wrapper-fails.md) — `pwsh` snap wrapper errors "transient scope"; run /snap/powershell/current/opt/powershell/pwsh directly
+- [PS Dictionary.Contains + stub gotchas](ps-dictionary-contains-and-stub-gotchas.md) — use ContainsKey on JSON dictionaries; cmdlet proxy stubs need CmdletBinding, no $ErrorAction

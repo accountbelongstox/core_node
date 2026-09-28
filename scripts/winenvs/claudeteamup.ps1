@@ -11,12 +11,15 @@
     ct-orchestrator gets sessions.kickoff_lead. Roles coordinate through
     cross-session messaging (ListAgents / SendMessage). Live PIDs are skipped;
     -Status prints the plan (monitors, tabs, panes, commands) without opening
-    anything. Agent-teams lead variant: claudeagents.ps1
+    anything. While the Claude account is not signed in, set up or trusted, only
+    the lead starts; -SkipAccountCheck starts every role anyway.
+    Agent-teams lead variant: claudeagents.ps1
     Linux counterpart: scripts/linuxenvs/claudeteamup.sh
 
 .EXAMPLE
     .\claudeteamup.ps1
     .\claudeteamup.ps1 -Status
+    .\claudeteamup.ps1 -SkipAccountCheck
     .\claudeteamup.ps1 -Roles orchestrator,reviewer -NoKickoff
 #>
 
@@ -24,7 +27,8 @@ param(
     [switch]$Status,
     [switch]$NoWindows,
     [switch]$NoKickoff,
-    [string[]]$Roles = @()
+    [string[]]$Roles = @(),
+    [switch]$SkipAccountCheck
 )
 
 Set-StrictMode -Version Latest
@@ -60,6 +64,6 @@ Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "claudeteamup.ps1 - Claude Code roles as independent sessions (cross-session messaging)" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host ("[INFO] Options: Status={0} NoWindows={1} NoKickoff={2} Roles={3}" -f [bool]$Status, [bool]$NoWindows, [bool]$NoKickoff, $(if ($roleList.Count -gt 0) { $roleList -join "," } else { "all" })) -ForegroundColor Green
+Write-Host ("[INFO] Options: Status={0} NoWindows={1} NoKickoff={2} Roles={3} SkipAccountCheck={4}" -f [bool]$Status, [bool]$NoWindows, [bool]$NoKickoff, $(if ($roleList.Count -gt 0) { $roleList -join "," } else { "all" }), [bool]$SkipAccountCheck) -ForegroundColor Green
 
-Invoke-ClaudeTeamUp -Mode "sessions" -Status:$Status -NoWindows:$NoWindows -NoKickoff:$NoKickoff -Roles $roleList
+Invoke-ClaudeTeamUp -Mode "sessions" -Status:$Status -NoWindows:$NoWindows -NoKickoff:$NoKickoff -Roles $roleList -SkipAccountCheck:$SkipAccountCheck

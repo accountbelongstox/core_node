@@ -5,3 +5,4 @@
 - [Launcher generator parity](launcher-generator-parity.md) — generated launchers can lag the generator; parity-check then regenerate, never hand-edit
 - [Root acts as user](root-acts-as-user.md) — root steps in other users' homes run as that user (runuser); unshare+fake passwd sandbox
 - [dd.sh source-in-function scoping](dd-sh-source-in-function-scoping.md) — declare -A/-a in a file dd.sh sources via load_dd_helpers needs -g or it vanishes; verify dispatch live, not just bash -n
+- [External fence protocol](external-fence-protocol.md) — a root/bridge lead can fence even linux.md; stop on fence, re-Read on release, don't self-assign work from a release alone (R4)

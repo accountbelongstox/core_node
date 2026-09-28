@@ -8,13 +8,15 @@
     by the task. It runs
     claudeteam.ps1 --team-pane team --agent orchestrator --name ca-orchestrator
     with the team kickoff. Live PIDs are skipped; -Status prints the plan without
-    opening anything.
+    opening anything. -SkipAccountCheck starts roles even when the Claude account
+    is not signed in, set up or trusted.
     Independent-sessions lead variant: claudeteamup.ps1
     Linux counterpart: scripts/linuxenvs/claudeagents.sh
 
 .EXAMPLE
     .\claudeagents.ps1
     .\claudeagents.ps1 -Status
+    .\claudeagents.ps1 -SkipAccountCheck
     .\claudeagents.ps1 -Roles orchestrator,reviewer -NoKickoff
 #>
 
@@ -22,7 +24,8 @@ param(
     [switch]$Status,
     [switch]$NoWindows,
     [switch]$NoKickoff,
-    [string[]]$Roles = @()
+    [string[]]$Roles = @(),
+    [switch]$SkipAccountCheck
 )
 
 Set-StrictMode -Version Latest
@@ -58,6 +61,6 @@ Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "claudeagents.ps1 - Claude Code agent team (one lead, teammates on demand)" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host ("[INFO] Options: Status={0} NoWindows={1} NoKickoff={2} Roles={3}" -f [bool]$Status, [bool]$NoWindows, [bool]$NoKickoff, $(if ($roleList.Count -gt 0) { $roleList -join "," } else { "all" })) -ForegroundColor Green
+Write-Host ("[INFO] Options: Status={0} NoWindows={1} NoKickoff={2} Roles={3} SkipAccountCheck={4}" -f [bool]$Status, [bool]$NoWindows, [bool]$NoKickoff, $(if ($roleList.Count -gt 0) { $roleList -join "," } else { "all" }), [bool]$SkipAccountCheck) -ForegroundColor Green
 
-Invoke-ClaudeTeamUp -Mode "team" -Status:$Status -NoWindows:$NoWindows -NoKickoff:$NoKickoff -Roles $roleList
+Invoke-ClaudeTeamUp -Mode "team" -Status:$Status -NoWindows:$NoWindows -NoKickoff:$NoKickoff -Roles $roleList -SkipAccountCheck:$SkipAccountCheck

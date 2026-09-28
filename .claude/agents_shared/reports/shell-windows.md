@@ -14,6 +14,8 @@
 | shell-linux-11 (leader review, round 2) | Reviewed shell-linux's fix for the round-1 device-field gap (Owner/ExitNodeOption in `ts_show_devices`) | approved |
 | amend-windows-d28d30 | D28/D30 lane: verified `SharedCacheEnv.ps1` + new `ProjectTreeCommon.ps1` against the current contract (namespaces/tool_root/cache_root/trees_root/toolchain_env_file), re-ran the 7-state junction scratch test, updated the stale SPW-035 ledger row | done, awaiting reviewer (no code changes needed -- files were already correct) |
 | shell-linux-G1 (leader review) | Reviewed shell-linux's D13-LIN-BLOCKERS (7 sub-fixes) + D13-LIN-CATALOG (`window:false` role exclusion) round | approved |
+| shell-windows-G2 | D20 `dd` syncgit / help + shared GitHub-SSH-origin (`gitput_unified.ps1`, `GitSyncCommon.ps1`, `dd.cmd`/`dd.ps1`, `scripts/winenvs/syncgit.ps1`) | round 1 fixed (B1 `Invoke-GitSyncEnsureGitHubSshOrigin` never called + unsafe `git remote get-url` under EAP=Stop; B2 duplicate `git_remotes.conf` reader), awaiting reviewer; SPW-045 ledger correction deferred (windows.md fenced by another lead, R6) |
+| shell-linux-12 (leader review, round 3) | Re-reviewed shell-linux's fix for the round-2 `project_tree_bind_state` fail-closed gap | approved |
 | shell-linux-12 (leader review, round 1) | Reviewed shell-linux's new `project_tree_common.sh` (P1b G11 per-project ext4 bind) | changes_requested: `ensure` force-unmounted/took over a foreign bind (`bind_rc==2`) instead of skipping |
 | shell-linux-12 (leader review, round 2) | Reviewed shell-linux's fix for the round-1 takeover finding | changes_requested: fix confirmed correct and independently re-verified live, but a second, pre-existing identity-check gap in `project_tree_bind_state` (same file, unchanged this round) was found and reproduced live |
 
@@ -890,3 +892,117 @@ Verdict written to `.claude/agents_shared/reviews/shell-linux-12.json` (round 2,
 ### Next owner
 
 shell-linux, to fix the `project_tree_bind_state` identity gap and resubmit for round 3.
+
+## shell-windows-G2: review round 1 fixes (reviews/shell-windows-G2.json)
+
+Resumed after this session's own claude.ai usage-limit reset. Re-read `git status` (clean), the `shell-windows-*.json` review verdicts, and `TASKS.md` before acting: `shell-windows-9` had since been approved (round 2) with no action needed; `shell-windows-2`/`shell-windows-G1` were already `approved`; `shell-windows-10` (D29 Tailscale)'s round-1 fixes were already fully applied and documented (see the section above) and just needed the reviewer notified; `shell-windows-3-fix` turned out to be pycore-ai/pycore-runtime's scope under the D22 map, not mine, so no action taken there; `shell-windows-G2` was `changes_requested` with two open blockers, B1 and B2, neither yet fixed in code. This section fixes both.
+
+An orchestrator message arrived mid-session (ruling R6, `docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`): another lead has fenced `scripts/shells/win/win_common/ClaudeTeam*.ps1`, `scripts/winenvs/claude*` and `.claude/agents_shared/shell_parity/*.md` (including this role's own `windows.md` ledger) for a user task, held until released. Neither `GitSyncCommon.ps1` nor `gitput_unified.ps1` is in that fence, so the code fix below proceeded; the SPW-045 ledger correction the fix would normally make is deferred until the fence lifts (recorded here instead).
+
+### B1: `Invoke-GitSyncEnsureGitHubSshOrigin` never called + unsafe `git remote get-url` under `$ErrorActionPreference = 'Stop'`
+
+Two sub-parts, both fixed in `scripts/shells/win/win_common/GitSyncCommon.ps1` and `scripts/git/gitput_unified.ps1`:
+
+1. **The ensure-origin call was missing.** `gitput_unified.ps1`'s main `try` block now calls `Invoke-GitSyncEnsureGitHubSshOrigin -RepoRoot $coreNodeDir | Out-Null` right after `Set-Location $coreNodeDir`, before `Create-WorkingBackup`/`Ensure-TargetBranch` -- matching Linux `gitput_unified.sh main()`'s `git_sync_ensure_github_ssh_origin` call. Its result is not checked and does not abort the push/pull flow on failure (each target's own `Set-RemoteUrl` sets its remote explicitly anyway), matching Linux's own "does not abort" comment.
+2. **Unsafe read.** The reviewer's own PS 5.1 probe found that a native command's stderr, even redirected to `2>$null`, becomes a terminating error under the caller's `$ErrorActionPreference = 'Stop'` -- so `GitSyncCommon.ps1`'s unwrapped `git remote get-url $RemoteName 2>$null` (used inside `Set-GitSyncRemoteUrl` and `Set-GitSyncRemoteIfDifferent`) would abort the whole flow the first time a remote does not exist yet, which is the normal case for `Invoke-GitSyncEnsureGitHubSshOrigin`'s very first call ("origin" may not exist on a fresh clone) or for a rotation target. Added a new `Get-GitSyncCurrentRemoteUrl` helper (try/catch around the native call, `$null` on any failure or a non-zero `$LASTEXITCODE`) and routed `Set-GitSyncRemoteUrl`, `Set-GitSyncRemoteIfDifferent`, and `gitput_unified.ps1`'s own `Get-CurrentRemote` through it -- one place this read happens now, instead of three unguarded copies.
+
+This session's sandbox is native Debian Linux with PowerShell 7.6 (not the Windows PS 5.1 the reviewer tested against), so the exact stderr-becomes-terminating-error symptom could not be reproduced here (pwsh 7.6 does not trip on it the same way) -- the fix implements the reviewer's own prescribed shape exactly (try/catch + `$LASTEXITCODE` check) rather than re-deriving it, and is defensively correct regardless of PS engine/version. Verified functionally instead: dot-sourced `GitSyncCommon.ps1` under `$ErrorActionPreference = 'Stop'` and called `Get-GitSyncCurrentRemoteUrl -RemoteName "this-remote-does-not-exist"` directly -- returns empty, no throw; `Get-GitSyncGitHubSshUrl`/`Get-GitSyncRemoteConfigs` (see B2) still return the correct real values (`github` -> `git@github.com:accountbelongstox/core_node.git`); `Get-GitSyncCurrentRemoteUrl -RemoteName "origin"` still reads the real origin correctly. No real remote was ever added, removed or changed by this verification (confirmed: `git remote get-url origin` before and after matches).
+
+### B2: duplicate `git_remotes.conf` reader
+
+`gitput_unified.ps1`'s `Load-RemoteConfigs` had its own regex-based parser (`-match '^([^=]+)=(.+)$'`), run back-to-back with `GitSyncCommon.ps1`'s `Get-GitSyncGitHubSshUrl` (an `IndexOf`-based split) -- two readers of the same file, against AGENTS.md's reuse/centralize rule. Added `Get-GitSyncRemoteConfigs -RepoRoot` to `GitSyncCommon.ps1` (the same no-regex key/value parse, returning the whole table instead of just the `github` key); `Get-GitSyncGitHubSshUrl` now delegates to it. `gitput_unified.ps1`'s `Load-RemoteConfigs` keeps its own `Test-Path`-and-`Write-Error`/`exit 1` missing-file behavior (per the reviewer's "keeping its missing-file error" instruction) but delegates the actual parse to `Get-GitSyncRemoteConfigs`. Confirmed by grep: no `-match '^([^=]+)=(.+)$'` (or any regex-based conf parse) remains anywhere in `gitput_unified.ps1`.
+
+### Verification
+
+- PS 5.1-compatible parser (`[System.Management.Automation.Language.Parser]::ParseFile`, run under PowerShell 7.6 which parses the same PS 5.1-compatible grammar this codebase targets): 0 errors on both changed files.
+- `scripts\winenvs\syncgit.ps1 -DryRun` re-run against a stub `git` call-logger on PATH after the refactor: still 0 recorded git invocations, same repo root/remote/commit-message output as before the fix -- the DryRun-makes-zero-git-calls contract (SPW-043) is unaffected by the B1/B2 refactor (the new/changed code paths are only reached outside DryRun, or inside functions DryRun already skips).
+- `grep` confirms the `Get-GitSyncCurrentRemoteUrl`/`Get-GitSyncRemoteConfigs` helpers are each defined once and are the only place their respective git/file read happens.
+- LF-only (0 CR bytes) on both files, matching the base; the one pre-existing non-ASCII line in `gitput_unified.ps1` (an emoji in an unrelated warning message, line ~1223) predates this task and was not touched.
+- The full interactive `gitput_unified.ps1` was **not** executed (it performs real remote-rotation git writes and prompts interactively) -- consistent with the original submission's own verification boundary; verification is the parser, the isolated function calls above, and a manual read of the call-site ordering (the new `Invoke-GitSyncEnsureGitHubSshOrigin` call sits after `GitSyncCommon.ps1` is dot-sourced at file-load time and before any other git operation in the main `try` block).
+- No real git remote was added, removed, or changed on this checkout by this fix round.
+
+### Changed files
+
+- `scripts/shells/win/win_common/GitSyncCommon.ps1` (new `Get-GitSyncCurrentRemoteUrl`, new `Get-GitSyncRemoteConfigs`; `Get-GitSyncGitHubSshUrl`, `Set-GitSyncRemoteUrl`, `Set-GitSyncRemoteIfDifferent` now delegate to them)
+- `scripts/git/gitput_unified.ps1` (`Load-RemoteConfigs` delegates to `Get-GitSyncRemoteConfigs`; `Get-CurrentRemote` delegates to `Get-GitSyncCurrentRemoteUrl`; main `try` block calls `Invoke-GitSyncEnsureGitHubSshOrigin` after `Set-Location $coreNodeDir`)
+- `.claude/agents_shared/reports/shell-windows.md` (this section and its table row)
+- **Deferred (fenced, R6):** `.claude/agents_shared/shell_parity/windows.md` -- SPW-045 should be corrected from its current text (which still describes the pre-fix state, since B1 was open when it was written) to record that `gitput_unified.ps1` now calls `Invoke-GitSyncEnsureGitHubSshOrigin`, and that the `git_remotes.conf` reader is now the single `Get-GitSyncRemoteConfigs` function. `SPW-045` was already marked `aligned` before this fix (the Linux side already matched); nothing changes for shell-linux, so no new alignment request -- this is purely a ledger text update, held only by the file fence, not by any cross-role dependency.
+
+### Blockers
+
+None for the code fix. The `windows.md` SPW-045 text correction is blocked on the orchestrator lifting the R6 fence; flagged in this report rather than the ledger so the reviewer isn't left assuming the ledger is current.
+
+### Next owner
+
+Reviewer, for this round's fix to `shell-windows-G2`. Orchestrator: SPW-045's text correction is queued for whenever `.claude/agents_shared/shell_parity/*.md` is released from the R6 fence.
+
+## shell-linux-12 (leader review, round 3): `project_tree_bind_state` fail-closed fix -- approved
+
+Resumed after this session's own claude.ai usage-limit reset. Re-read `git status` (clean, everything already committed), every outstanding review verdict (`.claude/agents_shared/reviews/shell-windows-*.json`) and `TASKS.md` before acting -- see the shell-windows-G2 fix-round section above for the same catch-up pass. A cross-session message arrived from `ct-shell-linux` during this pass saying the round-1 finding was fixed and asking for a round-2 review; that round had already happened (see above, round 2 `changes_requested` on a new `project_tree_bind_state` finding) before this session's reset, so the message was stale relative to this report's own history, not relative to shell-linux's code -- re-reading `scripts/shells/linux/common/project_tree_common.sh` showed the round-2 fix was already on disk.
+
+`project_tree_bind_state` (:201-209) now returns `2` (the existing fail-closed path) when the link path is a mountpoint but `ext4_dir` does not exist yet, instead of falling through to `return 0` unconditionally. The leading comment block was rewritten to state the fail-closed rule explicitly. No other function changed.
+
+### Independent live verification
+
+This session's own environment is native Debian Linux (not Windows+WSL -- earlier rounds' "WSL Debian" live tests were run from a different session/machine), and this account has no passwordless `sudo`, so real bind mounts needed an unprivileged mount namespace instead: `unshare --mount --map-root-user --propagation private -- bash <script>`. Mounts made this way are private to that process tree and never touch the host or persist after it exits -- confirmed empty scratch dirs before and after every run.
+
+- **Repro test** (fresh scratch repo, `node_modules` never ensured before so its `ext4_dir` does not exist, a genuine `mount --bind` from an unrelated directory placed directly onto `node_modules`): direct call `project_tree_bind_state "$link_path" "$ext4_dir"` now returns `2` (previously `0`, the round-2 bug). `status` reports `bound, but NOT confirmed as <ext4_dir> (different source, or <ext4_dir> does not exist yet)`, not the round-2 false positive `bound -> <ext4_dir>`. `ensure` prints the skip+warning and takes no action: `<ext4_dir>` confirmed still absent afterward, the mount confirmed still the foreign source (its `foreign.txt` still readable through the mount), a second `status` call unchanged. Clean `umount`/`rm -rf` teardown.
+- **Happy-path regression** (separate scratch run, no foreign mount): first `ensure` creates `<ext4_dir>` and binds; `status` reports `bound -> <ext4_dir>`; a second `ensure` reports `already bound` with no unmount/remount (idempotency intact -- the fail-closed change did not make the identity check over-eager on the legitimate path); `release` unmounts and the original `marker.txt` resurfaces.
+- `bash -n`: OK. `tr -cd '\r' | wc -c`: 0 (LF-only). `LC_ALL=C grep -P '[^\x00-\x7F]'`: no non-ASCII bytes added.
+- `git diff` (working tree vs HEAD) on `project_tree_common.sh`: empty -- the fix is already at HEAD via this environment's own tree-capture process.
+
+All three findings across all three review rounds (round 1: `project_tree_ensure_dir` force-unmount; round 2: `project_tree_bind_state` fail-open on a missing `ext4_dir`) are now closed with no open blocker. Verdict written to `.claude/agents_shared/reviews/shell-linux-12.json` (round 3, `approved`).
+
+### Changed files
+
+- `.claude/agents_shared/reviews/shell-linux-12.json` (round 3, verdict `approved`)
+- `.claude/agents_shared/reports/shell-windows.md` (this section and its table row)
+- No changes to any file in shell-linux's write scope, and no fenced file touched (`.claude/agents_shared/shell_parity/*.md` was read only, not written, per the orchestrator's active fence -- see the G2 section above).
+
+### Blockers
+
+None. `shell-linux-12` closes as approved.
+
+### Next owner
+
+Orchestrator / shell-linux: task closes as approved.
+
+## Holding per R4 (docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md)
+
+Orchestrator confirmed: `shell-linux-12` is closed, `shell-windows-3-fix` correctly belongs to pycore-runtime, and `shell-windows-G2`/`shell-windows-10`'s round-1 fixes (both applied and documented above) are this role's own work as leader, so their re-review routes through the reviewer service whenever the orchestrator resumes that work -- not something to chase further from this side. R4 (the same roster ruling as the R6 file fence) says carried backlog stays on hold until the user's next task, so no further fixes are starting from this session until then. SPW-045's ledger text correction stays queued behind the R6 `windows.md` fence release, already noted above.
+
+### Status at hold
+
+- Done this pass, awaiting the reviewer service: `shell-windows-G2` (round 1 fix), `shell-windows-10`/D29 Tailscale (round 1 fix, already applied before the reset).
+- Closed: `shell-linux-12` (round 3, approved), `shell-linux-11` (round 2, approved), `shell-linux-G1` (approved), `shell-windows-2`, `shell-windows-9`, `shell-windows-G1` (all approved).
+- Correctly not mine: `shell-windows-3-fix` (pycore-ai/pycore-runtime scope per D22).
+- On hold, no further action pending the user's next task or a fence release: everything else in the backlog (`shell-windows-4`, `shell-windows-7`, `shell-windows-8`, `frankenphp-ca`, `D20-fix`, `D30-fix-shell-windows`, and any other queued `TASKS.md` row).
+
+### Blockers
+
+R4 (backlog hold) and R6 (file fence on `ClaudeTeam*.ps1`, `scripts/winenvs/claude*`, `.claude/agents_shared/shell_parity/*.md`), both from the orchestrator, both active.
+
+### Next owner
+
+Orchestrator: will route the next task or the fence release.
+
+## R6 released: SPW-045 ledger correction
+
+Orchestrator released the R6 fence on `ClaudeTeam*.ps1`, `scripts/winenvs/claude*` and `.claude/agents_shared/shell_parity/*.md` (the root lead's `orch-wf1`/`orch-wf1b`/`orch-wf1c` workflow finished and left reviewer-approved, uncommitted changes plus new `SPW-046..054` rows in `windows.md` -- see `docs_fix/TASK_20260928_PRIOR_WORKFLOW_COMPLETION.md`). Per the orchestrator's explicit scope for this pass, the only action taken is the deferred `SPW-045` correction (a ledger fact from this role's own already-finished `shell-windows-G2` fix); every other row and file released by the fence (`SPW-046..054`, `ClaudeTeam*.ps1`, `scripts/winenvs/claude*`) was left untouched -- R4's backlog hold still applies to everything else.
+
+Corrected `SPW-045` in place: it previously described only the pre-fix state (`Set-GitSyncRemoteUrl`/`Get-DefaultRemote` delegation and the version-source decision). Appended the round-1-review fix this report already documented above (`shell-windows-G2` B1/B2): `gitput_unified.ps1`'s main flow now actually calls `Invoke-GitSyncEnsureGitHubSshOrigin`; the `git remote get-url` read now goes through the safe `Get-GitSyncCurrentRemoteUrl` helper everywhere (including `gitput_unified.ps1`'s own `Get-CurrentRemote`); `Load-RemoteConfigs` now delegates to the shared `Get-GitSyncRemoteConfigs` instead of its own regex parser. Added the two new function names (`Get-GitSyncRemoteConfigs`, `Get-GitSyncCurrentRemoteUrl`) to the "Windows files/functions" column. Status stays `aligned` (Linux already matched this shape; nothing changes for shell-linux, no new alignment request).
+
+Verified before writing: `git status --short` on `GitSyncCommon.ps1`/`gitput_unified.ps1` -- no diff (the fix is still the committed content from the earlier round). `grep -n Invoke-GitSyncEnsureGitHubSshOrigin scripts/git/gitput_unified.ps1` -- still present at the main-flow call site. After the edit: the row is still one well-formed 5-column table line (awk -F'|' field count matches a known-good neighboring row, e.g. SPW-044); 0 CR bytes in the whole file (LF-only, unchanged); the other 53 `SPW-###` rows (`grep -c '^| SPW-'`) are untouched in count and content.
+
+### Changed files
+
+- `.claude/agents_shared/shell_parity/windows.md` (SPW-045 row only)
+- `.claude/agents_shared/reports/shell-windows.md` (this section)
+
+### Blockers
+
+None for this item. R4 (backlog hold) still applies to everything else -- no further fixes started.
+
+### Next owner
+
+Orchestrator: will route the next task, or confirm this is the only ledger action wanted from the released fence.

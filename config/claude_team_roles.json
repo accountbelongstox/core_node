@@ -125,6 +125,71 @@
       "name": "flutter",
       "enabled": true,
       "window": false
+    },
+    {
+      "name": "laravel",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "laravel-api",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "laravel-codemart",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "laravel-qyapp",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "mcp-chrome",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "pycore",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "pycore-architect",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "pycore-assist",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-codemart",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-laravel-manager",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-pycore-manager",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-vortex",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-wordnew",
+      "enabled": true,
+      "window": false
     }
   ],
   "remote": {

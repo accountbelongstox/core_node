@@ -15,8 +15,10 @@
 #      version reported), node, curl, ca-certificates, bubblewrap, socat; the terminal
 #      the launchers will open is reported (nothing installed); the state, shared
 #      and agent-memory dirs; the catalog user_settings_merge keys
-#      (added only when absent); and each launcher link (claudeteam, claudeteamup,
-#      claudeagents + .sh aliases). CCI_CHECK_ONLY=1 reports without changing.
+#      (added only when absent); each launcher link (claudeteam, claudeteamup,
+#      claudeagents + .sh aliases); and the Claude account of the session user
+#      (sign-in, first-run setup, repo trust; report only). CCI_CHECK_ONLY=1
+#      reports without changing.
 # "Installed" means a claude binary that actually answers --version (dangling launcher
 # symlinks left behind by pruned native versions do not count).
 
@@ -39,6 +41,14 @@ CCI_SHARED_DIR="$CCI_CORE_NODE_DIR/.claude/agents_shared"
 CCI_AGENT_MEMORY_DIR="$CCI_CORE_NODE_DIR/.claude/agent-memory"
 CCI_TEAM_CATALOG_PATH="$CCI_CORE_NODE_DIR/config/claude_team_roles.json"
 CCI_USER_CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# Global Claude Code state (first-run setup, account, per-project trust); it sits
+# next to ~/.claude, not inside it, unless CLAUDE_CONFIG_DIR is set.
+CCI_CLAUDE_GLOBAL_CONFIG_PATH="${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
+CCI_CLAUDE_CREDENTIALS_PATH="$CCI_USER_CLAUDE_DIR/.credentials.json"
+# Environment credentials that replace a claude.ai sign-in (names only, never values).
+CCI_CLAUDE_ENV_CREDENTIAL_NAMES=(ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX CLAUDE_CODE_USE_FOUNDRY)
+# Result of cci_report_claude_account: ready|login|onboarding|trust|missing.
+CCI_CLAUDE_ACCOUNT_STATE=""
 # Role PID files (Windows: %LOCALAPPDATA%\core_node\claude_team).
 CCI_TEAM_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/core_node/claude_team"
 # User settings of the account that runs the role sessions (root included).
@@ -54,6 +64,7 @@ CCI_TMUX_MIN_VERSION="3.5"
 # alternative. None found or no display: headless (tmux attach in the current tty).
 CCI_TEAM_TERMINALS=("ptyxis" "gnome-terminal" "konsole" "xterm" "xfce4-terminal" "qterminal" "x-terminal-emulator")
 CCI_TEAM_TERMINAL=""
+CCI_TEAM_TERMINAL_SKIP_REASON=""
 # 1 = only report each team item ([OK]/[MISSING]); never install or link.
 CCI_CHECK_ONLY="${CCI_CHECK_ONLY:-0}"
 CCI_REAL_USER=""
@@ -430,23 +441,39 @@ cci_session_bus_owner_uid() {
 # already-running server for that display owns the actual window and spawns the
 # attach command as ITS OWN user, not the caller's. Running as root through a
 # leaked desktop DBUS_SESSION_BUS_ADDRESS (uid mismatch) would silently open the
-# window, and the tmux attach, as the desktop user instead of root.
+# window, and the tmux attach, as the desktop user instead of root. Without a
+# running root server, root's own bus would activate one that has no display.
+# The reason is left in CCI_TEAM_TERMINAL_SKIP_REASON.
 cci_terminal_is_foreign_factory() {
     local terminal="$1"
     local bus_uid=""
+    local server_pattern=""
+    CCI_TEAM_TERMINAL_SKIP_REASON=""
     [ "$(id -u)" = "0" ] || return 1
     case "$terminal" in
-        gnome-terminal|ptyxis|kgx) ;;
+        gnome-terminal) server_pattern="gnome-terminal-server" ;;
+        ptyxis) server_pattern="ptyxis" ;;
+        kgx) server_pattern="kgx" ;;
         x-terminal-emulator)
             case "$(readlink -f "$(command -v x-terminal-emulator 2>/dev/null)" 2>/dev/null)" in
-                *gnome-terminal*|*ptyxis*|*kgx*) ;;
+                *gnome-terminal*) server_pattern="gnome-terminal-server" ;;
+                *ptyxis*) server_pattern="ptyxis" ;;
+                *kgx*) server_pattern="kgx" ;;
                 *) return 1 ;;
             esac
             ;;
         *) return 1 ;;
     esac
     bus_uid="$(cci_session_bus_owner_uid)"
-    [ -n "$bus_uid" ] && [ "$bus_uid" != "0" ]
+    if [ -n "$bus_uid" ] && [ "$bus_uid" != "0" ]; then
+        CCI_TEAM_TERMINAL_SKIP_REASON="its server belongs to uid $bus_uid, not root (DBUS_SESSION_BUS_ADDRESS points at that user's session bus); the window and tmux attach would run as that user"
+        return 0
+    fi
+    if ! pgrep -u 0 -f "(^|/)$server_pattern( |$)" >/dev/null 2>&1; then
+        CCI_TEAM_TERMINAL_SKIP_REASON="no root $server_pattern is running; root's session bus would activate one without DISPLAY or WAYLAND_DISPLAY, so the window would never appear"
+        return 0
+    fi
+    return 1
 }
 
 # Sets CCI_TEAM_TERMINAL to the first terminal of CCI_TEAM_TERMINALS on PATH, or
@@ -460,7 +487,7 @@ cci_detect_team_terminal() {
     for terminal in "${CCI_TEAM_TERMINALS[@]}"; do
         if command -v "$terminal" >/dev/null 2>&1; then
             if cci_terminal_is_foreign_factory "$terminal"; then
-                echo "[SKIP] $terminal: its server belongs to uid $(cci_session_bus_owner_uid), not root (DBUS_SESSION_BUS_ADDRESS points at that user's session bus); the window and tmux attach would run as that user" >&2
+                echo "[SKIP] $terminal: $CCI_TEAM_TERMINAL_SKIP_REASON" >&2
                 continue
             fi
             CCI_TEAM_TERMINAL="$terminal"
@@ -632,6 +659,96 @@ cci_check_remote_control_env() {
     fi
 }
 
+# Report-only: a plain su/sudo keeps the original user's LOGNAME/USER (and sudo -E
+# or su -m its HOME), while claude reads the effective user's global config.
+cci_report_switched_user() {
+    local run_user=""
+    local origin_user=""
+    local origin_home=""
+    local run_home=""
+    run_user="$(id -un)"
+    origin_user="${SUDO_USER:-${LOGNAME:-${USER:-$run_user}}}"
+    origin_home="$(getent passwd "$origin_user" 2>/dev/null | cut -d: -f6)"
+    run_home="$(getent passwd "$run_user" 2>/dev/null | cut -d: -f6)"
+    if [ "$origin_user" != "$run_user" ]; then
+        echo "[WARN] This shell switched from $origin_user to $run_user (plain su or sudo): Claude sessions run as $run_user and read $CCI_CLAUDE_GLOBAL_CONFIG_PATH; sign-in and first-run setup done as $origin_user (${origin_home:-its home}) do not apply. Run the launcher as $origin_user, or run 'claude' once as $run_user."
+    fi
+    if [ -n "$run_home" ] && [ "$run_home" != "$HOME" ]; then
+        echo "[WARN] HOME=$HOME is not $run_user's home ($run_home) (sudo -E or su -m): Claude reads and writes $CCI_CLAUDE_GLOBAL_CONFIG_PATH as $run_user"
+    fi
+}
+
+# Report-only: whether a new claude session of this user would reach its prompt
+# (sign-in, first-run setup, workspace trust of the repo). claude itself is not run:
+# the state is read from its files. The result is left in CCI_CLAUDE_ACCOUNT_STATE.
+cci_report_claude_account() {
+    local name=""
+    local has_env="0"
+    cci_report_switched_user
+    if [ -z "$(command -v claude 2>/dev/null)" ]; then
+        CCI_CLAUDE_ACCOUNT_STATE="missing"
+        echo "[SKIP] claude not installed yet; Claude account not checked"
+        return 0
+    fi
+    for name in "${CCI_CLAUDE_ENV_CREDENTIAL_NAMES[@]}"; do
+        if [ -n "${!name:-}" ]; then
+            has_env="1"
+        fi
+    done
+    CCI_CLAUDE_ACCOUNT_STATE="$(python3 - "$CCI_CLAUDE_GLOBAL_CONFIG_PATH" "$CCI_CLAUDE_CREDENTIALS_PATH" "$has_env" \
+        "$CCI_CORE_NODE_DIR" "$(cd "$CCI_CORE_NODE_DIR" && pwd -P)" <<'PY'
+import json
+import os
+import sys
+
+config_path, credentials_path, has_env = sys.argv[1:4]
+try:
+    with open(config_path, encoding="utf-8") as handle:
+        data = json.load(handle)
+except (OSError, ValueError):
+    data = {}
+if not isinstance(data, dict):
+    data = {}
+projects = data.get("projects")
+if not isinstance(projects, dict):
+    projects = {}
+
+
+def trusted(path):
+    # Claude also honours the trust of a parent directory.
+    while True:
+        entry = projects.get(path)
+        if isinstance(entry, dict) and entry.get("hasTrustDialogAccepted") is True:
+            return True
+        parent = os.path.dirname(path)
+        if parent == path:
+            return False
+        path = parent
+
+
+if not os.path.isfile(credentials_path) and "oauthAccount" not in data and has_env == "0":
+    print("login")
+elif data.get("hasCompletedOnboarding") is not True:
+    print("onboarding")
+elif not any(trusted(path) for path in sys.argv[4:6]):
+    print("trust")
+else:
+    print("ready")
+PY
+)"
+    echo "[OK] Claude account: $(id -un) (uid $(id -u)), HOME=$HOME, config $CCI_CLAUDE_GLOBAL_CONFIG_PATH, credentials dir $CCI_USER_CLAUDE_DIR"
+    case "$CCI_CLAUDE_ACCOUNT_STATE" in
+        ready) echo "[SKIP] Claude account signed in, first-run setup done, $CCI_CORE_NODE_DIR trusted" ;;
+        login) echo "[MISSING] Claude sign-in for $(id -un): run 'claude' once in $CCI_CORE_NODE_DIR as $(id -un) and sign in" ;;
+        onboarding) echo "[MISSING] Claude first-run setup in $CCI_CLAUDE_GLOBAL_CONFIG_PATH: run 'claude' once as $(id -un) and finish the setup screens (sessions read it only at startup)" ;;
+        trust) echo "[MISSING] Workspace trust for $CCI_CORE_NODE_DIR: run 'claude' there once as $(id -un) and accept the trust prompt" ;;
+        *)
+            CCI_CLAUDE_ACCOUNT_STATE="missing"
+            echo "[WARN] python3 could not read $CCI_CLAUDE_GLOBAL_CONFIG_PATH; Claude account not checked"
+            ;;
+    esac
+}
+
 # Claude Code settings the role sessions need on every machine (local and server):
 # the catalog user_settings_merge keys (crossSessionInbound, push notifications,
 # preferredNotifChannel), then report-only checks of what blocks Remote Control.
@@ -644,7 +761,8 @@ cci_ensure_team_settings() {
 
 # Shared team setup used by claude_code_install (dd.sh step 171), by the
 # claudeteamup/claudeagents launchers and on the server of a remote role:
-# prerequisites, directories, user settings, launcher links.
+# prerequisites, directories, user settings, launcher links, then the report-only
+# Claude account check of the user the role sessions run as.
 claude_team_install() {
     cci_ensure_team_prereqs
     cci_ensure_dir "$CCI_TEAM_STATE_DIR" "role PID files"
@@ -652,6 +770,7 @@ claude_team_install() {
     cci_ensure_dir "$CCI_AGENT_MEMORY_DIR" "per-role agent memory (memory: project)"
     cci_ensure_team_settings
     cci_setup_claudeteam || true
+    cci_report_claude_account
 }
 
 # Main entry: install (native, idempotent) -> make claude usable by all users ->

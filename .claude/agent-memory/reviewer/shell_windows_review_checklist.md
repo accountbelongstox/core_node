@@ -46,3 +46,8 @@ Checks that paid off on shell-windows tasks (first seen on shell-windows-2, 2026
 
 **Why:** these were the defects the owner's own report missed, even though it claimed a sandbox undo test passed.
 **How to apply:** use this list on every shell-windows review. See [[ui-review-patterns]] for per-hunk coverage in shared files.
+
+- **Linux host harness (orch-wf1, 2026-09-28).** On this Debian host, use the snap pwsh binary `/snap/powershell/current/opt/powershell/pwsh`; the `/usr/local/bin/pwsh` wrapper fails with "transient scope". Load functions through the AST, stub the log functions, and run them against scratch JSON.
+  - Check that JSON readers keep their `[System.IO.File]::ReadAllText` call inside the try. With EAP=Stop, an I/O error outside it aborts the launcher.
+  - ConvertFrom-Json rejects keys that differ only in case, so a gate built on it can silently fail open.
+  - Fallback parsers (-AsHashtable / JavaScriptSerializer) that rebuild a PSCustomObject with Add-Member throw on an empty key ("" is valid JSON). Test an empty key; PS 7's default ConvertFrom-Json also rejects "" and routes it to the fallback (orch-wf1b). To simulate 5.1: add a C# JavaScriptSerializer stand-in plus a ConvertFrom-Json proxy without -AsHashtable (scratchpad wf1b/h.ps1).

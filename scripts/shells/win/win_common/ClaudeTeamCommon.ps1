@@ -17,7 +17,10 @@
 # applies session_env and expands the kickoff itself (short wt command lines).
 # A live PID, or a live process started with the role's --name, skips its role;
 # after launch every PID is verified and a missing role is reopened as its own
-# tab (WT silently drops a split without room).
+# tab (WT silently drops a split without room). A role counts as ready only once
+# the Claude session registry (<config>\sessions\*.json) names its session: a
+# PID proves the pane shell, not a claude past its setup, login or trust screen.
+# While the Claude account is not ready, sessions mode starts only the lead.
 # Callers dot-source WindowsPathFunction.ps1 and AiCliProvisionCommon.ps1 first.
 # =============================================================================
 
@@ -40,10 +43,16 @@ $ClaudeTeamDefaultAgentsDir = Join-Path (Join-Path $ClaudeTeamRootDir ".claude")
 $ClaudeTeamSecretReader = Join-Path (Join-Path (Join-Path $ClaudeTeamScriptsDir "pytools") "special_software_env_manager") "secret_read.py"
 $ClaudeTeamUserTeamsDir = Join-Path $ClaudeTeamInstallUserClaudeDir "teams"
 $ClaudeTeamUserTasksDir = Join-Path $ClaudeTeamInstallUserClaudeDir "tasks"
+# claude writes sessions/<pid>.json (name, pid) once a session is up (undocumented internal state).
+$ClaudeTeamUserSessionsDir = Join-Path $ClaudeTeamInstallUserClaudeDir "sessions"
 $ClaudeTeamTotalSteps = 9
 $ClaudeTeamPidWaitMilliseconds = 60000
 $ClaudeTeamReopenWaitMilliseconds = 20000
 $ClaudeTeamPollMilliseconds = 250
+$ClaudeTeamReadyWaitMilliseconds = 30000
+$ClaudeTeamReadyGraceSeconds = 60
+# Row states of a live role session (Set-ClaudeTeamLiveRowState, the other-lead check).
+$ClaudeTeamLiveStates = @("running", "running-unverified", "stalled", "other-lead")
 $ClaudeTeamShellNames = @("pwsh", "powershell")
 $ClaudeTeamClaudeProcessNames = @("claude.exe", "node.exe")
 $ClaudeTeamShellProcessNames = @("powershell.exe", "pwsh.exe")
@@ -60,7 +69,8 @@ $ClaudeTeamTaskListVariable = "CLAUDE_CODE_TASK_LIST_ID"
 $ClaudeTeamLeadTeammateMode = "in-process"
 $ClaudeTeamPermissionMode = "auto"
 $ClaudeTeamRemoteLauncherCommand = "claudeteam"
-$ClaudeTeamSshOptions = @("-t", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4", "-o", "StrictHostKeyChecking=accept-new")
+$ClaudeTeamSshOptions = @("-t", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes")
+$ClaudeTeamEntryCommands = @{ sessions = "claudeteamup"; team = "claudeagents" }
 $ClaudeTeamWtCommandLimit = 32767
 $ClaudeTeamDefaultWindowName = "core-node-team"
 $ClaudeTeamBaseDpi = 96
@@ -133,6 +143,8 @@ $script:ClaudeTeamOptStatus = $false
 $script:ClaudeTeamOptNoWindows = $false
 $script:ClaudeTeamOptNoKickoff = $false
 $script:ClaudeTeamOptRoles = @()
+$script:ClaudeTeamOptSkipAccount = $false
+$script:ClaudeTeamAccountHold = ""
 $script:ClaudeTeamQuiet = $false
 $script:ClaudeTeamCatalog = $null
 $script:ClaudeTeamAgentsDir = $ClaudeTeamDefaultAgentsDir
@@ -564,6 +576,9 @@ function Import-ClaudeTeamCatalog {
                     $state = "enabled"
                     $script:ClaudeTeamRemoteAny = $true
                     Write-ClaudeTeamLog "OK" ("Remote role {0}: ssh <secret {1}> -> tmux {2} in {3} (model {4}, effort {5}, Remote Control on)" -f $role, [string]$remote.ssh_secret, $session, [string]$remote.root, $agent.Model, $agent.Effort)
+                } elseif ((-not [string]::IsNullOrEmpty($script:ClaudeTeamAccountHold)) -and ($role -ne $ClaudeTeamLeadRole)) {
+                    $state = "held:{0}" -f $script:ClaudeTeamAccountHold
+                    Write-ClaudeTeamLog "SKIP" ("Role {0} held until the Claude account is ready ({1})" -f $role, $script:ClaudeTeamAccountHold)
                 } else {
                     $state = "enabled"
                     Write-ClaudeTeamLog "OK" ("Session role {0}: {1} (model {2}, effort {3}, group {4})" -f $role, $session, $agent.Model, $agent.Effort, ($groupIndex + 1))
@@ -627,7 +642,7 @@ function Import-ClaudeTeamCatalog {
 }
 
 function Get-ClaudeTeamOtherRoles {
-    return ((@($script:ClaudeTeamRows | Where-Object { (-not $_.IsLead) -and (($_.Enabled) -or ($_.State -eq "available-teammate")) }) | ForEach-Object { $_.Role }) -join ", ")
+    return ((@($script:ClaudeTeamRows | Where-Object { (-not $_.IsLead) -and (($_.Enabled) -or ($_.State -eq "available-teammate") -or ($_.State -like "held:*")) }) | ForEach-Object { $_.Role }) -join ", ")
 }
 
 # session_env blocks merged in order (later blocks win): all, windows, lead, remote.
@@ -803,6 +818,18 @@ function Invoke-ClaudeTeamClaudeProvision {
         Write-ClaudeTeamLog "OK" ("claude: {0} ({1})" -f $claudeCommand.Source, ((& claude --version) | Select-Object -First 1))
     } else {
         Write-ClaudeTeamLog "WARN" "claude missing; run the launcher without -Status to install"
+    }
+    if ($script:ClaudeTeamAccountState -eq "missing") {
+        Test-ClaudeTeamAccount
+    }
+    $script:ClaudeTeamAccountHold = ""
+    if ($script:ClaudeTeamAccountState -in @("login", "onboarding", "trust")) {
+        if ($script:ClaudeTeamOptSkipAccount) {
+            Write-ClaudeTeamLog "WARN" ("-SkipAccountCheck: roles start although the Claude account is not ready ({0})" -f $script:ClaudeTeamAccountState)
+        } else {
+            $script:ClaudeTeamAccountHold = $script:ClaudeTeamAccountState
+            Write-ClaudeTeamLog "WARN" ("Claude account not ready ({0}): only the lead starts; finish the setup screens in its pane, then re-run {1}" -f $script:ClaudeTeamAccountHold, $ClaudeTeamEntryCommands[$script:ClaudeTeamMode])
+        }
     }
     Write-ClaudeTeamLog "OK" ("Role launcher: {0} {1} <mode> (session_env, --effort, --permission-mode auto, kickoff from the catalog, git guard on)" -f $ClaudeTeamLauncherPath, $ClaudeTeamPaneFlag)
 }
@@ -1369,6 +1396,110 @@ function Wait-ClaudeTeamPids {
     }
 }
 
+# Session name -> PID of each live claude in the Claude session registry
+# (<config>\sessions\<pid>.json with name and pid). A half-written or foreign
+# file is skipped. Read only, so -Status uses it too.
+function Get-ClaudeTeamSessionRegistry {
+    $registry = @{}
+    $file = $null
+    $entry = $null
+    $entryName = ""
+    $entryPid = 0
+    if (-not (Test-Path -LiteralPath $ClaudeTeamUserSessionsDir -PathType Container)) {
+        return $registry
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath $ClaudeTeamUserSessionsDir -Filter "*.json" -File -ErrorAction SilentlyContinue)) {
+        try {
+            $entry = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            continue
+        }
+        if (($entry -isnot [System.Management.Automation.PSCustomObject]) -or ($null -eq $entry.PSObject.Properties["name"]) -or ($null -eq $entry.PSObject.Properties["pid"])) {
+            continue
+        }
+        $entryName = [string]$entry.PSObject.Properties["name"].Value
+        if ([string]::IsNullOrWhiteSpace($entryName) -or (-not [int]::TryParse([string]$entry.PSObject.Properties["pid"].Value, [ref]$entryPid))) {
+            continue
+        }
+        if ($null -ne (Get-Process -Id $entryPid -ErrorAction SilentlyContinue)) {
+            $registry[$entryName] = $entryPid
+        }
+    }
+    return $registry
+}
+
+# Labels a live role row (Linux claude_team_label_live_role, registry only: WT
+# panes cannot be read, so there are no blocked:<screen> labels). running: the
+# session is registered, or its PID file is younger than the grace period;
+# stalled: a local role whose PID file is older with no registry entry;
+# running-unverified: a remote pane (its session registers on the server).
+function Set-ClaudeTeamLiveRowState {
+    param($Row, [hashtable]$Registry)
+    $pidPath = Get-ClaudeTeamPidPath -Session $Row.Session
+    if ($Row.Remote) {
+        $Row.State = "running-unverified"
+        Write-ClaudeTeamLog "SKIP" ("Role {0} ({1}) already running (PID {2}); remote pane, readiness not probed (the session registers on the server)" -f $Row.Role, $Row.Session, $Row.Pid)
+        return
+    }
+    if ((-not $Registry.ContainsKey($Row.Session)) -and (Test-Path -LiteralPath $pidPath -PathType Leaf) -and `
+        (((Get-Date) - (Get-Item -LiteralPath $pidPath).LastWriteTime).TotalSeconds -gt $ClaudeTeamReadyGraceSeconds)) {
+        $Row.State = "stalled"
+        Write-ClaudeTeamLog "WARN" ("Role {0} (PID {1}) never reached its prompt (no session registry entry after {2}s, pane {3}); finish its setup, login or trust screen in that pane, or close the pane and re-run" -f $Row.Role, $Row.Pid, $ClaudeTeamReadyGraceSeconds, $Row.Session)
+        return
+    }
+    $Row.State = "running"
+    Write-ClaudeTeamLog "SKIP" ("Role {0} ({1}) already running (PID {2})" -f $Row.Role, $Row.Session, $Row.Pid)
+}
+
+# After the launch (Linux claude_team_probe_ready): the started, reopened and
+# starting local rows are polled against the session registry for up to
+# $ClaudeTeamReadyWaitMilliseconds; registered rows become ready, the rest
+# not-ready, since a PID file only proves the pane shell.
+function Wait-ClaudeTeamReady {
+    param([object[]]$Rows)
+    $pending = New-Object System.Collections.Generic.List[object]
+    $deadline = (Get-Date).AddMilliseconds($ClaudeTeamReadyWaitMilliseconds)
+    $registry = $null
+    $row = $null
+    $done = @()
+    $readyCount = 0
+    $accountText = ""
+    foreach ($row in $Rows) {
+        if ($row.State -notin @("started", "reopened", "starting")) {
+            continue
+        }
+        if ($row.Remote) {
+            Write-ClaudeTeamLog "OK" ("Role {0}: remote pane, readiness not probed (the session registers on the server)" -f $row.Role)
+            continue
+        }
+        $pending.Add($row)
+    }
+    if ($pending.Count -eq 0) {
+        return
+    }
+    while ($pending.Count -gt 0) {
+        $registry = Get-ClaudeTeamSessionRegistry
+        $done = @($pending | Where-Object { $registry.ContainsKey($_.Session) })
+        foreach ($row in $done) {
+            $row.State = "ready"
+            $readyCount++
+            [void]$pending.Remove($row)
+        }
+        if (($pending.Count -eq 0) -or ((Get-Date) -ge $deadline)) {
+            break
+        }
+        Start-Sleep -Milliseconds $ClaudeTeamPollMilliseconds
+    }
+    if ((-not [string]::IsNullOrEmpty($script:ClaudeTeamAccountState)) -and ($script:ClaudeTeamAccountState -ne "ready")) {
+        $accountText = " (account: {0})" -f $script:ClaudeTeamAccountState
+    }
+    foreach ($row in $pending) {
+        $row.State = "not-ready"
+        Write-ClaudeTeamLog "WARN" ("Role {0}: no Claude session registered within {1}s (pane {2}); check that pane for a setup, login, trust or usage-limit screen{3}" -f $row.Role, ($ClaudeTeamReadyWaitMilliseconds / 1000), $row.Session, $accountText)
+    }
+    Write-ClaudeTeamLog "OK" ("Readiness: {0} ready, {1} not ready" -f $readyCount, $pending.Count)
+}
+
 function Start-ClaudeTeamWtCall {
     param([string]$Arguments)
     Start-Process -FilePath $script:ClaudeTeamWtPath -ArgumentList $Arguments | Out-Null
@@ -1488,14 +1619,20 @@ function Start-ClaudeTeamRoles {
     $callIndex = 0
     $launchTime = $null
     $missingRows = @()
+    $registry = $null
 
     $namedProcesses = Get-ClaudeTeamNamedProcessMap
-    foreach ($row in @($script:ClaudeTeamRows | Where-Object { $_.Enabled -and $_.Window })) {
+    $registry = Get-ClaudeTeamSessionRegistry
+    # Rows held by the account gate are scanned too: a live one gets its live
+    # state, a dead one stays held and is not started.
+    foreach ($row in @($script:ClaudeTeamRows | Where-Object { $_.Window -and ($_.Enabled -or ($_.State -like "held:*")) })) {
         $livePid = Get-ClaudeTeamLivePid -Role $row.Role -Session $row.Session -NamedProcesses $namedProcesses
         if ($null -ne $livePid) {
-            $row.State = "running"
             $row.Pid = $livePid
-            Write-ClaudeTeamLog "SKIP" ("Role {0} ({1}) already running (PID {2})" -f $row.Role, $row.Session, $livePid)
+            Set-ClaudeTeamLiveRowState -Row $row -Registry $registry
+            continue
+        }
+        if (-not $row.Enabled) {
             continue
         }
         if ($row.IsLead) {
@@ -1510,7 +1647,7 @@ function Start-ClaudeTeamRoles {
         }
         $startRows += $row
     }
-    Write-ClaudeTeamLog "OK" ("{0} roles to start, {1} already running" -f $startRows.Count, @($script:ClaudeTeamRows | Where-Object { $_.State -in @("running", "other-lead") }).Count)
+    Write-ClaudeTeamLog "OK" ("{0} roles to start, {1} already running" -f $startRows.Count, @($script:ClaudeTeamRows | Where-Object { $_.State -in $ClaudeTeamLiveStates }).Count)
     if ($startRows.Count -eq 0) {
         Show-ClaudeTeamRemoteControlHint
         return
@@ -1570,6 +1707,7 @@ function Start-ClaudeTeamRoles {
     if ($missingRows.Count -gt 0) {
         Open-ClaudeTeamMissingRoles -Rows $missingRows
     }
+    Wait-ClaudeTeamReady -Rows $startRows
     Show-ClaudeTeamRemoteControlHint
 }
 
@@ -1577,7 +1715,7 @@ function Start-ClaudeTeamRoles {
 # (both ends need it). A lead started before any remote role was enabled lacks
 # it and needs /remote-control once.
 function Show-ClaudeTeamRemoteControlHint {
-    $leadRow = @($script:ClaudeTeamRows | Where-Object { $_.IsLead -and ($_.State -in @("running", "other-lead")) }) | Select-Object -First 1
+    $leadRow = @($script:ClaudeTeamRows | Where-Object { $_.IsLead -and ($_.State -in $ClaudeTeamLiveStates) }) | Select-Object -First 1
     $leadProcess = $null
     $commandLine = ""
     $tokens = @()
@@ -1620,11 +1758,16 @@ function Show-ClaudeTeamReport {
     $tab = $null
     $paneCount = 0
     $taskList = $null
+    $blockedRows = @()
     foreach ($tab in @($script:ClaudeTeamTabs)) {
         $paneCount = $paneCount + $tab.Rows.Count
     }
     Write-Host ""
     $script:ClaudeTeamRows | Format-Table -AutoSize Role, Session, Model, Effort, Tab, Pane, Pid, Cells, State | Out-Host
+    $blockedRows = @($script:ClaudeTeamRows | Where-Object { $_.State -in @("stalled", "not-ready") })
+    if ($blockedRows.Count -gt 0) {
+        Write-ClaudeTeamLog "WARN" ("{0} role(s) cannot take work yet: {1} (a live PID alone does not mean ready)" -f $blockedRows.Count, ((@($blockedRows | ForEach-Object { "{0}:{1}" -f $_.Role, $_.State })) -join ", "))
+    }
     Write-ClaudeTeamLog "OK" ("Monitor {0}: {1}x{2} px work area, DPI {3}, cell budget {4}x{5}; {6} tab(s) with {7} pane(s) for the roles started or planned" -f `
         $script:ClaudeTeamMonitor.Index, ($script:ClaudeTeamMonitor.WorkRight - $script:ClaudeTeamMonitor.WorkLeft), ($script:ClaudeTeamMonitor.WorkBottom - $script:ClaudeTeamMonitor.WorkTop), `
         $budget.Dpi, $budget.TotalCols, $budget.TotalRows, @($script:ClaudeTeamTabs).Count, $paneCount)
@@ -1645,11 +1788,12 @@ function Show-ClaudeTeamReport {
 }
 
 function Invoke-ClaudeTeamUp {
-    param([string]$Mode, [switch]$Status, [switch]$NoWindows, [switch]$NoKickoff, [string[]]$Roles)
+    param([string]$Mode, [switch]$Status, [switch]$NoWindows, [switch]$NoKickoff, [string[]]$Roles, [switch]$SkipAccountCheck)
     $script:ClaudeTeamMode = $Mode
     $script:ClaudeTeamOptStatus = [bool]$Status
     $script:ClaudeTeamOptNoWindows = [bool]$NoWindows
     $script:ClaudeTeamOptNoKickoff = [bool]$NoKickoff
+    $script:ClaudeTeamOptSkipAccount = [bool]$SkipAccountCheck
     $script:ClaudeTeamOptRoles = @($Roles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     $script:ClaudeTeamQuiet = $false
 
@@ -1665,7 +1809,7 @@ function Invoke-ClaudeTeamUp {
     Write-ClaudeTeamLog "OK" ("claudeteamup / claudeagents: {0}" -f $ClaudeTeamWinEnvsDir)
     Write-ClaudeTeamStep -Number 6 -Title "Monitors and cell budget (Per-Monitor-V2 rcWork + DPI)"
     Get-ClaudeTeamDisplay
-    Write-ClaudeTeamStep -Number 7 -Title "Role liveness (PID files)"
+    Write-ClaudeTeamStep -Number 7 -Title "Role liveness (PID files, Claude session registry)"
     Write-ClaudeTeamLog "OK" ("Checking {0} enabled roles ({1} no-window service roles excluded)" -f @($script:ClaudeTeamRows | Where-Object { $_.Enabled -and $_.Window }).Count, @($script:ClaudeTeamRows | Where-Object { $_.Enabled -and (-not $_.Window) }).Count)
     Write-ClaudeTeamStep -Number 8 -Title ("Layout and panes (mode {0}, window {1})" -f $script:ClaudeTeamMode, (Get-ClaudeTeamWindowName))
     Start-ClaudeTeamRoles
@@ -1724,7 +1868,7 @@ function Get-ClaudeTeamStandaloneRow {
     return $row
 }
 
-# Applies the session environment after Invoke-ClaudeOfficialRestore: the role
+# Applies the session environment before claude starts in the pane: the role
 # marker for the project hooks, session_env.all + windows, and session_env.lead
 # for the lead only. A non-lead session must not become an agent-teams lead, so
 # every key of session_env.lead (not just CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS)

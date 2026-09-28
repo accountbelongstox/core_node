@@ -1,0 +1,26 @@
+{
+  "task": "orch-wf1 (shell-linux-helpers)",
+  "round": 2,
+  "base": "8c30ec34e",
+  "verdict": "approved",
+  "findings": [
+    {
+      "file": "/www/programing/core_node/.claude/agents_shared/shell_parity/linux.md",
+      "line": "52-59 (after SPL-134)",
+      "severity": "minor",
+      "issue": "The report says SPL-127 is free and linux.md is unchanged against HEAD. Both claims are stale. The concurrent launcher instance has since added SPL-127 through SPL-134 (account readiness, the switched-user warning, the account gate, the pane readiness probe, --respawn-blocked, the post-launch wait, the root su launch, and the remote ssh options). The proposed row would reuse an existing id. No row for the helper exists in the ledger yet.",
+      "fix": "When the orchestrator merges the parity_rows text, renumber it to the next free id (SPL-135 at review time) and re-check that the id is still free at merge time. The row text is accurate otherwise."
+    }
+  ],
+  "checks": {
+    "round1_findings": "All 6 round-1 findings assigned to shell-linux are fixed. Ownership: root sync into a debian:debian 0600 file keeps debian:debian 600, in both the helper and the ai_tools_common copy. EOL: the helper is 226 CR in 226 lines (HEAD was all CRLF), numstat is 99/25 plain and with --ignore-space-at-eol, ai_tools_common is 26/0 LF, auto_add is 4/5 LF. Symlink: the link is kept and the 0640 target is updated. Invalid content: except (ValueError, OSError). The missing-at-load race is fixed. Each new function has at most a one-line docstring.",
+    "spec_items_1_to_5": "Reproduced. Corrupt JSON gives the [ERROR] line, rc=1 and a byte-identical file. A non-object top level is refused. A zero-byte file is merged and keeps its mode. A new file gets 0600. Logs print only Keys/Headers names, and SECRETVALUE appears 0 times in the output. The DEPRECATED 'unified' entry is pruned, and user keys and servers are kept. Race probe: a file created after load triggers a reload that keeps oauthAccount. A file that changes on every load gives 3 loads, the '[ERROR] ... changed during sync ...; skipped' line and rc=1 with no write. No .tmp file is left in any case.",
+    "callers": "mcp_sync_engine.sh mcp_sync_json_tool is unchanged, has no set -e, and ignores the helper's rc. No .sh or .ps1 file changed for this task. auto_add_mcp_linux.py is the only caller of ai_tools_common.write_json_atomic and passes a stat_result.",
+    "edge_noted_not_blocking": "A dangling symlink whose target directory is missing raises FileNotFoundError from mkstemp. HEAD's open('w') fails the same way, so this is not a regression.",
+    "p7_rejected_designs": "none present",
+    "scope": "Only the 3 assigned Python files. The other dirty files (claude_team_common.sh, claude_code_install.sh, linuxenvs/claude*.sh, linux.md) belong to the concurrent launcher instance.",
+    "bash_n": "Not applicable: no .sh file changed in this task.",
+    "py_compile": "passes on all 3 files"
+  },
+  "summary": "Approved. All five spec items and all six round-1 fixes are in place, and I verified them with scratchpad probes run as root. The one remaining point is minor: the proposed parity row id SPL-127 is now taken by the concurrent launcher work, so the orchestrator must renumber the row (SPL-135 or later) when merging it."
+}

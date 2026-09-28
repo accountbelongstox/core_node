@@ -14,7 +14,7 @@ MCP_TEMPLATES_DIR = SCRIPT_DIR / "mcp_templates"
 PROMPT_DIR = PROJECT_ROOT / "_prompt"
 
 sys.path.insert(0, str(SCRIPT_DIR))
-from ai_tools_common import get_user_home_directory
+from ai_tools_common import get_user_home_directory, write_json_atomic
 
 def get_context7_api_key() -> str:
     """Get Context7 API key from environment or user input."""
@@ -160,11 +160,11 @@ def sync_linux_json_template(project_root: str) -> None:
     
     if not claude_config_path.exists():
         print(f"[INFO] Creating new Claude config at {claude_config_path}")
-        with open(claude_config_path, 'w') as f:
-            json.dump(data, f, indent=4)
+        write_json_atomic(claude_config_path, data)
         print(f"[SUCCESS] Created Claude config")
     else:
         print(f"[INFO] Merging with existing Claude config")
+        existing_stat = claude_config_path.stat()
         with open(claude_config_path, 'r') as f:
             existing_data = json.load(f)
         
@@ -177,8 +177,7 @@ def sync_linux_json_template(project_root: str) -> None:
                 existing_data["mcpServers"][server_name] = server_config
                 added_servers.append(server_name)
         
-        with open(claude_config_path, 'w') as f:
-            json.dump(existing_data, f, indent=4)
+        write_json_atomic(claude_config_path, existing_data, existing_stat)
         
         if added_servers:
             print(f"[SUCCESS] Added {len(added_servers)} server(s): {', '.join(added_servers)}")

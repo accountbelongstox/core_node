@@ -1,6 +1,6 @@
 {
-  "granted_at": "2026-09-27T14:36:46.371Z",
-  "expires_at": "2026-09-27T16:36:46.371Z",
-  "session_id": "cf40de94-5892-4a03-9c59-8b7563593159",
-  "prompt_excerpt": "<cross-session-message from=\"uds:/run/user/1000/cc-socks/2582662.sock\" from-name=\"ct-wordnew-native\" from-mode=\"prompting\">\nwordnew-native-G2 (WNN-05, WNN-06 — includes your assigned F1 buildToolsVers"
+  "granted_at": "2026-09-28T10:32:57.759Z",
+  "expires_at": "2026-09-28T12:32:57.759Z",
+  "session_id": "6be3cf23-cea3-4539-b0f1-2eda350ac89d",
+  "prompt_excerpt": "<cross-session-message from=\"uds:/run/user/1000/cc-socks/2582369.sock\" from-name=\"ct-shell-windows\" from-mode=\"prompting\">\nDone: corrected the stale SPW-045 row in windows.md to reflect the shell-wind"
 }
