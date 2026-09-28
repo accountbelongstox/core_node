@@ -302,18 +302,34 @@ remove_decrypt_dir() {
     KEY_DECRYPT_DIR=""
 }
 
-# Keys in /home/<user>/.ssh must be user-owned or ssh refuses to read them.
+# Every entry of a user's ~/.ssh must belong to that user (the home's owner),
+# or ssh refuses/fails to read the key and config. The whole tree is checked:
+# safe_chown_R only looks at the top directory, which is already user-owned
+# when root drops files into it.
 set_ssh_location_owner() {
     local ssh_location="$1"
-    local location_owner=""
-    if [[ "$ssh_location" == "/root/.ssh" || "$ssh_location" == "/etc/ssh/keys" ]]; then
-        safe_chown_R root:root "$ssh_location"
-    elif [[ "$ssh_location" == /home/*/.ssh ]]; then
-        location_owner="$(echo "$ssh_location" | cut -d/ -f3)"
-        if [ -n "$location_owner" ] && id "$location_owner" >/dev/null 2>&1; then
-            safe_chown_R "$location_owner:$location_owner" "$ssh_location"
-        fi
+    local owner=""
+    [ -d "$ssh_location" ] || return 0
+    if [ "$ssh_location" = "/etc/ssh/keys" ]; then
+        owner="root:root"
+    else
+        owner="$(stat -c '%U:%G' "$(dirname "$ssh_location")" 2>/dev/null)"
     fi
+    [ -n "$owner" ] || return 0
+    if [ -n "$($USE_SUDO find "$ssh_location" \( ! -user "${owner%%:*}" -o ! -group "${owner##*:}" \) -print -quit 2>/dev/null)" ]; then
+        $USE_SUDO chown -R "$owner" "$ssh_location"
+        print_success_from_common_functions "Ownership repaired ($owner): $ssh_location"
+    fi
+}
+
+# Always-run access pass (independent of whether keys changed): ownership
+# and modes for every location, so a root install leaves each user usable.
+ensure_ssh_locations_access() {
+    local ssh_location=""
+    set_ssh_key_permissions
+    for ssh_location in "${SSH_LOCATIONS[@]}"; do
+        set_ssh_location_owner "$ssh_location"
+    done
 }
 
 # Per location: identical keys only get the stamp; differing or missing keys
@@ -353,7 +369,6 @@ sync_ssh_location() {
     fi
 
     printf '%s\n' "$KEY_BUNDLE_HASH" | $USE_SUDO tee "$ssh_location/$KEY_STAMP_NAME" >/dev/null
-    set_ssh_location_owner "$ssh_location"
 }
 
 # Function to set SSH key permissions for all locations
@@ -566,9 +581,6 @@ configure_git_ssh_transport() {
             if ! grep -q "^Host github\.com" "$u_home/.ssh/config" 2>/dev/null; then
                 printf 'Host github.com\n    IdentityFile %s\n    IdentitiesOnly yes\n' "$u_home/.ssh/$SSH_KEY_NAME" \
                     | $USE_SUDO tee -a "$u_home/.ssh/config" >/dev/null 2>&1 || true
-                if [ "$u" != "$(id -un)" ]; then
-                    $USE_SUDO chown "$u:$u" "$u_home/.ssh/config" 2>/dev/null || true
-                fi
                 $USE_SUDO chmod 600 "$u_home/.ssh/config" 2>/dev/null || true
                 print_success_from_common_functions "ssh config Host github.com added for user: $u"
             fi
@@ -628,7 +640,6 @@ step20_install_git_ssh() {
             for ssh_location in "${STALE_SSH_LOCATIONS[@]}"; do
                 sync_ssh_location "$ssh_location"
             done
-            set_ssh_key_permissions
             update_authorized_keys
         else
             remove_decrypt_dir
@@ -638,6 +649,7 @@ step20_install_git_ssh() {
     fi
 
     configure_git_ssh_transport
+    ensure_ssh_locations_access
     ensure_git_identity_and_safedir
     print_success_from_common_functions "Git SSH setup completed."
     return 0
