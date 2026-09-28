@@ -319,13 +319,13 @@ $script:MenuItems = @(
         }
     },
     @{
-        Text              = "AI & MCP Management"
+        Text              = "AI Tools & MCP"
         Values            = @("default")
         CurrentValueIndex = 0
         Key               = $null
         Action            = {
             $aiMcpMenuScript = Join-Path $script:PS_CURENT_DIR "menu_itemshells\MCPManagementMenu.ps1"
-            Write-ColorMessage -Message "Launching AI & MCP Management Menu..." -Type "Info"
+            Write-ColorMessage -Message "Launching AI Tools & MCP Menu..." -Type "Info"
             & powershell -NoProfile -ExecutionPolicy Bypass -File $aiMcpMenuScript
         }
     },
