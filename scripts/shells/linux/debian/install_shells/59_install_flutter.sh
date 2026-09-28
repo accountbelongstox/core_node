@@ -31,6 +31,12 @@ FLUTTER_VERSION="3.47.5"
 FLUTTER_DART_VERSION="3.13.4"
 FLUTTER_URL="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
 FLUTTER_INSTALL_DIR=$(map_web_path "compile_dir" "applications/flutter")
+FLUTTER_SDK_DIR="$FLUTTER_INSTALL_DIR/flutter"
+FLUTTER_BIN="$FLUTTER_SDK_DIR/bin/flutter"
+DART_BIN="$FLUTTER_SDK_DIR/bin/dart"
+FLUTTER_LINK="/usr/local/bin/flutter"
+DART_LINK="/usr/local/bin/dart"
+FLUTTER_VERIFY_TIMEOUT=900
 
 # Logging
 log_message() {
@@ -74,6 +80,9 @@ configure_flutter_mirrors() {
 # Install one prerequisite only when the apt index offers it (idempotent).
 install_flutter_dependency() {
     local dep="$1"
+    if dpkg-query -W -f='${Status}' "$dep" 2>/dev/null | grep -q "install ok installed"; then
+        return 0
+    fi
     if ! apt-cache policy "$dep" 2>/dev/null | grep -qE 'Candidate: [^(]'; then
         log_message "Skipping unavailable prerequisite (no apt candidate): $dep"
         return 0
@@ -104,15 +113,37 @@ ensure_flutter_git_safe_directory() {
     log_message "Registered git safe.directory: $flutter_sdk_dir"
 }
 
+# Newer SDKs dropped the root "version" file; the pinned version then lives in
+# bin/cache/flutter.version.json (frameworkVersion).
+installed_flutter_version() {
+    if [ -f "$FLUTTER_SDK_DIR/version" ]; then
+        tr -d '\r\n ' < "$FLUTTER_SDK_DIR/version" 2>/dev/null
+        return
+    fi
+    sed -n 's/.*"frameworkVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$FLUTTER_SDK_DIR/bin/cache/flutter.version.json" 2>/dev/null | head -1
+}
+
+# Idempotent link: re-pointed only when it resolves elsewhere (e.g. a legacy
+# /snap/bin/flutter link).
+ensure_flutter_link() {
+    local source_bin="$1"
+    local link_path="$2"
+    if [ "$(readlink -f "$link_path" 2>/dev/null)" = "$(readlink -f "$source_bin" 2>/dev/null)" ]; then
+        return 0
+    fi
+    $USE_SUDO ln -sfn "$source_bin" "$link_path"
+    log_message "Linked $link_path -> $source_bin"
+}
+
 # Install Flutter from the official release tarball
 # (docs.flutter.dev/get-started/install/linux -- the snap package is NOT the
 # recommended method and its per-user first-run SDK bootstrap breaks when the
 # installer runs as root: the SDK lands in /root/snap and regular users can
 # never use it. The tarball installs one shared SDK linked into /usr/local/bin).
 install_flutter_tarball() {
-    local flutter_sdk_dir="$FLUTTER_INSTALL_DIR/flutter"
-    local flutter_bin="$flutter_sdk_dir/bin/flutter"
-    local dart_bin="$flutter_sdk_dir/bin/dart"
+    local flutter_sdk_dir="$FLUTTER_SDK_DIR"
+    local flutter_bin="$FLUTTER_BIN"
+    local dart_bin="$DART_BIN"
     local archive_path="/var/tmp/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
     local real_user=""
 
@@ -122,16 +153,14 @@ install_flutter_tarball() {
 
     # Idempotent version check: an existing SDK is only reused when its
     # recorded version matches the pin; otherwise it is replaced (upgrade).
-    local installed_flutter_version=""
-    if [ -f "$flutter_sdk_dir/version" ]; then
-        installed_flutter_version="$(cat "$flutter_sdk_dir/version" 2>/dev/null | tr -d '\r\n ')"
-    fi
+    local installed_version=""
+    installed_version="$(installed_flutter_version)"
 
-    if [ -x "$flutter_bin" ] && [ "$installed_flutter_version" = "$FLUTTER_VERSION" ]; then
+    if [ -x "$flutter_bin" ] && [ "$installed_version" = "$FLUTTER_VERSION" ]; then
         log_message "Flutter SDK $FLUTTER_VERSION already present at $flutter_sdk_dir, skipping download"
     else
         if [ -x "$flutter_bin" ]; then
-            log_message "Flutter SDK version mismatch (installed: ${installed_flutter_version:-unknown}, target: $FLUTTER_VERSION), upgrading"
+            log_message "Flutter SDK version mismatch (installed: ${installed_version:-unknown}, target: $FLUTTER_VERSION), upgrading"
         fi
         log_message "Downloading Flutter SDK to: $archive_path"
         # -c resumes a partial download on the next idempotent run
@@ -160,16 +189,14 @@ install_flutter_tarball() {
     # stamps), so the SDK must be owned by the real desktop user -- a
     # root-owned SDK is exactly what makes flutter unusable for normal users.
     real_user="$(get_real_user_from_common_functions)"
-    log_message "Setting Flutter SDK ownership to $real_user"
-    $USE_SUDO chown -R "$real_user:$real_user" "$FLUTTER_INSTALL_DIR"
-    $USE_SUDO chmod -R u+rwX,go+rX "$FLUTTER_INSTALL_DIR"
+    if [ -n "$($USE_SUDO find "$FLUTTER_INSTALL_DIR" ! -user "$real_user" -print -quit 2>/dev/null)" ]; then
+        log_message "Setting Flutter SDK ownership to $real_user"
+        $USE_SUDO chown -R "$real_user:$real_user" "$FLUTTER_INSTALL_DIR"
+        $USE_SUDO chmod -R u+rwX,go+rX "$FLUTTER_INSTALL_DIR"
+    fi
 
-    # Link the SDK bin tools into /usr/local/bin (shared PATH entry). ln -sf
-    # re-asserts the correct target on every run, installed or not.
-    $USE_SUDO ln -sf "$flutter_bin" /usr/local/bin/flutter
-    $USE_SUDO ln -sf "$dart_bin" /usr/local/bin/dart
-    log_message "Linked /usr/local/bin/flutter -> $flutter_bin"
-    log_message "Linked /usr/local/bin/dart -> $dart_bin"
+    ensure_flutter_link "$flutter_bin" "$FLUTTER_LINK"
+    ensure_flutter_link "$dart_bin" "$DART_LINK"
 
     # Share the absolute paths in the var center for minimal-PATH consumers
     if command -v register_tool_bin >/dev/null 2>&1; then
@@ -181,21 +208,23 @@ install_flutter_tarball() {
     return 0
 }
 
-# Verify installation. Runs flutter as the REAL user when invoked as root:
-# this both proves regular-user usability and makes the first-run Dart SDK
-# cache bootstrap happen with user ownership instead of root.
+# Verify the tarball SDK (never whatever `flutter` PATH resolves to: a legacy
+# snap link would start the snap's silent multi-GB first-run bootstrap). Runs
+# as the REAL user so the first-run cache lands with user ownership; output is
+# streamed (no grep filter hiding progress), bounded by a timeout, and
+# --no-version-check skips the git fetch against github.com (routed over SSH
+# by step 27's url.insteadOf).
 verify_flutter() {
     local real_user=""
-    if ! command_exists flutter; then
-        return 1
-    fi
+    [ -x "$FLUTTER_BIN" ] || return 1
+    log_message "Running: flutter --no-version-check --version (first run may download the Dart SDK cache)"
     real_user="$(get_real_user_from_common_functions)"
     if [ "$(id -u)" -eq 0 ] && [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
-        su - "$real_user" -c "flutter --version" 2>&1 | grep -E "Flutter [0-9]" | head -1 | tee -a "$LOG_FILE" || true
+        timeout "$FLUTTER_VERIFY_TIMEOUT" su - "$real_user" -c "'$FLUTTER_BIN' --no-version-check --version" 2>&1 | tee -a "$LOG_FILE"
     else
-        flutter --version 2>/dev/null | head -1 | tee -a "$LOG_FILE" || true
+        timeout "$FLUTTER_VERIFY_TIMEOUT" "$FLUTTER_BIN" --no-version-check --version 2>&1 | tee -a "$LOG_FILE"
     fi
-    return 0
+    [ "${PIPESTATUS[0]}" -eq 0 ]
 }
 
 # Remove Flutter installation (tarball and legacy snap)
@@ -232,11 +261,6 @@ main() {
     fi
 
     configure_flutter_mirrors
-
-    if verify_flutter; then
-        log_message "Flutter already installed"
-        exit 0
-    fi
 
     if install_flutter_tarball; then
         log_message "Flutter installation successful"
