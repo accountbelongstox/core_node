@@ -34,15 +34,23 @@ $AiCliClaudeLatestUrl = "https://downloads.claude.ai/claude-code-releases/latest
 $AiCliClaudeBinDir = Join-Path (Join-Path $env:USERPROFILE ".local") "bin"
 $AiCliClaudeExe = Join-Path $AiCliClaudeBinDir "claude.exe"
 $AiCliClaudeInstallerFile = Join-Path ([System.IO.Path]::GetTempPath()) "claude-code-install.ps1"
-$AiCliPackages = @{
-    "claude" = "@anthropic-ai/claude-code"
-    "codex"  = "@openai/codex"
-    "kimi"   = "@moonshot-ai/kimi-code"
+
+# Read from the shared AI Tools Catalog (single source of truth for AI CLI
+# metadata) instead of duplicating package ids / labels here. PnpmFallbackPackage
+# is this file's own fallback path (pnpm add --global) when the native
+# installer fails, kept distinct from the catalog's WindowsPackageKey/PackageId
+# (which point at the winget/PowerShellCommand-based DEV_SOFTWARE_PACKAGES
+# entry the main installer prefers).
+if (-not (Get-Command Get-AiTool -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot "AiToolsCatalog.ps1")
 }
-$AiCliLabels = @{
-    "claude" = "Claude Code"
-    "codex"  = "Codex CLI"
-    "kimi"   = "Kimi Code CLI"
+$AiCliPackages = @{}
+$AiCliLabels = @{}
+foreach ($aiCliKey in @("claude", "codex", "kimi")) {
+    $aiCliTool = Get-AiTool -Key $aiCliKey
+    if ($null -eq $aiCliTool) { continue }
+    $AiCliPackages[$aiCliKey] = [string]$aiCliTool.PnpmFallbackPackage
+    $AiCliLabels[$aiCliKey] = [string]$aiCliTool.Name
 }
 
 # Masked form of a secret for launcher summaries (at most 4 chars kept per end).

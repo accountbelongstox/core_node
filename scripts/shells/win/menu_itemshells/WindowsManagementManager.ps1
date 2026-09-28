@@ -21,11 +21,14 @@ $script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootR
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
 $script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
 $script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
-$script:TAILSCALE_ACTIONS = @{ "status" = "Status"; "devices" = "Devices"; "restart" = "Restart"; "panel" = "Panel" }
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+# Dot-sourced (not subprocess-invoked) so the "[T] Tailscale" quick entry can
+# show live state in its label and open Show-TailscaleQuickMenu in-process,
+# same as the "Path Mapping" entry below reuses UserProfilePathMapping.ps1.
+. $script:TAILSCALE_COMMON_SCRIPT
 $script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path (Join-Path $Global:CORE_NODE_DATA_DIR 'scripts\chromefix') 'repair-chrome-crash.ps1'
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
@@ -231,16 +234,12 @@ function Show-WindowsManagementSubMenu {
             }
         },
         @{
-            Text = "Tailscale (mesh VPN status / devices / restart / panel)";
-            Values = @("status", "devices", "restart", "panel");
+            Text = "[T] Tailscale";
+            Values = @((Get-TailscaleQuickStateLabel));
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                $tailscaleMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
-                $tailscaleAction = $script:TAILSCALE_ACTIONS[$tailscaleMode]
-                Write-ColorMessage -Message "Tailscale: $tailscaleAction" -Type "Info"
-                Write-Host ""
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:TAILSCALE_COMMON_SCRIPT -Action $tailscaleAction
+                Show-TailscaleQuickMenu
             }
         },
         @{
@@ -346,6 +345,9 @@ function Show-WindowsManagementSubMenu {
 
                 Clear-Host
                 $selectedItem.Action.Invoke()
+                if ($selectedText -eq "[T] Tailscale") {
+                    $selectedItem.Values = @((Get-TailscaleQuickStateLabel))
+                }
                 Wait-MenuContinue
             }
             'Q' { return }

@@ -4,30 +4,38 @@
     service restart, and opening the two documented panels.
 
 .DESCRIPTION
-    Windows counterpart of the Linux Tailscale helpers (`is_tailscale_installed()` in
-    scripts/shells/linux/debian/install_shells/97_install_tailscale.sh and
-    `net_detect_tailscale_ipv4()` in scripts/shells/linux/common/network_detect_common.sh).
-    Read-only status/device queries plus a service restart and opening the admin console /
-    local device web interface. Never installs Tailscale -- when it is not present, every
-    action here only reports that and points at the official install docs.
+    Windows counterpart of the Linux Tailscale helpers (`is_tailscale_installed()` /
+    `ts_show_status` / `ts_show_devices` in scripts/shells/linux/common/tailscale_common.sh
+    and scripts/shells/linux/menu_itemshells/tailscale_menu.sh). Status/device queries, an
+    idempotent winget install/repair, `tailscale set` settings, All-IPs (self + every peer),
+    service restart, login/logout and opening the admin console / local device web UI. Every
+    action detects "not installed" and points at the official install docs instead of failing.
 
-    Sources (official docs, checked 2026-09-27):
+    Sources (official docs, checked 2026-09-27/28):
       https://tailscale.com/kb/1189/install-windows-msi   (Windows install dir / CLI location)
       https://tailscale.com/kb/1278/tailscaled             (service name 'Tailscale', net stop/start)
-      https://tailscale.com/docs/reference/tailscale-cli   (status --json, ip, exit-node, ...)
+      https://tailscale.com/docs/reference/tailscale-cli   (status --json, set, login, logout, ...)
       https://pkg.go.dev/tailscale.com/ipn/ipnstate        (status --json field names, PeerStatus)
+      https://pkg.go.dev/tailscale.com/ipn#Prefs           (debug prefs field names: RouteAll,
+                                                             AdvertiseRoutes, ExitNodeIP, ShieldsUp,
+                                                             Hostname, RunSSH -- RunSSH/--ssh is
+                                                             not applicable on the Windows client)
       https://tailscale.com/docs/how-to/quickstart         (admin console Machines page URL)
       https://tailscale.com/kb/1325/device-web-interface   (local web UI at 100.100.100.100)
       https://tailscale.com/kb/1381/what-is-quad100        (Quad100 explainer)
       https://tailscale.com/docs/reference/connection-types (direct / relay / peer-relay)
+      https://community.chocolatey.org/packages (n/a)      winget id verified via `winget show
+                                                             --id Tailscale.Tailscale -e`
 
 .NOTES
-    Direct run (also wired into the Windows Management menu):
-    powershell -File TailscaleCommon.ps1 -Action Status|Devices|Restart|Panel|Help [-PanelTarget Admin|Local|Both]
+    Direct run (also wired into the Windows Management menu via Show-TailscaleQuickMenu):
+    powershell -File TailscaleCommon.ps1 -Action Status|Devices|Restart|Panel|OpenUI|AllIps|
+                                                   Install|Settings|Login|Logout|Menu|Help
+                                          [-PanelTarget Admin|Local|Both]
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('', 'Status', 'Devices', 'Restart', 'Panel', 'Help')]
+    [ValidateSet('', 'Status', 'Devices', 'Restart', 'Panel', 'OpenUI', 'AllIps', 'Install', 'Settings', 'Login', 'Logout', 'Menu', 'Help')]
     [string]$Action = '',
 
     [Parameter(Mandatory = $false)]
@@ -53,6 +61,8 @@ $script:TailscaleNeedsLoginState = 'NeedsLogin'
 $script:TailscaleStoppedState = 'Stopped'
 $script:TailscaleStatusWebListen = '127.0.0.1:8384'
 $script:TailscaleWebListenDefault = 'localhost:8088'
+$script:TailscaleExitNodeRouteV4 = '0.0.0.0/0'
+$script:TailscaleExitNodeRouteV6 = '::/0'
 
 # ---------------------------------------------------------------------------
 # Install / service detection
@@ -349,7 +359,74 @@ function Show-TailscaleNotInstalledMessage {
     Write-ColorMessage -Message 'Tailscale is not installed on this machine (no tailscale.exe and/or no Tailscale service found).' -Type 'Warning'
     Write-ColorMessage -Message "Official install docs: $script:TailscaleInstallDocUrl" -Type 'Info'
     Write-ColorMessage -Message "Winget package id: $script:TailscaleWingetId  ->  winget install --id $script:TailscaleWingetId -e" -Type 'Info'
-    Write-ColorMessage -Message 'This menu does not install Tailscale; install it first, then reopen this entry.' -Type 'Info'
+    Write-ColorMessage -Message "Use the 'Install / Repair' entry (-Action Install) to install it from here." -Type 'Info'
+}
+
+# ---------------------------------------------------------------------------
+# Install / Repair (winget)
+# ---------------------------------------------------------------------------
+
+# Refresh this process's PATH from the registry: tailscale.exe just installed by
+# winget is otherwise invisible to Get-Command until a new shell starts. Not
+# strictly required for Find-TailscaleExecutable (it checks the documented
+# default install dir first), but keeps a bare `tailscale` call working in the
+# same console session right after install.
+function Update-TailscaleSessionPath {
+    $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:Path = @($machinePath, $userPath) -join ';'
+}
+
+# Idempotent install/repair: skips the winget call entirely when Tailscale is
+# already installed (CLI + service both present, per Get-TailscaleInstallInfo).
+# Installing the Tailscale service requires an elevated token, so this
+# relaunches winget elevated when the current process is not already admin
+# (same UAC pattern as Restart-TailscaleServiceElevated).
+function Install-TailscaleWinget {
+    $installInfo = $null
+    $wingetArgs = @()
+
+    $installInfo = Get-TailscaleInstallInfo
+    if ($installInfo.Installed) {
+        Write-ColorMessage -Message "Tailscale is already installed ($($installInfo.ExePath)); skipping winget install." -Type 'Success'
+        return $true
+    }
+
+    if (-not (Get-Command -Name 'winget' -ErrorAction SilentlyContinue)) {
+        Write-ColorMessage -Message "winget was not found on PATH; install Tailscale manually: $script:TailscaleInstallDocUrl" -Type 'Error'
+        return $false
+    }
+
+    $wingetArgs = @('install', '--id', $script:TailscaleWingetId, '-e', '--silent', '--accept-package-agreements', '--accept-source-agreements')
+    Write-ColorMessage -Message "Installing Tailscale via winget (id: $script:TailscaleWingetId)..." -Type 'Info'
+
+    if (-not $Global:IS_RUN_ADMIN) {
+        Write-ColorMessage -Message 'Administrator rights are required to install the Tailscale service; relaunching elevated...' -Type 'Warning'
+        try {
+            Start-Process -FilePath 'winget.exe' -Verb RunAs -Wait -ArgumentList $wingetArgs | Out-Null
+        } catch {
+            Write-ColorMessage -Message "Elevation declined or failed: $($_.Exception.Message)" -Type 'Error'
+            return $false
+        }
+    } else {
+        try {
+            Start-Process -FilePath 'winget.exe' -ArgumentList $wingetArgs -NoNewWindow -Wait | Out-Null
+        } catch {
+            Write-ColorMessage -Message "winget install failed to start: $($_.Exception.Message)" -Type 'Error'
+            return $false
+        }
+    }
+
+    Start-Sleep -Seconds 3
+    Update-TailscaleSessionPath
+    $installInfo = Get-TailscaleInstallInfo
+    if ($installInfo.Installed) {
+        Write-ColorMessage -Message "Tailscale installed successfully ($($installInfo.ExePath))." -Type 'Success'
+        return $true
+    }
+
+    Write-ColorMessage -Message "Tailscale install did not complete (CLI and/or service not found afterwards). Retry, or install manually: $script:TailscaleInstallDocUrl" -Type 'Error'
+    return $false
 }
 
 function Show-TailscaleStatus {
@@ -427,6 +504,218 @@ function Show-TailscaleDevices {
         Format-Table -AutoSize -Property $columns |
         Out-String |
         Write-Host
+}
+
+# ---------------------------------------------------------------------------
+# Settings (tailscale set)
+# ---------------------------------------------------------------------------
+
+# `tailscale debug prefs`, parsed. Never throws (same contract as
+# Get-TailscaleStatusJson): a failure returns $null and callers show blanks.
+function Get-TailscalePrefsJson {
+    param([Parameter(Mandatory = $true)][string]$TailscaleExe)
+    $rawJson = ''
+    $parsed = $null
+
+    try {
+        $rawJson = [string](& $TailscaleExe 'debug' 'prefs' 2>$null | Out-String)
+        if ([string]::IsNullOrWhiteSpace($rawJson)) {
+            return $null
+        }
+        $parsed = $rawJson | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        return $null
+    }
+    return $parsed
+}
+
+# Interactive `tailscale set` wrapper: shows the current value of every
+# setting (from `tailscale debug prefs`) and prompts for a new one, Enter
+# keeps it unchanged. Only the flags the user actually answered are passed to
+# `tailscale set`, so this never resets unrelated preferences. Tailscale SSH
+# (--ssh) and --operator are Unix-only (operator is "a Unix username"; SSH
+# server mode targets Linux/macOS nodes) and are intentionally not offered
+# here, per https://tailscale.com/docs/reference/tailscale-cli.
+function Show-TailscaleSettings {
+    $installInfo = $null
+    $prefs = $null
+    $setArgs = New-Object System.Collections.Generic.List[string]
+    $currentHostname = ''
+    $currentAcceptRoutes = $false
+    $currentAdvertiseRoutes = @()
+    $currentAdvertiseExitNode = $false
+    $currentExitNode = ''
+    $currentShieldsUp = $false
+    $response = ''
+
+    $installInfo = Get-TailscaleInstallInfo
+    if (-not $installInfo.Installed) {
+        Show-TailscaleNotInstalledMessage
+        return
+    }
+
+    $prefs = Get-TailscalePrefsJson -TailscaleExe $installInfo.ExePath
+    $currentHostname = [string](Get-TailscaleJsonProperty -Object $prefs -Name 'Hostname' -Default '')
+    $currentAcceptRoutes = [bool](Get-TailscaleJsonProperty -Object $prefs -Name 'RouteAll' -Default $false)
+    $currentAdvertiseRoutes = @(Get-TailscaleJsonProperty -Object $prefs -Name 'AdvertiseRoutes' -Default @())
+    $currentAdvertiseExitNode = (($currentAdvertiseRoutes -contains $script:TailscaleExitNodeRouteV4) -or ($currentAdvertiseRoutes -contains $script:TailscaleExitNodeRouteV6))
+    $currentExitNode = [string](Get-TailscaleJsonProperty -Object $prefs -Name 'ExitNodeIP' -Default '')
+    $currentShieldsUp = [bool](Get-TailscaleJsonProperty -Object $prefs -Name 'ShieldsUp' -Default $false)
+
+    Write-ColorMessage -Message 'Tailscale settings (tailscale set). Press Enter to keep the current value.' -Type 'Info'
+    Write-ColorMessage -Message 'Tailscale SSH (--ssh) is Linux/macOS only and is not offered here.' -Type 'Info'
+    Write-Host ''
+
+    $response = Read-Host "Hostname [$currentHostname]"
+    if (-not [string]::IsNullOrWhiteSpace($response)) {
+        $setArgs.Add("--hostname=$response")
+    }
+
+    $response = Read-Host "Accept subnet routes from other nodes? y/n [$(if ($currentAcceptRoutes) { 'y' } else { 'n' })]"
+    if ($response -match '^(?i)y') { $setArgs.Add('--accept-routes') }
+    elseif ($response -match '^(?i)n') { $setArgs.Add('--accept-routes=false') }
+
+    $response = Read-Host "Advertise this device as an exit node? y/n [$(if ($currentAdvertiseExitNode) { 'y' } else { 'n' })]"
+    if ($response -match '^(?i)y') { $setArgs.Add('--advertise-exit-node') }
+    elseif ($response -match '^(?i)n') { $setArgs.Add('--advertise-exit-node=false') }
+
+    $response = Read-Host "Use exit node (Tailscale IP or name; '-' to clear) [$currentExitNode]"
+    if ($response.Trim() -eq '-') { $setArgs.Add('--exit-node=') }
+    elseif (-not [string]::IsNullOrWhiteSpace($response)) { $setArgs.Add("--exit-node=$response") }
+
+    $response = Read-Host "Shields up (block incoming connections)? y/n [$(if ($currentShieldsUp) { 'y' } else { 'n' })]"
+    if ($response -match '^(?i)y') { $setArgs.Add('--shields-up') }
+    elseif ($response -match '^(?i)n') { $setArgs.Add('--shields-up=false') }
+
+    if ($setArgs.Count -eq 0) {
+        Write-ColorMessage -Message 'No changes requested.' -Type 'Info'
+        return
+    }
+
+    Write-ColorMessage -Message "Running: tailscale set $($setArgs -join ' ')" -Type 'Info'
+    try {
+        & $installInfo.ExePath 'set' @($setArgs.ToArray()) 2>&1 | ForEach-Object { Write-Host $_ }
+        Write-ColorMessage -Message 'Settings applied.' -Type 'Success'
+    } catch {
+        Write-ColorMessage -Message "tailscale set failed: $($_.Exception.Message)" -Type 'Error'
+    }
+}
+
+# ---------------------------------------------------------------------------
+# All IPs (this machine + every peer)
+# ---------------------------------------------------------------------------
+
+# LAN-side IPv4 addresses of this machine (excludes the Tailscale adapter,
+# loopback and link-local/APIPA). Best-effort: an empty array on failure.
+function Get-LocalLanIPv4Addresses {
+    $addresses = @()
+    try {
+        $addresses = @(
+            Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+                Where-Object {
+                    $_.InterfaceAlias -notmatch 'Tailscale' -and
+                    $_.IPAddress -ne '127.0.0.1' -and
+                    -not $_.IPAddress.StartsWith('169.254.')
+                } |
+                Select-Object -ExpandProperty IPAddress
+        )
+    } catch {
+        $addresses = @()
+    }
+    return $addresses
+}
+
+# This machine (Tailscale IPv4/IPv6, MagicDNS name, LAN IPs) + every peer
+# (hostname, OS, online, TailscaleIPs, exit-node/relay), from
+# `tailscale status --json`, per the design's "All IPs" requirement.
+function Show-TailscaleAllIps {
+    $installInfo = $null
+    $status = $null
+    $selfNode = $null
+    $peerMap = $null
+    $lanIps = @()
+    $selfRow = $null
+
+    $installInfo = Get-TailscaleInstallInfo
+    if (-not $installInfo.Installed) {
+        Show-TailscaleNotInstalledMessage
+        return
+    }
+
+    $status = Get-TailscaleStatusJson -TailscaleExe $installInfo.ExePath
+    if ($null -eq $status) {
+        Write-ColorMessage -Message 'No status data yet (daemon not running or not authenticated).' -Type 'Warning'
+        return
+    }
+
+    $lanIps = @(Get-LocalLanIPv4Addresses)
+    Write-ColorMessage -Message '== This machine ==' -Type 'Info'
+    $selfNode = Get-TailscaleJsonProperty -Object $status -Name 'Self' -Default $null
+    if ($null -ne $selfNode) {
+        $selfRow = Get-TailscaleDeviceRow -Peer $selfNode -IsSelf
+        Write-ColorMessage -Message "  HostName:       $($selfRow.HostName)" -Type 'Info'
+        Write-ColorMessage -Message "  MagicDNS name:  $($selfRow.DNSName)" -Type 'Info'
+        Write-ColorMessage -Message "  Tailscale IPv4: $($selfRow.IPv4)" -Type 'Info'
+        Write-ColorMessage -Message "  Tailscale IPv6: $($selfRow.IPv6)" -Type 'Info'
+    }
+    Write-ColorMessage -Message "  LAN IPv4:       $(if ($lanIps.Count -gt 0) { $lanIps -join ', ' } else { 'none detected' })" -Type 'Info'
+
+    Write-Host ''
+    Write-ColorMessage -Message '== Peers ==' -Type 'Info'
+    $peerMap = Get-TailscaleJsonProperty -Object $status -Name 'Peer' -Default $null
+    if ($null -eq $peerMap -or @($peerMap.PSObject.Properties).Count -eq 0) {
+        Write-ColorMessage -Message '  (no peers)' -Type 'Info'
+        return
+    }
+    foreach ($peerProperty in $peerMap.PSObject.Properties) {
+        $peerRow = Get-TailscaleDeviceRow -Peer $peerProperty.Value
+        $exitLabel = if ($peerRow.ExitNode) { 'in-use' } elseif ($peerRow.ExitNodeOption) { 'offered' } else { 'no' }
+        $ipList = @($peerRow.IPv4, $peerRow.IPv6) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        Write-ColorMessage -Message "  $($peerRow.HostName)  [$($peerRow.OS)]  online=$($peerRow.Online)  IPs=$($ipList -join ', ')  exit-node=$exitLabel  via=$($peerRow.Connection)" -Type 'Info'
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Login / Logout
+# ---------------------------------------------------------------------------
+
+function Invoke-TailscaleLogin {
+    $installInfo = $null
+
+    $installInfo = Get-TailscaleInstallInfo
+    if (-not $installInfo.Installed) {
+        Show-TailscaleNotInstalledMessage
+        return $false
+    }
+
+    Write-ColorMessage -Message 'Starting Tailscale login (tailscale login)...' -Type 'Info'
+    try {
+        & $installInfo.ExePath 'login'
+        return $true
+    } catch {
+        Write-ColorMessage -Message "tailscale login failed: $($_.Exception.Message)" -Type 'Error'
+        return $false
+    }
+}
+
+function Invoke-TailscaleLogout {
+    $installInfo = $null
+
+    $installInfo = Get-TailscaleInstallInfo
+    if (-not $installInfo.Installed) {
+        Show-TailscaleNotInstalledMessage
+        return $false
+    }
+
+    Write-ColorMessage -Message 'Logging out (tailscale logout)...' -Type 'Warning'
+    try {
+        & $installInfo.ExePath 'logout'
+        Write-ColorMessage -Message 'Logged out.' -Type 'Success'
+        return $true
+    } catch {
+        Write-ColorMessage -Message "tailscale logout failed: $($_.Exception.Message)" -Type 'Error'
+        return $false
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -524,23 +813,122 @@ function Show-TailscalePanel {
 }
 
 # ---------------------------------------------------------------------------
+# Quick menu ("[T] Tailscale" entry, wired into WindowsManagementManager.ps1)
+# ---------------------------------------------------------------------------
+
+# Short state word for the "[T] Tailscale" quick-entry label: "not installed",
+# or the backend state (Running/NeedsLogin/Stopped/...) when installed.
+function Get-TailscaleQuickStateLabel {
+    $installInfo = $null
+    $summary = $null
+    $label = ''
+
+    $installInfo = Get-TailscaleInstallInfo
+    if (-not $installInfo.Installed) {
+        return 'not installed'
+    }
+    $summary = Get-TailscaleStatusSummary -TailscaleExe $installInfo.ExePath
+    $label = [string]$summary.BackendState
+    if ([string]::IsNullOrWhiteSpace($label)) { $label = 'Unknown' }
+    return $label
+}
+
+# Same item list as the Linux Tailscale menu (scripts/shells/linux/menu_itemshells/
+# tailscale_menu.sh): Install/Repair, Settings, Open UI, All IPs, Status, Restart
+# service, Login, Logout, Help. Every item calls a shared function above --
+# no logic is duplicated in this loop.
+function Show-TailscaleQuickMenu {
+    $menuItems = @(
+        @{ Text = 'Install / Repair (winget)';               Action = { [void](Install-TailscaleWinget) } },
+        @{ Text = 'Settings (tailscale set)';                 Action = { Show-TailscaleSettings } },
+        @{ Text = 'Open UI (admin console + local web UI)';   Action = { Show-TailscalePanel -PanelTarget Both } },
+        @{ Text = 'All IPs (this machine + every peer)';      Action = { Show-TailscaleAllIps } },
+        @{ Text = 'Status';                                   Action = { Show-TailscaleStatus } },
+        @{ Text = 'Restart service';                          Action = { [void](Restart-TailscaleServiceElevated) } },
+        @{ Text = 'Login';                                    Action = { [void](Invoke-TailscaleLogin) } },
+        @{ Text = 'Logout';                                   Action = { [void](Invoke-TailscaleLogout) } },
+        @{ Text = 'Help';                                     Action = { Show-TailscaleHelp } },
+        @{ Text = 'Back';                                     Action = { return } }
+    )
+
+    $selected = 0
+    while ($true) {
+        Clear-Host
+        Write-ColorMessage -Message ("Tailscale ({0})" -f (Get-TailscaleQuickStateLabel)) -Type 'Info'
+        Write-ColorMessage -Message 'Up/Down to move, Enter to select, Q/Escape to go back' -Type 'Info'
+        Write-Host ''
+        for ($i = 0; $i -lt $menuItems.Count; $i++) {
+            if ($i -eq $selected) {
+                Write-Host -NoNewline '>'
+                Write-Host -NoNewline -ForegroundColor Black -BackgroundColor White (" {0,-45}" -f $menuItems[$i].Text)
+                Write-Host ''
+            } else {
+                Write-Host ("  {0,-45}" -f $menuItems[$i].Text)
+            }
+        }
+
+        try {
+            $key = [Console]::ReadKey($true).Key
+        } catch {
+            Write-ColorMessage -Message 'Cannot read console input in this environment; enter a number, or q to go back' -Type 'Warning'
+            $numeric = Read-Host 'Selection'
+            if ($numeric -eq 'q') { return }
+            if ($numeric -match '^\d+$' -and [int]$numeric -ge 1 -and [int]$numeric -le $menuItems.Count) {
+                $chosenItem = $menuItems[[int]$numeric - 1]
+                if ($chosenItem.Text -eq 'Back') { return }
+                Clear-Host
+                & $chosenItem.Action
+                Wait-MenuContinue
+            }
+            continue
+        }
+
+        switch ($key) {
+            'UpArrow'   { if ($selected -gt 0) { $selected-- } else { $selected = $menuItems.Count - 1 } }
+            'DownArrow' { if ($selected -lt $menuItems.Count - 1) { $selected++ } else { $selected = 0 } }
+            'Enter' {
+                $chosenItem = $menuItems[$selected]
+                if ($chosenItem.Text -eq 'Back') { return }
+                Clear-Host
+                & $chosenItem.Action
+                Wait-MenuContinue
+            }
+            'Q' { return }
+            'Escape' { return }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
 function Show-TailscaleHelp {
-    Write-ColorMessage -Message 'TailscaleCommon.ps1 -Action Status|Devices|Restart|Panel|Help [-PanelTarget Admin|Local|Both]' -Type 'Info'
-    Write-ColorMessage -Message '  Status  - installed check + backend state + this node Tailscale IPs' -Type 'Info'
-    Write-ColorMessage -Message '  Devices - table of every tailnet device (self + peers)' -Type 'Info'
-    Write-ColorMessage -Message '  Restart - restart the Tailscale service (elevates if needed)' -Type 'Info'
-    Write-ColorMessage -Message '  Panel   - open the admin console, and the local web UI when connected' -Type 'Info'
+    Write-ColorMessage -Message 'TailscaleCommon.ps1 -Action Status|Devices|Restart|Panel|OpenUI|AllIps|Install|Settings|Login|Logout|Menu|Help [-PanelTarget Admin|Local|Both]' -Type 'Info'
+    Write-ColorMessage -Message '  Status   - installed check + backend state + this node Tailscale IPs' -Type 'Info'
+    Write-ColorMessage -Message '  Devices  - table of every tailnet device (self + peers)' -Type 'Info'
+    Write-ColorMessage -Message '  Install  - idempotent winget install/repair (skips when already installed)' -Type 'Info'
+    Write-ColorMessage -Message '  Settings - interactive tailscale set (hostname, accept-routes, advertise-exit-node, exit-node, shields-up)' -Type 'Info'
+    Write-ColorMessage -Message '  AllIps   - this machine (Tailscale IPv4/IPv6, MagicDNS, LAN IPs) + every peer' -Type 'Info'
+    Write-ColorMessage -Message '  Restart  - restart the Tailscale service (elevates if needed)' -Type 'Info'
+    Write-ColorMessage -Message '  Panel/OpenUI - open the admin console, and the local web UI when connected' -Type 'Info'
+    Write-ColorMessage -Message '  Login/Logout - tailscale login / tailscale logout' -Type 'Info'
+    Write-ColorMessage -Message '  Menu     - the same arrow-key quick menu as "[T] Tailscale" in Windows Management' -Type 'Info'
 }
 
 switch ($Action) {
     '' { if ($MyInvocation.InvocationName -ne '.') { Show-TailscaleHelp } }
-    'Status'  { Show-TailscaleStatus }
-    'Devices' { Show-TailscaleDevices }
-    'Restart' { [void](Restart-TailscaleServiceElevated) }
-    'Panel'   { Show-TailscalePanel -PanelTarget $PanelTarget }
-    'Help'    { Show-TailscaleHelp }
-    default   { Write-ColorMessage -Message "Unknown -Action '$Action' (use Status, Devices, Restart, Panel or Help)" -Type 'Error' }
+    'Status'   { Show-TailscaleStatus }
+    'Devices'  { Show-TailscaleDevices }
+    'Restart'  { [void](Restart-TailscaleServiceElevated) }
+    'Panel'    { Show-TailscalePanel -PanelTarget $PanelTarget }
+    'OpenUI'   { Show-TailscalePanel -PanelTarget $PanelTarget }
+    'AllIps'   { Show-TailscaleAllIps }
+    'Install'  { [void](Install-TailscaleWinget) }
+    'Settings' { Show-TailscaleSettings }
+    'Login'    { [void](Invoke-TailscaleLogin) }
+    'Logout'   { [void](Invoke-TailscaleLogout) }
+    'Menu'     { Show-TailscaleQuickMenu }
+    'Help'     { Show-TailscaleHelp }
+    default    { Write-ColorMessage -Message "Unknown -Action '$Action' (use Status, Devices, Restart, Panel, OpenUI, AllIps, Install, Settings, Login, Logout, Menu or Help)" -Type 'Error' }
 }

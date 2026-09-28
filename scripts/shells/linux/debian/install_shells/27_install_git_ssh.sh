@@ -15,7 +15,10 @@ SSH_PUB_PATH=""
 SSH_KEY_PATH=""
 NODE_PATH=""
 REAL_USER_HOME=""
-SSH_KEYS_REMOVED=false
+KEY_BUNDLE_HASH=""
+KEY_STAMP_NAME=".core_node_key_bundle.sha256"
+KEY_DECRYPT_DIR=""
+STALE_SSH_LOCATIONS=()
 
 # Source common functions and variables FIRST
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -167,46 +170,27 @@ validate_ssh_key_content() {
     return 0
 }
 
-# Function to test if SSH key pair exists and is valid in any location
-# Matches PowerShell Test-SSHKeyPairExists logic
-test_ssh_key_pair_exists() {
-    local found_valid_pair=false
+# Bundle identity: hash of both encrypted key files. The keys themselves are
+# password-encrypted, so without the password this is the only comparable value.
+compute_key_bundle_hash() {
+    KEY_BUNDLE_HASH="$(cat "$LOCAL_SSH_PUB_JS" "$LOCAL_SSH_KEY_JS" | sha256sum | awk '{print $1}')"
+}
 
-    # Check all SSH locations
+# A location is current when both key files exist and its stamp matches the
+# bundle hash; anything else needs the (password-gated) compare-and-update.
+collect_stale_ssh_locations() {
+    local ssh_location=""
+    local stamp=""
+    STALE_SSH_LOCATIONS=()
     for ssh_location in "${SSH_LOCATIONS[@]}"; do
-        if [[ ! -d "$ssh_location" ]]; then
-            continue
+        stamp="$($USE_SUDO cat "$ssh_location/$KEY_STAMP_NAME" 2>/dev/null)"
+        if $USE_SUDO test -s "$ssh_location/$SSH_KEY_NAME" && $USE_SUDO test -s "$ssh_location/$SSH_PUB_NAME" && [ "$stamp" = "$KEY_BUNDLE_HASH" ]; then
+            print_success_from_common_functions "SSH keys current in: $ssh_location"
+        else
+            print_step_from_common_functions "SSH keys missing or not verified against the current bundle: $ssh_location"
+            STALE_SSH_LOCATIONS+=("$ssh_location")
         fi
-
-        # Find all .pub files in the directory
-        local pub_files=($(find "$ssh_location" -maxdepth 1 -name "*.pub" -type f 2>/dev/null))
-
-        for pub_file in "${pub_files[@]}"; do
-            # Get the private key path by removing .pub extension
-            local priv_file="${pub_file%.pub}"
-
-            # Check if both files exist and are not empty
-            if [[ -f "$priv_file" && -s "$pub_file" && -s "$priv_file" ]]; then
-                # Validate that the .pub file contains valid SSH key format
-                if grep -q "^ssh-" "$pub_file" 2>/dev/null; then
-                    local pub_name=$(basename "$pub_file")
-                    local priv_name=$(basename "$priv_file")
-                    print_success_from_common_functions "Found SSH key pair: $pub_name / $priv_name in $ssh_location"
-
-                    # Validate and show key content
-                    validate_ssh_key_content "$pub_file" "$priv_file" "$ssh_location"
-
-                    found_valid_pair=true
-                fi
-            fi
-        done
     done
-
-    if [[ "$found_valid_pair" == true ]]; then
-        return 0
-    else
-        return 1
-    fi
 }
 
 # Function to verify local SSH key files exist
@@ -260,106 +244,131 @@ verify_local_ssh_files() {
     return 0
 }
 
-# Function to decrypt SSH keys (waits indefinitely for the user; no timeout)
-decrypt_ssh_keys() {
-    local ask_msg="[Step $STEP_NUMBER] Do you have a password for the SSH key files? (y/n, default n): "
-    print_step_from_common_functions "$ask_msg"
-
-    local has_password=false
+# Ask whether to decrypt (waits indefinitely for the user; no timeout).
+# Returns 1 when decryption is skipped.
+ask_decrypt_password() {
+    local ask_msg="[Step $STEP_NUMBER] Enter the SSH key password to install/update the keys above? (y/n, default n): "
     local user_input=""
 
-    # Wait for a single keypress with NO timeout (an interactive user is never rushed).
-    # read only returns non-zero here on EOF (stdin closed / non-interactive run), which
-    # still falls through to the safe default 'n' so unattended/CI runs do not hang.
-    # DD_AUTO_CONTINUE (exported by the install chain) skips the wait entirely.
+    print_step_from_common_functions "$ask_msg"
+    # read only returns non-zero here on EOF (non-interactive stdin), which falls
+    # through to the safe default 'n'. DD_AUTO_CONTINUE skips the wait entirely.
     if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
-        user_input=""
         print_step_from_common_functions "Auto-continue (DD_AUTO_CONTINUE), defaulting to 'n'"
-    elif read -n 1 user_input; then
-        echo  # Add newline after input
-        if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
-            has_password=true
-        fi
-    else
-        echo  # Add newline after EOF (non-interactive)
-        print_step_from_common_functions "No input (non-interactive stdin), defaulting to 'n'"
+        return 1
     fi
-
-    if [[ "$has_password" == false ]]; then
-        if [[ "$SSH_KEYS_REMOVED" == true ]]; then
-            # The user chose reinstall (keys already deleted) but declined the
-            # decrypt password - without it the encrypted key files cannot be
-            # restored and NO keys remain anywhere. Fail loudly with the remedy.
-            print_error_from_common_functions "Existing keys were removed but decryption was skipped - no SSH keys remain!"
-            print_error_from_common_functions "Re-run this script and answer 'y' at the password prompt to reinstall them."
-            return 1
-        fi
-        print_step_from_common_functions "Skipping password input and decryption."
-        return 0
+    if read -n 1 user_input; then
+        echo
+        [[ "$user_input" == "y" || "$user_input" == "Y" ]] && return 0
+        return 1
     fi
+    echo
+    print_step_from_common_functions "No input (non-interactive stdin), defaulting to 'n'"
+    return 1
+}
 
-    print_step_from_common_functions "Please enter the password for the SSH key files:"
+# Decrypt both keys into a private temp dir and validate them: a wrong password
+# makes the encrypted template write random bytes instead of failing.
+decrypt_keys_to_temp() {
     local password=""
     local confirm_password=""
 
     secret_read_hidden password "Password: "
     secret_read_hidden confirm_password "Confirm Password: "
-
-    if [[ "$password" != "$confirm_password" ]]; then
-        print_error_from_common_functions "Passwords do not match. Please try again."
+    if [[ -z "$password" || "$password" != "$confirm_password" ]]; then
+        print_error_from_common_functions "Passwords empty or do not match."
         return 1
     fi
-    
-    print_step_from_common_functions "Decrypting SSH key files to all locations..."
 
-    # Decrypt to each SSH location
-    for ssh_location in "${SSH_LOCATIONS[@]}"; do
-        print_step_from_common_functions "Installing to: $ssh_location"
-
-        # Create directory if it doesn't exist
-        if [[ ! -d "$ssh_location" ]]; then
-            if ! $USE_SUDO mkdir -p "$ssh_location"; then
-                print_error_from_common_functions "Failed to create directory: $ssh_location"
-                continue
-            fi
-            $USE_SUDO chmod 700 "$ssh_location"
-        fi
-
-        # Decrypt public key
-        if ! secret_tool_run "$password" "${USE_SUDO:-}" "$NODE_PATH" "$LOCAL_SSH_PUB_JS" pwd "$SECRET_PASSWORD_ARG" "$ssh_location"; then
-            print_error_from_common_functions "Failed to decrypt public key to $ssh_location"
-            continue
-        fi
-
-        # Decrypt private key
-        if ! secret_tool_run "$password" "${USE_SUDO:-}" "$NODE_PATH" "$LOCAL_SSH_KEY_JS" pwd "$SECRET_PASSWORD_ARG" "$ssh_location"; then
-            print_error_from_common_functions "Failed to decrypt private key to $ssh_location"
-            continue
-        fi
-
-        # Set correct ownership for system directories and user homes (keys
-        # dropped into /home/<user>/.ssh by a root run must be user-owned or ssh
-        # refuses to read them).
-        if [[ "$ssh_location" == "/root/.ssh" ]]; then
-            safe_chown_R root:root "$ssh_location"
-        elif [[ "$ssh_location" == "/etc/ssh/keys" ]]; then
-            safe_chown_R root:root "$ssh_location"
-        elif [[ "$ssh_location" == /home/*/.ssh ]]; then
-            local location_owner=""
-            location_owner="$(echo "$ssh_location" | cut -d/ -f3)"
-            if [ -n "$location_owner" ] && id "$location_owner" >/dev/null 2>&1; then
-                safe_chown_R "$location_owner:$location_owner" "$ssh_location"
-            fi
-        fi
-
-        print_success_from_common_functions "SSH keys installed to: $ssh_location"
-    done
-    
-    # Clear password variables
+    KEY_DECRYPT_DIR="$(mktemp -d)"
+    chmod 700 "$KEY_DECRYPT_DIR"
+    secret_tool_run "$password" "" "$NODE_PATH" "$LOCAL_SSH_PUB_JS" pwd "$SECRET_PASSWORD_ARG" "$KEY_DECRYPT_DIR" >/dev/null || true
+    secret_tool_run "$password" "" "$NODE_PATH" "$LOCAL_SSH_KEY_JS" pwd "$SECRET_PASSWORD_ARG" "$KEY_DECRYPT_DIR" >/dev/null || true
     password=""
     confirm_password=""
-    
+
+    if ! validate_ssh_key_content "$KEY_DECRYPT_DIR/$SSH_PUB_NAME" "$KEY_DECRYPT_DIR/$SSH_KEY_NAME" "decrypted bundle"; then
+        print_error_from_common_functions "Decrypted keys are invalid (wrong password?). Nothing was changed."
+        return 1
+    fi
     return 0
+}
+
+remove_decrypt_dir() {
+    if [ -n "$KEY_DECRYPT_DIR" ] && [ -d "$KEY_DECRYPT_DIR" ]; then
+        shred -u "$KEY_DECRYPT_DIR"/* 2>/dev/null || rm -f "$KEY_DECRYPT_DIR"/*
+        rm -rf "$KEY_DECRYPT_DIR"
+    fi
+    KEY_DECRYPT_DIR=""
+}
+
+# Every entry of a user's ~/.ssh must belong to that user (the home's owner),
+# or ssh refuses/fails to read the key and config. The whole tree is checked:
+# safe_chown_R only looks at the top directory, which is already user-owned
+# when root drops files into it.
+set_ssh_location_owner() {
+    local ssh_location="$1"
+    local owner=""
+    [ -d "$ssh_location" ] || return 0
+    if [ "$ssh_location" = "/etc/ssh/keys" ]; then
+        owner="root:root"
+    else
+        owner="$(stat -c '%U:%G' "$(dirname "$ssh_location")" 2>/dev/null)"
+    fi
+    [ -n "$owner" ] || return 0
+    if [ -n "$($USE_SUDO find "$ssh_location" \( ! -user "${owner%%:*}" -o ! -group "${owner##*:}" \) -print -quit 2>/dev/null)" ]; then
+        $USE_SUDO chown -R "$owner" "$ssh_location"
+        print_success_from_common_functions "Ownership repaired ($owner): $ssh_location"
+    fi
+}
+
+# Always-run access pass (independent of whether keys changed): ownership
+# and modes for every location, so a root install leaves each user usable.
+ensure_ssh_locations_access() {
+    local ssh_location=""
+    set_ssh_key_permissions
+    for ssh_location in "${SSH_LOCATIONS[@]}"; do
+        set_ssh_location_owner "$ssh_location"
+    done
+}
+
+# Per location: identical keys only get the stamp; differing or missing keys
+# are replaced (old pair backed up, old public key dropped from authorized_keys).
+sync_ssh_location() {
+    local ssh_location="$1"
+    local new_pub="$KEY_DECRYPT_DIR/$SSH_PUB_NAME"
+    local new_key="$KEY_DECRYPT_DIR/$SSH_KEY_NAME"
+    local cur_pub="$ssh_location/$SSH_PUB_NAME"
+    local cur_key="$ssh_location/$SSH_KEY_NAME"
+    local auth_keys="$ssh_location/authorized_keys"
+    local old_pub_line=""
+    local backup_suffix=""
+
+    $USE_SUDO mkdir -p "$ssh_location"
+    $USE_SUDO chmod 700 "$ssh_location"
+
+    if $USE_SUDO cmp -s "$new_pub" "$cur_pub" && $USE_SUDO cmp -s "$new_key" "$cur_key"; then
+        print_success_from_common_functions "SSH keys already identical to the bundle: $ssh_location"
+    else
+        if $USE_SUDO test -e "$cur_pub" || $USE_SUDO test -e "$cur_key"; then
+            backup_suffix=".bak.$(date +%Y%m%d_%H%M%S)"
+            old_pub_line="$($USE_SUDO head -n 1 "$cur_pub" 2>/dev/null)"
+            $USE_SUDO test -e "$cur_pub" && $USE_SUDO mv -f "$cur_pub" "$cur_pub$backup_suffix"
+            $USE_SUDO test -e "$cur_key" && $USE_SUDO mv -f "$cur_key" "$cur_key$backup_suffix"
+            print_step_from_common_functions "Backed up previous keys with suffix $backup_suffix in $ssh_location"
+            if [ -n "$old_pub_line" ] && $USE_SUDO grep -qxF "$old_pub_line" "$auth_keys" 2>/dev/null; then
+                $USE_SUDO grep -vxF "$old_pub_line" "$auth_keys" | $USE_SUDO tee "$auth_keys.tmp" >/dev/null
+                $USE_SUDO cat "$auth_keys.tmp" | $USE_SUDO tee "$auth_keys" >/dev/null
+                $USE_SUDO rm -f "$auth_keys.tmp"
+                print_step_from_common_functions "Removed previous public key from $auth_keys"
+            fi
+        fi
+        $USE_SUDO install -m 644 "$new_pub" "$cur_pub"
+        $USE_SUDO install -m 600 "$new_key" "$cur_key"
+        print_success_from_common_functions "SSH keys updated from bundle: $ssh_location"
+    fi
+
+    printf '%s\n' "$KEY_BUNDLE_HASH" | $USE_SUDO tee "$ssh_location/$KEY_STAMP_NAME" >/dev/null
 }
 
 # Function to set SSH key permissions for all locations
@@ -429,49 +438,6 @@ update_authorized_keys() {
     done
 
     return 0
-}
-
-# Function to remove all SSH keys from all locations
-remove_all_ssh_keys() {
-    print_step_from_common_functions "Removing all SSH keys from all locations..."
-
-    for ssh_location in "${SSH_LOCATIONS[@]}"; do
-        if [[ -d "$ssh_location" ]]; then
-            print_step_from_common_functions "Cleaning SSH keys in: $ssh_location"
-
-            # Remove all key files
-            for pub_file in "$ssh_location"/*.pub; do
-                if [[ -f "$pub_file" ]]; then
-                    $USE_SUDO rm -f "$pub_file"
-                    print_step_from_common_functions "  Removed: $pub_file"
-                fi
-            done
-
-            # Remove private keys (files without extension or with known key extensions)
-            for key_file in "$ssh_location"/id_*; do
-                if [[ -f "$key_file" && ! "$key_file" == *.pub && ! "$key_file" == *.js ]]; then
-                    $USE_SUDO rm -f "$key_file"
-                    print_step_from_common_functions "  Removed: $key_file"
-                fi
-            done
-
-            # Also remove authorized_keys
-            if [[ -f "$ssh_location/authorized_keys" ]]; then
-                $USE_SUDO rm -f "$ssh_location/authorized_keys"
-                print_step_from_common_functions "  Removed: $ssh_location/authorized_keys"
-            fi
-        fi
-    done
-
-    print_success_from_common_functions "All SSH keys removed successfully"
-    return 0
-}
-
-# Function to clean temporary files (if any)
-clean_temporary_files() {
-    # Since we use local files directly, no cleanup needed
-    # This function is kept for consistency with the original design
-    print_step_from_common_functions "No temporary files to clean up"
 }
 
 # Function to find alternative SSH key locations
@@ -615,9 +581,6 @@ configure_git_ssh_transport() {
             if ! grep -q "^Host github\.com" "$u_home/.ssh/config" 2>/dev/null; then
                 printf 'Host github.com\n    IdentityFile %s\n    IdentitiesOnly yes\n' "$u_home/.ssh/$SSH_KEY_NAME" \
                     | $USE_SUDO tee -a "$u_home/.ssh/config" >/dev/null 2>&1 || true
-                if [ "$u" != "$(id -un)" ]; then
-                    $USE_SUDO chown "$u:$u" "$u_home/.ssh/config" 2>/dev/null || true
-                fi
                 $USE_SUDO chmod 600 "$u_home/.ssh/config" 2>/dev/null || true
                 print_success_from_common_functions "ssh config Host github.com added for user: $u"
             fi
@@ -646,68 +609,19 @@ configure_git_ssh_transport() {
     return 0
 }
 
-# Main function for Step 19: Install Git SSH Keys
+# Main function for Step 19: Install Git SSH Keys. Every sub-step is
+# idempotent: keys are compared with the bundle per location and only missing
+# or differing ones are written; git transport/identity are always ensured.
 step20_install_git_ssh() {
-    print_header_from_common_functions "Step 19: Installing Git SSH Keys"
-    print_step_from_common_functions "This step will install SSH keys for Git authentication."
+    local ssh_location=""
 
-    # Setup Git environment first
+    print_header_from_common_functions "Step 19: Installing Git SSH Keys"
+
     if ! setup_git_environment; then
         print_error_from_common_functions "Failed to setup Git environment"
         return 1
     fi
 
-    # Check if SSH key pair already exists and is valid
-    if test_ssh_key_pair_exists; then
-        print_success_from_common_functions "Valid SSH key pair already exists."
-
-        # Ask if user wants to reinstall
-        local ask_msg="Do you want to reinstall and clear all existing SSH keys? (y/N, default N, auto-continue in 20s): "
-        print_step_from_common_functions "$ask_msg"
-
-        local should_reinstall=false
-        local user_input=""
-
-        # Keys already exist: wait up to 20s for a keypress, then auto-continue.
-        # read returns 0 on a keypress (honor y/N), >128 on the 20s timeout, and
-        # 1 on EOF (non-interactive stdin). Every non-zero path falls through to
-        # the safe default 'N' (keep existing keys, skip the destructive reinstall).
-        if read -n 1 -t 20 user_input; then
-            echo  # Add newline after input
-            if [[ "$user_input" == "y" || "$user_input" == "Y" ]]; then
-                should_reinstall=true
-            fi
-        else
-            echo  # Add newline after timeout / EOF
-            print_step_from_common_functions "No input within 20s (or non-interactive stdin), defaulting to 'N' (skip reinstallation)"
-        fi
-
-        if [[ "$should_reinstall" == false ]]; then
-            print_step_from_common_functions "Skipping reinstallation, keeping existing SSH keys."
-            # Keys already exist: still (idempotently) ensure git actually USES
-            # them - https remotes must be routed to ssh for user and root.
-            configure_git_ssh_transport
-            ensure_git_identity_and_safedir
-            return 0
-        fi
-
-        # User chose to reinstall - remove all existing keys
-        print_step_from_common_functions "User chose to reinstall - removing all existing SSH keys..."
-        if ! remove_all_ssh_keys; then
-            print_error_from_common_functions "Failed to remove existing SSH keys"
-            return 1
-        fi
-        SSH_KEYS_REMOVED=true
-
-        print_step_from_common_functions "Proceeding with fresh installation..."
-    fi
-    
-    # Find Node.js executable
-    if ! find_node_executable; then
-        return 1
-    fi
-
-    # Verify local SSH key files exist
     if ! verify_local_ssh_files; then
         print_step_from_common_functions "Primary SSH key location failed, trying alternatives..."
         if ! find_alternative_ssh_keys; then
@@ -715,49 +629,30 @@ step20_install_git_ssh() {
             return 1
         fi
     fi
-    
-    # Decrypt SSH keys (with timeout)
-    if ! decrypt_ssh_keys; then
-        return 1
-    fi
-    
-    # Set proper permissions
-    if ! set_ssh_key_permissions; then
-        return 1
-    fi
 
-    # Update authorized_keys files
-    update_authorized_keys
+    compute_key_bundle_hash
+    collect_stale_ssh_locations
 
-    # Route git through the installed keys (https -> ssh), for user and root.
-    configure_git_ssh_transport
-    ensure_git_identity_and_safedir
-
-    print_success_from_common_functions "SSH key installation completed successfully!"
-    print_step_from_common_functions "SSH keys are now available at:"
-
-    # Show all installed SSH key locations
-    for ssh_location in "${SSH_LOCATIONS[@]}"; do
-        if [[ -d "$ssh_location" ]]; then
-            # Find all .pub files in the directory
-            local pub_files=($(find "$ssh_location" -maxdepth 1 -name "*.pub" -type f 2>/dev/null))
-
-            for pub_file in "${pub_files[@]}"; do
-                local priv_file="${pub_file%.pub}"
-                if [[ -f "$priv_file" ]]; then
-                    print_step_from_common_functions "  Location: $ssh_location"
-                    print_step_from_common_functions "    Public key: $pub_file"
-                    print_step_from_common_functions "    Private key: $priv_file"
-                fi
+    if [ ${#STALE_SSH_LOCATIONS[@]} -gt 0 ]; then
+        if ! ask_decrypt_password; then
+            print_step_from_common_functions "Skipping key update; existing keys are kept. Re-run to update: ${STALE_SSH_LOCATIONS[*]}"
+        elif find_node_executable && decrypt_keys_to_temp; then
+            for ssh_location in "${STALE_SSH_LOCATIONS[@]}"; do
+                sync_ssh_location "$ssh_location"
             done
+            update_authorized_keys
+        else
+            remove_decrypt_dir
+            return 1
         fi
-    done
+        remove_decrypt_dir
+    fi
 
+    configure_git_ssh_transport
+    ensure_ssh_locations_access
+    ensure_git_identity_and_safedir
+    print_success_from_common_functions "Git SSH setup completed."
     return 0
 }
 
-# Execute main function
 step20_install_git_ssh
-
-# Clean up temporary files
-clean_temporary_files

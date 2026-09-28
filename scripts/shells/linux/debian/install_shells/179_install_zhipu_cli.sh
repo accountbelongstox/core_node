@@ -1,52 +1,15 @@
 #!/bin/bash
 
-# Zhipu publishes a Python SDK but no first-party CLI binary. This step installs
-# the SDK only when pip metadata is absent and otherwise preserves it.
+# Zhipu publishes a Python SDK but no first-party CLI binary. Thin delegate to
+# install_shells/99_install_ai_tools.sh --only zhipuai, the single source of
+# truth for every AI CLI/SDK (see common/ai_tools_catalog.sh).
 
 SCRIPT_INDEX="179"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
-PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-ZHIPU_PACKAGE="zhipuai"
-PYTHON_BIN_RESOLVED=""
-ZHIPU_METADATA=""
-
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-
-resolve_python_bin() {
-    local resolved=""
-    if [ -n "$PYTHON_BIN" ] && [ -x "$PYTHON_BIN" ]; then
-        resolved="$PYTHON_BIN"
-    elif command -v python3 >/dev/null 2>&1; then
-        resolved="$(command -v python3)"
-    elif command -v python >/dev/null 2>&1; then
-        resolved="$(command -v python)"
-    fi
-    printf '%s' "$resolved"
-}
 
 echo "[$SCRIPT_INDEX] ============================================================"
-echo "[$SCRIPT_INDEX] Install Zhipu AI official Python SDK"
+echo "[$SCRIPT_INDEX] Install Zhipu AI SDK -> delegating to 99_install_ai_tools.sh --only zhipuai"
 echo "[$SCRIPT_INDEX] ============================================================"
 
-
-PYTHON_BIN_RESOLVED="$(resolve_python_bin)"
-if [ -z "$PYTHON_BIN_RESOLVED" ]; then
-    echo "[$SCRIPT_INDEX] [!] Python is unavailable; retrying after Python setup."
-else
-    echo "[$SCRIPT_INDEX] Using python: $PYTHON_BIN_RESOLVED"
-    ZHIPU_METADATA="$("$PYTHON_BIN_RESOLVED" -m pip show "$ZHIPU_PACKAGE" 2>/dev/null || true)"
-    if [[ "$ZHIPU_METADATA" == *"Name:"* ]]; then
-        echo "[$SCRIPT_INDEX] [SKIP] $ZHIPU_PACKAGE metadata is present; preserving the installed package."
-    else
-        echo "[$SCRIPT_INDEX] Installing missing $ZHIPU_PACKAGE SDK via pip..."
-        "$PYTHON_BIN_RESOLVED" -m pip install "$ZHIPU_PACKAGE" || true
-        ZHIPU_METADATA="$("$PYTHON_BIN_RESOLVED" -m pip show "$ZHIPU_PACKAGE" 2>/dev/null || true)"
-        if [[ "$ZHIPU_METADATA" == *"Name:"* ]]; then
-            echo "[$SCRIPT_INDEX] [OK] $ZHIPU_PACKAGE metadata is ready."
-        else
-            echo "[$SCRIPT_INDEX] [!] $ZHIPU_PACKAGE metadata is still missing; retrying next run."
-        fi
-    fi
-fi
+bash "$SCRIPT_CURRENT_DIR/99_install_ai_tools.sh" --only zhipuai
+exit $?

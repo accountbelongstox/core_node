@@ -101,6 +101,40 @@ install_essential_packages() {
 }
 
 
+# AI CLIs are owned by install_shells/99_install_ai_tools.sh (single source of
+# truth, see common/ai_tools_catalog.sh). This delegates the whole "AI" group
+# to that script instead of duplicating the per-app install loop here.
+install_ai_package_group() {
+    local apps_to_install=("$@")
+    local ai_only_keys="" app display_name exec_name installed_count=0 failed_count=0
+
+    if [ ${#apps_to_install[@]} -eq 0 ]; then
+        log_message "No applications found for package group: AI"
+        return 0
+    fi
+
+    ai_only_keys="$(IFS=,; echo "${apps_to_install[*]}")"
+    log_message "Delegating AI group (${#apps_to_install[@]} tools) to 99_install_ai_tools.sh --only $ai_only_keys"
+    bash "$SCRIPT_CURRENT_DIR/99_install_ai_tools.sh" --only "$ai_only_keys" \
+        || log_message "WARNING: 99_install_ai_tools.sh reported errors (continuing)."
+
+    for app in "${apps_to_install[@]}"; do
+        display_name=$(get_app_property "$app" "name")
+        [ -n "$display_name" ] || display_name="$app"
+        display_name=$(echo "$display_name" | sed 's/[^a-zA-Z0-9_-]/_/g')
+        exec_name=$(get_app_property "$app" "exec")
+        if command_exists "$exec_name"; then
+            ((installed_count++))
+            INSTALLATION_RESULTS["$display_name"]="success"
+        else
+            ((failed_count++))
+            INSTALLATION_RESULTS["$display_name"]="failed"
+            FAILED_APPS+=("$display_name")
+        fi
+    done
+    log_message "AI group delegation complete: $installed_count successful, $failed_count failed"
+}
+
 # Function to install applications by package group
 install_applications_by_package_group() {
     local package_group="$1"
@@ -113,6 +147,11 @@ install_applications_by_package_group() {
 
     if [ ${#apps_to_install[@]} -eq 0 ]; then
         log_message "No applications found for package group: $package_group"
+        return 0
+    fi
+
+    if [ "$package_group" = "AI" ]; then
+        install_ai_package_group "${apps_to_install[@]}"
         return 0
     fi
 

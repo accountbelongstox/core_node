@@ -891,6 +891,17 @@ $Global:APPLICATIONS_PACKAGES = @{
 
 # Global Development Software Variables
 # For PostInstallCallbacks usage, see: <#POSTINSTALL_CALLBACKS_ANCHOR#>
+#
+# AI CLI entries below (ClaudeCode, OpenAICodex, GeminiCli, QwenCode,
+# CursorAgent, KimiCode, ClineCLI, ArkCli, SuperClaude, OpenCode, Droid,
+# ZhipuAI, AntigravityCli) remain the Windows install-mechanics source
+# (PackageId/InstallType/PowerShellCommand), consumed as before by Step21's
+# generic engine and the APP Install menu. win_common/AiToolsCatalog.ps1 is
+# the canonical AI-tools catalog for the AI Tools & MCP flow (Step65, the
+# "AI Tools & MCP" menu, AiCliProvisionCommon.ps1): it cross-references these
+# entries by key (Get-AiToolInstallSpec) instead of duplicating them, and adds
+# the AI-specific metadata this table does not carry (shared-login env var,
+# config dir, supported-on-Windows flag).
 $Global:DEV_SOFTWARE_PACKAGES = @{
     Termius        = @{
         PackageId           = "Termius.Termius"
