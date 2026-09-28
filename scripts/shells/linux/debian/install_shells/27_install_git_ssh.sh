@@ -341,7 +341,9 @@ sync_ssh_location() {
             $USE_SUDO test -e "$cur_key" && $USE_SUDO mv -f "$cur_key" "$cur_key$backup_suffix"
             print_step_from_common_functions "Backed up previous keys with suffix $backup_suffix in $ssh_location"
             if [ -n "$old_pub_line" ] && $USE_SUDO grep -qxF "$old_pub_line" "$auth_keys" 2>/dev/null; then
-                $USE_SUDO sed -i "\\|^$(printf '%s' "$old_pub_line" | sed 's/[\\/.*^$[|]/\\&/g')\$|d" "$auth_keys"
+                $USE_SUDO grep -vxF "$old_pub_line" "$auth_keys" | $USE_SUDO tee "$auth_keys.tmp" >/dev/null
+                $USE_SUDO cat "$auth_keys.tmp" | $USE_SUDO tee "$auth_keys" >/dev/null
+                $USE_SUDO rm -f "$auth_keys.tmp"
                 print_step_from_common_functions "Removed previous public key from $auth_keys"
             fi
         fi
