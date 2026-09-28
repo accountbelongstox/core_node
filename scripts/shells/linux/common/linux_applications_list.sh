@@ -256,122 +256,32 @@ declare -gA APP_PACKAGES=(
 
 )
 
-# AI Tools definitions (moved from 38_install_ai_tools.sh)
-declare -gA AI_PACKAGES=(
-    # Gemini CLI
-    ["gemini_name"]="Google Gemini CLI"
-    ["gemini_exec"]="gemini"
-    ["gemini_package_id"]="@google/gemini-cli"
-    ["gemini_install_method"]="$METHOD_PNPM"
-    ["gemini_category"]="$CATEGORY_AI_TOOLS"
-    ["gemini_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["gemini_description"]="Google Gemini CLI - Advanced AI assistant with multimodal capabilities"
-    ["gemini_verify_command"]="--version"
+# AI Tools definitions - generated from the single catalog
+# (scripts/shells/linux/common/ai_tools_catalog.sh) instead of a duplicated
+# table. Only the keys in AI_PACKAGE_LIST below are exposed as an "AI"
+# package-group app (install_shells/99_install_ai_tools.sh owns the actual
+# install/link for every catalog key, including ones not listed here, e.g.
+# claude/qwen/zhipuai/pi/omp/bun/agy).
+AI_TOOLS_CATALOG_LIB="$(dirname "${BASH_SOURCE[0]}")/ai_tools_catalog.sh"
+if ! command -v ai_catalog_get >/dev/null 2>&1 && [ -s "$AI_TOOLS_CATALOG_LIB" ]; then
+    # shellcheck source=ai_tools_catalog.sh
+    source "$AI_TOOLS_CATALOG_LIB"
+fi
 
-    # Claude Code
-    ["claude_name"]="Anthropic Claude Code"
-    ["claude_exec"]="claude"
-    ["claude_package_id"]="@anthropic-ai/claude-code"
-    ["claude_install_method"]="$METHOD_PNPM"
-    ["claude_category"]="$CATEGORY_AI_TOOLS"
-    ["claude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["claude_description"]="Anthropic Claude Code - AI-powered coding assistant with advanced reasoning"
-    ["claude_verify_command"]="--version"
-
-    # OpenAI Codex
-    ["codex_name"]="OpenAI Codex"
-    ["codex_exec"]="codex"
-    ["codex_package_id"]="@openai/codex"
-    ["codex_install_method"]="$METHOD_PNPM"
-    ["codex_category"]="$CATEGORY_AI_TOOLS"
-    ["codex_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["codex_description"]="OpenAI Codex - AI system that translates natural language to code"
-    ["codex_verify_command"]="--version"
-    ["codex_itemkey"]="--yolo"
-
-    # Cursor Agent
-    ["cursor_agent_name"]="Cursor Agent"
-    ["cursor_agent_exec"]="cursor-agent"
-    ["cursor_agent_package_id"]="https://cursor.com/install"
-    ["cursor_agent_install_method"]="$METHOD_CURL"
-    ["cursor_agent_category"]="$CATEGORY_AI_TOOLS"
-    ["cursor_agent_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["cursor_agent_description"]="Cursor Agent - AI-first code editor with intelligent code completion"
-    ["cursor_agent_verify_command"]="--version"
-
-    # Kimi Code CLI
-    # Official: https://www.kimi.com/code/docs/en/kimi-code-cli/guides/getting-started
-    ["kimi_name"]="Kimi Code CLI"
-    ["kimi_exec"]="kimi"
-    ["kimi_package_id"]="https://code.kimi.com/kimi-code/install.sh"
-    ["kimi_install_method"]="$METHOD_CURL"
-    ["kimi_category"]="$CATEGORY_AI_TOOLS"
-    ["kimi_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["kimi_description"]="Kimi Code CLI - AI coding agent for the terminal by Moonshot AI"
-    ["kimi_verify_command"]="--version"
-
-    # Cline CLI (formerly 141_install_cline_cli.sh; via desktop applications AI group)
-    # Official: https://docs.cline.bot/getting-started/installing-cline
-    ["cline_name"]="Cline CLI"
-    ["cline_exec"]="cline"
-    ["cline_package_id"]="cline"
-    ["cline_install_method"]="$METHOD_PNPM"
-    ["cline_category"]="$CATEGORY_AI_TOOLS"
-    ["cline_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["cline_description"]="Cline CLI - AI coding agent for terminal workflows"
-    ["cline_verify_command"]="--version"
-
-    # Volcano Engine Ark CLI (formerly 137_install_arkcli.sh; via desktop applications AI group)
-    # Official: https://github.com/volcengine/ark-cli (npm: @volcengine/ark-cli)
-    ["arkcli_name"]="Volcano Ark CLI"
-    ["arkcli_exec"]="arkcli"
-    ["arkcli_package_id"]="@volcengine/ark-cli"
-    ["arkcli_install_method"]="$METHOD_PNPM"
-    ["arkcli_category"]="$CATEGORY_AI_TOOLS"
-    ["arkcli_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["arkcli_description"]="Volcano Engine Ark CLI - Ark MaaS toolbox for agents"
-    ["arkcli_verify_command"]="--version"
-
-    # SuperClaude
-    ["superclaude_name"]="SuperClaude Framework"
-    ["superclaude_exec"]="superclaude"
-    ["superclaude_package_id"]="SuperClaude"
-    ["superclaude_install_method"]="$METHOD_UV_TOOL"
-    ["superclaude_category"]="$CATEGORY_AI_TOOLS"
-    ["superclaude_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["superclaude_description"]="SuperClaude Framework - Extended Claude Code with specialized commands and personas"
-    ["superclaude_verify_command"]="--version"
-
-    # OpenCode AI
-    ["opencode_name"]="OpenCode AI"
-    ["opencode_exec"]="opencode"
-    ["opencode_package_id"]="https://opencode.ai/install"
-    ["opencode_install_method"]="$METHOD_CURL"
-    ["opencode_category"]="$CATEGORY_AI_TOOLS"
-    ["opencode_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["opencode_description"]="OpenCode AI - AI-powered code generation and development assistant"
-    ["opencode_verify_command"]="--version"
-
-    # Auggie CLI
-    ["auggie_name"]="Augment Code Auggie"
-    ["auggie_exec"]="auggie"
-    ["auggie_package_id"]="@augmentcode/auggie"
-    ["auggie_install_method"]="$METHOD_PNPM"
-    ["auggie_category"]="$CATEGORY_AI_TOOLS"
-    ["auggie_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["auggie_description"]="Augment Code Auggie - AI-powered code enhancement and development assistant"
-    ["auggie_verify_command"]="--version"
-
-    # Droid AI Assistant
-    ["droid_name"]="Droid AI Assistant"
-    ["droid_exec"]="droid"
-    ["droid_package_id"]="https://app.factory.ai/cli"
-    ["droid_install_method"]="$METHOD_CURL"
-    ["droid_category"]="$CATEGORY_AI_TOOLS"
-    ["droid_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
-    ["droid_description"]="Droid AI Assistant - AI-powered development assistant from Factory.ai"
-    ["droid_verify_command"]="--version"
-)
+declare -gA AI_PACKAGES=()
+if command -v ai_catalog_get >/dev/null 2>&1; then
+    for _ai_pkg_key in "${AI_TOOLS_CATALOG_KEYS[@]}"; do
+        AI_PACKAGES["${_ai_pkg_key}_name"]="$(ai_catalog_get "$_ai_pkg_key" "name")"
+        AI_PACKAGES["${_ai_pkg_key}_exec"]="$(ai_catalog_get "$_ai_pkg_key" "exec")"
+        AI_PACKAGES["${_ai_pkg_key}_package_id"]="$(ai_catalog_get "$_ai_pkg_key" "package_id")"
+        AI_PACKAGES["${_ai_pkg_key}_install_method"]="$(ai_catalog_get "$_ai_pkg_key" "install_method")"
+        AI_PACKAGES["${_ai_pkg_key}_category"]="$CATEGORY_AI_TOOLS"
+        AI_PACKAGES["${_ai_pkg_key}_groups"]="$GROUP_MCP_SERVICES $GROUP_ALL"
+        AI_PACKAGES["${_ai_pkg_key}_description"]="$(ai_catalog_get "$_ai_pkg_key" "description")"
+        AI_PACKAGES["${_ai_pkg_key}_verify_command"]="$(ai_catalog_get "$_ai_pkg_key" "verify_command")"
+    done
+    unset _ai_pkg_key
+fi
 
 # MCP Services - Model Context Protocol services and tools
 declare -gA MCP_PACKAGES=(

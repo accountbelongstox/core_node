@@ -33,7 +33,7 @@ show_backup_management() {
 
 # Sourced so the interactive menu runs in this shell (arrow-key UI).
 show_ai_mcp_management() {
-    echo "Opening AI & MCP Management menu..."
+    echo "Opening AI Tools & MCP menu..."
     export USE_SUDO
     # shellcheck source=/dev/null
     . "$AI_MCP_MANAGEMENT_MENU_SCRIPT_PATH"

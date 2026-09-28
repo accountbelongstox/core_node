@@ -423,7 +423,7 @@ function Get-DefaultRemote {
 function Load-RemoteConfigs {
     $configFile = Get-GitSyncRemotesConfPath -RepoRoot $coreNodeDir
 
-    if (-not (Test-Path $configFile)) {
+    if (-not (Test-Path -LiteralPath $configFile)) {
         Write-Error "Configuration file not found: $configFile"
         exit 1
     }

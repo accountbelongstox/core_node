@@ -199,7 +199,7 @@ class ServerManagerV1ElevatedAccess
 
         if (PHP_OS_FAMILY !== 'Linux') {
             // Windows dev: best-effort native delete (permissions usually per-user).
-            $ok = self::nativeRmdir($path);
+            $ok = \App\Utils\FileSystemManager::delete($path);
             return ['success' => $ok, 'error' => $ok ? '' : 'Failed to delete path.', 'code' => $ok ? 200 : 500];
         }
 
@@ -233,33 +233,6 @@ class ServerManagerV1ElevatedAccess
         }
 
         return ['success' => true, 'error' => '', 'code' => 200];
-    }
-
-    /** Native recursive rmdir/unlink fallback (non-Linux hosts). */
-    private static function nativeRmdir(string $path): bool
-    {
-        if (is_link($path) || is_file($path)) {
-            return @unlink($path);
-        }
-        if (!is_dir($path)) {
-            return true;
-        }
-        $entries = @scandir($path);
-        if ($entries === false) {
-            return false;
-        }
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') {
-                continue;
-            }
-            $full = $path . DIRECTORY_SEPARATOR . $entry;
-            if (is_dir($full) && !is_link($full)) {
-                self::nativeRmdir($full);
-            } else {
-                @unlink($full);
-            }
-        }
-        return @rmdir($path);
     }
 
     private static function writeWithSudo(string $filePath, string $content, string $password): array

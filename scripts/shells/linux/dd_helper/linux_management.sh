@@ -8,8 +8,13 @@
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE"
 PERMISSIONS_REPAIR_MENU_SCRIPT="$DD_HELPER_DIR/permissions_repair_menu.sh"
 RUSTDESK_INSTALL_INFO_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/server_manager/rustdesk_install_info.sh"
-DEBIAN_13_UPGRADE_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/upgrade_to_debian_13.sh"
+OS_UPGRADE_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/upgrade_os_to_latest.sh"
+TAILSCALE_COMMON_SCRIPT_FOR_MENU="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/tailscale_common.sh"
 LINUX_MANAGED_USER_VALID=false
+
+# Single source of truth for Tailscale state (ts_quick_menu_label, ts_backend_state,
+# ...) used by the "[T] Tailscale" quick entry label below. Source-once guarded.
+[ -s "$TAILSCALE_COMMON_SCRIPT_FOR_MENU" ] && source "$TAILSCALE_COMMON_SCRIPT_FOR_MENU"
 
 # Function to disable Ubuntu automatic updates
 disable_ubuntu_auto_updates() {
@@ -47,33 +52,59 @@ show_permissions_repair_menu() {
     fi
 }
 
-# manage_natgateway (NAT Gateway Configuration item) comes from natgateway_helper.sh,
+# manage_natgateway ([#] Setup Network Router item) comes from natgateway_helper.sh,
 # loaded with the menu helpers.
 
-# True when the current system is Debian with a major version below 13; used to
-# conditionally show the upgrade menu item.
-debian_13_upgrade_available() {
-    local os_id=""
-    local os_version_id=""
+# Latest release this upgrader targets. Kept in sync with the constants of the
+# same name at the top of upgrade_os_to_latest.sh (that script is the single
+# source of truth for the actual upgrade logic; this predicate stays a cheap,
+# read-only /etc/os-release + dpkg --compare-versions check so the submenu
+# never shells out to the full upgrader just to render its own label).
+OS_UPGRADE_DEBIAN_LATEST_MAJOR=13
+OS_UPGRADE_DEBIAN_LATEST_CODENAME="trixie"
+OS_UPGRADE_UBUNTU_LATEST_VERSION="26.04"
+
+# True when the current system is Debian below OS_UPGRADE_DEBIAN_LATEST_MAJOR
+# or Ubuntu below OS_UPGRADE_UBUNTU_LATEST_VERSION; used to conditionally show
+# the upgrade menu item. Read-only, no network, cannot hang.
+os_upgrade_target_available() {
+    local os_id="" os_version_id=""
     [ -f /etc/os-release ] || return 1
     os_id="$(. /etc/os-release 2>/dev/null; echo "$ID")"
     os_version_id="$(. /etc/os-release 2>/dev/null; echo "$VERSION_ID")"
-    [ "$os_id" = "debian" ] || return 1
     [ -n "$os_version_id" ] || return 1
-    [ "$os_version_id" -lt 13 ] 2>/dev/null
+    case "$os_id" in
+        debian) [ "$os_version_id" -lt "$OS_UPGRADE_DEBIAN_LATEST_MAJOR" ] 2>/dev/null ;;
+        ubuntu) command -v dpkg >/dev/null 2>&1 && dpkg --compare-versions "$os_version_id" lt "$OS_UPGRADE_UBUNTU_LATEST_VERSION" 2>/dev/null ;;
+        *) return 1 ;;
+    esac
 }
 
-# Launch the Debian 12 -> 13 upgrade helper (official apt path).
-run_debian_13_upgrade() {
+# "<current> -> <target>" label text for the menu item.
+os_upgrade_target_label() {
+    local os_id="" os_version_id="" target=""
+    os_id="$(. /etc/os-release 2>/dev/null; echo "$ID")"
+    os_version_id="$(. /etc/os-release 2>/dev/null; echo "$VERSION_ID")"
+    case "$os_id" in
+        debian) target="$OS_UPGRADE_DEBIAN_LATEST_MAJOR ($OS_UPGRADE_DEBIAN_LATEST_CODENAME)" ;;
+        ubuntu) target="$OS_UPGRADE_UBUNTU_LATEST_VERSION" ;;
+        *) target="latest" ;;
+    esac
+    printf '%s -> %s' "${os_version_id:-?}" "$target"
+}
+
+# Launch the one-step OS upgrader (official Debian hop chain / Ubuntu
+# do-release-upgrade path; see upgrade_os_to_latest.sh for the full contract).
+run_os_upgrade() {
     printf "\033c"
     echo "=========================================="
-    echo "Upgrade Debian -> 13 (trixie)"
+    echo "Upgrade OS -> latest ($(os_upgrade_target_label))"
     echo "=========================================="
     echo ""
-    if [ -s "$DEBIAN_13_UPGRADE_SCRIPT" ]; then
-        bash "$DEBIAN_13_UPGRADE_SCRIPT"
+    if [ -s "$OS_UPGRADE_SCRIPT" ]; then
+        bash "$OS_UPGRADE_SCRIPT"
     else
-        echo "Error: Script not found at: $DEBIAN_13_UPGRADE_SCRIPT"
+        echo "Error: Script not found at: $OS_UPGRADE_SCRIPT"
     fi
     echo ""
     echo "Press Enter to continue..."
@@ -277,9 +308,10 @@ show_app_install_menu() {
     read -r -p "Press Enter to continue..."
 }
 
-# Function to show Tailscale Management menu (status, devices, restart, panel;
-# install/reconfigure delegates to 97_install_tailscale.sh). See
-# scripts/shells/linux/common/tailscale_common.sh for the shared logic.
+# Function to show the "[T] Tailscale" quick menu (install/repair, settings,
+# open UI, all IPs, status, restart, login/logout, help). Install/repair
+# delegates to 97_install_tailscale.sh; every other item calls into
+# scripts/shells/linux/common/tailscale_common.sh, the single source of truth.
 show_tailscale_management_menu() {
     local tailscale_menu_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/menu_itemshells/tailscale_menu.sh"
     if [ -s "$tailscale_menu_script" ]; then
@@ -577,26 +609,27 @@ show_linux_system_tools_submenu() {
     local back_idx=0
 
     while true; do
-        # Rebuilt each iteration: the Debian upgrade item only exists on
-        # Debian < 13 and disappears after the system is upgraded.
+        # Rebuilt each iteration: the quick-entry labels (Tailscale state, OS
+        # upgrade target) and the OS-upgrade item's very presence can change
+        # while this submenu stays open (e.g. right after an install/upgrade).
         menu_items=(
             "Disable Ubuntu Automatic Updates"
             "Permissions Repair Menu"
-            "NAT Gateway Configuration"
+            "[#] Setup Network Router [$(get_var INSTALL_NETWORK_ROUTER false 2>/dev/null || echo false)]"
             "Restart GNOME Remote Desktop (Fix RDP Connection)"
             "Clear and Re-decrypt Secret Keys"
             "Show System Information"
             "RustDesk Server Install Info (Key & Ports)"
             "APP Install"
-            "Tailscale Management (status, devices, restart, panel)"
+            "[T] Tailscale [$(ts_quick_menu_label)]"
             "Slim & Disk Cleanup (scan, caches, logs, GPU/Snap/Apache slim)"
             "Management & Backup"
             "User Management"
         )
         upgrade_idx=-1
-        if debian_13_upgrade_available; then
+        if os_upgrade_target_available; then
             upgrade_idx=${#menu_items[@]}
-            menu_items+=("Upgrade Debian -> 13 Trixie (official apt path)")
+            menu_items+=("Upgrade OS -> latest ($(os_upgrade_target_label))")
         fi
         back_idx=${#menu_items[@]}
         menu_items+=("Back to Linux Management")
@@ -607,7 +640,7 @@ show_linux_system_tools_submenu() {
             return
         fi
         if [ "$upgrade_idx" -ge 0 ] && [ "$selected_index" = "$upgrade_idx" ]; then
-            run_debian_13_upgrade
+            run_os_upgrade
             continue
         fi
         case "$selected_index" in
@@ -743,7 +776,7 @@ show_linux_management_submenu() {
         "Unified App Manager"
         "Special Software Environment"
         "Service Manager"
-        "AI & MCP Management"
+        "AI Tools & MCP"
         "Linux System Tools"
         "Exit Linux Management"
     )

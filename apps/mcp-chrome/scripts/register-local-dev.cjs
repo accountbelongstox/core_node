@@ -14,8 +14,10 @@ const {
   NATIVE_SERVER_DIST,
   SUPPORTED_BROWSERS,
   getUserManifestPath,
+  getSystemManifestPath,
   getRunHostPath,
   registerUserHost,
+  registerSystemHost,
 } = require('./native-host-common.cjs');
 
 const DESCRIPTION = 'Node.js Host for Browser Bridge Extension (Local Development)';
@@ -132,7 +134,16 @@ function main() {
       description: DESCRIPTION,
       nativeServerDist: NATIVE_SERVER_DIST,
     });
-    return { ...browser, manifestPath, success };
+    // Also register system-wide (root only; no-op with a warning otherwise)
+    // so the manifest exists at the SAME path start.sh verifies, regardless
+    // of which user's Chrome profile loads the extension.
+    const systemManifestPath = getSystemManifestPath(browser.type);
+    const systemSuccess = registerSystemHost(browser.type, {
+      extensionId,
+      description: DESCRIPTION,
+      nativeServerDist: NATIVE_SERVER_DIST,
+    });
+    return { ...browser, manifestPath, success, systemManifestPath, systemSuccess };
   });
 
   // Summary
@@ -143,8 +154,13 @@ function main() {
   for (const result of registrationResults) {
     console.log(
       result.success
-        ? `[SUCCESS] ${result.displayName}: ${result.manifestPath}`
-        : `[FAILED] ${result.displayName}: Failed`,
+        ? `[SUCCESS] ${result.displayName} (user): ${result.manifestPath}`
+        : `[FAILED] ${result.displayName} (user): Failed`,
+    );
+    console.log(
+      result.systemSuccess
+        ? `[SUCCESS] ${result.displayName} (system): ${result.systemManifestPath}`
+        : `[SKIPPED] ${result.displayName} (system): not root, or failed - see warnings above`,
     );
   }
 

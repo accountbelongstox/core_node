@@ -10,14 +10,16 @@
 # `tailscale up`/`down`/`set` and never touches the node's login state -- that
 # stays in the installer (97_install_tailscale.sh) and the interactive CLI.
 #
-# Official docs consulted (verified 2026-09-27):
-#   CLI reference:          https://tailscale.com/docs/reference/tailscale-cli
+# Official docs consulted (verified 2026-09-28):
+#   CLI reference (up/set/status/web/logout flags): https://tailscale.com/docs/reference/tailscale-cli
 #   tailscaled service:     https://tailscale.com/kb/1278/tailscaled
-#   Device web interface:   https://tailscale.com/kb/1325/device-web-interface
+#   Device web interface:   https://tailscale.com/docs/features/client/device-web-interface
+#                            (formerly https://tailscale.com/kb/1325/device-web-interface)
 #   Quad100:                https://tailscale.com/kb/1381/what-is-quad100
 #   Admin console:          https://tailscale.com/docs/how-to/quickstart
 #   Linux install:          https://tailscale.com/kb/1031/install-linux
 #   status --json fields:   https://pkg.go.dev/tailscale.com/ipn/ipnstate
+#   Prefs (debug prefs):    https://pkg.go.dev/tailscale.com/ipn#Prefs
 #
 # Public API:
 #   is_tailscale_installed          - CLI present (command -v tailscale)
@@ -25,14 +27,19 @@
 #   ts_service_active_state         - systemctl is-active tailscaled (stdout)
 #   ts_service_enabled_state        - systemctl is-enabled tailscaled (stdout)
 #   ts_backend_state                - status --json .BackendState (stdout)
+#   ts_quick_menu_label             - "<INSTALL_TAILSCALE flag>|<backend state>" for the quick menu entry
 #   ts_show_status                  - human-readable install/service/IP summary
 #   ts_show_devices                 - every tailnet device (table + detail)
+#   ts_show_all_ips                 - this machine's IPs/MagicDNS/LAN IPs + every peer's IPs
+#   ts_show_settings                - current `tailscale set`-able prefs (tailscale debug prefs)
+#   ts_apply_setting <name> <value> - apply one setting via `tailscale set` (never --reset)
 #   ts_restart_service               - sudo systemctl restart tailscaled
-#   ts_show_panel                   - print + best-effort open the admin/local panels
+#   ts_open_ui                      - print/open admin console + local `tailscale web` UI
+#   ts_login / ts_logout            - tailscale up (non-blocking URL capture) / tailscale logout
 #   ts_show_help                    - dispatcher usage + doc links
-#   tailscale_common_main "$@"      - dispatcher: status|devices|restart|panel|help
+#   tailscale_common_main "$@"      - dispatcher: status|devices|all-ips|settings|set|restart|ui|login|logout|help
 #
-# Direct call: `bash tailscale_common.sh <status|devices|restart|panel|help>`.
+# Direct call: `bash tailscale_common.sh <status|devices|all-ips|settings|restart|ui|login|logout|help>`.
 # Menu entry: scripts/shells/linux/menu_itemshells/tailscale_menu.sh.
 # =============================================================================
 
@@ -55,6 +62,12 @@ TAILSCALE_SERVICE="tailscaled"
 TAILSCALE_ADMIN_CONSOLE_URL="https://console.tailscale.com/admin/machines"
 TAILSCALE_LOCAL_WEB_URL="http://100.100.100.100"
 TAILSCALE_STATUS_WEB_LISTEN="127.0.0.1:8384"
+# `tailscale web` (interactive local control UI, distinct from the read-only
+# Quad100 device web interface above): https://tailscale.com/docs/reference/tailscale-cli
+TAILSCALE_WEB_UI_LISTEN="127.0.0.1:8088"
+TAILSCALE_WEB_UI_URL="http://127.0.0.1:8088"
+# Settings exposed through the Settings menu / `ts_apply_setting` (name -> `tailscale set` flag).
+TAILSCALE_SETTING_NAMES="hostname accept-routes advertise-exit-node exit-node ssh shields-up operator"
 
 # True when the tailscale CLI is on PATH. Moved here from
 # 97_install_tailscale.sh (was duplicated) so the installer and the
@@ -117,6 +130,26 @@ except Exception:
         state="$(printf '%s' "$raw" | sed -n 's/.*"BackendState": *"\([^"]*\)".*/\1/p' | head -n1)"
     fi
     printf '%s' "${state:-unknown}"
+}
+
+# "<INSTALL_TAILSCALE flag>|<backend state>" for the Linux System Tools quick
+# entry ("[T] Tailscale [...]"). Never hangs and needs no elevation:
+# is_tailscale_installed is a plain `command -v`, and ts_backend_state already
+# degrades to "unknown"/fast when the CLI or daemon is unreachable. get_var
+# (gvar_common.sh / global_var_store.sh) is optional here -- this library is
+# also usable standalone (direct dispatcher call) where get_var may not exist.
+ts_quick_menu_label() {
+    local flag="" state=""
+    if command -v get_var >/dev/null 2>&1; then
+        flag="$(get_var INSTALL_TAILSCALE true 2>/dev/null)"
+    fi
+    [ -n "$flag" ] || flag="true"
+    if is_tailscale_installed; then
+        state="$(ts_backend_state)"
+    else
+        state="not installed"
+    fi
+    printf '%s|%s' "$flag" "$state"
 }
 
 # Human-readable install / service / connection summary.
@@ -255,6 +288,76 @@ for peer in nodes:
 ' 2>/dev/null || echo "Could not parse status --json output."
 }
 
+# All IPs: this machine (Tailscale IPv4/IPv6, MagicDNS name, LAN IPs -- every
+# non-Tailscale local IPv4, reusing net_detect_local_ipv4s and excluding the
+# 100.64.0.0/10 CGNAT range Tailscale itself uses, same range net_ip_is_private
+# already classifies) and every peer (hostname, OS, online, every TailscaleIPs
+# entry, exit-node flag), all from `tailscale status --json` (ipn/ipnstate).
+ts_show_all_ips() {
+    if ! is_tailscale_installed; then
+        echo "Tailscale is not installed; no IPs to show."
+        return 0
+    fi
+
+    local ipv4="" ipv6="" magicdns="" lan_ips="" lan_ips_line=""
+    ipv4="$(net_detect_tailscale_ipv4 2>/dev/null)"
+    ipv6="$(tailscale ip -6 2>/dev/null | head -n1)"
+    if command -v python3 >/dev/null 2>&1; then
+        magicdns="$(tailscale status --json 2>/dev/null | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(((data.get("Self") or {}).get("DNSName") or "").rstrip("."))
+except Exception:
+    pass' 2>/dev/null)"
+    fi
+    lan_ips="$(net_detect_local_ipv4s 2>/dev/null | grep -vE '^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.')"
+    lan_ips_line="$(printf '%s' "$lan_ips" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
+
+    echo "== This machine =="
+    echo "  Tailscale IPv4:  ${ipv4:-none}"
+    echo "  Tailscale IPv6:  ${ipv6:-none}"
+    echo "  MagicDNS name:   ${magicdns:-none}"
+    echo "  LAN IPs:         ${lan_ips_line:-none}"
+    echo ""
+
+    echo "== Peers =="
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "python3 not found; run 'tailscale status' for peer IPs."
+        return 0
+    fi
+    tailscale status --json 2>/dev/null | python3 -c '
+import sys, json
+
+
+def exit_node_label(peer):
+    if peer.get("ExitNode"):
+        return "in-use"
+    if peer.get("ExitNodeOption"):
+        return "offered"
+    return "-"
+
+
+try:
+    data = json.load(sys.stdin)
+except Exception as exc:
+    print("Could not parse status --json: %s" % exc)
+    sys.exit(0)
+
+row_fmt = "%-18s %-8s %-7s %-40s %s"
+print(row_fmt % ("HOSTNAME", "OS", "ONLINE", "TAILSCALE IPS", "EXIT NODE"))
+for peer in (data.get("Peer") or {}).values():
+    ips = ", ".join(peer.get("TailscaleIPs") or []) or "-"
+    print(row_fmt % (
+        peer.get("HostName", "") or "",
+        peer.get("OS", "") or "",
+        "yes" if peer.get("Online") else "no",
+        ips,
+        exit_node_label(peer),
+    ))
+' 2>/dev/null || echo "Could not parse status --json output."
+}
+
 # Restart the tailscaled daemon (does not change up/down or login state).
 ts_restart_service() {
     local sudo_prefix="" command_line=""
@@ -277,85 +380,325 @@ ts_restart_service() {
     echo "Service active state: $(ts_service_active_state)"
 }
 
-# Best-effort `xdg-open` for one URL. Root sessions cannot reach a desktop
-# user's browser (Chrome/Chromium refuse to run as root), so a root caller
-# re-invokes it as the seated loginctl session owner; a non-root caller opens
-# it directly. Silent no-op when there is no desktop/browser to open it with.
-ts_open_url() {
-    local url="$1" target_uid="" target_user=""
-
-    command -v xdg-open >/dev/null 2>&1 || return 0
+# Resolve "<user> <uid>" for the seated desktop session (loginctl "seat"
+# column set = a real console session), used to run desktop-facing commands
+# (xdg-open, `tailscale web`) as the real user instead of root. Already root
+# -> that session's user; already a normal user -> the caller itself. Empty
+# (return 1) when there is no active seated session (headless).
+ts_target_user() {
+    local target_uid="" target_user=""
     if [ "$(id -u)" -ne 0 ]; then
-        xdg-open "$url" >/dev/null 2>&1 &
+        printf '%s %s' "$(id -un)" "$(id -u)"
         return 0
     fi
     target_uid="$(loginctl list-sessions --no-legend 2>/dev/null | awk '$4 != "" && $4 != "-" {print $2; exit}')"
-    [ -n "$target_uid" ] || return 0
+    [ -n "$target_uid" ] || return 1
     target_user="$(id -un "$target_uid" 2>/dev/null)"
-    [ -n "$target_user" ] || return 0
-    sudo -u "$target_user" env \
-        XDG_RUNTIME_DIR="/run/user/$target_uid" \
-        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$target_uid/bus" \
-        DISPLAY="${DISPLAY:-:0}" \
-        WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
+    [ -n "$target_user" ] || return 1
+    printf '%s %s' "$target_user" "$target_uid"
+}
+
+# Best-effort `xdg-open` for one URL. Root sessions cannot reach a desktop
+# user's browser (Chrome/Chromium refuse to run as root), so a root caller
+# re-invokes it as the seated ts_target_user; a non-root caller opens it
+# directly. Silent no-op when there is no desktop/browser to open it with.
+ts_open_url() {
+    local url="$1" target="" target_user="" target_uid=""
+
+    command -v xdg-open >/dev/null 2>&1 || return 0
+    target="$(ts_target_user)" || return 0
+    target_user="${target%% *}"
+    target_uid="${target##* }"
+    if [ "$(id -u)" -eq 0 ] && [ "$target_user" != "root" ]; then
+        sudo -u "$target_user" env \
+            XDG_RUNTIME_DIR="/run/user/$target_uid" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$target_uid/bus" \
+            DISPLAY="${DISPLAY:-:0}" \
+            WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
+            xdg-open "$url" >/dev/null 2>&1 &
+    else
         xdg-open "$url" >/dev/null 2>&1 &
+    fi
     return 0
 }
 
-# Print (and, on a desktop session, open) the two documented panels: the
-# cloud admin console (every device in the tailnet) and the local device web
-# interface (Quad100, this device only, tailscaled >= v1.56). The local UI is
-# opened only once the backend is Running (the device-web-interface doc: "the
-# daemon must be running and connected"), matching the Windows counterpart
-# (Show-TailscalePanel's BackendState -eq Running gate).
-ts_show_panel() {
-    local backend=""
+# True when a `tailscale web` local UI process is already listening (idempotent
+# guard so "Open UI" never stacks up duplicate background processes).
+ts_web_ui_running() {
+    pgrep -f "tailscale web .*--listen[= ]$TAILSCALE_WEB_UI_LISTEN" >/dev/null 2>&1 \
+        || pgrep -f "tailscale web --listen $TAILSCALE_WEB_UI_LISTEN" >/dev/null 2>&1
+}
+
+# Start `tailscale web` (the interactive local control UI: docs.
+# reference/tailscale-cli) detached, as the real desktop user when this
+# library runs as root (its config lives under that user's runtime dir).
+# Idempotent: a no-op when it is already listening.
+ts_start_web_ui() {
+    local target="" target_user="" target_uid=""
+
+    ts_web_ui_running && return 0
+    is_tailscale_installed || return 1
+
+    target="$(ts_target_user)" || target=""
+    if [ -n "$target" ] && [ "$(id -u)" -eq 0 ]; then
+        target_user="${target%% *}"
+        target_uid="${target##* }"
+        if [ "$target_user" != "root" ]; then
+            sudo -u "$target_user" env XDG_RUNTIME_DIR="/run/user/$target_uid" \
+                nohup tailscale web --listen "$TAILSCALE_WEB_UI_LISTEN" \
+                >/tmp/tailscale-web-ui.log 2>&1 &
+            disown 2>/dev/null || true
+            sleep 1
+            return 0
+        fi
+    fi
+    nohup tailscale web --listen "$TAILSCALE_WEB_UI_LISTEN" >/tmp/tailscale-web-ui.log 2>&1 &
+    disown 2>/dev/null || true
+    sleep 1
+}
+
+# "Open UI": the tailnet admin console (all devices, cloud panel) plus the
+# local `tailscale web` control UI (this device only), opened as the real
+# desktop user. On a desktop session both are opened in the default browser;
+# headless (no HAS_DESKTOP_ENVIRONMENT / no xdg-open), the URLs are printed
+# only -- e.g. for an SSH port-forward (`ssh -L 8088:127.0.0.1:8088 ...`).
+# The local UI needs the daemon Running (tailscaled must be connected) so it
+# is only started/opened once ts_backend_state reports that.
+ts_open_ui() {
+    local backend="unknown" has_desktop=""
 
     echo "Tailnet admin console (all devices, cloud panel):"
     echo "  $TAILSCALE_ADMIN_CONSOLE_URL"
     echo ""
-    echo "Local device web interface (this device only, Quad100 on port 80):"
-    echo "  $TAILSCALE_LOCAL_WEB_URL"
+
+    if ! is_tailscale_installed; then
+        echo "Tailscale is not installed; local web UI unavailable."
+        return 0
+    fi
+    backend="$(ts_backend_state)"
+    if [ "$backend" = "Running" ]; then
+        ts_start_web_ui
+        echo "Local web UI (tailscale web, this device only):"
+        echo "  $TAILSCALE_WEB_UI_URL"
+    else
+        echo "Local web UI needs the daemon connected (state: $backend); not started."
+        echo "Once connected, start it manually with: tailscale web --listen $TAILSCALE_WEB_UI_LISTEN"
+    fi
     echo ""
 
-    if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ] && command -v xdg-open >/dev/null 2>&1; then
-        echo "Opening the admin console in the default browser..."
+    has_desktop="false"
+    [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ] && command -v xdg-open >/dev/null 2>&1 && has_desktop="true"
+    if [ "$has_desktop" = "true" ]; then
+        echo "Opening in the default browser..."
         ts_open_url "$TAILSCALE_ADMIN_CONSOLE_URL"
-        backend="unknown"
-        is_tailscale_installed && backend="$(ts_backend_state)"
-        if [ "$backend" = "Running" ]; then
-            echo "Opening the local device web interface in the default browser..."
-            ts_open_url "$TAILSCALE_LOCAL_WEB_URL"
-        else
-            echo "Local device web interface needs the daemon connected (state: $backend); skipped. It serves $TAILSCALE_LOCAL_WEB_URL once Tailscale is Running (v1.56.0+)."
-        fi
+        [ "$backend" = "Running" ] && ts_open_url "$TAILSCALE_WEB_UI_URL"
     else
-        echo "No desktop session detected; open the URLs above manually."
+        echo "No desktop session detected; open the URL(s) above manually."
     fi
 
     echo ""
     echo "Other panels documented by Tailscale:"
+    echo "  Local device web interface (Quad100, read-only, this device only): $TAILSCALE_LOCAL_WEB_URL"
     echo "  tailscale status --web --listen $TAILSCALE_STATUS_WEB_LISTEN   # local read-only HTML status page"
-    echo "  tailscale web --listen localhost:8088                         # foreground web UI (Ctrl+C to stop)"
     echo "  sudo tailscale set --webclient                                # expose the web UI at <TailscaleIP>:5252"
+}
+
+# Map a Settings-menu setting name to its `tailscale set` flag name. Returns 1
+# for an unknown name (caller reports the error). advertise-exit-node,
+# exit-node, ssh, shields-up, accept-routes accept true/false (or an IP/name
+# for exit-node; empty clears it); hostname/operator take a free-form value.
+ts_setting_flag_for() {
+    case "$1" in
+        hostname) printf -- '--hostname' ;;
+        accept-routes) printf -- '--accept-routes' ;;
+        advertise-exit-node) printf -- '--advertise-exit-node' ;;
+        exit-node) printf -- '--exit-node' ;;
+        ssh) printf -- '--ssh' ;;
+        shields-up) printf -- '--shields-up' ;;
+        operator) printf -- '--operator' ;;
+        *) return 1 ;;
+    esac
+}
+
+# Current values of the settings above, read from `tailscale debug prefs`
+# (ipn.Prefs JSON: Hostname, AcceptRoutes, AdvertiseRoutes, ExitNodeID/IP,
+# RunSSH, ShieldsUp, OperatorUser -- https://pkg.go.dev/tailscale.com/ipn#Prefs).
+# advertise-exit-node has no dedicated pref field; it is inferred from
+# AdvertiseRoutes containing both default routes (0.0.0.0/0 and ::/0).
+ts_show_settings() {
+    echo "== Tailscale settings (tailscale set) =="
+    if ! is_tailscale_installed; then
+        echo "Tailscale is not installed."
+        return 0
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "python3 not found; inspect prefs manually with: tailscale debug prefs"
+        return 0
+    fi
+    local sudo_prefix=""
+    sudo_prefix="$(ts_sudo_prefix)"
+    ${sudo_prefix:+$sudo_prefix} tailscale debug prefs 2>/dev/null | python3 -c '
+import sys, json
+
+try:
+    prefs = json.load(sys.stdin)
+except Exception as exc:
+    print("Could not parse tailscale debug prefs: %s" % exc)
+    sys.exit(0)
+
+routes = prefs.get("AdvertiseRoutes") or []
+advertise_exit_node = ("0.0.0.0/0" in routes) and ("::/0" in routes)
+exit_node = prefs.get("ExitNodeIP") or prefs.get("ExitNodeID") or ""
+
+rows = [
+    ("hostname", prefs.get("Hostname") or "(default)"),
+    ("accept-routes", prefs.get("AcceptRoutes")),
+    ("advertise-exit-node", advertise_exit_node),
+    ("exit-node", exit_node or "(none)"),
+    ("ssh", prefs.get("RunSSH")),
+    ("shields-up", prefs.get("ShieldsUp")),
+    ("operator", prefs.get("OperatorUser") or "(none -- CLI needs sudo)"),
+]
+for name, value in rows:
+    print("  %-20s %s" % (name, value))
+' 2>/dev/null || echo "Could not parse tailscale debug prefs output."
+    echo ""
+    echo "Settings: $TAILSCALE_SETTING_NAMES"
+}
+
+# Apply one setting via `tailscale set` (never `up --reset`: this function
+# only ever calls `set`, and no caller in this library runs `up --reset`
+# without the user explicitly confirming it first).
+ts_apply_setting() {
+    local name="$1" value="$2" flag="" sudo_prefix=""
+
+    if ! is_tailscale_installed; then
+        echo "Tailscale is not installed."
+        return 1
+    fi
+    flag="$(ts_setting_flag_for "$name")" || { echo "Unknown setting: $name (expected one of: $TAILSCALE_SETTING_NAMES)"; return 1; }
+    sudo_prefix="$(ts_sudo_prefix)"
+    echo "\$ ${sudo_prefix:+$sudo_prefix }tailscale set ${flag}=${value}"
+    if [ -n "$sudo_prefix" ]; then
+        $sudo_prefix tailscale set "${flag}=${value}"
+    else
+        tailscale set "${flag}=${value}"
+    fi
+}
+
+# Non-blocking `tailscale up`: runs it in the background and polls its output
+# for the login URL (which normally prints while `up` blocks waiting for
+# browser authorization) so the URL can be opened automatically, then waits
+# for completion in the foreground -- Ctrl+C stops waiting without killing the
+# connection attempt. No-op when already Running.
+ts_login() {
+    local sudo_prefix="" logfile="" up_pid="" login_url="" waited=0 rc=0
+
+    if ! is_tailscale_installed; then
+        echo "Tailscale is not installed."
+        return 1
+    fi
+    if [ "$(ts_backend_state)" = "Running" ]; then
+        echo "Already logged in and running (backend state: Running)."
+        return 0
+    fi
+
+    sudo_prefix="$(ts_sudo_prefix)"
+    logfile="$(mktemp /tmp/tailscale-up.XXXXXX.log)"
+    echo "Connecting (tailscale up)..."
+    if [ -n "$sudo_prefix" ]; then
+        $sudo_prefix tailscale up >"$logfile" 2>&1 &
+    else
+        tailscale up >"$logfile" 2>&1 &
+    fi
+    up_pid=$!
+
+    while kill -0 "$up_pid" 2>/dev/null && [ -z "$login_url" ] && [ "$waited" -lt 20 ]; do
+        login_url="$(sed -n 's/.*\(https:\/\/login\.tailscale\.com\/[^ ]*\).*/\1/p' "$logfile" | head -n1)"
+        [ -n "$login_url" ] || { sleep 1; waited=$((waited + 1)); }
+    done
+    if [ -n "$login_url" ]; then
+        echo "Open this URL to authorize this machine:"
+        echo "  $login_url"
+        ts_open_url "$login_url"
+    fi
+    echo "Waiting for authorization to complete (Ctrl+C stops waiting here; the connection finishes in the background)..."
+    wait "$up_pid"
+    rc=$?
+    cat "$logfile"
+    rm -f "$logfile"
+    if [ $rc -eq 0 ]; then
+        echo "Login complete (backend state: $(ts_backend_state))."
+    else
+        echo "tailscale up exited with status $rc."
+    fi
+    return $rc
+}
+
+# `tailscale logout`: deauthenticates this node (distinct from `tailscale
+# down`, which only disconnects). Confirmed like the installer's disable path
+# (DD_AUTO_CONTINUE-aware, defaults to N on a non-interactive/timed-out read)
+# since it requires re-authentication to reconnect.
+ts_logout() {
+    local sudo_prefix="" response=""
+
+    if ! is_tailscale_installed; then
+        echo "Tailscale is not installed."
+        return 1
+    fi
+    echo -n "Log out and deauthenticate this node? (y/N) [N]: "
+    if [ "${DD_AUTO_CONTINUE:-}" = "true" ] || [ "${DD_AUTO_CONTINUE:-}" = "1" ]; then
+        response=""
+    elif [ -t 0 ] && [ -r /dev/tty ]; then
+        read -r -t 30 response < /dev/tty || response=""
+    else
+        response=""
+    fi
+    case "$response" in
+        [yY]|[yY][eE][sS]) ;;
+        *) echo "Logout cancelled."; return 0 ;;
+    esac
+
+    sudo_prefix="$(ts_sudo_prefix)"
+    echo "\$ ${sudo_prefix:+$sudo_prefix }tailscale logout"
+    if [ -n "$sudo_prefix" ]; then
+        $sudo_prefix tailscale logout
+    else
+        tailscale logout
+    fi
+}
+
+# Login/Logout toggle: picks the action from the current backend state so the
+# menu can show a single context-sensitive item.
+ts_login_logout_toggle() {
+    if [ "$(ts_backend_state)" = "Running" ]; then
+        ts_logout
+    else
+        ts_login
+    fi
 }
 
 ts_show_help() {
     cat <<EOF
 Tailscale management (Linux) - direct-call dispatcher usage:
-  tailscale_common.sh status    Install/service/backend state, IPs, version
-  tailscale_common.sh devices   List every tailnet device (table + detail)
-  tailscale_common.sh restart   sudo systemctl restart $TAILSCALE_SERVICE
-  tailscale_common.sh panel     Print + open the admin console and local (Quad100) panels
-  tailscale_common.sh help      This message
+  tailscale_common.sh status        Install/service/backend state, IPs, version
+  tailscale_common.sh devices       List every tailnet device (table + detail)
+  tailscale_common.sh all-ips       This machine's IPs/MagicDNS/LAN IPs + every peer's IPs
+  tailscale_common.sh settings      Show current settings (tailscale debug prefs)
+  tailscale_common.sh set <name> <value>   Apply one setting (tailscale set); names: $TAILSCALE_SETTING_NAMES
+  tailscale_common.sh restart       sudo systemctl restart $TAILSCALE_SERVICE
+  tailscale_common.sh ui            Print + open the admin console and local (tailscale web) UI
+  tailscale_common.sh login         tailscale up (non-blocking login URL capture)
+  tailscale_common.sh logout        tailscale logout (confirms first)
+  tailscale_common.sh help          This message
 
-Menu: dd.sh > Linux Management > Linux System Tools > Tailscale Management.
+Menu: dd.sh > Linux Management > Linux System Tools > [T] Tailscale.
 Install/uninstall: scripts/shells/linux/debian/install_shells/97_install_tailscale.sh.
 
 Official docs:
   CLI reference:        https://tailscale.com/docs/reference/tailscale-cli
   tailscaled service:   https://tailscale.com/kb/1278/tailscaled
-  Device web interface: https://tailscale.com/kb/1325/device-web-interface
+  Device web interface: https://tailscale.com/docs/features/client/device-web-interface
   Admin console:        https://tailscale.com/docs/how-to/quickstart
   Linux install:        https://tailscale.com/kb/1031/install-linux
 EOF
@@ -365,8 +708,13 @@ tailscale_common_main() {
     case "${1:-help}" in
         status) ts_show_status ;;
         devices) ts_show_devices ;;
+        all-ips) ts_show_all_ips ;;
+        settings) ts_show_settings ;;
+        set) ts_apply_setting "$2" "$3" ;;
         restart) ts_restart_service ;;
-        panel) ts_show_panel ;;
+        ui) ts_open_ui ;;
+        login) ts_login ;;
+        logout) ts_logout ;;
         help|--help|-h) ts_show_help ;;
         *)
             echo "Unknown action: ${1:-}"

@@ -1,5 +1,5 @@
 {
-  "schema_version": 7,
+  "schema_version": 8,
   "guide_doc": "development-guides/claude_code/CLAUDE_CODE_AGENTS_GUIDE.md",
   "record_dir": "docs_fix",
   "agents_dir": ".claude/agents",
@@ -7,14 +7,14 @@
   "sessions": {
     "session_prefix": "ct-",
     "tmux_socket": "claudeteam",
-    "kickoff_lead": "You are the orchestrator, session {session}. The roles are independent sessions that coordinate through cross-session messaging. Your binding guide is {guide}. Run ListAgents and confirm the {prefix}<role> sessions: {roles}. When the user gives you a task, record it in {record}, split it by the guide's role scopes, and create tasks as [<role>] subject. Dispatch each part with SendMessage to {prefix}<role> with notify_when_idle, route a member's finished work to its group leader for the verdict and a leader's own work to the reviewer service (no window; spawn it on demand), and read {shared}/reports instead of transcripts. Read the guide now, confirm the roster, then wait for the user's task. Never ask the user questions: take the recommended option, record the choice, and continue.",
-    "kickoff": "You are the {role} role, session {session}, one of the independent role sessions that coordinate through cross-session messaging. Read your agent instructions and your development guide, and {guide} section 8 for boundaries. Run ListAgents, tell {lead} you are ready, and wait for its tasks from {lead} or your group leader. Report with SendMessage, hand files over as paths in {shared}, and write {shared}/reports/{role}.md before going idle. Never ask the user questions: take the recommended option, record the choice, and continue."
+    "kickoff_lead": "You are the orchestrator in session {session}. Follow {guide}. Send each request directly to the smallest suitable owner and keep one writer per path. Do not create separate planning, implementation, or review phases. Use SendMessage only when another running session owns necessary work. Each owner implements and verifies its own change, then reports the result. Start working as soon as the user provides a task.",
+    "kickoff": "You are the {role} role in session {session}. Follow your agent definition and {guide}. Implement assigned changes directly, verify them in proportion to risk, and report the result to {lead}. Do not create separate planning or review tasks."
   },
   "team": {
     "session_name": "ca-orchestrator",
     "tmux_socket": "claudeagents",
     "teammate_mode_linux": "tmux",
-    "kickoff": "You are the orchestrator (team lead), session {session}. Every enabled role runs as its own independent session ({prefix}<role>) in its own pane, started by the launcher, and shares the task list {task_list}. Your binding guide is {guide}. Run ListAgents and confirm the {prefix}<role> sessions: {roles}. When the user gives you a task: record it in {record}, split it by the guide's role scopes and dependencies, create tasks as [<role>] subject, and dispatch each part with SendMessage to {prefix}<role> (notify_when_idle). Do not spawn a teammate of a type that runs as a {prefix}<role> session (one writer per path); spawn in-process teammates or workflow agents only for work no running session owns. Tasks complete only after an approved verdict (the group leader for member work, the reviewer service for a leader's own work and cross-group changes); read {shared}/reports for handoffs. Read the guide now, confirm the roster, then wait for the user's task. Never ask the user questions: take the recommended option, record the choice, and continue."
+    "kickoff": "You are the agent-team lead in session {session}. Follow {guide} and handle each user request to completion. For a simple or single-scope task, work directly without teammates. For independent parallel work, spawn only the needed named agent types from this roster: {roles}. Use Sonnet for ordinary coding and name Opus only for genuinely complex architecture, cross-layer design, or difficult root-cause work. Do not create separate plan, implementation, or review agents and do not force a plan-review loop. Give each teammate a concrete deliverable and exclusive paths, let the owner implement and verify its own work, wait for active teammates, then synthesize the result."
   },
   "grid": {
     "columns": 5,
@@ -113,7 +113,7 @@
     },
     {
       "name": "reviewer",
-      "enabled": true,
+      "enabled": false,
       "window": false
     },
     {
@@ -125,35 +125,95 @@
       "name": "flutter",
       "enabled": true,
       "window": false
+    },
+    {
+      "name": "laravel",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "laravel-api",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "laravel-codemart",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "laravel-qyapp",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "mcp-chrome",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "pycore",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "pycore-architect",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "pycore-assist",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-codemart",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-laravel-manager",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-pycore-manager",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-vortex",
+      "enabled": true,
+      "window": false
+    },
+    {
+      "name": "ui-wordnew",
+      "enabled": true,
+      "window": false
     }
   ],
   "remote": {
     "reconnect_seconds": 5,
-    "kickoff": "You are the {role} role, session {session}, running on the laravel-main server over SSH with Remote Control on. Your binding guide is {guide} (section 8 for boundaries). Develop in this server checkout and test directly on this server. Run ListAgents, tell {lead} (another machine; cross-session messaging through Remote Control) that you are ready, and wait for its tasks. Report with SendMessage including the changed-file list, and write {shared}/reports/{role}.md before going idle. Never ask the user questions: take the recommended option, record the choice, and continue.",
+    "kickoff": "You are the {role} role in session {session} on the remote server. Follow your agent definition and {guide}. Implement the assigned change directly in this checkout, verify it on this server, and report the result and changed paths to {lead}.",
     "code_distribution": "pyservice CodeSync only (docs_fix/CODESYNC_AI_COMMUNICATION_API.md): DEV pushes signed file versions to the remote host's CodeSync client; never git",
     "enable_rule": "a remote role starts only when its ssh_secret resolves; os auto = probe `uname -s || ver` and use the Linux (bash/tmux/claudeteam.sh) or Windows (powershell/claudeteam.ps1) remote command"
   },
   "role_source": {
     "agents_dir": ".claude/agents",
     "name_from": "frontmatter name",
-    "model_from": "frontmatter model (alias, latest: opus = Opus 5.5 for thinking roles, sonnet = Sonnet 5 for coding roles)",
+    "model_from": "frontmatter model; the lead may override a teammate to opus for genuinely complex work",
     "effort_from": "frontmatter effort, passed to role sessions as --effort",
     "catalog_roles_are": "overrides only (enabled, remote, window); an agent file without a catalog row is enabled; window:false = service role, valid task tag, no window/session at start"
   },
   "session_env": {
-    "all": {
-      "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1",
-      "CLAUDE_CODE_TASK_LIST_ID": "core-node-team"
-    },
+    "all": {},
     "lead": {
       "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
     },
     "windows": {
       "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT": "1"
     },
-    "remote": {
-      "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"
-    }
+    "remote": {}
   },
   "user_settings_merge": {
     "crossSessionInbound": "accept",

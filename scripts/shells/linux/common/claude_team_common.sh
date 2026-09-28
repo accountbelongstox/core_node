@@ -3,23 +3,24 @@
 # =============================================================================
 # Shared idempotent Claude multi-role orchestration (Linux / bash)
 # =============================================================================
-# Used by scripts/linuxenvs/claudeagents.sh (mode "team"), claudeteamup.sh (mode
-# "sessions") and claudeteam.sh (role argv, kickoff, session_env, PID file).
+# Used by scripts/linuxenvs/claudeagents.sh (one agent-team lead),
+# claudeteamup.sh (independent role sessions) and claudeteam.sh.
 # Windows counterpart: scripts/shells/win/win_common/ClaudeTeamCommon.ps1
 # Roles: .claude/agents/*.md frontmatter (name, model, effort). The catalog
 # config/claude_team_roles.json holds launcher-only data; its roles[] rows are
 # overrides only (enabled, remote, window), and an agent file without a row is
-# enabled. window:false is a service role: a valid roster row (report, task tags),
+# enabled. window:false is a service role: a valid roster row and task tag,
 # no pane started here.
-# Both modes start every enabled role as its own claude session (--agent <role>
-# --name <prefix><role> --effort <frontmatter>) in one tmux session
+# Sessions mode starts every enabled role as its own Claude session in one tmux
+# session. Team mode starts only the lead; Claude Code spawns teammates on demand.
 # layout.tmux_session on the mode's socket: one window (tab) per packed group of
 # layout.tab_groups at layout.min_lead / layout.min_role cells, an explicit -l %
 # grid, role titles on the pane borders and session hooks that re-apply the grid.
-# The grid is chosen from the attached tmux client size. Only the lead kickoff
-# differs: team.kickoff (claudeagents) or sessions.kickoff_lead (claudeteamup).
-# A role whose PID is alive is skipped; a live pane without its claude is
-# respawned in place; a role without a pane opens in a new tab.
+# The grid is chosen from the attached tmux client size. Team mode uses
+# team.kickoff; sessions mode uses sessions.kickoff_lead and sessions.kickoff.
+# A role whose PID is alive is skipped and labelled by its pane readiness (session
+# registry, pane screen): blocked:<screen> instead of running. A live pane without
+# its claude is respawned in place; a role without a pane opens in a new tab.
 # Executed directly with --regrid <socket> <session> <lead> <lead cols> <lead
 # rows>, it re-applies the grid (the tmux hooks call it).
 # =============================================================================
@@ -37,12 +38,43 @@ CLAUDE_TEAM_CATALOG_PATH="$CCI_TEAM_CATALOG_PATH"
 CLAUDE_TEAM_TOTAL_STEPS="9"
 CLAUDE_TEAM_ATTACH_WAIT_SECONDS="10"
 CLAUDE_TEAM_PID_WAIT_SECONDS="10"
+CLAUDE_TEAM_READY_WAIT_SECONDS="30"
+CLAUDE_TEAM_READY_GRACE_SECONDS="60"
+CLAUDE_TEAM_TERMINAL_LOG_PATH="$CLAUDE_TEAM_STATE_DIR/terminal.log"
+CLAUDE_TEAM_ROOT_BUS_PATH="/run/user/0/bus"
 CLAUDE_TEAM_LEAD_ROLE="orchestrator"
 CLAUDE_TEAM_GIT_GUARD_ENV="CLAUDE_AGENTS_SESSION=1"
-CLAUDE_TEAM_USER_TEAMS_DIR="$HOME/.claude/teams"
-CLAUDE_TEAM_USER_TASKS_DIR="$HOME/.claude/tasks"
+CLAUDE_TEAM_USER_CONFIG_DIR="$CCI_USER_CLAUDE_DIR"
+CLAUDE_TEAM_USER_TEAMS_DIR="$CLAUDE_TEAM_USER_CONFIG_DIR/teams"
+CLAUDE_TEAM_USER_TASKS_DIR="$CLAUDE_TEAM_USER_CONFIG_DIR/tasks"
+# claude writes sessions/<pid>.json once a session is up (undocumented internal state).
+CLAUDE_TEAM_USER_SESSIONS_DIR="$CLAUDE_TEAM_USER_CONFIG_DIR/sessions"
+CLAUDE_TEAM_CAPTURE_HISTORY_LINES="60"
+CLAUDE_TEAM_CAPTURE_TAIL_LINES="15"
+# claude prints the usage-limit notice just above its input box and footer.
+CLAUDE_TEAM_CAPTURE_STATUS_LINES="6"
+# <reason>|<ERE> matched against claude's and ssh's own screen text (not translatable UI).
+CLAUDE_TEAM_BLOCK_PATTERNS=(
+    "onboarding|Let's get started|Choose the text style"
+    "login|Select login method|Browser didn't open|Paste code here if prompted|Not logged in|Please run /login"
+    "trust|Is this a project you created or one you trust"
+    "api-key|Do you want to use this API key"
+    "ssh-hostkey|continue connecting \(yes/no"
+    "ssh-auth|[Pp]assword:|Permission denied \(publickey"
+)
+CLAUDE_TEAM_USAGE_LIMIT_PATTERN="You've hit your|Usage limit reached"
+CLAUDE_TEAM_READY_PATTERN='auto mode on|\? for shortcuts|esc to interrupt'
 CLAUDE_TEAM_SECRET_READER="$CLAUDE_TEAM_ROOT_DIR/scripts/pytools/special_software_env_manager/secret_read.py"
-CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=30" "-o" "ServerAliveCountMax=4" "-o" "StrictHostKeyChecking=accept-new")
+CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=30" "-o" "ServerAliveCountMax=4" "-o" "StrictHostKeyChecking=accept-new" "-o" "ConnectTimeout=15" "-o" "BatchMode=yes")
+CLAUDE_TEAM_AUTH_ENV_NAMES=(
+    HOME USER LOGNAME PATH CLAUDE_CONFIG_DIR XDG_CONFIG_HOME
+    ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY
+    CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_REFRESH_TOKEN CLAUDE_CODE_OAUTH_SCOPES
+    CLAUDE_CODE_USE_ANTHROPIC_AWS CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX
+    CLAUDE_CODE_USE_FOUNDRY CLAUDE_CODE_USE_MANTLE ANTHROPIC_PROFILE
+    ANTHROPIC_FEDERATION_RULE_ID ANTHROPIC_ORGANIZATION_ID
+    ANTHROPIC_IDENTITY_TOKEN_FILE
+)
 # claudeteam.sh pane options (same names as claudeteam.ps1): --team-pane <team|sessions>
 # marks a role pane of this launcher; the other two are launcher-only, never passed on.
 CLAUDE_TEAM_PANE_FLAG="--team-pane"
@@ -68,6 +100,11 @@ CLAUDE_TEAM_OPT_STATUS="0"
 CLAUDE_TEAM_OPT_NO_WINDOWS="0"
 CLAUDE_TEAM_OPT_NO_KICKOFF="0"
 CLAUDE_TEAM_OPT_ROLES=""
+CLAUDE_TEAM_OPT_SKIP_ACCOUNT="0"
+CLAUDE_TEAM_OPT_RESPAWN_BLOCKED="0"
+# Screens --respawn-blocked restarts in place (never usage-limit, api-key, ssh-auth).
+CLAUDE_TEAM_RESPAWN_BLOCKERS=" onboarding login trust ssh-hostkey stalled "
+CLAUDE_TEAM_ACCOUNT_HOLD=""
 CLAUDE_TEAM_DRY_RUN="0"
 
 CLAUDE_TEAM_OS_ID=""
@@ -145,6 +182,7 @@ CLAUDE_TEAM_TERMINAL_OPENED="0"
 CLAUDE_TEAM_FIRST_PANE_ID=""
 CLAUDE_TEAM_LAST_PANE_ID=""
 CLAUDE_TEAM_LAST_ERROR=""
+CLAUDE_TEAM_PANE_READINESS=""
 CLAUDE_TEAM_LEAD_PANE_ID=""
 CLAUDE_TEAM_PLAN_PANE_SEQ="0"
 CLAUDE_TEAM_TAB_BASE="0"
@@ -213,6 +251,55 @@ claude_team_quote_args() {
 
 claude_team_tmux() {
     tmux -L "$CLAUDE_TEAM_TMUX_SOCKET" "$@"
+}
+
+# An existing tmux server keeps the environment from the launch that created it.
+# Synchronize only Claude's documented authentication selectors and the user paths
+# before starting or respawning panes, so a team session uses the same identity as
+# `claude` in the invoking shell. Values are never printed.
+claude_team_sync_tmux_auth_environment() {
+    local name=""
+    if ! claude_team_tmux list-sessions >/dev/null 2>&1 </dev/null; then
+        return 0
+    fi
+    for name in "${CLAUDE_TEAM_AUTH_ENV_NAMES[@]}"; do
+        if [[ -v $name ]]; then
+            claude_team_tmux set-environment -g "$name" "${!name}" >/dev/null 2>&1 </dev/null
+        else
+            claude_team_tmux set-environment -gu "$name" >/dev/null 2>&1 </dev/null || true
+        fi
+    done
+    # Root: an existing server hands the bus chosen by claude_team_normalize_root_env
+    # to new and respawned panes.
+    if [ "$(id -u)" = "0" ]; then
+        if [ -n "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+            claude_team_tmux set-environment -g DBUS_SESSION_BUS_ADDRESS "$DBUS_SESSION_BUS_ADDRESS" >/dev/null 2>&1 </dev/null
+        else
+            claude_team_tmux set-environment -gu DBUS_SESSION_BUS_ADDRESS >/dev/null 2>&1 </dev/null || true
+        fi
+    fi
+    claude_team_log OK "tmux Claude identity synchronized with the invoking shell (config $CLAUDE_TEAM_USER_CONFIG_DIR)"
+}
+
+# Root launched from a plain su keeps the desktop user's USER, LOGNAME and session
+# bus. Only this launcher process (and so the tmux server and panes it creates) is
+# switched to root's identity and bus; DISPLAY, WAYLAND_DISPLAY and XAUTHORITY stay.
+claude_team_normalize_root_env() {
+    local bus_uid=""
+    [ "$(id -u)" = "0" ] || return 0
+    bus_uid="$(cci_session_bus_owner_uid)"
+    if { [ -z "$bus_uid" ] || [ "$bus_uid" = "0" ]; } && [ "${USER:-}" = "root" ] && [ "${LOGNAME:-}" = "root" ]; then
+        return 0
+    fi
+    export USER=root LOGNAME=root
+    if [ -n "$bus_uid" ] && [ "$bus_uid" != "0" ]; then
+        if [ -S "$CLAUDE_TEAM_ROOT_BUS_PATH" ]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=$CLAUDE_TEAM_ROOT_BUS_PATH"
+        else
+            unset DBUS_SESSION_BUS_ADDRESS
+        fi
+    fi
+    claude_team_log OK "Root launch inherited uid ${bus_uid:-?}'s session: tmux server and panes use USER=root, LOGNAME=root, D-Bus ${DBUS_SESSION_BUS_ADDRESS:-<none>} (DISPLAY/XAUTHORITY kept)"
 }
 
 # A tmux change: printed as a plan line under --status, run otherwise.
@@ -326,6 +413,7 @@ claude_team_detect_platform() {
     claude_team_log OK "OS: $CLAUDE_TEAM_OS_NAME$([ "$CLAUDE_TEAM_IS_WSL" = "1" ] && printf ' (WSL2)')"
     claude_team_log OK "User: $(id -un) (uid $(id -u)); session: $CLAUDE_TEAM_SESSION_TYPE; DISPLAY=${DISPLAY:-<none>}; WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-<none>}"
     claude_team_log OK "Mode: $CLAUDE_TEAM_MODE; project root: $CLAUDE_TEAM_ROOT_DIR; state dir: $CLAUDE_TEAM_STATE_DIR"
+    claude_team_log OK "Claude config: $CLAUDE_TEAM_USER_CONFIG_DIR (same settings and credentials as this shell)"
     if [ "$CLAUDE_TEAM_IS_WAYLAND" = "1" ]; then
         claude_team_log OK "Wayland: windows cannot be positioned; one maximized terminal holds the tmux grid"
     fi
@@ -351,6 +439,19 @@ claude_team_ensure_claude() {
     else
         claude_team_log WARN "claude missing; run without --status to install"
     fi
+    [ "$CCI_CLAUDE_ACCOUNT_STATE" != "missing" ] || cci_report_claude_account
+    CLAUDE_TEAM_ACCOUNT_HOLD=""
+    case "$CCI_CLAUDE_ACCOUNT_STATE" in
+        login|onboarding|trust)
+            if [ "$CLAUDE_TEAM_OPT_SKIP_ACCOUNT" = "1" ]; then
+                claude_team_log WARN "--skip-account-check: roles start although the Claude account is not ready ($CCI_CLAUDE_ACCOUNT_STATE)"
+            else
+                CLAUDE_TEAM_ACCOUNT_HOLD="$CCI_CLAUDE_ACCOUNT_STATE"
+                claude_team_log WARN "Claude account not ready ($CLAUDE_TEAM_ACCOUNT_HOLD): only the lead starts; finish the setup screens in its pane, then re-run $CLAUDE_TEAM_ENTRY_COMMAND"
+            fi
+            ;;
+        *) ;;
+    esac
     claude_team_log OK "Role launcher: $CLAUDE_TEAM_LAUNCHER_PATH (--permission-mode auto, --effort from the agent frontmatter, session_env, git guard on)"
 }
 
@@ -554,12 +655,16 @@ claude_team_role_selected() {
     esac
 }
 
-# Enabled, has an agent file and is selected (the lead always is in team mode).
+# Enabled, has an agent file and is selected. Team mode starts only the lead;
+# the remaining definitions stay available for native Agent tool spawning.
 claude_team_role_active() {
     local index="$1"
     local role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
     [ "${CLAUDE_TEAM_ROLE_ENABLED[$index]}" = "1" ] || return 1
     [ "${CLAUDE_TEAM_ROLE_HAS_AGENT[$index]}" = "1" ] || return 1
+    if [ "$CLAUDE_TEAM_MODE" = "team" ] && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
+        return 1
+    fi
     if claude_team_role_selected "$role"; then
         return 0
     fi
@@ -595,9 +700,14 @@ claude_team_validate_roles() {
             claude_team_log WARN "Role $role skipped: no agent file with frontmatter name $role in $CLAUDE_TEAM_AGENTS_DIR"
             continue
         fi
-        if ! claude_team_role_active "$index"; then
+        if [ -n "$CLAUDE_TEAM_OPT_ROLES" ] && ! claude_team_role_selected "$role" && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
             CLAUDE_TEAM_ROW_STATE[$index]="not-selected"
             claude_team_log SKIP "Role $role not in --roles"
+            continue
+        fi
+        if [ "$CLAUDE_TEAM_MODE" = "team" ] && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
+            CLAUDE_TEAM_ROW_STATE[$index]="available-teammate"
+            claude_team_log OK "Agent type $role available on demand (model ${CLAUDE_TEAM_ROLE_MODEL[$index]:-default})"
             continue
         fi
         if [ -n "${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}" ]; then
@@ -611,6 +721,11 @@ claude_team_validate_roles() {
             claude_team_log OK "Service role $role: window:false in the catalog (task tag / roster entry only; no pane started here, SPW-036)"
             continue
         fi
+        if [ -n "$CLAUDE_TEAM_ACCOUNT_HOLD" ] && [ "$role" != "$CLAUDE_TEAM_LEAD_ROLE" ]; then
+            CLAUDE_TEAM_ROW_STATE[$index]="held:$CLAUDE_TEAM_ACCOUNT_HOLD"
+            claude_team_log SKIP "Role $role held until the Claude account is ready ($CLAUDE_TEAM_ACCOUNT_HOLD)"
+            continue
+        fi
         CLAUDE_TEAM_ROW_STATE[$index]="session"
         claude_team_log OK "Role $role: session $(claude_team_session_name "$role"), model ${CLAUDE_TEAM_ROLE_MODEL[$index]:-default}, effort ${CLAUDE_TEAM_ROLE_EFFORT[$index]:-default} (${CLAUDE_TEAM_ROLE_AGENT_PATH[$index]}; ${CLAUDE_TEAM_ROLE_SOURCE[$index]})"
     done
@@ -620,7 +735,10 @@ claude_team_other_roles() {
     local index=""
     local names=""
     for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
-        if [ "${CLAUDE_TEAM_ROLE_NAMES[$index]}" = "$CLAUDE_TEAM_LEAD_ROLE" ] || ! claude_team_role_active "$index"; then
+        if [ "${CLAUDE_TEAM_ROLE_NAMES[$index]}" = "$CLAUDE_TEAM_LEAD_ROLE" ] || \
+                [ "${CLAUDE_TEAM_ROLE_ENABLED[$index]}" != "1" ] || \
+                [ "${CLAUDE_TEAM_ROLE_HAS_AGENT[$index]}" != "1" ] || \
+                ! claude_team_role_selected "${CLAUDE_TEAM_ROLE_NAMES[$index]}"; then
             continue
         fi
         names="${names:+$names, }${CLAUDE_TEAM_ROLE_NAMES[$index]}"
@@ -876,6 +994,122 @@ claude_team_role_pid() {
     return 1
 }
 
+# Readiness of a live role, left in CLAUDE_TEAM_PANE_READINESS: ready,
+# blocked:<reason>, starting (no known screen yet) or unverified (no pane to read).
+# The session registry entry proves a local claude is up; otherwise the pane text
+# decides (the only signal for a remote ssh pane, whose PID is the claudeteam bash).
+# Read only: capture-pane, never set-option or respawn, so --status may call it.
+claude_team_pane_readiness() {
+    local socket="$1"
+    local pane_id="$2"
+    local pid="$3"
+    local visible=""
+    local history=""
+    local tail_text=""
+    local text=""
+    local entry=""
+    CLAUDE_TEAM_PANE_READINESS="unverified"
+    if [ -n "$pane_id" ]; then
+        visible="$(tmux -L "$socket" capture-pane -p -J -t "$pane_id" 2>/dev/null </dev/null)"
+        tail_text="$(grep -v '^[[:space:]]*$' <<< "$visible" | tail -n "$CLAUDE_TEAM_CAPTURE_TAIL_LINES")"
+    fi
+    if [ -n "$pid" ] && [ -f "$CLAUDE_TEAM_USER_SESSIONS_DIR/$pid.json" ] || grep -Eq -- "$CLAUDE_TEAM_READY_PATTERN" <<< "$tail_text"; then
+        CLAUDE_TEAM_PANE_READINESS="ready"
+        if tail -n "$CLAUDE_TEAM_CAPTURE_STATUS_LINES" <<< "$tail_text" | grep -Eq -- "$CLAUDE_TEAM_USAGE_LIMIT_PATTERN"; then
+            CLAUDE_TEAM_PANE_READINESS="blocked:usage-limit"
+        fi
+        return 0
+    fi
+    [ -n "$pane_id" ] || return 0
+    # Small panes scroll the first-run header out of view: search the visible screen
+    # first (the current screen), then the scrollback.
+    history="$(tmux -L "$socket" capture-pane -p -J -S "-$CLAUDE_TEAM_CAPTURE_HISTORY_LINES" -t "$pane_id" 2>/dev/null </dev/null)"
+    for text in "$visible" "$history"; do
+        for entry in "${CLAUDE_TEAM_BLOCK_PATTERNS[@]}"; do
+            if grep -Eq -- "${entry#*|}" <<< "$text"; then
+                CLAUDE_TEAM_PANE_READINESS="blocked:${entry%%|*}"
+                return 0
+            fi
+        done
+    done
+    CLAUDE_TEAM_PANE_READINESS="starting"
+}
+
+# The pane of a role in the other launcher's tmux server (matched by role and
+# session name), or empty.
+claude_team_other_socket_pane() {
+    local role="$1"
+    local session="$2"
+    tmux -L "$CLAUDE_TEAM_OTHER_SOCKET" list-panes -a \
+        -F "#{$CLAUDE_TEAM_PANE_ROLE_OPTION} #{$CLAUDE_TEAM_PANE_SESSION_OPTION} #{pane_id}" 2>/dev/null </dev/null | \
+        awk -v r="$role" -v s="$session" '$1 == r && $2 == s { print $3; exit }'
+}
+
+# --respawn-blocked: a live role stopped at a pre-conversation screen in this
+# launcher's own layout is marked for respawn-pane -k (claude_team_respawn_roles).
+# Claude screens need a ready account first, or the new claude stops there again.
+claude_team_respawn_blocked() {
+    local index="$1"
+    local reason="$2"
+    local pid="$3"
+    local pane_id="$4"
+    local role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
+    [ "$CLAUDE_TEAM_OPT_RESPAWN_BLOCKED" = "1" ] || return 0
+    case "$CLAUDE_TEAM_RESPAWN_BLOCKERS" in
+        *" $reason "*) ;;
+        *) return 0 ;;
+    esac
+    if [ -z "${CLAUDE_TEAM_ROW_PANE_ID[$index]}" ]; then
+        claude_team_log WARN "Role $role stays at $reason: pane ${pane_id:-?} is not in $CLAUDE_TEAM_LAYOUT_SESSION on socket $CLAUDE_TEAM_TMUX_SOCKET (not respawned)"
+        return 0
+    fi
+    if [ "$reason" != "ssh-hostkey" ] && [ "$CCI_CLAUDE_ACCOUNT_STATE" != "ready" ]; then
+        claude_team_log WARN "Role $role stays blocked at $reason: this account is not signed in, set up or trusted ($CCI_CLAUDE_GLOBAL_CONFIG_PATH); run claude once interactively, then re-run with --respawn-blocked"
+        return 0
+    fi
+    CLAUDE_TEAM_ROW_ACTION[$index]="respawn"
+    CLAUDE_TEAM_ROW_PID[$index]="-"
+    claude_team_log WARN "Role $role PID $pid stopped at the $reason screen in pane $pane_id; respawned in place (--respawn-blocked)"
+}
+
+# Labels a live role row from claude_team_pane_readiness.
+claude_team_label_live_role() {
+    local index="$1"
+    local pid="$2"
+    local pane_id="$3"
+    local socket="$4"
+    local role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
+    local reason=""
+    local written=""
+    case "$CLAUDE_TEAM_PANE_READINESS" in
+        blocked:usage-limit)
+            CLAUDE_TEAM_ROW_STATE[$index]="$CLAUDE_TEAM_PANE_READINESS"
+            claude_team_log WARN "Role $role PID $pid is live but at its usage limit (pane $pane_id on socket $socket); it resumes after the reset"
+            return 0
+            ;;
+        blocked:*)
+            reason="${CLAUDE_TEAM_PANE_READINESS#blocked:}"
+            CLAUDE_TEAM_ROW_STATE[$index]="$CLAUDE_TEAM_PANE_READINESS"
+            claude_team_log WARN "Role $role PID $pid is live but stopped at the $reason screen (pane $pane_id on socket $socket); answer it in that pane, or stop the role and re-run"
+            claude_team_respawn_blocked "$index" "$reason" "$pid" "$pane_id"
+            return 0
+            ;;
+        unverified) CLAUDE_TEAM_ROW_STATE[$index]="running-unverified" ;;
+        starting)
+            written="$(stat -c %Y "$(claude_team_pid_path "$(claude_team_session_name "$role")")" 2>/dev/null)"
+            if ! claude_team_role_is_remote "$role" && [ -n "$written" ] && \
+                [ $(($(date +%s) - written)) -gt "$CLAUDE_TEAM_READY_GRACE_SECONDS" ]; then
+                CLAUDE_TEAM_ROW_STATE[$index]="stalled"
+                claude_team_log WARN "Role $role (PID $pid) never reached its prompt (no session registry entry after ${CLAUDE_TEAM_READY_GRACE_SECONDS}s, pane ${pane_id:-?}); finish the Claude account setup, or re-run with --respawn-blocked"
+                claude_team_respawn_blocked "$index" "stalled" "$pid" "$pane_id"
+                return 0
+            fi
+            ;;
+        *) ;;
+    esac
+    claude_team_log SKIP "Role $role running (PID $pid, ${CLAUDE_TEAM_ROW_TAB[$index]})"
+}
+
 claude_team_pane_of_role() {
     local index=""
     for index in "${!CLAUDE_TEAM_PANE_ROLES[@]}"; do
@@ -904,7 +1138,9 @@ claude_team_select_terminal() {
     fi
 }
 
-# Live state per role: running (PID alive, in the layout or elsewhere),
+# Live state per role: running (PID alive and ready or still starting, in the
+# layout or elsewhere; running-unverified without a pane to read), blocked:<screen>
+# or stalled (PID alive, no prompt; see claude_team_label_live_role),
 # other-lead (the lead role only: the other launcher's lead is live, no tmux
 # session required -- a bare ct-orchestrator/ca-orchestrator claude process
 # counts too; no place, no respawn, DESIGN S3.2), legacy-session (a per-role
@@ -919,6 +1155,8 @@ claude_team_scan_live() {
     local pane_role=""
     local pane_id=""
     local pane_window=""
+    local probe_socket=""
+    local held=""
     CLAUDE_TEAM_SESSION_EXISTS="0"
     CLAUDE_TEAM_SESSION_READY="0"
     CLAUDE_TEAM_CLIENTS="0"
@@ -938,6 +1176,9 @@ claude_team_scan_live() {
             CLAUDE_TEAM_PANE_WINDOWS+=("$pane_window")
         done < <(claude_team_tmux list-panes -s -t "=$CLAUDE_TEAM_LAYOUT_SESSION" -F "#{$CLAUDE_TEAM_PANE_ROLE_OPTION} #{pane_id} #{window_name}" 2>/dev/null)
         claude_team_log OK "tmux session $CLAUDE_TEAM_LAYOUT_SESSION (socket $CLAUDE_TEAM_TMUX_SOCKET): $CLAUDE_TEAM_TAB_BASE window(s), ${#CLAUDE_TEAM_PANE_ROLES[@]} role pane(s), $CLAUDE_TEAM_CLIENTS client(s)"
+        if [ "$CLAUDE_TEAM_MODE" = "team" ] && [ "${#CLAUDE_TEAM_PANE_ROLES[@]}" -gt 1 ]; then
+            claude_team_log WARN "Existing tmux session has prestarted role panes from the old orchestration. This run leaves them untouched; close that session once before rerunning to get the lead-only layout."
+        fi
     else
         claude_team_log OK "tmux session $CLAUDE_TEAM_LAYOUT_SESSION (socket $CLAUDE_TEAM_TMUX_SOCKET): not running"
     fi
@@ -945,8 +1186,10 @@ claude_team_scan_live() {
         claude_team_log WARN "The other launcher's session $CLAUDE_TEAM_LAYOUT_SESSION runs on socket $CLAUDE_TEAM_OTHER_SOCKET: roles live there keep their names and are skipped here"
     fi
     for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
+        held="0"
         case "${CLAUDE_TEAM_ROW_STATE[$index]}" in
             session|remote) ;;
+            held:*) held="1" ;;
             *) continue ;;
         esac
         role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
@@ -957,14 +1200,20 @@ claude_team_scan_live() {
         if pid="$(claude_team_role_pid "$role" "$session")"; then
             CLAUDE_TEAM_ROW_STATE[$index]="running"
             CLAUDE_TEAM_ROW_PID[$index]="$pid"
+            probe_socket="$CLAUDE_TEAM_TMUX_SOCKET"
             if [ -n "$pane_line" ]; then
                 CLAUDE_TEAM_ROW_TAB[$index]="$pane_window"
                 CLAUDE_TEAM_ROW_PANE[$index]="$pane_id"
                 CLAUDE_TEAM_ROW_PANE_ID[$index]="$pane_id"
             else
                 CLAUDE_TEAM_ROW_TAB[$index]="elsewhere"
+                probe_socket="$CLAUDE_TEAM_OTHER_SOCKET"
+                pane_id="$(claude_team_other_socket_pane "$role" "$session")"
             fi
-            claude_team_log SKIP "Role $role running (PID $pid, ${CLAUDE_TEAM_ROW_TAB[$index]})"
+            claude_team_pane_readiness "$probe_socket" "$pane_id" "$pid"
+            claude_team_label_live_role "$index" "$pid" "$pane_id" "$probe_socket"
+        elif [ "$held" = "1" ]; then
+            continue
         elif [ "$role" = "$CLAUDE_TEAM_LEAD_ROLE" ] && \
             pid="$(claude_team_role_pid "$CLAUDE_TEAM_LEAD_ROLE" "$(claude_team_other_lead_session)")"; then
             CLAUDE_TEAM_ROW_STATE[$index]="other-lead"
@@ -1041,15 +1290,24 @@ claude_team_open_terminal() {
     local previous=""
     local current=""
     local stable="0"
+    local detail=""
+    local env_args=(-u TMUX)
     claude_team_terminal_argv
+    # Root: a relative WAYLAND_DISPLAY resolves under /run/user/0, which has no
+    # socket; these terminals then use X11 through DISPLAY and XAUTHORITY.
+    if [ "$(id -u)" = "0" ] && [ -n "${DISPLAY:-}" ]; then
+        case "$CLAUDE_TEAM_TERMINAL" in
+            xterm|xfce4-terminal|konsole|qterminal) env_args+=(-u WAYLAND_DISPLAY) ;;
+            *) ;;
+        esac
+    fi
     if [ "$CLAUDE_TEAM_DRY_RUN" = "1" ]; then
-        claude_team_log PLAN "$(claude_team_quote_args "${CLAUDE_TEAM_TERMINAL_ARGV[@]}")"
+        claude_team_log PLAN "env ${env_args[*]} setsid $(claude_team_quote_args "${CLAUDE_TEAM_TERMINAL_ARGV[@]}")"
         return 0
     fi
-    env -u TMUX setsid "${CLAUDE_TEAM_TERMINAL_ARGV[@]}" >/dev/null 2>&1 < /dev/null &
+    env "${env_args[@]}" setsid "${CLAUDE_TEAM_TERMINAL_ARGV[@]}" >"$CLAUDE_TEAM_TERMINAL_LOG_PATH" 2>&1 < /dev/null &
     disown 2>/dev/null || true
-    CLAUDE_TEAM_TERMINAL_OPENED="1"
-    claude_team_log OPEN "$(claude_team_quote_args "${CLAUDE_TEAM_TERMINAL_ARGV[@]}")"
+    claude_team_log OPEN "env ${env_args[*]} setsid $(claude_team_quote_args "${CLAUDE_TEAM_TERMINAL_ARGV[@]}") (output: $CLAUDE_TEAM_TERMINAL_LOG_PATH)"
     while [ "$waited" -lt $((CLAUDE_TEAM_ATTACH_WAIT_SECONDS * 2)) ]; do
         sleep 0.5
         waited=$((waited + 1))
@@ -1058,6 +1316,7 @@ claude_team_open_terminal() {
             if [ "$current" = "$previous" ]; then
                 stable=$((stable + 1))
                 if [ "$stable" -ge 2 ]; then
+                    CLAUDE_TEAM_TERMINAL_OPENED="1"
                     claude_team_log OK "Terminal attached: client ${current}"
                     return 0
                 fi
@@ -1068,10 +1327,16 @@ claude_team_open_terminal() {
         fi
     done
     if [ -n "$previous" ]; then
+        CLAUDE_TEAM_TERMINAL_OPENED="1"
         claude_team_log OK "Terminal attached: client ${previous}"
         return 0
     fi
-    claude_team_log WARN "No client attached within ${CLAUDE_TEAM_ATTACH_WAIT_SECONDS}s; attach manually: $(claude_team_attach_command)"
+    # Fall back to the headless path: the grid is sized from the current tty and
+    # claude_team_attach_here attaches there (or prints the command) after the summary.
+    detail="$(head -n 1 "$CLAUDE_TEAM_TERMINAL_LOG_PATH" 2>/dev/null)"
+    claude_team_log WARN "No client attached within ${CLAUDE_TEAM_ATTACH_WAIT_SECONDS}s from $CLAUDE_TEAM_TERMINAL${detail:+ ($detail)}; output: $CLAUDE_TEAM_TERMINAL_LOG_PATH; attaching in the current tty after the summary"
+    CLAUDE_TEAM_TERMINAL=""
+    CLAUDE_TEAM_TERMINAL_OPENED="0"
     return 1
 }
 
@@ -1580,6 +1845,9 @@ claude_team_respawn_roles() {
         [ "${CLAUDE_TEAM_ROW_ACTION[$index]}" = "respawn" ] || continue
         role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
         command="$(claude_team_role_command "$index")"
+        # respawn-pane -k keeps the scrollback; the old setup screens there would
+        # label the new process blocked (claude_team_pane_readiness).
+        claude_team_tmux_do clear-history -t "${CLAUDE_TEAM_ROW_PANE_ID[$index]}"
         claude_team_tmux_do respawn-pane -k -t "${CLAUDE_TEAM_ROW_PANE_ID[$index]}" -c "$CLAUDE_TEAM_ROOT_DIR" bash -lc "$command"
         if [ "$CLAUDE_TEAM_DRY_RUN" = "1" ]; then
             CLAUDE_TEAM_ROW_STATE[$index]="planned-respawn"
@@ -1845,6 +2113,9 @@ claude_team_layout() {
         CLAUDE_TEAM_DRY_RUN="1"
         claude_team_log OK "--status: dry run; the plan below changes nothing"
     fi
+    if [ "$CLAUDE_TEAM_DRY_RUN" = "0" ] && [ $((place_count + respawn_count)) -gt 0 ]; then
+        claude_team_sync_tmux_auth_environment
+    fi
     claude_team_place_order
     claude_team_log OK "Roles to start: $place_count (${CLAUDE_TEAM_PLACE_ORDER[*]:-none}); to respawn in place: $respawn_count"
     # Graphical: the session starts with the first role's pane, the maximized terminal
@@ -1873,12 +2144,68 @@ claude_team_layout() {
             claude_team_build_tab "$tab"
         done
     elif [ "$respawn_count" = "0" ]; then
-        claude_team_log SKIP "Every selected role is running; nothing to start"
+        claude_team_log SKIP "Every selected role is live; nothing to start"
     fi
     claude_team_respawn_roles
     if [ "$CLAUDE_TEAM_DRY_RUN" = "1" ] && [ -n "$CLAUDE_TEAM_TERMINAL" ] && [ "$CLAUDE_TEAM_CLIENTS" = "0" ] && \
         { [ "$CLAUDE_TEAM_SESSION_EXISTS" = "1" ] || [ "$place_count" -gt 0 ]; }; then
         claude_team_open_terminal
+    fi
+}
+
+# After the launch: the started, respawned and reopened panes are polled with the
+# readiness probe for up to CLAUDE_TEAM_READY_WAIT_SECONDS (ready and blocked are
+# final; the rest become not-ready), since a PID file only proves the pane's bash.
+claude_team_probe_ready() {
+    local index=""
+    local role=""
+    local waited="0"
+    local pending="1"
+    local probed=" "
+    local ready_count="0"
+    local blocked_count="0"
+    local waiting_count="0"
+    while [ "$pending" = "1" ] && [ "$waited" -le "$CLAUDE_TEAM_READY_WAIT_SECONDS" ]; do
+        pending="0"
+        for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
+            case "${CLAUDE_TEAM_ROW_STATE[$index]}" in
+                started|respawned|reopened) ;;
+                *) continue ;;
+            esac
+            [ -n "${CLAUDE_TEAM_ROW_PANE_ID[$index]}" ] || continue
+            probed="$probed$index "
+            claude_team_pane_readiness "$CLAUDE_TEAM_TMUX_SOCKET" "${CLAUDE_TEAM_ROW_PANE_ID[$index]}" "${CLAUDE_TEAM_ROW_PID[$index]#-}"
+            case "$CLAUDE_TEAM_PANE_READINESS" in
+                ready|blocked:*) CLAUDE_TEAM_ROW_STATE[$index]="$CLAUDE_TEAM_PANE_READINESS" ;;
+                *) pending="1" ;;
+            esac
+        done
+        if [ "$pending" = "1" ]; then
+            sleep 1
+            waited=$((waited + 1))
+        fi
+    done
+    for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
+        case "$probed" in
+            *" $index "*) ;;
+            *) continue ;;
+        esac
+        role="${CLAUDE_TEAM_ROLE_NAMES[$index]}"
+        case "${CLAUDE_TEAM_ROW_STATE[$index]}" in
+            ready) ready_count=$((ready_count + 1)) ;;
+            blocked:*)
+                blocked_count=$((blocked_count + 1))
+                claude_team_log WARN "Role $role: pane ${CLAUDE_TEAM_ROW_PANE_ID[$index]} is at the ${CLAUDE_TEAM_ROW_STATE[$index]#blocked:} screen, not at its prompt"
+                ;;
+            *)
+                waiting_count=$((waiting_count + 1))
+                CLAUDE_TEAM_ROW_STATE[$index]="not-ready"
+                claude_team_log WARN "Role $role: no prompt within ${CLAUDE_TEAM_READY_WAIT_SECONDS}s (pane ${CLAUDE_TEAM_ROW_PANE_ID[$index]})"
+                ;;
+        esac
+    done
+    if [ "$probed" != " " ]; then
+        claude_team_log OK "Readiness: $ready_count ready, $blocked_count blocked, $waiting_count not ready"
     fi
 }
 
@@ -1895,6 +2222,7 @@ claude_team_finish() {
     claude_team_verify_roles
     claude_team_regrid "$CLAUDE_TEAM_LAYOUT_SESSION" "$CLAUDE_TEAM_LEAD_ROLE" "$CLAUDE_TEAM_MIN_LEAD_COLS" "$CLAUDE_TEAM_MIN_LEAD_ROWS"
     claude_team_log OK "Grid applied (resize-pane per column and row)"
+    claude_team_probe_ready
     if [ -n "$CLAUDE_TEAM_LEAD_PANE_ID" ]; then
         claude_team_tmux select-window -t "$CLAUDE_TEAM_LEAD_PANE_ID" >/dev/null 2>&1 </dev/null
         claude_team_tmux select-pane -t "$CLAUDE_TEAM_LEAD_PANE_ID" >/dev/null 2>&1 </dev/null
@@ -1905,13 +2233,20 @@ claude_team_finish() {
 claude_team_print_shared_data() {
     local team_dir=""
     claude_team_log OK "Shared project data: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR (files by path; git grant file git_grant.json)"
-    claude_team_log OK "Handoff reports: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR/reports ; reviewer verdicts: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR/reviews ; role memory: $CLAUDE_TEAM_ROOT_DIR/.claude/agent-memory"
-    claude_team_log OK "Shared task list: $CLAUDE_TEAM_TASK_LIST ($CLAUDE_TEAM_USER_TASKS_DIR/$CLAUDE_TEAM_TASK_LIST); ad-hoc agent teams of the lead: $CLAUDE_TEAM_USER_TEAMS_DIR/<team>/"
+    claude_team_log OK "Shared handoff path: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR ; role memory: $CLAUDE_TEAM_ROOT_DIR/.claude/agent-memory"
+    if [ -n "$CLAUDE_TEAM_TASK_LIST" ]; then
+        claude_team_log OK "Independent-session task list: $CLAUDE_TEAM_TASK_LIST ($CLAUDE_TEAM_USER_TASKS_DIR/$CLAUDE_TEAM_TASK_LIST)"
+    fi
+    claude_team_log OK "Native agent-team runtime state: $CLAUDE_TEAM_USER_TEAMS_DIR/<team>/ and $CLAUDE_TEAM_USER_TASKS_DIR/<team>/"
     for team_dir in $(ls -1dt "$CLAUDE_TEAM_USER_TEAMS_DIR"/session-* 2>/dev/null | head -n 3); do
         claude_team_log OK "  live team dir: $team_dir"
     done
-    claude_team_log OK "Messaging: sessions discover each other with ListAgents and talk with SendMessage by --name (/list-agents shows the roster)"
-    claude_team_log OK "Dispatch: type one task in the $(claude_team_lead_session) pane; it dispatches to ${CLAUDE_TEAM_SESSION_PREFIX}<role> sessions; ad-hoc teammates split the lead's tab (--teammate-mode $CLAUDE_TEAM_TEAM_TEAMMATE_MODE)"
+    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+        claude_team_log OK "Dispatch: type one task in the $(claude_team_lead_session) pane; the lead spawns only the needed native teammates (--teammate-mode $CLAUDE_TEAM_TEAM_TEAMMATE_MODE)"
+    else
+        claude_team_log OK "Messaging: sessions discover each other with ListAgents and talk with SendMessage by --name"
+        claude_team_log OK "Dispatch: type one task in the $(claude_team_lead_session) pane; the lead sends work to ${CLAUDE_TEAM_SESSION_PREFIX}<role> sessions"
+    fi
     claude_team_log OK "Git: read-only git/gh always allowed; other git/gh commands need a user prompt asking for git work (120 min grant; deny-git revokes)"
 }
 
@@ -1919,6 +2254,8 @@ claude_team_print_report() {
     local index=""
     local role=""
     local row_format="  %-19s %-21s %-10s %-8s %-24s %-9s %-8s %-8s %s\n"
+    local blocked=""
+    local blocked_count="0"
     printf '\n'
     printf "$row_format" "ROLE" "SESSION" "MODEL" "EFFORT" "TAB" "PANE" "PID" "CELLS" "STATE"
     for index in "${!CLAUDE_TEAM_ROLE_NAMES[@]}"; do
@@ -1928,12 +2265,26 @@ claude_team_print_report() {
             "${CLAUDE_TEAM_ROW_TAB[$index]}" "${CLAUDE_TEAM_ROW_PANE[$index]}" \
             "${CLAUDE_TEAM_ROW_PID[$index]}" "${CLAUDE_TEAM_ROW_CELLS[$index]}" \
             "${CLAUDE_TEAM_ROW_STATE[$index]}"
+        case "${CLAUDE_TEAM_ROW_STATE[$index]}" in
+            blocked:*|stalled)
+                blocked_count=$((blocked_count + 1))
+                blocked="${blocked:+$blocked, }$role:${CLAUDE_TEAM_ROW_STATE[$index]#blocked:}"
+                ;;
+            *) ;;
+        esac
     done
     printf '\n'
+    if [ "$blocked_count" -gt 0 ]; then
+        claude_team_log WARN "$blocked_count role(s) cannot take work yet: $blocked (a live PID alone does not mean ready)"
+    fi
     claude_team_log OK "Cell budget: ${CLAUDE_TEAM_BUDGET_COLS:-?}x${CLAUDE_TEAM_BUDGET_ROWS:-?} (${CLAUDE_TEAM_BUDGET_SOURCE:-not measured}); PID files: $CLAUDE_TEAM_STATE_DIR"
     claude_team_log OK "Attach: $(claude_team_attach_command) ; list: tmux -L $CLAUDE_TEAM_TMUX_SOCKET list-panes -s -t $CLAUDE_TEAM_LAYOUT_SESSION"
     claude_team_print_shared_data
-    claude_team_log OK "Re-run is idempotent: live roles are skipped, idle role panes respawn in place, missing roles open in a new tab"
+    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+        claude_team_log OK "Re-run is idempotent: the live lead is skipped; teammates remain owned by Claude Code"
+    else
+        claude_team_log OK "Re-run is idempotent: live roles are skipped, idle role panes respawn in place, missing roles open in a new tab"
+    fi
 }
 
 # Headless: tmux attaches in the current tty once the summary is printed.
@@ -1962,8 +2313,9 @@ claude_team_run() {
     claude_team_validate_roles
     claude_team_step 5 "Entry command"
     claude_team_log OK "$CLAUDE_TEAM_ENTRY_COMMAND -> $(readlink -f "$CLAUDE_TEAM_BIN_DIR/$CLAUDE_TEAM_ENTRY_COMMAND" 2>/dev/null || printf 'not linked')"
-    claude_team_step 6 "Terminal and live roles (PID files, tmux session $CLAUDE_TEAM_LAYOUT_SESSION)"
+    claude_team_step 6 "Terminal and live roles (PID files, pane readiness, tmux session $CLAUDE_TEAM_LAYOUT_SESSION)"
     claude_team_select_terminal
+    claude_team_normalize_root_env
     claude_team_scan_live
     claude_team_step 7 "Layout (tabs packed from layout.tab_groups, explicit -l % grid, mode $CLAUDE_TEAM_MODE)"
     claude_team_layout

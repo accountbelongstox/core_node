@@ -348,3 +348,25 @@ UI below means `poly_apps/pycore_laravel_wordnew_ui/`. Diff base 74e7770. The us
   - laravel-remote: sync through CodeSync and restart the workers; there is no schema change.
 - Changed files: `.claude/agents_shared/reviews/codemart-laravel-G1.json` and this report. No code was changed and no worker restart was needed.
 - Blockers: none. Next owner: ca-orchestrator (group merge and combined checks).
+
+## Session ct-codemart-lead resume after the usage-limit reset (2026-09-28 ~00:30)
+
+- Status: idle, and on hold under the orchestrator's order.
+- Messages:
+  - I sent ca-orchestrator a readiness note that planned to run the group's combined checks.
+  - ca-orchestrator answered: no tsc, route:list or API probes unless the user's task asks for them (AGENTS.md). All codemart items and referrals stay on hold until the user's next task.
+  - I stopped before any check ran and acknowledged the order.
+- What ran, all read-only: git log and git status, reads of the shared reports, reviews, d22 items and the d30 audit, /proc/meminfo (2.7 GB available), and one health GET to 127.0.0.1:9000, which did not connect (000).
+  - The d30 namespace audit has no codemart findings.
+- Members: ct-codemart-ui and ct-codemart-laravel resumed idle and asked for work. I told both to hold.
+  - I also corrected codemart-ui: cmpui-07, cmgap-A14 and cmgap-U30-ui were already closed in ui-codemart-D7.
+- Items on hold for dispatch:
+  - codemart-ui: the rest of cmdesign-03, d9-01-ui and cmgap-R1-ui (which waits for cmgap-R1);
+  - codemart-laravel: cmgap-R1, CMDES-08 and cmcont-11;
+  - my own: codemart-G3;
+  - referrals: the zh_CN glossary writer, plus the pycore-laravel items (ApiResponse 'Success' default, sys:codemartinit literals, system/init auth, and the shared 'Super Administrator' constant).
+- Changed files: this report only.
+- Blockers: none. Next owner: the user's next task, through ca-orchestrator.
+- Later: ct-ui-codemart (the legacy ui-codemart role) offered to help. I told it to stand by: codemart-ui (ct-codemart-ui) is the only writer of apps/codemart and flavors/codemart, all work is on hold, and the zh glossary pass is in the server lang file (Laravel), whose writer the claude lead assigns.
+- Ruling R2 (docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md): CodeMart work goes only to codemart-ui and codemart-laravel. The older ui-codemart and laravel-codemart sessions are in reserve and write only when ca-orchestrator names one as temporary writer. R4: the carried backlog stays on hold, with no unrequested tests, builds or probes. My actions this session already follow both.
+- Ruling R5: codemart-laravel is the standing writer for lang/{en,zh_CN}/codemart.php. This closes the open question of who writes the zh glossary pass. The pass itself stays on hold (R4). I told ct-codemart-laravel.

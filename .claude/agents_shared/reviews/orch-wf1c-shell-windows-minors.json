@@ -1,0 +1,17 @@
+{
+  "task": "orch-wf1c shell-windows-minors (close the orch-wf1b-shell-windows-followup.json minor: empty project key throws from Add-Member)",
+  "base": "working tree on top of the approved orch-wf1 and orch-wf1b hunks",
+  "verdict": "approved",
+  "findings": [],
+  "checks": {
+    "delta": "The only orch-wf1c change is line 416 of ClaudeTeamInstallCommon.ps1 (ConvertFrom-ClaudeTeamAccountConfigText). It adds (-not [string]::IsNullOrWhiteSpace($projectKey)) as the first operand of the existing -and chain, so it short-circuits before the IDictionary, hasTrustDialogAccepted and duplicate-property checks and before Add-Member on line 417. The rest of the condition, the declarations, the try/catch and the return shape are unchanged from the approved orch-wf1b text.",
+    "spec": "Met. Empty and whitespace-only keys are skipped before Add-Member. The report-only contract holds: no terminating error, and the trusted set just leaves out the bad key.",
+    "harness": "Scratchpad wf1c/h.ps1 with snap pwsh and EAP=Stop. Results: empty key + oauthAccount -> {oauthAccount:true, projects:{}}. Keys of two spaces and a tab -> projects {}. Empty key + C:/valid -> C:/valid only. Case-duplicate keys in both orders (true/false) -> one C:/repo entry. Wildcard-like key C:/a* next to C:/ab -> both kept (exact indexer, no wildcard match). Valid file -> oauthAccount, onboarding and C:/a only. String 'true' -> not trusted. None threw.",
+    "end_to_end": "Scratchpad wf1c/e.ps1: a .claude.json with an empty project key (trusted) plus the trusted repo root sends PS 7 to the fallback, and Test-ClaudeTeamAccount returns state 'ready' with no terminating error. Before this fix the orch-wf1b reviewer reproduced the terminating error on this same input.",
+    "parse": "Parser::ParseFile: 0 errors.",
+    "line_endings": "The .gitattributes rule gives the file eol=crlf. It has 509 CRLF of 509 lines and 0 non-ASCII bytes, the same as the orch-wf1b check.",
+    "scope": "Since the orch-wf1b verdict (20:17), ClaudeTeamInstallCommon.ps1 is the only shell-windows file that changed. The other newer files (_json_sync_helper.py, ai_tools_common.py, linux.md, git_grant.json, reviewer memory, the linux followup review) belong to other lanes, the orchestrator or the reviewer. ClaudeTeamCommon.ps1 did not change after the orch-wf1b review.",
+    "rules": "No comments or documentation were added, all text is English, and no version regex or exit-code return was added."
+  },
+  "deferred_accepted": []
+}

@@ -5,8 +5,8 @@
 - [Laravel schema review checklist](laravel_schema_review_checklist.md) — sys:init/SafeMigrationHelper path, read-only DB + in-process GET probes, index-dup patterns
 - [shell-windows review checklist](shell_windows_review_checklist.md) — undo flags, path appends, copy ping-pong, +1000 mtimes, align tasks, AST render, LAN gate, git stub, EAP=Stop stderr
 
-- [shell-linux review checklist](shell_linux_review_checklist.md) — root rm/mv in user homes, root-by-name recursion, 0-entry manifests, keyword re-diff, CR count via tr
+- [shell-linux review checklist](shell_linux_review_checklist.md) — root rm/mv in user homes, uid-by-name, 0-entry manifests, CR via tr, atomic-replace owner/symlink
 - [Laravel Windows file ops](laravel_windows_fileops_review.md) — junction = filetype 'unknown', unsafe isDir&&!isLink (Illuminate too), all-deferred fix task -> changes_requested
 - [Docs reconciliation review](docs_reconciliation_review.md) — lead doc rows stale after concurrent landings, Vite 4 KB inline vs hashed names, re-dispatched verdicts
 - [ncore review patterns](ncore_review_patterns.md) — throw->return skipping catch cleanup, ignored booleans, module-load validators, #paths literal sweep, proxy callers
-- [Launcher parity checklist](launcher_parity_checklist.md) — claudeteam PS1/SH B11: PID = shell vs claude, one-lead rule, stale pending rows, env/flag/table/grid drift, CCI_* dup consts
+- [Launcher parity checklist](launcher_parity_checklist.md) — claudeteam PS1/SH B11: PID = shell vs claude, one-lead rule, stale pending rows, env/flag drift, respawn keeps scrollback

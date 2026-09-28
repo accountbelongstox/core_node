@@ -1,0 +1,41 @@
+{
+  "task": "orch-wf1 shell-windows (Windows parity: account report/gate, registry readiness, ssh options, SPW rows)",
+  "base": "8c30ec34e (working tree)",
+  "verdict": "approved",
+  "findings": [
+    {
+      "file": "/www/programing/core_node/scripts/shells/win/win_common/ClaudeTeamInstallCommon.ps1",
+      "line": "206 (Read-ClaudeTeamUserSettings, now also reads .claude.json via Test-ClaudeTeamAccount)",
+      "severity": "minor",
+      "issue": "[System.IO.File]::ReadAllText($Path) sits outside the try/catch. The spec asked for a read inside try/catch that counts a failure as empty. With .claude.json, which claude rewrites constantly or which may be foreign-owned under CLAUDE_CONFIG_DIR, an IOException or UnauthorizedAccessException becomes a terminating error. claudeteamup.ps1 and claudeagents.ps1 set EAP=Stop, so the launcher then aborts at step 2, and so does dd.ps1 Step21. A report-only check should never do that.",
+      "fix": "Move the ReadAllText call inside the existing try, or wrap it in its own try, and return Valid=$false on an I/O error. Test-ClaudeTeamAccount then logs its WARN and sets 'missing'."
+    },
+    {
+      "file": "/www/programing/core_node/scripts/shells/win/win_common/ClaudeTeamInstallCommon.ps1",
+      "line": "400-404 (Test-ClaudeTeamAccount invalid-config branch)",
+      "severity": "minor",
+      "issue": "ConvertFrom-Json on PS 5.1 and 7 rejects keys that differ only in case. I confirmed this with the snap pwsh: a projects map holding both 'C:/a' and 'c:/a' gives WARN and 'missing'. Windows project keys can plausibly differ only in drive-letter case. On such a host the gate silently fails open for good, while Linux still parses and holds. SPW-046 records the difference, so this is a documented trade-off, not a hidden one. Invalid JSON also re-runs the check in Invoke-ClaudeTeamClaudeProvision, so the OK and WARN lines print twice.",
+      "fix": "Optional. On PS 7 use ConvertFrom-Json -AsHashtable, and on 5.1 fall back to System.Web.Script.Serialization.JavaScriptSerializer, so case-duplicate keys still parse. Alternatively, skip the re-run when the config exists but is unreadable."
+    },
+    {
+      "file": "/www/programing/core_node/scripts/shells/win/win_common/ClaudeTeamCommon.ps1",
+      "line": "1621 ($liveStates) vs 1717 (Show-ClaudeTeamRemoteControlHint)",
+      "severity": "minor",
+      "issue": "The live-state list running/running-unverified/stalled/other-lead is written twice: once as a local variable in Start-ClaudeTeamRoles and once as a literal in the hint filter. That is the duplicate-constant pattern AGENTS.md asks to centralize.",
+      "fix": "Declare $ClaudeTeamLiveStates once in the constants block at the top and use it in both places."
+    }
+  ],
+  "checks": {
+    "items": "1/4 account report and gate: done. It is file-based and mirrors the final Linux cci_report_claude_account and SPL-127, not 'claude auth status'; the task says Linux wins, so the deviation is justified. The state is 'held:<state>' in Import-ClaudeTeamCatalog, as in the Linux claude_team_validate_roles order (remote and window:false are never held). -SkipAccountCheck is passed through both launchers. 2/5 readiness: done. Rows are matched by registry name, because the Windows PID file names the pane shell, so <pid>.json would never match; the justification is correct. 3/6 ssh options: identical to Linux CLAUDE_TEAM_SSH_OPTIONS line 68. 7 ledger: SPW-046..054 are present; SPW-019, 020 and 021 are updated, and every SPL-109/127-134 row they cite exists in linux.md.",
+    "harness": "I extracted the functions with the AST into the snap pwsh (scratchpad rv_acct.ps1, rv_reg.ps1). Test-ClaudeTeamAccount gives login for a missing or empty config, onboarding for oauthAccount only and for hasCompletedOnboarding given as the string 'true', trust for another project or hasTrustDialogAccepted:false, ready for a trusted parent key with different case and a trailing '/', and missing plus WARN for invalid JSON, an array or case-duplicate keys. Get-ClaudeTeamSessionRegistry skips half-written files and dead PIDs. Wait-ClaudeTeamReady gives ready/not-ready, logs an OK for remote rows, leaves unconfirmed rows alone and appends the account suffix.",
+    "parse": "Parser::ParseFile: 0 errors in all 4 .ps1 files.",
+    "line_endings": "CRLF on every line (453/453, 1930/1930, 69/69, 66/66). The non-ASCII byte counts match HEAD.",
+    "p7": "None of the rejected designs are present. oauthAccount and the env credential names are presence checks only, and values are never printed.",
+    "scope": "This task changed only the 5 assigned files. The other working-tree changes belong to the shell-linux lanes.",
+    "bash_n": "This task changed no .sh file. bash -n claude_team_common.sh passes anyway."
+  },
+  "deferred_accepted": [
+    "A live Windows run, to confirm that %USERPROFILE%\\.claude\\sessions\\*.json carries name and pid on Windows. If it does not, the only effect is WARN noise (stalled or not-ready). Nothing is killed.",
+    "Physical-path (junction) trust lookup: a minor difference that SPW-046 does not list."
+  ]
+}

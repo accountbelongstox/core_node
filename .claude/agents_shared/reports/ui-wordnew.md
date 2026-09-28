@@ -43,3 +43,26 @@ Task: `[ui-wordnew] D5/D7/D9 items (batch 1/1)`. B2 assignment: `poly_apps/pycor
 
 - CKA-12: in progress until the reviewer writes `.claude/agents_shared/reviews/<task_id>.json` with `"verdict": "approved"`. Next owner: reviewer.
 - MCHR-31-wn: blocked on ui-pycore-manager MCHR-31. Next owner: ui-pycore-manager, then ui-wordnew.
+
+## Session resume (2026-09-28)
+
+Resumed after a claude.ai usage-limit reset with no in-flight task. Verified before going idle:
+- `.claude/agents_shared/reviews/ui-wordnew-D7.json` is `"verdict": "approved"` (CKA-12 confirmed). `git status` for `core/network/api-client/` is clean.
+- MCHR-31-wn (the item deferred above) is no longer open: `.claude/agents_shared/reports/wordnew-ui.md` (wordnew-ui-G1) shows it adopted `LIBRARY_COVER_WAITING_STATUSES` from `shared/library-cover/LibraryCoverTaskModel.ts` into `apps/wordnew/components/admin/WfNewAdminLibraries.tsx`, and the current file (`:35`, `:210`) confirms it. The remaining half (shared cover presenter) is tracked as MCHR-31-wn-presenter in `wordnew-ui.md`'s G2 section, blocked on pycore-ui MCHR-31 — not this role's open item.
+- `git status --short` for `apps/wordnew/`, `flavors/wordnew/` and `native/wordnew/` is clean; nothing to resume or repeat.
+- Noted a live duplicate: session `ct-wordnew-ui` (role name `wordnew-ui`) covers the identical write scope and already completed G1/G2, itself reporting idle after the same reset. `.claude/agents_shared/reviews/ui-wordnew-D7.json` notes `"role": "ui-wordnew (now wordnew-ui)"`, i.e. wordnew-ui looks like the intended successor name for this role.
+- Notified `ca-orchestrator` and `ct-wordnew-lead` that I'm back, idle, and flagged the ui-wordnew/wordnew-ui duplication so new tasks aren't double-assigned; recommended routing new work to wordnew-ui unless told otherwise.
+
+Blockers: none of my own. Next owner: whichever of ca-orchestrator / ct-wordnew-lead assigns the next task, or confirms which of ui-wordnew / wordnew-ui stays canonical.
+
+### Ruling (wordnew-lead, 2026-09-28)
+
+`ct-wordnew-lead` confirmed: under the D22 map, `wordnew-ui` (session `ct-wordnew-ui`) is the sole writer for `apps/wordnew` and `flavors/wordnew`; `native/wordnew` belongs to `wordnew-native`. This role (`ui-wordnew`) stays idle and writes nothing in those paths unless `ca-orchestrator` assigns a task directly. Acknowledged back to wordnew-lead.
+
+Blockers: none. Next owner: ca-orchestrator (only source of a direct task for this role while the D22 map stands).
+
+### Ruling R2 (ca-orchestrator, docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md, 2026-09-28)
+
+Confirmed by `ca-orchestrator`: R2 makes the D22 roster member the default writer for any path also covered by a pre-D22 alias session, with the explicit map `ui-wordnew` → `wordnew-ui`. This alias session (`ui-wordnew`) writes `apps/wordnew`/`flavors/wordnew` only when a task explicitly names it as temporary writer; otherwise stays in reserve. Acknowledged back to ca-orchestrator.
+
+Blockers: none. Next owner: ca-orchestrator, only if a task names ui-wordnew directly.

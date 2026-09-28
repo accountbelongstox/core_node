@@ -1,2 +1,3 @@
 - [UI lint on Windows](ui-lint-on-windows.md) — bun run lint cannot find tsc (POSIX .bin symlinks); use node node_modules/typescript/bin/tsc --noEmit
 - [okx/* routes not served](okx-routes-not-served.md) — pycore has no okx/* server; okx_price_monitor is monitor/*; panels gated by served list in contract
+- [ui-vortex is in reserve](role-status-reserve-under-pycore-ui.md) — since 2026-09-28 (R2) pycore-ui is default writer of apps/vortex; edit only when named temporary writer

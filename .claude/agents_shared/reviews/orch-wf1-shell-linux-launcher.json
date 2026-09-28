@@ -1,0 +1,22 @@
+{
+  "task": "orch-wf1 shell-linux-launcher (re-pass after review fixes)",
+  "base": "8c30ec34e (working tree)",
+  "verdict": "approved",
+  "findings": [],
+  "prior_findings": {
+    "major_stale_scrollback_after_respawn": "fixed: claude_team_respawn_roles issues claude_team_tmux_do clear-history -t <pane> before respawn-pane -k (PLAN line under --status). Reproduced on a private tmux 3.5a socket: after clear-history + respawn-pane -k, both the visible screen and the 60-line scrollback hold only the new process output.",
+    "minor_remote_rule_duplicated": "fixed: stalled check calls claude_team_role_is_remote",
+    "minor_usage_limit_conversation_match": "fixed: matched only in the last CLAUDE_TEAM_CAPTURE_STATUS_LINES=6 non-empty visible lines",
+    "minor_pgrep_substring": "fixed: pgrep -u 0 -f '(^|/)<server>( |$)'",
+    "minor_held_rows_unscanned": "fixed: scan_live probes held:* rows; live ones get their real label/PID, dead ones stay held and are never placed or respawned (respawn_blocked cannot fire: held implies account not ready, ssh-hostkey is remote-only)"
+  },
+  "checks": {
+    "bash_n": "ok on claude_code_install.sh, claude_team_common.sh, claudeteamup.sh, claudeagents.sh, claudeteam.sh; 0 CR in all (HEAD 0 CR); no non-ASCII in added lines",
+    "status_run": "claudeteamup.sh --status rc 0: switched-user WARN (debian -> root), account report ready for /root/.claude.json, gnome-terminal skipped for uid 1000, 28 local roles blocked:onboarding/login and laravel-remote blocked:ssh-hostkey on socket claudeagents, summary WARN lists 29 roles",
+    "items": "1-3, 5-12 implemented as specified; item 4 folded into opt-in --respawn-blocked with 'stalled' (P6 justified); item 6 gate reuses the file-based account state instead of claude auth status (justified by the item 1 no-launch ruling)",
+    "p7": "none of the rejected designs present (no agent-teams env per pane, no per-role CLAUDE_CONFIG_DIR, no OAuth token switch, no oauthAccount seeding, accept-new kept, no shared socket, no root gnome-terminal-server)",
+    "scope": "only the five assigned files; other modified files in the tree belong to other tasks (orch-wf1-shell-linux-helpers)",
+    "parity": "SPL-109 extended; SPL-127..134 present with pending-windows/platform-only status; Windows mirror deferred to shell-windows (task #5)",
+    "open_policy": "BatchMode=yes stays an orchestrator call (remote pane becomes key-auth only; recorded in SPL-134)"
+  }
+}

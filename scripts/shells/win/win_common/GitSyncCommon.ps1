@@ -182,9 +182,11 @@ function Get-GitSyncCurrentRemoteUrl {
         [Parameter(Mandatory = $true)] [string]$RemoteName
     )
 
+    $remoteUrl = $null
+
     try {
         $remoteUrl = (git remote get-url $RemoteName 2>$null)
-        if ($LASTEXITCODE -ne 0) {
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrEmpty($remoteUrl)) {
             return $null
         }
         return $remoteUrl

@@ -219,9 +219,28 @@ Verification:
   - `POST http://localhost:2019/frankenphp/workers/restart` → 200; `GET http://127.0.0.1:9000/api/health` → 200.
   - `git status --short` shows no change to `FileSystemManager.php` and nothing else of mine touched; the other modified/untracked paths in the tree belong to concurrent pycore-lead/pycore-runtime/shell-linux/shell-windows/wordnew-lead work (G1-G4 and others running in parallel), not this task.
 - Decision (recommended option, no question asked): treat "implement the patch" as "verify the already-landed patch matches the validated spec and prove it live," since the code already matches the spec exactly, including the reviewer's non-blocking rmdir-retry refinement; rewriting identical code would violate the reuse/no-duplicate rule for no benefit.
-- Changed files: none in `poly_apps/laravel_main/` (the file already matched the validated patch). This report only.
-- Blockers: none remaining for B1.
-- Next owner: pycore-lead, to re-review and flip `reviews/laravel-api-D7-fix.json` and the B1 entry of `reviews/laravel-api-D7.json` to `approved`.
+- Changed files (this round): none in `poly_apps/laravel_main/` (the file already matched the validated patch). This report only.
+
+### Round 3 follow-up (post usage-limit resume, 2026-09-28): the second native-delete blocker, now closed
+
+The round-1 verification above checked only `FileSystemManager.php`. The `reviewer` service's round-3 verdict (`reviews/laravel-api-D7-fix.json`, `changes_requested`, `checked_at 2026-09-27T21:56`) correctly reopened the item: `app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1ElevatedAccess.php` still had its own recursive `nativeRmdir()` (a **second**, independently-hazardous native delete used by `deletePathWithSudo()`'s Windows branch, reached from the site-purge path `NginxManagerCtl.php:632-651`), which recurses on `is_dir() && !is_link()` and so still follows junctions on Windows — the exact class of bug `FileSystemManager::deleteNative()` was fixed to avoid (it guards on `filetype() === 'dir'`, which is false for a junction, so it never descends into one).
+
+File: `app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1ElevatedAccess.php`.
+
+Changes (matches the round-3 review's required `ea.diff`, applied from spec since the leader's scratchpad diff file was session-local and not reachable from this session — `.claude/agents_shared/d7/` had no `ea.diff`/`fsm.diff` copy):
+- `deletePathWithSudo()`'s Windows branch (`:202`) now calls `\App\Utils\FileSystemManager::delete($path)` instead of `self::nativeRmdir($path)`. Return-shape (`success`/`error`/`code`) is unchanged.
+- `nativeRmdir()` (formerly `:238-263`) is removed entirely — no other caller existed (grep).
+- `FileSystemManager.php:666-676` (`removeNativeEntry`, the "fsm.diff" half of the round-3 issue) needed no change: it already retries `@unlink($path) || @rmdir($path)` after the `chmod(0666)`, confirmed identical in this round and in the round-1 check above. `TASKS.md:169`'s "no-op final if" backlog wording is stale against the current tree; the fix is already landed.
+
+Verification (this host is Linux-only for this session — no Windows/PowerShell reachable, so the Windows branch cannot be exercised live here; verified statically plus by direct autoload/reflection, and the underlying `FileSystemManager::delete()`/`deleteNative()` junction-safety was already proven live in the round-1 verification above and in the leader's round-3 artifacts, `out_cli.json`/`out_frankenphp.json`, 26/26 passing):
+- `php -l` on the changed file: clean.
+- `grep -rn nativeRmdir app/`: no hits (was 3).
+- `git diff --numstat` and `--ignore-space-at-eol` both `1 28` for the file: no whitespace-only churn; 0 CR bytes before and after.
+- Plain-autoload reflection (`vendor/autoload.php`, no Laravel kernel boot — the live `ncore-laravel-frankenphp` service on this host was mid-restart-loop under another session's work and its data dir is root-owned/unwritable to this user, so a kernel boot or live HTTP health check was not reachable this round): `\App\Utils\FileSystemManager::delete` exists, `public static`, 1 parameter, return type `bool` — matches the call site exactly. `ServerManagerV1ElevatedAccess` has no method with `rmdir` in its name anymore.
+- Not repeated this round (already proven and unaffected by this change): `deleteNative()`'s junction/symlink walk safety (round-1 Part A, 28/28) and the live worker-restart/health check (round-1, both 200).
+- Changed files (this round): `app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1ElevatedAccess.php`.
+- Blockers: none. The live-service verification gap (health check unreachable) is an environment/infra state on this host at the time of the check, not caused by this change — it touches no boot path, no service file, no config.
+- Next owner: pycore-lead, to re-review and flip `reviews/laravel-api-D7-fix.json` and the B1 entry of `reviews/laravel-api-D7.json` to `approved`; when a Windows or live-FrankenPHP host is available, re-run the round-1 `d7fix_verify/verify.php`-style junction probe once more against this delegation as a final live confirmation (optional — the delegation is a direct call substitution to already-proven code).
 
 ## pycore-laravel-G2
 

@@ -2,68 +2,65 @@
   "task_id": "shell-linux-12",
   "role": "shell-linux",
   "reviewer": "shell-windows",
-  "round": 2,
-  "verdict": "changes_requested",
-  "base": "22ea5b992",
-  "prior_round": {
-    "round": 1,
-    "verdict": "changes_requested",
-    "blocking_finding": "project_tree_ensure_dir force-unmounted and took over a link path already bound (bind_rc==2) to something other than the computed ext4_dir, with no identity check -- contradicting the task's own guard and LINUX_SHELL_RULES.md #3."
-  },
-  "notes": "Round 2 correctly and verifiably fixes the round-1 blocking finding, but a live scratch test this round surfaces a second, pre-existing identity-check gap in the same safety mechanism (project_tree_bind_state, unmodified this round) that lets a foreign mount be silently misclassified as the script's own correct bind whenever the ext4 target directory has never yet been created -- the exact situation on a project's very first ensure. Requesting one more round to close that gap before approval, since it sits in the same rc==2 detection path this round's fix depends on and is visible to anyone running ensure/status, not just a rare tooling corner case.",
+  "round": 3,
+  "verdict": "approved",
+  "base": "866d13e97",
+  "prior_rounds": [
+    {
+      "round": 1,
+      "verdict": "changes_requested",
+      "blocking_finding": "project_tree_ensure_dir force-unmounted and took over a link path already bound (bind_rc==2) to something other than the computed ext4_dir, with no identity check -- contradicting the task's own guard and LINUX_SHELL_RULES.md #3."
+    },
+    {
+      "round": 2,
+      "verdict": "changes_requested",
+      "blocking_finding": "project_tree_bind_state (:194-201 at the time) returned 0 ('confirmed bound') for any mountpoint at the link path whenever the ext4 target directory had never been created yet, instead of failing closed -- a fresh project's very first ensure/status call could silently misreport a foreign mount as the script's own correct bind."
+    }
+  ],
+  "notes": "Round 3 closes the BIND-STATE-IDENTITY-GAP finding from round 2. project_tree_bind_state now returns 2 (the same fail-closed path bind_rc==2 already used for a confirmed-different bind) whenever the link path is a mountpoint but ext4_dir does not exist yet, instead of returning 0 on the strength of 'nothing proved it isn't ours'. Independently re-verified live in a private mount namespace on this session's own Linux host (unprivileged bind mounts via `unshare --mount --map-root-user`, not WSL -- this reviewer's environment is native Debian, not Windows+WSL, so this is the equivalent isolated-scratch substitute for the WSL Debian runs earlier rounds used): (1) reproduced the exact round-2 repro (fresh project, ext4_dir absent, a foreign bind already on node_modules) -- project_tree_bind_state now returns 2, status reports 'bound, but NOT confirmed ... does not exist yet', ensure skips with a warning and creates nothing, the foreign mount and its content are left untouched; (2) a happy-path regression pass (fresh project, no foreign mount) confirms ensure still creates the ext4 dir and binds correctly, a second ensure reports 'already bound' with no unmount/remount, and release correctly unmounts and resurfaces the original content. No other function changed. All three findings across all three rounds are now closed with no open blocker.",
   "findings": {
-    "ROUND1-FIX-CORRECT": {
+    "BIND-STATE-IDENTITY-GAP-FIX-CORRECT": {
       "status": "confirmed",
-      "detail": "Re-read project_tree_ensure_dir (:216-266): bind_rc==0 short-circuits ('already bound'), bind_rc==2 now warns and returns before either the mkdir/mount block or the --dry-run branch is reached ('skip $link_path: already a mountpoint bound to something other than $ext4_dir -- leaving it alone'), matching project_tree_release_dir's own project_tree_same_directory-based posture. The now-dead 'would rebind' dry-run text is gone; project_tree_usage's ensure description was reworded to state the new posture ('A dir already mounted from something other than its ext4 directory is left alone (skip + warn), never force-unmounted or taken over.'). No other function's code changed (diff-equivalent read of the whole file against the round-1 version confirms only project_tree_ensure_dir and project_tree_usage differ)."
+      "detail": "project_tree_bind_state (:201-209) now reads: `if [ -z \"$ext4_dir\" ] || [ ! -d \"$ext4_dir\" ]; then return 2; fi` before the project_tree_same_directory identity check, so 'cannot verify because ext4_dir does not exist yet' and 'verified to be a different source' both land on the same fail-closed rc==2 path that project_tree_ensure_dir and project_tree_status_dir already handle correctly (skip+warn / 'bound, but NOT confirmed ...'). The function's own comment block (:192-200) was rewritten to state the fail-closed rule explicitly ('this must fail closed ... instead of failing open the way returning 0 here unconditionally once did'), matching the round-2 finding's own reasoning almost verbatim. Read the whole file against the round-2 version: only project_tree_bind_state's body and its preceding comment differ; project_tree_ensure_dir, project_tree_status_dir, project_tree_release_dir, project_tree_usage and every other function are byte-identical to round 2's approved (for other reasons) content."
     },
-    "ROUND1-FIX-INDEPENDENTLY-VERIFIED-LIVE": {
+    "BIND-STATE-IDENTITY-GAP-INDEPENDENTLY-VERIFIED-LIVE": {
       "status": "confirmed",
-      "detail": "Reproduced the reviewer's own repro in WSL Debian (root, ext4 scratch under /opt, not tmpfs/NTFS): created a real bind (ensure), released it (ext4 dir kept on disk), placed a genuine foreign `mount --bind` on node_modules, then ran `ensure` again with vendor also pending in the same call. Result: node_modules stayed bound to the foreign source (confirmed by reading back the foreign marker file's content through the mount afterward) while vendor was bound normally in the same run ('[project-tree] bound .../vendor -> ...'); `ensure --dry-run` against the same foreign mount printed only the skip/warning, never a rebind claim; final `mount` sweep showed nothing left over after cleanup. Matches the round-2 report's own verification narrative exactly."
+      "detail": "Live test in a private mount namespace (`unshare --mount --map-root-user --propagation private`, scratch dirs under /tmp, cleaned up after): built the exact round-2 repro -- a fresh scratch repo (node_modules never ensured before, so its ext4_dir does not exist on disk) with a genuine `mount --bind` from an unrelated 'foreign_source' directory placed directly onto node_modules. Direct call: `project_tree_bind_state \"$link_path\" \"$ext4_dir\"` now returns 2 (previously 0). `project_tree_main status` reports 'bound, but NOT confirmed as <ext4_dir> (different source, or <ext4_dir> does not exist yet)', not the false-positive 'bound -> <ext4_dir>' round 2 reproduced. `project_tree_main ensure` prints the skip+warning ('already a mountpoint bound to something other than <ext4_dir> -- leaving it alone') and takes no action: <ext4_dir> was confirmed still absent afterward, the mount was confirmed still the foreign source (mountpoint -q true, foreign.txt still readable through it, dev:ino unchanged), and a second status call after ensure was unchanged. Final `umount`/`rm -rf` cleanup left nothing behind."
     },
-    "BIND-STATE-IDENTITY-GAP": {
-      "status": "changes_requested",
-      "detail": "project_tree_bind_state (:194-201, unchanged this round) only compares device+inode when `[ -d \"$ext4_dir\" ]` is already true; when the ext4 target directory has never been created (a project's first-ever ensure/status call), the identity check is skipped entirely and the function returns 0 ('bound', meaning verified-correct) for ANY existing mountpoint at the link path, foreign or not. Live-reproduced in WSL Debian: fresh scratch repo, node_modules never ensured before (ext4_dir does not exist on disk), a genuine unrelated `mount --bind` placed directly on node_modules. `status` then reports 'node_modules ... bound -> <ext4_dir>' (implying the intended isolation is correctly active) even though <ext4_dir> does not exist and the mount source is a completely different directory; `ensure` reports 'already bound: node_modules -> <ext4_dir>' and takes no action at all -- so the real ext4 directory and bind for that project+dir are silently never created, on every future run, until an operator notices by hand. The comment directly above the function already signals awareness of this ('rc 0 = bound, and (when it can be verified) it is exactly ext4_dir') but resolves the unverifiable case to the less safe default (assume match) instead of the safer one project_tree_same_directory/project_tree_release_dir already use elsewhere in this same file (treat 'cannot verify' as 'not the same', which safely lands in the already-implemented bind_rc==2 skip+warn branch). This does not cause any NTFS write or takeover (fails toward inaction, not toward harm), so it is not the same severity as the round-1 finding, but it undermines the very identity check this round's fix is built on top of, and both ensure and status give false-positive success signals in a plain, first-run scenario -- not an exotic corner case. Minimal fix: make the 'cannot verify because ext4_dir does not exist yet' case return 2 (or a distinct code treated the same way as 2 by ensure/status) instead of falling through to 0, so a mountpoint at the link path is only ever treated as 'ours' when it can actually be confirmed."
+    "HAPPY-PATH-REGRESSION": {
+      "status": "confirmed",
+      "detail": "Separate scratch run, no foreign mount, same private-mount-namespace technique: first `ensure` on a fresh project correctly creates <ext4_dir> and binds ('[project-tree] bound ... -> ...'); `status` afterward reports 'bound -> <ext4_dir>'; a second `ensure` reports 'already bound' with no unmount/remount (idempotency intact, the fix did not make the identity check over-eager); `ls` on the bound path shows the ext4 content, not the original marker.txt (bind is active); `release` unmounts and the original marker.txt resurfaces. The fail-closed fix has no observable effect on the already-correct legitimate path -- it only changes the previously-unverifiable 'ext4_dir absent' branch."
+    },
+    "ROUND1-AND-ROUND2-STILL-INTACT": {
+      "status": "confirmed",
+      "detail": "project_tree_ensure_dir's bind_rc==2 handling (round 1's fix: skip+warn, never force-unmount/take over) is unchanged and still reachable via project_tree_bind_state's new rc==2 return for the 'ext4_dir absent' case too -- the same code path now correctly covers both sub-cases of rc==2 (confirmed-different, and cannot-verify). No regression to the round-1 fix; re-confirmed by the happy-path and foreign-mount live tests above, both of which exercise project_tree_ensure_dir directly."
     },
     "NTFS-SAFETY": {
       "status": "confirmed",
-      "detail": "No path -- including the newly exercised bind_rc==2 skip branch and the BIND-STATE-IDENTITY-GAP false-positive branch above -- writes, deletes or creates anything under the in-repo (potentially NTFS) directory or moves/removes the mount source found there. Both the round-1 gap and the new gap found this round fail toward doing nothing, never toward an unsafe write or takeover."
-    },
-    "CONTRACT-KEYS": {
-      "status": "confirmed",
-      "detail": "Contract reads unchanged from round 1: exactly the three paths.drive_layout keys (trees_root.linux, link_dirs, tree_namespace_rule) read once through service_contract_common.sh; verified current values against config/service_contract.json (trees_root.linux=/opt/core_node/trees, link_dirs=[node_modules,vendor,.venv], tree_namespace_rule=\"repo-relative path, '/' -> '__', lowercase\") match the three sc_get/sc_list calls."
-    },
-    "NAMESPACE-PARITY": {
-      "status": "confirmed",
-      "detail": "project_tree_namespace (unchanged) re-checked byte-for-byte against ProjectTreeCommon.ps1's Get-ProjectTreeNamespace (read this round): repo root -> literal 'root', else repo-relative path with '/' -> '__' lowercased, both operating on one (RepoRoot, ProjectDir) pair per call. Still no ensure/status/release/help CLI verb layer anywhere in scripts/shells/win to diverge from (ProjectTreeCommon.ps1 is a pure function library, invoked only through Invoke-ProjectTreeLinks/Restore-ProjectTreeLocalDirectory) -- a pre-existing Windows gap, not introduced by this task."
+      "detail": "The fail-closed change only ever causes the function to return early with no action (mkdir/mount) taken -- it cannot itself cause a write, delete, or takeover. Confirmed live: the foreign-mount scenario resulted in zero mkdir/mount/umount calls from ensure."
     },
     "SCRIPT-SYNTAX": {
       "status": "confirmed",
-      "detail": "bash -n scripts/shells/linux/common/project_tree_common.sh: OK. tr -cd '\\r' | wc -c: 0 (LF-only). shellcheck not installed in this environment; skipped, consistent with round 1."
+      "detail": "bash -n scripts/shells/linux/common/project_tree_common.sh: OK. tr -cd '\\r' | wc -c: 0 (LF-only). LC_ALL=C grep -P '[^\\x00-\\x7F]': no non-ASCII bytes added. shellcheck not installed in this environment; skipped, consistent with rounds 1-2."
     },
-    "REPORT-ACCURACY": {
-      "status": "non_blocking",
-      "detail": "The 'Review round 1 fix' subsection appended to .claude/agents_shared/reports/shell-linux.md states 'Files touched this round: project_tree_common.sh ... .claude/agents_shared/shell_parity/linux.md unchanged (no new row needed for a bugfix that keeps SPL-119 aligned)', but the actual working-tree diff (git diff -- .claude/agents_shared/shell_parity/linux.md) shows the SPL-119 row text WAS edited in place this round to describe the corrected ensure/release symmetry -- matching the round-2 task result's own summary ('Updated the SPL-119 parity row in linux.md in place'). The row content itself is accurate and the id/status (aligned) are unchanged, so this is a stale sentence left in the report rather than a functional problem; worth a one-line correction in the next edit to shell-linux.md but not blocking."
+    "SCOPE": {
+      "status": "confirmed",
+      "detail": "git diff (working tree vs HEAD 866d13e97) for project_tree_common.sh is empty -- the round-3 fix is already the committed HEAD content (this environment's tree-capture/auto-commit process, consistent with prior rounds' observations). No other file in shell-linux's write scope, and no shell-windows file, was touched by this fix round. No git write performed by this review."
     }
   },
-  "issues": [
-    "scripts/shells/linux/common/project_tree_common.sh:194-201 (project_tree_bind_state): when the link path is already a mountpoint but the computed ext4_dir does not yet exist on disk, the function returns 0 ('confirmed bound to ext4_dir') without ever checking identity, instead of treating an unverifiable match as a mismatch. Live-reproduced: a fresh project's very first `ensure`/`status` call, with an unrelated pre-existing bind mount at the link path, is misreported as correctly isolated ('bound -> <ext4_dir>') and `ensure` silently never creates the real ext4 directory or bind for that project+dir. Fix should make the identity check fail closed (treat 'cannot verify' as bind_rc==2, the already-implemented skip+warn path) rather than fail open."
-  ],
+  "issues": [],
   "non_blocking": [
-    "shell-linux.md's round-1-fix subsection says linux.md's SPL-119 row was left unchanged; the row was in fact edited in place this round (content is accurate, just the report sentence is stale). Correct it in the next edit.",
-    "Carried over from round 1, still unaddressed and still harmless: PROJECT_TREE_NAMESPACE_RULE is read but never validated for emptiness or used programmatically (the namespace algorithm is hardcoded to match ProjectTreeCommon.ps1 byte-for-byte). No action needed unless that contract key is ever removed.",
-    "SPW-035's pending-linux cell in .claude/agents_shared/shell_parity/windows.md (shell-windows' own ledger, updated during the round-1 review) correctly continues to track the still-open trees_mount_linux single-mountpoint bind and the junction-translation proof; that work is out of scope for this task and needs no action from shell-linux here."
+    "Carried over from round 2, still unaddressed and still non-blocking (report-only, not code): shell-linux.md's round-1-fix subsection said linux.md's SPL-119 row was left unchanged when it was actually edited in place. No functional impact; worth a one-line correction whenever shell-linux next touches that report section.",
+    "Carried over from round 1/2, still harmless: PROJECT_TREE_NAMESPACE_RULE is read but never validated for emptiness (the namespace algorithm is intentionally hardcoded to match ProjectTreeCommon.ps1 byte-for-byte, not driven by this string)."
   ],
   "checks": [
     "bash -n scripts/shells/linux/common/project_tree_common.sh: OK.",
-    "tr -cd '\\r' < project_tree_common.sh | wc -c: 0 (LF-only).",
-    "shellcheck: not installed in this environment; skipped.",
-    "Read of config/service_contract.json#paths.drive_layout: trees_root.linux, link_dirs, tree_namespace_rule match the three sc_get/sc_list calls; no other key or literal used as an operative value.",
-    "Read of scripts/shells/win/win_common/ProjectTreeCommon.ps1 (fenced, read-only) in full this round: Get-ProjectTreeNamespace confirmed byte-for-byte equivalent to project_tree_namespace; Invoke-ProjectTreeLink/Get-ProjectTreeLinkState confirmed to use a materially different (reparse-point) state model, supporting the report's platform-only framing for not opening a pending-windows row over this round's ensure/release symmetry fix.",
-    "Live WSL Debian test (wsl.exe -d Debian, root, genuine ext4 under /opt, not tmpfs or NTFS): reproduced the round-1 repro end to end (baseline ensure/release, foreign bind placed after ext4_dir already existed, ensure and --dry-run both correctly skip+warn and leave the foreign bind's content intact, vendor still ensured normally in the same call, clean mount sweep afterward) -- confirms the round-1 fix as described.",
-    "Second live WSL Debian test (this review, not in the round-2 report): fresh scratch repo, ensure never run before, foreign bind placed on node_modules BEFORE ext4_dir exists on disk -- reproduced the BIND-STATE-IDENTITY-GAP finding: status reports 'bound -> <ext4_dir>' and ensure reports 'already bound' and takes no action, while the mounted content is confirmed (by reading a marker file through it) to still be the foreign source and <ext4_dir> is confirmed absent on disk throughout; vendor (no foreign mount) was still ensured and bound correctly in the same call. All scratch directories and mounts cleaned up afterward; a final `mount`/`ls` sweep in WSL confirmed no leftovers.",
-    "development-guides/LINUX_SHELL_RULES.md and development-guides/DIRECTORY_NAMESPACE_RULES.md re-read this round; rule 3 ('never reset') is the basis for both the round-1 fix and the BIND-STATE-IDENTITY-GAP finding above.",
-    "git diff (working tree vs HEAD 22ea5b992) read for scripts/shells/linux/common/project_tree_common.sh (no diff -- already the committed round-2 content), .claude/agents_shared/shell_parity/linux.md (SPL-119 row edited in place as described) and .claude/agents_shared/reports/shell-linux.md (new 'Review round 1 fix' subsection appended); no git write performed by this review.",
-    "No destructive command was run by this reviewer against any non-scratch path: only bash -n, grep, file reads, and mount/umount/mkdir/rm confined to a dedicated /opt/scratch_pt12_review* directory tree in WSL Debian, fully removed afterward."
+    "tr -cd '\\r' < project_tree_common.sh | wc -c: 0 (LF-only); LC_ALL=C grep -P non-ASCII: none.",
+    "Full-file read against the round-2 version: only project_tree_bind_state's body and its leading comment block differ.",
+    "Live test 1 (this reviewer's native Debian host, private mount namespace via unshare --mount --map-root-user, not WSL): reproduced the exact round-2 foreign-mount-on-a-fresh-project repro; project_tree_bind_state now returns 2; status and ensure both correctly reflect the fail-closed result; ext4_dir stays absent; the foreign mount and its content stay untouched; clean teardown.",
+    "Live test 2 (same technique, fresh scratch, no foreign mount): full happy-path ensure -> status -> idempotent second ensure -> release cycle, confirming no regression from the fail-closed change.",
+    "No destructive command was run against any non-scratch path: only bash -n, grep, file reads, and mount/mkdir/umount/rm confined to dedicated /tmp scratch trees inside a private (unshare) mount namespace, fully removed afterward and never visible outside that namespace.",
+    "git diff (working tree vs HEAD) on project_tree_common.sh, linux.md and shell-linux.md: no uncommitted changes; this round's fix is already at HEAD."
   ],
-  "checked_at": "2026-09-27"
+  "checked_at": "2026-09-28"
 }

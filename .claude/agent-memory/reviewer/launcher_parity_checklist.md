@@ -47,5 +47,7 @@ Gaps that both owners' ledgers marked "aligned" in the D13 parity check (shell-w
   - Example: SPW-036 window:false had already landed on Linux in the same backup commit.
 - **Latent PS 5.1 quoting.** A kickoff passed raw to `& claude` breaks on an embedded `"`. Grep the catalog kickoffs for quotes.
 
+- **Pane-text probes vs respawn-pane (orch-wf1, 2026-09-28).** `respawn-pane -k` clears only the visible grid; scrollback survives (verified on tmux 3.5a). Any readiness probe that greps `capture-pane -S -N` history mislabels a freshly respawned pane with the old screen (blocked:onboarding) while the new process starts. Check for `clear-history` before respawn or visible-only matching for respawned rows. Reproduce on a private `tmux -L revtest_$$` socket with the function extracted via sed.
+
 **Why:** each side's ledger mapped features by name, not by rule, so these gaps passed as "aligned".
 **How to apply:** on every launcher parity review, trace liveness, lead exclusivity, env removal and the table fields on both sides, rule by rule. See [[shell-windows-review-checklist]].

@@ -219,100 +219,31 @@ cleanup_cursor() {
     return 0
 }
 
-# Ensure Cursor Agent (CLI) is installed. Idempotent: runs every time; skips only when `agent` is already in PATH.
+# Ensure Cursor Agent (CLI) is installed. Idempotent: runs every time; skips only when `cursor-agent` is already in PATH.
 # Must run regardless of Cursor IDE install state (desktop and headless). See https://cursor.com/cli
+# Delegates to install_shells/99_install_ai_tools.sh (common/ai_tools_catalog.sh key
+# "cursor_agent"), the single source of truth for every AI CLI install/link.
 ensure_cursor_agent_installed() {
-    # Check if agent command exists (any user's PATH or common locations)
-    if command -v agent >/dev/null 2>&1; then
-        local agent_path=$(command -v agent)
+    if command -v cursor-agent >/dev/null 2>&1; then
+        local agent_path=$(command -v cursor-agent)
         print_info_from_common_functions "Cursor Agent already installed: $agent_path"
         echo "$agent_path"
         return 0
     fi
 
-    print_step_from_common_functions "Cursor Agent not found, installing..."
-    
-    # Ensure curl is installed
-    if ! command -v curl >/dev/null 2>&1; then
-        print_step_from_common_functions "Installing curl..."
-        $USE_SUDO apt-get update -qq
-        $USE_SUDO apt-get install -y curl
-    fi
+    print_step_from_common_functions "Cursor Agent not found, installing via 99_install_ai_tools.sh..."
+    bash "$SCRIPT_CURRENT_DIR/99_install_ai_tools.sh" --only cursor_agent \
+        || print_warning_from_common_functions "99_install_ai_tools.sh reported errors for cursor_agent."
 
-    # Detect actual user for agent installation (works in root mode)
-    local agent_user="${SUDO_USER:-$USER}"
-    if [[ "$agent_user" == "root" ]] || [[ -z "$agent_user" ]]; then
-        agent_user=$(detect_system_user)
-    fi
-    local agent_home=$(getent passwd "$agent_user" 2>/dev/null | cut -d: -f6)
-    if [[ -z "$agent_home" ]] || [[ ! -d "$agent_home" ]]; then
-        agent_home="$HOME"
-        agent_user="$USER"
-    fi
-
-    print_info_from_common_functions "Installing Cursor Agent for user: $agent_user ($agent_home)"
-
-    # Official install: https://cursor.com/cli - run as target user when we are root so agent goes to ~/.local/bin
-    local install_ok=0
-    if [[ "$(id -u)" -eq 0 ]] && [[ "$agent_user" != "root" ]]; then
-        if $USE_SUDO -u "$agent_user" env HOME="$agent_home" bash -c 'curl -fsS https://cursor.com/install | bash'; then
-            install_ok=1
-        fi
-    else
-        if curl -fsS https://cursor.com/install | bash; then
-            install_ok=1
-        fi
-    fi
-
-    if [[ "$install_ok" -eq 1 ]]; then
-        print_success_from_common_functions "Cursor Agent installed successfully"
-    else
-        print_warning_from_common_functions "Cursor Agent installation may have failed"
-    fi
-
-    # Add ~/.local/bin to PATH for the detected user
-    local local_bin_dir="$agent_home/.local/bin"
-    if [[ -d "$local_bin_dir" ]]; then
-        # Add to user's .bashrc
-        local bashrc_file="$agent_home/.bashrc"
-        if [[ -f "$bashrc_file" ]] && ! grep -q "export PATH=.*$local_bin_dir" "$bashrc_file" 2>/dev/null; then
-            echo "" >> "$bashrc_file"
-            echo "# Added by Cursor installer" >> "$bashrc_file"
-            echo "export PATH=\"$local_bin_dir:\$PATH\"" >> "$bashrc_file"
-        fi
-
-        # Add to /etc/environment for system-wide access (works in root mode)
-        if ! grep -q "PATH.*$local_bin_dir" /etc/environment 2>/dev/null; then
-            local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d= -f2 | tr -d '"')
-            [ -z "$current_path" ] && current_path="${PATH:-/usr/local/bin:/usr/bin:/bin}"
-            $USE_SUDO sed -i '/^PATH=/d' /etc/environment 2>/dev/null || true
-            echo "PATH=\"$local_bin_dir:$current_path\"" | $USE_SUDO tee -a /etc/environment > /dev/null
-        fi
-
-        # Refresh environment variables
-        set -a
-        source /etc/environment 2>/dev/null || true
-        set +a
-        export PATH="$local_bin_dir:$PATH"
-    fi
-
-    # Find agent binary
+    hash -r 2>/dev/null || true
     local agent_path=""
-    if [[ -f "$local_bin_dir/agent" ]]; then
-        agent_path="$local_bin_dir/agent"
-    elif command -v agent >/dev/null 2>&1; then
-        agent_path=$(command -v agent)
-    else
-        # Search in common locations
-        for search_dir in "$agent_home/.local/bin" "/usr/local/bin" "/usr/bin"; do
-            if [[ -f "$search_dir/agent" ]]; then
-                agent_path="$search_dir/agent"
-                break
-            fi
-        done
+    if command -v cursor-agent >/dev/null 2>&1; then
+        agent_path=$(command -v cursor-agent)
+    elif [ -x "/usr/local/bin/cursor-agent" ]; then
+        agent_path="/usr/local/bin/cursor-agent"
     fi
 
-    if [[ -n "$agent_path" ]] && [[ -f "$agent_path" ]]; then
+    if [[ -n "$agent_path" ]]; then
         print_success_from_common_functions "Cursor Agent installed at: $agent_path"
         echo "$agent_path"
         return 0

@@ -1,416 +1,147 @@
 #!/bin/bash
+# Interactive NAT gateway menu (`natgateway`, dd.sh > Linux System Tools >
+# [#] Setup Network Router). Every action goes through the 113_natgateway.sh
+# commands, so the menu and the CLI share one implementation.
 
-# Show interactive status
-show_status() {
-        log_header "NAT Gateway Status"
+NATGW_MENU_PICK=""
+NATGW_MENU_INPUT=""
 
-    # Load configuration
-    if [ -f "$CACHE_FILE" ]; then
-        source "$CACHE_FILE"
+natgw_menu_pause() {
+    prompt_read_default NATGW_MENU_INPUT "" 300 "Press Enter to continue..."
+}
 
-        echo -e "${CYAN}Configuration:${NC}"
-        echo "  WAN Keyword: $WAN_KEYWORD"
-        echo "  LAN Keyword: $LAN_KEYWORD"
+natgw_menu_header() {
+    local state="IDLE"
+    natgw_load_config
+    natgw_load_applied
+    [ -n "$NATGW_APPLIED_WAN" ] && state="ACTIVE ($NATGW_APPLIED_WAN -> $(natgw_bridge_members | tr '\n' ' '))"
+    echo "Service: $(systemctl is-active "$NATGW_SERVICE_NAME" 2>/dev/null) | State: $state"
+    echo "Uplink: $WAN_SELECT | Relay: $LAN_MODE${LAN_PORTS:+ ($LAN_PORTS)} | Gateway: $LAN_ADDRESS | DHCP: $DHCP_ENABLED"
+}
 
-        # Display system sharing with detailed explanation
-        if [ "$SYSTEM_SHARING" = "yes" ]; then
-            echo -e "  System Sharing: ${GREEN}$SYSTEM_SHARING${NC} ${GREEN}{NC}"
-            echo -e "    ${WHITE}System CAN use WAN for internet access${NC}"
-        else
-            echo -e "  System Sharing: ${YELLOW}$SYSTEM_SHARING${NC} ${RED}{NC}"
-            echo -e "    ${WHITE}System CANNOT use WAN (only LAN forwarding)${NC}"
-        fi
-        echo ""
+# Wired ports that can relay (the current uplink is excluded).
+natgw_menu_relay_candidates() {
+    local iface=""
+    natgw_load_config
+    natgw_resolve_wan
+    while IFS= read -r iface; do
+        natgw_is_wireless "$iface" && continue
+        [ "$iface" = "$NATGW_WAN" ] && continue
+        echo "$iface"
+    done < <(natgw_physical_ifaces)
+}
 
-        # Scan interfaces
-        scan_interfaces
-
-        # Check current matches
-        echo -e "${CYAN}Current Interface Matches:${NC}"
-        display_interface_matches "WAN" "$WAN_KEYWORD"
-        display_interface_matches "LAN" "$LAN_KEYWORD"
-        
-        # Show NAT Gateway status and statistics
-        echo ""
-        echo -e "${CYAN}NAT Gateway Status:${NC}"
-        local ip_forward=$(cat /proc/sys/net/ipv4/ip_forward 2>/dev/null || echo "0")
-        if [[ "$ip_forward" == "1" ]]; then
-            echo -e "  IP Forwarding: ${GREEN}Enabled${NC} (packets can be forwarded between interfaces)"
-            
-            # Get current matched interfaces for statistics
-            local wan_matches=($(find_interface_by_keyword "$WAN_KEYWORD"))
-            local lan_matches=($(find_interface_by_keyword "$LAN_KEYWORD"))
-            
-            if [[ ${#wan_matches[@]} -gt 0 ]] && [[ ${#lan_matches[@]} -gt 0 ]]; then
-                local current_wan="${wan_matches[0]}"
-                local current_lan="${lan_matches[0]}"
-                
-                # Check if routing is actually active (iptables rules exist)
-                # Use iptables -C for reliable checking (same method as service script)
-                # Need to find iptables command and use sudo if needed
-                local iptables_cmd=""
-                if command_exists iptables; then
-                    iptables_cmd="iptables"
-                elif [ -x /usr/sbin/iptables ]; then
-                    iptables_cmd="/usr/sbin/iptables"
-                elif [ -x /sbin/iptables ]; then
-                    iptables_cmd="/sbin/iptables"
-                fi
-                
-                local nat_rule_exists=false
-                local fwd_rule_exists=false
-                
-                # Check NAT rule using iptables -C (most reliable)
-                # Use sudo if available and not running as root
-                if [[ -n "$iptables_cmd" ]]; then
-                    if [[ $EUID -eq 0 ]]; then
-                        # Running as root, no sudo needed
-                        if $iptables_cmd -t nat -C POSTROUTING -o "$current_wan" -j MASQUERADE 2>/dev/null; then
-                            nat_rule_exists=true
-                        fi
-                        
-                        # Check FORWARD rules (both directions)
-                        if $iptables_cmd -C FORWARD -i "$current_lan" -o "$current_wan" -j ACCEPT 2>/dev/null && \
-                           $iptables_cmd -C FORWARD -i "$current_wan" -o "$current_lan" -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; then
-                            fwd_rule_exists=true
-                        fi
-                    elif [[ -n "$USE_SUDO" ]]; then
-                        # Use sudo for iptables check
-                        if $USE_SUDO $iptables_cmd -t nat -C POSTROUTING -o "$current_wan" -j MASQUERADE 2>/dev/null; then
-                            nat_rule_exists=true
-                        fi
-                        
-                        # Check FORWARD rules (both directions)
-                        if $USE_SUDO $iptables_cmd -C FORWARD -i "$current_lan" -o "$current_wan" -j ACCEPT 2>/dev/null && \
-                           $USE_SUDO $iptables_cmd -C FORWARD -i "$current_wan" -o "$current_lan" -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; then
-                            fwd_rule_exists=true
-                        fi
-                    else
-                        # Try without sudo (may work if user has CAP_NET_ADMIN capability)
-                        if $iptables_cmd -t nat -C POSTROUTING -o "$current_wan" -j MASQUERADE 2>/dev/null; then
-                            nat_rule_exists=true
-                        fi
-                        
-                        # Check FORWARD rules (both directions)
-                        if $iptables_cmd -C FORWARD -i "$current_lan" -o "$current_wan" -j ACCEPT 2>/dev/null && \
-                           $iptables_cmd -C FORWARD -i "$current_wan" -o "$current_lan" -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null; then
-                            fwd_rule_exists=true
-                        fi
-                    fi
-                fi
-                
-                if [[ "$nat_rule_exists" == true ]] && [[ "$fwd_rule_exists" == true ]]; then
-                    echo -e "  NAT Gateway: ${GREEN}Active${NC}"
-                    echo -e "    WAN Interface: $current_wan"
-                    echo -e "    LAN Interface: $current_lan"
-                    
-                    # Get LAN gateway IP for display
-                    local lan_ip=$(ip addr show "$current_lan" 2>/dev/null | grep -oP 'inet \K[\d.]+' | head -1)
-                    if [[ -n "$lan_ip" ]]; then
-                        echo -e "    LAN Gateway IP: ${GREEN}$lan_ip${NC}"
-                    fi
-                    
-                    # Get traffic statistics
-                    local stats=$(get_routing_statistics "$current_wan" "$current_lan")
-                    local tx_bytes=$(echo "$stats" | cut -d'|' -f1)
-                    local rx_bytes=$(echo "$stats" | cut -d'|' -f2)
-                    
-                    local tx_formatted=$(format_bytes "$tx_bytes")
-                    local rx_formatted=$(format_bytes "$rx_bytes")
-                    
-                    echo -e "  NAT Forwarded Traffic:"
-                    echo -e "    ${CYAN}Outbound (LAN->WAN):${NC} $tx_formatted"
-                    echo -e "    ${CYAN}Inbound (WAN->LAN):${NC} $rx_formatted"
-                    
-                    # Display router configuration instructions
-                    if [[ -n "$lan_ip" ]]; then
-                        local lan_cidr=$(ip addr show "$current_lan" 2>/dev/null | grep -oP 'inet \K[\d.]+/\d+' | head -1 | cut -d'/' -f2)
-                        local lan_subnet=$(echo "$lan_ip" | cut -d. -f1-3)
-                        echo ""
-                        echo -e "  ${CYAN}Connected Router Configuration:${NC}"
-                        echo -e "    Gateway: ${GREEN}$lan_ip${NC}"
-                        echo -e "    Subnet: ${GREEN}${lan_subnet}.0/$lan_cidr${NC}"
-                        echo -e "    DNS: ${GREEN}8.8.8.8${NC} or ${GREEN}1.1.1.1${NC}"
-                    fi
-                else
-                    echo -e "  NAT Gateway: ${YELLOW}Not Active${NC} (waiting for interfaces to be ready)"
-                    echo -e "    ${YELLOW}Service will automatically configure when both interfaces are available${NC}"
-                fi
-            else
-                echo -e "  NAT Gateway: ${YELLOW}Not Active${NC} (interfaces not matched)"
-            fi
-        else
-            echo -e "  IP Forwarding: ${RED}Disabled${NC}"
-            echo -e "  ${YELLOW}NAT Gateway requires IP forwarding to be enabled${NC}"
-        fi
-
-        # Check service status with detailed information
-        echo ""
-        echo -e "${CYAN}Service Status:${NC}"
-        local full_service_name="ncore-$SERVICE_NAME"
-        
-        # Check if service unit exists
-        if ! service_exists "$full_service_name"; then
-            echo -e "  ${YELLOW}Service unit file does not exist${NC}"
-            echo -e "  ${YELLOW}(Use Start/Restart Service to create and start the service)${NC}"
-        else
-            # Get detailed service status
-            local service_status=""
-            if $USE_SUDO systemctl is-active --quiet "$full_service_name" 2>/dev/null; then
-                echo -e "  ${GREEN}Service is running${NC}"
-                # Get PID to verify it's actually running
-                local service_pid=$($USE_SUDO systemctl show -p MainPID --value "$full_service_name" 2>/dev/null)
-                if [ -n "$service_pid" ] && [ "$service_pid" != "0" ]; then
-                    if ps -p "$service_pid" > /dev/null 2>&1; then
-                        echo -e "  ${GREEN}Process ID: $service_pid${NC}"
-                    else
-                        echo -e "  ${YELLOW}Warning: Process $service_pid not found (service may be restarting)${NC}"
-                    fi
-                fi
-            elif $USE_SUDO systemctl is-failed --quiet "$full_service_name" 2>/dev/null; then
-                echo -e "  ${RED}Service has failed${NC}"
-                echo -e "  ${YELLOW}Check logs: journalctl -u $full_service_name -n 50${NC}"
-            else
-                echo -e "  ${RED}Service is not running${NC}"
-                # Check if it's enabled but not started
-                if $USE_SUDO systemctl is-enabled --quiet "$full_service_name" 2>/dev/null; then
-                    echo -e "  ${YELLOW}(Service is enabled but not active - use Start/Restart Service)${NC}"
-                fi
-            fi
-        fi
-        
-        # Show service logs
-        echo ""
-        echo -e "${CYAN}Service Logs (Last 20 entries):${NC}"
-        echo -e "${YELLOW}----------------------------------------${NC}"
-        if service_exists "$full_service_name"; then
-            # Show recent logs, but only if service exists
-            if $USE_SUDO journalctl -u "$full_service_name" -n 20 --no-pager 2>/dev/null | head -30; then
-                echo ""
-            else
-                echo -e "  ${YELLOW}No logs available yet${NC}"
-            fi
-        else
-            echo -e "  ${YELLOW}Service not created yet - no logs available${NC}"
-        fi
-        echo -e "${YELLOW}----------------------------------------${NC}"
-    else
-        log_warning "No configuration found. Please run setup first."
+natgw_menu_pick_one() {
+    local -a ports=()
+    local -a items=()
+    local iface=""
+    mapfile -t ports < <(natgw_menu_relay_candidates)
+    if [ ${#ports[@]} -eq 0 ]; then
+        log_warning "No wired port available"
+        return 1
     fi
+    for iface in "${ports[@]}"; do
+        items+=("$iface ($(natgw_is_usb "$iface" && echo usb || echo onboard), link $(natgw_has_carrier "$iface" && echo up || echo down))")
+    done
+    items+=("Cancel")
+    arrow_menu_select "Relay on one port" items 0 "${#ports[@]}"
+    [ "$ARROW_MENU_SELECTED_INDEX" -ge 0 ] && [ "$ARROW_MENU_SELECTED_INDEX" -lt "${#ports[@]}" ] || return 1
+    NATGW_MENU_PICK="${ports[$ARROW_MENU_SELECTED_INDEX]}"
 }
 
-# Helper function to wait for user input (30s auto-continue; never hangs)
-command -v prompt_read_default >/dev/null 2>&1 || source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/prompt_common.sh"
-wait_for_continue() {
-    local _nm_wait=""
-    echo ""
-    prompt_read_default _nm_wait "" 30 "Press Enter to continue..."
+natgw_menu_pick_list() {
+    local -a ports=()
+    local -a picked=()
+    local -a numbers=()
+    local number=""
+    local index=0
+    mapfile -t ports < <(natgw_menu_relay_candidates)
+    if [ ${#ports[@]} -eq 0 ]; then
+        log_warning "No wired port available"
+        return 1
+    fi
+    for index in "${!ports[@]}"; do
+        echo "  $((index + 1))) ${ports[$index]}"
+    done
+    prompt_read_default NATGW_MENU_INPUT "" 120 "Ports (numbers or names, comma separated): "
+    IFS=',' read -r -a numbers <<< "${NATGW_MENU_INPUT// /}"
+    for number in "${numbers[@]}"; do
+        if [[ "$number" =~ ^[0-9]+$ ]] && [ "$number" -ge 1 ] && [ "$number" -le "${#ports[@]}" ]; then
+            picked+=("${ports[$((number - 1))]}")
+        elif [ -n "$number" ]; then
+            picked+=("$number")
+        fi
+    done
+    [ ${#picked[@]} -gt 0 ] || return 1
+    NATGW_MENU_PICK="$(IFS=','; echo "${picked[*]}")"
 }
 
-# Interactive menu when command is run
+natgw_menu_pick_wan() {
+    local -a ports=()
+    local -a items=("USB network adapter (auto-detect)")
+    local iface=""
+    mapfile -t ports < <(natgw_physical_ifaces)
+    for iface in "${ports[@]}"; do
+        items+=("$iface ($(natgw_is_usb "$iface" && echo usb || echo onboard), $(natgw_is_wireless "$iface" && echo wifi || echo wired), ${iface:+$(natgw_ipv4_of "$iface")})")
+    done
+    items+=("Cancel")
+    arrow_menu_select "Uplink (WAN)" items 0 "$((${#ports[@]} + 1))"
+    case "$ARROW_MENU_SELECTED_INDEX" in
+        0) NATGW_MENU_PICK="usb" ;;
+        *)
+            [ "$ARROW_MENU_SELECTED_INDEX" -ge 1 ] && [ "$ARROW_MENU_SELECTED_INDEX" -le "${#ports[@]}" ] || return 1
+            NATGW_MENU_PICK="${ports[$((ARROW_MENU_SELECTED_INDEX - 1))]}"
+            ;;
+    esac
+}
+
+natgw_menu_edit_network() {
+    natgw_load_config
+    prompt_read_default NATGW_MENU_INPUT "$LAN_ADDRESS" 120 "Gateway address [$LAN_ADDRESS]: "
+    [ "$NATGW_MENU_INPUT" = "$LAN_ADDRESS" ] || cmd_set_address "$NATGW_MENU_INPUT"
+    prompt_read_default NATGW_MENU_INPUT "" 60 "DHCP server for relay clients (on/off, Enter keeps $DHCP_ENABLED): "
+    [ -n "$NATGW_MENU_INPUT" ] && cmd_set_dhcp "$NATGW_MENU_INPUT"
+    return 0
+}
+
 show_interactive_menu() {
-    local option=0
     local selected_index=0
     local -a menu_items=(
-        "Show Status"
-        "Modify WAN Keyword"
-        "Modify LAN Keyword"
-        "Toggle System Sharing"
-        "Start/Restart Service"
+        "Quick Install / Repair (background service)"
+        "Status"
+        "Detected Ports"
+        "Relay: All onboard ports"
+        "Relay: One port..."
+        "Relay: Selected ports..."
+        "Uplink (WAN): USB auto / specific..."
+        "Gateway Address & DHCP..."
+        "Restart Service"
         "Stop Service"
         "View Logs"
-        "Exit NAT Gateway"
+        "Uninstall"
+        "Back"
     )
+    local back_index=$((${#menu_items[@]} - 1))
 
     while true; do
-        arrow_menu_select "NAT Gateway" menu_items "$selected_index" 7
-        selected_index=$ARROW_MENU_SELECTED_INDEX
-        if [ "$selected_index" -eq 7 ]; then
-            option=0
-        else
-            option=$((selected_index + 1))
-        fi
-
-        case "$option" in
-            1)
-                show_status
-                wait_for_continue
-                ;;
-            2)
-                scan_interfaces
-                WAN_KEYWORD=""
-                input_keywords
-                save_cache
-                log_success "Configuration updated. Please restart the service for changes to take effect."
-                wait_for_continue
-                ;;
-            3)
-                scan_interfaces
-                LAN_KEYWORD=""
-                input_keywords
-                save_cache
-                log_success "Configuration updated. Please restart the service for changes to take effect."
-                wait_for_continue
-                ;;
-            4)
-                if [ -f "$CACHE_FILE" ]; then
-                    source "$CACHE_FILE"
-
-                    echo ""
-                    echo -e "${CYAN}System Sharing Configuration${NC}"
-                    echo -e "${YELLOW}----------------------------------------${NC}"
-                    echo -e "Current status: ${GREEN}$SYSTEM_SHARING${NC}"
-                    echo ""
-                    echo -e "${WHITE}What is System Sharing?${NC}"
-                    if [ "$SYSTEM_SHARING" = "yes" ]; then
-                        echo -e "  ${GREEN}ENABLED${NC} - The system (this machine) CAN use WAN for internet"
-                        echo -e "    - System traffic goes through WAN interface"
-                        echo -e "    - Default route set via WAN gateway"
-                        echo -e "    - Both system and LAN clients share WAN internet"
-                        echo ""
-                        echo -e "${YELLOW}Do you want to DISABLE system sharing?${NC}"
-                        echo -e "  If disabled, only LAN clients can use WAN (not this system)"
-                    else
-                        echo -e "  ${RED}DISABLED${NC} - The system (this machine) CANNOT use WAN for internet"
-                        echo -e "    - System traffic does NOT go through WAN"
-                        echo -e "    - Only LAN -> WAN forwarding works"
-                        echo -e "    - Only LAN clients can access internet via WAN"
-                        echo ""
-                        echo -e "${YELLOW}Do you want to ENABLE system sharing?${NC}"
-                        echo -e "  If enabled, this system can also use WAN for internet"
-                    fi
-                    echo ""
-                    prompt_read_default toggle_response "n" 30 "Toggle system sharing? (y/n): "
-                    echo ""
-
-                    if [[ "$toggle_response" =~ ^[Yy]$ ]]; then
-                        local old_sharing="$SYSTEM_SHARING"
-                        if [ "$SYSTEM_SHARING" = "yes" ]; then
-                            SYSTEM_SHARING="no"
-                            log_info "System sharing disabled"
-                            echo -e "${YELLOW}System will NOT use WAN for internet (only forwarding LAN -> WAN)${NC}"
-                        else
-                            SYSTEM_SHARING="yes"
-                            log_info "System sharing enabled"
-                            echo -e "${GREEN}System will use WAN for internet access${NC}"
-                        fi
-                        save_cache
-                        log_success "Configuration updated."
-                        
-                        # Check if service exists and is running
-                        local full_service_name="ncore-$SERVICE_NAME"
-                        if service_exists "$full_service_name" && $USE_SUDO systemctl is-active --quiet "$full_service_name" 2>/dev/null; then
-                            echo ""
-                            echo -e "${CYAN}Restarting service to apply changes immediately...${NC}"
-                            if $USE_SUDO systemctl restart "$full_service_name" 2>/dev/null; then
-                                # Wait a moment for service to restart
-                                sleep 2
-                                
-                                # Verify service is running
-                                if $USE_SUDO systemctl is-active --quiet "$full_service_name" 2>/dev/null; then
-                                    log_success "Service restarted successfully. Changes are now active."
-                                    
-                                    # If enabling sharing (no -> yes), verify default route exists
-                                    if [[ "$old_sharing" == "no" ]] && [[ "$SYSTEM_SHARING" == "yes" ]]; then
-                                        echo ""
-                                        echo -e "${CYAN}Verifying system sharing is active...${NC}"
-                                        local wan_matches=($(find_interface_by_keyword "$WAN_KEYWORD"))
-                                        if [[ ${#wan_matches[@]} -gt 0 ]]; then
-                                            local current_wan="${wan_matches[0]}"
-                                            local default_route=$(ip route | grep "default.*$current_wan" | head -1)
-                                            if [[ -n "$default_route" ]]; then
-                                                echo -e "  ${GREEN}Default route via $current_wan: OK${NC}"
-                                                echo -e "  ${GREEN}System can now access internet via WAN${NC}"
-                                            else
-                                                echo -e "  ${YELLOW}Default route not found yet, checking service logs...${NC}"
-                                                echo -e "  ${YELLOW}  Service may need a few seconds to detect WAN gateway${NC}"
-                                            fi
-                                        fi
-                                    fi
-                                else
-                                    log_warning "Service restarted but may not be running. Check status manually."
-                                fi
-                            else
-                                log_error "Failed to restart service. Use Start/Restart Service."
-                            fi
-                        else
-                            log_warning "Service is not running. Use Start/Restart Service for changes to take effect."
-                        fi
-                    else
-                        log_info "System sharing unchanged: $SYSTEM_SHARING"
-                    fi
-                fi
-                wait_for_continue
-                ;;
-            5)
-                local full_service_name="ncore-$SERVICE_NAME"
-                # Ensure service exists before trying to start/restart
-                if ! ensure_service_exists; then
-                    log_error "Cannot start/restart service - service creation failed"
-                    echo ""
-                    wait_for_continue
-                else
-                    # Check if service is running
-                    if $USE_SUDO systemctl is-active --quiet "$full_service_name" 2>/dev/null; then
-                        log_info "Service is running, restarting..."
-                        if $USE_SUDO systemctl restart "$full_service_name"; then
-                            log_success "Service restarted successfully"
-                        else
-                            log_error "Failed to restart service"
-                        fi
-                    else
-                        log_info "Service is not running, starting..."
-                        if $USE_SUDO systemctl start "$full_service_name"; then
-                            log_success "Service started successfully"
-                        else
-                            log_error "Failed to start service"
-                        fi
-                    fi
-                    wait_for_continue
-                fi
-                ;;
-            6)
-                local full_service_name="ncore-$SERVICE_NAME"
-                # Check if service exists before trying to stop
-                if ! service_exists "$full_service_name"; then
-                    log_warning "Service does not exist, nothing to stop"
-                    wait_for_continue
-                else
-                    log_info "Stopping service..."
-                    if $USE_SUDO systemctl stop "$full_service_name"; then
-                        log_success "Service stopped"
-                        log_info "Disabling service from auto-start..."
-                        if $USE_SUDO systemctl disable "$full_service_name"; then
-                            log_success "Service disabled from auto-start"
-                        else
-                            log_error "Failed to disable service"
-                        fi
-                    else
-                        log_error "Failed to stop service"
-                    fi
-                    wait_for_continue
-                fi
-                ;;
-            7)
-                local full_service_name="ncore-$SERVICE_NAME"
-                if ! service_exists "$full_service_name"; then
-                    log_warning "Service does not exist, no logs to view"
-                    wait_for_continue
-                else
-                    echo -e "${CYAN}Recent logs (Ctrl+C to exit):${NC}"
-                    $USE_SUDO journalctl -u "$full_service_name" -n 50 --no-pager
-                    wait_for_continue
-                fi
-                ;;
-            0)
-                log_info "Exiting..."
-                exit 0
-                ;;
-            *)
-                log_error "Invalid option"
-                wait_for_continue
-                ;;
+        arrow_menu_select "Network Router (NAT Gateway)" menu_items "$selected_index" "$back_index" natgw_menu_header
+        selected_index="$ARROW_MENU_SELECTED_INDEX"
+        [ "$ARROW_MENU_CANCELLED" = "true" ] && return 0
+        case "$selected_index" in
+            0) cmd_install ;;
+            1) natgw_print_status ;;
+            2) natgw_print_ports ;;
+            3) cmd_set_lan all ;;
+            4) natgw_menu_pick_one && cmd_set_lan one "$NATGW_MENU_PICK" ;;
+            5) natgw_menu_pick_list && cmd_set_lan list "$NATGW_MENU_PICK" ;;
+            6) natgw_menu_pick_wan && cmd_set_wan "$NATGW_MENU_PICK" ;;
+            7) natgw_menu_edit_network ;;
+            8) cmd_service restart ;;
+            9) cmd_service stop ;;
+            10) cmd_logs ;;
+            11) cmd_uninstall ;;
+            *) return 0 ;;
         esac
+        natgw_menu_pause
     done
 }
-

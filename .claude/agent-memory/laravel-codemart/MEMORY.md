@@ -1,2 +1,3 @@
 - [Verify in-process without writes](verify-in-process-without-writes.md) — scratchpad kernel boot, array cache, lang keys, rolled-back PG DDL, in-process HTTP
 - [Laravel route auth model](laravel-route-auth-model.md) — client.key / client.key_or_dashboard / dashboard.auth levels since 2026-09-27
+- [Role alias: codemart-laravel](role-alias-codemart-laravel.md) — R2 (2026-09-28): codemart-laravel is default writer for CodeMartV1, I'm reserve-only

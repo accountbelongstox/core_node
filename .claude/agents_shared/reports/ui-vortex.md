@@ -2,11 +2,11 @@
 
 ## ui-vortex-D7
 
-Batch 1/1. Status: implemented and verified. It stays in progress until the reviewer writes `.claude/agents_shared/reviews/ui-vortex-D7.json` with `"verdict": "approved"`. Reviewers diff against 74e7770; the three files below keep CRLF endings.
+Batch 1/1. Status: **approved**. Reviewer pycore-lead wrote `.claude/agents_shared/reviews/ui-vortex-D7.json` with `"verdict": "approved"` (interim approval of CKA-10-ui; scope note: shape alignment against real payloads stays open as pycore-ui-G5 CKA-10-ui once pycore-assist CKA-10 and pycore-runtime CKA-10-routes land). Change committed as 5bbb23682 ("win0.0.1"); working tree is clean for `apps/vortex/` and `flavors/vortex/`. Task closed.
 
 ### CKA-10-ui: align VortexPycoreContract.ts with the served okx/* routes; hide panels whose routes are not served
 
-- Status: done (awaiting review).
+- Status: done, approved.
 - Files:
   - `poly_apps/pycore_laravel_wordnew_ui/apps/vortex/api/VortexPycoreContract.ts`: adds the `VortexPycoreHttpRoute` type, `VORTEX_PYCORE_SERVED_HTTP_ROUTES` (it mirrors the okx/* names in `pycore/callmodule/rpc_routes/route_names.py` and is empty today), `VORTEX_PYCORE_PANEL_ROUTES` (the routes each OKX panel calls: account 1, quant 5, backtest 11) and `isVortexPycorePanelServed(panel)`.
   - `poly_apps/pycore_laravel_wordnew_ui/apps/vortex/api/index.ts`: one export line.
@@ -42,4 +42,8 @@ Changed files:
 - `poly_apps/pycore_laravel_wordnew_ui/apps/vortex/api/index.ts`
 - `poly_apps/pycore_laravel_wordnew_ui/apps/vortex/VortexApp.tsx`
 
-Blockers: none. Next owner: reviewer (ui-vortex-D7); then pycore, if it restores okx/*.
+Blockers: none. Next owner: pycore (pycore-assist CKA-10, pycore-runtime CKA-10-routes) to restore the okx/* surface; then ui-vortex/pycore-ui-G5 aligns panel shapes to the served payloads.
+
+Session resumed 2026-09-28 after a usage-limit reset: verified D7's approved state above (review file + commit + clean working tree), reported readiness to ca-orchestrator via SendMessage.
+
+Ruling update (2026-09-28, ca-orchestrator, R2 in `docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`): ui-vortex is a pre-D22 alias; `pycore-ui` is now the default writer for `apps/vortex/` and `flavors/vortex/`. ui-vortex stays in reserve and edits only when a task explicitly names it as temporary writer. G5 (OKX panel shape alignment once pycore serves okx/* routes) stays parked, owned by pycore-ui. Acknowledged to ca-orchestrator. No further action; idling until named as temporary writer on a task.

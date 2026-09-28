@@ -6,11 +6,12 @@
 # Linux counterpart: claude_team_install in scripts/ai_shtools/claude_code_install.sh
 # Each item is checked and repaired on its own: node (project hooks), git (Git
 # Bash), Windows Terminal (the named team window; warns below 1.21), python (the
-# secret reader of remote roles), the team state/shared/reports/reviews/memory
+# secret reader of remote roles), the team state/shared/memory
 # dirs, the core_node PATH entries, and the catalog user_settings_merge keys in
 # the user settings (added only when absent, never overwritten). The Remote
-# Control environment check only reports. -CheckOnly reports [SKIP]/[MISSING]
-# without changing anything.
+# Control environment check and the Claude account check (sign-in, first-run
+# setup, repo trust) only report. -CheckOnly reports [SKIP]/[MISSING] without
+# changing anything.
 # =============================================================================
 
 $ClaudeTeamInstallWinCommonDir = $PSScriptRoot
@@ -33,10 +34,25 @@ $ClaudeTeamInstallBinaries = @(
     @{ Commands = @("python.exe", "py.exe"); WingetId = "Python.Python.3.13"; SkipStoreAlias = $true; Purpose = "secret store reader for remote roles (scripts/pytools)" }
 )
 $ClaudeTeamInstallAgentMemoryDir = Join-Path $ClaudeTeamInstallClaudeDir "agent-memory"
-$ClaudeTeamInstallReportsDir = Join-Path $ClaudeTeamInstallSharedDir "reports"
-$ClaudeTeamInstallReviewsDir = Join-Path $ClaudeTeamInstallSharedDir "reviews"
-$ClaudeTeamInstallUserClaudeDir = Join-Path $env:USERPROFILE ".claude"
+$ClaudeTeamInstallUserClaudeDir = [Environment]::GetEnvironmentVariable("CLAUDE_CONFIG_DIR", "Process")
+if ([string]::IsNullOrWhiteSpace($ClaudeTeamInstallUserClaudeDir)) {
+    $ClaudeTeamInstallUserClaudeDir = Join-Path $env:USERPROFILE ".claude"
+} else {
+    $ClaudeTeamInstallUserClaudeDir = [System.IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($ClaudeTeamInstallUserClaudeDir))
+}
 $ClaudeTeamInstallUserSettingsPath = Join-Path $ClaudeTeamInstallUserClaudeDir "settings.json"
+# Global Claude Code state (first-run setup, account, per-project trust); it sits
+# next to .claude, not inside it, unless CLAUDE_CONFIG_DIR is set.
+$ClaudeTeamInstallGlobalConfigDir = $env:USERPROFILE
+if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable("CLAUDE_CONFIG_DIR", "Process"))) {
+    $ClaudeTeamInstallGlobalConfigDir = $ClaudeTeamInstallUserClaudeDir
+}
+$ClaudeTeamInstallGlobalConfigPath = Join-Path $ClaudeTeamInstallGlobalConfigDir ".claude.json"
+$ClaudeTeamInstallCredentialsPath = Join-Path $ClaudeTeamInstallUserClaudeDir ".credentials.json"
+# Environment credentials that replace a claude.ai sign-in (names only, never values).
+$ClaudeTeamInstallEnvCredentialNames = @("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY")
+# Result of Test-ClaudeTeamAccount: ready|login|onboarding|trust|missing.
+$script:ClaudeTeamAccountState = ""
 $ClaudeTeamInstallWtPackageName = "Microsoft.WindowsTerminal*"
 $ClaudeTeamInstallWtMinVersion = [version]"1.21"
 $ClaudeTeamInstallRemoteControlEnvBlockers = @(
@@ -178,18 +194,21 @@ function Install-ClaudeTeamPathEntry {
     Write-ClaudeTeamInstallLog "OK" ("PATH ensured for {0}" -f $ClaudeTeamInstallWinEnvsDir)
 }
 
-# Parsed user settings: Exists, Text, Settings (PSCustomObject or $null), Valid.
+# Parsed JSON object file (the user settings by default): Exists, Text, Settings
+# (PSCustomObject or $null), Valid. A locked or unreadable file is Valid false
+# with empty Text; a parse failure keeps the Text.
 function Read-ClaudeTeamUserSettings {
+    param([string]$Path = $ClaudeTeamInstallUserSettingsPath)
     $text = ""
     $settings = $null
-    if (-not (Test-Path -LiteralPath $ClaudeTeamInstallUserSettingsPath -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         return [pscustomobject]@{ Exists = $false; Text = ""; Settings = $null; Valid = $true }
     }
-    $text = [System.IO.File]::ReadAllText($ClaudeTeamInstallUserSettingsPath)
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        return [pscustomobject]@{ Exists = $true; Text = ""; Settings = $null; Valid = $true }
-    }
     try {
+        $text = [System.IO.File]::ReadAllText($Path)
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            return [pscustomobject]@{ Exists = $true; Text = ""; Settings = $null; Valid = $true }
+        }
         $settings = $text | ConvertFrom-Json -ErrorAction Stop
     } catch {
         return [pscustomobject]@{ Exists = $true; Text = $text; Settings = $null; Valid = $false }
@@ -206,6 +225,17 @@ function Test-ClaudeTeamSettingPresent {
         return $false
     }
     return ($null -ne $Settings.PSObject.Properties[$Key])
+}
+
+# True only for a JSON true (Linux: `is True`), never a truthy string or number.
+function Test-ClaudeTeamSettingTrue {
+    param($Settings, [string]$Key)
+    $value = $null
+    if (($Settings -isnot [System.Management.Automation.PSCustomObject]) -or (-not (Test-ClaudeTeamSettingPresent -Settings $Settings -Key $Key))) {
+        return $false
+    }
+    $value = $Settings.PSObject.Properties[$Key].Value
+    return (($value -is [bool]) -and $value)
 }
 
 function Get-ClaudeTeamUserSettingsMerge {
@@ -250,7 +280,7 @@ function Install-ClaudeTeamUserSettings {
     }
     $current = Read-ClaudeTeamUserSettings
     if (-not $current.Valid) {
-        Write-ClaudeTeamInstallLog "WARN" ("{0} is not a valid JSON object; user settings not merged" -f $ClaudeTeamInstallUserSettingsPath)
+        Write-ClaudeTeamInstallLog "WARN" ("{0} could not be read as a JSON object; user settings not merged" -f $ClaudeTeamInstallUserSettingsPath)
         return
     }
     foreach ($item in $mergeItems) {
@@ -340,6 +370,128 @@ function Test-ClaudeTeamRemoteControlEnvironment {
     }
 }
 
+# Fallback reader of a .claude.json that ConvertFrom-Json rejects, such as project
+# keys that differ only in case (C:/a and c:/a). It uses a case-sensitive parser
+# (ConvertFrom-Json -AsHashtable where the cmdlet has it, otherwise the .NET
+# JavaScriptSerializer) and returns only the fields Test-ClaudeTeamAccount reads:
+# oauthAccount presence, hasCompletedOnboarding and the trusted project keys.
+# $null when the text is not a JSON object for either parser.
+function ConvertFrom-ClaudeTeamAccountConfigText {
+    param([string]$Text)
+    $data = $null
+    $serializer = $null
+    $projects = $null
+    $projectKey = $null
+    $projectValue = $null
+    $trustedProjects = [pscustomobject]@{}
+    $config = [pscustomobject]@{}
+
+    try {
+        if ((Get-Command "ConvertFrom-Json").Parameters.ContainsKey("AsHashtable")) {
+            $data = ConvertFrom-Json -InputObject $Text -AsHashtable -ErrorAction Stop
+        } else {
+            Add-Type -AssemblyName "System.Web.Extensions" -ErrorAction Stop
+            $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+            $serializer.MaxJsonLength = [int]::MaxValue
+            $data = $serializer.DeserializeObject($Text)
+        }
+    } catch {
+        return $null
+    }
+    if ($data -isnot [System.Collections.IDictionary]) {
+        return $null
+    }
+    if ($data.ContainsKey("oauthAccount")) {
+        $config | Add-Member -NotePropertyName "oauthAccount" -NotePropertyValue $true
+    }
+    if ($data.ContainsKey("hasCompletedOnboarding")) {
+        $config | Add-Member -NotePropertyName "hasCompletedOnboarding" -NotePropertyValue $data["hasCompletedOnboarding"]
+    }
+    if ($data.ContainsKey("projects")) {
+        $projects = $data["projects"]
+    }
+    if ($projects -is [System.Collections.IDictionary]) {
+        foreach ($projectKey in @($projects.Keys)) {
+            $projectValue = $projects[$projectKey]
+            if ((-not [string]::IsNullOrWhiteSpace($projectKey)) -and ($projectValue -is [System.Collections.IDictionary]) -and $projectValue.ContainsKey("hasTrustDialogAccepted") -and ($projectValue["hasTrustDialogAccepted"] -is [bool]) -and $projectValue["hasTrustDialogAccepted"] -and ($null -eq $trustedProjects.PSObject.Properties[$projectKey])) {
+                $trustedProjects | Add-Member -NotePropertyName $projectKey -NotePropertyValue ([pscustomobject]@{ hasTrustDialogAccepted = $true })
+            }
+        }
+        $config | Add-Member -NotePropertyName "projects" -NotePropertyValue $trustedProjects
+    }
+    return $config
+}
+
+# Report-only mirror of cci_report_claude_account (Linux): whether a new claude
+# session of this user would reach its prompt (sign-in, first-run setup, workspace
+# trust of the repo or a parent). claude itself is not run and nothing is written:
+# the state is read from its files into $script:ClaudeTeamAccountState. Project
+# keys are matched with '/' separators and without case (claude uses C:/... keys).
+function Test-ClaudeTeamAccount {
+    $user = "{0}\{1}" -f $env:USERDOMAIN, $env:USERNAME
+    $name = $null
+    $signedIn = $false
+    $current = $null
+    $config = $null
+    $projects = $null
+    $property = $null
+    $trustedKeys = @{}
+    $path = $ClaudeTeamInstallRootDir
+    $trusted = $false
+
+    if ($null -eq (Get-Command "claude" -ErrorAction SilentlyContinue)) {
+        $script:ClaudeTeamAccountState = "missing"
+        Write-ClaudeTeamInstallLog "SKIP" "claude not installed yet; Claude account not checked"
+        return
+    }
+    foreach ($name in $ClaudeTeamInstallEnvCredentialNames) {
+        if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name, "Process"))) {
+            $signedIn = $true
+        }
+    }
+    $current = Read-ClaudeTeamUserSettings -Path $ClaudeTeamInstallGlobalConfigPath
+    Write-ClaudeTeamInstallLog "OK" ("Claude account: {0}, USERPROFILE={1}, config {2}, credentials dir {3}" -f $user, $env:USERPROFILE, $ClaudeTeamInstallGlobalConfigPath, $ClaudeTeamInstallUserClaudeDir)
+    $config = $current.Settings
+    if ((-not $current.Valid) -and (-not [string]::IsNullOrEmpty($current.Text))) {
+        $config = ConvertFrom-ClaudeTeamAccountConfigText -Text $current.Text
+    }
+    if ((-not $current.Valid) -and ($null -eq $config)) {
+        $script:ClaudeTeamAccountState = "missing"
+        Write-ClaudeTeamInstallLog "WARN" ("{0} could not be read as a JSON object (locked, mid-rewrite or invalid); Claude account not checked" -f $ClaudeTeamInstallGlobalConfigPath)
+        return
+    }
+    if ((Test-Path -LiteralPath $ClaudeTeamInstallCredentialsPath -PathType Leaf) -or (Test-ClaudeTeamSettingPresent -Settings $config -Key "oauthAccount")) {
+        $signedIn = $true
+    }
+    if (Test-ClaudeTeamSettingPresent -Settings $config -Key "projects") {
+        $projects = $config.PSObject.Properties["projects"].Value
+    }
+    if ($projects -is [System.Management.Automation.PSCustomObject]) {
+        foreach ($property in $projects.PSObject.Properties) {
+            if (Test-ClaudeTeamSettingTrue -Settings $property.Value -Key "hasTrustDialogAccepted") {
+                $trustedKeys[$property.Name.Replace("\", "/").TrimEnd("/")] = $true
+            }
+        }
+    }
+    while ((-not $trusted) -and (-not [string]::IsNullOrEmpty($path))) {
+        $trusted = $trustedKeys.ContainsKey($path.Replace("\", "/").TrimEnd("/"))
+        $path = Split-Path $path -Parent
+    }
+    if (-not $signedIn) {
+        $script:ClaudeTeamAccountState = "login"
+        Write-ClaudeTeamInstallLog "MISSING" ("Claude sign-in for {0}: run 'claude' once in {1} as {0} and sign in" -f $user, $ClaudeTeamInstallRootDir)
+    } elseif (-not (Test-ClaudeTeamSettingTrue -Settings $config -Key "hasCompletedOnboarding")) {
+        $script:ClaudeTeamAccountState = "onboarding"
+        Write-ClaudeTeamInstallLog "MISSING" ("Claude first-run setup in {0}: run 'claude' once as {1} and finish the setup screens (sessions read it only at startup)" -f $ClaudeTeamInstallGlobalConfigPath, $user)
+    } elseif (-not $trusted) {
+        $script:ClaudeTeamAccountState = "trust"
+        Write-ClaudeTeamInstallLog "MISSING" ("Workspace trust for {0}: run 'claude' there once as {1} and accept the trust prompt" -f $ClaudeTeamInstallRootDir, $user)
+    } else {
+        $script:ClaudeTeamAccountState = "ready"
+        Write-ClaudeTeamInstallLog "SKIP" ("Claude account signed in, first-run setup done, {0} trusted" -f $ClaudeTeamInstallRootDir)
+    }
+}
+
 function Invoke-ClaudeTeamInstall {
     param([switch]$CheckOnly)
     $item = $null
@@ -349,10 +501,9 @@ function Invoke-ClaudeTeamInstall {
     Test-ClaudeTeamWindowsTerminalVersion
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallStateDir -Purpose "role PID files" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallSharedDir -Purpose "shared data between roles" -CheckOnly ([bool]$CheckOnly)
-    Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReportsDir -Purpose "role handoff reports (TeammateIdle gate)" -CheckOnly ([bool]$CheckOnly)
-    Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallReviewsDir -Purpose "reviewer verdicts (TaskCompleted gate)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamDirectory -Path $ClaudeTeamInstallAgentMemoryDir -Purpose "per-role agent memory (memory: project)" -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamPathEntry -CheckOnly ([bool]$CheckOnly)
     Install-ClaudeTeamUserSettings -CheckOnly ([bool]$CheckOnly)
     Test-ClaudeTeamRemoteControlEnvironment
+    Test-ClaudeTeamAccount
 }
