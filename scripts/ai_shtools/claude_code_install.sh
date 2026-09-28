@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # Canonical Claude Code install workflow (Linux). Single source of truth shared by
-# the dd.sh AI & MCP Management menu, the install_shells 171 step and every claude*
+# the dd.sh "AI Tools & MCP" menu, install_shells/99_install_ai_tools.sh (and the
+# 171 delegate step) and every claude*
 # launcher (via ai_cli_provision). Source this file, then call claude_code_install:
 #   1. Idempotently install missing prerequisites, then Claude Code itself through the
 #      OFFICIAL NATIVE installer, run as the real user (get_real_user) so the per-user

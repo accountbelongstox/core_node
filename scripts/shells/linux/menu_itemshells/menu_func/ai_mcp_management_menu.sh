@@ -1,25 +1,34 @@
 #!/bin/bash
 
-# Unified "AI & MCP Management" menu (Linux). Mirrors the Windows merged menu:
-# - status panel (detected AI tools + existing MCP + key status)
-# - MCP install (chrome recompiles once per run) + sync to all 8 tools
-# - links to the existing per-tool AI env-var submenus
-# Source this file and call show_ai_mcp_management_menu. cunzhi/wait_please excluded.
+# "AI Tools & MCP" menu (Linux). Single entry point for:
+# - Ensure ALL AI tools (one click) / per-tool install+upgrade
+# - Status table (installed, version, /usr/local/bin link, login shared)
+# - Shared-login setup (root <-> real desktop user config-dir sharing)
+# - mcp-chrome (build+install service, status, restart, logs)
+# - Sync chrome MCP config to every installed AI tool
+# - API key / env-var setup for Claude, Codex, Droid (unchanged, separate
+#   concern from install/link/login-share)
+# Every AI-tool item below calls install_shells/99_install_ai_tools.sh or
+# common/ai_shared_login.sh (single source of truth; no duplicated logic here).
 
 AIMCP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # core_node root: menu_func -> menu_itemshells -> linux -> shells -> scripts -> root
 AIMCP_CORE_NODE_DIR="$(cd "$AIMCP_DIR/../../../../.." && pwd)"
 AIMCP_SHTOOLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/ai_shtools"
-# Debian install_shells dir: the menu can call install scripts from here (e.g.
-# the dedicated Claude Code installer 171_install_claude_code.sh).
+AIMCP_COMMON_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/common"
 AIMCP_INSTALL_SHELLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/debian/install_shells"
-# Canonical engine + status live in scripts/ai_shtools (shared with the main-menu
-# "Sync All MCP" action), so there is a single source of truth.
+AIMCP_INSTALLER="$AIMCP_INSTALL_SHELLS_DIR/99_install_ai_tools.sh"
+
+# Canonical engine + status + catalog + shared-login libs (single source of truth).
 # shellcheck source=/dev/null
 . "$AIMCP_SHTOOLS_DIR/mcp_sync_engine.sh"
 # shellcheck source=/dev/null
 . "$AIMCP_SHTOOLS_DIR/mcp_status.sh"
-# Optional: existing per-tool AI env-var submenus for the AI Management section.
+# shellcheck source=/dev/null
+. "$AIMCP_COMMON_DIR/ai_tools_catalog.sh"
+# shellcheck source=/dev/null
+. "$AIMCP_COMMON_DIR/ai_shared_login.sh"
+# Optional: existing per-tool API key / env-var submenus (unrelated to install).
 for _aimcp_f in ai_claude_menu.sh ai_droid_menu.sh ai_openai_menu.sh spacial_common_menu.sh; do
     [ -f "$AIMCP_DIR/$_aimcp_f" ] && . "$AIMCP_DIR/$_aimcp_f"
 done
@@ -46,41 +55,115 @@ aimcp_run_submenu() {
     fi
 }
 
-# Run an install script from scripts/shells/linux/debian/install_shells.
-aimcp_run_install_script() {
-    local script_name="$1" label="$2"
-    local script_path="$AIMCP_INSTALL_SHELLS_DIR/$script_name"
-    if [ -s "$script_path" ]; then
-        [ -x "$script_path" ] || chmod +x "$script_path" 2>/dev/null || true
-        bash "$script_path"
+aimcp_installer() {
+    if [ -s "$AIMCP_INSTALLER" ]; then
+        bash "$AIMCP_INSTALLER" "$@"
     else
-        clear
-        echo "[INFO] $label not found at: $script_path"
+        echo "[ERROR] 99_install_ai_tools.sh not found at: $AIMCP_INSTALLER"
     fi
+}
+
+# --- Per-tool install/upgrade submenu ---------------------------------------
+aimcp_show_tool_submenu() {
+    local -a keys=()
+    local key selected=1 total k
+    mapfile -t keys < <(ai_catalog_keys)
+    total=${#keys[@]}
+
+    while true; do
+        clear
+        print_color "== Per-tool AI CLI install / upgrade ======================" "Info"
+        for k in "${!keys[@]}"; do
+            key="${keys[$k]}"
+            if [ "$k" -eq "$selected" ]; then
+                echo -e "\033[33m> $key  ($(ai_catalog_get "$key" name))\033[0m"
+            else
+                echo "  $key  ($(ai_catalog_get "$key" name))"
+            fi
+        done
+        echo "  back  Back"
+        print_color "Use Up/Down arrows to navigate, Enter to select" "Info"
+
+        local rkey=""
+        read -rsn1 rkey
+        case "$rkey" in
+            $'\x1b')
+                read -rsn2 rkey
+                case "$rkey" in
+                    '[A') ((selected--)); [ $selected -lt 0 ] && selected=$total ;;
+                    '[B') ((selected++)); [ $selected -gt $total ] && selected=0 ;;
+                esac
+                ;;
+            '')
+                if [ "$selected" -eq "$total" ]; then
+                    return 0
+                fi
+                clear
+                aimcp_installer --only "${keys[$selected]}"
+                aimcp_pause
+                ;;
+        esac
+    done
+}
+
+# --- mcp-chrome submenu ------------------------------------------------------
+aimcp_mcp_chrome_menu() {
+    local -a items=(
+        "build:Build + install as the ncore-mcp-chrome service"
+        "status:Service status (systemctl status)"
+        "restart:Restart service"
+        "logs:Tail logs (journalctl -f, Ctrl+C to stop)"
+        "back:Back"
+    )
+    local selected=0 total=${#items[@]} i action text
+
+    while true; do
+        clear
+        print_color "== mcp-chrome =============================================" "Info"
+        for i in "${!items[@]}"; do
+            IFS=':' read -r action text <<< "${items[$i]}"
+            if [ "$i" -eq "$selected" ]; then echo -e "\033[33m> $text\033[0m"; else echo "  $text"; fi
+        done
+        print_color "Use Up/Down arrows to navigate, Enter to select" "Info"
+
+        local rkey=""
+        read -rsn1 rkey
+        case "$rkey" in
+            $'\x1b')
+                read -rsn2 rkey
+                case "$rkey" in
+                    '[A') ((selected--)); [ $selected -lt 0 ] && selected=$((total - 1)) ;;
+                    '[B') ((selected++)); [ $selected -ge $total ] && selected=0 ;;
+                esac
+                ;;
+            '')
+                IFS=':' read -r action text <<< "${items[$selected]}"
+                case "$action" in
+                    build)   clear; aimcp_installer --only mcp_chrome; aimcp_pause ;;
+                    status)  clear; systemctl status ncore-mcp-chrome --no-pager 2>&1 | head -40; aimcp_pause ;;
+                    restart) clear; ${USE_SUDO:-sudo} systemctl restart ncore-mcp-chrome && echo "[OK] Restarted."; aimcp_pause ;;
+                    logs)    clear; echo "Press Ctrl+C to stop..."; journalctl -u ncore-mcp-chrome -f ;;
+                    back)    return 0 ;;
+                esac
+                ;;
+        esac
+    done
 }
 
 show_ai_mcp_management_menu() {
     local -a menu_items=(
-        "header:== AI Management (per-tool env/command setup) =========="
-        "claude_env:  Install Claude Code (native) + link all users + claudeteam"
-        "droid_env:  Droid env/command setup"
-        "openai_env:  OpenAI env/command setup"
-        "header:== MCP: Inspect ========================================"
-        "dryrun:  Show planned servers (dry-run)"
-        "header:== MCP: Install (auto-syncs all tools) ================="
-        "install_all:  Install All MCP + Sync to All AI Tools"
-        "install_chrome:  Install Chrome MCP + Sync All"
-        "install_context7:  Install Context7 MCP + Sync All"
-        "header:== MCP: Sync config only (no install) =================="
-        "sync_all:  Sync to All AI Tools"
-        "sync_claude:  Sync to Claude"
-        "sync_cursor:  Sync to Cursor (+ Cursor Agent)"
-        "sync_codex:  Sync to Codex"
-        "sync_gemini:  Sync to Gemini"
-        "sync_droid:  Sync to Droid"
-        "sync_windsurf:  Sync to Windsurf"
-        "sync_devin:  Sync to Devin"
-        "sync_vscode:  Sync to VS Code"
+        "header:== AI Tools ============================================"
+        "ensure_all:  Ensure ALL AI tools (one click)"
+        "per_tool:  Install / upgrade one AI tool"
+        "status:  Status table (installed, version, linked, login shared)"
+        "shared_login:  Shared-login setup (root <-> real user config dirs)"
+        "header:== mcp-chrome (only MCP server) ========================="
+        "mcp_chrome:  Build + install service / status / restart / logs"
+        "sync_chrome:  Sync chrome MCP to all installed AI tools"
+        "header:== API keys / env setup (per tool) ===================="
+        "claude_keys:  Claude API keys / env vars"
+        "codex_keys:  Codex / OpenAI API keys / env vars"
+        "droid_keys:  Droid API keys / env vars"
         "back:Back to Main Menu"
     )
 
@@ -90,7 +173,7 @@ show_ai_mcp_management_menu() {
     while true; do
         clear
         print_color "========================================================" "Info"
-        print_color "       AI & MCP Management" "Info"
+        print_color "       AI Tools & MCP" "Info"
         print_color "========================================================" "Info"
         mcp_show_status_panel
 
@@ -133,23 +216,16 @@ show_ai_mcp_management_menu() {
                 IFS=':' read -r action text <<< "${menu_items[$selected_index]}"
                 case "$action" in
                     header) ;;
-                    claude_env)       clear; aimcp_run_install_script "171_install_claude_code.sh" "Claude Code installer"; aimcp_pause ;;
-                    droid_env)        aimcp_run_submenu show_droid_submenu "Droid env setup" ;;
-                    codex_env)        aimcp_run_submenu show_codex_submenu "Codex CLI env setup" ;;
-                    dryrun)           clear; mcp_show_planned; aimcp_pause ;;
-                    install_all)      clear; mcp_install_all; aimcp_pause ;;
-                    install_chrome)   clear; export MCP_CHROME_BUILD_DONE=0; mcp_install_chrome; mcp_sync_all; aimcp_pause ;;
-                    install_context7) clear; mcp_install_context7; mcp_sync_all; aimcp_pause ;;
-                    sync_all)         clear; mcp_sync_all; aimcp_pause ;;
-                    sync_claude)      clear; mcp_sync_tool claude; aimcp_pause ;;
-                    sync_cursor)      clear; mcp_sync_tool cursor; aimcp_pause ;;
-                    sync_codex)       clear; mcp_sync_tool codex; aimcp_pause ;;
-                    sync_gemini)      clear; mcp_sync_tool gemini; aimcp_pause ;;
-                    sync_droid)       clear; mcp_sync_tool droid; aimcp_pause ;;
-                    sync_windsurf)    clear; mcp_sync_tool windsurf; aimcp_pause ;;
-                    sync_devin)       clear; mcp_sync_tool devin; aimcp_pause ;;
-                    sync_vscode)      clear; mcp_sync_tool vscode; aimcp_pause ;;
-                    back)             return 0 ;;
+                    ensure_all)   clear; aimcp_installer; aimcp_pause ;;
+                    per_tool)     aimcp_show_tool_submenu ;;
+                    status)       clear; aimcp_installer --status; aimcp_pause ;;
+                    shared_login) clear; ai_shared_login_setup; aimcp_pause ;;
+                    mcp_chrome)   aimcp_mcp_chrome_menu ;;
+                    sync_chrome)  clear; mcp_sync_all; aimcp_pause ;;
+                    claude_keys)  aimcp_run_submenu show_claude_submenu "Claude API keys / env setup" ;;
+                    codex_keys)   aimcp_run_submenu show_codex_submenu "Codex/OpenAI API keys / env setup" ;;
+                    droid_keys)   aimcp_run_submenu show_droid_submenu "Droid API keys / env setup" ;;
+                    back)         return 0 ;;
                 esac
                 ;;
         esac

@@ -28,26 +28,35 @@ AI_CLI_UPGRADE_TIMEOUT_SECONDS="5"
 AI_CLI_ULTRACODE_TIMEOUT_SECONDS="2"
 AI_CLI_ULTRACODE_SETTINGS_JSON='{"ultracode":true}'
 AI_CLI_ULTRACODE_ARGS=()
-AI_CLI_KIMI_INSTALLER_URL="https://code.kimi.com/kimi-code/install.sh"
 AI_CLI_CLAUDE_LATEST_URL="https://downloads.claude.ai/claude-code-releases/latest"
 AI_CLI_PROVISION_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AI_CLI_CORE_NODE_DIR="$(cd "$AI_CLI_PROVISION_COMMON_DIR/../../../.." && pwd)"
 AI_CLI_CLAUDE_INSTALL_LIB="$AI_CLI_CORE_NODE_DIR/scripts/ai_shtools/claude_code_install.sh"
 
+# Single catalog (key, command, method, package/URL, link name) - read instead
+# of keeping a second package table here.
+if ! command -v ai_catalog_get >/dev/null 2>&1; then
+    # shellcheck source=ai_tools_catalog.sh
+    . "$AI_CLI_PROVISION_COMMON_DIR/ai_tools_catalog.sh"
+fi
+AI_CLI_KIMI_INSTALLER_URL="$(ai_catalog_get kimi package_id)"
+
+# Only claude/codex/kimi are lazily installed/upgraded by launchers; every
+# other catalog tool is handled up front by install_shells/99_install_ai_tools.sh.
 ai_cli_package() {
     case "$1" in
-        claude) printf '%s' "@anthropic-ai/claude-code" ;;
-        codex) printf '%s' "@openai/codex" ;;
-        kimi) printf '%s' "@moonshot-ai/kimi-code" ;;
+        claude|codex|kimi) ai_catalog_get "$1" "package_id" ;;
         *) printf '%s' "" ;;
     esac
 }
 
 ai_cli_label() {
     case "$1" in
-        claude) printf '%s' "Claude Code" ;;
-        codex) printf '%s' "Codex CLI" ;;
-        kimi) printf '%s' "Kimi Code CLI" ;;
+        claude|codex|kimi)
+            local label=""
+            label="$(ai_catalog_get "$1" "name")"
+            printf '%s' "${label:-$1}"
+            ;;
         *) printf '%s' "$1" ;;
     esac
 }

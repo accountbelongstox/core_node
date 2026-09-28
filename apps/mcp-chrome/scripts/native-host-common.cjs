@@ -111,6 +111,75 @@ function getPlatformFamily() {
 }
 
 /**
+ * Resolve the REAL desktop user's home directory, not root's. When this
+ * script runs as root via sudo (e.g. from the AI tools installer), os.homedir()
+ * returns /root, which registers the native-host manifest where the real
+ * user's Chrome profile never looks. Falls back to os.homedir() whenever we
+ * are not running as root under sudo (normal per-user invocation, unaffected).
+ */
+function resolveRealUserHomeDir() {
+  if (getPlatformFamily() !== PLATFORM_LINUX) {
+    return os.homedir();
+  }
+  const isRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+  const sudoUser = process.env.SUDO_USER;
+  if (!isRoot || !sudoUser || sudoUser === 'root') {
+    return os.homedir();
+  }
+  try {
+    const line = execSync(`getent passwd ${JSON.stringify(sudoUser)}`, {
+      stdio: ['pipe', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+    const home = line.split(':')[5];
+    if (home) {
+      return home;
+    }
+  } catch (err) {
+    // Fall through to os.homedir() below.
+  }
+  return os.homedir();
+}
+
+/**
+ * Resolve the real user's uid/gid when running as root under sudo, so
+ * files written into their home can have ownership repaired afterwards.
+ * Returns null when not applicable (not root, or SUDO_UID/GID unset).
+ */
+function resolveRealUserIds() {
+  if (typeof process.getuid !== 'function' || process.getuid() !== 0) {
+    return null;
+  }
+  const uid = process.env.SUDO_UID;
+  const gid = process.env.SUDO_GID;
+  if (!uid || !gid) {
+    return null;
+  }
+  return { uid: Number(uid), gid: Number(gid) };
+}
+
+/**
+ * Repair ownership of a path (recursively) back to the real user, after root
+ * created or wrote into it. No-op on Windows/macOS or outside a sudo context.
+ */
+function fixManifestOwnership(dirPath) {
+  if (getPlatformFamily() !== PLATFORM_LINUX) {
+    return;
+  }
+  const ids = resolveRealUserIds();
+  if (!ids) {
+    return;
+  }
+  try {
+    execSync(`chown -R ${ids.uid}:${ids.gid} ${JSON.stringify(dirPath)}`, { stdio: 'pipe' });
+    console.log(`[OK] Ownership repaired for ${dirPath} (uid=${ids.uid} gid=${ids.gid})`);
+  } catch (err) {
+    console.warn(`[WARN] Failed to repair ownership for ${dirPath}: ${err.message}`);
+  }
+}
+
+/**
  * Get the user-level native messaging host manifest path for a browser
  */
 function getUserManifestPath(browser = BROWSER_CHROME) {
@@ -119,7 +188,7 @@ function getUserManifestPath(browser = BROWSER_CHROME) {
   const rootPath =
     platform === PLATFORM_WINDOWS
       ? process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
-      : os.homedir();
+      : resolveRealUserHomeDir();
 
   return path.join(rootPath, ...definition.userManifestSegments[platform], MANIFEST_FILE_NAME);
 }
@@ -311,6 +380,10 @@ function registerUserHost(browser, options) {
     }
 
     fixManifestDirPermissions(path.dirname(manifestPath));
+    // The manifest dir lives under the REAL user's home (resolveRealUserHomeDir),
+    // but this process may still be running as root: repair ownership so the
+    // real user (not root) owns their own native-messaging-hosts directory.
+    fixManifestOwnership(path.dirname(manifestPath));
 
     if (registryKey) {
       try {
@@ -333,6 +406,56 @@ function registerUserHost(browser, options) {
     return true;
   } catch (err) {
     console.error(`[ERROR] Failed to register ${definition.displayName}: ${err.message}\n`);
+    return false;
+  }
+}
+
+/**
+ * Register the system-level host for one browser (Linux: /etc/opt/chrome/...,
+ * readable by every user; Windows: HKLM). Requires root/Administrator; skips
+ * (returns false, no throw) when not privileged, since the user-level
+ * registration alone is still usable by that one account.
+ */
+function registerSystemHost(browser, options) {
+  const definition = getBrowserDefinition(browser);
+  const manifestPath = getSystemManifestPath(definition.type);
+  const registryKey = getWindowsSystemRegistryKey(definition.type);
+  const nativeServerDist = options.nativeServerDist || NATIVE_SERVER_DIST;
+  const platform = getPlatformFamily();
+
+  try {
+    if (definition.type !== BROWSER_FIREFOX && !options.extensionId) {
+      throw new Error(`Extension ID is required for ${definition.displayName} registration`);
+    }
+    if (platform === PLATFORM_LINUX && (typeof process.getuid !== 'function' || process.getuid() !== 0)) {
+      console.warn(`[WARN] System-level registration for ${definition.displayName} requires root; skipping.`);
+      return false;
+    }
+
+    ensureDir(path.dirname(manifestPath));
+    const manifest = createManifestContent(manifestPath, definition.type, {
+      ...options,
+      nativeServerDist,
+    });
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+    console.log(`[OK] System manifest written: ${manifestPath}`);
+
+    fixManifestDirPermissions(path.dirname(manifestPath));
+
+    if (registryKey) {
+      try {
+        addWindowsRegistryKey(registryKey, manifestPath);
+        console.log(`[OK] System registry entry created: ${registryKey}`);
+      } catch (err) {
+        console.warn(`[WARN] System registry entry failed for ${definition.displayName}: ${err.message}`);
+        console.warn('[HINT] Try running as Administrator if this fails');
+      }
+    }
+
+    console.log(`[SUCCESS] Successfully registered ${definition.displayName} (system-level)\n`);
+    return true;
+  } catch (err) {
+    console.error(`[ERROR] Failed to register ${definition.displayName} (system-level): ${err.message}\n`);
     return false;
   }
 }
@@ -363,4 +486,8 @@ module.exports = {
   addWindowsRegistryKey,
   removeWindowsRegistryKey,
   registerUserHost,
+  registerSystemHost,
+  resolveRealUserHomeDir,
+  resolveRealUserIds,
+  fixManifestOwnership,
 };
