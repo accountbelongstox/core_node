@@ -47,7 +47,7 @@ show_permissions_repair_menu() {
     fi
 }
 
-# manage_natgateway (NAT Gateway Configuration item) comes from natgateway_helper.sh,
+# manage_natgateway ([#] Setup Network Router item) comes from natgateway_helper.sh,
 # loaded with the menu helpers.
 
 # True when the current system is Debian with a major version below 13; used to
@@ -582,7 +582,7 @@ show_linux_system_tools_submenu() {
         menu_items=(
             "Disable Ubuntu Automatic Updates"
             "Permissions Repair Menu"
-            "NAT Gateway Configuration"
+            "[#] Setup Network Router [$(get_var INSTALL_NETWORK_ROUTER false 2>/dev/null || echo false)]"
             "Restart GNOME Remote Desktop (Fix RDP Connection)"
             "Clear and Re-decrypt Secret Keys"
             "Show System Information"

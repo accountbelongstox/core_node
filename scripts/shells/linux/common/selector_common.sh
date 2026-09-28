@@ -385,7 +385,7 @@ manage_natgateway() {
         chmod +x "$natgateway_script"
     fi
     
-    "$natgateway_script"
+    "$natgateway_script" menu
     
     local exit_code=$?
     echo ""
