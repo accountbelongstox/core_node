@@ -12,9 +12,8 @@ source "$SCRIPT_DIR/arrow_menu.sh"
 declare -a MENU_CONFIG=(
     "[*] Switch Installation Mode|INSTALL_MODE|base server full desktop|base|server|full|desktop"
     "[@] Select Region|SELECTED_REGION|China Global|Global|Global|Global|Global"
-    "[D] Start MySQL After Installation|START_MYSQL|false true|false|false|false|false"
+    "[D] Database After Installation|DATABASE_ENGINE|pg mysql both none|pg|pg|pg|pg"
     "[R] Start Redis After Installation|START_REDIS|false true|false|false|false|false"
-    "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
     "[W] Web Server After Installation|START_WEB_SERVER|frankenphp nginx|frankenphp|frankenphp|frankenphp|frankenphp"
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
     "[.] Install .NET SDK|START_DOTNET|false true|false|false|false|false"
@@ -47,6 +46,24 @@ parse_menu_config() {
         mode_defaults["${key}_desktop"]="$desktop_default"
     done
 }
+# Map DATABASE_ENGINE to START_MYSQL/START_POSTGRESQL using the given setter
+sync_database_engine() {
+    local setter="$1"
+    local engine="$2"
+    local start_mysql="false"
+    local start_postgresql="false"
+
+    case "$engine" in
+        mysql) start_mysql="true" ;;
+        both) start_mysql="true"; start_postgresql="true" ;;
+        none) ;;
+        *) start_postgresql="true" ;;
+    esac
+
+    "$setter" "START_MYSQL" "$start_mysql"
+    "$setter" "START_POSTGRESQL" "$start_postgresql"
+}
+
 # Get preset value based on mode
 get_preset_value() {
     local key="$1"
@@ -109,6 +126,9 @@ reset_to_mode_defaults() {
             
             # Clear saved value to prevent get_var override
             set_var "$key" "$new_preset"
+            if [ "$key" == "DATABASE_ENGINE" ]; then
+                sync_database_engine set_var "$new_preset"
+            fi
         fi
     done
 }
@@ -194,6 +214,9 @@ cycle_value() {
     
     # Immediately save value to global variable
     set_var "$key" "${options[$current_idx]}"
+    if [ "$key" == "DATABASE_ENGINE" ]; then
+        sync_database_engine set_var "${options[$current_idx]}"
+    fi
     
     # Special handling: when mode changes, reset all values to new mode defaults
     if [ "$key" == "INSTALL_MODE" ]; then
@@ -218,6 +241,10 @@ save_configuration() {
                 ;;
             "SELECTED_REGION"|"CLOUD_PROVIDER")
                 set_env_and_var "$key" "${current_values[$key]}"
+                ;;
+            "DATABASE_ENGINE")
+                set_global_var "$key" "${current_values[$key]}"
+                sync_database_engine set_global_var "${current_values[$key]}"
                 ;;
             *)
                 set_global_var "$key" "${current_values[$key]}"

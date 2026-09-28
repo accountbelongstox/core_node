@@ -59,11 +59,12 @@ CCI_CA_BUNDLE_PATH="/etc/ssl/certs/ca-certificates.crt"
 # Distro tmux on Debian 13 (3.5a) and Ubuntu 26.04 (3.6): -l % splits, allow-passthrough
 # all, extended-keys. Older versions are reported, never replaced.
 CCI_TMUX_MIN_VERSION="3.5"
-# One maximized terminal attached to the team tmux session, detected in this order
-# (Wayland-safe flags only; nothing is installed): ptyxis (Ubuntu 26.04 default),
-# gnome-terminal, konsole, xterm, then the Kali/XFCE terminals and the Debian
-# alternative. None found or no display: headless (tmux attach in the current tty).
-CCI_TEAM_TERMINALS=("ptyxis" "gnome-terminal" "konsole" "xterm" "xfce4-terminal" "qterminal" "x-terminal-emulator")
+# One terminal attached to the team tmux session (nothing is installed). The system
+# default comes first: the Debian/Ubuntu/Kali x-terminal-emulator alternative
+# (resolved to its real terminal so its own flags apply), then the freedesktop
+# xdg-terminal-exec; then the known terminals. None found or no display: headless.
+CCI_TEAM_DEFAULT_TERMINALS=("x-terminal-emulator" "xdg-terminal-exec")
+CCI_TEAM_TERMINALS=("ptyxis" "gnome-terminal" "konsole" "xterm" "xfce4-terminal" "qterminal")
 CCI_TEAM_TERMINAL=""
 CCI_TEAM_TERMINAL_SKIP_REASON=""
 # 1 = only report each team item ([OK]/[MISSING]); never install or link.
@@ -477,16 +478,41 @@ cci_terminal_is_foreign_factory() {
     return 1
 }
 
-# Sets CCI_TEAM_TERMINAL to the first terminal of CCI_TEAM_TERMINALS on PATH, or
-# leaves it empty (headless) when there is no graphical display or no terminal.
+# Prints the known terminal an x-terminal-emulator alternative points to, else the
+# alternative itself (launched with the generic -e form).
+cci_resolve_default_terminal() {
+    local terminal="$1"
+    local target=""
+    local known=""
+    [ "$terminal" = "x-terminal-emulator" ] || { printf '%s' "$terminal"; return 0; }
+    target="$(basename "$(readlink -f "$(command -v "$terminal")" 2>/dev/null)" 2>/dev/null)"
+    target="${target%.wrapper}"
+    for known in "${CCI_TEAM_TERMINALS[@]}"; do
+        if [ "$target" = "$known" ] && command -v "$known" >/dev/null 2>&1; then
+            printf '%s' "$known"
+            return 0
+        fi
+    done
+    printf '%s' "$terminal"
+}
+
+# Sets CCI_TEAM_TERMINAL to the system default terminal, else the first of
+# CCI_TEAM_TERMINALS on PATH, or leaves it empty (headless) when there is no
+# graphical display or no terminal.
 cci_detect_team_terminal() {
     local terminal=""
+    local tried=" "
     CCI_TEAM_TERMINAL=""
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         return 0
     fi
-    for terminal in "${CCI_TEAM_TERMINALS[@]}"; do
+    for terminal in "${CCI_TEAM_DEFAULT_TERMINALS[@]}" "${CCI_TEAM_TERMINALS[@]}"; do
         if command -v "$terminal" >/dev/null 2>&1; then
+            terminal="$(cci_resolve_default_terminal "$terminal")"
+            case "$tried" in
+                *" $terminal "*) continue ;;
+            esac
+            tried="$tried$terminal "
             if cci_terminal_is_foreign_factory "$terminal"; then
                 echo "[SKIP] $terminal: $CCI_TEAM_TERMINAL_SKIP_REASON" >&2
                 continue
@@ -504,9 +530,9 @@ cci_report_team_terminal() {
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         echo "[SKIP] no graphical display: the team session attaches in the current tty (headless)"
     elif [ -n "$CCI_TEAM_TERMINAL" ]; then
-        echo "[SKIP] team terminal: $(command -v "$CCI_TEAM_TERMINAL") (one maximized window attached to tmux; nothing installed)"
+        echo "[SKIP] team terminal: $(command -v "$CCI_TEAM_TERMINAL") (one window attached to tmux; nothing installed)"
     else
-        echo "[WARN] no supported terminal (${CCI_TEAM_TERMINALS[*]}): the team session attaches in the current tty; nothing installed"
+        echo "[WARN] no supported terminal (${CCI_TEAM_DEFAULT_TERMINALS[*]} ${CCI_TEAM_TERMINALS[*]}): the team session attaches in the current tty; nothing installed"
     fi
 }
 

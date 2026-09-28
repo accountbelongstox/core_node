@@ -200,7 +200,8 @@ class CUDADetector:
         """Resolve the nvidia-smi executable. Do NOT rely on PATH alone: a service
         launched with a sanitized PATH (e.g. pyservice) may not have System32 on it,
         which false-negatives GPU detection and trips the CPU-torch guard. Falls back
-        to the well-known driver install locations, then to the bare name."""
+        to the well-known driver install locations; returns "" on a host without a
+        usable NVIDIA driver so callers skip the probe instead of spawning it."""
         found = shutil.which("nvidia-smi")
         if found:
             return found
@@ -215,9 +216,9 @@ class CUDADetector:
         else:
             candidates.extend(["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"])
         for cand in candidates:
-            if cand and os.path.isfile(cand):
+            if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
                 return cand
-        return "nvidia-smi"
+        return ""
 
     @classmethod
     def _torch_cuda_available(cls) -> bool:
@@ -233,8 +234,10 @@ class CUDADetector:
     @classmethod
     def _check_nvidia_smi(cls) -> Optional[Dict[str, Any]]:
         """Check if nvidia-smi is available and get GPU info."""
+        smi = cls._nvidia_smi_cmd()
+        if not smi:
+            return None
         try:
-            smi = cls._nvidia_smi_cmd()
             # Try to run nvidia-smi (resolved full path, not PATH-dependent)
             result = exec_silent(
                 [smi, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'],

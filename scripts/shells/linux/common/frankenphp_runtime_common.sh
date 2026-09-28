@@ -483,17 +483,15 @@ fm_unlink_frankenphp_runtime() {
     fi
     for unit in $(systemctl list-unit-files --type=service --no-legend 2>/dev/null \
         | awk '{print $1}' | grep -Ei 'frankenphp|octane|app-manager' | grep -v '@'); do
-        unit_cmd="$(systemctl show -p ExecStart "$unit" 2>/dev/null || true)"
-        # Discriminator (judged by the EXECUTED command, NEVER by unit
-        # name): only a unit EXECUTING a frankenphp binary directly (the
-        # deb's own `frankenphp run` Caddy server) is retired. The plane's
-        # own runtime - artisan `octane:frankenphp` - merely
-        # NAMES frankenphp as a flag; those units stay untouched.
-        case "$unit_cmd" in
-            *frankenphp*)
-                if echo "$unit_cmd" | grep -qiE 'octane|artisan'; then
-                    continue
-                fi
+        unit_cmd="$(systemctl show -p ExecStart "$unit" 2>/dev/null \
+            | grep -oE 'path=[^ ;]+' | head -n 1 || true)"
+        # Discriminator (judged by the EXECUTED program, NEVER by unit name
+        # or argv): only a unit whose ExecStart program IS a frankenphp
+        # binary (the deb's own `frankenphp run` Caddy server) is retired.
+        # The plane's own launcher (bash .../175_laravel_main_service_
+        # frankenphp.sh) merely NAMES frankenphp in its argv; it stays.
+        case "${unit_cmd##*/}" in
+            frankenphp)
                 echo "[$SCRIPT_INDEX] unlink: disabling frankenphp unit ${unit}"
                 $USE_SUDO systemctl disable --now "$unit" >/dev/null 2>&1 || true
                 if systemctl list-unit-files --type=timer --no-legend 2>/dev/null \

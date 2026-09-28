@@ -19,6 +19,7 @@ INSTALL_SHELLS_DIR=""
 TAILSCALE_INSTALL_SCRIPT=""
 ARROW_MENU_SCRIPT=""
 TAILSCALE_COMMON_SCRIPT=""
+REMOTE_CONTROL_COMMON_SCRIPT=""
 
 _resolve_tailscale_menu_paths() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,6 +29,7 @@ _resolve_tailscale_menu_paths() {
     TAILSCALE_INSTALL_SCRIPT="$INSTALL_SHELLS_DIR/97_install_tailscale.sh"
     ARROW_MENU_SCRIPT="$COMMON_DIR/arrow_menu.sh"
     TAILSCALE_COMMON_SCRIPT="$COMMON_DIR/tailscale_common.sh"
+    REMOTE_CONTROL_COMMON_SCRIPT="$COMMON_DIR/remote_control_common.sh"
 }
 
 _resolve_tailscale_menu_paths
@@ -39,6 +41,7 @@ if [ ! -s "$TAILSCALE_COMMON_SCRIPT" ]; then
 fi
 source "$ARROW_MENU_SCRIPT"
 source "$TAILSCALE_COMMON_SCRIPT"
+source "$REMOTE_CONTROL_COMMON_SCRIPT"
 
 # Install/Repair via the existing idempotent installer (never duplicated
 # here); it also handles the interactive "disable" prompt when Tailscale is
@@ -187,6 +190,42 @@ _tailscale_menu_login_logout() {
     read -r
 }
 
+_tailscale_menu_run_rc() {
+    printf "\033c"
+    "$@"
+    rc_pause
+}
+
+# Remote Control (RDP/SSH, Windows <-> Linux over the tailnet): every
+# Tailscale IP is printed above the menu; actions live in remote_control_common.sh.
+_tailscale_menu_remote_control() {
+    local selected_index=0
+    local menu_items=(
+        "Enable this machine to control remote (RDP/SSH client + shared key)"
+        "Allow remote control of this machine (SSH + RDP, login password)"
+        "Connect to a peer (RDP or SSH)"
+        "Endpoints (all Tailscale IPs + connect commands)"
+        "Status"
+        "Help (manual UI steps + official docs)"
+        "Back"
+    )
+
+    while true; do
+        rc_load_peer_rows
+        arrow_menu_select "Remote Control (Windows <-> Linux)" menu_items "$selected_index" 6 rc_render_peer_table
+        selected_index=$ARROW_MENU_SELECTED_INDEX
+        case "$selected_index" in
+            0) _tailscale_menu_run_rc rc_enable_controller ;;
+            1) _tailscale_menu_run_rc rc_enable_host ;;
+            2) _tailscale_menu_run_rc rc_connect_peer ;;
+            3) _tailscale_menu_run_rc rc_show_endpoints ;;
+            4) _tailscale_menu_run_rc rc_show_status ;;
+            5) _tailscale_menu_run_rc rc_show_help ;;
+            6) return 0 ;;
+        esac
+    done
+}
+
 show_tailscale_management_menu() {
     local selected_index=0
     local login_logout_label="Login / Logout"
@@ -205,11 +244,12 @@ show_tailscale_management_menu() {
             "Status (install, service, backend state, IPs)"
             "Restart Service (sudo systemctl restart tailscaled)"
             "$login_logout_label"
+            "Remote Control (Windows <-> Linux: RDP/SSH, all Tailscale IPs)"
             "Help (dispatcher usage + official doc links)"
             "Back to Linux System Tools"
         )
 
-        arrow_menu_select "[T] Tailscale [$(ts_quick_menu_label)]" menu_items "$selected_index" 8
+        arrow_menu_select "[T] Tailscale [$(ts_quick_menu_label)]" menu_items "$selected_index" 9
         selected_index=$ARROW_MENU_SELECTED_INDEX
         case "$selected_index" in
             0) _tailscale_menu_run_installer ;;
@@ -219,14 +259,15 @@ show_tailscale_management_menu() {
             4) _tailscale_menu_status ;;
             5) _tailscale_menu_restart ;;
             6) _tailscale_menu_login_logout ;;
-            7)
+            7) _tailscale_menu_remote_control ;;
+            8)
                 printf "\033c"
                 ts_show_help
                 echo ""
                 echo "Press Enter to continue..."
                 read -r
                 ;;
-            8) return 0 ;;
+            9) return 0 ;;
         esac
     done
 }

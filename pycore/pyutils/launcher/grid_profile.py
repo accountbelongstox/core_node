@@ -31,6 +31,9 @@ LEGACY_TOGGLE_ALIASES: Dict[str, str] = {'X16': 'X12'}
 SCREEN_RECT_HEIGHT_INDEX = 3
 RESOLUTION_HEIGHT_INDEX = 1
 AUTO_PROFILE_SEPARATOR = ' / '
+# Startup command per grid cell (row-major, resolved on PATH: /usr/local/bin on
+# Linux, .winenvs *.ps1 on Windows); later cells open a plain shell.
+GRID_STARTUP_COMMANDS: Tuple[str, ...] = ('claudeteam',) * 8 + ('agyyolo', 'codexyolo', 'kimi1', 'kimi2')
 
 
 class GridI18nKeys:
@@ -45,6 +48,10 @@ class GridI18nKeys:
     MENU_CURRENT_TOGGLE = 'launcher.grid.menu_current_toggle'
     MENU_CURRENT_AUTO_GRID = 'launcher.grid.menu_current_auto_grid'
     MENU_TOGGLE_ITEM = 'launcher.grid.menu_toggle_item'
+    STARTUP_TITLE = 'launcher.grid.startup_title'
+    STARTUP_CELLS = 'launcher.grid.startup_cells'
+    STARTUP_CELL = 'launcher.grid.startup_cell'
+    STARTUP_REST = 'launcher.grid.startup_rest'
     MENU_TOGGLE_DISABLE_ITEM = 'launcher.grid.menu_toggle_disable_item'
     RELAYOUT_DONE = 'launcher.grid.relayout_done'
     RELAYOUT_HINT = 'launcher.grid.relayout_hint'
@@ -141,3 +148,28 @@ def resolve_terminal_grid(term_config: dict, screen_manager) -> TerminalGrid:
         GridI18nKeys.AUTO_PROFILE, columns=profile.columns, rows=profile.rows,
         profile=profile.name, height=height))
     return TerminalGrid(profile.columns, profile.rows, profile.name, screen_rect)
+
+
+def grid_startup_command(cell_index: int) -> Optional[str]:
+    """Startup command for a 0-based grid cell, or None for a plain shell."""
+    if 0 <= cell_index < len(GRID_STARTUP_COMMANDS):
+        return GRID_STARTUP_COMMANDS[cell_index]
+    return None
+
+
+def print_grid_startup_commands(project_root) -> None:
+    """Print the per-cell startup commands (consecutive cells grouped)."""
+    ColorPrint.plain(launcher_text.get(GridI18nKeys.STARTUP_TITLE, path=project_root))
+    start = 0
+    while start < len(GRID_STARTUP_COMMANDS):
+        end = start
+        while end + 1 < len(GRID_STARTUP_COMMANDS) and GRID_STARTUP_COMMANDS[end + 1] == GRID_STARTUP_COMMANDS[start]:
+            end += 1
+        if end > start:
+            ColorPrint.plain(launcher_text.get(
+                GridI18nKeys.STARTUP_CELLS, first=start + 1, last=end + 1, command=GRID_STARTUP_COMMANDS[start]))
+        else:
+            ColorPrint.plain(launcher_text.get(
+                GridI18nKeys.STARTUP_CELL, cell=start + 1, command=GRID_STARTUP_COMMANDS[start]))
+        start = end + 1
+    ColorPrint.plain(launcher_text.get(GridI18nKeys.STARTUP_REST, cell=len(GRID_STARTUP_COMMANDS) + 1))
