@@ -7,7 +7,7 @@
 #                               shared decrypt path (terminal only); a wrong password
 #                               at once offers to regenerate + encrypt-replace the .js
 #   no copy anywhere         -> generate it; dd.sh then offers to encrypt it
-# The key value is never printed.
+# The key value is printed only right after a regeneration.
 
 # Source-once guard: repeated `source` is a no-op.
 if [ "${CLIENT_KEY_COMMON_LOADED:-false}" = "true" ]; then
@@ -154,11 +154,12 @@ client_key_encrypt_notice() {
     done
 }
 
-# client_key_offer_regenerate [PASSWORD]
-# Decryption failed: asks whether to regenerate the key and encrypts the new key
-# at once (PASSWORD, or a newly entered one), checked against another secret.
+# client_key_offer_regenerate
+# Decryption failed: asks whether to regenerate the key (default yes), prints the
+# new key, then asks for a new password and encrypts it (checked against another
+# secret) so it replaces the .js.
 client_key_offer_regenerate() {
-    local password="$1"
+    local password=""
     local answer=""
     local reference_file=""
     local candidate=""
@@ -175,30 +176,40 @@ client_key_offer_regenerate() {
     fi
     echo -e "\033[31m[CLIENT_KEY] $CLIENT_KEY_NAME cannot be decrypted with this password\033[0m"
     echo -e "\033[33m[CLIENT_KEY] Regenerating replaces the shared key: every other host must sync the new encrypted copy, decrypt it and restart the Laravel workers and pyservice\033[0m"
-    prompt_read_default answer "n" 120 "Regenerate $CLIENT_KEY_NAME and encrypt it now (replaces already_encrypted/$CLIENT_KEY_NAME.js)? [y/N]: "
-    [[ "$answer" =~ ^[Yy] ]] || return 0
-    [ -n "$password" ] || secret_prompt_password password "[CLIENT_KEY] $CLIENT_KEY_NAME encryption"
-    [ -n "$password" ] || return 0
+    prompt_read_default answer "y" 120 "Regenerate $CLIENT_KEY_NAME now? [Y/n]: "
+    [[ "$answer" =~ ^[Nn] ]] && return 0
 
-    for candidate in "$CLIENT_KEY_ENCRYPTED_DIR"/*.js; do
-        [ -f "$candidate" ] && [ "$candidate" != "$encrypted_file" ] || continue
-        reference_file="$candidate"
-        break
-    done
+    client_key_write_new
+    client_key_inspect
+    [ "$CLIENT_KEY_STATE" = "valid" ] || return 0
+    echo -e "\033[32m[CLIENT_KEY] Generated $CLIENT_KEY_NAME (key id $CLIENT_KEY_ID):\033[0m"
+    cat "$CLIENT_KEY_RAW_DIR/$CLIENT_KEY_NAME"; echo
+
+    prompt_read_default answer "y" 120 "Encrypt $CLIENT_KEY_NAME now (replaces already_encrypted/$CLIENT_KEY_NAME.js)? [Y/n]: "
+    [[ "$answer" =~ ^[Nn] ]] && password="" || secret_prompt_password password "[CLIENT_KEY] $CLIENT_KEY_NAME encryption"
+    if [ -n "$password" ]; then
+        for candidate in "$CLIENT_KEY_ENCRYPTED_DIR"/*.js; do
+            [ -f "$candidate" ] && [ "$candidate" != "$encrypted_file" ] || continue
+            reference_file="$candidate"
+            break
+        done
+    fi
     if [ -n "$reference_file" ]; then
         secret_crypto_batch "$password" "$CLIENT_KEY_NODE_BIN" verify "$reference_file"
         if [ "${#SECRET_CRYPTO_DONE[@]}" -eq 0 ]; then
             echo -e "\033[33m[CLIENT_KEY] This password does not decrypt ${reference_file##*/}; the other secrets use a different password\033[0m"
-            prompt_read_default answer "n" 120 "Encrypt $CLIENT_KEY_NAME with it anyway? [y/N]: "
-            [[ "$answer" =~ ^[Yy] ]] || { password=""; return 0; }
+            prompt_read_default answer "y" 120 "Encrypt $CLIENT_KEY_NAME with it anyway? [Y/n]: "
+            [[ "$answer" =~ ^[Nn] ]] && password=""
         fi
     fi
+    if [ -z "$password" ]; then
+        echo -e "\033[33m[CLIENT_KEY] $CLIENT_KEY_NAME regenerated but not encrypted; dd.sh offers to encrypt it on the next run\033[0m"
+        return 0
+    fi
 
-    client_key_write_new
     client_key_encrypt_notice "$CLIENT_KEY_NAME"
     secret_crypto_batch "$password" "$CLIENT_KEY_NODE_BIN" encrypt "$CLIENT_KEY_ENCRYPTED_DIR" "$CLIENT_KEY_RAW_DIR/$CLIENT_KEY_NAME"
     password=""
-    client_key_inspect
     if [ "${#SECRET_CRYPTO_DONE[@]}" -gt 0 ]; then
         touch -r "$encrypted_file" "$CLIENT_KEY_RAW_DIR/$CLIENT_KEY_NAME" 2>/dev/null || true
         repair_private_tree "$CLIENT_KEY_SECRET_ROOT_DIR" || true
@@ -208,18 +219,17 @@ client_key_offer_regenerate() {
     fi
 }
 
-# client_key_after_decrypt PASSWORD
+# client_key_after_decrypt
 # Call right after a secret_crypto_batch decrypt: offers regeneration when the
 # client key was among the wrong-password files.
 client_key_after_decrypt() {
-    local password="$1"
     local name=""
 
     client_key_load_contract
     [ -n "$CLIENT_KEY_NAME" ] || return 0
     for name in "${SECRET_CRYPTO_WRONG[@]}"; do
         [ "$name" = "$CLIENT_KEY_NAME" ] || continue
-        client_key_offer_regenerate "$password"
+        client_key_offer_regenerate
         return 0
     done
 }
@@ -247,8 +257,8 @@ client_key_decrypt_interactive() {
         echo -e "\033[32m[CLIENT_KEY] Decrypted $CLIENT_KEY_NAME\033[0m"
         return 0
     fi
-    client_key_after_decrypt "$password"
     password=""
+    client_key_after_decrypt
 }
 
 # Entry point: leaves a valid key in the raw dir whenever possible.

@@ -401,7 +401,7 @@ function Get-SecretContent {
                 # Client-key regeneration lives in SecretManager.ps1, a higher layer that
                 # not every caller of this file loads; call it only when present.
                 if (Get-Command Invoke-ClientKeyAfterDecrypt -ErrorAction SilentlyContinue) {
-                    Invoke-ClientKeyAfterDecrypt -Result $batchResult -Password $plaintextPassword
+                    Invoke-ClientKeyAfterDecrypt -Result $batchResult
                 }
             } else {
                 Write-Host "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" -ForegroundColor Yellow
