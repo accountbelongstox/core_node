@@ -35,6 +35,7 @@ RELAY_RESULT_RESPONDED = "responded"
 RELAY_RESULT_FAILED = "failed"
 RELAY_RESULT_CANCELED = "canceled"
 RELAY_RESULT_EXPIRED = "expired"
+RELAY_EXECUTION_START_CONFLICT = "execution_start_conflict"
 RELAY_LEASE_STOP_PREFIX = "relay.operation.lease.stop"
 RELAY_LEASE_LOST_PREFIX = "relay.operation.lease.lost"
 RELAY_LEASE_DEADLINE_PREFIX = "relay.operation.lease.deadline"
@@ -136,7 +137,8 @@ class LaravelRelayOperationProcessor:
         )
         action = str(ledger["action"])
         if action == RELAY_REPLAY_RESPONSE:
-            self._begin_execution(request)
+            if not self._start_or_reject(request, descriptor, lease_owner):
+                return
             response = relay_execution_ledger.response(ledger["result"])
             outcome = str(
                 ledger["result"].get("response_outcome")
@@ -151,7 +153,8 @@ class LaravelRelayOperationProcessor:
             )
             return
         if action == RELAY_EXECUTION_UNKNOWN:
-            self._begin_execution(request)
+            if not self._start_or_reject(request, descriptor, lease_owner):
+                return
             self._run_with_lease(
                 request,
                 self._post_execution_unknown,
@@ -161,7 +164,8 @@ class LaravelRelayOperationProcessor:
             return
         if action != RELAY_EXECUTE:
             raise RuntimeError("relay_ledger_action_invalid")
-        self._begin_execution(request)
+        if not self._start_or_reject(request, descriptor, lease_owner):
+            return
         relay_execution_ledger.mark_started(operation_id)
         self._run_with_lease(request, self._execute, request)
 
@@ -250,6 +254,36 @@ class LaravelRelayOperationProcessor:
             "operation.lease.thread.cleanup.completed",
             thread_name=lease_thread.name,
         )
+
+    def _start_or_reject(
+        self,
+        request: Dict[str, Any],
+        descriptor: Mapping[str, Any],
+        lease_owner: str,
+    ) -> bool:
+        try:
+            self._begin_execution(request)
+        except RelayHttpError as error:
+            if (
+                error.status_code != 409
+                or error.error_code != RELAY_EXECUTION_START_CONFLICT
+            ):
+                raise
+            relay_activity_log.error(
+                "operation.execution_start.rejected",
+                operation_id=request["operation_id"],
+                claim_epoch=request["claim_epoch"],
+                route=request["route"],
+                retry_policy=request["retry_policy"],
+                error_code=error.error_code,
+            )
+            self._reject_descriptor(
+                descriptor,
+                ValueError(RELAY_EXECUTION_START_CONFLICT),
+                lease_owner,
+            )
+            return False
+        return True
 
     def _begin_execution(self, request: Dict[str, Any]) -> None:
         operation_id = str(request["operation_id"])

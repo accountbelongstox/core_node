@@ -12,3 +12,4 @@
 - [Bash exec optimization erases test argv](bash-exec-optimization-erases-test-argv.md) — `bash -c 'cmd' extra --name X &` loses extra argv (tail-call exec); use `cmd & wait` in a wrapper script to test /proc/PID/cmdline matching
 - [pwsh snap wrapper fails](pwsh-snap-wrapper-fails.md) — `pwsh` snap wrapper errors "transient scope"; run /snap/powershell/current/opt/powershell/pwsh directly
 - [PS Dictionary.Contains + stub gotchas](ps-dictionary-contains-and-stub-gotchas.md) — use ContainsKey on JSON dictionaries; cmdlet proxy stubs need CmdletBinding, no $ErrorAction
+- [Dot-sourced ServiceContract shadows module](dot-sourced-servicecontract-shadows-module.md) — SharedCacheEnv binds module cmd; repro needs 2 runs in one process

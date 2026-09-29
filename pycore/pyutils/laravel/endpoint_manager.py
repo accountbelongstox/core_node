@@ -104,6 +104,10 @@ FAILED_SWEEP_TTL = 10.0
 # Hot HTTP paths (assist status, queue overview) — one stored probe, no sweep.
 UI_PROBE_TIMEOUT = 3.0
 UI_NEGATIVE_TTL = 30.0
+# An endpoint that failed (or was never probed) is probed again by a delivery
+# route lookup / watcher only after this long, so a down server costs one
+# bounded probe per interval instead of one timeout per queued row.
+OFFLINE_REPROBE_SECONDS = 30.0
 # THREAD_BUS single-flight guard for resolve(): only one thread runs the
 # probe cycle; concurrent callers degrade to the stored fallback (see resolve).
 _RESOLVING_SIGNAL = "laravel_endpoint_manager.resolving"
@@ -565,16 +569,58 @@ class LaravelEndpointManager:
         """Delivery namespace of one endpoint (default: the active one)."""
         return laravel_reachability.namespace(url or self.get_active_base_url())
 
-    def base_url_for_namespace(self, namespace: str) -> str:
-        """Endpoint to deliver one namespace through: the active endpoint
-        when it serves that server, else a reachable (then unobserved)
-        configured endpoint of it; '' when none is known."""
+    def selected_namespace(self) -> str:
+        """Delivery namespace of the server the UI selected (the stored
+        choice); network-free. It is the only server new data is produced
+        for, and failover never leaves it."""
+        return laravel_reachability.namespace(self.peek_stored_base_url())
+
+    def namespace_reachable(self, namespace: str) -> Optional[bool]:
+        """True when any route of the server is reachable, None when a route
+        is still unobserved, False when every known route failed. A server
+        with no configured route answers None (a pinned row carries its own
+        URL)."""
+        states = [laravel_reachability.get(url) for url in laravel_reachability.urls_for(namespace)]
+        if any(state is True for state in states):
+            return True
+        if not states or any(state is None for state in states):
+            return None
+        return False
+
+    def _probe_due(self, url: str) -> bool:
+        last = self._probe_results.get(url) or {}
+        elapsed_ms = time.time() * 1000 - float(last.get("last_checked") or 0)
+        return elapsed_ms >= OFFLINE_REPROBE_SECONDS * 1000
+
+    def reprobe_namespace(self, namespace: str) -> Optional[bool]:
+        """Probe the routes of one server that are unobserved or whose last
+        probe is older than ``OFFLINE_REPROBE_SECONDS`` (bounded, parallel);
+        each result feeds the reachability edge. Returns the server's
+        resulting reachability."""
+        stale = [
+            url for url in laravel_reachability.urls_for(namespace)
+            if laravel_reachability.get(url) is not True and self._probe_due(url)
+        ]
+        if stale:
+            self._probe_many(stale)
+        return self.namespace_reachable(namespace)
+
+    def route_for_namespace(self, namespace: str) -> str:
+        """Endpoint to deliver one server's rows through: the active endpoint
+        when it serves that server, else its fastest reachable route, else a
+        freshly probed one; '' when the server has no reachable route."""
         active = self.get_active_base_url()
-        if active and laravel_reachability.namespace(active) == namespace:
+        if active and laravel_reachability.namespace(active) == namespace and laravel_reachability.get(active) is not False:
             return active
-        for url in laravel_reachability.urls_for(namespace):
-            if laravel_reachability.get(url) is not False:
-                return url
+        for attempt in range(2):
+            reachable = [url for url in laravel_reachability.urls_for(namespace) if laravel_reachability.get(url)]
+            if reachable:
+                return min(
+                    reachable,
+                    key=lambda url: (self._probe_results.get(url) or {}).get("latency_ms") or float("inf"),
+                )
+            if attempt == 0:
+                self.reprobe_namespace(namespace)
         return ""
 
     def known_servers(self) -> List[Dict[str, Any]]:
@@ -661,13 +707,29 @@ class LaravelEndpointManager:
 
             # 2) full sweep (parallel, ~PROBE_TIMEOUT wall time); first healthy in order wins.
             sweep = self._probe_many(endpoints)
-            winner = next((u for u in endpoints if sweep.get(u, {}).get("healthy")), None)
+            # Failover moves between routes of the SELECTED server only: another
+            # server is another database, so adopting it would make pycore
+            # produce data for a server the UI never selected.
+            selected = laravel_reachability.namespace(current) if current else ""
+            winner = next(
+                (
+                    u for u in endpoints
+                    if sweep.get(u, {}).get("healthy") and (not selected or laravel_reachability.namespace(u) == selected)
+                ),
+                None,
+            )
             if winner:
                 self._adopt_resolved(winner, generation)
                 if winner != current:
                     # Cache in-process only; only select() may persist ``current``.
                     ColorPrint.green(f"[LaravelEndpoints] Switched to {winner} (cached)")
                 return winner
+            foreign = [u for u in endpoints if sweep.get(u, {}).get("healthy")]
+            if foreign:
+                ColorPrint.yellow(
+                    f"[LaravelEndpoints] Selected server {selected or current} has no reachable route; "
+                    f"other servers are up ({', '.join(foreign)}) but are never adopted by failover"
+                )
 
             # 3) nothing healthy — degrade to the stored/first candidate, uncached.
             self._failed_sweep_at = time.monotonic()
@@ -725,9 +787,10 @@ class LaravelEndpointManager:
                 return current
         if self._resolved:
             return self._resolved
+        selected = laravel_reachability.namespace(current) if current else ""
         for url in state.get("endpoints") or []:
             last = self._probe_results.get(url) or {}
-            if last.get("healthy"):
+            if last.get("healthy") and (not selected or laravel_reachability.namespace(url) == selected):
                 self._adopt_resolved(url, generation)
                 return url
         self._ui_failed_at = time.monotonic()

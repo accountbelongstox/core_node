@@ -94,9 +94,13 @@ DEFAULT_LEASE_SECONDS = 180.0
 SIBLING_IN_FLIGHT_DEFER_SECONDS = 1.0
 SIBLING_SCAN_LIMIT = 50
 DRAIN_IDLE_WAIT_SECONDS = 30.0
-# A row whose server has no known endpoint waits this long (no attempt, no
+# A row whose server has no reachable route waits this long (no attempt, no
 # failure metric); the server's online edge hurries it.
 SERVER_OFFLINE_DEFER_SECONDS = 60.0
+# While a server that should receive rows is offline, one watcher re-probes it
+# on this cadence; its online edge reconciles and resumes the drains.
+SERVER_WATCH_SECONDS = 30.0
+WATCH_WAKE_SIGNAL = "laravel.delivery.watch.wake"
 UNASSIGNED_MIGRATION_BATCH = 500
 LOCAL_DIFF_PAGE = 500
 # Inventory items held in memory per reconcile step (one diff + enqueue round).
@@ -114,6 +118,10 @@ RECEIPTS_IDENTITY = "identity"
 OUTCOME_DONE = "done"
 OUTCOME_RETRY = "retry"
 OUTCOME_DEAD_LETTER = "dead_letter"
+# The local source of the row is gone (its file was evicted): there is nothing
+# to deliver and nothing to retry, so the row is dropped instead of dead-lettered;
+# the inventory only lists items that still exist.
+OUTCOME_SOURCE_GONE = "source_gone"
 ERROR_SERVER_OFFLINE = "laravel_server_offline"
 DIFF_MODE_REMOTE = "remote"
 DIFF_MODE_LOCAL = "local"
@@ -153,6 +161,10 @@ class DeliveryKind:
     ready: Optional[Callable[[], bool]] = None
     permanent_error: Optional[Callable[[str], bool]] = None
     steps: Tuple[str, ...] = ()
+    # Rows of this kind belong to the server that dispatched the work (a queue
+    # lane task): they deliver to their own server whether or not it is the
+    # selected one. Every other kind delivers to the selected server only.
+    pinned: bool = False
     parallel: int = 1
     batch_limit: int = 25
     retry_initial_seconds: float = 5.0
@@ -206,6 +218,7 @@ class LaravelDeliveryOutbox:
         self._diff_status: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._receipts_pruned_at = 0.0
         self._started = False
+        self._watching = False
         init_serialized_owner(self, "laravel.delivery_outbox", "LaravelDeliveryOutboxState")
 
     # ------------------------------------------------------------------ #
@@ -401,17 +414,33 @@ class LaravelDeliveryOutbox:
     # ------------------------------------------------------------------ #
     @staticmethod
     def active_namespace() -> str:
-        return laravel_endpoint_manager.delivery_namespace()
+        """The server the UI selected: the one authority for where data goes."""
+        return laravel_endpoint_manager.selected_namespace()
 
     @staticmethod
     def target_namespaces() -> List[str]:
-        """Servers a new item goes to: the active endpoint's plus every
-        other configured server currently observed reachable."""
-        namespaces = [laravel_endpoint_manager.delivery_namespace()]
-        for server in laravel_endpoint_manager.known_servers():
-            if server.get("reachable") and server["namespace"] not in namespaces:
-                namespaces.append(server["namespace"])
-        return namespaces
+        """Servers a new item goes to: the UI-selected server only. Another
+        reachable server no longer receives a copy, so nothing piles up for a
+        server the user is not working with; rows already queued for it stay
+        parked until it is selected (or, for a pinned kind, reachable)."""
+        return [laravel_endpoint_manager.selected_namespace()]
+
+    @serialized_method
+    def _pending_namespaces(self, kind: str) -> List[str]:
+        return self._repository().pending_namespaces(kind)
+
+    def deliverable_namespaces(self, kind: str) -> List[str]:
+        """Servers whose rows of ``kind`` may be attempted now: the selected
+        server (every server holding rows for a pinned kind), minus servers
+        every known route of which just failed. An offline server is left
+        out instead of being attempted row by row; its watcher resumes it."""
+        definition = self._definition(kind)
+        candidates = (
+            self._pending_namespaces(kind)
+            if definition is not None and definition.pinned
+            else [self.active_namespace()]
+        )
+        return [name for name in candidates if laravel_endpoint_manager.namespace_reachable(name) is not False]
 
     # ------------------------------------------------------------------ #
     # enqueue                                                             #
@@ -728,14 +757,42 @@ class LaravelDeliveryOutbox:
         self._repository().note_metrics(row["namespace"], row["kind"], _now(), False, str(error or ""), True)
         return True
 
+    @serialized_method
+    @_record_transaction
+    def drop(self, delivery_id: str, owner: str) -> bool:
+        """Remove a row whose local source is gone (no metric, no state)."""
+        row = self._repository().get(str(delivery_id))
+        if not row or str(row.get("lease_owner") or "") != str(owner):
+            return False
+        self._repository().delete(str(delivery_id))
+        self._release_payload(row)
+        return True
+
+    @serialized_method
+    @_record_transaction
+    def defer_offline(self, delivery_id: str, owner: str, error: str = "") -> Optional[Dict[str, Any]]:
+        """Release a row whose server went offline mid-attempt: the outage is
+        not the row's failure, so the attempt is given back and no failure is
+        counted."""
+        row = self._repository().get(str(delivery_id))
+        if not row or str(row.get("lease_owner") or "") != str(owner):
+            return None
+        self._unlease(
+            row,
+            last_error=f"{ERROR_SERVER_OFFLINE}: {error}"[:500],
+            next_attempt_at=_now() + SERVER_OFFLINE_DEFER_SECONDS,
+            delivery_attempts=max(0, int(row.get("delivery_attempts") or 1) - 1),
+        )
+        return copy.deepcopy(row)
+
     # ------------------------------------------------------------------ #
     # queries (indexed, bounded)                                          #
     # ------------------------------------------------------------------ #
     @serialized_method
-    def list_ready(self, kind: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def list_ready(self, kind: str, limit: int = 100, namespaces: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         now = _now()
         return [
-            row for row in self._repository().ready(kind, now, DELIVERY_PROCESS_ID, limit)
+            row for row in self._repository().ready(kind, now, DELIVERY_PROCESS_ID, limit, namespaces)
             if not _lease_active(row, now)
         ]
 
@@ -849,40 +906,96 @@ class LaravelDeliveryOutbox:
     # scheduler                                                           #
     # ------------------------------------------------------------------ #
     @serialized_method
-    def _begin_drain(self, kind: str) -> bool:
+    def _begin_drain(self, kind: str, namespaces: List[str]) -> bool:
         if (
             not self._started
             or kind in self._draining
             or kind not in self._kinds
-            or not self._repository().has_pending(kind)
+            or not self._repository().has_pending(kind, namespaces)
         ):
             return False
         self._draining.add(kind)
         return True
 
     @serialized_method
-    def _end_drain(self, kind: str, force: bool = False) -> bool:
+    def _end_drain(self, kind: str, namespaces: Optional[List[str]] = None, force: bool = False) -> bool:
         """Atomic with ``_put`` on the owner thread: a row enqueued before
         this check keeps the drain alive, one enqueued after it starts a new
         drain through ``kick``."""
-        if not force and self._repository().has_pending(kind):
+        if not force and self._repository().has_pending(kind, namespaces):
             return False
         self._draining.discard(kind)
         return True
 
     @serialized_method
-    def _next_attempt_at(self, kind: str) -> Optional[float]:
-        return self._repository().next_attempt_at(kind)
+    def _next_attempt_at(self, kind: str, namespaces: Optional[List[str]] = None) -> Optional[float]:
+        return self._repository().next_attempt_at(kind, namespaces)
 
     def kick(self, kind: Optional[str] = None) -> None:
-        """Start the drain of one kind (or all kinds) when rows are waiting
-        (no-op before ``start()``)."""
+        """Start the drain of one kind (or all kinds) when rows of a
+        deliverable server are waiting (no-op before ``start()``), and make
+        sure a watcher runs while a server that should receive rows is
+        offline."""
         if THREAD_BUS.is_shutdown_requested():
             return
         for name in ([kind] if kind else self.kinds()):
             THREAD_BUS.signal(f"{DRAIN_WAKE_PREFIX}.{name}", True)
-            if self._begin_drain(name):
+            if self._begin_drain(name, self.deliverable_namespaces(name)):
                 start_bus_task(self._drain, name, thread_name=f"LaravelDelivery-{name[:24]}")
+        self._ensure_watcher()
+
+    # ------------------------------------------------------------------ #
+    # offline servers                                                     #
+    # ------------------------------------------------------------------ #
+    @serialized_method
+    def _has_pending_in(self, kind: str, namespaces: List[str]) -> bool:
+        return self._repository().has_pending(kind, namespaces)
+
+    def offline_namespaces(self) -> List[str]:
+        """Servers that hold rows they should receive (the selected server,
+        or any server for a pinned kind) but have no reachable route."""
+        wanted = set()
+        selected = self.active_namespace()
+        for kind in self.kinds():
+            definition = self._definition(kind)
+            if definition is not None and definition.pinned:
+                wanted.update(self._pending_namespaces(kind))
+            elif self._has_pending_in(kind, [selected]):
+                wanted.add(selected)
+        return sorted(name for name in wanted if laravel_endpoint_manager.namespace_reachable(name) is False)
+
+    @serialized_method
+    def _begin_watch(self) -> bool:
+        if self._watching:
+            return False
+        self._watching = True
+        return True
+
+    @serialized_method
+    def _end_watch(self) -> None:
+        self._watching = False
+
+    def _ensure_watcher(self) -> None:
+        if self._watching or not self._started or not self.offline_namespaces():
+            return
+        if self._begin_watch():
+            start_bus_task(self._watch_servers, thread_name="LaravelDeliveryWatch")
+
+    def _watch_servers(self) -> None:
+        """One bounded probe per offline server per ``SERVER_WATCH_SECONDS``.
+        A recovered server raises its online edge (reconcile + hurry + kick);
+        the loop ends once no server is waiting."""
+        try:
+            while not THREAD_BUS.is_shutdown_requested():
+                offline = self.offline_namespaces()
+                if not offline:
+                    return
+                for namespace in offline:
+                    laravel_endpoint_manager.reprobe_namespace(namespace)
+                THREAD_BUS.clear_signal(WATCH_WAKE_SIGNAL)
+                THREAD_BUS.wait_signal(WATCH_WAKE_SIGNAL, timeout=SERVER_WATCH_SECONDS)
+        finally:
+            self._end_watch()
 
     def _drain(self, kind: str) -> None:
         finished = False
@@ -899,7 +1012,8 @@ class LaravelDeliveryOutbox:
             if definition.ready is not None and not definition.ready():
                 return False
             THREAD_BUS.clear_signal(wake)
-            ready = self._unique_identities(self.list_ready(kind, definition.batch_limit))
+            namespaces = self.deliverable_namespaces(kind)
+            ready = self._unique_identities(self.list_ready(kind, definition.batch_limit, namespaces))
             if ready:
                 if definition.deliver_batch is not None:
                     groups: Dict[str, List[Dict[str, Any]]] = {}
@@ -917,9 +1031,9 @@ class LaravelDeliveryOutbox:
                     thread_prefix=f"LaravelDelivery-{kind[:16]}",
                 )
                 continue
-            if self._end_drain(kind):
+            if self._end_drain(kind, namespaces):
                 return True
-            next_attempt = self._next_attempt_at(kind)
+            next_attempt = self._next_attempt_at(kind, namespaces)
             timeout = (
                 min(DRAIN_IDLE_WAIT_SECONDS, max(0.5, next_attempt - _now()))
                 if next_attempt
@@ -946,7 +1060,7 @@ class LaravelDeliveryOutbox:
         other row goes through an endpoint of its server."""
         if row.get("pin_base_url") and row.get("base_url"):
             return str(row["base_url"])
-        return laravel_endpoint_manager.base_url_for_namespace(str(row.get("namespace") or ""))
+        return laravel_endpoint_manager.route_for_namespace(str(row.get("namespace") or ""))
 
     def _begin_row(self, record: Dict[str, Any], owner: str) -> Optional[Dict[str, Any]]:
         """Claim one row and bind its server endpoint; a row of a server
@@ -968,13 +1082,21 @@ class LaravelDeliveryOutbox:
         claimed["base_url"] = base_url
         return claimed
 
-    def _failure_outcome(self, definition: DeliveryKind, delivery_id: str, error: Exception) -> Dict[str, Any]:
+    def _failure_outcome(self, definition: DeliveryKind, row: Dict[str, Any], error: Exception) -> Dict[str, Any]:
+        """A failure while the row's server is unreachable is the server's
+        outage, not the row's: it is deferred without counting an attempt or a
+        failure (the watcher and the online edge resume it)."""
+        delivery_id = str(row.get("delivery_id") or "")
         permanent = definition.permanent_error is not None and definition.permanent_error(str(error))
+        offline = not permanent and laravel_endpoint_manager.is_reachable(str(row.get("base_url") or "")) is False
         ColorPrint.yellow(
             f"[LaravelDelivery] kind={definition.name} delivery={delivery_id} "
-            f"{'dead-lettered' if permanent else 'deferred'}: {error}"
+            f"{'dead-lettered' if permanent else 'deferred (server offline)' if offline else 'deferred'}: {error}"
         )
-        return {"status": OUTCOME_DEAD_LETTER if permanent else OUTCOME_RETRY, "error": str(error)}
+        outcome = {"status": OUTCOME_DEAD_LETTER if permanent else OUTCOME_RETRY, "error": str(error)}
+        if offline:
+            outcome["offline"] = True
+        return outcome
 
     def _deliver_one(self, definition: DeliveryKind, record: Dict[str, Any]) -> Dict[str, Any]:
         delivery_id = str(record.get("delivery_id") or "")
@@ -986,7 +1108,7 @@ class LaravelDeliveryOutbox:
             try:
                 outcome = definition.deliver(claimed, owner) or {}
             except Exception as error:  # noqa: BLE001 - one row's failure defers only that row
-                outcome = self._failure_outcome(definition, delivery_id, error)
+                outcome = self._failure_outcome(definition, claimed, error)
         return self._settle(definition, claimed, owner, outcome)
 
     def _deliver_group(self, definition: DeliveryKind, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1005,7 +1127,7 @@ class LaravelDeliveryOutbox:
             try:
                 outcomes = definition.deliver_batch(claimed, {row["delivery_id"]: owners[row["delivery_id"]] for row in claimed}) or {}
             except Exception as error:  # noqa: BLE001 - a failed batch defers its rows
-                outcomes = {row["delivery_id"]: self._failure_outcome(definition, row["delivery_id"], error) for row in claimed}
+                outcomes = {row["delivery_id"]: self._failure_outcome(definition, row, error) for row in claimed}
             # Rows the batch did not take (legacy server, unbatchable size)
             # go through the single-row handler.
             for row in claimed:
@@ -1014,7 +1136,7 @@ class LaravelDeliveryOutbox:
                 try:
                     outcomes[row["delivery_id"]] = definition.deliver(row, owners[row["delivery_id"]]) or {}
                 except Exception as error:  # noqa: BLE001 - one row's failure defers only that row
-                    outcomes[row["delivery_id"]] = self._failure_outcome(definition, row["delivery_id"], error)
+                    outcomes[row["delivery_id"]] = self._failure_outcome(definition, row, error)
         return [
             self._settle(definition, row, owners[row["delivery_id"]], outcomes.get(row["delivery_id"]) or {})
             for row in claimed
@@ -1030,8 +1152,14 @@ class LaravelDeliveryOutbox:
             if definition.on_delivered is not None:
                 definition.on_delivered(claimed, outcome)
             return {"delivery_id": delivery_id, "processed": True, "success": True}
+        if status == OUTCOME_SOURCE_GONE:
+            if self.drop(delivery_id, owner):
+                ColorPrint.gray(f"[LaravelDelivery] kind={definition.name} delivery={delivery_id} dropped: {error or 'local source is gone'}")
+            return {"delivery_id": delivery_id, "processed": True, "success": False, "dropped": True, "error": error}
         if status == OUTCOME_DEAD_LETTER:
             self.mark_dead_letter(delivery_id, owner, error)
+        elif outcome.get("offline"):
+            self.defer_offline(delivery_id, owner, error)
         else:
             retry_at = float(outcome.get("retry_at") or 0.0) or _now() + self.retry_delay(
                 int(claimed.get("delivery_attempts") or 1), definition.retry_initial_seconds, definition.retry_max_seconds,
@@ -1083,9 +1211,13 @@ class LaravelDeliveryOutbox:
         background: diff every inventory kind, enqueue what it misses."""
         if not self.started() or THREAD_BUS.is_shutdown_requested():
             return
-        base_url = base_url or (laravel_endpoint_manager.base_url_for_namespace(namespace) if namespace else "")
+        base_url = base_url or (laravel_endpoint_manager.route_for_namespace(namespace) if namespace else "")
         base_url = base_url or laravel_endpoint_manager.get_active_base_url()
         namespace = namespace or laravel_endpoint_manager.delivery_namespace(base_url)
+        if reason != RECONCILE_REASON_MANUAL and namespace != self.active_namespace():
+            # Reconcile enqueues what a server misses: only the selected server
+            # is kept complete; an operator may still ask for another one.
+            return
         if not self._begin_reconcile(namespace, kinds):
             return
         start_bus_task(
@@ -1093,15 +1225,10 @@ class LaravelDeliveryOutbox:
             thread_name=f"LaravelDeliveryReconcile-{namespace[-12:]}",
         )
 
-    def reconcile_reachable(self, reason: str = RECONCILE_REASON_MANUAL) -> None:
-        """Reconcile every configured server currently observed reachable
-        (and the active one)."""
-        seen = set()
-        for server in [laravel_endpoint_manager.server_identity(), *laravel_endpoint_manager.known_servers()]:
-            if server["namespace"] in seen or server.get("reachable") is False:
-                continue
-            seen.add(server["namespace"])
-            self.reconcile(server["namespace"], server["url"], reason)
+    def reconcile_selected(self, reason: str = RECONCILE_REASON_MANUAL) -> None:
+        """Reconcile the server the UI selected."""
+        server = laravel_endpoint_manager.server_identity()
+        self.reconcile(server["namespace"], server["url"], reason)
 
     def reconcile_once(self, kinds: List[str]) -> None:
         """Reconcile the active server for the kinds not diffed (or failed)
@@ -1313,7 +1440,14 @@ class LaravelDeliveryOutbox:
         return self._repository().adopt_namespace(source, target)
 
     def _on_endpoint_switched(self, base_url: str) -> None:
+        """The selection changed: rows parked for the newly selected server
+        become deliverable at once, and a watcher waiting on the old one is
+        woken to re-evaluate."""
+        THREAD_BUS.signal(WATCH_WAKE_SIGNAL, True)
+        for name in self.kinds():
+            self.hurry_pending(name, laravel_endpoint_manager.delivery_namespace(base_url))
         self.reconcile(laravel_endpoint_manager.delivery_namespace(base_url), base_url, RECONCILE_REASON_SWITCH)
+        self.kick()
 
 
 laravel_delivery_outbox = LaravelDeliveryOutbox()
