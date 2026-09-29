@@ -13,6 +13,7 @@ const Module = require('module');
 const PASSWORD_ARG = '--password-stdin';
 const PRIVATE_UMASK = 0o077;
 const TRAILING_NEWLINE = /\r?\n$/;
+const LEADING_BOM = /^﻿/;
 let toolPath = '';
 let toolArgs = [];
 let password = '';
@@ -21,7 +22,7 @@ function readStdinPassword() {
     if (process.stdin.isTTY) {
         return '';
     }
-    return fs.readFileSync(0, 'utf8').replace(TRAILING_NEWLINE, '');
+    return fs.readFileSync(0, 'utf8').replace(LEADING_BOM, '').replace(TRAILING_NEWLINE, '');
 }
 
 function main() {

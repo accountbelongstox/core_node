@@ -104,13 +104,13 @@ foreach ($missing in $missingFiles) {
 }
 Write-Host ""
 
-$decryptChoice = Read-Host "Would you like to decrypt all secrets now? (yes/no)"
+$decryptChoice = (Read-Host "Decrypt the $($missingFiles.Count) missing secret(s) now? [Y/n]").Trim()
 
-if ($decryptChoice -eq "yes" -or $decryptChoice -eq "y") {
+if ($decryptChoice -eq "" -or $decryptChoice -match '^(y|yes)$') {
     Write-Host ""
-    Write-Host "Starting batch decryption..." -ForegroundColor Cyan
+    Write-Host "Starting batch decryption of missing secrets..." -ForegroundColor Cyan
 
-    $decryptResult = Invoke-SecretDecryptAll -OutputDir $rawDir
+    $decryptResult = Invoke-SecretDecryptAll -OutputDir $rawDir -KeyNames $missingFiles
     Remove-InvalidClientKeySecret
 
     if ($decryptResult) {
