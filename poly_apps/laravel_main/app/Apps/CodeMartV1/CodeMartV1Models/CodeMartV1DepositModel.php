@@ -48,6 +48,15 @@ class CodeMartV1DepositModel extends CodeMartV1Model
      * (developer deposit + architect additional), so developer-role payments
      * count toward it; every other role counts only its own paid deposits.
      */
+    public static function pendingAmountForUser(int $userId, string $roleType): float
+    {
+        return (float) static::query()
+            ->where('user_id', $userId)
+            ->where('role_type', $roleType)
+            ->where('status', CodeMartV1Constants::DEPOSIT_STATUS_PENDING)
+            ->sum('amount');
+    }
+
     public static function policyForRole(int $userId, string $roleType): array
     {
         $required = (float) CodeMartV1Constants::getDepositAmount($roleType);

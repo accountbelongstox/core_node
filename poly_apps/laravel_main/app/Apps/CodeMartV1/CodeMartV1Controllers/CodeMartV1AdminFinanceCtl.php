@@ -43,7 +43,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
     {
         $admin = AuthHelper::requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $validator = Validator::make($request->all(), [
@@ -122,7 +122,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
     public function withdrawals(Request $request): JsonResponse
     {
         if (!AuthHelper::requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = CodeMartV1FinanceService::pageParams($request);
@@ -162,7 +162,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
     public function payments(Request $request): JsonResponse
     {
         if (!AuthHelper::requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = CodeMartV1FinanceService::pageParams($request);
@@ -178,7 +178,7 @@ class CodeMartV1AdminFinanceCtl extends Controller
     public function escrows(Request $request): JsonResponse
     {
         if (!AuthHelper::requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = CodeMartV1FinanceService::pageParams($request);

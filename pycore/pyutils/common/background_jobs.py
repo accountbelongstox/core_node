@@ -57,6 +57,14 @@ class BackgroundJobs:
         return key in self._jobs
 
     @serialized_method
+    def count(self) -> int:
+        return len(self._jobs)
+
+    @serialized_method
+    def keys(self) -> list:
+        return list(self._jobs)
+
+    @serialized_method
     def cancel(self, key: str) -> bool:
         if key not in self._jobs:
             return False

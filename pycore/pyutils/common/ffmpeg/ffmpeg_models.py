@@ -106,6 +106,7 @@ class TimedTextStyle:
     margin_right: int = 80
     margin_vertical: int = 160
     position: Optional[Tuple[int, int]] = None
+    spacing: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,22 @@ class TimedTextCue:
     style: TimedTextStyle = field(default_factory=TimedTextStyle)
     layer: int = 0
     motion: Optional[TimedTextMotion] = None
+    fade_in_ms: int = 0
+    fade_out_ms: int = 0
+    blur: float = 0.0
+    scale: float = 1.0
+
+
+@dataclass(frozen=True)
+class VideoBackground:
+    """Canvas behind the timed text: a solid colour, a still image or a looping
+    video, optionally dimmed by a translucent veil so the text stays legible."""
+
+    kind: str = "color"
+    color: str = "#FFFFFF"
+    source: Optional[Path] = None
+    dim_opacity: float = 0.0
+    dim_color: str = "#000000"
 
 
 @dataclass(frozen=True)

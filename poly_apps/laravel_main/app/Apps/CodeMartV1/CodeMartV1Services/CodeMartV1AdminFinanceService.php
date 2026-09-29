@@ -5,6 +5,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Services;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1EscrowModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PaymentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
@@ -70,6 +71,11 @@ class CodeMartV1AdminFinanceService
             }
             if ($escrow->status === CodeMartV1Constants::ESCROW_STATUS_DISPUTED) {
                 throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_NOT_REFUNDABLE, __('codemart.errors.escrow_not_refundable'), 409);
+            }
+            // Live work is paid from this escrow; the project must stop accepting work first.
+            $project = CodeMartV1ProjectModel::findById((int) $escrow->project_id);
+            if ($project && $project->acceptsWork()) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_PROJECT_ACTIVE, __('codemart.errors.escrow_project_active'), 409);
             }
             $refunded = CodeMartV1EscrowService::refundHeldRemainder($escrow, CodeMartV1Constants::ESCROW_REFUND_REASON_ADMIN);
 

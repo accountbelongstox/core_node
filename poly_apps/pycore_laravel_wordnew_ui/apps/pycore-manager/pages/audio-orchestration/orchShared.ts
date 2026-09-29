@@ -1,6 +1,13 @@
 import i18n from '../../../../core/i18n/UiI18n';
 import { orchEn } from '../../pc-locales/OrchLocales';
-import type { OrchGenerationPhase, OrchPatternStepType } from '@/apps/pycore-manager/api';
+import type {
+  OrchGenerationPhase,
+  OrchPatternStepType,
+  OrchQueueInfo,
+  OrchQueueReason,
+  OrchQueueWait,
+  OrchVideoStatus,
+} from '@/apps/pycore-manager/api';
 import {
   pcCodeText,
   pcErrorCodeMessage,
@@ -15,7 +22,11 @@ type OrchLabels = { [K in keyof typeof orchEn]: string };
 const ORCH_MESSAGE_PREFIX = 'audioOrchestration.messages';
 const ORCH_MESSAGE_VALUE_PREFIX = 'audioOrchestration.messageValues';
 /** Message params whose values are codes or enumerated ids (never free text such as `text`). */
-const ORCH_CODED_PARAMS = new Set(['status', 'kind', 'lane', 'source', 'error']);
+const ORCH_CODED_PARAMS = new Set(['status', 'kind', 'lane', 'source', 'error', 'reason']);
+/** Message params carrying several codes joined by a comma (queue prerequisites). */
+const ORCH_CODE_LIST_PARAMS = new Set(['waiting']);
+const ORCH_CODE_LIST_SEPARATOR = ',';
+const ORCH_WAIT_DISPLAY_SEPARATOR = ' / ';
 
 export const ORCH_L = Object.defineProperties({}, Object.fromEntries(
   Object.keys(orchEn).map((key) => [key, {
@@ -48,6 +59,11 @@ export function orchErrorMessage(error: unknown, fallback: string = ORCH_L.actio
 }
 
 function orchParamValue(name: string, value: unknown): unknown {
+  if (typeof value === 'string' && ORCH_CODE_LIST_PARAMS.has(name)) {
+    return value.split(ORCH_CODE_LIST_SEPARATOR)
+      .map((code) => pcCodeText(ORCH_MESSAGE_VALUE_PREFIX, code.trim()) || code.trim())
+      .join(ORCH_WAIT_DISPLAY_SEPARATOR);
+  }
   if (typeof value !== 'string' || !ORCH_CODED_PARAMS.has(name)) return value;
   return pcCodeText(ORCH_MESSAGE_PREFIX, value)
     || pcCodeText(ORCH_MESSAGE_VALUE_PREFIX, value)
@@ -79,8 +95,50 @@ export const ORCH_PHASE_LABELS = {
   get manifest() { return ORCH_L.phaseManifest; },
   get resources() { return ORCH_L.phaseResources; },
   get assemble() { return ORCH_L.phaseAssemble; },
+  get video() { return ORCH_L.phaseVideo; },
   get done() { return ORCH_L.phaseDone; },
 } satisfies Record<OrchGenerationPhase | 'done', string>;
+
+/** Localized label of one segment's video render state. */
+export const ORCH_VIDEO_STATUS_LABELS = {
+  get rendering() { return ORCH_L.videoStatusRendering; },
+  get done() { return ORCH_L.videoStatusDone; },
+  get failed() { return ORCH_L.videoStatusFailed; },
+  get skipped() { return ORCH_L.videoStatusSkipped; },
+} satisfies Record<OrchVideoStatus, string>;
+
+const ORCH_QUEUE_WAIT_LABELS = {
+  get ffmpeg() { return ORCH_L.waitFfmpeg; },
+  get sentences() { return ORCH_L.waitSentences; },
+} satisfies Record<OrchQueueWait, string>;
+
+const ORCH_QUEUE_REASON_LABELS = {
+  get new() { return ORCH_L.reasonNew; },
+  get interrupted() { return ORCH_L.reasonInterrupted; },
+  get videos() { return ORCH_L.reasonVideos; },
+  get rerender() { return ORCH_L.reasonRerender; },
+  get retry() { return ORCH_L.reasonRetry; },
+} satisfies Record<OrchQueueReason, string>;
+
+/** Localized text of a task's automatic-generation state; '' while idle. */
+export function orchQueueText(queue: OrchQueueInfo | undefined): string {
+  if (!queue) return '';
+  if (queue.state === 'queued') return ORCH_L.queueQueued;
+  if (queue.state === 'running') return ORCH_L.queueRunning;
+  if (queue.state !== 'waiting') return '';
+  const waiting = (queue.waiting || []).map((item) => ORCH_QUEUE_WAIT_LABELS[item] || item);
+  return `${ORCH_L.queueWaiting}: ${waiting.join(ORCH_WAIT_DISPLAY_SEPARATOR)}`;
+}
+
+/** Localized reason the queue picked a task ('' when unknown). */
+export function orchQueueReasonText(queue: OrchQueueInfo | undefined): string {
+  return queue?.reason ? ORCH_QUEUE_REASON_LABELS[queue.reason] || '' : '';
+}
+
+/** Localized text of a stored video failure code (segment `video_error`). */
+export function orchVideoErrorText(code: string | null | undefined): string {
+  return code ? orchErrorMessage(code, ORCH_L.videoStatusFailed) : '';
+}
 
 /** minutes:seconds for plan/preview estimates. */
 export function formatDuration(seconds: number | undefined | null): string {

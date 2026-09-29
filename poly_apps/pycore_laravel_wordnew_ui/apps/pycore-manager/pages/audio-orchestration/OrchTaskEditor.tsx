@@ -2,20 +2,29 @@
  * Orchestration task editor: segment split (count / minutes), the ordered
  * per-sentence pattern (words / EN sentence / ZH sentence with times; presets
  * EN→ZH, ZH→EN, words→EN), the word selection mode (Word New Only with
- * task-local virtual read vs all words), plan preview and generate.
+ * task-local virtual read vs all words), the output mode (Audio / Video, default
+ * Video) with its video style, the automatic-generation switch and plan
+ * preview. Saving is enough: pycore's queue generates the task by itself;
+ * Regenerate only forces a fresh run of an already saved task.
  */
 import React, { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import {
   pycoreApi,
   type OrchBookItem,
+  type OrchOutputMode,
   type OrchPatternStep,
   type OrchPatternStepType,
   type OrchSegment,
   type OrchTask,
+  type OrchVideoPreset,
 } from '@/apps/pycore-manager/api';
 import { VocabBanner, humanInt } from '../vocabulary/vocabShared';
+import OrchAutoGenerateSwitch from './OrchAutoGenerateSwitch';
+import OrchTaskOutputFields from './OrchTaskOutputFields';
 import { ORCH_L, ORCH_STEP_LABELS, formatDuration, orchErrorMessage, newOrchTaskName } from './orchShared';
+import { ORCH_DEFAULT_OUTPUT_MODE, ORCH_DEFAULT_SEGMENT_MINUTES, ORCH_DEFAULT_SEGMENT_MODE, orchTaskOutputMode } from './orchSources';
+import { ORCH_BUTTON_CLASS, ORCH_INPUT_CLASS, ORCH_PRIMARY_BUTTON_CLASS, ORCH_QUIET_BUTTON_CLASS } from './orchStyles';
 
 const STEP_TYPES: OrchPatternStepType[] = ['words_new', 'words_all', 'sentence_en', 'sentence_zh'];
 const PRESETS: Array<{ label: string; steps: OrchPatternStep[] }> = [
@@ -28,13 +37,18 @@ const OrchTaskEditor: React.FC<{
   book: OrchBookItem | null;
   books: OrchBookItem[];
   task: OrchTask | null;
+  presets: OrchVideoPreset[];
+  activePresetId: string;
   onSaved: (taskId: string) => void;
   onClose: () => void;
   onSyncStarted: (sourceKey: string) => void;
-}> = ({ book, books, task, onSaved, onClose, onSyncStarted }) => {
+}> = ({ book, books, task, presets, activePresetId, onSaved, onClose, onSyncStarted }) => {
   const [name, setName] = useState('');
-  const [segmentMode, setSegmentMode] = useState<'count' | 'minutes'>('count');
-  const [segmentValue, setSegmentValue] = useState(10);
+  const [segmentMode, setSegmentMode] = useState<'count' | 'minutes'>(ORCH_DEFAULT_SEGMENT_MODE);
+  const [segmentValue, setSegmentValue] = useState(ORCH_DEFAULT_SEGMENT_MINUTES);
+  const [outputMode, setOutputMode] = useState<OrchOutputMode>(ORCH_DEFAULT_OUTPUT_MODE);
+  const [videoPreset, setVideoPreset] = useState('');
+  const [autoGenerate, setAutoGenerate] = useState(true);
   const [pattern, setPattern] = useState<OrchPatternStep[]>(PRESETS[0].steps);
   const [bookKey, setBookKey] = useState(task?.book?.source_key || book?.source_key || '');
   const [savedTaskId, setSavedTaskId] = useState<string | null>(task?.task_id || null);
@@ -47,8 +61,11 @@ const OrchTaskEditor: React.FC<{
     setSavedTaskId(task?.task_id || null);
     setBookKey(task?.book?.source_key || book?.source_key || '');
     setName(task?.name || (book ? newOrchTaskName(book) : ''));
-    setSegmentMode(task?.segment_mode === 'minutes' ? 'minutes' : 'count');
-    setSegmentValue(Number(task?.segment_value) || 10);
+    setSegmentMode(!task || task.segment_mode === 'minutes' ? 'minutes' : 'count');
+    setSegmentValue(Number(task?.segment_value) || ORCH_DEFAULT_SEGMENT_MINUTES);
+    setOutputMode(orchTaskOutputMode(task));
+    setVideoPreset(task?.video_preset || '');
+    setAutoGenerate(task?.auto_generate !== false);
     setPattern(task?.pattern?.length ? task.pattern.map((step) => ({
       ...step, type: step.type === 'words' ? task.word_mode === 'new_only' ? 'words_new' : 'words_all' : step.type,
     })) : PRESETS[0].steps.map((step) => ({ ...step })));
@@ -108,6 +125,9 @@ const OrchTaskEditor: React.FC<{
           : pattern.some((step) => step.type === 'words_new') ? 'new_only' as const
           : task?.word_mode === 'new_only' ? 'new_only' as const : 'all' as const,
         new_only_max_read_count: task?.new_only_max_read_count || 0,
+        output_mode: outputMode,
+        video_preset: videoPreset,
+        auto_generate: autoGenerate,
       };
       const r = savedTaskId
         ? await pycoreApi.orchTaskUpdate(savedTaskId, payload)
@@ -146,12 +166,12 @@ const OrchTaskEditor: React.FC<{
     }
   };
 
-  const generate = async () => {
+  const regenerate = async () => {
     const taskId = await save();
     if (!taskId) return;
     setBusy(true);
     try {
-      const r = await pycoreApi.orchTaskGenerate(taskId);
+      const r = await pycoreApi.orchTaskGenerate(taskId, true);
       if (!r.success) {
         setError(orchErrorMessage(r.error, ORCH_L.generateFailed));
         return;
@@ -177,13 +197,13 @@ const OrchTaskEditor: React.FC<{
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200"
+            className={`mt-1 ${ORCH_INPUT_CLASS}`}
           />
         </label>
         <label className="text-xs text-slate-400">
           {ORCH_L.book}
           <select value={bookKey} onChange={(event) => void selectBook(event.target.value)}
-            className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200">
+            className={`mt-1 ${ORCH_INPUT_CLASS}`}>
             <option value="">{ORCH_L.pickBook}</option>
             {activeBook && !books.some((item) => item.source_key === activeBook.source_key) && (
               <option value={activeBook.source_key}>{activeBook.title || activeBook.source_key}</option>
@@ -196,7 +216,7 @@ const OrchTaskEditor: React.FC<{
           <select
             value={segmentMode}
             onChange={(e) => setSegmentMode(e.target.value as 'count' | 'minutes')}
-            className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200"
+            className={`mt-1 ${ORCH_INPUT_CLASS}`}
           >
             <option value="count">{ORCH_L.segmentCount}</option>
             <option value="minutes">{ORCH_L.segmentMinutes}</option>
@@ -209,10 +229,17 @@ const OrchTaskEditor: React.FC<{
             min={1}
             value={segmentValue}
             onChange={(e) => setSegmentValue(Math.max(1, Number(e.target.value) || 1))}
-            className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950/60 px-2 py-1.5 text-sm text-slate-200"
+            className={`mt-1 ${ORCH_INPUT_CLASS}`}
           />
         </label>
       </div>
+
+      <OrchTaskOutputFields
+        value={{ outputMode, videoPreset }}
+        presets={presets}
+        activePresetId={activePresetId}
+        onChange={(value) => { setOutputMode(value.outputMode); setVideoPreset(value.videoPreset); }}
+      />
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -287,7 +314,7 @@ const OrchTaskEditor: React.FC<{
           type="button"
           onClick={() => void save()}
           disabled={busy}
-          className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:border-sky-500/50 disabled:opacity-50"
+          className={ORCH_PRIMARY_BUTTON_CLASS}
         >
           {savedTaskId ? ORCH_L.save : ORCH_L.create}
         </button>
@@ -295,18 +322,22 @@ const OrchTaskEditor: React.FC<{
           type="button"
           onClick={() => void preview()}
           disabled={busy}
-          className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:border-sky-500/50 disabled:opacity-50"
+          className={ORCH_BUTTON_CLASS}
         >
           {ORCH_L.planPreview}
         </button>
-        <button
-          type="button"
-          onClick={() => void generate()}
-          disabled={busy}
-          className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-        >
-          {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} {ORCH_L.generate}
-        </button>
+        <OrchAutoGenerateSwitch checked={autoGenerate} onChange={setAutoGenerate} disabled={busy} />
+        {savedTaskId && (
+          <button
+            type="button"
+            title={ORCH_L.regenerateHint}
+            onClick={() => void regenerate()}
+            disabled={busy}
+            className={ORCH_QUIET_BUTTON_CLASS}
+          >
+            {ORCH_L.regenerate}
+          </button>
+        )}
         <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-slate-200">
           {ORCH_L.cancel}
         </button>

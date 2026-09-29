@@ -10,6 +10,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1MilestoneModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectAttachmentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
 use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
@@ -152,6 +153,9 @@ class CodeMartV1ProjectCtl extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
+        if (!CodeMartV1UserModel::findById((int) $user->id)?->hasRole(CodeMartV1Constants::ROLE_CLIENT) && !AuthHelper::requireAdmin($request)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_CLIENT_ROLE_REQUIRED, __('codemart.messages.only_active_clients_can_create_projects'), null, 403);
+        }
 
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',

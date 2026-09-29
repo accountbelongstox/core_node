@@ -46,6 +46,9 @@ FM_DOMAIN_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 # https://<machine>.<tailnet>.ts.net<api_path> (tailscale cert never covers
 # api.<machine>, and no extra port is opened).
 FM_DOMAIN_TAILNET_API_PATH="$(sc_get access.tailnet.api_path)"
+# Loopback-only pycore on the tailnet: https://<machine>.<tailnet>.ts.net<pycore_path>.
+FM_DOMAIN_TAILNET_PYCORE_PATH="$(sc_get access.tailnet.pycore_path)"
+FM_DOMAIN_PYCORE_BACKEND_URL="http://$(sc_require hosts.loopback):$(sc_require ports.pycore_backend)"
 FM_DOMAIN_MARKER="managed-by: frankenphp_domain_common"
 FM_DOMAIN_UI_BINDING_READY="no"
 FM_DOMAIN_CADDY_RELOAD_READY="no"
@@ -371,15 +374,18 @@ fm_domain_cleanup_stale_routes() {
 # Render the tailnet/LAN route file, one HTTPS site per certificate on disk:
 #   <machine>.<tailnet>.ts.net      -> UI frontend   (tailscale cert)
 #   <machine>...ts.net<api_path>    -> Laravel main  (tailscale cert)
+#   <machine>...ts.net<pycore_path> -> pycore        (tailscale cert, tailnet sources only)
 #   api.<machine>.<tailnet>.ts.net  -> Laravel main  (mkcert local CA)
 #   127.0.0.1                       -> Laravel main  (mkcert local CA)
 fm_domain_lan_site_render() {
     local api_handlers=""
     local ui_handlers=""
     local api_mount=""
+    local pycore_mount=""
     api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL" "$FM_DOMAIN_API_EARLY_HINTS_LINK")"
     ui_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_UI_BACKEND_URL" "$FM_DOMAIN_UI_EARLY_HINTS_LINK")"
     api_mount="$(fm_caddy_path_mount_render "$FM_DOMAIN_TAILNET_API_PATH" "$FM_DOMAIN_BACKEND_URL")"
+    pycore_mount="$(fm_caddy_tailnet_pycore_mount_render "$FM_DOMAIN_TAILNET_PYCORE_PATH" "$FM_DOMAIN_PYCORE_BACKEND_URL" "${DOMAIN_TS_DNSNAME#*.}")"
 
     FM_DOMAIN_LAN_RENDERED="$({
         echo "# ${FM_DOMAIN_MARKER} lan=local_lan ts=${DOMAIN_TS_DNSNAME:-none}"
@@ -388,6 +394,7 @@ fm_domain_lan_site_render() {
 
 https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} {
 	tls ${DOMAIN_LAN_TS_CERT} ${DOMAIN_LAN_TS_KEY}
+${pycore_mount}
 ${api_mount}
 	handle {
 ${ui_handlers}
@@ -463,6 +470,7 @@ fm_domain_lan_site_ensure() {
         if [ -n "$DOMAIN_LAN_TS_CERT" ]; then
             echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_UI_BACKEND_URL} (tls: tailscale cert)"
             echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}${FM_DOMAIN_TAILNET_API_PATH}/ -> ${FM_DOMAIN_BACKEND_URL} (tls: tailscale cert)"
+            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}${FM_DOMAIN_TAILNET_PYCORE_PATH}/ -> ${FM_DOMAIN_PYCORE_BACKEND_URL} (tls: tailscale cert, tailnet sources only)"
         fi
         if [ -n "$DOMAIN_LAN_TS_API_CERT" ]; then
             echo "[fm-domain]     https://${DOMAIN_TS_API_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: mkcert local CA)"

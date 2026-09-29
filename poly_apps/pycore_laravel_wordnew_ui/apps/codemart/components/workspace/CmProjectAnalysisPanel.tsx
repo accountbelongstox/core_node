@@ -97,8 +97,9 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   }, [analysisId, idempotency.reset]);
 
   const active = activeStates.includes(analysis?.status ?? '');
-  const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active;
-  const canRevise = isOwner && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
+  const analysisAvailable = data?.analysis_available !== false;
+  const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active && analysisAvailable;
+  const canRevise = isOwner && analysisAvailable && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
   const revisionValid = revisionNotes.trim().length >= REVISION_MIN_LENGTH;
 
   const analyze = async (): Promise<void> => {
@@ -225,6 +226,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
           )}
         </div>
       )}
+      {!loading && !analysisAvailable && isOwner && project.status === DRAFT_STATUS && <p className="cm-field-hint">{t('errors.analysis_unavailable')}</p>}
       {canAnalyze && (
         <div className="cm-section-card__actions">
           <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void analyze()}>

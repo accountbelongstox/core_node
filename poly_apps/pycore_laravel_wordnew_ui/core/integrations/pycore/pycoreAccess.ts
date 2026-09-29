@@ -8,6 +8,7 @@ import { PycoreHttpError } from './PycoreClient';
 import {
   isPycoreDashboardOrigin,
   isPycoreDirectAccessAllowed,
+  isPycoreProxyMode,
   isPycoreRelayMode,
   pycoreDashboardOriginPorts,
 } from './pycoreTarget';
@@ -23,7 +24,7 @@ export type PycoreAccess =
   | { kind: 'unreachable' };
 
 function pageAccessIssue(): PycoreAccess | null {
-  if (isPycoreRelayMode()) return null;
+  if (isPycoreRelayMode() || isPycoreProxyMode()) return null;
   if (!isPycoreDirectAccessAllowed()) return { kind: 'relay_only' };
   if (!isPycoreDashboardOrigin()) return { kind: 'origin_not_allowed', ports: pycoreDashboardOriginPorts() };
   return null;

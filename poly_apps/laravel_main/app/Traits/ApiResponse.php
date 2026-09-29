@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Contracts\Validation\Validator;
 use App\Constants\ErrorCodes;
 
@@ -63,19 +64,25 @@ trait ApiResponse
         ], $httpCode);
     }
 
-    protected function unauthorized(string $message = 'Unauthorized. Authentication required.'): JsonResponse
+    protected function unauthorized(?string $message = null): JsonResponse
     {
-        return $this->error($message, 401);
+        return $this->error($message ?? __('api.messages.authentication_required'), 401);
     }
 
-    protected function forbidden(string $message = 'Unauthorized. Admin access required.'): JsonResponse
+    protected function forbidden(?string $message = null): JsonResponse
     {
-        return $this->error($message, 403);
+        return $this->error($message ?? __('api.messages.unauthorized_admin_access_required'), 403);
     }
 
-    protected function notFound(string $message = 'Resource not found'): JsonResponse
+    /** Failed admin check: 401 when the request is anonymous, otherwise 403. */
+    protected function adminDenied(Request $request): JsonResponse
     {
-        return $this->error($message, 404);
+        return $request->user() ? $this->forbidden() : $this->unauthorized();
+    }
+
+    protected function notFound(?string $message = null): JsonResponse
+    {
+        return $this->error($message ?? __('api.messages.resource_not_found'), 404);
     }
 
     protected function validationError($errors, string $message = 'Validation failed'): JsonResponse

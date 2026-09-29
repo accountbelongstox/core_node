@@ -3,8 +3,9 @@
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.audio_orchestration import orch_service
+from pycore.pyctl.audio_orchestration.orch_queue import orch_queue
 
-_STARTUP_RESUME_DONE = False
+_QUEUE_STARTED = False
 
 
 def register_local_audio_orchestration_routes(server) -> None:
@@ -43,7 +44,13 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.task_create(params or {})
 
     def tasks_list(params, request_id, context):
-        return orch_service.tasks_list(str((params or {}).get("source") or ""))
+        request = params or {}
+        return orch_service.tasks_list(
+            str(request.get("source") or ""),
+            request.get("page") or 1,
+            request.get("page_size") or 20,
+            str(request.get("query") or ""),
+        )
 
     def task_submit_text(params, request_id, context):
         source_ref = params.get("source_ref")
@@ -54,6 +61,7 @@ def register_local_audio_orchestration_routes(server) -> None:
             source_ref=source_ref if isinstance(source_ref, dict) else None,
             generate=params.get("generate") is not False,
             source_text=str(params.get("source_text") or ""),
+            output_mode=str(params.get("output_mode") or ""),
         )
 
     def task_update(params, request_id, context):
@@ -106,6 +114,40 @@ def register_local_audio_orchestration_routes(server) -> None:
     def open_output(params, request_id, context):
         return orch_service.open_output(params.get("task_id") or None)
 
+    def task_file_chunk(params, request_id, context):
+        return orch_service.task_file_chunk(
+            str(params.get("task_id") or ""),
+            str(params.get("name") or ""),
+            params.get("offset") or 0,
+            params.get("length") or 1048576,
+        )
+
+    def task_render_video(params, request_id, context):
+        return orch_service.task_render_video(str(params.get("task_id") or ""), params.get("force") is not False)
+
+    def video_presets(params, request_id, context):
+        return orch_service.video_presets()
+
+    def video_preset_save(params, request_id, context):
+        return orch_service.video_preset_save(
+            str(params.get("preset_id") or ""),
+            str(params.get("name") or ""),
+            params.get("settings"),
+            bool(params.get("activate")),
+        )
+
+    def video_preset_delete(params, request_id, context):
+        return orch_service.video_preset_delete(str(params.get("preset_id") or ""))
+
+    def video_preset_activate(params, request_id, context):
+        return orch_service.video_preset_activate(str(params.get("preset_id") or ""))
+
+    def video_preview(params, request_id, context):
+        return orch_service.video_preview(params.get("settings"), str(params.get("preset_id") or ""))
+
+    def video_background_import(params, request_id, context):
+        return orch_service.video_background_import(str(params.get("path") or ""))
+
     routes = (
         (route_names.UI_AUDIO_ORCH_BOOKS_LIST, books_list),
         (route_names.UI_AUDIO_ORCH_BOOK_SENTENCES, book_sentences),
@@ -128,12 +170,21 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_TASK_FILES, task_files),
         (route_names.UI_AUDIO_ORCH_TASK_MANIFEST_PAGE, task_manifest_page),
         (route_names.UI_AUDIO_ORCH_OPEN_OUTPUT, open_output),
+        (route_names.UI_AUDIO_ORCH_TASK_RENDER_VIDEO, task_render_video),
+        (route_names.UI_AUDIO_ORCH_TASK_FILE_CHUNK, task_file_chunk),
+        (route_names.UI_AUDIO_ORCH_VIDEO_PRESETS, video_presets),
+        (route_names.UI_AUDIO_ORCH_VIDEO_PRESET_SAVE, video_preset_save),
+        (route_names.UI_AUDIO_ORCH_VIDEO_PRESET_DELETE, video_preset_delete),
+        (route_names.UI_AUDIO_ORCH_VIDEO_PRESET_ACTIVATE, video_preset_activate),
+        (route_names.UI_AUDIO_ORCH_VIDEO_PREVIEW, video_preview),
+        (route_names.UI_AUDIO_ORCH_VIDEO_BACKGROUND_IMPORT, video_background_import),
     )
     server.register_routes(routes, group="audio_orchestration")
 
-    # Startup recovery: tasks left in 'generating' by a previous pycore process
-    # resume from their persisted manifest before the UI polls them.
-    global _STARTUP_RESUME_DONE
-    if not _STARTUP_RESUME_DONE:
-        _STARTUP_RESUME_DONE = True
-        orch_service.resume_interrupted_generations()
+    # Startup: the orchestration queue recovers tasks a previous pycore process
+    # left generating, registers its heartbeat tick and starts every task whose
+    # prerequisites are met (nothing waits for a button press).
+    global _QUEUE_STARTED
+    if not _QUEUE_STARTED:
+        _QUEUE_STARTED = True
+        orch_queue.start()

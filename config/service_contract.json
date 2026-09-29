@@ -65,7 +65,14 @@
         "tailnet": {
             "dns_suffix": "ts.net",
             "api_label": "api",
-            "api_path": "/laravel-api"
+            "api_path": "/laravel-api",
+            "pycore_path": "/pycore",
+            "source_ranges": [
+                "100.64.0.0/10",
+                "fd7a:115c:a1e0::/48",
+                "127.0.0.1/8",
+                "::1"
+            ]
         },
         "root_domains": [
             "12gm.com",
@@ -194,7 +201,8 @@
         }
     },
     "files": {
-        "web_access_config": "web_access_config.json"
+        "web_access_config": "web_access_config.json",
+        "tailnet_peers": "tailnet_peers.json"
     },
     "mcp_chrome": {
         "native_host_name": "com.chromemcp.nativehost",

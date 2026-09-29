@@ -140,7 +140,7 @@ class CodeMartV1RegistrationCtl extends Controller
             return $this->notFound(__('codemart.messages.user_not_found'));
         }
 
-        $user->updateRecord(['email_verified_at' => now()]);
+        $user->markEmailVerified();
 
         return $this->success([
             'user_id' => $user->id,
@@ -185,7 +185,7 @@ class CodeMartV1RegistrationCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string|regex:/^[0-9]{10,15}$/',
+            'phone' => 'required|string|regex:/^\+?[0-9]{10,15}$/',
         ]);
 
         if ($validator->fails()) {

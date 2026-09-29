@@ -144,15 +144,15 @@ class CodeMartV1ArchitectCtl extends Controller
         $architectStatus = $this->architectStatus($userId);
 
         if ($architectStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
-            return $this->error(__('codemart.messages.you_are_already_an_architect'));
+            return $this->codedError(CodeMartV1Constants::ERROR_ARCHITECT_ALREADY_ACTIVE, __('codemart.messages.you_are_already_an_architect'), null, 409);
         }
         if ($architectStatus === CodeMartV1Constants::ROLE_STATUS_PENDING) {
-            return $this->error(__('codemart.messages.an_architect_application_is_already_pending'));
+            return $this->codedError(CodeMartV1Constants::ERROR_ARCHITECT_APPLICATION_PENDING, __('codemart.messages.an_architect_application_is_already_pending'), null, 409);
         }
 
         $developerRole = $this->developerRole($userId);
         if (!$developerRole || $developerRole->role_status !== CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
-            return $this->error(__('codemart.messages.only_active_developers_can_apply_for_architect'));
+            return $this->codedError(CodeMartV1Constants::ERROR_DEVELOPER_ROLE_REQUIRED, __('codemart.messages.only_active_developers_can_apply_for_architect'), null, 403);
         }
 
         $stats = CodeMartV1DeveloperStatsModel::forUser($userId);
@@ -160,7 +160,7 @@ class CodeMartV1ArchitectCtl extends Controller
             $stats->completed_projects < CodeMartV1Constants::ARCHITECT_MIN_PROJECTS ||
             $stats->avg_code_score < CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE ||
             $stats->avg_client_satisfaction < CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION) {
-            return $this->error(__('codemart.messages.you_do_not_meet_the_requirements_for'));
+            return $this->codedError(CodeMartV1Constants::ERROR_ARCHITECT_REQUIREMENTS_UNMET, __('codemart.messages.you_do_not_meet_the_requirements_for'), $this->promotionRequirements(), 422);
         }
 
         $requiredDeposit = CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT);
@@ -210,7 +210,7 @@ class CodeMartV1ArchitectCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         if ($this->architectStatus((int) $user->id) !== CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
-            return $this->forbidden(__('codemart.messages.only_architects_can_accept_projects'));
+            return $this->codedError(CodeMartV1Constants::ERROR_ARCHITECT_ROLE_REQUIRED, __('codemart.messages.only_architects_can_accept_projects'), null, 403);
         }
 
         if (!CodeMartV1ProjectModel::acceptForArchitect((int) $projectId, $user->id)) {

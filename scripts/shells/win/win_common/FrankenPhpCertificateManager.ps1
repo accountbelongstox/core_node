@@ -11,6 +11,7 @@ $script:FrankenPhpCertificateRenewMinute = 17
 $script:FrankenPhpCertificateMinimumDays = 30
 $script:FrankenPhpCertificateDnsPlugin = 'DNSPod'
 $script:FrankenPhpCertificateDnsApiRoot = 'https://dnsapi.cn'
+$script:FrankenPhpCertificateAcmeServer = 'LE_PROD'
 $script:FrankenPhpCertificateStepPath = Join-Path (Join-Path (Split-Path -Parent $script:FrankenPhpCertificateCommonDirectory) 'install_powershells') 'Step175_LaravelMainStart.ps1'
 
 function Ensure-FrankenPhpCertificateModule {
@@ -37,6 +38,7 @@ function Ensure-FrankenPhpCertificateModule {
 function Ensure-FrankenPhpCertificateAccount {
     param([Parameter(Mandatory = $true)][hashtable]$Credential)
 
+    Set-PAServer -DirectoryUrl $script:FrankenPhpCertificateAcmeServer | Out-Null
     $account = Get-PAAccount -ErrorAction SilentlyContinue
 
     if ($null -eq $account) {
@@ -204,12 +206,12 @@ function Ensure-FrankenPhpCertificate {
     if ([string]::IsNullOrWhiteSpace($Credential.Email)) {
         New-PACertificate -Domain $domains -Name $normalizedDomain `
             -Plugin $script:FrankenPhpCertificateDnsPlugin -PluginArgs $pluginArguments `
-            -DirectoryUrl 'LE_PROD' -CertKeyLength 'ec-256' -AcceptTOS -ErrorAction Continue | Out-Null
+            -DirectoryUrl $script:FrankenPhpCertificateAcmeServer -CertKeyLength 'ec-256' -AcceptTOS -ErrorAction Continue | Out-Null
     }
     else {
         New-PACertificate -Domain $domains -Name $normalizedDomain `
             -Plugin $script:FrankenPhpCertificateDnsPlugin -PluginArgs $pluginArguments `
-            -DirectoryUrl 'LE_PROD' -CertKeyLength 'ec-256' -AcceptTOS `
+            -DirectoryUrl $script:FrankenPhpCertificateAcmeServer -CertKeyLength 'ec-256' -AcceptTOS `
             -Contact $Credential.Email -ErrorAction Continue | Out-Null
     }
     $certificate = Get-PACertificate -MainDomain $normalizedDomain -Name $normalizedDomain

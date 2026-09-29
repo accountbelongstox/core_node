@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 
 from pycore.database.adapters.sqlite_local import connect_writable
 from pycore.database.schema.audio_resource_schema import AUDIO_RESOURCES_TABLE, init_audio_resource_schema
+from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 
 
 SQLITE_BUSY_TIMEOUT_MS = 30000
@@ -46,7 +47,10 @@ class AudioResourceRepository:
             "WHERE (kind, resource_key) > (?, ?) ORDER BY kind, resource_key LIMIT ?",
             (after_kind, after_key, max(1, int(limit))),
         ).fetchall()
-        return [dict(zip(_FIELDS, values)) for values in rows]
+        entries = [dict(zip(_FIELDS, values)) for values in rows]
+        for entry in entries:
+            entry["path"] = resolve_portable_path(entry["path"])
+        return entries
 
     def count(self) -> int:
         return int(self._connection.execute(f"SELECT COUNT(*) FROM {AUDIO_RESOURCES_TABLE}").fetchone()[0])

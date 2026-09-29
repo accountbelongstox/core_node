@@ -464,6 +464,70 @@ def split_sentences(text: str) -> List[str]:
     return [p.strip() for p in parts if p and p.strip()]
 
 
+# --------------------------------------------------------------------------- #
+# Speech sentences: text that is going to be READ ALOUD                        #
+# --------------------------------------------------------------------------- #
+# A terminal run (". ! ? ...") followed by closing quotes / brackets ends a
+# sentence only when whitespace, the end of the text or a CJK character follows:
+# a dot inside a token (file.md, 127.0.0.1, 3.14, RunIntent.apiUrl) never does.
+_SPEECH_BOUNDARY_RE = re.compile(
+    r"""[.!?]+["')\]]*(?=\s|$|[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af])"""
+)
+_SPEECH_ABBREVIATIONS = frozenset((
+    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "cf", "fig", "no", "vol",
+    "approx", "inc", "ltd", "co", "e.g", "i.e",
+))
+_SPEECH_MIN_LETTERS = 3
+_SPEECH_CODE_SYMBOL_RATIO = 0.3
+_SPEECH_SYMBOLS_RE = re.compile(r"[`<>{}|=@#$^*~\\/_]")
+_SPEECH_LETTER_RE = re.compile(r"[^\W\d_]")
+_MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[#>]+|[-*+]|\d+[.)])\s+")
+
+
+def split_speech_sentences(text: str) -> List[str]:
+    """Sentences of ``text`` as they should be spoken: split after a terminal
+    only where a real sentence ends (see ``_SPEECH_BOUNDARY_RE``), never after an
+    abbreviation (Mr., e.g.), a single-letter initial, or when the next word
+    starts in lower case."""
+    if not text:
+        return []
+    text = re.sub(r"\s+", " ", normalize_punctuation(text).replace("\n", " ")).strip()
+    sentences: List[str] = []
+    start = 0
+    for match in _SPEECH_BOUNDARY_RE.finditer(text):
+        terminal = match.group().rstrip("\"')]")
+        head = text[start:match.start()]
+        tail = text[match.end():].lstrip()
+        if terminal[:1] == ".":
+            word = head.split(" ")[-1].lstrip("(\"'")
+            initial = len(word) == 1 and word.isalpha() and word.isupper()
+            abbreviation = word.lower() in _SPEECH_ABBREVIATIONS or initial
+            if tail[:1].islower() or (terminal == "." and abbreviation):
+                continue
+        sentences.append(text[start:match.end()].strip())
+        start = match.end()
+    rest = text[start:].strip()
+    if rest:
+        sentences.append(rest)
+    return [sentence for sentence in sentences if sentence]
+
+
+def clean_speakable_text(text: str) -> str:
+    """Markdown / code decoration removed from one sentence before it is spoken
+    and shown (list and heading markers, emphasis, backticks)."""
+    cleaned = _MARKDOWN_PREFIX_RE.sub("", str(text or ""))
+    cleaned = re.sub(r"(\*\*|__|~~)", "", cleaned).replace("`", "")
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def is_speakable_sentence(text: str) -> bool:
+    """False for a fragment (fewer than three letters) or text that is mostly
+    code symbols: it would be read as noise."""
+    if len(_SPEECH_LETTER_RE.findall(text)) < _SPEECH_MIN_LETTERS:
+        return False
+    return len(_SPEECH_SYMBOLS_RE.findall(text)) / max(1, len(text)) < _SPEECH_CODE_SYMBOL_RATIO
+
+
 def normalize_sentence_key(sentence: str) -> str:
     """Dedupe key for a sentence: trimmed, whitespace-collapsed, lowercased.
 

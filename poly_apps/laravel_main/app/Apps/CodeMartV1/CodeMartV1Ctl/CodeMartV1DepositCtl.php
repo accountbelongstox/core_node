@@ -99,6 +99,15 @@ class CodeMartV1DepositCtl extends Controller
         }
 
         $userId = (int) $user->id;
+        $idempotencyKey = CodeMartV1FinanceService::idempotencyKey($request);
+        $prior = $idempotencyKey !== null ? CodeMartV1DepositModel::findByIdempotencyKey($userId, $idempotencyKey) : null;
+        if ($prior) {
+            return $this->success(
+                $this->depositPayload($prior) + ['idempotent_replay' => true],
+                __('codemart.messages.deposit_payment_created_awaiting_administrator_confirmation')
+            );
+        }
+
         $policies = [];
         foreach ($this->depositRoles($userId) as $role) {
             $policies[$role->role_type] = CodeMartV1DepositModel::policyForRole($userId, (string) $role->role_type);
@@ -117,7 +126,11 @@ class CodeMartV1DepositCtl extends Controller
             return $this->codedError('deposit_not_required', __('codemart.messages.deposit_requirement_for_this_role_is_already'), $policy, 409);
         }
 
-        $remaining = $policy['remaining_amount'];
+        // Deposits still awaiting confirmation already cover part of the requirement.
+        $remaining = CodeMartV1FinanceService::money(max(0.0, (float) $policy['remaining_amount'] - CodeMartV1DepositModel::pendingAmountForUser($userId, (string) $roleType)));
+        if (bccomp($remaining, '0', 2) <= 0) {
+            return $this->codedError(CodeMartV1Constants::ERROR_DEPOSIT_ALREADY_PENDING, __('codemart.errors.deposit_already_pending'), $policy, 409);
+        }
         $amount = $request->filled('amount') ? CodeMartV1FinanceService::money($request->input('amount')) : $remaining;
         $minimum = min((float) $remaining, (float) CodeMartV1Constants::DEPOSIT_MIN_AMOUNT);
         if ((float) $amount < $minimum || bccomp($amount, $remaining, 2) > 0) {
@@ -128,7 +141,6 @@ class CodeMartV1DepositCtl extends Controller
         }
 
         $paymentMethod = (string) $request->input('payment_method');
-        $idempotencyKey = CodeMartV1FinanceService::idempotencyKey($request);
 
         [$deposit, $replayed] = CodeMartV1FinanceService::idempotent(
             $userId,

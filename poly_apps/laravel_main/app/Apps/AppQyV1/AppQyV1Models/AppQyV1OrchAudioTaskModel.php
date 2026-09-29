@@ -69,13 +69,19 @@ class AppQyV1OrchAudioTaskModel extends AppQyV1Model
         return self::query()->where('task_key', $taskKey)->first();
     }
 
-    /** @return array<string,self> keyed by task_key */
-    public static function mapByTaskKeys(array $taskKeys): array
+    /**
+     * task_key => meta_hash of the stored tasks. Selects the hash only: the
+     * sentence / resource JSON columns are megabytes per task and no caller of
+     * a diff or an unchanged-check needs them.
+     *
+     * @return array<string,string>
+     */
+    public static function metaHashesByTaskKeys(array $taskKeys): array
     {
         return self::query()
             ->whereIn('task_key', array_values(array_unique($taskKeys)))
-            ->get()
-            ->keyBy('task_key')
+            ->pluck('meta_hash', 'task_key')
+            ->map(static fn (mixed $hash): string => (string) $hash)
             ->all();
     }
 

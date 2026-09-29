@@ -9,7 +9,7 @@ import type { OrchGenerationPhase, OrchSegment, OrchTaskSummary } from '@/apps/p
 import { absoluteTime, formatElapsed, spanSeconds } from '../../utils/pcFormat';
 import { ORCH_L, ORCH_PHASE_LABELS } from './orchShared';
 
-const PHASES: OrchGenerationPhase[] = ['sync', 'manifest', 'resources', 'assemble'];
+const PHASES: OrchGenerationPhase[] = ['sync', 'manifest', 'resources', 'assemble', 'video'];
 
 const OrchRunTiming: React.FC<{ task: OrchTaskSummary }> = ({ task }) => {
   const started = task.generation_started_at;

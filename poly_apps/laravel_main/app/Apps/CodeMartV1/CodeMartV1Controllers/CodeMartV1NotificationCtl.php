@@ -68,6 +68,9 @@ class CodeMartV1NotificationCtl extends Controller
             return $this->unauthorized();
         }
 
+        if (!CodeMartV1NotificationModel::existsForUser((int) $user->id, $notificationId)) {
+            return $this->codedError(CodeMartV1Constants::ERROR_NOTIFICATION_NOT_FOUND, __('codemart.errors.notification_not_found'), null, 404);
+        }
         CodeMartV1NotificationModel::markReadForUser((int) $user->id, $notificationId);
 
         return $this->success([

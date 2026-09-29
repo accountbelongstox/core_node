@@ -9,8 +9,12 @@ from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (
     DEFAULT_VIDEO_FRAME_RATE,
     OPUS_SAMPLE_RATES,
 )
-from pycore.pyutils.common.ffmpeg.ffmpeg_models import SubtitleRenderSource
+from pycore.pyutils.common.ffmpeg.ffmpeg_models import SubtitleRenderSource, VideoBackground
 from pycore.pyutils.common.ffmpeg.ffmpeg_subtitle import ass_subtitle_writer
+
+BACKGROUND_KIND_COLOR = "color"
+BACKGROUND_KIND_IMAGE = "image"
+BACKGROUND_KIND_VIDEO = "video"
 
 
 class FFmpegCommandBuilder:
@@ -140,21 +144,25 @@ class FFmpegCommandBuilder:
         preset: str = "veryfast",
         quality: int = 23,
         audio_bitrate: str = "128k",
+        background: Optional[VideoBackground] = None,
     ) -> Tuple[str, ...]:
         width, height = resolution
         safe_duration = max(0.001, duration)
         safe_frame_rate = max(1, frame_rate)
         safe_bar_height = min(height, max(1, progress_bar_height))
-        filter_steps = []
+        background_arguments, filter_steps = self._background_input(
+            background or VideoBackground(color=background_color),
+            resolution, safe_frame_rate, safe_duration,
+        )
         if show_progress:
             filter_steps.extend((
-                f"[0:v]drawbox=x=0:y=ih-{safe_bar_height}:w=iw:h={safe_bar_height}:color={self._video_color(progress_track_color)}:t=fill[canvas]",
+                f"[base]drawbox=x=0:y=ih-{safe_bar_height}:w=iw:h={safe_bar_height}:color={self._video_color(progress_track_color)}:t=fill[canvas]",
                 f"color=c={self._video_color(progress_fill_color)}:s={width}x{safe_bar_height}:r={safe_frame_rate}:d={safe_duration:.6f}[progress_bar]",
                 f"[canvas][progress_bar]overlay=x='-overlay_w+overlay_w*min(t/{safe_duration:.6f},1)':y=main_h-overlay_h:shortest=1[progress]",
             ))
             current_label = "progress"
         else:
-            filter_steps.append("[0:v]null[canvas]")
+            filter_steps.append("[base]null[canvas]")
             current_label = "canvas"
         for index, subtitle_source in enumerate(subtitle_sources):
             output_label = f"subtitle_{index}"
@@ -164,11 +172,7 @@ class FFmpegCommandBuilder:
         filter_steps.append(f"[{current_label}]format=yuv420p[video]")
         arguments = [
             "-y",
-            "-f", "lavfi",
-            "-i", (
-                f"color=c={self._video_color(background_color)}:"
-                f"s={width}x{height}:r={safe_frame_rate}:d={safe_duration:.6f}"
-            ),
+            *background_arguments,
             "-i", str(audio_source),
             "-filter_complex", ";".join(filter_steps),
             "-map", "[video]",
@@ -189,6 +193,79 @@ class FFmpegCommandBuilder:
             "-movflags", "+faststart",
         ))
         return tuple(arguments)
+
+    def compose_frame_preview(
+        self,
+        at_seconds: float,
+        resolution: Tuple[int, int],
+        subtitle_sources: Tuple[SubtitleRenderSource, ...],
+        output: str | Path,
+        fonts_directory: Optional[str | Path] = None,
+        frame_rate: int = DEFAULT_VIDEO_FRAME_RATE,
+        background: Optional[VideoBackground] = None,
+    ) -> Tuple[str, ...]:
+        """One PNG frame of the canvas with the timed text at ``at_seconds``."""
+        safe_at = max(0.0, at_seconds)
+        background_arguments, filter_steps = self._background_input(
+            background or VideoBackground(), resolution, max(1, frame_rate), safe_at + 1.0,
+        )
+        current_label = "base"
+        for index, subtitle_source in enumerate(subtitle_sources):
+            output_label = f"subtitle_{index}"
+            filter_steps.append(
+                f"[{current_label}]{self._subtitle_filter(subtitle_source, fonts_directory)}[{output_label}]")
+            current_label = output_label
+        filter_steps.append(f"[{current_label}]format=rgb24[frame]")
+        return (
+            "-y",
+            *background_arguments,
+            "-filter_complex", ";".join(filter_steps),
+            "-map", "[frame]",
+            "-ss", f"{safe_at:.3f}",
+            "-frames:v", "1",
+            str(output),
+        )
+
+    def _background_input(
+        self,
+        background: VideoBackground,
+        resolution: Tuple[int, int],
+        frame_rate: int,
+        duration: float,
+    ) -> Tuple[Tuple[str, ...], list]:
+        """Input 0 (the canvas) plus the filter steps that end in ``[base]``.
+        A still image or a video is scaled to cover the frame, and a video is
+        looped for as long as the audio lasts."""
+        width, height = resolution
+        if background.kind in (BACKGROUND_KIND_IMAGE, BACKGROUND_KIND_VIDEO) and background.source is not None:
+            if background.kind == BACKGROUND_KIND_IMAGE:
+                arguments = (
+                    "-loop", "1", "-framerate", str(frame_rate), "-t", f"{duration:.6f}",
+                    "-i", str(background.source),
+                )
+            else:
+                arguments = ("-stream_loop", "-1", "-t", f"{duration:.6f}", "-i", str(background.source))
+            steps = [
+                f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height},setsar=1,fps={frame_rate},format=yuv420p[cover]",
+            ]
+            label = "cover"
+            dim = min(1.0, max(0.0, background.dim_opacity))
+            if dim > 0:
+                steps.append(
+                    f"[{label}]drawbox=x=0:y=0:w=iw:h=ih:"
+                    f"color={self._video_color(background.dim_color)}@{dim:.3f}:t=fill[dimmed]")
+                label = "dimmed"
+            steps.append(f"[{label}]null[base]")
+            return arguments, steps
+        arguments = (
+            "-f", "lavfi",
+            "-i", (
+                f"color=c={self._video_color(background.color)}:"
+                f"s={width}x{height}:r={frame_rate}:d={duration:.6f}"
+            ),
+        )
+        return arguments, ["[0:v]null[base]"]
 
     @staticmethod
     def cut_video(

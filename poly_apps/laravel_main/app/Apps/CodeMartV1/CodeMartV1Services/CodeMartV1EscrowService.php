@@ -64,6 +64,9 @@ class CodeMartV1EscrowService
             if (bccomp($amount, '0', 2) <= 0) {
                 throw new CodeMartV1FinanceException('funding_amount_missing', __('codemart.errors.funding_amount_missing'), 422);
             }
+            if (bccomp(self::committedTaskBudget((int) $project->id), $amount, 2) > 0) {
+                throw new CodeMartV1FinanceException('escrow_insufficient', __('codemart.errors.escrow_insufficient'), 409);
+            }
 
             $ledger = $wallet->debit(
                 $amount,
@@ -130,7 +133,7 @@ class CodeMartV1EscrowService
         $requested = CodeMartV1FinanceService::money($budget ?? 0);
         $escrows = null;
         $funded = '0.00';
-        $committed = '0.00';
+        $project = null;
 
         if (bccomp($requested, '0', 2) <= 0) {
             return;
@@ -142,20 +145,30 @@ class CodeMartV1EscrowService
             ->lockForUpdate()
             ->get();
         if ($escrows->isEmpty()) {
-            return;
+            // Before funding, the ceiling is the amount funding will hold.
+            $project = CodeMartV1ProjectModel::query()->whereKey($projectId)->lockForUpdate()->first();
+            if (!$project) {
+                return;
+            }
+            $funded = self::fundingAmount($project);
         }
         foreach ($escrows as $escrow) {
             $funded = bcadd($funded, bcsub((string) $escrow->amount, (string) ($escrow->refunded_amount ?? '0'), 2), 2);
         }
-        $committed = CodeMartV1FinanceService::money(
+        if (bccomp(bcadd(self::committedTaskBudget($projectId, $excludeTaskId), $requested, 2), $funded, 2) > 0) {
+            throw new CodeMartV1FinanceException('escrow_insufficient', __('codemart.errors.escrow_insufficient'), 409);
+        }
+    }
+
+    /** Sum of the budgets of the project's live (not cancelled) tasks. */
+    private static function committedTaskBudget(int $projectId, ?int $excludeTaskId = null): string
+    {
+        return CodeMartV1FinanceService::money(
             CodeMartV1TaskModel::forProjectQuery($projectId)
                 ->where('status', '!=', CodeMartV1Constants::TASK_STATUS_CANCELLED)
                 ->when($excludeTaskId !== null, static fn ($query) => $query->whereKeyNot($excludeTaskId))
                 ->sum('budget_allocation')
         );
-        if (bccomp(bcadd($committed, $requested, 2), $funded, 2) > 0) {
-            throw new CodeMartV1FinanceException('escrow_insufficient', __('codemart.errors.escrow_insufficient'), 409);
-        }
     }
 
     /**

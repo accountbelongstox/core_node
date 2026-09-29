@@ -35,15 +35,17 @@ File operations use independent THREAD_BUS state owners and never raise; callers
 None / [] / False on missing data.
 """
 
+import copy
 import json
 import re
 import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Set
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_app_data_dir
 from pycore.pyutils.common.serialized_files import serialized_file
 from pycore.pyctl.audio_orchestration import orch_messages
@@ -56,7 +58,10 @@ _TASKS_DIR = "tasks"
 _BOOK_SENTENCES_DIR = "book_sentences"
 _BOOK_SENTENCES_PARTIAL_DIR = "book_sentences_partial"
 _OUTPUT_DIR = "output"
+_VIDEO_PRESETS_FILE = "video_presets.json"
+_VIDEO_BACKGROUNDS_DIR = "video_backgrounds"
 _TASK_EVENT_CAP = 200
+LEGACY_OUTPUT_MODE = "audio"
 ORCH_REQUEST_TIMEOUT = 60
 
 
@@ -241,11 +246,217 @@ def new_task_id() -> str:
     return f"orch_{uuid.uuid4().hex[:12]}"
 
 
+# Field ownership of a task record. Every writer touches only its own group and
+# never writes a stale copy of the whole record back:
+#   run fields    - the generation run (commit_run); a run works on its own copy
+#                   and commits these keys, so it can never overwrite an edit
+#   config fields - the UI / service / queue (patch_task), applied atomically
+#   events        - append-only log (append_task_event), shared by everyone
+TASK_RUN_FIELDS = (
+    "status",
+    "progress",
+    "segments",
+    "generation_id",
+    "generation_started_at",
+    "generation_finished_at",
+    "plan_signature",
+    "virtual_read",
+    "cancel_requested",
+    "word_group_id",
+    "auto_retries",
+)
+TASK_PROGRESS_FIELDS = ("progress", "cancel_requested")
+TASK_CONFIG_FIELDS = (
+    "name",
+    "book",
+    "segment_mode",
+    "segment_value",
+    "pattern",
+    "word_mode",
+    "new_only_max_read_count",
+    "output_mode",
+    "video_preset",
+    "auto_generate",
+    "source_ref",
+    "source_text",
+    "sentences",
+)
+_TASK_REFRESH_FIELDS = TASK_CONFIG_FIELDS + ("events", "updated_at")
+_TASK_LIGHT_DROP = ("sentences", "events", "source_text", "virtual_read")
+
+
+def _light_task(record: Dict[str, Any]) -> Dict[str, Any]:
+    """A list-sized view of a record: no sentences / events / timelines."""
+    light = {key: value for key, value in record.items() if key not in _TASK_LIGHT_DROP}
+    light["segments"] = [
+        {key: value for key, value in segment.items() if key != "timeline"}
+        for segment in record.get("segments") or []
+    ]
+    return copy.deepcopy(light)
+
+
+class _TaskStore:
+    """The single owner of every task record.
+
+    The authoritative copy lives in memory (loaded once from ``tasks/*.json``)
+    and is written through on each mutation; readers only ever get snapshots.
+    All mutations run on the owner thread, so two writers can never interleave a
+    read-modify-write of the same record (the lost-update bug of a file that any
+    thread could load, edit and save back whole).
+    """
+
+    def __init__(self) -> None:
+        self._records: Dict[str, Dict[str, Any]] = {}
+        self._loaded = False
+        self._dirty: Set[str] = set()
+        self._manifest_stamps: Dict[str, Any] = {}
+        init_serialized_owner(self, "audio_orchestration.task_store", "AudioOrchTaskStoreThread")
+
+    def _load_all(self) -> None:
+        if self._loaded:
+            return
+        directory = base_dir() / _TASKS_DIR
+        if directory.is_dir():
+            for path in sorted(directory.glob("*.json")):
+                record = _read_json(path)
+                if isinstance(record, dict) and record.get("task_id"):
+                    if "output_mode" not in record and (record.get("generation_started_at") or record.get("segments")):
+                        # Produced before video output existed: it stays an audio
+                        # task (switch it to video to have its videos rendered).
+                        record["output_mode"] = LEGACY_OUTPUT_MODE
+                    self._records[str(record["task_id"])] = record
+        self._loaded = True
+
+    def _persist(self, task_id: str) -> None:
+        record = self._records.get(task_id)
+        if record is not None:
+            _write_json(_task_path(task_id), record)
+        self._dirty.discard(task_id)
+
+    def _touch(self, task_id: str, persist: bool) -> None:
+        self._records[task_id]["updated_at"] = int(time.time())
+        if persist:
+            self._persist(task_id)
+        else:
+            self._dirty.add(task_id)
+
+    @serialized_method
+    def create(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        self._load_all()
+        task = copy.deepcopy(record)
+        now = int(time.time())
+        task["created_at"] = now
+        task["updated_at"] = now
+        self._records[str(task["task_id"])] = task
+        self._persist(str(task["task_id"]))
+        return copy.deepcopy(task)
+
+    @serialized_method
+    def get(self, task_id: str) -> Optional[Dict[str, Any]]:
+        self._load_all()
+        record = self._records.get(task_id)
+        return copy.deepcopy(record) if record is not None else None
+
+    @serialized_method
+    def all(self) -> List[Dict[str, Any]]:
+        self._load_all()
+        records = sorted(self._records.values(), key=lambda item: int(item.get("updated_at") or 0), reverse=True)
+        return copy.deepcopy(records)
+
+    @serialized_method
+    def page(self, source: str, offset: int, limit: int, query: str) -> Dict[str, Any]:
+        """One page of list-sized records of a source (newest first) plus the
+        per-source totals; ``source`` '' matches every source."""
+        self._load_all()
+        needle = query.strip().lower()
+        counts: Dict[str, int] = {}
+        matched: List[Dict[str, Any]] = []
+        for record in sorted(self._records.values(), key=lambda item: int(item.get("updated_at") or 0), reverse=True):
+            record_source = str(record.get("source") or "vocab_book")
+            counts[record_source] = counts.get(record_source, 0) + 1
+            if source and record_source != source:
+                continue
+            if needle and needle not in str(record.get("name") or "").lower():
+                continue
+            matched.append(record)
+        return {
+            "total": len(matched),
+            "counts": counts,
+            "records": [_light_task(record) for record in matched[offset:offset + limit]],
+        }
+
+    @serialized_method
+    def patch(self, task_id: str, changes: Dict[str, Any], fields: Iterable[str], persist: bool = True) -> Optional[Dict[str, Any]]:
+        self._load_all()
+        record = self._records.get(task_id)
+        if record is None:
+            return None
+        allowed = set(fields)
+        for key, value in changes.items():
+            if key in allowed:
+                record[key] = copy.deepcopy(value)
+        self._touch(task_id, persist)
+        return copy.deepcopy(record)
+
+    @serialized_method
+    def append_event(self, task_id: str, event: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+        self._load_all()
+        record = self._records.get(task_id)
+        if record is None:
+            return None
+        record["events"] = [*(record.get("events") or []), event][-_TASK_EVENT_CAP:]
+        self._touch(task_id, True)
+        return copy.deepcopy(record["events"])
+
+    @serialized_method
+    def clear_events(self, task_id: str) -> None:
+        self._load_all()
+        if task_id in self._records:
+            self._records[task_id]["events"] = []
+            self._touch(task_id, True)
+
+    @serialized_method
+    def delete(self, task_id: str) -> bool:
+        self._load_all()
+        existed = self._records.pop(task_id, None) is not None
+        self._dirty.discard(task_id)
+        deleted = _delete_json(_task_path(task_id))
+        return existed or deleted
+
+    @serialized_method
+    def manifest_signature(self, task_id: str) -> str:
+        """Plan signature of a task's persisted manifest ('' = none / no items).
+        A manifest of a big book is megabytes: it is parsed once per file stamp
+        (mtime + size), not on every list poll."""
+        path = manifest_path(task_id)
+        if not path.is_file():
+            self._manifest_stamps.pop(task_id, None)
+            return ""
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        cached = self._manifest_stamps.get(task_id)
+        if cached is not None and cached[0] == stamp:
+            return cached[1]
+        manifest = _read_json(path)
+        signature = str(manifest.get("signature") or "") if isinstance(manifest, dict) and manifest.get("segment_items") else ""
+        self._manifest_stamps[task_id] = (stamp, signature)
+        return signature
+
+    @serialized_method
+    def flush(self) -> int:
+        pending = list(self._dirty)
+        for task_id in pending:
+            self._persist(task_id)
+        return len(pending)
+
+
+_task_store = _TaskStore()
+
+
 def create_task(record: Dict[str, Any]) -> Dict[str, Any]:
-    now = int(time.time())
     task = dict(record)
     book = task.get("book") or {}
-    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime(now))
+    timestamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime(int(time.time())))
     task.setdefault("task_id", new_task_id())
     task["name"] = str(task.get("name") or "").strip() or f"{book.get('title') or book.get('source_key')}_{timestamp}_{task['task_id']}"
     task["slug"] = f"{slugify(task['name'])}_{task['task_id']}"
@@ -255,40 +466,82 @@ def create_task(record: Dict[str, Any]) -> Dict[str, Any]:
     task.setdefault("pattern", [])
     task.setdefault("word_mode", "all")
     task.setdefault("new_only_max_read_count", 0)
-    task["created_at"] = now
-    task["updated_at"] = now
-    _write_json(_task_path(task["task_id"]), task)
-    return task
-
-
-def save_task(task: Dict[str, Any]) -> bool:
-    task["updated_at"] = int(time.time())
-    return _write_json(_task_path(str(task.get("task_id") or "")), task)
+    return _task_store.create(task)
 
 
 def get_task(task_id: str) -> Optional[Dict[str, Any]]:
-    record = _read_json(_task_path(task_id))
-    return record if isinstance(record, dict) else None
+    return _task_store.get(str(task_id or ""))
 
 
 def list_tasks() -> List[Dict[str, Any]]:
-    directory = base_dir() / _TASKS_DIR
-    tasks: List[Dict[str, Any]] = []
-    if directory.is_dir():
-        for path in sorted(directory.glob("*.json")):
-            record = _read_json(path)
-            if isinstance(record, dict):
-                tasks.append(record)
-    tasks.sort(key=lambda item: int(item.get("updated_at") or 0), reverse=True)
-    return tasks
+    """Full snapshots of every task, newest first (heavy: prefer ``page_tasks``
+    for a list view)."""
+    return _task_store.all()
+
+
+def page_tasks(source: str = "", page: int = 1, page_size: int = 20, query: str = "") -> Dict[str, Any]:
+    size = max(1, min(100, int(page_size or 20)))
+    number = max(1, int(page or 1))
+    result = _task_store.page(str(source or ""), (number - 1) * size, size, str(query or ""))
+    return {**result, "page": number, "page_size": size}
+
+
+def patch_task(task_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Atomically set config fields (``TASK_CONFIG_FIELDS``) of a task; other
+    keys are ignored. Returns the new snapshot, None for an unknown task."""
+    return _task_store.patch(str(task_id or ""), changes, TASK_CONFIG_FIELDS)
+
+
+def commit_run(task: Dict[str, Any], persist: bool = True, progress_only: bool = False) -> bool:
+    """Publish the run-owned fields of the run's working copy; nothing else of
+    the working copy is written. The copy is refreshed with the config fields
+    and events other writers changed meanwhile."""
+    task_id = str(task.get("task_id") or "")
+    keys = TASK_PROGRESS_FIELDS if progress_only else TASK_RUN_FIELDS
+    stored = _task_store.patch(task_id, {key: task[key] for key in keys if key in task}, keys, persist)
+    if stored is None:
+        return False
+    for key in _TASK_REFRESH_FIELDS:
+        if key in stored:
+            task[key] = stored[key]
+    return True
+
+
+def patch_run_fields(task_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Set run-owned fields from outside a run (before one starts, or the
+    startup recovery of an interrupted one)."""
+    return _task_store.patch(str(task_id or ""), changes, TASK_RUN_FIELDS)
 
 
 def delete_task(task_id: str) -> bool:
-    return _delete_json(_task_path(task_id))
+    return _task_store.delete(str(task_id or ""))
+
+
+def flush_tasks() -> int:
+    return _task_store.flush()
+
+
+def manifest_signature(task_id: str) -> str:
+    return _task_store.manifest_signature(str(task_id or ""))
 
 
 def output_dir_for(task: Dict[str, Any]) -> Path:
     directory = base_dir() / _OUTPUT_DIR / str(task.get("slug") or "task")
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def load_video_presets() -> Dict[str, Any]:
+    payload = _read_json(base_dir() / _VIDEO_PRESETS_FILE)
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_video_presets(payload: Dict[str, Any]) -> bool:
+    return _write_json(base_dir() / _VIDEO_PRESETS_FILE, payload)
+
+
+def video_backgrounds_dir() -> Path:
+    directory = base_dir() / _VIDEO_BACKGROUNDS_DIR
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
@@ -330,32 +583,41 @@ def load_system_status() -> Optional[Dict[str, Any]]:
 # per-task event log + generated file listing                                  #
 # --------------------------------------------------------------------------- #
 def append_task_event(task: Dict[str, Any], code: str, **params: Any) -> None:
-    """Append one coded line to the task's viewable generation log (capped)."""
-    events = list(task.get("events") or [])
-    events.append({
+    """Append one coded line to the task's viewable generation log (capped).
+    The append is atomic in the store; the caller's copy gets the new log."""
+    events = _task_store.append_event(str(task.get("task_id") or ""), {
         "ts": int(time.time()),
         "code": code,
         "params": params,
         "message": orch_messages.render(code, params)[:300],
     })
-    task["events"] = events[-_TASK_EVENT_CAP:]
+    if events is not None:
+        task["events"] = events
+
+
+def clear_task_events(task: Dict[str, Any]) -> None:
+    _task_store.clear_events(str(task.get("task_id") or ""))
+    task["events"] = []
 
 
 def task_files(task: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """List the generated segment files of one task (name, size, mtime)."""
+    """List the generated segment files of one task (name, kind, size, mtime):
+    the delivered segment audio and, when the task renders video, its mp4."""
     directory = base_dir() / _OUTPUT_DIR / str(task.get("slug") or "task")
     files: List[Dict[str, Any]] = []
     if directory.is_dir():
-        for path in sorted(directory.glob("segment_*.mp3")):
-            try:
-                stat = path.stat()
-            except OSError:
-                continue
-            files.append({
-                "name": path.name,
-                "bytes": stat.st_size,
-                "modified_at": int(stat.st_mtime),
-            })
+        for kind, pattern in (("audio", "segment_*.mp3"), ("video", "segment_*.mp4")):
+            for path in sorted(directory.glob(pattern)):
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue
+                files.append({
+                    "name": path.name,
+                    "kind": kind,
+                    "bytes": stat.st_size,
+                    "modified_at": int(stat.st_mtime),
+                })
     return files
 
 
@@ -382,12 +644,23 @@ __all__ = [
     "append_task_event",
     "task_files",
     "new_task_id",
+    "TASK_CONFIG_FIELDS",
+    "TASK_RUN_FIELDS",
     "create_task",
-    "save_task",
     "get_task",
     "list_tasks",
+    "page_tasks",
+    "patch_task",
+    "commit_run",
+    "patch_run_fields",
+    "clear_task_events",
+    "flush_tasks",
+    "manifest_signature",
     "delete_task",
     "output_dir_for",
+    "load_video_presets",
+    "save_video_presets",
+    "video_backgrounds_dir",
 ]
 
 def manifest_path(task_id: str) -> Path:
