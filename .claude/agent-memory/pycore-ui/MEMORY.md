@@ -1,3 +1,4 @@
 - [UI lint on Windows](ui-lint-on-windows.md) — bun run lint cannot find tsc (POSIX .bin symlinks); use node node_modules/typescript/bin/tsc --noEmit
 - [pc coded messages](pc-coded-messages.md) — pycore codes -> pc locale keys via utils/pcErrorCodes.ts; errorCodes lives in Core (shallow locale spread)
 - [okx/* routes not served](okx-routes-not-served.md) — pycore has no okx/* server; okx_price_monitor is monitor/*; panels gated by served list in contract
+- [Orch video/queue UI](orch-video-queue-ui.md) — audio-orchestration tabs/queue/video-look layout + pycore contract quirks

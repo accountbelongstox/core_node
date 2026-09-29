@@ -418,6 +418,54 @@
     },
     {
       "match": "exact",
+      "value": "ui/audio_orch/task/file_chunk",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/video/presets",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/video/preview",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/video/preset_save",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/video/preset_delete",
+      "profile": "general_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/video/preset_activate",
+      "profile": "general_write",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/video/background_import",
+      "profile": "denied",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/task/render_video",
+      "profile": "general_action",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
       "value": "ui/dictionary/dictionary_status",
       "profile": "general_read",
       "methods": ["POST"]

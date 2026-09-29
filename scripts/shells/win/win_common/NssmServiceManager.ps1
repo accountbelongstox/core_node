@@ -205,7 +205,7 @@ function Register-NssmService {
     }
     if ($NoRestart -and ((Get-ServiceRunState -ServiceName $ServiceName) -eq "running")) {
         Write-Host "[NssmServiceManager] Service $ServiceName already running -> configuration refreshed, no restart." -ForegroundColor Green
-    } elseif ($svc.Status -eq "Running") {
+    } elseif (@("Running", "Paused", "PausePending") -contains [string]$svc.Status) {
         Write-Host "[NssmServiceManager] Restarting service: $ServiceName" -ForegroundColor Cyan
         Restart-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
     } else {
@@ -218,7 +218,7 @@ function Register-NssmService {
     return $true
 }
 
-# SCM run state of any Windows service (NSSM, WinSW or native): running | stopped | absent.
+# SCM run state of any Windows service (NSSM, WinSW or native): running | paused | stopped | absent.
 # A service that is starting counts as running so callers never start it twice.
 function Get-ServiceRunState {
     param([Parameter(Mandatory = $true)][string]$ServiceName)
@@ -226,6 +226,7 @@ function Get-ServiceRunState {
     $runningStates = @("Running", "StartPending", "ContinuePending")
     if (-not $svc) { return "absent" }
     if ($runningStates -contains [string]$svc.Status) { return "running" }
+    if (@("Paused", "PausePending") -contains [string]$svc.Status) { return "paused" }
     return "stopped"
 }
 

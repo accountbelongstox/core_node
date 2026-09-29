@@ -3,11 +3,13 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1OrchAudioService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1OrchIngestValidator;
 use App\Helpers\AuthHelper;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -22,9 +24,8 @@ class AppQyV1OrchAudioCtl extends Controller
     public const MACHINE_ID_RULE = ['required', 'string', 'regex:/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/'];
     public const SHA256_RULE = ['required', 'string', 'regex:/^[a-fA-F0-9]{64}$/'];
     private const INGEST_TASK_LIMIT = 50;
-    private const SENTENCE_LIMIT = 5000;
-    private const RESOURCE_LIMIT = 2000;
-    public const SEGMENT_LIMIT = 2000;
+    private const HEAVY_TASK_FIELDS = ['sentences', 'resources', 'segments'];
+    public const SEGMENT_LIMIT = AppQyV1OrchIngestValidator::SEGMENT_LIMIT;
     private const SOURCE_TEXT_LIMIT = 200000;
     private const LIST_PER_PAGE_DEFAULT = 20;
     private const LIST_PER_PAGE_MAX = 100;
@@ -33,14 +34,21 @@ class AppQyV1OrchAudioCtl extends Controller
 
     private AppQyV1OrchAudioService $service;
 
-    public function __construct(AppQyV1OrchAudioService $service)
+    private AppQyV1OrchIngestValidator $ingestValidator;
+
+    public function __construct(AppQyV1OrchAudioService $service, AppQyV1OrchIngestValidator $ingestValidator)
     {
         $this->service = $service;
+        $this->ingestValidator = $ingestValidator;
     }
 
     public function ingestTasks(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $payload = $request->all();
+        $tasks = is_array($payload['tasks'] ?? null) ? $payload['tasks'] : [];
+        $errors = [];
+        $current = [];
+        $validator = Validator::make($this->scalarPayload($payload), [
             'machine_id' => self::MACHINE_ID_RULE,
             'tasks' => ['required', 'array', 'min:1', 'max:' . self::INGEST_TASK_LIMIT],
             'tasks.*.task_id' => ['required', 'string', 'max:128'],
@@ -52,37 +60,48 @@ class AppQyV1OrchAudioCtl extends Controller
             'tasks.*.source_ref' => ['nullable', 'array'],
             'tasks.*.pattern' => ['nullable', 'array'],
             'tasks.*.source_text' => ['nullable', 'string', 'max:' . self::SOURCE_TEXT_LIMIT],
-            'tasks.*.sentences' => ['nullable', 'array', 'max:' . self::SENTENCE_LIMIT],
-            'tasks.*.sentences.*.text' => ['required', 'string', 'max:16000'],
-            'tasks.*.sentences.*.language' => ['nullable', 'string', 'max:20'],
-            'tasks.*.sentences.*.seq' => ['nullable', 'integer'],
-            'tasks.*.sentences.*.languages' => ['nullable', 'array'],
-            'tasks.*.resources' => ['nullable', 'array', 'max:' . self::RESOURCE_LIMIT],
-            'tasks.*.resources.*.kind' => ['required', 'string', 'in:word,sentence'],
-            'tasks.*.resources.*.text' => ['required', 'string', 'max:16000'],
-            'tasks.*.resources.*.language' => ['nullable', 'string', 'max:20'],
-            'tasks.*.segments' => ['nullable', 'array', 'max:' . self::SEGMENT_LIMIT],
-            'tasks.*.segments.*.index' => ['required', 'integer', 'min:0'],
-            'tasks.*.segments.*.sha256' => self::SHA256_RULE,
-            'tasks.*.segments.*.bytes' => ['nullable', 'integer', 'min:0'],
-            'tasks.*.segments.*.duration_ms' => ['nullable', 'integer', 'min:0'],
-            'tasks.*.segments.*.start' => ['nullable', 'integer'],
-            'tasks.*.segments.*.end' => ['nullable', 'integer'],
-            'tasks.*.segments.*.status' => ['nullable', 'string', 'max:32'],
-            'tasks.*.segments.*.timeline' => ['nullable', 'array'],
-            'tasks.*.segments.*.timeline.*.seq' => ['nullable', 'integer'],
-            'tasks.*.segments.*.timeline.*.type' => ['required', 'string', 'in:word,sentence'],
-            'tasks.*.segments.*.timeline.*.start_ms' => ['required', 'integer', 'min:0'],
-            'tasks.*.segments.*.timeline.*.end_ms' => ['required', 'integer', 'min:0'],
         ]);
         if ($validator->fails()) {
             return $this->validationFailed($validator->errors()->toArray());
         }
 
+        // A task whose stored hash already equals the sent one changes nothing:
+        // only the tasks that will be written pay for the deep validation.
+        $current = array_flip($this->service->currentPositions((string) $payload['machine_id'], $tasks));
+        foreach ($tasks as $position => $task) {
+            if (!isset($current[(int) $position])) {
+                $errors += $this->ingestValidator->validateTask((int) $position, $task);
+            }
+        }
+        if ($errors !== []) {
+            return $this->validationFailed($errors);
+        }
+
         return $this->success(
-            $this->service->ingestTasks((string) $request->input('machine_id'), $request->input('tasks')),
+            $this->service->ingestTasks((string) $payload['machine_id'], $tasks),
             __('audio_orchestration.orch_audio_tasks_ingested')
         );
+    }
+
+    /**
+     * The request without the heavy arrays (sentences, resources, segments):
+     * Laravel's wildcard rules cost time proportional to the whole payload, so
+     * they only ever see the scalar fields; the arrays are checked linearly by
+     * AppQyV1OrchIngestValidator.
+     *
+     * @param array<string,mixed> $payload
+     * @return array<string,mixed>
+     */
+    private function scalarPayload(array $payload): array
+    {
+        $tasks = is_array($payload['tasks'] ?? null) ? $payload['tasks'] : [];
+
+        $payload['tasks'] = array_map(
+            static fn (mixed $task): mixed => is_array($task) ? Arr::except($task, self::HEAVY_TASK_FIELDS) : $task,
+            $tasks
+        );
+
+        return $payload;
     }
 
     /** offset-v1: fields in the query string, raw chunk in the body. */

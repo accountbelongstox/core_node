@@ -6,6 +6,8 @@ Thin adapters over orch_store / orch_books / orch_words / orch_generate. Every
 function returns a JSON-able dict with a ``success`` flag and never raises.
 """
 
+import base64
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -26,13 +28,15 @@ from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_generate,
-    orch_messages,
     orch_promote,
     orch_events,
     orch_resources,
     orch_sources,
     orch_store,
+    orch_video,
+    orch_video_presets,
 )
+from pycore.pyctl.audio_orchestration.orch_queue import orch_queue
 from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
 from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
 
@@ -46,6 +50,11 @@ _SYSTEM_STATUS_SCHEMA = 1
 _STEP_TYPES = ("sentence_en", "sentence_zh", "words_new", "words_all", "words")
 _WORD_MODES = ("new_only", "all")
 _SEGMENT_MODES = ("count", "minutes")
+# A book is cut into segments only because it is long: by default ~10 minutes
+# of audio each, so a short book stays one segment. A prompt is always ONE
+# segment (its task is created with count 1 and cannot be re-segmented).
+_DEFAULT_BOOK_SEGMENT_MODE = "minutes"
+_DEFAULT_BOOK_SEGMENT_MINUTES = 10
 _EDITABLE_FIELDS = (
     "name",
     "book",
@@ -54,7 +63,20 @@ _EDITABLE_FIELDS = (
     "pattern",
     "word_mode",
     "new_only_max_read_count",
+    "output_mode",
+    "video_preset",
+    "auto_generate",
 )
+# Changing one of these makes the previous output stale: the task goes back to
+# a never-started draft and the queue regenerates it on its own.
+_PLAN_FIELDS = ("book", "segment_mode", "segment_value", "pattern", "word_mode", "new_only_max_read_count")
+_DEFAULT_PAGE_SIZE = 20
+# Generated segment files are read by the UI in chunks (play / download): the
+# JSON transport carries base64, so a chunk stays small and a file of any size
+# streams. Only the segment files of the task's own output folder can be read.
+_FILE_NAME_RE = re.compile(r"^segment_\d{3}\.(mp3|mp4)$")
+_FILE_MEDIA_TYPES = {".mp3": "audio/mpeg", ".mp4": "video/mp4"}
+_FILE_CHUNK_BYTES = 1024 * 1024
 _DEFAULT_PATTERN = [
     {"type": "sentence_en", "times": 1},
     {"type": "sentence_zh", "times": 1},
@@ -305,9 +327,29 @@ def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any
     return steps
 
 
-def _task_summary(task: Dict[str, Any], pending_counts=None, output_counts=None) -> Dict[str, Any]:
-    _recover_task_status(task)
+def _output_mode(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    return text if text in orch_sources.ORCH_OUTPUT_MODES else orch_sources.ORCH_DEFAULT_OUTPUT_MODE
+
+
+def _positive_int(value: Any, default: int, minimum: int = 1) -> int:
+    text = str(value if value is not None else "").strip()
+    return max(minimum, int(text)) if text.lstrip("-").isdigit() else default
+
+
+def _preset_id(value: Any) -> str:
+    """A known preset id, or '' (= follow the active preset)."""
+    wanted = str(value or "").strip()
+    known = {preset["id"] for preset in orch_video_presets.list_presets()["presets"]}
+    return wanted if wanted in known else ""
+
+
+def _task_summary(
+    task: Dict[str, Any], pending_counts=None, output_counts=None, running_ids=None, queue_states=None,
+) -> Dict[str, Any]:
     segments = task.get("segments") or []
+    task_id = str(task.get("task_id") or "")
+    running = task_id in running_ids if running_ids is not None else orch_generate.is_running(task_id)
     return {
         "task_id": task.get("task_id"),
         "name": task.get("name"),
@@ -319,12 +361,18 @@ def _task_summary(task: Dict[str, Any], pending_counts=None, output_counts=None)
         "segment_mode": task.get("segment_mode"),
         "segment_value": task.get("segment_value"),
         "word_mode": task.get("word_mode"),
+        "output_mode": orch_sources.task_output_mode(task),
+        "video_preset": str(task.get("video_preset") or ""),
+        "auto_generate": task.get("auto_generate") is not False,
+        "queue": queue_states[task_id] if queue_states is not None else orch_queue.state_of(task_id),
         "status": task.get("status"),
-        "running": orch_generate.is_running(str(task.get("task_id") or "")),
+        "running": running,
         "resumable": orch_generate.has_resumable_state(task),
         "segments_done": sum(1 for s in segments if s.get("status") == "done"),
         "segments_total": len(segments),
-        "progress": _task_progress(task, pending_counts, output_counts),
+        "videos_done": sum(1 for s in segments if s.get("video_status") == "done"),
+        "videos_failed": sum(1 for s in segments if s.get("video_status") == "failed"),
+        "progress": _task_progress(task, pending_counts, output_counts, running),
         "generation_started_at": task.get("generation_started_at"),
         "generation_finished_at": task.get("generation_finished_at"),
         "created_at": task.get("created_at"),
@@ -332,37 +380,25 @@ def _task_summary(task: Dict[str, Any], pending_counts=None, output_counts=None)
     }
 
 
-def resume_interrupted_generations() -> Dict[str, Any]:
-    """Auto-resume every task left in 'generating' by a previous pycore process.
-    Called once when the orchestration routes register (service startup) so a
-    restarted pycore picks the manifest back up before the UI even polls."""
-    resumed: List[str] = []
-    for task in orch_store.list_tasks():
-        task_id = str(task.get("task_id") or "")
-        if str(task.get("status") or "") != "generating":
-            continue
-        if orch_generate.is_running(task_id):
-            continue
-        result = orch_generate.start_generation(task_id, resume=True)
-        if result.get("success"):
-            resumed.append(task_id)
-            ColorPrint.green(f"[AudioOrch] auto-resumed interrupted generation: {task_id}")
-        else:
-            ColorPrint.yellow(f"[AudioOrch] auto-resume skipped for {task_id}: {result.get('error')}")
-    return {"success": True, "resumed": resumed}
-
-
-def tasks_list(source: str = "") -> Dict[str, Any]:
+def tasks_list(source: str = "", page: int = 1, page_size: int = _DEFAULT_PAGE_SIZE, query: str = "") -> Dict[str, Any]:
+    """One page of task summaries of a source (books / prompts), newest first,
+    plus the per-source totals the UI shows on its tabs."""
+    listing = orch_store.page_tasks(str(source or "").strip(), page, page_size, query)
     pending_counts = audio_resource_delivery.pending_counts()
-    output_counts = orch_delivery.output_counts()
-    source = str(source or "").strip()
+    output_counts = orch_delivery.output_counts(listing["records"])
+    # One owner hop each for the whole page, not one per task.
+    running_ids = set(orch_generate.running_task_ids())
+    queue_states = orch_queue.states_of([str(task.get("task_id") or "") for task in listing["records"]])
     return {
         "success": True,
         "sources": list(orch_sources.ORCH_SOURCES),
+        "counts": listing["counts"],
+        "total": listing["total"],
+        "page": listing["page"],
+        "page_size": listing["page_size"],
         "tasks": [
-            _task_summary(task, pending_counts, output_counts)
-            for task in orch_store.list_tasks()
-            if not source or orch_sources.task_source(task) == source
+            _task_summary(task, pending_counts, output_counts, running_ids, queue_states)
+            for task in listing["records"]
         ],
     }
 
@@ -371,45 +407,49 @@ def task_get(task_id: str) -> Dict[str, Any]:
     task = orch_store.get_task(str(task_id or ""))
     if not task:
         return {"success": False, "error": "task not found"}
-    _recover_task_status(task)
     result = dict(task)
     result["source"] = orch_sources.task_source(task)
+    result["output_mode"] = orch_sources.task_output_mode(task)
+    result["auto_generate"] = task.get("auto_generate") is not False
+    result["queue"] = orch_queue.state_of(str(task.get("task_id") or ""))
     result["progress"] = _task_progress(task)
     result["running"] = orch_generate.is_running(str(task.get("task_id") or ""))
     result["success"] = True
     return result
 
 
-def _recover_task_status(task: Dict[str, Any]) -> None:
-    task_id = str(task.get("task_id") or "")
-    if task.get("status") != "generating" or orch_generate.is_running(task_id):
-        return
-    # The job is gone, so it saves nothing more: the stored copy is final. A
-    # caller's copy read before the job's terminal save is refreshed, never
-    # overwritten with "failed".
-    fresh = orch_store.get_task(task_id) or {}
-    if fresh:
-        task.clear()
-        task.update(fresh)
-    if task.get("status") != "generating":
-        return
-    task["status"] = "failed"
-    task["progress"] = {
-        **(task.get("progress") or {}),
-        **orch_messages.progress_fields(orch_messages.ORCH_MSG_GENERATION_INTERRUPTED),
-    }
-    orch_store.append_task_event(task, orch_messages.ORCH_MSG_GENERATION_INTERRUPTED)
-    orch_store.save_task(task)
-    orch_events.publish_task_changed(task)
+_IDLE_LANE_COUNTS = {"queued": 0, "processing": 0, "done": 0, "failed": 0, "total": 0}
+# ``owner_counts`` scans every tracked lane item on the lane owner thread (a big
+# book tracks thousands), so a polled list must not call it per request: the
+# counts of one running task are reused for this long.
+_LANE_COUNTS_TTL_SECONDS = 2.0
+_lane_counts_cache: Dict[Any, Any] = {}
 
 
-def _task_progress(task: Dict[str, Any], pending_counts=None, output_counts=None) -> Dict[str, Any]:
+def _lane_counts(lane: str, task_id: str) -> Dict[str, int]:
+    now = time.monotonic()
+    cached = _lane_counts_cache.get((lane, task_id))
+    if cached is not None and now - cached[0] < _LANE_COUNTS_TTL_SECONDS:
+        return dict(cached[1])
+    counts = audio_queue_center.owner_counts(lane, task_id)
+    _lane_counts_cache[(lane, task_id)] = (now, counts)
+    if len(_lane_counts_cache) > 512:
+        for key in [key for key, entry in _lane_counts_cache.items() if now - entry[0] >= _LANE_COUNTS_TTL_SECONDS]:
+            _lane_counts_cache.pop(key, None)
+    return dict(counts)
+
+
+def _task_progress(task: Dict[str, Any], pending_counts=None, output_counts=None, running=None) -> Dict[str, Any]:
     progress = dict(task.get("progress") or {})
     # Live Part1 fill counters of this task in EACH lane queue (words ->
-    # word_audio, sentences -> sentence_audio); tracker-only, O(tracked).
+    # word_audio, sentences -> sentence_audio); tracker-only, O(tracked). Only a
+    # task that is generating can hold lane items, so the others skip the two
+    # lane-owner hops.
     task_id = str(task.get("task_id") or "")
+    active = running if running is not None else str(task.get("status") or "") == "generating"
     progress["lanes"] = {
-        lane: audio_queue_center.owner_counts(lane, task_id) for lane in AUDIO_QUEUE_LANES
+        lane: (_lane_counts(lane, task_id) if active else dict(_IDLE_LANE_COUNTS))
+        for lane in AUDIO_QUEUE_LANES
     }
     generation_id = str(task.get("generation_id") or "")
     if generation_id:
@@ -429,9 +469,9 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
     source_key = str(book.get("source_key") or "").strip()
     if not source_key:
         return {"success": False, "error": "book.source_key is required"}
-    segment_mode = str(payload.get("segment_mode") or "count")
+    segment_mode = str(payload.get("segment_mode") or _DEFAULT_BOOK_SEGMENT_MODE)
     if segment_mode not in _SEGMENT_MODES:
-        segment_mode = "count"
+        segment_mode = _DEFAULT_BOOK_SEGMENT_MODE
     word_mode = str(payload.get("word_mode") or "all")
     if word_mode not in _WORD_MODES:
         word_mode = "all"
@@ -446,14 +486,59 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
             "target_language": str(book.get("target_language") or "zh"),
         },
         "segment_mode": segment_mode,
-        "segment_value": max(1, int(payload.get("segment_value") or 1)),
+        "segment_value": _positive_int(
+            payload.get("segment_value"), _DEFAULT_BOOK_SEGMENT_MINUTES if segment_mode == "minutes" else 1,
+        ),
         "pattern": _normalize_pattern(payload.get("pattern"), word_mode) or list(_DEFAULT_PATTERN),
         "word_mode": word_mode,
-        "new_only_max_read_count": max(0, int(payload.get("new_only_max_read_count") or 0)),
+        "new_only_max_read_count": _positive_int(payload.get("new_only_max_read_count"), 0, 0),
+        "output_mode": _output_mode(payload.get("output_mode")),
+        "video_preset": _preset_id(payload.get("video_preset")),
+        "auto_generate": payload.get("auto_generate") is not False,
     })
     orch_books.sync_book_sentences(source_key)
     orch_events.publish_task_changed(task)
+    orch_queue.enqueue(str(task["task_id"]))
     return {"success": True, "task": task}
+
+
+def _edited_value(task: Dict[str, Any], patch: Dict[str, Any], field: str) -> Any:
+    """The validated new value of one edited field; ``_SKIP`` drops the edit."""
+    value = patch[field]
+    if field == "pattern":
+        return _normalize_pattern(value, str(patch.get("word_mode") or task.get("word_mode") or "all"))
+    if field in ("segment_mode", "segment_value") and orch_sources.is_text_task(task):
+        return _SKIP
+    if field == "segment_mode":
+        return value if value in _SEGMENT_MODES else _SKIP
+    if field == "word_mode":
+        return value if value in _WORD_MODES else _SKIP
+    if field in ("segment_value", "new_only_max_read_count"):
+        text = str(value if value is not None else "").strip()
+        if not text.lstrip("-").isdigit():
+            return _SKIP
+        return max(0 if field == "new_only_max_read_count" else 1, int(text))
+    if field == "name":
+        return str(value or "").strip() or task.get("name")
+    if field == "output_mode":
+        return _output_mode(value)
+    if field == "video_preset":
+        return _preset_id(value)
+    if field == "auto_generate":
+        return bool(value)
+    if field == "book":
+        if orch_sources.is_text_task(task) or not isinstance(value, dict) or not str(value.get("source_key") or "").strip():
+            return _SKIP
+        return {
+            "source_key": str(value.get("source_key")),
+            "title": str(value.get("title") or value.get("source_key")),
+            "language": str(value.get("language") or "en"),
+            "target_language": str(value.get("target_language") or "zh"),
+        }
+    return value
+
+
+_SKIP = object()
 
 
 def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
@@ -462,38 +547,26 @@ def task_update(task_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": "task not found"}
     if orch_generate.is_running(str(task_id or "")):
         return {"success": False, "error": "task is generating"}
+    changes: Dict[str, Any] = {}
     for field in _EDITABLE_FIELDS:
         if field not in patch:
             continue
-        value = patch[field]
-        if field == "pattern":
-            value = _normalize_pattern(value, str(patch.get("word_mode") or task.get("word_mode") or "all"))
-        elif field == "segment_mode" and value not in _SEGMENT_MODES:
-            continue
-        elif field == "word_mode" and value not in _WORD_MODES:
-            continue
-        elif field in ("segment_value", "new_only_max_read_count"):
-            try:
-                value = int(value or 0)
-            except (TypeError, ValueError):
-                continue
-            value = max(0 if field == "new_only_max_read_count" else 1, value)
-        elif field == "name":
-            value = str(value or "").strip() or task.get("name")
-        elif field == "book":
-            if orch_sources.is_text_task(task):
-                continue
-            if not isinstance(value, dict) or not str(value.get("source_key") or "").strip():
-                continue
-            value = {
-                "source_key": str(value.get("source_key")),
-                "title": str(value.get("title") or value.get("source_key")),
-                "language": str(value.get("language") or "en"),
-                "target_language": str(value.get("target_language") or "zh"),
-            }
-        task[field] = value
-    orch_store.save_task(task)
-    return {"success": True, "task": task}
+        value = _edited_value(task, patch, field)
+        if value is not _SKIP:
+            changes[field] = value
+    updated = orch_store.patch_task(str(task_id), changes)
+    if updated is None:
+        return {"success": False, "error": "task not found"}
+    changed = {field for field, value in changes.items() if value != task.get(field)}
+    if changed & set(_PLAN_FIELDS):
+        # The stored output no longer matches the plan: back to a never-started
+        # draft, so the queue regenerates it without a button press.
+        orch_store.patch_run_fields(str(task_id), {
+            "status": "draft", "segments": [], "progress": {}, "cancel_requested": False,
+            "generation_started_at": None, "generation_finished_at": None,
+        })
+    orch_queue.enqueue(str(task_id), rerender_videos="video_preset" in changed and not (changed & set(_PLAN_FIELDS)))
+    return {"success": True, "task": orch_store.get_task(str(task_id))}
 
 
 def task_delete(task_id: str) -> Dict[str, Any]:
@@ -527,11 +600,13 @@ def submit_text_task(
     source_ref: Optional[Dict[str, Any]] = None,
     generate: bool = True,
     source_text: str = "",
+    output_mode: str = "",
 ) -> Dict[str, Any]:
-    """Public submit API for non-book sources: text items -> one task (one
-    segment, sentence_en pattern) -> immediate generation through the normal
-    sentence audio path. ``source_text`` keeps the original text the items
-    were derived from (e.g. the raw prompt of a rewrite)."""
+    """Public submit API for non-book sources: text items -> one task (always ONE
+    segment, sentence pattern) that the queue generates on its own through the
+    normal sentence audio path (video by default). ``source_text`` keeps the
+    original text the items were derived from (e.g. the raw prompt of a rewrite);
+    ``generate=False`` leaves the task a draft the queue will not start."""
     source = str(source or "").strip()
     if source not in orch_sources.ORCH_TEXT_SOURCES:
         return {"success": False, "error": "ORCH_SOURCE_UNKNOWN"}
@@ -550,15 +625,13 @@ def submit_text_task(
         "pattern": [{"type": "sentence_en" if language == "en" else "sentence_zh", "times": 1}],
         "word_mode": "all",
         "new_only_max_read_count": 0,
+        "output_mode": _output_mode(output_mode),
+        "auto_generate": bool(generate),
     })
     orch_events.publish_task_changed(task)
     _prune_text_tasks(source)
-    generation = None
-    if generate:
-        generation = orch_generate.start_generation(str(task["task_id"]), use_qy_account=False)
-        if not generation.get("success"):
-            ColorPrint.yellow(f"[AudioOrch] submit_text generation not started for {task['task_id']}: {generation.get('error')}")
-    return {"success": True, "task": task, "generation": generation}
+    orch_queue.enqueue(str(task["task_id"]))
+    return {"success": True, "task": task, "generation": {"queued": bool(generate)}}
 
 
 def task_plan(task_id: str) -> Dict[str, Any]:
@@ -597,11 +670,12 @@ def task_progress(task_id: str) -> Dict[str, Any]:
     task = orch_store.get_task(str(task_id or ""))
     if not task:
         return {"success": False, "error": "task not found"}
-    _recover_task_status(task)
     return {
         "success": True,
         "source": orch_sources.task_source(task),
         "source_ref": task.get("source_ref") or {},
+        "output_mode": orch_sources.task_output_mode(task),
+        "queue": orch_queue.state_of(str(task_id or "")),
         "status": task.get("status"),
         "running": orch_generate.is_running(str(task_id or "")),
         "resumable": orch_generate.has_resumable_state(task),
@@ -778,6 +852,36 @@ def task_files(task_id: str) -> Dict[str, Any]:
     }
 
 
+def task_file_chunk(task_id: str, name: str, offset: int = 0, length: int = _FILE_CHUNK_BYTES) -> Dict[str, Any]:
+    """One chunk of a generated segment file (audio mp3 / video mp4) as base64,
+    with the total size, so the UI can play or download it."""
+    task = orch_store.get_task(str(task_id or ""))
+    if not task:
+        return {"success": False, "error": "task not found"}
+    if not _FILE_NAME_RE.fullmatch(str(name or "")):
+        return {"success": False, "error": "ORCH_FILE_NAME_INVALID"}
+    directory = (orch_store.base_dir() / "output" / str(task.get("slug") or "task")).resolve()
+    path = (directory / str(name)).resolve()
+    if path.parent != directory or not path.is_file():
+        return {"success": False, "error": "ORCH_FILE_NOT_FOUND"}
+    size = path.stat().st_size
+    start = min(size, _positive_int(offset, 0, 0))
+    count = min(_FILE_CHUNK_BYTES, _positive_int(length, _FILE_CHUNK_BYTES))
+    with path.open("rb") as handle:
+        handle.seek(start)
+        chunk = handle.read(count)
+    return {
+        "success": True,
+        "name": path.name,
+        "media_type": _FILE_MEDIA_TYPES[path.suffix.lower()],
+        "bytes": size,
+        "offset": start,
+        "length": len(chunk),
+        "eof": start + len(chunk) >= size,
+        "content_base64": base64.b64encode(chunk).decode("ascii"),
+    }
+
+
 def open_output(task_id: Optional[str] = None) -> Dict[str, Any]:
     """Open the output directory (one task's, or the shared root) in the OS
     file manager. Path is resolved server-side; never raises."""
@@ -790,6 +894,39 @@ def open_output(task_id: Optional[str] = None) -> Dict[str, Any]:
     directory.mkdir(parents=True, exist_ok=True)
     ok = open_path(directory)
     return {"success": bool(ok), "path": str(directory)}
+
+
+# --------------------------------------------------------------------------- #
+# video presets / rendering                                                    #
+# --------------------------------------------------------------------------- #
+def video_presets() -> Dict[str, Any]:
+    return orch_video_presets.list_presets()
+
+
+def video_preset_save(preset_id: str, name: str, settings: Any, activate: bool = False) -> Dict[str, Any]:
+    return orch_video_presets.save_preset(preset_id, name, settings, activate)
+
+
+def video_preset_delete(preset_id: str) -> Dict[str, Any]:
+    return orch_video_presets.delete_preset(preset_id)
+
+
+def video_preset_activate(preset_id: str) -> Dict[str, Any]:
+    return orch_video_presets.activate_preset(preset_id)
+
+
+def video_preview(settings: Any = None, preset_id: str = "") -> Dict[str, Any]:
+    """One rendered frame of a settings document (or of a stored preset)."""
+    return orch_video.preview(settings if isinstance(settings, dict) else orch_video_presets.resolve_settings(preset_id))
+
+
+def video_background_import(path: str) -> Dict[str, Any]:
+    return orch_video_presets.import_background(path)
+
+
+def task_render_video(task_id: str, force: bool = True) -> Dict[str, Any]:
+    """Render (or re-render with ``force``) the videos of a finished task."""
+    return orch_generate.start_video_render(str(task_id or ""), bool(force))
 
 
 __all__ = [
@@ -811,8 +948,15 @@ __all__ = [
     "task_cancel",
     "task_progress",
     "task_manifest_page",
-    "resume_interrupted_generations",
+    "video_presets",
+    "video_preset_save",
+    "video_preset_delete",
+    "video_preset_activate",
+    "video_preview",
+    "video_background_import",
+    "task_render_video",
     "system_status",
     "task_files",
+    "task_file_chunk",
     "open_output",
 ]

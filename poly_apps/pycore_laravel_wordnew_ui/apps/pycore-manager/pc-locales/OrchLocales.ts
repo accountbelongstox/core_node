@@ -1,3 +1,5 @@
+import { orchVideoEn, orchVideoZh } from './OrchVideoLocales';
+
 export const orchEn = {
   "loginTitle": "Qy App V1 Account",
   "username": "Username",
@@ -62,7 +64,6 @@ export const orchEn = {
   "save": "Save",
   "create": "Create",
   "planPreview": "Preview plan",
-  "generate": "Generate",
   "segments": "segments",
   "sentences": "sentences",
   "words": "words",
@@ -142,7 +143,8 @@ export const orchEn = {
   "sourceVocabBook": "Vocabulary book",
   "sourcePromptRewrite": "Prompt rewrite",
   "sourceItems": "Source texts",
-  "noSourceItems": "No source texts yet."
+  "noSourceItems": "No source texts yet.",
+  ...orchVideoEn
 } as const;
 
 export const orchZh = {
@@ -209,7 +211,6 @@ export const orchZh = {
   "save": "保存",
   "create": "创建",
   "planPreview": "预览编排",
-  "generate": "生成",
   "segments": "段落",
   "sentences": "句子",
   "words": "单词",
@@ -289,7 +290,8 @@ export const orchZh = {
   "sourceVocabBook": "词汇书籍",
   "sourcePromptRewrite": "提示词改写",
   "sourceItems": "来源文本",
-  "noSourceItems": "暂无来源文本。"
+  "noSourceItems": "暂无来源文本。",
+  ...orchVideoZh
 } as const;
 
 /** Task log / progress lines by pycore `orch_messages` code (params interpolated). */
@@ -328,6 +330,15 @@ export const orchMessagesEn = {
   "orch_segment_assembling": "Segment {{segment}}: assembling {{items}} items",
   "orch_segment_concat_failed": "Segment {{segment}}: concatenation failed ({{error}})",
   "orch_segment_done": "Segment {{segment}}: done -> {{output}}",
+  "orch_segment_video_rendering": "Segment {{segment}}: rendering {{width}}×{{height}} video",
+  "orch_segment_video_done": "Segment {{segment}}: video done -> {{output}}",
+  "orch_segment_video_failed": "Segment {{segment}}: video failed ({{error}})",
+  "orch_segment_video_skipped": "Segment {{segment}}: video skipped ({{error}})",
+  "orch_translation_done": "Translated {{count}} sentences for the bilingual video",
+  "orch_translation_failed": "{{count}} sentences could not be translated; shown in one language",
+  "orch_queue_queued": "Queued for automatic generation",
+  "orch_queue_waiting": "Waiting for: {{waiting}}",
+  "orch_queue_started": "Automatic generation started ({{reason}})",
   "orch_done": "Done",
   "orch_segments_failed": "{{failed}} of {{segments}} segments failed",
   "orch_concat_list_write_failed": "the concat list could not be written",
@@ -370,6 +381,15 @@ export const orchMessagesZh = {
   "orch_segment_assembling": "第 {{segment}} 段：正在拼接 {{items}} 项",
   "orch_segment_concat_failed": "第 {{segment}} 段：拼接失败（{{error}}）",
   "orch_segment_done": "第 {{segment}} 段：完成 -> {{output}}",
+  "orch_segment_video_rendering": "第 {{segment}} 段：正在渲染 {{width}}×{{height}} 视频",
+  "orch_segment_video_done": "第 {{segment}} 段：视频完成 -> {{output}}",
+  "orch_segment_video_failed": "第 {{segment}} 段：视频渲染失败（{{error}}）",
+  "orch_segment_video_skipped": "第 {{segment}} 段：视频已跳过（{{error}}）",
+  "orch_translation_done": "已为双语视频翻译 {{count}} 个句子",
+  "orch_translation_failed": "有 {{count}} 个句子无法翻译，将只显示一种语言",
+  "orch_queue_queued": "已排入自动生成队列",
+  "orch_queue_waiting": "等待前置条件：{{waiting}}",
+  "orch_queue_started": "自动生成已开始（{{reason}}）",
   "orch_done": "完成",
   "orch_segments_failed": "{{segments}} 段中有 {{failed}} 段失败",
   "orch_concat_list_write_failed": "无法写入拼接列表",
@@ -388,7 +408,14 @@ export const orchMessageValuesEn = {
   "word_audio": "word audio",
   "sentence_audio": "sentence audio",
   "vocab_book": orchEn.sourceVocabBook,
-  "prompt_rewrite": orchEn.sourcePromptRewrite
+  "prompt_rewrite": orchEn.sourcePromptRewrite,
+  "ffmpeg": orchEn.waitFfmpeg,
+  "sentences": orchEn.waitSentences,
+  "new": orchEn.reasonNew,
+  "interrupted": orchEn.reasonInterrupted,
+  "videos": orchEn.reasonVideos,
+  "rerender": orchEn.reasonRerender,
+  "retry": orchEn.reasonRetry
 } as const;
 
 export const orchMessageValuesZh = {
@@ -401,5 +428,12 @@ export const orchMessageValuesZh = {
   "word_audio": "单词语音",
   "sentence_audio": "句子语音",
   "vocab_book": orchZh.sourceVocabBook,
-  "prompt_rewrite": orchZh.sourcePromptRewrite
+  "prompt_rewrite": orchZh.sourcePromptRewrite,
+  "ffmpeg": orchZh.waitFfmpeg,
+  "sentences": orchZh.waitSentences,
+  "new": orchZh.reasonNew,
+  "interrupted": orchZh.reasonInterrupted,
+  "videos": orchZh.reasonVideos,
+  "rerender": orchZh.reasonRerender,
+  "retry": orchZh.reasonRetry
 } as const;

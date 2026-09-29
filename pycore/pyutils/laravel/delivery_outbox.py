@@ -69,6 +69,7 @@ from pycore.database.repositories.laravel_delivery_repository import (
     STATE_PENDING,
     LaravelDeliveryRepository,
 )
+from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
@@ -89,6 +90,7 @@ from pycore.pyutils.laravel.identity import URL_NAMESPACE_PREFIX
 
 
 DELIVERY_OUTBOX_FILE = APP_CONFIG_DIR / "laravel_delivery.sqlite3"
+RETAINED_PAYLOAD_DIR_NAME = "laravel_delivery"
 DELIVERY_PROCESS_ID = f"{os.getpid()}:{uuid.uuid4().hex}"
 DEFAULT_LEASE_SECONDS = 180.0
 SIBLING_IN_FLIGHT_DEFER_SECONDS = 1.0
@@ -476,13 +478,22 @@ class LaravelDeliveryOutbox:
         return rows[0]
 
     @staticmethod
+    def retained_payload_root() -> Path:
+        return get_app_cache_dir().resolve() / RETAINED_PAYLOAD_DIR_NAME
+
+    @classmethod
+    def is_retained_payload(cls, path: Path) -> bool:
+        """True for a payload copy owned by the outbox: it is deleted once no
+        row references it, so nothing durable may point at it."""
+        return cls.retained_payload_root() in Path(resolve_portable_path(str(path))).resolve().parents
+
+    @staticmethod
     def _retain_payload(kind: str, record: Dict[str, Any], payload_file: str) -> Dict[str, Any]:
         source_path = Path(payload_file).resolve()
         source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
         retained_key = str(record.get("identity") or "").strip() or str(record["delivery_id"])
         retained_path = (
-            get_app_cache_dir().resolve()
-            / "laravel_delivery"
+            LaravelDeliveryOutbox.retained_payload_root()
             / kind
             / hashlib.sha1(retained_key.encode("utf-8")).hexdigest()
             / f"{source_sha256}{source_path.suffix or '.bin'}"

@@ -49,6 +49,25 @@ class AppQyV1OrchAudioSegmentModel extends AppQyV1Model
             && hash_equals((string) $this->audio_sha256, (string) $this->stored_sha256);
     }
 
+    /**
+     * Indexes of the declared segments whose audio is not stored yet (the
+     * ready rule of isReady(), decided in SQL so no timeline JSON is loaded).
+     *
+     * @return array<int,int>
+     */
+    public static function missingIndexes(string $taskKey): array
+    {
+        return self::query()
+            ->where('task_key', $taskKey)
+            ->where(static function ($query): void {
+                $query->whereNull('stored_sha256')->orWhereColumn('stored_sha256', '<>', 'audio_sha256');
+            })
+            ->orderBy('segment_index')
+            ->pluck('segment_index')
+            ->map(static fn (mixed $index): int => (int) $index)
+            ->all();
+    }
+
     public static function orderedForTask(string $taskKey): EloquentCollection
     {
         return self::query()->where('task_key', $taskKey)->orderBy('segment_index')->get();
@@ -60,6 +79,7 @@ class AppQyV1OrchAudioSegmentModel extends AppQyV1Model
         $map = [];
 
         self::query()
+            ->select(['task_key', 'segment_index', 'audio_sha256', 'stored_sha256'])
             ->whereIn('task_key', array_values(array_unique($taskKeys)))
             ->get()
             ->each(static function (self $row) use (&$map): void {

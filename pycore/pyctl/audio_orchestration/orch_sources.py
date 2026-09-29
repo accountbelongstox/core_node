@@ -15,7 +15,7 @@ same pipeline for every source.
 
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations.text_parsing import split_sentences
+from pycore.pyfoundations.text_parsing import clean_speakable_text, is_speakable_sentence, split_speech_sentences
 
 from pycore.pyctl.audio_orchestration import orch_books, orch_store
 
@@ -26,11 +26,27 @@ ORCH_TEXT_SOURCES = (ORCH_SOURCE_PROMPT_REWRITE,)
 ORCH_TEXT_TASK_RETENTION = 200
 ORCH_TEXT_ITEM_CAP = 50
 ORCH_TEXT_CHARS_CAP = 8000
+ORCH_OUTPUT_VIDEO = "video"
+ORCH_OUTPUT_AUDIO = "audio"
+ORCH_OUTPUT_MODES = (ORCH_OUTPUT_VIDEO, ORCH_OUTPUT_AUDIO)
+ORCH_DEFAULT_OUTPUT_MODE = ORCH_OUTPUT_VIDEO
 
 
 def task_source(task: Dict[str, Any]) -> str:
     source = str(task.get("source") or "")
     return source if source in ORCH_SOURCES else ORCH_SOURCE_VOCAB_BOOK
+
+
+def task_output_mode(task: Dict[str, Any]) -> str:
+    """``video`` (default, also for tasks saved before the field existed) or
+    ``audio``. Audio segments are always produced (they are what Laravel
+    receives); a video task additionally renders a 720p video per segment."""
+    mode = str(task.get("output_mode") or "")
+    return mode if mode in ORCH_OUTPUT_MODES else ORCH_DEFAULT_OUTPUT_MODE
+
+
+def wants_video(task: Dict[str, Any]) -> bool:
+    return task_output_mode(task) == ORCH_OUTPUT_VIDEO
 
 
 def is_text_task(task: Dict[str, Any]) -> bool:
@@ -61,7 +77,8 @@ def build_text_sentences(items: Any) -> List[Dict[str, Any]]:
             continue
         # The sentence pattern steps address "en" / "zh" only.
         language = "zh" if str(item.get("language") or "").strip().lower().startswith("zh") else "en"
-        for text in split_sentences(str(item.get("text") or "")[:ORCH_TEXT_CHARS_CAP]):
+        spoken = (clean_speakable_text(text) for text in split_speech_sentences(str(item.get("text") or "")[:ORCH_TEXT_CHARS_CAP]))
+        for text in filter(is_speakable_sentence, spoken):
             sentences.append({
                 "seq": len(sentences) + 1,
                 "chapter_index": None,
@@ -129,6 +146,12 @@ __all__ = [
     "ORCH_SOURCES",
     "ORCH_TEXT_SOURCES",
     "ORCH_TEXT_TASK_RETENTION",
+    "ORCH_OUTPUT_VIDEO",
+    "ORCH_OUTPUT_AUDIO",
+    "ORCH_OUTPUT_MODES",
+    "ORCH_DEFAULT_OUTPUT_MODE",
+    "task_output_mode",
+    "wants_video",
     "task_source",
     "is_text_task",
     "task_input",

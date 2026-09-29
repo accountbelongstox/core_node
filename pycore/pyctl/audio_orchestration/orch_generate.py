@@ -18,13 +18,21 @@ Per task, three persisted phases:
   3. assemble  — concatenate each segment's resolved items with ffmpeg
                  (re-encode to one uniform mp3) into
                  <user data dir>/audio_orchestration/output/<task_slug>/segment_XXX.mp3.
+                 A segment is assembled AS SOON AS every one of its resources
+                 is resolved (while the other segments' resources are still
+                 being prepared); a video task then renders the segment's 720p
+                 bilingual scrolling video (segment_XXX.mp4, orch_video) from
+                 the same audio and timeline. Phase 3 after the resource phase
+                 only catches the segments that were not complete earlier.
                  The finished output (task metadata + segments) is queued
                  for idempotent Laravel upload (orch_delivery, kind
                  audio_orch.output); undelivered history is backfilled on
                  every Laravel online edge.
 
 Generation runs on a daemon thread per task; progress is persisted into the
-task record so the UI polls it via the task routes.
+task record so the UI polls it via the task routes. Tasks are started
+automatically by the orchestration queue (orch_queue) once their prerequisites
+are met; the manual start route only forces a run.
 """
 
 import hashlib
@@ -32,8 +40,9 @@ import json
 import subprocess
 import time
 import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffprobe_client
@@ -49,6 +58,9 @@ from pycore.pyctl.audio_orchestration import (
     orch_resources,
     orch_sources,
     orch_store,
+    orch_translations,
+    orch_video,
+    orch_video_presets,
     orch_words,
 )
 from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
@@ -299,6 +311,16 @@ def is_running(task_id: str) -> bool:
     return _generation_jobs.running(task_id)
 
 
+def running_task_ids() -> List[str]:
+    """Ids of the tasks a generation or video-render job is running for now."""
+    return _generation_jobs.keys()
+
+
+def running_count() -> int:
+    """Generation and video-render jobs running now (the queue's capacity gauge)."""
+    return _generation_jobs.count()
+
+
 def request_cancel(task_id: str) -> bool:
     task = orch_store.get_task(task_id)
     if not task:
@@ -316,11 +338,8 @@ def has_resumable_state(task: Dict[str, Any]) -> bool:
     rebuilding the whole manifest."""
     if str(task.get("status") or "") not in ("failed", "generating"):
         return False
-    manifest = orch_store.load_manifest(str(task.get("task_id") or ""))
-    if not isinstance(manifest, dict) or not manifest.get("segment_items"):
-        return False
     signature = str(task.get("plan_signature") or "")
-    return bool(signature) and str(manifest.get("signature") or "") == signature
+    return bool(signature) and orch_store.manifest_signature(str(task.get("task_id") or "")) == signature
 
 
 def start_generation(
@@ -331,7 +350,10 @@ def start_generation(
     word_group_id: Optional[str] = None,
     resume: Optional[bool] = None,
     force_fresh: bool = False,
+    automatic: bool = False,
 ) -> Dict[str, Any]:
+    """Start a run. ``automatic`` marks a start by the queue: a start by the user
+    gives the task its automatic retries back."""
     task = orch_store.get_task(task_id)
     auth_record = {} if use_qy_account is False else orch_store.load_auth() or {}
     if not task:
@@ -346,12 +368,12 @@ def start_generation(
     if word_group_id:
         # The UI-selected read-state baseline travels with the task so later
         # regenerations keep using the same Word Group.
-        task["word_group_id"] = str(word_group_id)
-        orch_store.save_task(task)
+        orch_store.patch_run_fields(task_id, {"word_group_id": str(word_group_id)})
     elif not task.get("word_group_id") and auth_record.get("word_group_id"):
         # Default to the pycore-side persisted baseline selection.
-        task["word_group_id"] = str(auth_record["word_group_id"])
-        orch_store.save_task(task)
+        orch_store.patch_run_fields(task_id, {"word_group_id": str(auth_record["word_group_id"])})
+    if not automatic:
+        orch_store.patch_run_fields(task_id, {"auto_retries": 0})
     if force_fresh:
         resume = False
     elif resume is None:
@@ -363,6 +385,64 @@ def start_generation(
     if not _generation_jobs.start(task_id, _run_generation, task_id, auth_record, bool(resume)):
         return {"success": False, "error": "generation already running"}
     return {"success": True, "task_id": task_id, "resumed": bool(resume)}
+
+
+def start_video_render(task_id: str, force: bool = False) -> Dict[str, Any]:
+    """Render the videos of a finished task's segments that have none (or all of
+    them with ``force``, e.g. after a preset change) from their stored audio,
+    timeline and manifest; no audio is regenerated."""
+    task = orch_store.get_task(task_id)
+    if not task:
+        return {"success": False, "error": "task not found"}
+    if is_running(task_id):
+        return {"success": False, "error": "generation already running"}
+    if not orch_sources.wants_video(task):
+        return {"success": False, "error": "ORCH_TASK_NOT_VIDEO"}
+    if not _generation_jobs.start(task_id, _run_video_render, task_id, bool(force)):
+        return {"success": False, "error": "generation already running"}
+    return {"success": True, "task_id": task_id}
+
+
+def _run_video_render(task_id: str, force: bool) -> None:
+    task = orch_store.get_task(task_id)
+    binary = ffmpeg_runtime.binaries().ffmpeg
+    manifest = orch_store.load_manifest(task_id)
+    segment_items = manifest.get("segment_items") if isinstance(manifest.get("segment_items"), list) else []
+    if not task or binary is None:
+        return
+    if len(segment_items) != len(task.get("segments") or []):
+        # Without the manifest the cards cannot be rebuilt: mark what would have
+        # been rendered as skipped, so the queue does not pick this task up again.
+        for segment in task["segments"]:
+            if segment.get("status") == "done" and (force or not segment.get("video_status")):
+                segment["video_status"] = "skipped"
+                segment["video_error"] = orch_video.ERROR_NO_MANIFEST
+        orch_store.commit_run(task)
+        return
+    sentences = orch_sources.cached_task_sentences(task) or []
+    output_dir = orch_store.output_dir_for(task)
+    staging = output_dir / "staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    run = _Run(
+        task=task, stats={}, ffmpeg=str(binary), staging=staging, output_dir=output_dir, gap=None,
+        sentences=sentences,
+        video_settings=orch_video_presets.resolve_settings(str(task.get("video_preset") or "")),
+    )
+    for segment, items in zip(task["segments"], segment_items):
+        if _generation_jobs.cancelled(task_id):
+            break
+        if segment.get("status") != "done" or not (force or not segment.get("video_status")):
+            continue
+        if not _audio_done(segment) or not segment.get("timeline"):
+            # Nothing to render from: skipped, so the queue does not pick it again.
+            segment["video_status"] = "skipped"
+            segment["video_error"] = orch_video.ERROR_NO_TIMELINE if not segment.get("timeline") else orch_video.ERROR_NO_AUDIO
+            orch_store.commit_run(task)
+            continue
+        segment["video_status"] = None
+        _render_segment_video(run, segment, items, "video")
+    task["cancel_requested"] = False
+    _progress(task, phase="done", **msg.progress_fields(msg.ORCH_MSG_DONE), output_dir=str(output_dir))
 
 
 def _stat_params(stats: Dict[str, Any]) -> Dict[str, Any]:
@@ -390,8 +470,11 @@ def _progress(task: Dict[str, Any], persist: bool = True, **fields: Any) -> None
     progress.update(fields)
     task["progress"] = progress
     task["cancel_requested"] = _generation_jobs.cancelled(str(task.get("task_id") or ""))
+    # The store owns the record: a persisted tick commits every run field, a
+    # throttled tick only refreshes the progress in memory (readers see it now,
+    # the disk write waits for the next persisted one).
+    orch_store.commit_run(task, persist=persist, progress_only=not persist)
     if persist:
-        orch_store.save_task(task)
         orch_events.publish_task_changed(task)
 
 
@@ -431,13 +514,167 @@ def _cancel(task: Dict[str, Any], stats: Dict[str, Any]) -> bool:
     return True
 
 
+@dataclass
+class _Run:
+    """Everything one generation run shares between the resource phase and the
+    per-segment assembly (so a segment can be assembled from either)."""
+
+    task: Dict[str, Any]
+    stats: Dict[str, Any]
+    ffmpeg: str
+    staging: Path
+    output_dir: Path
+    gap: Optional[Path]
+    sentences: List[Dict[str, Any]]
+    video_settings: Optional[Dict[str, Any]]
+    clip_durations: Dict[Path, float] = field(default_factory=dict)
+    translation_off: bool = False
+
+
+def _audio_done(segment: Dict[str, Any]) -> bool:
+    return segment.get("status") == "done" and bool(segment.get("output")) and Path(str(segment["output"])).is_file()
+
+
+def _video_done(segment: Dict[str, Any]) -> bool:
+    return (
+        segment.get("video_status") == "done"
+        and bool(segment.get("video_output"))
+        and Path(str(segment["video_output"])).is_file()
+    )
+
+
+def _render_segment_video(run: _Run, segment: Dict[str, Any], items: List[Dict[str, Any]], phase: str) -> None:
+    """Render the segment's video from its finished audio and timeline. A video
+    problem never fails the segment: the audio is what Laravel receives."""
+    task = run.task
+    task_id = str(task["task_id"])
+    audio = Path(str(segment["output"]))
+    output = audio.with_suffix(orch_video.VIDEO_EXTENSION)
+    width, height = orch_video.VIDEO_RESOLUTION
+    if not run.translation_off and run.video_settings and run.video_settings.get("languages") == orch_video_presets.LANGUAGES_BOTH:
+        # Every card is bilingual: translate the side a sentence lacks (once;
+        # after a failure the rest of this run renders one-language cards).
+        run.sentences, translated, failed = orch_translations.complete(
+            task, run.sentences, {item.get("seq") for item in items if item.get("seq") is not None},
+        )
+        if translated:
+            orch_store.append_task_event(task, msg.ORCH_MSG_TRANSLATION_DONE, count=translated)
+        if failed:
+            run.translation_off = True
+            orch_store.append_task_event(task, msg.ORCH_MSG_TRANSLATION_FAILED, count=failed)
+    segment["video_status"] = "rendering"
+    segment["video_error"] = None
+    segment["video_output"] = None
+    _progress(
+        task, phase=phase,
+        **msg.progress_fields(msg.ORCH_MSG_SEGMENT_VIDEO_RENDERING, segment=segment["index"], width=width, height=height),
+        segment_index=segment["index"], **run.stats,
+    )
+    result = orch_video.render_segment(
+        audio, output, run.staging / f"{audio.stem}.ass", items, list(segment.get("timeline") or []),
+        run.sentences, run.video_settings or {}, segment.get("duration_ms"),
+        should_stop=lambda: _generation_jobs.cancelled(task_id),
+    )
+    if result.get("success"):
+        segment["video_status"] = "done"
+        segment["video_output"] = str(output)
+        orch_store.append_task_event(task, msg.ORCH_MSG_SEGMENT_VIDEO_DONE, segment=segment["index"], output=output.name)
+    elif result.get("error") == orch_video.ERROR_NO_TIMELINE:
+        segment["video_status"] = "skipped"
+        segment["video_error"] = orch_video.ERROR_NO_TIMELINE
+        orch_store.append_task_event(
+            task, msg.ORCH_MSG_SEGMENT_VIDEO_SKIPPED, segment=segment["index"], error=orch_video.ERROR_NO_TIMELINE,
+        )
+    elif result.get("stopped"):
+        segment["video_status"] = None
+    else:
+        segment["video_status"] = "failed"
+        segment["video_error"] = str(result.get("error") or orch_video.ERROR_RENDER_FAILED)
+        orch_store.append_task_event(
+            task, msg.ORCH_MSG_SEGMENT_VIDEO_FAILED, segment=segment["index"], error=segment["video_error"],
+        )
+    orch_store.commit_run(task)
+
+
+def _assemble_segment(
+    run: _Run,
+    segment: Dict[str, Any],
+    items: List[Dict[str, Any]],
+    resolved: Dict[str, str],
+    phase: str,
+) -> bool:
+    """Assemble one segment: concat its audio, then (video tasks) render its
+    video. A segment whose audio is already done only renders a missing video.
+    Returns False when the run was cancelled meanwhile."""
+    task = run.task
+    stats = run.stats
+    if _audio_done(segment):
+        if run.video_settings is not None and not _video_done(segment) and segment.get("timeline"):
+            _render_segment_video(run, segment, items, phase)
+        return not _cancel(task, stats)
+    files = [
+        Path(resolved[item["resource_id"]])
+        for item in items
+        if item.get("resource_id") in resolved
+    ]
+    if not files:
+        segment["status"] = "failed"
+        segment["error"] = msg.ORCH_MSG_SEGMENT_NO_AUDIO
+        orch_store.append_task_event(task, msg.ORCH_MSG_SEGMENT_NO_AUDIO, segment=segment["index"])
+        orch_store.commit_run(task)
+        return True
+    if len(files) != len(items):
+        segment["status"] = "failed"
+        segment["error"] = msg.ORCH_MSG_SEGMENT_MISSING_ITEMS
+        orch_store.append_task_event(
+            task, msg.ORCH_MSG_SEGMENT_MISSING_ITEMS,
+            segment=segment["index"], missing=len(items) - len(files), total=len(items),
+        )
+        orch_store.commit_run(task)
+        return True
+    segment["status"] = "assembling"
+    segment["started_at"] = time.time()
+    segment["finished_at"] = None
+    _progress(
+        task, phase=phase,
+        **msg.progress_fields(msg.ORCH_MSG_SEGMENT_ASSEMBLING, segment=segment["index"], items=len(files)),
+        segment_index=segment["index"], item_index=0, item_total=len(files), **stats,
+    )
+    output = run.output_dir / f"segment_{segment['index']:03d}.mp3"
+    error = _concat_segment(run.ffmpeg, run.gap, files, output)
+    segment["finished_at"] = time.time()
+    if _cancel(task, stats):
+        return False
+    if error:
+        segment["status"] = "failed"
+        segment["error"] = error
+        orch_store.append_task_event(
+            task, msg.ORCH_MSG_SEGMENT_CONCAT_FAILED, segment=segment["index"], error=error,
+        )
+        orch_store.commit_run(task)
+        return True
+    segment["status"] = "done"
+    segment["output"] = str(output)
+    # Per-clip offsets for precise player highlight (W5 `timeline`) and for the
+    # video's card timing.
+    segment["timeline"] = _segment_timeline(items, files, run.gap, run.clip_durations)
+    segment["duration_ms"] = int(round(float(ffprobe_client.probe(output).duration or 0.0) * 1000)) or None
+    orch_store.append_task_event(
+        task, msg.ORCH_MSG_SEGMENT_DONE, segment=segment["index"], output=output.name,
+    )
+    orch_store.commit_run(task)
+    if run.video_settings is not None:
+        _render_segment_video(run, segment, items, phase)
+    return not _cancel(task, stats)
+
+
 def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = False) -> None:
     task_id = str(task["task_id"])
     base_url = str(auth_record.get("base_url") or "") or None
     # Regenerate = replace: start with a clean log. Resume keeps the previous
     # log so the UI still shows what the interrupted run already did.
     if not resume:
-        task["events"] = []
+        orch_store.clear_task_events(task)
     orch_store.append_task_event(
         task,
         msg.ORCH_MSG_GENERATION_RESUMED if resume else msg.ORCH_MSG_GENERATION_STARTED,
@@ -518,11 +755,12 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         task["status"] = "generating"
         # Regenerate = replace: drop stale segment files from the previous run so
         # the directory only ever holds the CURRENT plan's output.
-        for stale in output_dir.glob("segment_*.mp3"):
-            try:
-                stale.unlink()
-            except OSError:
-                pass
+        for pattern in ("segment_*.mp3", "segment_*.mp4"):
+            for stale in output_dir.glob(pattern):
+                try:
+                    stale.unlink()
+                except OSError:
+                    pass
 
         orch_words.prepare_word_states(
             task, sentences, auth_record,
@@ -578,7 +816,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                 item_index=segment["end"] + 1, item_total=len(sentences),
             )
         # Persist the consumed virtual-read set before any slow resource work.
-        orch_store.save_task(task)
+        orch_store.commit_run(task)
         _save_manifest_state(task, segment_items, resolved, stats)
         orch_store.append_task_event(
             task, msg.ORCH_MSG_MANIFEST_READY,
@@ -601,6 +839,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                 "finished_at": (previous_segments.get(int(segment["index"])) or {}).get("finished_at"),
                 "timeline": (previous_segments.get(int(segment["index"])) or {}).get("timeline") or [],
                 "duration_ms": (previous_segments.get(int(segment["index"])) or {}).get("duration_ms"),
+                "video_status": (previous_segments.get(int(segment["index"])) or {}).get("video_status"),
+                "video_output": (previous_segments.get(int(segment["index"])) or {}).get("video_output"),
+                "video_error": (previous_segments.get(int(segment["index"])) or {}).get("video_error"),
             }
             for segment in partitioned
         ]
@@ -623,13 +864,51 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                         "text": item["text"],
                         "resource_id": resource_id,
                     }
-        orch_store.save_task(task)
+        orch_store.commit_run(task)
         orch_store.append_task_event(
             task, msg.ORCH_MSG_RESUMING,
             resolved=len(resolved), resources=len(resources),
             segments_done=sum(1 for s in task["segments"] if s.get("status") == "done"),
             segments=len(task["segments"]),
         )
+
+    run = _Run(
+        task=task,
+        stats=stats,
+        ffmpeg=ffmpeg,
+        staging=staging,
+        output_dir=output_dir,
+        gap=_ensure_gap_file(ffmpeg, staging),
+        sentences=sentences,
+        video_settings=(
+            orch_video_presets.resolve_settings(str(task.get("video_preset") or ""))
+            if orch_sources.wants_video(task) else None
+        ),
+    )
+    # A segment is assembled the moment its LAST resource resolves: the waiting
+    # set of each segment shrinks per resolved resource and an empty set
+    # triggers the assembly, while the other segments' resources still prepare.
+    segments_of_resource: Dict[str, List[int]] = {}
+    waiting_resources: List[set] = []
+    for position, items in enumerate(segment_items):
+        ids = {str(item["resource_id"]) for item in items if item.get("resource_id")}
+        waiting_resources.append({resource_id for resource_id in ids if resource_id not in resolved})
+        for resource_id in ids:
+            segments_of_resource.setdefault(resource_id, []).append(position)
+
+    def _assemble_when_complete(position: int) -> None:
+        segment = task["segments"][position]
+        if waiting_resources[position] or segment.get("status") in ("failed", "assembling"):
+            return
+        if _audio_done(segment) and (run.video_settings is None or _video_done(segment) or not segment.get("timeline")):
+            return
+        _assemble_segment(run, segment, segment_items[position], resolved, "resources")
+
+    for position in range(len(segment_items)):
+        if not waiting_resources[position]:
+            _assemble_when_complete(position)
+    if _cancel(task, stats):
+        return
 
     # Phase 2: resources — local caches first in BATCH (orch_resources
     # .resolve_batch), then Laravel / local generation for the misses only;
@@ -673,6 +952,8 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         resource_meta[resource["resource_id"]] = meta
         if result.get("status") == "ready" and result.get("audio_path"):
             resolved[resource["resource_id"]] = str(result["audio_path"])
+            for position in segments_of_resource.get(resource["resource_id"], ()):
+                waiting_resources[position].discard(resource["resource_id"])
             if source in ("cache", "laravel"):
                 # Local clip of this Laravel server's or the cache's audio:
                 # other servers get it through the cache kind's diff.
@@ -728,6 +1009,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         if manifest_dirty >= _MANIFEST_SAVE_EVERY_RESOURCES:
             manifest_dirty = 0
             _save_manifest_state(task, segment_items, resolved, stats, resource_meta)
+        if result.get("status") == "ready" and result.get("audio_path"):
+            for position in segments_of_resource.get(resource["resource_id"], ()):
+                _assemble_when_complete(position)
         absolute_index = resource_done_base + index
         persist = time.monotonic() - last_resource_write >= 0.5 or absolute_index == resource_total
         if persist:
@@ -755,69 +1039,14 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         return
     orch_store.append_task_event(task, msg.ORCH_MSG_RESOURCES_READY, **_stat_params(stats))
 
-    # Phase 3: assemble — concat each segment's resolved items in pattern
-    # order; segments whose every item is missing fail without aborting the
-    # rest of the task. Resumed runs skip segments already assembled.
-    gap = _ensure_gap_file(ffmpeg, staging)
-    clip_durations: Dict[Path, float] = {}
+    # Phase 3: catch-all — every segment whose resources were not all resolved
+    # during phase 2 (missing items fail the segment without aborting the rest
+    # of the task); segments assembled earlier, audio and video, are skipped.
     for segment, items in zip(task["segments"], segment_items):
         if _cancel(task, stats):
             return
-        if (
-            segment.get("status") == "done"
-            and segment.get("output")
-            and Path(str(segment["output"])).is_file()
-        ):
-            continue
-        files = [
-            Path(resolved[item["resource_id"]])
-            for item in items
-            if item.get("resource_id") in resolved
-        ]
-        if not files:
-            segment["status"] = "failed"
-            segment["error"] = msg.ORCH_MSG_SEGMENT_NO_AUDIO
-            orch_store.append_task_event(task, msg.ORCH_MSG_SEGMENT_NO_AUDIO, segment=segment["index"])
-            orch_store.save_task(task)
-            continue
-        if len(files) != len(items):
-            segment["status"] = "failed"
-            segment["error"] = msg.ORCH_MSG_SEGMENT_MISSING_ITEMS
-            orch_store.append_task_event(
-                task, msg.ORCH_MSG_SEGMENT_MISSING_ITEMS,
-                segment=segment["index"], missing=len(items) - len(files), total=len(items),
-            )
-            orch_store.save_task(task)
-            continue
-        segment["status"] = "assembling"
-        segment["started_at"] = time.time()
-        segment["finished_at"] = None
-        _progress(
-            task, phase="assemble",
-            **msg.progress_fields(msg.ORCH_MSG_SEGMENT_ASSEMBLING, segment=segment["index"], items=len(files)),
-            segment_index=segment["index"], item_index=0, item_total=len(files), **stats,
-        )
-        output = output_dir / f"segment_{segment['index']:03d}.mp3"
-        error = _concat_segment(ffmpeg, gap, files, output)
-        segment["finished_at"] = time.time()
-        if _cancel(task, stats):
+        if not _assemble_segment(run, segment, items, resolved, "assemble"):
             return
-        if error:
-            segment["status"] = "failed"
-            segment["error"] = error
-            orch_store.append_task_event(
-                task, msg.ORCH_MSG_SEGMENT_CONCAT_FAILED, segment=segment["index"], error=error,
-            )
-        else:
-            segment["status"] = "done"
-            segment["output"] = str(output)
-            # Per-clip offsets for precise player highlight (W5 `timeline`).
-            segment["timeline"] = _segment_timeline(items, files, gap, clip_durations)
-            segment["duration_ms"] = int(round(float(ffprobe_client.probe(output).duration or 0.0) * 1000)) or None
-            orch_store.append_task_event(
-                task, msg.ORCH_MSG_SEGMENT_DONE, segment=segment["index"], output=output.name,
-            )
-        orch_store.save_task(task)
 
     failed = [s for s in task["segments"] if s.get("status") == "failed"]
     _finish(task, "failed" if failed else "done")
@@ -842,7 +1071,10 @@ __all__ = [
     "build_sentence_items",
     "plan_task",
     "is_running",
+    "running_count",
+    "running_task_ids",
     "has_resumable_state",
     "request_cancel",
     "start_generation",
+    "start_video_render",
 ]

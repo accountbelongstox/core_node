@@ -46,6 +46,15 @@ ORCH_MSG_SEGMENT_MISSING_ITEMS = "orch_segment_missing_items"
 ORCH_MSG_SEGMENT_ASSEMBLING = "orch_segment_assembling"
 ORCH_MSG_SEGMENT_CONCAT_FAILED = "orch_segment_concat_failed"
 ORCH_MSG_SEGMENT_DONE = "orch_segment_done"
+ORCH_MSG_SEGMENT_VIDEO_RENDERING = "orch_segment_video_rendering"
+ORCH_MSG_SEGMENT_VIDEO_DONE = "orch_segment_video_done"
+ORCH_MSG_SEGMENT_VIDEO_FAILED = "orch_segment_video_failed"
+ORCH_MSG_SEGMENT_VIDEO_SKIPPED = "orch_segment_video_skipped"
+ORCH_MSG_TRANSLATION_DONE = "orch_translation_done"
+ORCH_MSG_TRANSLATION_FAILED = "orch_translation_failed"
+ORCH_MSG_QUEUE_QUEUED = "orch_queue_queued"
+ORCH_MSG_QUEUE_STARTED = "orch_queue_started"
+ORCH_MSG_QUEUE_WAITING = "orch_queue_waiting"
 ORCH_MSG_DONE = "orch_done"
 ORCH_MSG_SEGMENTS_FAILED = "orch_segments_failed"
 ORCH_CONCAT_LIST_WRITE_FAILED = "orch_concat_list_write_failed"
@@ -96,6 +105,15 @@ _LOG_TEMPLATES: Dict[str, str] = {
     ORCH_MSG_SEGMENT_ASSEMBLING: "segment {segment}: assembling {items} items",
     ORCH_MSG_SEGMENT_CONCAT_FAILED: "segment {segment}: concat failed ({error})",
     ORCH_MSG_SEGMENT_DONE: "segment {segment}: done -> {output}",
+    ORCH_MSG_SEGMENT_VIDEO_RENDERING: "segment {segment}: rendering {width}x{height} video",
+    ORCH_MSG_SEGMENT_VIDEO_DONE: "segment {segment}: video done -> {output}",
+    ORCH_MSG_SEGMENT_VIDEO_FAILED: "segment {segment}: video failed ({error})",
+    ORCH_MSG_SEGMENT_VIDEO_SKIPPED: "segment {segment}: video skipped ({error})",
+    ORCH_MSG_TRANSLATION_DONE: "translated {count} sentences for the bilingual video",
+    ORCH_MSG_TRANSLATION_FAILED: "{count} sentences could not be translated; shown in one language",
+    ORCH_MSG_QUEUE_QUEUED: "queued for automatic generation",
+    ORCH_MSG_QUEUE_STARTED: "automatic generation started ({reason})",
+    ORCH_MSG_QUEUE_WAITING: "waiting for prerequisites: {waiting}",
     ORCH_MSG_DONE: "done",
     ORCH_MSG_SEGMENTS_FAILED: "{failed} of {segments} segments failed",
 }

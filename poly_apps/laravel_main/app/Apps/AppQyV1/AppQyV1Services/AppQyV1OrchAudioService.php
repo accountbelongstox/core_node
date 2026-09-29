@@ -66,12 +66,12 @@ final class AppQyV1OrchAudioService
         foreach ($tasks as $task) {
             $keys[] = OrchTask::taskKey($machineId, (string) $task['key']);
         }
-        $stored = OrchTask::mapByTaskKeys($keys);
+        $stored = OrchTask::metaHashesByTaskKeys($keys);
         $segments = OrchSegment::mapForTasks($keys);
 
         foreach ($tasks as $position => $task) {
             $taskKey = $keys[$position];
-            $row = $stored[$taskKey] ?? null;
+            $storedHash = $stored[$taskKey] ?? null;
             $missing = [];
             foreach (is_array($task['segments'] ?? null) ? $task['segments'] : [] as $segment) {
                 $index = (int) $segment['index'];
@@ -85,13 +85,38 @@ final class AppQyV1OrchAudioService
             $result[] = [
                 'task_id' => (string) $task['key'],
                 'task_key' => $taskKey,
-                'known' => $row !== null,
-                'meta_current' => $row !== null && hash_equals((string) $row->meta_hash, (string) $task['meta_hash']),
+                'known' => $storedHash !== null,
+                'meta_current' => $storedHash !== null && hash_equals($storedHash, (string) $task['meta_hash']),
                 'segments_missing' => $missing,
             ];
         }
 
         return $result;
+    }
+
+    /**
+     * Positions of the tasks whose stored meta_hash already equals the sent
+     * one. Such a task changes nothing on ingest, so the controller skips its
+     * (linear but still O(payload)) deep validation.
+     *
+     * @return array<int,int>
+     */
+    public function currentPositions(string $machineId, array $tasks): array
+    {
+        $keys = [];
+        $current = [];
+
+        foreach ($tasks as $position => $task) {
+            $keys[$position] = OrchTask::taskKey($machineId, (string) ($task['task_id'] ?? ''));
+        }
+        $stored = OrchTask::metaHashesByTaskKeys($keys);
+        foreach ($tasks as $position => $task) {
+            if (isset($stored[$keys[$position]]) && hash_equals($stored[$keys[$position]], (string) ($task['meta_hash'] ?? ''))) {
+                $current[] = (int) $position;
+            }
+        }
+
+        return $current;
     }
 
     public function ingestTasks(string $machineId, array $tasks): array
@@ -281,13 +306,15 @@ final class AppQyV1OrchAudioService
     {
         $taskId = (string) $task['task_id'];
         $taskKey = OrchTask::taskKey($machineId, $taskId);
-        $existing = OrchTask::findByTaskKey($taskKey);
+        $storedHash = OrchTask::metaHashesByTaskKeys([$taskKey])[$taskKey] ?? null;
+        $existing = null;
         $metaHash = (string) $task['meta_hash'];
         $result = self::RESULT_UNCHANGED;
         $attributes = [];
         $sentences = [];
 
-        if ($existing === null || !hash_equals((string) $existing->meta_hash, $metaHash)) {
+        if ($storedHash === null || !hash_equals($storedHash, $metaHash)) {
+            $existing = $storedHash === null ? null : OrchTask::findByTaskKey($taskKey);
             $attributes = [
                 'machine_id' => $machineId,
                 'task_id' => $taskId,
@@ -342,11 +369,7 @@ final class AppQyV1OrchAudioService
             'task_id' => $taskId,
             'task_key' => $taskKey,
             'result' => $result,
-            'segments_missing' => OrchSegment::orderedForTask($taskKey)
-                ->reject(static fn (OrchSegment $segment): bool => $segment->isReady())
-                ->map(static fn (OrchSegment $segment): int => (int) $segment->segment_index)
-                ->values()
-                ->all(),
+            'segments_missing' => OrchSegment::missingIndexes($taskKey),
         ];
     }
 
