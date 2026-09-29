@@ -551,6 +551,28 @@ function Write-RemoteControlNativeOutput {
     foreach ($line in ($text -split "`r?`n")) { Write-Host ('    {0}' -f $line) }
 }
 
+# OpenSSH-style fingerprint of one authorized_keys line: SHA256 over the
+# base64-decoded key blob, unpadded base64 (Windows ssh-keygen cannot read
+# a key from stdin).
+function Get-RemoteControlKeyFingerprint {
+    param([Parameter(Mandatory = $true)][string]$PublicKeyLine)
+    $fields = @()
+    $blob = $null
+    $sha = $null
+    $comment = ''
+
+    $fields = @($PublicKeyLine.Trim() -split '\s+')
+    if ($fields.Count -lt 2) { return "unparsable key line: $PublicKeyLine" }
+    try {
+        $blob = [Convert]::FromBase64String($fields[1])
+    } catch {
+        return "unparsable key blob ($($fields[0]))"
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    if ($fields.Count -ge 3) { $comment = ($fields[2..($fields.Count - 1)] -join ' ') }
+    return ('SHA256:{0} {1} ({2})' -f ([Convert]::ToBase64String($sha.ComputeHash($blob)).TrimEnd('=')), $comment, $fields[0])
+}
+
 # One-shot, idempotent link of this Windows host into the cross-machine Claude
 # agent team over Tailscale: SSH host (control from Linux) + readiness audit +
 # Claude Code Remote Control prerequisites (communication). Everything is
@@ -565,9 +587,11 @@ function Invoke-RemoteControlClaudePeerLink {
     $installInfo = $null
     $osInfo = $null
     $claudeCommand = $null
+    $claudeInstall = $null
     $gitCommand = $null
     $sharedKey = $null
     $defaultShell = ''
+    $openSshSettings = $null
     $keyLine = ''
     $keyFile = ''
 
@@ -618,7 +642,7 @@ function Invoke-RemoteControlClaudePeerLink {
         if (Test-Path -LiteralPath $script:RcAdminKeysFile) {
             Write-Host "  Authorized keys ($script:RcAdminKeysFile):"
             foreach ($keyLine in @(Get-Content -LiteralPath $script:RcAdminKeysFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
-                Write-RemoteControlNativeOutput -Label 'ssh-keygen -lf <authorized key>' -Command { $keyLine | ssh-keygen.exe -lf - }
+                Write-Host "    $(Get-RemoteControlKeyFingerprint -PublicKeyLine $keyLine)"
             }
             Write-RemoteControlNativeOutput -Label "icacls $script:RcAdminKeysFile" -Command { icacls.exe $script:RcAdminKeysFile }
         } else {
@@ -629,7 +653,10 @@ function Invoke-RemoteControlClaudePeerLink {
                 Get-Content -LiteralPath $script:RcSshdConfigFile | Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*#' }
             }
         }
-        $defaultShell = [string](Get-ItemProperty -Path $script:RcOpenSshRegistryKey -Name 'DefaultShell' -ErrorAction SilentlyContinue).DefaultShell
+        $openSshSettings = Get-ItemProperty -Path $script:RcOpenSshRegistryKey -ErrorAction SilentlyContinue
+        if ($null -ne $openSshSettings -and $null -ne $openSshSettings.PSObject.Properties['DefaultShell']) {
+            $defaultShell = [string]$openSshSettings.DefaultShell
+        }
         Write-Host "  DefaultShell:  $(if ([string]::IsNullOrWhiteSpace($defaultShell)) { 'cmd.exe (OpenSSH default)' } else { $defaultShell })"
         Write-RemoteControlNativeOutput -Label 'sshd events (newest 5)' -Command {
             Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 5 -ErrorAction SilentlyContinue | Format-List TimeCreated, LevelDisplayName, Message
@@ -641,8 +668,10 @@ function Invoke-RemoteControlClaudePeerLink {
         Write-RemoteControlSection -Title '6. Claude Code (cross-machine messaging = Remote Control)'
         $claudeCommand = Get-Command 'claude' -ErrorAction SilentlyContinue
         $gitCommand = Get-Command 'git' -ErrorAction SilentlyContinue
-        Write-Host "  claude:        $(if ($null -ne $claudeCommand) { $claudeCommand.Source } else { 'not found' })"
-        if ($null -ne $claudeCommand) { Write-RemoteControlNativeOutput -Label 'claude --version (native Windows messaging needs 2.1.234+)' -Command { claude --version } }
+        Write-Host "  claude:        $(if ($null -ne $claudeCommand) { $claudeCommand.Source } else { 'not found' }) (first on PATH = what 'claude' starts)"
+        foreach ($claudeInstall in @(Get-Command 'claude' -All -CommandType Application -ErrorAction SilentlyContinue | Where-Object { $_.Source -match '\.(exe|cmd)$' })) {
+            Write-RemoteControlNativeOutput -Label "$($claudeInstall.Source) --version (native Windows messaging needs 2.1.234+)" -Command { & $claudeInstall.Source --version }
+        }
         Write-Host "  git:           $(if ($null -ne $gitCommand) { $gitCommand.Source } else { 'not found (Remote Control on native Windows needs Git for Windows)' })"
         if ($null -ne $gitCommand) { Write-RemoteControlNativeOutput -Label 'git --version' -Command { git --version } }
         if (Test-Path -LiteralPath $script:CLAUDE_TEAM_INSTALL_COMMON_FOR_RC) {
