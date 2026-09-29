@@ -19,6 +19,7 @@ return [
         'server_configuration_retrieved_successfully' => '已获取服务器配置',
         'configuration_updated_successfully' => '配置已更新',
         'environment_information_retrieved_successfully' => '已获取环境信息',
+        'resource_not_found' => '资源不存在',
         'unauthorized_admin_access_required' => '未授权，需要管理员权限。',
         'unauthorized_super_admin_access_required' => '未授权，需要超级管理员权限。',
         'no_valid_configuration_values_provided' => '未提供有效的配置值',

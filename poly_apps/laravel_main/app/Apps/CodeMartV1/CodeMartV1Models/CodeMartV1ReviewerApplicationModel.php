@@ -1,6 +1,8 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
+
 use App\Utils\RunsModelTransactions;
 
 class CodeMartV1ReviewerApplicationModel extends CodeMartV1Model
@@ -32,6 +34,7 @@ class CodeMartV1ReviewerApplicationModel extends CodeMartV1Model
         return static::query()
             ->where('user_id', $userId)
             ->where('created_at', '>', now()->subDays($days))
+            ->orderByDesc('id')
             ->first();
     }
 
@@ -40,7 +43,7 @@ class CodeMartV1ReviewerApplicationModel extends CodeMartV1Model
         return static::query()
             ->whereKey($applicationId)
             ->where('user_id', $userId)
-            ->where('status', 'in_progress')
+            ->where('status', CodeMartV1Constants::REVIEWER_APPLICATION_IN_PROGRESS)
             ->first();
     }
 }

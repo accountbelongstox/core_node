@@ -132,8 +132,8 @@ class CodeMartV1ProjectModel extends CodeMartV1Model
         return self::query()
             ->where(function ($query) use ($architectId) {
                 $query->where('architect_id', $architectId)
-                    ->orWhere(function ($openQuery) {
-                        $openQuery->where('status', 'open')->whereNull('architect_id');
+                    ->orWhere(function ($openQuery) use ($architectId) {
+                        $openQuery->where('status', 'open')->whereNull('architect_id')->where('client_id', '!=', $architectId);
                     });
             })
             ->latest('created_at')
@@ -147,6 +147,7 @@ class CodeMartV1ProjectModel extends CodeMartV1Model
             ->whereKey($projectId)
             ->where('status', 'open')
             ->whereNull('architect_id')
+            ->where('client_id', '!=', $architectId)
             ->update([
                 'architect_id' => $architectId,
                 'updated_at' => now(),

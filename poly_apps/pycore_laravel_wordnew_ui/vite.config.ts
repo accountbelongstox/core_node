@@ -13,8 +13,10 @@ import {
   BIND_ANY_HOST,
   CORE_NODE_DATA_DIR_NAME,
   GLOBAL_VAR_DIR_NAME,
+  TAILNET_DNS_SUFFIX,
   WEB_ACCESS_CONFIG_FILE_NAME,
 } from './core/contracts/ServiceContract';
+import { serveTailnetPeers } from './core/devserver/TailnetPeersMiddleware';
 
 // Unified shell: laravel-manager, pycore-manager, wordnew. Pycore-manager uses
 // the direct pycore HTTP transport (no Vite reverse proxy).
@@ -36,6 +38,9 @@ const PROC_MOUNTS_FILE = '/proc/mounts';
 const NTFS_FILE_SYSTEMS = new Set(['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g']);
 const CORE_NODE_DATA_DIR = resolveCoreNodeDataDir();
 const WEB_ACCESS_CONFIG_FILE = path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME, WEB_ACCESS_CONFIG_FILE_NAME);
+// Every tailnet machine is reached as <machine>.<tailnet>.<suffix> through the
+// 175 FrankenPHP proxy; a leading dot allows all of its subdomains.
+const TAILNET_ALLOWED_HOST = `.${TAILNET_DNS_SUFFIX}`;
 
 function mountOf(target: string): { source: string; fileSystem: string } | null {
   let best: { mountPoint: string; source: string; fileSystem: string } | null = null;
@@ -70,7 +75,7 @@ function resolveCoreNodeDataDir(): string {
   return candidates.find((candidate) => fs.existsSync(candidate)) ?? preferred;
 }
 
-const readExternalAllowedHosts = (): string[] | undefined => {
+const readExternalAllowedHosts = (): string[] => {
   try {
     const document = JSON.parse(fs.readFileSync(WEB_ACCESS_CONFIG_FILE, 'utf8')) as {
       allowedHosts?: unknown;
@@ -81,7 +86,24 @@ const readExternalAllowedHosts = (): string[] | undefined => {
     }
   } catch {
   }
-  return undefined;
+  return [];
+};
+
+const resolveAllowedHosts = (): string[] => Array.from(new Set([TAILNET_ALLOWED_HOST, ...readExternalAllowedHosts()]));
+
+// allowedHosts is read once at startup; the shell rewrites the file later
+// (e.g. once Tailscale connects), so restart the dev server when it changes.
+const restartOnAllowedHostsChange = (server) => {
+  let current = JSON.stringify(resolveAllowedHosts());
+  server.watcher.add(WEB_ACCESS_CONFIG_FILE);
+  server.watcher.on('all', (_event: string, changedPath: string) => {
+    if (path.resolve(changedPath) !== path.resolve(WEB_ACCESS_CONFIG_FILE)) return;
+    const next = JSON.stringify(resolveAllowedHosts());
+    if (next === current) return;
+    current = next;
+    server.config.logger.info(`[web-access] allowedHosts changed in ${WEB_ACCESS_CONFIG_FILE}; restarting`);
+    void server.restart();
+  });
 };
 
 // Serve the shell-written UI domain config (api region prefix) same-origin.
@@ -145,7 +167,7 @@ export default defineConfig(() => {
         port: DEFAULT_FRONTEND_PORT,
         host: BIND_ANY_HOST,
         strictPort: true,
-        allowedHosts: readExternalAllowedHosts(),
+        allowedHosts: resolveAllowedHosts(),
         warmup: {
           clientFiles: [
             './core/integrations/laravel/LaravelAPI.ts',
@@ -156,7 +178,7 @@ export default defineConfig(() => {
         },
       },
       preview: {
-        allowedHosts: readExternalAllowedHosts(),
+        allowedHosts: resolveAllowedHosts(),
       },
       plugins: [
         react(),
@@ -164,9 +186,12 @@ export default defineConfig(() => {
           name: 'web-access-config-server',
           configureServer(server) {
             server.middlewares.use(serveWebAccessConfig);
+            server.middlewares.use(serveTailnetPeers);
+            restartOnAllowedHostsChange(server);
           },
           configurePreviewServer(server) {
             server.middlewares.use(serveWebAccessConfig);
+            server.middlewares.use(serveTailnetPeers);
           },
         },
         tailwindcss(),

@@ -1,6 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 
+use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1EmailVerificationModel;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
@@ -16,7 +17,7 @@ class CodeMartV1EmailService
     public function sendVerificationEmail(string $email, string $token): bool
     {
         try {
-            $verificationUrl = $this->buildVerificationUrl($token);
+            $verificationUrl = $this->buildVerificationUrl($email, $token);
 
             Mail::raw(__('codemart.mail.verification_body', ['url' => $verificationUrl]), function ($message) use ($email) {
                 $message->to($email)
@@ -30,10 +31,11 @@ class CodeMartV1EmailService
         }
     }
 
-    public function buildVerificationUrl(string $token): string
+    public function buildVerificationUrl(string $email, string $token): string
     {
-        $frontendUrl = Config::get('app.frontend_url', 'http://localhost:3000');
-        return "{$frontendUrl}/auth/verify-email?token={$token}";
+        $frontendUrl = rtrim((string) Config::get('app.frontend_url'), '/');
+
+        return $frontendUrl . CodeMartV1Constants::EMAIL_VERIFICATION_UI_PATH . '?' . http_build_query(['email' => $email, 'token' => $token]);
     }
 
     public function verifyToken(string $email, string $token): bool

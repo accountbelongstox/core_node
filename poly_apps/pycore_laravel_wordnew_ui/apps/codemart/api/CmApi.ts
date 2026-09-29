@@ -185,6 +185,10 @@ export class CmApi extends BaseAPI {
     return this.post<CmTask>('tasks', payload);
   }
 
+  async updateTask(taskId: number, payload: Record<string, unknown>): Promise<APIResponse<CmTask>> {
+    return this.put<CmTask>(`tasks/${taskId}`, payload);
+  }
+
   async getTask(taskId: number): Promise<APIResponse<CmTaskDetail>> {
     return this.get<CmTaskDetail>(`tasks/${taskId}`);
   }

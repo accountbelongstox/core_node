@@ -570,6 +570,56 @@ function Get-FrankenPhpPathMountHandlers {
 "@
 }
 
+# Mount the loopback-only pycore under a tailnet site path (Linux twin:
+# fm_caddy_tailnet_pycore_mount_render): only tailnet/loopback source
+# addresses pass, only this machine's own tailnet and loopback page origins
+# pass (with CORS), and pycore sees a loopback-local request (loopback Host,
+# no Origin).
+function Get-FrankenPhpTailnetPycoreMountHandlers {
+    param(
+        [Parameter(Mandatory = $true)][string]$PathPrefix,
+        [Parameter(Mandatory = $true)][string]$Upstream,
+        [Parameter(Mandatory = $true)][string]$TailnetDomain
+    )
+    $streamCloseDelay = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_proxy_close_delay')
+    $sourceRanges = (@(Get-ServiceContractValue -ContractPath 'access.tailnet.source_ranges') | ForEach-Object { [string]$_ }) -join ' '
+    $tailnetPattern = [regex]::Escape($TailnetDomain)
+    $originPattern = '^(https://[a-z0-9-]+\.{0}|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)$' -f $tailnetPattern
+
+    return @"
+	redir $PathPrefix $PathPrefix/ 308
+	handle_path $PathPrefix/* {
+		@pycore_offnet not remote_ip $sourceRanges
+		@pycore_cors header_regexp Origin $originPattern
+		@pycore_foreign {
+			header Origin *
+			not header_regexp Origin $originPattern
+		}
+		@pycore_preflight {
+			method OPTIONS
+			header_regexp Origin $originPattern
+		}
+		header @pycore_cors Access-Control-Allow-Origin {http.request.header.Origin}
+		header @pycore_cors Access-Control-Allow-Credentials true
+		header @pycore_cors Vary Origin
+		header @pycore_preflight Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		header @pycore_preflight Access-Control-Allow-Headers {http.request.header.Access-Control-Request-Headers}
+		header @pycore_preflight Access-Control-Max-Age 600
+		respond @pycore_offnet 403
+		respond @pycore_foreign 403
+		respond @pycore_preflight 204
+		reverse_proxy $Upstream {
+			header_up Host {upstream_hostport}
+			header_up -Origin
+			header_up X-Forwarded-Prefix $PathPrefix
+			header_down -Access-Control-Allow-Origin
+			header_down -Access-Control-Allow-Credentials
+			stream_close_delay $streamCloseDelay
+		}
+	}
+"@
+}
+
 function Get-FrankenPhpLanCertificateDirectory {
     $dataRoot = [string]$env:CORE_NODE_DATA_DIR
     if ([string]::IsNullOrWhiteSpace($dataRoot)) {
@@ -944,7 +994,10 @@ function Ensure-FrankenPhpLanLocalRoute {
     $uiPort = Get-ServiceContractPort -Name 'nexus_dash_frontend'
     $uiHints = [string](Get-ServiceContractValue -ContractPath 'http.ui_early_hints_link')
     $uiHandlers = Get-FrankenPhpReverseProxyHandlers -Upstream ("http://{0}:{1}" -f $loopback, $uiPort) -EarlyHintsLink $uiHints
+    $pycorePort = Get-ServiceContractPort -Name 'pycore_backend'
+    $tailnetPycorePath = [string](Get-ServiceContractValue -ContractPath 'access.tailnet.pycore_path')
     $apiMount = ''
+    $pycoreMount = ''
     $material = Get-FrankenPhpLanCertificateMaterial
     $tsDnsName = [string]$material.TsDnsName
     $tsApiDnsName = [string]$material.TsApiDnsName
@@ -959,6 +1012,9 @@ function Ensure-FrankenPhpLanLocalRoute {
         $tsTlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsCert)), (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsKey))
     }
     $apiMount = Get-FrankenPhpPathMountHandlers -PathPrefix $tailnetApiPath -Upstream ("http://{0}:{1}" -f $loopback, $apiPort)
+    if (-not [string]::IsNullOrWhiteSpace($tsDnsName)) {
+        $pycoreMount = Get-FrankenPhpTailnetPycoreMountHandlers -PathPrefix $tailnetPycorePath -Upstream ("http://{0}:{1}" -f $loopback, $pycorePort) -TailnetDomain ($tsDnsName.Substring($tsDnsName.IndexOf('.') + 1))
+    }
     if (-not [string]::IsNullOrWhiteSpace([string]$material.TsApiCert)) {
         $tsApiTlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsApiCert)), (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsApiKey))
     }
@@ -979,7 +1035,8 @@ function Ensure-FrankenPhpLanLocalRoute {
         $blocks = @($blocks) + @(@"
 
 https://$tsDnsName`:$httpsPort {
-$tsTlsLine$apiMount
+$tsTlsLine$pycoreMount
+$apiMount
 	handle {
 $uiHandlers
 	}

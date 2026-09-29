@@ -27,16 +27,22 @@ class CodeMartV1ReviewerCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
+        $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, CodeMartV1Constants::ROLE_REVIEWER);
 
-        if ($existingRole && $existingRole->role_status === 'active') {
-            return $this->error(__('codemart.messages.you_are_already_a_reviewer'));
+        if ($existingRole && $existingRole->role_status === CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_ALREADY_ACTIVE, __('codemart.messages.you_are_already_a_reviewer'), null, 409);
         }
 
         $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, CodeMartV1Constants::REVIEWER_RETRY_DAYS);
 
+        // An unfinished test is resumed instead of blocking the retry window.
+        if ($recentApplication && $recentApplication->status === CodeMartV1Constants::REVIEWER_APPLICATION_IN_PROGRESS) {
+            return $this->applicationStarted($recentApplication, (array) json_decode((string) $recentApplication->test_cases, true));
+        }
         if ($recentApplication) {
-            return $this->error(__('codemart.messages.you_can_only_apply_once_every_7'));
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_RETRY_TOO_SOON, __('codemart.messages.you_can_only_apply_once_every_7'), [
+                'retry_at' => $recentApplication->created_at?->copy()->addDays(CodeMartV1Constants::REVIEWER_RETRY_DAYS)->toIso8601String(),
+            ], 409);
         }
 
         $testCases = $this->generateTestCases();
@@ -44,16 +50,27 @@ class CodeMartV1ReviewerCtl extends Controller
         $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($user, $testCases) {
             return CodeMartV1ReviewerApplicationModel::createRecord([
                 'user_id' => $user->id,
-                'status' => 'in_progress',
+                'status' => CodeMartV1Constants::REVIEWER_APPLICATION_IN_PROGRESS,
                 'test_cases' => json_encode($testCases),
             ]);
         });
 
+        return $this->applicationStarted($application, $testCases);
+    }
+
+    /** The expected ratings are the grading key and never leave the server. */
+    private function applicationStarted(CodeMartV1ReviewerApplicationModel $application, array $testCases): JsonResponse
+    {
+        $publicCases = array_map(static fn (array $testCase): array => [
+            'code_snippet_id' => $testCase['code_snippet_id'],
+            'code' => $testCase['code'],
+        ], $testCases);
+
         return $this->success([
             'application_id' => $application->id,
-            'test_cases' => $testCases,
+            'test_cases' => $publicCases,
             'instructions' => __('codemart.messages.reviewer_test_instructions', [
-                'count' => count($testCases),
+                'count' => count($publicCases),
                 'min' => CodeMartV1Constants::MIN_RATING,
                 'max' => CodeMartV1Constants::MAX_RATING,
             ]),
@@ -66,16 +83,16 @@ class CodeMartV1ReviewerCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'reviews' => 'required|array|size:3',
-            'reviews.*.code_snippet_id' => 'required|integer',
-            'reviews.*.quality_rating' => 'required|integer|min:1|max:5',
-            'reviews.*.readability_rating' => 'required|integer|min:1|max:5',
-            'reviews.*.efficiency_rating' => 'required|integer|min:1|max:5',
-            'reviews.*.comments' => 'required|string|min:20',
+            'reviews' => 'required|array|size:' . CodeMartV1Constants::REVIEWER_TEST_SNIPPETS,
+            'reviews.*.code_snippet_id' => 'required|integer|distinct',
+            'reviews.*.quality_rating' => 'required|integer|min:' . CodeMartV1Constants::MIN_RATING . '|max:' . CodeMartV1Constants::MAX_RATING,
+            'reviews.*.readability_rating' => 'required|integer|min:' . CodeMartV1Constants::MIN_RATING . '|max:' . CodeMartV1Constants::MAX_RATING,
+            'reviews.*.efficiency_rating' => 'required|integer|min:' . CodeMartV1Constants::MIN_RATING . '|max:' . CodeMartV1Constants::MAX_RATING,
+            'reviews.*.comments' => 'required|string|min:' . CodeMartV1Constants::REVIEWER_COMMENT_MIN_LENGTH,
         ]);
 
         if ($validator->fails()) {
-            return $this->error(__('codemart.messages.validation_failed'), 422, $validator->errors());
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $application = CodeMartV1ReviewerApplicationModel::findOwnedInProgress(
@@ -84,32 +101,34 @@ class CodeMartV1ReviewerCtl extends Controller
         );
 
         if (!$application) {
-            return $this->notFound(__('codemart.messages.application_not_found_or_already_processed'));
+            return $this->codedError(CodeMartV1Constants::ERROR_REVIEWER_APPLICATION_NOT_FOUND, __('codemart.messages.application_not_found_or_already_processed'), null, 404);
         }
 
         $testCases = json_decode($application->test_cases, true);
         $userReviews = $request->reviews;
 
         $similarity = $this->calculateReviewSimilarity($testCases, $userReviews);
+        $passed = $similarity >= CodeMartV1Constants::REVIEWER_MIN_SIMILARITY;
 
-        $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($application, $userReviews, $similarity, $user) {
+        $application = CodeMartV1ReviewerApplicationModel::runInTransaction(function () use ($application, $userReviews, $similarity, $user, $passed) {
             $application->updateRecord([
-                'status' => $similarity >= 85 ? 'passed' : 'failed',
+                'status' => $passed ? CodeMartV1Constants::REVIEWER_APPLICATION_PASSED : CodeMartV1Constants::REVIEWER_APPLICATION_FAILED,
                 'user_reviews' => json_encode($userReviews),
                 'similarity_score' => $similarity,
                 'completed_at' => now(),
             ]);
 
-            if ($similarity >= 85) {
-                $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
+            if ($passed) {
+                $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, CodeMartV1Constants::ROLE_REVIEWER);
 
                 if ($existingRole) {
-                    $existingRole->updateRecord(['role_status' => 'active']);
+                    $existingRole->updateRecord(['role_status' => CodeMartV1Constants::ROLE_STATUS_ACTIVE, 'role_activated_at' => now()]);
                 } else {
                     CodeMartV1UserRoleModel::createRecord([
                         'user_id' => $user->id,
-                        'role_type' => 'reviewer',
-                        'role_status' => 'active',
+                        'role_type' => CodeMartV1Constants::ROLE_REVIEWER,
+                        'role_status' => CodeMartV1Constants::ROLE_STATUS_ACTIVE,
+                        'role_activated_at' => now(),
                     ]);
                 }
             }
@@ -120,7 +139,7 @@ class CodeMartV1ReviewerCtl extends Controller
         return $this->success([
             'status' => $application->status,
             'similarity_score' => $similarity,
-            'message' => $similarity >= 85
+            'message' => $passed
                 ? __('codemart.messages.reviewer_test_passed')
                 : __('codemart.messages.reviewer_test_failed', ['days' => CodeMartV1Constants::REVIEWER_RETRY_DAYS]),
         ]);

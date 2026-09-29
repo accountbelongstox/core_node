@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import socket
 import time
 import uuid
 from pathlib import Path
@@ -292,11 +293,14 @@ class HttpServer:
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         execution_context = context or {}
+        journal = self.event_service.events if self.event_service is not None else None
         return {
             "is_http_service": True,
             "protocol_version": HTTP_PROTOCOL_VERSION,
             "service": "HttpServer",
             "transport": str(execution_context.get("transport") or "http"),
+            "hostname": socket.gethostname(),
+            "instance_id": journal.instance_id if journal is not None else None,
         }
 
     def _protocol_info(

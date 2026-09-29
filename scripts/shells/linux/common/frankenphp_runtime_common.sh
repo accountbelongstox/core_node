@@ -682,6 +682,54 @@ fm_caddy_path_mount_render() {
 EOF
 }
 
+# Mount the loopback-only pycore under a tailnet site path. The proxy is the
+# gatekeeper: only tailnet/loopback source addresses pass (the site also
+# answers the ts.net SNI on public addresses), only tailnet and loopback page
+# origins of this machine's own tailnet pass (with CORS), and pycore sees a
+# loopback-local request (loopback Host, no Origin).
+# Args: 1 path_prefix 2 upstream 3 tailnet domain (e.g. example.ts.net)
+fm_caddy_tailnet_pycore_mount_render() {
+    local path_prefix="$1"
+    local upstream="$2"
+    local tailnet_pattern="$(printf '%s' "$3" | sed 's/\./\\./g')"
+    local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
+    local source_ranges="$(sc_list access.tailnet.source_ranges)"
+    local origin_pattern="^(https?://[a-z0-9-]+\\.${tailnet_pattern}(:[0-9]+)?|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)$"
+
+    cat <<EOF
+	redir ${path_prefix} ${path_prefix}/ 308
+	handle_path ${path_prefix}/* {
+		@pycore_offnet not remote_ip ${source_ranges}
+		@pycore_cors header_regexp Origin ${origin_pattern}
+		@pycore_foreign {
+			header Origin *
+			not header_regexp Origin ${origin_pattern}
+		}
+		@pycore_preflight {
+			method OPTIONS
+			header_regexp Origin ${origin_pattern}
+		}
+		header @pycore_cors Access-Control-Allow-Origin {http.request.header.Origin}
+		header @pycore_cors Access-Control-Allow-Credentials true
+		header @pycore_cors Vary Origin
+		header @pycore_preflight Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		header @pycore_preflight Access-Control-Allow-Headers {http.request.header.Access-Control-Request-Headers}
+		header @pycore_preflight Access-Control-Max-Age 600
+		respond @pycore_offnet 403
+		respond @pycore_foreign 403
+		respond @pycore_preflight 204
+		reverse_proxy ${upstream} {
+			header_up Host {upstream_hostport}
+			header_up -Origin
+			header_up X-Forwarded-Prefix ${path_prefix}
+			header_down -Access-Control-Allow-Origin
+			header_down -Access-Control-Allow-Credentials
+			stream_close_delay ${stream_close_delay}
+		}
+	}
+EOF
+}
+
 # Canonical Caddyfile render. The contract-owned internal TLS site is kept
 # separate from public domain routes; one backend hub owns the Mercure
 # transport and HTTPS routes proxy the well-known path to it.
