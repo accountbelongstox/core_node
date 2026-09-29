@@ -193,7 +193,12 @@ set_global_var() {
         # Keep shared variable files aligned with the common mode-777 policy.
         $USE_SUDO chmod 777 "$file_path" 2>/dev/null || chmod 777 "$file_path" 2>/dev/null || true
         if [[ "$print" != "false" ]] && [ "$prev_val" != "$val" ]; then
-            echo "Successfully set global variable: $key -> $val"
+            case "${key^^}" in
+                *TOKEN*|*PASSWORD*|*SECRET*|*PASSWD*|*_KEY|*APIKEY*|*CREDENTIAL*)
+                    echo "Successfully set global variable: $key -> ******" ;;
+                *)
+                    echo "Successfully set global variable: $key -> $val" ;;
+            esac
         fi
         return 0
     else

@@ -1,27 +1,6 @@
 {
-<<<<<<< HEAD
-<<<<<<< HEAD
-  "granted_at": "2026-09-28T09:07:38.125Z",
-  "expires_at": "2026-09-28T11:07:38.134Z",
-  "session_id": "d758534e-c78a-4a89-8a9f-e860aecea0ae",
-  "prompt_excerpt": "<cross-session-message from=\"bridge:session_018sW7vKGr8jJwnLBR8xKGhN\" from-name=\"ca-orchestrator\" from-mode=\"prompting\">\nTask #2, [laravel-remote]: read-only work smoke test from ca-orchestrator (2026"
-=======
-<<<<<<< HEAD
-  "granted_at": "2026-09-27T12:26:05.946Z",
-  "expires_at": "2026-09-27T14:26:05.946Z",
-  "session_id": "59362416-9b59-4a9b-b284-e4b3d83daf06",
-  "prompt_excerpt": "<task-notification>\n<task-id>wnphnmtqk</task-id>\n<tool-use-id>toolu_01Lp1cAGGArF9iWhuqbqMhv7</tool-use-id>\n<output-file>D:\\.tmp\\claude\\D--programing-core-node\\59362416-9b59-4a9b-b284-e4b3d83daf06\\task"
-=======
-  "granted_at": "2026-09-28T14:31:04.790Z",
-  "expires_at": "2026-09-28T16:31:04.795Z",
-  "session_id": "b7fb8238-2e23-4841-b147-50c94612d1fe",
-  "prompt_excerpt": "\n\n<pasted_content id=\"4d8f\">\n create mode 100644 docs_fix/TASK_20260928_ROLE_LAUNCH_SMOKE_TEST.md\n[syncgit] Executing: git pull origin main\nFrom github.com:accountbelongstox/core_node\n * branch       "
->>>>>>> 487d06c6ece7a911ff1b4b44b3bedcedb7f329ff
->>>>>>> be1d23778c112a148ae943a67dd174d7d20b4e4e
-=======
-  "granted_at": "2026-09-29T09:52:18.197Z",
-  "expires_at": "2026-09-29T11:52:18.197Z",
-  "session_id": "ef4e746e-c3dd-4290-91b6-460bf9a71bdc",
-  "prompt_excerpt": "添加幂等规范，证书要装到所有用户，realuser和root,除了git这些水是实际用户的。查看已有代码。"
->>>>>>> 6f4f1b0ac8f7c1a6d8734fc18cea94c38f88714b
+  "granted_at": "2026-09-29T10:49:20.778Z",
+  "expires_at": "2026-09-29T12:49:20.785Z",
+  "session_id": "fda58104-34d6-4829-b9a5-87871563990b",
+  "prompt_excerpt": "\n\n<pasted_content id=\"ad88\">\n\n● The Windows side needs no code change for the\n  409, and I've written a handoff doc for\n  continuing the Laravel fix on Linux:\n  docs_fix/FIX_20260929_WINDOWS_MEMORY_AN"
 }

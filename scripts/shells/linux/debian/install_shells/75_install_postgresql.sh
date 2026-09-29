@@ -275,6 +275,31 @@ configure_postgresql() {
 
 # Function to setup the postgres superuser password and localhost-only access.
 # Idempotent: safe to re-run. Requires POSTGRESQL_CONFIG_DIR to be set.
+# Heal glibc collation drift (e.g. after a Debian point upgrade): every database
+# whose recorded collation version differs from the OS one is reindexed and then
+# stamped with the current version. Databases already in sync are untouched, so a
+# re-run is a no-op. A database with no recorded version (template0) never drifts.
+# One that accepts no connections holds no user objects, so it is only stamped.
+pg_refresh_collation_versions() {
+    local drifted="" db="" allow_conn=""
+    drifted="$(run_as_postgres psql -d postgres -tAF'|' -c "SELECT datname, datallowconn FROM pg_database WHERE datcollversion <> pg_database_collation_actual_version(oid);" 2>/dev/null)"
+    [ -n "$drifted" ] || return 0
+    while IFS='|' read -r db allow_conn; do
+        [ -n "$db" ] || continue
+        if [ "$allow_conn" = "t" ]; then
+            echo "[$SCRIPT_INDEX] Collation version drift in $db -> REINDEX DATABASE + REFRESH COLLATION VERSION"
+            if ! run_as_postgres psql -d "$db" -q -c "REINDEX DATABASE \"$db\";" 2>/dev/null; then
+                echo "[$SCRIPT_INDEX] WARNING: REINDEX failed for $db; collation version left unrefreshed"
+                continue
+            fi
+        else
+            echo "[$SCRIPT_INDEX] Collation version drift in $db -> REFRESH COLLATION VERSION"
+        fi
+        run_as_postgres psql -d postgres -q -c "ALTER DATABASE \"$db\" REFRESH COLLATION VERSION;" >/dev/null 2>&1 \
+            || echo "[$SCRIPT_INDEX] WARNING: REFRESH COLLATION VERSION failed for $db"
+    done <<< "$drifted"
+}
+
 setup_postgresql_user() {
     echo "[$SCRIPT_INDEX] Setting up PostgreSQL user and access rules..."
 
@@ -681,6 +706,7 @@ main() {
                 configure_postgresql
             fi
             if is_postgresql_running; then
+                pg_refresh_collation_versions
                 setup_postgresql_user
                 create_app_databases
             else

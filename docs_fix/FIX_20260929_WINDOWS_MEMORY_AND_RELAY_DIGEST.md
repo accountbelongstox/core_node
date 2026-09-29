@@ -22,7 +22,7 @@ Changes:
 Verify on Windows: restart pycore; under pressure the log shows `lane paused: ...` then `host memory recovered`;
 page-file peak (`Win32_PageFileUsage.PeakUsage`) stays bounded.
 
-## Part B — Relay `contract_digest_conflict` (409) (TODO on Linux, laravel_main)
+## Part B — Relay `contract_digest_conflict` (409) (DONE on Linux, laravel_main)
 
 Symptom (device log):
 ```
@@ -50,3 +50,32 @@ Linux steps:
    cached alongside `$document`), so Octane workers never serve a stale digest. Follow
    `development-guides/LARAVEL_GUIDE.md`.
 4. Verify on the server: heartbeat returns 2xx and the device log no longer shows `control.http.conflict.skipped`.
+
+Linux result (2026-09-29):
+- Server file digest = `498009…eb93` (matches device). FrankenPHP worker mode had been up since 05:33 holding the old
+  static digest -> confirmed stale-worker cause.
+- `RelayContract::load()` now caches `filemtime:filesize` as `$fileSignature` and reloads when it changes.
+- Workers restarted (`POST localhost:2019/frankenphp/workers/restart`); `RelayContract::digest()` = `498009…eb93`.
+
+## Part C — Step 175 idempotent run (DONE on Linux)
+
+Ran `scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh` three times (exit 0 each). Fixed:
+
+| Issue (run 1) | Fix | Run 2+ |
+|---|---|---|
+| `DNSPOD_API_TOKEN` value printed in cleartext | `global_var_store.sh` `set_global_var` masks keys matching TOKEN/PASSWORD/SECRET/PASSWD/`*_KEY`/APIKEY/CREDENTIAL | masked |
+| `/opt has less than 50GB free` printed ~17x | `gvar_storage_common.sh`: once per top-level run via exported `CN_OPT_SPACE_WARN_MARK` marker file | 1x |
+| PostgreSQL `collation version mismatch` (glibc 2.39 -> 2.41) on every DB | `75_install_postgresql.sh` `pg_refresh_collation_versions`: drifted DBs only -> `REINDEX DATABASE` + `ALTER DATABASE … REFRESH COLLATION VERSION` (NULL-version `template0` skipped) | all DBs 2.41, no-op |
+
+Not changed:
+- `running_with_errors` on `app_qy_v1_agent_history_audio_writeback_task` / `global_task_result_writeback_task`: lifetime
+  `error_count` (12 of 115k/591k runs) from a PostgreSQL shutdown window; no current fault.
+- `Removed stale route: local_lan` was a one-time cleanup (server mode); absent on later runs.
+
+## Part D — Windows test (TODO on Windows)
+
+1. `git pull`, restart pyservice; within ~30s the pycore log must show heartbeat 2xx and no
+   `contract_digest_conflict` / `control.http.conflict.skipped`.
+2. Run `scripts/shells/win/install_powershells/Step175_LaravelMainStart.ps1` twice; second run must make no changes
+   and print no secret values. (Collation drift is glibc-only; Windows PostgreSQL is unaffected.)
+3. Confirm Part A memory fixes after restart.
