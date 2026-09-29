@@ -48,7 +48,8 @@ export function PcDeliveryOutboxStatus({
 
   if (!status) return null;
 
-  const pending = Number(status.pending || 0);
+  const parked = Number(status.parked || 0);
+  const pending = Math.max(0, Number(status.pending || 0) - parked);
   const deadLetter = Number(status.dead_letter || 0);
   const stages = Object.entries(status.by_stage || {}).filter(([, count]) => Number(count) > 0);
   const lastFailure = status.last_error || '';
@@ -111,6 +112,9 @@ export function PcDeliveryOutboxStatus({
           {t('queueCenter.deliveryOutbox.title')} · {t(`queueCenter.deliveryOutbox.kinds.${kind}`, { defaultValue: kind })}
         </span>
         <span>{t('queueCenter.deliveryOutbox.pending', { count: pending })}</span>
+        {parked > 0 && (
+          <span className="text-slate-400">{t('queueCenter.deliveryOutbox.parked', { count: parked })}</span>
+        )}
         {stages.map(([stage, count]) => (
           <span key={stage}>
             {t(`queueCenter.deliveryOutbox.stages.${stage}`, { count: Number(count), defaultValue: `${stage}: ${count}` })}
@@ -153,13 +157,24 @@ export function PcDeliveryOutboxStatus({
       </div>
       {namespaces.length > 0 && (
         <ul className="mt-1 space-y-0.5">
-          {namespaces.map(([namespace, entry]) => (
+          {namespaces.map(([namespace, entry]) => {
+            const selected = entry.selected ?? namespace === activeNamespace;
+            const entryParked = Number(entry.parked || 0);
+            return (
             <li key={namespace} className="flex items-center gap-2 flex-wrap font-mono">
-              <span className={namespace === activeNamespace ? 'text-emerald-300' : 'text-slate-400'} title={namespace}>
+              <span className={selected ? 'text-emerald-300' : 'text-slate-400'} title={namespace}>
                 {t('queueCenter.deliveryOutbox.server', { name: serverLabel(namespace, servers) || t('queueCenter.deliveryOutbox.unassigned') })}
-                {namespace === activeNamespace ? ` (${t('queueCenter.deliveryOutbox.activeServer')})` : ''}
+                {selected ? ` (${t('queueCenter.deliveryOutbox.activeServer')})` : ''}
               </span>
-              <span>{t('queueCenter.deliveryOutbox.pending', { count: Number(entry.pending || 0) })}</span>
+              {entry.offline && (
+                <span className="rounded border border-rose-500/50 px-1 text-rose-400">
+                  {t('queueCenter.deliveryOutbox.serverOffline')}
+                </span>
+              )}
+              <span>{t('queueCenter.deliveryOutbox.pending', { count: Math.max(0, Number(entry.pending || 0) - entryParked) })}</span>
+              {entryParked > 0 && (
+                <span className="text-slate-400">{t('queueCenter.deliveryOutbox.parked', { count: entryParked })}</span>
+              )}
               {Number(entry.dead_letter || 0) > 0 && (
                 <span className="text-rose-400">{t('queueCenter.deliveryOutbox.deadLetter', { count: Number(entry.dead_letter) })}</span>
               )}
@@ -179,7 +194,8 @@ export function PcDeliveryOutboxStatus({
                 </button>
               )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
       {pending > 0 && lastFailure && (

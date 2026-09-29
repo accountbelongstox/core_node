@@ -959,7 +959,7 @@ class LaravelDeliveryOutbox:
             THREAD_BUS.signal(f"{DRAIN_WAKE_PREFIX}.{name}", True)
             if self._begin_drain(name, self.deliverable_namespaces(name)):
                 start_bus_task(self._drain, name, thread_name=f"LaravelDelivery-{name[:24]}")
-        self._ensure_watcher()
+        self._ensure_watcher([kind] if kind else None)
 
     # ------------------------------------------------------------------ #
     # offline servers                                                     #
@@ -968,12 +968,12 @@ class LaravelDeliveryOutbox:
     def _has_pending_in(self, kind: str, namespaces: List[str]) -> bool:
         return self._repository().has_pending(kind, namespaces)
 
-    def offline_namespaces(self) -> List[str]:
+    def offline_namespaces(self, kinds: Optional[List[str]] = None) -> List[str]:
         """Servers that hold rows they should receive (the selected server,
         or any server for a pinned kind) but have no reachable route."""
         wanted = set()
         selected = self.active_namespace()
-        for kind in self.kinds():
+        for kind in (kinds or self.kinds()):
             definition = self._definition(kind)
             if definition is not None and definition.pinned:
                 wanted.update(self._pending_namespaces(kind))
@@ -992,8 +992,8 @@ class LaravelDeliveryOutbox:
     def _end_watch(self) -> None:
         self._watching = False
 
-    def _ensure_watcher(self) -> None:
-        if self._watching or not self._started or not self.offline_namespaces():
+    def _ensure_watcher(self, kinds: Optional[List[str]] = None) -> None:
+        if self._watching or not self._started or not self.offline_namespaces(kinds):
             return
         if self._begin_watch():
             start_bus_task(self._watch_servers, thread_name="LaravelDeliveryWatch")
@@ -1009,6 +1009,8 @@ class LaravelDeliveryOutbox:
                     return
                 for namespace in offline:
                     laravel_endpoint_manager.reprobe_namespace(namespace)
+                if not self.offline_namespaces():
+                    return
                 THREAD_BUS.clear_signal(WATCH_WAKE_SIGNAL)
                 THREAD_BUS.wait_signal(WATCH_WAKE_SIGNAL, timeout=SERVER_WATCH_SECONDS)
         finally:
@@ -1021,6 +1023,9 @@ class LaravelDeliveryOutbox:
         finally:
             if not finished:
                 self._end_drain(kind, force=True)
+        # The drain ends while rows wait for a server that went offline: the
+        # watcher takes over re-probing it.
+        self._ensure_watcher([kind])
 
     def _drain_rows(self, kind: str) -> bool:
         definition = self._definition(kind)

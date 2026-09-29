@@ -83,6 +83,8 @@ export interface LaravelDeliveryKindStatus {
   inventory?: boolean;
   /** Per Laravel server namespace (`server:<id>` or `url:<base>` for a legacy server). */
   by_namespace?: Record<string, LaravelDeliveryNamespaceStatus>;
+  /** Pending rows queued for a non-selected server; not attempted until it is selected. */
+  parked?: number;
 }
 
 /** Last reconnect diff of one kind against one Laravel server. */
@@ -119,6 +121,12 @@ export interface LaravelDeliveryNamespaceStatus {
   last_failure?: string;
   last_failure_at?: number | null;
   diff?: LaravelDeliveryDiffStatus;
+  /** True for the server the user selected (the single delivery target). */
+  selected?: boolean;
+  /** True when the server has no reachable route. */
+  offline?: boolean;
+  /** Pending rows parked for this server (not selected, not a pinned kind owner); not attempted. */
+  parked?: number;
 }
 
 /** Identity of one configured Laravel endpoint. */
@@ -134,6 +142,10 @@ export interface LaravelDeliveryStatus {
   kinds: Record<string, LaravelDeliveryKindStatus>;
   servers?: LaravelServerIdentity[];
   active_namespace?: string;
+  /** Same value as `active_namespace`: the server the user selected. */
+  selected_namespace?: string;
+  /** Servers holding rows they should receive but with no reachable route. */
+  offline_namespaces?: string[];
   /** Namespaces whose reconnect diff is running. */
   reconciling?: string[];
   laravel_online_at?: number | null;
