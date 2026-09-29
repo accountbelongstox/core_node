@@ -102,6 +102,19 @@ def laravel_failure(error: Any = None, status_code: int = 0) -> Dict[str, Any]:
     return {"error_code": code, "detail": _short_err(error) if error is not None else "", "status": 0}
 
 
+def laravel_server_unreachable(error: Any) -> bool:
+    """True only for a failure to reach the server: connect refused / failed /
+    timed out, or the connection dropped. A read or write stall means the
+    connection was made (the server is busy, or the transfer stalled), so it
+    never marks the server offline."""
+    names = [cls.__name__ for cls in type(error).__mro__] if isinstance(error, BaseException) else []
+    if "ConnectTimeout" in names:
+        return True
+    if any(name.endswith(_TIMEOUT_ERROR_NAMES) for name in names):
+        return False
+    return any(name in _UNREACHABLE_ERROR_NAMES for name in names)
+
+
 def laravel_envelope(response: Any) -> Dict[str, Any]:
     """JSON envelope ``{success, data, error_code, ...}`` of one Laravel
     response; ``{}`` when the body is not a JSON object."""
@@ -378,7 +391,7 @@ class LaravelClient:
         except Exception as e:
             ms = (time.perf_counter() - started) * 1000.0
             err = _short_err(e)
-            if laravel_failure(e)["error_code"] in (LARAVEL_ERROR_TIMEOUT, LARAVEL_ERROR_UNREACHABLE):
+            if laravel_server_unreachable(e):
                 laravel_reachability.note(self._origin(url), False)
             if log_line:
                 ColorPrint.red(f"[laravel] {method} {url} -> ERR ({ms:.0f}ms) {err}")

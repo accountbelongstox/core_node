@@ -611,11 +611,16 @@ class LaravelDeliveryOutbox:
     # lease                                                               #
     # ------------------------------------------------------------------ #
     @contextmanager
-    def delivery_scope(self, delivery_id: str, owner: str) -> Iterator[None]:
+    def delivery_scope(self, delivery_id: str, owner: str, strict: bool = True) -> Iterator[None]:
+        """Keep one claimed row's lease alive while its transfer makes
+        progress. ``strict`` aborts the transfer when the row lost its lease
+        (single-row delivery); a shared batch transfer is not strict, so one
+        row losing its lease never aborts the other rows' upload (its own
+        settle reports the lost ownership)."""
         active_signal = f"{ACTIVE_DELIVERY_PREFIX}.{owner}"
         THREAD_BUS.signal(active_signal, threading.current_thread())
         try:
-            with http_progress_client.transfer_scope(partial(self.renew, delivery_id, owner)):
+            with http_progress_client.transfer_scope(partial(self.renew, delivery_id, owner, strict=strict)):
                 yield
         finally:
             THREAD_BUS.clear_signal(active_signal)
@@ -647,10 +652,12 @@ class LaravelDeliveryOutbox:
 
     @serialized_method
     @_record_transaction
-    def renew(self, delivery_id: str, owner: str, progress: Dict[str, Any]) -> None:
+    def renew(self, delivery_id: str, owner: str, progress: Dict[str, Any], strict: bool = True) -> None:
         row = self._repository().get(str(delivery_id))
         now = _now()
         if row is None or str(row.get("lease_owner") or "") != owner:
+            if not strict:
+                return
             raise RuntimeError("Laravel delivery ownership changed during upload")
         if float(row.get("lease_until") or 0) - now > DEFAULT_LEASE_SECONDS / 2:
             return
@@ -1140,12 +1147,15 @@ class LaravelDeliveryOutbox:
             str(record.get("delivery_id") or ""): f"{DELIVERY_PROCESS_ID}:{record.get('delivery_id')}:{time.monotonic_ns()}"
             for record in records
         }
+        # Claim first, then register lease renewal for the rows actually
+        # claimed: a row this batch did not claim has no lease of ours, and a
+        # renewal callback for it would abort the shared upload of the others.
+        claimed = [row for row in (self._begin_row(record, owners[str(record.get("delivery_id") or "")]) for record in records) if row]
+        if not claimed:
+            return []
         with ExitStack() as scopes:
-            for delivery_id, owner in owners.items():
-                scopes.enter_context(self.delivery_scope(delivery_id, owner))
-            claimed = [row for row in (self._begin_row(record, owners[str(record.get("delivery_id") or "")]) for record in records) if row]
-            if not claimed:
-                return []
+            for row in claimed:
+                scopes.enter_context(self.delivery_scope(str(row["delivery_id"]), owners[str(row["delivery_id"])], strict=False))
             try:
                 outcomes = definition.deliver_batch(claimed, {row["delivery_id"]: owners[row["delivery_id"]] for row in claimed}) or {}
             except Exception as error:  # noqa: BLE001 - a failed batch defers its rows

@@ -22,7 +22,8 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
-from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_ORCH_OUTPUT
+from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_ORCH_OUTPUT, laravel_delivery_diff_client
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.delivery_outbox import (
     OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
@@ -278,6 +279,23 @@ class OrchDelivery:
         }
         return {key: value for key, value in payload.items() if value is not None}
 
+    @staticmethod
+    def _server_needs_output(base_url: str, task_id: str, meta_hash: str) -> bool:
+        """Ask the server (W7 diff, one small request) whether it still needs
+        this task output: metadata current and every segment stored. A retry
+        starts here because the previous attempt may have been ingested even
+        though its response never arrived; the heavy ingest is only re-sent
+        for what the server really lacks."""
+        server_id = str(laravel_endpoint_manager.server_identity(base_url).get("server_id") or "")
+        if not server_id or not laravel_delivery_diff_client.supports(base_url, server_id, DIFF_KIND_ORCH_OUTPUT):
+            return True
+        result = laravel_delivery_diff_client.diff(
+            base_url, server_id, DIFF_KIND_ORCH_OUTPUT, [{"key": task_id, "meta_hash": meta_hash}],
+        )
+        if not result.get("success") or result.get("rejected"):
+            return True
+        return any(str(need.get("key") or "") == task_id for need in result.get("need") or [])
+
     def _deliver_output(self, claimed: Dict[str, Any], owner: str) -> Dict[str, Any]:
         task = orch_store.get_task(str(claimed.get("task_id") or ""))
         if not task or not self._output_signature(task):
@@ -294,6 +312,13 @@ class OrchDelivery:
             # The output changed since enqueue: deliver (and record) the
             # current version.
             laravel_delivery_outbox.patch(claimed["delivery_id"], {"content_hash": ingest["meta_hash"]}, owner=owner)
+        if int(claimed.get("delivery_attempts") or 1) > 1 and not self._server_needs_output(
+            base_url, str(claimed["task_id"]), ingest["meta_hash"],
+        ):
+            ColorPrint.green(
+                f"[AudioOrch] output already complete on server task={claimed['task_id']} @ {base_url}; no re-upload"
+            )
+            return {"status": OUTCOME_DONE, "meta_hash": ingest["meta_hash"]}
         machine_id = get_pycore_machine_id()
         response = laravel_client.post(
             ORCH_AUDIO_INGEST_TASKS_PATH,

@@ -123,8 +123,9 @@ _SWEEPING_SIGNAL = "laravel_endpoint_manager.sweeping"
 # (pyutils/laravel/delivery_outbox.py) reconciles that server on it.
 LARAVEL_ONLINE_SIGNAL = "laravel.endpoint.online"
 LARAVEL_ONLINE_EVENT = "laravel.endpoint.online_edge"
-# Gateway statuses that mean the Laravel application itself is down.
-LARAVEL_OFFLINE_STATUSES = (502, 503, 504)
+# Gateway statuses that mean the Laravel application itself is down. 504 is
+# not one of them: the gateway reached an application that is slow, not gone.
+LARAVEL_OFFLINE_STATUSES = (502, 503)
 # Last server identity observed per endpoint URL (survives restarts, so the
 # delivery namespace of an offline endpoint stays known).
 SERVER_IDENTITY_SECTION = "laravel_servers"
