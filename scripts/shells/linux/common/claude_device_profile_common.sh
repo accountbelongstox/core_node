@@ -28,14 +28,29 @@ claude_device_ipv4() {
     net_detect_tailscale_ipv4 2>/dev/null
 }
 
-# gpu: NVIDIA hardware; server: no graphical interface (no graphical boot
-# target and no display in this session); desktop: everything else.
+# True when a display manager service is running (a real graphical desktop).
+claude_device_display_manager_active() {
+    local service=""
+    for service in gdm gdm3 sddm lightdm lxdm; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# gpu: NVIDIA hardware; server: no graphical interface (no display in this
+# session and no running display manager); desktop: everything else.
+# CLAUDE_DEVICE_PROFILE overrides the detection.
 claude_device_profile() {
+    case "${CLAUDE_DEVICE_PROFILE:-}" in
+        gpu|server|desktop) printf '%s' "$CLAUDE_DEVICE_PROFILE"; return 0 ;;
+    esac
     if gpu_hardware_present; then
         printf 'gpu'
         return 0
     fi
-    if [ "$(systemctl get-default 2>/dev/null)" != "graphical.target" ] && [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+    if [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && ! claude_device_display_manager_active; then
         printf 'server'
         return 0
     fi

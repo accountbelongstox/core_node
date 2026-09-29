@@ -201,8 +201,11 @@ fi
 # server profile role, the same as py passing --device-slot 1.
 if [ -z "$deviceSlot" ] && [ -z "$teamMode" ] && [ -z "$agentName" ]; then
     . "$claudeDeviceProfileCommonPath"
-    if [ "$(claude_device_profile)" = "server" ]; then
+    deviceProfile="$(claude_device_profile)"
+    if [ "$deviceProfile" = "server" ]; then
         deviceSlot="1"
+    else
+        echo "[INFO] Device $(claude_device_name), profile $deviceProfile: standalone lead (server profile runs the server role)"
     fi
 fi
 
