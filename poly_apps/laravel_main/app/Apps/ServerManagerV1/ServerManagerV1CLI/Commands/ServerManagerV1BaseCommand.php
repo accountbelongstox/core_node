@@ -25,13 +25,13 @@ abstract class ServerManagerV1BaseCommand extends Command
      *
      * This is a PRE-REQUISITE that runs at runtime.
      *
-     * See: ../../../../../../scripts/shells/linux/debian/install_shells/34_configure_php85.sh
+     * See: ../../../../../../scripts/shells/linux/debian/install_shells/93_install_php.sh
      */
     protected function initializeCommand(): void
     {
         // Fix PHP configuration before any operations
         // This ensures open_basedir restrictions are removed/configured correctly
-        // based on current path mapping (matches 34_configure_php85.sh behavior)
+        // based on current path mapping (matches 93_install_php.sh behavior)
         ServerManagerV1PHPConfigFixer::fixPHPConfiguration();
     }
 

@@ -34,7 +34,6 @@ scriptCurrentPath=""
 scriptsDirPath=""
 aiCliProvisionCommonPath=""
 projectRootPath=""
-pnpmBin=""
 gvarCommon=""
 secret_dir=""
 ark_user_base=""
@@ -239,31 +238,17 @@ process.stdout.write("[INFO] Removed stale settings.json env entries: " + remove
 NODE
 }
 
-resolve_pnpm() {
-    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
-        pnpmBin="$PNPM_BIN"
-    elif [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
-        pnpmBin="$NODE_BIN_DIR/pnpm"
-    elif command -v pnpm >/dev/null 2>&1; then
-        pnpmBin="$(command -v pnpm)"
-    else
-        echo "[ERROR] pnpm not found (run 17_install_node_toolchain_26.sh first)." >&2
-        exit 1
-    fi
-}
-
 # 1) Ensure arkcli is installed (skipped in plain Claude / API KEY mode).
 if [ "$use_plain_claude" -eq 0 ]; then
 if command -v arkcli >/dev/null 2>&1 && arkcli --version >/dev/null 2>&1; then
     arkcliOk=1
 fi
 if [ "$arkcliOk" -eq 0 ]; then
-    echo "arkcli is missing or unhealthy; installing @volcengine/ark-cli@latest via pnpm..."
-    resolve_pnpm
-    "$pnpmBin" add --global "@volcengine/ark-cli@latest" || { echo "[ERROR] pnpm install of @volcengine/ark-cli failed." >&2; exit 1; }
+    echo "arkcli is missing or unhealthy; installing via 99_install_ai_tools.sh --only arkcli..."
+    bash "$scriptsDirPath/shells/linux/debian/install_shells/99_install_ai_tools.sh" --only arkcli || { echo "[ERROR] 99_install_ai_tools.sh --only arkcli failed." >&2; exit 1; }
     hash -r
     if ! command -v arkcli >/dev/null 2>&1 || ! arkcli --version >/dev/null 2>&1; then
-        echo "[ERROR] arkcli is unavailable after pnpm installation." >&2
+        echo "[ERROR] arkcli is unavailable after installation." >&2
         exit 1
     fi
     arkcliOk=1
@@ -275,9 +260,9 @@ if command -v claude >/dev/null 2>&1 && claude --version >/dev/null 2>&1; then
     claudeOk=1
 fi
 if [ "$claudeOk" -eq 0 ]; then
-    echo "claude not found; installing @anthropic-ai/claude-code via pnpm..."
-    resolve_pnpm
-    "$pnpmBin" add -g "@anthropic-ai/claude-code" || { echo "[ERROR] pnpm install of @anthropic-ai/claude-code failed." >&2; exit 1; }
+    echo "claude not found; installing via 99_install_ai_tools.sh --only claude..."
+    bash "$scriptsDirPath/shells/linux/debian/install_shells/99_install_ai_tools.sh" --only claude || { echo "[ERROR] 99_install_ai_tools.sh --only claude failed." >&2; exit 1; }
+    hash -r
     if ! command -v claude >/dev/null 2>&1; then
         echo "[ERROR] claude installed but not on PATH. Restart your shell and re-run this script." >&2
         exit 1

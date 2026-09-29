@@ -15,7 +15,7 @@ laravel-main server facts, verified 2026-09-27. Re-check them before relying on 
 - PostgreSQL: the live cluster is 15/main on 5432. The 17/main cluster on 5433 is broken.
 - Secret store: `.secret_keys/.secret_ignore/<KEY>`, one file per key. Check existence only with `test -s`, and never read the contents.
 - Everything runs as root and the laravel_main tree is mode 777, so read-only artisan runs as root leave no ownership problems.
-- Code arrival (user D19): code reaches the server only through CodeSync, never git. HEAD stays at 74e7770 and does not move. Verify arrival by comparing SHA-256 with the orchestrator's list.
+- Code sync: run `dd.sh syncgit` (Linux) or `dd.cmd syncgit` (Windows); if the merge fails, the current role resolves it and keeps the remote's latest features (user, 2026-09-29; replaces the CodeSync-only rule D19).
 - CodeSync daemon: `codesync.service` (User=lighthouse), which runs `pyservice.sh codesync run` → `pycore/pyutils/codesync_boot.py run`. It binds 0.0.0.0:59000 over plain HTTP in role=client.
   - Peers are stored in `/var/_core_node/cache/codesync/code_sync_peers.json`.
   - This host's public IP is 43.163.112.77 (private eth0 10.3.0.2).

@@ -97,6 +97,7 @@ def root_terminal_env(env_extra: Optional[Dict[str, str]] = None) -> Dict[str, s
     env = dict(os.environ)
     if is_root():
         _scrub_foreign_session_bus(env)
+        _pin_wayland_display(env)
         _scrub_foreign_runtime_dir(env)
     drop_service_markers(env)
     if env_extra:
@@ -168,6 +169,29 @@ def _scrub_foreign_session_bus(env: Dict[str, str]) -> None:
     address = env.get(BUS_ADDRESS_ENV, '')
     if address and ROOT_BUS_MARKER not in address:
         env.pop(BUS_ADDRESS_ENV, None)
+
+
+def _pin_wayland_display(env: Dict[str, str]) -> None:
+    """Pin a relative WAYLAND_DISPLAY to the desktop socket's absolute path.
+
+    Without XDG_RUNTIME_DIR a relative name resolves nowhere, so root children
+    (Claude Code picks wl-copy whenever WAYLAND_DISPLAY is set) fail to reach
+    the compositor; an unresolvable name is dropped so they fall back to X11.
+    """
+    name = env.get(WAYLAND_DISPLAY_ENV, '')
+    runtime_dir = env.get(RUNTIME_DIR_ENV, '')
+    user = None
+    socket = None
+    if not name or os.path.isabs(name):
+        return
+    if not runtime_dir:
+        user = desktop_user()
+        runtime_dir = str(RUN_USER_ROOT / str(user.uid)) if user is not None else ''
+    socket = Path(runtime_dir) / name if runtime_dir else None
+    if socket is not None and socket.is_socket():
+        env[WAYLAND_DISPLAY_ENV] = str(socket)
+    else:
+        env.pop(WAYLAND_DISPLAY_ENV, None)
 
 
 def _scrub_foreign_runtime_dir(env: Dict[str, str]) -> None:

@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     AI Tools Catalog (Windows) - single source of truth, parity with
-    scripts/shells/linux/common/ai_tools_catalog.sh.
+    the catalog in scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh.
 
 .DESCRIPTION
     One entry per AI CLI / helper binary, using the SAME 17 keys as the Linux

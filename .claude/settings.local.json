@@ -6,7 +6,10 @@
       "Bash(echo:*)",
       "Bash(done)",
       "Bash(for f in /www/programing/core_node/scripts/linuxenvs/piark1.sh /www/programing/core_node/scripts/linuxenvs/piark2.sh /www/programing/core_node/scripts/linuxenvs/piark3.sh /www/programing/core_node/scripts/linuxenvs/piark4.sh /www/programing/core_node/scripts/linuxenvs/piark5.sh /www/programing/core_node/scripts/linuxenvs/piark6.sh)",
-      "Bash(git rev-parse:*)"
+      "Bash(git rev-parse:*)",
+      "Bash(tmux -V)",
+      "Read(//root/**)",
+      "Bash(cd *)"
     ],
     "deny": [],
     "ask": []

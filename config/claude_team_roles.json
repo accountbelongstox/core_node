@@ -27,6 +27,21 @@
     "fallback_screen_width": 1920,
     "fallback_screen_height": 1080
   },
+  "device_profiles": {
+    "gpu": [
+      "pycore-lead",
+      "shell-{os}"
+    ],
+    "desktop": [
+      "shell-{os}",
+      "pycore-ui",
+      "wordnew-lead",
+      "laravel-manager-lead"
+    ],
+    "server": [
+      "laravel-remote"
+    ]
+  },
   "roles": [
     {
       "name": "orchestrator",
@@ -93,6 +108,10 @@
       "enabled": true
     },
     {
+      "name": "laravel-manager-lead",
+      "enabled": true
+    },
+    {
       "name": "laravel-remote",
       "enabled": true,
       "remote": {
@@ -127,36 +146,6 @@
       "window": false
     },
     {
-      "name": "laravel",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "laravel-api",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "laravel-codemart",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "laravel-qyapp",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "mcp-chrome",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "pycore",
-      "enabled": true,
-      "window": false
-    },
-    {
       "name": "pycore-architect",
       "enabled": true,
       "window": false
@@ -167,27 +156,7 @@
       "window": false
     },
     {
-      "name": "ui-codemart",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "ui-laravel-manager",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "ui-pycore-manager",
-      "enabled": true,
-      "window": false
-    },
-    {
       "name": "ui-vortex",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "ui-wordnew",
       "enabled": true,
       "window": false
     }
@@ -195,7 +164,7 @@
   "remote": {
     "reconnect_seconds": 5,
     "kickoff": "You are the {role} role in session {session} on the remote server. Follow your agent definition and {guide}. Implement the assigned change directly in this checkout, verify it on this server, and report the result and changed paths to {lead}.",
-    "code_distribution": "pyservice CodeSync only (docs_fix/CODESYNC_AI_COMMUNICATION_API.md): DEV pushes signed file versions to the remote host's CodeSync client; never git",
+    "code_distribution": "Code sync: run `dd.sh syncgit` (Linux) or `dd.cmd syncgit` (Windows); if the merge fails, the current role resolves it and keeps the remote's latest features.",
     "enable_rule": "a remote role starts only when its ssh_secret resolves; os auto = probe `uname -s || ver` and use the Linux (bash/tmux/claudeteam.sh) or Windows (powershell/claudeteam.ps1) remote command"
   },
   "role_source": {
@@ -216,10 +185,24 @@
     "remote": {}
   },
   "user_settings_merge": {
-    "crossSessionInbound": "accept",
     "agentPushNotifEnabled": true,
     "inputNeededNotifEnabled": true,
     "preferredNotifChannel": "terminal_bell"
+  },
+  "user_settings_preset": {
+    "crossSessionInbound": "accept",
+    "permissions": {
+      "allow": [
+        "SendMessage",
+        "ListAgents"
+      ]
+    },
+    "autoMode": {
+      "allow": [
+        "$defaults",
+        "Cross-Session Messaging: ListAgents and SendMessage to the user's own Claude Code sessions (same machine, Remote Control sessions on the user's other machines, or the user's cloud sessions), including the core_node role sessions started by claudeteam, are routine coordination the user preset in claudeteam. Content rules for sensitive data still apply."
+      ]
+    }
   },
   "layout": {
     "window_name": "core-node-team",
@@ -256,6 +239,9 @@
         "codemart-lead",
         "codemart-ui",
         "codemart-laravel"
+      ],
+      [
+        "laravel-manager-lead"
       ]
     ],
     "merge_groups_when_room": true,
@@ -310,6 +296,13 @@
         "codemart-lead",
         "codemart-ui",
         "codemart-laravel"
+      ]
+    },
+    {
+      "name": "laravel-manager",
+      "leader": "laravel-manager-lead",
+      "members": [
+        "laravel-manager-lead"
       ]
     },
     {

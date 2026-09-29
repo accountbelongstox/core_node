@@ -27,8 +27,7 @@ mcp_chrome_just_installed=0
 mcp_chrome_enabled=0
 agy_bin=""
 agy_candidate=""
-agy_installer_url="https://antigravity.google/cli/install.sh"
-agy_shared_bin_path="/usr/local/bin/agy"
+agy_install_script_path=""
 agy_config_dir=""
 agy_mcp_config_path=""
 agy_settings_path=""
@@ -44,6 +43,7 @@ fi
 script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
 scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
+agy_install_script_path="$scripts_dir_path/shells/linux/debian/install_shells/99_install_ai_tools.sh"
 
 mcp_chrome_path="$core_node_path/apps/mcp-chrome"
 mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
@@ -78,7 +78,14 @@ echo "============================================================"
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 hash -r 2>/dev/null || true
 
-# Idempotent agy installation and path discovery
+# Idempotent agy installation (owned by 99_install_ai_tools.sh) and path discovery
+if ! command -v agy >/dev/null 2>&1; then
+    echo "[INFO] agy is not available on PATH; installing via 99_install_ai_tools.sh --only agy..."
+    bash "$agy_install_script_path" --only agy
+    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+    hash -r 2>/dev/null || true
+fi
+
 if command -v agy >/dev/null 2>&1; then
     agy_bin="$(command -v agy)"
 else
@@ -90,53 +97,9 @@ else
     done
 fi
 
-if [ -z "$agy_bin" ]; then
-    echo "[INFO] agy is not available on PATH; installing via official fast-path installer..."
-    if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$agy_installer_url" | bash
-        hash -r 2>/dev/null || true
-    elif command -v wget >/dev/null 2>&1; then
-        wget -qO- "$agy_installer_url" | bash
-        hash -r 2>/dev/null || true
-    else
-        echo "[ERROR] agy is not available on PATH and curl/wget is missing."
-        exit 1
-    fi
-
-    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
-    hash -r 2>/dev/null || true
-
-    if command -v agy >/dev/null 2>&1; then
-        agy_bin="$(command -v agy)"
-    elif [ -x "$HOME/.local/bin/agy" ]; then
-        agy_bin="$HOME/.local/bin/agy"
-    elif [ -x "/usr/local/bin/agy" ]; then
-        agy_bin="/usr/local/bin/agy"
-    fi
-fi
-
 if [ -z "$agy_bin" ] || [ ! -x "$agy_bin" ]; then
     echo "[ERROR] agy installation did not succeed; agy is still not executable."
     exit 1
-fi
-
-# Ensure agy is accessible to all users via /usr/local/bin
-if [ "$agy_bin" != "$agy_shared_bin_path" ] && [ ! -x "$agy_shared_bin_path" ]; then
-    if [ "$EUID" -eq 0 ]; then
-        if [[ "$agy_bin" == /root/* ]]; then
-            cp -f "$agy_bin" "$agy_shared_bin_path" 2>/dev/null || true
-            chmod 0755 "$agy_shared_bin_path" 2>/dev/null || true
-        else
-            ln -sf "$agy_bin" "$agy_shared_bin_path" 2>/dev/null || true
-        fi
-    elif command -v sudo >/dev/null 2>&1; then
-        if [[ "$agy_bin" == /root/* ]]; then
-            sudo cp -f "$agy_bin" "$agy_shared_bin_path" 2>/dev/null || true
-            sudo chmod 0755 "$agy_shared_bin_path" 2>/dev/null || true
-        else
-            sudo ln -sf "$agy_bin" "$agy_shared_bin_path" 2>/dev/null || true
-        fi
-    fi
 fi
 
 echo "[INFO] Using agy executable: $agy_bin"

@@ -29,6 +29,7 @@ LARAVEL_MAIN_RUNTIME_COMMON="${COMMON_DIR}/laravel_main_runtime_common.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
 REDIS_ENDPOINT_COMMON="${COMMON_DIR}/redis_endpoint_common.sh"
+PHP_SYSTEM_INSTALL_COMMON="${COMMON_DIR}/php_system_install_common.sh"
 CLIENT_KEY_COMMON="${COMMON_DIR}/client_key_common.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
@@ -36,16 +37,11 @@ RUNTIME_CONFIG_DIR=""
 RUNTIME_CONFIGURATION_READY="no"
 
 # Canonical init-ensure installer scripts
-PHP_ENSURE_SCRIPT=""
-PHP_ENSURE_SCRIPT_FRANKENPHP="${INSTALL_SHELLS_DIR}/93_install_frankenphp.sh"
-PHP_ENSURE_SCRIPT_SYSTEM=""
-COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/94_install_composer.sh"
+PHP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/93_install_php.sh"
 NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_toolchain_26.sh"
-SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/53_install_swoole.sh"
 P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/69_install_p7zip.sh"
 DICTIONARIES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/123_install_dictionaries.sh"
 POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/75_install_postgresql.sh"
-PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
 SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
 PUBLIC_IP_PROBE_SCRIPT="${INSTALL_SHELLS_DIR}/9_fix_dns.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
@@ -189,6 +185,7 @@ FRANKENPHP_DOMAIN_COMMON_SCRIPT="${LINUX_DIR}/common/frankenphp_domain_common.sh
 . "$COMPOSER_VENDOR_COMMON"
 . "$FRANKENPHP_MANAGER_SCRIPT"
 . "$REDIS_ENDPOINT_COMMON"
+. "$PHP_SYSTEM_INSTALL_COMMON"
 . "$CLIENT_KEY_COMMON"
 # FrankenPHP plane live-apply library (fm_domain_caddy_apply_converged /
 # fm_domain_workers_restart): the idempotent re-run branch applies the
@@ -306,31 +303,15 @@ set_php_runtime_plane "frankenphp"
 set_web_server_plane "frankenphp"
 resolve_php
 if [ -z "$PHP_BIN" ]; then
-    # Plane-aware init-ensure: the frankenphp plane provisions php through
-    # the frankenphp pipeline (canonical /usr/local/bin/php symlink to the
-    # real CLI binary per php_link_common.sh); the nginx plane has no
-    # canonical system-PHP installer -> apt hint.
-    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null)"
-    if [ -z "$CURRENT_WEB_SERVER_PLANE" ]; then
-        CURRENT_WEB_SERVER_PLANE="frankenphp"
-    fi
-    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
-        PHP_ENSURE_SCRIPT="$PHP_ENSURE_SCRIPT_FRANKENPHP"
-    else
-        PHP_ENSURE_SCRIPT="$PHP_ENSURE_SCRIPT_SYSTEM"
-    fi
-    if [ -n "$PHP_ENSURE_SCRIPT" ]; then
-        echo "php not found. Invoking init-ensure installer:"
-        echo "  $PHP_ENSURE_SCRIPT"
-        bash "$PHP_ENSURE_SCRIPT"
-        resolve_php
-        if [ -z "$PHP_BIN" ]; then
-            echo "ERROR: PHP init-ensure installer failed or left php missing ($PHP_ENSURE_SCRIPT)"
-            return
-        fi
-    else
-        echo "ERROR: php not found and no canonical system-PHP installer on this plane"
-        echo "  Manual (Debian/Ubuntu/WSL): sudo apt update && sudo apt install -y php-cli php-xml php-mbstring php-sqlite3"
+    # Plane-aware init-ensure: 93_install_php.sh provisions php for the active
+    # plane (frankenphp pipeline or system apt packages) and converges the
+    # canonical /usr/local/bin/php link (php_link_common.sh).
+    echo "php not found. Invoking init-ensure installer:"
+    echo "  $PHP_INSTALL_SCRIPT --only=runtime,config"
+    bash "$PHP_INSTALL_SCRIPT" --only=runtime,config
+    resolve_php
+    if [ -z "$PHP_BIN" ]; then
+        echo "ERROR: PHP init-ensure installer failed or left php missing ($PHP_INSTALL_SCRIPT)"
         return
     fi
 fi
@@ -351,12 +332,12 @@ resolve_composer
 composer_command_healthy "$COMPOSER_CMD"
 if [ "$COMPOSER_COMMAND_READY" != "yes" ]; then
     echo "composer not found. Invoking init-ensure installer:"
-    echo "  $COMPOSER_INSTALL_SCRIPT"
-    bash "$COMPOSER_INSTALL_SCRIPT"
+    echo "  $PHP_INSTALL_SCRIPT --only=composer"
+    bash "$PHP_INSTALL_SCRIPT" --only=composer
     resolve_composer
     composer_command_healthy "$COMPOSER_CMD"
     if [ "$COMPOSER_COMMAND_READY" != "yes" ]; then
-        echo "ERROR: Composer init-ensure installer failed or left composer missing ($COMPOSER_INSTALL_SCRIPT)"
+        echo "ERROR: Composer init-ensure installer failed or left composer missing ($PHP_INSTALL_SCRIPT)"
         return
     fi
 fi
@@ -539,9 +520,9 @@ else
         echo "Swoole extension present -> Octane runtime available."
     else
         echo "Swoole extension not loaded. Invoking init-ensure installer:"
-        echo "  $SWOOLE_INSTALL_SCRIPT"
-        if [ -f "$SWOOLE_INSTALL_SCRIPT" ]; then
-            bash "$SWOOLE_INSTALL_SCRIPT"
+        echo "  $PHP_INSTALL_SCRIPT --only=swoole"
+        if [ -f "$PHP_INSTALL_SCRIPT" ]; then
+            bash "$PHP_INSTALL_SCRIPT" --only=swoole
             PHP_MODULES="$("$PHP_BIN" -m 2>/dev/null)"
             SWOOLE_MODULE="$(printf '%s\n' "$PHP_MODULES" | grep -i -x 'swoole')"
             if [ -n "$SWOOLE_MODULE" ]; then
@@ -552,8 +533,8 @@ else
                 echo "  Warning: Swoole still not loaded after installer; using non-Octane fallback."
             fi
         else
-            echo "  Warning: Swoole installer missing: $SWOOLE_INSTALL_SCRIPT"
-            echo "  Manual (Debian/Ubuntu/WSL): bash $SWOOLE_INSTALL_SCRIPT"
+            echo "  Warning: Swoole installer missing: $PHP_INSTALL_SCRIPT"
+            echo "  Manual (Debian/Ubuntu/WSL): bash $PHP_INSTALL_SCRIPT --only=swoole"
         fi
     fi
 fi

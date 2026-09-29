@@ -89,7 +89,7 @@ Launchers, permissions, git guard and shared install stay as recorded there
 - B8 **Common rules.**
   - AGENTS.md applies to every role: English code, i18n, variables at the
     file top, no tests/builds/services unless asked.
-  - git/gh is blocked unless the user's prompt says `allow-git`.
+  - Only version rollback is blocked unless the user's prompt says `allow-rollback` (2026-09-29).
   - Permission mode is `auto`.
   - Files are handed over as paths in `.claude/agents_shared/`.
 
@@ -248,10 +248,8 @@ Implementation (`.claude/hooks/git_guard.mjs`, rewritten):
     `run/release view|list`, `search`, `status`, and `api` without
     `-X/--method/-f/-F/--field/--raw-field/--input`.
   - Anything else needs a grant, otherwise exit 2.
-- UserPromptSubmit grants all git/gh commands for 120 min. It triggers when the
-  user's prompt asks for git work: the word git/gh, `allow-git`/`允许git`, or
-  提交代码/推送代码/创建分支/合并分支. `.gitignore` alone does not trigger it.
-  `deny-git`/`禁止git` revokes.
+- Superseded 2026-09-29: the guard blocks only version rollback; `allow-rollback`/`允许回退`
+  grants rollback for 120 min, `deny-rollback`/`禁止回退` revokes.
 - Dry-run in a scratch project: 29/29 command cases correct. Grant, revoke,
   no-trigger prompts and the Chinese request all behave as expected.
 - Synced:

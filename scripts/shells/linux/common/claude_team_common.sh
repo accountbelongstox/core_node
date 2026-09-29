@@ -309,6 +309,30 @@ claude_team_normalize_root_env() {
     claude_team_log OK "Root launch inherited uid ${bus_uid:-?}'s session: tmux server and panes use USER=root, LOGNAME=root, D-Bus ${DBUS_SESSION_BUS_ADDRESS:-<none>} (DISPLAY/XAUTHORITY kept)"
 }
 
+# Idempotent: a relative WAYLAND_DISPLAY resolves under XDG_RUNTIME_DIR, which root
+# launches lack or point at /run/user/0 without a socket, so Claude Code's wl-copy
+# fails while it reports a copy. Pin the name to the desktop socket's absolute path
+# (XDG_RUNTIME_DIR, then the pkexec/sudo caller, then any /run/user socket); drop
+# it when none exists so clipboard tools fall back to X11 (xclip).
+claude_team_pin_wayland_display() {
+    local name="${WAYLAND_DISPLAY:-}"
+    local candidate=""
+    local socket=""
+    case "$name" in
+        ""|/*) return 0 ;;
+    esac
+    for candidate in "${XDG_RUNTIME_DIR:-}" "/run/user/${PKEXEC_UID:-}" "/run/user/${SUDO_UID:-}" /run/user/*; do
+        [ -n "$candidate" ] && [ -S "$candidate/$name" ] || continue
+        socket="$candidate/$name"
+        break
+    done
+    if [ -n "$socket" ]; then
+        export WAYLAND_DISPLAY="$socket"
+    else
+        unset WAYLAND_DISPLAY
+    fi
+}
+
 # A tmux change: printed as a plan line under --status, run otherwise.
 claude_team_tmux_do() {
     if [ "$CLAUDE_TEAM_DRY_RUN" = "1" ]; then
@@ -2352,7 +2376,7 @@ claude_team_attach_here() {
 claude_team_run() {
     claude_team_step 1 "Platform profile"
     claude_team_detect_platform
-    claude_team_step 2 "Team setup, item by item (shared claude_team_install, same as dd.sh step 171)"
+    claude_team_step 2 "Team setup, item by item (shared claude_team_install)"
     claude_team_install_items
     claude_team_step 3 "Claude Code CLI (shared ai_cli_provision)"
     claude_team_ensure_claude

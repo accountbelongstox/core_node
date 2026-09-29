@@ -22,9 +22,7 @@ DESKTOP_ENTRY_NAME="Antigravity"
 DESKTOP_ENTRY_ICON="antigravity"
 USE_ROOT_MODE=true  # Default to root mode (pkexec)
 AGY_CLI_EXEC="agy"
-AGY_CLI_INSTALL_URL="https://antigravity.google/cli/install.sh"
 AGY_SHARED_BIN_DIR="/usr/local/bin"
-AGY_PROFILE_FILE="/etc/profile.d/agy.sh"
 
 # Source shared libraries
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -673,23 +671,14 @@ create_desktop_entry_fallback() {
     return 0
 }
 
-# Ensure Antigravity CLI (agy) is idempotently installed and accessible to all
-# users. Delegates to install_shells/99_install_ai_tools.sh (common/ai_tools_catalog.sh
-# key "agy"), the single source of truth for every AI CLI install/link.
+# Antigravity CLI (agy) is owned by install_shells/99_install_ai_tools.sh (key "agy").
 ensure_agy_cli_installed() {
-    log "Checking Antigravity CLI ($AGY_CLI_EXEC)..."
-    if command -v "$AGY_CLI_EXEC" >/dev/null 2>&1; then
-        log "$AGY_CLI_EXEC already installed at $(command -v "$AGY_CLI_EXEC")"
-        return 0
-    fi
-
-    log "Installing $AGY_CLI_EXEC via 99_install_ai_tools.sh..."
+    log "Ensuring Antigravity CLI ($AGY_CLI_EXEC) via 99_install_ai_tools.sh..."
     bash "$SCRIPT_CURRENT_DIR/99_install_ai_tools.sh" --only agy \
         || log "WARNING: 99_install_ai_tools.sh reported errors for agy."
 
-    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
     hash -r 2>/dev/null || true
-    if command -v "$AGY_CLI_EXEC" >/dev/null 2>&1 || [ -x "$AGY_SHARED_BIN_DIR/$AGY_CLI_EXEC" ]; then
+    if [ -x "$AGY_SHARED_BIN_DIR/$AGY_CLI_EXEC" ] || command -v "$AGY_CLI_EXEC" >/dev/null 2>&1; then
         log "$AGY_CLI_EXEC is ready for root and regular users: $(command -v "$AGY_CLI_EXEC" 2>/dev/null || echo "$AGY_SHARED_BIN_DIR/$AGY_CLI_EXEC")"
         return 0
     fi

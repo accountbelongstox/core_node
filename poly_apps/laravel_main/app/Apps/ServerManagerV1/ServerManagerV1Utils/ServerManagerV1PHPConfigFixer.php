@@ -10,25 +10,25 @@ use Illuminate\Support\Facades\File;
  * ServerManagerV1 PHP Configuration Fixer
  * 
  * This class provides PHP configuration correction functionality that matches
- * the logic in 34_configure_php85.sh to ensure PHP-FPM open_basedir settings
+ * the logic in 93_install_php.sh to ensure PHP-FPM open_basedir settings
  * are correctly configured based on the current path mapping.
  * 
  * IMPORTANT: This script must be called as a PRE-REQUISITE before any ServerManagerV1
  * operations that require PHP-FPM access to Laravel files.
  * 
- * RELATIONSHIP WITH 34_configure_php85.sh:
+ * RELATIONSHIP WITH 93_install_php.sh:
  * ==========================================
  * 
  * This PHP class is the equivalent of the shell script located at:
- *   Relative path from this file: ../../../../../../../../scripts/shells/linux/debian/install_shells/34_configure_php85.sh
- *   Absolute path: /www/programing/core_node/scripts/shells/linux/debian/install_shells/34_configure_php85.sh
+ *   Relative path from this file: ../../../../../../../../scripts/shells/linux/debian/install_shells/93_install_php.sh
+ *   Absolute path: /www/programing/core_node/scripts/shells/linux/debian/install_shells/93_install_php.sh
  * 
  * PURPOSE AND INTENT:
  * ------------------
  * Both scripts serve the same purpose: ensuring PHP-FPM can access Laravel files
  * by configuring open_basedir settings correctly based on the environment.
  * 
- * The shell script (34_configure_php85.sh) is used during system installation
+ * The shell script (93_install_php.sh) is used during system installation
  * and can be run manually or via installation scripts. It uses gvar_common.sh
  * for path mapping.
  * 
@@ -65,13 +65,13 @@ use Illuminate\Support\Facades\File;
  * 
  * - If gvar_common.sh map_web_path() changes -> Update PathMapper::mapWebPath()
  * - If PathMapper::mapWebPath() changes -> Update gvar_common.sh map_web_path()
- * - If 34_configure_php85.sh changes -> Update this class
- * - If this class changes -> Update 34_configure_php85.sh comments
+ * - If 93_install_php.sh changes -> Update this class
+ * - If this class changes -> Update 93_install_php.sh comments
  * 
  * MODIFICATION CHECKLIST:
  * -----------------------
  * When modifying this file, ensure you also check/update:
- * [ ] 34_configure_php85.sh (relative path: ../../../../../../../../scripts/shells/linux/debian/install_shells/34_configure_php85.sh)
+ * [ ] 93_install_php.sh (relative path: ../../../../../../../../scripts/shells/linux/debian/install_shells/93_install_php.sh)
  * [ ] gvar_common.sh (relative path: ../../../../../../../../scripts/shells/linux/common/gvar_common.sh)
  * [ ] PathMapper.php (relative path: ../../../../Providers/PathMapper.php)
  * [ ] php_common_functions.sh (relative path: ../../../../../../../../scripts/shells/linux/debian/debian_com/php_common_functions.sh)
@@ -99,7 +99,7 @@ class ServerManagerV1PHPConfigFixer
     /**
      * Fix PHP configuration to ensure Laravel files are accessible
      * 
-     * This method performs the same configuration as 34_configure_php85.sh
+     * This method performs the same configuration as 93_install_php.sh
      * but from PHP code. It ensures open_basedir restrictions are removed
      * or set correctly based on the current path mapping.
      * 

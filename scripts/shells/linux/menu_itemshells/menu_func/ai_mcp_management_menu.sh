@@ -8,26 +8,24 @@
 # - Sync chrome MCP config to every installed AI tool
 # - API key / env-var setup for Claude, Codex, Droid (unchanged, separate
 #   concern from install/link/login-share)
-# Every AI-tool item below calls install_shells/99_install_ai_tools.sh or
-# common/ai_shared_login.sh (single source of truth; no duplicated logic here).
+# Every AI-tool item below calls install_shells/99_install_ai_tools.sh (single source
+# of truth for the catalog, installs, links and shared login; no duplicated logic here).
 
 AIMCP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # core_node root: menu_func -> menu_itemshells -> linux -> shells -> scripts -> root
 AIMCP_CORE_NODE_DIR="$(cd "$AIMCP_DIR/../../../../.." && pwd)"
 AIMCP_SHTOOLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/ai_shtools"
-AIMCP_COMMON_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/common"
 AIMCP_INSTALL_SHELLS_DIR="$AIMCP_CORE_NODE_DIR/scripts/shells/linux/debian/install_shells"
 AIMCP_INSTALLER="$AIMCP_INSTALL_SHELLS_DIR/99_install_ai_tools.sh"
 
-# Canonical engine + status + catalog + shared-login libs (single source of truth).
+# Canonical engine + status libs, and 99_install_ai_tools.sh in library mode (catalog +
+# shared login; single source of truth).
 # shellcheck source=/dev/null
 . "$AIMCP_SHTOOLS_DIR/mcp_sync_engine.sh"
 # shellcheck source=/dev/null
 . "$AIMCP_SHTOOLS_DIR/mcp_status.sh"
 # shellcheck source=/dev/null
-. "$AIMCP_COMMON_DIR/ai_tools_catalog.sh"
-# shellcheck source=/dev/null
-. "$AIMCP_COMMON_DIR/ai_shared_login.sh"
+. "$AIMCP_INSTALLER"
 # Optional: existing per-tool API key / env-var submenus (unrelated to install).
 for _aimcp_f in ai_claude_menu.sh ai_droid_menu.sh ai_openai_menu.sh spacial_common_menu.sh; do
     [ -f "$AIMCP_DIR/$_aimcp_f" ] && . "$AIMCP_DIR/$_aimcp_f"

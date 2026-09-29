@@ -14,7 +14,7 @@ SCRIPT_INDEX="91"
 #     - GO_BIN missing / broken           -> clean install
 #   Convergence is bidirectional (older OR newer local toolchains are reset to
 #   the pin) so xcaddy/frankenphp builds always see one deterministic toolchain.
-#   This step is the Go prerequisite for 93_install_frankenphp.sh: the official
+#   This step is the Go prerequisite for 93_install_php.sh: the official
 #   static build (./build-static.sh; spc go-xcaddy + frankenphp v1.12.7
 #   module build, Caddy v2.11.4 / libdns v1) requires go >= 1.26.0, which
 #   go1.22.x cannot satisfy.

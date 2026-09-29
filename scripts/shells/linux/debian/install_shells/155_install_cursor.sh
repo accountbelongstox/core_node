@@ -219,38 +219,26 @@ cleanup_cursor() {
     return 0
 }
 
-# Ensure Cursor Agent (CLI) is installed. Idempotent: runs every time; skips only when `cursor-agent` is already in PATH.
-# Must run regardless of Cursor IDE install state (desktop and headless). See https://cursor.com/cli
-# Delegates to install_shells/99_install_ai_tools.sh (common/ai_tools_catalog.sh key
-# "cursor_agent"), the single source of truth for every AI CLI install/link.
+# Cursor Agent (CLI) is owned by install_shells/99_install_ai_tools.sh (key "cursor_agent");
+# it runs every time (idempotent) and must not depend on the Cursor IDE install state.
 ensure_cursor_agent_installed() {
-    if command -v cursor-agent >/dev/null 2>&1; then
-        local agent_path=$(command -v cursor-agent)
-        print_info_from_common_functions "Cursor Agent already installed: $agent_path"
-        echo "$agent_path"
-        return 0
-    fi
-
-    print_step_from_common_functions "Cursor Agent not found, installing via 99_install_ai_tools.sh..."
-    bash "$SCRIPT_CURRENT_DIR/99_install_ai_tools.sh" --only cursor_agent \
+    local agent_path=""
+    bash "$SCRIPT_CURRENT_DIR/99_install_ai_tools.sh" --only cursor_agent >&2 \
         || print_warning_from_common_functions "99_install_ai_tools.sh reported errors for cursor_agent."
 
     hash -r 2>/dev/null || true
-    local agent_path=""
-    if command -v cursor-agent >/dev/null 2>&1; then
-        agent_path=$(command -v cursor-agent)
-    elif [ -x "/usr/local/bin/cursor-agent" ]; then
+    if [ -x "/usr/local/bin/cursor-agent" ]; then
         agent_path="/usr/local/bin/cursor-agent"
+    elif command -v cursor-agent >/dev/null 2>&1; then
+        agent_path=$(command -v cursor-agent)
     fi
 
     if [[ -n "$agent_path" ]]; then
-        print_success_from_common_functions "Cursor Agent installed at: $agent_path"
         echo "$agent_path"
         return 0
-    else
-        print_warning_from_common_functions "Cursor Agent installation completed but binary not found"
-        return 1
     fi
+    print_warning_from_common_functions "Cursor Agent installation completed but binary not found"
+    return 1
 }
 
 # Idempotent config refresh: re-assert the launcher + desktop entry + IME bridge

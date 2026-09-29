@@ -28,6 +28,11 @@
 #           the PID while claude runs as its child), then appends the catalog
 #           kickoff expanded for that mode; a remote
 #           role pane runs the ssh loop to its server tmux session instead.
+#       claudeteam --device-slot <n> [claude args...]
+#           Cross-device slot: the device profile (gpu | server | desktop) and
+#           slot <n> pick the role from device_profiles; the session is named
+#           <device>-<role>-<abbr> (Tailscale device name) with --remote-control,
+#           or prints the manual /remote-control line. No role = plain claude.
 #     Permissions: --permission-mode auto for root and regular users alike.
 #     CLAUDE_AGENTS_SESSION=1 enables the project hooks (git guard, team gate).
 #     The model is the agent's frontmatter model (--agent) or the account default.
@@ -66,6 +71,29 @@ envName=""
 aiSharedLoginCommonPath=""
 realUserHome=""
 claudeExitCode=0
+deviceSlot=""
+deviceProfile=""
+deviceRole=""
+deviceRemoteHint=""
+claudeDeviceProfileCommonPath=""
+claudeSettingsPresetPath=""
+sharedConfigHome=""
+sharedConfigOwner=""
+
+# Root runs write root-owned files (credentials included) into the shared
+# config dir; hand ownership back to the real user so their own sessions keep
+# reading the same login. No-op for non-root or a root-owned config dir.
+claude_team_restore_shared_owner() {
+    [ "$(id -u)" -eq 0 ] || return 0
+    case "$CLAUDE_CONFIG_DIR" in
+        /root|/root/*|"") return 0 ;;
+    esac
+    sharedConfigHome="$(dirname "$CLAUDE_CONFIG_DIR")"
+    sharedConfigOwner="$(stat -c '%u:%g' "$sharedConfigHome" 2>/dev/null || echo '0:0')"
+    if [ "$sharedConfigOwner" != "0:0" ]; then
+        chown -R "$sharedConfigOwner" "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+    fi
+}
 
 # Initialize path variables
 scriptSource="${BASH_SOURCE[0]}"
@@ -76,14 +104,16 @@ scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
 claudeTeamCommonPath="$scriptsDirPath/shells/linux/common/claude_team_common.sh"
 aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
+claudeDeviceProfileCommonPath="$scriptsDirPath/shells/linux/common/claude_device_profile_common.sh"
+claudeSettingsPresetPath="$scriptsDirPath/ai_shtools/claude_team_settings.py"
 
 # Shared login: default claude's config/auth directory to the real desktop
-# user's, resolved through the common ai_shared_login helpers (never hardcoded:
+# user's, resolved through the shared-login helpers of 99_install_ai_tools.sh (never hardcoded:
 # the user comes from detect_system_user, the dir from the tools catalog), so
 # root windows share the real user's login, settings and session state. Login
 # shells already export the same value via /etc/profile.d; non-login shells
 # (tmux panes, scripts) resolve it here. An explicit CLAUDE_CONFIG_DIR wins.
-aiSharedLoginCommonPath="$scriptsDirPath/shells/linux/common/ai_shared_login.sh"
+aiSharedLoginCommonPath="$scriptsDirPath/shells/linux/debian/install_shells/99_install_ai_tools.sh"
 if [ -f "$aiSharedLoginCommonPath" ]; then
     . "$aiSharedLoginCommonPath"
 fi
@@ -113,6 +143,11 @@ while [ "$#" -gt 0 ]; do
             ;;
         --team-roles=*) teamRoles="${argument#--team-roles=}" ;;
         --team-no-kickoff) noKickoff="1" ;;
+        --device-slot)
+            shift
+            deviceSlot="${1:-}"
+            ;;
+        --device-slot=*) deviceSlot="${argument#--device-slot=}" ;;
         --agent|--name)
             passthrough_args+=("$argument")
             if [ "$#" -gt 1 ]; then
@@ -143,6 +178,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 . "$claudeTeamCommonPath"
+claude_team_pin_wayland_display
 if [ -n "$teamMode" ]; then
     CLAUDE_TEAM_MODE="$teamMode"
 fi
@@ -150,6 +186,19 @@ CLAUDE_TEAM_OPT_ROLES="$teamRoles"
 CLAUDE_TEAM_OPT_NO_KICKOFF="$noKickoff"
 if claude_team_load_catalog >/dev/null 2>&1; then
     catalogLoaded="1"
+fi
+
+# Cross-device slot: resolve the role and session name for this device.
+if [ -n "$deviceSlot" ]; then
+    . "$claudeDeviceProfileCommonPath"
+    deviceProfile="$(claude_device_profile)"
+    deviceRole="$(claude_device_slot_role "$deviceProfile" "$deviceSlot")"
+    echo "[INFO] Device $(claude_device_name) ($(claude_device_ipv4)), profile $deviceProfile, slot $deviceSlot: ${deviceRole:-plain Claude Code}"
+    if [ -n "$deviceRole" ]; then
+        agentName="$deviceRole"
+        sessionName="$(claude_device_session_name "$deviceRole")"
+        passthrough_args=(--agent "$agentName" --name "$sessionName" "${passthrough_args[@]}")
+    fi
 fi
 
 # Role pane: the PID file first (this shell keeps the PID while claude runs as
@@ -175,6 +224,25 @@ fi
 # auto-skip after 5 seconds) only when a newer version is published.
 . "$aiCliProvisionCommonPath"
 ai_cli_provision "claude"
+
+# User preset (config user_settings_preset): cross-session messaging settings,
+# applied idempotently to $CLAUDE_CONFIG_DIR/settings.json on every launch.
+python3 "$claudeSettingsPresetPath"
+claude_team_restore_shared_owner
+
+if [ -n "$deviceSlot" ] && [ -z "$deviceRole" ]; then
+    claude "${passthrough_args[@]}"
+    claudeExitCode=$?
+    claude_team_restore_shared_owner
+    exit $claudeExitCode
+fi
+if [ -n "$deviceRole" ]; then
+    if claude_device_remote_control_supported; then
+        passthrough_args+=(--remote-control "$sessionName")
+    else
+        deviceRemoteHint="[ACTION] Remote Control cannot be added at launch: type /remote-control $sessionName in this session"
+    fi
+fi
 
 if [ -n "$teamMode" ] && [ "$noKickoff" = "0" ]; then
     withKickoff="1"
@@ -222,6 +290,9 @@ echo "[INFO] Role: ${agentName:-standalone lead}${teamMode:+ (team mode $teamMod
 echo "[INFO] Claude config: $CLAUDE_CONFIG_DIR (auth, settings and sessions; root shares the real user's dir by default)"
 echo "[INFO] Environment: ${CLAUDE_TEAM_SPEC_ENV[*]:-none} $CLAUDE_TEAM_GIT_GUARD_ENV; removed: ${CLAUDE_TEAM_SPEC_UNSET[*]:-none}"
 echo "[INFO] Invoking: ${claude_invoke_display}"
+if [ -n "$deviceRemoteHint" ]; then
+    echo "$deviceRemoteHint"
+fi
 echo "============================================================"
 echo ""
 
@@ -230,20 +301,5 @@ echo ""
 # as long as claude.
 claude "${claude_args[@]}"
 claudeExitCode=$?
-
-# Root runs write root-owned files (credentials included) into the shared
-# config dir; hand ownership back to the real user so their own sessions keep
-# reading the same login. No-op for non-root or a root-owned config dir.
-if [ "$(id -u)" -eq 0 ]; then
-    case "$CLAUDE_CONFIG_DIR" in
-        /root|/root/*|"") ;;
-        *)
-            sharedConfigHome="$(dirname "$CLAUDE_CONFIG_DIR")"
-            sharedConfigOwner="$(stat -c '%u:%g' "$sharedConfigHome" 2>/dev/null || echo '0:0')"
-            if [ "$sharedConfigOwner" != "0:0" ]; then
-                chown -R "$sharedConfigOwner" "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
-            fi
-            ;;
-    esac
-fi
+claude_team_restore_shared_owner
 exit $claudeExitCode

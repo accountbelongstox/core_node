@@ -159,11 +159,13 @@ Changes to the earlier sections:
 - R12 **No git for any role unless the user's prompt asks for it.**
   - Project hook `.claude/hooks/git_guard.mjs` (Node, exec form, so it works
     on Linux and Windows).
-  - `PreToolUse` on Bash/PowerShell blocks `git`/`gh` with exit code 2. A
-    `permissionDecision` is ignored in bypass mode; exit 2 still blocks.
-  - `UserPromptSubmit` grants git for `GIT_GRANT_TTL_MINUTES` when the user's
-    prompt contains `允许git` or `allow-git`. `禁止git` or `deny-git` revokes
-    the grant. The grant state lives in the OS temp dir
+  - `PreToolUse` on Bash/PowerShell blocks only version rollback with exit
+    code 2 (user, 2026-09-29): `reset --hard` or `reset <commit>`, `revert`,
+    checkout/switch/restore of an older commit, forced push, `branch -f`,
+    `update-ref`. Every other git/gh command runs.
+  - `UserPromptSubmit` grants rollback for `ROLLBACK_GRANT_TTL_MINUTES` when the
+    user's prompt contains `允许回退` or `allow-rollback`; `禁止回退` or
+    `deny-rollback` revokes the grant. The grant state lives in the OS temp dir
     (`<tmp>/core_node_claude_git_guard/<project hash>.json`), outside the repository.
   - The guard is active only in launcher sessions (`CLAUDE_AGENTS_GIT_GUARD=1`,
     which is also set as tmux session env, so split-pane teammates inherit it).

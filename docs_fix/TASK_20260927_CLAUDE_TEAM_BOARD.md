@@ -7,7 +7,7 @@ Launchers:
 - `claudeagents`: agent-teams mode. `ca-orchestrator` spawns the roles as teammates.
 - `claudeteamup`: independent `ct-<role>` sessions that use cross-session messaging.
 
-Common rules: permission mode `auto`. git/gh is blocked unless the user's prompt says `allow-git`. Shared files go in `.claude/agents_shared/`.
+Common rules: permission mode `auto`. only git version rollback is blocked unless the user's prompt says `allow-rollback` (2026-09-29). Shared files go in `.claude/agents_shared/`.
 
 Status values:
 - `open`: not started.

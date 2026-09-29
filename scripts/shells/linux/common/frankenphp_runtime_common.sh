@@ -7,7 +7,7 @@ fm_php_ini_scan_path() {
 }
 
 # Caddyfile-adjacent PHP ini directory (frankenphp plane config target for
-# 96_configure_php85.sh; the runtime exports it as PHP_INI_SCAN_DIR).
+# 93_install_php.sh --only=config; the runtime exports it as PHP_INI_SCAN_DIR).
 fm_php_ini_dir() {
     echo "$FRANKENPHP_PHP_INI_DIR"
 }

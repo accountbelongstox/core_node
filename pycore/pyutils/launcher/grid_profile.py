@@ -33,7 +33,12 @@ RESOLUTION_HEIGHT_INDEX = 1
 AUTO_PROFILE_SEPARATOR = ' / '
 # Startup command per grid cell (row-major, resolved on PATH: /usr/local/bin on
 # Linux, .winenvs *.ps1 on Windows); later cells open a plain shell.
-GRID_STARTUP_COMMANDS: Tuple[str, ...] = ('claudeteam',) * 8 + ('agyyolo', 'codexyolo', 'kimi1', 'kimi2')
+CLAUDETEAM_COMMAND = 'claudeteam'
+GRID_STARTUP_COMMANDS: Tuple[str, ...] = (CLAUDETEAM_COMMAND,) * 8 + ('agyyolo', 'codexyolo', 'kimi1', 'kimi2')
+# Cross-device mode: claudeteam cell n runs `claudeteam --device-slot n`; claudeteam
+# resolves the device, profile and role (config/claude_team_roles.json device_profiles).
+DEVICE_SLOT_FLAG = '--device-slot'
+_cross_device_mode = False
 
 
 class GridI18nKeys:
@@ -53,6 +58,8 @@ class GridI18nKeys:
     STARTUP_CELL = 'launcher.grid.startup_cell'
     STARTUP_REST = 'launcher.grid.startup_rest'
     MENU_TOGGLE_DISABLE_ITEM = 'launcher.grid.menu_toggle_disable_item'
+    MENU_CROSS_DEVICE = 'launcher.grid.menu_cross_device'
+    MODE_CROSS_DEVICE = 'launcher.grid.mode_cross_device'
     RELAYOUT_DONE = 'launcher.grid.relayout_done'
     RELAYOUT_HINT = 'launcher.grid.relayout_hint'
 
@@ -150,11 +157,20 @@ def resolve_terminal_grid(term_config: dict, screen_manager) -> TerminalGrid:
     return TerminalGrid(profile.columns, profile.rows, profile.name, screen_rect)
 
 
+def enable_cross_device_mode() -> None:
+    global _cross_device_mode
+    _cross_device_mode = True
+
+
 def grid_startup_command(cell_index: int) -> Optional[str]:
     """Startup command for a 0-based grid cell, or None for a plain shell."""
-    if 0 <= cell_index < len(GRID_STARTUP_COMMANDS):
-        return GRID_STARTUP_COMMANDS[cell_index]
-    return None
+    if not 0 <= cell_index < len(GRID_STARTUP_COMMANDS):
+        return None
+    command = GRID_STARTUP_COMMANDS[cell_index]
+    if _cross_device_mode and command == CLAUDETEAM_COMMAND:
+        slot = GRID_STARTUP_COMMANDS[:cell_index + 1].count(CLAUDETEAM_COMMAND)
+        return f"{command} {DEVICE_SLOT_FLAG} {slot}"
+    return command
 
 
 def print_grid_startup_commands(project_root) -> None:

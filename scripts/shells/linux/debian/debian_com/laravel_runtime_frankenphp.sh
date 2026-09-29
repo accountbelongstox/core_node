@@ -183,7 +183,7 @@ esac
 FM_MERCURE_MODULE_READY="$(fm_module_in_bin "$FM_BINARY" "$FRANKENPHP_MERCURE_MODULE")"
 if [ "$FM_MERCURE_MODULE_READY" != "yes" ]; then
     echo "[laravel-runtime-frankenphp] [ERROR] frankenphp binary lacks the embedded Mercure module (${FRANKENPHP_MERCURE_MODULE}): $FM_BINARY"
-    echo "[laravel-runtime-frankenphp] [ERROR] Re-run the canonical installer (93_install_frankenphp.sh); the relay long-connection hub cannot boot without it"
+    echo "[laravel-runtime-frankenphp] [ERROR] Re-run the canonical installer (93_install_php.sh --only=runtime,config); the relay long-connection hub cannot boot without it"
     exit 1
 fi
 
@@ -213,7 +213,7 @@ fm_routes_pinned_cert_converge "$FRANKENPHP_ROUTES_DIR"
 if [ "$FM_DNS01_MODE" = "$FRANKENPHP_DNS01_MODE_EMBEDDED" ] && [ -n "$DNSPOD_TOKEN" ]; then
     export DNSPOD_TOKEN
 fi
-# Embedded PHP ini scan dir (96_configure_php85.sh frankenphp plane target):
+# Embedded PHP ini scan dir (93_install_php.sh --only=config frankenphp plane target):
 # the Caddyfile-adjacent overrides load through PHP's own scan-dir rule.
 export PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)"
 

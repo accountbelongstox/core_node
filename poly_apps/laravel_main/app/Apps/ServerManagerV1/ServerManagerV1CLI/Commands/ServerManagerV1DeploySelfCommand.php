@@ -27,7 +27,7 @@ class ServerManagerV1DeploySelfCommand extends ServerManagerV1BaseCommand
     public function handle(): int
     {
         // PRE-REQUISITE: Fix PHP configuration before any operations
-        // This ensures open_basedir restrictions are correct (matches 34_configure_php85.sh)
+        // This ensures open_basedir restrictions are correct (matches 93_install_php.sh)
         $this->initializeCommand();
         $domain = $this->argument('domain');
         $ssl = $this->option('ssl') ?: 'auto';

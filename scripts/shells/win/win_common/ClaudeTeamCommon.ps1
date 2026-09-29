@@ -1779,7 +1779,7 @@ function Show-ClaudeTeamReport {
     }
     Write-ClaudeTeamLog "OK" ("Native agent-team runtime state: {0}, {1}" -f $ClaudeTeamUserTasksDir, $ClaudeTeamUserTeamsDir)
     Write-ClaudeTeamLog "OK" ("Dispatch: type one task in the {0} pane of window {1}" -f (Get-ClaudeTeamLeadSessionName -Mode $script:ClaudeTeamMode), (Get-ClaudeTeamWindowName))
-    Write-ClaudeTeamLog "OK" "Git: read-only git/gh always allowed; other git/gh commands need a user prompt asking for git work (120 min grant; deny-git revokes)"
+    Write-ClaudeTeamLog "OK" "Git: only version rollback is blocked (reset --hard/<commit>, revert, old-commit checkout/restore, forced push/ref move); allow-rollback grants 120 min, deny-rollback revokes"
     if ($script:ClaudeTeamMode -eq "team") {
         Write-ClaudeTeamLog "OK" "Re-run is idempotent: the live lead is skipped; teammates remain owned by Claude Code"
     } else {

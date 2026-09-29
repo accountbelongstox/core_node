@@ -27,9 +27,7 @@ The spawn prompt model overrides the agent definition. This lets the same coding
 
 ## 3. Direct Execution
 
-Start implementation after the minimum inspection needed to avoid a wrong edit. A short internal plan is fine; do not turn it into a separate phase, artifact, approval cycle, or task unless the user requested planning.
-
-For each request:
+For each request (no separate planning phase unless the user asks for one):
 
 1. Identify the smallest owner set from the routing table.
 2. Keep one writer per path.
@@ -48,27 +46,25 @@ Choose the narrowest role whose description covers the requested files. The agen
 | Agent launchers, role catalog, Claude configuration | `orchestrator`, `shell-linux`, `shell-windows` |
 | Linux shell, installers, system services, Docker shell | `shell-linux` |
 | Windows PowerShell, cmd, Windows installers and WSL bootstrap | `shell-windows` |
-| pycore foundations, entry points and architecture | `pycore-lead`, `pycore-architect`, `pycore` |
+| pycore foundations, entry points and architecture | `pycore-lead`, `pycore-architect` |
 | pycore model, TTS, STT, OCR and AI engines | `pycore-ai` |
 | pycore runtime, RPC, relay, CodeSync, queues and pyapps | `pycore-runtime`, `pycore-assist` |
-| pycore-facing Laravel services | `pycore-laravel`, `laravel`, `laravel-api` |
-| pycore UI apps and shared UI | `pycore-ui`, `ui-pycore-manager`, `ui-laravel-manager`, `ui-vortex` |
+| pycore-facing Laravel services and Laravel foundation | `pycore-laravel` |
+| pycore UI apps and shared UI | `pycore-ui`, `ui-vortex` |
+| laravel-manager UI and its Laravel APIs | `laravel-manager-lead` |
 | wordnew coordination and docs | `wordnew-lead` |
-| wordnew UI | `wordnew-ui`, `ui-wordnew` |
-| wordnew Laravel AppQyV1 | `wordnew-laravel`, `laravel-qyapp` |
+| wordnew UI | `wordnew-ui` |
+| wordnew Laravel AppQyV1 | `wordnew-laravel` |
 | wordnew native/Capacitor and prerequisite scripts | `wordnew-native` |
-| wordnew pycore or mcp-chrome linkage | `wordnew-link`, `mcp-chrome` |
+| wordnew pycore or mcp-chrome linkage | `wordnew-link` |
 | CodeMart coordination and cross-cutting work | `codemart-lead` |
-| CodeMart UI | `codemart-ui`, `ui-codemart` |
-| CodeMart Laravel | `codemart-laravel`, `laravel-codemart` |
-| Laravel shared foundation | `laravel` |
+| CodeMart UI | `codemart-ui` |
+| CodeMart Laravel | `codemart-laravel` |
 | Laravel server-only implementation and verification | `laravel-remote` |
 | Node.js ncore and non-mcp-chrome Node apps | `ncore` |
 | Flutter workspace | `flutter` |
 | GPU-host verification | `pycore-gpu-remote` |
 | Explicit independent review | `reviewer` |
-
-When two aliases overlap, choose one owner based on the task and do not spawn both for the same paths.
 
 ## 5. Boundaries
 
@@ -83,16 +79,30 @@ When two aliases overlap, choose one owner based on the task and do not spawn bo
 
 ## 6. Launchers
 
-- `claudeagents`: one native Agent Teams lead; teammates are spawned on demand.
+- `claudeagents`: the native Agent Teams lead (section 1).
 - `claudeteamup`: independent named sessions for users who explicitly need persistent role sessions.
 - `claudeteam`: the shared single-session role launcher used by both entry points.
 
 Linux uses tmux for the lead and any native split-pane teammates. Windows uses Windows Terminal for the lead; native teammate display follows Claude Code's supported mode. `--status`/`-Status` is read-only and prints the launch plan.
 
-The launchers use `--permission-mode auto`. They do not force `ultracode`. Role model and effort defaults come from agent frontmatter, while a native teammate's model can be overridden in its spawn prompt.
+The launchers use `--permission-mode auto`; model and effort defaults come from agent frontmatter (section 2).
 
 ## 7. Remote Roles
 
 Agent teams are local. A remote role is an independent session reached through Claude Code Remote Control and cross-session messaging. Start remote roles only when the task requires that host; `claudeagents` does not connect to every configured remote host at startup.
 
-Remote code transfer follows `docs_fix/CODESYNC_AI_COMMUNICATION_API.md`, never Git. The remote owner implements and verifies in the remote checkout, then sends the result and changed paths to the lead.
+Code sync: run `dd.sh syncgit` (Linux) or `dd.cmd syncgit` (Windows); if the merge fails, the current role resolves it and keeps the remote's latest features.
+
+The remote owner implements and verifies in its own checkout, then sends the result and changed paths to the lead.
+
+## 8. Cross-Device Launch
+
+Window Launcher `[4]` fills grid cells 1-8 with `claudeteam --device-slot <n>`; claudeteam resolves the rest (`config/claude_team_roles.json` `device_profiles`, `{os}` = `windows`/`linux`):
+
+| Profile | Detection | Slots |
+|---|---|---|
+| `gpu` | NVIDIA GPU | `pycore-lead`, `shell-{os}` |
+| `desktop` | otherwise | `shell-{os}`, `pycore-ui`, `wordnew-lead`, `laravel-manager-lead` |
+| `server` | Linux without a graphical interface | `laravel-remote` (175 deploy) |
+
+Session: `<Tailscale device>-<role>-<initials>` with `--remote-control <session>`; when unavailable, claudeteam prints `/remote-control <session>` to type. Other slots run plain `claude`.

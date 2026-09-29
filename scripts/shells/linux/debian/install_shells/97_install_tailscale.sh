@@ -9,7 +9,8 @@
 #   - systemd (tailscaled runs as a systemd service)
 #
 # Usage:
-#   ./97_install_tailscale.sh   # Normal installation (no arguments)
+#   ./97_install_tailscale.sh            # Normal installation (no arguments)
+#   ./97_install_tailscale.sh --enable   # Persist INSTALL_TAILSCALE=true first (menu Install/Repair)
 #
 # Optional global variables (set via the selector / set_var):
 #   INSTALL_TAILSCALE        true|false  - whether to install (default true)
@@ -44,6 +45,9 @@ source "$PARENT_DIR_LEVEL_2/common/tailscale_common.sh"
 init_global_vars
 
 # Declare variables
+TAILSCALE_ENABLE_REQUESTED="false"
+[ "${1:-}" = "--enable" ] && TAILSCALE_ENABLE_REQUESTED="true"
+[ "$TAILSCALE_ENABLE_REQUESTED" = "true" ] && set_var "INSTALL_TAILSCALE" "true"
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 INSTALL_TAILSCALE=$(get_var "INSTALL_TAILSCALE" "true")
 SELECTED_REGION=$(get_var "SELECTED_REGION")
