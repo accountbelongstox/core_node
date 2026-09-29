@@ -41,6 +41,7 @@ $targetForcePushChoice = "N"
 $CommitMessageTimeoutSeconds = 3  # Auto-continue with the default commit message after this many idle seconds
 $winCommonDir = Join-Path $coreNodeDir "scripts\shells\win\win_common"
 $globalVarsPath = Join-Path $winCommonDir 'GlobalVars.ps1'
+$secretManagerPath = Join-Path $winCommonDir 'SecretManager.ps1'
 $skipEncryptCacheDir = "C:\_node_core"
 $skipEncryptCacheFile = Join-Path $skipEncryptCacheDir "git_skip_encrypt_cache.db"
 $githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
@@ -54,6 +55,12 @@ $gitSyncCommonScript = Join-Path $winCommonDir "GitSyncCommon.ps1"
 . $gitSyncCommonScript
 if (-not $Global:GLOBAL_VAR_DIR) {
     . $globalVarsPath
+}
+# SecretManager.ps1 also (re-)sources GlobalVars.ps1, so only load it when its
+# functions (Write-ClientKeyEncryptNotice, Invoke-SecretCryptoBatch's caller
+# Get-SecretDirectories, ...) are not already in scope.
+if (-not (Get-Command Get-SecretDirectories -ErrorAction SilentlyContinue)) {
+    . $secretManagerPath
 }
 
 # Initialize skip encrypt cache
@@ -918,7 +925,7 @@ function Invoke-GitOperations {
                     $encryptConfirm = Read-Host
 
                     if ($encryptConfirm -eq '' -or $encryptConfirm -match '^[Yy]$') {
-                        Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
+                        Write-ColorText "Starting automatic encryption using secret_crypto.js..." -ForegroundColor Cyan
                     } elseif ($encryptConfirm -match '^[Nn]$') {
                         Write-ColorText "Skipping encryption. Continuing with git push." -ForegroundColor Yellow
                         Write-ColorText "WARNING: Sensitive files will be pushed unencrypted!" -ForegroundColor Red
@@ -937,75 +944,44 @@ function Invoke-GitOperations {
                         $skipEncryption = $true
                     } else {
                         Write-ColorText "Invalid input. Defaulting to Yes." -ForegroundColor Yellow
-                        Write-ColorText "Starting automatic encryption using disguise.js..." -ForegroundColor Cyan
+                        Write-ColorText "Starting automatic encryption using secret_crypto.js..." -ForegroundColor Cyan
                     }
 
                     if (-not $skipEncryption) {
 
-                # Find disguise.js in scripts directory
-                Write-ColorText "Searching for disguise.js in scripts directory..." -ForegroundColor Cyan
-                $scriptsDir = Join-Path $coreNodeDir "scripts"
-                $disguiseJsPath = $null
+                # Get password once for all files, then encrypt them all in one
+                # secret_crypto.js process (one process, one password, parallel key
+                # derivation instead of one node process per file).
+                Write-ColorText "Enter encryption password for all sensitive files:" -ForegroundColor Yellow
+                $globalPassword = Read-SecretPassword -Label "Encryption"
+                $encryptionFailed = $false
+                if ([string]::IsNullOrEmpty($globalPassword)) {
+                    Write-ColorText "ERROR: No confirmed encryption password; skipping encryption." -ForegroundColor Red
+                    $unencryptedFiles = @()
+                    $encryptionFailed = $true
+                }
 
-                if (Test-Path $scriptsDir) {
-                    $disguiseJs = Get-ChildItem -Path $scriptsDir -Filter "disguise.js" -Recurse -File | Select-Object -First 1
-                    if ($disguiseJs) {
-                        $disguiseJsPath = $disguiseJs.FullName
+                if ($unencryptedFiles.Count -gt 0) {
+                    $unencryptedFilePaths = @($unencryptedFiles | ForEach-Object { $_.FullName })
+                    Write-ClientKeyEncryptNotice -Names $unencryptedFilePaths
+                    Write-ColorText "Encrypting $($unencryptedFilePaths.Count) file(s) in one batch..." -ForegroundColor Cyan
+                    $batchResult = Invoke-SecretCryptoBatch -Password $globalPassword -Command encrypt -ArgumentList (@($secretKeysEncryptedDir) + $unencryptedFilePaths)
+                    $globalPassword = $null
+
+                    foreach ($doneName in $batchResult.Done) {
+                        Write-ColorText "SUCCESS: Encrypted $doneName" -ForegroundColor Green
+                    }
+                    foreach ($failedName in $batchResult.Failed) {
+                        Write-ColorText "WARNING: Failed to encrypt $failedName" -ForegroundColor Yellow
+                        $encryptionFailed = $true
                     }
                 }
 
-                if ($disguiseJsPath) {
-                    Write-ColorText "Found disguise.js at: $disguiseJsPath" -ForegroundColor Green
-
-                    # Get password once for all files
-                    Write-ColorText "Enter encryption password for all sensitive files:" -ForegroundColor Yellow
-                    $globalPassword = Read-SecretPassword -Label "Encryption"
-                    $encryptionFailed = $false
-                    if ([string]::IsNullOrEmpty($globalPassword)) {
-                        Write-ColorText "ERROR: No confirmed encryption password; skipping encryption." -ForegroundColor Red
-                        $unencryptedFiles = @()
-                        $encryptionFailed = $true
-                    }
-
-                    # Encrypt each file using the same password
-                    foreach ($file in $unencryptedFiles) {
-                        Write-ColorText "Encrypting: $($file.Name)" -ForegroundColor Cyan
-
-                        # Print encryption parameters
-                        $maskedPassword = "*" * $globalPassword.Length
-                        Write-ColorText "Encryption parameters:" -ForegroundColor Gray
-                        Write-ColorText "  - Tool: $disguiseJsPath" -ForegroundColor Gray
-                        Write-ColorText "  - Input: $($file.FullName)" -ForegroundColor Gray
-                        Write-ColorText "  - Password: $maskedPassword" -ForegroundColor Gray
-                        Write-ColorText "  - Output Dir: $secretKeysEncryptedDir" -ForegroundColor Gray
-                        Write-ColorText "  - Command: node secret_password_runner.js disguise.js `"$($file.FullName)`" $Global:SECRET_PASSWORD_ARG `"$secretKeysEncryptedDir`"" -ForegroundColor Gray
-
-                        # Run disguise.js encryption
-                        Write-ColorText "Running encryption..." -ForegroundColor Cyan
-                        $result = Invoke-SecretPasswordTool -Password $globalPassword -ToolPath $disguiseJsPath -ArgumentList @($file.FullName, $Global:SECRET_PASSWORD_ARG, $secretKeysEncryptedDir)
-
-                        if ($LASTEXITCODE -eq 0) {
-                            Write-ColorText "SUCCESS: Encrypted $($file.Name)" -ForegroundColor Green
-                        } else {
-                            Write-ColorText "WARNING: Failed to encrypt $($file.Name)" -ForegroundColor Yellow
-                            Write-ColorText "Error: $result" -ForegroundColor Yellow
-                            $encryptionFailed = $true
-                            # Continue with next file instead of breaking
-                        }
-                    }
-
-                    # Clear global password from memory
-                    $globalPassword = $null
-
-                    if ($encryptionFailed) {
-                        Write-ColorText "WARNING: Some files failed to encrypt, but continuing with git push." -ForegroundColor Yellow
-                        Write-ColorText "Please manually encrypt failed files later." -ForegroundColor Yellow
-                    } else {
-                        Write-ColorText "SUCCESS: All files encrypted successfully." -ForegroundColor Green
-                    }
+                if ($encryptionFailed) {
+                    Write-ColorText "WARNING: Some files failed to encrypt, but continuing with git push." -ForegroundColor Yellow
+                    Write-ColorText "Please manually encrypt failed files later." -ForegroundColor Yellow
                 } else {
-                    Write-ColorText "WARNING: disguise.js not found in scripts directory." -ForegroundColor Yellow
-                    Write-ColorText "Continuing with git push. Please encrypt sensitive files manually." -ForegroundColor Yellow
+                    Write-ColorText "SUCCESS: All files encrypted successfully." -ForegroundColor Green
                 }
                     } # End of else block for "Skip encryption? N"
             } else {

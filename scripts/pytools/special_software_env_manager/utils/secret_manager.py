@@ -30,6 +30,13 @@ from config.path_config import get_path_config
 
 # Placeholder the password runner replaces with the password read from stdin.
 SECRET_PASSWORD_ARG = '--password-stdin'
+# secret_crypto.js decrypts/encrypts/verifies any number of files in ONE process
+# with ONE password (parallel key derivation); a wrong password writes nothing.
+# This module stays independent of pycore (see the comment above), so it talks
+# to the tool directly instead of importing pycore.pyfoundations.secret_crypto_batch.
+SECRET_CRYPTO_RESULT_TAG = 'SECRET_CRYPTO'
+SECRET_CRYPTO_FORCE_FLAG = '--force'
+SECRET_CRYPTO_TIMEOUT_SECONDS = 120
 
 
 class LocalSecretManager:
@@ -119,6 +126,46 @@ class LocalSecretManager:
         except (EOFError, KeyboardInterrupt):
             return None
 
+    @staticmethod
+    def _parse_secret_crypto_output(stdout, returncode):
+        """Group secret_crypto.js's per-file result lines by status.
+        See scripts/encryption_tools/secret_crypto.js for the STATUS values."""
+        by_status = {}
+        errors = {}
+        for line in (stdout or '').splitlines():
+            parts = line.split('\t')
+            if len(parts) < 3 or parts[0] != SECRET_CRYPTO_RESULT_TAG:
+                continue
+            status, name = parts[1], parts[2]
+            by_status.setdefault(status, []).append(name)
+            if len(parts) > 3:
+                errors[name] = parts[3]
+        ok = bool(by_status) or returncode == 0
+        return by_status, errors, ok
+
+    def _run_secret_crypto(self, command, password, sources, out_dir=None, force=False):
+        """Run secret_crypto.js once for every source; the password goes to
+        secret_password_runner.js's stdin, never on the command line."""
+        args = [
+            self.node_command, str(self.path_config.secret_password_runner),
+            str(self.path_config.secret_crypto_js), command, SECRET_PASSWORD_ARG,
+        ]
+        if out_dir is not None:
+            args.append(str(out_dir))
+        if force:
+            args.append(SECRET_CRYPTO_FORCE_FLAG)
+        args.extend(str(source) for source in sources)
+
+        result = subprocess.run(
+            args, input=password, capture_output=True, text=True,
+            timeout=SECRET_CRYPTO_TIMEOUT_SECONDS,
+        )
+        by_status, errors, ok = self._parse_secret_crypto_output(result.stdout, result.returncode)
+        if not ok:
+            details = (result.stderr or result.stdout or '').strip()
+            ColorMessage.write(f'secret_crypto.js failed to run: {details}', 'error')
+        return by_status, errors, ok
+
     def _trigger_batch_decryption(self):
         pending_files = self._gather_pending_files()
         if not pending_files:
@@ -149,38 +196,38 @@ class LocalSecretManager:
             self.batch_attempted = True
             return False
 
-        success_count = 0
-        for enc_file in pending_files:
-            ColorMessage.write(f'  Decrypting {enc_file.name} ...', 'info')
-            result = subprocess.run(
-                [
-                    self.node_command, str(self.path_config.secret_password_runner),
-                    str(enc_file), 'pwd', SECRET_PASSWORD_ARG, str(self.raw_dir),
-                ],
-                input=password,
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-
-            if result.returncode == 0:
-                success_count += 1
-                ColorMessage.write('    OK', 'success')
-            else:
-                ColorMessage.write('    FAILED', 'warning')
-                details = (result.stderr or result.stdout or '').strip()
-                if details:
-                    ColorMessage.write(f'    {details}', 'warning')
-
+        # One process, one password, the whole already_encrypted directory at
+        # once (secret_crypto.js walks it and derives every key in parallel,
+        # which is what makes the batch faster than a per-file node spawn).
+        # Without --force (never passed here) a wrong password writes nothing
+        # and an existing raw file is never overwritten, so a bad password can
+        # never clobber a good key; files already decrypted just come back
+        # skipped_exists.
+        ColorMessage.write(f'Decrypting {len(pending_files)} file(s) in one batch...', 'info')
+        by_status, _errors, ok = self._run_secret_crypto(
+            'decrypt', password, [str(self.encrypted_dir)], out_dir=self.raw_dir,
+        )
         password = None
         self.batch_attempted = True
 
-        if success_count == len(pending_files):
+        if not ok:
+            return False
+
+        decrypted = by_status.get('decrypted', [])
+        wrong_password = by_status.get('wrong_password', [])
+        for name in decrypted:
+            ColorMessage.write(f'  OK: {name}', 'success')
+        for name in wrong_password:
+            ColorMessage.write(f'  WRONG PASSWORD (nothing written): {name}', 'warning')
+        for name in by_status.get('invalid_file', []) + by_status.get('error', []):
+            ColorMessage.write(f'  FAILED: {name}', 'warning')
+
+        if len(decrypted) == len(pending_files):
             ColorMessage.write('All secret files decrypted successfully.', 'success')
             return True
 
         ColorMessage.write(
-            f'Decrypted {success_count}/{len(pending_files)} secret files. Missing values may persist.',
+            f'Decrypted {len(decrypted)}/{len(pending_files)} secret files. Missing values may persist.',
             'warning'
         )
         return False

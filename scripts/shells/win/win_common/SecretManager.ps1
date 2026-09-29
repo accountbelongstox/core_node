@@ -12,7 +12,7 @@
             .secret_ignore/     - Decrypted raw files (gitignored)
 
     Dependencies:
-        - Node.js (for running disguise.js encryption/decryption tool)
+        - Node.js (for running secret_crypto.js, the shared encryption/decryption tool)
         - GlobalVars.ps1 (for Get-CoreNodeDir function)
 
     Main Functions:
@@ -109,29 +109,6 @@ function Get-SecretDirectories {
 
 <#
 .SYNOPSIS
-    Helper function to find disguise.js tool
-
-.DESCRIPTION
-    Searches for disguise.js in the scripts directory
-#>
-function Find-DisguiseTool {
-    param(
-        [string]$ScriptsDir
-    )
-
-    if (Test-Path $ScriptsDir) {
-        $disguiseJs = Get-ChildItem -Path $ScriptsDir -Filter "disguise.js" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-
-        if ($disguiseJs) {
-            return $disguiseJs.FullName
-        }
-    }
-
-    return $null
-}
-
-<#
-.SYNOPSIS
     Restrict a secret file to the current user, SYSTEM and Administrators
 #>
 function Protect-SecretFile {
@@ -165,6 +142,42 @@ function Protect-SecretFile {
 
 <#
 .SYNOPSIS
+    Writes a new random client key to the raw dir, replacing any existing content
+
+.DESCRIPTION
+    Shared by Initialize-ClientKeySecret (first generation) and
+    Invoke-ClientKeyRegenerateOffer (regeneration after a failed decrypt). The value is
+    never printed.
+#>
+function New-ClientKeyRawFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RawFile,
+        [Parameter(Mandatory = $true)]
+        [int]$KeyBytes
+    )
+
+    $randomBytes = New-Object byte[] $KeyBytes
+    $random = $null
+    $keyValue = ""
+
+    $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $random.GetBytes($randomBytes)
+    } finally {
+        $random.Dispose()
+    }
+    $keyValue = [Convert]::ToBase64String($randomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    # Restrict the still-empty file first, so the key never sits under the inherited ACL.
+    [System.IO.File]::WriteAllText($RawFile, "")
+    Protect-SecretFile -Path $RawFile
+    [System.IO.File]::WriteAllText($RawFile, $keyValue, (New-Object System.Text.UTF8Encoding $false))
+    $keyValue = $null
+    [Array]::Clear($randomBytes, 0, $randomBytes.Length)
+}
+
+<#
+.SYNOPSIS
     Generate the shared client key when no copy of it exists
 
 .DESCRIPTION
@@ -182,9 +195,6 @@ function Initialize-ClientKeySecret {
     $bundleDir = Join-Path $dirs.SECRET_KEYS_DIR "already_batch_encrypted"
     $bundleEntry = '"filename": "{0}"' -f $keyName
     $bundleFiles = @()
-    $randomBytes = $null
-    $random = $null
-    $keyValue = ""
 
     if ((Test-Path -LiteralPath $rawFile -PathType Leaf) -and ((Get-Item -LiteralPath $rawFile).Length -gt 0)) {
         return
@@ -204,20 +214,7 @@ function Initialize-ClientKeySecret {
     if (-not (Test-Path -LiteralPath $dirs.RAW_DIR)) {
         New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
     }
-    $randomBytes = New-Object byte[] $keyBytes
-    $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    try {
-        $random.GetBytes($randomBytes)
-    } finally {
-        $random.Dispose()
-    }
-    $keyValue = [Convert]::ToBase64String($randomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-    # Restrict the still-empty file first, so the key never sits under the inherited ACL.
-    [System.IO.File]::WriteAllText($rawFile, "")
-    Protect-SecretFile -Path $rawFile
-    [System.IO.File]::WriteAllText($rawFile, $keyValue, (New-Object System.Text.UTF8Encoding $false))
-    $keyValue = $null
-    [Array]::Clear($randomBytes, 0, $randomBytes.Length)
+    New-ClientKeyRawFile -RawFile $rawFile -KeyBytes $keyBytes
     Write-Host "[SECRET_CLIENT_KEY] Generated $keyName in $($dirs.RAW_DIR); encrypt it now and sync the encrypted copy to every host" -ForegroundColor Yellow
 }
 
@@ -280,12 +277,163 @@ function Remove-InvalidClientKeySecret {
 
 <#
 .SYNOPSIS
+    Encryption call sites: explains what encrypting the shared client key implies
+
+.DESCRIPTION
+    Windows twin of linux/common/client_key_common.sh client_key_encrypt_notice. Names
+    may be bare key names or full file paths; only an exact match on the client key's
+    contract name (after stripping any directory and a trailing ".js") triggers the notice.
+#>
+function Write-ClientKeyEncryptNotice {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [string[]]$Names
+    )
+
+    $keyName = [string](Get-ServiceContractValue -ContractPath "client_key_auth.secret_key_sign_name")
+    $name = ""
+    $baseName = ""
+
+    if ([string]::IsNullOrWhiteSpace($keyName)) {
+        return
+    }
+    foreach ($name in $Names) {
+        $baseName = [System.IO.Path]::GetFileName($name)
+        if ($baseName -ne $keyName) {
+            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($baseName)
+        }
+        if ($baseName -ne $keyName) {
+            continue
+        }
+        Write-Host "[SECRET_CLIENT_KEY] Encrypting the shared client key $keyName: sync already_encrypted\$keyName.js to every host, decrypt it there and restart the Laravel workers and pyservice" -ForegroundColor Yellow
+        return
+    }
+}
+
+<#
+.SYNOPSIS
+    Decryption failed: offers to regenerate the shared client key and encrypts it at once
+
+.DESCRIPTION
+    Windows twin of linux/common/client_key_common.sh client_key_offer_regenerate.
+    Interactive consoles only; the yes/no prompt defaults to No. The new key is verified
+    against another already-encrypted secret with the same password (best effort) before
+    it is written, so a genuinely wrong password is caught rather than silently accepted.
+
+.PARAMETER Password
+    Reused as the new encryption password when given (e.g. the last wrong decrypt
+    attempt); otherwise Read-SecretPassword prompts for one.
+#>
+function Invoke-ClientKeyRegenerateOffer {
+    param(
+        [string]$Password = ""
+    )
+
+    $dirs = Get-SecretDirectories
+    $keyName = [string](Get-ServiceContractValue -ContractPath "client_key_auth.secret_key_sign_name")
+    $keyBytes = [int](Get-ServiceContractValue -ContractPath "client_key_auth.key_min_bytes")
+    $rawFile = Join-Path $dirs.RAW_DIR $keyName
+    $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR ("{0}.js" -f $keyName)
+    $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
+    $answer = ""
+    $referenceFile = ""
+    $candidate = $null
+    $verifyResult = $null
+    $encryptResult = $null
+    $keyState = $null
+
+    if ([string]::IsNullOrWhiteSpace($keyName)) {
+        return
+    }
+    if (-not $interactive) {
+        Write-Host "[SECRET_CLIENT_KEY] $keyName could not be decrypted; run dd.cmd in a console to decrypt or regenerate it" -ForegroundColor Yellow
+        return
+    }
+    Write-Host "[SECRET_CLIENT_KEY] $keyName cannot be decrypted with this password" -ForegroundColor Red
+    Write-Host "[SECRET_CLIENT_KEY] Regenerating replaces the shared key: every other host must sync the new encrypted copy, decrypt it and restart the Laravel workers and pyservice" -ForegroundColor Yellow
+    $answer = Read-Host "Regenerate $keyName and encrypt it now? [y/N]"
+    if ($answer -notmatch '^[Yy]') {
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        $Password = Read-SecretPassword -Label "[SECRET_CLIENT_KEY] $keyName encryption"
+    }
+    if ([string]::IsNullOrWhiteSpace($Password)) {
+        return
+    }
+
+    if (Test-Path -LiteralPath $dirs.ENCRYPTED_DIR) {
+        foreach ($candidate in (Get-ChildItem -LiteralPath $dirs.ENCRYPTED_DIR -Filter "*.js" -File -ErrorAction SilentlyContinue)) {
+            if ($candidate.FullName -eq $encryptedFile) {
+                continue
+            }
+            $referenceFile = $candidate.FullName
+            break
+        }
+    }
+    if ($referenceFile) {
+        $verifyResult = Invoke-SecretCryptoBatch -Password $Password -Command verify -ArgumentList @($referenceFile)
+        if ($verifyResult.Done.Count -eq 0) {
+            Write-Host "[SECRET_CLIENT_KEY] This password does not decrypt $([System.IO.Path]::GetFileName($referenceFile)); the other secrets use a different password" -ForegroundColor Yellow
+            $answer = Read-Host "Encrypt $keyName with it anyway? [y/N]"
+            if ($answer -notmatch '^[Yy]') {
+                $Password = $null
+                return
+            }
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $dirs.RAW_DIR)) {
+        New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
+    }
+    New-ClientKeyRawFile -RawFile $rawFile -KeyBytes $keyBytes
+    Write-ClientKeyEncryptNotice -Names @($keyName)
+    $encryptResult = Invoke-SecretCryptoBatch -Password $Password -Command encrypt -ArgumentList @($dirs.ENCRYPTED_DIR, $rawFile)
+    $Password = $null
+    if ($encryptResult.Done.Count -gt 0) {
+        (Get-Item -LiteralPath $rawFile).LastWriteTime = (Get-Item -LiteralPath $encryptedFile).LastWriteTime
+        $keyState = Get-ClientKeyState
+        Write-Host "[SECRET_CLIENT_KEY] Regenerated and encrypted $keyName (key id $($keyState.KeyId)); commit $encryptedFile and sync it to every host" -ForegroundColor Green
+    } else {
+        Write-Host "[SECRET_CLIENT_KEY] Regenerated $keyName but encryption failed; run dd.cmd to encrypt it" -ForegroundColor Red
+    }
+}
+
+<#
+.SYNOPSIS
+    Call right after an Invoke-SecretCryptoBatch decrypt: offers to regenerate the
+    client key when it was among the wrong-password files
+
+.DESCRIPTION
+    Windows twin of linux/common/client_key_common.sh client_key_after_decrypt.
+#>
+function Invoke-ClientKeyAfterDecrypt {
+    param(
+        [Parameter(Mandatory = $true)]
+        [pscustomobject]$Result,
+        [string]$Password = ""
+    )
+
+    $keyName = [string](Get-ServiceContractValue -ContractPath "client_key_auth.secret_key_sign_name")
+
+    if ([string]::IsNullOrWhiteSpace($keyName)) {
+        return
+    }
+    if ($Result.Wrong -contains $keyName) {
+        Invoke-ClientKeyRegenerateOffer -Password $Password
+    }
+}
+
+<#
+.SYNOPSIS
     Idempotently leave a valid shared client key in the raw dir
 
 .DESCRIPTION
     Invalid raw key -> removed. Encrypted copy without raw key -> asks for the password
-    (interactive console only) and decrypts it. No copy anywhere -> generated. The value
-    is never printed; the non-secret key id is.
+    (interactive console only) and decrypts it; after the last wrong attempt, offers to
+    regenerate the key. No copy anywhere -> generated. The value is never printed; the
+    non-secret key id is.
 #>
 function Initialize-ClientKeyReady {
     $dirs = Get-SecretDirectories
@@ -295,6 +443,7 @@ function Initialize-ClientKeyReady {
     $encryptedFile = ""
     $password = ""
     $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
+    $stopTrying = $false
 
     Remove-InvalidClientKeySecret
     $keyState = Get-ClientKeyState
@@ -310,22 +459,27 @@ function Initialize-ClientKeyReady {
                 $attempt++
                 $password = Read-SecretPassword -Label ("[SECRET_CLIENT_KEY] {0} decrypt ({1}/{2})" -f $keyState.Name, $attempt, $maxAttempts)
                 if ([string]::IsNullOrEmpty($password)) {
+                    $stopTrying = $true
                     break
                 }
-                Invoke-SecretPasswordTool -Password $password -ToolPath $encryptedFile -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $dirs.RAW_DIR, "--force") | Out-Null
-                $password = $null
+                Invoke-SecretCryptoBatch -Password $password -Command decrypt -ArgumentList @($dirs.RAW_DIR, "--force", $encryptedFile) | Out-Null
                 $keyState = Get-ClientKeyState
                 if ($keyState.State -eq "valid") {
                     (Get-Item -LiteralPath $keyState.RawFile).LastWriteTime = (Get-Item -LiteralPath $encryptedFile).LastWriteTime
                     Protect-SecretFile -Path $keyState.RawFile
                     Write-Host "[SECRET_CLIENT_KEY] Decrypted $($keyState.Name)" -ForegroundColor Green
+                    $password = $null
+                    $stopTrying = $true
                     break
-                }
-                if (Test-Path -LiteralPath $keyState.RawFile -PathType Leaf) {
-                    Remove-Item -LiteralPath $keyState.RawFile -Force
                 }
                 Write-Host "[SECRET_CLIENT_KEY] Wrong password for $($keyState.Name)" -ForegroundColor Red
             }
+            if (-not $stopTrying) {
+                # All attempts were wrong (never empty, never valid): offer to regenerate,
+                # reusing the last-entered password as the suggested new one.
+                Invoke-ClientKeyRegenerateOffer -Password $password
+            }
+            $password = $null
         }
     }
     Initialize-ClientKeySecret
@@ -361,6 +515,11 @@ function Invoke-SecretDecryptAll {
     )
 
     $dirs = Get-SecretDirectories
+    $encryptedFiles = $null
+    $filePaths = @()
+    $result = $null
+    $baseName = ""
+    $sourceEncFile = ""
 
     if ([string]::IsNullOrWhiteSpace($OutputDir)) {
         $OutputDir = $dirs.RAW_DIR
@@ -380,7 +539,7 @@ function Invoke-SecretDecryptAll {
         return $false
     }
 
-    $encryptedFiles = Get-ChildItem -Path $dirs.ENCRYPTED_DIR -Filter "*.js" -File -ErrorAction SilentlyContinue
+    $encryptedFiles = @(Get-ChildItem -Path $dirs.ENCRYPTED_DIR -Filter "*.js" -File -ErrorAction SilentlyContinue)
 
     if ($encryptedFiles.Count -eq 0) {
         Write-Host "[SECRET_DECRYPT_ALL] No encrypted files found in: $($dirs.ENCRYPTED_DIR)" -ForegroundColor Yellow
@@ -388,15 +547,6 @@ function Invoke-SecretDecryptAll {
     }
 
     Write-Host "[SECRET_DECRYPT_ALL] Found $($encryptedFiles.Count) encrypted files" -ForegroundColor Cyan
-
-    $batchDecryptJs = Join-Path $dirs.SCRIPTS_DIR "batch_decrypt.js"
-
-    if ([string]::IsNullOrWhiteSpace($batchDecryptJs) -or -not (Test-Path $batchDecryptJs)) {
-        Write-Error "[SECRET_DECRYPT_ALL] ERROR: batch_decrypt.js not found in: $($dirs.SCRIPTS_DIR)"
-        return $false
-    }
-
-    Write-Host "[SECRET_DECRYPT_ALL] Using batch decryption tool: $batchDecryptJs" -ForegroundColor Green
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
         $Password = Read-SecretPassword -Label "[SECRET_DECRYPT_ALL] Decryption"
@@ -407,80 +557,42 @@ function Invoke-SecretDecryptAll {
         return $false
     }
 
-    Write-Host "[SECRET_DECRYPT_ALL] Starting batch decryption..." -ForegroundColor Cyan
+    Write-Host "[SECRET_DECRYPT_ALL] Decrypting $($encryptedFiles.Count) file(s) in one batch -> $OutputDir" -ForegroundColor Cyan
 
-    $filePaths = @()
-    foreach ($encryptedFile in $encryptedFiles) {
-        $filePaths += $encryptedFile.FullName
-    }
+    $filePaths = @($encryptedFiles | ForEach-Object { $_.FullName })
+    $result = Invoke-SecretCryptoBatch -Password $Password -Command decrypt -ArgumentList (@($OutputDir, "--force") + $filePaths)
 
-    $allArgs = @($Global:SECRET_PASSWORD_ARG, $OutputDir) + $filePaths
-
-    try {
-        $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $batchDecryptJs -ArgumentList $allArgs
-
-        $allDecrypted = $true
-        foreach ($encryptedFile in $encryptedFiles) {
-            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
-            $decryptedPath = Join-Path $OutputDir $baseName
-            if (-not ((Test-Path $decryptedPath) -and ((Get-Item $decryptedPath).Length -gt 0))) {
-                $allDecrypted = $false
-                break
+    foreach ($baseName in $result.Done) {
+        $sourceEncFile = Join-Path $dirs.ENCRYPTED_DIR "$baseName.js"
+        if (Test-Path $sourceEncFile) {
+            # Keep the decrypted raw file's timestamp in sync with its encrypted source.
+            # The encryption check is timestamp-based (raw newer than the ".js" means
+            # "needs re-encryption"), so without this a freshly decrypted file would
+            # look newer than its source and be falsely flagged.
+            try {
+                (Get-Item (Join-Path $OutputDir $baseName)).LastWriteTime = (Get-Item $sourceEncFile).LastWriteTime
+            } catch {
+            }
+            if (Get-Command Set-EncryptedContentHashCache -ErrorAction SilentlyContinue) {
+                Set-EncryptedContentHashCache -FileName $baseName -EncryptedFile $sourceEncFile
             }
         }
-
-        if ($allDecrypted) {
-            Write-Host $result
-
-            # Keep each decrypted raw file's timestamp in sync with its encrypted
-            # source. The encryption check is timestamp-based (raw newer than the
-            # ".js" means "needs re-encryption"), so without this a freshly
-            # decrypted file would look newer than its source and be falsely flagged.
-            if (Test-Path $OutputDir) {
-                $syncedFiles = Get-ChildItem -Path $OutputDir -File -ErrorAction SilentlyContinue
-                foreach ($syncedFile in $syncedFiles) {
-                    $sourceEncFile = Join-Path $dirs.ENCRYPTED_DIR "$($syncedFile.Name).js"
-                    if (Test-Path $sourceEncFile) {
-                        try {
-                            (Get-Item $syncedFile.FullName).LastWriteTime = (Get-Item $sourceEncFile).LastWriteTime
-                        } catch {
-                        }
-                    }
-                }
-            }
-
-            # Set decryption timestamp cache and encrypted content hash cache for all decrypted files
-            if (Get-Command Set-DecryptionTimestampCache -ErrorAction SilentlyContinue) {
-                if (Test-Path $OutputDir) {
-                    $decryptedFiles = Get-ChildItem -Path $OutputDir -File -ErrorAction SilentlyContinue
-                    foreach ($decryptedFile in $decryptedFiles) {
-                        $baseName = $decryptedFile.Name
-                        Set-DecryptionTimestampCache -FileName $baseName
-                    }
-                }
-
-                # Cache encrypted file hashes
-                foreach ($encryptedFile in $encryptedFiles) {
-                    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
-                    if (Get-Command Set-EncryptedContentHashCache -ErrorAction SilentlyContinue) {
-                        Set-EncryptedContentHashCache -FileName $baseName -EncryptedFile $encryptedFile.FullName
-                    }
-                }
-            }
-
-            $Password = $null
-            return $true
-        } else {
-            Write-Host $result
-            $Password = $null
-            return $false
+        if (Get-Command Set-DecryptionTimestampCache -ErrorAction SilentlyContinue) {
+            Set-DecryptionTimestampCache -FileName $baseName
         }
-    } catch {
-        Write-Host "[SECRET_DECRYPT_ALL] ERROR: Batch decryption failed" -ForegroundColor Red
-        Write-Host "[SECRET_DECRYPT_ALL]   Error: $($_.Exception.Message)" -ForegroundColor Red
-        $Password = $null
-        return $false
     }
+    foreach ($baseName in $result.Wrong) {
+        Write-Host "[SECRET_DECRYPT_ALL]   WRONG PASSWORD: $baseName (nothing written)" -ForegroundColor Red
+    }
+    foreach ($baseName in $result.Failed) {
+        Write-Host "[SECRET_DECRYPT_ALL]   FAILED: $baseName" -ForegroundColor Red
+    }
+    Write-Host "[SECRET_DECRYPT_ALL] Summary: $($result.Done.Count) decrypted, $($result.Skipped.Count) already present, $($result.Wrong.Count) wrong password, $($result.Failed.Count) failed" -ForegroundColor Cyan
+
+    Invoke-ClientKeyAfterDecrypt -Result $result -Password $Password
+    $Password = $null
+
+    return ($result.Wrong.Count -eq 0 -and $result.Failed.Count -eq 0)
 }
 
 <#
@@ -507,6 +619,12 @@ function Invoke-SecretEncryptAll {
         [string]$Password
     )
 
+    $dirs = $null
+    $sourceFiles = $null
+    $filePaths = @()
+    $result = $null
+    $baseName = ""
+
     if ([string]::IsNullOrWhiteSpace($SourceDir)) {
         Write-Error "[SECRET_ENCRYPT_ALL] ERROR: Source directory parameter is required"
         Write-Host "[SECRET_ENCRYPT_ALL] Usage: Invoke-SecretEncryptAll -SourceDir <path> [-Password <password>]" -ForegroundColor Yellow
@@ -529,16 +647,7 @@ function Invoke-SecretEncryptAll {
         }
     }
 
-    $disguiseJs = Find-DisguiseTool -ScriptsDir $dirs.SCRIPTS_DIR
-
-    if ([string]::IsNullOrWhiteSpace($disguiseJs) -or -not (Test-Path $disguiseJs)) {
-        Write-Error "[SECRET_ENCRYPT_ALL] ERROR: disguise.js not found in: $($dirs.SCRIPTS_DIR)"
-        return $false
-    }
-
-    Write-Host "[SECRET_ENCRYPT_ALL] Using encryption tool: $disguiseJs" -ForegroundColor Green
-
-    $sourceFiles = Get-ChildItem -Path $SourceDir -File -ErrorAction SilentlyContinue | Where-Object { -not $_.Name.StartsWith('.') }
+    $sourceFiles = @(Get-ChildItem -Path $SourceDir -File -ErrorAction SilentlyContinue | Where-Object { -not $_.Name.StartsWith('.') })
 
     if ($sourceFiles.Count -eq 0) {
         Write-Host "[SECRET_ENCRYPT_ALL] No files found in: $SourceDir" -ForegroundColor Yellow
@@ -556,53 +665,29 @@ function Invoke-SecretEncryptAll {
         return $false
     }
 
-    $successCount = 0
-    $failCount = 0
+    $filePaths = @($sourceFiles | ForEach-Object { $_.FullName })
+    Write-ClientKeyEncryptNotice -Names $filePaths
+    Write-Host "[SECRET_ENCRYPT_ALL] Encrypting $($sourceFiles.Count) file(s) in one batch..." -ForegroundColor Cyan
+    $result = Invoke-SecretCryptoBatch -Password $Password -Command encrypt -ArgumentList (@($dirs.ENCRYPTED_DIR) + $filePaths)
+    $Password = $null
 
-    foreach ($sourceFile in $sourceFiles) {
-        $keyName = $sourceFile.Name
-        $outputFile = Join-Path $dirs.ENCRYPTED_DIR "$keyName.js"
-
-        Write-Host "[SECRET_ENCRYPT_ALL] Encrypting: $keyName -> $keyName.js" -ForegroundColor Cyan
-
-        try {
-            $content = Get-Content -Path $sourceFile.FullName -Raw -ErrorAction Stop
-
-            if ([string]::IsNullOrWhiteSpace($content)) {
-                Write-Host "[SECRET_ENCRYPT_ALL]    FAILED: Cannot read $keyName" -ForegroundColor Red
-                $failCount++
-                continue
-            }
-
-            $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($sourceFile.FullName, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
-
-            if (Test-Path $outputFile) {
-                Write-Host "[SECRET_ENCRYPT_ALL]    SUCCESS: $keyName.js" -ForegroundColor Green
-                $successCount++
-            } else {
-                Write-Host "[SECRET_ENCRYPT_ALL]    FAILED: $keyName" -ForegroundColor Red
-                Write-Host "[SECRET_ENCRYPT_ALL]   Error: $result" -ForegroundColor Red
-                $failCount++
-            }
-        } catch {
-            Write-Host "[SECRET_ENCRYPT_ALL]    FAILED: $keyName" -ForegroundColor Red
-            Write-Host "[SECRET_ENCRYPT_ALL]   Error: $($_.Exception.Message)" -ForegroundColor Red
-            $failCount++
-        }
+    foreach ($baseName in $result.Done) {
+        Write-Host "[SECRET_ENCRYPT_ALL]    SUCCESS: $baseName -> $baseName.js" -ForegroundColor Green
+    }
+    foreach ($baseName in $result.Failed) {
+        Write-Host "[SECRET_ENCRYPT_ALL]    FAILED: $baseName" -ForegroundColor Red
     }
 
     Write-Host ""
     Write-Host "[SECRET_ENCRYPT_ALL] ========================================" -ForegroundColor Cyan
     Write-Host "[SECRET_ENCRYPT_ALL] Encryption Summary:" -ForegroundColor Cyan
     Write-Host "[SECRET_ENCRYPT_ALL]   Total files: $($sourceFiles.Count)" -ForegroundColor Cyan
-    Write-Host "[SECRET_ENCRYPT_ALL]   Successful:  $successCount" -ForegroundColor Green
-    Write-Host "[SECRET_ENCRYPT_ALL]   Failed:      $failCount" -ForegroundColor Red
+    Write-Host "[SECRET_ENCRYPT_ALL]   Successful:  $($result.Done.Count)" -ForegroundColor Green
+    Write-Host "[SECRET_ENCRYPT_ALL]   Failed:      $($result.Failed.Count)" -ForegroundColor Red
     Write-Host "[SECRET_ENCRYPT_ALL]   Output dir:  $($dirs.ENCRYPTED_DIR)" -ForegroundColor Cyan
     Write-Host "[SECRET_ENCRYPT_ALL] ========================================" -ForegroundColor Cyan
 
-    $Password = $null
-
-    if ($failCount -gt 0) {
+    if ($result.Failed.Count -gt 0) {
         return $false
     }
 
@@ -760,6 +845,10 @@ function Set-SecretKey {
         [switch]$SkipEncryption
     )
 
+    $dirs = $null
+    $rawFile = ""
+    $result = $null
+
     if ([string]::IsNullOrWhiteSpace($KeyName)) {
         Write-Error "[SECRET_SET_KEY] ERROR: KeyName parameter is required"
         return $false
@@ -795,13 +884,6 @@ function Set-SecretKey {
         return $true
     }
 
-    $disguiseJs = Find-DisguiseTool -ScriptsDir $dirs.SCRIPTS_DIR
-
-    if ([string]::IsNullOrWhiteSpace($disguiseJs) -or -not (Test-Path $disguiseJs)) {
-        Write-Host "[SECRET_SET_KEY] WARNING: disguise.js not found, saved without encryption" -ForegroundColor Yellow
-        return $true
-    }
-
     if ([string]::IsNullOrWhiteSpace($Password)) {
         $Password = Read-SecretPassword -Label "[SECRET_SET_KEY] Encryption"
     }
@@ -811,25 +893,16 @@ function Set-SecretKey {
         return $true
     }
 
-    try {
-        $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($rawFile, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
-
-        $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$KeyName.js"
-        if (Test-Path $encryptedFile) {
-            Write-Host "[SECRET_SET_KEY] Encrypted and saved: $KeyName" -ForegroundColor Green
-            return $true
-        } else {
-            Write-Host "[SECRET_SET_KEY] WARNING: Encryption failed, saved without encryption" -ForegroundColor Yellow
-            Write-Host "[SECRET_SET_KEY]   Error: $result" -ForegroundColor Red
-            return $true
-        }
-    } catch {
-        Write-Host "[SECRET_SET_KEY] WARNING: Encryption error, saved without encryption" -ForegroundColor Yellow
-        Write-Host "[SECRET_SET_KEY]   Error: $($_.Exception.Message)" -ForegroundColor Red
-        return $true
-    }
-
+    Write-ClientKeyEncryptNotice -Names @($KeyName)
+    $result = Invoke-SecretCryptoBatch -Password $Password -Command encrypt -ArgumentList @($dirs.ENCRYPTED_DIR, $rawFile)
     $Password = $null
+
+    if ($result.Done -contains $KeyName) {
+        Write-Host "[SECRET_SET_KEY] Encrypted and saved: $KeyName" -ForegroundColor Green
+    } else {
+        Write-Host "[SECRET_SET_KEY] WARNING: Encryption failed, saved without encryption" -ForegroundColor Yellow
+    }
+    return $true
 }
 
 <#
@@ -867,6 +940,14 @@ function Set-SecretKeyBatch {
         [switch]$SkipEncryption
     )
 
+    $dirs = $null
+    $rawFiles = @()
+    $savedCount = 0
+    $keyName = ""
+    $value = ""
+    $rawFile = ""
+    $result = $null
+
     if ($Secrets.Count -eq 0) {
         Write-Host "[SECRET_SET_KEY_BATCH] WARNING: No secrets to save" -ForegroundColor Yellow
         return $true
@@ -883,9 +964,6 @@ function Set-SecretKeyBatch {
     }
 
     Write-Host "[SECRET_SET_KEY_BATCH] Saving $($Secrets.Count) secrets..." -ForegroundColor Cyan
-
-    $savedCount = 0
-    $rawFiles = @()
 
     foreach ($keyName in $Secrets.Keys) {
         $value = $Secrets[$keyName]
@@ -914,10 +992,7 @@ function Set-SecretKeyBatch {
         return $true
     }
 
-    $disguiseJs = Find-DisguiseTool -ScriptsDir $dirs.SCRIPTS_DIR
-
-    if ([string]::IsNullOrWhiteSpace($disguiseJs) -or -not (Test-Path $disguiseJs)) {
-        Write-Host "[SECRET_SET_KEY_BATCH] WARNING: disguise.js not found, saved without encryption" -ForegroundColor Yellow
+    if ($rawFiles.Count -eq 0) {
         return $true
     }
 
@@ -939,45 +1014,29 @@ function Set-SecretKeyBatch {
 
     Write-Host ""
     Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
-    Write-Host "[SECRET_SET_KEY_BATCH] Encrypting $savedCount secrets..." -ForegroundColor Cyan
+    Write-Host "[SECRET_SET_KEY_BATCH] Encrypting $($rawFiles.Count) secrets..." -ForegroundColor Cyan
     Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
 
-    $encryptedCount = 0
-    $failedCount = 0
+    Write-ClientKeyEncryptNotice -Names $rawFiles
+    $result = Invoke-SecretCryptoBatch -Password $Password -Command encrypt -ArgumentList (@($dirs.ENCRYPTED_DIR) + $rawFiles)
+    $Password = $null
 
-    foreach ($rawFile in $rawFiles) {
-        $keyName = [System.IO.Path]::GetFileName($rawFile)
-
-        try {
-            $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($rawFile, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
-
-            $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$keyName.js"
-            if (Test-Path $encryptedFile) {
-                Write-Host "[SECRET_SET_KEY_BATCH]   SUCCESS: $keyName" -ForegroundColor Green
-                $encryptedCount++
-            } else {
-                Write-Host "[SECRET_SET_KEY_BATCH]   FAILED: $keyName" -ForegroundColor Red
-                Write-Host "[SECRET_SET_KEY_BATCH]     Error: $result" -ForegroundColor Red
-                $failedCount++
-            }
-        } catch {
-            Write-Host "[SECRET_SET_KEY_BATCH]   FAILED: $keyName" -ForegroundColor Red
-            Write-Host "[SECRET_SET_KEY_BATCH]     Error: $($_.Exception.Message)" -ForegroundColor Red
-            $failedCount++
-        }
+    foreach ($keyName in $result.Done) {
+        Write-Host "[SECRET_SET_KEY_BATCH]   SUCCESS: $keyName" -ForegroundColor Green
+    }
+    foreach ($keyName in $result.Failed) {
+        Write-Host "[SECRET_SET_KEY_BATCH]   FAILED: $keyName" -ForegroundColor Red
     }
 
     Write-Host ""
     Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
     Write-Host "[SECRET_SET_KEY_BATCH] Encryption Summary:" -ForegroundColor Cyan
     Write-Host "[SECRET_SET_KEY_BATCH]   Total:      $savedCount" -ForegroundColor Cyan
-    Write-Host "[SECRET_SET_KEY_BATCH]   Encrypted:  $encryptedCount" -ForegroundColor Green
-    Write-Host "[SECRET_SET_KEY_BATCH]   Failed:     $failedCount" -ForegroundColor Red
+    Write-Host "[SECRET_SET_KEY_BATCH]   Encrypted:  $($result.Done.Count)" -ForegroundColor Green
+    Write-Host "[SECRET_SET_KEY_BATCH]   Failed:     $($result.Failed.Count)" -ForegroundColor Red
     Write-Host "[SECRET_SET_KEY_BATCH] ========================================" -ForegroundColor Cyan
 
-    $Password = $null
-
-    if ($failedCount -gt 0) {
+    if ($result.Failed.Count -gt 0) {
         Write-Host "[SECRET_SET_KEY_BATCH] WARNING: Some secrets failed to encrypt but raw files are saved" -ForegroundColor Yellow
     }
 

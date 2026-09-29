@@ -121,58 +121,20 @@ secret_decrypt_all() {
 
     local success_count=0
     local fail_count=0
-    for encrypted_file in "${encrypted_files[@]}"; do
-        local file_name=$(basename "$encrypted_file")
-        # Remove extension (.js or .JS)
-        local key_name="${file_name%.js}"
-        key_name="${key_name%.JS}"
-        echo "[SECRET_DECRYPT_ALL] Decrypting: $file_name" >&2
-        echo "[SECRET_DECRYPT_ALL]   Executing: node secret_password_runner.js \"$encrypted_file\" pwd $SECRET_PASSWORD_ARG \"$output_dir\"" >&2
-
-        # Count files before decryption
-        local files_before=$(find "$output_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
-
-        # Run decryption
-        local result
-        result=$(secret_tool_run "$password" "" node "$encrypted_file" pwd "$SECRET_PASSWORD_ARG" "$output_dir" 2>&1)
-
-        # Count files after decryption
-        local files_after=$(find "$output_dir" -maxdepth 1 -type f 2>/dev/null | wc -l)
-
-        # Check if new files were created and have content
-        if [ "$files_after" -gt "$files_before" ]; then
-            # Find the newly created file(s)
-            local new_files=()
-            while IFS= read -r -d '' file; do
-                new_files+=("$file")
-            done < <(find "$output_dir" -maxdepth 1 -type f -newer "$encrypted_file" -print0 2>/dev/null)
-
-            # If no files found with -newer, just check if any files have content
-            if [ ${#new_files[@]} -eq 0 ]; then
-                while IFS= read -r -d '' file; do
-                    local content=$(cat "$file" 2>/dev/null | tr -d '\0' | sed '/^\s*$/d')
-                    if [ -n "$content" ]; then
-                        new_files+=("$file")
-                        break
-                    fi
-                done < <(find "$output_dir" -maxdepth 1 -type f -print0 2>/dev/null)
-            fi
-
-            if [ ${#new_files[@]} -gt 0 ]; then
-                local decrypted_name=$(basename "${new_files[0]}")
-                echo "[SECRET_DECRYPT_ALL]   SUCCESS: $file_name -> $decrypted_name" >&2
-                ((success_count++))
-            else
-                echo "[SECRET_DECRYPT_ALL]   FAILED: $file_name (no valid content)" >&2
-                echo "[SECRET_DECRYPT_ALL]   Node output: $result" >&2
-                ((fail_count++))
-            fi
-        else
-            echo "[SECRET_DECRYPT_ALL]   FAILED: $file_name (no file created)" >&2
-            echo "[SECRET_DECRYPT_ALL]   Node output: $result" >&2
-            ((fail_count++))
-        fi
+    local name=""
+    echo "[SECRET_DECRYPT_ALL] Decrypting ${#encrypted_files[@]} file(s) in one batch -> $output_dir" >&2
+    secret_crypto_batch "$password" "" decrypt "$output_dir" --force "${encrypted_files[@]}"
+    for name in "${SECRET_CRYPTO_DONE[@]}"; do
+        echo "[SECRET_DECRYPT_ALL]   SUCCESS: $name" >&2
     done
+    for name in "${SECRET_CRYPTO_WRONG[@]}"; do
+        echo "[SECRET_DECRYPT_ALL]   FAILED: $name (wrong password, nothing written)" >&2
+    done
+    for name in "${SECRET_CRYPTO_FAILED[@]}"; do
+        echo "[SECRET_DECRYPT_ALL]   FAILED: $name" >&2
+    done
+    success_count="${#SECRET_CRYPTO_DONE[@]}"
+    fail_count=$(( ${#encrypted_files[@]} - success_count ))
 
     echo "" >&2
     echo "[SECRET_DECRYPT_ALL] ========================================" >&2
@@ -247,22 +209,17 @@ secret_encrypt_all() {
 
     local success_count=0
     local fail_count=0
-    for source_file in "${source_files[@]}"; do
-        local key_name=$(basename "$source_file")
-        local output_file="$ENCRYPTED_DIR/$key_name.js"
-        echo "[SECRET_ENCRYPT_ALL] Encrypting: $key_name -> $key_name.js" >&2
-        local result
-        result=$(secret_tool_run "$password" "" node "$disguise_js" "$source_file" "$SECRET_PASSWORD_ARG" "$ENCRYPTED_DIR" 2>&1)
-        local exit_code=$?
-        if [ $exit_code -eq 0 ] && [ -f "$output_file" ]; then
-            echo "[SECRET_ENCRYPT_ALL]   SUCCESS: $key_name.js" >&2
-            ((success_count++))
-        else
-            echo "[SECRET_ENCRYPT_ALL]   FAILED: $key_name" >&2
-            echo "[SECRET_ENCRYPT_ALL]   Error: $result" >&2
-            ((fail_count++))
-        fi
+    local name=""
+    echo "[SECRET_ENCRYPT_ALL] Encrypting ${#source_files[@]} file(s) in one batch -> $ENCRYPTED_DIR" >&2
+    secret_crypto_batch "$password" "" encrypt "$ENCRYPTED_DIR" "${source_files[@]}"
+    for name in "${SECRET_CRYPTO_DONE[@]}"; do
+        echo "[SECRET_ENCRYPT_ALL]   SUCCESS: $name.js" >&2
     done
+    for name in "${SECRET_CRYPTO_FAILED[@]}"; do
+        echo "[SECRET_ENCRYPT_ALL]   FAILED: $name" >&2
+    done
+    success_count="${#SECRET_CRYPTO_DONE[@]}"
+    fail_count=$(( ${#source_files[@]} - success_count ))
 
     echo "" >&2
     echo "[SECRET_ENCRYPT_ALL] ========================================" >&2
@@ -335,7 +292,7 @@ secret_get_key() {
         fi
 
         # Display decryption command (hide password)
-        echo "[SECRET_GET_KEY] Executing: node secret_password_runner.js \"$encrypted_file\" pwd $SECRET_PASSWORD_ARG \"$temp_output_dir\"" >&2
+        echo "[SECRET_GET_KEY] Executing: node secret_password_runner.js secret_crypto.js decrypt $SECRET_PASSWORD_ARG \"$temp_output_dir\" \"$encrypted_file\"" >&2
 
         # Check if node is available
         if ! command -v node &>/dev/null; then
@@ -345,8 +302,9 @@ secret_get_key() {
         fi
 
         # Decrypt to temporary directory
-        local result
-        result=$(secret_tool_run "$password" "" node "$encrypted_file" pwd "$SECRET_PASSWORD_ARG" "$temp_output_dir" 2>&1)
+        local result=""
+        secret_crypto_batch "$password" "" decrypt "$temp_output_dir" "$encrypted_file"
+        [ "${#SECRET_CRYPTO_WRONG[@]}" -eq 0 ] || result="wrong password"
 
         # Don't check exit code - directly look for any decrypted file in temp directory
         local decrypted_files=()
@@ -458,7 +416,7 @@ export -f secret_get_all_keys
 export -f _secret_get_directories
 export -f _secret_find_disguise_tool
 export -f secret_prompt_password prompt_tty_foreground
-export -f secret_tool_run
-export SECRET_PASSWORD_RUNNER_JS SECRET_PASSWORD_ARG SECRET_PASSWORD_PROMPT_ATTEMPTS
+export -f secret_tool_run secret_crypto_batch
+export SECRET_PASSWORD_RUNNER_JS SECRET_PASSWORD_ARG SECRET_PASSWORD_PROMPT_ATTEMPTS SECRET_CRYPTO_JS SECRET_CRYPTO_RESULT_TAG
 
 echo "[SECRET_MANAGER] Library loaded successfully" >&2

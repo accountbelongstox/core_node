@@ -56,62 +56,25 @@ Write-Host "Loading SSH Configuration" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Ensure GlobalVars loaded so $Global:PYTHON_EXE_PATH / $Global:PYTHON_DIR are available (same as DevInstaller / Run DevInstaller)
+# Ensure GlobalVars loaded: Read-SecretValue (node secret_crypto.js read) and SECRET_CRYPTO_JS
 $globalVarsPath = Join-Path $winCommonDirPath "GlobalVars.ps1"
 . $globalVarsPath
 
-# Resolve Python: prefer GLOBAL PYTHON EXE (DevInstaller), then python.exe in PATH (avoid Store "python" alias)
-$pythonExecutable = $null
-if ($Global:PYTHON_EXE_PATH -and (Test-Path -LiteralPath $Global:PYTHON_EXE_PATH)) {
-    $pythonExecutable = $Global:PYTHON_EXE_PATH
-} elseif ($Global:PYTHON_DIR -and (Test-Path -LiteralPath $Global:PYTHON_DIR)) {
-    $pythonExeFromDir = Join-Path $Global:PYTHON_DIR "python.exe"
-    if (Test-Path -LiteralPath $pythonExeFromDir) {
-        $pythonExecutable = $pythonExeFromDir
-    }
-}
-if (-not $pythonExecutable) {
-    $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
-    if ($pythonCmd -and $pythonCmd.Source) {
-        $pythonExecutable = $pythonCmd.Source
-    }
-}
-if (-not $pythonExecutable) {
-    $pythonCmd = Get-Command python3 -ErrorAction SilentlyContinue
-    if ($pythonCmd -and $pythonCmd.Source) {
-        $pythonExecutable = $pythonCmd.Source
-    }
-}
-if (-not $pythonExecutable) {
-    Write-Host "[ERROR] Python not found. Cannot load SSH secrets. Run DevInstaller (dd menu -> Run DevInstaller) to install Python, or add python.exe to PATH." -ForegroundColor Red
-}
-
-# Use relative path from script location to project root
-$secretReaderScript = Join-Path $projectRootPath "scripts\pytools\special_software_env_manager\secret_read.py"
 $fixScriptPath = Join-Path $winCommonDirPath "SecretDecryptionCheck.ps1"
 $fixInstruction = "Run dd.cmd (Secret Decryption Fix) or powershell -ExecutionPolicy Bypass -File `"$fixScriptPath`""
-Write-Host "[DEBUG] Python executable: $pythonExecutable" -ForegroundColor DarkGray
-Write-Host "[DEBUG] Secret reader script: $secretReaderScript" -ForegroundColor DarkGray
+Write-Host "[DEBUG] Secret reader: $Global:SECRET_CRYPTO_JS read" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
 function Get-SSHSecret {
     param([string]$KeyName)
-    if (-not $pythonExecutable) { return "" }
+    $result = ""
     Write-Host "[DEBUG] Loading SSH secret key: $KeyName" -ForegroundColor DarkGray
 
-    $originalLocation = Get-Location
-    Set-Location $projectRootPath
-
-    $result = & $pythonExecutable $secretReaderScript $KeyName
-    $exitCode = $LASTEXITCODE
-    Set-Location $originalLocation
-
-    if ($exitCode -ne 0 -or -not $result) {
+    $result = Read-SecretValue -Name $KeyName
+    if (-not $result) {
         Write-Host "[WARNING] Secret reader failed for $KeyName" -ForegroundColor Yellow
         Write-Host "[ACTION] $fixInstruction" -ForegroundColor Yellow
         return ""
     }
-
-    # Note: BOM is already handled by secret_read.py, no need to strip again
     return $result
 }
 

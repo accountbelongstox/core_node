@@ -236,6 +236,9 @@ $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
 $Global:SECRET_ENCRYPTION_TOOLS_DIR = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "encryption_tools"
 $Global:SECRET_PASSWORD_RUNNER_JS = Join-Path $Global:SECRET_ENCRYPTION_TOOLS_DIR "secret_password_runner.js"
 $Global:SECRET_PASSWORD_ARG = "--password-stdin"
+# Batch secret crypto (one process, one password, parallel key derivation; a wrong
+# password writes nothing). Mirrors linux/common/secret_tool_common.sh SECRET_CRYPTO_JS.
+$Global:SECRET_CRYPTO_JS = Join-Path $Global:SECRET_ENCRYPTION_TOOLS_DIR "secret_crypto.js"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
 $Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
 $Global:PNPM_GLOBAL_DIR = Join-Path $Global:NODE_DIR "pnpm-global"

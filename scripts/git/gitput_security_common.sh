@@ -346,30 +346,15 @@ ensure_ssh_keys_installed() {
         fi
         # SECURITY: never log the password itself.
 
-        # Decrypt public key (--force to overwrite existing file)
-        local decrypt_output=""
-        write_color_text "[SSH] Decrypting public key..." "DarkGray" >&2
-        decrypt_output=$(secret_tool_run "$password" "" "$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$SECRET_PASSWORD_ARG" "$SSH_DIR" --force 2>&1)
-        local pub_exit=$?
-        if [ $pub_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
-            write_color_text "[SSH] [ERROR] Public key decrypt FAILED (wrong password?)" "Red" >&2
-            write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
+        # Decrypt both keys in one batch (--force overwrites; a wrong password writes nothing)
+        write_color_text "[SSH] Decrypting public and private key..." "DarkGray" >&2
+        secret_crypto_batch "$password" "$node_cmd" decrypt "$SSH_DIR" --force "$LOCAL_SSH_PUB_JS" "$LOCAL_SSH_KEY_JS"
+        if [ "${#SECRET_CRYPTO_DONE[@]}" -ne 2 ]; then
+            write_color_text "[SSH] [ERROR] Key decrypt FAILED (wrong password: ${SECRET_CRYPTO_WRONG[*]:-none}; failed: ${SECRET_CRYPTO_FAILED[*]:-none})" "Red" >&2
             password=""
             return 1
         fi
-        write_color_text "[SSH] [OK] Public key decrypted" "Green" >&2
-
-        # Decrypt private key (--force to overwrite existing file)
-        write_color_text "[SSH] Decrypting private key..." "DarkGray" >&2
-        decrypt_output=$(secret_tool_run "$password" "" "$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$SECRET_PASSWORD_ARG" "$SSH_DIR" --force 2>&1)
-        local key_exit=$?
-        if [ $key_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
-            write_color_text "[SSH] [ERROR] Private key decrypt FAILED" "Red" >&2
-            write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
-            password=""
-            return 1
-        fi
-        write_color_text "[SSH] [OK] Private key decrypted" "Green" >&2
+        write_color_text "[SSH] [OK] Public and private key decrypted" "Green" >&2
 
         password=""
 

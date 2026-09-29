@@ -45,6 +45,7 @@ GITPUT_SYNC_COMMON="$SCRIPT_PATH/gitput_sync_common.sh"
 GIT_SYNC_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/git_sync_common.sh"
 RUNTIME_ENVIRONMENT="$CORE_NODE_DIR/scripts/shells/linux/common/runtime_environment.sh"
 SECRET_TOOL_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/secret_tool_common.sh"
+CLIENT_KEY_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/client_key_common.sh"
 
 # SSH key variables
 SSH_DIR="$HOME/.ssh"
@@ -92,6 +93,7 @@ GITEE_FORCE_PUSH_PROMPT="Force push to Gitee as a backup? [Y/n]: "
 source "$ARROW_MENU_SCRIPT"
 source "$RUNTIME_ENVIRONMENT"
 source "$SECRET_TOOL_COMMON"
+source "$CLIENT_KEY_COMMON"
 source "$GITHUB_HOST_REFRESH_SH"
 source "$GITEE_HOST_REFRESH_SH"
 source "$GITPUT_SECURITY_COMMON"
@@ -294,35 +296,19 @@ invoke_git_operations() {
                         encryption_failed=true
                     fi
 
-                    # Encrypt each file using the same password
-                    for file in "${unencrypted_files[@]}"; do
-                        local file_name=$(basename "$file")
-                        write_color_text "Encrypting: $file_name" "Cyan"
-
-                        # Print encryption parameters
-                        local masked_password=$(printf "%*s" ${#global_password} "" | tr " " "*")
-                        write_color_text "Encryption parameters:" "DarkGray"
-                        write_color_text "  - Tool: $disguise_js_path" "DarkGray"
-                        write_color_text "  - Input: $file" "DarkGray"
-                        write_color_text "  - Password: $masked_password" "DarkGray"
-                        write_color_text "  - Output Dir: $secret_keys_encrypted_dir" "DarkGray"
-                        write_color_text "  - Command: node secret_password_runner.js disguise.js \"$file\" $SECRET_PASSWORD_ARG \"$secret_keys_encrypted_dir\"" "DarkGray"
-
-                        # Run disguise.js encryption
-                        write_color_text "Running encryption..." "Cyan"
-                        local result
-                        result=$(secret_tool_run "$global_password" "" node "$disguise_js_path" "$file" "$SECRET_PASSWORD_ARG" "$secret_keys_encrypted_dir" 2>&1)
-                        local exit_code=$?
-
-                        if [ $exit_code -eq 0 ]; then
-                            write_color_text "SUCCESS: Encrypted $file_name" "Green"
-                        else
-                            write_color_text "WARNING: Failed to encrypt $file_name" "Yellow"
-                            write_color_text "Error: $result" "Yellow"
+                    # Encrypt all files in one batch with the same password
+                    if [ "${#unencrypted_files[@]}" -gt 0 ]; then
+                        client_key_encrypt_notice "${unencrypted_files[@]}"
+                        write_color_text "Encrypting ${#unencrypted_files[@]} file(s) in one batch -> $secret_keys_encrypted_dir" "Cyan"
+                        secret_crypto_batch "$global_password" "" encrypt "$secret_keys_encrypted_dir" "${unencrypted_files[@]}"
+                        for file in "${SECRET_CRYPTO_DONE[@]}"; do
+                            write_color_text "SUCCESS: Encrypted $file" "Green"
+                        done
+                        for file in "${SECRET_CRYPTO_FAILED[@]}"; do
+                            write_color_text "WARNING: Failed to encrypt $file" "Yellow"
                             encryption_failed=true
-                            # Continue with next file instead of breaking
-                        fi
-                    done
+                        done
+                    fi
 
                     # Clear global password from memory
                     global_password=""

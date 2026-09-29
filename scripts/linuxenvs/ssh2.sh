@@ -64,39 +64,22 @@ echo "Loading SSH Configuration"
 echo "============================================================"
 echo ""
 
-# Detect Python executable
-PYTHON_EXECUTABLE=""
-if command -v python3 &> /dev/null; then
-    PYTHON_EXECUTABLE="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_EXECUTABLE="python"
-else
-    echo "[ERROR] Python not found. Cannot load SSH secrets."
-    exit 1
-fi
+SECRET_TOOL_COMMON="$projectRootPath/scripts/shells/linux/common/secret_tool_common.sh"
+source "$SECRET_TOOL_COMMON"
 
-SECRET_READER_SCRIPT="$projectRootPath/scripts/pytools/special_software_env_manager/secret_read.py"
-echo "[DEBUG] Python executable: $PYTHON_EXECUTABLE"
-echo "[DEBUG] Secret reader script: $SECRET_READER_SCRIPT"
-echo ""
-
-# Function to get secret value
+# Function to get secret value (node secret_crypto.js read; installs Node.js when missing)
 get_secret_value() {
     local key_name="$1"
+    local value=""
     echo "[DEBUG] Loading secret key: $key_name" >&2
 
-    # secret_read.py is standalone (no pycore imports); no cd/PYTHONPATH needed
-    local value
-    value=$("$PYTHON_EXECUTABLE" "$SECRET_READER_SCRIPT" "$key_name")
-    local exit_code=$?
-
-    if [ $exit_code -eq 0 ] && [ -n "$value" ]; then
+    secret_read value "$key_name"
+    if [ -n "$value" ]; then
         echo "$value"
         return 0
-    else
-        echo "[DEBUG] Failed to load secret: $key_name (exit code: $exit_code)" >&2
-        return 1
     fi
+    echo "[DEBUG] Failed to load secret: $key_name" >&2
+    return 1
 }
 
 SSH_CONNECTION=$(get_secret_value "SSH_CONNECTION_2")

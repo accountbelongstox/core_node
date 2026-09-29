@@ -280,8 +280,7 @@ decrypt_keys_to_temp() {
 
     KEY_DECRYPT_DIR="$(mktemp -d)"
     chmod 700 "$KEY_DECRYPT_DIR"
-    secret_tool_run "$password" "" "$NODE_PATH" "$LOCAL_SSH_PUB_JS" pwd "$SECRET_PASSWORD_ARG" "$KEY_DECRYPT_DIR" >/dev/null || true
-    secret_tool_run "$password" "" "$NODE_PATH" "$LOCAL_SSH_KEY_JS" pwd "$SECRET_PASSWORD_ARG" "$KEY_DECRYPT_DIR" >/dev/null || true
+    secret_crypto_batch "$password" "$NODE_PATH" decrypt "$KEY_DECRYPT_DIR" "$LOCAL_SSH_PUB_JS" "$LOCAL_SSH_KEY_JS"
     password=""
 
     if ! validate_ssh_key_content "$KEY_DECRYPT_DIR/$SSH_PUB_NAME" "$KEY_DECRYPT_DIR/$SSH_KEY_NAME" "decrypted bundle"; then

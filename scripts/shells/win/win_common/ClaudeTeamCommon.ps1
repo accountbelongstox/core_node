@@ -40,7 +40,7 @@ $ClaudeTeamInstallCommonScript = Join-Path $ClaudeTeamCommonDir "ClaudeTeamInsta
 . $ClaudeTeamInstallCommonScript
 $ClaudeTeamStateDir = $ClaudeTeamInstallStateDir
 $ClaudeTeamDefaultAgentsDir = Join-Path (Join-Path $ClaudeTeamRootDir ".claude") "agents"
-$ClaudeTeamSecretReader = Join-Path (Join-Path (Join-Path $ClaudeTeamScriptsDir "pytools") "special_software_env_manager") "secret_read.py"
+$ClaudeTeamSecretReader = Join-Path (Join-Path $ClaudeTeamScriptsDir "encryption_tools") "secret_crypto.js"
 $ClaudeTeamUserTeamsDir = Join-Path $ClaudeTeamInstallUserClaudeDir "teams"
 $ClaudeTeamUserTasksDir = Join-Path $ClaudeTeamInstallUserClaudeDir "tasks"
 # claude writes sessions/<pid>.json (name, pid) once a session is up (undocumented internal state).
@@ -1905,19 +1905,19 @@ function Invoke-ClaudeTeamRemoteLoop {
     param($Row)
     $remote = Get-ClaudeTeamRemoteConfig -Role $Row.Role
     $reconnectSeconds = [int](Get-ClaudeTeamProperty -Object (Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "remote" -Default $null) -Name "reconnect_seconds" -Default 5)
-    $pythonPath = Resolve-ClaudeTeamInstallCommand -Names @("python.exe", "py.exe") -SkipStoreAlias
+    $nodePath = Resolve-ClaudeTeamInstallCommand -Names @("node.exe")
     $sshPath = Resolve-ClaudeTeamInstallCommand -Names @("ssh.exe")
     $sshTarget = $null
     $remoteArgument = $null
-    if (-not $pythonPath) {
-        Write-ClaudeTeamLog "ERROR" "python not found; the ssh target cannot be read from the secret store"
+    if (-not $nodePath) {
+        Write-ClaudeTeamLog "ERROR" "node.exe not found; the ssh target cannot be read from the secret store"
         return
     }
     if (-not $sshPath) {
         Write-ClaudeTeamLog "ERROR" "ssh.exe not found (Windows OpenSSH client)"
         return
     }
-    $sshTarget = (& $pythonPath $ClaudeTeamSecretReader ([string]$remote.ssh_secret)) | Select-Object -Last 1
+    $sshTarget = (& $nodePath $ClaudeTeamSecretReader read ([string]$remote.ssh_secret)) | Select-Object -Last 1
     if ([string]::IsNullOrWhiteSpace($sshTarget)) {
         Write-ClaudeTeamLog "ERROR" ("secret {0} is empty or unreadable" -f [string]$remote.ssh_secret)
         return

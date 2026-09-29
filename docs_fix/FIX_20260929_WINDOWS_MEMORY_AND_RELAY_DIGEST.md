@@ -128,3 +128,8 @@ decrypt `--force`; nothing -> generate): Linux `scripts/shells/linux/common/clie
 used by dd.sh (`secret_functions.sh`), `175_laravel_main_start.sh`, `pyservice_entry.sh`; Windows `SecretManager.ps1`
 (`Initialize-ClientKeyReady`, `Remove-InvalidClientKeySecret`) used by `SecretDecryptionCheck.ps1` and `pyservice.ps1`.
 Server decoy CORE_NODE_CLIENT_KEY_1 removed; awaiting interactive decrypt with the Windows password.
+Batch secret crypto: `scripts/encryption_tools/secret_crypto.js` (decrypt/encrypt/verify any number of files, one
+password, one process, parallel KDF; wrong password writes nothing). disguise.js / batch_decrypt.js wrap it. Callers:
+Linux `secret_crypto_batch` (secret_tool_common.sh), Windows `Invoke-SecretCryptoBatch` (GlobalVarStoreCommon.ps1),
+pycore `pyfoundations/secret_crypto_batch.py`. Client key: encrypt sites print a sync notice; a wrong-password decrypt
+offers regenerate + immediate encrypt (Linux tested; Windows static review only, run under pwsh before relying on it).

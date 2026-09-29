@@ -4,32 +4,14 @@
 Encryption check module for sensitive files
 """
 
-import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 from gitput_unified_modules.utils import (
     write_color_text,
     get_core_node_dir,
     read_masked_password,
 )
-
-# The password reaches the node tool on stdin through this runner, never argv.
-SECRET_PASSWORD_RUNNER = Path("encryption_tools") / "secret_password_runner.js"
-SECRET_PASSWORD_ARG = "--password-stdin"
-
-
-def find_disguise_js() -> Optional[Path]:
-    """Find disguise.js in scripts directory"""
-    core_node_dir = get_core_node_dir()
-    scripts_dir = core_node_dir / "scripts"
-    
-    if not scripts_dir.exists():
-        return None
-    
-    disguise_js = list(scripts_dir.rglob("disguise.js"))
-    if disguise_js:
-        return disguise_js[0]
-    return None
+from pycore.pyfoundations.secret_crypto_batch import run_secret_crypto
 
 
 def check_unencrypted_files() -> List[Path]:
@@ -61,42 +43,22 @@ def check_unencrypted_files() -> List[Path]:
     return unencrypted_files
 
 
-def encrypt_file(file_path: Path, password: str, output_dir: Path) -> bool:
-    """Encrypt a file using disguise.js"""
-    disguise_js = find_disguise_js()
-    if not disguise_js:
-        write_color_text("WARNING: disguise.js not found in scripts directory.", "Yellow")
+def encrypt_files(file_paths: List[Path], password: str, output_dir: Path) -> bool:
+    """Encrypt every file in one secret_crypto.js batch call (one password,
+    parallel key derivation). Returns True only if all files encrypted."""
+    write_color_text(f"Encrypting {len(file_paths)} file(s) in one batch...", "Cyan")
+
+    result = run_secret_crypto('encrypt', password, [str(path) for path in file_paths], out_dir=str(output_dir))
+    if not result.ok:
+        write_color_text(f"WARNING: secret_crypto.js failed to run: {result.run_error}", "Yellow")
         return False
-    
-    try:
-        write_color_text(f"Encrypting: {file_path.name}", "Cyan")
-        
-        masked_password = "*" * len(password)
-        write_color_text("Encryption parameters:", "DarkGray")
-        write_color_text(f"  - Tool: {disguise_js}", "DarkGray")
-        write_color_text(f"  - Input: {file_path}", "DarkGray")
-        write_color_text(f"  - Password: {masked_password}", "DarkGray")
-        write_color_text(f"  - Output Dir: {output_dir}", "DarkGray")
-        
-        runner = get_core_node_dir() / "scripts" / SECRET_PASSWORD_RUNNER
-        result = subprocess.run(
-            ["node", str(runner), str(disguise_js), str(file_path), SECRET_PASSWORD_ARG, str(output_dir)],
-            input=password,
-            capture_output=True,
-            text=True,
-        )
-        output = f"{result.stdout}{result.stderr}"
-        if result.returncode == 0:
-            write_color_text(f"SUCCESS: Encrypted {file_path.name}", "Green")
-            return True
-        else:
-            write_color_text(f"WARNING: Failed to encrypt {file_path.name}", "Yellow")
-            write_color_text(f"Error: {output}", "Yellow")
-            return False
-            
-    except Exception as e:
-        write_color_text(f"Error encrypting {file_path.name}: {e}", "Red")
-        return False
+
+    for name in result.encrypted:
+        write_color_text(f"SUCCESS: Encrypted {name}", "Green")
+    for name in result.error:
+        write_color_text(f"WARNING: Failed to encrypt {name}: {result.errors.get(name, '')}", "Yellow")
+
+    return len(result.encrypted) == len(file_paths)
 
 
 def process_encryption() -> bool:
@@ -124,16 +86,8 @@ def process_encryption() -> bool:
         write_color_text("Skipping encryption due to user cancellation.", "Yellow")
         return True
     
-    write_color_text("Starting automatic encryption using disguise.js...", "Cyan")
-    
-    disguise_js = find_disguise_js()
-    if not disguise_js:
-        write_color_text("WARNING: disguise.js not found in scripts directory.", "Yellow")
-        write_color_text("Continuing with git push. Please encrypt sensitive files manually.", "Yellow")
-        return True
-    
-    write_color_text(f"Found disguise.js at: {disguise_js}", "Green")
-    
+    write_color_text("Starting automatic encryption...", "Cyan")
+
     # Get password once for all files
     write_color_text("Enter encryption password for all sensitive files:", "Yellow")
     global_password = None
@@ -153,16 +107,13 @@ def process_encryption() -> bool:
         else:
             write_color_text("ERROR: Passwords do not match. Please try again.", "Red")
     
-    # Encrypt each file
+    # Encrypt all files in one batch
     core_node_dir = get_core_node_dir()
     secret_keys_encrypted_dir = core_node_dir / ".secret_keys" / "already_encrypted"
     secret_keys_encrypted_dir.mkdir(parents=True, exist_ok=True)
-    
-    encryption_failed = False
-    for file in unencrypted_files:
-        if not encrypt_file(file, global_password, secret_keys_encrypted_dir):
-            encryption_failed = True
-    
+
+    encryption_failed = not encrypt_files(unencrypted_files, global_password, secret_keys_encrypted_dir)
+
     if encryption_failed:
         write_color_text("WARNING: Some files failed to encrypt, but continuing with git push.", "Yellow")
         write_color_text("Please manually encrypt failed files later.", "Yellow")

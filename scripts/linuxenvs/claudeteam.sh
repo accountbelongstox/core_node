@@ -76,6 +76,24 @@ deviceProfile=""
 deviceRole=""
 deviceRemoteHint=""
 claudeDeviceProfileCommonPath=""
+claudeSettingsPresetPath=""
+sharedConfigHome=""
+sharedConfigOwner=""
+
+# Root runs write root-owned files (credentials included) into the shared
+# config dir; hand ownership back to the real user so their own sessions keep
+# reading the same login. No-op for non-root or a root-owned config dir.
+claude_team_restore_shared_owner() {
+    [ "$(id -u)" -eq 0 ] || return 0
+    case "$CLAUDE_CONFIG_DIR" in
+        /root|/root/*|"") return 0 ;;
+    esac
+    sharedConfigHome="$(dirname "$CLAUDE_CONFIG_DIR")"
+    sharedConfigOwner="$(stat -c '%u:%g' "$sharedConfigHome" 2>/dev/null || echo '0:0')"
+    if [ "$sharedConfigOwner" != "0:0" ]; then
+        chown -R "$sharedConfigOwner" "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+    fi
+}
 
 # Initialize path variables
 scriptSource="${BASH_SOURCE[0]}"
@@ -87,6 +105,7 @@ scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
 claudeTeamCommonPath="$scriptsDirPath/shells/linux/common/claude_team_common.sh"
 aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
 claudeDeviceProfileCommonPath="$scriptsDirPath/shells/linux/common/claude_device_profile_common.sh"
+claudeSettingsPresetPath="$scriptsDirPath/ai_shtools/claude_team_settings.py"
 
 # Shared login: default claude's config/auth directory to the real desktop
 # user's, resolved through the shared-login helpers of 99_install_ai_tools.sh (never hardcoded:
@@ -206,8 +225,16 @@ fi
 . "$aiCliProvisionCommonPath"
 ai_cli_provision "claude"
 
+# User preset (config user_settings_preset): cross-session messaging settings,
+# applied idempotently to $CLAUDE_CONFIG_DIR/settings.json on every launch.
+python3 "$claudeSettingsPresetPath"
+claude_team_restore_shared_owner
+
 if [ -n "$deviceSlot" ] && [ -z "$deviceRole" ]; then
-    exec claude "${passthrough_args[@]}"
+    claude "${passthrough_args[@]}"
+    claudeExitCode=$?
+    claude_team_restore_shared_owner
+    exit $claudeExitCode
 fi
 if [ -n "$deviceRole" ]; then
     if claude_device_remote_control_supported; then
@@ -274,20 +301,5 @@ echo ""
 # as long as claude.
 claude "${claude_args[@]}"
 claudeExitCode=$?
-
-# Root runs write root-owned files (credentials included) into the shared
-# config dir; hand ownership back to the real user so their own sessions keep
-# reading the same login. No-op for non-root or a root-owned config dir.
-if [ "$(id -u)" -eq 0 ]; then
-    case "$CLAUDE_CONFIG_DIR" in
-        /root|/root/*|"") ;;
-        *)
-            sharedConfigHome="$(dirname "$CLAUDE_CONFIG_DIR")"
-            sharedConfigOwner="$(stat -c '%u:%g' "$sharedConfigHome" 2>/dev/null || echo '0:0')"
-            if [ "$sharedConfigOwner" != "0:0" ]; then
-                chown -R "$sharedConfigOwner" "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
-            fi
-            ;;
-    esac
-fi
+claude_team_restore_shared_owner
 exit $claudeExitCode

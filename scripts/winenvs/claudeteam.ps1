@@ -49,6 +49,8 @@ $aiCliProvisionCommonScript = $null
 $windowsPathFunctionScript = $null
 $claudeTeamCommonScript = $null
 $claudeDeviceProfileCommonScript = $null
+$claudeSettingsPresetScript = $null
+$presetPythonPath = $null
 $deviceSlot = 0
 $deviceProfile = ""
 $deviceRole = ""
@@ -84,6 +86,7 @@ $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps
 $aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 $claudeTeamCommonScript = Join-Path $winCommonDirPath "ClaudeTeamCommon.ps1"
 $claudeDeviceProfileCommonScript = Join-Path $winCommonDirPath "ClaudeDeviceProfileCommon.ps1"
+$claudeSettingsPresetScript = Join-Path (Join-Path $scriptsDirPath "ai_shtools") "claude_team_settings.py"
 . $claudeTeamCommonScript
 
 # Launcher-only pane options are consumed here; in a role pane --agent, --name and
@@ -160,6 +163,15 @@ try {
         # auto-skip after 5 seconds) only when a newer version is published.
         . $aiCliProvisionCommonScript
         Invoke-AiCliProvision -Tool "claude"
+
+        # User preset (config user_settings_preset): cross-session messaging
+        # settings, applied idempotently to the Claude user settings on every launch.
+        $presetPythonPath = Resolve-ClaudeTeamInstallCommand -Names @("python.exe", "py.exe") -SkipStoreAlias
+        if ($presetPythonPath) {
+            & $presetPythonPath $claudeSettingsPresetScript --settings $ClaudeTeamInstallUserSettingsPath
+        } else {
+            Write-Host "[WARN] python not found; Claude settings preset not applied" -ForegroundColor Yellow
+        }
 
         if ($deviceRole) {
             if (Test-ClaudeDeviceRemoteControlSupported) {

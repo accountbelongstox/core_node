@@ -58,6 +58,11 @@ function Decrypt-SSHKeys {
     $inputTimeout = 20
     $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $userInput = ""
+    $plainPassword = ""
+    $decryptResult = $null
+    $wrongName = ""
+    $failedName = ""
+
     while ($stopWatch.Elapsed.TotalSeconds -lt $inputTimeout -and !$host.UI.RawUI.KeyAvailable) {
         Start-Sleep -Milliseconds 200
     }
@@ -78,22 +83,20 @@ function Decrypt-SSHKeys {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Passwords empty or do not match. Please try again." -Type "Error"
         return
     }
+    # Both key files decrypt in one process with one password. A wrong password writes
+    # nothing (secret_crypto.js), so existing keys are never touched by a bad attempt.
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Decrypting SSH key files..." -Type "Info"
-    try {
-        Invoke-SecretPasswordTool -Password $plainPassword -ToolPath $Global:SSH_PUB_PATH -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $Global:SSH_DIR) | Out-Host
-        if (-not (Test-Path $Global:SSH_PUB_PATH)) { throw "Failed to decrypt public key" }
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Public key decrypted successfully" -Type "Success"
-    } catch {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Error decrypting public key: $_" -Type "Error"
-    }
-    try {
-        Invoke-SecretPasswordTool -Password $plainPassword -ToolPath $Global:SSH_KEY_PATH -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $Global:SSH_DIR) | Out-Host
-        if (-not (Test-Path $Global:SSH_KEY_PATH)) { throw "Failed to decrypt private key" }
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Private key decrypted successfully" -Type "Success"
-    } catch {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Error decrypting private key: $_" -Type "Error"
-    }
+    $decryptResult = Invoke-SecretCryptoBatch -Password $plainPassword -Command decrypt -ArgumentList @($Global:SSH_DIR, "--force", $Global:SSH_PUB_PATH, $Global:SSH_KEY_PATH)
     $plainPassword = $null
+    if ($decryptResult.Done.Count -gt 0) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Decrypted $($decryptResult.Done.Count) SSH key file(s) successfully" -Type "Success"
+    }
+    foreach ($wrongName in $decryptResult.Wrong) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Wrong password for $wrongName (nothing written)" -Type "Error"
+    }
+    foreach ($failedName in $decryptResult.Failed) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to decrypt $failedName" -Type "Error"
+    }
 }
 
 function Set-SSHKeyPermissions {

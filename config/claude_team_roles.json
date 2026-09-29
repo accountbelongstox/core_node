@@ -175,24 +175,34 @@
     "catalog_roles_are": "overrides only (enabled, remote, window); an agent file without a catalog row is enabled; window:false = service role, valid task tag, no window/session at start"
   },
   "session_env": {
-    "all": {
-      "CLAUDE_CODE_DISABLE_MOUSE": "1"
-    },
+    "all": {},
     "lead": {
       "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
     },
     "windows": {
       "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT": "1"
     },
-    "remote": {
-      "CLAUDE_CODE_DISABLE_MOUSE": "1"
-    }
+    "remote": {}
   },
   "user_settings_merge": {
-    "crossSessionInbound": "accept",
     "agentPushNotifEnabled": true,
     "inputNeededNotifEnabled": true,
     "preferredNotifChannel": "terminal_bell"
+  },
+  "user_settings_preset": {
+    "crossSessionInbound": "accept",
+    "permissions": {
+      "allow": [
+        "SendMessage",
+        "ListAgents"
+      ]
+    },
+    "autoMode": {
+      "allow": [
+        "$defaults",
+        "Cross-Session Messaging: ListAgents and SendMessage to the user's own Claude Code sessions (same machine, Remote Control sessions on the user's other machines, or the user's cloud sessions), including the core_node role sessions started by claudeteam, are routine coordination the user preset in claudeteam. Content rules for sensitive data still apply."
+      ]
+    }
   },
   "layout": {
     "window_name": "core-node-team",

@@ -188,6 +188,50 @@ function Get-GlobalVar {
 
 <#
 .SYNOPSIS
+    Absolute node.exe for the secret tools; installs Node.js once through the
+    idempotent Step4_InstallNodeJS.ps1 when it is missing
+#>
+function Resolve-SecretNodeExe {
+    $installScript = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "install_powershells") "Step4_InstallNodeJS.ps1"
+    $nodeCmd = $null
+
+    if (Test-Path -LiteralPath $Global:NODE_EXE_PATH -PathType Leaf) {
+        return $Global:NODE_EXE_PATH
+    }
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($nodeCmd) {
+        return $nodeCmd.Source
+    }
+    Write-Host "[SECRETS] Node.js not found; installing it with $installScript" -ForegroundColor Yellow
+    & $installScript | Out-Host
+    if (Test-Path -LiteralPath $Global:NODE_EXE_PATH -PathType Leaf) {
+        return $Global:NODE_EXE_PATH
+    }
+    return "node"
+}
+
+<#
+.SYNOPSIS
+    First non-empty line of a decrypted secret ("" when missing; never decrypts)
+#>
+function Read-SecretValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $nodeExe = Resolve-SecretNodeExe
+    $value = ""
+
+    $value = (& $nodeExe $Global:SECRET_CRYPTO_JS read $Name 2>$null) | Select-Object -First 1
+    if ($null -eq $value) {
+        return ""
+    }
+    return [string]$value
+}
+
+<#
+.SYNOPSIS
     Runs a node secret tool with its password on stdin
 
 .DESCRIPTION
@@ -195,7 +239,7 @@ function Get-GlobalVar {
     from stdin and puts it where ArgumentList holds $Global:SECRET_PASSWORD_ARG.
 
 .EXAMPLE
-    Invoke-SecretPasswordTool -Password $pw -ToolPath $encFile -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $rawDir)
+    Invoke-SecretPasswordTool -Password $pw -ToolPath $Global:SECRET_CRYPTO_JS -ArgumentList @("decrypt", $Global:SECRET_PASSWORD_ARG, $rawDir, $encFile)
 #>
 function Invoke-SecretPasswordTool {
     param(
@@ -206,21 +250,71 @@ function Invoke-SecretPasswordTool {
         [string[]]$ArgumentList = @()
     )
 
-    $nodeExe = "node"
-    if (Test-Path -LiteralPath $Global:NODE_EXE_PATH -PathType Leaf) {
-        $nodeExe = $Global:NODE_EXE_PATH
-    }
+    $nodeExe = Resolve-SecretNodeExe
     $OutputEncoding = New-Object System.Text.UTF8Encoding $false
     return ($Password | & $nodeExe $Global:SECRET_PASSWORD_RUNNER_JS $ToolPath @ArgumentList 2>&1)
 }
 
 <#
 .SYNOPSIS
-    Decrypts files using disguise.js system with batch processing capability
+    Runs secret_crypto.js once for any number of files with one password
 
 .DESCRIPTION
-    This function handles decryption of .js encrypted files using the disguise.js system.
-    It supports batch decryption of all encrypted files with a single password input.
+    Windows twin of linux/common/secret_tool_common.sh secret_crypto_batch. Parses the
+    SECRET_CRYPTO<TAB>STATUS<TAB>NAME[<TAB>error] result lines into Done (decrypted /
+    encrypted / verified), Skipped (already decrypted), Wrong (wrong password, nothing
+    written) and Failed (unreadable file or I/O error).
+
+.PARAMETER ArgumentList
+    Everything after the password placeholder: OUT_DIR [--force] SRC... for decrypt/encrypt,
+    or just SRC... for verify.
+
+.EXAMPLE
+    $result = Invoke-SecretCryptoBatch -Password $pw -Command decrypt -ArgumentList @($rawDir, "--force", $encFile)
+#>
+function Invoke-SecretCryptoBatch {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Password,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('decrypt', 'encrypt', 'verify')]
+        [string]$Command,
+        [string[]]$ArgumentList = @()
+    )
+
+    $output = @()
+    $done = @()
+    $skipped = @()
+    $wrong = @()
+    $failed = @()
+    $line = ''
+    $parts = $null
+
+    $output = @(Invoke-SecretPasswordTool -Password $Password -ToolPath $Global:SECRET_CRYPTO_JS -ArgumentList (@($Command, $Global:SECRET_PASSWORD_ARG) + $ArgumentList))
+    foreach ($line in $output) {
+        $parts = $line -split "`t"
+        if ($parts.Length -lt 3 -or $parts[0] -ne 'SECRET_CRYPTO') {
+            continue
+        }
+        switch ($parts[1]) {
+            'decrypted' { $done += $parts[2] }
+            'encrypted' { $done += $parts[2] }
+            'verified' { $done += $parts[2] }
+            'skipped_exists' { $skipped += $parts[2] }
+            'wrong_password' { $wrong += $parts[2] }
+            default { $failed += $parts[2] }
+        }
+    }
+    return [pscustomobject]@{ Done = $done; Skipped = $skipped; Wrong = $wrong; Failed = $failed }
+}
+
+<#
+.SYNOPSIS
+    Decrypts files using secret_crypto.js with batch processing capability
+
+.DESCRIPTION
+    This function handles decryption of .js encrypted files using secret_crypto.js. It
+    supports batch decryption of all encrypted files with a single password input.
 
 .PARAMETER EncryptedFilePath
     Path to the encrypted .js file
@@ -238,7 +332,6 @@ function Get-SecretContent {
     )
 
     # Variables declaration
-    $scriptsDir = Join-Path $Global:CORE_NODE_DIR "scripts"
     $secretKeysDir = Join-Path $Global:CORE_NODE_DIR ".secret_keys"
     $rawDir = Join-Path $secretKeysDir ".secret_ignore"
     $encryptedDir = Join-Path $secretKeysDir "already_encrypted"
@@ -280,60 +373,42 @@ function Get-SecretContent {
         if ($encryptedFiles.Count -gt 0) {
             Write-Host "[DECRYPT] Found $($encryptedFiles.Count) encrypted files requiring decryption" -ForegroundColor Yellow
 
-            # Find disguise.js
-            $disguiseJs = $null
-            if (Test-Path $scriptsDir) {
-                $disguiseJs = Get-ChildItem -Path $scriptsDir -Name "disguise.js" -Recurse | Select-Object -First 1
-                if ($disguiseJs) {
-                    $disguiseJs = Join-Path $scriptsDir $disguiseJs
-                }
-            }
+            # Get password for batch decryption
+            $plaintextPassword = Read-SecretPassword -Label "[DECRYPT] Decryption"
 
-            if ($disguiseJs) {
-                Write-Host "[DECRYPT] Found decryption tool: $disguiseJs" -ForegroundColor Green
-
-                # Get password for batch decryption
-                $plaintextPassword = Read-SecretPassword -Label "[DECRYPT] Decryption"
-
-                if (-not [string]::IsNullOrWhiteSpace($plaintextPassword)) {
-                    # Ensure raw directory exists
-                    if (-not (Test-Path $rawDir)) {
-                        New-Item -ItemType Directory -Path $rawDir -Force | Out-Null
-                    }
-
-                    # Decrypt each file
-                    $successCount = 0
-                    foreach ($encryptedFile in $encryptedFiles) {
-                        Write-Host "[DECRYPT] Decrypting: $($encryptedFile.Name)" -ForegroundColor Cyan
-
-                        try {
-                            # Use node to decrypt the .js file
-                            $result = Invoke-SecretPasswordTool -Password $plaintextPassword -ToolPath $encryptedFile.FullName -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $rawDir)
-                            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($encryptedFile.Name)
-                            $decryptedPath = Join-Path $rawDir $baseName
-
-                            if ((Test-Path $decryptedPath) -and ((Get-Item $decryptedPath).Length -gt 0)) {
-                                Write-Host "[DECRYPT] SUCCESS: Decrypted $($encryptedFile.Name)" -ForegroundColor Green
-                                $successCount++
-                            } else {
-                                Write-Host "[DECRYPT] WARNING: Failed to decrypt $($encryptedFile.Name)" -ForegroundColor Yellow
-                                Write-Host "[DECRYPT] Error: $result" -ForegroundColor Yellow
-                            }
-                        } catch {
-                            Write-Host "[DECRYPT] ERROR: Exception decrypting $($encryptedFile.Name) - $($_.Exception.Message)" -ForegroundColor Red
-                        }
-                    }
-
-                    Write-Host "[DECRYPT] Batch decryption completed: $successCount/$($encryptedFiles.Count) files decrypted" -ForegroundColor Cyan
-                } else {
-                    Write-Host "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" -ForegroundColor Yellow
+            if (-not [string]::IsNullOrWhiteSpace($plaintextPassword)) {
+                # Ensure raw directory exists
+                if (-not (Test-Path $rawDir)) {
+                    New-Item -ItemType Directory -Path $rawDir -Force | Out-Null
                 }
 
-                # Clear password from memory
-                $plaintextPassword = $null
+                # Decrypt every pending file in one process with one password.
+                $encryptedFilePaths = @($encryptedFiles | ForEach-Object { $_.FullName })
+                Write-Host "[DECRYPT] Decrypting $($encryptedFiles.Count) file(s) in one batch..." -ForegroundColor Cyan
+                $batchResult = Invoke-SecretCryptoBatch -Password $plaintextPassword -Command decrypt -ArgumentList (@($rawDir) + $encryptedFilePaths)
+
+                foreach ($doneName in $batchResult.Done) {
+                    Write-Host "[DECRYPT] SUCCESS: Decrypted $doneName" -ForegroundColor Green
+                }
+                foreach ($wrongName in $batchResult.Wrong) {
+                    Write-Host "[DECRYPT] WARNING: Wrong password for $wrongName (nothing written)" -ForegroundColor Yellow
+                }
+                foreach ($failedName in $batchResult.Failed) {
+                    Write-Host "[DECRYPT] ERROR: Failed to decrypt $failedName" -ForegroundColor Red
+                }
+                Write-Host "[DECRYPT] Batch decryption completed: $($batchResult.Done.Count)/$($encryptedFiles.Count) files decrypted" -ForegroundColor Cyan
+
+                # Client-key regeneration lives in SecretManager.ps1, a higher layer that
+                # not every caller of this file loads; call it only when present.
+                if (Get-Command Invoke-ClientKeyAfterDecrypt -ErrorAction SilentlyContinue) {
+                    Invoke-ClientKeyAfterDecrypt -Result $batchResult -Password $plaintextPassword
+                }
             } else {
-                Write-Host "[DECRYPT] WARNING: disguise.js not found in scripts directory" -ForegroundColor Yellow
+                Write-Host "[DECRYPT] WARNING: Empty password provided, skipping batch decryption" -ForegroundColor Yellow
             }
+
+            # Clear password from memory
+            $plaintextPassword = $null
         }
 
         # Mark batch decryption as completed for this session
