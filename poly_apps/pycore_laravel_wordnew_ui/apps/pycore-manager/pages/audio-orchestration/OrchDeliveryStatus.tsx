@@ -36,6 +36,8 @@ export const OrchDeliveryPanel: React.FC<{ revision: number }> = ({ revision }) 
   if (!status) return null;
   const servers = status.servers || [];
   const reconciling = new Set(status.reconciling || []);
+  const selectedNamespace = status.selected_namespace ?? status.active_namespace;
+  const offlineNamespaces = new Set(status.offline_namespaces || []);
   return (
     <div className="space-y-1">
       <p className="text-[10px] text-slate-500">
@@ -47,14 +49,14 @@ export const OrchDeliveryPanel: React.FC<{ revision: number }> = ({ revision }) 
         <ul className="text-[10px] font-mono space-y-0.5">
           {servers.map((server) => (
             <li key={server.url} className="flex items-center gap-2 flex-wrap">
-              <span className={server.namespace === status.active_namespace ? 'text-emerald-300' : 'text-slate-400'}>
+              <span className={server.namespace === selectedNamespace ? 'text-emerald-300' : 'text-slate-400'}>
                 {server.url}
-                {server.namespace === status.active_namespace ? ` (${t('queueCenter.deliveryOutbox.activeServer')})` : ''}
+                {server.namespace === selectedNamespace ? ` (${t('queueCenter.deliveryOutbox.activeServer')})` : ''}
               </span>
-              <span className={server.reachable ? 'text-emerald-400' : server.reachable === false ? 'text-rose-400' : 'text-slate-500'}>
+              <span className={server.reachable ? 'text-emerald-400' : server.reachable === false || offlineNamespaces.has(server.namespace) ? 'text-rose-400' : 'text-slate-500'}>
                 {server.reachable
                   ? t('queueCenter.deliveryOutbox.serverOnline')
-                  : server.reachable === false
+                  : server.reachable === false || offlineNamespaces.has(server.namespace)
                     ? t('queueCenter.deliveryOutbox.serverOffline')
                     : t('queueCenter.deliveryOutbox.serverUnknown')}
               </span>
@@ -78,7 +80,7 @@ export const OrchDeliveryPanel: React.FC<{ revision: number }> = ({ revision }) 
           kind={kind}
           status={status.kinds[kind]}
           servers={servers}
-          activeNamespace={status.active_namespace}
+          activeNamespace={selectedNamespace}
           onChanged={load}
         />
       ))}

@@ -184,9 +184,12 @@ class HttpProgressClient:
         request_options.update({
             "params": params,
             "headers": headers,
+            # No response timer: once the body is fully sent the server works
+            # without moving bytes, so only progress (write stalls) and peer
+            # liveness (TCP keepalive on the transport) end a request.
             "timeout": httpx.Timeout(
                 None, connect=float(contract["connect_timeout_seconds"] if connect_idle is None else connect_idle),
-                read=idle if response_idle is None else float(response_idle),
+                read=None if response_idle is None else float(response_idle),
                 write=idle, pool=idle,
             ),
         })

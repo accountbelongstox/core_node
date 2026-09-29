@@ -611,11 +611,16 @@ class LaravelDeliveryOutbox:
     # lease                                                               #
     # ------------------------------------------------------------------ #
     @contextmanager
-    def delivery_scope(self, delivery_id: str, owner: str) -> Iterator[None]:
+    def delivery_scope(self, delivery_id: str, owner: str, strict: bool = True) -> Iterator[None]:
+        """Keep one claimed row's lease alive while its transfer makes
+        progress. ``strict`` aborts the transfer when the row lost its lease
+        (single-row delivery); a shared batch transfer is not strict, so one
+        row losing its lease never aborts the other rows' upload (its own
+        settle reports the lost ownership)."""
         active_signal = f"{ACTIVE_DELIVERY_PREFIX}.{owner}"
         THREAD_BUS.signal(active_signal, threading.current_thread())
         try:
-            with http_progress_client.transfer_scope(partial(self.renew, delivery_id, owner)):
+            with http_progress_client.transfer_scope(partial(self.renew, delivery_id, owner, strict=strict)):
                 yield
         finally:
             THREAD_BUS.clear_signal(active_signal)
@@ -647,10 +652,12 @@ class LaravelDeliveryOutbox:
 
     @serialized_method
     @_record_transaction
-    def renew(self, delivery_id: str, owner: str, progress: Dict[str, Any]) -> None:
+    def renew(self, delivery_id: str, owner: str, progress: Dict[str, Any], strict: bool = True) -> None:
         row = self._repository().get(str(delivery_id))
         now = _now()
         if row is None or str(row.get("lease_owner") or "") != owner:
+            if not strict:
+                return
             raise RuntimeError("Laravel delivery ownership changed during upload")
         if float(row.get("lease_until") or 0) - now > DEFAULT_LEASE_SECONDS / 2:
             return
@@ -959,7 +966,7 @@ class LaravelDeliveryOutbox:
             THREAD_BUS.signal(f"{DRAIN_WAKE_PREFIX}.{name}", True)
             if self._begin_drain(name, self.deliverable_namespaces(name)):
                 start_bus_task(self._drain, name, thread_name=f"LaravelDelivery-{name[:24]}")
-        self._ensure_watcher()
+        self._ensure_watcher([kind] if kind else None)
 
     # ------------------------------------------------------------------ #
     # offline servers                                                     #
@@ -968,12 +975,12 @@ class LaravelDeliveryOutbox:
     def _has_pending_in(self, kind: str, namespaces: List[str]) -> bool:
         return self._repository().has_pending(kind, namespaces)
 
-    def offline_namespaces(self) -> List[str]:
+    def offline_namespaces(self, kinds: Optional[List[str]] = None) -> List[str]:
         """Servers that hold rows they should receive (the selected server,
         or any server for a pinned kind) but have no reachable route."""
         wanted = set()
         selected = self.active_namespace()
-        for kind in self.kinds():
+        for kind in (kinds or self.kinds()):
             definition = self._definition(kind)
             if definition is not None and definition.pinned:
                 wanted.update(self._pending_namespaces(kind))
@@ -992,8 +999,8 @@ class LaravelDeliveryOutbox:
     def _end_watch(self) -> None:
         self._watching = False
 
-    def _ensure_watcher(self) -> None:
-        if self._watching or not self._started or not self.offline_namespaces():
+    def _ensure_watcher(self, kinds: Optional[List[str]] = None) -> None:
+        if self._watching or not self._started or not self.offline_namespaces(kinds):
             return
         if self._begin_watch():
             start_bus_task(self._watch_servers, thread_name="LaravelDeliveryWatch")
@@ -1009,6 +1016,8 @@ class LaravelDeliveryOutbox:
                     return
                 for namespace in offline:
                     laravel_endpoint_manager.reprobe_namespace(namespace)
+                if not self.offline_namespaces():
+                    return
                 THREAD_BUS.clear_signal(WATCH_WAKE_SIGNAL)
                 THREAD_BUS.wait_signal(WATCH_WAKE_SIGNAL, timeout=SERVER_WATCH_SECONDS)
         finally:
@@ -1021,6 +1030,9 @@ class LaravelDeliveryOutbox:
         finally:
             if not finished:
                 self._end_drain(kind, force=True)
+        # The drain ends while rows wait for a server that went offline: the
+        # watcher takes over re-probing it.
+        self._ensure_watcher([kind])
 
     def _drain_rows(self, kind: str) -> bool:
         definition = self._definition(kind)
@@ -1135,12 +1147,15 @@ class LaravelDeliveryOutbox:
             str(record.get("delivery_id") or ""): f"{DELIVERY_PROCESS_ID}:{record.get('delivery_id')}:{time.monotonic_ns()}"
             for record in records
         }
+        # Claim first, then register lease renewal for the rows actually
+        # claimed: a row this batch did not claim has no lease of ours, and a
+        # renewal callback for it would abort the shared upload of the others.
+        claimed = [row for row in (self._begin_row(record, owners[str(record.get("delivery_id") or "")]) for record in records) if row]
+        if not claimed:
+            return []
         with ExitStack() as scopes:
-            for delivery_id, owner in owners.items():
-                scopes.enter_context(self.delivery_scope(delivery_id, owner))
-            claimed = [row for row in (self._begin_row(record, owners[str(record.get("delivery_id") or "")]) for record in records) if row]
-            if not claimed:
-                return []
+            for row in claimed:
+                scopes.enter_context(self.delivery_scope(str(row["delivery_id"]), owners[str(row["delivery_id"])], strict=False))
             try:
                 outcomes = definition.deliver_batch(claimed, {row["delivery_id"]: owners[row["delivery_id"]] for row in claimed}) or {}
             except Exception as error:  # noqa: BLE001 - a failed batch defers its rows

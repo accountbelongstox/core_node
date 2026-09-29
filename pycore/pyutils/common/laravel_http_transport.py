@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 
+import socket
 import threading
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
+from pycore.pyfoundations.network_constants import (
+    HTTP_KEEPALIVE_IDLE_SECONDS,
+    HTTP_KEEPALIVE_INTERVAL_SECONDS,
+    HTTP_KEEPALIVE_PROBE_COUNT,
+)
 from pycore.pyfoundations.third_party.api import get_third_package_httpx, get_third_package_requests
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
@@ -40,13 +46,31 @@ class LaravelHttpSessions:
 laravel_http_sessions = LaravelHttpSessions()
 
 
+def _keepalive_socket_options() -> List[Tuple[int, int, int]]:
+    """TCP keepalive for the upload transport (Windows and Linux): a request
+    that waits for the server after its body was fully sent has no bytes
+    moving, so peer liveness, not a timer, decides whether it is still valid."""
+    options = [(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)]
+    for name, value in (
+        ("TCP_KEEPIDLE", HTTP_KEEPALIVE_IDLE_SECONDS),
+        ("TCP_KEEPINTVL", HTTP_KEEPALIVE_INTERVAL_SECONDS),
+        ("TCP_KEEPCNT", HTTP_KEEPALIVE_PROBE_COUNT),
+    ):
+        if hasattr(socket, name):
+            options.append((socket.IPPROTO_TCP, getattr(socket, name), value))
+    return options
+
+
 def _build_session(transport: str = TRANSPORT_REQUESTS) -> Any:
     """Create one keep-alive session (called once per thread, then reused)."""
     if transport == TRANSPORT_HTTPX:
         httpx = get_third_package_httpx()
-        return httpx.Client(limits=httpx.Limits(
-            max_connections=_POOL_MAXSIZE,
-            max_keepalive_connections=_POOL_CONNECTIONS,
+        return httpx.Client(transport=httpx.HTTPTransport(
+            limits=httpx.Limits(
+                max_connections=_POOL_MAXSIZE,
+                max_keepalive_connections=_POOL_CONNECTIONS,
+            ),
+            socket_options=_keepalive_socket_options(),
         ))
     requests = get_third_package_requests()
     session = requests.Session()

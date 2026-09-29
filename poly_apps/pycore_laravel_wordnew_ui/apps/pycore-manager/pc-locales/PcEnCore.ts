@@ -623,6 +623,7 @@ queueCenter: {
       server: 'Server {{name}}',
       unassigned: 'unassigned',
       activeServer: 'active',
+      parked: '{{count}} parked (not attempted until selected)',
       serverOnline: 'online',
       serverOffline: 'offline',
       serverUnknown: 'not probed',

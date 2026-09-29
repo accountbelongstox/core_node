@@ -618,6 +618,7 @@ queueCenter: {
       server: '服务器 {{name}}',
       unassigned: '未归属',
       activeServer: '当前',
+      parked: '{{count}} 条已暂存（选中该服务器前不会尝试）',
       serverOnline: '在线',
       serverOffline: '离线',
       serverUnknown: '未探测',
