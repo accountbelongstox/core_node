@@ -584,7 +584,7 @@ function Get-FrankenPhpTailnetPycoreMountHandlers {
     $streamCloseDelay = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_proxy_close_delay')
     $sourceRanges = (@(Get-ServiceContractValue -ContractPath 'access.tailnet.source_ranges') | ForEach-Object { [string]$_ }) -join ' '
     $tailnetPattern = [regex]::Escape($TailnetDomain)
-    $originPattern = '^(https://[a-z0-9-]+\.{0}|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)$' -f $tailnetPattern
+    $originPattern = '^(https?://[a-z0-9-]+\.{0}(:[0-9]+)?|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)$' -f $tailnetPattern
 
     return @"
 	redir $PathPrefix $PathPrefix/ 308
