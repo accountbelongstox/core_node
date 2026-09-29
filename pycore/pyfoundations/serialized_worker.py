@@ -68,8 +68,9 @@ def _error_response(exc: Exception) -> dict[str, Any]:
 
 
 def _raise_serialized_error(response: dict[str, Any], fallback: str) -> None:
-    message = response.get("error") or fallback
-    exc_type = _SERIALIZED_ERROR_TYPES.get(str(response.get("error_type") or ""))
+    error_type = str(response.get("error_type") or "")
+    message = response.get("error") or (f"{fallback} ({error_type})" if error_type else fallback)
+    exc_type = _SERIALIZED_ERROR_TYPES.get(error_type)
     if exc_type is not None:
         raise exc_type(message)
     raise RuntimeError(message)

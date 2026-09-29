@@ -18,7 +18,9 @@ Config:
                           processes pycore did not start are never touched
 """
 
+import ctypes
 import os
+import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -123,6 +125,36 @@ def free_ram_bytes() -> Optional[int]:
         if psutil is None:
             return None
         return int(psutil.virtual_memory().available)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+class _MemoryStatusEx(ctypes.Structure):
+    _fields_ = [
+        ("dwLength", ctypes.c_ulong),
+        ("dwMemoryLoad", ctypes.c_ulong),
+        ("ullTotalPhys", ctypes.c_ulonglong),
+        ("ullAvailPhys", ctypes.c_ulonglong),
+        ("ullTotalPageFile", ctypes.c_ulonglong),
+        ("ullAvailPageFile", ctypes.c_ulonglong),
+        ("ullTotalVirtual", ctypes.c_ulonglong),
+        ("ullAvailVirtual", ctypes.c_ulonglong),
+        ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+    ]
+
+
+def free_commit_bytes() -> Optional[int]:
+    """Windows commit headroom (commit limit minus commit charge). A load past
+    it fails with WinError 1455 even while physical RAM looks free. None
+    elsewhere or when unreadable."""
+    if sys.platform != "win32":
+        return None
+    try:
+        status = _MemoryStatusEx()
+        status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return None
+        return int(status.ullAvailPageFile)
     except Exception:  # noqa: BLE001
         return None
 
@@ -319,6 +351,12 @@ def memory_gate_allows(engine: str) -> Tuple[bool, str]:
             f"insufficient free RAM to load {name} "
             f"(need ~{_fmt(need_ram)}, free {_fmt(free_ram)})"
         )
+    free_commit = free_commit_bytes()
+    if need_ram and free_commit is not None and free_commit < need_ram:
+        return False, (
+            f"insufficient commit headroom to load {name} "
+            f"(need ~{_fmt(need_ram)}, free {_fmt(free_commit)}; paging file limit)"
+        )
     if need_vram:
         free_vram = free_vram_bytes()
         if free_vram is not None and free_vram < need_vram:
@@ -333,6 +371,7 @@ __all__ = [
     "gate_enabled",
     "memory_gate_allows",
     "free_ram_bytes",
+    "free_commit_bytes",
     "total_ram_bytes",
     "gpu_stats",
     "free_vram_bytes",
