@@ -108,6 +108,7 @@ from pycore.pyctl.tts.laravel_audio_worker_execution import (
 # process-wide serialization live inside the orchestrator.
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyutils.tts import runtime_profile
+from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts.batch import batch_constants
 from pycore.pyutils.tts.tts_concurrency import (
     effective_concurrency,
@@ -124,13 +125,16 @@ from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 # TTL for the cached engine probe (tts_status() probes EVERY engine; far too
 # expensive per task). Retired-worker value.
 _ENGINE_PROBE_TTL_S = 60.0
+# Host-memory wait before a lane pops work its engine cannot load right now.
+_MEMORY_WAIT_INITIAL_S = 5.0
+_MEMORY_WAIT_MAX_S = 60.0
 
 def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
     """Drain one synth lane; payload and result travel through THREAD_BUS."""
     worker = payload["worker"]
     processed = succeeded = failed = skipped = 0
     while True:
-        if worker._lane_halt_requested():
+        if not worker._await_engine_memory():
             break
         task = audio_queue_center.pop_next(worker.QUEUE_KEY)
         if task is None:
@@ -392,6 +396,34 @@ class BaseLaravelAudioWorker(
         self._usable_engines_cache = list(usable)
         self._engine_probe_ts = now
         return engine or None, usable
+
+    def _pinned_lane_engine(self) -> Optional[str]:
+        """The one engine this lane synthesizes with (word batch or pin)."""
+        if self.LANE == "word":
+            return runtime_profile.WORD_BATCH_ENGINE
+        return self._required_engine()
+
+    def _await_engine_memory(self) -> bool:
+        """Hold the lane while its pinned engine cannot load for lack of host
+        memory, instead of popping tasks that would each fail at once.
+
+        Returns False when the lane must stop draining (halt or shutdown)."""
+        engine = self._pinned_lane_engine()
+        delay = _MEMORY_WAIT_INITIAL_S
+        waiting = False
+        while True:
+            if self._lane_halt_requested() or THREAD_BUS.is_shutdown_requested():
+                return False
+            allowed, reason = memory_gate_allows(engine) if engine else (True, "")
+            if allowed:
+                if waiting:
+                    ColorPrint.green(f"{self._log_prefix} host memory recovered; resuming {engine}")
+                return True
+            if not waiting:
+                ColorPrint.yellow(f"{self._log_prefix} lane paused: {reason}")
+                waiting = True
+            time.sleep(delay)
+            delay = min(_MEMORY_WAIT_MAX_S, delay * 2.0)
 
     def _planned_engine(self) -> Optional[str]:
         """First usable engine in this lane's priority profile."""
@@ -690,7 +722,7 @@ class BaseLaravelAudioWorker(
             if self.LANE == "word":
                 batch_size = batch_constants.group_size()
                 while True:
-                    if self._lane_halt_requested():
+                    if not self._await_engine_memory():
                         break
                     tasks = []
                     for _index in range(batch_size):
@@ -742,7 +774,7 @@ class BaseLaravelAudioWorker(
                     skipped += int(result.get("skipped") or 0)
             else:
                 while True:
-                    if self._lane_halt_requested():
+                    if not self._await_engine_memory():
                         break
                     task = audio_queue_center.pop_next(self.QUEUE_KEY)
                     if task is None:
@@ -800,6 +832,14 @@ class BaseLaravelAudioWorker(
 
     # -------------------- introspection --------------------
 
+    def _delivery_outbox_stats(self) -> Dict[str, Any]:
+        """Outbox stats; a failing store read degrades to an error field so
+        the lane status stays readable."""
+        try:
+            return laravel_delivery_outbox.stats(self._delivery_kind)
+        except Exception as e:  # noqa: BLE001 - status must never raise
+            return {"kind": self._delivery_kind, "error": str(e)}
+
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only, pycore-local worker state only)."""
         running = bool(THREAD_BUS.get_signal(self._cycle_signal, False))
@@ -840,7 +880,7 @@ class BaseLaravelAudioWorker(
             "result_5xx_streak": self._result_5xx_streak,
             "initialized": self._initialized,
             "delivery_outbox_running": laravel_delivery_outbox.running(self._delivery_kind),
-            "delivery_outbox": laravel_delivery_outbox.stats(self._delivery_kind),
+            "delivery_outbox": self._delivery_outbox_stats(),
             "usable_engines": list(self._usable_engines_cache),
             "planned_engine": (
                 runtime_profile.WORD_BATCH_ENGINE
