@@ -263,7 +263,7 @@ secret_decrypt_accept() {
         echo -e "\033[31m[SECRETS]   FAILED: $base_name\033[0m"
     done
     echo -e "\033[36m[SECRETS] Decryption summary: ${#SECRET_CRYPTO_DONE[@]} decrypted, ${#SECRET_CRYPTO_SKIPPED[@]} already present, ${#SECRET_CRYPTO_WRONG[@]} wrong password, ${#SECRET_CRYPTO_FAILED[@]} failed\033[0m"
-    client_key_after_decrypt "$SECRET_PASSWORD"
+    client_key_after_decrypt
     SECRET_PASSWORD=""
     repair_private_tree "$SECRET_ROOT_DIR" || true
 }

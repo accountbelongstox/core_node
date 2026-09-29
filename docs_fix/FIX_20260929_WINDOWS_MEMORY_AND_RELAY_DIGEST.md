@@ -133,3 +133,14 @@ password, one process, parallel KDF; wrong password writes nothing). disguise.js
 Linux `secret_crypto_batch` (secret_tool_common.sh), Windows `Invoke-SecretCryptoBatch` (GlobalVarStoreCommon.ps1),
 pycore `pyfoundations/secret_crypto_batch.py`. Client key: encrypt sites print a sync notice; a wrong-password decrypt
 offers regenerate + immediate encrypt (Linux tested; Windows static review only, run under pwsh before relying on it).
+
+### Part E status update (2026-09-30)
+
+- VM-0-2-debian: the undecryptable decoy key was replaced by `client_key_offer_regenerate` (new `CORE_NODE_CLIENT_KEY_1`, encrypted copy pushed in commit `aadd8cd89`, 2026-09-30 00:45). New key id `821038d0a7e72e7f` (was `4618f97b272481f6` on Windows) -> the old Windows key no longer matches; an unsynced device gets `client_key_unknown`, not `client_key_missing`.
+- The regeneration flow printed the raw key once in a terminal (by design, `client_key_common.sh`); it was also pasted into an AI chat, so rotate it once every host is synced.
+- Windows to do: pull the encrypted copy, decrypt with the NEW password (`SecretManager.ps1::Initialize-ClientKeyReady`), confirm key id `821038d0a7e72e7f`, restart pyservice.
+- Server to do: restart FrankenPHP workers (`keys()` caches 60 s per worker).
+- Verify: device log `/api/worker/register` 2xx, no 401 / `client_key_missing` / `client_key_unknown`.
+- win-desktop check (2026-09-30): key id `821038d0a7e72e7f` matches the new server key and the pushed `CORE_NODE_CLIENT_KEY_1.js` verifies with the clean password (PASS). The 401 fix itself is NOT verified: pyservice is not running on Windows (only `pycore.pyutils.launcher`), and no device log mentions `/api/worker/register`, `client_key_missing` or `client_key_unknown`. Re-check after the operator starts pyservice (starting it needs the Windows user's approval).
+- Root cause of the "11 win0.0.1 files decrypt to decoys" finding above (the password was NOT different): Windows PowerShell 5.1 prefixes text piped to node with a UTF-8 BOM (EF BB BF), so every Windows encrypt through `Invoke-SecretPasswordTool` used `"\uFEFF" + password`. Reproduced: node received bytes `[239,187,191,...]`. 12 win0.0.1 files verify only with the BOM-prefixed password: ADMIN_JWT_SECRET_1, API_TOKEN_SALT_1, DEEPBRICKS_API_KEY_1, DICT_API_CLIENT_TOKEN_1, DINGDUODUO_SUPER_CODE_SIGNING_KEY_1, GITEA_TOKEN_1, JWT_SECRET_1, MYSQL_PWD_1, OCRSPACE_API_KEY_1, STRAPI_TOKEN_1, TRANSFER_TOKEN_SALT_1, UNSPLASH_ACCESS_KEY_1. `CORE_NODE_CLIENT_KEY_1` is not affected.
+- Fix (reported by win-desktop, uncommitted on Windows): `scripts/encryption_tools/secret_password_runner.js` strips a leading U+FEFF from the stdin password. Open: re-encrypt the 12 files with the clean password (waiting for the Windows user's approval); until then hosts without plaintext copies cannot decrypt them.
