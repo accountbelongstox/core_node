@@ -280,24 +280,27 @@ $__sccServiceContractModule = New-Module -ScriptBlock {
     . $ContractScriptPath
 } -ArgumentList $__sccServiceContractPath
 Import-Module $__sccServiceContractModule -Global -Force
+# Bind to the module command itself: a caller that already dot-sourced ServiceContract.ps1 leaves a same-named function in an outer scope that would
+# shadow the global import and read $script: state from this script scope instead of its own.
+$__sccGetContractValue = $__sccServiceContractModule.ExportedCommands['Get-ServiceContractValue']
 
-$__sccContractDataDriveRoot = [string](Get-ServiceContractValue -ContractPath 'paths.windows_data_drive_root')
-$__sccProgramDriveNamespace = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.namespaces.windows_program_drive')
-$__sccProgramDrivePrimary = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_primary')
-$__sccProgramDriveFallback = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.program_drive_fallback')
-$__sccToolRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tool_root.windows')
-$__sccToolRootFallbackTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.tool_root.windows_d_fallback')
-$__sccCacheRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.cache_root.windows')
-$__sccCacheRootFallbackTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.cache_root.windows_d_fallback')
-$__sccCacheSubdirs = @(Get-ServiceContractValue -ContractPath 'paths.drive_layout.cache_subdirs')
-$__sccTreesRootTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.trees_root.windows')
-$__sccToolchainEnvTemplate = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.toolchain_env_file.windows')
+$__sccContractDataDriveRoot = [string](& $__sccGetContractValue -ContractPath 'paths.windows_data_drive_root')
+$__sccProgramDriveNamespace = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.namespaces.windows_program_drive')
+$__sccProgramDrivePrimary = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_primary')
+$__sccProgramDriveFallback = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.program_drive_fallback')
+$__sccToolRootTemplate = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.tool_root.windows')
+$__sccToolRootFallbackTemplate = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.tool_root.windows_d_fallback')
+$__sccCacheRootTemplate = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.cache_root.windows')
+$__sccCacheRootFallbackTemplate = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.cache_root.windows_d_fallback')
+$__sccCacheSubdirs = @(& $__sccGetContractValue -ContractPath 'paths.drive_layout.cache_subdirs')
+$__sccTreesRootTemplate = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.trees_root.windows')
+$__sccToolchainEnvTemplate = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.toolchain_env_file.windows')
 # Read once here rather than hard-coded below (DIRECTORY_NAMESPACE_RULES.md:
 # "Scripts read them from the contract ... They never write a literal"); both
 # resolve to the same strings the D: fallback literals used to spell out, so
 # this is a definition-source change only, not a path change.
-$__sccDataDriveNamespace = [string](Get-ServiceContractValue -ContractPath 'paths.drive_layout.namespaces.windows_data_drive')
-$__sccCoreNodeDataDirName = [string](Get-ServiceContractValue -ContractPath 'paths.core_node_data_dir_name')
+$__sccDataDriveNamespace = [string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.namespaces.windows_data_drive')
+$__sccCoreNodeDataDirName = [string](& $__sccGetContractValue -ContractPath 'paths.core_node_data_dir_name')
 $Global:CN_PROGRAM_DRIVE_PRIMARY_LABEL = $__sccProgramDrivePrimary
 
 # [Environment]::SystemDirectory (e.g. C:\Windows\System32) does not depend on
@@ -512,7 +515,7 @@ function Ensure-PipCacheDirConfigured {
 }
 
 Remove-Variable -Name __sccSubDirs, __sccDir, __sccPath, __sccHfHubCache, __sccLegacyResolved, __sccHubResolved, `
-    __sccServiceContractPath, __sccServiceContractModule, __sccContractDataDriveRoot, __sccProgramDriveNamespace, `
+    __sccServiceContractPath, __sccServiceContractModule, __sccGetContractValue, __sccContractDataDriveRoot, __sccProgramDriveNamespace, `
     __sccProgramDrivePrimary, __sccProgramDriveFallback, __sccToolRootTemplate, __sccToolRootFallbackTemplate, `
     __sccCacheRootTemplate, __sccCacheRootFallbackTemplate, __sccCacheSubdirs, __sccTreesRootTemplate, `
     __sccToolchainEnvTemplate, __sccDataDriveNamespace, __sccCoreNodeDataDirName, __sccSystemDriveSpec, `

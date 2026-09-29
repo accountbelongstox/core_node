@@ -153,17 +153,41 @@ class LaravelDeliveryRepository:
         with self.transaction():
             self._connection.execute(f"DELETE FROM {LARAVEL_DELIVERIES_TABLE} WHERE delivery_id = ?", (delivery_id,))
 
-    def ready(self, kind: str, now: float, process_id: str, limit: int) -> List[Dict[str, Any]]:
-        """Pending, due rows whose lease expired or belongs to another
-        (previous) process, oldest first."""
+    @staticmethod
+    def _scope(namespaces: Optional[List[str]]) -> tuple:
+        """SQL fragment + parameters restricting a query to the given server
+        namespaces (``None`` = every server)."""
+        if namespaces is None:
+            return "", ()
+        names = list(namespaces)[:SQLITE_IN_LIMIT]
+        if not names:
+            return " AND 0", ()
+        return f" AND namespace IN ({', '.join('?' for _ in names)})", tuple(names)
+
+    def ready(
+        self, kind: str, now: float, process_id: str, limit: int, namespaces: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Pending, due rows of the given servers whose lease expired or
+        belongs to another (previous) process, oldest first. Rows of a server
+        outside ``namespaces`` never occupy the window, so an offline or
+        unselected server cannot starve the others."""
+        scope, scope_parameters = self._scope(namespaces)
         rows = self._connection.execute(
             f"SELECT {_SELECT} FROM {LARAVEL_DELIVERIES_TABLE} "
             "WHERE kind = ? AND state = ? AND next_attempt_at <= ? "
-            "AND (lease_until <= ? OR lease_process <> ?) "
+            f"AND (lease_until <= ? OR lease_process <> ?){scope} "
             "ORDER BY created_at LIMIT ?",
-            (kind, STATE_PENDING, now, now, process_id, max(1, int(limit))),
+            (kind, STATE_PENDING, now, now, process_id, *scope_parameters, max(1, int(limit))),
         ).fetchall()
         return [self._row(values) for values in rows]
+
+    def pending_namespaces(self, kind: str) -> List[str]:
+        return sorted(
+            str(value[0]) for value in self._connection.execute(
+                f"SELECT DISTINCT namespace FROM {LARAVEL_DELIVERIES_TABLE} WHERE kind = ? AND state = ?",
+                (kind, STATE_PENDING),
+            ).fetchall()
+        )
 
     def identity_rows(
         self, kind: str, namespace: str, identity: str, exclude_id: str, payload_sha256: str, limit: int,
@@ -216,16 +240,18 @@ class LaravelDeliveryRepository:
                     found[str(item_key)] = str(state)
         return found
 
-    def has_pending(self, kind: str) -> bool:
+    def has_pending(self, kind: str, namespaces: Optional[List[str]] = None) -> bool:
+        scope, scope_parameters = self._scope(namespaces)
         return self._connection.execute(
-            f"SELECT 1 FROM {LARAVEL_DELIVERIES_TABLE} WHERE kind = ? AND state = ? LIMIT 1",
-            (kind, STATE_PENDING),
+            f"SELECT 1 FROM {LARAVEL_DELIVERIES_TABLE} WHERE kind = ? AND state = ?{scope} LIMIT 1",
+            (kind, STATE_PENDING, *scope_parameters),
         ).fetchone() is not None
 
-    def next_attempt_at(self, kind: str) -> Optional[float]:
+    def next_attempt_at(self, kind: str, namespaces: Optional[List[str]] = None) -> Optional[float]:
+        scope, scope_parameters = self._scope(namespaces)
         value = self._connection.execute(
-            f"SELECT MIN(next_attempt_at) FROM {LARAVEL_DELIVERIES_TABLE} WHERE kind = ? AND state = ?",
-            (kind, STATE_PENDING),
+            f"SELECT MIN(next_attempt_at) FROM {LARAVEL_DELIVERIES_TABLE} WHERE kind = ? AND state = ?{scope}",
+            (kind, STATE_PENDING, *scope_parameters),
         ).fetchone()[0]
         return float(value) if value is not None else None
 

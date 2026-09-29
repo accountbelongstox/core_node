@@ -89,7 +89,7 @@ def register_local_task_center_routes(server) -> None:
             if namespace:
                 laravel_delivery_outbox.reconcile(namespace, kinds=[kind] if kind else None)
             else:
-                laravel_delivery_outbox.reconcile_reachable()
+                laravel_delivery_outbox.reconcile_selected()
         laravel_delivery_outbox.kick(kind or None)
         return {"success": True, "retried": retried, "data": laravel_delivery_outbox.status()}
 
