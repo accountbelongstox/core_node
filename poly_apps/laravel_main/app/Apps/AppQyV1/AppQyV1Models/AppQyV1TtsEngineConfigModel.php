@@ -30,8 +30,8 @@ class AppQyV1TtsEngineConfigModel extends AppQyV1Model
      * Canonical table structure — the single source of truth shared by the
      * create migration (AppQyV1_2026_07_13_000001) and the per-sys:init
      * alignment in seedDefaults(). The UNIQUE index on `engine` is REQUIRED:
-     * seedDefaults() upserts ON CONFLICT (engine), which PostgreSQL rejects
-     * (42P10) without a matching unique/exclusion constraint.
+     * seedDefaults() inserts ON CONFLICT DO NOTHING, which only deduplicates
+     * concurrent seeds when `engine` is unique.
      */
     public static function tableStructure(): array
     {
@@ -75,48 +75,38 @@ class AppQyV1TtsEngineConfigModel extends AppQyV1Model
     ];
 
     /**
-     * Idempotent upsert of the canonical default engine rows (ON CONFLICT
-     * (engine), backed by the uniq_tts_engine_config_engine UNIQUE index).
-     * Safe to re-run; never deletes operator-added engines, only inserts/updates
-     * the defaults. priority_order is reconciled on every re-seed (so an existing
-     * 7-row seed upgrades to the 16-engine order on next sys:init); enabled is
-     * left untouched on existing rows (DB default true on insert), so an
-     * operator-disabled engine is NOT re-enabled.
+     * Ensure-only seed: inserts the default engine rows that are missing
+     * (ON CONFLICT DO NOTHING, backed by the uniq_tts_engine_config_engine
+     * UNIQUE index). Existing rows keep every operator-chosen value
+     * (priority_order, enabled); operator-added engines are never touched.
      *
-     * @return array{seeded:int, updated:int}
+     * @return array{seeded:int, updated:int} updated is always 0
      */
     public static function seedDefaults(): array
     {
-        // Align the table first: the upsert below infers ON CONFLICT (engine)
-        // from the UNIQUE index, so the structure must be guaranteed here. The
-        // create migration runs only once; this idempotent alignment re-runs at
-        // every sys:init and reconciles any drifted (e.g. non-unique) index.
+        // Align the table first: concurrent seeds rely on the UNIQUE index to
+        // ignore duplicates. The create migration runs only once; this
+        // idempotent alignment re-runs at every sys:init and reconciles any
+        // drifted (e.g. non-unique) index.
         static::ensureTableAligned(static::tableStructure());
 
-        $seeded = 0;
-        $updated = 0;
-        $engines = array_column(self::DEFAULT_ENGINES, 'engine');
         $existing = self::query()
-            ->whereIn('engine', $engines)
-            ->get(['engine', 'priority_order'])
-            ->keyBy('engine');
+            ->whereIn('engine', array_column(self::DEFAULT_ENGINES, 'engine'))
+            ->pluck('engine')
+            ->all();
+        $now = now();
+        $missing = array_values(array_map(
+            static fn (array $definition): array => $definition + ['created_at' => $now, 'updated_at' => $now],
+            array_filter(
+                self::DEFAULT_ENGINES,
+                static fn (array $definition): bool => !in_array($definition['engine'], $existing, true)
+            )
+        ));
 
-        foreach (self::DEFAULT_ENGINES as $definition) {
-            $row = $existing->get($definition['engine']);
-            if ($row === null) {
-                $seeded++;
-            } elseif ((int) $row->priority_order !== $definition['priority_order']) {
-                $updated++;
-            }
-        }
-
-        self::query()->upsert(
-            self::DEFAULT_ENGINES,
-            ['engine'],
-            ['priority_order']
-        );
-
-        return ['seeded' => $seeded, 'updated' => $updated];
+        return [
+            'seeded' => $missing === [] ? 0 : (int) self::query()->insertOrIgnore($missing),
+            'updated' => 0,
+        ];
     }
 
     /**

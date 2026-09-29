@@ -1,11 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Declare all variables at the beginning of the file.
-# 5. For PowerShell: use Split-Path, Join-Path for paths; no relative "..\..".
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Set-AndroidSdkEnv.ps1
 # Auto-detect Android SDK and set ANDROID_HOME / ANDROID_SDK_ROOT for current process.
 # Used by Flutter Android build so "No Android SDK found" is avoided.

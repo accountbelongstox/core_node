@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { apiCache } from '../../../../core/integrations/laravel/transport/APICache';
 import { APIResponse } from '../../types';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
@@ -24,6 +24,7 @@ import type {
   AssistPendingSnapshot,
   TranslationHistoryResponse,
   TranslationLanguageOption,
+  TranslationLanguageCatalog,
   PosterStatusData,
   PosterFetchResult,
   SentenceAudioResolveResponse,
@@ -31,6 +32,7 @@ import type {
   ReviewQueueData,
   LearningStatsData,
 } from './AppQyV1Types';
+import { normalizeTranslationLanguages } from './AppQyV1Types';
 
 export type * from './AppQyV1Types';
 
@@ -38,7 +40,7 @@ export type * from './AppQyV1Types';
  * AppQyV1 API Module
  * Vocabulary learning system + AI tools
  */
-export class AppQyV1API extends BaseAPI {
+export class AppQyV1API extends LmBaseAPI {
   // ========== Authentication ==========
   async register(data: { username: string; password: string; email?: string; nickname?: string; name?: string; registration_code?: string }): Promise<APIResponse> {
     return this.post('/register', data);

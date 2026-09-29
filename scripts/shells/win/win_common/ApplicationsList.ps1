@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Applications list management and export utility
@@ -903,6 +891,17 @@ $Global:APPLICATIONS_PACKAGES = @{
 
 # Global Development Software Variables
 # For PostInstallCallbacks usage, see: <#POSTINSTALL_CALLBACKS_ANCHOR#>
+#
+# AI CLI entries below (ClaudeCode, OpenAICodex, GeminiCli, QwenCode,
+# CursorAgent, KimiCode, ClineCLI, ArkCli, SuperClaude, OpenCode, Droid,
+# ZhipuAI, AntigravityCli) remain the Windows install-mechanics source
+# (PackageId/InstallType/PowerShellCommand), consumed as before by Step21's
+# generic engine and the APP Install menu. win_common/AiToolsCatalog.ps1 is
+# the canonical AI-tools catalog for the AI Tools & MCP flow (Step65, the
+# "AI Tools & MCP" menu, AiCliProvisionCommon.ps1): it cross-references these
+# entries by key (Get-AiToolInstallSpec) instead of duplicating them, and adds
+# the AI-specific metadata this table does not carry (shared-login env var,
+# config dir, supported-on-Windows flag).
 $Global:DEV_SOFTWARE_PACKAGES = @{
     Termius        = @{
         PackageId           = "Termius.Termius"
@@ -1241,7 +1240,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
             @{
                 Type = "mcp"
                 Operation = "copy_config"
-                TargetDirectory = "$env:USERPROFILE\.gemini"
+                TargetDirectory = Join-Path $env:USERPROFILE ".gemini"
             }
         )
     }
@@ -1958,7 +1957,7 @@ $Global:CUSTOM_SCRIPTS_AND_COMMANDS = @{
     "FlutterDev" = @{
         ItemType              = "script-file"
         ItemName              = "Flutter Development"
-        ItemCommand           = "$Global:CORE_NODE_SCRIPTS_DIR\flutterbloomDev.ps1"
+        ItemCommand           = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "flutterbloomDev.ps1"
         DesktopCategory       = $Global:DESKTOP_CATEGORY_DEV_SCRIPTS
         Description           = "Start Flutter development server"
         CreateDesktopShortcut = $true
@@ -1966,7 +1965,7 @@ $Global:CUSTOM_SCRIPTS_AND_COMMANDS = @{
     "LaravelDev" = @{
         ItemType              = "script-file"
         ItemName              = "Laravel Development"
-        ItemCommand           = "$Global:CORE_NODE_SCRIPTS_DIR\laravelDev.ps1"
+        ItemCommand           = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "laravelDev.ps1"
         DesktopCategory       = $Global:DESKTOP_CATEGORY_DEV_SCRIPTS
         Description           = "Start Laravel development server"
         CreateDesktopShortcut = $true
@@ -1974,7 +1973,7 @@ $Global:CUSTOM_SCRIPTS_AND_COMMANDS = @{
     "NodeDev"    = @{
         ItemType              = "script-file"
         ItemName              = "Node.js Development"
-        ItemCommand           = "$Global:CORE_NODE_SCRIPTS_DIR\nodeDev.ps1"
+        ItemCommand           = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "nodeDev.ps1"
         DesktopCategory       = $Global:DESKTOP_CATEGORY_DEV_SCRIPTS
         Description           = "Start Node.js development server"
         CreateDesktopShortcut = $true
@@ -1982,7 +1981,7 @@ $Global:CUSTOM_SCRIPTS_AND_COMMANDS = @{
     "NuxtDev"    = @{
         ItemType              = "script-file"
         ItemName              = "Nuxt Development"
-        ItemCommand           = "$Global:CORE_NODE_SCRIPTS_DIR\nuxtDev.ps1"
+        ItemCommand           = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "nuxtDev.ps1"
         DesktopCategory       = $Global:DESKTOP_CATEGORY_DEV_SCRIPTS
         Description           = "Start Nuxt development server"
         CreateDesktopShortcut = $true
@@ -1991,7 +1990,7 @@ $Global:CUSTOM_SCRIPTS_AND_COMMANDS = @{
         ItemType              = "script-file"
         ItemName              = "Quick Git Status"
         WorkDir               = $Global:CORE_NODE_DIR
-        ItemCommand           = "$Global:CORE_NODE_SCRIPTS_DIR\gitput.bat"
+        ItemCommand           = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "gitput.bat"
         DesktopCategory       = $Global:DESKTOP_CATEGORY_DEV_SCRIPTS
         Description           = "Quick Git status and recent commits"
         CreateDesktopShortcut = $true

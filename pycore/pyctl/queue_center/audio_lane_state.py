@@ -164,17 +164,25 @@ class AudioLaneStatePublisherThread(threading.Thread):
         )
 
     def run(self) -> None:
+        # The heartbeat is armed only while a lane reports active work; an
+        # idle publisher blocks on the change signal with no timeout.
+        heartbeat = False
         while not self._stopping():
-            changed = THREAD_BUS.wait_signal(AUDIO_QUEUE_CHANGED_SIGNAL, timeout=_ACTIVE_HEARTBEAT_SECONDS)
+            changed = THREAD_BUS.wait_signal(
+                AUDIO_QUEUE_CHANGED_SIGNAL,
+                timeout=_ACTIVE_HEARTBEAT_SECONDS if heartbeat else None,
+            )
             THREAD_BUS.clear_signal(AUDIO_QUEUE_CHANGED_SIGNAL)
             if self._stopping():
                 return
             if changed is None and not self._state.lanes_active():
+                heartbeat = False
                 continue
             THREAD_BUS.wait_signal(_PUBLISHER_STOP_SIGNAL, timeout=_COALESCE_SECONDS)
             if self._stopping():
                 return
             self._state.publish()
+            heartbeat = self._state.lanes_active()
 
 
 audio_lane_state = AudioLaneState()

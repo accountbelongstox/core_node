@@ -16,6 +16,8 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DeveloperStatsModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1EscrowService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceException;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1TaskStateService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
 use Illuminate\Http\JsonResponse;
@@ -66,7 +68,7 @@ class CodeMartV1TaskCtl extends Controller
     {
         return $this->codedError(
             (string) $result['error_code'],
-            (string) ($result['message'] ?? 'Request failed'),
+            (string) ($result['message'] ?? __('codemart.errors.request_failed')),
             $result['details'] ?? null,
             (int) ($result['http_status'] ?? 400)
         );
@@ -172,7 +174,7 @@ class CodeMartV1TaskCtl extends Controller
             'milestone_id' => 'required|integer',
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'priority' => 'required|in:low,medium,high,urgent',
+            'priority' => 'required|in:' . implode(',', CodeMartV1Constants::TASK_PRIORITIES),
             'due_date' => 'nullable|date|after:today',
             'deliverables' => 'nullable|array',
             'budget_allocation' => 'nullable|numeric|min:0',
@@ -181,26 +183,38 @@ class CodeMartV1TaskCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $milestone = CodeMartV1MilestoneModel::findWithProject((int) $request->milestone_id);
         if (!$milestone || !$milestone->project) {
-            return $this->codedError(CodeMartV1Constants::ERROR_MILESTONE_NOT_FOUND, 'Milestone not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_MILESTONE_NOT_FOUND, __('codemart.messages.milestone_not_found'), null, 404);
         }
 
         $project = $milestone->project;
         if (!$project->isManagedBy((int) $user->id)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'Only the project owner or architect can create tasks', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.only_the_project_owner_or_architect_can'), null, 403);
         }
         if ($milestone->isClosed() || in_array($project->status, CodeMartV1Constants::PROJECT_CLOSED_STATUSES, true)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_MILESTONE_CLOSED, 'The milestone or project no longer accepts tasks', [
+            return $this->codedError(CodeMartV1Constants::ERROR_MILESTONE_CLOSED, __('codemart.messages.the_milestone_or_project_no_longer_accepts'), [
                 'milestone_status' => $milestone->status,
                 'project_status' => $project->status,
             ], 409);
         }
 
-        $task = CodeMartV1TaskModel::runInTransaction(function () use ($request, $milestone, $project, $user) {
+        try {
+            $task = $this->createTaskRecord($request, $milestone, $project, $user);
+        } catch (CodeMartV1FinanceException $e) {
+            return $this->codedError($e->errorCode, $e->getMessage(), null, $e->httpStatus);
+        }
+
+        return $this->success($task->loadRecordRelations(['milestone', 'assignee']), __('codemart.messages.task_created_successfully'), 201);
+    }
+
+    private function createTaskRecord(Request $request, CodeMartV1MilestoneModel $milestone, CodeMartV1ProjectModel $project, mixed $user): CodeMartV1TaskModel
+    {
+        return CodeMartV1TaskModel::runInTransaction(function () use ($request, $milestone, $project, $user) {
+            CodeMartV1EscrowService::assertBudgetHeadroom((int) $project->id, null, $request->budget_allocation);
             $task = CodeMartV1TaskModel::createForMilestone((int) $milestone->id, [
                 'title' => $request->title,
                 'description' => $request->description,
@@ -227,8 +241,6 @@ class CodeMartV1TaskCtl extends Controller
 
             return $task;
         });
-
-        return $this->success($task->loadRecordRelations(['milestone', 'assignee']), 'Task created successfully', 201);
     }
 
     public function getTask(Request $request, int $taskId): JsonResponse
@@ -238,13 +250,13 @@ class CodeMartV1TaskCtl extends Controller
 
         $task = CodeMartV1TaskModel::findDetailed($taskId);
         if (!$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, 'Task not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
         }
 
         $project = $task->resolveProject();
         $roles = $this->partyRoles($task, $project, (int) $user->id);
         if ($roles === []) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'You do not have access to this task', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.you_do_not_have_access_to_this_3'), null, 403);
         }
 
         $data = $task->toArray();
@@ -275,15 +287,15 @@ class CodeMartV1TaskCtl extends Controller
 
         $task = CodeMartV1TaskModel::findById($taskId);
         if (!$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, 'Task not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
         }
 
         $project = $task->resolveProject();
         if (!$project || !$project->isManagedBy((int) $user->id)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'Only the project owner or architect can update tasks', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.only_the_project_owner_or_architect_can_2'), null, 403);
         }
         if (!in_array($task->status, CodeMartV1Constants::TASK_EDITABLE_STATUSES, true)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_INVALID_STATE, 'The task can no longer be edited', [
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_INVALID_STATE, __('codemart.messages.the_task_can_no_longer_be_edited'), [
                 'status' => $task->status,
             ], 409);
         }
@@ -291,7 +303,7 @@ class CodeMartV1TaskCtl extends Controller
         $validator = Validator::make($request->all(), [
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
-            'priority' => 'sometimes|in:low,medium,high,urgent',
+            'priority' => 'sometimes|in:' . implode(',', CodeMartV1Constants::TASK_PRIORITIES),
             'due_date' => 'sometimes|nullable|date',
             'deliverables' => 'sometimes|nullable|array',
             'budget_allocation' => 'sometimes|nullable|numeric|min:0',
@@ -300,7 +312,7 @@ class CodeMartV1TaskCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $attributes = $validator->validated();
@@ -308,14 +320,33 @@ class CodeMartV1TaskCtl extends Controller
             $attributes['required_skills'] = $this->normalizeSkills($attributes['required_skills'] ?? []);
         }
         $budgetLocked = !in_array($task->status, [CodeMartV1Constants::TASK_STATUS_PENDING, CodeMartV1Constants::TASK_STATUS_OPEN], true);
-        if ($budgetLocked && array_key_exists('budget_allocation', $attributes)
-            && (string) $attributes['budget_allocation'] !== (string) $task->budget_allocation) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_INVALID_STATE, 'The budget of an assigned task cannot change', [
+        $budgetChanged = array_key_exists('budget_allocation', $attributes)
+            && bccomp(
+                CodeMartV1FinanceService::money($attributes['budget_allocation'] ?? 0),
+                CodeMartV1FinanceService::money($task->budget_allocation ?? 0),
+                2
+            ) !== 0;
+        if ($budgetLocked && $budgetChanged) {
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_INVALID_STATE, __('codemart.messages.the_budget_of_an_assigned_task_cannot'), [
                 'status' => $task->status,
             ], 409);
         }
 
-        CodeMartV1TaskModel::runInTransaction(function () use ($task, $attributes, $user, $project) {
+        try {
+            $this->updateTaskRecord($task, $attributes, $user, $project, $budgetChanged);
+        } catch (CodeMartV1FinanceException $e) {
+            return $this->codedError($e->errorCode, $e->getMessage(), null, $e->httpStatus);
+        }
+
+        return $this->success($task->loadRecordRelations(['milestone', 'assignee']), __('codemart.messages.task_updated_successfully'));
+    }
+
+    private function updateTaskRecord(CodeMartV1TaskModel $task, array $attributes, mixed $user, CodeMartV1ProjectModel $project, bool $budgetChanged): void
+    {
+        CodeMartV1TaskModel::runInTransaction(function () use ($task, $attributes, $user, $project, $budgetChanged) {
+            if ($budgetChanged) {
+                CodeMartV1EscrowService::assertBudgetHeadroom((int) $project->id, (int) $task->id, $attributes['budget_allocation'] ?? 0);
+            }
             $task->updateRecord($attributes);
             CodeMartV1DomainEventService::emit(
                 (int) $user->id,
@@ -331,8 +362,6 @@ class CodeMartV1TaskCtl extends Controller
                 ['project_id' => (int) $project->id, 'fields' => array_keys($attributes)]
             );
         });
-
-        return $this->success($task->loadRecordRelations(['milestone', 'assignee']), 'Task updated successfully');
     }
 
     public function transitionTask(Request $request, int $taskId): JsonResponse
@@ -346,12 +375,12 @@ class CodeMartV1TaskCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $task = CodeMartV1TaskModel::findById($taskId);
         if (!$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, 'Task not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
         }
 
         $result = CodeMartV1TaskModel::runInTransaction(fn () => CodeMartV1TaskStateService::transition(
@@ -369,7 +398,7 @@ class CodeMartV1TaskCtl extends Controller
             'task' => $result['task']->loadRecordRelations(['milestone', 'assignee']),
             'from' => $result['from'],
             'to' => $result['to'],
-        ], 'Task status updated');
+        ], __('codemart.messages.task_status_updated'));
     }
 
     public function submitTask(Request $request, int $taskId): JsonResponse
@@ -379,13 +408,13 @@ class CodeMartV1TaskCtl extends Controller
 
         $task = CodeMartV1TaskModel::findById($taskId);
         if (!$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, 'Task not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
         }
         if ($task->assigned_to === null || (int) $task->assigned_to !== (int) $user->id) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'Only the assigned developer can submit this task', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.only_the_assigned_developer_can_submit_this'), null, 403);
         }
         if ($task->status !== CodeMartV1Constants::TASK_STATUS_IN_PROGRESS) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_INVALID_STATE, 'Only tasks in progress can be submitted', [
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_INVALID_STATE, __('codemart.messages.only_tasks_in_progress_can_be_submitted'), [
                 'status' => $task->status,
             ], 409);
         }
@@ -398,12 +427,12 @@ class CodeMartV1TaskCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $files = $this->normalizeLinkedFiles((array) $request->input('files', []));
         if ($files === null) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Every file entry needs a valid url', [
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.every_file_entry_needs_a_valid_url'), [
                 'files' => ['invalid_url'],
             ], 422);
         }
@@ -412,7 +441,7 @@ class CodeMartV1TaskCtl extends Controller
         foreach (is_array($uploads) ? $uploads : [$uploads] as $upload) {
             $stored = $this->fileUploadService->storePrivateDeliveryFile($upload, CodeMartV1Constants::SUBMISSION_FILE_DIR . '/' . $task->id);
             if ($stored === null) {
-                return $this->codedError(CodeMartV1Constants::ERROR_FILE_STORE_FAILED, 'A file could not be stored', null, 422);
+                return $this->codedError(CodeMartV1Constants::ERROR_FILE_STORE_FAILED, __('codemart.messages.a_file_could_not_be_stored'), null, 422);
             }
             $files[] = [
                 'name' => $stored['original_name'],
@@ -425,7 +454,7 @@ class CodeMartV1TaskCtl extends Controller
 
         $note = trim((string) $request->input('submission_note', ''));
         if ($files === [] && $note === '') {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'A note or at least one file is required', [
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.a_note_or_at_least_one_file'), [
                 'files' => ['required_without_note'],
             ], 422);
         }
@@ -479,7 +508,7 @@ class CodeMartV1TaskCtl extends Controller
             return $this->failureResponse($result);
         }
 
-        return $this->success($result['submission']->loadRecordRelations(['task', 'submitter']), 'Task submitted successfully', 201);
+        return $this->success($result['submission']->loadRecordRelations(['task', 'submitter']), __('codemart.messages.task_submitted_successfully'), 201);
     }
 
     public function getTaskSubmissions(Request $request, int $taskId): JsonResponse
@@ -489,10 +518,10 @@ class CodeMartV1TaskCtl extends Controller
 
         $task = CodeMartV1TaskModel::findById($taskId);
         if (!$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, 'Task not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
         }
         if ($this->partyRoles($task, $task->resolveProject(), (int) $user->id) === []) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'You do not have access to this task', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.you_do_not_have_access_to_this_3'), null, 403);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -509,17 +538,17 @@ class CodeMartV1TaskCtl extends Controller
         $submission = CodeMartV1TaskSubmissionModel::findById($submissionId);
         $task = $submission ? CodeMartV1TaskModel::findById((int) $submission->task_id) : null;
         if (!$submission || !$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_NOT_FOUND, 'Submission not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_NOT_FOUND, __('codemart.messages.submission_not_found'), null, 404);
         }
         if ($this->partyRoles($task, $task->resolveProject(), (int) $user->id) === []) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'You do not have access to this submission', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.you_do_not_have_access_to_this_4'), null, 403);
         }
 
         $file = $submission->fileAt($fileIndex);
         if (!$file
             || ($file['storage'] ?? null) !== CodeMartV1Constants::SUBMISSION_FILE_STORAGE_PRIVATE
             || !$this->fileUploadService->privateDeliveryFileExists($file['path'] ?? null)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_FILE_NOT_FOUND, 'File not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_FILE_NOT_FOUND, __('codemart.messages.file_not_found'), null, 404);
         }
 
         return $this->fileUploadService->downloadPrivateDeliveryFile((string) $file['path'], (string) ($file['name'] ?? basename((string) $file['path'])));
@@ -532,12 +561,12 @@ class CodeMartV1TaskCtl extends Controller
 
         $task = CodeMartV1TaskModel::findById($taskId);
         if (!$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, 'Task not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
         }
 
         $project = $task->resolveProject();
         if ($this->partyRoles($task, $project, (int) $user->id) === []) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'You do not have access to this task', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.you_do_not_have_access_to_this_3'), null, 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -546,7 +575,7 @@ class CodeMartV1TaskCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $comment = CodeMartV1TaskCommentModel::createRecord([
@@ -575,7 +604,7 @@ class CodeMartV1TaskCtl extends Controller
             ]
         );
 
-        return $this->success($comment->loadRecordRelations(['user']), 'Comment added successfully', 201);
+        return $this->success($comment->loadRecordRelations(['user']), __('codemart.messages.comment_added_successfully'), 201);
     }
 
     /**
@@ -591,12 +620,12 @@ class CodeMartV1TaskCtl extends Controller
         $submission = CodeMartV1TaskSubmissionModel::findById($submissionId);
         $task = $submission ? CodeMartV1TaskModel::findById((int) $submission->task_id) : null;
         if (!$submission || !$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_NOT_FOUND, 'Submission not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_SUBMISSION_NOT_FOUND, __('codemart.messages.submission_not_found'), null, 404);
         }
 
         $project = $task->resolveProject();
         if (!$project || !$project->isManagedBy((int) $user->id)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, 'Only the project owner or architect can review submissions', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_ACCESS_DENIED, __('codemart.messages.only_the_project_owner_or_architect_can_3'), null, 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -607,20 +636,53 @@ class CodeMartV1TaskCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', $validator->errors(), 422);
+            return $this->codedError(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $decision = (string) $request->input('status');
         $developerId = (int) $submission->submitted_by;
 
-        $result = CodeMartV1TaskModel::runInTransaction(function () use ($request, $submission, $task, $user, $decision, $developerId, $project) {
+        try {
+            $result = $this->applySubmissionReview($request, $submission, $task, $user, $decision, $developerId, $project);
+        } catch (CodeMartV1FinanceException $e) {
+            return $this->codedError($e->errorCode, $e->getMessage(), [
+                'task_status' => CodeMartV1TaskModel::findById((int) $task->id)?->status,
+            ], $e->httpStatus);
+        }
+
+        if (!$result['ok']) {
+            return $this->failureResponse($result);
+        }
+
+        return $this->success([
+            'review' => $result['review']->loadRecordRelations(['reviewer']),
+            'submission' => $result['submission'],
+            'task' => CodeMartV1TaskModel::findById((int) $task->id),
+            'escrow' => $result['escrow'],
+        ], __('codemart.messages.review_submitted_successfully'), 201);
+    }
+
+    /**
+     * Applies the review in one transaction. An approval whose escrow release
+     * fails throws, so the task stays under review and nothing is committed.
+     */
+    private function applySubmissionReview(
+        Request $request,
+        CodeMartV1TaskSubmissionModel $submission,
+        CodeMartV1TaskModel $task,
+        mixed $user,
+        string $decision,
+        int $developerId,
+        CodeMartV1ProjectModel $project
+    ): array {
+        return CodeMartV1TaskModel::runInTransaction(function () use ($request, $submission, $task, $user, $decision, $developerId, $project) {
             $locked = CodeMartV1TaskSubmissionModel::lockById((int) $submission->id);
             if (!$locked || !$locked->isReviewable()) {
                 return [
                     'ok' => false,
                     'error_code' => CodeMartV1Constants::ERROR_SUBMISSION_INVALID_STATE,
                     'http_status' => 409,
-                    'message' => 'The submission is not awaiting review',
+                    'message' => __('codemart.messages.the_submission_is_not_awaiting_review'),
                     'details' => ['status' => $locked?->status],
                 ];
             }
@@ -629,7 +691,7 @@ class CodeMartV1TaskCtl extends Controller
                     'ok' => false,
                     'error_code' => CodeMartV1Constants::ERROR_TASK_INVALID_STATE,
                     'http_status' => 409,
-                    'message' => 'The task is not under review',
+                    'message' => __('codemart.errors.task_not_under_review'),
                     'details' => ['status' => $task->status],
                 ];
             }
@@ -684,6 +746,13 @@ class CodeMartV1TaskCtl extends Controller
             $escrow = null;
             if ($decision === CodeMartV1Constants::SUBMISSION_STATUS_APPROVED) {
                 $escrow = CodeMartV1EscrowService::releaseForTask($task, (int) $user->id);
+                if (!($escrow['released'] ?? false) && ($escrow['error_code'] ?? null) !== CodeMartV1Constants::ESCROW_ERROR_TASK_BUDGET_MISSING) {
+                    throw new CodeMartV1FinanceException(
+                        (string) $escrow['error_code'],
+                        __('codemart.errors.escrow_release_failed'),
+                        409
+                    );
+                }
                 $earned = ($escrow['released'] ?? false) && !($escrow['replayed'] ?? false)
                     ? (float) ($escrow['net_amount'] ?? 0)
                     : 0.0;
@@ -712,16 +781,5 @@ class CodeMartV1TaskCtl extends Controller
 
             return ['ok' => true, 'review' => $review, 'submission' => $locked, 'escrow' => $escrow];
         });
-
-        if (!$result['ok']) {
-            return $this->failureResponse($result);
-        }
-
-        return $this->success([
-            'review' => $result['review']->loadRecordRelations(['reviewer']),
-            'submission' => $result['submission'],
-            'task' => CodeMartV1TaskModel::findById((int) $task->id),
-            'escrow' => $result['escrow'],
-        ], 'Review submitted successfully', 201);
     }
 }

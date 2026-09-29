@@ -35,8 +35,13 @@ from pycore.pyfoundations.network_constants import (
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
+from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_VENV_NOT_BUILT, tts_reason
 
 _ENGINE = "melotts"
+_INSTALL_HINT = (
+    "Step55_InstallMelotts.ps1 -Full / 139_install_melotts.sh "
+    "(or it auto-builds via ensure_venv on install)"
+)
 _DEFAULT_HOST = HTTP_LOOPBACK_HOST
 _DEFAULT_PORT = MELOTTS_HTTP_PORT
 _HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
@@ -69,10 +74,7 @@ def available() -> bool:
 def disabled_reason() -> Optional[str]:
     if isolated_venv.venv_ready(_ENGINE):
         return None
-    return (
-        "MeloTTS isolated venv not built - run Step55_InstallMelotts.ps1 -Full / "
-        "139_install_melotts.sh (or it auto-builds via ensure_venv on install)"
-    )
+    return tts_reason(TTS_REASON_VENV_NOT_BUILT, engine=_ENGINE, installer=_INSTALL_HINT)
 
 
 def last_synth_error() -> Optional[str]:

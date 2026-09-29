@@ -101,6 +101,8 @@ export const enLocaleA: Record<string, string> = {
     'admin.empty': 'Nothing here yet',
     'admin.refresh': 'Refresh',
     'admin.needLogin': 'This action needs a logged-in account — the backend keeps it token-protected.',
+    'admin.needAdmin': 'This action needs an administrator account.',
+    'admin.requestFailed': 'Request failed.',
     'admin.confirm': 'Confirm',
     'admin.cancel': 'Cancel',
     'admin.ov.totalLangs': 'Languages',

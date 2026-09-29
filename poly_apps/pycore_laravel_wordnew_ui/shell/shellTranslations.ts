@@ -17,6 +17,7 @@ const SHELL_TRANSLATIONS = {
       app_wordnew_description: 'Study, read, review vocabulary, and use the learning assistant.',
       app_vortex_description: 'Explore the local real-time simulated trading workspace.',
       app_codemart_description: 'Plan, fund, deliver, and review managed software projects.',
+      laravel_admin_required: 'This action needs a Laravel administrator account.',
     },
   },
   zh: {
@@ -35,6 +36,7 @@ const SHELL_TRANSLATIONS = {
       app_wordnew_description: '学习、阅读、复习词汇并使用学习助手。',
       app_vortex_description: '使用本地实时模拟交易工作区。',
       app_codemart_description: '规划、托管、交付和评审软件项目。',
+      laravel_admin_required: '此操作需要 Laravel 管理员账号。',
     },
   },
 } as const;

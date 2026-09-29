@@ -8,10 +8,11 @@ native sentence splitting; the client only pre-splits inputs whose merged text
 would exceed the hard character cap, POSTs each chunk, and concatenates the PCM
 responses in order with the policy pause.
 
-Concatenation is pure stdlib (wave module) at the PCM-frame level - no numpy in
-the main process and no transcoding: chunk responses must be uncompressed PCM
-wav with identical parameters, otherwise the task fails with a clear reason
-(never a silent format conversion).
+Wav-file concatenation is pure stdlib (wave module) at the PCM-frame level - no
+numpy and no transcoding: chunk responses must be uncompressed PCM wav with
+identical parameters, otherwise the task fails with a clear reason (never a
+silent format conversion). Sample concatenation reuses the servers' shared
+assembly module (tts_install_assets/tts_audio_assembly.py) once numpy is loaded.
 """
 
 import importlib.util
@@ -22,26 +23,27 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.third_party.api import get_third_package_numpy
 
-_CHUNKING_PATH = (
-    Path(__file__).resolve().parents[2] / "tts_install_assets" / "tts_text_chunking.py"
-)
-_chunking_module: Any = None
+_ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
+_CHUNKING_MODULE = "tts_text_chunking"
+_ASSEMBLY_MODULE = "tts_audio_assembly"
 
 
-def _chunking() -> Any:
-    """Load tts_text_chunking.py by path (cached)."""
-    global _chunking_module
-    if _chunking_module is None:
-        spec = importlib.util.spec_from_file_location(
-            "tts_text_chunking", str(_CHUNKING_PATH)
-        )
+def _asset_module(name: str) -> Any:
+    """Load one shared tts_install_assets module by path (cached in sys.modules)."""
+    module = sys.modules.get(name)
+    if module is None:
+        path = _ASSETS_DIR / f"{name}.py"
+        spec = importlib.util.spec_from_file_location(name, str(path))
         if spec is None or spec.loader is None:
-            raise RuntimeError(f"cannot load {_CHUNKING_PATH}")
+            raise RuntimeError(f"cannot load {path}")
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        _chunking_module = module
-    return _chunking_module
+    return module
+
+
+def _chunking() -> Any:
+    return _asset_module(_CHUNKING_MODULE)
 
 
 def guard_policy(engine: str) -> Any:
@@ -232,16 +234,13 @@ def synthesize_samples_chunked(
         return sample_parts[0], sample_rate, None, stats
 
     resolved_pause_ms = int(policy.pause_ms if pause_ms is None else pause_ms)
-    pause = np.zeros(
-        max(0, sample_rate * resolved_pause_ms // 1000),
-        dtype=np.float32,
+    assembly = _asset_module(_ASSEMBLY_MODULE)
+    return (
+        assembly.concatenate_wavs(sample_parts, sample_rate, resolved_pause_ms),
+        sample_rate,
+        None,
+        stats,
     )
-    combined_parts = []
-    for index, samples in enumerate(sample_parts):
-        if index and pause.size:
-            combined_parts.append(pause)
-        combined_parts.append(samples)
-    return np.concatenate(combined_parts), sample_rate, None, stats
 
 
 __all__ = ["guard_policy", "synthesize_chunked", "synthesize_samples_chunked"]

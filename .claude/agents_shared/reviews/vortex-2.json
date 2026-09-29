@@ -1,0 +1,14 @@
+{
+  "task_id": "vortex-2",
+  "role": "vortex",
+  "verdict": "approved",
+  "findings": {
+    "FU-038": {
+      "status": "fixed",
+      "reason": "openChart takes a sequence number from chartSeq; a response applies candles and clears loading only when it is still the latest request. A coin switch and the bar-change re-open (:721-727) both go through openChart, and closeChart bumps the sequence, so a late response for coin A can no longer land under coin B or reopen a closed chart."
+    }
+  },
+  "issues": [],
+  "checks": "git diff read; setSelected callers grepped (only openChart and closeChart); scope apps/vortex/ only; no new UI strings.",
+  "checked_at": "2026-09-27T03:53:49+10:00"
+}

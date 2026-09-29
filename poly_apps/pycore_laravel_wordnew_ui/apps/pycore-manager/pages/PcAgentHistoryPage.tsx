@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar, Database, BellRing, BellOff, ShieldAlert } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import { connectPycoreHttp } from '@/apps/pycore-manager/api';
-import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { bridgeRelayDeviceEvent, pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import {
   getAgentHistoryRuntimeState,
@@ -23,8 +23,6 @@ import type {
   AgentHistorySessionIdItem,
   AgentHistorySessionSummary,
 } from '@/apps/pycore-manager/api';
-import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
-import { laravelRelayOperationEvents } from '../../../core/integrations/laravel/LaravelRelayOperationEvents';
 import {
   agentHistoryPageTableStore,
   type AgentHistoryPageTable,
@@ -63,9 +61,6 @@ function knownTool(tool: string): boolean {
   const tools = getAgentHistoryRuntimeState().supportedTools;
   return tools.length === 0 || tools.includes(tool);
 }
-const RELAY_PROMPT_NEW_EVENT = String(
-  (RELAY_CONTRACT.events as Record<string, string>).agent_history_prompt_new || '',
-);
 
 function validCachedPage<T extends { id: string }>(
   table: AgentHistoryPageTable<T> | null,
@@ -164,6 +159,9 @@ const PcAgentHistoryPage: React.FC = () => {
   const filterResetReady = useRef(false);
   const skipNextFilterReset = useRef(false);
   const manualRefreshPending = useRef(false);
+  const sessionRequestSeq = useRef(0);
+  const promptRequestSeq = useRef(0);
+  const detailRequestSeq = useRef(0);
 
   useLayoutEffect(() => {
     agentHistoryUiStateStore.save({
@@ -182,6 +180,8 @@ const PcAgentHistoryPage: React.FC = () => {
   }, [enabledTools, filterTool, filterUser, live, promptPage, search, selectedId, selectedTool, sessionPage, tab, taskPeriod]);
 
   const loadSessionPage = useCallback(async (force = false) => {
+    const sequence = ++sessionRequestSeq.current;
+    const stale = () => sequence !== sessionRequestSeq.current;
     setSessionLoading(true);
     setError(null);
     const scope = `sessions|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|page=${sessionPage}`;
@@ -197,6 +197,7 @@ const PcAgentHistoryPage: React.FC = () => {
         pageSize: PAGE_SIZE,
         sinceRevision: cached?.meta && cachedGeneratedAt ? cached.revision : undefined,
       });
+      if (stale()) return;
       if (!res.success || !res.data) {
         setError(res.error || t('agentHistory.loadError'));
         return;
@@ -245,6 +246,7 @@ const PcAgentHistoryPage: React.FC = () => {
         return;
       }
       const rows = await pycoreApi.getAgentHistorySessionPage(ids);
+      if (stale()) return;
       if (rows.success && rows.data) {
         setSessionRows(rows.data.items || []);
         sessionMaterializedKey.current = materializedKey;
@@ -252,13 +254,16 @@ const PcAgentHistoryPage: React.FC = () => {
         setError(rows.error || t('agentHistory.loadError'));
       }
     } catch (e) {
+      if (stale()) return;
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
     } finally {
-      setSessionLoading(false);
+      if (!stale()) setSessionLoading(false);
     }
   }, [debouncedSearch, filterTool, filterUser, sessionPage, t]);
 
   const loadPromptPage = useCallback(async (force = false) => {
+    const sequence = ++promptRequestSeq.current;
+    const stale = () => sequence !== promptRequestSeq.current;
     setPromptLoading(true);
     setError(null);
     const tools = filterTool ? undefined : enabledTools;
@@ -276,6 +281,7 @@ const PcAgentHistoryPage: React.FC = () => {
         pageSize: PAGE_SIZE,
         sinceRevision: cached?.meta && cachedGeneratedAt ? cached.revision : undefined,
       });
+      if (stale()) return;
       if (!res.success || !res.data) {
         setError(res.error || t('agentHistory.loadError'));
         return;
@@ -323,6 +329,7 @@ const PcAgentHistoryPage: React.FC = () => {
         return;
       }
       const rows = await pycoreApi.getAgentHistoryPromptPage(ids);
+      if (stale()) return;
       if (rows.success && rows.data) {
         setPrompts(rows.data.items || []);
         promptMaterializedKey.current = materializedKey;
@@ -330,9 +337,10 @@ const PcAgentHistoryPage: React.FC = () => {
         setError(rows.error || t('agentHistory.loadError'));
       }
     } catch (e) {
+      if (stale()) return;
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
     } finally {
-      setPromptLoading(false);
+      if (!stale()) setPromptLoading(false);
     }
   }, [debouncedSearch, enabledTools, filterTool, filterUser, promptPage, t]);
 
@@ -363,18 +371,10 @@ const PcAgentHistoryPage: React.FC = () => {
     };
     const offSessions = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, scheduleReload);
     const offPromptNew = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistoryPromptNew, scheduleReload);
-    // Relay mode: pycore forwards prompt.new through the Laravel relay outbox
-    // to the FrankenPHP Mercure hub; bridge it onto the same local topic.
-    const offRelay = RELAY_PROMPT_NEW_EVENT
-      ? laravelRelayOperationEvents.onEvent((event, data) => {
-          if (event !== RELAY_PROMPT_NEW_EVENT) return;
-          const frame = data as { metadata?: unknown } | null;
-          pycoreEventBus.dispatch(
-            PYCORE_EVENT_TOPICS.agentHistoryPromptNew,
-            (frame && typeof frame === 'object' ? frame.metadata : data) ?? {},
-          );
-        })
-      : () => {};
+    // Relay mode: prompt.new arrives through the Laravel relay hub and is
+    // bridged onto the same local topic (agent_history.config.changed is
+    // bridged by the runtime store, which owns the config state).
+    const offRelay = bridgeRelayDeviceEvent('agent_history_prompt_new', PYCORE_EVENT_TOPICS.agentHistoryPromptNew);
     return () => {
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       offSessions();
@@ -469,21 +469,25 @@ const PcAgentHistoryPage: React.FC = () => {
   };
 
   const handleSelect = useCallback(async (id: string) => {
+    const sequence = ++detailRequestSeq.current;
+    const stale = () => sequence !== detailRequestSeq.current;
     setSelectedId(id);
     setDetail(null);
     setDetailError(null);
     setDetailLoading(true);
     try {
       const res = await pycoreApi.getAgentHistorySession(id);
+      if (stale()) return;
       if (res.success && res.data) {
         setDetail(res.data);
       } else {
         setDetailError(res.error || tk('loadError'));
       }
     } catch (e) {
+      if (stale()) return;
       setDetailError(e instanceof Error ? e.message : tk('loadError'));
     } finally {
-      setDetailLoading(false);
+      if (!stale()) setDetailLoading(false);
     }
   }, [tk]);
 

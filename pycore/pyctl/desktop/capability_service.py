@@ -144,6 +144,8 @@ def _probe_engine_status(status_fn) -> Dict[str, Dict[str, Any]]:
             "available": bool(engine.get("available")),
             "installed": bool(engine.get("installed", engine.get("available"))),
             "disabled_reason": engine.get("disabled_reason"),
+            "disabled_reason_code": engine.get("disabled_reason_code"),
+            "disabled_reason_params": engine.get("disabled_reason_params"),
         }
     return result
 

@@ -1,12 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\ItToolsV1\ItToolsV1Controllers;
 
@@ -26,7 +18,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $height = $request->input('height');
         
         if (!$file || !$width || !$height) {
-            return $this->error('Missing required parameters', 422);
+            return $this->error(__('it_tools.messages.missing_required_parameters'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -53,7 +45,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $angle = $request->input('angle', 90);
         
         if (!$file) {
-            return $this->error('Image file required', 422);
+            return $this->error(__('it_tools.messages.image_file_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -78,7 +70,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $direction = $request->input('direction', 'horizontal');
         
         if (!$file) {
-            return $this->error('Image file required', 422);
+            return $this->error(__('it_tools.messages.image_file_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -103,7 +95,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $numColors = $request->input('num_colors', 5);
         
         if (!$file) {
-            return $this->error('Image file required', 422);
+            return $this->error(__('it_tools.messages.image_file_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -126,7 +118,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $format = $request->input('format');
         
         if (!$file) {
-            return $this->error('Image file required', 422);
+            return $this->error(__('it_tools.messages.image_file_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -160,7 +152,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $height = $request->input('height');
         
         if (!$file || !$width || !$height) {
-            return $this->error('Image file, width and height required', 422);
+            return $this->error(__('it_tools.messages.image_file_width_and_height_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -186,7 +178,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $format = $request->input('format', 'png');
         
         if (!$file) {
-            return $this->error('Image file required', 422);
+            return $this->error(__('it_tools.messages.image_file_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -276,11 +268,11 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $ranges = $request->input('ranges');
         
         if (!$file) {
-            return $this->error('PDF file required', 422);
+            return $this->error(__('it_tools.messages.pdf_file_required'), 422);
         }
         
         if (!$ranges) {
-            return $this->error('Page ranges required', 422);
+            return $this->error(__('it_tools.messages.page_ranges_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -324,7 +316,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $files = $request->file('pdfs');
         
         if (!$files || !is_array($files)) {
-            return $this->error('Multiple PDF files required', 422);
+            return $this->error(__('it_tools.messages.multiple_pdf_files_required'), 422);
         }
         
         $tempPaths = [];
@@ -357,7 +349,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $quality = $request->input('quality', 'screen');
         
         if (!$file) {
-            return $this->error('PDF file required', 422);
+            return $this->error(__('it_tools.messages.pdf_file_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -388,7 +380,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $pages = $request->input('pages');
         
         if (!$file) {
-            return $this->error('PDF file required', 422);
+            return $this->error(__('it_tools.messages.pdf_file_required'), 422);
         }
         
         $tempPath = $file->store('temp');
@@ -418,7 +410,7 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
         $password = $request->input('password');
         
         if (!$file || !$password) {
-            return $this->error('PDF file and password required', 422);
+            return $this->error(__('it_tools.messages.pdf_file_and_password_required'), 422);
         }
         
         $tempPath = $file->store('temp');

@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY FORBIDDEN
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Windows Management Menu
@@ -28,10 +16,19 @@ $script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
 $script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\repair-chrome-crash.ps1"
 $script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
 $script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
+$script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager.ps1"
+$script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
+$script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
+$script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
+$script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+# Dot-sourced (not subprocess-invoked) so the "[T] Tailscale" quick entry can
+# show live state in its label and open Show-TailscaleQuickMenu in-process,
+# same as the "Path Mapping" entry below reuses UserProfilePathMapping.ps1.
+. $script:TAILSCALE_COMMON_SCRIPT
 $script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path (Join-Path $Global:CORE_NODE_DATA_DIR 'scripts\chromefix') 'repair-chrome-crash.ps1'
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
@@ -61,6 +58,14 @@ function Write-ColorMessage {
     }
     
     Write-Host "$prefix$Message" -ForegroundColor $color
+}
+
+function Invoke-ConsoleScript {
+    param(
+        [Parameter(Mandatory=$true)] [string]$ScriptPath
+    )
+
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $ScriptPath)) -NoNewWindow -Wait
 }
 
 function Show-WindowsSystemInfoHeader {
@@ -198,6 +203,46 @@ function Show-WindowsManagementSubMenu {
             }
         },
         @{
+            Text = "Repair Disk (chkdsk /f)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT
+            }
+        },
+        @{
+            Text = "Linux Dual Boot Readiness (Fast Startup)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT
+            }
+        },
+        @{
+            Text = "Organize Desktop Icons";
+            Values = @("organize", "preview", "undo");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $desktopIconMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
+                $desktopIconAction = $script:DESKTOP_ICON_ACTIONS[$desktopIconMode]
+                Write-ColorMessage -Message "Desktop icon organizer: $desktopIconAction" -Type "Info"
+                Write-Host ""
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:DESKTOP_ICON_MANAGER_SCRIPT -DesktopIconAction $desktopIconAction
+            }
+        },
+        @{
+            Text = "[T] Tailscale";
+            Values = @((Get-TailscaleQuickStateLabel));
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Show-TailscaleQuickMenu
+            }
+        },
+        @{
             Text = "Path Mapping (.cursor / .devin)";
             Values = @("default");
             CurrentValueIndex = 0;
@@ -300,6 +345,9 @@ function Show-WindowsManagementSubMenu {
 
                 Clear-Host
                 $selectedItem.Action.Invoke()
+                if ($selectedText -eq "[T] Tailscale") {
+                    $selectedItem.Values = @((Get-TailscaleQuickStateLabel))
+                }
                 Wait-MenuContinue
             }
             'Q' { return }

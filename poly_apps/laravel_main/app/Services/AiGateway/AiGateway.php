@@ -2,6 +2,7 @@
 
 namespace App\Services\AiGateway;
 
+use App\Utils\FileSystemManager;
 use App\Providers\PathMapper;
 use App\Utils\SecretStore;
 use Illuminate\Support\Facades\Http;
@@ -1233,9 +1234,6 @@ class AiGateway
         if (!is_dir($dir)) {
             @mkdir($dir, 0775, true);
         }
-        $tmp = $path . '.tmp.' . getmypid();
-        if (@file_put_contents($tmp, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) !== false) {
-            @rename($tmp, $path);
-        }
+        FileSystemManager::writeFileAtomic($path, (string) json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 }

@@ -32,7 +32,7 @@ from pycore.pyctl.agent_history.snapshot_cache import (
 )
 import pycore.pyctl.agent_history.root_spool as root_spool
 from pycore.pyctl.agent_history.base_extractor import BaseExtractor
-from pycore.pyctl.agent_history.extractor_registry import build_extractors
+from pycore.pyctl.agent_history.extractor_registry import EXTRACTOR_TOOLS, build_extractors
 from pycore.pyfoundations.agent_home_scanner import scan_user_homes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import AGENT_HISTORY_OFFICIAL_HOME_MARKERS
@@ -164,13 +164,6 @@ class AgentHistoryService:
         """Broadcast genuinely new prompts (id never seen in the store), newest first, capped."""
         if not new_prompts:
             return
-        # Read-only side mirror: cache one copy of every new prompt for the UI
-        # paginated cache view. Guarded so a cache failure can never break
-        # extraction, logging, or event broadcast.
-        try:
-            prompt_new_cache.append_new_prompts(new_prompts)
-        except Exception:
-            pass
         newest = sorted(
             new_prompts,
             key=lambda p: int(p.get("ts") or 0),
@@ -205,6 +198,10 @@ class AgentHistoryService:
             },
             async_mode=True,
         )
+        # Read-only side mirror for the UI paginated cache view. It runs after
+        # the log lines and the event, so a cache failure never hides them; the
+        # error propagates to the extract summary and its log line.
+        prompt_new_cache.append_new_prompts(new_prompts)
 
     @staticmethod
     def _archive_prompts(prompts: List[Dict[str, Any]]) -> None:
@@ -257,7 +254,7 @@ class AgentHistoryService:
 
     def _live_scan_supported_tools(self) -> List[str]:
         """Live-scan supported set: every registered extractor (single source of truth)."""
-        return sorted({str(extractor.tool()) for extractor in self._extractors})
+        return list(EXTRACTOR_TOOLS)
 
     def _live_scan_inner(self, tools: Optional[List[str]]) -> Dict[str, Any]:
         supported_set = set(self._live_scan_supported_tools())
@@ -415,6 +412,7 @@ class AgentHistoryService:
                             "source": src_path,
                             "ts": p.get("ts") or 0,
                             "text": p.get("text") or "",
+                            prompt_archive.ARCHIVE_ROOT_ONLY_FIELD: bool(info.get("spool")),
                         }
                         for p in detail.get("prompts") or []
                     )
@@ -511,6 +509,7 @@ class AgentHistoryService:
                 self._emit_prompt_new(new_prompts, generated_at)
             return summary
         except Exception as e:
+            ColorPrint.yellow(f"[AgentHistory] Extract failed: {type(e).__name__}: {e}")
             summary = {"error": str(e)}
             THREAD_BUS.signal(_SUMMARY_SIGNAL, summary)
             return summary

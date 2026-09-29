@@ -45,7 +45,8 @@ mediaHub: {
       segCode: "Code",
       searchPlaceholder: "Search…",
       refresh: "Refresh",
-      emptyPrompt: "Select an item to view it here."
+      emptyPrompt: "Select an item to view it here.",
+      loginRequired: "Login required to access Media Hub."
     },
 dbSync: {
       title: "Machine Data Synchronization",
@@ -487,6 +488,25 @@ vocabulary: {
         total: "Total",
         recent_attempts: "Recent attempts",
         no_records: "No recent TTS records."
+      },
+      tasks_panel: {
+        refresh: "Refresh tasks",
+        list: "Tasks",
+        vocabulary: "Vocabulary ({{learned}}/{{total}})",
+        mark_learned: "Mark as learned",
+        mark_unlearned: "Mark as unlearned",
+        no_words: "No vocabulary words in this task",
+        empty: "No tasks available"
+      },
+      libraries: {
+        filters: "Filters",
+        language: "Language",
+        title: "Vocabulary Libraries",
+        words_one: "{{count}} word",
+        words: "{{count}} words",
+        recommended: "Recommended",
+        category: "Category: {{category}}",
+        empty: "No libraries available for {{language}}"
       },
       words_manager: {
         static_resources: "Static Resources",

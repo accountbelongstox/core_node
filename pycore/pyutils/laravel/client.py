@@ -32,7 +32,7 @@ cycling back here. No function-level internal imports.
 import json as json_module
 import time
 from typing import Any, Dict, Optional
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
@@ -45,10 +45,8 @@ from pycore.pyutils.laravel.endpoint_manager import (
     laravel_endpoint_manager,
     laravel_reachability,
 )
-from pycore.pyutils.laravel.identity import (
-    LARAVEL_SERVER_ID_HEADER,
-    build_pycore_identity_headers,
-)
+from pycore.pyutils.laravel.identity import LARAVEL_SERVER_ID_HEADER
+from pycore.pyutils.common.client_key_auth import client_key_headers
 from pycore.pyutils.common.laravel_http_transport import (
     TRANSPORT_HTTPX,
     create_laravel_http_session,
@@ -61,6 +59,10 @@ _BODY_SUMMARY_MAX = 200
 # requests' own default is "wait forever" — cap it so a hung Laravel worker can
 # never stall a pycore heartbeat/worker thread indefinitely.
 _DEFAULT_TIMEOUT = 30.0
+_CONTENT_TYPE_HEADER = "Content-Type"
+_JSON_CONTENT_TYPE = "application/json"
+_FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
+_MULTIPART_CONTENT_TYPE = "multipart/form-data"
 
 
 LARAVEL_ERROR_TIMEOUT = "LARAVEL_TIMEOUT"
@@ -68,6 +70,7 @@ LARAVEL_ERROR_UNREACHABLE = "LARAVEL_UNREACHABLE"
 LARAVEL_ERROR_HTTP = "LARAVEL_HTTP_ERROR"
 LARAVEL_ERROR_BAD_RESPONSE = "LARAVEL_BAD_RESPONSE"
 LARAVEL_ERROR_REQUEST_FAILED = "LARAVEL_REQUEST_FAILED"
+LARAVEL_ERROR_ENDPOINT_UNKNOWN = "LARAVEL_ENDPOINT_UNKNOWN"
 _TIMEOUT_ERROR_NAMES = ("Timeout", "TimedOut", "ReadTimeout", "ConnectTimeout", "WriteTimeout", "PoolTimeout")
 _UNREACHABLE_ERROR_NAMES = ("ConnectionError", "ConnectError", "NetworkError", "RemoteProtocolError", "ProxyError", "SSLError")
 _BAD_RESPONSE_ERROR_NAMES = ("JSONDecodeError", "ValueError", "DecodingError")
@@ -117,6 +120,25 @@ def _short_err(err: Any) -> str:
         msg = type(err).__name__ if isinstance(err, BaseException) else "error"
     line = msg.splitlines()[0]
     return line[:200]
+
+
+def _encode_form(values: Any) -> str:
+    """Requests-compatible form/query encoding (``None`` dropped, scalars
+    ``str()``-ed, sequences repeated), done once so the signed and the sent
+    query/body are the same string."""
+    if isinstance(values, (str, bytes)):
+        return values.decode("utf-8") if isinstance(values, bytes) else values
+    items = values.items() if isinstance(values, dict) else values
+    pairs = []
+    for key, value in items:
+        entries = value if isinstance(value, (list, tuple)) else [value]
+        pairs.extend((key, entry) for entry in entries if entry is not None)
+    return urlencode(pairs)
+
+
+def _header_value(headers: Dict[str, Any], name: str) -> str:
+    lowered = name.lower()
+    return next((str(value) for key, value in headers.items() if str(key).lower() == lowered), "")
 
 
 def _summarize_params(params: Any = None, data: Any = None, json: Any = None,
@@ -236,7 +258,7 @@ class LaravelClient:
                 activity_timeout: Optional[Dict[str, Any]] = None,
                 progress_callback: Any = None,
                 stream: bool = False, allow_redirects: bool = True,
-                log_line: bool = True, include_default_identity: bool = True,
+                log_line: bool = True,
                 sensitive_request: bool = False,
                 **kwargs):
         """Issue a Laravel HTTP request, log + record it, return the raw Response.
@@ -244,6 +266,11 @@ class LaravelClient:
         ``path`` may be a full URL (used as-is) or a path joined onto the resolved
         base. ``base_url`` overrides resolution (used by the :9003 OCR bridge and
         by callers that already resolved a specific endpoint).
+        Every request carries the K3 client-key signature
+        (``client_key_auth``): ``params`` are encoded into the URL and form
+        fields into the body before signing, so the signed path, query and
+        body digest are the exact transmitted bytes; multipart uploads sign
+        ``UNSIGNED-PAYLOAD``.
         ``log_line=False`` silences the console line for high-frequency polls
         (the caller prints its own compact line); the HTTP recorder still sees
         the request so UI diagnostics keep working.
@@ -279,18 +306,27 @@ class LaravelClient:
         if json is not None and data is None and files is None:
             request_data = json_module.dumps(json, allow_nan=False).encode("utf-8")
             request_json = None
-            request_headers.setdefault("Content-Type", "application/json")
-        identity_body = (
-            request_data
-            if isinstance(request_data, bytes)
-            else str(request_data).encode("utf-8")
-            if request_data is not None
-            else b""
-        )
-        if include_default_identity:
-            request_headers.update(
-                build_pycore_identity_headers(url, method, identity_body)
-            )
+            if not _header_value(request_headers, _CONTENT_TYPE_HEADER):
+                request_headers[_CONTENT_TYPE_HEADER] = _JSON_CONTENT_TYPE
+        if params:
+            url = f"{url}{'&' if urlsplit(url).query else '?'}{_encode_form(params)}"
+            params = None
+        if files is None and isinstance(request_data, (dict, list, tuple)):
+            request_data = _encode_form(request_data).encode("utf-8")
+            if not _header_value(request_headers, _CONTENT_TYPE_HEADER):
+                request_headers[_CONTENT_TYPE_HEADER] = _FORM_CONTENT_TYPE
+        elif isinstance(request_data, (str, bytearray)):
+            request_data = request_data.encode("utf-8") if isinstance(request_data, str) else bytes(request_data)
+        if request_json is not None or (
+            files is None and request_data is not None and not isinstance(request_data, bytes)
+        ):
+            raise ValueError(f"Laravel request body must be bytes, str, json or form fields: {type(request_data).__name__}")
+        request_headers.update(client_key_headers(
+            method,
+            url,
+            request_data if isinstance(request_data, bytes) else b"",
+            _MULTIPART_CONTENT_TYPE if files is not None else _header_value(request_headers, _CONTENT_TYPE_HEADER),
+        ))
         try:
             uploading = request_data is not None or request_json is not None or request_files is not None
             sender = http_progress_client if uploading else session

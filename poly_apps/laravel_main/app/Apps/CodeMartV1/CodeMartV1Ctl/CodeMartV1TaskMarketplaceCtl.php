@@ -80,20 +80,20 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
 
         $userId = (int) $user->id;
         if (!CodeMartV1UserRoleModel::forUserAndType($userId, CodeMartV1Constants::ROLE_DEVELOPER, CodeMartV1Constants::ROLE_STATUS_ACTIVE)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_DEVELOPER_ROLE_REQUIRED, 'An active developer role is required', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_DEVELOPER_ROLE_REQUIRED, __('codemart.messages.an_active_developer_role_is_required'), null, 403);
         }
         $depositPolicy = CodeMartV1DepositModel::policyForRole($userId, CodeMartV1Constants::ROLE_DEVELOPER);
         if (!$depositPolicy['is_sufficient']) {
-            return $this->codedError(CodeMartV1Constants::ERROR_DEVELOPER_DEPOSIT_REQUIRED, 'The developer deposit has not been paid', $depositPolicy, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_DEVELOPER_DEPOSIT_REQUIRED, __('codemart.messages.the_developer_deposit_has_not_been_paid'), $depositPolicy, 403);
         }
 
         $task = CodeMartV1TaskModel::findById((int) $taskId);
         if (!$task) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, 'Task not found', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_NOT_FOUND, __('codemart.messages.task_not_found'), null, 404);
         }
         $project = $task->resolveProject();
         if ($project && $project->isManagedBy($userId)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_OWN_PROJECT, 'You cannot accept tasks of your own project', null, 403);
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_OWN_PROJECT, __('codemart.messages.you_cannot_accept_tasks_of_your_own'), null, 403);
         }
 
         $accepted = CodeMartV1TaskModel::runInTransaction(function () use ($task, $project, $userId) {
@@ -136,14 +136,14 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         });
 
         if (!$accepted) {
-            return $this->codedError(CodeMartV1Constants::ERROR_TASK_UNAVAILABLE, 'Task is not open, already assigned, or its project does not accept work', [
+            return $this->codedError(CodeMartV1Constants::ERROR_TASK_UNAVAILABLE, __('codemart.messages.task_is_not_open_already_assigned_or'), [
                 'status' => $task->status,
                 'project_status' => $project?->status,
             ], 409);
         }
 
         return $this->success([
-            'message' => 'Task accepted successfully',
+            'message' => __('codemart.messages.task_accepted_successfully'),
             'task_id' => (int) $task->id,
             'task' => $task,
         ]);

@@ -1,13 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
@@ -65,7 +56,7 @@ class AppQyV1AuthenticationRegistrationController extends Controller
 
         if (CommonUserGen::checkUsernameIsExist($request->username)) {
             Log::info('[AppQyV1Registration] Username already exists', ['username' => $request->username]);
-            return $this->error('Username already exists', 400);
+            return $this->error(__('app_qy_v1.messages.username_already_exists'), 400);
         }
 
         $email = "";
@@ -113,7 +104,7 @@ class AppQyV1AuthenticationRegistrationController extends Controller
                     'code' => $inviteCode,
                     'username' => $request->username
                 ]);
-                return $this->error('Invalid invite code', 400);
+                return $this->error(__('app_qy_v1.messages.invalid_invite_code'), 400);
             }
 
             if (!$invite->canBeUsed()) {
@@ -125,7 +116,7 @@ class AppQyV1AuthenticationRegistrationController extends Controller
                     'max_uses' => $invite->max_uses,
                     'expires_at' => $invite->expires_at
                 ]);
-                return $this->error('Invite code is expired or already used', 400);
+                return $this->error(__('app_qy_v1.messages.invite_code_is_expired_or_already_used'), 400);
             }
 
             $roleLevel = $invite->getRoleLevel();
@@ -171,9 +162,9 @@ class AppQyV1AuthenticationRegistrationController extends Controller
 
             if (strpos(strtolower($errorMessage), 'already exists') !== false) {
                 if (!empty($email) && User::emailExists($email)) {
-                    $errorMessage = 'Email already exists';
+                    $errorMessage = __('app_qy_v1.messages.email_already_exists');
                 } else {
-                    $errorMessage = 'Username already exists';
+                    $errorMessage = __('app_qy_v1.messages.username_already_exists');
                 }
             }
 
@@ -292,6 +283,6 @@ class AppQyV1AuthenticationRegistrationController extends Controller
             'role_name' => $roleName
         ]);
 
-        return $this->success($responseData, 'User registered successfully');
+        return $this->success($responseData, __('app_qy_v1.messages.user_registered_successfully'));
     }
 }

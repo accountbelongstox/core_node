@@ -24,7 +24,15 @@
  *     NEVER queued (they reject exactly as before). Tokens are NEVER
  *     persisted — the live token is re-resolved per replay attempt via
  *     resolveAuthHeaders().
- *   - REPLAY: FIFO, sequential, triggered by window 'online', by the
+ *   - OWNER SCOPE: each entry stores the owner scope of the session that
+ *     issued it (resolveQueueOwner()). Replay sends only the live owner's
+ *     entries; other owners' entries are held until their owner returns or
+ *     they age out. A write is never delivered once the owner changed after
+ *     it started. clearQueue() drops every entry (logout).
+ *   - REPLAY DEDUPE: every queueable write carries an IDEMPOTENCY_KEY_HEADER key
+ *     from its first send; replays reuse it so the server can dedupe a write
+ *     whose first response was lost.
+ *   - REPLAY: FIFO per owner, sequential, triggered by window 'online', by the
  *     subclass's endpoint-recovered hook (call drainQueue()), and on
  *     construction (app start). Success removes the entry; a NETWORK failure
  *     stops the drain (retried on the next trigger); an HTTP 4xx/5xx answer
@@ -38,6 +46,7 @@
 
 import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
 import { protocolFetch } from '../ProtocolFetch';
+import { IDEMPOTENCY_KEY_HEADER, createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
 
 /** Default dead-socket ceiling: 30 minutes ("一般30分钟"). 0 = wait forever. */
 export const DEFAULT_CEILING_MS = 30 * 60 * 1000;
@@ -73,6 +82,17 @@ export class QueuedError extends Error {
     super(message);
     this.name = 'QueuedError';
     this.entryId = entryId;
+  }
+}
+
+/**
+ * Rejection when the session owner changed between a queueable write's start
+ * and its delivery: the write is never sent under another session's token.
+ */
+export class QueueOwnerChangedError extends Error {
+  constructor() {
+    super('queue_owner_changed');
+    this.name = 'QueueOwnerChangedError';
   }
 }
 
@@ -171,6 +191,15 @@ export abstract class MasterApiClient {
     return {};
   }
 
+  /**
+   * Owner scope of the live session (e.g. a hash of the bearer token), stored
+   * with each queued write. Replay sends only the live owner's entries.
+   * Default: every entry shares one owner.
+   */
+  protected resolveQueueOwner(): string | null | Promise<string | null> {
+    return null;
+  }
+
   /** Default queueability when the caller does not pass `queueable`. */
   protected isQueueableEndpoint(_endpoint: string, _method: string): boolean {
     return false;
@@ -202,6 +231,14 @@ export abstract class MasterApiClient {
     return this.queue?.list() ?? [];
   }
 
+  /** Drop every pending entry, whatever its owner (e.g. on logout). */
+  clearQueue(): void {
+    if (!this.queue || this.queue.size() === 0) return;
+    this.queue.clear();
+    this.log('info', '[master-api] queue cleared');
+    this.emitQueueChange();
+  }
+
   /** Subscribe to queue size/draining changes. Returns an unsubscribe fn. */
   onQueueChange(cb: QueueChangeCb): () => void {
     this.queueChangeCbs.add(cb);
@@ -231,27 +268,31 @@ export abstract class MasterApiClient {
     const { ceilingMs, queueable, ...init } = options;
     const method = (init.method || 'GET').toUpperCase();
     const ceiling = ceilingMs ?? this.defaultCeilingMs;
+    if (!this.isReplayableWrite(endpoint, method, init, queueable)) {
+      return this.send(endpoint, init, ceiling);
+    }
 
+    const owner = await this.resolveQueueOwner();
+    const replayInit = this.withIdempotencyKey(init);
     try {
-      return await this.send(endpoint, init, ceiling);
+      return await this.send(endpoint, replayInit, ceiling, owner);
     } catch (error) {
-      if (this.shouldQueueFailure(endpoint, method, init, queueable, error)) {
-        const entry = this.enqueueFailedWrite(endpoint, method, init);
-        this.log(
-          'info',
-          `[master-api] queued offline write ${method} ${endpoint} (queue size ${this.queue!.size()})`
-        );
-        this.emitQueueChange();
-        throw new QueuedError(this.queuedMessage(), entry.id);
-      }
-      throw error;
+      if (error instanceof QueueOwnerChangedError || !isNetworkLevelFailure(error)) throw error;
+      const entry = this.enqueueFailedWrite(endpoint, method, replayInit, owner);
+      this.log(
+        'info',
+        `[master-api] queued offline write ${method} ${endpoint} (queue size ${this.queue!.size()})`
+      );
+      this.emitQueueChange();
+      throw new QueuedError(this.queuedMessage(), entry.id);
     }
   }
 
   /**
-   * Drain the persistent queue: FIFO, sequential, base URL + token re-resolved
-   * per attempt. Single-flight — concurrent triggers share one pass. Wire this
-   * to the end's endpoint-recovered/endpoint-changed event in the subclass.
+   * Drain the live owner's entries: FIFO, sequential, base URL + token
+   * re-resolved per attempt; other owners' entries stay held. Single-flight —
+   * concurrent triggers share one pass. Wire this to the end's
+   * endpoint-recovered/endpoint-changed event in the subclass.
    */
   async drainQueue(): Promise<void> {
     if (!this.queue || this.draining) return;
@@ -262,7 +303,8 @@ export abstract class MasterApiClient {
     this.emitQueueChange();
     try {
       for (;;) {
-        const entry = this.queue.peek();
+        const owner = await this.resolveQueueOwner();
+        const entry = this.queue.list().find((item) => item.owner === owner);
         if (!entry) break;
 
         this.queue.markAttempt(entry.id);
@@ -275,14 +317,16 @@ export abstract class MasterApiClient {
               headers: entry.headers,
               ...(entry.body != null ? { body: entry.body } : {}),
             },
-            this.defaultCeilingMs
+            this.defaultCeilingMs,
+            owner
           );
         } catch (error) {
-          // Still a connectivity problem — stop the drain, keep the entry,
-          // retry on the next trigger ('online' / endpoint-recovered).
+          // Connectivity problem or a session change — stop the drain, keep
+          // the entry, retry on the next trigger ('online' / endpoint-recovered).
+          const reason = error instanceof QueueOwnerChangedError ? 'owner changed' : 'network';
           this.log(
             'info',
-            `[master-api] queue drain paused (network): ${entry.method} ${entry.endpoint}`
+            `[master-api] queue drain paused (${reason}): ${entry.method} ${entry.endpoint}`
           );
           break;
         }
@@ -322,14 +366,21 @@ export abstract class MasterApiClient {
     return protocolFetch(url, { ...init, ...(signal ? { signal } : {}) });
   }
 
-  /** One fetch with live base URL + auth headers and the abort ceiling. */
+  /**
+   * One fetch with live base URL + auth headers and the abort ceiling. With an
+   * `owner`, delivery is refused when the live owner no longer matches it.
+   */
   private async send(
     endpoint: string,
     init: RequestInit,
-    ceiling: number
+    ceiling: number,
+    owner?: string | null
   ): Promise<Response> {
     const baseUrl = await this.resolveBaseUrl();
     const auth = await this.resolveAuthHeaders();
+    if (owner !== undefined && (await this.resolveQueueOwner()) !== owner) {
+      throw new QueueOwnerChangedError();
+    }
     const headers: Record<string, string> = {
       ...((init.headers as Record<string, string> | undefined) ?? {}),
       ...auth,
@@ -346,12 +397,12 @@ export abstract class MasterApiClient {
     }
   }
 
-  private shouldQueueFailure(
+  /** A write this client may persist and replay (queue on, queueable, JSON body). */
+  private isReplayableWrite(
     endpoint: string,
     method: string,
     init: RequestInit,
-    queueableOpt: boolean | undefined,
-    error: unknown
+    queueableOpt: boolean | undefined
   ): boolean {
     if (!this.queue) return false;
     // NEVER queue GETs, regardless of what the caller claims.
@@ -359,14 +410,26 @@ export abstract class MasterApiClient {
     const queueable = queueableOpt ?? this.isQueueableEndpoint(endpoint, method);
     if (!queueable) return false;
     // Only plain-string (JSON) bodies can be persisted — FormData/streams cannot.
-    if (init.body != null && typeof init.body !== 'string') return false;
-    return isNetworkLevelFailure(error);
+    return init.body == null || typeof init.body === 'string';
+  }
+
+  /** Keep the caller's replay-dedupe key, else assign one for this write. */
+  private withIdempotencyKey(init: RequestInit): RequestInit {
+    const headers: Record<string, string> = {
+      ...((init.headers as Record<string, string> | undefined) ?? {}),
+    };
+    const name = IDEMPOTENCY_KEY_HEADER.toLowerCase();
+    if (!Object.keys(headers).some((key) => key.toLowerCase() === name)) {
+      headers[IDEMPOTENCY_KEY_HEADER] = createIdempotencyKey();
+    }
+    return { ...init, headers };
   }
 
   private enqueueFailedWrite(
     endpoint: string,
     method: string,
-    init: RequestInit
+    init: RequestInit,
+    owner: string | null
   ): QueuedRequestEntry {
     // Persist headers MINUS the auth header names — the live token is
     // re-resolved at replay time via resolveAuthHeaders().
@@ -383,6 +446,7 @@ export abstract class MasterApiClient {
       method,
       headers,
       body: typeof init.body === 'string' ? init.body : null,
+      owner,
     });
   }
 

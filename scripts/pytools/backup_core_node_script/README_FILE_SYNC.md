@@ -201,11 +201,10 @@ The client needs `requests` and `tqdm`, which are:
 
 ## 🤝 Contributing
 
-1. Follow AI SPECIAL ATTENTION RULES in file headers
-2. Server functionality must use ONLY Python standard library
-3. Client dependencies go in venv (auto-managed)
-4. Test on both Linux and Windows
-5. Maintain backward compatibility
+1. Server functionality must use ONLY Python standard library
+2. Client dependencies go in venv (auto-managed)
+3. Test on both Linux and Windows
+4. Maintain backward compatibility
 
 ## 📝 License
 

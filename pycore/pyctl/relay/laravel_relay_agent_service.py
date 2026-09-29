@@ -77,6 +77,7 @@ class LaravelRelayAgentService:
         self._subscriber_response: Any = None
         self._subscriber_connected: bool = False
         self._group_id = ""
+        self._last_event_revision = 0
         relay_activity_log.info(
             "runtime.constructed",
             contract_digest=relay_contract.digest,
@@ -106,6 +107,10 @@ class LaravelRelayAgentService:
         THREAD_BUS.register_event_handler(
             BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
             self._publish_prompt_derived_device_event,
+        )
+        THREAD_BUS.register_event_handler(
+            BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
+            self._publish_config_changed_device_event,
         )
         threads = list(alive.values())
         if RELAY_CONTROL_THREAD not in alive:
@@ -173,6 +178,10 @@ class LaravelRelayAgentService:
         THREAD_BUS.unregister_event_handler(
             BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
             self._publish_prompt_derived_device_event,
+        )
+        THREAD_BUS.unregister_event_handler(
+            BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
+            self._publish_config_changed_device_event,
         )
         relay_activity_log.success(
             "runtime.event_handler.removed",
@@ -606,6 +615,9 @@ class LaravelRelayAgentService:
     def _publish_prompt_derived_device_event(self, payload: Any) -> None:
         self._publish_agent_history_event("agent_history_prompt_derived", payload, "item")
 
+    def _publish_config_changed_device_event(self, payload: Any) -> None:
+        self._publish_agent_history_event("agent_history_config_changed", payload, "config")
+
     def _publish_agent_history_event(self, event_name: str, payload: Any, container_key: str) -> None:
         """Forward an agent-history bus event to paired UI owners via the hub.
 
@@ -621,8 +633,18 @@ class LaravelRelayAgentService:
             revision = int(first.get("ts"))
         self._post_device_event(event_name, event_payload, revision)
 
+    @serialized_method
+    def _allocate_event_revision(self) -> int:
+        """Device event revision unique and increasing across restarts
+        (wall-clock microseconds, bumped past the last one issued): a
+        terminal counter restarts at 0 and epoch seconds collide."""
+        self._last_event_revision = max(time.time_ns() // 1000, self._last_event_revision + 1)
+        return self._last_event_revision
+
     def _post_device_event(self, event_name: str, event_payload: Dict[str, Any], revision: int) -> None:
-        revision = max(1, int(revision or 0))
+        # ``revision`` of the source (terminal counter / prompt ts) stays in
+        # the payload for the UI; the device event revision is allocated here.
+        revision = self._allocate_event_revision()
         event_type = relay_contract.event(event_name)
         if not relay_device_identity.has_credential():
             relay_activity_log.warning(

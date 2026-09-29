@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
@@ -181,6 +170,13 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         return self::enrichmentQuery($lang, $fields)->count();
     }
 
+    /**
+     * Legacy claim candidates: rows still missing audio or in a retryable
+     * state. Completed rows are not candidates, so fully covered sentences at
+     * the top of the occurrence order can no longer starve the rows below
+     * them (variant backfill for completed rows runs in the global_tasks
+     * sentence_audio lane).
+     */
     public static function claimableAudioRows(string $lang, mixed $cutoff, int $limit): Collection
     {
         return self::onLang($lang)
@@ -190,11 +186,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             })
             ->where(function ($query): void {
                 $query->where('has_audio', false)
-                    ->orWhereIn('tts_status', ['pending', 'failed'])
-                    ->orWhere(function ($completedQuery): void {
-                        $completedQuery->where('has_audio', true)
-                            ->where('tts_status', 'completed');
-                    });
+                    ->orWhereIn('tts_status', ['pending', 'failed']);
             })
             ->orderByDesc('occurrence_count')
             ->orderBy('id')

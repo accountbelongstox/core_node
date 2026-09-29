@@ -97,7 +97,7 @@ class QueueCenterController extends Controller
 
         return $this->success(
             $this->taskReceipts->receipts($validated['task_ids']),
-            'Queue delivery receipts'
+            __('api.messages.queue_delivery_receipts')
         );
     }
 
@@ -124,13 +124,12 @@ class QueueCenterController extends Controller
             (int) ($validated['limit'] ?? QueueCenterContract::taskLimit('list_default'))
         );
 
-        return $this->success($data, 'Queue items');
+        return $this->success($data, __('api.messages.queue_items'));
     }
 
     public function diff(Request $request, string $queue): JsonResponse
     {
-        $taskTypeKeys = QueueCenterContract::taskTypeKeys();
-        if (!in_array($queue, $taskTypeKeys, true)) {
+        if (!QueueCenterService::isDiffQueue($queue)) {
             return $this->notFound("Unknown queue: {$queue}");
         }
         $validated = $request->validate([
@@ -145,7 +144,7 @@ class QueueCenterController extends Controller
                 true,
                 $request->boolean('sync')
             ),
-            'Queue slice diff'
+            __('api.messages.queue_slice_diff')
         );
     }
 
@@ -175,7 +174,7 @@ class QueueCenterController extends Controller
             isset($validated['pages']) ? (int) $validated['pages'] : null
         );
 
-        return $this->success($data, 'Queue ID pages');
+        return $this->success($data, __('api.messages.queue_id_pages'));
     }
 
     /**
@@ -185,10 +184,8 @@ class QueueCenterController extends Controller
      */
     public function pageData(Request $request, string $queue): JsonResponse
     {
-        if (!QueueCenterService::isSupportedQueue($queue)) {
-            return $this->notFound(
-                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
-            );
+        if (!QueueCenterService::isDiffQueue($queue)) {
+            return $this->notFound("Unknown queue: {$queue}");
         }
 
         $segmentLimit = max(1, (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128));
@@ -199,7 +196,7 @@ class QueueCenterController extends Controller
 
         $data = $this->queueCenter->pageData($queue, $validated['ids']);
 
-        return $this->success($data, 'Queue page data');
+        return $this->success($data, __('api.messages.queue_page_data'));
     }
 
     /**
@@ -225,7 +222,7 @@ class QueueCenterController extends Controller
             $validated['payload'] ?? []
         );
 
-        return $this->success($result, 'Task moved to queue head');
+        return $this->success($result, __('api.messages.task_moved_to_queue_head'));
     }
 
     /**
@@ -256,7 +253,7 @@ class QueueCenterController extends Controller
 
         $result = $this->queueCenter->moveToHeadBatch($queue, $validated['items']);
 
-        return $this->success($result, 'Batch moved to queue head');
+        return $this->success($result, __('api.messages.batch_moved_to_queue_head'));
     }
 
     /**
@@ -267,16 +264,16 @@ class QueueCenterController extends Controller
         $outcome = $this->queueCenter->cancel($taskId);
 
         if ($outcome === 'not_found') {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
         if ($outcome === 'not_cancellable') {
-            return $this->error('Task already finished — cannot cancel', 409);
+            return $this->error(__('api.messages.task_already_finished_cannot_cancel'), 409);
         }
 
         return $this->success([
             'task_id' => $taskId,
             'status' => 'cancelled',
-        ], 'Task cancelled');
+        ], __('api.messages.task_cancelled'));
     }
 
     /**
@@ -287,16 +284,16 @@ class QueueCenterController extends Controller
         $outcome = $this->queueCenter->retry($taskId);
 
         if ($outcome === 'not_found') {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
         if ($outcome === 'not_retryable') {
-            return $this->error('Only failed or cancelled tasks can be retried', 409);
+            return $this->error(__('api.messages.only_failed_or_cancelled_tasks_can_be'), 409);
         }
 
         return $this->success([
             'task_id' => $taskId,
             'status' => 'pending',
-        ], 'Task re-queued');
+        ], __('api.messages.task_re_queued'));
     }
 
 }

@@ -1,0 +1,43 @@
+{
+  "task_id": "laravel-T2",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "LB-004": {
+      "status": "fixed",
+      "reason": "The callback accepts only a gateway HMAC-SHA256 sign (configured api_secret) with a matching amount, or a Sanctum admin; the pending->paid compare-and-set and the member-locked applyRecharge run in one transaction (no double apply). The admin-route bypass is closed: routes/DingDuoDuoV1Router/DingDuoDuoV1Admin.php:28 now runs ['custom.authenticate', 'dashboard.auth'], so recharge-config (api_secret), member expiry/tier/permissions and bindings require an administrator. A member can no longer set the secret to sign their own callback or extend their own membership."
+    },
+    "LB-008": {
+      "status": "fixed",
+      "reason": "applySideEffects refunds every held funding-escrow remainder to the payer wallet on project cancelled/completed (refundRemainderForProject, idempotent via remainingAmount, row-locked, recordRefund moves the status to refunded/released). The admin escrow-refund endpoint is deferred to the orchestrator as a new endpoint; the stranded-money scenario is closed without it."
+    },
+    "LB-009": {
+      "status": "fixed",
+      "reason": "An approval whose releaseForTask fails (except the zero-budget case) throws CodeMartV1FinanceException inside the review transaction, so nothing commits and the task stays in review (409 with an i18n message). Task budgets are checked against funded escrow on create and update (assertBudgetHeadroom with locked escrow rows)."
+    },
+    "LB-019": {
+      "status": "fixed",
+      "reason": "Partly, as reported: the OTP is no longer logged (the phone is masked); without an SMS provider the request answers 503 codemart.errors.sms_unavailable instead of a fake success; email_verified comes from email_verified_at only. Making the phone step optional is an orchestrator/contract decision, recorded in the report."
+    },
+    "LB-020": {
+      "status": "fixed",
+      "reason": "DEPOSIT_PAYMENT_METHODS is ['bank_transfer']; the unsigned Alipay/WeChat placeholder URLs are removed."
+    },
+    "LB-024": {
+      "status": "fixed",
+      "reason": "Budget change detection compares FinanceService::money values with bccomp, so an unchanged budget resent as another string form no longer gets 409."
+    },
+    "LB-025": {
+      "status": "fixed",
+      "reason": "Under the payment row lock a repeat request returns the existing live invoice (200); the number is INV-Ymd-<ULID>, so there is no per-second collision."
+    }
+  },
+  "issues": [
+    "(resolved) 'task_budget_missing' is centralized as CodeMartV1Constants::ESCROW_ERROR_TASK_BUDGET_MISSING and used by both EscrowService and TaskCtl.",
+    "(deferred to laravel-T6, LB-034) the English wallet-ledger description of the escrow remainder refund, with the other existing ledger descriptions.",
+    "(non-blocking) there is no real gateway integration yet (placeholder pay_url), so the HMAC scheme is a local definition to replace with the provider's documented scheme when one is wired in.",
+    "(cross-end, codemart-4) the CodeMart wallet reads deposit_payment_methods with a bank_transfer fallback in codemart's working tree; it will be reviewed with codemart-4."
+  ],
+  "checks": "All T2 diffs read: DingDuoDuo controller and error codes, escrow/project-state/bootstrap services, task/deposit/payment/registration controllers, OTP service, constants, lang en and zh_CN. lockById and the escrow model helpers (remainingAmount, recordRefund) were confirmed. The codemart lang 'errors' key is not duplicated.",
+  "checked_at": "2026-09-27T04:32:09+10:00"
+}

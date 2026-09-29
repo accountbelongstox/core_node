@@ -150,7 +150,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 'total_scripts' => count($scripts),
                 'categories' => ServerManagerV1Constants::SCRIPT_CATEGORIES,
                 'security_note' => 'Only predefined hardcoded scripts can be executed'
-            ], 'Available scripts retrieved successfully');
+            ], __('server_manager.messages.available_scripts_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_list_scripts');
@@ -178,7 +178,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             
             if (!isset($scripts[$scriptId])) {
                 return $this->error(
-                    'Script not found. Use /executor/scripts to list available scripts.',
+                    __('server_manager.messages.script_not_found_use_executor_scripts_to'),
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
             }
@@ -188,7 +188,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             // Security check: no sudo scripts for now
             if ($script['requires_sudo']) {
                 return $this->error(
-                    'Scripts requiring sudo are not allowed in this environment.',
+                    __('server_manager.messages.scripts_requiring_sudo_are_not_allowed_in'),
                     ServerManagerV1Constants::RESPONSE_FORBIDDEN
                 );
             }
@@ -294,7 +294,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 'total_logs' => count($logs),
                 'log_source' => 'Laravel application logs',
                 'note' => 'Database logging not available due to SQLite driver issues'
-            ], 'Execution logs retrieved successfully');
+            ], __('server_manager.messages.execution_logs_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_get_logs');
@@ -339,7 +339,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 }
             }
             
-            return $this->success($status, 'Execution status retrieved');
+            return $this->success($status, __('server_manager.messages.execution_status_retrieved'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_get_status');

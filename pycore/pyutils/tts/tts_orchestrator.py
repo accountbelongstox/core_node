@@ -61,6 +61,9 @@ from pycore.pyutils.tts.tts_service_manager import (
     get_server_settings,
     is_server_engine,
 )
+from pycore.pyutils.tts.tts_engine_probe import engine_unavailable_reason
+from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_ENGINE_UNAVAILABLE, tts_reason
+from pycore.pyutils.common.coded_message import message_fields
 from pycore.pyutils.tts.tts_status import (
     best_engine,
     engine_available,
@@ -152,6 +155,15 @@ def report_tts_engine_startup() -> None:
     )
 
 
+def _explicit_speed(value: Any) -> Optional[float]:
+    """UI test speed multiplier; None (use the rate) when absent or invalid."""
+    try:
+        speed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return speed if speed > 0 else None
+
+
 def _synthesis_request(
     text: str,
     lang: Optional[str],
@@ -163,12 +175,13 @@ def _synthesis_request(
     instruct: Optional[str] = None,
     client_job_id: Optional[str] = None,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    speed: Optional[float] = None,
 ) -> TTSSynthesisRequest:
     return TTSSynthesisRequest(
         text=text,
         language=lang or "en",
         output_path=output_path,
-        speed=_rate_to_speed(rate),
+        speed=speed if speed is not None else _rate_to_speed(rate),
         locale=tts_locale(lang),
         rate=rate,
         accent=accent,
@@ -261,12 +274,8 @@ def synthesize(
     cache_speaker = cache_instruct = cache_model = cache_speed = ""
     if profile == "sentence":
         cache_speaker, cache_instruct, cache_model, cache_speed = (
-            _sentence_cache_identity(want_accent, gender, rate)
+            _sentence_cache_identity(want_accent, gender, rate, speaker, instruct)
         )
-        if (speaker or "").strip():
-            cache_speaker = str(speaker).strip()
-        if (instruct or "").strip():
-            cache_instruct = str(instruct).strip()
         for cand in engine_order:
             hit = sentence_audio_cache.lookup_or_none(
                 text=cleaned, lang=language or "en", speaker=cache_speaker,
@@ -619,6 +628,7 @@ def synthesize_engine(
         extra_params.get("gender"),
         extra_params.get("speaker"),
         extra_params.get("instruct"),
+        speed=_explicit_speed(extra_params.get("speed")),
     )
     ok = False
     try:
@@ -690,10 +700,9 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
             "error": f"{name} does not support language: {language}",
         }
     if not is_server_engine(name) and not engine_available(name):
-        reason = _engine_disabled_reason(name)
-        err = reason or f"{name} unavailable"
+        reason = engine_unavailable_reason(name) or tts_reason(TTS_REASON_ENGINE_UNAVAILABLE, engine=name)
         return {"success": False, "engine": name, "latency_ms": 0, "bytes": 0,
-                "error": err}
+                **message_fields(reason, "error")}
     out = get_edge_tts_voice_cache_dir(language) / f"{name}.mp3"
     sample = (text or "").strip() or "This is a pycore text to speech test."
     want_accent = _normalize_accent(accent)

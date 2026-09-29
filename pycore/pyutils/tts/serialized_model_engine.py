@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
+from contextvars import copy_context
 from pathlib import Path
 from typing import Any
 
 from pycore.pyfoundations.serialized_worker import (
+    SerializedValue,
     SerializedWorkerThread,
     call_serialized,
 )
+from pycore.pyutils.common.managed_service_process import release_gpu_memory
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 
@@ -24,6 +27,9 @@ class SerializedModelEngine(ABC):
         self._timeout = timeout
         self._wav_suffix = wav_suffix
         self._resource: Any = None
+        # Readable without entering the model queue: a status probe never
+        # waits behind an in-flight synthesis.
+        self._loaded = SerializedValue(False, f"{thread_name}LoadedState")
         self._worker = SerializedWorkerThread(queue_name, thread_name)
         self._worker.start()
 
@@ -49,6 +55,7 @@ class SerializedModelEngine(ABC):
     def _load_on_owner(self) -> Any:
         if self._resource is None:
             self._resource = self.load_resource()
+            self._loaded.set(self._resource is not None)
         return self._resource
 
     def _synthesize_on_owner(
@@ -80,8 +87,11 @@ class SerializedModelEngine(ABC):
         cleaned = (text or "").strip()
         if not cleaned or not self.available():
             return False
+        # The owner runs the call in the caller's context, so request-scoped
+        # engine settings (engine_policy.engine_setting) reach the model thread.
         return call_serialized(
             self._queue_name,
+            copy_context().run,
             self._synthesize_on_owner,
             cleaned,
             lang,
@@ -90,18 +100,13 @@ class SerializedModelEngine(ABC):
             timeout=self._timeout,
         )
 
-    def _is_loaded_on_owner(self) -> bool:
-        return self._resource is not None
-
     def is_loaded(self) -> bool:
-        return bool(call_serialized(
-            self._queue_name,
-            self._is_loaded_on_owner,
-            timeout=self._timeout,
-        ))
+        return bool(self._loaded.get())
 
     def _unload_on_owner(self) -> None:
         self._resource = None
+        self._loaded.set(False)
+        release_gpu_memory()
 
     def unload(self) -> None:
         call_serialized(

@@ -579,6 +579,7 @@ class LaravelAudioWorkerExecutionMixin:
                 [info["word"] for _task, info in entries],
                 language,
                 output_dir,
+                [str(info.get("md5") or "") for _task, info in entries],
             )
             for (task, _info), outcome in zip(entries, outcomes):
                 if not outcome["ok"]:
@@ -664,6 +665,7 @@ class LaravelAudioWorkerExecutionMixin:
         task_id = task.get("task_id")
         info: Optional[Dict[str, Any]] = None
         local_id: Optional[str] = None
+        started = False
         try:
             if self.LANE == "sentence" and not str(task.get("task_type") or "").strip():
                 task["task_type"] = self.QUEUE_KEY
@@ -722,6 +724,7 @@ class LaravelAudioWorkerExecutionMixin:
                 return False
 
             self._mark_task_started(task_id, info)
+            started = True
             order_detail = f"queue_position={task.get('queue_position')}"
             self._log_event(
                 "synth_start",
@@ -794,7 +797,8 @@ class LaravelAudioWorkerExecutionMixin:
             self._finish_local_task(local_id, False, error=str(e))
             return False
         finally:
-            if info is not None:
+            # Only a started task holds a `processing` slot to give back.
+            if started:
                 self._mark_task_finished(task_id, info.get("attempt"))
 
     # -------------------- TaskManager / history (sentence lane, UI parity) --------------------

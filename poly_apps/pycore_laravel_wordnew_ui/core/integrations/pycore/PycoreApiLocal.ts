@@ -69,7 +69,7 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
-import type { AudioLaneKey, AudioLaneStatePayload, QueueCenterWordAudioFullSyncStatus } from '../../contracts/QueueCenterTypes';
+import type { AudioLaneKey, AudioLaneStatePayload, AudioLaneFullSyncStatus } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
@@ -408,6 +408,7 @@ export const pycoreApiLocal = {
       retried?: Record<string, number>;
       data?: LaravelDeliveryStatus;
       error?: string;
+      error_code?: string;
     }>,
   /**
    * Pycore-owned state of both audio lanes (word_audio / sentence_audio, each
@@ -436,6 +437,7 @@ export const pycoreApiLocal = {
       success: boolean;
       data?: { promoted?: number; claimed?: number };
       error?: string;
+      error_code?: string;
     }>,
 
   /**
@@ -448,8 +450,9 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAudioLaneFullSync, { lane }) as Promise<{
       success: boolean;
       running?: boolean;
-      status?: QueueCenterWordAudioFullSyncStatus;
+      status?: AudioLaneFullSyncStatus;
       error?: string;
+      error_code?: string;
     }>,
 
   getTaskCapabilityChains: () =>

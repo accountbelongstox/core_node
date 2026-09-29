@@ -1,7 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# Write all code in English only. Do not modify these rules.
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Shared GPU/CUDA detection for the iniscripts installers -- the ONE shell-side
 # source of truth, mirroring the canonical PYTHON detector:
 #   pycore/pyfoundations/pybasecommon/compute_caps.py  ->  CUDADetector

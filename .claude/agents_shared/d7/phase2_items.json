@@ -1,0 +1,159 @@
+[
+ {
+  "doc": "docs_fix/FIX_20260926_PYCORE_RESTART_PORT_REFUSED_TRAY.md",
+  "item_id": "RESTARTTRAY-03",
+  "requirement": "Moving the boot chain to the background must keep the audio-orch cache-first boot invariant: at every startup the local cache loads in full before any remote access. See REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN R6 and §5.4, and the restore_from_cache docstring 'before any remote intake'.",
+  "status": "partial",
+  "evidence": "The ordering now relies on timing. Nothing gates it. pycore/pyctl/runtime/event_handlers.py:485 only starts the boot-chain thread. Right after it, :489 apply_assist_runtime(assist_settings) runs on the main thread: pycore/pyctl/assist/capability_sync.py:96-100 enables the lane heartbeat callbacks and calls _apply_lane_lifecycle -> :40-41 worker.request_start() -> pycore/pyctl/laravel/worker_base.py:864-871 request_pull(prefer_remote=True). That is an immediate remote pull. The poll_diff_once callback (worker_base.py:411-440) also does remote diff/pull, with no restore check. pycore/pyutils/tts/audio_queue_center.py:721-726 _restored is only a claim flag: it is set before load_snapshot (:741-743), and no reader waits on restore completion. Remote intake and the debounced persister (flush_dirty :807-826, which writes the ENTIRE in-memory Queue) can therefore run while the 76 MB snapshot is still loading or before push_many lands. Recommended fix (pycore): a per-lane restore-complete gate that remote intake/request_start wait on or skip until set, or run apply_assist_runtime's lane starts at the end of the boot-chain thread.",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyctl/runtime/event_handlers.py",
+   "pycore/pyctl/assist/capability_sync.py",
+   "pycore/pyctl/laravel/worker_base.py",
+   "pycore/pyutils/tts/audio_queue_center.py",
+   "pycore/pyctl/tts/audio_lane_activation.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/FIX_20260926_PYCORE_RESTART_PORT_REFUSED_TRAY.md",
+  "item_id": "RESTARTTRAY-05",
+  "requirement": "Code-as-documentation consistency for the R2 change: the runtime_profile module contract must describe background pinning (AGENTS.md: code is documentation).",
+  "status": "partial",
+  "evidence": "pycore/pyutils/tts/runtime_profile.py:4-5 still says 'Computed ONCE at pyservice startup (pycore_module_caller pins it before any service starts)', and :22-25 says 'the worker pins THIS profile right after; without the flag the profile pins directly at startup'. Both contradict pycore/pycore_module_caller.py:253-258, which pins in a background thread while the RPC server and tray bind. Only the docstring is stale; the behavior is correct.",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyutils/tts/runtime_profile.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "item_id": "AOQSD-16",
+  "requirement": "M7/§5.4: fix the heavy hot paths. Head preview without a full heap sort, a maintained Part1 count, and a word-audio cache index loaded in full at boot so cache lookups are O(1), with no directory scan per task run.",
+  "status": "partial",
+  "evidence": "Done: audio_task_queue.py:405-457 (_smallest heap-root walk, part_view with the cached _part1_count) and word_audio_cache.py:113-226 (WordAudioCacheIndex.load_all, lookup_many). Gap: note_stored (word_audio_cache.py:204-212) returns early when the language mapping is None. (1) A language directory created after boot is never indexed, so find_cached_many (:246-290) falls back to a full directory scan on every call. (2) A file stored while load_all is still scanning that language (before _install) is dropped from the index, so orchestration gets a miss and generates the word again. pycore/ is in flight (D1 closeout, then the D7 lane); schedule after that.",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyutils/tts/word_audio_cache.py",
+   "pycore/pyutils/tts/audio_task_queue.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "item_id": "AOQSD-19",
+  "requirement": "R6/§5.4: at every pycore startup, load the local cache in full BEFORE any remote access for every lane whose switch is ON. Also load the word-audio cache index in full in the background.",
+  "status": "partial",
+  "evidence": "The index load and per-lane activation exist (event_handlers.py:430-440). But the boot chain runs as a background bus task (event_handlers.py:485), and apply_assist_runtime(assist_settings) (:489) enables the lane heartbeat callbacks right away. Nothing in laravel_audio_worker*.py waits for restore_from_cache, so the Laravel intake can run before a large snapshot restore finishes. The UI control path, by contrast, activates synchronously first (task_center_service.py:88-91). Whole-Queue dedup limits the damage, but 'cache before any remote access' is not guaranteed. pycore/ is in flight; schedule after the D1/D7 lanes.",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyctl/runtime/event_handlers.py",
+   "pycore/pyctl/tts/laravel_audio_worker.py",
+   "pycore/pyutils/tts/audio_queue_center.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "item_id": "AOQSD-29",
+  "requirement": "R2/acceptance 2: each missing resource's state advances visibly through missing, queued in Part1, generating, cached, and synced to Laravel.",
+  "status": "partial",
+  "evidence": "Per-item tracker states stop at queued, processing, done and failed (audio_queue_center.py:80-85; contract audio_lane_state.tracked_states). The 'synced to Laravel' stage exists only as task-level aggregates (orch_service.py:419-420 progress.synced and sync_pending, rendered in OrchTaskList.tsx:240-257), not per item in the lane or owner view. The per-item synced state must come from pycore first (tracker or owner view), then be rendered in PcAudioLaneQueueView. pycore/ is in flight.",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyutils/tts/audio_queue_center.py",
+   "pycore/pyctl/audio_orchestration/orch_service.py",
+   "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcAudioLaneQueueView.tsx"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "item_id": "AOQSD-36",
+  "requirement": "§3 pycore constraints (PYTHON_PYCORE.md): no try/except in new code; threads only as Thread subclasses via THREAD_BUS; shared instances live in their defining module.",
+  "status": "partial",
+  "evidence": "Threading and shared instances comply (AudioQueuePersistThread and AudioLaneStatePublisherThread are Thread subclasses; audio_queue_center, audio_lane_state and word_audio_cache_index are module singletons). But new code of this change adds try/except: audio_lane_full_sync.py:114-116 (except Exception), orch_books.py:87-89 (except Exception), event_handlers.py:423-427 (_run_audio_lane_boot_chain except Exception), and word_audio_cache.py:138-140 (except OSError in the new index scan). orch_resources.py:401-407 (_resolve_miss except Exception) is also on the new path. pycore/ is in flight; schedule after the D1/D7 lanes.",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyctl/tts/audio_lane_full_sync.py",
+   "pycore/pyctl/audio_orchestration/orch_books.py",
+   "pycore/pyctl/runtime/event_handlers.py",
+   "pycore/pyutils/tts/word_audio_cache.py",
+   "pycore/pyctl/audio_orchestration/orch_resources.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "item_id": "AOQSD-41",
+  "requirement": "Acceptance 5: with a lane switch ON, startup loads the local cache in full first and then pulls the server data in full in the background; with Laravel offline the cached state still renders and drains.",
+  "status": "partial",
+  "evidence": "Offline drain is supported: full-sync and local tasks skip the claim (build_local_task _local_source; prune_absent keeps them, audio_task_queue.py:258-266), and delivery goes through the outbox. The cache-first ordering at boot is not enforced (AOQSD-19: background boot chain at event_handlers.py:485 while apply_assist_runtime at :489 enables the lane intake). Runtime is unverified.",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyctl/runtime/event_handlers.py",
+   "pycore/pyctl/tts/laravel_audio_worker.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "item_id": "AOQSD-43",
+  "requirement": "Acceptance 7/R7: counts for the same quantity match across the Queue Center, the orchestration task and the Laravel listing (one source per quantity).",
+  "status": "partial",
+  "evidence": "The Queue Center lane view and the task progress share one tracker (audio_queue_center.lane_view and owner_counts; orch_service.py:410-413), and the push and snapshot share one builder (snapshot_service.py:654-677). But Laravel's without_audio totals are collected into full_sync.languages[].without_audio (audio_lane_full_sync.py:158) and never rendered: PcAudioLaneFullSyncRow.tsx:59-72 shows only pulled, inserted and queue_count. The word panel's 'Laravel backlog' pending comes from the section contract (PcWordAudioPanel.tsx:35-36), not the listing. No surface puts the Laravel listing count next to the mirrored Part2 count, so a match cannot be checked.",
+  "owner": "ui-pycore-manager",
+  "files": [
+   "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcAudioLaneFullSyncRow.tsx",
+   "poly_apps/pycore_laravel_wordnew_ui/apps/pycore-manager/components/PcWordAudioPanel.tsx",
+   "pycore/pyctl/tts/audio_lane_full_sync.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md",
+  "item_id": "LDRI-12",
+  "requirement": "pycore diff/batch word keys never recompute md5 (X4); remove the three transitional md5(lower(strip)) fallbacks and use <lang>:text:<cleaned_word> when the Laravel md5 is absent",
+  "status": "missing",
+  "evidence": "The fallbacks are still there: pycore/pyutils/tts/audio_resource_ledger.py:39-41 (resource_key falls back to hashlib.md5(text.strip().lower())), pycore/pyctl/tts/audio_resource_delivery.py:312 (single upload md5 from the text), pycore/pyutils/tts/audio_queue_center.py:129 (build_local_task md5 from text.lower()). Blocked on LDRI-11 and LDRI-13; the pycore D7 lane owns pycore/ now.",
+  "owner": "pycore-ai",
+  "files": [
+   "pycore/pyutils/tts/audio_resource_ledger.py",
+   "pycore/pyctl/tts/audio_resource_delivery.py",
+   "pycore/pyutils/tts/audio_queue_center.py"
+  ],
+  "reuse_issue": "Three independent recomputations of the word identity; X4 makes Laravel the only producer."
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md",
+  "item_id": "LDRI-55",
+  "requirement": "Every <lang> of a diff/batch key built by the one central normalizer pyfoundations/text_parsing.normalize_language_code; ad-hoc normalizers (engine_policy _LANGUAGE_ALIASES, audio_stage _TTS_LANG_MAP, translation _google_language) routed through it",
+  "status": "partial",
+  "evidence": "pycore/pyfoundations/text_parsing.py:99 (normalize_language_code, 42 call sites); _LANGUAGE_ALIASES and _TTS_LANG_MAP are gone; pycore/pyctl/agent_history/pipeline/audio_stage.py:16-18 and pycore/pyctl/translation/worker/handlers/translation.py:27-37 use the central code/name map. Reuse gap: pycore/pyutils/tts/engine_policy.py:305-306 normalize_tts_language is a pure pass-through wrapper, and the pycore guide says to remove duplicates rather than wrap them.",
+  "owner": "pycore-ai",
+  "files": [
+   "pycore/pyutils/tts/engine_policy.py",
+   "pycore/pyfoundations/text_parsing.py"
+  ],
+  "reuse_issue": "normalize_tts_language only aliases normalize_language_code; callers should call the central function directly."
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md",
+  "item_id": "PRAO-38",
+  "requirement": "Acceptance for R3/R4/R7/R9 (binding D7 phase 5(a), REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md:493-497). New rewritten prompts go through submit_text and the agent-history rewrite path, get generated (ffprobe duration > 0), reach the local Laravel orch_audio ingest exactly once after a repeat upload, and appear in the wordnew listing API.",
+  "status": "missing",
+  "evidence": "Not run yet. Every workstream record says 'Not run: builds, tests, services' (doc lines 293, 499, 577, 729). The D7 audio long run is the in-flight pycore D7 lane (per D8, local Laravel https://127.0.0.1).",
+  "owner": "pycore",
+  "files": [
+   "pycore/pyctl/agent_history/prompt_rewrite_service.py",
+   "pycore/pyctl/audio_orchestration/orch_service.py",
+   "pycore/pyctl/audio_orchestration/orch_delivery.py"
+  ]
+ },
+ {
+  "doc": "docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md §8.0",
+  "item_id": "CKA-23",
+  "requirement": "X4: pycore removes the three transitional md5(lower(strip)) fallbacks and keys md5-less words as `<lang>:text:<cleaned_word>`.",
+  "status": "missing",
+  "evidence": "All three fallbacks are still present: pycore/pyutils/tts/audio_resource_ledger.py:39-41 (resource_key: hashlib.md5(text.strip().lower())), pycore/pyctl/tts/audio_resource_delivery.py:312 (the single upload \"md5\": hashlib.md5(...)), and pycore/pyutils/tts/audio_queue_center.py:129 (build_local_task identity = md5(text.lower())). The `:text:` local key has no hits. This depends on CKA-22 and CKA-24. pycore is in flight (D7 lane): audit only.",
+  "owner": "pycore-ai",
+  "files": [
+   "D:/programing/core_node/pycore/pyutils/tts/audio_resource_ledger.py",
+   "D:/programing/core_node/pycore/pyctl/tts/audio_resource_delivery.py",
+   "D:/programing/core_node/pycore/pyutils/tts/audio_queue_center.py"
+  ]
+ }
+]

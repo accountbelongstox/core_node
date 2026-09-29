@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { apiManager } from '../core/integrations/laravel/ApiManager';
 import {
-  persistSharedBaseURL,
   setSharedBaseURLPersistence,
   type SharedBaseURLPersistence,
 } from '../core/integrations/laravel/transport/BaseAPI';
@@ -9,6 +8,7 @@ import { pycoreApiLocal } from '../core/integrations/pycore/PycoreApiLocal';
 import { getPycoreHealth, PYCORE_HEALTH_EVENT } from '../core/integrations/pycore/PycoreHealth';
 
 let synchronizedBaseURL = '';
+let pendingBaseURL = '';
 let synchronizationQueue: Promise<boolean> = Promise.resolve(true);
 
 const persistLaravelEndpoint: SharedBaseURLPersistence = (baseURL) => {
@@ -18,25 +18,27 @@ const persistLaravelEndpoint: SharedBaseURLPersistence = (baseURL) => {
       const response = await pycoreApiLocal.bindLaravelWorkerEndpoint(baseURL) as {
         success?: boolean;
       } | null;
-      const success = response?.success === true;
-      if (success) synchronizedBaseURL = baseURL;
-      return success;
+      return response?.success === true;
     })
-    .then((success) => success, () => false);
+    .then((success) => success, () => false)
+    .then((success) => {
+      if (success) synchronizedBaseURL = baseURL;
+      pendingBaseURL = success ? '' : baseURL;
+      return success;
+    });
   return synchronizationQueue;
 };
 
 export const ShellLaravelEndpointBridge = (): null => {
   useEffect(() => {
-    const synchronizeWhenReachable = (): void => {
-      if (getPycoreHealth().up === true) void persistSharedBaseURL();
+    const retryPendingBinding = (): void => {
+      if (pendingBaseURL && getPycoreHealth().up === true) void persistLaravelEndpoint(pendingBaseURL);
     };
     setSharedBaseURLPersistence(persistLaravelEndpoint);
     apiManager.preselectEndpointSync();
-    void persistSharedBaseURL();
-    window.addEventListener(PYCORE_HEALTH_EVENT, synchronizeWhenReachable);
+    window.addEventListener(PYCORE_HEALTH_EVENT, retryPendingBinding);
     return () => {
-      window.removeEventListener(PYCORE_HEALTH_EVENT, synchronizeWhenReachable);
+      window.removeEventListener(PYCORE_HEALTH_EVENT, retryPendingBinding);
       setSharedBaseURLPersistence(null);
     };
   }, []);

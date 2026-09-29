@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # Desktop Icon Repair Script (Debian 12/13, freedesktop Desktop Entry Spec)
 #
@@ -21,8 +10,11 @@
 #   2. ENTRY HEALTH - Exec target must exist; Icon must resolve to a real file
 #                     (absolute path or hicolor/pixmaps theme lookup)
 #   3. DESKTOP ICON - a trusted launcher in the real user's XDG Desktop dir
+#                     (or already filed by the desktop organizer)
 # Extra repairs: re-enable *.desktop.disabled entries, hide duplicate snap
 # menu entries when a native entry exists for the same program.
+# Finally the desktop organizer files Desktop launchers into category folders
+# (Windows Step21 parity) and prints the undo hint.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/common"
@@ -44,10 +36,12 @@ REAL_USER="$(get_real_user_from_common_functions 2>/dev/null || true)"
 [ "$REAL_USER" = "root" ] && REAL_USER=""
 REAL_USER_HOME=""
 USER_DESKTOP_DIR=""
+USER_FILED_ICONS_DIR=""
 USER_APPLICATIONS_DIR=""
 if [ -n "$REAL_USER" ]; then
     REAL_USER_HOME="$(getent passwd "$REAL_USER" | cut -d: -f6)"
     USER_DESKTOP_DIR="$(_dsm_desktop_dir "$REAL_USER" "$REAL_USER_HOME")"
+    USER_FILED_ICONS_DIR="$(_dsm_org_base_dir "$REAL_USER" "$REAL_USER_HOME")"
     USER_APPLICATIONS_DIR="$REAL_USER_HOME/.local/share/applications"
 fi
 
@@ -177,7 +171,7 @@ entry_matches_exec() {
     local target_identity=""
     local target_base=""
 
-    target="$(entry_exec_target "$entry")"
+    target="$(_dsm_entry_exec_target "$entry")"
     [ -n "$target" ] || return 1
     case "$target" in
         /*) target_path="$target" ;;
@@ -256,7 +250,8 @@ find_menu_entries_for_name() {
     return 0
 }
 
-# True when some .desktop file in the user's Desktop dir invokes this binary.
+# True when some .desktop file in the user's Desktop dir, or one the desktop
+# organizer filed into a category folder, invokes this binary.
 desktop_icon_exists() {
     local exec_name="$1"
     local exec_path=""
@@ -270,7 +265,7 @@ desktop_icon_exists() {
     exec_real="$(resolve_exec_identity "$exec_path")"
     [ -L "$exec_path" ] && exec_single_hop="$(readlink "$exec_path" 2>/dev/null || true)"
 
-    for entry in "$USER_DESKTOP_DIR"/*.desktop; do
+    for entry in "$USER_DESKTOP_DIR"/*.desktop "$USER_FILED_ICONS_DIR"/*/*.desktop; do
         [ -e "$entry" ] || continue
         if entry_matches_exec "$entry" "$exec_path" "$exec_real" "$exec_single_hop" "$exec_name"; then
             return 0
@@ -279,23 +274,8 @@ desktop_icon_exists() {
     return 1
 }
 
-# Extract the first token of the Exec line (field codes and env wrappers stripped).
-entry_exec_target() {
-    local entry="$1"
-    grep -m1 '^Exec=' "$entry" 2>/dev/null | cut -d= -f2- \
-        | sed -e 's/^env [^ ]* //' -e 's/[[:space:]]*%[fFuUdDnNickvm].*$//' \
-        | awk '{print $1}' | tr -d '"'
-}
-
 entry_exec_valid() {
-    local entry="$1"
-    local target=""
-    target="$(entry_exec_target "$entry")"
-    [ -z "$target" ] && return 1
-    case "$target" in
-        /*) [ -e "$target" ] ;;
-        *) command -v "$target" >/dev/null 2>&1 ;;
-    esac
+    _dsm_exec_program_exists "$(_dsm_entry_exec_target "$1")" "$REAL_USER_HOME"
 }
 
 entry_icon_valid() {
@@ -477,7 +457,7 @@ hide_duplicate_snap_entries() {
         [ -e "$snap_entry" ] || continue
         is_dup=false
         snap_name="$(grep -m1 '^Name=' "$snap_entry" 2>/dev/null | cut -d= -f2-)"
-        exec_base="$(basename "$(entry_exec_target "$snap_entry")" 2>/dev/null)"
+        exec_base="$(basename "$(_dsm_entry_exec_target "$snap_entry")" 2>/dev/null)"
         exec_path=""
         [ -n "$exec_base" ] && exec_path="$(command -v "$exec_base" 2>/dev/null || true)"
         exec_real=""
@@ -518,6 +498,7 @@ hide_duplicate_snap_entries() {
 main() {
     local group=""
     local app=""
+    local manifest=""
 
     log_message "=========================================="
     log_message "Desktop Icon Repair (Debian 12/13)"
@@ -536,6 +517,12 @@ main() {
     if command -v update-desktop-database >/dev/null 2>&1; then
         $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
     fi
+
+    log_message "Organizing desktop launchers into category folders"
+    organize_desktop_icons_from_desktop_shortcut_manager organize
+    for manifest in "${DSM_ORG_MANIFESTS[@]}"; do
+        log_message "Undo: $DSM_ORG_MENU_PATH > Undo ($manifest)"
+    done
 
     log_message "=========================================="
     log_message "Summary: OK=$COUNT_OK repaired=$COUNT_REPAIRED created-menu=$COUNT_CREATED desktop-icons=$COUNT_DESKTOP_CREATED skipped=$COUNT_SKIPPED"

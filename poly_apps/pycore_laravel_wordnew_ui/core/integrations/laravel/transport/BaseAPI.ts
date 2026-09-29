@@ -3,7 +3,7 @@ import { apiCache } from './APICache';
 import { htmlErrorManager } from './HtmlErrorEvents';
 import { unwrapLaravelData } from './LaravelEnvelope';
 import { appendLog } from '../../../logstore/logStore';
-import { coordinateRequest } from '../../../network/RequestCoordinator';
+import { clearCoordinatedRequests, coordinateRequest } from '../../../network/RequestCoordinator';
 import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
@@ -13,6 +13,35 @@ import { protocolFetch } from '../../../network/ProtocolFetch';
  * probes (health detection, debug-status) would drown real operations.
  */
 const LOG_EXCLUDED_PATHS = ['/api_info', '/debug-status', '/health', '/code-last-modified'];
+
+/** Header that makes a write safe to re-send; the server dedupes by its value. */
+export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
+
+/** A fresh Idempotency-Key value; reuse it for every retry of the same user action. */
+export function createIdempotencyKey(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/** Reads: retried after a timeout or network failure; every other method is a write. */
+const READ_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD']);
+
+/** GETs share an in-flight request only; a settled response is never reused. */
+const GET_COALESCE_TTL_MS = 0;
+
+/** Bumped when a write settles so later GETs never join a pre-write flight. */
+let readGeneration = 0;
+
+function invalidateCoalescedReads(): void {
+  readGeneration += 1;
+  clearCoordinatedRequests();
+}
+
+function hasIdempotencyKey(headers: Record<string, string>): boolean {
+  const expected = IDEMPOTENCY_KEY_HEADER.toLowerCase();
+  return Object.entries(headers).some(([key, value]) => key.toLowerCase() === expected && Boolean(value));
+}
 
 /** Append a request outcome to the global log store (noise-filtered). */
 function logRequestOutcome(
@@ -68,7 +97,8 @@ function normalizeBaseURL(url: string): string {
 
 /**
  * Set the process-wide active API base URL. Fixed-endpoint transports ignore
- * this selection by design.
+ * this selection by design. Activation never persists the endpoint: only a
+ * verified user switch (ApiManager.switchEndpoint) calls persistSharedBaseURL.
  */
 export function setSharedBaseURL(url: string): void {
   const nextBaseURL = normalizeBaseURL(url);
@@ -84,7 +114,6 @@ export function setSharedBaseURL(url: string): void {
       detail: { url: nextBaseURL },
     }));
   }
-  if (currentBaseURL !== nextBaseURL) void persistSharedBaseURL(nextBaseURL);
 }
 
 /** The current shared base URL, or null if none has been set yet. */
@@ -278,18 +307,28 @@ export class BaseAPI {
   }
 
   /**
-   * Core request method
+   * Core request method. Identical GETs share one in-flight request; a
+   * settled write invalidates every coalesced read.
    */
   protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
-    const fullURL = this.buildURL(config.url, config.baseURL, config.root);
-    if (config.method === 'GET' && retryCount === 0) {
-      const authKey = getSharedAuthToken() || 'anonymous';
+    if (config.method === 'GET') {
+      const fullURL = this.buildURL(config.url, config.baseURL, config.root);
+      const authKey = this.resolveRequestHeaders(config.headers).Authorization || 'anonymous';
       return coordinateRequest(
-        `base-get:${authKey}:${fullURL}:${JSON.stringify(config.params || {})}`,
-        () => this.request<T>(config, 1),
-        5000,
+        `base-get:${readGeneration}:${authKey}:${fullURL}:${JSON.stringify(config.params || {})}`,
+        () => this.send<T>(config, retryCount),
+        GET_COALESCE_TTL_MS,
       );
     }
+    try {
+      return await this.send<T>(config, retryCount);
+    } finally {
+      invalidateCoalescedReads();
+    }
+  }
+
+  private async send<T>(config: APIRequestConfig, retryCount: number): Promise<APIResponse<T>> {
+    const fullURL = this.buildURL(config.url, config.baseURL, config.root);
     const isFormData = config.data instanceof FormData;
     const startedAt = performance.now();
 
@@ -406,13 +445,15 @@ export class BaseAPI {
       // instead of a raw fetch TypeError.
       const normalized = normalizeRequestError(error);
 
-      // Retry logic (retry on transient network/timeout failures only).
-      // Callers can opt out (config.retry === false) so probe/info GETs
-      // never fan out into a 3x retry storm against a slow/dead endpoint.
-      const retryEnabled = config.retry !== false;
+      // Retry transient network/timeout failures only for reads and for
+      // writes the server can dedupe (Idempotency-Key): a timed-out write may
+      // already have been applied. Callers can opt out (config.retry === false)
+      // so probe/info GETs never fan out into a retry storm.
+      const retryEnabled = config.retry !== false
+        && (READ_METHODS.has(config.method) || hasIdempotencyKey(requestHeaders));
       if (retryEnabled && retryCount < this.retryConfig.count && this.shouldRetry(error)) {
         await this.delay(this.retryConfig.delay * (retryCount + 1));
-        return this.request<T>(config, retryCount + 1);
+        return this.send<T>(config, retryCount + 1);
       }
 
       // Preserve the existing return contract (resolve with an APIResponse),
@@ -478,6 +519,7 @@ export class BaseAPI {
       throw normalized;
     } finally {
       clearTimeout(timeoutId);
+      if (!READ_METHODS.has(method)) invalidateCoalescedReads();
     }
   }
 
@@ -490,7 +532,11 @@ export class BaseAPI {
     const url = this.buildURL(path, undefined, root);
     const headers = this.resolveRequestHeaders();
 
-    return new Promise<APIResponse<T>>((resolve) => {
+    return new Promise<APIResponse<T>>((settle) => {
+      const resolve = (response: APIResponse<T>): void => {
+        invalidateCoalescedReads();
+        settle(response);
+      };
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url);
       Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));

@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -17,11 +5,14 @@ const logger = require('./Logger.js');
 const { Worker } = require('worker_threads');
 const { getSharedDownloadCacheDir } = require('../../../foundation/common/system_paths.js');
 
+const DEFAULT_PYTHON_COMMAND = process.platform === 'win32' ? 'python' : 'python3';
+
 class DeepSeekTranslator {
     constructor(options = {}) {
         this.modelPath = options.modelPath || 'deepseek-ai/deepseek-vl-1.3b-chat';
         this.modelDir = options.modelDir || null;
-        this.pythonCommand = options.pythonCommand || 'python';
+        this.pythonCommand = options.pythonCommand || DEFAULT_PYTHON_COMMAND;
+        this.outputBuffer = '';
         this.process = null;
         this.isReady = false;
         this.requestQueue = [];
@@ -124,29 +115,34 @@ class DeepSeekTranslator {
     }
 
     handleModelOutput(output) {
-        try {
-            const lines = output.split('\n');
-            let i;
+        // Stdout chunks can split a JSON line; keep the unfinished tail for the next chunk
+        const lines = (this.outputBuffer + output).split('\n');
+        this.outputBuffer = lines.pop();
 
-            for (i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (line.startsWith('{') && line.endsWith('}')) {
-                    const response = JSON.parse(line);
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line.startsWith('{') || !line.endsWith('}')) {
+                continue;
+            }
 
-                    if (response.id !== undefined && this.responseHandlers.has(response.id)) {
-                        const handler = this.responseHandlers.get(response.id);
-                        this.responseHandlers.delete(response.id);
+            let response;
+            try {
+                response = JSON.parse(line);
+            } catch (error) {
+                logger.error('Error parsing model output: ' + error.message);
+                continue;
+            }
 
-                        if (response.error) {
-                            handler.reject(new Error(response.error));
-                        } else {
-                            handler.resolve(response.translation || response.text);
-                        }
-                    }
+            if (response.id !== undefined && this.responseHandlers.has(response.id)) {
+                const handler = this.responseHandlers.get(response.id);
+                this.responseHandlers.delete(response.id);
+
+                if (response.error) {
+                    handler.reject(new Error(response.error));
+                } else {
+                    handler.resolve(response.translation || response.text);
                 }
             }
-        } catch (error) {
-            logger.error('Error parsing model output: ' + error.message);
         }
     }
 

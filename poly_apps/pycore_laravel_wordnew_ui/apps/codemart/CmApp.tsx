@@ -4,6 +4,7 @@ import { useTranslation } from '../../core/i18n/UiI18n';
 import { createAppRouteElements } from '../../shared/routing/AppRouteElements';
 import { CmAccessGate } from './auth/CmAccessGate';
 import { CmCapabilityGate } from './components/access/CmCapabilityGate';
+import { CM_PUBLIC_ROUTE } from './components/public-home/cmPublicRoutes';
 import { CmBootstrapProvider } from './contexts/CmBootstrapContext';
 import { CmLayout } from './CmLayout';
 import { registerCmLocales } from './cm-locales';
@@ -102,7 +103,7 @@ const CmApp: React.FC = () => (
         {cmPageRoutes}
         <Route path="projects/:projectId" element={<CmCapabilityGate page={PROJECTS_PAGE}>{wrapPage(<CmProjectDetailPage />)}</CmCapabilityGate>} />
       </Route>
-      <Route path="*" element={<Navigate to="/codemart" replace />} />
+      <Route path="*" element={<Navigate to={CM_PUBLIC_ROUTE.home} replace />} />
     </Routes>
   </CmBootstrapProvider>
 );

@@ -15,6 +15,11 @@ use Illuminate\Support\Facades\Context;
  */
 final class DataSyncPassiveService
 {
+    private const ARTIFACT_ROW_COUNTS = 'row-counts';
+    private const ARTIFACT_FRESH_MANIFEST_PREFIX = 'fresh-manifest-';
+    private const ARTIFACT_ARCHIVE_PATHS_PREFIX = 'archive-paths-';
+    private const ARTIFACT_ARCHIVE_MANIFEST_PREFIX = 'archive-manifest-';
+
     public function __construct(
         private readonly DataSyncStateStore $store,
         private readonly DataSyncArtifactStore $artifacts,
@@ -29,17 +34,17 @@ final class DataSyncPassiveService
         $driverKey = $role === 'receiver' ? 'source_job_id' : 'fetcher_job_id';
 
         return $this->topology->run(function () use ($role, $driverKey, $driverJobId, $prepareToken, $options, $driverAddress): array {
-            foreach ($this->store->activeAll(DataSyncProtocol::PASSIVE_ROLES) as $active) {
+            foreach ($this->store->activeAll(DataSyncProtocol::passiveRoles()) as $active) {
                 if ($active['role'] === $role && ($active['context'][$driverKey] ?? null) === $driverJobId) {
                     if (!hash_equals((string) ($active['context']['prepare_token_hash'] ?? ''), hash('sha256', $prepareToken))) {
-                        throw new \RuntimeException('Invalid synchronization preparation token.');
+                        throw new \RuntimeException(__('data_sync.prepare_token_invalid'));
                     }
                     return $this->handshake($active);
                 }
                 if ($this->store->secondsSinceActivity($active) < DataSyncProtocol::PASSIVE_SUPERSEDE_SECONDS) {
-                    throw new \RuntimeException('This node is serving another synchronization session.');
+                    throw new \RuntimeException(__('data_sync.node_busy'));
                 }
-                $this->runtime->finish($active, 'cancelled', 'Superseded by a new synchronization session.');
+                $this->supersede((string) $active['id']);
             }
             $this->assertNoConflictingLocalSession($role);
 
@@ -79,24 +84,24 @@ final class DataSyncPassiveService
 
     public function databaseCounts(string $id, string $token): array
     {
-        $this->requireReady($id, $token, 'receiver');
-        return ['counts' => $this->databases->rowCounts()];
+        $job = $this->requireReady($id, $token, 'receiver');
+        return ['counts' => $this->requestedArtifact($job, self::ARTIFACT_ROW_COUNTS)];
     }
 
     public function resourceManifest(string $id, string $token, string $key, bool $fresh): array
     {
-        $this->requireReady($id, $token);
+        $job = $this->requireReady($id, $token);
         $this->resources->root($key);
         if ($fresh) {
-            return $this->resources->manifest($key);
+            return ['key' => $key, 'files' => $this->requestedArtifact($job, self::ARTIFACT_FRESH_MANIFEST_PREFIX . $key)];
         }
         return ['key' => $key, 'files' => $this->artifacts->require($id, "manifest-{$key}")];
     }
 
-    public function exportDatabaseChunk(string $id, string $token, string $connection, string $table, int $offset): array
+    public function exportDatabaseChunk(string $id, string $token, string $connection, string $table, int $offset, ?array $cursor = null): array
     {
         $this->requireReady($id, $token, 'exporter');
-        return $this->databases->readChunk($connection, $table, $offset);
+        return $this->databases->readChunk($connection, $table, $offset, $cursor);
     }
 
     public function exportFileChunk(string $id, string $token, string $key, string $relativePath, int $offset): array
@@ -111,29 +116,40 @@ final class DataSyncPassiveService
         return $this->resources->readFileBatch($items);
     }
 
+    /**
+     * The archive is built by this node's timer; the request records it and
+     * answers busy (503) until it is ready. The path list is kept as an
+     * artifact, so the session state holds only the pending flag.
+     */
     public function exportArchive(string $id, string $token, string $key, array $relativePaths): array
     {
-        return $this->runtime->withLock($id, function () use ($id, $token, $key, $relativePaths): array {
+        $archive = $this->runtime->withLock($id, function () use ($id, $token, $key, $relativePaths): ?array {
             $job = $this->requireReady($id, $token, 'exporter');
             if (empty($job['options']['compression'])) {
-                throw new \RuntimeException('This exporter session does not serve compressed archives.');
+                throw new \RuntimeException(__('data_sync.exporter_no_compression'));
             }
             $existing = $job['context']['archives'][$key] ?? null;
             if (is_array($existing)) {
                 return $existing;
             }
-            $archive = $this->resources->createArchive($id, $key, $relativePaths);
-            $job['context']['archives'][$key] = $archive;
-            $this->store->save($job);
-            return $archive;
+            $this->resources->root($key);
+            if (empty($job['context']['pending_archives'][$key])) {
+                $artifact = self::ARTIFACT_ARCHIVE_PATHS_PREFIX . $key;
+                $this->artifacts->put($id, $artifact, array_values(array_map('strval', $relativePaths)));
+                $job['context']['pending_archives'][$key] = ['pending' => true, 'artifact' => $artifact];
+                $this->store->save($job);
+            }
+            return null;
         });
+
+        return $archive ?? throw new DataSyncBusyException();
     }
 
     public function exportArchiveChunk(string $id, string $token, string $key, int $offset): array
     {
         $job = $this->requireReady($id, $token, 'exporter');
         if (!isset($job['context']['archives'][$key])) {
-            throw new \RuntimeException("The exported resource archive has not been prepared: {$key}");
+            throw new \RuntimeException(__('data_sync.export_archive_not_prepared', ['key' => $key]));
         }
         return $this->resources->readArchiveChunk($id, $key, $offset) + ['sha256' => $job['context']['archives'][$key]['sha256']];
     }
@@ -188,7 +204,7 @@ final class DataSyncPassiveService
                 $relativePath = (string) ($file['relative_path'] ?? '');
                 $content = base64_decode((string) ($file['content'] ?? ''), true);
                 if ($content === false) {
-                    throw new \InvalidArgumentException('Resource file content is not valid base64.');
+                    throw new \InvalidArgumentException(__('data_sync.resource_content_invalid'));
                 }
                 try {
                     $result = $this->resources->commitWholeFile($id, $key, $relativePath, $content, (string) ($file['sha256'] ?? ''));
@@ -234,16 +250,31 @@ final class DataSyncPassiveService
         });
     }
 
-    public function receiveArchiveChunk(string $id, string $token, string $key, int $offset, string $content, string $hash, bool $final): array
+    /**
+     * @param array<string, string>|null $manifest planned relative path => SHA-256, sent with the final chunk
+     */
+    public function receiveArchiveChunk(string $id, string $token, string $key, int $offset, string $content, string $hash, bool $final, ?array $manifest = null): array
     {
-        return $this->runtime->withLock($id, function () use ($id, $token, $key, $offset, $content, $hash, $final): array {
+        return $this->runtime->withLock($id, function () use ($id, $token, $key, $offset, $content, $hash, $final, $manifest): array {
             $job = $this->requireReady($id, $token, 'receiver');
+            if (($job['context']['archive_mismatches'][$key] ?? null) === $hash) {
+                if ($offset > 0) {
+                    return ['success' => false, 'hash_mismatch' => true, 'complete' => false, 'offset' => 0];
+                }
+                unset($job['context']['archive_mismatches'][$key]);
+            }
             try {
-                $result = $this->resources->receiveArchiveChunk($id, $key, $offset, $content, $hash, $final);
+                $result = $this->resources->receiveArchiveChunk($id, $key, $offset, $content, $hash, $final, true);
             } catch (DataSyncHashMismatchException) {
                 return ['success' => false, 'hash_mismatch' => true, 'complete' => false, 'offset' => 0];
             }
-            if (!empty($result['success'])) {
+            if (!empty($result['extracting'])) {
+                if ($manifest !== null) {
+                    $this->artifacts->put($id, self::ARTIFACT_ARCHIVE_MANIFEST_PREFIX . $key, $manifest);
+                }
+                $job['context']['pending_extractions'][$key] = $hash;
+            }
+            if (!empty($result['success']) && empty($result['already_present'])) {
                 $job['context']['received']['resource_bytes'] += strlen($content);
             }
             if (!empty($result['complete'])) {
@@ -263,7 +294,7 @@ final class DataSyncPassiveService
                 return ['success' => true];
             }
             if (!$this->runtime->isActive($job)) {
-                throw new \RuntimeException((string) ($job['error'] ?? 'The synchronization session has ended.'));
+                throw new \RuntimeException((string) ($job['error'] ?? __('data_sync.session_ended')));
             }
             $job['context']['finalized'] = true;
             $this->store->save($job);
@@ -285,7 +316,7 @@ final class DataSyncPassiveService
         $result = $this->runtime->tryLock($id, function () use ($id): ?array {
             $current = $this->store->get($id);
             return $current !== null && $this->runtime->isActive($current)
-                ? $this->runtime->finish($current, 'cancelled', 'Synchronization session cancelled by the driver.')
+                ? $this->runtime->finish($current, 'cancelled', __('data_sync.cancelled_by_driver'))
                 : $current;
         });
 
@@ -298,6 +329,13 @@ final class DataSyncPassiveService
 
         if (($job['context']['ready'] ?? false) && !($job['context']['finalized'] ?? false) && !$this->runtime->cancelRequested($id)) {
             if ($this->store->secondsSinceActivity($job) < DataSyncProtocol::PASSIVE_IDLE_SECONDS) {
+                if (!empty($job['context']['pending_artifacts'])
+                    || !empty($job['context']['pending_archives'])
+                    || !empty($job['context']['pending_extractions'])) {
+                    Context::scope(fn (): array => $this->runtime->tryLock($id, function () use ($id): void {
+                        $this->buildRequestedArtifacts($id);
+                    }), data: ['data_sync_session_id' => $id, 'data_sync_role' => $job['role']]);
+                }
                 return;
             }
         }
@@ -308,21 +346,21 @@ final class DataSyncPassiveService
                 return;
             }
             if ($this->runtime->cancelRequested($id)) {
-                $this->runtime->finish($job, 'cancelled', DataSyncProtocol::CANCELLED_MESSAGE);
+                $this->runtime->finish($job, 'cancelled', DataSyncProtocol::cancelledMessage());
                 return;
             }
-            if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
-                $this->runtime->finish($job, 'failed', 'The session protocol version is incompatible.');
+            if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::version()) {
+                $this->runtime->finish($job, 'failed', __('data_sync.protocol_incompatible'));
                 return;
             }
             if ($this->store->secondsSinceActivity($job) >= DataSyncProtocol::PASSIVE_IDLE_SECONDS) {
-                $this->runtime->finish($job, 'failed', 'The synchronization driver stopped responding.');
+                $this->runtime->finish($job, 'failed', __('data_sync.driver_stopped'));
                 return;
             }
             try {
                 $this->step($job);
             } catch (DataSyncAbortException) {
-                $this->runtime->finish($this->store->get($id) ?? $job, 'cancelled', DataSyncProtocol::CANCELLED_MESSAGE);
+                $this->runtime->finish($this->store->get($id) ?? $job, 'cancelled', DataSyncProtocol::cancelledMessage());
             } catch (\Throwable $exception) {
                 $this->runtime->finish($this->store->get($id) ?? $job, 'failed', $exception->getMessage());
             }
@@ -384,6 +422,93 @@ final class DataSyncPassiveService
         }
     }
 
+    /**
+     * Serves an artifact that this node's timer builds for a peer request
+     * (fresh manifest, exact row counts). Until an artifact built after the
+     * latest received payload exists, the request is recorded and answered
+     * busy (503), so no heavy work runs inside a peer HTTP request.
+     */
+    private function requestedArtifact(array $job, string $name): array
+    {
+        $id = (string) $job['id'];
+        $artifact = $this->artifacts->get($id, $name);
+
+        if (is_array($artifact) && ($artifact['generation'] ?? null) === $this->receivedGeneration($job)) {
+            return (array) ($artifact['value'] ?? []);
+        }
+        $this->runtime->withLock($id, function () use ($id, $name): void {
+            $current = $this->store->get($id);
+            if ($current !== null && empty($current['context']['pending_artifacts'][$name])) {
+                $current['context']['pending_artifacts'][$name] = true;
+                $this->store->save($current);
+            }
+        });
+
+        throw new DataSyncBusyException();
+    }
+
+    private function buildRequestedArtifacts(string $id): void
+    {
+        $abort = $this->runtime->abortHook($id);
+        $job = $this->store->get($id);
+        $value = [];
+        $archive = [];
+
+        if ($job === null || !$this->runtime->isActive($job)) {
+            return;
+        }
+        foreach (array_keys($job['context']['pending_artifacts'] ?? []) as $name) {
+            $value = $name === self::ARTIFACT_ROW_COUNTS
+                ? $this->databases->rowCounts()
+                : $this->resources->manifest(substr((string) $name, strlen(self::ARTIFACT_FRESH_MANIFEST_PREFIX)), $abort)['files'];
+            $this->artifacts->put($id, (string) $name, ['generation' => $this->receivedGeneration($job), 'value' => $value]);
+            unset($job['context']['pending_artifacts'][$name]);
+            $job = $this->store->save($job);
+        }
+        foreach ($job['context']['pending_archives'] ?? [] as $key => $pending) {
+            $pathsArtifact = (string) ($pending['artifact'] ?? '');
+            $archive = $this->resources->createArchive($id, (string) $key, $this->artifacts->require($id, $pathsArtifact));
+            $job['context']['archives'][$key] = $archive;
+            unset($job['context']['pending_archives'][$key]);
+            $job = $this->store->save($job);
+            $this->artifacts->forget($id, $pathsArtifact);
+        }
+        foreach ($job['context']['pending_extractions'] ?? [] as $key => $hash) {
+            $manifestArtifact = self::ARTIFACT_ARCHIVE_MANIFEST_PREFIX . $key;
+            try {
+                $this->resources->completeArchive($id, (string) $key, (string) $hash, $this->artifacts->get($id, $manifestArtifact));
+            } catch (DataSyncHashMismatchException) {
+                $job['context']['archive_mismatches'][$key] = $hash;
+            }
+            unset($job['context']['pending_extractions'][$key]);
+            $job = $this->store->save($job);
+            $this->artifacts->forget($id, $manifestArtifact);
+        }
+    }
+
+    private function receivedGeneration(array $job): string
+    {
+        return hash('sha256', (string) json_encode($job['context']['received'] ?? []));
+    }
+
+    /**
+     * Ends an idle passive session that a new driver replaces, under that
+     * session's lock (the same path as a driver cancel).
+     */
+    private function supersede(string $activeId): void
+    {
+        $this->runtime->requestCancel($activeId);
+        $result = $this->runtime->tryLock($activeId, function () use ($activeId): void {
+            $current = $this->store->get($activeId);
+            if ($current !== null && $this->runtime->isActive($current)) {
+                $this->runtime->finish($current, 'cancelled', __('data_sync.superseded'));
+            }
+        });
+        if (!$result['acquired']) {
+            throw new DataSyncBusyException();
+        }
+    }
+
     private function scopeEnabled(array $job, string $key): bool
     {
         return match (true) {
@@ -436,6 +561,7 @@ final class DataSyncPassiveService
             $files += count($manifest);
             $bytes += array_sum(array_column($manifest, 'size'));
         }
+        $job['context']['resource_roots'] = $roots;
         $job['context']['local_manifest'] = array_merge($job['context']['local_manifest'] ?? [], [
             'resource_roots' => count($roots),
             'resource_files' => $files,
@@ -492,13 +618,20 @@ final class DataSyncPassiveService
         return $job;
     }
 
+    /**
+     * A node runs at most one active session: every driver session and the
+     * other passive role block a new passive session.
+     */
     private function assertNoConflictingLocalSession(string $role): void
     {
-        $conflicting = $role === 'receiver' ? DataSyncProtocol::DRIVER_ROLES : ['fetcher'];
+        $conflicting = array_merge(
+            DataSyncProtocol::driverRoles(),
+            array_values(array_diff(DataSyncProtocol::passiveRoles(), [$role]))
+        );
 
         foreach ($this->store->activeAll($conflicting) as $active) {
             if (!$this->runtime->cancelRequested((string) $active['id'])) {
-                throw new \RuntimeException('This node already has an active synchronization session.');
+                throw new \RuntimeException(__('data_sync.node_has_active_session'));
             }
         }
     }
@@ -508,14 +641,14 @@ final class DataSyncPassiveService
         $job = $this->store->get($id);
         if (
             $job === null
-            || !in_array($job['role'] ?? null, DataSyncProtocol::PASSIVE_ROLES, true)
+            || !in_array($job['role'] ?? null, DataSyncProtocol::passiveRoles(), true)
             || !hash_equals(
                 (string) ($job['context']['token_hash'] ?? hash('sha256', (string) ($job['context']['token'] ?? ''))),
                 hash('sha256', $token)
             )
             || $token === ''
         ) {
-            throw new \InvalidArgumentException('Data synchronization session was not found.');
+            throw new DataSyncNotFoundException();
         }
         if ($this->runtime->isActive($job)) {
             $this->store->touchActivity($id);
@@ -527,10 +660,10 @@ final class DataSyncPassiveService
     {
         $job = $this->requireSession($id, $token);
         if ($role !== null && $job['role'] !== $role) {
-            throw new \InvalidArgumentException('Data synchronization session was not found.');
+            throw new DataSyncNotFoundException();
         }
         if (!$this->runtime->isActive($job)) {
-            throw new \RuntimeException((string) ($job['error'] ?? 'The synchronization session has ended.'));
+            throw new \RuntimeException((string) ($job['error'] ?? __('data_sync.session_ended')));
         }
         if (empty($job['context']['ready'])) {
             throw new DataSyncBusyException();

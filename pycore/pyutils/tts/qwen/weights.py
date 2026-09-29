@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.system_paths import get_local_data_dir
 import pycore.pyutils.common.hf_local_weights as _core
 from pycore.pyutils.common.model_tiers import runtime_engine_model
@@ -53,6 +54,10 @@ _QWEN3TTS_ENV = "QWEN3TTS_DIR"
 _QWEN3TTS_SUBDIR = "qwen3tts"
 _QWEN3TTS_MODEL_ENV = "QWEN3TTS_MODEL"
 _QWEN3TTS_DEFAULT = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+_SENTINEL_NAME = ".model_installed"
+# (signature, ready) of the last offline model resolution; the signature
+# changes whenever the installer rewrites the sentinel or the weights dir.
+_LOCAL_READY_STATE = SerializedValue(None, "Qwen3TTSWeightsReadyState")
 
 
 def _static_sizes(repo_id: str) -> Optional[Dict[str, int]]:
@@ -110,6 +115,29 @@ def resolve_model_id(allow_remote: bool = True) -> str:
         return ""
 
     return runtime_engine_model("qwen3tts") or _QWEN3TTS_DEFAULT
+
+
+def _local_signature() -> tuple:
+    staging = staging_dir()
+    stamps = []
+    for path in (staging / _SENTINEL_NAME, staging / "weights"):
+        try:
+            stamps.append(path.stat().st_mtime_ns)
+        except OSError:
+            stamps.append(None)
+    return (str(staging), (os.environ.get(_QWEN3TTS_MODEL_ENV) or "").strip(), *stamps)
+
+
+def local_model_ready() -> bool:
+    """True when the server can start offline (the same resolution the start
+    command uses), re-checked only when the install state changes."""
+    signature = _local_signature()
+    cached = _LOCAL_READY_STATE.get()
+    if cached is not None and cached[0] == signature:
+        return bool(cached[1])
+    ready = bool(resolve_model_id(allow_remote=False))
+    _LOCAL_READY_STATE.set((signature, ready))
+    return ready
 
 
 def audit_local_weights(verbose: bool = False) -> tuple:
@@ -184,6 +212,7 @@ __all__ = [
     "audit_local_weights",
     "hf_repo_catalog",
     "local_weights_dir",
+    "local_model_ready",
     "local_weights_ready",
     "redownload_hint_lines",
     "resolve_model_id",

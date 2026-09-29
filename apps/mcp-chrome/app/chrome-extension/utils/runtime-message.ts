@@ -1,4 +1,5 @@
 import { toErrorMessage } from './errors';
+import { getMessage } from './i18n';
 
 export type RuntimeSendResponse = (response?: any) => void;
 export type RuntimeMessageHandler<TMessage, TResponse> = (
@@ -8,6 +9,10 @@ export type RuntimeMessageHandler<TMessage, TResponse> = (
 
 export interface RuntimeMessageHandlerOptions<TMessage> {
   createErrorResponse?: (error: unknown, message: TMessage) => any;
+}
+
+export function unknownActionResponse(action: unknown): { success: false; error: string } {
+  return { success: false, error: getMessage('unknownActionError', [String(action)]) };
 }
 
 export function respondAsync<T>(

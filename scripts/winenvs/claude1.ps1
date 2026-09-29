@@ -34,6 +34,23 @@ Write-Host "Claude AI #1 - v4 [team]" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
+
+#region AI CLI Provisioning (install if missing + idempotent upgrade prompt)
+$aiCliProvisionActualPath = $PSCommandPath
+$aiCliProvisionItem = Get-Item -LiteralPath $PSCommandPath
+$aiCliProvisionScriptsDir = $null
+$aiCliProvisionCommonPath = $null
+if ($aiCliProvisionItem -and $aiCliProvisionItem.LinkType) {
+    $aiCliProvisionActualPath = $aiCliProvisionItem.Target
+}
+$aiCliProvisionScriptsDir = Split-Path (Split-Path $aiCliProvisionActualPath -Parent) -Parent
+$aiCliProvisionCommonPath = Join-Path $aiCliProvisionScriptsDir "shells\win\win_common\AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonPath
+Invoke-AiCliProvision -Tool "claude"
+#endregion
+
+
+
 $scriptActualPath = $PSCommandPath
 $item = Get-Item -LiteralPath $PSCommandPath
 if ($item -and $item -is [System.IO.FileInfo] -and $item.LinkType) {
@@ -86,7 +103,7 @@ $env:ANTHROPIC_MODEL = Read-SecretFile (Join-Path $secretDir "ANTHROPIC_MODEL_1"
 
 # Configuration summary
 Write-Host "ANTHROPIC_BASE_URL: $($env:ANTHROPIC_BASE_URL)" -ForegroundColor White
-Write-Host "ANTHROPIC_AUTH_TOKEN: $($env:ANTHROPIC_AUTH_TOKEN)" -ForegroundColor White
+Write-Host "ANTHROPIC_AUTH_TOKEN: $(Get-AiCliMaskedSecret -Value $env:ANTHROPIC_AUTH_TOKEN)" -ForegroundColor White
 Write-Host "ANTHROPIC_MODEL: $($env:ANTHROPIC_MODEL)" -ForegroundColor White
 Write-Host "Agent Teams: CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 (always on)" -ForegroundColor White
 if (-not [string]::IsNullOrWhiteSpace($env:ANTHROPIC_MODEL)) {
@@ -99,6 +116,9 @@ Write-Host ""
 
 # Build claude args: teammate mode + permission bypass always; model conditional.
 $claudeArgs = @("--teammate-mode", $teammateMode, "--permission-mode", "bypassPermissions", "--dangerously-skip-permissions")
+
+# No non-blocking questions: disable AskUserQuestion and append the blocking-questions rule.
+$claudeArgs += @("--disallowedTools", "AskUserQuestion", "--append-system-prompt", "Only ask a question if you cannot proceed without the answer (blocking questions). Otherwise, make your best assumption, state it, and continue without asking.")
 
 # Force model everywhere if ANTHROPIC_MODEL is configured; else account default.
 if (-not [string]::IsNullOrWhiteSpace($env:ANTHROPIC_MODEL)) {

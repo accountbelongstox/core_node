@@ -63,8 +63,9 @@ class AppQyV1VocabularyCoverService
             $oldPath = $this->getCoverPath($library->cover_filename);
             $newPath = $this->getCoverPath($expectedFilename);
 
-            if (File::exists($oldPath) && !File::exists($newPath)) {
-                File::move($oldPath, $newPath);
+            if (File::exists($oldPath) && !File::exists($newPath) && File::move($oldPath, $newPath)) {
+                app(AppQyV1ResourceIndexService::class)->forgetStaticPath($oldPath);
+                app(AppQyV1ResourceIndexService::class)->recordStaticPath($newPath);
             }
 
             $library->cover_filename = $expectedFilename;
@@ -289,10 +290,12 @@ class AppQyV1VocabularyCoverService
             }
             File::put($cachePath, $bytes);
             File::put($coverPath, $bytes);
+            app(AppQyV1ResourceIndexService::class)->recordStaticPath($cachePath);
             $provider = (string) ($result['provider'] ?? '');
             $model = (string) ($result['model'] ?? '');
             $latencyMs = isset($result['latency_ms']) ? (int) $result['latency_ms'] : null;
         }
+        app(AppQyV1ResourceIndexService::class)->recordStaticPath($coverPath);
 
         $library->cover_status = 'ready';
         $library->cover_error_message = null;

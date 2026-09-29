@@ -11,6 +11,7 @@ import {
 import { usePycoreCapability, ttsEngineUiState, usePcEngineLoadStatus } from '@/apps/pycore-manager/api';
 import type { EngineLoadStatusEntry } from '@/apps/pycore-manager/api';
 import { PcTtsServerControls } from './PcTtsServerControls';
+import { pcTtsReasonText } from '../utils/pcErrorCodes';
 import { usePcTestPopup } from './PcTestPopupContext';
 import type { PcTestKind, PcTestPopupState } from './PcTestPopup';
 
@@ -299,7 +300,7 @@ export const PcPipelineStatusPanels: React.FC<PcPipelineStatusPanelsProps> = ({
           const uiState = ttsEngineUiState(e.installed, e.available);
           const edgeTitle = isEdge
             ? [e.note, e.probe_error ? `probe: ${e.probe_error}` : null].filter(Boolean).join(' · ')
-            : [e.note, e.disabled_reason].filter(Boolean).join(' — ') || e.note;
+            : [e.note, pcTtsReasonText(e.disabled_reason_code, e.disabled_reason_params, e.disabled_reason)].filter(Boolean).join(' — ') || e.note;
           const chipClass =
             isActive
               ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'

@@ -51,7 +51,8 @@ def _lifecycle(control: Dict[str, Any], error: Optional[str]) -> str:
     running = to_bool(control.get("running"))
     requested = control.get("requested")
     if requested is False:
-        return "starting" if running else "off"
+        # Switched off while the lane still drains in-flight work.
+        return "stopping" if running else "off"
     if requested is True or configured:
         return "on" if running else "starting"
     return "on" if running else "off"

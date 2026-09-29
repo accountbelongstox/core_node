@@ -31,10 +31,8 @@ class OctaneTimerService
 {
     private const TASK_LEASE_SECONDS = 900;
     private const ENABLED_RECHECK_SECONDS = 15;
-    private const MAX_INLINE_TASKS_PER_TICK = 4;
-    private const MAX_INLINE_RUNTIME_SECONDS = 0.25;
-    private const MAX_BACKGROUND_TASKS_PER_TICK = 1;
-    private const BACKGROUND_POOL_LOCK = 'octane_timer:background_pool';
+    private const BACKGROUND_LOOP_SECONDS = 59;
+    private const LOOP_PERIOD_MICROSECONDS = 1000000;
 
     /**
      * Registered tasks (callback storage - cannot be shared across workers)
@@ -137,29 +135,33 @@ class OctaneTimerService
     }
 
     /**
-     * Best-effort cross-process write. Never throws -- this is a diagnostics
-     * mirror, it must never be able to break a tick.
+     * Best-effort cross-process write of the tasks this process drives. The
+     * snapshot is merged under an exclusive lock, so the heartbeat process and
+     * the background-lane process never overwrite each other's task state.
+     * A new `schedule:run` process seeds `last_run` from it (register()), so
+     * long intervals survive the per-minute process restart. Never throws.
      */
-    protected static function writeHeartbeatSnapshot(): void
+    protected static function writeHeartbeatSnapshot(array $taskNames, bool $includeTimerState): void
     {
         $path = '';
         $dir = '';
         $handle = false;
+        $updates = [];
         $snapshot = [];
+        $raw = '';
         $state = null;
 
         try {
-            foreach (array_keys(self::$tasks) as $name) {
-                $state = self::stateGet('timer_tasks', $name);
+            foreach ($taskNames as $name) {
+                $state = self::$fallbackStore["timer_tasks:{$name}"] ?? null;
                 if (is_array($state)) {
-                    $snapshot["timer_tasks:{$name}"] = $state;
+                    $updates["timer_tasks:{$name}"] = $state;
                 }
             }
-            $state = self::stateGet('timer_state', 'main');
+            $state = $includeTimerState ? (self::$fallbackStore['timer_state:main'] ?? null) : null;
             if (is_array($state)) {
-                $snapshot['timer_state:main'] = $state;
+                $updates['timer_state:main'] = $state;
             }
-            $snapshot['updated_at'] = time();
 
             $path = self::heartbeatFilePath();
             $dir = dirname($path);
@@ -170,6 +172,9 @@ class OctaneTimerService
             if ($handle === false || !@flock($handle, LOCK_EX)) {
                 return;
             }
+            $raw = (string) stream_get_contents($handle);
+            $snapshot = json_decode($raw === '' ? '[]' : $raw, true);
+            $snapshot = array_replace(is_array($snapshot) ? $snapshot : [], $updates, ['updated_at' => time()]);
             @ftruncate($handle, 0);
             @rewind($handle);
             @fwrite($handle, (string) json_encode($snapshot));
@@ -324,10 +329,60 @@ class OctaneTimerService
             ]);
         }
 
-        // Execute all tasks - each task's interceptor will decide if it should run
+        // Execute the heartbeat-lane tasks - each task's interceptor will decide
+        // if it should run. Background-lane tasks run in backgroundLoop().
         foreach (self::$tasks as $name => $task) {
-            self::executeTaskWithInterceptor($name, $task);
+            if (!self::runsInBackgroundLane($task)) {
+                self::executeTaskWithInterceptor($name, $task);
+            }
         }
+        self::writeHeartbeatSnapshot(self::laneTaskNames(false), true);
+    }
+
+    /**
+     * Background lane for slow tasks (EXECUTION_BACKGROUND) on non-Swoole
+     * runtimes: a separate scheduled process runs them on its own one-second
+     * loop for about a minute, so AI calls, archive work or certbot never
+     * stall the heartbeat tasks (outbox publish, result write-back).
+     */
+    public static function backgroundLoop(): void
+    {
+        $deadline = time() + self::BACKGROUND_LOOP_SECONDS;
+        $started = 0.0;
+        $remaining = 0;
+
+        do {
+            $started = microtime(true);
+            if (self::isRunning()) {
+                foreach (self::$tasks as $name => $task) {
+                    if (self::runsInBackgroundLane($task)) {
+                        self::executeTaskWithInterceptor($name, $task);
+                    }
+                }
+                self::writeHeartbeatSnapshot(self::laneTaskNames(true), false);
+            }
+            $remaining = self::LOOP_PERIOD_MICROSECONDS - (int) ((microtime(true) - $started) * 1000000);
+            if ($remaining > 0) {
+                usleep($remaining);
+            }
+        } while (time() < $deadline);
+    }
+
+    protected static function runsInBackgroundLane(array $task): bool
+    {
+        return config('octane.server') !== 'swoole'
+            && ($task['execution_mode'] ?? OctaneTimerTaskInterface::EXECUTION_INLINE) === OctaneTimerTaskInterface::EXECUTION_BACKGROUND;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected static function laneTaskNames(bool $background): array
+    {
+        return array_keys(array_filter(
+            self::$tasks,
+            static fn (array $task): bool => self::runsInBackgroundLane($task) === $background
+        ));
     }
 
     public static function heartbeat(): void

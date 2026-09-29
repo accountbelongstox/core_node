@@ -3,6 +3,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import tailwindcss from '@tailwindcss/vite';
+import { FIREFOX_EXTENSION_ID } from 'chrome-mcp-shared';
 
 // Load configuration from config.cjs
 const configPath = resolve(__dirname, 'config.cjs');
@@ -140,7 +141,7 @@ export default defineConfig({
         ...shared,
         browser_specific_settings: {
           gecko: {
-            id: 'mcp-chrome@core-node',
+            id: FIREFOX_EXTENSION_ID,
             strict_min_version: '128.0',
           },
         },

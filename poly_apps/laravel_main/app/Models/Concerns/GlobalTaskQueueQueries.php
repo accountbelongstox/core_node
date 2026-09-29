@@ -152,6 +152,31 @@ trait GlobalTaskQueueQueries
         array $statuses,
         array $payloadFilters = []
     ): int {
+        return (int) self::liveTaskQuery($appName, $taskTypes, $statuses, $payloadFilters)->count();
+    }
+
+    /**
+     * Payloads of the matching live tasks (oldest first, bounded).
+     *
+     * @return array<int, array>
+     */
+    public static function liveTaskPayloads(
+        string $appName,
+        array $taskTypes,
+        array $statuses,
+        array $payloadFilters,
+        int $limit
+    ): array {
+        return self::liveTaskQuery($appName, $taskTypes, $statuses, $payloadFilters)
+            ->orderBy('id')
+            ->limit(max(1, $limit))
+            ->get(['payload'])
+            ->map(static fn ($task): array => is_array($task->payload) ? $task->payload : [])
+            ->all();
+    }
+
+    private static function liveTaskQuery(string $appName, array $taskTypes, array $statuses, array $payloadFilters)
+    {
         $query = self::query()
             ->where('app_name', $appName)
             ->whereIn('task_type', $taskTypes)
@@ -161,7 +186,7 @@ trait GlobalTaskQueueQueries
             $query->where('payload->' . $field, $value);
         }
 
-        return (int) $query->count();
+        return $query;
     }
 
     public static function hasBacklogAtLeast(string $taskType, array $statuses, int $target): bool

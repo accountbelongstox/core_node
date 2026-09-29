@@ -6,7 +6,7 @@ from __future__ import annotations
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -42,8 +42,10 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_DIFF_DELIVERY,
     QUEUE_CENTER_QUEUE_POSITION_CONTROLS,
     QUEUE_CENTER_REALTIME_EVENTS,
+    QUEUE_CENTER_REALTIME_HEAD_KEYS,
     audio_dedup_key,
     queue_center_endpoint,
+    realtime_head_key_valid,
 )
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
@@ -52,16 +54,23 @@ from pycore.pyutils.common.status_snapshot_cache import (
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
 
 
 QUEUE_CENTER_SNAPSHOT_TOPIC = "queue_center.snapshot.changed"
 QUEUE_CENTER_EVENTS_PATH = queue_center_endpoint("queue_center_events")
+# The one priority queue whose heads are global tasks (task.priority);
+# cover and poster heads are library and media rows.
+QUEUE_CENTER_TASK_PRIORITY_QUEUE = "word_translation"
 QUEUE_CENTER_PRIORITY_EVENTS = {
-    QUEUE_CENTER_REALTIME_EVENTS["task_priority"]: "word_translation",
-    QUEUE_CENTER_REALTIME_EVENTS["word_image_priority"]: "word_media",
+    QUEUE_CENTER_REALTIME_EVENTS["task_priority"]: QUEUE_CENTER_TASK_PRIORITY_QUEUE,
     QUEUE_CENTER_REALTIME_EVENTS["cover_priority"]: "cover",
     QUEUE_CENTER_REALTIME_EVENTS["poster_priority"]: "poster",
 }
+QUEUE_CENTER_PRIORITY_ROLES = {
+    QUEUE_CENTER_REALTIME_EVENTS[role]: role for role in QUEUE_CENTER_REALTIME_HEAD_KEYS
+}
+QUEUE_CENTER_HEAD_ITEMS_PREFIX = "items[]."
 QUEUE_CENTER_HEAD_EVENTS = {
     QUEUE_CENTER_REALTIME_EVENTS["word_audio_head"]: "word_audio",
     QUEUE_CENTER_REALTIME_EVENTS["sentence_audio_head"]: "sentence_audio",
@@ -93,6 +102,21 @@ def _response_data(response: Any) -> Dict[str, Any]:
         raise TypeError("Laravel Queue Center response must be an object")
     data = payload.get("data")
     return dict(data) if isinstance(data, dict) else dict(payload)
+
+
+def _lane_wake_ready(control: str) -> bool:
+    """True when a lane's worker may be woken: its heartbeat callback is
+    enabled and, for an audio lane, its cache restore has completed.
+    Shared by ``wake_workers`` and ``apply_head_event``.
+    """
+    entry = LANE_REGISTRY.get(str(control or ""))
+    if entry is None or not shared_heartbeat_system.is_callback_enabled(
+        entry["heartbeat_callback"]
+    ):
+        return False
+    if control in AUDIO_QUEUE_LANES and not audio_queue_center.restore_complete(control):
+        return False
+    return True
 
 
 class _QueueCenterTokenProvider:
@@ -353,10 +377,7 @@ class _QueueCenterSnapshotService:
     @staticmethod
     def wake_workers() -> None:
         for control in LANE_REGISTRY:
-            entry = LANE_REGISTRY[control]
-            if not shared_heartbeat_system.is_callback_enabled(
-                entry["heartbeat_callback"]
-            ):
+            if not _lane_wake_ready(control):
                 continue
             worker = lane_worker(control)
             if worker is not None:
@@ -430,33 +451,19 @@ class _QueueCenterSnapshotService:
         move_to_head = bump_action in ("bumped", "head", "queue")
         old_priority = payload.get("old_priority")
         old_priority = int(old_priority) if isinstance(old_priority, (int, float)) else None
-        label = self._priority_label(payload, task_id, queue)
-        batch_items = payload.get("items")
-        if not task_id and isinstance(batch_items, list):
-            for batch_item in batch_items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]:
-                if not isinstance(batch_item, dict):
-                    continue
-                batch_task_id = str(batch_item.get("task_id") or "").strip()
-                if not batch_task_id:
-                    continue
-                batch_priority = int(batch_item.get("priority") or priority)
-                self._set_worker_priority(
-                    queue,
-                    batch_task_id,
-                    batch_priority,
-                    move_to_head,
-                )
-        if task_id:
+        if queue == QUEUE_CENTER_TASK_PRIORITY_QUEUE and task_id:
             self._set_worker_priority(queue, task_id, priority, move_to_head)
+        head_entries = self._head_entries(QUEUE_CENTER_PRIORITY_ROLES.get(event_name, ""), payload)
         if move_to_head:
-            queue_bump_hub.record(
-                queue,
-                task_id or f"event-{cursor}",
-                label,
-                old_priority if old_priority is not None else "queue",
-                priority or "head",
-                payload,
-            )
+            for head_key, head_source in head_entries:
+                queue_bump_hub.record(
+                    queue,
+                    head_key,
+                    self._priority_label(head_source, head_key, queue),
+                    old_priority if old_priority is not None else "queue",
+                    priority or "head",
+                    payload,
+                )
 
         def updater(snapshot: Dict[str, Any]) -> Dict[str, Any]:
             cache = dict(snapshot.get("cache") or {})
@@ -466,22 +473,26 @@ class _QueueCenterSnapshotService:
             cache["realtime_connected"] = True
             cache["event_count"] = int(cache.get("event_count") or 0) + 1
             heads = dict(cache.get("queue_heads") or {})
-            current_heads = list(heads.get(queue) or [])
-            event_item = {
-                "task_id": task_id or None,
-                "label": label,
-                "language": payload.get("language"),
-                "priority": priority,
-                "cursor": cursor,
-                "received_at": time.time(),
-                "payload": dict(payload),
-            }
+            event_keys = {head_key for head_key, _source in head_entries}
             current_heads = [
-                item for item in current_heads
-                if str(item.get("task_id") or "") != task_id or not task_id
+                item for item in list(heads.get(queue) or [])
+                if str(item.get("head_key") or item.get("task_id") or "") not in event_keys
+            ]
+            event_items = [
+                {
+                    "task_id": task_id or None,
+                    "head_key": head_key,
+                    "label": self._priority_label(head_source, head_key, queue),
+                    "language": head_source.get("language") or payload.get("language"),
+                    "priority": priority,
+                    "cursor": cursor,
+                    "received_at": time.time(),
+                    "payload": dict(head_source),
+                }
+                for head_key, head_source in head_entries
             ]
             heads[queue] = (
-                [event_item, *current_heads][:QUEUE_CENTER_HEAD_LIMIT]
+                [*event_items, *current_heads][:QUEUE_CENTER_HEAD_LIMIT]
                 if move_to_head
                 else current_heads
             )
@@ -489,7 +500,7 @@ class _QueueCenterSnapshotService:
             snapshot["cache"] = cache
             snapshot["generatedAt"] = _utc_now()
             snapshot["laravelReachable"] = True
-            if queue == "word_translation" and task_id:
+            if queue == QUEUE_CENTER_TASK_PRIORITY_QUEUE and task_id:
                 snapshot["translation"] = self._update_translation_row(
                     snapshot.get("translation"),
                     task_id,
@@ -520,15 +531,14 @@ class _QueueCenterSnapshotService:
             else [dict(payload)]
         )
         items = items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]
+        lane = "sentence_audio" if queue == "sentence_audio" else "word_audio"
         applied: list[Dict[str, Any]] = []
         for item in items:
             task_id = str(item.get("task_id") or "").strip()
             if not task_id:
                 continue
             queue_position = int(item.get("queue_position") or 0)
-            worker = lane_worker(
-                "sentence_audio" if queue == "sentence_audio" else "word_audio"
-            )
+            worker = lane_worker(lane)
             if worker is None:
                 continue
             dedup_key = audio_dedup_key(
@@ -548,7 +558,7 @@ class _QueueCenterSnapshotService:
                 "task_id": task_id,
                 "queue_position": queue_position,
             })
-        if applied:
+        if applied and _lane_wake_ready(lane):
             worker.request_pull(prefer_remote=True)
 
         def updater(snapshot: Dict[str, Any]) -> Dict[str, Any]:
@@ -598,6 +608,24 @@ class _QueueCenterSnapshotService:
         worker = translation_worker_service
         worker.set_cached_task_priority(task_id, priority, move_to_head)
         worker.request_pull()
+
+    @staticmethod
+    def _head_entries(role: str, payload: Dict[str, Any]) -> List[Tuple[str, Dict[str, Any]]]:
+        """(head key, source row) pairs of one priority event, read at the
+        contract path of its role and kept only in the contract key format;
+        an event without keys adds no head."""
+        path = QUEUE_CENTER_REALTIME_HEAD_KEYS.get(role, "")
+        if path.startswith(QUEUE_CENTER_HEAD_ITEMS_PREFIX):
+            field = path[len(QUEUE_CENTER_HEAD_ITEMS_PREFIX):]
+            items = payload.get("items") if isinstance(payload.get("items"), list) else []
+            entries = [
+                (str(item.get(field) or "").strip(), item)
+                for item in items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]
+                if isinstance(item, dict)
+            ]
+        else:
+            entries = [(str(payload.get(path) or "").strip() if path else "", payload)]
+        return [(key, source) for key, source in entries if realtime_head_key_valid(role, key)]
 
     @staticmethod
     def _priority_label(payload: Dict[str, Any], task_id: str, queue: str) -> str:

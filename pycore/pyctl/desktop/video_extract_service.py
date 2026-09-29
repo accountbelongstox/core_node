@@ -4,8 +4,10 @@
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.network_constants import NVIDIA_SMI_TIMEOUT_SECONDS
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_RESOURCES_TTL_SECONDS,
@@ -18,6 +20,7 @@ from pycore.pyutils.media_processing.video_extract_processor import (
     VideoExtractProcessor,
     whisper_capabilities,
 )
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import AUDIO_CODECS
 # v3 multi-language subtitle correspondence view (SAME slot builders the ingest
 # sync uses — bilingual cue split + multi-track time-overlap alignment). The read
 # path and sync share ONE builder; no duplicated alignment logic here.
@@ -47,6 +50,15 @@ _DEFAULT_EXTENSIONS = [".mp4", ".mkv", ".mov", ".avi", ".flv", ".webm", ".ts", "
 # kinds that name a FILE to open with its default app vs. a FOLDER to reveal.
 _OPEN_FILE_KINDS = {"file", "subtitle"}
 _OPEN_DIR_KINDS = {"file_dir", "file_output_dir", "output"}
+# Only media and subtitle files are handed to the OS default handler; any other
+# file type (scripts, executables, launchers, documents) is never shell-executed.
+_OPEN_SUBTITLE_EXTENSIONS = {".srt", ".vtt", ".ass", ".ssa"}
+_OPEN_FILE_EXTENSIONS = (
+    set(VIDEO_EXTENSIONS)
+    | {str(codec["extension"]) for codec in AUDIO_CODECS.values()}
+    | _OPEN_SUBTITLE_EXTENSIONS
+)
+_OPEN_ERROR_FILE_TYPE_FORBIDDEN = "open_file_type_forbidden"
 
 # Request fields that are NOT per-path inputs - persisted as "last_options".
 _OPTION_FIELDS = (
@@ -89,6 +101,8 @@ class VideoExtractService:
             return VideoExtractOpenResponse(success=False, error="path is required")
         kind = (request.kind or "").strip().lower()
         if kind in _OPEN_FILE_KINDS:
+            if Path(path).resolve().suffix.lower() not in _OPEN_FILE_EXTENSIONS:
+                return VideoExtractOpenResponse(success=False, error=_OPEN_ERROR_FILE_TYPE_FORBIDDEN)
             ok = system_launcher.open_file(path)
         elif kind in _OPEN_DIR_KINDS:
             ok = system_launcher.open_dir(path)
@@ -312,6 +326,7 @@ def _query_gpus():
             [exe, "--query-gpu=index,name,utilization.gpu,memory.used,memory.total",
              "--format=csv,noheader,nounits"],
             capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
         )
     except Exception:
         return []

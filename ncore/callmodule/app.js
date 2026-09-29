@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * Express Application Factory
  *
@@ -17,13 +5,16 @@
  */
 
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
-const serviceContract = require('../../config/service_contract');
+const serviceContract = require('#@/config/service_contract.js');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 
 const { getGlobalConfig } = require('./global_config');
 const { ncoreController } = require('../ncontroller/controller');
 const ncontrollerRoutes = require('../ncontroller/routes');
+
+const BODY_LIMIT = '50mb';
+const GUARD_OPTIONS = { credentials: true };
 
 let app = null;
 let browserStarted = false;
@@ -38,15 +29,10 @@ async function createApp() {
     app = express();
 
     // Middleware
-    app.use(cors({
-        origin: '*',
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization']
-    }));
-
-    app.use(express.json({ limit: '50mb' }));
-    app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+    app.use(localRpcGuard.createExpressGuard(GUARD_OPTIONS));
+    app.use(express.json({ limit: BODY_LIMIT, verify: localRpcGuard.captureRawBody }));
+    app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT, verify: localRpcGuard.captureRawBody }));
+    app.use(localRpcGuard.createExpressBodyDigestCheck());
 
     // Root endpoint - API documentation (JSON format)
     app.get('/', (req, res) => {
@@ -182,49 +168,32 @@ async function createApp() {
             });
         }
 
-        // Check module permissions
-        const { allowed, reason } = config.isModuleAllowed(modulePath);
+        // Only explicit module/function pairs from the allow-list may be called
+        const { allowed, reason, modulePath: allowedModulePath } = config.isCallAllowed(modulePath, functionName);
         if (!allowed) {
-            config.addCallHistory(modulePath, functionName, false, reason);
+            config.addCallHistory(String(modulePath), String(functionName || ''), false, reason);
             return res.status(403).json({
                 success: false,
+                code: reason,
                 error: reason
             });
         }
 
         try {
-            // Resolve module path
-            let resolvedPath = modulePath;
-            if (!path.isAbsolute(modulePath)) {
-                resolvedPath = path.join(config.ncoreRoot, modulePath);
+            const targetModule = require(path.join(config.ncoreRoot, allowedModulePath));
+
+            if (typeof targetModule[functionName] !== 'function') {
+                const errorMsg = `Function '${functionName}' not found in module`;
+                config.addCallHistory(allowedModulePath, functionName, false, errorMsg);
+                return res.status(404).json({
+                    success: false,
+                    error: errorMsg
+                });
             }
 
-            // Load module
-            const targetModule = require(resolvedPath);
+            const result = await targetModule[functionName](...(Array.isArray(args) ? args : []));
 
-            let result;
-            if (functionName) {
-                // Call specific function
-                if (typeof targetModule[functionName] !== 'function') {
-                    const errorMsg = `Function '${functionName}' not found in module`;
-                    config.addCallHistory(modulePath, functionName, false, errorMsg);
-                    return res.status(404).json({
-                        success: false,
-                        error: errorMsg
-                    });
-                }
-
-                result = await targetModule[functionName](...args);
-            } else {
-                // Call module directly if it's a function
-                if (typeof targetModule === 'function') {
-                    result = await targetModule(...args);
-                } else {
-                    result = targetModule;
-                }
-            }
-
-            config.addCallHistory(modulePath, functionName || 'default', true);
+            config.addCallHistory(allowedModulePath, functionName, true);
 
             res.json({
                 success: true,
@@ -232,7 +201,7 @@ async function createApp() {
             });
         } catch (error) {
             const errorMsg = error.message || String(error);
-            config.addCallHistory(modulePath, functionName || 'default', false, errorMsg);
+            config.addCallHistory(allowedModulePath, functionName, false, errorMsg);
 
             res.status(500).json({
                 success: false,
@@ -432,7 +401,7 @@ async function createApp() {
     }
 
     // Start MCP Chrome Server
-    const { startMCPChromeServer } = require('#@ncore/utils/jsmcptools');
+    const { startMCPChromeServer } = require('#@ncore/utils/jsmcptools/index.js');
     startMCPChromeServer({
         port: serviceContract.port('mcp_chrome'),
         host: serviceContract.host('loopback')

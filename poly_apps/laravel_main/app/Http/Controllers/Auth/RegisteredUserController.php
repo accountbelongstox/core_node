@@ -1,13 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Http\Controllers\Auth;
 
@@ -53,7 +44,7 @@ class RegisteredUserController extends Controller
         ]);
 
         if ($this->checkUsernameIsExist($request->username)) {
-            return $this->error('Username already exists', 400);
+            return $this->error(__('api.messages.username_already_exists'), 400);
         }
 
         $roleLevel = 0;
@@ -91,7 +82,7 @@ class RegisteredUserController extends Controller
                     ]);
                     return $this->validationError(
                         ['registration_code' => ['Invalid invite code. Please check your code and try again.']],
-                        'Invalid invite code'
+                        __('api.messages.invalid_invite_code')
                     );
                 }
 
@@ -106,7 +97,7 @@ class RegisteredUserController extends Controller
                     ]);
                     return $this->validationError(
                         ['registration_code' => ['Invite code is expired or already used.']],
-                        'Invite code is expired or already used'
+                        __('api.messages.invite_code_is_expired_or_already_used')
                     );
                 }
 
@@ -152,7 +143,7 @@ class RegisteredUserController extends Controller
             'expiration' => $session['expiration'],
             'uid' => $user->id,
             'user' => $user,
-        ], 'User registered successfully');
+        ], __('api.messages.user_registered_successfully'));
     }
 
     public function checkUsernameIsExist($username)
@@ -188,7 +179,7 @@ class RegisteredUserController extends Controller
             }
 
             if ($request->invitation_code !== $validCode) {
-                return $this->validationError(['invitation_code' => ['Invalid invitation code']], 'Invalid invitation code');
+                return $this->validationError(['invitation_code' => ['Invalid invitation code']], __('api.messages.invalid_invitation_code_2'));
             }
         }
         
@@ -219,7 +210,7 @@ class RegisteredUserController extends Controller
         Auth::login($user);
 
         if ($request->wantsJson()) {
-            return $this->success(['user' => $user], 'Registration successful');
+            return $this->success(['user' => $user], __('api.messages.registration_successful'));
         }
 
         return response()->noContent();

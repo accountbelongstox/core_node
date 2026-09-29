@@ -82,7 +82,7 @@ class AppQyV1WordLookupController extends Controller
         $this->bumpUntranslatedQuery($wordData, $word, $language, $targetLanguage);
 
         if (!$wordData) {
-            return $this->notFound('Word not found', [
+            return $this->notFound(__('app_qy_v1.messages.word_not_found'), [
                 'word' => $word,
                 'language' => $language
             ]);
@@ -136,7 +136,7 @@ class AppQyV1WordLookupController extends Controller
             }
         }
         
-        return $this->success($result, 'Word lookup completed successfully');
+        return $this->success($result, __('app_qy_v1.messages.word_lookup_completed_successfully'));
     }
     
     public function batchLookup(Request $request)
@@ -168,7 +168,7 @@ class AppQyV1WordLookupController extends Controller
         return $this->success([
             'count' => count($results),
             'results' => $results
-        ], 'Batch lookup completed successfully');
+        ], __('app_qy_v1.messages.batch_lookup_completed_successfully'));
     }
     
     private function getLanguageCode(string $language): ?string

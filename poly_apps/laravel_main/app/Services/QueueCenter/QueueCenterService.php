@@ -60,6 +60,16 @@ class QueueCenterService
     }
 
     /**
+     * Queues served by the lane diff and its page-data materialization: every
+     * contract task type (a lane may also pull a non queue-position type such
+     * as article_audio).
+     */
+    public static function isDiffQueue(string $queueKey): bool
+    {
+        return in_array($queueKey, QueueCenterContract::taskTypeKeys(), true);
+    }
+
+    /**
      * Deterministic dedup key for one content item: "{language}:{contentId}".
      * $contentId is the word md5 for word_audio and the sentence content_id
      * for sentence_audio.
@@ -526,7 +536,9 @@ class QueueCenterService
      */
     public function pageData(string $queueKey, array $taskIds): array
     {
-        $this->assertSupportedQueue($queueKey);
+        if (!self::isDiffQueue($queueKey)) {
+            throw new \InvalidArgumentException("Unknown queue: {$queueKey}");
+        }
         $segmentLimit = max(
             1,
             (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128)

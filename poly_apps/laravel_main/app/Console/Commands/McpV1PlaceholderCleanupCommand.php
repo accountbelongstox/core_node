@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 use App\Apps\McpV1\McpV1Models\McpV1PlaceholderImageModel;
 use App\Apps\McpV1\McpV1Utils\McpV1PlaceholderUtil;
 
@@ -14,6 +15,17 @@ class McpV1PlaceholderCleanupCommand extends Command
 
     public function handle(): int
     {
+        $connection = (new McpV1PlaceholderImageModel())->getConnectionName();
+
+        if (!McpV1PlaceholderImageModel::configuredTableExists()) {
+            Log::warning('[McpV1PlaceholderCleanup] Table placeholder_images is missing; cleanup skipped', [
+                'connection' => $connection,
+            ]);
+            $this->warn(__('mcp_v1.cleanup.table_missing', ['connection' => $connection]));
+
+            return 0;
+        }
+
         $this->info('Starting placeholder cleanup...');
 
         $deletedRecords = McpV1PlaceholderImageModel::cleanupOldImages();

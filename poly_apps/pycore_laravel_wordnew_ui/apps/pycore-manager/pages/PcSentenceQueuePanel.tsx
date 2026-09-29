@@ -23,7 +23,7 @@ import { PcAudioLaneQueueView } from '../components/PcAudioLaneQueueView';
 import { PcAudioLaneFullSyncRow } from '../components/PcAudioLaneFullSyncRow';
 import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
-import { normalizeWordAudioFullSyncStatus, QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import { resolveAudioLaneFullSyncStatus, QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { formatElapsed } from '../utils/pcFormat';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
@@ -250,7 +250,10 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
 
       <PcAudioLaneFullSyncRow
         lane="sentence_audio"
-        status={normalizeWordAudioFullSyncStatus(lanes.payload?.lanes?.sentence_audio?.full_sync)}
+        status={resolveAudioLaneFullSyncStatus(
+          lanes.payload?.lanes?.sentence_audio?.full_sync,
+          hub.sectionContracts.sentence_audio,
+        )}
         enabled={hub.sectionContracts.sentence_audio.toggle.enabled}
       />
 

@@ -251,12 +251,7 @@ class AppQyV1VocabularyRecommendationController extends Controller
 
     private function coverImageUrl(AppQyV1VocabularyLibraryModel $library): string
     {
-        $cover = $this->coverService->getCoverData($library);
-        if (is_array($cover) && !empty($cover['url'])) {
-            return $cover['url'];
-        }
-
-        return $this->coverService->getDefaultCoverUrl();
+        return $this->coverService->versionedCoverUrl($library);
     }
 
     /**

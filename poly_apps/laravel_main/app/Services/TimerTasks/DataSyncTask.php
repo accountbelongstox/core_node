@@ -13,6 +13,11 @@ final class DataSyncTask extends OctaneTimerTaskAbstract
         $this->service = app(DataSyncService::class);
     }
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     public function getInterval(): int
     {
         return 1;

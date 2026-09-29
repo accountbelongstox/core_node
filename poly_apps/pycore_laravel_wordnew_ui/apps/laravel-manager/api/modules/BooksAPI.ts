@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import type { BookChapter, BookSlot, BookTopWord } from '../../../../core/contracts/books';
 import type { GlobalQueuePositionTaskAlias } from '../../../../core/contracts/QueueCenterContract';
@@ -336,7 +336,7 @@ export interface ProcessingCapability {
 /**
  * BooksAPI module — registered as `api.books`, prefix `/api/app_qy_v1`.
  */
-export class BooksAPI extends BaseAPI {
+export class BooksAPI extends LmBaseAPI {
   // ----- Books -----
 
   /**

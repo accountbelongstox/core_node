@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # ===================================================================
 # ALL VARIABLES DECLARATION - MOVED TO TOP OF FILE
@@ -53,12 +42,16 @@ GITEE_HOST_REFRESH_SH="$SCRIPT_PATH/gitee_host_refresh.sh"
 GITPUT_SECURITY_COMMON="$SCRIPT_PATH/gitput_security_common.sh"
 GITPUT_REPOSITORY_STATE="$SCRIPT_PATH/gitput_repository_state.sh"
 GITPUT_SYNC_COMMON="$SCRIPT_PATH/gitput_sync_common.sh"
+GIT_SYNC_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/git_sync_common.sh"
 RUNTIME_ENVIRONMENT="$CORE_NODE_DIR/scripts/shells/linux/common/runtime_environment.sh"
+SECRET_TOOL_COMMON="$CORE_NODE_DIR/scripts/shells/linux/common/secret_tool_common.sh"
 
 # SSH key variables
 SSH_DIR="$HOME/.ssh"
 SSH_KEY_NAME="id_ed25519"
 SSH_PUB_NAME="id_ed25519.pub"
+# Opt-in: a root push also shares the project key with logged-in users that have none.
+GITPUT_SHARE_SSH_KEY_WITH_USERS="${GITPUT_SHARE_SSH_KEY_WITH_USERS:-false}"
 LOCAL_SSH_PUB_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.pub.js"
 LOCAL_SSH_KEY_JS="$CORE_NODE_DIR/scripts/git/git.ssh.id.ed.js"
 SSH_INSTALL_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/24_install_git_ssh.sh"
@@ -98,9 +91,14 @@ GITEE_FORCE_PUSH_PROMPT="Force push to Gitee as a backup? [Y/n]: "
 
 source "$ARROW_MENU_SCRIPT"
 source "$RUNTIME_ENVIRONMENT"
+source "$SECRET_TOOL_COMMON"
 source "$GITHUB_HOST_REFRESH_SH"
 source "$GITEE_HOST_REFRESH_SH"
 source "$GITPUT_SECURITY_COMMON"
+# GIT_SYNC_COMMON before GITPUT_REPOSITORY_STATE: the latter's
+# get_default_remote() calls git_sync_get_github_ssh_url() at source time
+# (D20-LIN-LINKAGE), so the shared library must already be loaded.
+source "$GIT_SYNC_COMMON"
 source "$GITPUT_REPOSITORY_STATE"
 source "$GITPUT_SYNC_COMMON"
 
@@ -289,16 +287,14 @@ invoke_git_operations() {
                     local global_password=""
 
                     while true; do
-                        write_color_text "Enter encryption password: " "Yellow"
-                        read -r password1
+                        secret_read_hidden password1 "Enter encryption password: "
 
                         if [ -z "$password1" ]; then
                             write_color_text "ERROR: Password cannot be empty. Please try again." "Red"
                             continue
                         fi
 
-                        write_color_text "Confirm encryption password: " "Yellow"
-                        read -r password2
+                        secret_read_hidden password2 "Confirm encryption password: "
 
                         if [ "$password1" = "$password2" ]; then
                             global_password="$password1"
@@ -327,12 +323,12 @@ invoke_git_operations() {
                         write_color_text "  - Input: $file" "DarkGray"
                         write_color_text "  - Password: $masked_password" "DarkGray"
                         write_color_text "  - Output Dir: $secret_keys_encrypted_dir" "DarkGray"
-                        write_color_text "  - Command: node disguise.js \"$file\" \"$masked_password\" \"$secret_keys_encrypted_dir\"" "DarkGray"
+                        write_color_text "  - Command: node secret_password_runner.js disguise.js \"$file\" $SECRET_PASSWORD_ARG \"$secret_keys_encrypted_dir\"" "DarkGray"
 
                         # Run disguise.js encryption
                         write_color_text "Running encryption..." "Cyan"
                         local result
-                        result=$(node "$disguise_js_path" "$file" "$global_password" "$secret_keys_encrypted_dir" 2>&1)
+                        result=$(secret_tool_run "$global_password" "" node "$disguise_js_path" "$file" "$SECRET_PASSWORD_ARG" "$secret_keys_encrypted_dir" 2>&1)
                         local exit_code=$?
 
                         if [ $exit_code -eq 0 ]; then
@@ -480,6 +476,14 @@ invoke_git_operations() {
 # Main execution with error handling
 main() {
     CURRENT_BRANCH_PREVIEW=$(cd "$CORE_NODE_DIR" && get_current_branch)
+
+    # D20: one shared "origin is GitHub SSH, never Gitee" behavior, reused
+    # from scripts/shells/linux/common/git_sync_common.sh (also used by the
+    # "syncgit" quick command and dd.sh syncgit). Idempotent: no-op when
+    # origin is already correct; does not abort the push flow on failure,
+    # since each target below sets its own remote explicitly anyway.
+    (cd "$CORE_NODE_DIR" && git_sync_ensure_github_ssh_origin "$CORE_NODE_DIR")
+
     GITHUB_FORCE_PUSH_MODE="no"
     GITEE_FORCE_PUSH_MODE="yes"
     GITEE_PREFER_LOCAL_MERGE=false

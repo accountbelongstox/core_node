@@ -33,6 +33,20 @@ def port(name: str) -> int:
     return resolved
 
 
+def path_value(name: str) -> str:
+    resolved = value(f"paths.{name}")
+    if not isinstance(resolved, str) or not resolved:
+        raise ValueError(f"Invalid service contract path: {name}")
+    return resolved
+
+
+def path_values(name: str) -> tuple[str, ...]:
+    resolved = value(f"paths.{name}")
+    if not isinstance(resolved, list) or not resolved or not all(isinstance(item, str) and item for item in resolved):
+        raise ValueError(f"Invalid service contract path list: {name}")
+    return tuple(resolved)
+
+
 def root_domain(index: int = 0) -> str:
     domains = value("access.root_domains")
     if not isinstance(domains, list) or index >= len(domains) or not isinstance(domains[index], str):

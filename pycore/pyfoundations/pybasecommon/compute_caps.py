@@ -36,6 +36,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 # Intra-pybasecommon imports (allowed: same stdlib-only kernel package).
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.network_constants import NVIDIA_SMI_TIMEOUT_SECONDS
 from pycore.pyfoundations.runtime_abi import ONNXRUNTIME_CUDA_MAJOR
 
 _TORCH_GETTER_STATE: Optional[Callable[[], Any]] = None
@@ -235,7 +236,11 @@ class CUDADetector:
         try:
             smi = cls._nvidia_smi_cmd()
             # Try to run nvidia-smi (resolved full path, not PATH-dependent)
-            result = exec_silent([smi, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'], info=False)
+            result = exec_silent(
+                [smi, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'],
+                info=False,
+                timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
+            )
 
             if result.return_code == 0 and result.stdout.strip():
                 gpus = []

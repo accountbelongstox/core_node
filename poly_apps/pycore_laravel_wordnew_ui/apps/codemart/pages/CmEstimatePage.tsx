@@ -2,34 +2,46 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Calculator, RotateCw } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
-import { cmPublicApi, type CmEstimateOptions, type CmPublicEstimateResult } from '../api/CmPublicApi';
-import { formatCmAmount, formatCmAmountRange } from '../components/public-home/cmPublicFormat';
+import { cmPublicApi, type CmEstimateLimits, type CmEstimateOptions, type CmPublicEstimateResult } from '../api/CmPublicApi';
 import { CmPublicIllustration, CmPublicSection } from '../components/public-home/CmPublicBlocks';
 import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { useCmProtectedNavigate } from '../components/public-home/useCmProtectedNavigate';
+import { CM_WHOLE_MONEY_DIGITS, cmFormatMoneyRange, cmFormatPercent } from '../components/workspace/cmWorkspaceFormat';
 
 interface CmEstimateDraft {
   complexity: string;
   budgetType: string;
-  platforms: number;
-  features: number;
+  platforms: string;
+  features: string;
 }
+
+type CmEstimateCountField = 'platforms' | 'features';
 
 const HOURLY_BUDGET_TYPE = 'hourly';
 const ESTIMATE_HOW_STEPS = ['policy', 'range', 'proposal'];
+const ESTIMATE_COUNT_FIELDS: readonly CmEstimateCountField[] = ['platforms', 'features'];
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, Number.isFinite(value) ? Math.round(value) : min));
+function clampCount(value: string, limits: CmEstimateLimits): string {
+  const parsed = value.trim() === '' ? Number.NaN : Number(value);
+  return String(Math.max(limits.min, Math.min(limits.max, Number.isFinite(parsed) ? Math.round(parsed) : limits.min)));
+}
+
+function clampDraft(draft: CmEstimateDraft, options: CmEstimateOptions): CmEstimateDraft {
+  return {
+    ...draft,
+    platforms: clampCount(draft.platforms, options.platforms),
+    features: clampCount(draft.features, options.features),
+  };
 }
 
 function initialDraft(options: CmEstimateOptions): CmEstimateDraft {
   return {
     complexity: options.default_complexity,
     budgetType: options.default_budget_type,
-    platforms: options.platforms.default,
-    features: options.features.default,
+    platforms: String(options.platforms.default),
+    features: String(options.features.default),
   };
 }
 
@@ -54,8 +66,8 @@ export const CmEstimatePage: React.FC = () => {
     setError(null);
     const response = await cmPublicApi.estimate({
       complexity: next.complexity,
-      platforms: next.platforms,
-      features: next.features,
+      platforms: Number(next.platforms),
+      features: Number(next.features),
       budget_type: next.budgetType || undefined,
     });
     if (response.success && response.data) {
@@ -94,8 +106,20 @@ export const CmEstimatePage: React.FC = () => {
     setDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
+  const commitCount = (field: CmEstimateCountField): void => {
+    if (!options) return;
+    setDraft((current) => (current ? { ...current, [field]: clampCount(current[field], options[field]) } : current));
+  };
+
+  const submitEstimate = (): void => {
+    if (!draft || !options) return;
+    const next = clampDraft(draft, options);
+    setDraft(next);
+    void runEstimate(next);
+  };
+
   const currency = result?.currency || options?.currency || null;
-  const money = (value: string | number): string => formatCmAmount(value, currency, i18n.language);
+  const moneyRange = (min: string | number, max: string | number): string => cmFormatMoneyRange(min, max, currency, i18n.language, CM_WHOLE_MONEY_DIGITS);
   const teamRoles = result?.team_roles && result.team_roles.length > 0
     ? result.team_roles
     : (result?.recommended_team ?? []).map((role) => ({ role, count: 1 }));
@@ -127,7 +151,7 @@ export const CmEstimatePage: React.FC = () => {
                 className="cm-estimate-form cm-estimate-form--options"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  void runEstimate(draft);
+                  submitEstimate();
                 }}
               >
                 <label>
@@ -148,28 +172,21 @@ export const CmEstimatePage: React.FC = () => {
                     </select>
                   </label>
                 )}
-                <label>
-                  <span>{t('estimate.platforms')}</span>
-                  <input
-                    type="number"
-                    min={options.platforms.min}
-                    max={options.platforms.max}
-                    value={draft.platforms}
-                    onChange={(event) => updateDraft({ platforms: clamp(Number(event.target.value), options.platforms.min, options.platforms.max) })}
-                  />
-                  <small>{t('estimate.range', { min: options.platforms.min, max: options.platforms.max })}</small>
-                </label>
-                <label>
-                  <span>{t('estimate.features')}</span>
-                  <input
-                    type="number"
-                    min={options.features.min}
-                    max={options.features.max}
-                    value={draft.features}
-                    onChange={(event) => updateDraft({ features: clamp(Number(event.target.value), options.features.min, options.features.max) })}
-                  />
-                  <small>{t('estimate.range', { min: options.features.min, max: options.features.max })}</small>
-                </label>
+                {ESTIMATE_COUNT_FIELDS.map((field) => (
+                  <label key={field}>
+                    <span>{t(`estimate.${field}`)}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={options[field].min}
+                      max={options[field].max}
+                      value={draft[field]}
+                      onChange={(event) => updateDraft({ [field]: event.target.value })}
+                      onBlur={() => commitCount(field)}
+                    />
+                    <small>{t('estimate.range', { min: options[field].min, max: options[field].max })}</small>
+                  </label>
+                ))}
                 <button type="submit" className="cm-estimate-submit" disabled={pending}>
                   <Calculator aria-hidden="true" />
                   {pending ? t('common.loading') : t('estimate.calculate')}
@@ -181,7 +198,7 @@ export const CmEstimatePage: React.FC = () => {
               <div className="cm-public-form__notice is-error" role="alert">
                 <span>{error}</span>
                 {draft && (
-                  <button type="button" className="cm-public-form__link" onClick={() => void runEstimate(draft)}>
+                  <button type="button" className="cm-public-form__link" onClick={submitEstimate}>
                     <RotateCw aria-hidden="true" /> {t('estimate.retry')}
                   </button>
                 )}
@@ -193,12 +210,12 @@ export const CmEstimatePage: React.FC = () => {
               <section className="cm-estimate-result" aria-live="polite">
                 <div className="cm-estimate-result__row">
                   <span>{t('estimate.costRange')}</span>
-                  <strong>{formatCmAmountRange(result.estimated_cost_min, result.estimated_cost_max, currency, i18n.language)}</strong>
+                  <strong>{moneyRange(result.estimated_cost_min, result.estimated_cost_max)}</strong>
                 </div>
                 {isHourly && result.hourly_rate_min && result.hourly_rate_max && (
                   <div className="cm-estimate-result__row">
                     <span>{t('estimate.hourlyRange')}</span>
-                    <strong>{t('estimate.perHour', { range: `${money(result.hourly_rate_min)} – ${money(result.hourly_rate_max)}` })}</strong>
+                    <strong>{t('estimate.perHour', { range: moneyRange(result.hourly_rate_min, result.hourly_rate_max) })}</strong>
                   </div>
                 )}
                 <div className="cm-estimate-result__row">
@@ -221,7 +238,7 @@ export const CmEstimatePage: React.FC = () => {
                 {Number.isFinite(result.platform_commission_rate) && (
                   <div className="cm-estimate-result__row">
                     <span>{t('estimate.commission')}</span>
-                    <strong>{new Intl.NumberFormat(i18n.language, { style: 'percent', maximumFractionDigits: 2 }).format(result.platform_commission_rate)}</strong>
+                    <strong>{cmFormatPercent(result.platform_commission_rate, i18n.language)}</strong>
                   </div>
                 )}
                 <p className="cm-estimate-result__note">{t('estimate.commissionNote')}</p>
@@ -237,7 +254,7 @@ export const CmEstimatePage: React.FC = () => {
             )}
           </div>
           <aside className="cm-estimate-aside">
-            <CmPublicIllustration name="estimate-calculator" altKey="estimate.imageAlt" eager />
+            <CmPublicIllustration name="estimate-calculator" />
             <h2>{t('estimate.how.title')}</h2>
             <ol>
               {ESTIMATE_HOW_STEPS.map((step) => (

@@ -6,16 +6,13 @@ use Illuminate\Support\Facades\Route;
 /**
  * Local AI gateway routes — the PHP twin of pycore's /api/local/ai/* surface.
  *
- * Public (no auth): the dashboard's AI Management page calls these from the
- * browser, and provider keys are never returned (only first4…last4 masks). Rate
- * counters are shared with pycore, so the same free-tier budget is enforced
- * regardless of which runtime served the request.
- *
- * A `throttle` bound is applied so an unauthenticated caller cannot flood the
- * gateway: the per-provider free-tier limiter already caps real token spend, and
- * this caps request rate on top (the UI only polls a couple GETs every 5s).
+ * Operator surface: only the dashboard's AI Management page calls these, so the
+ * group takes `dashboard.auth` (admin). Provider keys, stored chats and images,
+ * and paid provider calls are never reachable anonymously. Rate counters are
+ * shared with pycore, so the same free-tier budget is enforced regardless of
+ * which runtime served the request; the throttle caps request rate on top.
  */
-Route::prefix('local/ai')->middleware('throttle:120,1')->group(function () {
+Route::prefix('local/ai')->middleware(['throttle:120,1', 'dashboard.auth'])->group(function () {
     Route::get('catalog', [AiLocalController::class, 'catalog']);
     Route::get('probe', [AiLocalController::class, 'probe']);
     Route::post('chat', [AiLocalController::class, 'chat']);

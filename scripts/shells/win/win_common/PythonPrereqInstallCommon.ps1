@@ -360,7 +360,7 @@ function Invoke-PythonPrereqInstall {
     $cudaPolicy = Get-CudaRuntimePolicy
     if ($cudaPolicy.Enabled) {
         $cudaLine = Get-NvidiaDriverCudaVersionLine
-        Write-Host "$LogPrefix NVIDIA GPU detected $(if ($cudaLine) { "($cudaLine)" }) — unified $($cudaPolicy.Tag) policy."
+        Write-Host "$LogPrefix NVIDIA GPU detected $(if ($cudaLine) { "($cudaLine)" }) - unified $($cudaPolicy.Tag) policy."
         Write-Host "$LogPrefix   torch index   -> $($cudaPolicy.TorchIndexUrl)"
         Write-Host "$LogPrefix   paddle index  -> $($cudaPolicy.PaddleIndexUrl)"
     } else {

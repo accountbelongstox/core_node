@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # Shared idempotent AI CLI provisioning (Linux / bash)
@@ -39,28 +28,60 @@ AI_CLI_UPGRADE_TIMEOUT_SECONDS="5"
 AI_CLI_ULTRACODE_TIMEOUT_SECONDS="2"
 AI_CLI_ULTRACODE_SETTINGS_JSON='{"ultracode":true}'
 AI_CLI_ULTRACODE_ARGS=()
-AI_CLI_KIMI_INSTALLER_URL="https://code.kimi.com/kimi-code/install.sh"
 AI_CLI_CLAUDE_LATEST_URL="https://downloads.claude.ai/claude-code-releases/latest"
 AI_CLI_PROVISION_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AI_CLI_CORE_NODE_DIR="$(cd "$AI_CLI_PROVISION_COMMON_DIR/../../../.." && pwd)"
 AI_CLI_CLAUDE_INSTALL_LIB="$AI_CLI_CORE_NODE_DIR/scripts/ai_shtools/claude_code_install.sh"
 
+# Single catalog (key, command, method, package/URL, link name) - read instead
+# of keeping a second package table here.
+if ! command -v ai_catalog_get >/dev/null 2>&1; then
+    # shellcheck source=ai_tools_catalog.sh
+    . "$AI_CLI_PROVISION_COMMON_DIR/ai_tools_catalog.sh"
+fi
+AI_CLI_KIMI_INSTALLER_URL="$(ai_catalog_get kimi package_id)"
+
+# Only claude/codex/kimi are lazily installed/upgraded by launchers; every
+# other catalog tool is handled up front by install_shells/99_install_ai_tools.sh.
 ai_cli_package() {
     case "$1" in
-        claude) printf '%s' "@anthropic-ai/claude-code" ;;
-        codex) printf '%s' "@openai/codex" ;;
-        kimi) printf '%s' "@moonshot-ai/kimi-code" ;;
+        claude|codex|kimi) ai_catalog_get "$1" "package_id" ;;
         *) printf '%s' "" ;;
     esac
 }
 
 ai_cli_label() {
     case "$1" in
-        claude) printf '%s' "Claude Code" ;;
-        codex) printf '%s' "Codex CLI" ;;
-        kimi) printf '%s' "Kimi Code CLI" ;;
+        claude|codex|kimi)
+            local label=""
+            label="$(ai_catalog_get "$1" "name")"
+            printf '%s' "${label:-$1}"
+            ;;
         *) printf '%s' "$1" ;;
     esac
+}
+
+# Masked form of a secret for launcher summaries (at most 4 chars kept per end).
+ai_cli_mask_secret() {
+    local value="$1"
+    local length=0
+    local keep=4
+    local middle=""
+
+    if [ -z "$value" ]; then
+        echo "[empty]"
+        return
+    fi
+    length=${#value}
+    if [ "$length" -le 4 ]; then
+        printf '%*s\n' "$length" '' | tr ' ' '*'
+        return
+    fi
+    if [ "$length" -le 8 ]; then
+        keep=1
+    fi
+    middle="$(printf '%*s' "$((length - 2 * keep))" '' | tr ' ' '*')"
+    printf '%s%s%s\n' "${value:0:keep}" "$middle" "${value: -keep}"
 }
 
 ai_cli_extract_version() {

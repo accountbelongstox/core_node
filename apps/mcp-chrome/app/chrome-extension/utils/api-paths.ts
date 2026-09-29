@@ -66,7 +66,7 @@ export const TASK_LIST_PATH = '/api/task/list';
 export const TASK_CENTER_OVERVIEW_PATH = '/api/task-center/overview';
 
 /** Id-parameterized task sub-routes. */
-export type TaskSubPath = 'detail' | 'bump' | 'stream';
+export type TaskSubPath = 'detail' | 'bump';
 
 /** Build `/api/task/{id}/{sub}` with the id percent-encoded (matches callers). */
 export function taskPath(id: string, sub: TaskSubPath): string {

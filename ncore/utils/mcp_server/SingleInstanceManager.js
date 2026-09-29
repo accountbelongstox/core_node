@@ -1,21 +1,16 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const logger = require('#@logger');
 const globalDir = require('#@global_dir');
+const { getThreadBus } = require('#@thread_bus');
+
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 5000;
+const STALE_HEARTBEAT_MULTIPLIER = 3;
+const ACQUIRE_ATTEMPTS = 2;
+const SHUTDOWN_PRIORITY_LAST = 1000;
 
 /**
  * Single Instance Manager for MCP Servers
@@ -58,9 +53,11 @@ class SingleInstanceManager {
         this.lockDir = options.lockDir || this.getDefaultLockDir();
         this.lockFilePath = path.join(this.lockDir, `${this.serverName}.lock`);
         this.locked = false;
-        this.heartbeatInterval = options.heartbeatInterval || 5000;
-        this.staleThreshold = options.staleThreshold || 6000;
+        this.heartbeatInterval = options.heartbeatInterval || DEFAULT_HEARTBEAT_INTERVAL_MS;
+        this.staleThreshold = options.staleThreshold || this.heartbeatInterval * STALE_HEARTBEAT_MULTIPLIER;
         this.heartbeatTimer = null;
+        this.hostname = os.hostname();
+        this.cleanupRegistered = false;
     }
 
     /**
@@ -77,12 +74,11 @@ class SingleInstanceManager {
      */
     ensureLockDirectory() {
         try {
-            if (!fs.existsSync(this.lockDir)) {
-                fs.mkdirSync(this.lockDir, { recursive: true });
-            }
+            fs.mkdirSync(this.lockDir, { recursive: true });
+            return true;
         } catch (error) {
             logger.error(`Failed to create lock directory: ${error.message}`);
-            throw error;
+            return false;
         }
     }
 
@@ -106,44 +102,104 @@ class SingleInstanceManager {
         }
     }
 
+    buildLockData() {
+        if (!this.startTime) {
+            this.startTime = Date.now();
+        }
+        return {
+            pid: process.pid,
+            serverName: this.serverName,
+            startTime: this.startTime,
+            lastHeartbeat: Date.now(),
+            hostname: this.hostname
+        };
+    }
+
     /**
-     * Write lock file with current timestamp
+     * Create the lock file atomically; fails when another process created it first
+     * @returns {boolean} True if this process created the lock file
      */
-    writeLockFile() {
+    createLockFile() {
+        let fd = null;
         try {
-            const lockData = {
-                pid: process.pid,
-                serverName: this.serverName,
-                startTime: this.startTime || Date.now(),
-                lastHeartbeat: Date.now(),
-                hostname: require('os').hostname()
-            };
-
-            if (!this.startTime) {
-                this.startTime = lockData.startTime;
-            }
-
-            fs.writeFileSync(this.lockFilePath, JSON.stringify(lockData, null, 2), 'utf8');
-            logger.debug(`Lock file updated: ${this.lockFilePath} (PID: ${process.pid})`);
+            fd = fs.openSync(this.lockFilePath, 'wx');
+            fs.writeSync(fd, JSON.stringify(this.buildLockData(), null, 2));
+            return true;
         } catch (error) {
-            logger.error(`Failed to write lock file: ${error.message}`);
-            throw error;
+            if (error.code !== 'EEXIST') {
+                logger.error(`Failed to create lock file: ${error.message}`);
+            }
+            return false;
+        } finally {
+            if (fd !== null) {
+                fs.closeSync(fd);
+            }
         }
     }
 
     /**
-     * Update lock file heartbeat timestamp
+     * Rewrite the lock file (temp file plus rename) while this process owns it
+     * @returns {boolean} True on success
+     */
+    writeLockFile() {
+        const tempPath = `${this.lockFilePath}.${process.pid}.tmp`;
+        try {
+            fs.writeFileSync(tempPath, JSON.stringify(this.buildLockData(), null, 2), 'utf8');
+            fs.renameSync(tempPath, this.lockFilePath);
+            logger.debug(`Lock file updated: ${this.lockFilePath} (PID: ${process.pid})`);
+            return true;
+        } catch (error) {
+            logger.error(`Failed to write lock file: ${error.message}`);
+            return false;
+        }
+    }
+
+    isOwnLock(lockData) {
+        return Boolean(lockData) && lockData.pid === process.pid && lockData.hostname === this.hostname;
+    }
+
+    isPidAlive(pid) {
+        try {
+            process.kill(pid, 0);
+            return true;
+        } catch (error) {
+            return error.code === 'EPERM';
+        }
+    }
+
+    /**
+     * A lock is held when its owner process is alive (same host) or its heartbeat is fresh (other host)
+     * @param {Object|null} lockData - Lock file content
+     * @returns {boolean}
+     */
+    isLockHeld(lockData) {
+        if (!lockData || !Number.isInteger(lockData.pid)) {
+            return false;
+        }
+        if (lockData.hostname === this.hostname) {
+            return lockData.pid === process.pid || this.isPidAlive(lockData.pid);
+        }
+        return Date.now() - Number(lockData.lastHeartbeat || 0) <= this.staleThreshold;
+    }
+
+    /**
+     * Update lock file heartbeat timestamp; stop if another process now owns the lock
      */
     updateHeartbeat() {
         if (!this.locked) {
             return;
         }
 
-        try {
-            this.writeLockFile();
+        const lockData = this.readLockFile();
+        if (!this.isOwnLock(lockData)) {
+            logger.error(`Lock for ${this.serverName} is no longer owned by PID ${process.pid}; stopping heartbeat`);
+            this.locked = false;
+            this.stopHeartbeat();
+            return;
+        }
+
+        if (this.writeLockFile()) {
             logger.debug(`Heartbeat updated for ${this.serverName}`);
-        } catch (error) {
-            logger.error(`Failed to update heartbeat: ${error.message}`);
         }
     }
 
@@ -158,6 +214,7 @@ class SingleInstanceManager {
         this.heartbeatTimer = setInterval(() => {
             this.updateHeartbeat();
         }, this.heartbeatInterval);
+        this.heartbeatTimer.unref();
 
         logger.info(`Heartbeat started: updating every ${this.heartbeatInterval}ms`);
     }
@@ -180,34 +237,45 @@ class SingleInstanceManager {
     isLockStale() {
         const lockData = this.readLockFile();
 
-        if (!lockData) {
+        if (!lockData || this.isLockHeld(lockData)) {
             return false;
         }
 
-        const now = Date.now();
-        const timeSinceHeartbeat = now - lockData.lastHeartbeat;
-
-        if (timeSinceHeartbeat > this.staleThreshold) {
-            logger.warn(`Lock is stale: last heartbeat was ${timeSinceHeartbeat}ms ago (threshold: ${this.staleThreshold}ms)`);
-            return true;
-        }
-
-        return false;
+        logger.warn(`Lock is stale: PID ${lockData.pid} on ${lockData.hostname} is not running or its heartbeat expired`);
+        return true;
     }
 
     /**
-     * Release lock file
+     * Release lock file, only when this process owns it
      */
     releaseLock() {
         try {
-            if (fs.existsSync(this.lockFilePath)) {
+            const lockData = this.readLockFile();
+            if (this.isOwnLock(lockData)) {
                 fs.unlinkSync(this.lockFilePath);
                 logger.debug(`Lock file released: ${this.lockFilePath}`);
             }
-
             this.locked = false;
         } catch (error) {
             logger.error(`Failed to release lock: ${error.message}`);
+        }
+    }
+
+    /**
+     * Remove a lock file whose owner is gone, unless it changed since it was read
+     * @param {Object|null} staleData - Lock content that was judged stale
+     */
+    removeStaleLock(staleData) {
+        try {
+            const current = this.readLockFile();
+            const unchanged = !current || !staleData
+                || (current.pid === staleData.pid && current.startTime === staleData.startTime && current.hostname === staleData.hostname);
+            if (unchanged && fs.existsSync(this.lockFilePath)) {
+                fs.unlinkSync(this.lockFilePath);
+                logger.warn(`Removed stale lock ${this.lockFilePath}`);
+            }
+        } catch (error) {
+            logger.error(`Failed to remove stale lock: ${error.message}`);
         }
     }
 
@@ -222,12 +290,7 @@ class SingleInstanceManager {
             }
 
             if (this.isLockStale()) {
-                const lockData = this.readLockFile();
-                if (lockData) {
-                    logger.warn(`Stale lock detected (PID ${lockData.pid}, no heartbeat for ${Date.now() - lockData.lastHeartbeat}ms), cleaning up...`);
-                }
-
-                this.releaseLock();
+                this.removeStaleLock(this.readLockFile());
                 return true;
             }
 
@@ -261,7 +324,7 @@ class SingleInstanceManager {
                 hostname: lockData.hostname,
                 uptime: now - lockData.startTime,
                 timeSinceHeartbeat: timeSinceHeartbeat,
-                isStale: timeSinceHeartbeat > this.staleThreshold
+                isStale: !this.isLockHeld(lockData)
             };
         } catch (error) {
             logger.error(`Failed to get existing instance info: ${error.message}`);
@@ -275,16 +338,20 @@ class SingleInstanceManager {
      */
     acquireLock() {
         try {
-            this.ensureLockDirectory();
+            if (!this.ensureLockDirectory()) {
+                return false;
+            }
 
-            this.cleanupStaleLock();
+            let created = false;
+            for (let attempt = 0; attempt < ACQUIRE_ATTEMPTS && !created; attempt++) {
+                created = this.createLockFile();
+                if (created) {
+                    break;
+                }
 
-            const existingLock = this.readLockFile();
-
-            if (existingLock) {
-                const existingInstance = this.getExistingInstanceInfo();
-
-                if (!existingInstance.isStale) {
+                const existingLock = this.readLockFile();
+                if (this.isLockHeld(existingLock)) {
+                    const existingInstance = this.getExistingInstanceInfo();
                     logger.error(`Another instance is already running:`);
                     logger.error(`  PID: ${existingInstance.pid}`);
                     logger.error(`  Hostname: ${existingInstance.hostname}`);
@@ -292,9 +359,15 @@ class SingleInstanceManager {
                     logger.error(`  Last heartbeat: ${Math.round(existingInstance.timeSinceHeartbeat / 1000)}s ago`);
                     return false;
                 }
+
+                this.removeStaleLock(existingLock);
             }
 
-            this.writeLockFile();
+            if (!created) {
+                logger.error(`Could not create lock file ${this.lockFilePath}`);
+                return false;
+            }
+
             this.locked = true;
             this.setupCleanupHandlers();
             this.startHeartbeat();
@@ -315,23 +388,20 @@ class SingleInstanceManager {
      * Setup cleanup handlers for graceful shutdown
      */
     setupCleanupHandlers() {
-        const cleanup = () => {
-            this.shutdown();
-        };
+        if (this.cleanupRegistered) {
+            return;
+        }
+        this.cleanupRegistered = true;
 
-        process.on('exit', cleanup);
-        process.on('SIGINT', () => {
-            cleanup();
-            process.exit(0);
+        // Signals are coordinated by ThreadBus; the lock is released last, after async shutdowns finish
+        getThreadBus().register(`single-instance:${this.serverName}`, {
+            priority: SHUTDOWN_PRIORITY_LAST,
+            onShutdown: async () => this.shutdown()
         });
-        process.on('SIGTERM', () => {
-            cleanup();
-            process.exit(0);
-        });
-        process.on('uncaughtException', (error) => {
-            logger.error('Uncaught exception:', error);
-            cleanup();
-            process.exit(1);
+        process.on('exit', () => {
+            if (this.locked) {
+                this.shutdown();
+            }
         });
     }
 
@@ -358,7 +428,8 @@ class SingleInstanceManager {
     forceReleaseLock() {
         logger.warn('Force releasing lock...');
         this.stopHeartbeat();
-        this.releaseLock();
+        this.removeStaleLock(null);
+        this.locked = false;
     }
 
     /**

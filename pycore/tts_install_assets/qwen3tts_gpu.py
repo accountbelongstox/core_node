@@ -8,6 +8,11 @@ import subprocess
 import time
 from typing import Any, Callable, Dict, List
 
+import tts_server_common
+
+_network_constants = tts_server_common.load_network_constants()
+NVIDIA_SMI_TIMEOUT_SECONDS = getattr(_network_constants, "NVIDIA_SMI_TIMEOUT_SECONDS", 10)
+
 MODEL_CAPACITY_PROFILES: Dict[str, Dict[str, int]] = {
     "0.6B": {
         "incremental_vram_mb": 768,
@@ -50,6 +55,7 @@ def query_gpu_snapshot(device_index: int = 0) -> Dict[str, Any]:
             encoding="utf-8",
             errors="replace",
             check=False,
+            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
         )
     except Exception:  # noqa: BLE001
         return base

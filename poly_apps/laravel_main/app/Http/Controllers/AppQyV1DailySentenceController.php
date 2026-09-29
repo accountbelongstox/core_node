@@ -28,7 +28,7 @@ class AppQyV1DailySentenceController extends Controller
         $offset = $page > 0 ? ($page - 1) * max(1, $limit) : (int) $request->query('offset', 0);
         $data = (new AppQyV1DailySentenceService())->list($limit, $offset);
         $data['deprecated_notice'] = self::DEPRECATED_NOTICE;
-        return $this->success($data, 'Daily sentences');
+        return $this->success($data, __('api.messages.daily_sentences'));
     }
 
     public function recommend(): JsonResponse
@@ -37,7 +37,7 @@ class AppQyV1DailySentenceController extends Controller
         return $this->success([
             'item' => $item,
             'deprecated_notice' => self::DEPRECATED_NOTICE,
-        ], 'Daily sentence recommendation');
+        ], __('api.messages.daily_sentence_recommendation'));
     }
 
     /** Stream the stored TTS audio for a daily sentence. */
@@ -45,7 +45,7 @@ class AppQyV1DailySentenceController extends Controller
     {
         $path = (new AppQyV1DailySentenceService())->audioFile($id);
         if (!is_file($path)) {
-            return $this->notFound('Audio not found');
+            return $this->notFound(__('api.messages.audio_not_found'));
         }
         return response()->file($path, [
             'Content-Type' => 'audio/mpeg',

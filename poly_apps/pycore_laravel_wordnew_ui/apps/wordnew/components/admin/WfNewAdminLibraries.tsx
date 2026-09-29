@@ -29,9 +29,10 @@ import {
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
-import { wfNewAdminApi, wfNewAdminCoverTaskModel } from '../../api';
+import { wfNewAdminApi, wfNewAdminCoverTaskModel, adminErrorText } from '../../api';
 import type { LibraryCoverMode } from '@/core/integrations/laravel';
 import {
+  LIBRARY_COVER_WAITING_STATUSES,
   libraryCoverView,
   useLibraryCoverTasks,
   type LibraryCoverView,
@@ -56,7 +57,6 @@ function writeStoredLanguage(lang: string): void {
 
 const CHIP_CLS = 'inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 disabled:opacity-40 transition';
 const COVER_BADGE_CLS = 'absolute top-2 right-2 max-w-[70%] truncate text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border';
-const COVER_WAITING_STATUSES = ['pending', 'retry', 'processing'];
 
 interface WfNewAdminLibrariesProps {
   activeTheme: ElementTheme;
@@ -142,7 +142,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
       })
       .catch((e: any) => {
         if (!aliveRef.current || id !== reqIdRef.current) return;
-        setError(String(e?.message || 'Request failed'));
+        setError(adminErrorText(e));
         setData(null);
       })
       .finally(() => {
@@ -178,8 +178,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
   };
 
   const toastActionError = (e: any): void => {
-    if (e?.status === 401) addToast(trans('admin.needLogin'), 'warning');
-    else addToast(String(e?.message || 'Request failed'), 'warning');
+    addToast(adminErrorText(e), 'warning');
   };
 
   const enqueueCover = async (lib: WfNewAdminLibraryRow, mode: LibraryCoverMode): Promise<void> => {
@@ -208,7 +207,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
         title: cover.taskError || cover.errorMessage || undefined,
       };
     }
-    if (cover.coverStatus && COVER_WAITING_STATUSES.includes(cover.coverStatus)) {
+    if (cover.coverStatus && LIBRARY_COVER_WAITING_STATUSES.has(cover.coverStatus)) {
       return { label: trans('admin.lib.cover.pending'), tone: 'border-amber-500/40 bg-amber-500/20 text-amber-300' };
     }
     return null;

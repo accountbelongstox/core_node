@@ -8,27 +8,16 @@
  * Params mirror LaravelAPI.getQueueOverviewItems (category/status/start/limit).
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { laravelApi } from '@/apps/pycore-manager/api';
 import type { VocabAssistCategory } from '@/apps/pycore-manager/api';
 import { GLOBAL_TASK_LIMITS } from '@/apps/pycore-manager/api';
+import { pcLaravelErrorMessage } from '@/apps/pycore-manager/utils/pcErrorCodes';
 import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
 
-const L = {
-  categories: 'Queue categories',
-  workers: 'Workers',
-  pending: 'pending',
-  processing: 'processing',
-  leased: 'leased',
-  total: 'total',
-  handler: 'handler',
-  empty: 'No categories reported.',
-  back: 'Back',
-  items: 'Items',
-  generatedAt: 'Updated',
-};
-
 export default function VocabLearningTasksPanel() {
+  const { t } = useTranslation('pc');
   const [cats, setCats] = useState<VocabAssistCategory[]>([]);
   const [workers, setWorkers] = useState<Record<string, unknown>[]>([]);
   const [generatedAt, setGeneratedAt] = useState('');
@@ -48,23 +37,23 @@ export default function VocabLearningTasksPanel() {
       setGeneratedAt(p?.generated_at || '');
       setOffline(false);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : VL.error;
+      const msg = pcLaravelErrorMessage(e, t(VL.error));
       if (/offline|unavailable|Failed to fetch|timed out/i.test(msg)) setOffline(true);
       setError(msg);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void load(); }, [load]);
 
   if (loading && cats.length === 0) return <VocabLoading />;
-  if (offline && cats.length === 0) return <VocabBanner kind="offline" message={VL.offline} />;
+  if (offline && cats.length === 0) return <VocabBanner kind="offline" message={t(VL.offline)} />;
 
   return (
     <div className="space-y-4">
       {error && <VocabBanner kind="warn" message={error} />}
-      {generatedAt && <p className="text-xs text-slate-500">{L.generatedAt}: {generatedAt}</p>}
+      {generatedAt && <p className="text-xs text-slate-500">{t('vocabularyPage.learning.updatedAt', { time: generatedAt })}</p>}
 
       {activeCat ? (
         <CategoryItems cat={activeCat} onBack={() => setActiveCat(null)} />
@@ -72,20 +61,20 @@ export default function VocabLearningTasksPanel() {
         <>
           {/* Categories */}
           <div className="rounded-lg border border-slate-700 overflow-hidden">
-            <div className="px-3 py-2 bg-slate-800/60 text-sm font-medium text-slate-200">{L.categories}</div>
+            <div className="px-3 py-2 bg-slate-800/60 text-sm font-medium text-slate-200">{t('vocabularyPage.learning.categories')}</div>
             {cats.length === 0 ? (
-              <p className="px-3 py-6 text-center text-slate-500">{L.empty}</p>
+              <p className="px-3 py-6 text-center text-slate-500">{t('vocabularyPage.learning.empty')}</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-800/40 text-slate-400">
                     <tr>
-                      <th className="px-3 py-2 text-left">Category</th>
-                      <th className="px-3 py-2 text-left">{L.handler}</th>
-                      <th className="px-3 py-2 text-right">{L.pending}</th>
-                      <th className="px-3 py-2 text-right">{L.processing}</th>
-                      <th className="px-3 py-2 text-right">{L.leased}</th>
-                      <th className="px-3 py-2 text-right">{L.total}</th>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.category')}</th>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.handler')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.pending')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.processing')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.leased')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.total')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -93,7 +82,7 @@ export default function VocabLearningTasksPanel() {
                       <tr key={c.key || i} className="border-t border-slate-800 hover:bg-slate-800/30 cursor-pointer"
                         onClick={() => setActiveCat(c)}>
                         <td className="px-3 py-2 text-slate-100">{c.label || c.key}</td>
-                        <td className="px-3 py-2 text-slate-400" title={`Eligible: ${c.claimants.join(', ')}`}>
+                        <td className="px-3 py-2 text-slate-400" title={t('vocabularyPage.learning.eligible', { handlers: c.claimants.join(', ') })}>
                           {c.primary_handler || '-'}
                         </td>
                         <td className="px-3 py-2 text-right text-amber-300">{humanInt(c.pending)}</td>
@@ -111,15 +100,15 @@ export default function VocabLearningTasksPanel() {
           {/* Workers */}
           {workers.length > 0 && (
             <div className="rounded-lg border border-slate-700 overflow-hidden">
-              <div className="px-3 py-2 bg-slate-800/60 text-sm font-medium text-slate-200">{L.workers}</div>
+              <div className="px-3 py-2 bg-slate-800/60 text-sm font-medium text-slate-200">{t('vocabularyPage.learning.workers')}</div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-800/40 text-slate-400">
                     <tr>
-                      <th className="px-3 py-2 text-left">Worker</th>
-                      <th className="px-3 py-2 text-left">Kind</th>
-                      <th className="px-3 py-2 text-center">Online</th>
-                      <th className="px-3 py-2 text-right">Claimed</th>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.worker')}</th>
+                      <th className="px-3 py-2 text-left">{t('vocabularyPage.learning.kind')}</th>
+                      <th className="px-3 py-2 text-center">{t('vocabularyPage.learning.online')}</th>
+                      <th className="px-3 py-2 text-right">{t('vocabularyPage.learning.claimed')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -129,7 +118,7 @@ export default function VocabLearningTasksPanel() {
                         <td className="px-3 py-2 text-slate-400">{String(w.kind ?? '-')}</td>
                         <td className="px-3 py-2 text-center">
                           <span className={`text-xs px-1.5 py-0.5 rounded ${w.online ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'}`}>
-                            {w.online ? 'online' : 'offline'}
+                            {t(w.online ? 'vocabularyPage.learning.onlineState' : 'vocabularyPage.learning.offlineState')}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right text-slate-300">{humanInt(w.claimed as number)}</td>
@@ -147,6 +136,7 @@ export default function VocabLearningTasksPanel() {
 }
 
 function CategoryItems({ cat, onBack }: { cat: VocabAssistCategory; onBack: () => void }) {
+  const { t } = useTranslation('pc');
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [start, setStart] = useState(0);
@@ -166,12 +156,12 @@ function CategoryItems({ cat, onBack }: { cat: VocabAssistCategory; onBack: () =
     <div className="space-y-3">
       <button onClick={onBack}
         className="inline-flex items-center gap-1 px-2 py-1 rounded text-sm text-slate-300 hover:bg-slate-700/50">
-        <ChevronLeft className="w-4 h-4" /> {L.back}
+        <ChevronLeft className="w-4 h-4" /> {t('vocabularyPage.learning.back')}
       </button>
-      <h3 className="text-base font-semibold text-slate-100">{cat.label || cat.key} · {L.items}</h3>
+      <h3 className="text-base font-semibold text-slate-100">{t('vocabularyPage.learning.items', { category: cat.label || cat.key })}</h3>
       <div className="overflow-x-auto rounded-lg border border-slate-700">
         {loading ? <VocabLoading /> : items.length === 0 ? (
-          <p className="py-6 text-center text-slate-500">{VL.empty}</p>
+          <p className="py-6 text-center text-slate-500">{t(VL.empty)}</p>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-slate-800/60 text-slate-400">
@@ -195,9 +185,9 @@ function CategoryItems({ cat, onBack }: { cat: VocabAssistCategory; onBack: () =
       </div>
       <div className="flex items-center justify-end gap-2 text-sm">
         <button onClick={() => setStart(Math.max(0, start - limit))} disabled={start === 0}
-          className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{VL.prev}</button>
+          className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{t(VL.prev)}</button>
         <button onClick={() => setStart(start + limit)} disabled={items.length < limit}
-          className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{VL.next}</button>
+          className="px-3 py-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50">{t(VL.next)}</button>
       </div>
     </div>
   );

@@ -1,8 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# ### AI SPECIAL ATTENTION RULES END ###
 #
 # Gitee hosts refresh. Replaces only the marked block. Tries IP library, caches working IP.
 # Markers: # Gitee Host Start ... # Gitee Host End

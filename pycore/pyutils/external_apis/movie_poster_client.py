@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.external_apis.image_search_client import (
@@ -234,7 +235,7 @@ def _tmdb_find(title: str, year: Optional[int], language: str) -> Optional[Dict[
             return None
         results: List[Dict[str, Any]] = (resp.json() or {}).get("results") or []
     except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[MoviePoster] TMDB search failed ({exc})")
+        ColorPrint.yellow(f"[MoviePoster] TMDB search failed ({redacted_http_error(exc)})")
         return None
 
     # Prefer movie/tv with a poster, then any result with a poster.
@@ -329,7 +330,7 @@ def _omdb_find(title: str, year: Optional[int]) -> Optional[Dict[str, Any]]:
             return None
         data = resp.json() or {}
     except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[MoviePoster] OMDB lookup failed ({exc})")
+        ColorPrint.yellow(f"[MoviePoster] OMDB lookup failed ({redacted_http_error(exc)})")
         return None
 
     if str(data.get("Response", "")).lower() != "true":

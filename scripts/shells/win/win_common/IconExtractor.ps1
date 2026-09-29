@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # IconExtractor.ps1 - Windows Icon Extraction Utility
 # This script provides functions to extract icons from executables and shortcuts
 
@@ -17,7 +5,6 @@
 try {
     Add-Type -AssemblyName System.Drawing
     Add-Type -AssemblyName System.Windows.Forms
-    Write-Host "Assemblies loaded successfully" -ForegroundColor Green
 } catch {
     Write-Error "Failed to load required assemblies: $($_.Exception.Message)"
     return
@@ -72,16 +59,16 @@ function Extract-IconFromFile {
         }
         
         $targetPath = $FilePath
-        
+
         # If it's a shortcut, get the target path
-        if ($FilePath.EndsWith('.lnk')) {
+        if ($FilePath.EndsWith('.lnk', [System.StringComparison]::OrdinalIgnoreCase)) {
             try {
                 $shell = New-Object -ComObject WScript.Shell
                 $shortcut = $shell.CreateShortcut($FilePath)
                 $targetPath = $shortcut.TargetPath
                 
                 # If target path is empty or doesn't exist, use the shortcut itself
-                if ([string]::IsNullOrEmpty($targetPath) -or -not (Test-Path $targetPath)) {
+                if ([string]::IsNullOrEmpty($targetPath) -or -not (Test-Path -LiteralPath $targetPath)) {
                     $targetPath = $FilePath
                 }
             }
@@ -96,7 +83,7 @@ function Extract-IconFromFile {
         $outputPath = Join-Path $OutputDir "$IconName.$Format"
         
         # Method 1: Try to extract from executable
-        if ($targetPath.EndsWith('.exe') -and (Test-Path $targetPath)) {
+        if ($targetPath.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $targetPath)) {
             try {
                 $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($targetPath)
                 if ($icon) {
@@ -109,10 +96,10 @@ function Extract-IconFromFile {
         }
         
         # Method 2: Try to get icon from file association (simplified)
-        if (-not $icon -and (Test-Path $targetPath)) {
+        if (-not $icon -and (Test-Path -LiteralPath $targetPath)) {
             try {
                 # Try to get icon from file system
-                $fileInfo = Get-Item $targetPath -ErrorAction SilentlyContinue
+                $fileInfo = Get-Item -LiteralPath $targetPath -ErrorAction SilentlyContinue
                 if ($fileInfo) {
                     # For now, just use the basic icon extraction
                     Write-Host "Using basic icon extraction for: $targetPath" -ForegroundColor Yellow

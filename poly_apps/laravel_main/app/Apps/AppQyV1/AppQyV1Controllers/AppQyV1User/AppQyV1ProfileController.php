@@ -26,7 +26,7 @@ class AppQyV1ProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         // Idempotent read-time repair: fixes empty / missing / legacy
@@ -51,7 +51,7 @@ class AppQyV1ProfileController extends Controller
             'is_active' => $user->is_active ?? 1,
         ];
 
-        return $this->success(['user' => $userProfile], 'Profile retrieved successfully');
+        return $this->success(['user' => $userProfile], __('app_qy_v1.messages.profile_retrieved_successfully'));
     }
 
     /**
@@ -62,7 +62,7 @@ class AppQyV1ProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -77,7 +77,7 @@ class AppQyV1ProfileController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $validated = $validator->validated();
@@ -153,7 +153,7 @@ class AppQyV1ProfileController extends Controller
             'is_active' => $user->is_active ?? 1,
         ];
 
-        return $this->success(['user' => $userProfile], 'Profile updated successfully');
+        return $this->success(['user' => $userProfile], __('app_qy_v1.messages.profile_updated_successfully'));
     }
 
     /**
@@ -176,7 +176,7 @@ class AppQyV1ProfileController extends Controller
         $avatarPath = null;
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -184,13 +184,13 @@ class AppQyV1ProfileController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $uploadedFile = $request->file('avatar');
         $rawBytes = @file_get_contents($uploadedFile->getRealPath());
         if ($rawBytes === false || $rawBytes === '') {
-            return $this->error('Failed to read uploaded avatar file', 422);
+            return $this->error(__('app_qy_v1.messages.failed_to_read_uploaded_avatar_file'), 422);
         }
 
         $mimeType = $uploadedFile->getMimeType();
@@ -207,7 +207,7 @@ class AppQyV1ProfileController extends Controller
         $avatarPath = AvatarService::saveBase64Avatar($base64Payload, $user->id, AppKeys::APPQYV1, null);
 
         if (!$avatarPath) {
-            return $this->error('Failed to process avatar image', 422);
+            return $this->error(__('app_qy_v1.messages.failed_to_process_avatar_image'), 422);
         }
 
         $user->updateRecord(['avatar' => $avatarPath]);
@@ -219,7 +219,7 @@ class AppQyV1ProfileController extends Controller
         return $this->success([
             'avatar' => $avatarPath,
             'avatar_url' => $this->getAvatarUrl($avatarPath),
-        ], 'Avatar uploaded successfully');
+        ], __('app_qy_v1.messages.avatar_uploaded_successfully'));
     }
 
     /**
@@ -264,7 +264,7 @@ class AppQyV1ProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $totalWords = 0;
@@ -423,7 +423,7 @@ class AppQyV1ProfileController extends Controller
             'totalStudyTime' => $totalStudyTime,
         ];
 
-        return $this->success($data, 'Statistics retrieved successfully');
+        return $this->success($data, __('app_qy_v1.messages.statistics_retrieved_successfully'));
     }
 
     /**
@@ -434,7 +434,7 @@ class AppQyV1ProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $defaultPreferences = [
@@ -456,7 +456,7 @@ class AppQyV1ProfileController extends Controller
 
         $preferences = array_merge($defaultPreferences, $userPreferences);
 
-        return $this->success($preferences, 'Preferences retrieved successfully');
+        return $this->success($preferences, __('app_qy_v1.messages.preferences_retrieved_successfully'));
     }
 
     /**
@@ -467,7 +467,7 @@ class AppQyV1ProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -480,7 +480,7 @@ class AppQyV1ProfileController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $validated = $validator->validated();
@@ -511,7 +511,7 @@ class AppQyV1ProfileController extends Controller
         $user->preferences = $updatedPreferences;
         $user->saveRecord();
 
-        return $this->success($updatedPreferences, 'Preferences updated successfully');
+        return $this->success($updatedPreferences, __('app_qy_v1.messages.preferences_updated_successfully'));
     }
 
     /**

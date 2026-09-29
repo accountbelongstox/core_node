@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Loader2, RefreshCw, X } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { CM_WORKSPACE_IMAGES } from './cmWorkspaceImages';
+import { CmImage } from '../CmImage';
 
 export type CmNoticeTone = 'success' | 'error' | 'info';
 
@@ -30,7 +30,7 @@ export function useCmNotice(): CmNoticeController {
 
 const NOTICE_ICONS = { success: CheckCircle2, error: AlertTriangle, info: Info } as const;
 
-export const CmNotice: React.FC<{ notice: CmNoticeState | null; onDismiss?: () => void }> = ({ notice, onDismiss }) => {
+export const CmNotice: React.FC<{ notice: CmNoticeState | null; onDismiss?: () => void; onRetry?: () => void }> = ({ notice, onDismiss, onRetry }) => {
   const { t } = useTranslation('cm');
   if (!notice) return null;
   const Icon = NOTICE_ICONS[notice.tone];
@@ -38,6 +38,11 @@ export const CmNotice: React.FC<{ notice: CmNoticeState | null; onDismiss?: () =
     <div className="cm-notice" data-tone={notice.tone} role={notice.tone === 'error' ? 'alert' : 'status'}>
       <Icon aria-hidden="true" />
       <p>{notice.text}</p>
+      {onRetry && (
+        <button type="button" className="cm-notice__action" onClick={onRetry}>
+          <RefreshCw aria-hidden="true" /> {t('common.retry')}
+        </button>
+      )}
       {onDismiss && (
         <button type="button" onClick={onDismiss} aria-label={t('common.dismiss')}>
           <X aria-hidden="true" />
@@ -83,10 +88,9 @@ interface CmEmptyStateProps {
 }
 
 export const CmEmptyState: React.FC<CmEmptyStateProps> = ({ title, body, action, compact = false }) => {
-  const image = CM_WORKSPACE_IMAGES.emptyWorkspace;
   return (
     <section className={`cm-state cm-state--empty ${compact ? 'is-compact' : ''}`}>
-      {!compact && <img src={image.src} width={image.width} height={image.height} alt="" loading="lazy" decoding="async" />}
+      {!compact && <CmImage name="empty-workspace" />}
       <div>
         <h2>{title}</h2>
         {body && <p>{body}</p>}
@@ -94,4 +98,23 @@ export const CmEmptyState: React.FC<CmEmptyStateProps> = ({ title, body, action,
       </div>
     </section>
   );
+};
+
+interface CmListStateProps {
+  loading: boolean;
+  error: string | null;
+  empty: boolean;
+  emptyKey: string;
+  onRetry?: () => void;
+  compact?: boolean;
+  children: React.ReactNode;
+}
+
+/** Loading, error (with retry) and empty states around a list; renders the list once it has rows. */
+export const CmListState: React.FC<CmListStateProps> = ({ loading, error, empty, emptyKey, onRetry, compact = false, children }) => {
+  const { t } = useTranslation('cm');
+  if (loading) return <CmLoadingState compact={compact} />;
+  if (error) return <CmErrorState message={error} onRetry={onRetry} compact={compact} />;
+  if (empty) return <CmEmptyState title={t(emptyKey)} compact={compact} />;
+  return <>{children}</>;
 };

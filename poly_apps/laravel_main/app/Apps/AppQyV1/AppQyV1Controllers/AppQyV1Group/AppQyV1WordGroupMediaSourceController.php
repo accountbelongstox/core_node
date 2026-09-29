@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
@@ -121,7 +110,7 @@ class AppQyV1WordGroupMediaSourceController extends Controller
 
         $source = $this->findMediaSource($sourceType, $sourceKey);
         if (!$source) {
-            return $this->notFound('Media source not found');
+            return $this->notFound(__('app_qy_v1.messages.media_source_not_found'));
         }
 
         $currentWords = StrTool::toWordArray($group->gwords);
@@ -144,7 +133,7 @@ class AppQyV1WordGroupMediaSourceController extends Controller
                 'words_added' => 0,
                 'total_words' => count($currentWords) + $groupWordsCount,
                 'note' => 'Media source already linked to this group',
-            ], 'Media source already linked');
+            ], __('app_qy_v1.messages.media_source_already_linked'));
         }
 
         // Expensive precomputation stays OUTSIDE the transaction.
@@ -183,7 +172,7 @@ class AppQyV1WordGroupMediaSourceController extends Controller
                     'words_added' => 0,
                     'total_words' => count($freshWords) + $groupWordsCount,
                     'note' => 'Media source already linked to this group',
-                ], 'Media source already linked');
+                ], __('app_qy_v1.messages.media_source_already_linked'));
             }
 
             // Fill-missing merge against the freshly locked group state.
@@ -248,7 +237,7 @@ class AppQyV1WordGroupMediaSourceController extends Controller
                 'source_key' => $sourceKey,
                 'words_added' => $wordsAdded,
                 'total_words' => count($mergedWords) + $groupWordsCount,
-            ], 'Media source added to group successfully');
+            ], __('app_qy_v1.messages.media_source_added_to_group_successfully'));
         });
     }
 
@@ -283,7 +272,7 @@ class AppQyV1WordGroupMediaSourceController extends Controller
 
         $link = AppQyV1GroupMediaSourceModel::findLink((int) $group->id, $sourceType, $sourceKey);
         if (!$link) {
-            return $this->notFound('Media source is not linked to this group');
+            return $this->notFound(__('app_qy_v1.messages.media_source_not_linked_to_group'));
         }
 
         $link->deleteRecord();
@@ -292,7 +281,7 @@ class AppQyV1WordGroupMediaSourceController extends Controller
             'gid' => $group->gid,
             'source_type' => $sourceType,
             'source_key' => $sourceKey,
-        ], 'Media source removed from group successfully');
+        ], __('app_qy_v1.messages.media_source_removed_from_group_successfully'));
     }
 
     /**
@@ -353,6 +342,6 @@ class AppQyV1WordGroupMediaSourceController extends Controller
             'libraries' => $libraries,
             'media_sources_count' => $mediaSources->count(),
             'media_sources' => $mediaSources,
-        ], 'Group sources retrieved successfully');
+        ], __('app_qy_v1.messages.group_sources_retrieved_successfully'));
     }
 }

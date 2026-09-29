@@ -12,6 +12,8 @@ final class AppQyV1DurableOffsetUploadService
 
     private const MIN_AUDIO_BYTES = 100;
 
+    private const SPOOL_SUFFIX = '.part';
+
     public function receive(
         string $lane,
         string $identity,
@@ -50,7 +52,7 @@ final class AppQyV1DurableOffsetUploadService
 
         $transferKey = hash('sha256', $lane . ':' . $identity);
         $spoolPath = $this->storageDirectory() . DIRECTORY_SEPARATOR
-            . $transferKey . '.' . $audioSha256 . '.part';
+            . $transferKey . '.' . $audioSha256 . self::SPOOL_SUFFIX;
         $writeResult = FileSystemManager::writeFileSegment($spoolPath, $chunk, $offset);
         $nextOffset = (int) ($writeResult['offset'] ?? 0);
         if ($nextOffset < 0 || $nextOffset > $totalBytes) {
@@ -63,6 +65,9 @@ final class AppQyV1DurableOffsetUploadService
                 || strlen($storedBytes) !== $totalBytes
                 || !hash_equals($audioSha256, hash('sha256', $storedBytes))
             ) {
+                // A complete spool that fails the whole-file hash can never
+                // succeed; drop it so the sender's retry restarts at offset 0.
+                FileSystemManager::delete($spoolPath);
                 return null;
             }
         }
@@ -94,6 +99,42 @@ final class AppQyV1DurableOffsetUploadService
         $spoolPath = (string) ($receipt['spool_path'] ?? '');
 
         return $spoolPath !== '' ? FileSystemManager::readFile($spoolPath) : false;
+    }
+
+    /** Drop a completed spool once its consumer has stored the bytes. */
+    public function discardCompleted(array $receipt): void
+    {
+        $spoolPath = (string) ($receipt['spool_path'] ?? '');
+
+        if (($receipt['upload_complete'] ?? false) && $spoolPath !== '') {
+            FileSystemManager::delete($spoolPath);
+        }
+    }
+
+    /**
+     * Delete spools whose last chunk is older than $maxAgeSeconds (abandoned
+     * transfers). Returns the number of files removed.
+     */
+    public function sweepAbandoned(int $maxAgeSeconds): int
+    {
+        $directory = $this->storageDirectory();
+        $cutoff = time() - max(1, $maxAgeSeconds);
+        $removed = 0;
+        $path = '';
+        $modifiedAt = false;
+
+        foreach (FileSystemManager::scandir($directory) ?: [] as $name) {
+            if (!str_ends_with((string) $name, self::SPOOL_SUFFIX)) {
+                continue;
+            }
+            $path = $directory . DIRECTORY_SEPARATOR . $name;
+            $modifiedAt = FileSystemManager::filemtime($path);
+            if ($modifiedAt !== false && $modifiedAt < $cutoff && FileSystemManager::delete($path)) {
+                $removed++;
+            }
+        }
+
+        return $removed;
     }
 
     /**

@@ -1,0 +1,13 @@
+{
+  "task_id": "shell-6",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "IS-022": {"status": "fixed", "reason": "113 interpolated PowerShell paths now use Join-Path/Split-Path: the GlobalVars.ps1 constants first, then the named sites (CommonFunc, PackageManagerInvokes, PostInstallCallbackProcessor, Step21, Step18), then the remaining 78 sites across 36 files. Three sites stay on purpose (one regex, two StartsWith prefix checks), so the remainder is recorded. A definition-order scan of GlobalVars.ps1 finds every Join-Path base variable defined earlier in the file (CORE_NODE_CACHE_DIR comes from SharedCacheEnv, as at HEAD)."}
+  },
+  "issues": [
+    "(non-blocking) Join-Path throws on a null or empty base, where the old interpolation silently produced a rooted '\\x' path. GlobalVars.ps1 is safe by definition order. Sites in function bodies whose base can be empty in some branch will now fail loudly, which is the better failure mode. Keep that in mind if a Windows step reports a Join-Path binding error after this change."
+  ],
+  "checks": "The GlobalVars.ps1 diff read, plus a scripted definition-before-use check of its Join-Path bases; a sample of other hunks read; the owner ran the pwsh parser on every changed .ps1. The LF-working-copy warnings are pre-existing (the .ps1 files are LF in the index and working tree).",
+  "checked_at": "2026-09-27T04:47:13+10:00"
+}

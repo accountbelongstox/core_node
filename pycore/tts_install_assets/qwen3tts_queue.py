@@ -14,7 +14,10 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Callable, Deque, Dict, List, Optional
 
-DEFAULT_QUEUE_MAX = 1
+# Active (pending + running) jobs the server holds in FIFO order. Every local
+# submitter (sentence lane fan-out, orchestration, agent history) is admitted,
+# so submission order stays the only order and the batcher can engage.
+DEFAULT_QUEUE_MAX = 16
 DEFAULT_RESULT_TTL_S = 900.0
 DEFAULT_RESULT_MAX = 200
 PROGRESS_POLL_SECONDS = 0.25
@@ -68,7 +71,7 @@ class QwenQueue:
         # unbounded text squats the service for days. Injected by the api
         # server (shared network_constants default); 0 disables the guard.
         self._job_text_max_chars = max(0, int(job_text_max_chars or 0))
-        self._queue_max = DEFAULT_QUEUE_MAX
+        self._queue_max = _env_int("QWEN3TTS_QUEUE_MAX", DEFAULT_QUEUE_MAX)
         self._result_ttl_s = _env_float(
             "QWEN3TTS_QUEUE_RESULT_TTL_S", DEFAULT_RESULT_TTL_S
         )

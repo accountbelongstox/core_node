@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Desktop Icon Manager - Intelligent shortcut cleanup and organization system
@@ -24,15 +12,30 @@
     Version: 1.0
     Extracted from: Step102_InstallCustomScriptsAndCommands.ps1
     Purpose: Real-time desktop icon management during application installation
+
+    Direct run (dd.ps1 Windows Management menu):
+    powershell -File DesktopIconManager.ps1 -DesktopIconAction Organize|Preview|Undo [-DesktopIconUndoManifest <path>]
 #>
+param(
+    [Parameter(Mandatory = $false)]
+    [string]$DesktopIconAction = '',
+
+    [Parameter(Mandatory = $false)]
+    [string]$DesktopIconUndoManifest = ''
+)
 
 # Local debug configuration for DesktopIconManager
 $script:DesktopIconManagerDebugMode = $false  # Set to $true to enable debug output for desktop icon operations
 
 # Import required modules
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$script:DESKTOP_ICON_MANAGER_DIR = $SCRIPT_DIR
 $COMMON_FUNC_PATH = Join-Path $SCRIPT_DIR "CommonFunc.ps1"
+$APPLICATIONS_LIST_PATH = Join-Path $SCRIPT_DIR "ApplicationsList.ps1"
  . $COMMON_FUNC_PATH
+if ($null -eq (Get-Variable -Name 'APPLICATIONS_PACKAGES' -Scope Global -ErrorAction SilentlyContinue)) {
+    . $APPLICATIONS_LIST_PATH
+}
 
 # Debug output function for DesktopIconManager
 function Write-DesktopIconManagerDebug {
@@ -50,6 +53,36 @@ $Global:DESKTOP_CLEANUP_ENABLED = $true
 $Global:DESKTOP_BACKUP_DIR = Join-Path $Global:LANG_COMPILER_DIR ".desktopIcons"
 $Global:AGGRESSIVE_CLEANUP_ENABLED = $false
 
+# Desktop organizer: what it moves, what it never moves, and where its undo state lives
+$Global:DESKTOP_SHORTCUT_EXTENSIONS = @('.lnk', '.url', '.appref-ms')
+$Global:DESKTOP_ORGANIZER_STATE_DIR = Join-Path (Join-Path $env:LOCALAPPDATA 'core_node') 'desktop_icons'
+$Global:DESKTOP_ORGANIZER_MANIFEST_DIR = Join-Path $Global:DESKTOP_ORGANIZER_STATE_DIR 'manifests'
+$Global:DESKTOP_ORGANIZER_DISPLACED_DIR = Join-Path $Global:DESKTOP_ORGANIZER_STATE_DIR 'displaced'
+# Shortcuts dd.ps1 recreates on the desktop (pycore/pyutils/launcher/shortcut_check.ps1); moving them would churn
+$Global:DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP = @('Window Launcher')
+# Browser shortcuts whose name has one of these tokens are copied into Browsers and stay on the desktop
+$Global:DESKTOP_ORGANIZATION_KEEP_COPY_TOKENS = @('chrome', 'edge')
+# Launcher hosts whose file name says nothing about the application behind the shortcut
+$Global:DESKTOP_ORGANIZATION_GENERIC_TARGET_HOSTS = @(
+    'python', 'pythonw', 'py', 'pyw', 'powershell', 'pwsh', 'cmd', 'wscript', 'cscript', 'rundll32',
+    'explorer', 'java', 'javaw', 'node', 'conhost', 'wt', 'mshta', 'msiexec', 'update', 'chrome_proxy', 'msedge_proxy'
+)
+$Global:DESKTOP_ORGANIZATION_URL_SCHEME_CATEGORIES = @{
+    'steam'                  = $Global:DESKTOP_CATEGORY_GAMES
+    'com.epicgames.launcher' = $Global:DESKTOP_CATEGORY_GAMES
+    'uplay'                  = $Global:DESKTOP_CATEGORY_GAMES
+    'origin'                 = $Global:DESKTOP_CATEGORY_GAMES
+    'origin2'                = $Global:DESKTOP_CATEGORY_GAMES
+    'battlenet'              = $Global:DESKTOP_CATEGORY_GAMES
+}
+# ApplicationsList.ps1 groups whose DesktopCategory rank above the keyword lists below
+$Global:DESKTOP_ORGANIZATION_PACKAGE_GROUPS = @('BasePackages', 'APPLICATIONS_PACKAGES', 'DEV_SOFTWARE_PACKAGES', 'COMMON_SOFTWARE_PACKAGES')
+# Category folders whose content is generated elsewhere and never refiled
+$Global:DESKTOP_ORGANIZATION_REFILE_EXCLUDED = @($Global:DESKTOP_CATEGORY_DEV_SCRIPTS)
+$script:DesktopTokenBoundaryPattern = '(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[A-Za-z])(?=[0-9])|(?<=[0-9])(?=[A-Za-z])'
+$script:DesktopShortKeywordLength = 3
+$script:DesktopKeywordTableCache = $null
+
 
 # Each category contains DesktopCategory name and AdditionalKeywords for scanning existing shortcuts
 $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
@@ -63,7 +96,17 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "ExpressVPN", "NordVPN", "Surfshark", "CyberGhost", "ProtonVPN", "Windscribe", "TunnelBear",
             "Hotspot Shield", "IPVanish", "Private Internet Access", "PIA", "StrongVPN", "VyprVPN",
             "\u5C0F\u706B\u7BAD", "\u84DD\u706F\u4E13\u4E1A\u7248", "\u5947\u6E38\u624B\u6E38\u52A0\u901F\u5668",
-            "\u817E\u8BAF\u624B\u6E38\u52A0\u901F\u5668", "\u7F51\u6613\u624B\u6E38\u52A0\u901F\u5668"
+            "\u817E\u8BAF\u624B\u6E38\u52A0\u901F\u5668", "\u7F51\u6613\u624B\u6E38\u52A0\u901F\u5668",
+            "\u9C9C\u725B", "XianNiu", "\u52A0\u901F\u5668", "Watt Toolkit",
+            "Clash for Windows", "Clash Verge", "Clash Nyanpasu", "Clash Meta", "Mihomo", "FlClash",
+            "v2rayN", "V2Ray", "Qv2ray", "Nekoray", "Hiddify", "sing-box", "Shadowsocks", "ShadowsocksR"
+        )
+    },
+    @{
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_API_TOOLS
+        AdditionalKeywords = @(
+            "Postman", "Insomnia", "HTTPie", "Swagger", "SoapUI", "Hoppscotch", "Bruno", "Apifox",
+            "Apipost", "Paw", "RapidAPI", "JMeter"
         )
     },
     @{
@@ -74,7 +117,7 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Rider", "AppCode", "Fleet", "Code", "VSCode", "Windsurf", "Devin", "Cursor", "VSCodium", "Sublime Text", "Atom", "Brackets",
             "NetBeans", "BlueJ", "Dev-C++", "Code::Blocks", "Qt Creator", "Delphi", "Lazarus",
             "Unity", "Unreal Engine", "Godot", "GameMaker", "Construct", "RPG Maker",
-            "Postman", "Insomnia", "Swagger", "SoapUI", "Fiddler", "Charles", "Wireshark",
+            "Fiddler", "Charles", "Wireshark",
             "GitHub Desktop", "GitKraken", "SourceTree", "TortoiseGit", "SmartGit", "Fork",
             "Docker Desktop", "Kubernetes", "Vagrant", "VirtualBox", "VMware", "Hyper-V",
             "Node.js", "npm", "yarn", "pnpm", "Python", "Java", "Go", "Rust", "Ruby", "PHP",
@@ -87,14 +130,21 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
     @{
         DesktopCategory    = $Global:DESKTOP_CATEGORY_TEXT_EDITORS
         AdditionalKeywords = @(
-            "Notepad", "Sublime", "Atom", "Vim", "Emacs", "TextEdit", "Notepad++", "UltraEdit",
+            "Notepad", "Sublime", "Atom", "Vim", "gVim", "Emacs", "TextEdit", "Notepad++", "UltraEdit", "WordPad",
             "EditPlus", "EmEditor", "Scrivener", "WriteMonkey", "FocusWriter", "Q10", "yWriter",
             "Typora", "Mark Text", "Zettlr", "Obsidian", "Notion", "Roam Research", "RemNote",
             "Joplin", "Standard Notes", "Bear", "Ulysses", "iA Writer", "Drafts", "Day One",
             "\u8BB0\u4E8B\u672C", "\u6709\u9053\u4E91\u7B14\u8BB0", "\u5370\u8C61\u7B14\u8BB0",
             "\u4E3A\u77E5\u7B14\u8BB0", "\u8BED\u96C0", "\u77F3\u58A8\u6587\u6863", "\u817E\u8BAF\u6587\u6863",
-            "\u91D1\u5C71\u6587\u6863", "\u6C38\u4E2D\u96C6\u6210Office", "\u4E2D\u6807\u666E\u534E",
-            "WPS Office", "LibreOffice", "OpenOffice", "FreeOffice", "OnlyOffice"
+            "\u91D1\u5C71\u6587\u6863"
+        )
+    },
+    @{
+        DesktopCategory    = $Global:DESKTOP_CATEGORY_DESIGN_TOOLS
+        AdditionalKeywords = @(
+            "Figma", "Sketch", "Canva", "Affinity", "Affinity Designer", "Inkscape", "Draw.io", "DrawIO",
+            "diagrams.net", "Lucidchart", "Creately", "Excalidraw", "XMind", "Axure", "Balsamiq", "Penpot",
+            "Pixso", "MasterGo", "Lunacy", "ProcessOn", "\u5373\u65F6\u8BBE\u8BA1", "\u58A8\u5200"
         )
     },
     @{
@@ -106,7 +156,7 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Adobe Dreamweaver", "Adobe Fresco", "Adobe XD", "Adobe Spark", "Adobe Stock", "Adobe Fonts",
             "Adobe Character Animator", "Adobe Media Encoder", "Adobe Prelude", "Adobe Rush", "Adobe Captivate",
             "Adobe FrameMaker", "Adobe InCopy", "Adobe Substance 3D", "Adobe Aero", "Adobe Comp CC",
-            "Canva", "Figma", "Sketch", "Affinity", "CorelDRAW", "PaintShop", "Paint.NET",
+            "CorelDRAW", "PaintShop", "Paint.NET",
             "Krita", "Blender", "Cinema 4D", "Maya", "3ds Max", "ZBrush", "Substance",
             "DaVinci Resolve", "Final Cut Pro", "Avid", "Vegas Pro", "Camtasia", "ScreenFlow",
             "Bandicam", "Fraps", "Action!", "XSplit", "Streamlabs", "OBS Studio", "Wirecast",
@@ -124,8 +174,9 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
     @{
         DesktopCategory    = $Global:DESKTOP_CATEGORY_OFFICE_TOOLS
         AdditionalKeywords = @(
-            "Microsoft Office", "LibreOffice", "WPS", "Excel", "Word", "PowerPoint", "Outlook", "OneNote",
-            "Access", "Publisher", "Project", "Visio", "Teams", "SharePoint", "OneDrive",
+            "Microsoft Office", "LibreOffice", "WPS", "WPS Office", "OpenOffice", "FreeOffice", "OnlyOffice",
+            "Excel", "Word", "PowerPoint", "Outlook", "OneNote",
+            "Microsoft Access", "Publisher", "Microsoft Project", "Visio", "Teams", "SharePoint", "OneDrive",
             "Google Workspace", "Google Docs", "Google Sheets", "Google Slides", "Google Drive",
             "Dropbox", "Box", "iCloud", "Mega", "pCloud", "Sync.com", "SpiderOak",
             "Slack", "Discord", "Zoom", "Skype", "WebEx", "GoToMeeting", "BlueJeans",
@@ -175,7 +226,7 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "MySQL Workbench", "pgAdmin", "MongoDB Compass", "Redis Desktop Manager", "Robo 3T",
             "Studio 3T", "Oracle SQL Developer", "SQL Server Management Studio", "SSMS",
             "Azure Data Studio", "DbVisualizer", "SQuirreL SQL", "Toad", "ERwin", "PowerDesigner",
-            "Lucidchart", "Draw.io", "Creately", "Visual Paradigm", "Enterprise Architect",
+            "Visual Paradigm", "Enterprise Architect",
             "\u6570\u636E\u5E93", "\u6570\u636E\u5E93\u7BA1\u7406", "SQL\u5DE5\u5177", "\u6570\u636E\u5EFA\u6A21"
         )
     },
@@ -183,6 +234,7 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
         DesktopCategory    = $Global:DESKTOP_CATEGORY_BROWSERS
         AdditionalKeywords = @(
             "Chrome", "Edge", "Firefox", "Safari", "Opera", "Brave", "Vivaldi", "Browser",
+            "Google Chrome", "Chrome Beta", "Chrome Canary", "Microsoft Edge", "Thorium", "Floorp", "LibreWolf", "Zen Browser",
             "Internet Explorer", "IE", "Chromium", "Tor Browser", "DuckDuckGo", "Waterfox",
             "Pale Moon", "SeaMonkey", "Maxthon", "UC Browser", "Yandex Browser", "Cent Browser",
             "SRWare Iron", "Comodo Dragon", "Slimjet", "Torch Browser", "Avant Browser",
@@ -300,8 +352,11 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
         DesktopCategory    = $Global:DESKTOP_CATEGORY_NETWORK_TOOLS
         AdditionalKeywords = @(
             "RustDesk", "TeamViewer", "AnyDesk", "VNC", "Remote Desktop", "SSH", "Telnet",
-            "PuTTY", "WinSCP", "FileZilla", "MobaXterm", "Wireshark", "Fiddler", "Charles", "Postman",
-            "Insomnia", "SoapUI", "Swagger", "API", "REST", "GraphQL", "WebSocket",
+            "PuTTY", "WinSCP", "FileZilla", "MobaXterm", "Wireshark", "Fiddler", "Charles",
+            "API", "REST", "GraphQL", "WebSocket",
+            "NetBird", "Tailscale", "ZeroTier", "WireGuard", "OpenVPN", "EasyTier", "Headscale", "Radmin VPN",
+            "Hamachi", "Sunlogin", "\u5411\u65E5\u8475", "ToDesk", "Parsec", "frp", "n2n",
+            "Termius", "Xshell", "Xftp", "SecureCRT", "mRemoteNG", "Remote Desktop Manager",
             "FTP", "SFTP", "HTTP", "HTTPS", "TCP", "UDP", "DNS", "DHCP", "VPN",
             "Proxy", "Firewall", "Router", "Switch", "Gateway", "Load Balancer",
             "Network Monitor", "Bandwidth Monitor", "Packet Analyzer", "Network Scanner",
@@ -327,7 +382,10 @@ $Global:DESKTOP_ORGANIZATION_CATEGORIES = @(
             "Machine Learning CLI", "ML CLI", "Deep Learning CLI", "Neural Network CLI",
             "AI Development", "AI Framework", "AI Library", "AI Platform", "AI Service",
             "Natural Language Processing", "NLP CLI", "Computer Vision CLI", "CV CLI",
-            "AI Testing", "AI Debugging", "AI Monitoring", "AI Analytics", "AI Reporting"
+            "AI Testing", "AI Debugging", "AI Monitoring", "AI Analytics", "AI Reporting",
+            "Claude", "ChatGPT", "OpenAI", "Gemini", "Copilot", "DeepSeek", "Kimi", "Qwen", "Doubao", "Grok",
+            "Perplexity", "Ollama", "LM Studio", "Cherry Studio", "Codex", "Manus",
+            "\u8C46\u5305", "\u901A\u4E49\u5343\u95EE", "\u6587\u5FC3\u4E00\u8A00", "\u817E\u8BAF\u5143\u5B9D", "\u667A\u8C31\u6E05\u8A00"
         )
     }
 )
@@ -645,159 +703,723 @@ function Invoke-BatchDesktopCleanup {
 
 <#
 .SYNOPSIS
-    Performs comprehensive desktop icon organization by categories
-
-.DESCRIPTION
-    This function organizes all desktop shortcuts into predefined categories based on keywords.
-    It creates category directories and desktop links, moves matching shortcuts, and provides
-    detailed reporting of unmatched shortcuts. This is the main organization function that
-    processes all categories defined in GlobalVars.ps1.
-
-.PARAMETER ShowSummary
-    Whether to display organization summary after completion (default: true)
-
-.PARAMETER ExtractIcons
-    Whether to extract icons from organized shortcuts (default: true)
-
-.PARAMETER SpecificCategories
-    Array of specific desktop categories to process. If empty, processes all categories (default: empty)
-
-.EXAMPLE
-    Invoke-DesktopIconOrganization
-
-.EXAMPLE
-    Invoke-DesktopIconOrganization -ShowSummary $false -ExtractIcons $false
-
-.EXAMPLE
-    Invoke-DesktopIconOrganization -SpecificCategories @("Development", "Media")
+    Writes a visible organizer message
 #>
-function Invoke-DesktopIconOrganization {
+function Write-DesktopIconManagerInfo {
     param(
-        [Parameter(Mandatory = $false)]
-        [bool]$ShowSummary = $true,
-
-        [Parameter(Mandatory = $false)]
-        [bool]$ExtractIcons = $true,
-
-        [Parameter(Mandatory = $false)]
-        [array]$SpecificCategories = @()
+        [string]$Message,
+        [ConsoleColor]$ForegroundColor = [ConsoleColor]::Gray
     )
-
-    if (-not $Global:DESKTOP_CLEANUP_ENABLED) {
-        Write-DesktopIconManagerDebug -Message "Desktop organization disabled, skipping" -ForegroundColor Gray
-        return
-    }
-
-    Write-DesktopIconManagerDebug -Message "Starting comprehensive desktop icon organization..." -ForegroundColor Cyan
-
-    # Variables declaration
-    $unmatchedShortcuts = @()
-    $processedShortcuts = @()
-    $organizationResults = @{
-        CategoriesProcessed = 0
-        ShortcutsMoved = 0
-        CategoriesCreated = 0
-        UnmatchedShortcuts = 0
-        Errors = @()
-    }
-
-    try {
-        # Ensure the base desktop icons directory exists
-        $baseDesktopIconsDir = $Global:DESKTOP_BACKUP_DIR
-        Write-DesktopIconManagerDebug -Message "Base desktop icons directory: '$baseDesktopIconsDir'" -ForegroundColor Magenta
-        if (-not (Test-Path $baseDesktopIconsDir)) {
-            New-Item -ItemType Directory -Path $baseDesktopIconsDir -Force | Out-Null
-            Write-DesktopIconManagerDebug -Message "Created base desktop icons directory: $baseDesktopIconsDir" -ForegroundColor Green
-        }
-
-        # Get desktop paths to scan
-        $userDesktopPath = [Environment]::GetFolderPath('Desktop')
-        $publicDesktopPath = Join-Path $env:PUBLIC "Desktop"
-        $desktopPaths = @($userDesktopPath, $publicDesktopPath)
-
-        Write-DesktopIconManagerDebug -Message "User desktop path: '$userDesktopPath'" -ForegroundColor Magenta
-        Write-DesktopIconManagerDebug -Message "Public desktop path: '$publicDesktopPath'" -ForegroundColor Magenta
-
-        # Validate organization categories
-        if (-not (Test-OrganizationCategories)) {
-            throw "Organization categories validation failed"
-        }
-
-        # Determine which categories to process
-        $categoriesToProcess = if ($SpecificCategories.Count -gt 0) {
-            # Filter to only specified categories
-            $Global:DESKTOP_ORGANIZATION_CATEGORIES | Where-Object {
-                $categoryName = $_.DesktopCategory
-                $SpecificCategories -contains $categoryName
-            }
-        } else {
-            # Process all categories (default behavior)
-            $Global:DESKTOP_ORGANIZATION_CATEGORIES
-        }
-
-        Write-DesktopIconManagerDebug -Message "Categories to process: $($categoriesToProcess.Count) out of $($Global:DESKTOP_ORGANIZATION_CATEGORIES.Count)" -ForegroundColor Cyan
-
-        # Process each organization category
-        foreach ($categoryConfig in $categoriesToProcess) {
-            $categoryName = $categoryConfig.DesktopCategory
-            $keywords = $categoryConfig.AdditionalKeywords
-
-            Write-DesktopIconManagerDebug -Message "Processing category: $categoryName" -ForegroundColor Cyan
-            Write-DesktopIconManagerDebug -Message "Keywords: $($keywords -join ', ')" -ForegroundColor Cyan
-
-            $categoryResult = Invoke-CategoryOrganization -CategoryName $categoryName -Keywords $keywords -DesktopPaths $desktopPaths -BaseDirectory $baseDesktopIconsDir -ProcessedShortcuts ([ref]$processedShortcuts)
-
-            $organizationResults.CategoriesProcessed++
-            $organizationResults.ShortcutsMoved += $categoryResult.ShortcutsMoved
-            if ($categoryResult.CategoryCreated) {
-                $organizationResults.CategoriesCreated++
-            }
-            if ($categoryResult.Errors.Count -gt 0) {
-                $organizationResults.Errors += $categoryResult.Errors
-            }
-        }
-
-        # Collect unmatched shortcuts after all categories are processed
-        Write-DesktopIconManagerDebug -Message "Collecting unmatched shortcuts..." -ForegroundColor Cyan
-        $unmatchedShortcuts = Get-UnmatchedShortcuts -DesktopPaths $desktopPaths -ProcessedShortcuts $processedShortcuts
-        $organizationResults.UnmatchedShortcuts = $unmatchedShortcuts.Count
-
-        # Display unmatched shortcuts
-        if ($unmatchedShortcuts.Count -gt 0) {
-            Show-UnmatchedShortcuts -UnmatchedShortcuts $unmatchedShortcuts
-        } else {
-            Write-DesktopIconManagerDebug -Message "All desktop shortcuts have been matched and organized!" -ForegroundColor Green
-        }
-
-        # Show organization summary
-        if ($ShowSummary) {
-            Show-OrganizationSummary
-        }
-
-        # Extract icons from organized shortcuts
-        if ($ExtractIcons) {
-            Invoke-IconExtraction -BaseDirectory $baseDesktopIconsDir
-        }
-
-        Write-DesktopIconManagerDebug -Message "Desktop icon organization completed successfully" -ForegroundColor Green
-        Write-DesktopIconManagerDebug -Message "Results: Categories: $($organizationResults.CategoriesProcessed), Moved: $($organizationResults.ShortcutsMoved), Unmatched: $($organizationResults.UnmatchedShortcuts)" -ForegroundColor Green
-
-    } catch {
-        $errorMsg = "Desktop icon organization failed: $($_.Exception.Message)"
-        $organizationResults.Errors += $errorMsg
-        Write-DesktopIconManagerDebug -Message $errorMsg -ForegroundColor Red
-    }
-
-    return $organizationResults
+    Write-Host "[DesktopIcons] $Message" -ForegroundColor $ForegroundColor
 }
 
 <#
 .SYNOPSIS
-    Organizes shortcuts for a single category
-
+    Splits a shortcut name or keyword into lowercase ASCII word tokens
 .DESCRIPTION
-    Processes a single category by scanning for matching shortcuts, creating category
-    directories and desktop links, and moving/copying shortcuts as appropriate.
+    CamelCase, letter/digit boundaries and every non-alphanumeric character separate tokens,
+    so "VSCodiumInsiders" gives vs|codium|insiders and "Google Chrome" gives google|chrome.
+#>
+function ConvertTo-DesktopMatchTokens {
+    param(
+        [string]$Text
+    )
+
+    $spaced = [regex]::Replace($Text, $script:DesktopTokenBoundaryPattern, ' ')
+    return @([regex]::Split($spaced.ToLowerInvariant(), '[^a-z0-9]+') | Where-Object { $_ -ne '' })
+}
+
+<#
+.SYNOPSIS
+    Decodes \uXXXX escapes used by the keyword data (the file stays ASCII)
+#>
+function ConvertFrom-DesktopKeywordEscapes {
+    param(
+        [string]$Keyword
+    )
+
+    if ($Keyword -notmatch '\\u[0-9A-Fa-f]{4}') {
+        return $Keyword
+    }
+    return [regex]::Replace($Keyword, '\\u([0-9A-Fa-f]{4})', {
+        param($match)
+        [string][char][Convert]::ToInt32($match.Groups[1].Value, 16)
+    })
+}
+
+<#
+.SYNOPSIS
+    Builds (once per session) the keyword table that classifies shortcuts
+.DESCRIPTION
+    Sources, highest rank first: ApplicationsList package keys, names and desktop shortcut
+    names (name and target match), package Exec names (target match only), then the
+    DESKTOP_ORGANIZATION_CATEGORIES keywords. ASCII keywords match whole token runs;
+    keywords of three characters or fewer must start the name. Non-ASCII keywords
+    (Chinese names) match as substrings.
+#>
+function Get-DesktopKeywordTable {
+    if ($null -ne $script:DesktopKeywordTableCache) {
+        return $script:DesktopKeywordTableCache
+    }
+
+    $table = @{
+        AsciiIndex    = @{}
+        NonAscii      = New-Object System.Collections.ArrayList
+        CategoryOrder = @{}
+        Categories    = New-Object System.Collections.ArrayList
+    }
+    $categoryIndex = 0
+    $categoryConfig = $null
+    $categoryName = ''
+    $groupName = ''
+    $groupVar = $null
+    $packageKey = ''
+    $package = $null
+    $packageCategory = ''
+    $nameSignals = @()
+    $shortcutConfig = $null
+    $execName = ''
+    $signal = ''
+    $keyword = ''
+
+    $addEntry = {
+        param([string]$EntryCategory, [string]$EntryKeyword, [int]$EntryRank, [bool]$ForName, [bool]$ForTarget)
+        $decoded = (ConvertFrom-DesktopKeywordEscapes -Keyword $EntryKeyword).Trim()
+        if ([string]::IsNullOrWhiteSpace($decoded)) {
+            return
+        }
+        $entry = @{
+            Category     = $EntryCategory
+            Keyword      = $decoded
+            KeywordLower = $decoded.ToLowerInvariant()
+            Tokens       = @()
+            Score        = 0
+            Short        = $false
+            Rank         = $EntryRank
+            Order        = [int]$table.CategoryOrder[$EntryCategory]
+            Name         = $ForName
+            Target       = $ForTarget
+        }
+        if ($decoded -match '[^\x00-\x7F]') {
+            $entry.Score = ($decoded -replace '\s', '').Length
+            [void]$table.NonAscii.Add($entry)
+            return
+        }
+        $entryTokens = @(ConvertTo-DesktopMatchTokens -Text $decoded)
+        if ($entryTokens.Count -eq 0) {
+            return
+        }
+        $entry.Tokens = $entryTokens
+        $entry.Score = ($entryTokens -join '').Length
+        $entry.Short = ($entry.Score -le $script:DesktopShortKeywordLength)
+        if (-not $table.AsciiIndex.ContainsKey($entryTokens[0])) {
+            $table.AsciiIndex[$entryTokens[0]] = New-Object System.Collections.ArrayList
+        }
+        [void]$table.AsciiIndex[$entryTokens[0]].Add($entry)
+    }
+
+    foreach ($categoryConfig in $Global:DESKTOP_ORGANIZATION_CATEGORIES) {
+        $categoryName = [string]$categoryConfig['DesktopCategory']
+        if (-not [string]::IsNullOrWhiteSpace($categoryName) -and -not $table.CategoryOrder.ContainsKey($categoryName)) {
+            $table.CategoryOrder[$categoryName] = $categoryIndex
+            [void]$table.Categories.Add($categoryName)
+            $categoryIndex++
+        }
+    }
+
+    foreach ($groupName in $Global:DESKTOP_ORGANIZATION_PACKAGE_GROUPS) {
+        $groupVar = Get-Variable -Name $groupName -Scope Global -ErrorAction SilentlyContinue
+        if ($null -eq $groupVar -or -not ($groupVar.Value -is [System.Collections.IDictionary])) {
+            continue
+        }
+        foreach ($packageKey in @($groupVar.Value.Keys)) {
+            $package = $groupVar.Value[$packageKey]
+            if (-not ($package -is [System.Collections.IDictionary])) {
+                continue
+            }
+            $packageCategory = [string]$package['DesktopCategory']
+            if (-not $table.CategoryOrder.ContainsKey($packageCategory)) {
+                continue
+            }
+            $nameSignals = @([string]$packageKey, [string]$package['Name'])
+            foreach ($shortcutConfig in @($package['DesktopShortcuts'])) {
+                if ($shortcutConfig -is [System.Collections.IDictionary] -and $shortcutConfig['Name']) {
+                    $nameSignals += [string]$shortcutConfig['Name']
+                }
+            }
+            foreach ($signal in ($nameSignals | Select-Object -Unique)) {
+                & $addEntry $packageCategory $signal 0 $true $true
+            }
+            $execName = [string]$package['Exec']
+            if (-not [string]::IsNullOrWhiteSpace($execName)) {
+                & $addEntry $packageCategory ([System.IO.Path]::GetFileNameWithoutExtension($execName)) 0 $false $true
+            }
+        }
+    }
+
+    foreach ($categoryConfig in $Global:DESKTOP_ORGANIZATION_CATEGORIES) {
+        $categoryName = [string]$categoryConfig['DesktopCategory']
+        foreach ($keyword in @($categoryConfig['AdditionalKeywords'])) {
+            & $addEntry $categoryName ([string]$keyword) 1 $true $true
+        }
+    }
+
+    $script:DesktopKeywordTableCache = $table
+    return $table
+}
+
+<#
+.SYNOPSIS
+    Finds the best category for a text (shortcut name or target file name)
+.OUTPUTS
+    Hashtable: Best (winning keyword entry or $null) and Categories (every matched category)
+#>
+function Find-DesktopCategoryMatch {
+    param(
+        [string]$Text,
+        [ValidateSet('Name', 'Target')]
+        [string]$Mode
+    )
+
+    $result = @{ Best = $null; Categories = @{} }
+    $table = Get-DesktopKeywordTable
+    $tokens = @(ConvertTo-DesktopMatchTokens -Text $Text)
+    $textLower = $Text.ToLowerInvariant()
+    $position = 0
+    $bucket = $null
+    $entry = $null
+    $keywordTokens = @()
+    $offset = 0
+    $matched = $false
+    $candidates = New-Object System.Collections.ArrayList
+
+    for ($position = 0; $position -lt $tokens.Count; $position++) {
+        $bucket = $table.AsciiIndex[$tokens[$position]]
+        if ($null -eq $bucket) {
+            continue
+        }
+        foreach ($entry in $bucket) {
+            if (-not $entry[$Mode]) {
+                continue
+            }
+            if ($entry.Short -and $position -ne 0) {
+                continue
+            }
+            $keywordTokens = $entry.Tokens
+            if ($position + $keywordTokens.Count -gt $tokens.Count) {
+                continue
+            }
+            $matched = $true
+            for ($offset = 1; $offset -lt $keywordTokens.Count; $offset++) {
+                if ($tokens[$position + $offset] -ne $keywordTokens[$offset]) {
+                    $matched = $false
+                    break
+                }
+            }
+            if ($matched) {
+                [void]$candidates.Add($entry)
+            }
+        }
+    }
+
+    foreach ($entry in $table.NonAscii) {
+        if ($entry[$Mode] -and $textLower.Contains($entry.KeywordLower)) {
+            [void]$candidates.Add($entry)
+        }
+    }
+
+    foreach ($entry in $candidates) {
+        $result.Categories[$entry.Category] = $true
+        if ($null -eq $result.Best -or
+            $entry.Score -gt $result.Best.Score -or
+            ($entry.Score -eq $result.Best.Score -and $entry.Rank -lt $result.Best.Rank) -or
+            ($entry.Score -eq $result.Best.Score -and $entry.Rank -eq $result.Best.Rank -and $entry.Order -lt $result.Best.Order)) {
+            $result.Best = $entry
+        }
+    }
+
+    return $result
+}
+
+<#
+.SYNOPSIS
+    Reads one desktop shortcut (.lnk/.url/.appref-ms) without changing it
+.OUTPUTS
+    Hashtable with Path, Name, BaseName, Extension, TargetPath, Arguments, WorkingDirectory,
+    IconLocation, Url, Hidden, LastWriteTimeUtc and State (valid, broken or unreadable)
+#>
+function Get-DesktopShortcutInfo {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [object]$Shell
+    )
+
+    $fileInfo = New-Object System.IO.FileInfo($Path)
+    $info = @{
+        Path             = $Path
+        Name             = $fileInfo.Name
+        BaseName         = [System.IO.Path]::GetFileNameWithoutExtension($fileInfo.Name)
+        Extension        = $fileInfo.Extension.ToLowerInvariant()
+        TargetPath       = ''
+        Arguments        = ''
+        WorkingDirectory = ''
+        IconLocation     = ''
+        Url              = ''
+        Hidden           = [bool]($fileInfo.Attributes -band [System.IO.FileAttributes]::Hidden)
+        LastWriteTimeUtc = $fileInfo.LastWriteTimeUtc
+        State            = 'valid'
+    }
+    $shortcut = $null
+    $expandedTarget = ''
+    $urlLine = $null
+
+    if ($info.Extension -eq '.lnk') {
+        try {
+            $shortcut = $Shell.CreateShortcut($Path)
+            $info.TargetPath = [string]$shortcut.TargetPath
+            $info.Arguments = [string]$shortcut.Arguments
+            $info.WorkingDirectory = [string]$shortcut.WorkingDirectory
+            $info.IconLocation = [string]$shortcut.IconLocation
+        } catch {
+            $info.State = 'unreadable'
+            return $info
+        }
+        if (-not [string]::IsNullOrWhiteSpace($info.TargetPath)) {
+            $expandedTarget = [Environment]::ExpandEnvironmentVariables($info.TargetPath)
+            if (-not (Test-Path -LiteralPath $expandedTarget)) {
+                $info.State = 'broken'
+            }
+        }
+    } elseif ($info.Extension -eq '.url') {
+        try {
+            $shortcut = $Shell.CreateShortcut($Path)
+            $info.Url = [string]$shortcut.TargetPath
+        } catch {
+            $info.Url = ''
+        }
+        if ([string]::IsNullOrWhiteSpace($info.Url)) {
+            $urlLine = Select-String -LiteralPath $Path -Pattern '^\s*URL\s*=\s*(.+)$' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($null -ne $urlLine) {
+                $info.Url = $urlLine.Matches[0].Groups[1].Value.Trim()
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($info.Url)) {
+            $info.State = 'broken'
+        }
+    }
+
+    return $info
+}
+
+<#
+.SYNOPSIS
+    Tests whether two shortcut files launch the same thing
+#>
+function Test-DesktopShortcutEquivalent {
+    param(
+        [hashtable]$First,
+        [hashtable]$Second
+    )
+
+    $firstBytes = $null
+    $secondBytes = $null
+
+    if ($First.Extension -ne $Second.Extension) {
+        return $false
+    }
+    if ($First.Extension -eq '.lnk') {
+        return ($First.TargetPath -eq $Second.TargetPath -and
+                $First.Arguments -eq $Second.Arguments -and
+                $First.WorkingDirectory -eq $Second.WorkingDirectory -and
+                $First.IconLocation -eq $Second.IconLocation)
+    }
+    if ($First.Extension -eq '.url') {
+        return ($First.Url -eq $Second.Url)
+    }
+    $firstBytes = [System.IO.File]::ReadAllBytes($First.Path)
+    $secondBytes = [System.IO.File]::ReadAllBytes($Second.Path)
+    return ([System.Convert]::ToBase64String($firstBytes) -eq [System.Convert]::ToBase64String($secondBytes))
+}
+
+<#
+.SYNOPSIS
+    Classifies one shortcut: pinned, category-link, broken, unmatched or a category
+.OUTPUTS
+    Hashtable: Kind, Category, Reason, SupportedCategories
+#>
+function Get-DesktopShortcutClassification {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Info
+    )
+
+    $table = Get-DesktopKeywordTable
+    $classification = @{
+        Kind                = 'unmatched'
+        Category            = ''
+        Reason              = ''
+        SupportedCategories = @{}
+    }
+    $nameMatch = $null
+    $targetMatch = $null
+    $targetName = ''
+    $scheme = ''
+    $categoryKey = ''
+    $baseDirectoryPrefix = Join-Path $Global:DESKTOP_BACKUP_DIR ''
+
+    if ($Global:DESKTOP_ORGANIZATION_KEEP_ON_DESKTOP -contains $Info.BaseName) {
+        $classification.Kind = 'pinned'
+        $classification.Reason = 'keep-on-desktop list'
+        return $classification
+    }
+    if ($table.CategoryOrder.ContainsKey($Info.BaseName) -or
+        ($Info.TargetPath -and $Info.TargetPath.StartsWith($baseDirectoryPrefix, [System.StringComparison]::OrdinalIgnoreCase))) {
+        $classification.Kind = 'category-link'
+        return $classification
+    }
+    if ($Info.State -ne 'valid') {
+        $classification.Kind = $Info.State
+        $classification.Reason = $Info.TargetPath
+        return $classification
+    }
+
+    $nameMatch = Find-DesktopCategoryMatch -Text $Info.BaseName -Mode 'Name'
+    foreach ($categoryKey in $nameMatch.Categories.Keys) {
+        $classification.SupportedCategories[$categoryKey] = $true
+    }
+
+    if ($Info.TargetPath) {
+        $targetName = [System.IO.Path]::GetFileNameWithoutExtension([Environment]::ExpandEnvironmentVariables($Info.TargetPath))
+        if ($targetName -and ($Global:DESKTOP_ORGANIZATION_GENERIC_TARGET_HOSTS -notcontains $targetName)) {
+            $targetMatch = Find-DesktopCategoryMatch -Text $targetName -Mode 'Target'
+            foreach ($categoryKey in $targetMatch.Categories.Keys) {
+                $classification.SupportedCategories[$categoryKey] = $true
+            }
+        }
+    }
+
+    if ($null -ne $nameMatch.Best) {
+        $classification.Kind = 'category'
+        $classification.Category = $nameMatch.Best.Category
+        $classification.Reason = "name keyword '$($nameMatch.Best.Keyword)'"
+        return $classification
+    }
+
+    if ($Info.Url -match '^([A-Za-z][A-Za-z0-9+.\-]*):') {
+        $scheme = $Matches[1].ToLowerInvariant()
+        if ($Global:DESKTOP_ORGANIZATION_URL_SCHEME_CATEGORIES.ContainsKey($scheme)) {
+            $classification.Kind = 'category'
+            $classification.Category = $Global:DESKTOP_ORGANIZATION_URL_SCHEME_CATEGORIES[$scheme]
+            $classification.Reason = "url scheme '$scheme'"
+            $classification.SupportedCategories[$classification.Category] = $true
+            return $classification
+        }
+    }
+
+    if ($null -ne $targetMatch -and $null -ne $targetMatch.Best) {
+        $classification.Kind = 'category'
+        $classification.Category = $targetMatch.Best.Category
+        $classification.Reason = "target keyword '$($targetMatch.Best.Keyword)'"
+    }
+
+    return $classification
+}
+
+<#
+.SYNOPSIS
+    Returns the desktops the organizer reads: the active user desktop (OneDrive-redirected
+    when Known Folder Move is on) and the all-users Public desktop
+#>
+function Get-DesktopOrganizationPaths {
+    $paths = New-Object System.Collections.ArrayList
+    $candidate = ''
+
+    foreach ($candidate in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('CommonDesktopDirectory'))) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate) -and -not $paths.Contains($candidate)) {
+            [void]$paths.Add($candidate)
+        }
+    }
+    return @($paths)
+}
+
+<#
+.SYNOPSIS
+    Lists shortcut files (.lnk/.url/.appref-ms) directly inside a directory
+#>
+function Get-DesktopShortcutFiles {
+    param(
+        [string]$Directory
+    )
+
+    $files = @()
+    $filePath = ''
+
+    if (-not (Test-Path -LiteralPath $Directory)) {
+        return @()
+    }
+    try {
+        foreach ($filePath in [System.IO.Directory]::GetFiles($Directory)) {
+            if ($Global:DESKTOP_SHORTCUT_EXTENSIONS -contains [System.IO.Path]::GetExtension($filePath).ToLowerInvariant()) {
+                $files += $filePath
+            }
+        }
+    } catch {
+        Write-DesktopIconManagerInfo -Message "Cannot list '$Directory': $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    return $files
+}
+
+<#
+.SYNOPSIS
+    Scans desktops and category folders and returns what the organizer would do
+.DESCRIPTION
+    Desktop shortcuts that match a category are planned as a move (or a copy for browsers
+    kept on the desktop). Shortcuts already inside a category folder are planned as a refile
+    only when nothing supports their current folder and a better category exists. At most one
+    differing shortcut is planned per destination path (see Resolve-DesktopPlanCollisions).
+#>
+function Get-DesktopOrganizationPlan {
+    param(
+        [array]$SpecificCategories = @()
+    )
+
+    $table = Get-DesktopKeywordTable
+    $shell = New-Object -ComObject WScript.Shell
+    $plan = @{
+        Items         = New-Object System.Collections.ArrayList
+        Unmatched     = New-Object System.Collections.ArrayList
+        Broken        = New-Object System.Collections.ArrayList
+        Pinned        = New-Object System.Collections.ArrayList
+        Conflicts     = New-Object System.Collections.ArrayList
+        DesktopPaths  = @(Get-DesktopOrganizationPaths)
+    }
+    $desktopPath = ''
+    $filePath = ''
+    $info = $null
+    $classification = $null
+    $mode = ''
+    $nameTokens = @()
+    $categoryName = ''
+    $categoryDirectory = ''
+
+    foreach ($desktopPath in $plan.DesktopPaths) {
+        foreach ($filePath in (Get-DesktopShortcutFiles -Directory $desktopPath)) {
+            $info = Get-DesktopShortcutInfo -Path $filePath -Shell $shell
+            if ($info.Hidden) {
+                continue
+            }
+            $classification = Get-DesktopShortcutClassification -Info $info
+            switch ($classification.Kind) {
+                'pinned' { [void]$plan.Pinned.Add(@{ Info = $info; Reason = $classification.Reason }) }
+                'category-link' { }
+                'broken' { [void]$plan.Broken.Add(@{ Info = $info; Reason = $classification.Reason }) }
+                'unreadable' { [void]$plan.Broken.Add(@{ Info = $info; Reason = 'unreadable' }) }
+                'unmatched' { [void]$plan.Unmatched.Add(@{ Info = $info; Reason = '' }) }
+                'category' {
+                    if ($SpecificCategories.Count -gt 0 -and $SpecificCategories -notcontains $classification.Category) {
+                        continue
+                    }
+                    $mode = 'move'
+                    $nameTokens = @(ConvertTo-DesktopMatchTokens -Text $info.BaseName)
+                    if ($classification.Category -eq $Global:DESKTOP_CATEGORY_BROWSERS -and
+                        @($nameTokens | Where-Object { $Global:DESKTOP_ORGANIZATION_KEEP_COPY_TOKENS -contains $_ }).Count -gt 0) {
+                        $mode = 'copy'
+                    }
+                    [void]$plan.Items.Add(@{
+                        Info     = $info
+                        Category = $classification.Category
+                        Reason   = $classification.Reason
+                        Mode     = $mode
+                        From     = $desktopPath
+                    })
+                }
+            }
+        }
+    }
+
+    foreach ($categoryName in $table.Categories) {
+        if ($Global:DESKTOP_ORGANIZATION_REFILE_EXCLUDED -contains $categoryName) {
+            continue
+        }
+        $categoryDirectory = Join-Path $Global:DESKTOP_BACKUP_DIR $categoryName
+        foreach ($filePath in (Get-DesktopShortcutFiles -Directory $categoryDirectory)) {
+            $info = Get-DesktopShortcutInfo -Path $filePath -Shell $shell
+            if ($info.State -ne 'valid' -or $info.Hidden) {
+                continue
+            }
+            $classification = Get-DesktopShortcutClassification -Info $info
+            if ($classification.Kind -ne 'category' -or $classification.Category -eq $categoryName) {
+                continue
+            }
+            if ($classification.SupportedCategories.ContainsKey($categoryName)) {
+                continue
+            }
+            if ($SpecificCategories.Count -gt 0 -and $SpecificCategories -notcontains $classification.Category) {
+                continue
+            }
+            [void]$plan.Items.Add(@{
+                Info     = $info
+                Category = $classification.Category
+                Reason   = $classification.Reason
+                Mode     = 'refile'
+                From     = $categoryDirectory
+            })
+        }
+    }
+
+    Resolve-DesktopPlanCollisions -Plan $plan
+    return $plan
+}
+
+<#
+.SYNOPSIS
+    Keeps at most one differing shortcut per destination path in the plan
+.DESCRIPTION
+    Planned items that would land on the same category file are grouped. The newest one is kept
+    (scan order breaks ties: user desktop, Public desktop, category folders). Items identical to
+    the kept one follow it in the plan; every other item becomes a conflict and stays where it is.
+#>
+function Resolve-DesktopPlanCollisions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Plan
+    )
+
+    $groups = New-Object System.Collections.Specialized.OrderedDictionary
+    $resolvedItems = New-Object System.Collections.ArrayList
+    $item = $null
+    $destinationPath = ''
+    $destinationKey = ''
+    $groupItems = @()
+    $keptItem = $null
+
+    foreach ($item in $Plan.Items) {
+        $destinationKey = (Join-Path (Join-Path $Global:DESKTOP_BACKUP_DIR $item.Category) $item.Info.Name).ToLowerInvariant()
+        if (-not $groups.Contains($destinationKey)) {
+            $groups.Add($destinationKey, (New-Object System.Collections.ArrayList))
+        }
+        [void]$groups[$destinationKey].Add($item)
+    }
+
+    foreach ($destinationKey in @($groups.Keys)) {
+        $groupItems = @($groups[$destinationKey])
+        $keptItem = $groupItems[0]
+        foreach ($item in $groupItems) {
+            if ($item.Info.LastWriteTimeUtc -gt $keptItem.Info.LastWriteTimeUtc) {
+                $keptItem = $item
+            }
+        }
+        [void]$resolvedItems.Add($keptItem)
+        $destinationPath = Join-Path (Join-Path $Global:DESKTOP_BACKUP_DIR $keptItem.Category) $keptItem.Info.Name
+        foreach ($item in $groupItems) {
+            if ([object]::ReferenceEquals($item, $keptItem)) {
+                continue
+            }
+            if (Test-DesktopShortcutEquivalent -First $item.Info -Second $keptItem.Info) {
+                [void]$resolvedItems.Add($item)
+            } else {
+                [void]$Plan.Conflicts.Add(@{
+                    Item        = $item
+                    Destination = $destinationPath
+                    Reason      = ('{0} is filed under this name instead (newer or found first)' -f $keptItem.Info.Path)
+                })
+            }
+        }
+    }
+
+    $Plan.Items = $resolvedItems
+}
+
+<#
+.SYNOPSIS
+    Appends one undo record to the run context
+#>
+function Add-DesktopOrganizationRecord {
+    param(
+        [hashtable]$Context,
+        [string]$Action,
+        [string]$Source,
+        [string]$Destination,
+        [string]$Category,
+        [string]$Reason
+    )
+
+    [void]$Context.Records.Add([ordered]@{
+        Action      = $Action
+        Source      = $Source
+        Destination = $Destination
+        Category    = $Category
+        Reason      = $Reason
+        Time        = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
+    })
+}
+
+<#
+.SYNOPSIS
+    Moves an existing file out of the way into the run's displaced folder (never deletes)
+#>
+function Move-DesktopFileToDisplaced {
+    param(
+        [hashtable]$Context,
+        [string]$Path,
+        [string]$Category,
+        [string]$Reason
+    )
+
+    $displacedDirectory = Join-Path $Global:DESKTOP_ORGANIZER_DISPLACED_DIR $Context.RunId
+    $displacedPath = Join-Path $displacedDirectory ('{0:D3}_{1}' -f $Context.Records.Count, [System.IO.Path]::GetFileName($Path))
+
+    if (-not (Test-Path -LiteralPath $displacedDirectory)) {
+        New-Item -ItemType Directory -Path $displacedDirectory -Force | Out-Null
+    }
+    [System.IO.File]::Move($Path, $displacedPath)
+    Add-DesktopOrganizationRecord -Context $Context -Action 'displace' -Source $Path -Destination $displacedPath -Category $Category -Reason $Reason
+    return $displacedPath
+}
+
+<#
+.SYNOPSIS
+    Ensures the desktop link to a category folder exists
+.DESCRIPTION
+    Uses a directory symbolic link named "<Category>.lnk" (as CommonFunc does) and falls back
+    to a regular shortcut when symbolic links are not permitted.
+#>
+function Set-DesktopCategoryLink {
+    param(
+        [hashtable]$Context,
+        [string]$CategoryName,
+        [string]$CategoryDirectory
+    )
+
+    $userDesktopPath = [Environment]::GetFolderPath('Desktop')
+    $desktopCategoryPath = Join-Path $userDesktopPath ('{0}.lnk' -f $CategoryName)
+    $shell = $null
+    $shortcut = $null
+
+    if (Test-Path -LiteralPath $desktopCategoryPath) {
+        return $false
+    }
+    try {
+        New-Item -ItemType SymbolicLink -Path $desktopCategoryPath -Target $CategoryDirectory -ErrorAction Stop | Out-Null
+        Add-DesktopOrganizationRecord -Context $Context -Action 'link' -Source $CategoryDirectory -Destination $desktopCategoryPath -Category $CategoryName -Reason 'symbolic link'
+    } catch {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($desktopCategoryPath)
+        $shortcut.TargetPath = $CategoryDirectory
+        $shortcut.Save()
+        Add-DesktopOrganizationRecord -Context $Context -Action 'link' -Source $CategoryDirectory -Destination $desktopCategoryPath -Category $CategoryName -Reason 'shortcut'
+    }
+    return $true
+}
+
+<#
+.SYNOPSIS
+    Organizes the planned shortcuts of one category
+.DESCRIPTION
+    Creates the category folder and its desktop link when missing, then moves the shortcuts.
 #>
 function Invoke-CategoryOrganization {
     param(
@@ -805,91 +1427,30 @@ function Invoke-CategoryOrganization {
         [string]$CategoryName,
 
         [Parameter(Mandatory = $true)]
-        [array]$Keywords,
+        [array]$Items,
 
         [Parameter(Mandatory = $true)]
-        [array]$DesktopPaths,
-
-        [Parameter(Mandatory = $true)]
-        [string]$BaseDirectory,
-
-        [Parameter(Mandatory = $true)]
-        [ref]$ProcessedShortcuts
+        [hashtable]$Context
     )
 
-    # Variables declaration
     $categoryResult = @{
-        CategoryName = $CategoryName
-        ShortcutsMoved = 0
+        CategoryName    = $CategoryName
+        ShortcutsMoved  = 0
         CategoryCreated = $false
-        Errors = @()
+        Errors          = @()
     }
-
-    $categoryDir = Join-Path $BaseDirectory $CategoryName
-    $userDesktopPath = [Environment]::GetFolderPath('Desktop')
+    $categoryDirectory = Join-Path $Global:DESKTOP_BACKUP_DIR $CategoryName
 
     try {
-        # First, scan to see if any shortcuts match this category
-        $hasMatches = Test-CategoryHasMatches -CategoryName $CategoryName -Keywords $Keywords -DesktopPaths $DesktopPaths -CategoryDirectory $categoryDir
-
-        # Only create category directory and link if there are matches
-        if ($hasMatches) {
-            Write-DesktopIconManagerDebug -Message "Category '$CategoryName' has matching shortcuts, creating directory and link" -ForegroundColor Green
-
-            # Create category directory
-            if (-not (Test-Path $categoryDir)) {
-                New-Item -ItemType Directory -Path $categoryDir -Force | Out-Null
-                Write-DesktopIconManagerDebug -Message "Created category directory: $categoryDir" -ForegroundColor Green
-                $categoryResult.CategoryCreated = $true
-            }
-
-            # Create symbolic link to category directory on desktop
-            $desktopCategoryPath = Join-Path $userDesktopPath "$CategoryName.lnk"
-            if (-not (Test-Path $desktopCategoryPath)) {
-                try {
-                    New-Item -ItemType SymbolicLink -Path $desktopCategoryPath -Target $categoryDir -Force | Out-Null
-                    Write-DesktopIconManagerDebug -Message "Linked category directory to desktop: $desktopCategoryPath" -ForegroundColor Green
-                } catch {
-                    Write-DesktopIconManagerDebug -Message "Warning: Could not create symbolic link for category: $CategoryName" -ForegroundColor Yellow
-                }
-            }
-        } else {
-            Write-DesktopIconManagerDebug -Message "Category '$CategoryName' has no matching shortcuts, skipping directory creation" -ForegroundColor Yellow
+        if (-not (Test-Path -LiteralPath $categoryDirectory)) {
+            New-Item -ItemType Directory -Path $categoryDirectory -Force | Out-Null
+            Add-DesktopOrganizationRecord -Context $Context -Action 'mkdir' -Source '' -Destination $categoryDirectory -Category $CategoryName -Reason 'category folder'
+            $categoryResult.CategoryCreated = $true
         }
-
-        # Scan desktop for matching shortcuts and move them
-        $movedCount = Move-ShortcutsToCategory -CategoryName $CategoryName -Keywords $Keywords -DesktopPaths $DesktopPaths -CategoryDirectory $categoryDir -ProcessedShortcuts $ProcessedShortcuts
-        $categoryResult.ShortcutsMoved = $movedCount
-
-        # Clean up empty directory and desktop link if no shortcuts were moved and no existing shortcuts
-        $existingShortcutsCount = 0
-        if (Test-Path $categoryDir) {
-            $existingShortcuts = @(Get-ChildItem -Path $categoryDir -Filter "*.lnk" -ErrorAction SilentlyContinue)
-            $existingShortcutsCount = $existingShortcuts.Count
-        }
-
-        $totalShortcuts = $movedCount + $existingShortcutsCount
-        if ($totalShortcuts -eq 0) {
-            # Remove empty category directory if it exists
-            if (Test-Path $categoryDir) {
-                Remove-Item -Path $categoryDir -Recurse -Force -ErrorAction SilentlyContinue
-                Write-DesktopIconManagerDebug -Message "Removed empty category directory: $categoryDir" -ForegroundColor Yellow
-            }
-
-            # Remove desktop link if it exists
-            $desktopCategoryPath = Join-Path $userDesktopPath "$CategoryName.lnk"
-            if (Test-Path $desktopCategoryPath) {
-                Remove-Item -Path $desktopCategoryPath -Force -ErrorAction SilentlyContinue
-                Write-DesktopIconManagerDebug -Message "Removed category link from desktop: $desktopCategoryPath" -ForegroundColor Yellow
-            }
-        }
-
-        Write-DesktopIconManagerDebug -Message "Category '$CategoryName' processing completed. Moved $movedCount shortcuts." -ForegroundColor Green
-
+        [void](Set-DesktopCategoryLink -Context $Context -CategoryName $CategoryName -CategoryDirectory $categoryDirectory)
+        $categoryResult.ShortcutsMoved = Move-ShortcutsToCategory -CategoryName $CategoryName -Items $Items -CategoryDirectory $categoryDirectory -Context $Context
     } catch {
-        $errorMsg = "Category organization failed for ${CategoryName}: $($_.Exception.Message)"
-        $categoryResult.Errors += $errorMsg
-        Write-DesktopIconManagerDebug -Message $errorMsg -ForegroundColor Red
+        $categoryResult.Errors += "Category organization failed for ${CategoryName}: $($_.Exception.Message)"
     }
 
     return $categoryResult
@@ -897,154 +1458,62 @@ function Invoke-CategoryOrganization {
 
 <#
 .SYNOPSIS
-    Tests if a category has matching shortcuts
-
+    Decides what happens to one planned item, given what is already at its destination
 .DESCRIPTION
-    Scans desktop paths to determine if any shortcuts match the category keywords.
-    This is used to decide whether to create category directories and links.
+    place: the destination is free. unchanged: an identical copy is already filed (copy mode).
+    duplicate: an identical shortcut is already filed, so the desktop one is displaced (move mode).
+    replace: a different, older shortcut is displaced by this newer one.
+    conflict: a refile onto an existing name, or a different shortcut that is not older; it stays.
+.OUTPUTS
+    Hashtable: Action, Destination, Reason
 #>
-function Test-CategoryHasMatches {
+function Get-DesktopPlacementDecision {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$CategoryName,
+        [hashtable]$Item,
 
         [Parameter(Mandatory = $true)]
-        [array]$Keywords,
+        [string]$CategoryDirectory,
 
         [Parameter(Mandatory = $true)]
-        [array]$DesktopPaths,
-
-        [Parameter(Mandatory = $true)]
-        [string]$CategoryDirectory
+        [object]$Shell
     )
 
-    # Check if category directory already has shortcuts
-    if (Test-Path $CategoryDirectory) {
-        $existingShortcuts = @(Get-ChildItem -Path $CategoryDirectory -Filter "*.lnk" -ErrorAction SilentlyContinue)
-        if ($existingShortcuts.Count -gt 0) {
-            Write-DesktopIconManagerDebug -Message "Found $($existingShortcuts.Count) existing shortcuts in category directory" -ForegroundColor Green
-            return $true
-        }
+    $info = $Item.Info
+    $decision = @{
+        Action      = 'place'
+        Destination = Join-Path $CategoryDirectory $info.Name
+        Reason      = ''
     }
+    $destinationInfo = $null
+    $isEquivalent = $false
 
-    # Scan desktop for matching shortcuts
-    foreach ($keyword in $Keywords) {
-        foreach ($desktopPath in $DesktopPaths) {
-            if (-not (Test-Path $desktopPath)) {
-                continue
-            }
-
-            try {
-                $lnkFiles = [System.IO.Directory]::GetFiles($desktopPath, "*.lnk")
-                foreach ($filePath in $lnkFiles) {
-                    $shortcut = Get-Item $filePath
-
-                    # Skip if this is already a category folder link
-                    if ($shortcut.Name -like "*$CategoryName*") {
-                        continue
-                    }
-
-                    # Check if shortcut matches keyword (with Unicode conversion)
-                    if (Test-ShortcutMatchesKeyword -ShortcutName $shortcut.Name -Keyword $keyword) {
-                        # Verify this is a valid application shortcut
-                        if (Test-ValidShortcut -ShortcutPath $shortcut.FullName) {
-                            return $true
-                        }
-                    }
-                }
-            } catch {
-                # Fallback to PowerShell method
-                $desktopShortcuts = Get-ChildItem -Path $desktopPath -Filter "*.lnk" -ErrorAction SilentlyContinue
-                foreach ($shortcut in $desktopShortcuts) {
-                    # Skip if this is already a category folder link
-                    if ($shortcut.Name -like "*$CategoryName*") {
-                        continue
-                    }
-
-                    # Check if shortcut matches keyword
-                    if (Test-ShortcutMatchesKeyword -ShortcutName $shortcut.Name -Keyword $keyword) {
-                        if (Test-ValidShortcut -ShortcutPath $shortcut.FullName) {
-                            return $true
-                        }
-                    }
-                }
-            }
-        }
+    if (-not [System.IO.File]::Exists($decision.Destination)) {
+        return $decision
     }
-
-    return $false
+    $destinationInfo = Get-DesktopShortcutInfo -Path $decision.Destination -Shell $Shell
+    $isEquivalent = Test-DesktopShortcutEquivalent -First $info -Second $destinationInfo
+    if ($Item.Mode -eq 'refile') {
+        $decision.Action = 'conflict'
+        $decision.Reason = ('same name already in {0}, identical={1}' -f $Item.Category, $isEquivalent)
+    } elseif ($isEquivalent -and $Item.Mode -eq 'copy') {
+        $decision.Action = 'unchanged'
+    } elseif ($isEquivalent) {
+        $decision.Action = 'duplicate'
+    } elseif ($info.LastWriteTimeUtc -le $destinationInfo.LastWriteTimeUtc) {
+        $decision.Action = 'conflict'
+        $decision.Reason = ('a different, not older {0} is already in {1}' -f $info.Name, $Item.Category)
+    } else {
+        $decision.Action = 'replace'
+    }
+    return $decision
 }
 
 <#
 .SYNOPSIS
-    Tests if a shortcut name matches a keyword
-
+    Moves (or copies, for browsers kept on the desktop) planned shortcuts into a category folder
 .DESCRIPTION
-    Performs comprehensive keyword matching including Unicode conversion for international characters.
-#>
-function Test-ShortcutMatchesKeyword {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ShortcutName,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Keyword
-    )
-
-    # Convert Unicode escape sequences to actual characters for comparison
-    $actualKeyword = $Keyword
-    if ($Keyword -match '\\u[0-9A-Fa-f]{4}') {
-        try {
-            $actualKeyword = [regex]::Replace($Keyword, '\\u([0-9A-Fa-f]{4})', {
-                param($match)
-                [char][int]("0x" + $match.Groups[1].Value)
-            })
-            Write-DesktopIconManagerDebug -Message "Converted Unicode '$Keyword' to '$actualKeyword'" -ForegroundColor Magenta
-        } catch {
-            $actualKeyword = $Keyword
-        }
-    }
-
-    # Multiple matching methods
-    $keywordMatch = ($ShortcutName -like "*$actualKeyword*") -or
-                   ($ShortcutName -like "*$Keyword*") -or
-                   ($ShortcutName.ToLower() -like "*$($actualKeyword.ToLower())*") -or
-                   ($ShortcutName.ToLower() -like "*$($Keyword.ToLower())*")
-
-    return $keywordMatch
-}
-
-<#
-.SYNOPSIS
-    Tests if a shortcut is valid (has a valid target)
-
-.DESCRIPTION
-    Verifies that a shortcut file points to a valid executable target.
-#>
-function Test-ValidShortcut {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ShortcutPath
-    )
-
-    try {
-        $shell = New-Object -ComObject WScript.Shell
-        $targetPath = $shell.CreateShortcut($ShortcutPath).TargetPath
-
-        return ($targetPath -and $targetPath -ne "" -and (Test-Path $targetPath -PathType Leaf))
-    } catch {
-        return $false
-    }
-}
-
-<#
-.SYNOPSIS
-    Moves shortcuts matching keywords to a category directory
-
-.DESCRIPTION
-    Scans desktop paths for shortcuts matching the provided keywords and moves them
-    to the specified category directory. Handles special cases like browsers that
-    should be copied instead of moved.
+    Applies Get-DesktopPlacementDecision to each item and records every change for undo.
 #>
 function Move-ShortcutsToCategory {
     param(
@@ -1052,116 +1521,55 @@ function Move-ShortcutsToCategory {
         [string]$CategoryName,
 
         [Parameter(Mandatory = $true)]
-        [array]$Keywords,
-
-        [Parameter(Mandatory = $true)]
-        [array]$DesktopPaths,
+        [array]$Items,
 
         [Parameter(Mandatory = $true)]
         [string]$CategoryDirectory,
 
         [Parameter(Mandatory = $true)]
-        [ref]$ProcessedShortcuts
+        [hashtable]$Context
     )
 
-    # Variables declaration
     $movedCount = 0
-    $userDesktopPath = [Environment]::GetFolderPath('Desktop')
+    $item = $null
+    $info = $null
+    $destinationPath = ''
+    $decision = $null
+    $displacedPath = ''
 
-    foreach ($keyword in $Keywords) {
-        Write-DesktopIconManagerDebug -Message "Scanning for keyword: '$keyword'" -ForegroundColor Yellow
-
-        foreach ($desktopPath in $DesktopPaths) {
-            if (-not (Test-Path $desktopPath)) {
+    foreach ($item in $Items) {
+        $info = $item.Info
+        $destinationPath = Join-Path $CategoryDirectory $info.Name
+        try {
+            $decision = Get-DesktopPlacementDecision -Item $item -CategoryDirectory $CategoryDirectory -Shell $Context.Shell
+            if ($decision.Action -eq 'conflict') {
+                [void]$Context.Conflicts.Add(@{ Item = $item; Destination = $destinationPath; Reason = $decision.Reason })
                 continue
             }
-
-            # Get all shortcuts on desktop
-            try {
-                $lnkFiles = [System.IO.Directory]::GetFiles($desktopPath, "*.lnk")
-                $desktopShortcuts = @()
-                foreach ($filePath in $lnkFiles) {
-                    $desktopShortcuts += Get-Item $filePath
-                }
-            } catch {
-                # Fallback to PowerShell method
-                $desktopShortcuts = Get-ChildItem -Path $desktopPath -Filter "*.lnk" -ErrorAction SilentlyContinue
+            if ($decision.Action -eq 'unchanged') {
+                [void]$Context.Unchanged.Add(@{ Item = $item; Destination = $destinationPath })
+                continue
             }
-
-            foreach ($shortcut in $desktopShortcuts) {
-                # Skip if this is already a category folder link
-                if ($shortcut.Name -like "*$CategoryName*") {
-                    continue
-                }
-
-                # Check if shortcut matches keyword
-                if (Test-ShortcutMatchesKeyword -ShortcutName $shortcut.Name -Keyword $keyword) {
-                    # Create category directory and desktop link on first match
-                    if ($movedCount -eq 0) {
-                        # Create category directory
-                        if (-not (Test-Path $CategoryDirectory)) {
-                            New-Item -ItemType Directory -Path $CategoryDirectory -Force | Out-Null
-                            Write-DesktopIconManagerDebug -Message "Created category directory: $CategoryDirectory" -ForegroundColor Green
-                        }
-
-                        # Create symbolic link to category directory on desktop
-                        $desktopCategoryPath = Join-Path $userDesktopPath "$CategoryName.lnk"
-                        if (-not (Test-Path $desktopCategoryPath)) {
-                            try {
-                                New-Item -ItemType SymbolicLink -Path $desktopCategoryPath -Target $CategoryDirectory -Force | Out-Null
-                                Write-DesktopIconManagerDebug -Message "Linked category directory to desktop: $desktopCategoryPath" -ForegroundColor Green
-                            } catch {
-                                Write-DesktopIconManagerDebug -Message "Warning: Could not create symbolic link for category: $CategoryName" -ForegroundColor Yellow
-                            }
-                        }
-                    }
-
-                    # Add to processed list to avoid duplicate processing
-                    if ($ProcessedShortcuts.Value -notcontains $shortcut.FullName) {
-                        $ProcessedShortcuts.Value += $shortcut.FullName
-                    }
-
-                    # Verify this is a valid application shortcut
-                    if (-not (Test-ValidShortcut -ShortcutPath $shortcut.FullName)) {
-                        Write-DesktopIconManagerDebug -Message "Skipping invalid shortcut: $($shortcut.Name)" -ForegroundColor DarkGray
-                        continue
-                    }
-
-                    # Check if this is a special browser that should also stay on desktop
-                    $shouldKeepOnDesktop = $false
-                    $isBrowserCategory = ($CategoryName -eq $Global:DESKTOP_CATEGORY_BROWSERS)
-                    $isSpecialBrowser = ($shortcut.Name -like "*Chrome*" -or $shortcut.Name -like "*Edge*")
-
-                    if ($isBrowserCategory -and $isSpecialBrowser) {
-                        $shouldKeepOnDesktop = $true
-                        Write-DesktopIconManagerDebug -Message "Special browser detected: $($shortcut.Name) - will keep copy on desktop" -ForegroundColor Cyan
-                    }
-
-                    # Move or copy shortcut to category directory
-                    $targetShortcutPath = Join-Path $CategoryDirectory $shortcut.Name
-
-                    # Remove existing shortcut in category if it exists
-                    if (Test-Path $targetShortcutPath) {
-                        Remove-Item $targetShortcutPath -Force
-                        Write-DesktopIconManagerDebug -Message "Removed existing shortcut in category: $targetShortcutPath" -ForegroundColor Yellow
-                    }
-
-                    try {
-                        if ($shouldKeepOnDesktop) {
-                            # Copy instead of move for special browsers
-                            Copy-Item -Path $shortcut.FullName -Destination $targetShortcutPath -Force
-                            Write-DesktopIconManagerDebug -Message "Copied shortcut '$($shortcut.Name)' to category '$CategoryName' (kept on desktop)" -ForegroundColor Green
-                        } else {
-                            # Move for regular applications
-                            Move-Item -Path $shortcut.FullName -Destination $targetShortcutPath -Force
-                            Write-DesktopIconManagerDebug -Message "Moved shortcut '$($shortcut.Name)' to category '$CategoryName'" -ForegroundColor Green
-                        }
-                        $movedCount++
-                    } catch {
-                        Write-DesktopIconManagerDebug -Message "Warning: Could not process shortcut '$($shortcut.Name)': $($_.Exception.Message)" -ForegroundColor Yellow
-                    }
-                }
+            if ($decision.Action -eq 'duplicate') {
+                $displacedPath = Move-DesktopFileToDisplaced -Context $Context -Path $info.Path -Category $CategoryName -Reason 'identical shortcut already filed'
+                [void]$Context.Done.Add(@{ Item = $item; Destination = $displacedPath; Label = 'duplicate' })
+                $movedCount++
+                continue
             }
+            if ($decision.Action -eq 'replace') {
+                [void](Move-DesktopFileToDisplaced -Context $Context -Path $destinationPath -Category $CategoryName -Reason 'replaced by a newer shortcut')
+            }
+            if ($item.Mode -eq 'copy') {
+                [System.IO.File]::Copy($info.Path, $destinationPath, $false)
+                Add-DesktopOrganizationRecord -Context $Context -Action 'copy' -Source $info.Path -Destination $destinationPath -Category $CategoryName -Reason $item.Reason
+            } else {
+                [System.IO.File]::Move($info.Path, $destinationPath)
+                Add-DesktopOrganizationRecord -Context $Context -Action 'move' -Source $info.Path -Destination $destinationPath -Category $CategoryName -Reason $item.Reason
+            }
+            [void]$Context.Done.Add(@{ Item = $item; Destination = $destinationPath })
+            $movedCount++
+        } catch {
+            [void]$Context.Failed.Add(@{ Item = $item; Destination = $destinationPath; Error = $_.Exception.Message })
         }
     }
 
@@ -1170,98 +1578,31 @@ function Move-ShortcutsToCategory {
 
 <#
 .SYNOPSIS
-    Gets unmatched shortcuts after category processing
-
-.DESCRIPTION
-    Collects all desktop shortcuts that were not processed by any category.
-    These shortcuts are candidates for new categories or manual organization.
+    Returns the desktop shortcuts no category matched
 #>
 function Get-UnmatchedShortcuts {
     param(
         [Parameter(Mandatory = $true)]
-        [array]$DesktopPaths,
-
-        [Parameter(Mandatory = $true)]
-        [array]$ProcessedShortcuts
+        [hashtable]$Plan
     )
 
-    # Variables declaration
     $unmatchedShortcuts = @()
+    $entry = $null
 
-    foreach ($desktopPath in $DesktopPaths) {
-        if (-not (Test-Path $desktopPath)) {
-            continue
-        }
-
-        try {
-            $lnkFiles = [System.IO.Directory]::GetFiles($desktopPath, "*.lnk")
-            foreach ($filePath in $lnkFiles) {
-                $shortcut = Get-Item $filePath
-
-                # Skip category folder links and already processed shortcuts
-                $isCategoryLink = $false
-                foreach ($categoryConfig in $Global:DESKTOP_ORGANIZATION_CATEGORIES) {
-                    if ($shortcut.Name -like "*$($categoryConfig.DesktopCategory)*") {
-                        $isCategoryLink = $true
-                        break
-                    }
-                }
-
-                if (-not $isCategoryLink -and $ProcessedShortcuts -notcontains $shortcut.FullName) {
-                    # Verify this is a valid application shortcut
-                    if (Test-ValidShortcut -ShortcutPath $shortcut.FullName) {
-                        $shell = New-Object -ComObject WScript.Shell
-                        $targetPath = $shell.CreateShortcut($shortcut.FullName).TargetPath
-
-                        $unmatchedShortcuts += @{
-                            Name = $shortcut.Name
-                            FullPath = $shortcut.FullName
-                            TargetPath = $targetPath
-                            DesktopPath = $desktopPath
-                        }
-                    }
-                }
-            }
-        } catch {
-            # Fallback to PowerShell method
-            $desktopShortcuts = Get-ChildItem -Path $desktopPath -Filter "*.lnk" -ErrorAction SilentlyContinue
-            foreach ($shortcut in $desktopShortcuts) {
-                # Skip category folder links and already processed shortcuts
-                $isCategoryLink = $false
-                foreach ($categoryConfig in $Global:DESKTOP_ORGANIZATION_CATEGORIES) {
-                    if ($shortcut.Name -like "*$($categoryConfig.DesktopCategory)*") {
-                        $isCategoryLink = $true
-                        break
-                    }
-                }
-
-                if (-not $isCategoryLink -and $ProcessedShortcuts -notcontains $shortcut.FullName) {
-                    if (Test-ValidShortcut -ShortcutPath $shortcut.FullName) {
-                        $shell = New-Object -ComObject WScript.Shell
-                        $targetPath = $shell.CreateShortcut($shortcut.FullName).TargetPath
-
-                        $unmatchedShortcuts += @{
-                            Name = $shortcut.Name
-                            FullPath = $shortcut.FullName
-                            TargetPath = $targetPath
-                            DesktopPath = $desktopPath
-                        }
-                    }
-                }
-            }
+    foreach ($entry in $Plan.Unmatched) {
+        $unmatchedShortcuts += @{
+            Name        = $entry.Info.Name
+            FullPath    = $entry.Info.Path
+            TargetPath  = if ($entry.Info.TargetPath) { $entry.Info.TargetPath } else { $entry.Info.Url }
+            DesktopPath = Split-Path -Parent $entry.Info.Path
         }
     }
-
     return $unmatchedShortcuts
 }
 
 <#
 .SYNOPSIS
-    Displays unmatched shortcuts report
-
-.DESCRIPTION
-    Shows a detailed report of shortcuts that were not matched by any category.
-    This helps users identify potential new categories to add.
+    Prints the shortcuts that no category matched
 #>
 function Show-UnmatchedShortcuts {
     param(
@@ -1269,82 +1610,68 @@ function Show-UnmatchedShortcuts {
         [array]$UnmatchedShortcuts
     )
 
-    Write-DesktopIconManagerDebug -Message "UNMATCHED DESKTOP SHORTCUTS ($($UnmatchedShortcuts.Count) found):" -ForegroundColor Yellow
-    Write-DesktopIconManagerDebug -Message "Consider adding these to DESKTOP_ORGANIZATION_CATEGORIES in GlobalVars.ps1" -ForegroundColor Yellow
+    $shortcut = $null
 
+    Write-DesktopIconManagerInfo -Message "Unmatched desktop shortcuts ($($UnmatchedShortcuts.Count)); add keywords to DESKTOP_ORGANIZATION_CATEGORIES to file them:" -ForegroundColor Yellow
     foreach ($shortcut in $UnmatchedShortcuts) {
-        Write-DesktopIconManagerDebug -Message "  - $($shortcut.Name)" -ForegroundColor White
-        Write-DesktopIconManagerDebug -Message "    Target: $($shortcut.TargetPath)" -ForegroundColor DarkGray
-        Write-DesktopIconManagerDebug -Message "    Location: $($shortcut.DesktopPath)" -ForegroundColor DarkGray
+        Write-DesktopIconManagerInfo -Message "  - $($shortcut.FullPath) -> $($shortcut.TargetPath)" -ForegroundColor White
     }
-
 }
 
 <#
 .SYNOPSIS
-    Creates category summary report
-
-.DESCRIPTION
-    Displays a summary of all categories and their organized shortcuts.
+    Prints every category folder and its shortcuts
 #>
 function Show-OrganizationSummary {
-    Write-DesktopIconManagerDebug -Message "Desktop Icon Organization Summary:" -ForegroundColor Cyan
+    $table = Get-DesktopKeywordTable
+    $categoryName = ''
+    $categoryDirectory = ''
+    $shortcutFiles = @()
 
-    $baseDesktopIconsDir = $Global:DESKTOP_BACKUP_DIR
-
-    foreach ($categoryConfig in $Global:DESKTOP_ORGANIZATION_CATEGORIES) {
-        $categoryName = $categoryConfig.DesktopCategory
-        $categoryDir = Join-Path $baseDesktopIconsDir $categoryName
-
-        if (Test-Path $categoryDir) {
-            $shortcuts = @(Get-ChildItem -Path $categoryDir -Filter "*.lnk" -ErrorAction SilentlyContinue)
-            $shortcutCount = $shortcuts.Count
-
-            Write-DesktopIconManagerDebug -Message "Category: $categoryName ($shortcutCount shortcuts)" -ForegroundColor Green
-            if ($shortcuts -and $shortcuts.Count -gt 0) {
-                foreach ($shortcut in $shortcuts) {
-                    Write-DesktopIconManagerDebug -Message "  - $($shortcut.Name)" -ForegroundColor White
-                }
-            }
-        } else {
-            Write-DesktopIconManagerDebug -Message "Category: $categoryName (directory not found)" -ForegroundColor Yellow
+    Write-DesktopIconManagerInfo -Message "Category folders under $($Global:DESKTOP_BACKUP_DIR):" -ForegroundColor Cyan
+    foreach ($categoryName in $table.Categories) {
+        $categoryDirectory = Join-Path $Global:DESKTOP_BACKUP_DIR $categoryName
+        if (-not (Test-Path -LiteralPath $categoryDirectory)) {
+            continue
         }
+        $shortcutFiles = @(Get-DesktopShortcutFiles -Directory $categoryDirectory)
+        Write-DesktopIconManagerInfo -Message ("  {0} ({1}): {2}" -f $categoryName, $shortcutFiles.Count, ((@($shortcutFiles | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_) })) -join ', ')) -ForegroundColor Green
     }
-
 }
 
 <#
 .SYNOPSIS
-    Validates organization categories configuration
-
-.DESCRIPTION
-    Checks that the DESKTOP_ORGANIZATION_CATEGORIES global variable is properly
-    configured with required fields.
+    Validates the DESKTOP_ORGANIZATION_CATEGORIES configuration
 #>
 function Test-OrganizationCategories {
     Write-DesktopIconManagerDebug -Message "Validating organization categories..." -ForegroundColor Cyan
 
-    # Variables declaration
     $validationErrors = @()
+    $categoryConfig = $null
+    $seenCategories = @{}
+    $validationError = ''
 
-    if (-not $Global:DESKTOP_ORGANIZATION_CATEGORIES -or $Global:DESKTOP_ORGANIZATION_CATEGORIES.Count -eq 0) {
+    if (-not $Global:DESKTOP_ORGANIZATION_CATEGORIES -or @($Global:DESKTOP_ORGANIZATION_CATEGORIES).Count -eq 0) {
         $validationErrors += "DESKTOP_ORGANIZATION_CATEGORIES is empty or not defined"
     } else {
         foreach ($categoryConfig in $Global:DESKTOP_ORGANIZATION_CATEGORIES) {
-            if (-not $categoryConfig.ContainsKey("DesktopCategory") -or -not $categoryConfig.DesktopCategory) {
+            if (-not $categoryConfig.ContainsKey("DesktopCategory") -or -not $categoryConfig['DesktopCategory']) {
                 $validationErrors += "Category configuration missing DesktopCategory"
+                continue
             }
-
-            if (-not $categoryConfig.ContainsKey("AdditionalKeywords") -or -not $categoryConfig.AdditionalKeywords) {
-                $validationErrors += "Category '$($categoryConfig.DesktopCategory)' missing AdditionalKeywords"
+            if ($seenCategories.ContainsKey($categoryConfig['DesktopCategory'])) {
+                $validationErrors += "Category '$($categoryConfig['DesktopCategory'])' is defined twice"
+            }
+            $seenCategories[$categoryConfig['DesktopCategory']] = $true
+            if (-not $categoryConfig.ContainsKey("AdditionalKeywords") -or -not $categoryConfig['AdditionalKeywords']) {
+                $validationErrors += "Category '$($categoryConfig['DesktopCategory'])' missing AdditionalKeywords"
             }
         }
     }
 
     if ($validationErrors.Count -gt 0) {
-        Write-DesktopIconManagerDebug -Message "Validation errors found:" -ForegroundColor Red
         foreach ($validationError in $validationErrors) {
-            Write-DesktopIconManagerDebug -Message "  - $validationError" -ForegroundColor Red
+            Write-DesktopIconManagerInfo -Message "Invalid category configuration: $validationError" -ForegroundColor Red
         }
         return $false
     }
@@ -1355,11 +1682,359 @@ function Test-OrganizationCategories {
 
 <#
 .SYNOPSIS
-    Extracts icons from organized shortcuts
+    Writes the undo manifest of one organizer run
+#>
+function Save-DesktopOrganizationManifest {
+    param(
+        [hashtable]$Context
+    )
+
+    $manifestPath = Join-Path $Global:DESKTOP_ORGANIZER_MANIFEST_DIR ('organize_{0}.json' -f $Context.RunId)
+    $manifest = [ordered]@{
+        RunId        = $Context.RunId
+        CreatedAt    = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
+        Computer     = $env:COMPUTERNAME
+        User         = $env:USERNAME
+        BaseDirectory = $Global:DESKTOP_BACKUP_DIR
+        UndoneAt     = ''
+        Entries      = @($Context.Records)
+    }
+
+    if (-not (Test-Path -LiteralPath $Global:DESKTOP_ORGANIZER_MANIFEST_DIR)) {
+        New-Item -ItemType Directory -Path $Global:DESKTOP_ORGANIZER_MANIFEST_DIR -Force | Out-Null
+    }
+    $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+    return $manifestPath
+}
+
+<#
+.SYNOPSIS
+    Performs comprehensive desktop icon organization by categories
 
 .DESCRIPTION
-    Extracts application icons from all organized shortcuts and saves them as PNG files
-    in a structured directory hierarchy matching the organization categories.
+    Scans the user and Public desktops, moves every matching shortcut (.lnk/.url/.appref-ms)
+    into LANG_COMPILER_DIR\.desktopIcons\<Category> and links each category folder on the
+    desktop. Chrome/Edge are copied and stay on the desktop. Shortcuts already filed in a
+    category folder that nothing supports are refiled. Real files, folders, broken shortcuts
+    and the keep-on-desktop list are never touched, nothing is deleted, and every change is
+    written to an undo manifest under DESKTOP_ORGANIZER_STATE_DIR. A second run changes nothing.
+
+.PARAMETER ShowSummary
+    Whether to display the category folders after completion (default: true)
+
+.PARAMETER ExtractIcons
+    Whether to extract icons from organized shortcuts (default: true)
+
+.PARAMETER SpecificCategories
+    Array of specific desktop categories to process. If empty, processes all categories (default: empty)
+
+.PARAMETER PreviewOnly
+    Print the plan without changing anything (default: false)
+
+.EXAMPLE
+    Invoke-DesktopIconOrganization -ShowSummary $false -ExtractIcons $false
+
+.EXAMPLE
+    Invoke-DesktopIconOrganization -PreviewOnly $true
+#>
+function Invoke-DesktopIconOrganization {
+    param(
+        [Parameter(Mandatory = $false)]
+        [bool]$ShowSummary = $true,
+
+        [Parameter(Mandatory = $false)]
+        [bool]$ExtractIcons = $true,
+
+        [Parameter(Mandatory = $false)]
+        [array]$SpecificCategories = @(),
+
+        [Parameter(Mandatory = $false)]
+        [bool]$PreviewOnly = $false
+    )
+
+    if (-not $Global:DESKTOP_CLEANUP_ENABLED) {
+        Write-DesktopIconManagerDebug -Message "Desktop organization disabled, skipping" -ForegroundColor Gray
+        return
+    }
+
+    $organizationResults = @{
+        CategoriesProcessed = 0
+        ShortcutsMoved      = 0
+        CategoriesCreated   = 0
+        UnmatchedShortcuts  = 0
+        ManifestPath        = ''
+        Errors              = @()
+    }
+    $context = @{
+        RunId     = (Get-Date).ToString('yyyyMMdd_HHmmss_fff')
+        Shell     = $null
+        Records   = New-Object System.Collections.ArrayList
+        Done      = New-Object System.Collections.ArrayList
+        Unchanged = New-Object System.Collections.ArrayList
+        Conflicts = New-Object System.Collections.ArrayList
+        Failed    = New-Object System.Collections.ArrayList
+    }
+    $plan = $null
+    $unmatchedShortcuts = @()
+    $categoryName = ''
+    $categoryItems = @()
+    $categoryResult = $null
+    $entry = $null
+    $item = $null
+    $modeLabel = ''
+    $decision = $null
+    $previewPlaced = @{}
+
+    try {
+        if (-not (Test-OrganizationCategories)) {
+            throw "Organization categories validation failed"
+        }
+        $context.Shell = New-Object -ComObject WScript.Shell
+        $plan = Get-DesktopOrganizationPlan -SpecificCategories $SpecificCategories
+        Write-DesktopIconManagerInfo -Message "Desktops: $($plan.DesktopPaths -join '; ')" -ForegroundColor Cyan
+        Write-DesktopIconManagerInfo -Message "Category folders: $($Global:DESKTOP_BACKUP_DIR)" -ForegroundColor Cyan
+
+        foreach ($entry in $plan.Conflicts) {
+            [void]$context.Conflicts.Add($entry)
+        }
+        if ($PreviewOnly) {
+            foreach ($item in $plan.Items) {
+                $decision = Get-DesktopPlacementDecision -Item $item -CategoryDirectory (Join-Path $Global:DESKTOP_BACKUP_DIR $item.Category) -Shell $context.Shell
+                if ($decision.Action -eq 'place' -and $previewPlaced.ContainsKey($decision.Destination.ToLowerInvariant())) {
+                    $decision.Action = 'duplicate'
+                }
+                if ($decision.Action -eq 'unchanged') {
+                    continue
+                }
+                if ($decision.Action -eq 'conflict') {
+                    [void]$context.Conflicts.Add(@{ Item = $item; Destination = $decision.Destination; Reason = $decision.Reason })
+                    continue
+                }
+                $previewPlaced[$decision.Destination.ToLowerInvariant()] = $true
+                $modeLabel = $item.Mode
+                if ($decision.Action -ne 'place') {
+                    $modeLabel = ('{0} ({1})' -f $item.Mode, $decision.Action)
+                }
+                Write-DesktopIconManagerInfo -Message ("[preview] {0}: {1} -> {2} ({3})" -f $modeLabel, $item.Info.Path, $item.Category, $item.Reason) -ForegroundColor White
+            }
+            foreach ($entry in $context.Conflicts) {
+                Write-DesktopIconManagerInfo -Message ("[preview] kept ({0}): {1}" -f $entry.Reason, $entry.Item.Info.Path) -ForegroundColor Yellow
+            }
+            if ($previewPlaced.Count -eq 0) {
+                Write-DesktopIconManagerInfo -Message "Nothing to move; the desktop is already organized." -ForegroundColor Green
+            }
+        } else {
+            foreach ($categoryName in (Get-DesktopKeywordTable).Categories) {
+                $categoryItems = @($plan.Items | Where-Object { $_.Category -eq $categoryName })
+                if ($categoryItems.Count -eq 0) {
+                    continue
+                }
+                $categoryResult = Invoke-CategoryOrganization -CategoryName $categoryName -Items $categoryItems -Context $context
+                $organizationResults.CategoriesProcessed++
+                $organizationResults.ShortcutsMoved += $categoryResult.ShortcutsMoved
+                if ($categoryResult.CategoryCreated) {
+                    $organizationResults.CategoriesCreated++
+                }
+                if ($categoryResult.Errors.Count -gt 0) {
+                    $organizationResults.Errors += $categoryResult.Errors
+                }
+            }
+
+            foreach ($entry in $context.Done) {
+                $modeLabel = $entry.Item.Mode
+                if ($entry.ContainsKey('Label')) {
+                    $modeLabel = $entry.Label
+                }
+                Write-DesktopIconManagerInfo -Message ("{0}: {1} -> {2} ({3})" -f $modeLabel, $entry.Item.Info.Path, $entry.Destination, $entry.Item.Reason) -ForegroundColor Green
+            }
+            foreach ($entry in $context.Conflicts) {
+                Write-DesktopIconManagerInfo -Message ("kept ({0}): {1}" -f $entry.Reason, $entry.Item.Info.Path) -ForegroundColor Yellow
+            }
+            foreach ($entry in $context.Failed) {
+                Write-DesktopIconManagerInfo -Message ("failed: {0} -> {1}: {2}" -f $entry.Item.Info.Path, $entry.Destination, $entry.Error) -ForegroundColor Red
+                $organizationResults.Errors += ("Could not move {0}: {1}" -f $entry.Item.Info.Path, $entry.Error)
+            }
+            if ($context.Records.Count -gt 0) {
+                $organizationResults.ManifestPath = Save-DesktopOrganizationManifest -Context $context
+                Write-DesktopIconManagerInfo -Message "Undo manifest: $($organizationResults.ManifestPath)" -ForegroundColor Cyan
+            } else {
+                Write-DesktopIconManagerInfo -Message "Nothing to move; the desktop is already organized." -ForegroundColor Green
+            }
+        }
+
+        foreach ($entry in $plan.Pinned) {
+            Write-DesktopIconManagerInfo -Message "kept on desktop ($($entry.Reason)): $($entry.Info.Path)" -ForegroundColor DarkGray
+        }
+        foreach ($entry in $plan.Broken) {
+            Write-DesktopIconManagerInfo -Message "left in place (target missing): $($entry.Info.Path) -> $($entry.Reason)" -ForegroundColor DarkYellow
+        }
+        $unmatchedShortcuts = @(Get-UnmatchedShortcuts -Plan $plan)
+        $organizationResults.UnmatchedShortcuts = $unmatchedShortcuts.Count
+        if ($unmatchedShortcuts.Count -gt 0) {
+            Show-UnmatchedShortcuts -UnmatchedShortcuts $unmatchedShortcuts
+        }
+
+        if ($ShowSummary) {
+            Show-OrganizationSummary
+        }
+        if ($ExtractIcons -and -not $PreviewOnly) {
+            Invoke-IconExtraction -BaseDirectory $Global:DESKTOP_BACKUP_DIR
+        }
+    } catch {
+        $organizationResults.Errors += "Desktop icon organization failed: $($_.Exception.Message)"
+        Write-DesktopIconManagerInfo -Message "Desktop icon organization failed: $($_.Exception.Message)" -ForegroundColor Red
+        if ($context.Records.Count -gt 0 -and -not $organizationResults.ManifestPath) {
+            $organizationResults.ManifestPath = Save-DesktopOrganizationManifest -Context $context
+        }
+    }
+
+    return $organizationResults
+}
+
+<#
+.SYNOPSIS
+    Reverts one organizer run from its undo manifest (the newest one not yet undone by default)
+.DESCRIPTION
+    Replays the manifest backwards: moved shortcuts go back, copies and fallback desktop links
+    go to the state folder, displaced shortcuts return, symbolic desktop links are moved away
+    and category folders the run created are removed only when empty. Nothing is overwritten.
+    The run is marked UndoneAt only when no entry failed, so a rerun retries the failed ones.
+#>
+function Undo-DesktopIconOrganization {
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$ManifestPath = ''
+    )
+
+    $undoResults = @{
+        ManifestPath = ''
+        Restored     = 0
+        Skipped      = 0
+        Errors       = @()
+    }
+    $candidate = $null
+    $manifest = $null
+    $entries = @()
+    $entry = $null
+    $index = 0
+    $undoStoreDirectory = ''
+    $undoStorePath = ''
+    $parentDirectory = ''
+    $linkItem = $null
+    $status = ''
+    $restoredTo = ''
+    $errorMessage = ''
+
+    if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
+        foreach ($candidate in @(Get-ChildItem -LiteralPath $Global:DESKTOP_ORGANIZER_MANIFEST_DIR -Filter 'organize_*.json' -File -ErrorAction SilentlyContinue | Sort-Object Name -Descending)) {
+            $manifest = Get-Content -LiteralPath $candidate.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]::IsNullOrEmpty([string]$manifest.UndoneAt)) {
+                $ManifestPath = $candidate.FullName
+                break
+            }
+            $manifest = $null
+        }
+    } elseif (Test-Path -LiteralPath $ManifestPath) {
+        $manifest = Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+
+    if ($null -eq $manifest) {
+        Write-DesktopIconManagerInfo -Message "No organizer run to undo in $($Global:DESKTOP_ORGANIZER_MANIFEST_DIR)" -ForegroundColor Yellow
+        return $undoResults
+    }
+    if (-not [string]::IsNullOrEmpty([string]$manifest.UndoneAt)) {
+        Write-DesktopIconManagerInfo -Message "Already undone at $($manifest.UndoneAt): $ManifestPath" -ForegroundColor Yellow
+        return $undoResults
+    }
+
+    $undoResults.ManifestPath = $ManifestPath
+    $undoStoreDirectory = Join-Path (Join-Path $Global:DESKTOP_ORGANIZER_STATE_DIR 'undone') ([string]$manifest.RunId)
+    $entries = @($manifest.Entries)
+    Write-DesktopIconManagerInfo -Message "Undoing $($entries.Count) change(s) from $ManifestPath" -ForegroundColor Cyan
+
+    for ($index = $entries.Count - 1; $index -ge 0; $index--) {
+        $entry = $entries[$index]
+        $status = 'skipped'
+        $restoredTo = [string]$entry.Source
+        try {
+            switch ([string]$entry.Action) {
+                { $_ -eq 'move' -or $_ -eq 'displace' } {
+                    if ([System.IO.File]::Exists($entry.Destination) -and -not [System.IO.File]::Exists($entry.Source)) {
+                        $parentDirectory = Split-Path -Parent $entry.Source
+                        if (-not (Test-Path -LiteralPath $parentDirectory)) {
+                            New-Item -ItemType Directory -Path $parentDirectory -Force | Out-Null
+                        }
+                        [System.IO.File]::Move($entry.Destination, $entry.Source)
+                        $status = 'restored'
+                    }
+                }
+                'copy' {
+                    if ([System.IO.File]::Exists($entry.Destination)) {
+                        if (-not (Test-Path -LiteralPath $undoStoreDirectory)) {
+                            New-Item -ItemType Directory -Path $undoStoreDirectory -Force | Out-Null
+                        }
+                        $undoStorePath = Join-Path $undoStoreDirectory ('{0:D3}_{1}' -f $index, [System.IO.Path]::GetFileName($entry.Destination))
+                        [System.IO.File]::Move($entry.Destination, $undoStorePath)
+                        $restoredTo = $undoStorePath
+                        $status = 'restored'
+                    }
+                }
+                'link' {
+                    if ((Test-Path -LiteralPath $entry.Source) -and @(Get-ChildItem -LiteralPath $entry.Source -Force -ErrorAction SilentlyContinue).Count -gt 0) {
+                        break
+                    }
+                    $linkItem = Get-Item -LiteralPath $entry.Destination -Force -ErrorAction SilentlyContinue
+                    if ($null -ne $linkItem) {
+                        if (-not (Test-Path -LiteralPath $undoStoreDirectory)) {
+                            New-Item -ItemType Directory -Path $undoStoreDirectory -Force | Out-Null
+                        }
+                        $undoStorePath = Join-Path $undoStoreDirectory ('{0:D3}_{1}' -f $index, $linkItem.Name)
+                        if ($linkItem.PSIsContainer) {
+                            [System.IO.Directory]::Move($entry.Destination, $undoStorePath)
+                        } else {
+                            [System.IO.File]::Move($entry.Destination, $undoStorePath)
+                        }
+                        $restoredTo = $undoStorePath
+                        $status = 'restored'
+                    }
+                }
+                'mkdir' {
+                    if ((Test-Path -LiteralPath $entry.Destination) -and @(Get-ChildItem -LiteralPath $entry.Destination -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+                        [System.IO.Directory]::Delete($entry.Destination, $false)
+                        $restoredTo = 'removed (empty folder created by the run)'
+                        $status = 'restored'
+                    }
+                }
+            }
+        } catch {
+            $status = 'failed'
+            $undoResults.Errors += ("{0} {1}: {2}" -f $entry.Action, $entry.Destination, $_.Exception.Message)
+        }
+        if ($status -eq 'restored') {
+            $undoResults.Restored++
+            Write-DesktopIconManagerInfo -Message ("undo {0}: {1} -> {2}" -f $entry.Action, $entry.Destination, $restoredTo) -ForegroundColor Green
+        } else {
+            $undoResults.Skipped++
+            Write-DesktopIconManagerInfo -Message ("undo {0} {1}: {2}" -f $entry.Action, $status, $entry.Destination) -ForegroundColor Yellow
+        }
+    }
+
+    Write-DesktopIconManagerInfo -Message ("Undo finished: {0} restored, {1} skipped, {2} error(s)" -f $undoResults.Restored, $undoResults.Skipped, $undoResults.Errors.Count) -ForegroundColor Cyan
+    if ($undoResults.Errors.Count -eq 0) {
+        $manifest.UndoneAt = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
+        $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $ManifestPath -Encoding UTF8
+    } else {
+        foreach ($errorMessage in $undoResults.Errors) {
+            Write-DesktopIconManagerInfo -Message "undo failed: $errorMessage" -ForegroundColor Red
+        }
+        Write-DesktopIconManagerInfo -Message "The run stays open for undo; run Undo again (elevated for the Public desktop) to retry the failed entries: $ManifestPath" -ForegroundColor Yellow
+    }
+    return $undoResults
+}
+
+<#
+.SYNOPSIS
+    Extracts icons from organized shortcuts into USER_DIR\.icons\<Category>
 #>
 function Invoke-IconExtraction {
     param(
@@ -1367,84 +2042,27 @@ function Invoke-IconExtraction {
         [string]$BaseDirectory
     )
 
-    Write-DesktopIconManagerDebug -Message "Starting icon extraction from organized shortcuts..." -ForegroundColor Cyan
+    $iconsOutputDir = Join-Path $Global:USER_DIR ".icons"
+    $iconExtractorPath = Join-Path $script:DESKTOP_ICON_MANAGER_DIR "IconExtractor.ps1"
+    $table = Get-DesktopKeywordTable
+    $categoryName = ''
+    $filePath = ''
+    $extractedCount = 0
 
     try {
-        # Create icons directory in USER_DIR
-        $iconsOutputDir = Join-Path $Global:USER_DIR ".icons"
-
-        if (Test-Path $BaseDirectory) {
-            # Simple icon extraction function
-            function Extract-SimpleIcon {
-                param($FilePath, $OutputPath)
-                try {
-                    Add-Type -AssemblyName System.Drawing -ErrorAction SilentlyContinue
-
-                    $targetPath = $FilePath
-                    if ($FilePath.EndsWith('.lnk')) {
-                        try {
-                            $shell = New-Object -ComObject WScript.Shell
-                            $shortcut = $shell.CreateShortcut($FilePath)
-                            if ($shortcut.TargetPath -and (Test-Path $shortcut.TargetPath)) {
-                                $targetPath = $shortcut.TargetPath
-                            }
-                        } catch { }
-                    }
-
-                    if ($targetPath.EndsWith('.exe') -and (Test-Path $targetPath)) {
-                        $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($targetPath)
-                        if ($icon) {
-                            $bitmap = $icon.ToBitmap()
-                            $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
-                            $bitmap.Dispose()
-                            $icon.Dispose()
-                            return $true
-                        }
-                    }
-                } catch { }
-                return $false
-            }
-
-            # Extract icons from all .lnk files
-            $extractedCount = 0
-            $lnkFiles = Get-ChildItem -Path $BaseDirectory -Recurse -Include "*.lnk" -File
-
-            foreach ($file in $lnkFiles) {
-                try {
-                    # Calculate relative path
-                    $relativePath = $file.FullName.Substring($BaseDirectory.Length).TrimStart('\')
-                    $relativeDir = Split-Path $relativePath -Parent
-
-                    # Create output directory
-                    $outputDir = if ([string]::IsNullOrEmpty($relativeDir)) {
-                        $iconsOutputDir
-                    } else {
-                        Join-Path $iconsOutputDir $relativeDir
-                    }
-
-                    if (-not (Test-Path $outputDir)) {
-                        New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-                    }
-
-                    # Generate icon name
-                    $iconName = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
-                    $outputPath = Join-Path $outputDir "$iconName.png"
-
-                    if (Extract-SimpleIcon -FilePath $file.FullName -OutputPath $outputPath) {
-                        Write-DesktopIconManagerDebug -Message "Extracted icon: $iconName" -ForegroundColor Green
-                        $extractedCount++
-                    }
-                } catch {
-                    Write-DesktopIconManagerDebug -Message "Failed to extract icon from: $($file.Name)" -ForegroundColor Yellow
+        if (-not (Get-Command -Name 'Extract-IconFromFile' -ErrorAction SilentlyContinue)) {
+            . $iconExtractorPath
+        }
+        foreach ($categoryName in $table.Categories) {
+            foreach ($filePath in (Get-DesktopShortcutFiles -Directory (Join-Path $BaseDirectory $categoryName))) {
+                if (Extract-IconFromFile -FilePath $filePath -OutputDir (Join-Path $iconsOutputDir $categoryName) -IconName ([System.IO.Path]::GetFileNameWithoutExtension($filePath))) {
+                    $extractedCount++
                 }
             }
-
-            Write-DesktopIconManagerDebug -Message "Icon extraction completed! Extracted $extractedCount icons to: $iconsOutputDir" -ForegroundColor Green
-        } else {
-            Write-DesktopIconManagerDebug -Message "Desktop icons directory not found: $BaseDirectory" -ForegroundColor Yellow
         }
+        Write-DesktopIconManagerInfo -Message "Extracted $extractedCount icons to: $iconsOutputDir" -ForegroundColor Green
     } catch {
-        Write-DesktopIconManagerDebug -Message "Error during icon extraction: $($_.Exception.Message)" -ForegroundColor Red
+        Write-DesktopIconManagerInfo -Message "Error during icon extraction: $($_.Exception.Message)" -ForegroundColor Red
     }
 }
 
@@ -1987,3 +2605,10 @@ function Save-ScriptIdentifiers {
     }
 }
 
+switch ($DesktopIconAction) {
+    '' { }
+    'Organize' { [void](Invoke-DesktopIconOrganization -ShowSummary $true -ExtractIcons $false) }
+    'Preview' { [void](Invoke-DesktopIconOrganization -ShowSummary $false -ExtractIcons $false -PreviewOnly $true) }
+    'Undo' { [void](Undo-DesktopIconOrganization -ManifestPath $DesktopIconUndoManifest) }
+    default { Write-DesktopIconManagerInfo -Message "Unknown -DesktopIconAction '$DesktopIconAction' (use Organize, Preview or Undo)" -ForegroundColor Red }
+}

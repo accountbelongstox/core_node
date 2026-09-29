@@ -21,14 +21,11 @@ import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
-import { cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
+import { cmHumanize, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList, type CmPagedList } from '../components/workspace/useCmPagedList';
 
-const DEPOSIT_METHODS = ['alipay', 'wechat', 'bank_transfer'] as const;
-const WITHDRAWAL_METHODS = ['bank_transfer', 'alipay', 'wechat'] as const;
 const BANK_TRANSFER = 'bank_transfer';
 const PENDING_STATUS = 'pending';
-const REFUNDABLE_PAYMENT_STATUSES = new Set(['completed', 'disputed']);
 const WALLET_TABS = ['transactions', 'deposits', 'payments', 'invoices', 'refunds', 'withdrawals'] as const;
 const WITHDRAW_TAB = 'withdrawals';
 const BANK_FIELDS = ['bank_name', 'account_name', 'account_number', 'branch', 'swift_code', 'currency'] as const;
@@ -37,8 +34,9 @@ const WITHDRAWAL_ACCOUNT_FIELDS: Record<string, readonly string[]> = {
   alipay: ['account_name', 'account'],
   wechat: ['account_name', 'account'],
 };
-const MIN_WITHDRAWAL = 1;
+const HTTP_CREATED = 201;
 const TAB_QUERY_KEY = 'cm_wallet_tab';
+const LEDGER_KEY_PREFIX = 'wallet.ledger.';
 
 type CmWalletTab = typeof WALLET_TABS[number];
 
@@ -107,13 +105,16 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
   const format = useCmFormat();
   const idempotency = useCmIdempotencyKey();
   const notice = useCmNotice();
+  const { policyList } = useCmBootstrap();
+  const depositMethods = policyList('deposit_payment_methods');
   const [info, setInfo] = useState<CmDepositInfo | null>(null);
   const [history, setHistory] = useState<CmDepositRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [roleType, setRoleType] = useState('');
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<string>(DEPOSIT_METHODS[0]);
+  const [method, setMethod] = useState('');
+  const selectedMethod = depositMethods.includes(method) ? method : depositMethods[0] ?? '';
   const [bankInfo, setBankInfo] = useState<CmDepositBankInfo | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -148,11 +149,11 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
 
   const createDeposit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
-    if (busy || !roleType || amountInvalid) return;
+    if (busy || !roleType || !selectedMethod || amountInvalid) return;
     setBusy(true);
     notice.clear();
     setBankInfo(null);
-    const response = await cmApi.createDeposit({ role_type: roleType, amount: amount ? Number(amount) : undefined, payment_method: method }, idempotency.current());
+    const response = await cmApi.createDeposit({ role_type: roleType, amount: amount ? Number(amount) : undefined, payment_method: selectedMethod }, idempotency.current());
     setBusy(false);
     if (response.success && response.data) {
       idempotency.reset();
@@ -235,14 +236,14 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
             </label>
             <label>
               <span>{t('wallet.columnMethod')}</span>
-              <select value={method} onChange={(event) => changeInput(() => setMethod(event.target.value))}>
-                {DEPOSIT_METHODS.map((value) => (
+              <select value={selectedMethod} onChange={(event) => changeInput(() => setMethod(event.target.value))}>
+                {depositMethods.map((value) => (
                   <option key={value} value={value}>{t(`wallet.methods.${value}`)}</option>
                 ))}
               </select>
             </label>
             <div className="cm-project-form__actions">
-              <button type="submit" className="is-primary" disabled={busy || !roleType || amountInvalid}>
+              <button type="submit" className="is-primary" disabled={busy || !roleType || !selectedMethod || amountInvalid}>
                 {busy ? t('common.saving') : t('wallet.depositCreate')}
               </button>
             </div>
@@ -284,7 +285,7 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
                         {t('wallet.bank.show')}
                       </button>
                     )}
-                    {deposit.status === PENDING_STATUS && deposit.payment_method !== BANK_TRANSFER && deposit.payment_url && (
+                    {deposit.status === PENDING_STATUS && deposit.payment_method !== BANK_TRANSFER && depositMethods.includes(deposit.payment_method) && deposit.payment_url && (
                       <a className="cm-workspace-button is-small is-primary" href={deposit.payment_url} target="_blank" rel="noreferrer">{t('wallet.payNow')}</a>
                     )}
                   </td>
@@ -303,6 +304,8 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
   const format = useCmFormat();
   const idempotency = useCmIdempotencyKey();
   const notice = useCmNotice();
+  const { stateRule } = useCmBootstrap();
+  const refundableStates = stateRule('payment_refundable');
   const list = useCmPagedList(fetchPayments, extractPage<CmPayment>, 'wallet.paymentsLoadFailed');
   const [refundPaymentId, setRefundPaymentId] = useState<number | null>(null);
   const [refundReason, setRefundReason] = useState('');
@@ -337,7 +340,7 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
     notice.clear();
     const response = await cmApi.createInvoice({ payment_id: paymentId });
     setBusy(false);
-    if (response.success) notice.success(t('wallet.invoiceCreated'));
+    if (response.success) notice.success(t(response.status === HTTP_CREATED ? 'wallet.invoiceCreated' : 'wallet.invoiceExists'));
     else notice.error(cmErrorMessage(t, response, 'wallet.invoiceFailed'));
   };
 
@@ -375,7 +378,7 @@ const CmPaymentsTab: React.FC<{ userId: number | null }> = ({ userId }) => {
                           {t('wallet.createInvoice')}
                         </button>
                       )}
-                      {isPayer && REFUNDABLE_PAYMENT_STATUSES.has(payment.status) && (refundPaymentId === payment.id ? (
+                      {isPayer && refundableStates.includes(payment.status) && (refundPaymentId === payment.id ? (
                         <span className="cm-table-actions__refund">
                           <input value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder={t('wallet.refundReasonPlaceholder')} aria-label={t('wallet.columnReason')} />
                           <button type="button" className="cm-workspace-button is-small is-primary" disabled={busy || !refundReason.trim()} onClick={() => void requestRefund(payment.id)}>
@@ -474,17 +477,23 @@ const CmWithdrawalsTab: React.FC<{ wallet: CmWallet | null; onChanged: () => Pro
   const format = useCmFormat();
   const idempotency = useCmIdempotencyKey();
   const notice = useCmNotice();
+  const { bootstrap, policyList } = useCmBootstrap();
+  const withdrawalMethods = policyList('withdrawal_methods');
+  const minAmount = Number(bootstrap?.vocabulary.policy.withdrawal_min_amount ?? 0);
   const list = useCmPagedList(fetchWithdrawals, extractPage<CmWithdrawal>, 'wallet.withdrawalsLoadFailed');
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<string>(WITHDRAWAL_METHODS[0]);
+  const [method, setMethod] = useState('');
   const [account, setAccount] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const fields = WITHDRAWAL_ACCOUNT_FIELDS[method] ?? [];
+  const selectedMethod = withdrawalMethods.includes(method) ? method : withdrawalMethods[0] ?? '';
+  const fields = WITHDRAWAL_ACCOUNT_FIELDS[selectedMethod] ?? [];
   const available = Number(wallet?.available_balance ?? 0);
-  const amountError = !amount || Number(amount) < MIN_WITHDRAWAL
-    ? t('wallet.withdrawalMin', { amount: format.money(MIN_WITHDRAWAL, wallet?.currency) })
-    : Number(amount) > available ? t('wallet.withdrawalTooHigh') : null;
+  const amountValue = Number(amount);
+  const belowMinimum = !amount || !(amountValue > 0) || amountValue < minAmount;
+  const amountError = belowMinimum
+    ? (minAmount > 0 ? t('wallet.withdrawalMin', { amount: format.money(minAmount, wallet?.currency) }) : t('wallet.amountPositive'))
+    : amountValue > available ? t('wallet.withdrawalTooHigh') : null;
   const missingField = fields.some((field) => !(account[field] ?? '').trim());
 
   const change = (apply: () => void): void => {
@@ -495,11 +504,11 @@ const CmWithdrawalsTab: React.FC<{ wallet: CmWallet | null; onChanged: () => Pro
   const submit = async (event: React.FormEvent): Promise<void> => {
     event.preventDefault();
     setSubmitted(true);
-    if (busy || amountError || missingField) return;
+    if (busy || !selectedMethod || amountError || missingField) return;
     setBusy(true);
     notice.clear();
     const accountInfo = Object.fromEntries(fields.map((field) => [field, (account[field] ?? '').trim()]));
-    const response = await cmApi.requestWithdrawal({ amount: Number(amount), method, account_info: accountInfo }, idempotency.current());
+    const response = await cmApi.requestWithdrawal({ amount: amountValue, method: selectedMethod, account_info: accountInfo }, idempotency.current());
     setBusy(false);
     if (response.success) {
       idempotency.reset();
@@ -519,13 +528,13 @@ const CmWithdrawalsTab: React.FC<{ wallet: CmWallet | null; onChanged: () => Pro
       <form className="cm-project-form cm-inline-form" onSubmit={(event) => void submit(event)} noValidate>
         <label>
           <span>{t('wallet.columnAmount')}</span>
-          <input type="number" min={MIN_WITHDRAWAL} step="0.01" inputMode="decimal" value={amount} onChange={(event) => change(() => setAmount(event.target.value))} aria-invalid={submitted && Boolean(amountError)} />
+          <input type="number" min={minAmount} step="0.01" inputMode="decimal" value={amount} onChange={(event) => change(() => setAmount(event.target.value))} aria-invalid={submitted && Boolean(amountError)} />
           {submitted && amountError ? <small className="cm-field-error">{amountError}</small> : wallet && <small className="cm-field-hint">{t('wallet.withdrawAvailable', { amount: format.money(wallet.available_balance, wallet.currency) })}</small>}
         </label>
         <label>
           <span>{t('wallet.columnMethod')}</span>
-          <select value={method} onChange={(event) => change(() => setMethod(event.target.value))}>
-            {WITHDRAWAL_METHODS.map((value) => (
+          <select value={selectedMethod} onChange={(event) => change(() => setMethod(event.target.value))}>
+            {withdrawalMethods.map((value) => (
               <option key={value} value={value}>{t(`wallet.methods.${value}`)}</option>
             ))}
           </select>
@@ -538,7 +547,7 @@ const CmWithdrawalsTab: React.FC<{ wallet: CmWallet | null; onChanged: () => Pro
           </label>
         ))}
         <div className="cm-project-form__actions">
-          <button type="submit" className="is-primary" disabled={busy}>{busy ? t('common.saving') : t('wallet.requestWithdrawal')}</button>
+          <button type="submit" className="is-primary" disabled={busy || !selectedMethod}>{busy ? t('common.saving') : t('wallet.requestWithdrawal')}</button>
         </div>
       </form>
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
@@ -576,6 +585,11 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const list = useCmPagedList(fetchTransactions, extractPage<CmWalletTransaction>, 'wallet.transactionsLoadFailed');
+  const describe = (transaction: CmWalletTransaction): string | null => {
+    const code = transaction.description_code;
+    if (!code) return transaction.description;
+    return t(`${LEDGER_KEY_PREFIX}${code}`, { ...(transaction.description_params ?? {}), defaultValue: cmHumanize(code) });
+  };
   return (
     <>
       <p className="cm-section-card__lead">{t('wallet.transactionsLead')}</p>
@@ -591,18 +605,21 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
             </tr>
           </thead>
           <tbody>
-            {list.items.map((transaction) => (
-              <tr key={transaction.id}>
-                <td>
-                  {t(`wallet.transactionTypes.${transaction.type}`, { defaultValue: transaction.type })}
-                  {transaction.description && <small className="cm-cell-note">{transaction.description}</small>}
-                </td>
-                <td className={`is-num ${isOutgoing(transaction) ? 'is-negative' : 'is-positive'}`}>{isOutgoing(transaction) ? '−' : '+'}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
-                <td className="is-num">{transaction.balance_after !== null ? format.money(transaction.balance_after, currency) : t('common.unavailable')}</td>
-                <td><CmStatusBadge group="transaction" status={transaction.status} /></td>
-                <td>{format.dateTime(transaction.created_at) || t('common.unavailable')}</td>
-              </tr>
-            ))}
+            {list.items.map((transaction) => {
+              const description = describe(transaction);
+              return (
+                <tr key={transaction.id}>
+                  <td>
+                    {t(`wallet.transactionTypes.${transaction.type}`, { defaultValue: transaction.type })}
+                    {description && <small className="cm-cell-note">{description}</small>}
+                  </td>
+                  <td className={`is-num ${isOutgoing(transaction) ? 'is-negative' : 'is-positive'}`}>{isOutgoing(transaction) ? '−' : '+'}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
+                  <td className="is-num">{transaction.balance_after !== null ? format.money(transaction.balance_after, currency) : t('common.unavailable')}</td>
+                  <td><CmStatusBadge group="transaction" status={transaction.status} /></td>
+                  <td>{format.dateTime(transaction.created_at) || t('common.unavailable')}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </CmListBody>

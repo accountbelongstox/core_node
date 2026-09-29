@@ -24,6 +24,11 @@ use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
  */
 class SslCertAutoRenewTask extends OctaneTimerTaskAbstract
 {
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     /** Once a day (seconds). certbot renew skips non-expiring certs on its own. */
     public function getInterval(): int
     {

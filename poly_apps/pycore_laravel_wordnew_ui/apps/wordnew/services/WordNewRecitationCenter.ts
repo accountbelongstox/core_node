@@ -26,29 +26,11 @@ import {
   type WordNewRecitationTodayPlan,
 } from '../api';
 import { isQueuedError } from '../../../core/network/api-client';
+import { createIdempotencyKey } from '../../../core/integrations/laravel/transport/BaseAPI';
 import { wordNewEventBus } from './WordNewEventBus';
+import { localDateKey } from '../utils/WordNewTimeFormat';
 
 const FLUSH_INTERVAL_MS = 5000;
-
-/** Fresh idempotency key for one flush (crypto.randomUUID with fallback). */
-const newBatchId = (): string => {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-  } catch {
-    /* crypto unavailable — fall through */
-  }
-  return `wf-recite-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-};
-
-/** Local calendar date (YYYY-MM-DD) — used to reset the per-day unique set. */
-const localDateKey = (): string => {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-};
 
 /** Payload of the 'recitation-updated' wordNewEventBus event. */
 export interface WordNewRecitationUpdate {
@@ -64,7 +46,7 @@ class WordNewRecitationCenterClass {
   /** Learning language of the buffered events (last writer wins). */
   private pendingLanguage: string | undefined;
   /** One session id per center lifetime (page session) for the backend logs. */
-  private readonly sessionId: string = newBatchId();
+  private readonly sessionId: string = createIdempotencyKey();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   /** Serializes flushes — a flush never overlaps a previous in-flight one. */
   private flushChain: Promise<void> = Promise.resolve();
@@ -163,7 +145,7 @@ class WordNewRecitationCenterClass {
         language,
         session_id: this.sessionId,
         // ONE fresh batch_id per flush — the replay-idempotency key.
-        batch_id: newBatchId(),
+        batch_id: createIdempotencyKey(),
       });
       this.lastToday = result.today;
       this.pendingSync = false;

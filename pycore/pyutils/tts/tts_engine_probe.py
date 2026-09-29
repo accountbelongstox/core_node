@@ -4,8 +4,9 @@ Cheap TTS engine install vs runtime-ready probes for status UI.
 
 ``engine_installed`` — prerequisites present (pip package, staging .deps_done,
 cloned repo, or model cache) without network or heavy import.
-``engine_unavailable_reason`` — human hint when an engine is off (not installed,
-missing config, server down, or model files absent).
+``engine_unavailable_reason`` — coded hint (tts_reason_codes) when an engine is
+off (not installed, missing config, server down, or model files absent); the
+UI localizes it by code, logs use its English text.
 
 qwen3tts and melotts are class-C isolated-venv HTTP servers (see
 development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5): their
@@ -17,7 +18,7 @@ those pinned packages are never installed in the main interpreter.
 import importlib.util
 import os
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.system_paths import get_core_node_root, get_local_data_dir
 from pycore.pyutils.common.python_env.runtime_policy import (
@@ -26,6 +27,24 @@ from pycore.pyutils.common.python_env.runtime_policy import (
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.memory_gate import memory_gate_allows
+from pycore.pyutils.tts.tts_reason_codes import (
+    TTS_INSTALL_HINT_GENERIC,
+    TTS_INSTALL_HINT_PREREQUISITES,
+    TTS_REASON_BASE_PYTHON_UNAVAILABLE,
+    TTS_REASON_EDGE_INIT_FAILED,
+    TTS_REASON_FISHSPEECH_SOURCE_REQUIRED,
+    TTS_REASON_MEMORY_GATE,
+    TTS_REASON_MODEL_NOT_FOUND,
+    TTS_REASON_NOT_INSTALLED,
+    TTS_REASON_PACKAGE_MISSING,
+    TTS_REASON_SECRET_REQUIRED,
+    TTS_REASON_SERVER_MODEL_NOT_READY,
+    TTS_REASON_SERVER_NOT_RUNNING,
+    TTS_REASON_SETTING_REQUIRED,
+    TTS_REASON_VENV_NOT_BUILT_BASE_READY,
+    TTS_REASON_WEIGHTS_MISSING,
+    tts_reason,
+)
 
 
 _STAGING_ENV: Dict[str, str] = {
@@ -40,7 +59,11 @@ _STAGING_ENV: Dict[str, str] = {
     "voxcpm2": "VOXCPM2_DIR",
 }
 
-_NOT_INSTALLED = "Not installed — run PreparePycorePrerequisites"
+_NOT_INSTALLED = tts_reason(TTS_REASON_NOT_INSTALLED, installer=TTS_INSTALL_HINT_PREREQUISITES)
+_AZURE_SPEECH_PACKAGE = "azure-cognitiveservices-speech"
+_AZURE_SPEECH_SECRETS = "AZURE_SPEECH_KEY, AZURE_SPEECH_REGION"
+_GPTSOVITS_REF_AUDIO_SETTING = "GPTSOVITS_REF_AUDIO"
+_OFFLINE_TTS_PREREQUISITE = "offline TTS prerequisite (sherpa-onnx)"
 
 
 def _spec(module: str) -> bool:
@@ -144,13 +167,23 @@ def _self_contained_reason(name: str) -> Optional[str]:
         return None
     base = base_interpreter_compatibility(name)
     if not base.get("base_found"):
-        return str(base.get("reason") or "python310_not_registered")
+        return tts_reason(
+            TTS_REASON_BASE_PYTHON_UNAVAILABLE, engine=name,
+            detail=str(base.get("reason") or "python310_not_registered"),
+        )
     if not base.get("compatible"):
-        return str(base.get("reason") or "base interpreter incompatible")
-    return (
-        f"{name} isolated venv not built — Python 3.10 is ready; run the "
-        f"{name} installer (Step5x_Install*.ps1 / 1xx_install_*.sh)"
+        return tts_reason(
+            TTS_REASON_BASE_PYTHON_UNAVAILABLE, engine=name,
+            detail=str(base.get("reason") or "base interpreter incompatible"),
+        )
+    return tts_reason(
+        TTS_REASON_VENV_NOT_BUILT_BASE_READY, engine=name,
+        python_version=str(base.get("python_version") or ""), installer=TTS_INSTALL_HINT_GENERIC,
     )
+
+
+def _server_not_running(name: str, adapter: Any) -> str:
+    return tts_reason(TTS_REASON_SERVER_NOT_RUNNING, engine=name, url=adapter.base_url() if adapter else "")
 
 
 def engine_unavailable_reason(name: str) -> Optional[str]:
@@ -176,7 +209,7 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
     if not engine_installed(name):
         if name in ("cosyvoice", "gptsovits", "fishspeech"):
             reason = _self_contained_reason(name)
-            if reason and "venv not built" not in reason:
+            if reason and getattr(reason, "code", "") != TTS_REASON_VENV_NOT_BUILT_BASE_READY:
                 return reason
         return _NOT_INSTALLED
 
@@ -191,31 +224,31 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
             reason = _self_contained_reason(name)
             if reason:
                 return reason
-        return f"CosyVoice API server not reachable ({adapter.base_url() if adapter else ''})"
+        return _server_not_running(name, adapter)
 
     if name == "f5tts":
         cfg = adapter.disabled_reason() if adapter else None
         if cfg:
             return cfg
-        return f"F5-TTS API server not running ({adapter.base_url() if adapter else ''})"
+        return _server_not_running(name, adapter)
 
     if name == "chattts":
         if adapter is not None and not adapter.config_ready():
-            return "ChatTTS model weights are not installed"
+            return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=name, installer=TTS_INSTALL_HINT_GENERIC)
         reachable, model_ready = adapter.module.health_state() if adapter else (False, False)
         if reachable and not model_ready:
-            return "ChatTTS server is reachable but its model is not ready"
-        return f"ChatTTS API server not running ({adapter.base_url() if adapter else ''})"
+            return tts_reason(TTS_REASON_SERVER_MODEL_NOT_READY, engine=name)
+        return _server_not_running(name, adapter)
 
     if name == "gptsovits":
         ref = (os.environ.get("GPTSOVITS_REF_AUDIO") or "").strip()
         if not ref or not Path(ref).exists():
-            return "Set GPTSOVITS_REF_AUDIO to a reference clip"
+            return tts_reason(TTS_REASON_SETTING_REQUIRED, setting=_GPTSOVITS_REF_AUDIO_SETTING)
         if not (os.environ.get("GPTSOVITS_URL") or "").strip():
             reason = _self_contained_reason(name)
             if reason:
                 return reason
-        return f"GPT-SoVITS API server not running ({adapter.base_url() if adapter else ''})"
+        return _server_not_running(name, adapter)
 
     if name == "fishspeech":
         if (os.environ.get("FISH_API_KEY") or "").strip() and (
@@ -228,36 +261,31 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
             reason = _self_contained_reason(name)
             if reason:
                 return reason
-        return (
-            f"Start Fish Speech server ({adapter.base_url() if adapter else ''}) "
-            "or set FISH_API_KEY with fish-audio-sdk"
-        )
+        return tts_reason(TTS_REASON_FISHSPEECH_SOURCE_REQUIRED, url=adapter.base_url() if adapter else "")
 
     if name == "sherpa":
         if adapter and adapter.available():
             return None
-        return "Sherpa-ONNX model not found — run offline TTS prerequisite"
+        return tts_reason(TTS_REASON_MODEL_NOT_FOUND, engine=name, installer=_OFFLINE_TTS_PREREQUISITE)
 
     if name == "kokoro":
         if adapter and adapter.available():
             return None
-        return "Kokoro model not found — run Kokoro / sherpa prerequisite"
+        return tts_reason(TTS_REASON_MODEL_NOT_FOUND, engine=name, installer=_OFFLINE_TTS_PREREQUISITE)
 
     if name == "azure":
         if adapter and adapter.available():
             return None
         if not _spec("azure.cognitiveservices.speech"):
-            return "azure-cognitiveservices-speech package not installed"
-        return "Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION in .secret_keys"
+            return tts_reason(TTS_REASON_PACKAGE_MISSING, package=_AZURE_SPEECH_PACKAGE)
+        return tts_reason(TTS_REASON_SECRET_REQUIRED, secrets=_AZURE_SPEECH_SECRETS)
 
     if name == "edge":
-        return "edge-tts client failed to initialize (check package / network)"
+        return tts_reason(TTS_REASON_EDGE_INIT_FAILED)
 
     allowed, gate_reason = memory_gate_allows(name)
     if not allowed:
-        return f"Masked by memory gate: {gate_reason}"
-
-    return None
+        return tts_reason(TTS_REASON_MEMORY_GATE, engine=name, detail=gate_reason)
 
     return None
 

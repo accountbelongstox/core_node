@@ -1,6 +1,6 @@
 /** Geodesy helpers, geofencing, and related React hooks. */
 import { useEffect, useRef, useState } from 'react';
-import { capGeo, haversineMeters, useGeolocation } from './CapGeolocationCore';
+import { capGeo, DEG2RAD, EARTH_RADIUS_M, haversineMeters, useGeolocation } from './CapGeolocationCore';
 import type { CapCoords, CapGeoOptions, CapPosition } from './CapGeolocationCore';
 // ===========================================================================
 // EXTENDED CAPABILITIES — DMS formatting, geodesy, geofencing

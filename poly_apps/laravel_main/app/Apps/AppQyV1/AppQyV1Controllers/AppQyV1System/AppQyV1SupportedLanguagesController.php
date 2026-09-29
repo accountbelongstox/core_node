@@ -161,7 +161,7 @@ class AppQyV1SupportedLanguagesController extends Controller
 
         // Return array directly - unified format for frontend data centers
         // Frontend expects: {success: true, data: SupportedLanguage[]}
-        return $this->success($languages, 'Supported languages retrieved successfully');
+        return $this->success($languages, __('app_qy_v1.messages.supported_languages_retrieved_successfully'));
     }
 
     /**
@@ -173,7 +173,7 @@ class AppQyV1SupportedLanguagesController extends Controller
         $info = AppQyV1LanguageConfigService::getLanguageInfo($code);
 
         if (!$info) {
-            return $this->notFound('Language not found');
+            return $this->notFound(__('app_qy_v1.messages.language_not_found'));
         }
 
         return $this->success([
@@ -183,7 +183,7 @@ class AppQyV1SupportedLanguagesController extends Controller
             'voice_id' => $info['voice_id'] ?? '',
             'icon' => $info['flag_icon'] ?? '',
             'has_tts' => $info['supports_tts'] ?? false,
-        ], 'Language information retrieved successfully');
+        ], __('app_qy_v1.messages.language_information_retrieved_successfully'));
     }
 }
 

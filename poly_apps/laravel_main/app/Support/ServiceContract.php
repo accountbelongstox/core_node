@@ -21,6 +21,13 @@ use RuntimeException;
  */
 final class ServiceContract
 {
+    private const LABEL = 'service contract';
+    private const HOME_DATA_DIR_FALLBACK_KEY = 'home_data_dir_fallback';
+    private const DRIVE_LAYOUT_PATH = 'paths.drive_layout';
+    private const RULE_NEGATION_PREFIX = 'not ';
+    private const POSIX_SEPARATOR = '/';
+    private const WINDOWS_SEPARATOR = '\\';
+
     private static ?array $document = null;
 
     public static function document(): array
@@ -84,47 +91,17 @@ final class ServiceContract
 
     public static function string(string $path): string
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_string($value) || $value === '') {
-            throw new RuntimeException("Unknown service contract string: {$path}");
-        }
-
-        return $value;
+        return ContractDocument::string(self::document(), $path, self::LABEL);
     }
 
     public static function positiveInt(string $path): int
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_int($value) || $value < 1) {
-            throw new RuntimeException("Unknown service contract positive integer: {$path}");
-        }
-
-        return $value;
+        return ContractDocument::positiveInt(self::document(), $path, self::LABEL);
     }
 
     public static function boolean(string $path): bool
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_bool($value)) {
-            throw new RuntimeException("Unknown service contract boolean: {$path}");
-        }
-
-        return $value;
+        return ContractDocument::boolean(self::document(), $path, self::LABEL);
     }
 
     /**
@@ -132,25 +109,164 @@ final class ServiceContract
      */
     public static function stringList(string $path): array
     {
-        $value = self::document();
-        foreach (explode('.', $path) as $segment) {
-            $value = is_array($value) && array_key_exists($segment, $value)
-                ? $value[$segment]
-                : null;
-        }
-        if (!is_array($value)
-            || $value === []
-            || array_filter($value, static fn (mixed $item): bool => !is_string($item) || $item === '') !== []) {
-            throw new RuntimeException("Unknown service contract string list: {$path}");
+        return ContractDocument::stringList(self::document(), $path, self::LABEL);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function section(string $path): array
+    {
+        return ContractDocument::section(self::document(), $path, self::LABEL);
+    }
+
+    public static function wwwDirName(): string
+    {
+        return self::path('www_dir_name');
+    }
+
+    public static function coreNodeDataDirName(): string
+    {
+        return self::path('core_node_data_dir_name');
+    }
+
+    public static function globalVarDirName(): string
+    {
+        return self::path('global_var_dir_name');
+    }
+
+    public static function linuxWwwRoot(): string
+    {
+        return self::path('linux_www_root');
+    }
+
+    /** The /www/www level of a dual-boot NTFS /www mount (detection only). */
+    public static function linuxNtfsNestedWwwRoot(): string
+    {
+        return self::path('linux_ntfs_nested_www_root');
+    }
+
+    public static function legacyLinuxDataDir(): string
+    {
+        return self::path('legacy_linux_data_dir');
+    }
+
+    /**
+     * Dual-boot drive layout (paths.drive_layout): tree, tool and toolchain
+     * roots per OS and the Windows program-drive letters.
+     *
+     * @return array<string, mixed>
+     */
+    public static function driveLayout(): array
+    {
+        return self::section(self::DRIVE_LAYOUT_PATH);
+    }
+
+    /** Windows program drive used when no program drive is recorded (drive_layout.program_drive_fallback, e.g. D:). */
+    public static function windowsProgramDriveFallback(): string
+    {
+        return self::string(self::DRIVE_LAYOUT_PATH.'.program_drive_fallback');
+    }
+
+    /** Parent directory of drive_layout.tool_root.linux (the ext4 base that holds every /_<os>_<ver> tool root). */
+    public static function linuxToolBase(): string
+    {
+        $toolRoot = self::string(self::DRIVE_LAYOUT_PATH.'.tool_root.linux');
+        $separatorAt = strrpos($toolRoot, self::POSIX_SEPARATOR);
+
+        if ($separatorAt === false) {
+            throw new RuntimeException('Unknown service contract Linux tool root: '.$toolRoot);
         }
 
-        return array_values($value);
+        return $separatorAt === 0 ? self::POSIX_SEPARATOR : substr($toolRoot, 0, $separatorAt);
+    }
+
+    /** Windows data drive root in native form (paths.windows_data_drive_root, e.g. D:\). */
+    public static function windowsDataDriveRoot(): string
+    {
+        return rtrim(str_replace('/', self::WINDOWS_SEPARATOR, self::path('windows_data_drive_root')), self::WINDOWS_SEPARATOR)
+            .self::WINDOWS_SEPARATOR;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function ntfsFileSystemTypes(): array
+    {
+        return self::stringList('paths.ntfs_fs_types');
+    }
+
+    /**
+     * Linux data dir candidates that need a writability test, in contract
+     * order (paths.linux_data_dir_candidates), with each "when" rule
+     * evaluated from $rules (rule key => holds). The home fallback is
+     * excluded; homeDataDirFallback() resolves it.
+     *
+     * @param array<string, bool> $rules
+     * @return array<int, string>
+     */
+    public static function linuxDataDirCandidates(array $rules): array
+    {
+        $candidates = [];
+        $when = '';
+        $negated = false;
+        $rule = '';
+        $path = '';
+
+        foreach (ContractDocument::section(self::document(), 'paths.linux_data_dir_candidates', self::LABEL) as $candidate) {
+            if (!is_array($candidate) || !is_string($candidate['path'] ?? null)) {
+                throw new RuntimeException('Unknown service contract data dir candidate');
+            }
+            if ($candidate['path'] === self::HOME_DATA_DIR_FALLBACK_KEY) {
+                continue;
+            }
+            $when = (string) ($candidate['when'] ?? '');
+            if ($when !== '') {
+                $negated = str_starts_with($when, self::RULE_NEGATION_PREFIX);
+                $rule = $negated ? substr($when, strlen(self::RULE_NEGATION_PREFIX)) : $when;
+                if (!array_key_exists($rule, $rules)) {
+                    throw new RuntimeException("Unknown service contract data dir rule: {$rule}");
+                }
+                if ($rules[$rule] === $negated) {
+                    continue;
+                }
+            }
+            $path = self::path($candidate['path']);
+            if (isset($candidate['join'])) {
+                $path = rtrim($path, '/').'/'.self::path((string) $candidate['join']);
+            }
+            $candidates[] = $path;
+        }
+
+        return $candidates;
+    }
+
+    /** paths.home_data_dir_fallback with its leading ~ resolved against $home ('' without a home). */
+    public static function homeDataDirFallback(string $home): string
+    {
+        $fallback = self::path(self::HOME_DATA_DIR_FALLBACK_KEY);
+
+        if ($home === '') {
+            return '';
+        }
+
+        return str_starts_with($fallback, '~') ? rtrim($home, '/'.self::WINDOWS_SEPARATOR).substr($fallback, 1) : $fallback;
+    }
+
+    /**
+     * The data_sync block (protocol version, status groups, roles, retention).
+     *
+     * @return array<string, mixed>
+     */
+    public static function dataSync(): array
+    {
+        return self::section('data_sync');
     }
 
     public static function globalVarDirectory(): string
     {
         return PathMapper::getCoreNodeRuntimeDir()
-            .DIRECTORY_SEPARATOR.self::string('paths.global_var_dir_name');
+            .DIRECTORY_SEPARATOR.self::globalVarDirName();
     }
 
     public static function webAccessDocument(): array

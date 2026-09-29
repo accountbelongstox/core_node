@@ -6,13 +6,14 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { laravelApi, useAudioLaneState } from '@/apps/pycore-manager/api';
-import { normalizeWordAudioFullSyncStatus, QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
+import { resolveAudioLaneFullSyncStatus, QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
 import { PcDeliveryOutboxStatus } from './PcDeliveryOutboxStatus';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
+import { usePcSingleAudio } from '../hooks/usePcSingleAudio';
 import { PcAudioLaneQueueView } from './PcAudioLaneQueueView';
 import { PcAudioLaneFullSyncRow } from './PcAudioLaneFullSyncRow';
 
@@ -23,10 +24,12 @@ export function PcWordAudioPanel(): ReactElement {
   const wordLane = lanes.payload?.lanes?.word_audio;
   const [expanded, setExpanded] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_EXPANDED) === '1');
   const [actionError, setActionError] = useState<string | null>(null);
+  const { play: playClip } = usePcSingleAudio();
   const wordSection = hub.sectionContracts.word_audio;
   const worker = hub.voiceWord?.worker;
   const workerOn = wordSection.toggle.enabled;
   const workerRunning = wordSection.lifecycle === 'on';
+  const workerStopping = wordSection.lifecycle === 'stopping';
   const workerConfigured = workerOn && wordSection.lifecycle !== 'off';
   const heartbeatOn = wordSection.worker.online || worker?.heartbeat_enabled || false;
   const pending = wordSection.queue.pending;
@@ -35,17 +38,18 @@ export function PcWordAudioPanel(): ReactElement {
   const batchEngine = worker?.batch_engine || worker?.planned_engine || QUEUE_CENTER_WORD_AUDIO_BATCH.engine;
   const batchDevice = worker?.batch_device || QUEUE_CENTER_WORD_AUDIO_BATCH.device;
   const batchSize = worker?.batch_size || QUEUE_CENTER_WORD_AUDIO_BATCH.default_batch_size;
-  // Pushed lane state is the freshest truth; the section contract is the fallback.
-  const fullSync = normalizeWordAudioFullSyncStatus(wordLane?.full_sync) ?? wordSection.full_sync ?? null;
+  const fullSync = resolveAudioLaneFullSyncStatus(wordLane?.full_sync, wordSection);
   const eventPage = useQueueWorkerEventPage(
     'word',
     expanded,
     worker?.event_revision ?? 0,
   );
 
-  const sectionWorkerState = workerOn
-    ? (wordSection.lifecycle === 'starting' ? 'starting' : workerRunning ? 'running' : workerConfigured ? 'configured' : 'off')
-    : 'off';
+  const sectionWorkerState = workerStopping
+    ? 'stopping'
+    : workerOn
+      ? (wordSection.lifecycle === 'starting' ? 'starting' : workerRunning ? 'running' : workerConfigured ? 'configured' : 'off')
+      : 'off';
   const sectionWorkerLabel = t(`queueCenter.wordAudioQueue.lifecycle.${sectionWorkerState}`);
 
   const toggleExpanded = useCallback(() => {
@@ -76,11 +80,11 @@ export function PcWordAudioPanel(): ReactElement {
     setActionError(null);
     try {
       const source = await laravelApi.getWordAudioMediaDataUrl(row.text, row.lang);
-      await new Audio(source).play();
+      await playClip(source);
     } catch (error: unknown) {
       setActionError(error instanceof Error ? error.message : t('queueCenter.wordAudioQueue.errors.playbackFailed'));
     }
-  }, [t]);
+  }, [playClip, t]);
 
   return (
     <div className="mb-3 rounded-lg border border-slate-700 bg-slate-900/80">
@@ -92,8 +96,8 @@ export function PcWordAudioPanel(): ReactElement {
         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700/70 text-slate-300 uppercase">
           {batchDevice} · {t('queueCenter.wordAudioQueue.batch.badge')}
         </span>
-        <span className={`text-[10px] font-bold ${workerOn ? 'text-emerald-400' : 'text-slate-500'}`}>
-          {workerOn
+        <span className={`text-[10px] font-bold ${workerStopping ? 'text-amber-400' : workerOn ? 'text-emerald-400' : 'text-slate-500'}`}>
+          {workerOn || workerStopping
             ? t('queueCenter.wordAudioQueue.workerState', { state: sectionWorkerLabel })
             : t('queueCenter.wordAudioQueue.workerOff')}
         </span>

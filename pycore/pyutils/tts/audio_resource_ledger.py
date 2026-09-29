@@ -8,13 +8,16 @@ knows it (word cache stores, audio lane staging, orchestration manifests)
 records the clip here, so the local audio cache has one inventory:
 ``(kind, resource_key)`` -> newest file + text, language, variant, provider.
 
-``resource_key`` is the Laravel clip key: ``<lang>:<md5(word)>`` for words
-and ``<lang>:<media_content_id(text)>`` for sentences, ``:<variant>`` appended
+``resource_key`` is the Laravel clip key: ``<lang>:<md5>`` for words (the md5
+Laravel sends with the word, queue_center_contract ``word_identity``) and
+``<lang>:<media_content_id(text)>`` for sentences, ``:<variant>`` appended
 for a non-primary variant; ``<lang>`` comes from the central
 ``text_parsing.normalize_language_code`` (codes, regional codes and names).
+A word with no Laravel md5 (X4: orchestration-tokenized words, word-cache
+bootstrap, local Part1 tasks) keys as ``<lang>:text:<cleaned_word>`` instead;
+pycore never recomputes a stand-in md5 from the text.
 """
 
-import hashlib
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
@@ -23,6 +26,7 @@ from pycore.database.repositories.audio_resource_repository import AudioResource
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
 from pycore.pyfoundations.text_parsing import normalize_language_code
+from pycore.pyutils.common.queue_center_contract import word_identity_content
 from pycore.pyutils.common.strtools.normalization import media_content_id
 
 
@@ -31,13 +35,23 @@ CLIP_KINDS = ("word", "sentence")
 LEDGER_PAGE = 1000
 
 
-def resource_key(kind: str, language: Optional[str], text: str, variant: str = "") -> str:
-    content = media_content_id(text) if kind == "sentence" else hashlib.md5(
-        str(text or "").strip().lower().encode("utf-8")
-    ).hexdigest()
+def resource_key(kind: str, language: Optional[str], text: str, variant: str = "", md5: str = "") -> str:
+    if kind == "sentence":
+        content = media_content_id(text)
+    else:
+        content = word_identity_content(md5, text)
     key = f"{normalize_language_code(language)}:{content}"
     variant = str(variant or "").strip()
     return f"{key}:{variant}" if variant else key
+
+
+def word_md5(key: str) -> str:
+    """The md5 segment of a word resource key ``<lang>:<md5>[:<variant>]``, or
+    "" when the key carries no Laravel md5 (``<lang>:text:<cleaned_word>``)."""
+    parts = str(key or "").split(":")
+    if len(parts) < 2 or parts[1] == "text":
+        return ""
+    return parts[1].strip()
 
 
 class AudioResourceLedger:
@@ -55,14 +69,16 @@ class AudioResourceLedger:
     @staticmethod
     def entry(
         kind: str, language: Optional[str], text: str, path: str, provider: str = "", variant: str = "",
+        md5: str = "",
     ) -> Optional[Dict[str, Any]]:
-        """Ledger row of one clip, or None when it is not a usable clip."""
+        """Ledger row of one clip, or None when it is not a usable clip;
+        ``md5`` is the Laravel word identity when the producer has it."""
         text = str(text or "").strip()
         if kind not in CLIP_KINDS or not text or not path:
             return None
         return {
             "kind": kind,
-            "resource_key": resource_key(kind, language, text, variant),
+            "resource_key": resource_key(kind, language, text, variant, md5),
             "language": normalize_language_code(language),
             "variant": str(variant or "").strip(),
             "text": text,
@@ -73,8 +89,9 @@ class AudioResourceLedger:
 
     def record(
         self, kind: str, language: Optional[str], text: str, path: str, provider: str = "", variant: str = "",
+        md5: str = "",
     ) -> Optional[Dict[str, Any]]:
-        row = self.entry(kind, language, text, path, provider, variant)
+        row = self.entry(kind, language, text, path, provider, variant, md5)
         if row is not None:
             self.record_many([row])
         return row
@@ -108,4 +125,4 @@ class AudioResourceLedger:
 audio_resource_ledger = AudioResourceLedger()
 
 
-__all__ = ["CLIP_KINDS", "audio_resource_ledger", "resource_key"]
+__all__ = ["CLIP_KINDS", "audio_resource_ledger", "resource_key", "word_md5"]

@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     WSL Debian Management Menu
@@ -22,10 +10,27 @@ $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
 $script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
 $script:WSL_INSTALL_SCRIPT = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step30_InstallWSLDebian13.ps1"
+$script:DEBIAN_OS_UPGRADE_MAX_ATTEMPTS = 6
+$script:DEBIAN_OS_UPGRADE_LOG_HINT = "/var/log/core_node-os-upgrade.log"
+$script:DEBIAN_OS_UPGRADE_SCRIPT = ""
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
 . (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+# DockerWslBridge.ps1 is the existing Windows<->WSL bridge library (already
+# used by the TTS Docker model runner): reused here for wsl.exe invocation
+# (Invoke-DockerBridgeWsl), Windows->WSL path translation (Resolve-WslRepoPath,
+# via `wslpath`) and distro termination (Stop-DockerModelWslDistro), instead of
+# re-implementing them.
+. (Join-Path $script:WIN_COMMON_DIR "DockerWslBridge.ps1")
+
+# Debian OS upgrader (Linux side): scripts/shells/linux/debian/install_shells/
+# upgrade_os_to_latest.sh (multi-hop, --status/--resume; the old single-hop
+# upgrade_to_debian_13.sh was removed, no fallback). Presence is still checked
+# with Test-Path on every run in Get-DebianOsUpgradeScriptPath (never assumed).
+# Built only after $Global:CORE_NODE_DIR (from GlobalVars.ps1, imported above)
+# is available.
+$script:DEBIAN_OS_UPGRADE_SCRIPT = Join-Path (Join-Path (Join-Path (Join-Path (Join-Path $Global:CORE_NODE_DIR "scripts") "shells") "linux") "debian") (Join-Path "install_shells" "upgrade_os_to_latest.sh")
 
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
@@ -156,6 +161,146 @@ function Invoke-WSLDebian13Management {
     return $true
 }
 
+function Get-DebianOsUpgradeScriptPath {
+    if (Test-Path -LiteralPath $script:DEBIAN_OS_UPGRADE_SCRIPT -PathType Leaf) {
+        return $script:DEBIAN_OS_UPGRADE_SCRIPT
+    }
+    return $null
+}
+
+# True when /etc/wsl.conf inside the distro has systemd=true under [boot].
+# Informational only here -- when true, a Linux-side resume systemd unit (if
+# the upgrader registers one) also continues the upgrade after the distro
+# restarts; this menu still drives the retry loop explicitly either way, so
+# the upgrade completes even when systemd is not enabled in WSL.
+function Test-WslDistroSystemdEnabled {
+    param([Parameter(Mandatory = $true)][string]$Distro)
+    $lines = @()
+    $inBootSection = $false
+
+    $lines = Invoke-DockerBridgeWsl -Arguments @('--distribution', $Distro, '--user', 'root', '--exec', 'cat', '/etc/wsl.conf') -QuietErrors
+    foreach ($rawLine in @($lines)) {
+        $line = (ConvertFrom-DockerBridgeWslText $rawLine).Trim()
+        if ($line -match '^\[(?<section>[^\]]+)\]$') {
+            $inBootSection = ($Matches['section'] -ieq 'boot')
+            continue
+        }
+        if ($inBootSection -and $line -match '^systemd\s*=\s*true\s*$') {
+            return $true
+        }
+    }
+    return $false
+}
+
+# Reads `bash upgrade_os_to_latest.sh --status` (read-only; prints raw
+# key=value lines from /var/lib/core_node/os-upgrade/state, nothing when no
+# upgrade is in progress) and returns it as a hashtable. Never inspects the
+# wsl.exe exit code -- STATUS/CURRENT/TARGET/ATTEMPTS are the only contract.
+function Get-DebianOsUpgradeStatus {
+    param(
+        [Parameter(Mandatory = $true)][string]$Distro,
+        [Parameter(Mandatory = $true)][string]$ScriptWslPath
+    )
+    $lines = @()
+    $statusTable = @{}
+    $separatorIndex = -1
+    $key = ''
+    $value = ''
+
+    $lines = Invoke-DockerBridgeWsl -Arguments @('--distribution', $Distro, '--user', 'root', '--exec', 'bash', $ScriptWslPath, '--status') -QuietErrors
+    foreach ($rawLine in @($lines)) {
+        $line = (ConvertFrom-DockerBridgeWslText $rawLine).Trim()
+        if (-not $line) { continue }
+        $separatorIndex = $line.IndexOf('=')
+        if ($separatorIndex -lt 1) { continue }
+        $key = $line.Substring(0, $separatorIndex).Trim()
+        $value = $line.Substring($separatorIndex + 1).Trim()
+        $statusTable[$key] = $value
+    }
+    return $statusTable
+}
+
+# Runs the Linux Debian OS upgrader (Get-DebianOsUpgradeScriptPath) inside the
+# given distro as root, then drives it to completion purely off its --status
+# contract (STATUS=in-progress|reboot-required|failed|done, plus
+# CURRENT/TARGET/ATTEMPTS) -- never off a wsl.exe exit code (AGENTS.md: exit
+# codes are not a return-value contract).
+#
+# Flow: the first invocation is interactive and streamed to the console (the
+# upgrader itself asks the user to type UPGRADE to confirm); after that this
+# loop reads --status: reboot-required terminates the distro (WSL has no real
+# reboot) and resumes with --resume; done, or no state at all (the upgrader
+# cleans up its own state file on done), means finished; failed stops with an
+# error. Capped at DEBIAN_OS_UPGRADE_MAX_ATTEMPTS resume hops.
+function Invoke-WSLDebianOsUpgrade {
+    param([Parameter(Mandatory = $true)][string]$Distro)
+
+    $scriptWindowsPath = ''
+    $scriptWslPath = $null
+    $systemdEnabled = $false
+    $hop = 0
+    $statusTable = $null
+    $upgradeStatus = ''
+    $versionId = ''
+
+    $scriptWindowsPath = Get-DebianOsUpgradeScriptPath
+    if (-not $scriptWindowsPath) {
+        Write-ColorMessage -Message "OS upgrade script not found: $script:DEBIAN_OS_UPGRADE_SCRIPT" -Type "Error"
+        return $false
+    }
+    Write-ColorMessage -Message "Using Linux upgrader: $scriptWindowsPath" -Type "Info"
+
+    $scriptWslPath = Resolve-WslRepoPath -Distro $Distro -WindowsPath $scriptWindowsPath
+    if (-not $scriptWslPath) {
+        Write-ColorMessage -Message "Failed to resolve the WSL path for the upgrader inside distro '$Distro' (is it running?)." -Type "Error"
+        return $false
+    }
+
+    $systemdEnabled = Test-WslDistroSystemdEnabled -Distro $Distro
+    if ($systemdEnabled) {
+        Write-ColorMessage -Message "systemd=true in /etc/wsl.conf [boot]: a Linux-side resume unit (if registered) also continues the upgrade after a distro restart." -Type "Info"
+    } else {
+        Write-ColorMessage -Message "systemd is not enabled in /etc/wsl.conf [boot]; this menu drives the resume loop by re-running the upgrader with --resume." -Type "Info"
+    }
+
+    # First run: interactive, streamed straight to the console -- the
+    # upgrader prompts the user to type UPGRADE before it touches anything.
+    Write-ColorMessage -Message "wsl -d $Distro -u root -- bash $scriptWslPath" -Type "Info"
+    Invoke-DockerBridgeWsl -Arguments @('--distribution', $Distro, '--user', 'root', '--exec', 'bash', $scriptWslPath) | Out-Host
+
+    while ($true) {
+        $statusTable = Get-DebianOsUpgradeStatus -Distro $Distro -ScriptWslPath $scriptWslPath
+        $upgradeStatus = [string]$statusTable['STATUS']
+
+        if (-not $upgradeStatus -or $upgradeStatus -eq 'done') {
+            $versionId = Get-WslDistroVersionId -Distro $Distro
+            Write-ColorMessage -Message "OS upgrade finished (distro '$Distro' VERSION_ID=$versionId)." -Type "Success"
+            return $true
+        }
+
+        if ($upgradeStatus -eq 'failed') {
+            Write-ColorMessage -Message "STATUS=failed (CURRENT=$($statusTable['CURRENT']) TARGET=$($statusTable['TARGET']) ATTEMPTS=$($statusTable['ATTEMPTS'])). Check $script:DEBIAN_OS_UPGRADE_LOG_HINT inside the distro." -Type "Error"
+            return $false
+        }
+
+        if ($hop -ge $script:DEBIAN_OS_UPGRADE_MAX_ATTEMPTS) {
+            Write-ColorMessage -Message "STATUS=$upgradeStatus after $($script:DEBIAN_OS_UPGRADE_MAX_ATTEMPTS) resume hop(s); giving up here. Check $script:DEBIAN_OS_UPGRADE_LOG_HINT inside the distro, then re-run this menu item to resume." -Type "Error"
+            return $false
+        }
+        $hop++
+
+        if ($upgradeStatus -eq 'reboot-required') {
+            Write-ColorMessage -Message "STATUS=reboot-required (hop $hop/$($script:DEBIAN_OS_UPGRADE_MAX_ATTEMPTS), CURRENT=$($statusTable['CURRENT']) TARGET=$($statusTable['TARGET'])); terminating and resuming the distro..." -Type "Warning"
+            Stop-DockerModelWslDistro -Distro $Distro -Prefix "[wsl-os-upgrade]"
+        } else {
+            Write-ColorMessage -Message "STATUS=$upgradeStatus (hop $hop/$($script:DEBIAN_OS_UPGRADE_MAX_ATTEMPTS)); resuming without a distro restart..." -Type "Warning"
+        }
+
+        Write-ColorMessage -Message "wsl -d $Distro -u root -- bash $scriptWslPath --resume" -Type "Info"
+        Invoke-DockerBridgeWsl -Arguments @('--distribution', $Distro, '--user', 'root', '--exec', 'bash', $scriptWslPath, '--resume') | Out-Host
+    }
+}
+
 function Show-WSLSubMenu {
     $subItems = @(
         @{
@@ -186,6 +331,41 @@ function Show-WSLSubMenu {
             Action = {
                 Write-ColorMessage -Message "Starting Debian 13 reinstallation..." -Type "Warning"
                 Invoke-WSLDebian13Management -Action "reinstall"
+            }
+        },
+        @{
+            Text = "Upgrade WSL Debian -> latest"
+            Values = @("default")
+            CurrentValueIndex = 0
+            Key = $null
+            Action = {
+                $upgradeDistros = @(Get-InstalledDebianDistros)
+                $upgradeTargetDistro = ''
+
+                if (-not $upgradeDistros -or $upgradeDistros.Count -eq 0) {
+                    Write-ColorMessage -Message "No Debian distributions found. Install one first." -Type "Warning"
+                    return
+                }
+                if ($upgradeDistros.Count -eq 1) {
+                    $upgradeTargetDistro = $upgradeDistros[0]
+                } else {
+                    Write-ColorMessage -Message "Multiple Debian distributions found:" -Type "Info"
+                    foreach ($distroOption in $upgradeDistros) { Write-Host "  - $distroOption" }
+                    $upgradeTargetDistro = Read-Host "Distro to upgrade"
+                    if ($upgradeDistros -notcontains $upgradeTargetDistro) {
+                        Write-ColorMessage -Message "Unknown distro: $upgradeTargetDistro" -Type "Error"
+                        return
+                    }
+                }
+
+                Write-ColorMessage -Message "This runs the Linux OS upgrader inside '$upgradeTargetDistro' as root (in-place, official upgrade path)." -Type "Warning"
+                $upgradeConfirmation = Read-Host "Type 'yes' to start the OS upgrade"
+                if ($upgradeConfirmation -ne "yes") {
+                    Write-ColorMessage -Message "OS upgrade cancelled." -Type "Info"
+                    return
+                }
+
+                Invoke-WSLDebianOsUpgrade -Distro $upgradeTargetDistro | Out-Null
             }
         },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },

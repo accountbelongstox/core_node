@@ -40,6 +40,7 @@ import { pycoreTaskCenterState } from './TaskCenterState';
 import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
 import { StorageManager } from '../../../core/persistence';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
+import { PcLocalizedError, pcFailureMessage } from '../utils/pcErrorCodes';
 
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
 
@@ -142,10 +143,6 @@ const QueueCenterHubContext = createContext<QueueCenterHubState>(defaultHub);
 function readAutoRefreshPref(): boolean {
   const value = StorageManager.getRaw(QC_AUTO_KEY);
   return value === null ? true : value === '1';
-}
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 /** Page-scoped HTTP API hub. Mount once around Queue Center. */
@@ -274,7 +271,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
         }));
 
         if (exchange.recent) pycoreTaskCenterState.ingestRecent(exchange.recent);
-      } catch (error: unknown) {
+      } catch {
         if (!mounted.current || currentRequest !== requestId.current) return;
         const failures = consecutiveFailuresRef.current + 1;
         consecutiveFailuresRef.current = failures;
@@ -288,7 +285,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
           pycoreReachable: false,
           loading: false,
           hubState: 'error',
-          error: errorMessage(error, t('queueCenter.errors.centerUnavailable')),
+          error: t('queueCenter.errors.centerUnavailable'),
         }));
       }
     } finally {
@@ -367,39 +364,23 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     return () => window.removeEventListener(LARAVEL_BROWSER_EVENTS.selectionChanged, handleEndpointChanged);
   }, [poll]);
 
-  const patchSectionEnabled = useCallback((name: QueueCenterControlName, enabled: boolean) => {
-    setHub((previous) => {
-      const contract = previous.sectionContracts[name];
-      if (!contract) return previous;
-      return {
-        ...previous,
-        sectionContracts: {
-          ...previous.sectionContracts,
-          [name]: { ...contract, toggle: { ...contract.toggle, enabled } },
-        },
-      };
-    });
-  }, []);
-
+  // No optimistic flip: the switch shows pending (the caller's busy state)
+  // until pycore answers, and only pycore's returned state is applied.
   const setControl = useCallback(async (name: QueueCenterControlName, enabled: boolean) => {
-    patchSectionEnabled(name, enabled);
-    try {
-      const response = await pycoreApi.setQueueCenterControl(name, enabled, {
-        requested_by: 'user',
-        reason: 'ui_toggle',
-        graceful_stop: false,
-        laravel_endpoint: enabled ? laravelEndpoint : null,
-        timeoutMs: 20_000,
-      });
-      if (!response?.success) throw new Error(response?.error || t('queueCenter.errors.controlFailed'));
-      // Audio lanes answer with the authoritative post-transition state.
-      if (!applyAudioLaneState(response.lane_state)) void poll(true);
-    } catch (error: unknown) {
-      patchSectionEnabled(name, !enabled);
+    const response = await pycoreApi.setQueueCenterControl(name, enabled, {
+      requested_by: 'user',
+      reason: 'ui_toggle',
+      graceful_stop: false,
+      laravel_endpoint: enabled ? laravelEndpoint : null,
+      timeoutMs: 20_000,
+    }).catch(() => null);
+    if (!response?.success) {
       void poll(true);
-      throw error;
+      throw new PcLocalizedError(pcFailureMessage(response, t('queueCenter.errors.controlFailed')));
     }
-  }, [laravelEndpoint, poll, patchSectionEnabled, t]);
+    // Audio lanes answer with the authoritative post-transition state.
+    if (!applyAudioLaneState(response.lane_state)) void poll(true);
+  }, [laravelEndpoint, poll, t]);
 
   const value = useMemo<QueueCenterHubState>(
     () => ({ ...hub, refreshHub, promoteTranslationTask, setControl, autoRefresh, setAutoRefresh }),

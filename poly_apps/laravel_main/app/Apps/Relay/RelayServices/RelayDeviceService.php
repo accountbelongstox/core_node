@@ -57,12 +57,7 @@ final class RelayDeviceService
         $eventPayload = is_array($payload['payload'] ?? null) ? $payload['payload'] : [];
         $connection = DB::connection(RelayTablesMaps::connection());
 
-        $allowedEvents = [
-            RelayContract::event('terminal_changed'),
-            RelayContract::event('agent_history_prompt_new'),
-            RelayContract::event('agent_history_prompt_derived'),
-        ];
-        if (!in_array($eventType, $allowedEvents, true)) {
+        if (!in_array($eventType, RelayContract::deviceEvents(), true)) {
             throw new RelayDomainException('device_event_invalid', 422);
         }
         if (strlen(RelayContract::canonicalJson($eventPayload)) > RelayContract::limit('device_event_payload_bytes')) {
@@ -78,18 +73,29 @@ final class RelayDeviceService
                 ->where('expires_at', '>', now())
                 ->get()->unique('user_id');
 
+            $outboxRevision = null;
+
             foreach ($pairings as $pairing) {
+                $outboxRevision = $this->outbox->nextDeviceEventRevision(
+                    'pairing',
+                    (string) $pairing->pairing_id,
+                    $eventType,
+                    $eventPayload
+                );
+                if ($outboxRevision === null) {
+                    continue;
+                }
                 $this->outbox->append(
                     'pairing',
                     (string) $pairing->pairing_id,
-                    $revision,
+                    $outboxRevision,
                     $eventType,
                     'owner',
                     $this->topics->owner((int) $pairing->user_id),
                     [
                         'pairing_id' => (string) $pairing->pairing_id,
                         'device_id' => $deviceId,
-                        'revision' => $revision,
+                        'revision' => $outboxRevision,
                         'metadata' => $eventPayload,
                     ]
                 );

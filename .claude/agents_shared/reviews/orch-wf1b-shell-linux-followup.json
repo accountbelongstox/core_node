@@ -1,0 +1,33 @@
+{
+  "task": "orch-wf1b shell-linux-followup (parity ledger rows + new-file ownership in write_json_atomic), re-pass after the fchown fix",
+  "base": "8c30ec34e (working tree, on top of the approved orch-wf1 hunks)",
+  "verdict": "approved",
+  "findings": [
+    {
+      "file": "/www/programing/core_node/scripts/ai_ps1tools/_json_sync_helper.py",
+      "line": "159-165 (write_json_atomic docstring), 171-172 (comment); same text in scripts/pytools/ai_tools/ai_tools_common.py 326-332, 338-339",
+      "severity": "minor",
+      "issue": "The follow-up turns the approved one-line docstring into a 7-line rationale block and adds a 2-line comment in both copies. AGENTS.md says code is documentation, so nothing more should be added unless someone asks for it. The last sentence is also wrong: 'Setting it on the fd is done before the name can be swapped'. The name can be swapped at any time after mkstemp. The fd call is safe because it never resolves the name.",
+      "fix": "Cut it back to the one-line docstring, for example 'Atomically replace the symlink-resolved config_path; mode/owner set on the fd (new file: 0600, dir owner when root).' Move the rationale to SPL-135, which already records it."
+    },
+    {
+      "file": "/www/programing/core_node/.claude/agents_shared/shell_parity/linux.md",
+      "line": "31 (SPL-109)",
+      "severity": "minor",
+      "issue": "The pgrep pattern `(^|/)<server>( |$)` has two unescaped '|' characters. GFM splits table cells on '|' even inside code spans, so this row has 7 cells instead of 5, and the status and task columns shift. The text came from the orch-wf1 launcher pgrep fix, not from this delta. shell-linux is now the only writer of the ledger, though, and rows 127 and 130 already escape their pipes as '\\|'.",
+      "fix": "Escape both pipes, giving `(^\\|/)<server>( \\|$)`."
+    }
+  ],
+  "checks": {
+    "spec_1a": "SPL-135 is the next free id after SPL-134. Its task id is orch-wf1. It covers the atomic temp file plus os.replace, the old owner and mode, symlink resolution, parse errors refused, and the reload with a skip after 3 changes, and it now also records the new-file chown and the fd-based fchmod/fchown. platform-only holds: all 7 ai_ps1tools/*_sync_mcp_servers.ps1 callers run the same _json_sync_helper.py through python (claude_sync_mcp_servers.ps1:18 JSON_HELPER_PY).",
+    "spec_1b": "Each status matches windows.md: SPL-127 to SPW-046 aligned, SPL-129 to SPW-048 aligned, SPL-130 to SPW-049 (aligned for the registry signal and stalled, platform-only for blocked:<screen>), SPL-131 to SPW-050 platform-only (WT has no respawn-pane), SPL-132 to SPW-051 aligned (no blocked count), and SPL-134 to SPW-054 aligned. SPL-128 and SPL-133 stay platform-only, as before.",
+    "spec_1c": "The SPL-134 feature text now carries the O2 ruling word for word.",
+    "spec_2": "Both copies stat the realpath's directory before mkstemp when st is None and geteuid()==0 (guarded by hasattr(os, 'geteuid')). They fchown to the directory's uid and gid only when that uid is not 0, and fchmod to 0600, before os.replace. The existing-file branch uses fchmod plus fchown(st) when running as root. Without fchmod, Windows falls back to a path chmod, and fchown is skipped. The two copies are identical in logic. The helper has to stay stdlib-only and standalone, which is the duplication that orch-wf1 already accepted.",
+    "probes_as_root": "Scratchpad wf1b_rev/probe.py, run against both copies. A new file in a 1000:1000 dir gives 1000:1000 0600. A new file in a root dir gives 0:0 0600. A new file in a 1000:0 dir gives 1000:0 0600. An existing 1000:1000 0640 file keeps 1000:1000 0640. An existing root 0644 file inside the user dir keeps 0:0 0644. A dangling symlink is kept, and its target is created as 1000:1000 0600. Exploit test: os.fsync is monkeypatched to rename the temp file and plant a symlink to a root 0644 victim. The victim stays 0:0 0644 with its content untouched, for both the new-file and the existing-file branches. The only effect is that the user's own symlink gets renamed into place. No .tmp file is left behind. CLI end to end: root creates a new home/.claude.json in a uid-1000 dir, rc=0, the result is 1000:1000 600, and the secret value is not printed.",
+    "line_endings": "_json_sync_helper.py has 251 CR in 251 lines (i/crlf w/crlf, HEAD all CRLF). numstat is 124/25 both plain and with --ignore-space-at-eol. ai_tools_common.py and linux.md have 0 CR, as at HEAD. No non-ASCII characters were added.",
+    "py_compile": "passes on both .py files",
+    "scope": "Since the orch-wf1 verdicts, this lane changed only the 3 assigned files. The other newer files are windows.md, the two .ps1 files and the shell-windows memory (shell-windows wf1b lane), config/claude_team_roles.json, git_grant.json and the task doc (orchestrator), and the git-ignored __pycache__ files.",
+    "rules": "All text is English. There are no exit-code return values. MAX_WRITE_ATTEMPTS is still at the top of the file. No git write command was run."
+  },
+  "summary": "Approved. Every spec item is met. The fd-based fchmod/fchown closes the root chown escalation from round 1 in both copies, and root probes confirm the new-file, existing-file and symlink ownership. CRLF is kept. Two minor points remain: the added multi-line docstring and comment (with one inaccurate sentence), and the unescaped pipes in the SPL-109 table row, which came from orch-wf1."
+}

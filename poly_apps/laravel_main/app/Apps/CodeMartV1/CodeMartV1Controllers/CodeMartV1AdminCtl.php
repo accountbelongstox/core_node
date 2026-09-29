@@ -64,7 +64,7 @@ class CodeMartV1AdminCtl extends Controller
 
     private function validationFailed($errors): JsonResponse
     {
-        return $this->errorWithCode(CodeMartV1Constants::ERROR_VALIDATION_FAILED, 'Validation failed', 422, $errors);
+        return $this->errorWithCode(CodeMartV1Constants::ERROR_VALIDATION_FAILED, __('codemart.messages.validation_failed'), 422, $errors);
     }
 
     public function overview(Request $request): JsonResponse
@@ -108,7 +108,7 @@ class CodeMartV1AdminCtl extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status' => 'required|in:pending,active,suspended,rejected',
+            'status' => ['required', Rule::in(CodeMartV1Constants::ROLE_STATUSES)],
             'reason' => 'nullable|string|max:1000',
         ]);
         if ($validator->fails()) {
@@ -121,7 +121,7 @@ class CodeMartV1AdminCtl extends Controller
             (string) $request->input('status'),
             $request->input('reason'),
             (int) $admin->id
-        ), 'Role status updated');
+        ), __('codemart.messages.role_status_updated'));
     }
 
     public function grantRole(Request $request, int $userId): JsonResponse
@@ -133,7 +133,7 @@ class CodeMartV1AdminCtl extends Controller
 
         $validator = Validator::make($request->all(), [
             'role_type' => ['required', Rule::in(CodeMartV1Constants::getAllRoles())],
-            'status' => ['nullable', Rule::in([CodeMartV1Constants::ROLE_STATUS_PENDING, CodeMartV1Constants::ROLE_STATUS_ACTIVE])],
+            'status' => ['nullable', Rule::in(CodeMartV1Constants::ROLE_ADMIN_GRANT_STATUSES)],
             'reason' => 'nullable|string|max:1000',
         ]);
         if ($validator->fails()) {
@@ -146,7 +146,7 @@ class CodeMartV1AdminCtl extends Controller
             (string) $request->input('status', CodeMartV1Constants::ROLE_STATUS_PENDING),
             $request->input('reason'),
             (int) $admin->id
-        ), 'Role granted');
+        ), __('codemart.messages.role_granted'));
     }
 
     public function kycList(Request $request): JsonResponse
@@ -191,7 +191,7 @@ class CodeMartV1AdminCtl extends Controller
             $approved,
             $request->input('notes'),
             (int) $admin->id
-        ), $approved ? 'KYC approved' : 'KYC rejected');
+        ), __($approved ? 'codemart.messages.kyc_approved' : 'codemart.messages.kyc_rejected'));
     }
 
     /**
@@ -245,7 +245,7 @@ class CodeMartV1AdminCtl extends Controller
             return $this->forbidden();
         }
 
-        return $this->respond($this->adminService->confirmDeposit($depositId, (int) $admin->id), 'Deposit confirmed');
+        return $this->respond($this->adminService->confirmDeposit($depositId, (int) $admin->id), __('codemart.messages.deposit_confirmed'));
     }
 
     public function projects(Request $request): JsonResponse
@@ -283,7 +283,7 @@ class CodeMartV1AdminCtl extends Controller
             (string) $request->input('to_status'),
             (string) $request->input('reason'),
             (int) $admin->id
-        ), 'Project status updated');
+        ), __('codemart.messages.project_status_updated'));
     }
 
     public function testimonials(Request $request): JsonResponse
@@ -310,7 +310,7 @@ class CodeMartV1AdminCtl extends Controller
 
         return $this->respond(
             $this->adminService->moderateTestimonial($testimonialId, true, (int) $admin->id),
-            'Testimonial approved'
+            __('codemart.messages.testimonial_approved')
         );
     }
 
@@ -323,7 +323,7 @@ class CodeMartV1AdminCtl extends Controller
 
         return $this->respond(
             $this->adminService->moderateTestimonial($testimonialId, false, (int) $admin->id),
-            'Testimonial hidden'
+            __('codemart.messages.testimonial_hidden')
         );
     }
 
@@ -355,7 +355,7 @@ class CodeMartV1AdminCtl extends Controller
 
         return $this->respond(
             $this->adminService->updateTestimonial($testimonialId, $attributes, (int) $admin->id),
-            'Testimonial updated'
+            __('codemart.messages.testimonial_updated')
         );
     }
 
@@ -390,7 +390,7 @@ class CodeMartV1AdminCtl extends Controller
 
         return $this->respond(
             $this->adminService->revokeReviewer($applicationId, $request->input('reason'), (int) $admin->id),
-            'Reviewer revoked'
+            __('codemart.messages.reviewer_revoked')
         );
     }
 
@@ -442,7 +442,7 @@ class CodeMartV1AdminCtl extends Controller
 
         return $this->respond(
             $this->adminService->handleContactMessage($messageId, (int) $admin->id),
-            'Contact message handled'
+            __('codemart.messages.contact_message_handled')
         );
     }
 }

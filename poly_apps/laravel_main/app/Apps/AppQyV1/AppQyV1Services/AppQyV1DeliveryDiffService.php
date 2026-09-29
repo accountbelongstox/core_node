@@ -3,10 +3,12 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Support\LaravelServerIdentity;
+use App\Support\QueueCenterContract;
 
 /**
  * Laravel-side delivery diff (contract: docs_fix/
- * REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, "W7 contract"):
+ * REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, "W7 contract";
+ * kinds, item limits and reasons: queue_center_contract.json#delivery):
  * pycore posts its inventory per kind in chunks and receives only the items
  * Laravel still needs. Every call is bounded by the chunk limit and a time
  * budget; an unfinished chunk reports next_index so the caller resends the rest.
@@ -14,16 +16,6 @@ use App\Support\LaravelServerIdentity;
 final class AppQyV1DeliveryDiffService
 {
     public const KIND_ORCH_OUTPUT = 'orch_output';
-    public const REASON_MISSING = 'missing';
-    public const REASON_STALE = 'stale';
-    public const ITEM_LIMITS = [
-        AppQyV1ResourceIndexService::KIND_WORD_AUDIO => 5000,
-        AppQyV1ResourceIndexService::KIND_SENTENCE_AUDIO => 5000,
-        AppQyV1ResourceIndexService::KIND_ORCH_SEGMENT => 5000,
-        AppQyV1ResourceIndexService::KIND_ARTICLE => 500,
-        AppQyV1ResourceIndexService::KIND_STATIC_FILE => 5000,
-        self::KIND_ORCH_OUTPUT => 500,
-    ];
 
     private const TIME_BUDGET_SECONDS = 8.0;
     private const SLICE_SIZE = 500;
@@ -35,9 +27,33 @@ final class AppQyV1DeliveryDiffService
     ) {
     }
 
+    /** @return array<string,int> kind => most items one diff call may carry (delivery.diff_item_limits) */
+    public static function itemLimits(): array
+    {
+        $limits = [];
+
+        foreach (array_keys(QueueCenterContract::section('delivery.diff_item_limits')) as $kind) {
+            $limits[(string) $kind] = QueueCenterContract::positiveInt('delivery.diff_item_limits.' . $kind);
+        }
+
+        return $limits;
+    }
+
+    public static function itemLimit(string $kind): int
+    {
+        return self::itemLimits()[$kind] ?? QueueCenterContract::positiveInt('delivery.diff_item_limit_default');
+    }
+
+    /** @return array<int,string> */
     public static function kinds(): array
     {
-        return array_keys(self::ITEM_LIMITS);
+        return array_keys(self::itemLimits());
+    }
+
+    /** delivery.diff_reasons.<role>: missing, stale. */
+    public static function reason(string $role): string
+    {
+        return QueueCenterContract::string('delivery.diff_reasons.' . $role);
     }
 
     public function diff(string $machineId, string $kind, array $items): array
@@ -96,9 +112,9 @@ final class AppQyV1DeliveryDiffService
             if ($state['rejected'] !== null) {
                 $result['rejected'][] = ['key' => $key, 'reason' => $state['rejected']];
             } elseif ($state['value'] === null) {
-                $result['need'][] = ['key' => $key, 'reason' => self::REASON_MISSING];
+                $result['need'][] = ['key' => $key, 'reason' => self::reason('missing')];
             } elseif ($want !== null && !hash_equals($state['value'], $want)) {
-                $result['need'][] = ['key' => $key, 'reason' => self::REASON_STALE];
+                $result['need'][] = ['key' => $key, 'reason' => self::reason('stale')];
             } else {
                 $result['present']++;
             }
@@ -112,9 +128,9 @@ final class AppQyV1DeliveryDiffService
             unset($task['known']);
             $result['tasks'][] = $task;
             if (!$known) {
-                $result['need'][] = ['key' => $task['task_id'], 'reason' => self::REASON_MISSING];
+                $result['need'][] = ['key' => $task['task_id'], 'reason' => self::reason('missing')];
             } elseif (!$task['meta_current'] || $task['segments_missing'] !== []) {
-                $result['need'][] = ['key' => $task['task_id'], 'reason' => self::REASON_STALE];
+                $result['need'][] = ['key' => $task['task_id'], 'reason' => self::reason('stale')];
             } else {
                 $result['present']++;
             }

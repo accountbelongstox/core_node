@@ -30,7 +30,7 @@ import { SHELL_CLIPBOARD_HOST_ATTRIBUTE } from '../../shell/shellChrome';
 /**
  * Laravel manager layout and view routing.
  *
- * PROTECTED PAGES (require login; see config/auth.ts): Server Manager, Settings, Invite Code Manager, Database Viewer.
+ * PROTECTED PAGES (require login; see config/auth.ts): Server Manager, Settings, Database Manager, AI Management, Task Center.
  * When user opens any of these without being logged in, AuthGuard requests the
  * global login modal while keeping the page mounted and visible.
  */
@@ -189,13 +189,13 @@ const LmDashboardContent: React.FC = () => {
       case ViewType.MEDIA_BROWSER:
         return wrapWithAuthGuard(ViewType.SERVER_MANAGER, <ServerManager lang={lang} initialTab="media" />);
       case ViewType.TOOLS:
-        return <UnifiedToolsPage lang={lang} />;
+        return <UnifiedToolsPage />;
       case ViewType.VOCABULARY:
         return <VocabularyLearning />;
       case ViewType.AI_MANAGEMENT:
-        return <AiManagement />;
+        return wrapWithAuthGuard(ViewType.AI_MANAGEMENT, <AiManagement />);
       case ViewType.TASK_CENTER:
-        return <TaskCenter lang={lang} />;
+        return wrapWithAuthGuard(ViewType.TASK_CENTER, <TaskCenter lang={lang} />);
       case ViewType.SERVER_MANAGER:
         return wrapWithAuthGuard(ViewType.SERVER_MANAGER, <ServerManager lang={lang} />);
       case ViewType.SETTINGS:

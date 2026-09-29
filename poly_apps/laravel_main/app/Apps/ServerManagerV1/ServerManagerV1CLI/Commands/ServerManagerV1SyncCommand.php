@@ -56,7 +56,7 @@ class ServerManagerV1SyncCommand extends Command
         }
 
         if ($fromNginx && $toNginx) {
-            $this->error('Cannot use both --from-nginx and --to-nginx at the same time');
+            $this->error(__('server_manager.messages.cannot_use_both_from_nginx_and_to'));
             return 1;
         }
 
@@ -200,7 +200,7 @@ class ServerManagerV1SyncCommand extends Command
 
         if (!empty($results['errors'])) {
             $this->error('');
-            $this->error('Errors encountered:');
+            $this->error(__('server_manager.messages.errors_encountered'));
             foreach ($results['errors'] as $error) {
                 $this->error("  ✗ $error");
             }
@@ -257,7 +257,7 @@ class ServerManagerV1SyncCommand extends Command
 
         if (!empty($results['errors'])) {
             $this->error('');
-            $this->error('Errors encountered:');
+            $this->error(__('server_manager.messages.errors_encountered'));
             foreach ($results['errors'] as $error) {
                 $this->error("  ✗ $error");
             }

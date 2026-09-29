@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of functions.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Secret Manager Library for PowerShell
@@ -43,7 +31,9 @@ $script:BatchDecryptionCompleted = $false
 # Source GlobalVars.ps1 if not already loaded
 $scriptDir = $PSScriptRoot
 $globalVarsPath = Join-Path $scriptDir "GlobalVars.ps1"
+$serviceContractPath = Join-Path $scriptDir "ServiceContract.ps1"
 . $globalVarsPath
+. $serviceContractPath
 
 <#
 .SYNOPSIS
@@ -138,6 +128,97 @@ function Find-DisguiseTool {
     }
 
     return $null
+}
+
+<#
+.SYNOPSIS
+    Restrict a secret file to the current user, SYSTEM and Administrators
+#>
+function Protect-SecretFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $acl = $null
+    $rule = $null
+    $principals = @(
+        [System.Security.Principal.WindowsIdentity]::GetCurrent().User,
+        (New-Object System.Security.Principal.SecurityIdentifier "S-1-5-18"),
+        (New-Object System.Security.Principal.SecurityIdentifier "S-1-5-32-544")
+    )
+
+    try {
+        $acl = Get-Acl -LiteralPath $Path
+        $acl.SetAccessRuleProtection($true, $false)
+        foreach ($rule in @($acl.Access)) {
+            [void]$acl.RemoveAccessRule($rule)
+        }
+        foreach ($principal in $principals) {
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($principal, "FullControl", "Allow")))
+        }
+        Set-Acl -LiteralPath $Path -AclObject $acl
+    } catch {
+        Write-Host "[SECRET_CLIENT_KEY] WARNING: Could not restrict access to $Path - $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
+<#
+.SYNOPSIS
+    Generate the shared client key when no copy of it exists
+
+.DESCRIPTION
+    config/service_contract.json#client_key_auth names the key. It is generated only
+    when no raw file, no encrypted copy and no batch-bundle entry exists; the encryption
+    check then offers to encrypt it. An encrypted copy is restored by the decryption
+    check instead. The value is never printed.
+#>
+function Initialize-ClientKeySecret {
+    $dirs = Get-SecretDirectories
+    $keyName = [string](Get-ServiceContractValue -ContractPath "client_key_auth.secret_key_sign_name")
+    $keyBytes = [int](Get-ServiceContractValue -ContractPath "client_key_auth.key_min_bytes")
+    $rawFile = Join-Path $dirs.RAW_DIR $keyName
+    $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR ("{0}.js" -f $keyName)
+    $bundleDir = Join-Path $dirs.SECRET_KEYS_DIR "already_batch_encrypted"
+    $bundleEntry = '"filename": "{0}"' -f $keyName
+    $bundleFiles = @()
+    $randomBytes = $null
+    $random = $null
+    $keyValue = ""
+
+    if ((Test-Path -LiteralPath $rawFile -PathType Leaf) -and ((Get-Item -LiteralPath $rawFile).Length -gt 0)) {
+        return
+    }
+    if (Test-Path -LiteralPath $encryptedFile -PathType Leaf) {
+        return
+    }
+    if (Test-Path -LiteralPath $bundleDir) {
+        $bundleFiles = @(Get-ChildItem -LiteralPath $bundleDir -Filter "*.js" -File -ErrorAction SilentlyContinue)
+        foreach ($bundleFile in $bundleFiles) {
+            if (Select-String -LiteralPath $bundleFile.FullName -SimpleMatch -Pattern $bundleEntry -Quiet) {
+                return
+            }
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $dirs.RAW_DIR)) {
+        New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
+    }
+    $randomBytes = New-Object byte[] $keyBytes
+    $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $random.GetBytes($randomBytes)
+    } finally {
+        $random.Dispose()
+    }
+    $keyValue = [Convert]::ToBase64String($randomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    # Restrict the still-empty file first, so the key never sits under the inherited ACL.
+    [System.IO.File]::WriteAllText($rawFile, "")
+    Protect-SecretFile -Path $rawFile
+    [System.IO.File]::WriteAllText($rawFile, $keyValue, (New-Object System.Text.UTF8Encoding $false))
+    $keyValue = $null
+    [Array]::Clear($randomBytes, 0, $randomBytes.Length)
+    Write-Host "[SECRET_CLIENT_KEY] Generated $keyName in $($dirs.RAW_DIR); encrypt it now and sync the encrypted copy to every host" -ForegroundColor Yellow
 }
 
 <#
@@ -240,10 +321,10 @@ function Invoke-SecretDecryptAll {
         $filePaths += $encryptedFile.FullName
     }
 
-    $allArgs = @($Password, $OutputDir) + $filePaths
+    $allArgs = @($Global:SECRET_PASSWORD_ARG, $OutputDir) + $filePaths
 
     try {
-        $result = & $Global:NODE_EXE_PATH $batchDecryptJs $allArgs 2>&1
+        $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $batchDecryptJs -ArgumentList $allArgs
 
         $allDecrypted = $true
         foreach ($encryptedFile in $encryptedFiles) {
@@ -421,7 +502,7 @@ function Invoke-SecretEncryptAll {
                 continue
             }
 
-            $result = & $Global:NODE_EXE_PATH $disguiseJs $sourceFile.FullName $Password $dirs.ENCRYPTED_DIR
+            $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($sourceFile.FullName, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
 
             if (Test-Path $outputFile) {
                 Write-Host "[SECRET_ENCRYPT_ALL]    SUCCESS: $keyName.js" -ForegroundColor Green
@@ -665,7 +746,7 @@ function Set-SecretKey {
     }
 
     try {
-        $result = & $Global:NODE_EXE_PATH $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR
+        $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($rawFile, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
 
         $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$KeyName.js"
         if (Test-Path $encryptedFile) {
@@ -825,7 +906,7 @@ function Set-SecretKeyBatch {
         $keyName = [System.IO.Path]::GetFileName($rawFile)
 
         try {
-            $result = & $Global:NODE_EXE_PATH $disguiseJs $rawFile $Password $dirs.ENCRYPTED_DIR
+            $result = Invoke-SecretPasswordTool -Password $Password -ToolPath $disguiseJs -ArgumentList @($rawFile, $Global:SECRET_PASSWORD_ARG, $dirs.ENCRYPTED_DIR)
 
             $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$keyName.js"
             if (Test-Path $encryptedFile) {

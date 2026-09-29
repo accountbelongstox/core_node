@@ -9,17 +9,19 @@
  * presses "填充回测数据 / Fill backtest data", which kicks off the rate-limited
  * gap-fill + catch-up on the backend; live progress streams through HTTP events.
  * seeded from the in-memory DB pycore loaded on startup, with a localStorage cache
- * fallback + a "pycore unreachable" banner (the PcQueueManagerPage pattern).
+ * fallback + a pycore access/unreachable banner (VortexPycoreNotice).
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  Play, Square, RefreshCw, AlertTriangle, Database, TrendingUp, Sparkles, Clock,
+  Play, Square, RefreshCw, Database, TrendingUp, Sparkles, Clock,
   Search, X, ArrowUpDown, ArrowUp, ArrowDown, Download, CandlestickChart, Zap, Table2, LayoutGrid,
   Filter as FilterIcon, Layers, LineChart, ZoomIn,
 } from 'lucide-react';
-import { connectPycoreHttp, subscribe, requestPycoreHttp, onHttpStatus } from '@/apps/vortex/api';
+import { classifyPycoreAccess, connectPycoreHttp, subscribe, requestPycoreHttp, onHttpStatus, type PycoreAccess } from '@/apps/vortex/api';
 import { VORTEX_PYCORE_EVENT_TOPICS } from '@/apps/vortex/api';
 import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
+import { VortexPycoreNotice } from './VortexPycoreNotice';
 
 /**
  * Adaptive OHLC chart for a coin's candles ([ts,o,h,l,c,vol,...], oldest→newest).
@@ -293,7 +295,8 @@ const CompareChart: React.FC<{
  * (okx.fill_plan) BEFORE any download — an overall have/missing bar, full/partial/empty
  * counts, and a ranked list of the coins with the biggest gaps (bar = missing share).
  */
-const FillDiffChart: React.FC<{ plan: FillPlan; t: any; dark: boolean; onHide: () => void }> = ({ plan, t, dark, onHide }) => {
+const FillDiffChart: React.FC<{ plan: FillPlan; dark: boolean; onHide: () => void }> = ({ plan, dark, onHide }) => {
+  const { t } = useTranslation('vx');
   const tot = plan.totals;
   const top = plan.coins.filter((c) => c.missing > 0).slice(0, 20);
   const maxMiss = Math.max(1, ...top.map((c) => c.missing));
@@ -308,26 +311,26 @@ const FillDiffChart: React.FC<{ plan: FillPlan; t: any; dark: boolean; onHide: (
     <div className={`p-3 rounded-2xl border ${card}`}>
       <div className="flex items-center justify-between mb-2.5">
         <span className="text-sm font-black text-slate-200 flex items-center gap-2">
-          <Layers className="w-4 h-4 text-fuchsia-400" /> {t.diffTitle}
-          <span className="text-[10px] font-normal text-slate-500">· {plan.bar} · {t.diffWindow(plan.hours)}</span>
+          <Layers className="w-4 h-4 text-fuchsia-400" /> {t('backtest.diffTitle')}
+          <span className="text-[10px] font-normal text-slate-500">· {plan.bar} · {t('backtest.diffWindow', { hours: plan.hours })}</span>
         </span>
-        <button onClick={onHide} title={t.diffHide} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400"><X className="w-4 h-4" /></button>
+        <button onClick={onHide} title={t('backtest.diffHide')} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400"><X className="w-4 h-4" /></button>
       </div>
       {/* overall coverage bar (have vs missing) */}
       <div className="h-3 rounded-full bg-rose-500/20 overflow-hidden mb-2">
         <div className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400" style={{ width: `${tot.coverage}%` }} />
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3 font-mono">
-        {chip(t.diffCoverageN, `${tot.coverage}%`, 'text-emerald-400')}
-        {chip(t.diffHave, tot.have.toLocaleString(), 'text-slate-200')}
-        {chip(t.diffNeed, tot.need.toLocaleString(), 'text-slate-200')}
-        {chip(t.diffMissing, tot.missing.toLocaleString(), 'text-rose-400')}
-        {chip(t.diffFull, tot.full, 'text-emerald-400')}
-        {chip(t.diffEmpty, tot.empty, 'text-amber-400')}
+        {chip(t('backtest.diffCoverageN'), `${tot.coverage}%`, 'text-emerald-400')}
+        {chip(t('backtest.diffHave'), tot.have.toLocaleString(), 'text-slate-200')}
+        {chip(t('backtest.diffNeed'), tot.need.toLocaleString(), 'text-slate-200')}
+        {chip(t('backtest.diffMissing'), tot.missing.toLocaleString(), 'text-rose-400')}
+        {chip(t('backtest.diffFull'), tot.full, 'text-emerald-400')}
+        {chip(t('backtest.diffEmpty'), tot.empty, 'text-amber-400')}
       </div>
       {top.length > 0 && (
         <>
-          <div className="text-[9px] font-mono uppercase tracking-wider text-slate-500 mb-1.5">{t.diffTopGaps}</div>
+          <div className="text-[9px] font-mono uppercase tracking-wider text-slate-500 mb-1.5">{t('backtest.diffTopGaps')}</div>
           <div className="space-y-1 max-h-48 overflow-auto">
             {top.map((c) => (
               <div key={c.inst_id} className="flex items-center gap-2 text-[11px] font-mono">
@@ -454,96 +457,10 @@ type View = 'table' | 'charts' | 'compare';
 const isActive = (p?: Progress | null): boolean =>
   !!p && p.state !== 'done' && p.state !== 'cancelled' && p.state !== 'error';
 
-const L = (lang: string) => (lang === 'en'
-  ? {
-      title: 'OKX Backtest Data', sub: 'OHLCV across all coins — in-memory store',
-      fill: 'Fill backtest data', filling: 'Filling…', cancel: 'Cancel', refresh: 'Refresh',
-      startAll: 'Load + Backtest', startingAll: 'Starting…',
-      startAllHint: 'One click: load all coins live → compute diff (chart) → fill history',
-      loadCoins: 'Load all coins', loadingCoins: 'Loading…',
-      liveHint: 'Fetch every coin with live prices (no history)',
-      coin: 'Coin', state: 'State', last: 'Last', candles: 'Candles', coverage: 'Coverage', done: 'Done',
-      all: 'All', newC: 'New', pending: 'Pending', incomplete: 'Incomplete',
-      unreachable: 'pycore unreachable — showing the last cached snapshot.',
-      empty: 'No coins yet. Press "Load all coins" for live prices, then "Fill backtest data" for history.',
-      instruments: 'Coins', pendingN: 'Pending', newN: 'New', candlesN: 'Candles',
-      timeframe: 'Timeframe', export: 'Export CSV',
-      sOpen: 'Open', sClose: 'Close', sHigh: 'High', sLow: 'Low', sChg: 'Change', sRange: 'Range',
-      scopeUsdt: 'USDT', scopeAll: 'All', scopeHint: 'USDT pairs only / all live pairs',
-      autoLoad: 'Auto-load coins on start', autoBacktest: 'Auto-run backtest on start',
-      autoHint: 'Saved to pycore settings; applied next startup',
-      // unified progress labels
-      pLoadUniverse: 'Loading coins', pLoadTickers: 'Live prices', pLoadSync: 'Syncing',
-      pCatchUp: 'Catching up', elapsed: 'Elapsed', eta: 'ETA',
-      // type filter + view toggle
-      allTypes: 'All types', type: 'Type', viewTable: 'Table', viewCharts: 'Charts', viewCompare: 'Compare',
-      cmpChange: 'Change %', cmpPrice: 'Price', cmpReset: 'Reset zoom',
-      cmpHint: 'wheel = zoom · drag = pan · click line = select', cmpLoading: 'Loading…',
-      cmpEmpty: 'No coins with data — run a backtest fill first.', quoteFilter: 'Quote',
-      rankGainers: 'Gainers', rankLosers: 'Losers', rankVol: 'Volatility', rankVolume: 'Volume',
-      dChange: 'Change', dRange: 'Range', dVolQuote: 'Volume (quote)', dVolBase: 'Volume (base)',
-      dBuyRatio: 'Buy pressure', dHi: 'High', dLo: 'Low', dMaxMove: 'Biggest move',
-      dVolatility: 'Realized vol', dCandles: 'Candles', dAt: 'at', dWindow: 'Window',
-      detailPick: 'Click a line on the chart, or a coin in the list, to see its details.',
-      noData: 'No trend data', showingN: (n: number, total: number) => `Showing ${n} of ${total}`,
-      chartsEmpty: 'No coins with candle history yet — run a backtest fill first (Charts only shows coins that have data).',
-      withDataN: (n: number, total: number) => `${n} of ${total} coins have data (run a fill to add more)`,
-      ofTotal: (n: number) => `of ${n} coins`,
-      // selected-coin listing info
-      listed: 'Listed',
-      // fill phase-1 diff (local coverage gap, computed before any fetch)
-      pDiff: 'Computing diff', diffTitle: 'Phase 1 · coverage diff (local fragments vs target)',
-      diffHave: 'Have', diffNeed: 'Need', diffMissing: 'Missing', diffCoverageN: 'Coverage',
-      diffFull: 'Complete', diffPartial: 'Partial', diffEmpty: 'Empty', diffTopGaps: 'Largest gaps',
-      diffHide: 'Hide', diffWindow: (h: number) => `${h}h window`,
-    }
-  : {
-      title: 'OKX 回测数据', sub: '全币种 OHLCV — 内存库',
-      fill: '填充回测数据', filling: '填充中…', cancel: '取消', refresh: '刷新',
-      startAll: '载入并回测', startingAll: '启动中…',
-      startAllHint: '一键：载入全部币种实时行情 → 计算差异（图表） → 填充历史',
-      loadCoins: '载入全部币种', loadingCoins: '载入中…',
-      liveHint: '拉取全部币种实时价格（不含历史）',
-      coin: '币种', state: '状态', last: '最新价', candles: 'K线', coverage: '覆盖区间', done: '完成',
-      all: '全部', newC: '新币', pending: '待发', incomplete: '不完整',
-      unreachable: 'pycore 不可达 —— 显示上次缓存快照。',
-      empty: '暂无数据。先点「载入全部币种」获取实时行情，再点「填充回测数据」拉取历史。',
-      instruments: '币种', pendingN: '待发', newN: '新币', candlesN: 'K线',
-      timeframe: '周期', export: '导出 CSV',
-      sOpen: '开', sClose: '收', sHigh: '高', sLow: '低', sChg: '涨跌', sRange: '振幅',
-      scopeUsdt: 'USDT', scopeAll: '全部', scopeHint: '仅 USDT 交易对 / 所有在交易对',
-      autoLoad: '启动时自动载入币种', autoBacktest: '启动时自动回测',
-      autoHint: '保存到 pycore 设置；下次启动生效',
-      // unified progress labels
-      pLoadUniverse: '载入币种', pLoadTickers: '实时价格', pLoadSync: '同步中',
-      pCatchUp: '追平', elapsed: '已用时', eta: '预计',
-      // type filter + view toggle
-      allTypes: '全部类型', type: '类型', viewTable: '表格', viewCharts: '图表', viewCompare: '对比',
-      cmpChange: '涨跌%', cmpPrice: '价格', cmpReset: '重置缩放',
-      cmpHint: '滚轮缩放 · 拖动平移 · 点击线条选中', cmpLoading: '加载中…',
-      cmpEmpty: '暂无含数据的币种 —— 请先填充回测。', quoteFilter: '计价',
-      rankGainers: '涨幅', rankLosers: '跌幅', rankVol: '波动', rankVolume: '成交量',
-      dChange: '涨跌', dRange: '振幅', dVolQuote: '成交额', dVolBase: '成交量',
-      dBuyRatio: '买入占比', dHi: '最高', dLo: '最低', dMaxMove: '最大波动',
-      dVolatility: '已实现波动', dCandles: 'K线', dAt: '于', dWindow: '窗口',
-      detailPick: '点击图表中的线条，或列表中的币，查看详情。',
-      noData: '暂无走势数据', showingN: (n: number, total: number) => `显示 ${n} / ${total}`,
-      chartsEmpty: '暂无含K线历史的币种 —— 请先填充回测数据（图表仅显示有数据的币）。',
-      withDataN: (n: number, total: number) => `${total} 个币中 ${n} 个有数据（填充可增加）`,
-      ofTotal: (n: number) => `/ 共 ${n} 币`,
-      // selected-coin listing info
-      listed: '上线',
-      // fill phase-1 diff (local coverage gap, computed before any fetch)
-      pDiff: '计算差异', diffTitle: '第一阶段 · 覆盖差异（本地片段 vs 目标）',
-      diffHave: '已有', diffNeed: '需要', diffMissing: '缺失', diffCoverageN: '覆盖率',
-      diffFull: '完整', diffPartial: '部分', diffEmpty: '空', diffTopGaps: '最大缺口',
-      diffHide: '隐藏', diffWindow: (h: number) => `${h}小时窗口`,
-    });
-
 const BARS = ['1m', '5m', '15m', '1H', '4H', '1D'];
 
-export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark, lang }) => {
-  const t = L(lang);
+export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
+  const { t } = useTranslation('vx');
   const [coins, setCoins] = useState<CoinRow[]>(() => loadCache());
   const [status, setStatus] = useState<OkxStatus>({});
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -559,7 +476,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
   const [cmpRank, setCmpRank] = useState<RankKey>('change');      // dashboard ranking metric
   const [cmpFocus, setCmpFocus] = useState<{ lo: number; hi: number } | null>(null); // zoom-to-segment
   const [fillPlan, setFillPlan] = useState<FillPlan | null>(null); // phase-1 diff (local coverage gap)
-  const [unreachable, setUnreachable] = useState(false);
+  const [failure, setFailure] = useState<PycoreAccess | null>(null);
   const [loading, setLoading] = useState(false);
   const [httpOk, setHttpOk] = useState(false);
   const [hours, setHours] = useState<number>(24);   // backtest window (24h / 48h)
@@ -587,9 +504,9 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
       ]);
       if (st) setStatus(st);
       const rows: CoinRow[] = Array.isArray(cs?.coins) ? cs.coins : [];
-      setCoins(rows); saveCache(rows); setUnreachable(false);
-    } catch {
-      setUnreachable(true);
+      setCoins(rows); saveCache(rows); setFailure(null);
+    } catch (error) {
+      setFailure(classifyPycoreAccess(error));
     }
   }, []);
 
@@ -680,7 +597,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
     try {
       // Phase 1a — load every coin with live prices (fast; no history). Non-fatal:
       // fill_backtest also refreshes the universe, so a hiccup here never blocks the fill.
-      try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.loadUniverse, {}, 30000); setUnreachable(false); refreshCoins(); }
+      try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.loadUniverse, {}, 30000); setFailure(null); refreshCoins(); }
       catch { /* best-effort */ }
       setLoadingUniverse(false);
       // Phase 1b — DIFF from local fragments → chart, BEFORE any download.
@@ -691,7 +608,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
       // Phase 2: download only missing ranges with HTTP event progress.
       await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.fillBacktest, { bar, hours, scope }, 8000);
       setProgress({ state: 'starting', op: 'fill', phase: 'diff' });
-    } catch { setUnreachable(true); }
+    } catch (error) { setFailure(classifyPycoreAccess(error)); }
     finally { setLoading(false); setLoadingUniverse(false); refreshCoins(); }
   };
   const cancelFill = async () => { try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.cancelFill, {}, 8000); } catch { /* ignore */ } };
@@ -703,14 +620,20 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
     try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.setSettings, patch, 8000); } catch { /* best-effort */ }
   };
 
+  // Only the latest chart request may apply its candles; a slower earlier one is dropped.
+  const chartSeq = useRef(0);
   const openChart = useCallback(async (inst_id: string) => {
+    const seq = ++chartSeq.current;
     setSelected(inst_id); setSelCandles([]); setSelLoading(true);
+    let candles: number[][] = [];
     try {
       const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.candles, { inst_id, bar: barRef.current }, 15000);
-      setSelCandles(Array.isArray(r?.candles) ? r.candles : []);
-    } catch { setSelCandles([]); }
-    finally { setSelLoading(false); }
+      if (Array.isArray(r?.candles)) candles = r.candles;
+    } catch { /* show an empty chart */ }
+    if (seq !== chartSeq.current) return;
+    setSelCandles(candles); setSelLoading(false);
   }, []);
+  const closeChart = useCallback(() => { chartSeq.current += 1; setSelected(null); }, []);
 
   // changing timeframe re-queries the table (per-bar candle counts) + the open chart
   useEffect(() => {
@@ -866,16 +789,16 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
     const op = progress?.op ?? (loadingUniverse ? 'load' : undefined);
     const phase = progress?.phase;
     if (op === 'load') {
-      if (phase === 'tickers') return t.pLoadTickers;
-      if (phase === 'sync') return t.pLoadSync;
-      return t.pLoadUniverse; // 'universe' or unknown
+      if (phase === 'tickers') return t('backtest.pLoadTickers');
+      if (phase === 'sync') return t('backtest.pLoadSync');
+      return t('backtest.pLoadUniverse'); // 'universe' or unknown
     }
     if (op === 'fill') {
-      if (phase === 'diff') return t.pDiff;
-      if (phase === 'catch-up') return t.pCatchUp;
-      return t.filling; // 'gap-fill' or unknown
+      if (phase === 'diff') return t('backtest.pDiff');
+      if (phase === 'catch-up') return t('backtest.pCatchUp');
+      return t('backtest.filling'); // 'gap-fill' or unknown
     }
-    return t.filling;
+    return t('backtest.filling');
   })();
 
   const card = dark ? 'bg-slate-900/40 border-white/5' : 'bg-white border-slate-200';
@@ -895,13 +818,13 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black flex items-center gap-2 text-slate-100">
-            <Database className="w-5 h-5 text-indigo-400" /> {t.title}
+            <Database className="w-5 h-5 text-indigo-400" /> {t('backtest.title')}
           </h2>
-          <p className="text-xs text-slate-400 font-mono">{t.sub}</p>
+          <p className="text-xs text-slate-400 font-mono">{t('backtest.sub')}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {!filling && (
-            <div className={`flex items-center rounded-xl border ${card} overflow-hidden`} title={t.timeframe}>
+            <div className={`flex items-center rounded-xl border ${card} overflow-hidden`} title={t('backtest.timeframe')}>
               {BARS.map((b) => (
                 <button key={b} onClick={() => setBar(b)}
                   className={`px-2 py-1.5 text-[11px] font-bold font-mono transition ${bar === b ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}>
@@ -915,51 +838,47 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
               {[6, 12, 24, 48, 72].map((h) => (
                 <button key={h} onClick={() => setHours(h)}
                   className={`px-2.5 py-1.5 text-[11px] font-bold font-mono transition ${hours === h ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}>
-                  {h}h
+                  {t('backtest.hoursShort', { hours: h })}
                 </button>
               ))}
             </div>
           )}
           {!filling && (
-            <div className={`flex items-center rounded-xl border ${card} overflow-hidden`} title={t.scopeHint}>
+            <div className={`flex items-center rounded-xl border ${card} overflow-hidden`} title={t('backtest.scopeHint')}>
               {(['usdt', 'all'] as const).map((s) => (
                 <button key={s} onClick={() => setScope(s)}
                   className={`px-2.5 py-1.5 text-[11px] font-bold font-mono transition ${scope === s ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}>
-                  {s === 'usdt' ? t.scopeUsdt : t.scopeAll}
+                  {s === 'usdt' ? t('backtest.scopeUsdt') : t('backtest.scopeAll')}
                 </button>
               ))}
             </div>
           )}
           {!filling ? (
-            <button onClick={startAll} disabled={loadBusy || loading} title={t.startAllHint}
+            <button onClick={startAll} disabled={loadBusy || loading} title={t('backtest.startAllHint')}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition">
               {(loadBusy || loading) ? <Zap className="w-4 h-4 animate-pulse" /> : <Play className="w-4 h-4" />}
-              {(loadBusy || loading) ? t.startingAll : t.startAll}
+              {(loadBusy || loading) ? t('backtest.startingAll') : t('backtest.startAll')}
             </button>
           ) : (
             <button onClick={cancelFill}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition">
-              <Square className="w-4 h-4" /> {t.cancel}
+              <Square className="w-4 h-4" /> {t('backtest.cancel')}
             </button>
           )}
-          <button onClick={refreshCoins} title={t.refresh}
+          <button onClick={refreshCoins} title={t('backtest.refresh')}
             className={`p-2.5 rounded-xl border ${card} text-slate-400 hover:text-indigo-400 transition`}>
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {unreachable && (
-        <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-400">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{t.unreachable}</span>
-        </div>
-      )}
+      <VortexPycoreNotice failure={failure} unreachableText={t('backtest.unreachable')} />
 
       {/* auto-load settings (persisted in pycore user-data store) */}
       <div className={`flex items-center gap-4 flex-wrap rounded-2xl border px-4 py-2.5 ${card}`}>
         {([
-          { key: 'auto_load' as const, label: t.autoLoad },
-          { key: 'auto_backtest' as const, label: t.autoBacktest },
+          { key: 'auto_load' as const, label: t('backtest.autoLoad') },
+          { key: 'auto_backtest' as const, label: t('backtest.autoBacktest') },
         ]).map(({ key, label }) => (
           <label key={key} className="flex items-center gap-2 cursor-pointer select-none">
             <button type="button" role="switch" aria-checked={settings[key]}
@@ -970,17 +889,17 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
             <span className="text-[11px] font-bold text-slate-300">{label}</span>
           </label>
         ))}
-        <span className="ml-auto text-[10px] font-mono text-slate-500">{t.autoHint}</span>
+        <span className="ml-auto text-[10px] font-mono text-slate-500">{t('backtest.autoHint')}</span>
       </div>
 
       {/* stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {stat(<TrendingUp className="w-4 h-4" />, t.instruments, status.instruments ?? coins.length, 'text-indigo-400')}
-        {stat(<Sparkles className="w-4 h-4" />, t.newN, status.universe?.new ?? coins.filter(isNew).length, 'text-emerald-400')}
-        {stat(<Clock className="w-4 h-4" />, t.pendingN, status.universe?.pending ?? coins.filter(isPending).length, 'text-amber-400')}
+        {stat(<TrendingUp className="w-4 h-4" />, t('backtest.instruments'), status.instruments ?? coins.length, 'text-indigo-400')}
+        {stat(<Sparkles className="w-4 h-4" />, t('backtest.newN'), status.universe?.new ?? coins.filter(isNew).length, 'text-emerald-400')}
+        {stat(<Clock className="w-4 h-4" />, t('backtest.pendingN'), status.universe?.pending ?? coins.filter(isPending).length, 'text-amber-400')}
         {/* candle total: trust status.candles, but never show 0 when loaded coins clearly
             hold candles (a stale/early status event can report 0) — fall back to the live sum. */}
-        {stat(<Database className="w-4 h-4" />, t.candlesN,
+        {stat(<Database className="w-4 h-4" />, t('backtest.candlesN'),
           Math.max(status.candles ?? 0, coins.reduce((s, c) => s + (c.cnt ?? 0), 0)).toLocaleString(),
           'text-fuchsia-400')}
       </div>
@@ -995,17 +914,17 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
               {progress?.throttled ? <span className="text-amber-400">· ⏳</span> : null}
             </span>
             <span className="flex items-center gap-2">
-              <span className="flex items-center gap-1 tabular-nums" title={t.elapsed}>
+              <span className="flex items-center gap-1 tabular-nums" title={t('backtest.elapsed')}>
                 <Clock className="w-3 h-3" /> {fmtClock(elapsed)}
               </span>
               <span>{progress?.done ?? 0}/{progress?.total ?? 0}</span>
               {/* scope context: the fill total is the SCOPED subset (e.g. USDT pairs),
                   not the full universe — show "/<total instruments>" so 299 vs 1265 is clear. */}
               {progress?.op === 'fill' ? (
-                <span className="text-slate-500">· {scope === 'usdt' ? t.scopeUsdt : t.scopeAll}{status.instruments ? ` ${t.ofTotal(status.instruments)}` : ''}</span>
+                <span className="text-slate-500">· {scope === 'usdt' ? t('backtest.scopeUsdt') : t('backtest.scopeAll')}{status.instruments ? ` ${t('backtest.ofTotal', { total: status.instruments })}` : ''}</span>
               ) : null}
-              {progress?.eta_s != null ? <span>· {t.eta} {progress.eta_s}s</span> : null}
-              {progress?.op === 'fill' && progress?.rate != null ? <span>· {progress.rate} req/s</span> : null}
+              {progress?.eta_s != null ? <span>· {t('backtest.etaSeconds', { seconds: progress.eta_s })}</span> : null}
+              {progress?.op === 'fill' && progress?.rate != null ? <span>· {t('backtest.reqPerSec', { rate: progress.rate })}</span> : null}
             </span>
           </div>
           <div className="h-2 rounded-full bg-white/5 overflow-hidden">
@@ -1017,7 +936,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
 
       {/* phase-1 fill DIFF chart (local coverage gap, shown when a fill is started) */}
       {fillPlan && (
-        <FillDiffChart plan={fillPlan} t={t} dark={dark} onHide={() => setFillPlan(null)} />
+        <FillDiffChart plan={fillPlan} dark={dark} onHide={() => setFillPlan(null)} />
       )}
 
       {/* selected coin chart */}
@@ -1027,7 +946,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
             <span className="text-sm font-black font-mono text-slate-200 flex items-center gap-2 flex-wrap">
               <CandlestickChart className="w-4 h-4 text-indigo-400" /> {selected}
               {/* full stored history for this coin (NOT capped to the fill window) */}
-              <span className="text-[10px] font-normal text-slate-500">{bar} · {selCandles.length} {t.candles}</span>
+              <span className="text-[10px] font-normal text-slate-500">{bar} · {selCandles.length} {t('backtest.candles')}</span>
               {selCandles.length > 1 && (
                 <span className="text-[10px] font-normal text-slate-500">
                   {fmtTs(selCandles[0][0])} → {fmtTs(selCandles[selCandles.length - 1][0])}
@@ -1039,13 +958,13 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
                 if (!row) return null;
                 return (
                   <span className="text-[10px] font-normal text-slate-500 flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {t.listed}: {fmtTs(row.list_time)}
+                    <Clock className="w-3 h-3" /> {t('backtest.listed')}: {fmtTs(row.list_time)}
                     {row.state ? <span>· {row.state}</span> : null}
                   </span>
                 );
               })()}
             </span>
-            <button onClick={() => setSelected(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400"><X className="w-4 h-4" /></button>
+            <button onClick={closeChart} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400"><X className="w-4 h-4" /></button>
           </div>
           {(() => {
             const s = candleStats(selCandles);
@@ -1056,12 +975,12 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
             );
             return (
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3 font-mono">
-                {item(t.sOpen, s.open)}
-                {item(t.sClose, s.close)}
-                {item(t.sHigh, s.hi, 'text-emerald-400')}
-                {item(t.sLow, s.lo, 'text-rose-400')}
-                {item(t.sChg, `${s.chg >= 0 ? '+' : ''}${s.chg.toFixed(2)}%`, s.chg >= 0 ? 'text-emerald-400' : 'text-rose-400')}
-                {item(t.sRange, `${s.range.toFixed(2)}%`, 'text-amber-400')}
+                {item(t('backtest.sOpen'), s.open)}
+                {item(t('backtest.sClose'), s.close)}
+                {item(t('backtest.sHigh'), s.hi, 'text-emerald-400')}
+                {item(t('backtest.sLow'), s.lo, 'text-rose-400')}
+                {item(t('backtest.sChg'), `${s.chg >= 0 ? '+' : ''}${s.chg.toFixed(2)}%`, s.chg >= 0 ? 'text-emerald-400' : 'text-rose-400')}
+                {item(t('backtest.sRange'), `${s.range.toFixed(2)}%`, 'text-amber-400')}
               </div>
             );
           })()}
@@ -1074,12 +993,12 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
       <div className="flex items-center gap-1.5 flex-wrap">
         {(['all', 'new', 'pending', 'incomplete'] as Filter[]).map((f) => (
           <button key={f} className={chip(filter === f)} onClick={() => setFilter(f)}>
-            {f === 'all' ? t.all : f === 'new' ? t.newC : f === 'pending' ? t.pending : t.incomplete}
+            {f === 'all' ? t('backtest.all') : f === 'new' ? t('backtest.newC') : f === 'pending' ? t('backtest.pending') : t('backtest.incomplete')}
           </button>
         ))}
         {/* quote quick-select (persisted in pycore settings): USDT default / USDC / All */}
-        <div className={`flex items-center rounded-xl border ${card} overflow-hidden`} title={t.quoteFilter}>
-          {([['usdt', 'USDT'], ['usdc', 'USDC'], ['all', t.scopeAll]] as const).map(([q, label]) => {
+        <div className={`flex items-center rounded-xl border ${card} overflow-hidden`} title={t('backtest.quoteFilter')}>
+          {([['usdt', 'USDT'], ['usdc', 'USDC'], ['all', t('backtest.scopeAll')]] as const).map(([q, label]) => {
             const active = typeFilter === quoteToType(q);
             return (
               <button key={q} onClick={() => saveQuote(q)}
@@ -1090,11 +1009,11 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
           })}
         </div>
         {/* full quote-currency dropdown (TRY/EUR/… power users) */}
-        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-xl border ${card}`} title={t.type}>
+        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-xl border ${card}`} title={t('backtest.type')}>
           <FilterIcon className="w-3.5 h-3.5 text-slate-500" />
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}
             className="bg-transparent outline-none text-[11px] font-mono font-bold text-slate-300 cursor-pointer">
-            <option value="all" className={dark ? 'bg-slate-900' : 'bg-white'}>{t.allTypes}</option>
+            <option value="all" className={dark ? 'bg-slate-900' : 'bg-white'}>{t('backtest.allTypes')}</option>
             {types.map((ty) => (
               <option key={ty} value={ty} className={dark ? 'bg-slate-900' : 'bg-white'}>{ty}</option>
             ))}
@@ -1108,20 +1027,20 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
         </div>
         {/* view toggle: table vs charts grid */}
         <div className={`flex items-center rounded-xl border ${card} overflow-hidden`}>
-          <button onClick={() => setView('table')} title={t.viewTable}
+          <button onClick={() => setView('table')} title={t('backtest.viewTable')}
             className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold transition ${view === 'table' ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}>
-            <Table2 className="w-3.5 h-3.5" /> {t.viewTable}
+            <Table2 className="w-3.5 h-3.5" /> {t('backtest.viewTable')}
           </button>
-          <button onClick={() => setView('charts')} title={t.viewCharts}
+          <button onClick={() => setView('charts')} title={t('backtest.viewCharts')}
             className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold transition ${view === 'charts' ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}>
-            <LayoutGrid className="w-3.5 h-3.5" /> {t.viewCharts}
+            <LayoutGrid className="w-3.5 h-3.5" /> {t('backtest.viewCharts')}
           </button>
-          <button onClick={() => setView('compare')} title={t.viewCompare}
+          <button onClick={() => setView('compare')} title={t('backtest.viewCompare')}
             className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-bold transition ${view === 'compare' ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}>
-            <LineChart className="w-3.5 h-3.5" /> {t.viewCompare}
+            <LineChart className="w-3.5 h-3.5" /> {t('backtest.viewCompare')}
           </button>
         </div>
-        <button onClick={exportCsv} disabled={!filtered.length} title={t.export}
+        <button onClick={exportCsv} disabled={!filtered.length} title={t('backtest.export')}
           className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border ${card} text-[11px] font-bold text-slate-400 hover:text-indigo-400 disabled:opacity-40 transition`}>
           <Download className="w-3.5 h-3.5" /> CSV
         </button>
@@ -1131,10 +1050,10 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
       {/* charts grid — alternate view: a sparkline card per coin that HAS data (capped at 60) */}
       {view === 'charts' && (
         chartCoins.length === 0 ? (
-          <div className={`rounded-2xl border ${card} h-40 flex items-center justify-center text-center text-xs text-slate-500 px-6`}>{t.chartsEmpty}</div>
+          <div className={`rounded-2xl border ${card} h-40 flex items-center justify-center text-center text-xs text-slate-500 px-6`}>{t('backtest.chartsEmpty')}</div>
         ) : (
           <div className={`rounded-2xl border ${card} p-3`}>
-            <div className="px-1 pb-2 text-[10px] font-mono text-slate-500">{t.withDataN(withData, filtered.length)}</div>
+            <div className="px-1 pb-2 text-[10px] font-mono text-slate-500">{t('backtest.withDataN', { n: withData, total: filtered.length })}</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
               {chartCoins.map((c) => {
                 const series = spark[c.inst_id] || [];
@@ -1143,7 +1062,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
                     className={`text-left p-2.5 rounded-xl border transition ${card} hover:border-indigo-500/40 ${selected === c.inst_id ? 'ring-1 ring-indigo-500/50' : ''}`}>
                     <div className="flex items-center justify-between gap-1 mb-1">
                       <span className="text-[11px] font-bold font-mono text-slate-200 truncate">{c.inst_id}</span>
-                      {isNew(c) && <span className="px-1 py-0.5 rounded text-[8px] font-bold bg-emerald-500/15 text-emerald-400 shrink-0">{t.newC}</span>}
+                      {isNew(c) && <span className="px-1 py-0.5 rounded text-[8px] font-bold bg-emerald-500/15 text-emerald-400 shrink-0">{t('backtest.newC')}</span>}
                     </div>
                     <div className="flex items-baseline justify-between gap-1 mb-1 font-mono">
                       <span className="text-[11px] tabular-nums text-slate-300 truncate">{c.last != null ? c.last : '—'}</span>
@@ -1155,13 +1074,13 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
                     </div>
                     {series.length >= 2
                       ? <Sparkline series={series} />
-                      : <div className="h-10 flex items-center justify-center text-[10px] text-slate-600">{t.noData}</div>}
+                      : <div className="h-10 flex items-center justify-center text-[10px] text-slate-600">{t('backtest.noData')}</div>}
                   </button>
                 );
               })}
             </div>
             {withData > CHART_CAP && (
-              <div className="px-1 pt-2.5 text-[10px] font-mono text-slate-500">{t.showingN(CHART_CAP, withData)}</div>
+              <div className="px-1 pt-2.5 text-[10px] font-mono text-slate-500">{t('backtest.showingN', { n: CHART_CAP, total: withData })}</div>
             )}
           </div>
         )
@@ -1176,13 +1095,13 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
               {(['change', 'price'] as const).map((m) => (
                 <button key={m} onClick={() => setCmpMode(m)}
                   className={`px-2.5 py-1.5 text-[11px] font-bold font-mono transition ${cmpMode === m ? 'bg-indigo-500/15 text-indigo-400' : 'text-slate-400 hover:text-slate-200'}`}>
-                  {m === 'change' ? t.cmpChange : t.cmpPrice}
+                  {m === 'change' ? t('backtest.cmpChange') : t('backtest.cmpPrice')}
                 </button>
               ))}
             </div>
             {/* rankings dashboard selector */}
             <div className={`flex items-center rounded-xl border ${card} overflow-hidden`}>
-              {([['change', t.rankGainers], ['loss', t.rankLosers], ['volatility', t.rankVol], ['vol_quote', t.rankVolume]] as const).map(([k, label]) => (
+              {([['change', t('backtest.rankGainers')], ['loss', t('backtest.rankLosers')], ['volatility', t('backtest.rankVol')], ['vol_quote', t('backtest.rankVolume')]] as const).map(([k, label]) => (
                 <button key={k} onClick={() => setCmpRank(k)}
                   className={`px-2.5 py-1.5 text-[11px] font-bold font-mono transition ${cmpRank === k ? 'bg-fuchsia-500/15 text-fuchsia-400' : 'text-slate-400 hover:text-slate-200'}`}>
                   {label}
@@ -1190,21 +1109,21 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
               ))}
             </div>
             <span className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
-              <ZoomIn className="w-3.5 h-3.5" /> {t.cmpHint}
+              <ZoomIn className="w-3.5 h-3.5" /> {t('backtest.cmpHint')}
             </span>
             <span className="ml-auto text-[10px] font-mono text-slate-500">
-              {cmpLoading ? t.cmpLoading : t.withDataN(Math.min(cmpCoins.length, CMP_CAP), filtered.length)}
+              {cmpLoading ? t('backtest.cmpLoading') : t('backtest.withDataN', { n: Math.min(cmpCoins.length, CMP_CAP), total: filtered.length })}
             </span>
           </div>
           {cmpCoins.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-center text-xs text-slate-500 px-6">{t.cmpEmpty}</div>
+            <div className="h-40 flex items-center justify-center text-center text-xs text-slate-500 px-6">{t('backtest.cmpEmpty')}</div>
           ) : (
             <div className="flex flex-col lg:flex-row gap-3">
               {/* chart + selected-coin detail */}
               <div className="flex-1 min-w-0">
                 <CompareChart series={cmp} mode={cmpMode} dark={dark} selected={cmpSel}
                   onPick={(id) => pickCompare(id)} focus={cmpFocus}
-                  emptyText={cmpLoading ? t.cmpLoading : t.cmpEmpty} />
+                  emptyText={cmpLoading ? t('backtest.cmpLoading') : t('backtest.cmpEmpty')} />
                 {/* selected-coin detail (volume / buy-pressure / 24h window stats) */}
                 {cmpSel && cmpMetrics[cmpSel] ? (() => {
                   const m = cmpMetrics[cmpSel];
@@ -1218,36 +1137,36 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
                       <div className="flex items-center gap-2 mb-2">
                         <span className="w-2.5 h-2.5 rounded-full" style={{ background: colorOf(cmpSel) }} />
                         <span className="text-sm font-black font-mono text-slate-200">{cmpSel}</span>
-                        <span className="text-[10px] text-slate-500">{t.dWindow} {hours}h · {m.n} {t.dCandles}</span>
+                        <span className="text-[10px] text-slate-500">{t('backtest.dWindow')} {t('backtest.hoursShort', { hours })} · {m.n} {t('backtest.dCandles')}</span>
                       </div>
                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5 font-mono">
-                        {cell(t.dChange, `${m.change >= 0 ? '+' : ''}${m.change}%`, m.change >= 0 ? 'text-emerald-400' : 'text-rose-400')}
-                        {cell(t.dRange, `${m.range}%`, 'text-amber-400')}
-                        {cell(t.dVolatility, `${m.volatility}%`, 'text-fuchsia-400')}
-                        {cell(t.dVolQuote, fmtBig(m.vol_quote))}
-                        {cell(t.dVolBase, fmtBig(m.vol_base))}
-                        {cell(t.dHi, m.hi, 'text-emerald-400')}
-                        {cell(t.dLo, m.lo, 'text-rose-400')}
-                        {cell(t.dMaxMove, `${m.max_move.pct >= 0 ? '+' : ''}${m.max_move.pct}%`, m.max_move.pct >= 0 ? 'text-emerald-400' : 'text-rose-400')}
+                        {cell(t('backtest.dChange'), `${m.change >= 0 ? '+' : ''}${m.change}%`, m.change >= 0 ? 'text-emerald-400' : 'text-rose-400')}
+                        {cell(t('backtest.dRange'), `${m.range}%`, 'text-amber-400')}
+                        {cell(t('backtest.dVolatility'), `${m.volatility}%`, 'text-fuchsia-400')}
+                        {cell(t('backtest.dVolQuote'), fmtBig(m.vol_quote))}
+                        {cell(t('backtest.dVolBase'), fmtBig(m.vol_base))}
+                        {cell(t('backtest.dHi'), m.hi, 'text-emerald-400')}
+                        {cell(t('backtest.dLo'), m.lo, 'text-rose-400')}
+                        {cell(t('backtest.dMaxMove'), `${m.max_move.pct >= 0 ? '+' : ''}${m.max_move.pct}%`, m.max_move.pct >= 0 ? 'text-emerald-400' : 'text-rose-400')}
                       </div>
                       {/* buy/sell pressure bar */}
                       {buyPct != null && (
                         <div className="mt-2.5">
                           <div className="flex justify-between text-[9px] font-mono mb-1">
-                            <span className="text-emerald-400">{t.dBuyRatio} {buyPct}%</span>
+                            <span className="text-emerald-400">{t('backtest.dBuyRatio')} {buyPct}%</span>
                             <span className="text-rose-400">{100 - buyPct}%</span>
                           </div>
                           <div className="h-2 rounded-full overflow-hidden flex">
                             <div className="h-full bg-emerald-500" style={{ width: `${buyPct}%` }} />
                             <div className="h-full bg-rose-500" style={{ width: `${100 - buyPct}%` }} />
                           </div>
-                          <div className="text-[9px] font-mono text-slate-500 mt-1">{t.dMaxMove} {t.dAt} {fmtTs(m.max_move.ts)}</div>
+                          <div className="text-[9px] font-mono text-slate-500 mt-1">{t('backtest.dMaxMove')} {t('backtest.dAt')} {fmtTs(m.max_move.ts)}</div>
                         </div>
                       )}
                     </div>
                   );
                 })() : (
-                  <div className="mt-3 text-[11px] font-mono text-slate-500 px-1">{t.detailPick}</div>
+                  <div className="mt-3 text-[11px] font-mono text-slate-500 px-1">{t('backtest.detailPick')}</div>
                 )}
               </div>
               {/* rankings list (click = select line; volatility = jump to its move) */}
@@ -1280,22 +1199,22 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
       <div className={`rounded-2xl border overflow-hidden ${card}`}>
         <div className="max-h-[460px] overflow-auto">
           {filtered.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-center text-xs text-slate-500 px-6">{t.empty}</div>
+            <div className="h-40 flex items-center justify-center text-center text-xs text-slate-500 px-6">{t('backtest.empty')}</div>
           ) : (
             <table className="w-full text-left text-xs">
               <thead className={`sticky top-0 z-10 ${dark ? 'bg-slate-900/95' : 'bg-white/95'} backdrop-blur`}>
                 <tr className="text-slate-400 uppercase text-[10px] font-mono">
                   <th className="py-2.5 px-3 font-semibold cursor-pointer select-none hover:text-indigo-400" onClick={() => toggleSort('coin')}>
-                    {t.coin}{sortArrow('coin')}</th>
-                  <th className="py-2.5 px-3 font-semibold">{t.state}</th>
+                    {t('backtest.coin')}{sortArrow('coin')}</th>
+                  <th className="py-2.5 px-3 font-semibold">{t('backtest.state')}</th>
                   <th className="py-2.5 px-3 font-semibold text-right cursor-pointer select-none hover:text-indigo-400" onClick={() => toggleSort('last')}>
-                    {t.last}{sortArrow('last')}</th>
+                    {t('backtest.last')}{sortArrow('last')}</th>
                   <th className="py-2.5 px-3 font-semibold text-right cursor-pointer select-none hover:text-indigo-400" onClick={() => toggleSort('chg')}>
-                    {t.sChg}{sortArrow('chg')}</th>
+                    {t('backtest.sChg')}{sortArrow('chg')}</th>
                   <th className="py-2.5 px-3 font-semibold text-right cursor-pointer select-none hover:text-indigo-400" onClick={() => toggleSort('candles')}>
-                    {t.candles}{sortArrow('candles')}</th>
-                  <th className="py-2.5 px-3 font-semibold">{t.coverage}</th>
-                  <th className="py-2.5 px-3 font-semibold text-center">{t.done}</th>
+                    {t('backtest.candles')}{sortArrow('candles')}</th>
+                  <th className="py-2.5 px-3 font-semibold">{t('backtest.coverage')}</th>
+                  <th className="py-2.5 px-3 font-semibold text-center">{t('backtest.done')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono">
@@ -1304,13 +1223,13 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
                     className={`cursor-pointer transition-colors ${selected === c.inst_id ? 'bg-indigo-500/10' : 'hover:bg-indigo-500/5'}`}>
                     <td className="py-2 px-3 font-bold text-slate-200">
                       {c.inst_id}
-                      {isNew(c) && <span title={c.list_time ? `Listed ${fmtTs(c.list_time)}` : undefined}
-                        className="ml-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/15 text-emerald-400">{t.newC}</span>}
+                      {isNew(c) && <span title={c.list_time ? `${t('backtest.listed')}: ${fmtTs(c.list_time)}` : undefined}
+                        className="ml-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/15 text-emerald-400">{t('backtest.newC')}</span>}
                     </td>
                     <td className="py-2 px-3">
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                         isPending(c) ? 'bg-amber-500/15 text-amber-400' : c.state === 'live' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-500/15 text-slate-400'}`}>
-                        {isPending(c) ? t.pending : (c.state || '—')}
+                        {isPending(c) ? t('backtest.pending') : (c.state || '—')}
                       </span>
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums">
@@ -1332,7 +1251,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
         </div>
         {filtered.length > 600 && (
           <div className="px-3 py-2 text-[10px] font-mono text-slate-500 border-t border-white/5">
-            {t.showingN(600, filtered.length)}
+            {t('backtest.showingN', { n: 600, total: filtered.length })}
           </div>
         )}
       </div>

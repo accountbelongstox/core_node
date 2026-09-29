@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 // Request state management
 let isRequestPending = false;
 let nextRequestTimer = null;
@@ -114,6 +102,17 @@ function updateStatusDisplay(data) {
     });
 }
 
+function renderStatusError(message) {
+    const container = document.getElementById('status-container');
+    container.innerHTML = `
+        <div class="error-section">
+            <h3>Error</h3>
+            <p>Failed to fetch status: ${message}</p>
+            <p>Last attempt: ${new Date().toLocaleString()}</p>
+        </div>
+    `;
+}
+
 function fetchStatus() {
     if (isRequestPending) {
         console.log('Previous request still pending, skipping this update');
@@ -128,19 +127,14 @@ function fetchStatus() {
             if (data.success) {
                 updateStatusDisplay(data.data);
             } else {
-                throw new Error(data.message || 'Failed to fetch status');
+                const message = data.message || 'Failed to fetch status';
+                console.error('Failed to fetch status:', message);
+                renderStatusError(message);
             }
         })
         .catch(error => {
             console.error('Error fetching status:', error);
-            const container = document.getElementById('status-container');
-            container.innerHTML = `
-                <div class="error-section">
-                    <h3>Error</h3>
-                    <p>Failed to fetch status: ${error.message}</p>
-                    <p>Last attempt: ${new Date().toLocaleString()}</p>
-                </div>
-            `;
+            renderStatusError(error.message);
         })
         .finally(() => {
             isRequestPending = false;

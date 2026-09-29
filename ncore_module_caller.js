@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * Ncore Module Caller - Legacy Entry Point
  *
@@ -23,17 +11,18 @@
  *
  * Usage:
  *     node ncore_module_caller.js              # Platform-aware mode
- *     node ncore_module_caller.js --host 0.0.0.0 --port 58000
  */  
 
 const path = require('path');
+const serviceContract = require('#@/config/service_contract.js');
+const { defaultBindHost } = require('#@foundation/common/local_rpc_guard.js');
 
 const NCORE_ROOT = path.dirname(__filename);
 
 // Hardcoded configuration
 const CONFIG = {
-    HOST: '0.0.0.0',
-    PORT: 58000,
+    HOST: defaultBindHost(),
+    PORT: serviceContract.port('ncore_backend'),
     BROWSER_TYPE: 'edge',
     AUTO_LAUNCH_BROWSER: true,
     DEBUG: false

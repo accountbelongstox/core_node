@@ -1,0 +1,705 @@
+diff --git a/poly_apps/pycore_laravel_wordnew_ui/build_app.ps1 b/poly_apps/pycore_laravel_wordnew_ui/build_app.ps1
+index bd678ce..a09654e 100644
+--- a/poly_apps/pycore_laravel_wordnew_ui/build_app.ps1
++++ b/poly_apps/pycore_laravel_wordnew_ui/build_app.ps1
+@@ -11,8 +11,9 @@
+     2. runs scripts/flavor/flavor_build.py to write capacitor.config.json and
+        prepare the declared icon under resources/,
+     3. runs `vite build` with VITE_APP_FLAVOR set, so the chosen app is mounted
+-       standalone as the homepage (see shell/flavor.ts + StandaloneApp.tsx),
+-    4. (optional) syncs the web build into a Capacitor native project.
++       standalone as the homepage (see shell/flavor.ts + StandaloneApp.tsx).
++  Native packaging (-Apk or -Sync) is delegated to scripts/flavor/build_apk.py, the
++  single native build truth shared with scripts/start_build.ps1 / start_build.sh.
+ 
+   The default `npm run build` (no flavor) still produces the full multi-app shell.
+ 
+@@ -24,14 +25,14 @@
+ 
+ .PARAMETER Native
+   Bundle the REAL @capacitor plugins (VITE_BUILD_TARGET=native) instead of the
+-  browser shims — use for an actual mobile app (requires @capacitor/* installed).
++  browser shims for a web build (requires @capacitor/* installed).
+ 
+ .PARAMETER Sync
+-  After the web build, run `npx cap sync` (and `@capacitor/assets generate` when
+-  available) to update the native project. Implies a Capacitor project exists.
++  Update the Android native project through scripts/flavor/build_apk.py (flavor
++  prep, native vite build, cap add/sync, assets); same flow as -Apk.
+ 
+ .PARAMETER Platform
+-  Native platform for -Sync: android (default) or ios.
++  Native platform for -Sync/-Apk: android (default); ios needs macOS.
+ 
+ .PARAMETER Apk
+   Run the complete Android APK workflow (auto-detect, native build, Gradle,
+@@ -40,7 +41,7 @@
+ .EXAMPLE
+   ./build_app.ps1 -Apk -App wordnew
+   ./build_app.ps1 -App wordnew
+-  ./build_app.ps1 -App vortex -Native -Sync -Platform android
++  ./build_app.ps1 -App wordnew -Sync
+   ./build_app.ps1 -List
+ #>
+ [CmdletBinding()]
+@@ -66,10 +67,10 @@ $flavorsDir = Join-Path $root 'flavors'
+ $apkScript = Join-Path $root 'scripts\flavor\build_apk.py'
+ $apkArguments = @()
+ $pythonCommand = $null
+-$nativeAndroidPath = $null
+ $py = $null
+ 
+-if ($Apk) {
++if ($Apk -or $Sync) {
++  if ($Platform -eq 'ios') { Write-Error 'iOS builds require macOS with Xcode 26+ (Capacitor 8). Run scripts/start_build.sh on a Mac.' }
+   $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+   if (-not $pythonCommand) { $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+   if (-not $pythonCommand) { Write-Error 'Python is required for the APK build workflow.' }
+@@ -80,7 +81,7 @@ if ($Apk) {
+   if ($NoOpenOutput) { $apkArguments = @($apkArguments; '--open'; 'no') }
+   if ($NonInteractive) { $apkArguments = @($apkArguments; '--non-interactive') }
+   & $pythonCommand.Source @apkArguments
+-  return
++  exit $LASTEXITCODE
+ }
+ 
+ function Get-Flavors {
+@@ -98,7 +99,7 @@ if ($List -or -not $App) {
+     $meta = Get-Content (Join-Path $flavorsDir "$f/flavor.json") -Raw | ConvertFrom-Json
+     Write-Host ("  {0,-16} {1}  ({2})" -f $meta.id, $meta.name, $meta.appId)
+   }
+-  if (-not $App) { Write-Host "`nUsage: ./build_app.ps1 -App <id> [-Native] [-Sync]" -ForegroundColor DarkGray }
++  if (-not $App) { Write-Host "`nUsage: ./build_app.ps1 -App <id> [-Native] [-Apk]" -ForegroundColor DarkGray }
+   return
+ }
+ 
+@@ -121,27 +122,8 @@ $env:VITE_APP_FLAVOR = $App
+ if ($Native) { $env:VITE_BUILD_TARGET = 'native' } else { Remove-Item Env:VITE_BUILD_TARGET -ErrorAction SilentlyContinue }
+ 
+ Write-Host "==> vite build (VITE_APP_FLAVOR=$App, native=$($Native.IsPresent))" -ForegroundColor Green
+-& npx vite build
++& bun x vite build
+ if ($LASTEXITCODE -ne 0) { Write-Error "vite build failed (exit $LASTEXITCODE)." }
+ 
+-if ($Sync) {
+-  if (-not (Test-Path (Join-Path $root 'capacitor.config.json'))) {
+-    Write-Error "capacitor.config.json missing — run flavor prep first."
+-  }
+-  # Generate platform icons/splashes from resources/ when @capacitor/assets is present.
+-  Write-Host "==> @capacitor/assets generate (icons + splash)" -ForegroundColor Green
+-  $nativeAndroidPath = Join-Path (Join-Path (Join-Path $root 'native') $App) 'android'
+-  if ($Platform -eq 'android') {
+-    & npx @capacitor/assets generate --android --androidProject $nativeAndroidPath 2>$null
+-  } else {
+-    & npx @capacitor/assets generate --ios 2>$null
+-  }
+-  Write-Host "==> npx cap sync $Platform" -ForegroundColor Green
+-  & npx cap sync $Platform
+-  if ($LASTEXITCODE -ne 0) { Write-Warning "cap sync returned $LASTEXITCODE (is the $Platform project added? `npx cap add $Platform`)." }
+-}
+-
+-Write-Host "`n✅ Built flavor '$App' → dist/" -ForegroundColor Green
+-if (-not $Sync) {
+-  Write-Host "   Next (native): npx cap add $Platform ; ./build_app.ps1 -App $App -Native -Sync" -ForegroundColor DarkGray
+-}
++Write-Host "`nBuilt flavor '$App' -> dist/" -ForegroundColor Green
++Write-Host "   Next (native): ./build_app.ps1 -Apk -App $App" -ForegroundColor DarkGray
+diff --git a/poly_apps/pycore_laravel_wordnew_ui/scripts/flavor/flavor_build.py b/poly_apps/pycore_laravel_wordnew_ui/scripts/flavor/flavor_build.py
+index 2ba4e96..3aaeea2 100644
+--- a/poly_apps/pycore_laravel_wordnew_ui/scripts/flavor/flavor_build.py
++++ b/poly_apps/pycore_laravel_wordnew_ui/scripts/flavor/flavor_build.py
+@@ -8,9 +8,11 @@ Reads `flavors/<app>/flavor.json` (the single source of truth) and:
+   2. prepares the declared flavor icon under `resources/` for
+      `npx @capacitor/assets generate`. SVG, PNG, and JPEG sources are preserved;
+      a PNG placeholder is generated only when no declared source is available.
++Both outputs are rewritten only when their content differs (LF line endings on
++every OS), so a repeated run leaves the tree unchanged.
+ 
+-Called by build_app.ps1 BEFORE `vite build`. Pure-stdlib except the OPTIONAL
+-Pillow import used only to synthesize placeholder art.
++Called by scripts/flavor/build_apk.py and build_app.ps1 BEFORE `vite build`.
++Pure-stdlib except the OPTIONAL Pillow import used only to synthesize placeholder art.
+ 
+ Usage:
+   python scripts/flavor/flavor_build.py --app wordnew [--root <projectDir>]
+@@ -20,7 +22,6 @@ from __future__ import annotations
+ import argparse
+ import json
+ import os
+-import shutil
+ import sys
+ 
+ 
+@@ -28,6 +29,18 @@ def log(msg: str) -> None:
+     print(f"[flavor] {msg}")
+ 
+ 
++def write_if_changed(path: str, data: bytes) -> bool:
++    try:
++        with open(path, "rb") as fh:
++            if fh.read() == data:
++                return False
++    except OSError:
++        pass
++    with open(path, "wb") as fh:
++        fh.write(data)
++    return True
++
++
+ def load_flavor(root: str, app: str) -> dict:
+     path = os.path.join(root, "flavors", app, "flavor.json")
+     if not os.path.isfile(path):
+@@ -60,10 +73,9 @@ def write_capacitor_config(root: str, flavor: dict) -> None:
+         },
+     }
+     out = os.path.join(root, "capacitor.config.json")
+-    with open(out, "w", encoding="utf-8") as fh:
+-        json.dump(cfg, fh, indent=2)
+-        fh.write("\n")
+-    log(f"wrote capacitor.config.json  (appId={cfg['appId']}, appName={cfg['appName']})")
++    written = write_if_changed(out, (json.dumps(cfg, indent=2) + "\n").encode("utf-8"))
++    state = "wrote" if written else "unchanged"
++    log(f"{state} capacitor.config.json  (appId={cfg['appId']}, appName={cfg['appName']})")
+ 
+ 
+ def _hex_to_rgb(h: str):
+@@ -87,10 +99,10 @@ def prepare_resources(root: str, app: str, flavor: dict) -> None:
+     assets = flavor.get("assets") or {}
+     os.makedirs(res_dir, exist_ok=True)
+ 
+-    def clear_generated(kind: str) -> None:
++    def clear_generated(kind: str, keep: str = "") -> None:
+         for extension in (".svg", ".png", ".jpg", ".jpeg"):
+             candidate = os.path.join(res_dir, kind + extension)
+-            if os.path.isfile(candidate):
++            if extension != keep and os.path.isfile(candidate):
+                 os.remove(candidate)
+ 
+     def ensure_icon(size: int) -> None:
+@@ -100,12 +112,15 @@ def prepare_resources(root: str, app: str, flavor: dict) -> None:
+         if os.path.commonpath((source, flavor_dir)) != os.path.abspath(flavor_dir):
+             log("ERROR: flavor icon must stay inside its flavor directory.")
+             sys.exit(2)
+-        clear_generated("icon")
+         if os.path.isfile(source) and extension in (".svg", ".png", ".jpg", ".jpeg"):
++            clear_generated("icon", keep=extension)
+             destination = os.path.join(res_dir, "icon" + extension)
+-            shutil.copyfile(source, destination)
+-            log(f"copied {declared} -> resources/{os.path.basename(destination)}")
++            with open(source, "rb") as fh:
++                copied = write_if_changed(destination, fh.read())
++            state = "copied" if copied else "unchanged"
++            log(f"{state} {declared} -> resources/{os.path.basename(destination)}")
+             return
++        clear_generated("icon")
+         pil = _try_pillow()
+         if pil is None:
+             log(f"ERROR: no usable icon for '{app}' and Pillow is not installed. "
+diff --git a/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.ps1 b/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.ps1
+index 615021f..ad749e9 100644
+--- a/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.ps1
++++ b/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.ps1
+@@ -2,7 +2,7 @@
+ # This script IMPLEMENTS NO INSTALLATION: every prerequisite repair is delegated
+ # to the idempotent DevInstaller steps referenced by FULL PATH (dd.cmd menu):
+ #   Step4_InstallNodeJS.ps1              - node + bun
+-#   Step8_InstallPython.ps1              - python
++#   Step8_InstallDefaultPython.ps1       - python
+ #   Step21_InstallApplications.ps1       - JDK 21 (-ExactPackageName Java -> Oracle.JDK.21,
+ #                                          wires JAVA_HOME/JDK_HOME/PATH via ApplicationsList)
+ #   Step62_InstallAndroidSdkPackages.ps1 - cmdline-tools + licenses + platform-tools +
+@@ -16,11 +16,15 @@
+ # scripts/flavor/build_apk.py (single build truth).
+ # dd constants come from win_common/GlobalVars.ps1 (single source of truth).
+ # HTTPS_PROXY/HTTP_PROXY is passed to sdkmanager/gradle via JAVA_TOOL_OPTIONS.
++# Options match scripts/start_build.sh (--app, --list, --check, --build-type,
++# --debug-apk, --release-apk, --platform, --skip-apk-assets, --clean-apk,
++# --no-open-output, --non-interactive, --force-install).
+ #
+ # Run from repo:
+ #   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1
+ #   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1 -App wordnew -BuildType release
+ #   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1 -List
++#   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1 -Check -App wordnew
+ 
+ param(
+     [Parameter(Mandatory = $false)]
+@@ -28,14 +32,22 @@ param(
+     [Parameter(Mandatory = $false)]
+     [switch]$List,
+     [Parameter(Mandatory = $false)]
++    [switch]$Check,
++    [Parameter(Mandatory = $false)]
+     [ValidateSet('ask', 'debug', 'release')]
+     [string]$BuildType = 'ask',
+     [Parameter(Mandatory = $false)]
++    [switch]$DebugApk,
++    [Parameter(Mandatory = $false)]
++    [switch]$ReleaseApk,
++    [Parameter(Mandatory = $false)]
+     [ValidateSet('android', 'ios')]
+     [string]$Platform = 'android',
+     [Parameter(Mandatory = $false)]
++    [Alias('SkipApkAssets')]
+     [switch]$SkipAssets,
+     [Parameter(Mandatory = $false)]
++    [Alias('CleanApk')]
+     [switch]$Clean,
+     [Parameter(Mandatory = $false)]
+     [switch]$NoOpenOutput,
+@@ -53,8 +65,8 @@ $PolyAppsDir = Split-Path -Parent $AppRoot
+ $RepoRoot = Split-Path -Parent $PolyAppsDir
+ $BuildApkScript = Join-Path $ScriptDir "flavor\build_apk.py"
+ $NodeModulesPath = Join-Path $AppRoot "node_modules"
+-$ViteBinPath = Join-Path $AppRoot "node_modules\vite\bin\vite.js"
+ $PackageJsonPath = Join-Path $AppRoot "package.json"
++$NativeDir = Join-Path $AppRoot "native"
+ # dd component full paths (constants from the dd directory layout)
+ $WinShellsDir = Join-Path (Join-Path $RepoRoot 'scripts') 'shells\win'
+ $WinCommonDir = Join-Path $WinShellsDir 'win_common'
+@@ -63,7 +75,7 @@ $GlobalVarsScript = Join-Path $WinCommonDir 'GlobalVars.ps1'
+ $NssmServiceManagerScript = Join-Path $WinCommonDir 'NssmServiceManager.ps1'
+ $AndroidBuildEnvScript = Join-Path $WinCommonDir 'AndroidBuildEnv.ps1'
+ $StepNodeJs = Join-Path $InstallStepsDir 'Step4_InstallNodeJS.ps1'
+-$StepPython = Join-Path $InstallStepsDir 'Step8_InstallPython.ps1'
++$StepPython = Join-Path $InstallStepsDir 'Step8_InstallDefaultPython.ps1'
+ $StepApplications = Join-Path $InstallStepsDir 'Step21_InstallApplications.ps1'
+ $StepAndroidSdk = Join-Path $InstallStepsDir 'Step62_InstallAndroidSdkPackages.ps1'
+ # Project-locals (env toolchain state lives in the central library's $Global: vars)
+@@ -72,6 +84,9 @@ $BuildArguments = @()
+ $HaveModules = $false
+ $AllReady = $true
+ $BuildOk = $false
++$CheckReady = $true
++$MissingItems = @()
++$AndroidPlatformDir = $null
+ 
+ . $GlobalVarsScript
+ . $NssmServiceManagerScript
+@@ -86,9 +101,66 @@ function Write-Err { param([string]$Message) Write-Host "[nexus-build] $Message"
+ 
+ function Test-PythonReady { return [bool]((Get-Command python -ErrorAction SilentlyContinue) -or (Get-Command python3 -ErrorAction SilentlyContinue)) }
+ 
+-function Test-BunReady { return [bool](Get-Command bun -ErrorAction SilentlyContinue) }
++function Test-NodeToolchainReady { return (@(Get-AndroidBuildMissingNodeCommands).Count -eq 0) }
+ 
+-function Test-ViteReady { return (Test-Path -LiteralPath $ViteBinPath) }
++function Test-NodeDepsReady { return (@(Get-AndroidBuildMissingNodeDeps -ProjectRoot $AppRoot).Count -eq 0) }
++
++function Write-CheckLine {
++    param([string]$Name, [bool]$Ready, [string]$Evidence)
++    if ($Ready) { Write-Success "check: $Name ready: $Evidence" } else { Write-Warn "check: $Name missing: $Evidence" }
++}
++
++# -Check: every prerequisite through the same detectors; no install, build or repair runs.
++function Test-BuildReadiness {
++    $CheckReady = $true
++    $MissingItems = @(Get-AndroidBuildMissingNodeCommands)
++    if ($MissingItems.Count -eq 0) {
++        Write-CheckLine -Name "node toolchain" -Ready $true -Evidence ($Global:ANDROID_BUILD_NODE_COMMANDS -join ', ')
++    } else {
++        Write-CheckLine -Name "node toolchain" -Ready $false -Evidence "$($MissingItems -join ', ') (Step4_InstallNodeJS.ps1)"
++        $CheckReady = $false
++    }
++    if (Test-PythonReady) {
++        Write-CheckLine -Name "python" -Ready $true -Evidence "python on PATH"
++    } else {
++        Write-CheckLine -Name "python" -Ready $false -Evidence "Step8_InstallDefaultPython.ps1"
++        $CheckReady = $false
++    }
++    if (-not $List) {
++        $MissingItems = @(Get-AndroidBuildMissingNodeDeps -ProjectRoot $AppRoot)
++        if ($MissingItems.Count -eq 0) {
++            Write-CheckLine -Name "node dependencies" -Ready $true -Evidence $NodeModulesPath
++        } else {
++            Write-CheckLine -Name "node dependencies" -Ready $false -Evidence "$($MissingItems -join ', ') (bun install)"
++            $CheckReady = $false
++        }
++        Resolve-AndroidBuildJavaHome
++        if (Test-AndroidBuildJavaReady) {
++            Write-CheckLine -Name "JDK $($Global:ANDROID_BUILD_REQUIRED_JAVA_MAJOR)+" -Ready $true -Evidence $Global:ANDROID_BUILD_JAVA_HOME
++        } else {
++            Write-CheckLine -Name "JDK $($Global:ANDROID_BUILD_REQUIRED_JAVA_MAJOR)+" -Ready $false -Evidence "Step21_InstallApplications.ps1 -ExactPackageName Java"
++            $CheckReady = $false
++        }
++        Resolve-AndroidBuildSdkRoot
++        if (Test-AndroidBuildSdkReady) {
++            Write-CheckLine -Name "Android SDK packages" -Ready $true -Evidence $Global:ANDROID_BUILD_SDK_ROOT
++        } else {
++            Write-CheckLine -Name "Android SDK packages" -Ready $false -Evidence "$($Global:ANDROID_BUILD_SDK_ROOT) (details: Step62_InstallAndroidSdkPackages.ps1 -Check)"
++            $CheckReady = $false
++            Invoke-DevStep -StepPath $StepAndroidSdk -StepArguments @('-Check')
++        }
++        if ($App) {
++            $AndroidPlatformDir = Join-Path (Join-Path $NativeDir $App) 'android'
++            $MissingItems = @(Get-AndroidBuildMissingPlatformFiles -AndroidDir $AndroidPlatformDir)
++            if ($MissingItems.Count -eq 0) {
++                Write-CheckLine -Name "Android platform directory" -Ready $true -Evidence $AndroidPlatformDir
++            } else {
++                Write-CheckLine -Name "Android platform directory" -Ready $false -Evidence "$AndroidPlatformDir lacks $($MissingItems -join ', '); build_apk.py adds the platform and cap sync regenerates it"
++            }
++        }
++    }
++    return $CheckReady
++}
+ 
+ # ---------- Delegation: void invocations of the dd idempotent steps ----------
+ 
+@@ -123,15 +195,15 @@ function Install-Deps {
+             Remove-Item -LiteralPath $NodeModulesPath -Recurse -Force -ErrorAction SilentlyContinue
+             $HaveModules = $false
+         }
+-        if ($ForceInstall -or (-not $HaveModules) -or (-not (Test-ViteReady))) {
+-            Write-Info "Installing dependencies (node_modules/vite missing or -ForceInstall)..."
++        if ($ForceInstall -or (-not $HaveModules) -or (-not (Test-NodeDepsReady))) {
++            Write-Info "Installing dependencies (node_modules incomplete or -ForceInstall)..."
+             bun install --force
+         } else {
+             Write-Info "node_modules present -> updating dependencies (bun install)..."
+             bun install
+         }
+-        if (-not (Test-ViteReady)) {
+-            Write-Info "vite still missing -> reinstalling dependencies from scratch..."
++        if (-not (Test-NodeDepsReady)) {
++            Write-Info "node dependencies still incomplete -> reinstalling them from scratch..."
+             bun install --force
+         }
+     } finally {
+@@ -143,17 +215,24 @@ Write-Info "Original directory: $OriginalDir"
+ Write-Info "Working directory:  $AppRoot"
+ Write-Info "Constants: CACHE=$($Global:CORE_NODE_CACHE_DIR) | SDK=$($Global:ANDROID_SDK_DIR) | TOOLCHAIN=$($Global:LANG_COMPILER_DIR) | CENTRAL_LIB=$AndroidBuildEnvScript"
+ 
++if ($DebugApk) { $BuildType = 'debug' }
++if ($ReleaseApk) { $BuildType = 'release' }
++
+ if ($Platform -eq 'ios') {
+     Write-Err "iOS builds require macOS with Xcode 26+ (Capacitor 8). Run scripts/start_build.sh on a Mac."
+     $AllReady = $false
+ }
+ 
+-# --- Prerequisite: node + bun (binary gate: bun on PATH) ---
+-if ($AllReady -and (-not (Test-BunReady))) {
+-    Write-Info "bun not found. Invoking dd idempotent step (installs node + bun): Step4_InstallNodeJS.ps1"
++if ($AllReady -and $Check) {
++    $AllReady = Test-BuildReadiness
++}
++
++# --- Prerequisite: node + npx + bun (binary gate: commands on PATH) ---
++if ($AllReady -and (-not (Test-NodeToolchainReady))) {
++    Write-Info "node/npx/bun not found. Invoking dd idempotent step (installs node + bun): Step4_InstallNodeJS.ps1"
+     Invoke-DevStep -StepPath $StepNodeJs
+-    if (-not (Test-BunReady)) {
+-        Write-Err "bun still missing after Step4_InstallNodeJS.ps1."
++    if (-not (Test-NodeToolchainReady)) {
++        Write-Err "$(@(Get-AndroidBuildMissingNodeCommands) -join ', ') still missing after Step4_InstallNodeJS.ps1."
+         $AllReady = $false
+     } else {
+         Write-Success "Upgraded the frontend runtime to bun: $((Get-Command bun -ErrorAction SilentlyContinue).Source)"
+@@ -164,7 +243,7 @@ if ($AllReady -and (-not (Test-BunReady))) {
+ if ($AllReady -and (-not (Test-PythonReady))) {
+     Invoke-DevStep -StepPath $StepPython
+     if (-not (Test-PythonReady)) {
+-        Write-Err "python still missing after Step8_InstallPython.ps1."
++        Write-Err "python still missing after Step8_InstallDefaultPython.ps1."
+         $AllReady = $false
+     }
+ }
+@@ -173,11 +252,11 @@ if ($AllReady) {
+     if (-not $PythonCommand) { $PythonCommand = Get-Command python3 -ErrorAction SilentlyContinue }
+ }
+ 
+-# --- Project dependencies (binary gate: vite.js) ---
+-if ($AllReady -and (-not $List) -and (-not (Test-ViteReady))) {
++# --- Project dependencies (file gates: vite, @capacitor/cli, core and android) ---
++if ($AllReady -and (-not $List) -and (-not (Test-NodeDepsReady))) {
+     Install-Deps
+-    if (-not (Test-ViteReady)) {
+-        Write-Err "Dependencies incomplete (vite missing) after bun install."
++    if (-not (Test-NodeDepsReady)) {
++        Write-Err "Dependencies incomplete after bun install: $(@(Get-AndroidBuildMissingNodeDeps -ProjectRoot $AppRoot) -join ', ')"
+         $AllReady = $false
+     }
+ }
+@@ -222,7 +301,9 @@ if ($AllReady -and (-not $List)) {
+     }
+ }
+ 
+-if ($AllReady) {
++if ($Check) {
++    if ($AllReady) { Write-Success "check: all build prerequisites are ready." } else { Write-Err "check: build prerequisites are missing; run without -Check to repair them." }
++} elseif ($AllReady) {
+     $BuildArguments = @($BuildApkScript, '--root', $AppRoot, '--build-type', $BuildType)
+     if ($App) { $BuildArguments += @('--app', $App) }
+     if ($List) { $BuildArguments += @('--list') }
+@@ -240,4 +321,4 @@ if ($AllReady) {
+ }
+ 
+ Set-Location -LiteralPath $OriginalDir
+-if ($AllReady -and $BuildOk) { exit 0 } else { exit 1 }
++if ($AllReady -and ($BuildOk -or $Check)) { exit 0 } else { exit 1 }
+diff --git a/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh b/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh
+index 66a15ab..15d64ea 100644
+--- a/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh
++++ b/poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh
+@@ -4,7 +4,7 @@
+ # This script IMPLEMENTS NO INSTALLATION: every prerequisite repair is delegated to
+ # the idempotent installer steps referenced by FULL PATH (dd.sh install_shells menu):
+ #   17_install_node_toolchain_26.sh - node + bun
+-#   13_ensure_python.sh          - python
++#   13_install_default_python.sh - python
+ #   92_install_java.sh           - JDK 21 (Temurin -> COMPILE_DIR/java + /etc/environment)
+ #   187_install_android_sdk.sh   - cmdline-tools + licenses + platform-tools +
+ #                                  platforms;android-36 + build-tools;36.0.0
+@@ -16,11 +16,15 @@
+ # void. The script has ONE exit point. Then it delegates the flavor selection +
+ # web build + `cap sync` + Gradle APK assembly to scripts/flavor/build_apk.py
+ # (single build truth). HTTPS_PROXY/HTTP_PROXY -> JAVA_TOOL_OPTIONS passthrough.
++# Options match scripts/start_build.ps1 (-App, -List, -Check, -BuildType, -DebugApk,
++# -ReleaseApk, -Platform, -SkipAssets, -Clean, -NoOpenOutput, -NonInteractive,
++# -ForceInstall); the long forms of each side are accepted on both.
+ #
+ # Run from repo: ./poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh
+ #   Select + debug:    ./start_build.sh
+ #   Non-interactive:   ./start_build.sh --app wordnew --release-apk --non-interactive
+ #   List sub-apps:     ./start_build.sh --list
++#   Readiness only:    ./start_build.sh --check --app wordnew
+ 
+ # --- All variables and file references (declared at top) ---
+ ORIGINAL_DIR=$(pwd)
+@@ -32,19 +36,20 @@ BUILD_APK_SCRIPT="${SCRIPT_DIR}/flavor/build_apk.py"
+ # dd idempotent steps + central library (FULL PATHS from the dd directory layout)
+ LINUX_SHELLS_DIR="${REPO_ROOT}/scripts/shells/linux"
+ STEP_NODE="${LINUX_SHELLS_DIR}/debian/install_shells/17_install_node_toolchain_26.sh"
+-STEP_PYTHON="${LINUX_SHELLS_DIR}/debian/install_shells/13_ensure_python.sh"
++STEP_PYTHON="${LINUX_SHELLS_DIR}/debian/install_shells/13_install_default_python.sh"
+ STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/92_install_java.sh"
+ STEP_ANDROID_SDK="${LINUX_SHELLS_DIR}/debian/install_shells/187_install_android_sdk.sh"
+ ANDROID_BUILD_ENV="${LINUX_SHELLS_DIR}/common/android_build_env.sh"
+ GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+ PACKAGE_JSON="${APP_ROOT}/package.json"
+ NODE_MODULES="${APP_ROOT}/node_modules"
+-VITE_BIN="${APP_ROOT}/node_modules/vite/bin/vite.js"
++NATIVE_DIR="${APP_ROOT}/native"
+ # Args / state
+ PLATFORM="android"
+ APK_APP=""
+ APK_BUILD_TYPE="ask"
+ LIST_APPS=""
++CHECK_ONLY=""
+ SKIP_ASSETS=""
+ CLEAN_APK=""
+ OPEN_OUTPUT=""
+@@ -56,6 +61,9 @@ SUDO=""
+ PYTHON_BIN=""
+ READY=1
+ BUILD_OK=0
++CHECK_READY=1
++MISSING_ITEMS=""
++ANDROID_PLATFORM_DIR=""
+ 
+ # Central dd library: constants (CORE_NODE_CACHE_DIR via gvar_common.sh) + detectors
+ # shellcheck disable=SC1090
+@@ -72,9 +80,69 @@ err()  { printf '[nexus-build] %s\n' "$1" >&2; }
+ 
+ test_python_ready() { command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; }
+ 
+-test_bun_ready() { command -v bun >/dev/null 2>&1; }
++test_node_toolchain_ready() { [ -z "$(android_build_missing_node_commands)" ]; }
+ 
+-test_vite_ready() { [ -f "$VITE_BIN" ]; }
++test_node_deps_ready() { [ -z "$(android_build_missing_node_deps "$APP_ROOT")" ]; }
++
++# Name the dd gvar gate that made an installer step skip (nothing when the gate is open).
++gate_note() {
++    [ "$(android_build_install_gate "$1")" = "false" ] || return 0
++    printf ' The dd gvar %s is false, so the step skipped the install; set it to true to allow it.' "$1"
++}
++
++check_line() {
++    if [ "$2" -eq 1 ]; then log "check: $1 ready: $3"; else warn "check: $1 missing: $3"; fi
++}
++
++# --check: every prerequisite through the same detectors; no install, build or repair runs.
++check_build_readiness() {
++    CHECK_READY=1
++    MISSING_ITEMS="$(android_build_missing_node_commands | paste -sd, -)"
++    if [ -z "$MISSING_ITEMS" ]; then
++        check_line "node toolchain" 1 "${ANDROID_BUILD_NODE_COMMANDS[*]}"
++    else
++        check_line "node toolchain" 0 "${MISSING_ITEMS} (17_install_node_toolchain_26.sh)"
++        CHECK_READY=0
++    fi
++    if test_python_ready; then
++        check_line "python" 1 "python on PATH"
++    else
++        check_line "python" 0 "13_install_default_python.sh"
++        CHECK_READY=0
++    fi
++    [ -z "$LIST_APPS" ] || return 0
++    MISSING_ITEMS="$(android_build_missing_node_deps "$APP_ROOT" | paste -sd, -)"
++    if [ -z "$MISSING_ITEMS" ]; then
++        check_line "node dependencies" 1 "$NODE_MODULES"
++    else
++        check_line "node dependencies" 0 "${MISSING_ITEMS} (bun install)"
++        CHECK_READY=0
++    fi
++    android_build_resolve_java_home
++    if android_build_java_ready; then
++        check_line "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+" 1 "${ANDROID_BUILD_JAVA_HOME} (major ${ANDROID_BUILD_JAVA_MAJOR})"
++    else
++        check_line "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+" 0 "92_install_java.sh (gate ${ANDROID_BUILD_JAVA_GATE}=$(android_build_install_gate "$ANDROID_BUILD_JAVA_GATE"))"
++        CHECK_READY=0
++    fi
++    android_build_resolve_sdk_root
++    if android_build_test_sdk_ready; then
++        check_line "Android SDK packages" 1 "$ANDROID_BUILD_SDK_ROOT"
++    else
++        check_line "Android SDK packages" 0 "${ANDROID_BUILD_SDK_ROOT} (details: 187_install_android_sdk.sh --check)"
++        CHECK_READY=0
++        bash "$STEP_ANDROID_SDK" --check
++    fi
++    if [ -n "$APK_APP" ]; then
++        ANDROID_PLATFORM_DIR="${NATIVE_DIR}/${APK_APP}/android"
++        MISSING_ITEMS="$(android_build_missing_platform_files "$ANDROID_PLATFORM_DIR" | paste -sd, -)"
++        if [ -z "$MISSING_ITEMS" ]; then
++            check_line "Android platform directory" 1 "$ANDROID_PLATFORM_DIR"
++        else
++            check_line "Android platform directory" 0 "${ANDROID_PLATFORM_DIR} lacks ${MISSING_ITEMS}; build_apk.py adds the platform and cap sync regenerates it"
++        fi
++    fi
++}
+ 
+ # ---------- Delegation: void invocations of the dd idempotent steps ----------
+ 
+@@ -99,15 +167,15 @@ install_deps() {
+         log "pnpm node_modules layout detected -> rebuilding it with bun..."
+         rm -rf "$NODE_MODULES"
+     fi
+-    if [ -n "$FORCE_INSTALL" ] || [ ! -d "$NODE_MODULES" ] || [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ] || [ ! -f "$VITE_BIN" ]; then
+-        log "Installing/repairing dependencies (node_modules/vite missing or --force-install)..."
++    if [ -n "$FORCE_INSTALL" ] || [ ! -d "$NODE_MODULES" ] || [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ] || ! test_node_deps_ready; then
++        log "Installing/repairing dependencies (node_modules incomplete or --force-install)..."
+         bun install --force || warn "bun install did not complete cleanly."
+     else
+         log "node_modules present -> updating dependencies (bun install)..."
+         bun install || warn "Kept existing node_modules (bun update did not complete cleanly)."
+     fi
+-    if [ ! -f "$VITE_BIN" ]; then
+-        log "vite still missing -> reinstalling dependencies from scratch..."
++    if ! test_node_deps_ready; then
++        log "node dependencies still incomplete -> reinstalling them from scratch..."
+         bun install --force || warn "bun reinstall did not complete cleanly."
+     fi
+     cd "$ORIGINAL_DIR" || true
+@@ -124,6 +192,7 @@ while [ "$#" -gt 0 ]; do
+             ;;
+         --app=*) APK_APP="${ARG#*=}" ;;
+         --list) LIST_APPS=1 ;;
++        --check) CHECK_ONLY=1 ;;
+         --platform)
+             shift
+             [ "$#" -gt 0 ] || { err "--platform requires a value."; READY=0; break; }
+@@ -138,8 +207,8 @@ while [ "$#" -gt 0 ]; do
+             APK_BUILD_TYPE="$1"
+             ;;
+         --build-type=*) APK_BUILD_TYPE="${ARG#*=}" ;;
+-        --skip-apk-assets) SKIP_ASSETS=1 ;;
+-        --clean-apk) CLEAN_APK=1 ;;
++        --skip-apk-assets|--skip-assets) SKIP_ASSETS=1 ;;
++        --clean-apk|--clean) CLEAN_APK=1 ;;
+         --no-open-output) OPEN_OUTPUT=1 ;;
+         --non-interactive) NON_INTERACTIVE=1 ;;
+         -f|--force-install) FORCE_INSTALL=1 ;;
+@@ -169,15 +238,20 @@ elif [ "$PLATFORM" != "android" ]; then
+     READY=0
+ fi
+ 
+-# --- Prerequisite: node + bun (binary gate: bun on PATH) ---
+-if [ "$READY" -eq 1 ] && ! test_bun_ready; then
++if [ "$READY" -eq 1 ] && [ -n "$CHECK_ONLY" ]; then
++    check_build_readiness
++    READY="$CHECK_READY"
++fi
++
++# --- Prerequisite: node + npx + bun (binary gate: commands on PATH) ---
++if [ "$READY" -eq 1 ] && ! test_node_toolchain_ready; then
+     $SUDO mkdir -p "$GVDIR" 2>/dev/null || true
+     printf 'true\n' | $SUDO tee "$GVDIR/INSTALL_NODE" >/dev/null 2>&1 || true
+-    log "bun not found. Invoking dd idempotent step (installs node + bun): $STEP_NODE"
++    log "node/npx/bun not found. Invoking dd idempotent step (installs node + bun): $STEP_NODE"
+     invoke_step "$STEP_NODE"
+     hash -r 2>/dev/null || true
+-    if ! test_bun_ready; then
+-        err "bun still missing after 17_install_node_toolchain_26.sh."
++    if ! test_node_toolchain_ready; then
++        err "$(android_build_missing_node_commands | paste -sd, -) still missing after 17_install_node_toolchain_26.sh."
+         READY=0
+     else
+         log "Upgraded the frontend runtime to bun: $(command -v bun)"
+@@ -189,7 +263,7 @@ if [ "$READY" -eq 1 ] && ! test_python_ready; then
+     invoke_step "$STEP_PYTHON"
+     hash -r 2>/dev/null || true
+     if ! test_python_ready; then
+-        err "python still missing after 13_ensure_python.sh."
++        err "python still missing after 13_install_default_python.sh."
+         READY=0
+     fi
+ fi
+@@ -197,11 +271,11 @@ if [ "$READY" -eq 1 ]; then
+     if command -v python3 >/dev/null 2>&1; then PYTHON_BIN="$(command -v python3)"; else PYTHON_BIN="$(command -v python)"; fi
+ fi
+ 
+-# --- Project dependencies (binary gate: vite.js) ---
+-if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ] && ! test_vite_ready; then
++# --- Project dependencies (file gates: vite, @capacitor/cli, core and android) ---
++if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ] && ! test_node_deps_ready; then
+     install_deps
+-    if ! test_vite_ready; then
+-        err "Dependencies incomplete (vite missing) after bun install."
++    if ! test_node_deps_ready; then
++        err "Dependencies incomplete after bun install: $(android_build_missing_node_deps "$APP_ROOT" | paste -sd, -)"
+         READY=0
+     fi
+ fi
+@@ -213,7 +287,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
+         invoke_step "$STEP_JAVA"
+         android_build_resolve_java_home
+         if ! android_build_java_ready; then
+-            err "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ still missing after 92_install_java.sh."
++            err "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ still missing after 92_install_java.sh.$(gate_note "$ANDROID_BUILD_JAVA_GATE")"
+             READY=0
+         fi
+     fi
+@@ -226,7 +300,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
+         invoke_step "$STEP_ANDROID_SDK"
+         android_build_resolve_sdk_root
+         if ! android_build_test_sdk_ready; then
+-            err "Android SDK packages still missing after 187_install_android_sdk.sh (check network/proxy: HTTPS_PROXY)."
++            err "Android SDK packages still missing after 187_install_android_sdk.sh (check network/proxy: HTTPS_PROXY).$(gate_note "$ANDROID_BUILD_SDK_GATE")"
+             READY=0
+         fi
+     fi
+@@ -246,7 +320,13 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
+     fi
+ fi
+ 
+-if [ "$READY" -eq 1 ]; then
++if [ -n "$CHECK_ONLY" ]; then
++    if [ "$READY" -eq 1 ]; then
++        log "check: all build prerequisites are ready."
++    else
++        err "check: build prerequisites are missing; run without --check to repair them."
++    fi
++elif [ "$READY" -eq 1 ]; then
+     BUILD_ARGS=("$BUILD_APK_SCRIPT" --root "$APP_ROOT" --build-type "$APK_BUILD_TYPE")
+     [ -n "$APK_APP" ] && BUILD_ARGS+=(--app "$APK_APP")
+     [ -n "$LIST_APPS" ] && BUILD_ARGS+=(--list)
+@@ -267,7 +347,7 @@ else
+ fi
+ 
+ cd "$ORIGINAL_DIR" || true
+-if [ "$READY" -eq 1 ] && [ "$BUILD_OK" -eq 1 ]; then
++if [ "$READY" -eq 1 ] && { [ "$BUILD_OK" -eq 1 ] || [ -n "$CHECK_ONLY" ]; }; then
+     exit 0
+ fi
+ exit 1

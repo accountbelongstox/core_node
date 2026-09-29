@@ -51,7 +51,64 @@ class CodeMartV1AdminFinanceService
     {
         $result = CodeMartV1EscrowModel::adminPage($status, $projectId, $page, $pageSize);
 
-        return CodeMartV1FinanceService::pageResult($result, 'escrows', $page, $pageSize, static fn (CodeMartV1EscrowModel $escrow): array => [
+        return CodeMartV1FinanceService::pageResult($result, 'escrows', $page, $pageSize, static fn (CodeMartV1EscrowModel $escrow): array => self::escrowRow($escrow));
+    }
+
+    /**
+     * Admin refund of one escrow's unreleased remainder to its payer.
+     * Idempotent: an escrow with nothing left returns `replayed: true` and
+     * refunds nothing; a disputed escrow is refused.
+     */
+    public function refundEscrow(int $escrowId, int $adminId, ?string $notes): array
+    {
+        $result = CodeMartV1WalletModel::runInTransaction(function () use ($escrowId): array {
+            $escrow = CodeMartV1EscrowModel::query()->whereKey($escrowId)->lockForUpdate()->first();
+            $refunded = '0.00';
+
+            if (!$escrow) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_NOT_FOUND, __('codemart.errors.escrow_not_found'), 404);
+            }
+            if ($escrow->status === CodeMartV1Constants::ESCROW_STATUS_DISPUTED) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_NOT_REFUNDABLE, __('codemart.errors.escrow_not_refundable'), 409);
+            }
+            $refunded = CodeMartV1EscrowService::refundHeldRemainder($escrow, CodeMartV1Constants::ESCROW_REFUND_REASON_ADMIN);
+
+            return ['escrow' => $escrow, 'refunded_amount' => $refunded, 'replayed' => bccomp($refunded, '0', 2) <= 0];
+        });
+
+        if (!$result['replayed']) {
+            CodeMartV1DomainEventService::emit(
+                $adminId,
+                'project',
+                (int) $result['escrow']->project_id,
+                'escrow_refunded',
+                null,
+                null,
+                [],
+                null,
+                null,
+                null,
+                [
+                    'escrow_id' => (int) $result['escrow']->id,
+                    'refunded_amount' => $result['refunded_amount'],
+                    'reason' => CodeMartV1Constants::ESCROW_REFUND_REASON_ADMIN,
+                    'notes' => $notes,
+                ]
+            );
+        }
+
+        return [
+            'escrow' => self::escrowRow($result['escrow']->fresh(['payer', 'payee', 'project'])),
+            'refunded_amount' => $result['refunded_amount'],
+            'replayed' => $result['replayed'],
+        ];
+    }
+
+    private static function escrowRow(CodeMartV1EscrowModel $escrow): array
+    {
+        $remaining = $escrow->remainingAmount();
+
+        return [
             'id' => $escrow->id,
             'project_id' => $escrow->project_id,
             'project_title' => $escrow->project?->title,
@@ -61,12 +118,13 @@ class CodeMartV1AdminFinanceService
             'amount' => (string) $escrow->amount,
             'released_amount' => CodeMartV1FinanceService::money($escrow->released_amount ?? 0),
             'refunded_amount' => CodeMartV1FinanceService::money($escrow->refunded_amount ?? 0),
-            'remaining_amount' => $escrow->remainingAmount(),
+            'remaining_amount' => $remaining,
+            'refundable' => $escrow->status === CodeMartV1Constants::ESCROW_STATUS_HELD && bccomp($remaining, '0', 2) > 0,
             'currency' => $escrow->currency,
             'status' => $escrow->status,
             'released_at' => $escrow->released_at?->toIso8601String(),
             'created_at' => $escrow->created_at?->toIso8601String(),
-        ]);
+        ];
     }
 
     public function withdrawalsPage(?string $status, int $page, int $pageSize): array
@@ -94,7 +152,7 @@ class CodeMartV1AdminFinanceService
         $refund = CodeMartV1RefundModel::runInTransaction(function () use ($refundId, $adminId, $notes): CodeMartV1RefundModel {
             $refund = $this->lockRefund($refundId);
             if ($refund->status !== CodeMartV1Constants::REFUND_STATUS_PENDING) {
-                throw new CodeMartV1FinanceException('refund_invalid_state', 'Only pending refunds can be approved', 409);
+                throw new CodeMartV1FinanceException('refund_invalid_state', __('codemart.errors.refund_not_pending'), 409);
             }
             $refund->update([
                 'status' => CodeMartV1Constants::REFUND_STATUS_APPROVED,
@@ -117,7 +175,7 @@ class CodeMartV1AdminFinanceService
         $refund = CodeMartV1RefundModel::runInTransaction(function () use ($refundId, $adminId, $notes, &$fromState): CodeMartV1RefundModel {
             $refund = $this->lockRefund($refundId);
             if (!$refund->isOpen()) {
-                throw new CodeMartV1FinanceException('refund_invalid_state', 'Only open refunds can be rejected', 409);
+                throw new CodeMartV1FinanceException('refund_invalid_state', __('codemart.errors.refund_not_open'), 409);
             }
             $fromState = $refund->status;
             $refund->update([
@@ -149,7 +207,7 @@ class CodeMartV1AdminFinanceService
     {
         $refund = CodeMartV1RefundModel::lockById($refundId);
         if (!$refund) {
-            throw new CodeMartV1FinanceException('refund_not_found', 'Refund not found', 404);
+            throw new CodeMartV1FinanceException('refund_not_found', __('codemart.errors.refund_not_found'), 404);
         }
 
         return $refund;
@@ -183,10 +241,10 @@ class CodeMartV1AdminFinanceService
         $result = CodeMartV1PaymentModel::runInTransaction(function () use ($paymentId, $resolution, $adminId, $notes): array {
             $payment = CodeMartV1PaymentModel::lockById($paymentId);
             if (!$payment) {
-                throw new CodeMartV1FinanceException('payment_not_found', 'Payment not found', 404);
+                throw new CodeMartV1FinanceException('payment_not_found', __('codemart.messages.payment_not_found'), 404);
             }
             if ($payment->status !== CodeMartV1Constants::PAYMENT_STATUS_DISPUTED) {
-                throw new CodeMartV1FinanceException('payment_not_disputed', 'Payment is not disputed', 409);
+                throw new CodeMartV1FinanceException('payment_not_disputed', __('codemart.errors.payment_not_disputed'), 409);
             }
 
             $openRefund = CodeMartV1RefundModel::query()
@@ -266,7 +324,7 @@ class CodeMartV1AdminFinanceService
         $deposit = CodeMartV1DepositModel::runInTransaction(function () use ($depositId, $adminId, $notes): CodeMartV1DepositModel {
             $deposit = $this->lockDeposit($depositId);
             if ($deposit->status !== CodeMartV1Constants::DEPOSIT_STATUS_PENDING) {
-                throw new CodeMartV1FinanceException('deposit_invalid_state', 'Only pending deposits can be rejected', 409);
+                throw new CodeMartV1FinanceException('deposit_invalid_state', __('codemart.errors.deposit_not_pending'), 409);
             }
             $deposit->update([
                 'status' => CodeMartV1Constants::DEPOSIT_STATUS_REJECTED,
@@ -304,7 +362,7 @@ class CodeMartV1AdminFinanceService
         $result = CodeMartV1DepositModel::runInTransaction(function () use ($depositId, $adminId, $notes): array {
             $deposit = $this->lockDeposit($depositId);
             if ($deposit->status !== CodeMartV1Constants::DEPOSIT_STATUS_PAID) {
-                throw new CodeMartV1FinanceException('deposit_invalid_state', 'Only paid deposits can be refunded', 409);
+                throw new CodeMartV1FinanceException('deposit_invalid_state', __('codemart.errors.deposit_not_paid'), 409);
             }
 
             $userId = (int) $deposit->user_id;
@@ -318,7 +376,8 @@ class CodeMartV1AdminFinanceService
             $wallet->credit(
                 CodeMartV1FinanceService::money($deposit->amount),
                 CodeMartV1Constants::WALLET_TX_DEPOSIT,
-                "Deposit {$deposit->id} refunded",
+                CodeMartV1Constants::LEDGER_DEPOSIT_REFUNDED,
+                ['deposit_id' => $deposit->id],
                 ['deposit_id' => $deposit->id, 'kind' => 'deposit_refund', 'role_type' => $deposit->role_type]
             );
 
@@ -378,7 +437,7 @@ class CodeMartV1AdminFinanceService
     {
         $deposit = CodeMartV1DepositModel::lockById($depositId);
         if (!$deposit) {
-            throw new CodeMartV1FinanceException('deposit_not_found', 'Deposit not found', 404);
+            throw new CodeMartV1FinanceException('deposit_not_found', __('codemart.messages.deposit_not_found'), 404);
         }
 
         return $deposit;
@@ -389,7 +448,7 @@ class CodeMartV1AdminFinanceService
         $withdrawal = CodeMartV1WithdrawalModel::runInTransaction(function () use ($withdrawalId, $adminId, $notes): CodeMartV1WithdrawalModel {
             $withdrawal = $this->lockWithdrawal($withdrawalId);
             if ($withdrawal->status !== CodeMartV1Constants::WITHDRAWAL_STATUS_PENDING) {
-                throw new CodeMartV1FinanceException('withdrawal_invalid_state', 'Only pending withdrawals can be approved', 409);
+                throw new CodeMartV1FinanceException('withdrawal_invalid_state', __('codemart.errors.withdrawal_not_pending'), 409);
             }
             $withdrawal->update([
                 'status' => CodeMartV1Constants::WITHDRAWAL_STATUS_APPROVED,
@@ -412,18 +471,19 @@ class CodeMartV1AdminFinanceService
         $withdrawal = CodeMartV1WithdrawalModel::runInTransaction(function () use ($withdrawalId, $adminId, $notes, &$fromState): CodeMartV1WithdrawalModel {
             $withdrawal = $this->lockWithdrawal($withdrawalId);
             if (!$withdrawal->isOpen()) {
-                throw new CodeMartV1FinanceException('withdrawal_invalid_state', 'Only open withdrawals can be rejected', 409);
+                throw new CodeMartV1FinanceException('withdrawal_invalid_state', __('codemart.errors.withdrawal_not_open'), 409);
             }
             $fromState = $withdrawal->status;
             $wallet = CodeMartV1WalletModel::lockForUser((int) $withdrawal->user_id);
             $ledger = $wallet->unfreeze(
                 CodeMartV1FinanceService::money($withdrawal->amount),
                 CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                "Withdrawal {$withdrawal->id} rejected",
+                CodeMartV1Constants::LEDGER_WITHDRAWAL_REJECTED,
+                ['withdrawal_id' => $withdrawal->id],
                 ['withdrawal_id' => $withdrawal->id, 'phase' => 'unfreeze']
             );
             if (!$ledger) {
-                throw new CodeMartV1FinanceException('wallet_frozen_mismatch', 'Frozen balance does not cover this withdrawal', 409);
+                throw new CodeMartV1FinanceException('wallet_frozen_mismatch', __('codemart.errors.wallet_frozen_mismatch'), 409);
             }
             $withdrawal->update([
                 'status' => CodeMartV1Constants::WITHDRAWAL_STATUS_REJECTED,
@@ -445,17 +505,18 @@ class CodeMartV1AdminFinanceService
         $withdrawal = CodeMartV1WithdrawalModel::runInTransaction(function () use ($withdrawalId, $adminId, $notes): CodeMartV1WithdrawalModel {
             $withdrawal = $this->lockWithdrawal($withdrawalId);
             if ($withdrawal->status !== CodeMartV1Constants::WITHDRAWAL_STATUS_APPROVED) {
-                throw new CodeMartV1FinanceException('withdrawal_invalid_state', 'Only approved withdrawals can be marked paid', 409);
+                throw new CodeMartV1FinanceException('withdrawal_invalid_state', __('codemart.errors.withdrawal_not_approved'), 409);
             }
             $wallet = CodeMartV1WalletModel::lockForUser((int) $withdrawal->user_id);
             $ledger = $wallet->settleFrozen(
                 CodeMartV1FinanceService::money($withdrawal->amount),
                 CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                "Withdrawal {$withdrawal->id} paid",
+                CodeMartV1Constants::LEDGER_WITHDRAWAL_PAID,
+                ['withdrawal_id' => $withdrawal->id],
                 ['withdrawal_id' => $withdrawal->id, 'phase' => 'settle', 'method' => $withdrawal->method]
             );
             if (!$ledger) {
-                throw new CodeMartV1FinanceException('wallet_frozen_mismatch', 'Frozen balance does not cover this withdrawal', 409);
+                throw new CodeMartV1FinanceException('wallet_frozen_mismatch', __('codemart.errors.wallet_frozen_mismatch'), 409);
             }
             $withdrawal->update([
                 'status' => CodeMartV1Constants::WITHDRAWAL_STATUS_PAID,
@@ -476,7 +537,7 @@ class CodeMartV1AdminFinanceService
     {
         $withdrawal = CodeMartV1WithdrawalModel::lockById($withdrawalId);
         if (!$withdrawal) {
-            throw new CodeMartV1FinanceException('withdrawal_not_found', 'Withdrawal not found', 404);
+            throw new CodeMartV1FinanceException('withdrawal_not_found', __('codemart.errors.withdrawal_not_found'), 404);
         }
 
         return $withdrawal;

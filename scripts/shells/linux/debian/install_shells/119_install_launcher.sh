@@ -45,6 +45,8 @@ PYTHON="python3"
 FORCE=0
 SUDO=""
 NEED=()
+INSTALLABLE=()
+pkg=""
 HAVE_EMULATOR=0
 # Central spawnable-emulator list plus kitty (no -e convention; only used by
 # the launcher's paned-grid path, but still counts as "an emulator exists").
@@ -149,12 +151,22 @@ if [[ "$(id -u)" -ne 0 ]]; then
     command -v sudo >/dev/null 2>&1 && SUDO="sudo"
 fi
 
-echo "[..] apt-get install: ${NEED[*]}"
 $SUDO apt-get update >/dev/null 2>&1 || true
-if $SUDO apt-get install -y "${NEED[@]}" >/dev/null 2>&1; then
-    echo "[OK] launcher prerequisites installed: ${NEED[*]}"
+# One unavailable name (e.g. wlr-randr on older repos) would fail the whole
+# transaction, so only packages with an apt candidate are installed.
+for pkg in "${NEED[@]}"; do
+    if apt-cache show "$pkg" >/dev/null 2>&1; then
+        INSTALLABLE+=("$pkg")
+    else
+        echo "[i] no apt candidate for $pkg; skipped."
+    fi
+done
+if [[ ${#INSTALLABLE[@]} -eq 0 ]]; then
+    echo "[!] none of the missing launcher prerequisites is available from apt (${NEED[*]})."
+elif echo "[..] apt-get install: ${INSTALLABLE[*]}" && $SUDO apt-get install -y "${INSTALLABLE[@]}" >/dev/null 2>&1; then
+    echo "[OK] launcher prerequisites installed: ${INSTALLABLE[*]}"
 else
-    echo "[!] Some launcher prerequisites failed to install (${NEED[*]}); the grid launcher will degrade to available positioners/emulators."
+    echo "[!] Some launcher prerequisites failed to install (${INSTALLABLE[*]}); the grid launcher will degrade to available positioners/emulators."
 fi
 
 # Non-fatal by design: the service and launcher still run with whatever is present.

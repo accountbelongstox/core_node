@@ -766,6 +766,30 @@
   "apiCustomEndpointDescription": {
     "message": "Custom: {0}"
   },
+  "apiEndpointProduction": {
+    "message": "Production Cloud Server"
+  },
+  "apiEndpointLocalhost": {
+    "message": "Local Development Server"
+  },
+  "apiEndpointLoopback": {
+    "message": "Local Loopback Server"
+  },
+  "apiEndpointLanBackup": {
+    "message": "LAN Backup Server"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "LAN Primary Server"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "Remote Laravel Main"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet Nuul Server"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet API Server"
+  },
   "httpStatusError": {
     "message": "{0} (HTTP {1})"
   },
@@ -1349,7 +1373,7 @@
     "message": "  Chrome MCP Server - Windows"
   },
   "startWatchPrompt": {
-    "message": "Enable development watch mode? [Y/n]"
+    "message": "Enable development watch mode?"
   },
   "startWatchOnceSelected": {
     "message": "  One-time build selected."
@@ -2455,6 +2479,98 @@
       "pid": {
         "content": "$1",
         "example": "1234"
+      }
+    }
+  },
+  "unknownActionError": {
+    "message": "Unknown action: $action$",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownCapabilityError": {
+    "message": "Unknown capability: $capability$",
+    "placeholders": {
+      "capability": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerStartedStatus": {
+    "message": "Worker started"
+  },
+  "workerStoppedStatus": {
+    "message": "Worker stopped"
+  },
+  "workerConfigRequired": {
+    "message": "A worker configuration is required"
+  },
+  "workerConfigApplied": {
+    "message": "Configuration applied"
+  },
+  "apiUrlEmpty": {
+    "message": "API URL is empty"
+  },
+  "serverReturnedError": {
+    "message": "Server returned an error"
+  },
+  "taskCenterStartedStatus": {
+    "message": "Task Center started"
+  },
+  "taskCenterStoppedStatus": {
+    "message": "Task Center stopped"
+  },
+  "processorTypeRequired": {
+    "message": "A processor type is required"
+  },
+  "processorEnabledStatus": {
+    "message": "Processor $processor$ enabled",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorDisabledStatus": {
+    "message": "Processor $processor$ disabled",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStartedStatus": {
+    "message": "Processor $processor$ started",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStoppedStatus": {
+    "message": "Processor $processor$ stopped",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterAtLeastOneWord": {
+    "message": "Enter at least one word"
+  },
+  "startSupersededByStop": {
+    "message": "Start was superseded by Stop"
+  },
+  "capabilityChangeSupersededByStop": {
+    "message": "The capability change was superseded by Stop"
+  },
+  "connectedPendingStatus": {
+    "message": "Connected · $count$ pending",
+    "placeholders": {
+      "count": {
+        "content": "$1"
       }
     }
   }

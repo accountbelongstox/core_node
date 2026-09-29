@@ -110,8 +110,8 @@ export type CapGeoListener<K extends keyof CapGeoEventMap> = (p: CapGeoEventMap[
 // Geo math + formatting helpers (exported — broadly useful)
 // ---------------------------------------------------------------------------
 
-const EARTH_RADIUS_M = 6_371_008.8;
-const DEG2RAD = Math.PI / 180;
+export const EARTH_RADIUS_M = 6_371_008.8;
+export const DEG2RAD = Math.PI / 180;
 
 const DEFAULTS: Required<Omit<CapGeoServiceOptions, 'logger' | 'persistKey'>> &
   Pick<CapGeoServiceOptions, 'logger' | 'persistKey'> = {

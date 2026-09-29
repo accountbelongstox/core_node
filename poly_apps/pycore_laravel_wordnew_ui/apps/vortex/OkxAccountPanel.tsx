@@ -5,15 +5,17 @@
  * "LIVE" emerald column (balance / positions / bills from the centralized account controller)
  * vs a "SIM" indigo column (sim equity / cash / position count passed in via props).
  *
- * Mirrors OkxBacktestPanel's conventions: bilingual L(lang) (every string en+zh),
- * dark+lang props, card/chip Tailwind helpers, lucide icons, fmtTs timestamps.
+ * Mirrors OkxBacktestPanel's conventions: `vx` locale keys (account.*), dark prop,
+ * card/chip Tailwind helpers, lucide icons, fmtTs timestamps.
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   RefreshCw, AlertTriangle, Wallet, Radio, FlaskConical, TrendingUp, TrendingDown, Receipt,
 } from 'lucide-react';
-import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '@/apps/vortex/api';
+import { classifyPycoreAccess, connectPycoreHttp, requestPycoreHttp, onHttpStatus, type PycoreAccess } from '@/apps/vortex/api';
 import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
+import { VortexPycoreNotice } from './VortexPycoreNotice';
 
 interface BalanceDetail { ccy: string; eq: string; availBal: string }
 interface OkxPosition { instId: string; pos: string; avgPx: string; upl: string; uplRatio?: string }
@@ -35,42 +37,12 @@ const fmtTs = (ts?: string): string => {
 const fmtNum = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const signCls = (v?: string) => (v != null && parseFloat(v) < 0 ? 'text-rose-400' : 'text-emerald-400');
 
-const L = (lang: string) => (lang === 'en'
-  ? {
-      title: 'Account — Real vs Simulated', sub: 'Live OKX API balance alongside the local sandbox',
-      refresh: 'Refresh', unreachable: 'pycore unreachable — live account unavailable.',
-      // real column
-      real: 'Real (OKX API)', live: 'LIVE',
-      totalEq: 'Total equity', balances: 'Balances', positions: 'Positions', bills: 'Recent bills',
-      ccy: 'Ccy', eq: 'Equity', avail: 'Available', inst: 'Instrument', pos: 'Position', avgPx: 'Avg price', upl: 'uPnL',
-      time: 'Time', type: 'Type', change: 'Change',
-      notConfigured: 'OKX API not configured — set OKX_API_KEY / OKX_SECRET / OKX_PASSPHRASE.',
-      noPassphrase: 'Set OKX_PASSPHRASE to read the live account.',
-      noBalances: 'No balances.', noPositions: 'No open positions.', noBills: 'No recent bills.',
-      // sim column
-      sim: 'Simulated (local)', simChip: 'SIM',
-      simEquity: 'Sim equity', simCash: 'Cash', simPositions: 'Open positions', simNote: 'Local sandbox — not real funds.',
-    }
-  : {
-      title: '账户 —— 真实 vs 模拟', sub: '实时 OKX API 余额与本地沙盒并排显示',
-      refresh: '刷新', unreachable: 'pycore 不可达 —— 无法获取实时账户。',
-      real: '真实账户(API)', live: '真实',
-      totalEq: '总权益', balances: '余额', positions: '持仓', bills: '近期账单',
-      ccy: '币种', eq: '权益', avail: '可用', inst: '合约', pos: '仓位', avgPx: '均价', upl: '未实现盈亏',
-      time: '时间', type: '类型', change: '变动',
-      notConfigured: 'OKX API 未配置 —— 请设置 OKX_API_KEY / OKX_SECRET / OKX_PASSPHRASE。',
-      noPassphrase: '请设置 OKX_PASSPHRASE 以读取实时账户。',
-      noBalances: '暂无余额。', noPositions: '暂无持仓。', noBills: '暂无近期账单。',
-      sim: '模拟账户(本地)', simChip: '模拟',
-      simEquity: '模拟权益', simCash: '现金', simPositions: '持仓数', simNote: '本地沙盒 —— 非真实资金。',
-    });
+interface Props { dark: boolean; simCash: number; simPositionsCount: number; simEquity: number }
 
-interface Props { dark: boolean; lang: string; simCash: number; simPositionsCount: number; simEquity: number }
-
-export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPositionsCount, simEquity }) => {
-  const t = L(lang);
+export const OkxAccountPanel: React.FC<Props> = ({ dark, simCash, simPositionsCount, simEquity }) => {
+  const { t } = useTranslation('vx');
   const [acct, setAcct] = useState<AccountOverview | null>(null);
-  const [unreachable, setUnreachable] = useState(false);
+  const [failure, setFailure] = useState<PycoreAccess | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -78,9 +50,9 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
     try {
       const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.accountOverview, {}, 12000);
       if (r) setAcct(r);
-      setUnreachable(false);
-    } catch {
-      setUnreachable(true);
+      setFailure(null);
+    } catch (error) {
+      setFailure(classifyPycoreAccess(error));
     } finally {
       setLoading(false);
     }
@@ -98,7 +70,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
   // real account is healthy only when configured + passphrase + ok
   const realOk = !!acct?.configured && !!acct?.has_passphrase && !!acct?.ok;
   const realError = acct?.error
-    || (!acct?.configured ? t.notConfigured : (!acct?.has_passphrase ? t.noPassphrase : null));
+    || (!acct?.configured ? t('account.notConfigured') : (!acct?.has_passphrase ? t('account.noPassphrase') : null));
 
   return (
     <div className="space-y-4">
@@ -106,31 +78,27 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black flex items-center gap-2 text-slate-100">
-            <Wallet className="w-5 h-5 text-indigo-400" /> {t.title}
+            <Wallet className="w-5 h-5 text-indigo-400" /> {t('account.title')}
           </h2>
-          <p className="text-xs text-slate-400 font-mono">{t.sub}</p>
+          <p className="text-xs text-slate-400 font-mono">{t('account.sub')}</p>
         </div>
-        <button onClick={refresh} title={t.refresh}
+        <button onClick={refresh} title={t('account.refresh')}
           className={`p-2.5 rounded-xl border ${card} text-slate-400 hover:text-indigo-400 transition`}>
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
-      {unreachable && (
-        <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-400">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{t.unreachable}</span>
-        </div>
-      )}
+      <VortexPycoreNotice failure={failure} unreachableText={t('account.unreachable')} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* ===== REAL (OKX API) — emerald LIVE accent ===== */}
         <div className={`p-4 rounded-2xl border-2 border-emerald-500/30 ${dark ? 'bg-emerald-500/[0.03]' : 'bg-emerald-50/40'}`}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-black flex items-center gap-2 text-slate-200">
-              <Radio className="w-4 h-4 text-emerald-400" /> {t.real}
+              <Radio className="w-4 h-4 text-emerald-400" /> {t('account.real')}
             </span>
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-500/15 text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> {t.live}
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> {t('account.live')}
             </span>
           </div>
 
@@ -142,7 +110,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
             <div className="space-y-3">
               {/* total equity */}
               <div className={`p-3 rounded-xl border ${card}`}>
-                <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t.totalEq}</div>
+                <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t('account.totalEq')}</div>
                 <div className="text-2xl font-black font-mono tabular-nums text-emerald-400 leading-tight">
                   {acct?.balance?.totalEq ?? '—'}
                 </div>
@@ -150,16 +118,16 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
 
               {/* balances table */}
               <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{t.balances}</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{t('account.balances')}</div>
                 <div className={`rounded-xl border overflow-hidden ${card}`}>
                   {(acct?.balance?.details && acct.balance.details.length > 0) ? (
                     <div className="max-h-40 overflow-auto">
                       <table className="w-full text-left text-xs font-mono">
                         <thead className={`sticky top-0 ${dark ? 'bg-slate-900/95' : 'bg-white/95'} backdrop-blur`}>
                           <tr className="text-slate-400 uppercase text-[9px]">
-                            <th className="py-1.5 px-2.5 font-semibold">{t.ccy}</th>
-                            <th className="py-1.5 px-2.5 font-semibold text-right">{t.eq}</th>
-                            <th className="py-1.5 px-2.5 font-semibold text-right">{t.avail}</th>
+                            <th className="py-1.5 px-2.5 font-semibold">{t('account.ccy')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold text-right">{t('account.eq')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold text-right">{t('account.avail')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -174,24 +142,24 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
                       </table>
                     </div>
                   ) : (
-                    <div className="h-12 flex items-center justify-center text-[11px] text-slate-500">{t.noBalances}</div>
+                    <div className="h-12 flex items-center justify-center text-[11px] text-slate-500">{t('account.noBalances')}</div>
                   )}
                 </div>
               </div>
 
               {/* positions table */}
               <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{t.positions}</div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1">{t('account.positions')}</div>
                 <div className={`rounded-xl border overflow-hidden ${card}`}>
                   {(acct?.positions && acct.positions.length > 0) ? (
                     <div className="max-h-40 overflow-auto">
                       <table className="w-full text-left text-xs font-mono">
                         <thead className={`sticky top-0 ${dark ? 'bg-slate-900/95' : 'bg-white/95'} backdrop-blur`}>
                           <tr className="text-slate-400 uppercase text-[9px]">
-                            <th className="py-1.5 px-2.5 font-semibold">{t.inst}</th>
-                            <th className="py-1.5 px-2.5 font-semibold text-right">{t.pos}</th>
-                            <th className="py-1.5 px-2.5 font-semibold text-right">{t.avgPx}</th>
-                            <th className="py-1.5 px-2.5 font-semibold text-right">{t.upl}</th>
+                            <th className="py-1.5 px-2.5 font-semibold">{t('account.inst')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold text-right">{t('account.pos')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold text-right">{t('account.avgPx')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold text-right">{t('account.upl')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -209,7 +177,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
                       </table>
                     </div>
                   ) : (
-                    <div className="h-12 flex items-center justify-center text-[11px] text-slate-500">{t.noPositions}</div>
+                    <div className="h-12 flex items-center justify-center text-[11px] text-slate-500">{t('account.noPositions')}</div>
                   )}
                 </div>
               </div>
@@ -217,7 +185,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
               {/* recent bills */}
               <div>
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
-                  <Receipt className="w-3 h-3" /> {t.bills}
+                  <Receipt className="w-3 h-3" /> {t('account.bills')}
                 </div>
                 <div className={`rounded-xl border overflow-hidden ${card}`}>
                   {(acct?.bills && acct.bills.length > 0) ? (
@@ -225,10 +193,10 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
                       <table className="w-full text-left text-xs font-mono">
                         <thead className={`sticky top-0 ${dark ? 'bg-slate-900/95' : 'bg-white/95'} backdrop-blur`}>
                           <tr className="text-slate-400 uppercase text-[9px]">
-                            <th className="py-1.5 px-2.5 font-semibold">{t.time}</th>
-                            <th className="py-1.5 px-2.5 font-semibold">{t.type}</th>
-                            <th className="py-1.5 px-2.5 font-semibold">{t.ccy}</th>
-                            <th className="py-1.5 px-2.5 font-semibold text-right">{t.change}</th>
+                            <th className="py-1.5 px-2.5 font-semibold">{t('account.time')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold">{t('account.type')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold">{t('account.ccy')}</th>
+                            <th className="py-1.5 px-2.5 font-semibold text-right">{t('account.change')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -244,7 +212,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
                       </table>
                     </div>
                   ) : (
-                    <div className="h-12 flex items-center justify-center text-[11px] text-slate-500">{t.noBills}</div>
+                    <div className="h-12 flex items-center justify-center text-[11px] text-slate-500">{t('account.noBills')}</div>
                   )}
                 </div>
               </div>
@@ -256,14 +224,14 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
         <div className={`p-4 rounded-2xl border-2 border-indigo-500/30 ${dark ? 'bg-indigo-500/[0.03]' : 'bg-indigo-50/40'}`}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-black flex items-center gap-2 text-slate-200">
-              <FlaskConical className="w-4 h-4 text-indigo-400" /> {t.sim}
+              <FlaskConical className="w-4 h-4 text-indigo-400" /> {t('account.sim')}
             </span>
-            <span className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-indigo-500/15 text-indigo-400">{t.simChip}</span>
+            <span className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-indigo-500/15 text-indigo-400">{t('account.simChip')}</span>
           </div>
 
           <div className="space-y-3">
             <div className={`p-3 rounded-xl border ${card}`}>
-              <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t.simEquity}</div>
+              <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t('account.simEquity')}</div>
               <div className="text-2xl font-black font-mono tabular-nums text-indigo-400 leading-tight">
                 ${fmtNum(simEquity)}
               </div>
@@ -272,19 +240,19 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
               <div className={`p-3 rounded-xl border ${card} flex items-center gap-2.5`}>
                 <TrendingUp className="w-4 h-4 text-emerald-400" />
                 <div>
-                  <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t.simCash}</div>
+                  <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t('account.simCash')}</div>
                   <div className="text-base font-black font-mono tabular-nums text-slate-100 leading-none">${fmtNum(simCash)}</div>
                 </div>
               </div>
               <div className={`p-3 rounded-xl border ${card} flex items-center gap-2.5`}>
                 <TrendingDown className="w-4 h-4 text-fuchsia-400" />
                 <div>
-                  <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t.simPositions}</div>
+                  <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t('account.simPositions')}</div>
                   <div className="text-base font-black font-mono tabular-nums text-slate-100 leading-none">{simPositionsCount}</div>
                 </div>
               </div>
             </div>
-            <p className="text-[10px] font-mono text-slate-500">{t.simNote}</p>
+            <p className="text-[10px] font-mono text-slate-500">{t('account.simNote')}</p>
           </div>
         </div>
       </div>

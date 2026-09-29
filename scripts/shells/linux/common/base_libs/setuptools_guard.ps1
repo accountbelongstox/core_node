@@ -1,7 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# Write all code in English only. Do not modify these rules.
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Shared setuptools / pkg_resources guard for the iniscripts installers -- the ONE
 # shell-side source of truth (mirrored by setuptools_guard.sh).
 #

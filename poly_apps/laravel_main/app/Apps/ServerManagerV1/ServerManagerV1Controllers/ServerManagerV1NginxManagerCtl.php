@@ -242,7 +242,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'enabled_sites' => count(array_filter($sites, fn($s) => $s['enabled'])),
                 'disabled_sites' => count(array_filter($sites, fn($s) => !$s['enabled'])),
                 'paths' => $nginxPaths
-            ], 'Nginx sites retrieved successfully');
+            ], __('server_manager.messages.nginx_sites_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_list_sites');
@@ -340,7 +340,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!$testResult['success']) {
                 // Remove the invalid configuration file
                 unlink($configFile);
-                return $this->error('Invalid nginx configuration: ' . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(__('server_manager.messages.invalid_nginx_configuration') . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             $responseData = [
@@ -370,7 +370,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->success($responseData, 'Site created successfully');
+            return $this->success($responseData, __('server_manager.messages.site_created_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_create_site');
@@ -425,7 +425,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'modified' => filemtime($configFile),
                 'modified_human' => date('Y-m-d H:i:s', filemtime($configFile)),
                 'parsed_info' => $configInfo
-            ], 'Site configuration retrieved successfully');
+            ], __('server_manager.messages.site_configuration_retrieved_successfully'));
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_get_config');
@@ -493,7 +493,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!$testResult['success']) {
                 // Restore backup if test fails
                 copy($backupFile, $configFile);
-                return $this->error('Invalid nginx configuration: ' . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(__('server_manager.messages.invalid_nginx_configuration') . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             Log::info('ServerManagerV1: Nginx site updated', [
@@ -507,7 +507,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'config_file' => $configFile,
                 'backup_file' => $backupFile,
                 'updated' => true
-            ], 'Site updated successfully');
+            ], __('server_manager.messages.site_updated_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_update_site');
@@ -574,7 +574,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'deleted' => true,
                 'backup_file' => $backupFile,
                 'reloaded' => $reloaded
-            ], 'Site deleted successfully');
+            ], __('server_manager.messages.site_deleted_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_delete_site');
@@ -602,16 +602,16 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $password = (string) $request->input('password', '');
 
             if ($confirm !== 'delete') {
-                return $this->error('Confirmation mismatch: type "delete" to confirm file deletion.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(__('server_manager.messages.confirmation_mismatch_type_delete_to_confirm_file'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
             if ($password === '') {
-                return $this->error('Root password is required to delete site files.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(__('server_manager.messages.root_password_is_required_to_delete_site'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Verify the root password (rate-limited) before any deletion.
             $auth = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1ElevatedAccess::authenticate($password, $request->ip());
             if (empty($auth['success'])) {
-                return $this->error('Authentication failed: ' . ($auth['error'] ?? 'invalid password'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(__('server_manager.messages.authentication_failed') . ($auth['error'] ?? 'invalid password'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             $nginxPaths = ServerManagerV1SSLConfigReader::getNginxPaths();
@@ -636,7 +636,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if ($webRoot === '' || $webReal === '' || $webReal === '/' ||
                 strpos($webReal, $coreReal) === 0 ||
                 strpos($webReal, $wwwrootReal) !== 0) {
-                return $this->error('Refused: site web root is empty, outside wwwroot, or inside the protected core_node directory.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(__('server_manager.messages.refused_site_web_root_is_empty_outside'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Disable + back up the nginx config (same as deleteSite), then purge
@@ -655,7 +655,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 Log::warning('ServerManagerV1: Site file purge partial failure', [
                     'site_name' => $siteName, 'web_root' => $webRoot, 'error' => $deleteResult['error'] ?? '',
                 ]);
-                return $this->error('Site config removed, but file deletion failed: ' . ($deleteResult['error'] ?? 'unknown'), ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR, ['web_root' => $webRoot]);
+                return $this->error(__('server_manager.messages.site_config_removed_but_file_deletion_failed') . ($deleteResult['error'] ?? 'unknown'), ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR, ['web_root' => $webRoot]);
             }
 
             Log::warning('ServerManagerV1: Site files purged', [
@@ -667,7 +667,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'deleted' => true,
                 'web_root' => $webRoot,
                 'backup_file' => $backupFile,
-            ], 'Site files deleted successfully');
+            ], __('server_manager.messages.site_files_deleted_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_delete_site_files');
@@ -929,7 +929,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $testResult = $this->runConfigTest($binary);
             if (!$testResult['success']) {
                 return $this->error(
-                    'Cannot reload nginx: configuration test failed - ' . $testResult['error'],
+                    __('server_manager.messages.cannot_reload_nginx_configuration_test_failed') . $testResult['error'],
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
@@ -1047,7 +1047,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                     'backup_path' => $backupPath
                 ],
                 'install_hint' => $installed ? null : self::NGINX_INSTALL_HINT
-            ], 'Nginx status retrieved successfully');
+            ], __('server_manager.messages.nginx_status_retrieved_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_status_overview');
@@ -1070,7 +1070,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             if (!in_array($action, $allowedActions, true)) {
                 return $this->error(
-                    'Invalid action. Allowed actions: ' . implode(', ', $allowedActions),
+                    __('server_manager.messages.invalid_action_allowed_actions') . implode(', ', $allowedActions),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
@@ -1086,7 +1086,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 if (!$testResult['success']) {
                     $testOutput = trim(($testResult['output'] ?? '') . "\n" . ($testResult['error'] ?? ''));
                     return $this->error(
-                        'Cannot reload nginx: configuration test failed - ' . $testOutput,
+                        __('server_manager.messages.cannot_reload_nginx_configuration_test_failed') . $testOutput,
                         ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                     );
                 }
@@ -1239,7 +1239,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                     'size_bytes' => 0,
                     'filter' => $filter !== '' ? $filter : null,
                     'scanned_lines' => 0
-                ], 'Log file does not exist');
+                ], __('server_manager.messages.log_file_does_not_exist'));
             }
 
             $sizeBytes = filesize($file);
@@ -1267,7 +1267,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'size_bytes' => $sizeBytes !== false ? $sizeBytes : 0,
                 'filter' => $filter !== '' ? $filter : null,
                 'scanned_lines' => $scannedCount
-            ], 'Log lines retrieved successfully');
+            ], __('server_manager.messages.log_lines_retrieved_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_logs');
@@ -1293,7 +1293,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                     'already_installed' => true,
                     'version' => $this->getNginxVersion($binary),
                     'binary' => $binary
-                ], 'Nginx is already installed');
+                ], __('server_manager.messages.nginx_is_already_installed'));
             }
 
             // Repo root: laravel_main lives at <repo>/poly_apps/laravel_main
@@ -1427,7 +1427,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'total' => count($backups),
                 'backup_path' => $backupPath,
                 'site' => $siteFilter ?: null
-            ], 'Backups retrieved successfully');
+            ], __('server_manager.messages.backups_retrieved_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_list_backups');
@@ -1455,14 +1455,14 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             // SECURITY: basename only - no traversal, no separators
             if (strpos($file, '/') !== false || strpos($file, '\\') !== false || strpos($file, '..') !== false) {
                 return $this->error(
-                    'Invalid backup file name (must be a plain file name)',
+                    __('server_manager.messages.invalid_backup_file_name_must_be_a'),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
 
             if (substr($file, -7) !== '.backup') {
                 return $this->error(
-                    'Invalid backup file name (must end with .backup)',
+                    __('server_manager.messages.invalid_backup_file_name_must_end_with'),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
@@ -1504,7 +1504,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 $previousBackup = $backupPath . '/' . $site . '_' . date('Y-m-d_H-i-s') . '.backup';
                 if (!copy($configFile, $previousBackup)) {
                     return $this->error(
-                        'Failed to back up current configuration before restore',
+                        __('server_manager.messages.failed_to_back_up_current_configuration_before'),
                         ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                     );
                 }
@@ -1537,7 +1537,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                     }
 
                     return $this->error(
-                        'Restore rolled back: nginx configuration test failed - ' . $configTest['output'],
+                        __('server_manager.messages.restore_rolled_back_nginx_configuration_test_failed') . $configTest['output'],
                         ServerManagerV1Constants::RESPONSE_BAD_REQUEST,
                         [
                             'restored' => false,
@@ -1561,7 +1561,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'config_file' => $configFile,
                 'previous_backup' => $previousBackup,
                 'config_test' => $configTest
-            ], 'Backup restored successfully');
+            ], __('server_manager.messages.backup_restored_successfully'));
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_restore_backup');
@@ -1835,7 +1835,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $allowedActions = ['enable', 'disable', 'test'];
             if (!in_array($action, $allowedActions, true)) {
                 return $this->error(
-                    'Invalid action. Allowed actions: ' . implode(', ', $allowedActions),
+                    __('server_manager.messages.invalid_action_allowed_actions') . implode(', ', $allowedActions),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
@@ -1849,7 +1849,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             if (count($sites) > 100) {
                 return $this->error(
-                    'Too many sites (max 100 per batch)',
+                    __('server_manager.messages.too_many_sites_max_100_per_batch'),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }

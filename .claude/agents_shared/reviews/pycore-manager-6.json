@@ -1,0 +1,12 @@
+{
+  "task_id": "pycore-manager-6",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-025": {"status": "fixed", "reason": "pycore-manager remainder sweep: the English L label objects of the 10 files recorded in pycore-manager-1 are now maps to pc keys in the new PcEnPages/PcZhPages (composed into en/zh), and inline literals are converted too; concatenations became interpolation keys. A literal scan of the 10 files finds no UI text left (the remaining regex hits are TypeScript generics and a doc comment). The owner reports pc en/zh key parity at 2106 keys."},
+    "FU-026": {"status": "fixed", "reason": "The local Badge/StatTile/nf copies in these files are replaced by vocabShared.PresenceBadge and shared/books/BookStats."}
+  },
+  "issues": [],
+  "checks": "Literal scan of the 10 files; L objects confirmed to hold keys; diff sizes identical with and without --ignore-space-at-eol (no line-ending churn).",
+  "checked_at": "2026-09-27T04:51:04+10:00"
+}

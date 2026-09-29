@@ -1,23 +1,17 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
-
+use App\Http\Middleware\ApplyRequestLocale;
 use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ClientKeyOnly;
+use App\Http\Middleware\ClientKeyOrDashboard;
 use App\Http\Middleware\ClientTokenAuth;
 use App\Http\Middleware\CustomAuthenticate;
 use App\Http\Middleware\GoLatency;
+use App\Http\Middleware\IdempotentRequest;
 use App\Http\Middleware\LocalAccessOnly;
 use App\Http\Middleware\LocalDebugOrSanctum;
-use App\Http\Middleware\PycoreClientOnly;
 use App\Http\Middleware\RemoveFrameworkFingerprints;
 use Illuminate\Foundation\Application;
 use Illuminate\Console\Scheduling\Schedule;
@@ -76,6 +70,13 @@ $application = Application::configure(basePath: dirname(__DIR__))
                 ->name('octane-timer-heartbeat')
                 ->withoutOverlapping(1)
                 ->everySecond();
+            // Slow (EXECUTION_BACKGROUND) timer tasks run in their own process
+            // so they never stall the one-second heartbeat.
+            $schedule->command('octane-timer:background')
+                ->name('octane-timer-background')
+                ->withoutOverlapping(5)
+                ->everyMinute()
+                ->runInBackground();
         }
     })
     ->withMiddleware(function (Middleware $middleware) use ($requestForgeryExclusions) {
@@ -83,6 +84,9 @@ $application = Application::configure(basePath: dirname(__DIR__))
         // route (none exists). Returning null throws AuthenticationException,
         // which bootstrap/app.php renders as a JSON 401 envelope.
         $middleware->redirectGuestsTo(fn (): ?string => null);
+
+        // Response language from Accept-Language, set on every request.
+        $middleware->prepend(ApplyRequestLocale::class);
 
         $middleware->api(prepend: [
             GoLatency::class,
@@ -113,7 +117,9 @@ $application = Application::configure(basePath: dirname(__DIR__))
             'custom.authenticate' => CustomAuthenticate::class,
             'local.only' => LocalAccessOnly::class,
             'dashboard.auth' => LocalDebugOrSanctum::class,
-            'pycore.client' => PycoreClientOnly::class,
+            'client.key' => ClientKeyOnly::class,
+            'client.key_or_dashboard' => ClientKeyOrDashboard::class,
+            'idempotent' => IdempotentRequest::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
@@ -174,7 +180,7 @@ $application = Application::configure(basePath: dirname(__DIR__))
             if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated. Please login first.',
+                    'message' => __('dashboard_auth.login_required'),
                     'code' => 'AUTH_REQUIRED',
                     'error' => 'Unauthenticated'
                 ], 401);
@@ -295,5 +301,9 @@ $application = Application::configure(basePath: dirname(__DIR__))
 // Runtime configuration is owned by LaravelConfig and RuntimeConfigurationStore.
 // Point Dotenv at a deliberately absent file so repository .env files are never loaded.
 $application->loadEnvironmentFrom('.environment-disabled');
+
+// Translations live in lang/. Laravel prefers resources/lang whenever that
+// directory exists, so an empty stray one would silently disable every __() key.
+$application->useLangPath($application->basePath('lang'));
 
 return $application;

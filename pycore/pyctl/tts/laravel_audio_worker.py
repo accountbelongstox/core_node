@@ -66,6 +66,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint, format_duration_hms
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.serialized_worker import (
+    SerializedValue,
     map_bus_tasks,
     serialized_method,
     start_bus_task,
@@ -239,6 +240,9 @@ class BaseLaravelAudioWorker(
         # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
         self._cycle_signal = f"laravel_audio_worker.cycle_running.{self.LANE}"
         THREAD_BUS.signal(self._cycle_signal, False)
+        # Atomic single-flight guard of the drain cycle (the signal above is
+        # the observable state only).
+        self._drain_guard = SerializedValue(False, f"{self.LANE.title()}AudioDrainGuardThread")
 
         # Engine probe cache (60s TTL) — see _engine_plan().
         self._engine_probe_cache: Optional[str] = None
@@ -622,7 +626,9 @@ class BaseLaravelAudioWorker(
                     "duplicate": True,
                 }
             concurrency, _engine = self._effective_concurrency()
-            local_load = self._queue.active_count()
+            # Capacity is the in-flight work, never the queued backlog (a
+            # full pull may hold ~100k local entries).
+            local_load = max(0, int(self._processing))
             local_capacity = concurrency
             if not allow_backlog and local_load >= local_capacity:
                 return {
@@ -650,27 +656,27 @@ class BaseLaravelAudioWorker(
         """Spawn ONE background drain cycle (non-reentrant via the cycle signal)."""
         if THREAD_BUS.is_shutdown_requested():
             return
-        if THREAD_BUS.get_signal(self._cycle_signal, False):
+        if not self._drain_guard.compare_and_set(False, True):
             return  # previous cycle still in flight — it drains the whole heap
         THREAD_BUS.signal(self._cycle_signal, True)
         try:
             start_bus_task(self._drain_cycle, thread_name=f"{self.LANE}-audio-worker-cycle")
         except Exception as e:  # noqa: BLE001
             THREAD_BUS.signal(self._cycle_signal, False)
+            self._drain_guard.set(False)
             ColorPrint.red(f"{self._log_prefix} drain start error: {e}")
 
-    def _drop_queued_tasks(self) -> List[Dict[str, Any]]:
-        """Pop every queued-but-unstarted heap task for an immediate stop."""
-        dropped: List[Dict[str, Any]] = []
-        while True:
-            task = audio_queue_center.pop_next(self.QUEUE_KEY)
-            if task is None:
-                break
-            audio_queue_center.complete(
-                self.QUEUE_KEY, task, ok=False, error="lane stopped before processing",
-            )
-            dropped.append(task)
-        return dropped
+    def request_start(self) -> None:
+        """Clear the lane stop and resume the kept Queue.
+
+        An immediate stop is only a state flag (``_lane_halt_requested``): the
+        drain halts between batches while the Queue and its snapshot stay
+        intact (queued rows hold no Laravel claim; claims are taken just in
+        time at task start), so a restart simply drains the same backlog.
+        """
+        super().request_start()
+        if len(self._queue) > 0:
+            self._start_drain()
 
     def _drain_cycle(self) -> None:
         """One ordered drain cycle over the local dispatch heap. Runs on a
@@ -784,6 +790,7 @@ class BaseLaravelAudioWorker(
             ColorPrint.red(f"{self._log_prefix} Cycle error: {e}")
         finally:
             THREAD_BUS.signal(self._cycle_signal, False)
+            self._drain_guard.set(False)
             if len(self._queue) > 0 and not self._lane_halt_requested():
                 # Tasks dispatched mid-cycle remain queued - run ONE follow-up
                 # drain so they are not stuck behind the next RPC dispatch.

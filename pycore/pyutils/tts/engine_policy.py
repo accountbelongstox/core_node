@@ -5,6 +5,7 @@ import hashlib
 import os
 import shlex
 import time
+from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -17,6 +18,7 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from pycore.pyutils.common.user_data_store import (
     USER_DATA_SECTION_CAPABILITY_PRIORITIES,
+    USER_DATA_SECTION_SENTENCE_AUDIO_AUTO,
     USER_DATA_SECTION_TASK_CAPABILITY_CHAINS,
     user_data_store,
 )
@@ -110,14 +112,22 @@ _LANGUAGES_BY_ENGINE = {
     "f5tts": frozenset({"en", "zh"}),
 }
 _ACCENT_AWARE_ENGINES = ("edge", "streamelements")
+# UI engine-test extras -> the engine setting (environment name) they override.
+# The override is request-scoped (engine_setting), never written to os.environ,
+# so concurrent lane or orchestration work keeps the configured values. qwen3tts
+# is absent on purpose: its speaker/instruct travel in TTSSynthesisRequest.
 _ENGINE_ENV_OVERRIDES: Dict[str, Dict[str, str]] = {
-    "qwen3tts": {"QWEN3TTS_INSTRUCT": "instruct", "QWEN3TTS_SPEAKER": "speaker"},
     "parler": {"PARLER_DESCRIPTION": "description"},
     "voxcpm2": {"VOXCPM2_CFG": "cfg_value", "VOXCPM2_TIMESTEPS": "timesteps"},
     "cosyvoice": {"COSYVOICE_INSTRUCT": "instruct", "COSYVOICE_SPK_ID": "speaker_id"},
     "gptsovits": {"GPTSOVITS_PROMPT_TEXT": "prompt_text", "GPTSOVITS_PROMPT_LANG": "prompt_lang"},
     "chattts": {"CHATTTS_VOICE": "voice"},
 }
+_ENGINE_SETTING_OVERRIDES: ContextVar[Dict[str, str]] = ContextVar(
+    "tts_engine_setting_overrides", default={},
+)
+# user_data sentence_audio_auto key of the sentence lane speaker.
+SENTENCE_LANE_SPEAKER_KEY = "speaker"
 _CAP_SECTION = USER_DATA_SECTION_CAPABILITY_PRIORITIES
 _CHAIN_SECTION = USER_DATA_SECTION_TASK_CAPABILITY_CHAINS
 _ORCHESTRATOR_STATE_QUEUE = "tts.orchestrator.state"
@@ -170,9 +180,9 @@ def default_word_tts_priority() -> tuple[str, ...]:
 
 
 def _is_legacy_tts_order(saved: tuple[str, ...]) -> bool:
-    return bool(saved) and (
-        saved in _LEGACY_SAVED_ORDERS or saved[0] in ("edge", "chattts")
-    )
+    """Only the exact shipped legacy defaults migrate; a user order that
+    merely starts with edge/chattts is a real choice and is kept."""
+    return bool(saved) and saved in _LEGACY_SAVED_ORDERS
 
 
 def _persist_tts_order(order: tuple[str, ...]) -> None:
@@ -372,27 +382,34 @@ def normalize_tts_accent(accent: Optional[str]) -> Optional[str]:
     return value if value in ("us", "uk") else None
 
 
+def engine_setting(env_key: str, default: str = "") -> str:
+    """One engine setting: the request-scoped UI test override when present,
+    else the process environment."""
+    overrides = _ENGINE_SETTING_OVERRIDES.get()
+    if env_key in overrides:
+        return overrides[env_key]
+    return os.environ.get(env_key, default)
+
+
 def apply_tts_engine_extra_params(
     engine: str,
     extra_params: Dict[str, Any],
-) -> Dict[str, Optional[str]]:
-    applied: Dict[str, Optional[str]] = {}
+) -> Token:
+    """Scope the engine-test extras to the calling context (restore with
+    ``restore_tts_engine_extra_params``); the process environment is never
+    changed."""
+    overrides: Dict[str, str] = {}
     for env_key, param_key in _ENGINE_ENV_OVERRIDES.get(engine, {}).items():
         value = extra_params.get(param_key)
         if value is None:
             continue
-        applied[env_key] = os.environ.get(env_key)
-        os.environ[env_key] = str(value)
+        overrides[env_key] = str(value)
         ColorPrint.blue(f"[tts] {engine} override {env_key}={value}")
-    return applied
+    return _ENGINE_SETTING_OVERRIDES.set(overrides)
 
 
-def restore_tts_engine_extra_params(applied: Dict[str, Optional[str]]) -> None:
-    for env_key, previous in applied.items():
-        if previous is None:
-            os.environ.pop(env_key, None)
-        else:
-            os.environ[env_key] = previous
+def restore_tts_engine_extra_params(applied: Token) -> None:
+    _ENGINE_SETTING_OVERRIDES.reset(applied)
 
 
 def tts_engine_actual_accent(
@@ -419,15 +436,31 @@ def tts_rate_to_speed(rate: Optional[str]) -> float:
         return 1.0
 
 
+def sentence_lane_speaker() -> str:
+    """The sentence lane's selected speaker (persisted UI setting; '' = the
+    engine default). Every sentence producer that shares the central cache
+    (lane, audio orchestration) synthesizes and caches with this voice."""
+    section = user_data_store.get_section(USER_DATA_SECTION_SENTENCE_AUDIO_AUTO) or {}
+    return str(section.get(SENTENCE_LANE_SPEAKER_KEY) or "").strip()
+
+
 def sentence_tts_cache_identity(
     accent: Optional[str],
     gender: Optional[str],
     rate: Optional[str] = None,
+    speaker: Optional[str] = None,
+    instruct: Optional[str] = None,
 ) -> Tuple[str, str, str, str]:
-    speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
+    """The ONE sentence-cache identity (speaker, instruct, model, speed): an
+    explicit request speaker/instruct replaces the environment defaults."""
+    default_speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
     voice = f"{accent or 'any'}:{gender or 'female'}"
-    speaker_field = f"{speaker}|{voice}" if speaker else voice
-    instruct = (os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
+    speaker_field = (
+        str(speaker).strip()
+        if (speaker or "").strip()
+        else f"{default_speaker}|{voice}" if default_speaker else voice
+    )
+    instruct = str(instruct).strip() if (instruct or "").strip() else (os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
     model = (os.environ.get("QWEN3TTS_MODEL") or "").strip()
     # Speed changes the produced audio (qwen time-stretches by default), so it
     # is part of the cache key: explicit rate -> its factor, no rate -> the

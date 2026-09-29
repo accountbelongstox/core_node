@@ -4,6 +4,7 @@ import { Languages, Moon, Palette, Sun, UserRound } from 'lucide-react';
 import { useShell } from '../../../shell/ShellContext';
 import { SHELL_LANGUAGES, ThemeId } from '../../../shell/shellTypes';
 import { useTranslation } from '../../../core/i18n/UiI18n';
+import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 
 const THEME_IDS: ThemeId[] = ['nexus', 'pycore', 'iris'];
@@ -65,8 +66,8 @@ export const CmSettingsPage: React.FC = () => {
           <h2><UserRound aria-hidden="true" /> {t('settings.accountTitle')}</h2>
           <p className="cm-section-card__lead">{t('settings.accountLead')}</p>
           <div className="cm-table-actions">
-            <Link to="/codemart/profile" className="cm-workspace-button">{t('nav.profile')}</Link>
-            <Link to="/codemart/verification" className="cm-workspace-button">{t('nav.verification')}</Link>
+            <Link to={CM_PROTECTED_ROUTE.profile} className="cm-workspace-button">{t('nav.profile')}</Link>
+            <Link to={CM_PROTECTED_ROUTE.verification} className="cm-workspace-button">{t('nav.verification')}</Link>
           </div>
         </section>
       </div>

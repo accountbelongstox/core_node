@@ -9,6 +9,7 @@ import {
   mirrorServerResponse,
   queryServerResource,
   requestVariant,
+  scopeFor,
 } from '../runtime-store/WfNewServerMirror';
 import type { WfNewAuthResult, WfNewAuthUser } from './WfNewApiTypes';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
@@ -17,6 +18,7 @@ import { unwrapLaravelData } from '../../../core/integrations/laravel/transport/
 import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
+import { translateActive } from '../WfNewLocales';
 
 // --- auth token ------------------------------------------------------------ #
 
@@ -138,12 +140,21 @@ class WfNewQueuedTransport extends MasterApiClient {
     return authToken ? { Authorization: `Bearer ${authToken}` } : {};
   }
 
+  protected resolveQueueOwner(): string {
+    return scopeFor(authToken);
+  }
+
   protected queuedMessage(): string {
-    return 'Saved offline — will sync when the connection returns.';
+    return translateActive('api.queuedOffline');
   }
 }
 
 const queuedTransport = new WfNewQueuedTransport();
+
+/** Drop the offline write queue so no session's writes replay under a later login. */
+export function clearOfflineWriteQueue(): void {
+  queuedTransport.clearQueue();
+}
 
 async function requestJSON<T>(
   path: string,
@@ -201,6 +212,11 @@ async function requestJSON<T>(
 /** GET a public endpoint without leaking or invalidating the current Bearer token. */
 export async function getJSON<T>(path: string): Promise<T> {
   return requestJSON<T>(path, false);
+}
+
+/** GET a public status endpoint from its issuer, bypassing the local resource mirror. */
+export async function getFreshJSON<T>(path: string): Promise<T> {
+  return requestJSON<T>(path, false, 'network');
 }
 
 /**

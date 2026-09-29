@@ -64,6 +64,21 @@ PROJECT_ROOT = ROOT_DIR
 USER_HOME_DIR = str(Path.home())
 USER_PROFILE = USER_HOME_DIR
 
+TMP_FALLBACK_DIR_NAME = "core_node_tmp"
+
+
+def _usable_tmp_dir(preferred: Path) -> Path:
+    """The preferred shared temp root, or a per-system fallback when it cannot
+    be created (a Windows host without D:, a first non-root Linux run)."""
+    try:
+        preferred.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        fallback = Path(tempfile.gettempdir()) / TMP_FALLBACK_DIR_NAME
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
+    return preferred
+
+
 if IS_WINDOWS:
     SEVEN_ZIP_PATHS = [
         os.path.join(PYCORE_ROOT_DIR, "pycore", "base", "library", "win32", "7za.exe"),
@@ -86,7 +101,7 @@ else:
     APPLICATIONS_DIR = "/opt/applications"
     LANG_COMPILER_DIR = "/opt/lang_compiler"
 
-TMP_DIR.mkdir(parents=True, exist_ok=True)
+TMP_DIR = _usable_tmp_dir(TMP_DIR)
 DEFAULT_TEMP_DIR = str(TMP_DIR)
 os.environ["CORE_NODE_TMP_DIR"] = DEFAULT_TEMP_DIR
 os.environ["TEMP"] = DEFAULT_TEMP_DIR

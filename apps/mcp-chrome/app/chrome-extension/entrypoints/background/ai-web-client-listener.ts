@@ -18,7 +18,8 @@ import { geminiWebTool } from './tools/browser/gemini-web';
 import { getPreferredProvider, setPreferredProvider } from './tools/browser/ai-web-common';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
+import { getMessage } from '@/utils/i18n';
 import { toErrorMessage } from '@/utils/errors';
 import { resolveApiBase } from '@/services/ApiManager';
 
@@ -87,13 +88,13 @@ async function handleMessage(
         workerName: 'MCP Chrome Prompt-Translate Web Worker',
       });
       logger.info(LOG, 'Prompt-Translate Web worker STARTED — backend task-assist connected');
-      return { success: true, message: 'started' };
+      return { success: true, message: getMessage('workerStartedStatus') };
     }
 
     case 'stop':
       promptTranslateWebWorkerService.stop();
       logger.info(LOG, 'Prompt-Translate Web worker STOPPED');
-      return { success: true, message: 'stopped' };
+      return { success: true, message: getMessage('workerStoppedStatus') };
 
     case 'get_status': {
       const status = promptTranslateWebWorkerService.getStatus();
@@ -102,6 +103,6 @@ async function handleMessage(
     }
 
     default:
-      return { success: false, error: `Unknown action: ${message.action}` };
+      return unknownActionResponse(message.action);
   }
 }

@@ -1,13 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
@@ -52,7 +43,7 @@ class AppQyV1AuthenticationLoginController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'INVALID_PHONE_NUMBER',
-                    'message' => 'Invalid phone number format'
+                    'message' => __('app_qy_v1.messages.auth_invalid_phone_number_format')
                 ]
             ], 422);
         }
@@ -68,7 +59,7 @@ class AppQyV1AuthenticationLoginController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'TOO_MANY_ATTEMPTS',
-                    'message' => 'Too many SMS requests. Please wait before trying again.'
+                    'message' => __('app_qy_v1.messages.auth_too_many_sms_requests')
                 ]
             ], 429);
         }
@@ -121,7 +112,7 @@ class AppQyV1AuthenticationLoginController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'INVALID_CODE',
-                    'message' => 'Invalid verification code format'
+                    'message' => __('app_qy_v1.messages.auth_invalid_verification_code_format')
                 ]
             ], 422);
         }
@@ -148,7 +139,7 @@ class AppQyV1AuthenticationLoginController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'INVALID_CODE',
-                    'message' => 'Invalid or expired verification code'
+                    'message' => __('app_qy_v1.messages.auth_invalid_or_expired_verification_code')
                 ]
             ], 401);
         }
@@ -211,7 +202,7 @@ class AppQyV1AuthenticationLoginController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'INVALID_CREDENTIALS',
-                    'message' => 'WeChat authorization code is required'
+                    'message' => __('app_qy_v1.messages.auth_wechat_code_required')
                 ]
             ], 422);
         }
@@ -246,7 +237,7 @@ class AppQyV1AuthenticationLoginController extends Controller
             'success' => false,
             'error' => [
                 'code' => 'SERVICE_UNAVAILABLE',
-                'message' => 'WeChat integration not available yet'
+                'message' => __('app_qy_v1.messages.auth_wechat_unavailable')
             ]
         ], 501);
     }
@@ -290,7 +281,7 @@ class AppQyV1AuthenticationLoginController extends Controller
                 'success' => false,
                 'error' => [
                     'code' => 'UNAUTHORIZED',
-                    'message' => 'Refresh token is required'
+                    'message' => __('app_qy_v1.messages.auth_refresh_token_required')
                 ]
             ], 401);
         }
@@ -300,7 +291,7 @@ class AppQyV1AuthenticationLoginController extends Controller
             'success' => false,
             'error' => [
                 'code' => 'TOKEN_EXPIRED',
-                'message' => 'Token refresh not implemented yet'
+                'message' => __('app_qy_v1.messages.auth_token_refresh_not_implemented')
             ]
         ], 501);
     }
@@ -332,8 +323,8 @@ class AppQyV1AuthenticationLoginController extends Controller
             
             if (!$username && !$password && !$userAuthToken) {
                 return response()->json([
-                    'message' => 'Invalid credentials',
-                    'errors' => "must be required username and password or user-auth-token",
+                    'message' => __('app_qy_v1.messages.invalid_credentials'),
+                    'errors' => __('app_qy_v1.messages.auth_login_credentials_required'),
                 ], 422);
             }
 
@@ -347,11 +338,11 @@ class AppQyV1AuthenticationLoginController extends Controller
                 if ($username && $password) {
                     $existingUser = User::findByUsernameEmailOrPhone($username);
                     if (!$existingUser) {
-                        return $this->error('Account does not exist', 422);
+                        return $this->error(__('app_qy_v1.messages.account_does_not_exist'), 422);
                     }
-                    return $this->error('Incorrect password', 422);
+                    return $this->error(__('app_qy_v1.messages.incorrect_password'), 422);
                 }
-                return $this->error('Invalid credentials', 422);
+                return $this->error(__('app_qy_v1.messages.invalid_credentials'), 422);
             }
 
             // Ensure default word group exists
@@ -414,12 +405,12 @@ class AppQyV1AuthenticationLoginController extends Controller
         if ($user) {
             Auth::login($user);
             return response()->json([
-                'message' => 'Successfully logged in',
+                'message' => __('app_qy_v1.messages.auth_logged_in'),
                 'user' => $user,
             ], 200);
         }
         return response()->json([
-            'message' => 'User not found',
+            'message' => __('app_qy_v1.messages.user_not_found'),
         ], 404);
     }
 
@@ -430,7 +421,7 @@ class AppQyV1AuthenticationLoginController extends Controller
                 // Only attempt to delete the token if it's not a transient token
                 $request->user()->revokeCurrentAccessToken();
                 return response()->json([
-                    'message' => 'Successfully logged out'
+                    'message' => __('app_qy_v1.messages.auth_logged_out')
                 ],200);
             }
 
@@ -439,7 +430,7 @@ class AppQyV1AuthenticationLoginController extends Controller
         }
 
         return response()->json([
-            'message' => 'Successfully logged out'
+            'message' => __('app_qy_v1.messages.auth_logged_out')
         ],200);
     }
 
@@ -455,8 +446,8 @@ class AppQyV1AuthenticationLoginController extends Controller
         
         if (!$userToken) {
             return response()->json([
-                'message' => 'User token is required',
-                'errors' => 'Please provide user_token in header or request body'
+                'message' => __('app_qy_v1.messages.auth_user_token_required'),
+                'errors' => __('app_qy_v1.messages.auth_user_token_required_detail')
             ], 422);
         }
 
@@ -464,8 +455,8 @@ class AppQyV1AuthenticationLoginController extends Controller
         
         if (!$tokenData) {
             return response()->json([
-                'message' => 'Invalid or expired user token',
-                'errors' => 'The provided user token is invalid or has expired'
+                'message' => __('app_qy_v1.messages.auth_user_token_invalid'),
+                'errors' => __('app_qy_v1.messages.auth_user_token_invalid_detail')
             ], 401);
         }
 
@@ -484,7 +475,7 @@ class AppQyV1AuthenticationLoginController extends Controller
         
         if (!$userToken) {
             return response()->json([
-                'message' => 'User token is required'
+                'message' => __('app_qy_v1.messages.auth_user_token_required')
             ], 422);
         }
 
@@ -492,7 +483,7 @@ class AppQyV1AuthenticationLoginController extends Controller
         
         if (!$user) {
             return response()->json([
-                'message' => 'Invalid or expired user token'
+                'message' => __('app_qy_v1.messages.auth_user_token_invalid')
             ], 401);
         }
 
@@ -500,7 +491,7 @@ class AppQyV1AuthenticationLoginController extends Controller
         
         return response()->json([
             'success' => true,
-            'message' => 'User found',
+            'message' => __('app_qy_v1.messages.auth_user_found'),
             'data' => [
                 'user' => $user,
                 'authenticated' => true

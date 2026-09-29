@@ -1,5 +1,5 @@
 // Chrome Extension Configuration
 module.exports = {
-  // Fixed extension key to maintain consistent extension ID: lmngnnnghipjfcbbhpaknlnbjcbabblm
+  // Fixed extension key; its extension ID is config/service_contract.json mcp_chrome.extension_id.
   CHROME_EXTENSION_KEY: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyLiCWUkzWBdJjespL8dLsnfBJ6zZqOStvkild8P/Hi83ZmAWRyFGw+lko8pytjfujnru200P6nySygb1c70m4wSf62xZNYqaqQ6ODCagblCHKZPqqX+432dk10QUgA0m5vI159Q/FPdW5IDDjUG5oN8RozP3ZHvPV38ClT+zO/KxSRNuztBtIPyg4NCVBodfgILrr8ijv3zNF2PAnMaADZqzS6+G3lGA2TKkAqznUuvnUqPkaV18lqGezjObxzpvidNAGPJw6kDt/Peg+SK10eHPFudVJgxtuFwvuGFckytBJJD5uT6FUjat8mS2wOQM9e0woyTm1O14tJeDY4ekHQIDAQAB"
 };

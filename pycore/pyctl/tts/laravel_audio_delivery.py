@@ -31,7 +31,10 @@ from pycore.pyutils.laravel.delivery_outbox import (
     DeliveryKind,
     laravel_delivery_outbox,
 )
-from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
+from pycore.pyctl.tts.audio_resource_delivery import (
+    audio_resource_delivery,
+    is_terminal_delivery_rejection,
+)
 
 AUDIO_LANE_KIND_PREFIX = "audio_lane."
 AUDIO_LANE_STEPS = ("result", "history")
@@ -56,15 +59,9 @@ class AudioLaneDelivery:
 
     @staticmethod
     def _terminal_report_error(detail: str) -> bool:
-        normalized = str(detail or "").lower()
-        return (
-            normalized.startswith("server validation rejected")
-            or normalized.startswith("unknown task on server")
-            or (
-                normalized.startswith("http 4")
-                and not normalized.startswith(("http 408", "http 409", "http 425", "http 429"))
-            )
-        )
+        """Delegates to the shared rule in ``audio_resource_delivery`` (ONE
+        4xx-terminal rule for every Laravel delivery rejection)."""
+        return is_terminal_delivery_rejection(detail=detail)
 
     def register(self, handler: Any) -> str:
         kind = audio_lane_kind(handler.LANE)
@@ -90,7 +87,10 @@ class AudioLaneDelivery:
         clip_kind = str(info.get("kind") or "")
         clip_text = str((info.get("word") if clip_kind == "word" else None) or info.get("text") or "")
         clip_variant = str(info.get("variant_key") or "")
-        clip = audio_resource_ledger.entry(clip_kind, info.get("language"), clip_text, audio_path, provider, clip_variant)
+        clip_md5 = str(info.get("md5") or "") if clip_kind == "word" else ""
+        clip = audio_resource_ledger.entry(
+            clip_kind, info.get("language"), clip_text, audio_path, provider, clip_variant, clip_md5,
+        )
         identity = handler._delivery_identity(info)
         row = laravel_delivery_outbox.enqueue(kind, {
             "delivery_id": laravel_delivery_outbox.delivery_id(kind, info.get("task_id"), attempt),
@@ -112,6 +112,7 @@ class AudioLaneDelivery:
             audio_resource_delivery.publish(
                 clip_kind, info.get("language"), clip_text, str(row.get("payload_path") or audio_path), provider,
                 clip_variant, skip_namespace=str(row.get("namespace") or "") if identity else "",
+                md5=clip_md5,
             )
         return row
 

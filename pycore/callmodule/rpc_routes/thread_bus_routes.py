@@ -5,7 +5,8 @@ Thread Bus HTTP Routes
 HTTP controller bridge for THREAD_BUS events and live event subscriptions.
 
 Routes:
-- thread_bus/trigger_event: trigger a THREAD_BUS event from the web UI
+- thread_bus/trigger_event: trigger one allowlisted UI event (UI_TRIGGER_EVENT_NAMES,
+  no payload) from the web UI
 
 Listener subscriptions (server.register_thread_bus_listener) broadcast state
 changes to connected HTTP event clients for real-time UI refresh:
@@ -23,6 +24,14 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.callmodule.rpc_routes.route_names import THREAD_BUS_TRIGGER
 
+UI_TRIGGER_EVENT_NAMES = frozenset({
+    BusSignals.VOICE_SUBTITLE_MODE_ENTER,
+    BusSignals.VOICE_SUBTITLE_MODE_EXIT,
+})
+UI_TRIGGER_ERROR_EVENT_REQUIRED = "event_name_required"
+UI_TRIGGER_ERROR_EVENT_FORBIDDEN = "event_name_forbidden"
+UI_TRIGGER_ERROR_PAYLOAD_INVALID = "event_data_invalid"
+
 
 def register_thread_bus_routes(server):
     """
@@ -37,11 +46,15 @@ def register_thread_bus_routes(server):
     """
 
     def thread_bus_trigger_event(params, request_id, context):
-        event_name = params.get('event_name')
-        event_data = params.get('event_data', {})
+        event_name = str(params.get('event_name') or '')
+        event_data = params.get('event_data') or {}
         if not event_name:
-            return {'success': False, 'error': 'event_name required'}
-        THREAD_BUS.trigger_event(event_name, event_data)
+            return {'success': False, 'error': UI_TRIGGER_ERROR_EVENT_REQUIRED}
+        if event_name not in UI_TRIGGER_EVENT_NAMES:
+            return {'success': False, 'error': UI_TRIGGER_ERROR_EVENT_FORBIDDEN, 'event': event_name}
+        if not isinstance(event_data, dict) or event_data:
+            return {'success': False, 'error': UI_TRIGGER_ERROR_PAYLOAD_INVALID, 'event': event_name}
+        THREAD_BUS.trigger_event(event_name, {})
         return {'success': True, 'event': event_name}
 
     server.post(

@@ -104,7 +104,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             if ($statusSaysDone && $this->stepStillSatisfiedInDb($step)) {
                 $results[$step] = [
                     'status' => 'skipped',
-                    'message' => 'Already completed',
+                    'message' => __('app_qy_v1.messages.init_step_already_completed'),
                     'description' => $description,
                 ];
                 continue;
@@ -219,12 +219,11 @@ class AppQyV1Initializer implements AppInitializerInterface
                 Log::info('[AppQyV1Init] stranded-book self-heal', $repair);
                 $results['repair_stranded_books'] = [
                     'status' => 'success',
-                    'message' => sprintf(
-                        'Rebuilt %d stranded book(s) (skipped_unrecoverable=%d, failed=%d)',
-                        $repair['rebuilt'],
-                        $repair['skipped_unrecoverable'],
-                        $repair['failed']
-                    ),
+                    'message' => __('app_qy_v1.messages.init_stranded_books_rebuilt', [
+                        'rebuilt' => $repair['rebuilt'],
+                        'skipped' => $repair['skipped_unrecoverable'],
+                        'failed' => $repair['failed'],
+                    ]),
                     'description' => 'Rebuild stranded v2 books from full_content',
                 ];
                 if (PHP_SAPI === 'cli') {
@@ -233,7 +232,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             } else {
                 $results['repair_stranded_books'] = [
                     'status' => 'skipped',
-                    'message' => 'No stranded books',
+                    'message' => __('app_qy_v1.messages.init_no_stranded_books'),
                     'description' => 'Rebuild stranded v2 books from full_content',
                 ];
             }
@@ -346,7 +345,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             default:
                 return [
                     'status' => 'error',
-                    'message' => "Unknown step: {$step}",
+                    'message' => __('app_qy_v1.messages.init_unknown_step', ['step' => $step]),
                 ];
         }
     }
@@ -357,12 +356,12 @@ class AppQyV1Initializer implements AppInitializerInterface
             (new AppQyV1LangDictionaryModel)->getConnection()->getPdo();
             return [
                 'status' => 'success',
-                'message' => 'Database connection successful',
+                'message' => __('app_qy_v1.messages.init_database_connection_successful'),
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
-                'message' => 'Database connection failed: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.init_database_connection_failed', ['error' => $e->getMessage()]),
             ];
         }
     }
@@ -379,7 +378,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             if ($driver !== 'sqlite') {
                 return [
                     'status' => 'success',
-                    'message' => "Server-managed database ({$driver}); no file to create",
+                    'message' => __('app_qy_v1.messages.init_server_managed_database', ['driver' => (string) $driver]),
                 ];
             }
 
@@ -388,14 +387,14 @@ class AppQyV1Initializer implements AppInitializerInterface
             if (!$dbPath) {
                 return [
                     'status' => 'error',
-                    'message' => 'Database path not configured',
+                    'message' => __('app_qy_v1.messages.init_database_path_not_configured'),
                 ];
             }
 
             if (file_exists($dbPath)) {
                 return [
                     'status' => 'success',
-                    'message' => 'Database file already exists',
+                    'message' => __('app_qy_v1.messages.init_database_file_already_exists'),
                     'path' => $dbPath,
                 ];
             }
@@ -410,13 +409,13 @@ class AppQyV1Initializer implements AppInitializerInterface
             
             return [
                 'status' => 'success',
-                'message' => 'Database file created successfully',
+                'message' => __('app_qy_v1.messages.init_database_file_created'),
                 'path' => $dbPath,
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
-                'message' => 'Failed to create database file: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.init_database_file_create_failed', ['error' => $e->getMessage()]),
             ];
         }
     }
@@ -434,20 +433,20 @@ class AppQyV1Initializer implements AppInitializerInterface
             if ($existingTables > 0) {
                 return [
                     'status' => 'success',
-                    'message' => "Tables exist - {$existingTables} dictionary tables found",
+                    'message' => __('app_qy_v1.messages.init_dictionary_tables_found', ['count' => $existingTables]),
                     'note' => 'Migrations are handled by sys:init command',
                 ];
             }
             
             return [
                 'status' => 'error',
-                'message' => 'No dictionary tables found',
+                'message' => __('app_qy_v1.messages.init_no_dictionary_tables_found'),
                 'note' => 'The sys:init migration phase did not create the required tables',
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
-                'message' => 'Failed to check tables: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.init_table_check_failed', ['error' => $e->getMessage()]),
             ];
         }
     }
@@ -512,7 +511,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             if (!empty($missingTables)) {
                 return [
                     'status' => 'error',
-                    'message' => 'Some tables are missing',
+                    'message' => __('app_qy_v1.messages.init_some_tables_missing'),
                     'existing_count' => count($existingTables),
                     'missing_count' => count($missingTables),
                     'missing_tables' => array_slice($missingTables, 0, 10),
@@ -521,13 +520,13 @@ class AppQyV1Initializer implements AppInitializerInterface
             
             return [
                 'status' => 'success',
-                'message' => 'All tables verified',
+                'message' => __('app_qy_v1.messages.init_all_tables_verified'),
                 'table_count' => count($existingTables),
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
-                'message' => 'Table verification failed: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.init_table_verification_failed', ['error' => $e->getMessage()]),
             ];
         }
     }
@@ -536,7 +535,7 @@ class AppQyV1Initializer implements AppInitializerInterface
     {
         return [
             'status' => 'success',
-            'message' => 'Indexes created via migration',
+            'message' => __('app_qy_v1.messages.init_indexes_created_via_migration'),
         ];
     }
     
@@ -548,22 +547,21 @@ class AppQyV1Initializer implements AppInitializerInterface
             if (isset($result['error']) || ($result['errors'] ?? 0) > 0) {
                 return [
                     'status' => 'error',
-                    'message' => $result['error'] ?? sprintf('%d vocabulary file(s) failed to import', $result['errors']),
+                    'message' => $result['error'] ?? __('app_qy_v1.messages.init_vocabulary_files_failed', ['count' => $result['errors']]),
                 ];
             }
 
             return [
                 'status' => 'success',
-                'message' => sprintf(
-                    'Vocabulary libraries aligned: %d imported, %d already present',
-                    $result['imported'],
-                    $result['skipped']
-                ),
+                'message' => __('app_qy_v1.messages.init_vocabulary_libraries_aligned', [
+                    'imported' => $result['imported'],
+                    'skipped' => $result['skipped'],
+                ]),
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'error',
-                'message' => 'Data seeding failed: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.init_data_seeding_failed', ['error' => $e->getMessage()]),
             ];
         }
     }
@@ -583,7 +581,7 @@ class AppQyV1Initializer implements AppInitializerInterface
         } catch (\Exception $e) {
             return [
                 'status' => 'warning',
-                'message' => 'Book seeding failed: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.init_book_seeding_failed', ['error' => $e->getMessage()]),
             ];
         }
     }
@@ -599,13 +597,13 @@ class AppQyV1Initializer implements AppInitializerInterface
             $result = \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1AiPromptDefaults::seed();
             return [
                 'status' => 'success',
-                'message' => sprintf('Seeded %d AI prompt default(s)', $result['seeded']),
+                'message' => __('app_qy_v1.messages.init_ai_prompts_seeded', ['count' => $result['seeded']]),
                 'prompt_keys' => $result['prompt_keys'],
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'warning',
-                'message' => 'AI prompt seeding failed: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.init_ai_prompt_seeding_failed', ['error' => $e->getMessage()]),
             ];
         }
     }
@@ -637,13 +635,13 @@ class AppQyV1Initializer implements AppInitializerInterface
             
             return [
                 'success' => true,
-                'message' => 'Initialization status reset successfully',
+                'message' => __('app_qy_v1.messages.init_status_reset'),
                 'app' => $this->getAppName(),
             ];
         } catch (\Throwable $e) {
             return [
                 'success' => false,
-                'error' => 'Failed to reset status: ' . $e->getMessage(),
+                'error' => __('app_qy_v1.messages.init_status_reset_failed', ['error' => $e->getMessage()]),
             ];
         }
     }

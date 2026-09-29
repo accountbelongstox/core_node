@@ -1,4 +1,5 @@
 import serviceContract from '../../../../../config/service_contract.json';
+import { getMessage } from '@/utils/i18n';
 
 export interface ApiEndpoint {
   id: string;
@@ -7,7 +8,10 @@ export interface ApiEndpoint {
   port?: number;
   priority: number;
   isLocal: boolean;
-  description: string;
+  /** _locales message key of a built-in endpoint's label. */
+  labelKey?: string;
+  /** Stored label of a user-added endpoint. */
+  description?: string;
 }
 
 export const DEFAULT_API_ENDPOINT_ID = 'production' as const;
@@ -26,14 +30,15 @@ const ENDPOINT_IDS: Record<string, string> = {
   tailnet_nuul: 'tailnet-nuul',
   tailnet_api: 'tailnet-api',
 };
-const ENDPOINT_DESCRIPTIONS: Record<string, string> = {
-  localhost: 'Local Development Server',
-  loopback: 'Local Loopback Server',
-  lan_50_2: 'LAN Backup Server',
-  lan_50_3: 'LAN Primary Server',
-  cloud: 'Remote Laravel Main',
-  tailnet_nuul: 'Tailnet Nuul Server',
-  tailnet_api: 'Tailnet API Server',
+const PRODUCTION_ENDPOINT_LABEL_KEY = 'apiEndpointProduction';
+const ENDPOINT_LABEL_KEYS: Record<string, string> = {
+  localhost: 'apiEndpointLocalhost',
+  loopback: 'apiEndpointLoopback',
+  lan_50_2: 'apiEndpointLanBackup',
+  lan_50_3: 'apiEndpointLanPrimary',
+  cloud: 'apiEndpointRemoteLaravel',
+  tailnet_nuul: 'apiEndpointTailnetNuul',
+  tailnet_api: 'apiEndpointTailnetApi',
 };
 
 export const DEFAULT_API_HOST = [...LARAVEL_API_LABELS.map((label) => label === '{region}' ? DEFAULT_REGION : label), DEFAULT_ROOT_DOMAIN].join('.');
@@ -45,7 +50,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     protocol: 'https',
     priority: 1,
     isLocal: false,
-    description: 'Production Cloud Server',
+    labelKey: PRODUCTION_ENDPOINT_LABEL_KEY,
   },
   ...LARAVEL_API_HOST_KEYS.map((hostKey, index) => ({
     id: ENDPOINT_IDS[hostKey] || hostKey,
@@ -54,7 +59,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     port: LARAVEL_API_PORT,
     priority: index + 2,
     isLocal: LOCAL_HOST_KEYS.has(hostKey),
-    description: ENDPOINT_DESCRIPTIONS[hostKey] || hostKey,
+    labelKey: ENDPOINT_LABEL_KEYS[hostKey],
   })),
 ];
 
@@ -62,6 +67,12 @@ export function buildApiUrl(endpoint: ApiEndpoint, path: string = ''): string {
   const port = endpoint.port ? `:${endpoint.port}` : '';
   const basePath = path.startsWith('/') ? path : `/${path}`;
   return `${endpoint.protocol}://${endpoint.url}${port}${basePath}`;
+}
+
+/** Display label: the localized built-in label, a custom endpoint's stored label, or its host. */
+export function getEndpointLabel(endpoint: ApiEndpoint): string {
+  if (endpoint.labelKey) return getMessage(endpoint.labelKey);
+  return endpoint.description || endpoint.url;
 }
 
 export function getEndpointById(id: string): ApiEndpoint | undefined {

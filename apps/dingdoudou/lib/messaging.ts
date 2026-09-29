@@ -26,6 +26,7 @@ export type BgRequest =
       email?: string;
     }
   | { type: 'license.clear' }
+  | { type: 'license.deviceId' }
   | { type: 'backend.get' }
   // accounts
   | { type: 'accounts.list' }
@@ -80,6 +81,7 @@ export interface ResponseMap {
   'license.loginMember': LicenseState;
   'license.registerMember': LicenseState;
   'license.clear': null;
+  'license.deviceId': string;
   'backend.get': BackendConfig | null;
   'accounts.list': AccountsPayload;
   'accounts.captureActiveTab': CaptureResult;

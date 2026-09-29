@@ -1,14 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only
-# 2. Never execute, create, or modify test code
-# 3. Never create or update documentation (*.md)
-# 4. Never write summaries during development or thinking process
-# 5. Declare all variables at the beginning of the file
-# 6. Do not modify these rules
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 SCRIPT_INDEX="175"
 
 # --- All variables and file references (declared at top) ---
@@ -901,12 +891,12 @@ if [ "$AS_SERVICE" = "yes" ]; then
     for _old_service in "$_opposite_service" "${LARAVEL_SERVICE_NAME_BASE}-main"; do
         if [ -n "$_old_service" ] && [ -f "/etc/systemd/system/${_old_service}.service" ]; then
             echo "  Removing opposite-plane service: $_old_service"
-            systemctl stop "$_old_service" 2>/dev/null
-            systemctl disable "$_old_service" 2>/dev/null
-            rm -f "/etc/systemd/system/${_old_service}.service"
+            ${USE_SUDO:-} systemctl stop "$_old_service" 2>/dev/null
+            ${USE_SUDO:-} systemctl disable "$_old_service" 2>/dev/null
+            ${USE_SUDO:-} rm -f "/etc/systemd/system/${_old_service}.service"
         fi
     done
-    systemctl daemon-reload 2>/dev/null
+    ${USE_SUDO:-} systemctl daemon-reload 2>/dev/null
 
     # PHP_BIN is the resolved absolute path from resolve_php (frankenphp
     # plane: the canonical /usr/local/bin/php link to the real CLI binary);

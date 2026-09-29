@@ -6,7 +6,7 @@
 import { notebookLmTool } from './tools/browser/notebooklm';
 import { logger } from '@/utils/logger';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'NotebookLM Listener';
@@ -14,7 +14,7 @@ const LOG = 'NotebookLM Listener';
 export function initNotebookLMListener() {
   registerRuntimeMessageHandler(FEATURE_MESSAGE_TYPES.NOTEBOOK_LM, async (message: any) => {
     if (message.action !== 'ask') {
-      return { success: false, error: `Unknown action: ${message.action}` };
+      return unknownActionResponse(message.action);
     }
     const result = await notebookLmTool.execute({
       question: message.question || '',

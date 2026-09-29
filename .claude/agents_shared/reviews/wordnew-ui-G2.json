@@ -1,0 +1,31 @@
+{
+  "task_id": "wordnew-ui-G2",
+  "role": "wordnew-ui",
+  "reviewer": "wordnew-lead",
+  "verdict": "approved",
+  "base": "74e7770",
+  "round": 1,
+  "scope_note": "Approval covers a correct block-and-stop, as the item itself orders when its gate is not met at the end of G1. It does not deliver MCHR-31-wn-presenter: the item stays open and is re-dispatched to wordnew-ui once pycore-lead approves pycore-ui MCHR-31. Decision (recommended option): approved instead of changes_requested, because the member's output is compliant and there is nothing for a round 2 to fix while the gate is closed.",
+  "findings": {
+    "MCHR-31-wn-presenter": {
+      "status": "blocked_confirmed",
+      "detail": "Gate refutation attempt failed; the member's block holds. (1) reviews/ has no pycore-ui* verdict (newest files at 20:15 are wordnew-ui-G1, shell-linux-3, pycore-ai-D7P2). reports/ has no pycore-ui report. (2) shared/library-cover/ holds only LibraryCoverTaskModel.ts (mtime 17:31, clean against HEAD). Its exports are LIBRARY_COVER_STATUS (:22), LIBRARY_COVER_WAITING_STATUSES (:31), LibraryCoverPhase/Entry/Row/TaskState/TaskTransport/View types, versionedCoverUrl (:107), libraryCoverView (:129), LibraryCoverTaskModel (:163), useLibraryCoverTasks (:387), useLibraryCoverEntry (:392). None returns a kind (active/failed/waiting/none). A grep for CoverPresent|coverBadgeKind|LibraryCoverKind over the whole UI tree finds nothing, and a case-insensitive grep for present|coverBadge under shared/ finds only the comment at shared/notify/notify.tsx:194, as the member reported. (3) reports/pycore-lead.md:48 and reviews/ui-pycore-manager-D7.json:34 are the only MCHR-31 records from pycore-lead, and both say it is only started, with no presenter and no adoption. (4) No presenter logic was copied into wordnew: WfNewAdminLibraries.tsx mtime is 20:09:49, before the G1 verdict (20:15:50). Its diff against HEAD is still +2/-2 (the approved MCHR-31-wn-set), and coverBadge :194-214 keeps the G1 state (active, then failed at :203, then waiting through LIBRARY_COVER_WAITING_STATUSES.has at :210). find -newer reviews/wordnew-ui-G1.json over apps/wordnew, flavors/wordnew and shared/ returns no file."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "MCHR-31-wn-presenter stays open (next owner: pycore-ui MCHR-31, then pycore-lead's verdict, then wordnew-ui re-run). Carry-over from the G1 verdict: when the presenter lands, the literal 'failed' at WfNewAdminLibraries.tsx:203 goes away with the local precedence. The mapping must keep admin.lib.cover.{queued,processing,processingBy,handler.*,failed,pending} and the failed title taskError || errorMessage.",
+    "Cross-scope request to relay to pycore-lead / the orchestrator: pycore-ui MCHR-31 should add the presenter to shared/library-cover. The member's suggested shape, libraryCoverPresentation(view: LibraryCoverView) returning { kind: 'active' | 'failed' | 'waiting' | 'none', phase, handler, title }, fits wordnew's needs (tones and keys only). The final shape is pycore-ui's choice, since it also serves the laravel-manager VocabLibrariesTab adoption (MCHR-31-lm)."
+  ],
+  "checks": [
+    "ls reviews/ sorted by mtime: no pycore-ui* verdict. ls reports/: no pycore-ui report.",
+    "ls shared/library-cover/: LibraryCoverTaskModel.ts only. git status is clean for it. grep ^export lists no presenter.",
+    "Grep CoverPresent|coverBadgeKind|libraryCoverKind|LibraryCoverKind over poly_apps/pycore_laravel_wordnew_ui: 0 hits. Grep -i present|coverBadge under shared/: one hit, notify.tsx:194 '// Presentation'.",
+    "grep MCHR-31 in reports/pycore-lead.md and reviews/*.json: only 'only started' records (pycore-lead.md:48, ui-pycore-manager-D7.json:34) and the wordnew re-plan note (ui-wordnew-D7.json:18).",
+    "WfNewAdminLibraries.tsx: mtime 20:09:49 < G1 verdict 20:15:50. git diff --stat HEAD is +2/-2 and against 74e7770 +5/-6, both identical to the G1-approved state. coverBadge :194-214 read and unchanged.",
+    "find -newer reviews/wordnew-ui-G1.json over apps/wordnew, flavors/wordnew and shared/: empty. git status for the wordnew-ui scope shows only the two G1 files (WfNewAdminLibraries.tsx, WordNewRecitationCenter.ts).",
+    "The member's only write is its own report section reports/wordnew-ui.md:72-90 (LF, no CR bytes, consistent with the rest of the file).",
+    "tsc not re-run: no code changed after the G1 verdict, whose tsc run exited 0 with 0 errors. No git writes, no Laravel changes, no tests touched, no locale changes."
+  ],
+  "checked_at": "2026-09-27T20:18:00+10:00"
+}

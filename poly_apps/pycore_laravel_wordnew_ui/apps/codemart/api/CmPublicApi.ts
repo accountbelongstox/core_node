@@ -4,14 +4,13 @@ import {
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
 import { cmHandleUnauthorized } from '../auth/cmAuthSession';
+import { CM_ACCOUNT_ROUTE } from '../auth/CmAuthApi';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import type { CmEstimateInput, CmEstimateResult, CmPublicHomeData, CmPublicTestimonialData } from './CmApiTypes';
 
 const PUBLIC_HOME_CACHE_TTL_MS = 60_000;
 const ESTIMATE_OPTIONS_CACHE_TTL_MS = 300_000;
 const SHOWCASE_CACHE_TTL_MS = 30_000;
-const FORGOT_PASSWORD_PATH = 'api/forgot-password';
-const RESET_PASSWORD_PATH = 'api/reset-password';
 const CM_PUBLIC_LOCALES = ['en', 'zh'] as const;
 
 export type CmPublicLocale = typeof CM_PUBLIC_LOCALES[number];
@@ -295,11 +294,11 @@ export class CmPublicApi extends BaseAPI {
   }
 
   async requestPasswordReset(email: string): Promise<APIResponse<{ status?: string }>> {
-    return this.request<{ status?: string }>({ url: FORGOT_PASSWORD_PATH, method: 'POST', data: { email }, root: true });
+    return this.request<{ status?: string }>({ url: CM_ACCOUNT_ROUTE.forgotPassword, method: 'POST', data: { email }, root: true });
   }
 
   async resetPassword(payload: CmPasswordResetPayload): Promise<APIResponse<{ status?: string }>> {
-    return this.request<{ status?: string }>({ url: RESET_PASSWORD_PATH, method: 'POST', data: payload, root: true });
+    return this.request<{ status?: string }>({ url: CM_ACCOUNT_ROUTE.resetPassword, method: 'POST', data: payload, root: true });
   }
 }
 

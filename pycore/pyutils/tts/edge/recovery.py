@@ -6,27 +6,31 @@ When edge-tts enters cooldown (recent synthesis failure), other engines keep
 producing audio on their own threads. In PARALLEL, one daemon probe thread
 re-tests edge with a minimal synthesis every few seconds; the first success
 clears the cooldown immediately so the next synthesis request resumes the edge
-priority instead of waiting out the full cooldown window.
+priority instead of waiting out the full cooldown window. The pause between
+probes is a THREAD_BUS wait bounded by the remaining cooldown, so the probe
+ends with the cooldown and never outlives it.
 """
 
 import tempfile
 import threading
-import time
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.serialized_worker import SerializedValue
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.tts.edge.client import edge_tts_client
 from pycore.pyutils.tts.edge.config import TTSConfig
 from pycore.pyutils.tts.engine_policy import (
     clear_edge_cooldown,
+    edge_cooldown_remaining,
     edge_in_cooldown,
     tts_locale,
 )
 
 _PROBE_INTERVAL_SECONDS = 15.0
-_PROBE_LOCK = threading.Lock()
-_PROBE_RUNNING = False
+_PROBE_PAUSE_SIGNAL = "pyutils.tts.edge.recovery_probe.pause"
+_PROBE_RUNNING = SerializedValue(False, "EdgeRecoveryProbeStateThread")
 
 
 def _probe_edge_once() -> bool:
@@ -52,36 +56,36 @@ def _probe_edge_once() -> bool:
                 pass
 
 
-def _probe_loop() -> None:
-    global _PROBE_RUNNING
-    try:
-        while edge_in_cooldown():
-            time.sleep(_PROBE_INTERVAL_SECONDS)
-            if not edge_in_cooldown():
-                break
-            if _probe_edge_once():
-                clear_edge_cooldown()
-                ColorPrint.green(
-                    "[tts] edge-tts recovered (probe); resuming edge priority"
+class EdgeRecoveryProbeThread(threading.Thread):
+    """Probes edge while its cooldown lasts; one instance at a time."""
+
+    def __init__(self) -> None:
+        super().__init__(name="EdgeRecoveryProbeThread", daemon=True)
+
+    def run(self) -> None:
+        try:
+            while edge_in_cooldown() and not THREAD_BUS.is_shutdown_requested():
+                THREAD_BUS.wait_signal(
+                    _PROBE_PAUSE_SIGNAL,
+                    timeout=min(_PROBE_INTERVAL_SECONDS, edge_cooldown_remaining()),
                 )
-                break
-    finally:
-        with _PROBE_LOCK:
-            _PROBE_RUNNING = False
+                if not edge_in_cooldown():
+                    break
+                if _probe_edge_once():
+                    clear_edge_cooldown()
+                    ColorPrint.green(
+                        "[tts] edge-tts recovered (probe); resuming edge priority"
+                    )
+                    break
+        finally:
+            _PROBE_RUNNING.set(False)
 
 
 def start_edge_recovery_probe() -> None:
     """Start the background edge availability probe (idempotent)."""
-    global _PROBE_RUNNING
-    with _PROBE_LOCK:
-        if _PROBE_RUNNING:
-            return
-        _PROBE_RUNNING = True
-    threading.Thread(
-        target=_probe_loop,
-        name="edge-tts-recovery-probe",
-        daemon=True,
-    ).start()
+    if not _PROBE_RUNNING.compare_and_set(False, True):
+        return
+    EdgeRecoveryProbeThread().start()
 
 
 __all__ = ["start_edge_recovery_probe"]

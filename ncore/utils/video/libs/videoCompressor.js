@@ -1,18 +1,6 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const path = require('path');
 const fs = require('fs');
-const { spawnAsync, execCmd } = require('#@commander');
+const { spawnAsync, runCommand } = require('#@commander');
 const ffmpegSetup = require('./ffmpegSetupBywin');
 const logger = require('#@logger');
 const { normalizePath } = require('./video-file-operations');
@@ -35,16 +23,12 @@ class VideoCompressor {
      * @private
      */
     static async _getFFmpegPath() {
-        try {
-            const ffmpegPath = await ffmpegSetup.getFFmpegPath();
-            if (!ffmpegPath) {
-                throw new Error('FFmpeg not found or not installed');
-            }
-            return ffmpegPath;
-        } catch (error) {
-            logger.error('Failed to get FFmpeg path:', error);
-            throw error;
+        const ffmpegPath = await ffmpegSetup.getFFmpegPath();
+        if (!ffmpegPath) {
+            logger.error('FFmpeg not found or not installed');
+            return null;
         }
+        return ffmpegPath;
     }
 
     /**
@@ -54,15 +38,14 @@ class VideoCompressor {
      */
     static async getVideoInfo(filePath) {
         const ffmpegPath = await VideoCompressor._getFFmpegPath();
-        const args = [ffmpegPath, '-i', filePath, '-hide_banner'];
-        
-        try {
-            const result = await execCmd(args, true);
-            return this._parseVideoInfo(result);
-        } catch (error) {
-            // FFmpeg outputs info to stderr, so we need to parse the error output
-            return this._parseVideoInfo(error.message || error.toString());
+        if (!ffmpegPath) {
+            return this._parseVideoInfo('');
         }
+        const args = [ffmpegPath, '-hide_banner', '-i', filePath];
+
+        // Without an output file ffmpeg exits non-zero and prints the stream info to stderr
+        const result = runCommand(args, { info: true });
+        return this._parseVideoInfo(`${result.stdout}\n${result.stderr}`);
     }
 
     /**
@@ -111,6 +94,9 @@ class VideoCompressor {
      */
     static async compressVideo(inputPath, outputPath) {
         const ffmpegPath = await VideoCompressor._getFFmpegPath();
+        if (!ffmpegPath) {
+            return false;
+        }
         const normalizedInput = normalizePath(inputPath);
         const normalizedOutput = normalizePath(outputPath);
         
@@ -129,25 +115,25 @@ class VideoCompressor {
 
         logger.info(`Executing FFmpeg command with args:`, commandArray.join(' '));
 
-        return new Promise((resolve, reject) => {
-            spawnAsync(
-                commandArray,           // Command array
-                true,                   // Show info logsdata.includes
-                null,                   // Working directory (use default)
-                null,
-                500000,
-                (data) => {            // Progress callback
-                    if (data.includes('frame=')) {
-                        logger.info(`  - Compression progress: ${data.trim()}`);
-                    }
-                },
-                300000                 // Timeout: 5 minutes
-            ).then(() => {
-                resolve();
-            }).catch((error) => {
-                reject(new Error(`FFmpeg compression failed: ${error.message || error}`));
-            });
-        });
+        // ffmpeg writes progress to stderr; spawnAsync passes each stdout/stderr chunk to the progress callback
+        const result = await spawnAsync(
+            commandArray,
+            false,
+            null,
+            null,
+            undefined,
+            (data) => {
+                if (data.includes('frame=')) {
+                    logger.info(`  - Compression progress: ${data.trim()}`);
+                }
+            }
+        );
+
+        if (!result.success) {
+            logger.error(`FFmpeg compression failed (exit ${result.code}): ${String(result.error || '').trim()}`);
+            return false;
+        }
+        return true;
     }
 }
 

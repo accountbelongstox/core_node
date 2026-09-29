@@ -59,13 +59,13 @@ const MediaHub: React.FC<{ lang?: Language; onRequireLogin?: () => void }> = ({ 
     return (
       <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-slate-400 gap-3 p-6 text-center">
         <Lock size={36} className="text-amber-400" />
-        <p className="text-sm font-medium">{t('mediaHub.loginRequired', { defaultValue: 'Login required to access Media Hub.' })}</p>
+        <p className="text-sm font-medium">{t('mediaHub.loginRequired')}</p>
         <button
           type="button"
           onClick={() => { if (onRequireLogin) onRequireLogin(); }}
           className="mt-1 flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition-colors font-medium"
         >
-          <Lock size={14} /> {t('common.login', { defaultValue: 'Login' })}
+          <Lock size={14} /> {t('common.login')}
         </button>
       </div>
     );

@@ -27,13 +27,34 @@ GMEM_MOVEABLE = 0x0002
 CF_UNICODETEXT = 13
 IS_WINDOWS = sys.platform.startswith("win")
 IS_LINUX = sys.platform.startswith("linux")
+POWERSHELL_UTF8_INPUT = "[Console]::InputEncoding = [Text.UTF8Encoding]::new($false); "
+POWERSHELL_UTF8_OUTPUT = "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); "
+# Private DLL handles with explicit 64-bit-safe prototypes (HGLOBAL/HANDLE are
+# pointers; the ctypes default int restype truncates them on 64-bit Windows).
+KERNEL32 = ctypes.WinDLL("kernel32", use_last_error=True) if IS_WINDOWS else None
+USER32 = ctypes.WinDLL("user32", use_last_error=True) if IS_WINDOWS else None
+WINAPI_PROTOTYPES = (
+    (KERNEL32, "GlobalAlloc", [ctypes.c_uint, ctypes.c_size_t], ctypes.c_void_p),
+    (KERNEL32, "GlobalLock", [ctypes.c_void_p], ctypes.c_void_p),
+    (KERNEL32, "GlobalUnlock", [ctypes.c_void_p], ctypes.c_int),
+    (KERNEL32, "GlobalFree", [ctypes.c_void_p], ctypes.c_void_p),
+    (USER32, "OpenClipboard", [ctypes.c_void_p], ctypes.c_int),
+    (USER32, "EmptyClipboard", [], ctypes.c_int),
+    (USER32, "SetClipboardData", [ctypes.c_uint, ctypes.c_void_p], ctypes.c_void_p),
+    (USER32, "CloseClipboard", [], ctypes.c_int),
+)
+
+if IS_WINDOWS:
+    for _library, _name, _argtypes, _restype in WINAPI_PROTOTYPES:
+        getattr(_library, _name).argtypes = _argtypes
+        getattr(_library, _name).restype = _restype
 
 
 def _set_with_winapi(text: str, _selection: str) -> bool:
     if not IS_WINDOWS:
         return False
-    kernel32 = ctypes.windll.kernel32
-    user32 = ctypes.windll.user32
+    kernel32 = KERNEL32
+    user32 = USER32
     buffer = ctypes.create_unicode_buffer(text)
     size = ctypes.sizeof(buffer)
     handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, size)
@@ -48,7 +69,10 @@ def _set_with_winapi(text: str, _selection: str) -> bool:
     if not user32.OpenClipboard(None):
         kernel32.GlobalFree(handle)
         return False
-    user32.EmptyClipboard()
+    if not user32.EmptyClipboard():
+        user32.CloseClipboard()
+        kernel32.GlobalFree(handle)
+        return False
     if not user32.SetClipboardData(CF_UNICODETEXT, handle):
         user32.CloseClipboard()
         kernel32.GlobalFree(handle)
@@ -60,7 +84,7 @@ def _set_with_winapi(text: str, _selection: str) -> bool:
 def _set_with_powershell(text: str, _selection: str) -> bool:
     if not IS_WINDOWS:
         return False
-    script = "Set-Clipboard -Value ([Console]::In.ReadToEnd())"
+    script = POWERSHELL_UTF8_INPUT + "Set-Clipboard -Value ([Console]::In.ReadToEnd())"
     return run_args(
         ["powershell", "-NoProfile", "-Command", script],
         input_text=text,
@@ -72,7 +96,7 @@ def _get_with_powershell(_selection: str) -> Optional[str]:
     if not IS_WINDOWS:
         return None
     result = run_args(
-        ["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
+        ["powershell", "-NoProfile", "-Command", POWERSHELL_UTF8_OUTPUT + "Get-Clipboard -Raw"],
         timeout=CLIPBOARD_COMMAND_TIMEOUT_SECONDS,
     )
     return result.stdout if result.success else None

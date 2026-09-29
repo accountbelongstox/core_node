@@ -81,6 +81,13 @@ interface ServerManagerProps {
 
 type ServerTab = 'nginx' | 'frankenphp' | 'ssl' | 'system' | 'files' | 'media' | 'executor' | 'unified';
 
+const OCTANE_RESTART_SETTLE_MS = 3000;
+const OCTANE_RECONNECT_FIRST_PROBE_MS = 2000;
+const OCTANE_RECONNECT_INTERVAL_MS = 1000;
+const OCTANE_RECONNECT_MAX_WAIT_MS = 3 * 60 * 1000;
+const OCTANE_RELOAD_DELAY_MS = 1000;
+const OCTANE_ERROR_DISMISS_MS = 3000;
+
 const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }) => {
   const { setActiveView } = useUnifiedApp();
   const [activeTab, setActiveTab] = useState<ServerTab>(() => {
@@ -101,6 +108,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   }, [initialTab]);
   const [octaneRestarting, setOctaneRestarting] = useState(false);
   const [restartProgress, setRestartProgress] = useState('');
+  // The Octane reconnect loop lives only as long as this view: leaving it
+  // stops the probes and never reloads another view.
+  const octaneTimerRef = useRef<number | null>(null);
+  const disposedRef = useRef(false);
   const [servicesSummary, setServicesSummary] = useState<any>(null);
 
   // Nginx Sites State
@@ -242,7 +253,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   });
 
   const t = TRANSLATIONS[lang].server;
-  const messages = t.messages || {};
+  const messages = t.messages;
+  const serviceSummary = (service: any): string => messages.service_summary
+    .replace('{pid}', String(service.pid || messages.not_available))
+    .replace('{memory}', String(service.memory || messages.not_available))
+    .replace('{uptime}', String(service.uptime || messages.not_available));
   const toast = useToast();
   const { copy } = useClipboard();
   const nginxNotInstalled = nginxStatus.data ? !nginxStatus.data.installed : false;
@@ -254,35 +269,44 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     }
   }, [nginxLogs.data]);
 
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
+      if (octaneTimerRef.current !== null) window.clearTimeout(octaneTimerRef.current);
+    };
+  }, []);
+
+  const scheduleOctaneStep = (step: () => void, delayMs: number) => {
+    if (disposedRef.current) return;
+    octaneTimerRef.current = window.setTimeout(step, delayMs);
+  };
+
   // Restart Octane with progress and auto-reconnect
   const handleRestartOctane = async () => {
-    if (!confirm('Restart Octane server? This will reload all code changes.')) return;
+    const octane = t.octane;
+    if (!confirm(octane.confirm_restart)) return;
 
     setOctaneRestarting(true);
-    setRestartProgress('Initiating restart...');
+    setRestartProgress(octane.initiating);
 
     try {
       // Step 1: Trigger restart
-      setRestartProgress('Sending restart command...');
+      setRestartProgress(octane.sending);
       const response = await api.serverManager.restartCurrent();
       if (!response.success && !response.isNetworkError && !response.isTimeout) {
-        throw new Error(response.error || response.message || 'Restart failed');
+        throw new Error(response.error || response.message || octane.restart_failed);
       }
-      setRestartProgress('Server is restarting...');
+      setRestartProgress(octane.restarting_server);
     } catch (error: any) {
-      // Fetch error is expected when server goes down
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        setRestartProgress('Server is restarting...');
-      } else {
-        setRestartProgress('Error: ' + error.message);
-        setTimeout(() => setOctaneRestarting(false), 3000);
-        return;
-      }
+      setRestartProgress(octane.error.replace('{error}', error?.message || octane.restart_failed));
+      scheduleOctaneStep(() => setOctaneRestarting(false), OCTANE_ERROR_DISMISS_MS);
+      return;
     }
+    if (disposedRef.current) return;
 
-    // Step 2: Wait and reconnect (no timeout, keep trying until success)
-    let attempts = 0;
-    const checkInterval = 1000; // Check every 1 second
+    // Step 2: Wait and reconnect, bounded by OCTANE_RECONNECT_MAX_WAIT_MS
+    const reconnectStartedAt = Date.now();
 
     const checkHealth = async (): Promise<boolean> => {
       try {
@@ -296,29 +320,31 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     };
 
     const reconnect = async () => {
-      attempts++;
-      const elapsed = Math.floor(attempts * checkInterval / 1000);
-      setRestartProgress(`Reconnecting... (${elapsed}s elapsed)`);
+      if (disposedRef.current) return;
+      const elapsedMs = Date.now() - reconnectStartedAt;
+      setRestartProgress(octane.reconnecting.replace('{seconds}', String(Math.floor(elapsedMs / 1000))));
 
       const isHealthy = await checkHealth();
+      if (disposedRef.current) return;
 
       if (isHealthy) {
-        setRestartProgress('Server is back online! Refreshing...');
-        setTimeout(() => {
+        setRestartProgress(octane.back_online);
+        scheduleOctaneStep(() => {
           setOctaneRestarting(false);
           window.location.reload();
-        }, 1000);
+        }, OCTANE_RELOAD_DELAY_MS);
+      } else if (elapsedMs >= OCTANE_RECONNECT_MAX_WAIT_MS) {
+        setOctaneRestarting(false);
+        toast.error(octane.reconnect_timeout.replace('{seconds}', String(Math.floor(OCTANE_RECONNECT_MAX_WAIT_MS / 1000))));
       } else {
-        // Keep trying indefinitely
-        setTimeout(reconnect, checkInterval);
+        scheduleOctaneStep(reconnect, OCTANE_RECONNECT_INTERVAL_MS);
       }
     };
 
-    // Wait 3 seconds before starting reconnection attempts
-    setTimeout(() => {
-      setRestartProgress('Waiting for server to start...');
-      setTimeout(reconnect, 2000);
-    }, 3000);
+    scheduleOctaneStep(() => {
+      setRestartProgress(octane.waiting);
+      scheduleOctaneStep(reconnect, OCTANE_RECONNECT_FIRST_PROBE_MS);
+    }, OCTANE_RESTART_SETTLE_MS);
   };
 
   // Load Nginx Sites
@@ -335,7 +361,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load nginx sites');
+        throw new Error(response.error || messages.failed_to_load_nginx_sites);
       }
     } catch (error: any) {
       setNginxSites({
@@ -360,7 +386,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load nginx status');
+        throw new Error(response.error || messages.failed_to_load_nginx_status);
       }
     } catch (error: any) {
       setNginxStatus({
@@ -415,7 +441,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load nginx metrics');
+        throw new Error(response.error || messages.failed_to_load_nginx_metrics);
       }
     } catch (error: any) {
       setNginxMetrics({ data: null, loading: false, error: error.message, status: 'error' });
@@ -430,15 +456,17 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
       const response = await api.serverManagerV1.nginxService(action);
       const result = response.data as NginxServiceResult | undefined;
       if (response.success && result && result.success) {
-        toast.success(`Nginx ${action} — OK${result.executed_via ? ` (${result.executed_via})` : ''}`);
+        toast.success(result.executed_via
+          ? messages.nginx_action_ok_via.replace('{action}', action).replace('{via}', result.executed_via)
+          : messages.nginx_action_ok.replace('{action}', action));
         logSuccess('nginx', `Nginx ${action} succeeded${result.executed_via ? ` via ${result.executed_via}` : ''}`);
       } else {
-        const msg = result?.error || result?.output || response.error || messages.operation_failed || 'Operation failed';
-        toast.error(`Nginx ${action} failed — ${msg}`);
+        const msg = result?.error || result?.output || response.error || messages.operation_failed;
+        toast.error(messages.nginx_action_failed.replace('{action}', action).replace('{error}', msg));
         logError('nginx', `Nginx ${action} failed — ${msg}`);
       }
     } catch (error: any) {
-      toast.error(`Nginx ${action} failed — ${error.message}`);
+      toast.error(messages.nginx_action_failed.replace('{action}', action).replace('{error}', error.message));
       logError('nginx', `Nginx ${action} failed — ${error.message}`);
     } finally {
       setServiceBusy(null);
@@ -489,7 +517,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           logSuccess('nginx', `Nginx installed${result.version ? ` — ${result.version}` : ''}${tail ? `\n${tail}` : ''}`);
         }
       } else {
-        const msg = response.error || messages.operation_failed || 'Operation failed';
+        const msg = response.error || messages.operation_failed;
         toast.error(`${t.nginx.install_failed} — ${msg}`);
         logError('nginx', `${t.nginx.install_failed} — ${msg}${result?.exit_code !== undefined ? ` (exit ${result.exit_code})` : ''}${tail ? `\n${tail}` : ''}`);
       }
@@ -518,7 +546,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load nginx backups');
+        throw new Error(response.error || messages.failed_to_load_nginx_backups);
       }
     } catch (error: any) {
       setNginxBackups({ data: [], loading: false, error: error.message, status: 'error' });
@@ -547,7 +575,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
             loadNginxStatus();
             loadNginxBackups();
           } else {
-            throw new Error(response.error || messages.operation_failed || 'Operation failed');
+            throw new Error(response.error || messages.operation_failed);
           }
         } catch (error: any) {
           toast.error(`${t.nginx.backup_restore} — ${error.message}`);
@@ -572,7 +600,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
             status: 'success'
           });
         } else {
-          throw new Error(response.error || 'Failed to load nginx main config');
+          throw new Error(response.error || messages.failed_to_load_nginx_main_config);
         }
       })
       .catch((error: any) => {
@@ -614,10 +642,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         await loadNginxSites();
         loadNginxStatus();
       } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+        throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
-      toast.error(`Batch ${action} — ${error.message}`);
+      toast.error(messages.batch_failed.replace('{action}', action).replace('{error}', error.message));
       logError('nginx', `Batch ${action} failed — ${error.message}`);
     } finally {
       setBatchBusy(null);
@@ -651,7 +679,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load nginx logs');
+        throw new Error(response.error || messages.failed_to_load_nginx_logs);
       }
     } catch (error: any) {
       setNginxLogs({
@@ -682,7 +710,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load SSL certificates');
+        throw new Error(response.error || messages.failed_to_load_ssl_certificates);
       }
     } catch (error: any) {
       setSSLCertificates({
@@ -707,7 +735,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load system info');
+        throw new Error(response.error || messages.failed_to_load_system_info);
       }
     } catch (error: any) {
       setSystemInfo({
@@ -789,7 +817,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           }));
         }
       } else {
-        throw new Error(response.error || 'Failed to load static resources');
+        throw new Error(response.error || messages.failed_to_load_static_resources);
       }
     } catch (error: any) {
       setStaticResources({
@@ -838,7 +866,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
                   status: service.status || (service.active ? 'running' : 'stopped'),
                   active: service.active || false,
                   enabled: service.enabled || false,
-                  status_output: service.status_output || `PID: ${service.pid || 'N/A'}, Memory: ${service.memory || 'N/A'}, Uptime: ${service.uptime || 'N/A'}`
+                  status_output: service.status_output || serviceSummary(service)
                 });
               }
             });
@@ -853,7 +881,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
                   status: service.status || (service.active ? 'running' : 'stopped'),
                   active: service.active || false,
                   enabled: service.enabled || false,
-                  status_output: service.status_output || `PID: ${service.pid || 'N/A'}, Memory: ${service.memory || 'N/A'}, Uptime: ${service.uptime || 'N/A'}`
+                  status_output: service.status_output || serviceSummary(service)
                 });
               }
             });
@@ -957,7 +985,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to load DNS provider status');
+        throw new Error(response.error || messages.failed_to_load_dns_provider);
       }
     } catch (error: any) {
       setDnsProvider({
@@ -992,7 +1020,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     try {
       const response = await api.serverManagerV1.ensureCertificate({ domain });
       if (!response.success) {
-        throw new Error(response.error || 'ensure failed');
+        throw new Error(response.error || messages.cert_ensure_failed);
       }
       await api.serverManagerV1.waitForFrankenPhpReload(response);
       await loadSSLCertificates();
@@ -1016,7 +1044,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || 'Failed to detect certbot');
+        throw new Error(response.error || messages.failed_to_detect_certbot);
       }
     } catch (error: any) {
       setCertbotStatus({
@@ -1071,7 +1099,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
                 const hasError = lines.some((l: string) => l.toLowerCase().includes('error') || l.toLowerCase().includes('fail'));
                 if (hasError) {
                   next.status = 'failed';
-                  next.error = lines[lines.length - 1] || 'Certificate operation had errors';
+                  next.error = lines[lines.length - 1] || messages.cert_operation_errors;
                 }
               }
               return next;
@@ -1097,10 +1125,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         loadSSLCertificates();
         setShowGenerateCert(false);
       } else {
-        setCertProgress(p => p ? { ...p, status: 'failed', error: res.error || 'Failed to start certificate operation' } : null);
+        setCertProgress(p => p ? { ...p, status: 'failed', error: res.error || messages.cert_start_failed } : null);
       }
     } catch (error: any) {
-      setCertProgress(p => p ? { ...p, status: 'failed', error: error.message || 'Failed to start certificate operation' } : null);
+      setCertProgress(p => p ? { ...p, status: 'failed', error: error.message || messages.cert_start_failed } : null);
     }
   };
 
@@ -1109,28 +1137,28 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   };
 
   const handleRenewAllCertificates = async () => {
-    if (!confirm(messages.confirm_renew_certs || 'Are you sure you want to renew all certificates?')) return;
+    if (!confirm(messages.confirm_renew_certs)) return;
     try {
       const response = await api.serverManagerV1.renewCertificates();
       if (response.success) {
-        alert(response.data?.message || messages.cert_renewal_started || 'Certificate renewal started');
+        alert(response.data?.message || messages.cert_renewal_started);
         await loadSSLCertificates();
       }
     } catch (error: any) {
-      alert(error.message || messages.failed_to_renew_certs || 'Failed to renew certificates');
+      alert(error.message || messages.failed_to_renew_certs);
     }
   };
 
   const handleInstallCertbot = async () => {
-    if (!confirm(messages.confirm_install_certbot || 'Are you sure you want to install Certbot?')) return;
+    if (!confirm(messages.confirm_install_certbot)) return;
     try {
       const response = await api.serverManagerV1.installCertbot();
       if (response.success) {
-        alert(response.data?.message || messages.certbot_installation_started || 'Certbot installation started');
+        alert(response.data?.message || messages.certbot_installation_started);
         await loadCertbotStatus();
       }
     } catch (error: any) {
-      alert(error.message || messages.failed_to_install_certbot || 'Failed to install Certbot');
+      alert(error.message || messages.failed_to_install_certbot);
     }
   };
 
@@ -1145,10 +1173,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         await loadNginxSites();
         loadNginxStatus();
       } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+        throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
-      toast.error(`Enable failed — ${error.message}`);
+      toast.error(messages.enable_failed.replace('{error}', error.message));
       logError('nginx', `Enable site ${siteName} failed — ${error.message}`);
     }
   };
@@ -1163,10 +1191,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         await loadNginxSites();
         loadNginxStatus();
       } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+        throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
-      toast.error(`Disable failed — ${error.message}`);
+      toast.error(messages.disable_failed.replace('{error}', error.message));
       logError('nginx', `Disable site ${siteName} failed — ${error.message}`);
     }
   };
@@ -1186,7 +1214,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           status: 'success'
         });
       } else {
-        throw new Error(response.error || messages.failed_to_load || 'Failed to load');
+        throw new Error(response.error || messages.failed_to_load);
       }
     } catch (error: any) {
       setSiteConfig({
@@ -1219,7 +1247,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
         await loadNginxSites();
         loadNginxStatus();
       } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+        throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
       toast.error(`${t.nginx.config_save_failed} — ${error.message}`);
@@ -1243,15 +1271,15 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
       if (response.success) {
         await loadNginxSites();
         loadNginxStatus();
-        toast.success(response.data?.message || (editingSite ? 'Site updated successfully' : 'Site created successfully'));
+        toast.success(response.data?.message || (editingSite ? messages.site_updated : messages.site_created));
         logSuccess('nginx', `Site ${siteName} ${editingSite ? 'updated' : 'created'}`);
         setShowCreateSite(false);
         setEditingSite(null);
       } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+        throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
-      toast.error(`Save failed — ${error.message}`);
+      toast.error(messages.save_failed.replace('{error}', error.message));
       logError('nginx', `Save site ${siteName} failed — ${error.message}`);
       throw error;
     }
@@ -1263,7 +1291,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   };
 
   const handleDeleteSite = (siteName: string) => {
-    const confirmMsg = (messages.confirm_delete_site || 'Are you sure you want to delete site: {site}?').replace('{site}', siteName);
+    const confirmMsg = messages.confirm_delete_site.replace('{site}', siteName);
     requestConfirm({
       title: t.nginx.delete,
       message: confirmMsg,
@@ -1276,13 +1304,13 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           if (response.success) {
             await loadNginxSites();
             loadNginxStatus();
-            toast.success(response.data?.message || messages.site_deleted || 'Site deleted successfully');
+            toast.success(response.data?.message || messages.site_deleted);
             logSuccess('nginx', `Site ${siteName} deleted`);
           } else {
-            throw new Error(response.error || messages.operation_failed || 'Operation failed');
+            throw new Error(response.error || messages.operation_failed);
           }
         } catch (error: any) {
-          toast.error(`${messages.operation_failed || 'Operation failed'} — ${error.message}`);
+          toast.error(messages.operation_failed_detail.replace('{error}', error.message));
           logError('nginx', `Delete site ${siteName} failed — ${error.message}`);
         }
       }
@@ -1298,11 +1326,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
   const confirmDeleteFiles = async () => {
     if (!deleteFilesSite) return;
     if (deleteFilesConfirm !== 'delete') {
-      toast.error('Type "delete" to confirm');
+      toast.error(messages.type_delete_to_confirm);
       return;
     }
     if (!deleteFilesPassword) {
-      toast.error('Root password is required');
+      toast.error(messages.root_password_required);
       return;
     }
     const siteName = deleteFilesSite;
@@ -1315,16 +1343,16 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
       if (response.success) {
         await loadNginxSites();
         loadNginxStatus();
-        toast.success(response.data?.message || 'Site files deleted successfully');
+        toast.success(response.data?.message || messages.site_files_deleted);
         logSuccess('nginx', `Site files ${siteName} purged`);
         setDeleteFilesSite(null);
         setDeleteFilesPassword('');
         setDeleteFilesConfirm('');
       } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+        throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
-      toast.error(`${messages.operation_failed || 'Operation failed'} - ${error.message}`);
+      toast.error(messages.operation_failed_detail.replace('{error}', error.message));
       logError('nginx', `Purge site files ${siteName} failed - ${error.message}`);
     }
   };
@@ -1336,19 +1364,20 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
       if (response.success) {
         const r = response.data || {};
         const quarantined = Array.isArray(r.quarantined) ? r.quarantined.length : 0;
+        const repaired = r.reloaded ? messages.config_repaired_reloaded : messages.config_repaired;
         toast.success(
           r.valid
-            ? `Nginx config repaired${r.reloaded ? ' & reloaded' : ''}${quarantined ? ` (${quarantined} site(s) quarantined)` : ''}`
-            : 'Config still invalid after repair'
+            ? (quarantined ? `${repaired} (${messages.config_quarantined.replace('{count}', String(quarantined))})` : repaired)
+            : messages.config_still_invalid
         );
         await loadNginxSites();
         loadNginxStatus();
         logSuccess('nginx', 'Nginx config repaired');
       } else {
-        throw new Error(response.error || messages.operation_failed || 'Operation failed');
+        throw new Error(response.error || messages.operation_failed);
       }
     } catch (error: any) {
-      toast.error(`${messages.operation_failed || 'Operation failed'} - ${error.message}`);
+      toast.error(messages.operation_failed_detail.replace('{error}', error.message));
       logError('nginx', `Repair config failed - ${error.message}`);
     }
   };
@@ -1372,7 +1401,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
     { id: 'ssl' as ServerTab, label: t.tabs.ssl, icon: Shield },
     { id: 'system' as ServerTab, label: t.tabs.system, icon: Server },
     { id: 'files' as ServerTab, label: t.tabs.files, icon: FileText },
-    { id: 'media' as ServerTab, label: t.tabs.media || (lang === 'zh' ? '媒体资源' : 'Media Hub'), icon: Clapperboard },
+    { id: 'media' as ServerTab, label: t.tabs.media, icon: Clapperboard },
     { id: 'executor' as ServerTab, label: t.tabs.executor, icon: Settings },
     { id: 'unified' as ServerTab, label: t.tabs.unified, icon: Settings },
   ];
@@ -1453,7 +1482,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
               className={`px-4 py-2 ${octaneRestarting ? 'bg-purple-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-white rounded-lg text-sm font-medium flex items-center gap-2`}
             >
               <Rocket className={`w-4 h-4 ${octaneRestarting ? 'animate-spin' : ''}`} />
-              {octaneRestarting ? 'Restarting...' : 'Restart Octane'}
+              {octaneRestarting ? t.octane.restarting_button : t.octane.restart_button}
             </button>
           )}
         </div>
@@ -1593,7 +1622,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 mb-2">
-                      Restarting Octane Server
+                      {t.octane.title}
                     </h3>
                     <p className="text-purple-700 dark:text-purple-300 font-medium mb-3">
                       {restartProgress}
@@ -1602,7 +1631,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
                       <div className="h-full bg-purple-600 dark:bg-purple-400 animate-pulse" style={{ width: '100%' }}></div>
                     </div>
                     <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
-                      Please wait while the server restarts. The page will automatically reload when ready.
+                      {t.octane.hint}
                     </p>
                   </div>
                 </div>
@@ -1621,7 +1650,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
               <h3 className="font-semibold flex items-center gap-2">
                 <Shield className={`w-5 h-5 ${certProgress.status === 'completed' ? 'text-green-500' : certProgress.status === 'failed' ? 'text-red-500' : 'text-amber-500 animate-pulse'}`} />
-                {certProgress.status === 'running' ? `Working on ${certProgress.domain}…` : certProgress.status === 'completed' ? `Done: ${certProgress.domain}` : `Failed: ${certProgress.domain}`}
+                {(certProgress.status === 'running' ? messages.cert_working : certProgress.status === 'completed' ? messages.cert_done : messages.cert_failed).replace('{domain}', certProgress.domain)}
               </h3>
               <button
                 onClick={() => {
@@ -1642,7 +1671,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
               <div className="text-xs font-mono bg-slate-900 text-green-400 p-3 rounded max-h-96 overflow-y-auto whitespace-pre-wrap">
                 {certProgress.status === 'running' && certProgress.outputLines.length === 1
                   ? certProgress.outputLines[0]
-                  : certProgress.outputLines.join('\n') || (certProgress.status === 'running' ? 'Waiting for certbot…' : '')}
+                  : certProgress.outputLines.join('\n') || (certProgress.status === 'running' ? messages.cert_waiting : '')}
                 {certProgress.status === 'running' && <span className="animate-pulse">▊</span>}
               </div>
               {certProgress.error && (
@@ -1662,7 +1691,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
                   }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm"
                 >
-                  Close
+                  {t.nginx.close}
                 </button>
               </div>
             )}
@@ -1823,7 +1852,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           setDeleteFilesPassword('');
           setDeleteFilesConfirm('');
         }}
-        title={`Delete Files: ${deleteFilesSite ?? ''}`}
+        title={messages.delete_files_title.replace('{site}', deleteFilesSite ?? '')}
         size="lg"
         footer={
           <div className="flex items-center justify-end gap-3">
@@ -1835,37 +1864,36 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
               }}
               className="px-4 py-2 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
             >
-              Cancel
+              {t.nginx.cancel}
             </button>
             <button
               onClick={confirmDeleteFiles}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
             >
-              Delete Files
+              {messages.delete_files}
             </button>
           </div>
         }
       >
         <div className="space-y-4">
           <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-800 dark:text-red-300">
-            This permanently deletes the site's <strong>web-root files</strong> AND its nginx config.
-            The <strong>core_node</strong> directory is never deletable (server-enforced). This cannot be undone.
+            {messages.delete_files_warning}
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Root password
+              {messages.root_password}
             </label>
             <input
               type="password"
               value={deleteFilesPassword}
               onChange={(e) => setDeleteFilesPassword(e.target.value)}
-              placeholder="root password"
+              placeholder={messages.root_password_placeholder}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-              Type "delete" to confirm
+              {messages.type_delete_to_confirm}
             </label>
             <input
               type="text"
@@ -1985,7 +2013,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
               )}
               <div className="flex gap-4 text-xs text-slate-500">
                 <span>{t.timeout}: {script.timeout}s</span>
-                {script.requires_sudo && <span className="text-yellow-600">Requires Sudo</span>}
+                {script.requires_sudo && <span className="text-yellow-600">{t.requires_sudo}</span>}
               </div>
             </div>
           ))}
@@ -1999,7 +2027,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
             {execution.data.output}
           </pre>
           <div className="mt-2 text-xs text-slate-500">
-            Exit Code: {execution.data.exit_code} | Time: {execution.data.execution_time}s
+            {t.exit_summary.replace('{code}', String(execution.data.exit_code)).replace('{time}', String(execution.data.execution_time))}
           </div>
         </div>
       )}
@@ -2023,7 +2051,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     status: 'idle'
   });
   const t = TRANSLATIONS[lang].server.unified;
-  const messages = TRANSLATIONS[lang].server.messages || {};
+  const messages = TRANSLATIONS[lang].server.messages;
 
   const loadApps = async () => {
     setApps(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -2056,14 +2084,14 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
     try {
       const response = await api.serverManagerV1.deployApp({ app_name: app.app_name, action });
       if (response.success) {
-        const actionMsg = (messages.action_completed || 'Action {action} completed').replace('{action}', action);
+        const actionMsg = messages.action_completed.replace('{action}', action);
         alert(actionMsg);
         if (selectedApp?.name === app.app_name && selectedApp?.type === app.type) {
           loadAppStatus(app);
         }
       }
     } catch (error: any) {
-      alert(error.message || messages.operation_failed || 'Operation failed');
+      alert(error.message || messages.operation_failed);
     }
   };
 
@@ -2072,7 +2100,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
       setAppStatus({
         data: null,
         loading: false,
-        error: 'Missing app type — reload the app list',
+        error: messages.missing_app_type,
         status: 'error'
       });
       return;
@@ -2160,9 +2188,9 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                   {app.service_status && (
                     <div className="mt-2 space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-600 dark:text-slate-400">Service:</span>
+                        <span className="font-medium text-slate-600 dark:text-slate-400">{t.service_label}</span>
                         <StatusBadge
-                          status={app.service_status.installed ? app.service_status.status : 'Not Installed'}
+                          status={app.service_status.installed ? app.service_status.status : t.not_installed}
                           tone={
                             app.service_status.status === 'running' ? 'success' :
                             app.service_status.status === 'failed' ? 'error' : 'idle'
@@ -2174,7 +2202,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                         <>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
                             {app.service_status.service_name}
-                            {app.service_status.enabled && ' (enabled)'}
+                            {app.service_status.enabled && t.enabled_suffix}
                           </p>
                           {app.service_status.pid && (
                             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -2191,16 +2219,16 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                   {app.nginx_proxy && (
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-600 dark:text-slate-400">Nginx Proxy:</span>
+                        <span className="font-medium text-slate-600 dark:text-slate-400">{t.nginx_proxy_label}</span>
                         <StatusBadge
-                          status={app.nginx_proxy.enabled ? 'Enabled' : app.nginx_proxy.configured ? 'Configured' : 'Not Configured'}
+                          status={app.nginx_proxy.enabled ? t.proxy_enabled : app.nginx_proxy.configured ? t.proxy_configured : t.proxy_not_configured}
                           tone={app.nginx_proxy.enabled ? 'info' : app.nginx_proxy.configured ? 'warning' : 'idle'}
                           withDot={false}
                         />
                       </div>
                       {app.nginx_proxy.domains && app.nginx_proxy.domains.length > 0 && (
                         <div className="text-xs text-slate-500 dark:text-slate-400">
-                          <span className="font-medium">Domains:</span>
+                          <span className="font-medium">{t.domains_label}</span>
                           <div className="mt-1 space-y-0.5">
                             {app.nginx_proxy.domains.map((domain, idx) => (
                               <div key={idx} className="ml-2">• {domain}</div>
@@ -2210,7 +2238,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                       )}
                       {app.nginx_proxy.config_file && (
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Config: {app.nginx_proxy.config_file}
+                          {t.config_label} {app.nginx_proxy.config_file}
                         </p>
                       )}
                     </div>
@@ -2228,16 +2256,16 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
           <div className="space-y-2 text-sm">
             {appStatus.data.service_name && (
               <div>
-                <span className="text-slate-500">Service:</span>
+                <span className="text-slate-500">{t.service_label}</span>
                 <span className="ml-2 font-mono">{appStatus.data.service_name}</span>
               </div>
             )}
             {appStatus.data.service_status && (
               <>
                 <div className="flex items-center gap-2">
-                  <span className="text-slate-500">Status:</span>
+                  <span className="text-slate-500">{t.status_label}</span>
                   <StatusBadge
-                    status={appStatus.data.service_status.installed ? appStatus.data.service_status.status : 'Not Installed'}
+                    status={appStatus.data.service_status.installed ? appStatus.data.service_status.status : t.not_installed}
                     tone={
                       appStatus.data.service_status.status === 'running' ? 'success' :
                       appStatus.data.service_status.status === 'failed' ? 'error' : 'idle'
@@ -2247,7 +2275,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                 </div>
                 {appStatus.data.service_status.pid && (
                   <div>
-                    <span className="text-slate-500">PID:</span>
+                    <span className="text-slate-500">{t.pid_label}</span>
                     <span className="ml-2">{appStatus.data.service_status.pid}</span>
                     {appStatus.data.service_status.uptime && (
                       <span className="ml-2 text-slate-400">• {appStatus.data.service_status.uptime}</span>
@@ -2256,7 +2284,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                 )}
                 {appStatus.data.service_status.launcher_exists && appStatus.data.service_status.launcher_path && (
                   <div>
-                    <span className="text-slate-500">Launcher:</span>
+                    <span className="text-slate-500">{t.launcher_label}</span>
                     <span className="ml-2 font-mono text-xs">{appStatus.data.service_status.launcher_path}</span>
                   </div>
                 )}

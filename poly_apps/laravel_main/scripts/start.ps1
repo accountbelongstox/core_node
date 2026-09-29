@@ -1,12 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI sees this, MUST comply:
-# 1. Write all code in English only.
-# 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-# 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-# 4. Do not modify these rules.
-# VIOLATION IS PROHIBITED.
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Fully-native Windows port of scripts/start.sh (Unix: use scripts/start.sh).
 # 1:1 lifecycle with start.sh, written natively (no WSL orchestration):
 #   ensure php/composer -> Laravel runtime dirs / runtime secret store -> ensure pdo_pgsql
@@ -72,18 +63,16 @@ $ip = $null
 $stopPids = @()
 $stopPid = $null
 $AllProcesses = @()
-$ProcessById = @{}
-$processEntry = $null
 $phpProc = $null
 $isServeLane = $false
 $isWorkerLane = $false
 $ServiceTreePids = @()
-$ProcessAncestryMaxDepth = 16
-# Stale-process cleanup scope: artisan lanes whose own or ancestor command line references
-# $LaravelDir belong to this app; artisan serve also when it serves $Port.
-$LaravelDirPattern = ((($LaravelDir -split '[\\/]') | ForEach-Object { [regex]::Escape($_) }) -join '[\\/]') + '(?:[\\/"''\s]|$)'
+# Stale-process cleanup scope: only artisan lanes whose command line carries this
+# project's resolved artisan path (this script starts its lanes with that path), so a
+# second Laravel project's schedule:work or artisan serve is never stopped.
+$ArtisanPath = Join-Path $LaravelDir "artisan"
+$ArtisanPathPattern = ((($ArtisanPath -split '[\\/]') | ForEach-Object { [regex]::Escape($_) }) -join '[\\/]') + '(?:["''\s]|$)'
 $ArtisanServePattern = 'artisan\s+serve\b'
-$ArtisanServePortPattern = $null
 $ArtisanWorkerLanePattern = 'artisan\s+(queue:listen|reverb:start|schedule:work)\b'
 $portConns = $null
 $portWaited = 0
@@ -126,6 +115,12 @@ $Argument = $null
 $HelpRequested = $false
 $ShowSuperCode = $false
 $StoredSuperCode = $null
+$ShowCodemartPassword = $false
+$CodemartPasswordFile = $null
+# Laravel Redis resource index (parity with 175 ensure_laravel_redis_index): built only
+# when phpredis is loaded; otherwise the delivery diff uses the database path.
+$ResourceIndexCommand = "app_qy_v1:resource-index"
+$ResourceIndexBuiltPattern = '(?m)^resource_index_built=yes\s*$'
 # Laravel runtime directories that MUST exist and be writable. Git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails
 # with "bootstrap/cache directory must be present and writable".
@@ -148,6 +143,8 @@ function Show-Usage {
     Write-Host "Options:"
     Write-Host "  --help, -h          Show this help message and exit."
     Write-Host "  --show-super-code   Show the last generated super code and exit."
+    Write-Host "  --show-codemart-password"
+    Write-Host "                      Show the saved CodeMart account password and its file, then exit (read-only)."
     Write-Host "  --status            Print the runtime service state (running|stopped|absent) and exit."
     Write-Host "  --service           Non-interactive: install/start the FrankenPHP Windows service via Step175"
     Write-Host "                      (elevated; no restart when already running). Same as AS_SERVICE=yes."
@@ -207,29 +204,6 @@ function Show-LaravelServiceAlreadyRunning {
     Write-Host "  Manage: Get-Service $LaravelServiceName ; Restart-Service $LaravelServiceName ; Stop-Service $LaravelServiceName" -ForegroundColor DarkGray
 }
 
-# Win32_Process exposes no working directory: a process belongs to a directory when its own
-# or a live ancestor's command line references it (laravel_main\scripts\start.ps1, the
-# artisan serve server.php). A parent created after its child is a reused PID.
-function Test-ProcessOwnedByDirectory {
-    param(
-        [Parameter(Mandatory = $true)]$Process,
-        [Parameter(Mandatory = $true)][hashtable]$ProcessTable,
-        [Parameter(Mandatory = $true)][string]$DirectoryPattern
-    )
-    $current = $Process
-    $parent = $null
-    $depth = 0
-    while ($current -and ($depth -le $ProcessAncestryMaxDepth)) {
-        if ($current.CommandLine -and ($current.CommandLine -match $DirectoryPattern)) { return $true }
-        $parent = $ProcessTable[[int]$current.ParentProcessId]
-        if ((-not $parent) -or ([int]$parent.ProcessId -eq [int]$current.ProcessId)) { return $false }
-        if ($parent.CreationDate -and $current.CreationDate -and ($parent.CreationDate -gt $current.CreationDate)) { return $false }
-        $current = $parent
-        $depth++
-    }
-    return $false
-}
-
 # The access code lives in the external runtime store (PathMapper
 # laravel_data_dir, outside the repository); InstallationAccessCode.php only
 # reads it and is never regenerated. Self-contained reader (runs before the
@@ -240,7 +214,7 @@ function Get-StoredInstallationAccessCode {
         [Parameter(Mandatory = $true)][string]$AutoloadPath,
         [Parameter(Mandatory = $true)][string]$BootstrapPath
     )
-    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; require $bootstrap; $value = \App\Support\RuntimeConfigurationStore::get("INSTALLATION_ACCESS_CODE"); if ($value !== null) { echo $value; }'
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; require $bootstrap; $value = \App\Support\RuntimeConfigurationStore::get(''INSTALLATION_ACCESS_CODE''); if ($value !== null) { echo $value; }'
     $output = & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath
     $exitCode = $LASTEXITCODE
     $accessCode = ($output | Out-String).Trim()
@@ -251,11 +225,46 @@ function Get-StoredInstallationAccessCode {
     return $accessCode
 }
 
+# Contract path of the CodeMart account password file (service_contract.json
+# codemart_admin_password), resolved by Laravel itself. Read-only.
+function Get-CodemartAdminPasswordFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath
+    )
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; $app = require $bootstrap; $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap(); echo PHP_EOL, \App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1AdminPassword::defaultPath();'
+    $output = & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath
+    $exitCode = $LASTEXITCODE
+    $secretFile = (@($output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) | Select-Object -Last 1)
+
+    if (($exitCode -ne 0) -or [string]::IsNullOrWhiteSpace($secretFile)) {
+        throw "CodeMart account password file path could not be resolved."
+    }
+    return $secretFile.Trim()
+}
+
+function Show-CodemartAdminPassword {
+    param([Parameter(Mandatory = $true)][string]$SecretFile)
+    $password = ""
+    if (Test-Path -LiteralPath $SecretFile -PathType Leaf) {
+        $password = ((Get-Content -LiteralPath $SecretFile -Raw) | Out-String).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($password)) {
+        Write-Host "CodeMart account password not generated yet (file: $SecretFile)." -ForegroundColor Yellow
+        Write-Host "  sys:init creates it on the next full start." -ForegroundColor DarkGray
+        return
+    }
+    Write-Host "CodeMart account password file: $SecretFile" -ForegroundColor DarkGray
+    Write-Host "CodeMart account password: $password" -ForegroundColor Yellow
+}
+
 foreach ($Argument in $args) {
     switch ($Argument) {
         "--help" { $HelpRequested = $true }
         "-h" { $HelpRequested = $true }
         "--show-super-code" { $ShowSuperCode = $true }
+        "--show-codemart-password" { $ShowCodemartPassword = $true }
         "--status" { $StatusRequested = $true }
         "--service" { $ServiceFlag = "yes" }
         "--no-service" { $ServiceFlag = "no" }
@@ -289,6 +298,22 @@ if ($ShowSuperCode) {
     }
 }
 
+if ($ShowCodemartPassword) {
+    $phpCmd = Get-Command php -ErrorAction SilentlyContinue
+    if (-not $phpCmd) {
+        Write-Host "ERROR: php not found; cannot resolve the CodeMart account password file." -ForegroundColor Red
+        exit 1
+    }
+    try {
+        $CodemartPasswordFile = Get-CodemartAdminPasswordFile -PhpExecutable $phpCmd.Path -AutoloadPath $VendorAutoload -BootstrapPath $BootstrapApp
+        Show-CodemartAdminPassword -SecretFile $CodemartPasswordFile
+        exit 0
+    } catch {
+        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+}
+
 # Shared native PostgreSQL manager (single source of truth with the DevInstaller
 # Step17_InstallPostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.
 . $PgManagerScript
@@ -304,7 +329,6 @@ if ($IsServiceRun) {
 
 $Port = Get-ServiceContractPort -Name "laravel_api_backend"
 $BindHost = Get-ServiceContractHost -Name "any"
-$ArtisanServePortPattern = "artisan\s+serve\b.*--port[=\s]+$Port\b"
 
 function New-InstallationAccessCode {
     $segments = @(
@@ -383,7 +407,7 @@ function New-SecureRuntimeValue {
     $exitCode = 0
 
     switch ($Type) {
-        "app-key" { $phpCode = 'echo "base64:".base64_encode(random_bytes(32));' }
+        "app-key" { $phpCode = 'echo ''base64:''.base64_encode(random_bytes(32));' }
         "reverb-key" { $phpCode = 'echo bin2hex(random_bytes(16));' }
         "reverb-secret" { $phpCode = 'echo bin2hex(random_bytes(32));' }
     }
@@ -437,6 +461,31 @@ function Initialize-RuntimeConfigurationStore {
     }
 
     return $directory
+}
+
+# Build the Laravel Redis resource index once when it is absent (parity with the Linux
+# 175 ensure_laravel_redis_index). The status probe is the single truth; without
+# phpredis the index cannot exist and the delivery diff uses the database path.
+function Invoke-LaravelResourceIndexEnsure {
+    $phpModules = php -m
+    $indexState = ""
+
+    if (-not (($phpModules | Out-String) -match '(?im)^\s*redis\s*$')) {
+        Write-Host "  phpredis not loaded; Laravel Redis features (resource index) fall back to the database path." -ForegroundColor Yellow
+        return
+    }
+    Write-Host "PHP redis extension (phpredis) ready." -ForegroundColor Green
+    $indexState = (php artisan $ResourceIndexCommand status | Out-String)
+    if ($indexState -match $ResourceIndexBuiltPattern) {
+        Write-Host "Laravel Redis resource index present." -ForegroundColor Green
+        return
+    }
+    Write-Host "Building Laravel Redis resource index (php artisan $ResourceIndexCommand rebuild)..." -ForegroundColor Yellow
+    php artisan $ResourceIndexCommand rebuild
+    $indexState = (php artisan $ResourceIndexCommand status | Out-String)
+    if ($indexState -notmatch $ResourceIndexBuiltPattern) {
+        Write-Host "  Warning: Redis resource index not confirmed; diffs use the database path until it is rebuilt." -ForegroundColor Yellow
+    }
 }
 
 $FrankenPhpRuntime = Get-FrankenPhpRuntimeProfile
@@ -670,6 +719,8 @@ try {
         exit 1
     }
 
+    Invoke-LaravelResourceIndexEnsure
+
     Write-Host "Detecting local IPs (excluding loopback)..." -ForegroundColor Yellow
     try {
         $adapters = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {
@@ -705,24 +756,16 @@ try {
     Write-Host "Ensuring port $Port is free (idempotent restart)..." -ForegroundColor Yellow
     $stopPids = @()
 
-    # (1) php.exe artisan lanes: the artisan serve fallback and the retired dev:win lanes
-    #     (queue:listen / reverb:start / schedule:work). schedule:work binds NO port, so the
-    #     port-based step (2) can never catch a stale one -- this command-line match is its
-    #     ONLY cleanup path. Lanes of this app (see Test-ProcessOwnedByDirectory) and
-    #     artisan serve on $Port are always stopped; the unattended --service run never
-    #     stops another project's lanes, an interactive run also clears unowned worker lanes.
+    # (1) php.exe artisan lanes of THIS project: the artisan serve fallback and the retired
+    #     dev:win lanes (queue:listen / reverb:start / schedule:work). schedule:work binds NO
+    #     port, so the port-based step (2) can never catch a stale one. A lane is stopped only
+    #     when its command line carries this project's resolved artisan path.
     $AllProcesses = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
-    $ProcessById = @{}
-    foreach ($processEntry in $AllProcesses) {
-        $ProcessById[[int]$processEntry.ProcessId] = $processEntry
-    }
     foreach ($phpProc in @($AllProcesses | Where-Object { ($_.Name -eq 'php.exe') -and $_.CommandLine })) {
         $isServeLane = ($phpProc.CommandLine -match $ArtisanServePattern)
         $isWorkerLane = ($phpProc.CommandLine -match $ArtisanWorkerLanePattern)
         if ((-not $isServeLane) -and (-not $isWorkerLane)) { continue }
-        if ((Test-ProcessOwnedByDirectory -Process $phpProc -ProcessTable $ProcessById -DirectoryPattern $LaravelDirPattern) -or
-            ($isServeLane -and ($phpProc.CommandLine -match $ArtisanServePortPattern)) -or
-            ($isWorkerLane -and (-not $ServiceMode))) {
+        if ($phpProc.CommandLine -match $ArtisanPathPattern) {
             $stopPids += [int]$phpProc.ProcessId
         }
     }
@@ -858,7 +901,7 @@ try {
         Write-Host "FrankenPHP runtime not provisioned yet (run this script with --service, elevated, or Step175_LaravelMainStart.ps1)." -ForegroundColor Yellow
         Write-Host "Fallback: php artisan serve on ${BindHost}:$Port (HTTP API only; no Octane worker, Mercure, queue or timer lanes)." -ForegroundColor Yellow
         $env:PHP_CLI_SERVER_WORKERS = "1"
-        php artisan serve "--host=$BindHost" "--port=$Port"
+        php $ArtisanPath serve "--host=$BindHost" "--port=$Port"
     }
 }
 finally {

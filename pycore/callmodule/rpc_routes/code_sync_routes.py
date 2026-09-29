@@ -14,6 +14,7 @@ from pycore.pyutils.codesync.sse_transport import (
     code_sync_sse_broker,
     iter_code_sync_reply_stream,
 )
+from pycore.pyutils.rpc_v2.http.client_key_request import request_client_key
 
 
 fastapi_module = get_third_package_fastapi()
@@ -117,8 +118,6 @@ def register_code_sync_routes(server):
         headers = {}
         if content.get("etag"):
             headers["ETag"] = str(content["etag"])
-        if status_code == 401:
-            headers["WWW-Authenticate"] = cs.WORKSPACE_AUTHENTICATION_CHALLENGE
         return fastapi_module.responses.JSONResponse(
             content,
             status_code=status_code,
@@ -128,7 +127,7 @@ def register_code_sync_routes(server):
     async def get_workspace_capabilities(request: Request):
         result = await await_bus_task(
             cs.workspace_capabilities,
-            str(request.headers.get("authorization") or ""),
+            await request_client_key(request),
             thread_name="CodeSyncWorkspaceCapabilitiesRoute",
         )
         return workspace_response(result)
@@ -141,7 +140,7 @@ def register_code_sync_routes(server):
     ):
         result = await await_bus_task(
             cs.workspace_list_files,
-            str(request.headers.get("authorization") or ""),
+            await request_client_key(request),
             cursor,
             limit,
             include_hash,
@@ -155,7 +154,7 @@ def register_code_sync_routes(server):
     ):
         result = await await_bus_task(
             cs.workspace_read_file,
-            str(request.headers.get("authorization") or ""),
+            await request_client_key(request),
             file_path,
             thread_name="CodeSyncWorkspaceReadFileRoute",
         )
@@ -168,7 +167,7 @@ def register_code_sync_routes(server):
     ):
         result = await await_bus_task(
             cs.workspace_write_file,
-            str(request.headers.get("authorization") or ""),
+            await request_client_key(request),
             file_path,
             payload,
             if_match=str(request.headers.get("if-match") or ""),
@@ -183,7 +182,7 @@ def register_code_sync_routes(server):
     ):
         result = await await_bus_task(
             cs.workspace_write_document,
-            str(request.headers.get("authorization") or ""),
+            await request_client_key(request),
             payload,
             thread_name="CodeSyncWorkspaceWriteDocumentRoute",
         )
@@ -192,7 +191,7 @@ def register_code_sync_routes(server):
     async def get_latest_workspace_document(request: Request):
         result = await await_bus_task(
             cs.workspace_latest_document,
-            str(request.headers.get("authorization") or ""),
+            await request_client_key(request),
             thread_name="CodeSyncWorkspaceLatestDocumentRoute",
         )
         return workspace_response(result)

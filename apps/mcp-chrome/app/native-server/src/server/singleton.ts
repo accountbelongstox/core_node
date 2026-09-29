@@ -351,6 +351,10 @@ export class SingletonHandler {
    * Handle singleton protocol message
    */
   handleMessage(message: SingletonMessage): SingletonMessage | null {
+    if (!message || typeof message !== 'object') {
+      return null;
+    }
+
     // Validate protocol
     if (message.protocol !== PROTOCOL_VERSION) {
       log('WARN', `[Singleton] Invalid protocol: ${message.protocol}`);

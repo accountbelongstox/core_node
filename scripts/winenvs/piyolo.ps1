@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -20,6 +8,7 @@ $shellsPath = Join-Path $scriptsDirPath 'shells'
 $winShellsPath = Join-Path $shellsPath 'win'
 $winCommonPath = Join-Path $winShellsPath 'win_common'
 $globalVarsPath = Join-Path $winCommonPath 'GlobalVars.ps1'
+$aiCliProvisionCommonPath = Join-Path $winCommonPath 'AiCliProvisionCommon.ps1'
 $shellsCommonPath = Join-Path $shellsPath 'common'
 $harnessSettingsScriptPath = Join-Path $shellsCommonPath 'pi_harness_settings.js'
 $mode = 'auto'
@@ -126,6 +115,8 @@ $volcAgentMcpSourcePath = $null
 $uvxExePath = $null
 
 . $globalVarsPath
+# Shared launcher helpers; secrets are printed through Get-AiCliMaskedSecret.
+. $aiCliProvisionCommonPath
 
 # Maintenance references:
 # - Pi providers/auth.json: https://pi.dev/docs/latest/providers
@@ -350,7 +341,7 @@ if ($piPath -and
                 if ($arkcliProfileResult) {
                     $arkcliProfileParts = @($arkcliProfileResult -split "`t", 2)
                     $volcApiKey = $arkcliProfileParts[0]
-                    Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($arkcliConfigPath)): $volcApiKey" -ForegroundColor Green
+                    Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($arkcliConfigPath)): $(Get-AiCliMaskedSecret -Value $volcApiKey)" -ForegroundColor Green
                     if ($arkcliProfileParts.Count -gt 1 -and $arkcliProfileParts[1]) {
                         $volcBaseUrl = $arkcliProfileParts[1].TrimEnd('/')
                         if (-not $volcBaseUrl.ToLowerInvariant().EndsWith('/v3')) {
@@ -373,7 +364,7 @@ if ($piPath -and
                     $legacySecretPath = $candidatePath
                     $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
                     if ($volcApiKey) {
-                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath)): $volcApiKey" -ForegroundColor Green
+                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath)): $(Get-AiCliMaskedSecret -Value $volcApiKey)" -ForegroundColor Green
                     }
                 }
             }

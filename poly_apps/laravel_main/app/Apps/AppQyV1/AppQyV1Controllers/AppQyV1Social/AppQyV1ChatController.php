@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
@@ -150,12 +139,12 @@ class AppQyV1ChatController extends Controller
         $myId = (int) $currentUser->id;
         $peerId = (int) $request->input('user_id');
         if ($peerId === $myId) {
-            return $this->error('Cannot open a conversation with yourself', 422);
+            return $this->error(__('app_qy_v1.messages.cannot_open_a_conversation_with_yourself'), 422);
         }
 
         $peerUser = User::findById($peerId);
         if (!$peerUser) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('app_qy_v1.messages.user_not_found'));
         }
 
         $conv = AppQyV1ConversationModel::findOrCreateDirect($myId, $peerId);
@@ -191,7 +180,7 @@ class AppQyV1ChatController extends Controller
             return $this->unauthorized();
         }
         if (!AppQyV1ConversationParticipantModel::isParticipant($id, (int) $currentUser->id)) {
-            return $this->forbidden('Not a participant of this conversation');
+            return $this->forbidden(__('app_qy_v1.messages.not_a_participant_of_this_conversation'));
         }
 
         $validator = Validator::make($request->all(), [
@@ -243,7 +232,7 @@ class AppQyV1ChatController extends Controller
         }
         $myId = (int) $currentUser->id;
         if (!AppQyV1ConversationParticipantModel::isParticipant($id, $myId)) {
-            return $this->forbidden('Not a participant of this conversation');
+            return $this->forbidden(__('app_qy_v1.messages.not_a_participant_of_this_conversation'));
         }
 
         $validator = Validator::make($request->all(), [
@@ -293,7 +282,7 @@ class AppQyV1ChatController extends Controller
             }
         }
 
-        return $this->success(['message' => $shape], 'Message sent');
+        return $this->success(['message' => $shape], __('app_qy_v1.messages.message_sent'));
     }
 
     /**
@@ -310,7 +299,7 @@ class AppQyV1ChatController extends Controller
             return $this->unauthorized();
         }
         if (!AppQyV1ConversationParticipantModel::isParticipant($id, (int) $currentUser->id)) {
-            return $this->forbidden('Not a participant of this conversation');
+            return $this->forbidden(__('app_qy_v1.messages.not_a_participant_of_this_conversation'));
         }
 
         $validator = Validator::make($request->all(), [
@@ -328,7 +317,7 @@ class AppQyV1ChatController extends Controller
             $messageId
         );
 
-        return $this->success(['conversation_id' => $id, 'last_read_message_id' => $messageId], 'Read marker updated');
+        return $this->success(['conversation_id' => $id, 'last_read_message_id' => $messageId], __('app_qy_v1.messages.read_marker_updated'));
     }
 
     /** FE-facing message shape. */

@@ -13,6 +13,7 @@ from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SENTENCE_AUDIO_AUTO, user_data_store
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as SENTENCE_AUDIO_ENGINE
+from pycore.pyutils.tts.engine_policy import SENTENCE_LANE_SPEAKER_KEY
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QWEN_CAPABILITIES_KEY,
     status_snapshot_cache,
@@ -31,7 +32,7 @@ from pycore.pyctl.tts.laravel_audio_worker import (
 
 _SECTION = USER_DATA_SECTION_SENTENCE_AUDIO_AUTO
 AUTO_TTS_CONCURRENCY_KEY = "concurrency"
-AUTO_TTS_SPEAKER_KEY = "speaker"
+AUTO_TTS_SPEAKER_KEY = SENTENCE_LANE_SPEAKER_KEY
 _CONCURRENCY_KEY = AUTO_TTS_CONCURRENCY_KEY
 _SPEAKER_KEY = AUTO_TTS_SPEAKER_KEY
 

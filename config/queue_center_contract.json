@@ -1,5 +1,5 @@
 {
- "schema_version": 38,
+ "schema_version": 39,
  "contract": "queue_center",
  "source_path": "config/queue_center_contract.json",
  "word_validity": {
@@ -17,6 +17,28 @@
   "profile": "word_batch",
   "device": "cpu",
   "default_batch_size": 20
+ },
+ "word_identity": {
+  "rule": "md5-of-exact-stored-dictionary-content",
+  "producer": "laravel",
+  "consumers_recompute": false,
+  "fields": {
+   "word_audio_lane": "payload.md5",
+   "dict_lanes_batched": "payload.words[].md5",
+   "word_audio_upload": "body.md5",
+   "delivery_word_key": "<lang>:<md5>[:<variant>]"
+  },
+  "fallback_when_md5_absent": {
+   "key_format": "<lang>:text:<cleaned_word>",
+   "resolver": "laravel",
+   "rule": "Laravel resolves the dictionary row by lang + cleaned_word; a word not in the dictionary is rejected with rejection_code (inside a delivery batch: item status delivery.batch_item_statuses.no_target) and no row is created",
+   "rejection_code": "WORD_NOT_FOUND",
+   "applies_to": [
+    "word_audio_upload",
+    "delivery_word_key",
+    "dict_lanes_batched"
+   ]
+  }
  },
  "http_transfer": {
   "protocol": "offset-v1",
@@ -40,6 +62,15 @@
    "cover_priority": "cover.priority",
    "poster_priority": "poster.priority",
    "worker_presence": "worker.presence"
+  },
+  "head_keys": {
+   "task_priority": "task_id",
+   "cover_priority": "items[].resource_key",
+   "poster_priority": "items[].resource_key"
+  },
+  "resource_key_formats": {
+   "cover_priority": "library:<library_id>",
+   "poster_priority": "<media_type>:<media_id>"
   }
  },
  "head_parts": {
@@ -181,17 +212,16 @@
   "worker_task_accept": "/api/worker/tasks/{task_type}/accept",
   "worker_task_result": "/api/worker/tasks/{task_type}/result",
   "worker_task_release": "/api/worker/tasks/{task_type}/release",
-  "queue_center_hub_authorization": "/api/queue-center/mercure-authorization"
+  "queue_center_hub_authorization": "/api/queue-center/mercure-authorization",
+  "audio_word_listing": "/api/app_qy_v1/dictionary/words",
+  "audio_word_language_breakdown": "/api/app_qy_v1/vocabulary/language-breakdown",
+  "audio_sentence_without_audio": "/api/app_qy_v1/ai_tools/tts/sentence/without_audio"
  },
  "relay": {
   "hub": {
    "protocol": "mercure",
    "path": "/.well-known/mercure",
    "token_ttl_seconds": 600
-  },
-  "device_identity": {
-   "clock_skew_seconds": 300,
-   "nonce_ttl_seconds": 600
   },
   "topics": {
    "machines": "pycore.machines",
@@ -254,6 +284,73 @@
    "laravel"
   ],
   "task_id_limit_source": "diff_delivery.data_segment_limit"
+ },
+ "delivery": {
+  "description": "W7 pycore -> Laravel resource delivery (server identity, Laravel-side diff, batch upload over offset-v1). Binding doc: docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md (W7 contract).",
+  "routes": {
+   "info": "/api/app_qy_v1/delivery/info",
+   "diff": "/api/app_qy_v1/delivery/diff",
+   "batch": "/api/app_qy_v1/delivery/batch",
+   "batch_content": "/api/app_qy_v1/delivery/batch/{batch_id}/content",
+   "batch_status": "/api/app_qy_v1/delivery/batch/{batch_id}"
+  },
+  "server_identity": {
+   "header": "X-Core-Node-Server-Id",
+   "body_field": "server_id"
+  },
+  "diff_item_limits": {
+   "word_audio": 5000,
+   "sentence_audio": 5000,
+   "orch_segment": 5000,
+   "article": 500,
+   "static_file": 5000,
+   "orch_output": 500
+  },
+  "diff_item_limit_default": 5000,
+  "diff_reasons": {
+   "missing": "missing",
+   "stale": "stale"
+  },
+  "batch_kinds": [
+   "word_audio",
+   "sentence_audio"
+  ],
+  "batch_limits": {
+   "items": 500,
+   "min_item_bytes": 100,
+   "item_bytes": 2097152,
+   "total_bytes": 33554432
+  },
+  "batch_states": {
+   "awaiting_content": "awaiting_content",
+   "processing": "processing",
+   "done": "done"
+  },
+  "batch_item_statuses": {
+   "stored": "stored",
+   "exists": "exists",
+   "no_target": "no_target",
+   "invalid": "invalid",
+   "error": "error"
+  },
+  "batch_stored_statuses": [
+   "stored",
+   "exists"
+  ],
+  "batch_terminal_rejections": [
+   "no_target",
+   "invalid"
+  ],
+  "error_codes": {
+   "validation_failed": "DELIVERY_VALIDATION_FAILED",
+   "kind_unsupported": "DELIVERY_KIND_UNSUPPORTED",
+   "batch_too_large": "DELIVERY_BATCH_TOO_LARGE",
+   "batch_not_found": "DELIVERY_BATCH_NOT_FOUND",
+   "batch_content_mismatch": "DELIVERY_BATCH_CONTENT_MISMATCH",
+   "upload_invalid": "DELIVERY_UPLOAD_INVALID",
+   "store_failed": "DELIVERY_STORE_FAILED"
+  },
+  "retention_seconds": 86400
  },
  "metric_semantics": {
   "pending": "Ready work that has not been claimed.",
@@ -374,7 +471,8 @@
    "search": "library_cover_search"
   },
   "fallback_grace_seconds": 20,
-  "fallback_worker_id": "laravel-ai"
+  "fallback_worker_id": "laravel-ai",
+  "max_ids": 200
  },
  "task_contract": {
   "statuses": {
@@ -477,7 +575,6 @@
    "completed": 500,
    "long_poll_seconds": 30,
    "history_records": 200,
-   "history_timeline": 50,
    "event_batch": 200
   },
   "capability_labels": {

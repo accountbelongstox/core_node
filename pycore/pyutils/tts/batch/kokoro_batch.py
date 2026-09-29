@@ -13,7 +13,9 @@ Primary path is therefore batched serial: all words of the group are generated
 in ONE call on the kokoro serialized worker and encoded to mp3 in parallel
 (ffmpeg startup dominates short clips) — deterministic per-word boundaries by
 construction. The merge-then-split experiment remains available via
-KOKORO_BATCH_MERGED=1; plain per-word serial is the last fallback.
+KOKORO_BATCH_MERGED=1. There is no per-word fallback: a failed group reports
+every word as failed. Languages Kokoro does not support (engine_policy) fail
+explicitly instead of being read with the English phonemizer.
 
 Standalone:
   python -m pycore.pyutils.tts.batch.kokoro_batch words.txt --lang en
@@ -36,8 +38,12 @@ from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
+from pycore.pyutils.tts.engine_policy import tts_engine_supports_language
 
 _ENGINE = "kokoro"
+ERROR_GROUP_FAILED = "kokoro_batch_group_failed"
+ERROR_LANGUAGE_UNSUPPORTED = "word_batch_language_unsupported"
+ERROR_EMPTY_WORD = "word_batch_empty_word"
 _SYNTH_TIMEOUT_S = 900.0
 _ENCODE_WORKERS = 4
 _MERGED_ENV = "KOKORO_BATCH_MERGED"
@@ -133,10 +139,10 @@ def _synthesize_group(
             samples_list, sample_rate, group, out_dir, start_index, _ENCODE_WORKERS
         )
 
-    result.fallback_used = True
-    return batch_common.serial_fallback(
-        kokoro_engine.synthesize, group, lang, out_dir, start_index, speed
-    )
+    return [
+        BatchItem(index=start_index + offset, text=word, output_path="", error=ERROR_GROUP_FAILED)
+        for offset, word in enumerate(group)
+    ]
 
 
 def synthesize_words(
@@ -178,24 +184,41 @@ def synthesize_words(
     return result
 
 
-def synthesize_words_to_cache(words: Sequence[str], lang: str, out_dir: Path) -> List[Dict[str, Any]]:
+def synthesize_words_to_cache(
+    words: Sequence[str], lang: str, out_dir: Path, md5s: Sequence[str] = (),
+) -> List[Dict[str, Any]]:
     """The ONE pinned word-batch entry (word_audio lane + audio orchestration).
 
     Runs a single Kokoro batch, validates every clip and stores it in the
     unified word_audio_cache under ``runtime_profile.WORD_BATCH_ENGINE``.
     Returns one ``{text, ok, audio_path, scratch, provider, error}`` per input
     word, in order; ``scratch`` marks an ``out_dir`` file the caller owns
-    (only when the cache store failed).
+    (only when the cache store failed). ``md5s`` holds the Laravel md5 of
+    each word, by index, when the caller has it.
     """
     provider = runtime_profile.WORD_BATCH_ENGINE
-    result = synthesize_words(list(words), lang, out_dir)
+    supported = tts_engine_supports_language(provider, lang)
+    # group_words drops empty words, so items align with the non-empty inputs only.
+    synthesized = [index for index, word in enumerate(words) if word and word.strip()]
+    result = (
+        synthesize_words([words[index] for index in synthesized], lang, out_dir)
+        if supported and synthesized
+        else BatchResult(engine=_ENGINE)
+    )
+    items = {index: result.items[position] for position, index in enumerate(synthesized) if position < len(result.items)}
     outcomes: List[Dict[str, Any]] = []
     for index, word in enumerate(words):
-        item = result.items[index] if index < len(result.items) else None
+        item = items.get(index)
         outcome: Dict[str, Any] = {
             "text": word, "ok": False, "audio_path": "", "scratch": False, "provider": provider, "error": "",
         }
         outcomes.append(outcome)
+        if not supported:
+            outcome["error"] = f"{ERROR_LANGUAGE_UNSUPPORTED}: {provider} {lang}"
+            continue
+        if index not in synthesized:
+            outcome["error"] = ERROR_EMPTY_WORD
+            continue
         if item is None or not item.ok:
             outcome["error"] = item.error if item is not None and item.error else "Kokoro batch synthesis produced no audio"
             continue
@@ -204,7 +227,9 @@ def synthesize_words_to_cache(words: Sequence[str], lang: str, out_dir: Path) ->
         if not valid:
             outcome["error"] = f"invalid Kokoro batch audio: {detail}"
             continue
-        word_audio_cache.save_to_cache(word, lang, provider, output_path)
+        word_audio_cache.save_to_cache(
+            word, lang, provider, output_path, str(md5s[index] or "") if index < len(md5s) else "",
+        )
         cache_path = word_audio_cache.get_cache_path(word, lang, provider)
         outcome["ok"] = True
         if os.path.exists(cache_path) and validate_mp3(cache_path)[0]:

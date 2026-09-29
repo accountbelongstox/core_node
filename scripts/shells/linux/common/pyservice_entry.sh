@@ -134,7 +134,9 @@ if [[ "$PY_SERVICE_COMMAND" != "codesync" ]]; then
     source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
 fi
 
-BIND_HOST="0.0.0.0"
+# Empty: the worker binds pycore's contract loopback default. A LAN host is
+# honoured by pycore only with the system setting rpcLanBind=true (K7).
+BIND_HOST=""
 PORT="59000"
 RPC_PORT="59000"
 DEBUG=0
@@ -238,7 +240,8 @@ Subcommands:
   help         Show this help (also -h / --help)
 
 Options (apply to 'run'):
-  --host HOST      Host the RPC v2 server binds to (default: 0.0.0.0)
+  --host HOST      Host the RPC v2 server binds to (default: loopback; a LAN host
+                   also needs: pyservice.sh config system set --key rpcLanBind --value true)
   --port PORT      Port the RPC v2 server binds to (default: 59000)
   --debug          Enable the worker's debug mode
   --no-reload      Disable backend hot-reload (watch .py -> restart; ON by default)
@@ -473,7 +476,7 @@ elif [[ "$NO_UI" -eq 1 ]]; then
 else
     UI_MODE="dashboard (pycore-manager)"
 fi
-echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=$BIND_HOST port=$PORT mode=$SERVICE_MODE ui=$UI_MODE prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled) tts-selfcheck=$([[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]] && echo on || echo off))"
+echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=${BIND_HOST:-loopback} port=$PORT mode=$SERVICE_MODE ui=$UI_MODE prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled) tts-selfcheck=$([[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]] && echo on || echo off))"
 
 if ! PY="$(resolve_python)"; then
     echo "[X] Python 3 was NOT found. Install it, then re-run:" >&2
@@ -637,7 +640,8 @@ if [[ "$(uname)" == "Linux" ]]; then
     fi
 fi
 
-PY_ARGS=(-u "$WORKER_REL" --host "$BIND_HOST" --port "$PORT" --service-mode "$SERVICE_MODE")
+PY_ARGS=(-u "$WORKER_REL" --port "$PORT" --service-mode "$SERVICE_MODE")
+if [[ -n "$BIND_HOST" ]]; then PY_ARGS+=(--host "$BIND_HOST"); fi
 if [[ "$DEBUG" -eq 1 ]]; then PY_ARGS+=(--debug); fi
 if [[ "$RELOAD" -eq 0 ]]; then PY_ARGS+=(--no-reload); fi   # hot-reload is the default; opt out for headless prod
 
@@ -713,7 +717,8 @@ build_worker_env_args() {
              PORT PYCORE_RPC_PORT PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
              PYCORE_HTTP_EVENTS_ENABLED LARAVEL_WORKER_API_URL NEURAL_TTS_INSTALL \
              PYTHONUSERBASE PIP_USER PIP_BREAK_SYSTEM_PACKAGES PIP_CACHE_DIR \
-             CORE_NODE_CACHE_DIR HF_HOME TORCH_HOME XDG_CACHE_HOME; do
+             CORE_NODE_CACHE_DIR HF_HOME HUGGINGFACE_HUB_CACHE TORCH_HOME WHISPER_CACHE_DIR XDG_CACHE_HOME \
+             BUN_INSTALL_CACHE_DIR npm_config_cache UV_CACHE_DIR COMPOSER_CACHE_DIR COREPACK_HOME; do
         [ -n "${!v:-}" ] && WORKER_ENV_ARGS+=("$v=${!v}")
     done
 }

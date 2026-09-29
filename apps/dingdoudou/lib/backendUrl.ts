@@ -1,11 +1,11 @@
 import { AppError } from './appError';
-import serviceContract from '../../../config/service_contract.json';
+import { access } from '../../../config/service_contract.json';
 
 const SUPPORTED_PROTOCOLS = new Set(['http:', 'https:']);
 const REQUIRED_HTTP_HOSTS = new Set(['localhost', '127.0.0.1']);
-const DEFAULT_ROOT_DOMAIN = serviceContract.access.root_domains[0];
-const DEFAULT_REGION = serviceContract.access.default_api_region_prefix;
-const LARAVEL_API_LABELS = serviceContract.access.service_domains.laravel_api;
+const DEFAULT_ROOT_DOMAIN = access.root_domains[0];
+const DEFAULT_REGION = access.default_api_region_prefix;
+const LARAVEL_API_LABELS = access.service_domains.laravel_api;
 const DEFAULT_BACKEND_HOST = [
   ...LARAVEL_API_LABELS.map((label) => label === '{region}' ? DEFAULT_REGION : label),
   DEFAULT_ROOT_DOMAIN,

@@ -23,6 +23,7 @@ import type { WordNewGroupProgressBlob } from '../../api';
 import { expandProgressEntry } from '../../api';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
+import { localDateKey } from '../../utils/WordNewTimeFormat';
 
 /** One word's local study record (compact keys, JSON-persisted). */
 interface WordRecord {
@@ -69,13 +70,6 @@ export interface LibraryStats {
   reviewedWords: number;
   fullPasses: number;
 }
-
-const localDateKey = (): string => {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-};
 
 const nowMs = (): number => Date.now();
 

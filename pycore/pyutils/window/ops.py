@@ -65,6 +65,7 @@ SPI_GETWHEELSCROLLLINES = 0x0068
 WHEEL_PAGESCROLL = 0xFFFFFFFF
 
 WM_CLOSE = 0x0010
+WM_COMMAND = 0x0111
 WM_KEYDOWN = 0x0100
 WM_KEYUP = 0x0101
 WM_CHAR = 0x0102
@@ -734,6 +735,9 @@ def press_native_key(key: Union[str, int]) -> bool:
 
 def press_native_key_combo(keys: List[Union[str, int]]) -> bool:
     return _window_ops.press_native_key_combo(keys)
+
+def post_window_message(hwnd: int, message: int, wparam: int = 0, lparam: int = 0) -> bool:
+    return bool(_window_ops.post_message(hwnd, message, wparam, lparam))
 
 def get_window_client_rect(hwnd: int) -> Optional[Tuple[int, int, int, int]]:
     return _window_ops.get_window_client_rect(hwnd)

@@ -1,10 +1,4 @@
 #!/bin/bash
-# AI SPECIAL ATTENTION RULES START
-# 1. All information output by scripts must be in English only.
-# 2. Do not modify AI SPECIAL ATTENTION RULES.
-# 3. Variables must be declared at the top of the script file.
-# AI SPECIAL ATTENTION RULES END
-#
 # 79_install_docker.sh - Docker Engine / CLI / Buildx / Compose ensure.
 # Route: the official Docker APT stable repository (deb822 .sources + signed-by
 # keyring), per https://docs.docker.com/engine/install/debian/ and

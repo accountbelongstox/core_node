@@ -53,6 +53,8 @@ _ENGINE_POLICY_OVERRIDES: Dict[str, Dict[str, Any]] = {
     "voxcpm2": {"owner": "project", "soft_limit": 200, "hard_limit": 400},
     "gptsovits": {"owner": "native", "soft_limit": 200, "hard_limit": 400},
     "melotts": {"owner": "native", "soft_limit": 200, "hard_limit": 400},
+    # Bark generates at most ~13 s of audio per call.
+    "bark": {"owner": "project", "soft_limit": 100, "hard_limit": 140},
 }
 
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;。！？；:：])\s+|(?<=[。！？；])|\n+")
@@ -69,8 +71,10 @@ _ABBREVIATIONS = frozenset(
         "Nov", "Dec", "Inc", "Ltd", "Co", "Corp", "approx", "dept", "est",
     )
 )
-_ABBREVIATION_DOT_RE = re.compile(r"([A-Za-z][A-Za-z.]*)\.$")
-_INITIAL_DOT_RE = re.compile(r"\b[A-Z]\.$")
+# Matched anywhere in the text (a dot followed by whitespace or the end), not
+# only at the end of the whole string.
+_ABBREVIATION_DOT_RE = re.compile(r"\b([A-Za-z][A-Za-z.]*)\.(?=\s|$)")
+_INITIAL_DOT_RE = re.compile(r"\b[A-Z]\.(?=\s|$)")
 _DOMAIN_RE = re.compile(r"\b[a-zA-Z0-9-]+\.(com|org|net|io|edu|gov|cn|dev|ai|app|co|me|tv|info|biz)\b", re.IGNORECASE)
 _DECIMAL_RE = re.compile(r"\d\.\d")
 _DOT_PLACEHOLDER = ""

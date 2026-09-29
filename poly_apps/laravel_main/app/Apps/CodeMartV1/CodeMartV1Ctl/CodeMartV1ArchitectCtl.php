@@ -144,15 +144,15 @@ class CodeMartV1ArchitectCtl extends Controller
         $architectStatus = $this->architectStatus($userId);
 
         if ($architectStatus === CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
-            return $this->error('You are already an architect');
+            return $this->error(__('codemart.messages.you_are_already_an_architect'));
         }
         if ($architectStatus === CodeMartV1Constants::ROLE_STATUS_PENDING) {
-            return $this->error('An architect application is already pending');
+            return $this->error(__('codemart.messages.an_architect_application_is_already_pending'));
         }
 
         $developerRole = $this->developerRole($userId);
         if (!$developerRole || $developerRole->role_status !== CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
-            return $this->error('Only active developers can apply for architect role');
+            return $this->error(__('codemart.messages.only_active_developers_can_apply_for_architect'));
         }
 
         $stats = CodeMartV1DeveloperStatsModel::forUser($userId);
@@ -160,7 +160,7 @@ class CodeMartV1ArchitectCtl extends Controller
             $stats->completed_projects < CodeMartV1Constants::ARCHITECT_MIN_PROJECTS ||
             $stats->avg_code_score < CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE ||
             $stats->avg_client_satisfaction < CodeMartV1Constants::ARCHITECT_MIN_SATISFACTION) {
-            return $this->error('You do not meet the requirements for architect promotion');
+            return $this->error(__('codemart.messages.you_do_not_meet_the_requirements_for'));
         }
 
         $requiredDeposit = CodeMartV1Constants::getDepositAmount(CodeMartV1Constants::ROLE_ARCHITECT);
@@ -175,7 +175,7 @@ class CodeMartV1ArchitectCtl extends Controller
         });
 
         return $this->success([
-            'message' => 'Architect application submitted. Please pay additional deposit to complete.',
+            'message' => __('codemart.messages.architect_application_submitted'),
             'required_deposit' => $requiredDeposit,
             'deposit' => CodeMartV1DepositModel::policyForRole($userId, CodeMartV1Constants::ROLE_ARCHITECT),
         ]);
@@ -210,11 +210,11 @@ class CodeMartV1ArchitectCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         if ($this->architectStatus((int) $user->id) !== CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
-            return $this->forbidden('Only architects can accept projects');
+            return $this->forbidden(__('codemart.messages.only_architects_can_accept_projects'));
         }
 
         if (!CodeMartV1ProjectModel::acceptForArchitect((int) $projectId, $user->id)) {
-            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 'Project not found or already assigned', null, 404);
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, __('codemart.messages.project_not_found_or_already_assigned'), null, 404);
         }
 
         CodeMartV1DomainEventService::emit(
@@ -231,7 +231,7 @@ class CodeMartV1ArchitectCtl extends Controller
             ['architect_id' => (int) $user->id]
         );
 
-        return $this->success(['message' => 'Project accepted. You can now create tasks for developers.']);
+        return $this->success(['message' => __('codemart.messages.architect_project_accepted')]);
     }
 
     public function completeArchitectDeposit(Request $request): JsonResponse
@@ -244,21 +244,21 @@ class CodeMartV1ArchitectCtl extends Controller
         $policy = CodeMartV1DepositModel::policyForRole($userId, CodeMartV1Constants::ROLE_ARCHITECT);
 
         if (!$architectRole) {
-            return $this->codedError('architect_application_missing', 'No architect application found', $policy, 404);
+            return $this->codedError('architect_application_missing', __('codemart.messages.no_architect_application_found'), $policy, 404);
         }
         if ($architectRole->role_status === CodeMartV1Constants::ROLE_STATUS_ACTIVE) {
             return $this->success(['role_status' => $architectRole->role_status, 'deposit' => $policy, 'activated' => false]);
         }
         if ($architectRole->role_status !== CodeMartV1Constants::ROLE_STATUS_PENDING) {
-            return $this->codedError('architect_application_invalid_state', 'Architect application is not pending', $policy, 409);
+            return $this->codedError('architect_application_invalid_state', __('codemart.messages.architect_application_is_not_pending'), $policy, 409);
         }
 
         // Only an administrator-confirmed (paid) architect-role deposit counts; users cannot self-confirm.
         if (CodeMartV1DepositModel::paidAmountForUser($userId, CodeMartV1Constants::ROLE_ARCHITECT) <= 0) {
-            return $this->codedError('architect_deposit_not_confirmed', 'No administrator-confirmed architect deposit found', $policy, 409);
+            return $this->codedError('architect_deposit_not_confirmed', __('codemart.messages.no_administrator_confirmed_architect_deposit_found'), $policy, 409);
         }
         if (!$policy['is_sufficient']) {
-            return $this->codedError('architect_deposit_insufficient', 'Confirmed deposits do not cover the architect requirement', $policy, 409);
+            return $this->codedError('architect_deposit_insufficient', __('codemart.messages.confirmed_deposits_do_not_cover_the_architect'), $policy, 409);
         }
 
         CodeMartV1ProjectModel::runInTransaction(function () use ($architectRole) {

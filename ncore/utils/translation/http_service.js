@@ -1,17 +1,6 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const express = require('express');
 const logger = require('#@logger');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 const translationService = require('./libs/translation_service');
 const { loadConfig } = require('./config/config_loader');
 
@@ -49,7 +38,7 @@ async function handleTranslate(req, res) {
   res.status(200).json(result);
 }
 
-function startHttpService(port) {
+function startHttpService(port, host) {
   if (server) {
     logger.warn('Translation HTTP service already running');
     return server;
@@ -57,9 +46,12 @@ function startHttpService(port) {
 
   config = loadConfig();
   port = port || config.PORT || 36315;
+  host = localRpcGuard.resolveBindHost(host || config.HOST);
 
   app = express();
-  app.use(express.json());
+  app.use(localRpcGuard.createExpressGuard());
+  app.use(express.json({ verify: localRpcGuard.captureRawBody }));
+  app.use(localRpcGuard.createExpressBodyDigestCheck());
 
   app.post('/translate', async (req, res) => {
     try {
@@ -79,8 +71,8 @@ function startHttpService(port) {
     res.status(404).json({ message: 'error url, only /translate is provided' });
   });
 
-  server = app.listen(port, () => {
-    logger.info('Translation HTTP service is running at http://localhost:' + port);
+  server = app.listen(port, host, () => {
+    logger.info('Translation HTTP service is running at http://' + host + ':' + port);
   });
 
   return server;

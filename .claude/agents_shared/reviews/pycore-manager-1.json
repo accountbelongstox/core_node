@@ -1,0 +1,17 @@
+{
+  "task_id": "pycore-manager-1",
+  "role": "pycore-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-004": {"status": "fixed", "reason": "PcTerminalDesktopIntegration uses useTranslation('pc'); the terminal.desktop.* keys exist in pc en/zh."},
+    "FU-018": {"status": "fixed", "reason": "The three terminal_viewer_* codes map to terminal.errors.viewer* (en/zh), and the window refresh keeps a known code from the RPC error message (terminalRequestErrorCode) instead of always reporting request_failed, so the new texts actually show."},
+    "FU-024": {"status": "fixed", "reason": "pc part: common.close is added in pc en/zh. The lm parts belong to laravel-manager-5."},
+    "FU-025": {"status": "fixed", "reason": "pycore-manager parts named in the finding: vocabShared VL and every Vocabulary tab (plus PcSubtitleSearchPage) now map labels to pc locale keys; relativeTime/relativeAgo use common.relative.* through one shared helper with its callers updated. The remainder is recorded with a count in the owner report: 11 files still carry English L label objects, deferred as a rule sweep."}
+  },
+  "issues": [
+    "(non-blocking, recorded remainder) FU-025 rule sweep: 11 pycore-manager files still keep English label objects (PcAddDocumentView, PcSentenceAudioPanel, PcBookSourceExplorer, PcVideoExtractContext, PcCoreBookPage, PcLaravelMediaPanel, PcImageSearchPage, PcVideoExtractPage, PcBooksPage, PcTranslatePage, and VocabOfflineDictTab's sourceLabel). The owner report still lists PcSubtitleSearchPage as a remainder, but it is converted in this diff; update the report.",
+    "Several of these files also carry pycore-manager-5 hunks (pcLaravelErrorMessage catch blocks, TaskCenterState). They are not covered here."
+  ],
+  "checks": "Diffs of PcTerminalDesktopIntegration, PcTerminalPage, pcFormat, PcSubtitleSearchPage and the vocabulary files read; the owner's in-memory en/zh key-parity check is reported; line endings are restored (diff sizes are unchanged with --ignore-space-at-eol).",
+  "checked_at": "2026-09-27T04:21:16+10:00"
+}

@@ -6,12 +6,14 @@ import { cmErrorMessage } from '../../api/cmErrors';
 export interface CmPagedSlice<T> {
   items: T[];
   totalPages: number;
+  total?: number;
 }
 
 export interface CmPagedList<T> {
   items: T[];
   page: number;
   totalPages: number;
+  total: number;
   loading: boolean;
   error: string | null;
   load: (page: number) => Promise<void>;
@@ -32,19 +34,25 @@ export function useCmPagedList<R, T>(
   const [items, setItems] = useState<T[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const pageRef = useRef(1);
+  const requestRef = useRef(0);
   const translate = useRef(t);
   translate.current = t;
 
   const load = useCallback(async (targetPage: number): Promise<void> => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     setLoading(true);
     const response = await fetcher(targetPage);
+    if (requestId !== requestRef.current) return;
     if (response.success && response.data) {
       const slice = extract(response.data);
       setItems(slice.items);
       setTotalPages(slice.totalPages);
+      setTotal(slice.total ?? 0);
       setPage(targetPage);
       pageRef.current = targetPage;
       setError(null);
@@ -57,9 +65,13 @@ export function useCmPagedList<R, T>(
   const reload = useCallback(() => load(pageRef.current), [load]);
 
   useEffect(() => {
-    if (enabled) void load(1);
-    else setLoading(false);
+    if (enabled) {
+      void load(1);
+      return;
+    }
+    requestRef.current += 1;
+    setLoading(false);
   }, [enabled, load]);
 
-  return { items, page, totalPages, loading, error, load, reload };
+  return { items, page, totalPages, total, loading, error, load, reload };
 }

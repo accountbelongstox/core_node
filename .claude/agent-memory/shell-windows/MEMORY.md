@@ -1,0 +1,14 @@
+- [CRLF mixed line endings](crlf-mixed-line-endings.md) — some scripts/ files are CRLF; scripted edits must preserve endings
+- [Secret password runner](secret-password-runner.md) — secret node tools take the password on stdin via the runner, never argv
+- [Launcher generator parity](launcher-generator-parity.md) — generated launchers can lag the generator; parity-check then regenerate, never hand-edit
+- [Strict mode + desktop icons](win-strictmode-and-desktop-icons.md) — GlobalVars enables StrictMode Latest; organizer layout, pinned Window Launcher, keep keyword file ASCII
+- [Edit tool unicode escapes](edit-tool-unicode-escapes.md) — typed ﻿ becomes the literal char; write escapes via node byte-level replace
+- [Hooks stay shell form](hooks-shell-form-decision.md) — exec-form "args" deferred: an older CLI would silently disable the git guard
+- [claude_team_roles.json window:false](claude-team-window-false-roles.md) — schema_version 7 service roles (no window/session at start); gate on row.Window, not just Enabled
+- [PowerShell tool sandbox false positive](powershell-tool-sandbox-false-positive.md) — Remove-Item/Start-Process test rigs can hit a bogus "protected path" block; retry with dangerouslyDisableSandbox
+- [Dual-boot parity ledger can lag code](dual-boot-parity-ledger-can-lag-code.md) — SPW-035 can still describe an old directive (D27) after code moved to D28/D30; verify against contract/code, not the row text
+- [SharedCacheEnv.ps1 load side effects](shared-cache-env-load-side-effects.md) — dot-sourcing it creates real D:\www\cache\* dirs; stub its globals/functions in scratch tests instead
+- [Parity "aligned" needs a field diff](parity-aligned-needs-field-diff.md) — a row can say aligned while hiding a field gap or an unverified algorithm/stale round; diff/verify the counterpart's actual code
+- [Bash exec optimization erases test argv](bash-exec-optimization-erases-test-argv.md) — `bash -c 'cmd' extra --name X &` loses extra argv (tail-call exec); use `cmd & wait` in a wrapper script to test /proc/PID/cmdline matching
+- [pwsh snap wrapper fails](pwsh-snap-wrapper-fails.md) — `pwsh` snap wrapper errors "transient scope"; run /snap/powershell/current/opt/powershell/pwsh directly
+- [PS Dictionary.Contains + stub gotchas](ps-dictionary-contains-and-stub-gotchas.md) — use ContainsKey on JSON dictionaries; cmdlet proxy stubs need CmdletBinding, no $ErrorAction

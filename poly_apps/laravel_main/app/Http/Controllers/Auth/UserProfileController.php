@@ -28,7 +28,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $userProfile = [
@@ -50,7 +50,7 @@ class UserProfileController extends Controller
             'updated_at' => $user->updated_at,
         ];
 
-        return $this->success(['user' => $userProfile], 'Profile retrieved successfully');
+        return $this->success(['user' => $userProfile], __('api.messages.profile_retrieved_successfully'));
     }
 
     /**
@@ -61,7 +61,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -139,7 +139,7 @@ class UserProfileController extends Controller
             'is_active' => $user->is_active ?? 1,
         ];
 
-        return $this->success(['user' => $userProfile], 'Profile updated successfully');
+        return $this->success(['user' => $userProfile], __('api.messages.profile_updated_successfully'));
     }
 
     /**
@@ -150,7 +150,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -166,14 +166,14 @@ class UserProfileController extends Controller
         if (!Hash::check($request->current_password, $user->password)) {
             return $this->validationError(
                 ['current_password' => ['Current password is incorrect.']],
-                'Current password is incorrect'
+                __('api.messages.current_password_is_incorrect')
             );
         }
 
         $user->password = Hash::make($request->new_password);
         $user->saveRecord();
 
-        return $this->success([], 'Password changed successfully');
+        return $this->success([], __('api.messages.password_changed_successfully'));
     }
 
     /**
@@ -184,7 +184,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $defaultPreferences = [
@@ -201,7 +201,7 @@ class UserProfileController extends Controller
 
         $preferences = array_merge($defaultPreferences, $userPreferences);
 
-        return $this->success($preferences, 'Preferences retrieved successfully');
+        return $this->success($preferences, __('api.messages.preferences_retrieved_successfully'));
     }
 
     /**
@@ -212,7 +212,7 @@ class UserProfileController extends Controller
         $user = $request->user();
 
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('api.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -245,7 +245,7 @@ class UserProfileController extends Controller
         $user->preferences = $updatedPreferences;
         $user->saveRecord();
 
-        return $this->success($updatedPreferences, 'Preferences updated successfully');
+        return $this->success($updatedPreferences, __('api.messages.preferences_updated_successfully'));
     }
 
     /**

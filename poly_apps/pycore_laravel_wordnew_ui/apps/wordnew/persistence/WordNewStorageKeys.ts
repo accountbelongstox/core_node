@@ -7,6 +7,7 @@ export const WordNewStorageKeys = {
   WORDNEW_FINGERPRINT_VISITOR: 'wordnew_client_fp_visitor',
   WORDNEW_API_QUEUE: 'wordnew_api_queue',
   WORDNEW_READING_PROGRESS: 'wordnew_reading_progress',
+  WORDNEW_READING_TODAY: 'wordnew_reading_today',
   WORDNEW_STUDY_PROGRESS: 'wfnew_study_progress_v1',
   WORDNEW_SENTENCE_WORD_CLIENT_KEY: 'wfnew.sentenceWords.clientKey',
   WORDNEW_ADMIN_LANGUAGE: 'wfnew_admin_lang',

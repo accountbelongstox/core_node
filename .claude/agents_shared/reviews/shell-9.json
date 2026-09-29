@@ -1,0 +1,12 @@
+{
+  "task_id": "shell-9",
+  "role": "shell",
+  "verdict": "approved",
+  "findings": {
+    "shell-2 follow-up (postgres password mirror)": {"status": "fixed", "reason": "The mirror directory is reader-owned 0700 (changed only when owner or mode differ) and the file is written under umask 077, then set to reader-owned 0600. The reader is the first of PG_PHP_RUNTIME_USER_CANDIDATES (declared at the top) with a running PHP process (pgrep also matches frankenphp), else root, which the core_node Octane service runs as. No other local account can read the password. get_postgresql_password reads the mirror with $USE_SUDO test -s / head, so a non-root run does not miss the 0600 file and rotate the password. .core_node_secrets is pruned from the 777 walks and kept by repair_app_secret_tree (owner kept, files 0600, no group/other write on directories)."},
+    "shell-5 follow-up (fs_perm_target_safety)": {"status": "fixed", "reason": "The guard also refuses /lib64, /var/lib, /var/log, /boot, /root, /home, /opt, /srv, /mnt, /media, /tmp, /run, /proc, /sys and /dev (the subtree for /boot, /run, /proc, /sys, /dev and /lib64). /usr/local and /var/_core_node stay allowed. A symlink to /home no longer gets a recursive 0777."}
+  },
+  "issues": [],
+  "checks": "The fs_perm_target_safety case list, the pg_mirror_reader function and mirror block, and the sudo-aware reads in postgresql_install_common.sh read; the owner ran bash -n plus the guard-table and 777-walk probes.",
+  "checked_at": "2026-09-27T04:59:01+10:00"
+}

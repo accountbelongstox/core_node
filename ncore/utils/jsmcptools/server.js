@@ -1,26 +1,20 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 'use strict';
 
 const fastify = require('fastify');
-const cors = require('@fastify/cors');
 const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { SSEServerTransport } = require('@modelcontextprotocol/sdk/server/sse.js');
 const { randomUUID } = require('crypto');
 const { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ListPromptsRequestSchema, isInitializeRequest } = require('@modelcontextprotocol/sdk/types.js');
 const logger = require('#@logger');
+const serviceContract = require('#@/config/service_contract.js');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 const { MCP_CHROME_PORT, TOOL_NAMES } = require('./tool_schemas');
+
+const CHROME_EXTENSION_SCHEME = 'chrome-extension://';
+const EXTENSION_ORIGINS = [(serviceContract.document.mcp_chrome || {}).extension_id]
+    .filter(Boolean)
+    .map((extensionId) => CHROME_EXTENSION_SCHEME + extensionId);
 
 const HTTP_STATUS = {
     OK: 200,
@@ -49,7 +43,7 @@ const ERROR_MESSAGES = {
 class MCPChromeServer {
     constructor(options = {}) {
         this.port = options.port || MCP_CHROME_PORT;
-        this.host = options.host || '127.0.0.1';
+        this.host = localRpcGuard.resolveBindHost(options.host);
         this.fastifyInstance = null;
         this.mcpServer = null;
         this.isRunning = false;
@@ -64,9 +58,9 @@ class MCPChromeServer {
     async initialize() {
         this.fastifyInstance = fastify({ logger: false });
 
-        await this.fastifyInstance.register(cors, {
-            origin: '*'
-        });
+        const guard = localRpcGuard.createFastifyGuard({ allowedOrigins: EXTENSION_ORIGINS });
+        this.fastifyInstance.addHook('onRequest', guard.onRequest);
+        this.fastifyInstance.addHook('preParsing', guard.preParsing);
 
         this.mcpServer = new Server(
             {

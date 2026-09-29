@@ -236,8 +236,9 @@ get_postgresql_password() {
     # Laravel reads first. Only generate when BOTH are empty.
     if [ -z "$pw" ]; then
         mirror="$(map_web_path "laravel_db" ".core_node_secrets/POSTGRES_PASSWORD" 2>/dev/null)"
-        if [ -n "$mirror" ] && [ -s "$mirror" ]; then
-            pw="$(head -n1 "$mirror" 2>/dev/null | tr -d '\r\n')"
+        # The mirror is 0600 and owned by its PHP reader: read it privileged.
+        if [ -n "$mirror" ] && $USE_SUDO test -s "$mirror"; then
+            pw="$($USE_SUDO head -n1 "$mirror" 2>/dev/null | tr -d '\r\n')"
         fi
     fi
     if [ -z "$pw" ]; then

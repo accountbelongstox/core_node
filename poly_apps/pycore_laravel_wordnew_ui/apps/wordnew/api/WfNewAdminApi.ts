@@ -24,16 +24,19 @@
  * Paths live in WfNewApiPaths (WfNewAdminPaths) with the rest of the endpoint
  * catalog. Learner-facing data keeps flowing through wfNewApi untouched.
  *
- * AUTH — most management routes are public on purpose (dashboard trust level);
- * the few sanctum-gated ones (translate / tts generate / library delete) reuse
- * the wordnew session Bearer token when the user IS logged in, and surface a
- * clean 401 error otherwise (callers toast trans('admin.needLogin')).
+ * AUTH — reads are public. Management writes (dictionary word CRUD/batch,
+ * cover tasks, translation enqueue) need an admin dashboard session
+ * (`dashboard.auth`: the loopback debug bypass or an admin Bearer); translate
+ * and library delete need a Sanctum session, TTS generate any logged-in user.
+ * The wordnew session Bearer is sent when present; adminErrorText maps 401 to
+ * needLogin and 403 to needAdmin.
  */
 
 import { WfNewAdminPaths, WFNEW_ADMIN_DEBUG_STATUS_PATH } from './WfNewApiPaths';
 import { WFNEW_API_PORT } from './WfNewEndpoints';
 import { loadToken } from './WfNewApiTransport';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
+import { translateActive } from '../WfNewLocales';
 import { LibraryCoverTaskModel } from '../../../shared/library-cover/LibraryCoverTaskModel';
 import type {
   LibraryCoverEnqueueRequest,
@@ -277,6 +280,14 @@ async function request<T>(method: string, path: string, body?: Record<string, un
     return parsed.data as T;
   }
   return parsed as T;
+}
+
+/** Localized text for a failed admin call: 401 needs login, 403 needs an admin session. */
+export function adminErrorText(error: unknown): string {
+  const failure = error as { status?: number; message?: string } | null;
+  if (failure?.status === 401) return translateActive('admin.needLogin');
+  if (failure?.status === 403) return translateActive('admin.needAdmin');
+  return failure?.message || translateActive('admin.requestFailed');
 }
 
 const getJSON = <T,>(path: string): Promise<T> => request<T>('GET', path);

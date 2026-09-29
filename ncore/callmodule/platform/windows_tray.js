@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * Windows Tray Mode Launcher
  *
@@ -19,7 +7,8 @@
 const path = require('path');
 const net = require('net');
 
-const { initGlobalConfig, getGlobalConfig } = require('../global_config');
+const { initGlobalConfig, DEFAULT_HTTP_PORT } = require('../global_config');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 const { createApp } = require('../app');
 const { getInstance: getTrayLauncher } = require('../../utils/electron/TrayLauncher');
 const { ncoreController } = require('../../ncontroller/controller');
@@ -80,8 +69,8 @@ function createLock() {
  * @param {string} options.browserType - Browser type to launch
  */
 async function launchWindowsTray(options = {}) {
-    const host = options.host || '0.0.0.0';
-    const port = options.port || 58000;
+    const host = resolveBindHost(options.host);
+    const port = options.port || DEFAULT_HTTP_PORT;
     const debug = options.debug || false;
     const noBrowser = options.noBrowser || false;
     const browserType = options.browserType || 'edge';
@@ -117,9 +106,8 @@ async function launchWindowsTray(options = {}) {
     const app = await createApp();
 
     server = app.listen(port, host, () => {
-        const config = getGlobalConfig();
         console.log('[Tray] Server started successfully');
-        console.log(`[Tray] Access URL: http://${config.localIp || host}:${port}`);
+        console.log(`[Tray] Access URL: http://${host}:${port}`);
 
         // Register with ThreadBus
         threadBus.register('windows-tray-server', {
@@ -157,8 +145,7 @@ async function initElectronTray(host, port) {
         iconPath = null;
     }
 
-    const config = getGlobalConfig();
-    const accessUrl = `http://${config.localIp || host}:${port}`;
+    const accessUrl = `http://${host}:${port}`;
 
     const trayConfig = {
         iconPath: iconPath,

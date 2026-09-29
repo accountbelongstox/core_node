@@ -114,7 +114,7 @@ class AppQyV1BookSeedImporter
             . str_replace('/', DIRECTORY_SEPARATOR, self::SEED_REL_PATH);
 
         if (!is_file($blobPath)) {
-            return ['status' => 'warning', 'message' => 'Book seed blob not found: ' . $blobPath];
+            return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_blob_not_found', ['path' => $blobPath])];
         }
 
         // Already the single Bible book: clean up any leftover legacy per-book rows
@@ -123,8 +123,9 @@ class AppQyV1BookSeedImporter
             $removed = $this->supersedeLegacyPerBookSeed();
             return [
                 'status' => 'success',
-                'message' => 'Bible already seeded as one book'
-                    . ($removed ? " (removed {$removed} legacy per-book rows)" : ''),
+                'message' => $removed
+                    ? __('app_qy_v1.messages.book_seed_bible_already_seeded_removed', ['removed' => $removed])
+                    : __('app_qy_v1.messages.book_seed_bible_already_seeded'),
             ];
         }
 
@@ -139,13 +140,13 @@ class AppQyV1BookSeedImporter
             if ($corpusRoot === null) {
                 return [
                     'status' => 'warning',
-                    'message' => 'Could not decompress the book seed (xz/tar/7z unavailable); will retry next init',
+                    'message' => __('app_qy_v1.messages.book_seed_decompress_unavailable'),
                 ];
             }
 
             $files = $this->listBookFiles($corpusRoot);
             if (empty($files)) {
-                return ['status' => 'warning', 'message' => 'No book files found inside the extracted corpus'];
+                return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_no_book_files')];
             }
 
             $docs = [];
@@ -156,7 +157,7 @@ class AppQyV1BookSeedImporter
                 }
             }
             if (empty($docs)) {
-                return ['status' => 'warning', 'message' => 'No valid book documents in the corpus'];
+                return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_no_valid_documents')];
             }
 
             // ONE book -> N chapters (one per biblical sub-book), one atomic ingest.
@@ -165,7 +166,7 @@ class AppQyV1BookSeedImporter
                 app(MediaIngestService::class)->ingest($payload);
             } catch (\Throwable $e) {
                 Log::error('[AppQyV1BookSeed] Bible ingest failed: ' . $e->getMessage());
-                return ['status' => 'warning', 'message' => 'Bible ingest failed: ' . $e->getMessage()];
+                return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_bible_ingest_failed', ['error' => $e->getMessage()])];
             }
 
             // Now the single Bible book exists -> remove the legacy 66-book rows.
@@ -174,16 +175,20 @@ class AppQyV1BookSeedImporter
 
             return [
                 'status' => $complete ? 'success' : 'warning',
-                'message' => sprintf(
-                    'Seeded the Bible as ONE book (%d chapters, %d verses)%s',
-                    count($payload['chapters']),
-                    count($payload['slots']),
-                    $removed ? " [superseded {$removed} legacy per-book rows]" : ''
+                'message' => __(
+                    $removed
+                        ? 'app_qy_v1.messages.book_seed_bible_seeded_superseded'
+                        : 'app_qy_v1.messages.book_seed_bible_seeded',
+                    [
+                        'chapters' => count($payload['chapters']),
+                        'verses' => count($payload['slots']),
+                        'removed' => $removed,
+                    ]
                 ),
             ];
         } catch (\Throwable $e) {
             Log::error('[AppQyV1BookSeed] Seed failed: ' . $e->getMessage());
-            return ['status' => 'warning', 'message' => 'Book seed error: ' . $e->getMessage()];
+            return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_error', ['error' => $e->getMessage()])];
         } finally {
             try {
                 if (is_dir($tempDir)) {

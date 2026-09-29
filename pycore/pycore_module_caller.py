@@ -24,7 +24,7 @@ Usage:
     ./pyservice.sh                                       # Linux / macOS / Git-Bash
 
     # Direct (no prerequisite installation step):
-    python pycore/pycore_module_caller.py                # Default (0.0.0.0:59000)
+    python pycore/pycore_module_caller.py                # Default (127.0.0.1:59000; LAN bind needs rpcLanBind)
     python pycore/pycore_module_caller.py --host 0.0.0.0 --port 8000
     python pycore/pycore_module_caller.py --debug
 """
@@ -66,13 +66,15 @@ apply_shared_cache_env()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config, build_tray_service_config
-from pycore.pylauncher.tray_menu import update_tray_menu_with_singleton
+from pycore.pylauncher.tray_menu import keep_agent_history_tray_state, update_tray_menu_with_singleton
+from pycore.pyctl.agent_history.pipeline.config import get_config as get_agent_history_config
 from pycore.pyctl.runtime.event_handlers import register_event_handlers
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.tts.batch_startup_selfcheck import run_selfcheck, selfcheck_enabled
@@ -87,6 +89,9 @@ from pycore.pyutils.tts.batch.batch_constants import TTS_STARTUP_SELFCHECK_ENV
 # pyservice tears down the dev server the newer instance's webview is reusing
 # -> the new webview shows "Load failed: http://localhost:13054/pycore-manager".
 _SUPERSEDED = {'flag': False}
+# Keeps the tray's agent-history flags ahead of the tray menu refresh handler
+# (default priority 100) registered on the same event by event_handlers.
+AGENT_HISTORY_TRAY_KEEP_PRIORITY = 10
 
 
 def main(
@@ -118,6 +123,16 @@ def main(
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("Pycore Module Caller - Starting")
     ColorPrint.blue("=" * 70)
+
+    # 0. Tray agent-history switches: pylauncher never imports pyctl, so the
+    #    tray keeps every AGENT_HISTORY_CONFIG_CHANGED payload and gets the
+    #    owner's config injected here, before the first tray menu is built.
+    THREAD_BUS.register_event_handler(
+        BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
+        keep_agent_history_tray_state,
+        priority=AGENT_HISTORY_TRAY_KEEP_PRIORITY,
+    )
+    keep_agent_history_tray_state({"config": get_agent_history_config()})
 
     # 1. Build configuration (callmodule layer - only config, no threads)
     config = build_launcher_config(

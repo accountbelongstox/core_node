@@ -18,9 +18,9 @@ class CodeMartV1EmailService
         try {
             $verificationUrl = $this->buildVerificationUrl($token);
 
-            Mail::raw("Please verify your email by clicking the link: {$verificationUrl}", function ($message) use ($email) {
+            Mail::raw(__('codemart.mail.verification_body', ['url' => $verificationUrl]), function ($message) use ($email) {
                 $message->to($email)
-                    ->subject('CodeMart Email Verification')
+                    ->subject(__('codemart.mail.verification_subject'))
                     ->from(Config::get('mail.from.address'));
             });
 
@@ -39,6 +39,15 @@ class CodeMartV1EmailService
     public function verifyToken(string $email, string $token): bool
     {
         return CodeMartV1EmailVerificationModel::consume($email, $token);
+    }
+
+    /**
+     * Issue a fresh verification token (replacing the previous one) and mail
+     * it. Registration and resend share this single token path.
+     */
+    public function issueVerification(string $email): bool
+    {
+        return $this->sendVerificationEmail($email, $this->createEmailVerification($email));
     }
 
     public function createEmailVerification(string $email): string

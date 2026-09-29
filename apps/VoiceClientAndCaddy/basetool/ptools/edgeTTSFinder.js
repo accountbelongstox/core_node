@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const { execCmdResultText,pipeExecCmd } = require('#@commander');
 const pythonSetup = require('#@/ncore/utils/dev_tool/lang_deploy/pythonSetup.js');
 const pythonVenv = require('#@/ncore/utils/dev_tool/lang_deploy/pythonVenv.js');
@@ -75,8 +63,7 @@ const checkEdgeTTS = (pythonPath, pipPath) => {
 const installEdgeTTS = async ( pythonPath, pipPath ) => {
     try {
         log.info('Installing edge-tts...');
-        await pipeExecCmd(`"${pipPath}" install --break-system-packages edge-tts`);
-        return true;
+        return pipeExecCmd(`"${pipPath}" install --break-system-packages edge-tts`) !== null;
     } catch (error) {
         log.error(`Failed to install edge-tts: ${error.message}`);
         return false;

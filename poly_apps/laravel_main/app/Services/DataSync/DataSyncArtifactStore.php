@@ -20,7 +20,7 @@ final class DataSyncArtifactStore
     {
         $json = (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
         if (!FileSystemManager::writeFileAtomic($this->artifactPath($jobId, $name), $json)) {
-            throw new \RuntimeException("Unable to persist the synchronization artifact: {$name}");
+            throw new \RuntimeException(__('data_sync.artifact_persist_failed', ['name' => $name]));
         }
     }
 
@@ -34,7 +34,7 @@ final class DataSyncArtifactStore
     public function require(string $jobId, string $name): array
     {
         return $this->get($jobId, $name)
-            ?? throw new \RuntimeException("Synchronization artifact is missing or invalid: {$name}");
+            ?? throw new \RuntimeException(__('data_sync.artifact_missing', ['name' => $name]));
     }
 
     public function forget(string $jobId, string $name): void
@@ -54,7 +54,7 @@ final class DataSyncArtifactStore
             return false;
         }
         if (!FileSystemManager::writeFile($path, 'completed')) {
-            throw new \RuntimeException('Unable to persist the resource completion receipt.');
+            throw new \RuntimeException(__('data_sync.receipt_persist_failed'));
         }
         return true;
     }
@@ -80,7 +80,7 @@ final class DataSyncArtifactStore
     private function artifactPath(string $jobId, string $name): string
     {
         if (preg_match('/^[a-z0-9_.-]{1,96}$/', $name) !== 1) {
-            throw new \InvalidArgumentException("Invalid synchronization artifact name: {$name}");
+            throw new \InvalidArgumentException(__('data_sync.artifact_name_invalid', ['name' => $name]));
         }
         return $this->sessionDirectory('artifacts', $jobId) . DIRECTORY_SEPARATOR . $name . '.json';
     }

@@ -85,6 +85,30 @@
   "apiCustomEndpointDescription": {
     "message": "自訂：{0}"
   },
+  "apiEndpointProduction": {
+    "message": "正式環境雲端伺服器"
+  },
+  "apiEndpointLocalhost": {
+    "message": "本機開發伺服器"
+  },
+  "apiEndpointLoopback": {
+    "message": "本機迴路伺服器"
+  },
+  "apiEndpointLanBackup": {
+    "message": "區域網路備用伺服器"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "區域網路主要伺服器"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "遠端 Laravel 主服務"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet Nuul 伺服器"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet API 伺服器"
+  },
   "httpStatusError": {
     "message": "{0}（HTTP {1}）"
   },
@@ -1840,7 +1864,7 @@
     "message": "  已選擇單次建置。"
   },
   "startWatchPrompt": {
-    "message": "是否啟用開發監看模式？[Y/n]"
+    "message": "是否啟用開發監看模式？"
   },
   "stateLabel": {
     "message": "狀態"
@@ -2439,6 +2463,98 @@
       "pid": {
         "content": "$1",
         "example": "1234"
+      }
+    }
+  },
+  "unknownActionError": {
+    "message": "未知操作：$action$",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownCapabilityError": {
+    "message": "未知能力：$capability$",
+    "placeholders": {
+      "capability": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerStartedStatus": {
+    "message": "工作器已啟動"
+  },
+  "workerStoppedStatus": {
+    "message": "工作器已停止"
+  },
+  "workerConfigRequired": {
+    "message": "需要工作器設定"
+  },
+  "workerConfigApplied": {
+    "message": "設定已套用"
+  },
+  "apiUrlEmpty": {
+    "message": "API 位址為空"
+  },
+  "serverReturnedError": {
+    "message": "伺服器傳回錯誤"
+  },
+  "taskCenterStartedStatus": {
+    "message": "任務中心已啟動"
+  },
+  "taskCenterStoppedStatus": {
+    "message": "任務中心已停止"
+  },
+  "processorTypeRequired": {
+    "message": "需要處理器類型"
+  },
+  "processorEnabledStatus": {
+    "message": "處理器 $processor$ 已啟用",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorDisabledStatus": {
+    "message": "處理器 $processor$ 已停用",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStartedStatus": {
+    "message": "處理器 $processor$ 已啟動",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStoppedStatus": {
+    "message": "處理器 $processor$ 已停止",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterAtLeastOneWord": {
+    "message": "請至少輸入一個單字"
+  },
+  "startSupersededByStop": {
+    "message": "啟動已被停止操作取代"
+  },
+  "capabilityChangeSupersededByStop": {
+    "message": "能力變更已被停止操作取代"
+  },
+  "connectedPendingStatus": {
+    "message": "已連線 · 待處理 $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
       }
     }
   }

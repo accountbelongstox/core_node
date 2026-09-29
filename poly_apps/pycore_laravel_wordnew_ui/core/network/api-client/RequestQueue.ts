@@ -13,10 +13,14 @@
  *   - FIFO order (replay happens oldest-first, sequential);
  *   - tokens are NEVER persisted — entries store headers minus the auth header
  *     names; the live token is re-resolved at replay time by the client;
+ *   - every entry carries the owner scope of the session that queued it;
+ *     entries stored without one cannot be attributed and are dropped on load;
  *   - cap of QUEUE_MAX_ENTRIES entries (oldest dropped first), entries older
  *     than QUEUE_MAX_AGE_MS are pruned on load;
- *   - identical pending entries (endpoint + method + body) are deduped.
+ *   - identical pending entries (endpoint + method + body + owner) are deduped.
  */
+
+import { createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
 
 /** Hard cap on persisted entries; the OLDEST entry is dropped past this. */
 export const QUEUE_MAX_ENTRIES = 100;
@@ -35,16 +39,11 @@ export interface QueuedRequestEntry {
   headers: Record<string, string>;
   /** JSON string body, or null. FormData/stream bodies are never queueable. */
   body: string | null;
+  /** Owner scope of the session that queued it; replayed only under that owner. */
+  owner: string | null;
   createdAt: number;
   attempts: number;
 }
-
-const generateEntryId = (): string => {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `q_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-};
 
 const isValidEntry = (e: any): e is QueuedRequestEntry =>
   !!e &&
@@ -52,7 +51,8 @@ const isValidEntry = (e: any): e is QueuedRequestEntry =>
   typeof e.id === 'string' &&
   typeof e.endpoint === 'string' &&
   typeof e.method === 'string' &&
-  typeof e.createdAt === 'number';
+  typeof e.createdAt === 'number' &&
+  (typeof e.owner === 'string' || e.owner === null);
 
 export class RequestQueue {
   readonly storageKey: string;
@@ -80,7 +80,7 @@ export class RequestQueue {
 
   /**
    * Persist a failed queueable write. Identical pending entries
-   * (endpoint + method + body) are deduped — the existing entry is returned.
+   * (endpoint + method + body + owner) are deduped — the existing entry is returned.
    * Past the QUEUE_MAX_ENTRIES cap the OLDEST entry is dropped.
    */
   enqueue(
@@ -90,13 +90,14 @@ export class RequestQueue {
       (e) =>
         e.endpoint === input.endpoint &&
         e.method === input.method &&
-        e.body === input.body
+        e.body === input.body &&
+        e.owner === input.owner
     );
     if (duplicate) return duplicate;
 
     const entry: QueuedRequestEntry = {
       ...input,
-      id: generateEntryId(),
+      id: createIdempotencyKey(),
       createdAt: Date.now(),
       attempts: 0,
     };
@@ -130,7 +131,7 @@ export class RequestQueue {
     this.persist();
   }
 
-  /** Load + prune (>24h old) from localStorage. SSR-safe (no-op without it). */
+  /** Load + prune (>24h old or ownerless) from localStorage. SSR-safe (no-op without it). */
   private load(): void {
     if (typeof localStorage === 'undefined') return;
     try {

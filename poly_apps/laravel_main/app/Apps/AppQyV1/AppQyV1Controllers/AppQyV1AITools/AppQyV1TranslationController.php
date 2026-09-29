@@ -82,7 +82,7 @@ class AppQyV1TranslationController extends Controller
             provider: $provider
         );
         
-        return $this->success($result, 'Translation completed successfully');
+        return $this->success($result, __('app_qy_v1.messages.translation_completed_successfully'));
     }
     
     public function batchTranslate(Request $request): JsonResponse
@@ -119,21 +119,21 @@ class AppQyV1TranslationController extends Controller
             );
         }
         
-        return $this->success(['results' => $results], 'Batch translation completed successfully');
+        return $this->success(['results' => $results], __('app_qy_v1.messages.batch_translation_completed_successfully'));
     }
     
     public function getLanguages(Request $request): JsonResponse
     {
         return $this->success([
             'languages' => $this->translationService->getAvailableLanguages(),
-        ], 'Languages retrieved successfully');
+        ], __('app_qy_v1.messages.languages_retrieved_successfully'));
     }
     
     public function getTypes(Request $request): JsonResponse
     {
         return $this->success([
             'types' => $this->translationService->getAvailableTypes(),
-        ], 'Types retrieved successfully');
+        ], __('app_qy_v1.messages.types_retrieved_successfully'));
     }
     
     public function getModels(Request $request): JsonResponse
@@ -183,7 +183,7 @@ class AppQyV1TranslationController extends Controller
         
         return $this->success([
             'models' => $uniqueModels,
-        ], 'Models retrieved successfully');
+        ], __('app_qy_v1.messages.models_retrieved_successfully'));
     }
     
     public function simpleTranslateWithGoogle(Request $request): JsonResponse
@@ -236,14 +236,14 @@ class AppQyV1TranslationController extends Controller
             'src_lang' => $srcLang,
             'dest_lang' => $destLang,
             'provider' => 'google',
-        ], 'Translation completed successfully');
+        ], __('app_qy_v1.messages.translation_completed_successfully'));
     }
     
     public function getTemplates(Request $request): JsonResponse
     {
         return $this->success([
             'templates' => $this->translationService->getLanguageTemplates(),
-        ], 'Templates retrieved successfully');
+        ], __('app_qy_v1.messages.templates_retrieved_successfully'));
     }
     
     public function learningMode(Request $request): JsonResponse
@@ -319,7 +319,7 @@ class AppQyV1TranslationController extends Controller
             'status' => 'completed',
             'result' => $results,
             'processing_time' => 0,
-        ], 'Learning mode translation completed successfully');
+        ], __('app_qy_v1.messages.learning_mode_translation_completed_successfully'));
     }
     
     /**
@@ -332,7 +332,7 @@ class AppQyV1TranslationController extends Controller
     public function getTaskStatus(Request $request, string $taskId): JsonResponse
     {
         return $this->error(
-            'Per-task polling is superseded by the word_translation queue. Use POST ai_tools/translation/queue/batch/status.',
+            __('app_qy_v1.messages.per_task_polling_is_superseded_by_the'),
             410
         );
     }
@@ -340,7 +340,7 @@ class AppQyV1TranslationController extends Controller
     public function processNextTask(Request $request): JsonResponse
     {
         return $this->error(
-            'Manual task processing is superseded by the word_translation pipeline (pycore worker + internal AI filler). Use POST ai_tools/translation/queue/batch/add.',
+            __('app_qy_v1.messages.manual_task_processing_is_superseded_by_the'),
             410
         );
     }

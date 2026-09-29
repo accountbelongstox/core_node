@@ -1,0 +1,13 @@
+{
+  "task_id": "laravel-manager-10",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "adaptation to laravel-T5 (FU-030 server side, toggle-autostart target)": {"status": "fixed", "reason": "BaseAPI exports createIdempotencyKey next to IDEMPOTENCY_KEY_HEADER (BaseAPI writer). LmBaseAPI.requestIdempotent keeps one key per user action while the outcome is unknown (status 0, 5xx, 409 IDEMPOTENCY_IN_PROGRESS) and clears it on any other answer, so an operator retry replays or joins the first run; IDEMPOTENCY_IN_PROGRESS maps to common.still_running (en/zh). DB backup and restore and serviceControl use it (still retry:false with long timeouts). setAutoStart(name, enabled) posts {enabled}, which resolves the laravel-T5 cross-end mismatch; no UI control calls it (pycore-manager's Auto-start uses the pycore RPC)."}
+  },
+  "issues": [
+    "(non-blocking, shared layer) core/network/api-client/MasterApiClient.ts still uses RequestQueue.generateEntryId to mint its Idempotency-Key, while BaseAPI now exports createIdempotencyKey. Both are UUID generators in the shared layer; the next writer of either file can point one at the other."
+  ],
+  "checks": "Diffs of BaseAPI createIdempotencyKey (randomUUID with a getRandomValues fallback for insecure LAN contexts), LmBaseAPI.requestIdempotent, DatabaseManagerAPI and ServerManagerAPI read; grep confirms no remaining toggleAutoStart callers.",
+  "checked_at": "2026-09-27T04:44:37+10:00"
+}

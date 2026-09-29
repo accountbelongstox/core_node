@@ -1,0 +1,49 @@
+{
+  "task_id": "ncore-6",
+  "role": "ncore",
+  "verdict": "approved",
+  "checked_at": "2026-09-27T09:42:04+10:00",
+  "findings": {
+    "NC-034": {
+      "status": "fixed",
+      "reason": "Checked the dead copies: lang_deploy commander, both plattool, utils/porttool + net/libs/portool, both httptool, and the 22 WLAN basetool/provider files. They are deleted and nothing references them: git grep over tracked files and a static require/alias resolver over ncore/, the Voice, WLAN and dingdoudou apps and main.js find 0 new unresolved requires (HEAD 74 -> 51 now, all pre-existing dead modules). cmder.js is an adapter over #@commander. app_executable_launcher delegates to utils/systool/libs/explorer.js, whose per-OS extension set is kept. No colored log object is left in global_vars or softinstall; the #@logger instance provides info/warn/error/success/debug/command. The express_utils vs utils/rpc copy is deferred by the recorded B7/guide-5 ruling (requirements, NC-034 HTTP stack)."
+    },
+    "NC-035": {
+      "status": "fixed",
+      "reason": "Moves: 15 installer files -> ncore/utils/softinstall, 8 zip-tool files -> ncore/utils/zip_tool, platform_detector -> ncore/utils/system (ncontroller re-exports it). Each moved file matches its HEAD original except for rewritten requires, the #@logger swap and the already-approved NC-004/012/016/017 edits. Line endings are unchanged. zip_tool now gets get7zExecutable from softinstall/binary_dir.js; it was undefined through globaldir.js. The Voice decompress callers are updated. arrtool, fcopy and sequelize_pring read isDebug from the foundation logger instance, and process_on derives its start time from process.uptime(). Still importing global_vars: express_utils (tied to the NC-034 deferral), fwriter.js:51 and sequelize_db.js:15 (deferred, as recorded)."
+    },
+    "NC-036": {
+      "status": "fixed",
+      "reason": "The suggested-fix scope (the exec and RPC layers first) is done, including all 8 cited sites. SingleInstanceManager, DualModeRunner, HttpRpcServer, commander, cmder and videoCompressor have 0 throws. docker_control.controlContainer returns false and uses execFileSync argv. TampermonkeyServer returns a 400 invalid_page_payload response. lang_deploy commander is deleted. The remainder is counted: 464 JS sites by my grep against the report's 462. SubAppManager.executeRoute keeps throwing as the RPC error channel, which the servers convert into error responses."
+    },
+    "NC-040": {
+      "status": "fixed",
+      "reason": "The foundation/common/logger.js:238 cleanup setInterval is .unref()'d, so a script that requires #@logger can exit."
+    },
+    "NC-041": {
+      "status": "fixed",
+      "reason": "The Voice config/index.js now uses #@/config/service_contract.js (it exists) and ModelCaller uses #@ncore/foundation/common/system_paths.js (it exists). The 30 remaining unresolvable relative requires are in dead modules and are recorded."
+    },
+    "follow-up readRawSecret": {
+      "status": "fixed",
+      "reason": "secret_manager.js:212 rejects any name outside /^[A-Za-z0-9_]+$/ (declared at the top, line 19/26) before the path join, so traversal is closed. The callers (config_tool.js:70, client_key_auth.js:329) pass contract/SECRET: names."
+    },
+    "follow-up execCmd argv": {
+      "status": "fixed",
+      "reason": "execCmd and execCommand go through runCommand: an array becomes [file, ...args] with no shell, and a string uses the platform shell. The only literal array caller (systool/libs/check.js:101) is a plain argv, and no caller relies on shell tokens inside an array."
+    },
+    "follow-up ncore_backend_main K7": {
+      "status": "fixed",
+      "reason": "Resubmit: ncore_backend_main.py:39-40,67-68 imports LocalRpcGuardMiddleware from pycore/pyutils/rpc_v2/http/local_rpc_middleware.py and adds it after CORSMiddleware, so it is the outermost middleware, in the same order as pycore server.py:124-131. The local copy is gone: _verify_client_key, the middleware function, SIGNATURE_INVALID_CODE, JSONResponse and the unused imports. allowed_origins and resolve_bind_host are kept. py_compile passes, and all 318 lines stay CRLF."
+    }
+  },
+  "issues": [
+    "(resolved) ncore_backend_main.py now reuses pycore LocalRpcGuardMiddleware.",
+    "(resolved) All 12 lang_deploy installers now require #@ncore/utils/softinstall/binary_dir.js instead of globaldir.js. Their bdir.* uses (initializedBDir, get7z/Curl/TarExecutable) all exist there. The exception is getcmder_win.js bdir.downloadFile, which exists nowhere; it is pre-existing and recorded in the report. Each file changes one line, LF kept.",
+    "(resolved) The dead ncore/utils/softinstall.js is deleted; the softinstall/ directory is no longer shadowed.",
+    "(resolved) global_vars/index.js:24 takes isDebug from #@logger; the duplicate isDebugEnabled is removed.",
+    "(resolved) The dead package.json aliases #@link and #@puppeteer-api are removed (orchestrator-granted alias edit); 38 aliases remain, and every non-wildcard target exists.",
+    "(resolved) singleton_rpc_entry_example.js:148-182: the override returns true when running or started, and false on a busy port (emits backendError) or on error (no rethrow), matching the base launch() contract. node --check passes, LF kept."
+  ],
+  "checks": "First pass: static resolver (HEAD vs working tree), node --check, py_compile, EOL. Resubmit: the resolver re-run finds 0 new unresolved requires (49 pre-existing, dead modules); all package.json alias targets exist; node --check passes on global_vars/index.js and SingletonRpcLauncher.js; py_compile passes on ncore_backend_main.py. No tests or builds were run."
+}

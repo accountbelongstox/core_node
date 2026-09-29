@@ -255,17 +255,17 @@ function Scan-LargeFiles {
 
     switch ($choice) {
         "1" {
-            $exportPath = "$PROJECT_ROOT\large-files-report.csv"
+            $exportPath = Join-Path $PROJECT_ROOT "large-files-report.csv"
             $largeFiles | Select-Object @{Name="Size";Expression={$_.Length}}, @{Name="Size (MB)";Expression={[math]::Round($_.Length / 1MB, 2)}}, @{Name="Path";Expression={Get-RelativePath $_.FullName}}, Name, Extension, LastWriteTime | Export-Csv -Path $exportPath -NoTypeInformation -Encoding UTF8
             Write-Success "Exported to: $exportPath"
         }
         "2" {
-            $exportPath = "$PROJECT_ROOT\all-files-report.csv"
+            $exportPath = Join-Path $PROJECT_ROOT "all-files-report.csv"
             $allFiles | Select-Object @{Name="Size";Expression={$_.Length}}, @{Name="Size (MB)";Expression={[math]::Round($_.Length / 1MB, 2)}}, @{Name="Path";Expression={Get-RelativePath $_.FullName}}, Name, Extension, LastWriteTime | Export-Csv -Path $exportPath -NoTypeInformation -Encoding UTF8
             Write-Success "Exported to: $exportPath"
         }
         "3" {
-            $exportPath = "$PROJECT_ROOT\directory-summary-report.csv"
+            $exportPath = Join-Path $PROJECT_ROOT "directory-summary-report.csv"
             $filesByDir | Select-Object Directory, @{Name="Size";Expression={$_.TotalSize}}, @{Name="Size (MB)";Expression={[math]::Round($_.TotalSize / 1MB, 2)}}, FileCount | Export-Csv -Path $exportPath -NoTypeInformation -Encoding UTF8
             Write-Success "Exported to: $exportPath"
         }

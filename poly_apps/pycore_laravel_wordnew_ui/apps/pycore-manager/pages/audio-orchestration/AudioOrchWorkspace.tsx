@@ -73,6 +73,7 @@ const AudioOrchWorkspace: React.FC<{
   const [editorOpen, setEditorOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const requestsRef = useRef({ system: false, books: false, tasks: false });
+  const tasksReloadQueuedRef = useRef(false);
 
   const loadAuth = useCallback(async () => {
     try {
@@ -152,17 +153,25 @@ const AudioOrchWorkspace: React.FC<{
   }, []);
 
   const loadTasks = useCallback(async () => {
-    if (requestsRef.current.tasks) return;
+    if (requestsRef.current.tasks) {
+      tasksReloadQueuedRef.current = true;
+      return;
+    }
     requestsRef.current.tasks = true;
     try {
-      const r = await pycoreApi.orchTasksList();
-      if (!r.success) throw new Error(ORCH_L.loadFailed);
-      setTasks(Array.isArray(r.tasks) ? r.tasks : []);
-      setTasksRevision((value) => value + 1);
-      if (Array.isArray(r.sources)) setSources(r.sources);
-      setTasksError(null);
-    } catch (e) {
-      setTasksError(orchErrorMessage(e, ORCH_L.loadFailed));
+      do {
+        tasksReloadQueuedRef.current = false;
+        try {
+          const r = await pycoreApi.orchTasksList();
+          if (!r.success) throw new Error(ORCH_L.loadFailed);
+          setTasks(Array.isArray(r.tasks) ? r.tasks : []);
+          setTasksRevision((value) => value + 1);
+          if (Array.isArray(r.sources)) setSources(r.sources);
+          setTasksError(null);
+        } catch (e) {
+          setTasksError(orchErrorMessage(e, ORCH_L.loadFailed));
+        }
+      } while (tasksReloadQueuedRef.current);
     } finally {
       requestsRef.current.tasks = false;
     }

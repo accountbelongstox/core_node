@@ -17,7 +17,7 @@ on its own; nothing here decides delivery from a local marker.
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
@@ -30,7 +30,7 @@ from pycore.pyutils.laravel.delivery_outbox import (
     DeliveryKind,
     laravel_delivery_outbox,
 )
-from pycore.pyutils.laravel.identity import get_pycore_machine_id
+from pycore.pyutils.common.client_key_auth import get_pycore_machine_id
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyctl.audio_orchestration import orch_sources, orch_store
 
@@ -43,6 +43,7 @@ ORCH_AUDIO_INGEST_SEGMENT_PATH = "/api/app_qy_v1/orch_audio/ingest/segment-audio
 ORCH_AUDIO_MAX_SENTENCES = 5000
 ORCH_AUDIO_MAX_RESOURCES = 2000
 ORCH_AUDIO_MAX_SOURCE_TEXT = 200000
+SEGMENT_HASH_CHUNK_BYTES = 1024 * 1024
 
 
 class OrchDelivery:
@@ -84,6 +85,7 @@ class OrchDelivery:
             return ""
         return hashlib.sha1("|".join([
             str(task.get("generation_id") or "legacy"),
+            f"sentences:{orch_sources.task_sentences_version(task)}",
             *(
                 f"{int(segment['index'])}:{Path(str(segment['output'])).stat().st_size}:"
                 f"{Path(str(segment['output'])).stat().st_mtime_ns}"
@@ -91,14 +93,29 @@ class OrchDelivery:
             ),
         ]).encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def _file_digest(path: Path) -> Tuple[str, int]:
+        """sha256 and size of one segment file, streamed in chunks."""
+        digest = hashlib.sha256()
+        size = 0
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(SEGMENT_HASH_CHUNK_BYTES), b""):
+                digest.update(chunk)
+                size += len(chunk)
+        return digest.hexdigest(), size
+
     def _output_payload(self, task: Dict[str, Any]) -> Dict[str, Any]:
-        """W5 ingest task + the finished segment bytes by index."""
-        contents = {int(segment["index"]): Path(str(segment["output"])).read_bytes() for segment in self._done_segments(task)}
+        """W5 ingest task + the finished segment files by index (never all
+        segment bytes in memory; uploads read one segment at a time)."""
+        paths = {int(segment["index"]): Path(str(segment["output"])) for segment in self._done_segments(task)}
         planned = {int(segment.get("index") or 0): segment for segment in (task.get("segments") or [])}
-        segments = [self._segment_payload(index, content, planned.get(index) or {}) for index, content in sorted(contents.items())]
+        segments = [
+            self._segment_payload(index, *self._file_digest(path), planned.get(index) or {})
+            for index, path in sorted(paths.items())
+        ]
         return {
             "ingest": self._ingest_task(task, segments, str(task.get("generation_id") or "legacy")),
-            "contents": contents,
+            "paths": paths,
         }
 
     def output_meta_hash(self, task: Dict[str, Any], compute: bool = True) -> str:
@@ -244,13 +261,13 @@ class OrchDelivery:
         return payload
 
     @staticmethod
-    def _segment_payload(index: int, content: bytes, planned: Dict[str, Any]) -> Dict[str, Any]:
+    def _segment_payload(index: int, sha256: str, size: int, planned: Dict[str, Any]) -> Dict[str, Any]:
         """W5 segment entry; tasks assembled before clip timing existed send
         ``timeline: []`` (no re-assembly). Unknown optional fields are omitted."""
         payload = {
             "index": index,
-            "sha256": hashlib.sha256(content).hexdigest(),
-            "bytes": len(content),
+            "sha256": sha256,
+            "bytes": size,
             "start": planned.get("start"),
             "end": planned.get("end"),
             "status": "done",
@@ -269,7 +286,7 @@ class OrchDelivery:
         base_url = str(claimed.get("base_url") or "")
         payload = self._output_payload(task)
         ingest = payload["ingest"]
-        contents = payload["contents"]
+        paths = payload["paths"]
         laravel_delivery_outbox.cached_hash(
             OUTPUT_KIND, str(claimed["task_id"]), self._output_signature(task), lambda: ingest["meta_hash"],
         )
@@ -290,11 +307,11 @@ class OrchDelivery:
         if response.status_code >= 400 or not body.get("success"):
             return {"status": OUTCOME_RETRY, "error": f"HTTP {response.status_code} {body.get('error_code') or ''}".strip()}
         results = (body.get("data") or {}).get("tasks") or [{}]
-        missing = [int(index) for index in (results[0].get("segments_missing") or []) if int(index) in contents]
+        missing = [int(index) for index in (results[0].get("segments_missing") or []) if int(index) in paths]
         for index in missing:
             receipt = laravel_progress_uploader.upload(
                 ORCH_AUDIO_INGEST_SEGMENT_PATH,
-                contents[index],
+                paths[index].read_bytes(),
                 base_url=base_url,
                 params={"machine_id": machine_id, "task_id": claimed["task_id"], "index": index},
                 reason="audio_orchestration_output",
@@ -303,7 +320,7 @@ class OrchDelivery:
                 raise RuntimeError(f"segment {index} upload incomplete")
         ColorPrint.green(
             f"[AudioOrch] output delivered task={claimed['task_id']} @ {base_url} "
-            f"{results[0].get('result') or ''} uploaded={len(missing)}/{len(contents)} segments"
+            f"{results[0].get('result') or ''} uploaded={len(missing)}/{len(paths)} segments"
         )
         return {"status": OUTCOME_DONE, "meta_hash": ingest["meta_hash"]}
 

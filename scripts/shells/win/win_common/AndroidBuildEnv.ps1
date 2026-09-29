@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Central Android build environment library (single source of truth) for the
 # Capacitor/AGP toolchain. Dot-source AFTER GlobalVars.ps1. Consumers:
 #   install_powershells/Step62_InstallAndroidSdkPackages.ps1 (dd idempotent step)
@@ -38,6 +26,23 @@ $Global:ANDROID_BUILD_JDK_VENDOR_ROOTS = @(
     (Join-Path $Env:ProgramFiles "Java"),
     (Join-Path $Env:ProgramFiles "Oracle")
 )
+$Global:ANDROID_BUILD_LICENSE_FILE = Join-Path "licenses" "android-sdk-license"
+# Node toolchain commands and the project files the Capacitor Android build needs
+# (paths relative to the UI project root / its native\<app>\android directory).
+$Global:ANDROID_BUILD_NODE_COMMANDS = @("node", "npx", "bun")
+$Global:ANDROID_BUILD_NODE_DEP_MARKERS = @(
+    (Join-Path "node_modules" "vite\bin\vite.js"),
+    (Join-Path "node_modules" "@capacitor\cli\bin\capacitor"),
+    (Join-Path "node_modules" "@capacitor\core\package.json"),
+    (Join-Path "node_modules" "@capacitor\android\capacitor\build.gradle")
+)
+$Global:ANDROID_BUILD_PLATFORM_MARKERS = @(
+    "gradlew.bat",
+    (Join-Path "gradle" "wrapper\gradle-wrapper.jar"),
+    (Join-Path "gradle" "wrapper\gradle-wrapper.properties"),
+    (Join-Path "app" "build.gradle"),
+    "capacitor.settings.gradle"
+)
 
 # ---------- Central shared state (filled by Resolve-* detectors) ----------
 $Global:ANDROID_BUILD_JAVA_HOME = $null
@@ -47,6 +52,9 @@ $Global:ANDROID_BUILD_SDK_ROOT = $null
 
 function Get-AndroidBuildJavaMajor {
     param([string]$JavaExe)
+    # java -version writes to stderr; under the caller's "Stop" preference
+    # (GlobalVars.ps1) PowerShell 5.1 would turn that line into a terminating error.
+    $ErrorActionPreference = "Continue"
     try {
         $versionLine = (& $JavaExe -version 2>&1 | Select-Object -First 1) -join ""
         if ($versionLine -match 'version "(\d+)(?:\.(\d+))?') {
@@ -161,6 +169,38 @@ function Test-AndroidBuildSdkReady {
     $platformJar = Join-Path $root ("platforms\android-$($Global:ANDROID_BUILD_API)\android.jar")
     $buildToolsDir = Join-Path $root ("build-tools\$($Global:ANDROID_BUILD_TOOLS)")
     return ((Test-Path -LiteralPath $adbPath) -and (Test-Path -LiteralPath $platformJar) -and (Test-Path -LiteralPath $buildToolsDir))
+}
+
+# True when the SDK license file recorded by `sdkmanager --licenses` exists.
+function Test-AndroidBuildSdkLicensesReady {
+    if (-not $Global:ANDROID_BUILD_SDK_ROOT) { return $false }
+    return (Test-Path -LiteralPath (Join-Path $Global:ANDROID_BUILD_SDK_ROOT $Global:ANDROID_BUILD_LICENSE_FILE))
+}
+
+# Emit each missing node toolchain command (nothing when ready).
+function Get-AndroidBuildMissingNodeCommands {
+    foreach ($commandName in $Global:ANDROID_BUILD_NODE_COMMANDS) {
+        if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) { $commandName }
+    }
+}
+
+# Emit each missing node dependency marker under the UI project root.
+function Get-AndroidBuildMissingNodeDeps {
+    param([string]$ProjectRoot)
+    if (-not $ProjectRoot) { return $Global:ANDROID_BUILD_NODE_DEP_MARKERS }
+    foreach ($marker in $Global:ANDROID_BUILD_NODE_DEP_MARKERS) {
+        if (-not (Test-Path -LiteralPath (Join-Path $ProjectRoot $marker))) { $marker }
+    }
+}
+
+# Emit each missing file of the Capacitor Android platform directory
+# (native\<app>\android); the whole list when the directory is missing.
+function Get-AndroidBuildMissingPlatformFiles {
+    param([string]$AndroidDir)
+    if (-not $AndroidDir) { return $Global:ANDROID_BUILD_PLATFORM_MARKERS }
+    foreach ($marker in $Global:ANDROID_BUILD_PLATFORM_MARKERS) {
+        if (-not (Test-Path -LiteralPath (Join-Path $AndroidDir $marker))) { $marker }
+    }
 }
 
 # Official Java proxy passthrough: HTTPS_PROXY/HTTP_PROXY -> JAVA_TOOL_OPTIONS,

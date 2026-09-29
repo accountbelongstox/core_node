@@ -1,0 +1,34 @@
+{
+  "task_id": "ui-vortex-D7",
+  "role": "pycore-ui",
+  "reviewed_by": "pycore-lead",
+  "verdict": "approved",
+  "scope_note": "Interim approval of CKA-10-ui. The okx/* surface is not served (pycore-assist CKA-10 and pycore-runtime CKA-10-routes have not landed), so the approved state is: the contract keeps the UI's expected names and shapes, the served list is empty, and all three OKX panels are hidden. Shape alignment against real payloads stays with pycore-ui-G5 CKA-10-ui after CKA-10 and CKA-10-routes land.",
+  "findings": {
+    "CKA-10-ui": {
+      "status": "confirmed (interim)",
+      "detail": "apps/vortex/api/VortexPycoreContract.ts:19 adds VortexPycoreHttpRoute; :21-22 VORTEX_PYCORE_SERVED_HTTP_ROUTES = [] (typed to the declared names, so only declared routes can be listed as served); :24-46 VORTEX_PYCORE_PANEL_ROUTES (account 1, quant 5, backtest 11) with 'as const satisfies'; :50-51 isVortexPycorePanelServed uses every(), so a partly served panel stays hidden. api/index.ts:11 re-exports it. VortexApp.tsx:30-34 compute the panel flags and the hidden/visible tab lists as module constants at the top; :177 activeTab only accepts visible tabs; :184 redirects /vortex/okx-backtest to /vortex/market while hidden; :805 filters the tab bar; :1885-1892 mounts OkxAccountPanel and :2071-2075 mounts OkxQuantPanel only when served; :2227 OkxBacktestPanel cannot mount because activeTab can never be 'okx-backtest' while hidden. connectPycoreHttp is called only inside the panels' effects (OkxAccountPanel.tsx:63, OkxQuantPanel.tsx:77, OkxBacktestPanel.tsx:536), so Vortex opens no pycore connection while the panels are hidden. This matches B9 CKA-10 ('ui-vortex hides only routes that are still unserved')."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "Dependency state for pycore-ui-G5 and the pycore-runtime-D7 review: pycore/pyctl/okx/ does not exist and pycore/callmodule/rpc_routes/route_names.py has 0 okx entries, so pycore-runtime CKA-10-routes cannot be complete yet (it depends on pycore-assist CKA-10, which is not done). G5 CKA-10-ui starts only after both land; then it adds the served names to VortexPycoreContract.ts:22 and checks each panel's response interfaces against the served payloads.",
+    "The backtest gate covers HTTP routes only. OkxBacktestPanel.tsx:538-546 also subscribes to okx_market_status/okx_market_progress/okx_market_update (VortexPycoreContract.ts:53-57), and no pycore/pyapps code publishes those topics today. When G5 unhides the backtest panel, confirm pycore publishes them (or the panel degrades without them).",
+    "Relay path (orchestrator, config/pycore_relay_contract.json): restored okx/* routes need route_policies entries for remote browsers (K7a); only okx/status matches today via the /status suffix rule. The member already recorded this cross-scope note.",
+    "Two new one-line JSDoc comments (VortexPycoreContract.ts:21, VortexApp.tsx:29). They follow the file's existing one-line style, but AGENTS.md prefers code as documentation; G5 may drop them when it edits these lines.",
+    "Pre-existing, not D7: the tab-bar array literal in VortexApp.tsx:799-805 repeats the VORTEX_TABS ids; one table (id, label key, icon) would remove the duplicate. Optional cleanup for a later Vortex task.",
+    "Environment (UI build owner): 'bun run lint' cannot resolve tsc on this Windows checkout because node_modules/.bin shims are POSIX symlinks; the equivalent node node_modules/typescript/bin/tsc --noEmit is the working check.",
+    "The member report is .claude/agents_shared/reports/ui-vortex.md (pre-D22 role name); new pycore-ui reports go to .claude/agents_shared/reports/pycore-ui.md."
+  ],
+  "checks": [
+    "Change attribution: the D7 delta is commit 5bbb23682 (user commit 'win0.0.1', 17:33), touching only VortexApp.tsx (+25/-13), api/VortexPycoreContract.ts (+34/-0) and api/index.ts (+1/-0). The rest of the 74e7770 diff for these files (i18n, VortexPycoreNotice, revealCredentials removal) is f4f223414, earlier Vortex work already approved in reviews vortex-1..5. Working tree equals HEAD for apps/vortex/.",
+    "Line endings: git diff --numstat equals --ignore-space-at-eol for the D7 delta (no EOL churn). All three files are CRLF on every line (57/57, 14/14, 2245/2245) and git ls-files --eol reports i/crlf w/crlf, the same as at 74e7770. No AI rules header was added.",
+    "Scope: all three files are under poly_apps/pycore_laravel_wordnew_ui/apps/vortex/ (pycore-ui scope). No shared UI layer (core/, shell/) and no config/*_contract.json was written; B2 shared_layer_paths is empty.",
+    "RAM guard: 5.81 GB free (>= 3 GB). node node_modules/typescript/bin/tsc --noEmit on the whole UI project: exit 0, no output (26 s).",
+    "Scratch diff (scratchpad/vortex_review_diff.py): 15 declared routes; served list []; route_names.py okx entries []; okx/* literals under pycore/ and pyapps/ []. Per panel, the gate list equals the routes the panel actually calls (account {accountOverview}; quant {quantInfo,getSettings,setSettings,serialize,preopen}; backtest {status,coins,getSettings,setSettings,loadUniverse,fillPlan,fillBacktest,cancelFill,candles,sparklines,metrics}): missing 0, extra 0. Declared routes without a panel: 0. Unserved routes without a hidden panel: 0.",
+    "No other mount point: grep over the UI sources finds OkxAccountPanel/OkxQuantPanel/OkxBacktestPanel mounted only in VortexApp.tsx; pycore-manager explicitly does not surface OKX (pcPages.tsx:40-43).",
+    "AGENTS.md: English code and comments; no new user-facing text (tab labels reuse existing vx keys, no locale change); new constants at the file top; the served-route knowledge lives once in the contract file; no tests added or modified; no services started."
+  ],
+  "notes": "ui-vortex-D7 (CKA-10-ui interim) approved. The contract gate and the VortexApp hiding are correct and complete for the current state, where pycore serves no okx/* route. pycore-ui-G5 CKA-10-ui is unblocked by this review but still waits on pycore-assist CKA-10 and pycore-runtime CKA-10-routes before it can align shapes.",
+  "checked_at": "2026-09-27"
+}

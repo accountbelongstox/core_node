@@ -34,7 +34,7 @@ class AppQyV1VocabularyExportController extends Controller
     {
         if (!in_array($format, self::SUPPORTED_FORMATS, true)) {
             return $this->error(
-                'Unsupported export format: ' . $format . '. Supported formats: ' . implode(', ', self::SUPPORTED_FORMATS),
+                __('app_qy_v1.messages.unsupported_export_format') . $format . '. Supported formats: ' . implode(', ', self::SUPPORTED_FORMATS),
                 400
             );
         }
@@ -64,7 +64,7 @@ class AppQyV1VocabularyExportController extends Controller
             $library = AppQyV1VocabularyLibraryModel::findPublicById((int) $libraryIdParam);
 
             if (!$library) {
-                return $this->notFound('Library not found');
+                return $this->notFound(__('app_qy_v1.messages.library_not_found'));
             }
 
             // The library's own language wins over the request language.
@@ -77,7 +77,7 @@ class AppQyV1VocabularyExportController extends Controller
         $words = $this->fetchExportWords($languageName, $languageCode, $library, $limit, $includeTranslations);
 
         if (count($words) === 0) {
-            return $this->error('No words match the export criteria', 404);
+            return $this->error(__('app_qy_v1.messages.no_words_match_the_export_criteria'), 404);
         }
 
         $filenameBase = 'vocabulary_' . $languageCode . '_' . now()->format('Ymd_His');

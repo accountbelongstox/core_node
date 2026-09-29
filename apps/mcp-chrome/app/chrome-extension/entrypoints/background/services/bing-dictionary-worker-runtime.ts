@@ -11,49 +11,40 @@
  * re-queues them.
  */
 
-import { WorkerApiClient, Task, ProcessorType } from '../api/WorkerApiClient';
-import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
+import type { ProcessorType, Task, WorkerCapability } from '../api/WorkerApiClient';
+import { bingDictionaryTool } from '../tools/browser/bing-dictionary';
 import { logger } from '@/utils/logger';
-import { BingTabPool, MAX_BING_TABS, isRecoverableTabError } from './bing-tab-pool';
-import {
-  DIFF_DELIVERY,
-  TASK_CAPABILITY_BY_ROLE,
-  TASK_STATUS_BY_ROLE,
-  TASK_TYPE_KEYS,
-} from '@/utils/queue-center-contract';
+import { BingTabPool, MAX_BING_TABS } from './bing-tab-pool';
+import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import { tabController } from './tab-controller';
-import {
-  classify,
-  buildEntry,
-  type ResultEntry,
-} from './bing-result';
-import { normalizeWords, type NormalizedWord } from '@/utils/task-words';
 import { howtopronouncePronunciationSource } from './howtopronounce-pronunciation-source';
-import { runScrapeTest, type ScrapeTestResult } from './bing-worker-ops';
 import {
-  initBingWorkerLifecycle as _initLifecycle,
   RUNTIME_STORAGE_KEY,
   WATCHDOG_ALARM,
   WATCHDOG_PERIOD_MINUTES,
 } from './bing-worker-lifecycle';
 import { isProcessorActive } from './task-center/run-intent';
 import { LANES } from '@/utils/task-center-lanes';
-import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
+import {
+  DEFAULT_SOURCE_LANG,
+  DEFAULT_TARGET_LANG,
+  TASK_CENTER_DEFAULTS,
+} from '@/utils/task-center-types';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
-import { LaravelWorkerLifecycleBase } from './task-center/LaravelWorkerLifecycleBase';
-import { queueCenterWakeService } from './task-center/QueueCenterWakeService';
-import { IntervalController, TimeoutController, delay as waitForDelay } from '@/utils/async';
+import {
+  SimpleWorkerRuntimeBase,
+  type SimpleWorkerConfig,
+  type SimpleWorkerStats,
+} from './task-center/SimpleWorkerRuntimeBase';
+import { AsyncOperationController } from '@/utils/async';
 import { resolveApiBase } from '@/services/ApiManager';
 
 // Subsystem tag for the global logger.
 export const LOG = 'Bing Worker';
 
-export interface WorkerConfig {
-  apiUrl: string;
-  workerName?: string;
+export interface WorkerConfig extends SimpleWorkerConfig {
+  /** Popup name of pollWait: seconds between fallback pulls. */
   pollInterval?: number;
-  heartbeatInterval?: number;
-  batchSize?: number;
   /** Number of Bing dictionary tabs to drive in parallel. */
   tabCount?: number;
   /** Source language of the pending words (drives pending query + enqueue). */
@@ -62,21 +53,11 @@ export interface WorkerConfig {
   targetLanguage?: string;
 }
 
-export interface WorkerStats {
-  pending: number;
-  translated: number;
-  failed: number;
+export interface WorkerStats extends SimpleWorkerStats {
   invalid: number;
-  lastRun: number | null;
-  workerId: string | null;
-  isOnline: boolean;
-  queueTotal: number;
-  newTasks: number;
-  duplicateTasks: number;
   activeTabs: number;
   // Live activity surfaced in the popup so the user can see work happening.
   currentWord: string | null;
-  currentTaskId: string | null;
   // How many words the parallel howtopronounce mode contributed audio/content
   // for (the second pronunciation mode sharing this task's data).
   howtopronounceHits: number;
@@ -138,13 +119,6 @@ export const LOOKUP_DELAY_JITTER_MS = 2500;
 // (RUNTIME_STORAGE_KEY, WATCHDOG_ALARM, WATCHDOG_PERIOD_MINUTES imported from
 // bing-worker-lifecycle.ts)
 
-// Fast re-poll cadence (B3): when a pull reports pending_fast>0 we fire an
-// immediate jittered and coalesced re-poll instead of waiting for the next
-// poll-interval tick, so fast-tier translate work is drained promptly. Mirrors
-// SimpleWorkerBase's FAST_REPOLL_* constants.
-export const FAST_REPOLL_BASE_MS = 400;
-export const FAST_REPOLL_JITTER_MS = 300;
-
 // Free the Bing renderer memory when the worker has had no task for this long:
 // the pool tabs are discarded (unloaded, ids kept) so idle assisting doesn't keep
 // several bing.com renderers resident and lagging Chrome. Re-loaded on demand by
@@ -163,25 +137,34 @@ export const HANDLED_TASK_TYPES = new Set([
   TASK_TYPE_KEYS.word_translation,
   ...DICTIONARY_TASK_TYPES,
 ]);
+// Pull order is a priority: dictionary explanations ahead of word_translation.
+export const PULL_TASK_TYPES = [
+  TASK_TYPE_KEYS.dictionary_explanation,
+  TASK_TYPE_KEYS.dictionary_explanation_demo,
+  TASK_TYPE_KEYS.word_translation,
+];
 
 interface PersistedRuntime {
   running: boolean;
   config: WorkerConfig | null;
 }
 
-export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifecycleBase {
-  protected isRunning = false;
-  protected config: Required<WorkerConfig> | null = null;
-
-  public canHandleTaskType(taskType: string): boolean {
-    return HANDLED_TASK_TYPES.has(taskType);
-  }
-
-  protected readonly taskPolling = new IntervalController();
-  protected readonly heartbeatPolling = new IntervalController();
-  // Coalesce fast re-polls (B3): at most one scheduled burst in flight.
-  protected readonly fastRepollTimeout = new TimeoutController();
-  protected wakeUnsubscribe: (() => void) | null = null;
+/**
+ * The Bing dictionary worker on the shared SimpleWorkerRuntimeBase: the base
+ * owns registration, heartbeat, realtime wake, the poll loop, fast re-poll and
+ * repoint; this class adds the Bing tab pool, the MV3 run intent and watchdog,
+ * and the live settings (tab count, languages).
+ */
+export abstract class BingDictionaryWorkerRuntimeBase extends SimpleWorkerRuntimeBase<WorkerConfig> {
+  // One in-flight start: a watchdog resume and a user Start share it instead of
+  // registering the worker twice.
+  protected readonly startOperation = new AsyncOperationController<void>();
+  // An explicit user Start enqueues pending words and reveals the tab pool
+  // between registration and the loops (prepareActivation).
+  protected surfaceOnStart = false;
+  // True while the shared repoint (stop + start) moves the worker to another
+  // API base: the run intent, watchdog, tabs and stats stay as they are.
+  protected repointing = false;
 
   // Pool of background Bing dictionary tabs driven in parallel (self-healing).
   protected pool = new BingTabPool();
@@ -201,15 +184,6 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
   protected inOutage = false;
   protected outageProbeFails = 0;
   protected probing = false;
-  // Re-entrancy guard for pollAndProcessTasks: setInterval does not await an
-  // async poll, so without this a slow batch (a 5-word/3-tab crawl takes 20s+)
-  // overlaps the next interval tick (and any fast-repoll burst), racing two
-  // concurrent runs on the shared tab pool - each pulling tasks and calling
-  // unserialized pool.ensure/healUnreachable that clobber this.tabIds and leak
-  // orphaned bing.com/dict tabs. A re-entrant tick is dropped on the floor; the
-  // in-flight poll drains the work and the next tick picks up anything new.
-  protected polling = false;
-  protected reconfiguring = false;
   // Single-foreground mutex: serializes the ENTIRE human-input critical section
   // (activate + confirm-active + type + click-search + that word's lookup) so
   // exactly ONE slot drives the foreground tab at a time. This is what kills the
@@ -220,7 +194,8 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
   // Whether the heal handler has been wired to the shared TabController.
   protected healHandlerWired = false;
 
-  // Task cache to prevent duplicate processing.
+  // Task cache to prevent duplicate processing. The base cycle guard
+  // (cycleInFlight) keeps one pull+crawl on the shared tab pool at a time.
   protected taskCache = new Set<string>();
   protected taskQueue: Task[] = [];
 
@@ -235,12 +210,66 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
     queueTotal: 0,
     newTasks: 0,
     duplicateTasks: 0,
+    pendingFast: 0,
+    pendingUrgent: 0,
+    currentTaskId: null,
+    backendOnline: true,
+    consecutiveFailures: 0,
+    lastError: null,
+    lastErrorAt: null,
+    lastRequestAt: null,
+    progressCompleted: 0,
+    progressTotal: 0,
     activeTabs: 0,
     currentWord: null,
-    currentTaskId: null,
     howtopronounceHits: 0,
     tabActivity: [],
   };
+
+  protected get processorKey(): string {
+    return LANES.BING_DICTIONARY;
+  }
+
+  protected get workerLabel(): string {
+    return LOG;
+  }
+
+  // Advertise ONLY 'translate' (B18: Bing is the Chrome translate claimant;
+  // WebAiTranslate owns Chrome ai_translate, while Pycore remains an independent
+  // claimant declared in the central contract). 'image' is no longer in the
+  // shared fast set (B17) — a Bing dictionary tab can scrape a word lookup but
+  // cannot GENERATE an image, so the dispatcher must never route a true image
+  // task here. The executeTask capability guard still rejects any image task
+  // that somehow slips through. (sentence_audio is generated inline
+  // server-side, never by a Bing tab; ai_translate belongs only to the web-AI
+  // worker.)
+  protected get capabilities(): WorkerCapability[] {
+    return [TASK_CAPABILITY_BY_ROLE.translate];
+  }
+
+  // This Chrome service owns Bing translation work. Pycore independently
+  // claims other eligible translation tasks from Laravel. Pronunciation capture remains
+  // part of each dictionary lookup and the Extension diagnostic tools, while
+  // dedicated audio-generation tasks are owned by the shared Qwen TTS worker.
+  protected get baseProcessorTypes(): ProcessorType[] {
+    return [LANES.REMOTE_CLIENT, LANES.REMOTE_TRANSLATION, LANES.REMOTE_FAST] as ProcessorType[];
+  }
+
+  protected get pullTaskTypes(): string[] {
+    return PULL_TASK_TYPES;
+  }
+
+  protected get rotatesPullTaskTypes(): boolean {
+    return false;
+  }
+
+  protected get registrationMetadata(): Record<string, unknown> {
+    return { tabCount: this.config?.tabCount };
+  }
+
+  protected handlesTaskType(taskType: string): boolean {
+    return HANDLED_TASK_TYPES.has(taskType);
+  }
 
   /**
    * @param surface when true (an explicit user Start) open + reveal the Bing
@@ -249,59 +278,22 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
    *   background, only when a task actually needs them.
    */
   async start(config: WorkerConfig, surface = true): Promise<void> {
-    if (this.isRunning) {
+    if (this.isRunning && !this.startOperation.isRunning) {
       logger.warn(LOG, 'Service already running');
       return;
     }
-    if (!config.apiUrl) {
-      throw new Error('API URL is required');
-    }
+    return this.startOperation.run(() => this.startOnce(config, surface));
+  }
 
-    // Preserve the client that owns an already-claimed task. A rapid Stop ->
-    // Start must wait until its terminal result has been posted before replacing
-    // workerClient/config or touching the shared tab pool.
-    while (this.polling || this.processing) {
-      await waitForDelay(50);
-    }
+  private async startOnce(config: WorkerConfig, surface: boolean): Promise<void> {
+    const next = this.normalizeConfig(config);
 
-    this.config = this.normalizeConfig(config);
-
-    logger.info(LOG, 'Starting service', this.config);
+    logger.info(LOG, 'Starting service', next);
 
     // Match the howtopronounce pronunciation-source pool to the Bing tab
     // parallelism so the second mode keeps up with the per-word Bing lookups.
-    howtopronouncePronunciationSource.setMaxTabs(this.config.tabCount);
-
-    this.connectWorkerApi(this.config.apiUrl);
-
-    await this.registerWorker();
-
-    // On an explicit user Start, turn the dictionary-pending words into actual
-    // word_translation tasks so this worker has something to pull. Silent
-    // recovery (surface=false) skips this — it only resumes in-flight work.
-    if (surface) {
-      await this.enqueuePending();
-    }
-
-    // Open/reuse the Bing dictionary tab pool up front ONLY on an explicit user
-    // Start (surface=true) — the one place we reveal Bing to the user. On silent
-    // recovery (surface=false) tabs are created lazily by processTask, in the
-    // background, never stealing focus.
-    // Wire the shared TabController: heal a plugin tab the user closes, and let
-    // it know which tabs we own (so only ours are auto-healed, never the user's).
-    this.wireTabController();
-
-    if (surface) {
-      await this.pool.ensure(this.config.tabCount, true);
-      this.stats.activeTabs = this.pool.size;
-      this.syncManagedTabs();
-    }
-
-    this.startHeartbeat();
-    this.startPolling();
-
-    this.isRunning = true;
-    this.subscribeRealtimeWake();
+    howtopronouncePronunciationSource.setMaxTabs(next.tabCount);
+    this.surfaceOnStart = surface && !this.repointing;
     // Begin the idle-discard countdown from Start so unused pool tabs are freed.
     this.lastActivityAt = Date.now();
     this.poolDiscarded = false;
@@ -310,39 +302,62 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
     this.outageUntil = 0;
     this.outageProbeFails = 0;
 
-    // Persist intent + arm the watchdog so the worker survives SW termination
-    // and browser restarts.
+    // The base registers (retrying a transient failure), runs
+    // prepareActivation, then starts the heartbeat, realtime wake and poll loop.
+    await super.start(next);
+    if (!this.isRunning) return;
+
+    // Persist intent + arm the watchdog so the worker survives SW termination.
     await this.persistRuntime(true);
     await this.ensureWatchdog();
 
     logger.info(LOG, 'Service started successfully');
   }
 
-  stop(): void {
-    const workerId = this.stats.workerId;
+  /**
+   * On an explicit user Start, turn the dictionary-pending words into actual
+   * word_translation tasks and open/reuse the Bing tab pool up front — the one
+   * place Bing is revealed to the user. Silent recovery and re-points create
+   * tabs lazily in the background (executeTask), never stealing focus. The
+   * shared TabController heals a plugin tab the user closes and learns which
+   * tabs are ours (so only ours are auto-healed, never the user's).
+   */
+  protected async prepareActivation(): Promise<void> {
+    const surface = this.surfaceOnStart;
 
+    this.surfaceOnStart = false;
+    if (surface) {
+      await this.enqueuePending();
+    }
+    this.wireTabController();
+    if (!surface || !this.config) return;
+    try {
+      await this.pool.ensure(this.config.tabCount, true);
+      this.stats.activeTabs = this.pool.size;
+      this.syncManagedTabs();
+    } catch (error) {
+      logger.warn(LOG, 'Opening the Bing tab pool failed; tabs open on demand', error);
+    }
+  }
+
+  stop(): void {
     if (!this.isRunning) {
       logger.warn(LOG, 'Service not running');
       return;
     }
 
-    this.taskPolling.stop();
-    this.heartbeatPolling.stop();
-    this.fastRepollTimeout.cancel();
+    // Loops, realtime wake, prefetched-task release and unregister. The running
+    // cycle releases the claimed tasks it has not started.
+    super.stop();
+    if (this.repointing) return;
 
     this.taskCache.clear();
-    this.taskQueue = [];
     // Clear outage state so a later Start never resumes wedged in a stale outage.
     this.inOutage = false;
     this.outageUntil = 0;
     this.outageProbeFails = 0;
 
     // Tabs are intentionally left open so the user keeps their Bing context.
-    this.isRunning = false;
-    this.stats.isOnline = false;
-    this.unregisterWorkerPresence(workerId, (error) => {
-      logger.warn(LOG, 'Worker unregister failed; heartbeat expiry remains active', error);
-    });
     this.stats.queueTotal = 0;
     this.stats.newTasks = 0;
     this.stats.duplicateTasks = 0;
@@ -366,6 +381,19 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
   }
 
   /**
+   * Move a running worker to another API base through the shared repoint
+   * (stop + start: a claimed task submits to the backend it came from first).
+   */
+  async repoint(apiUrl: string): Promise<void> {
+    this.repointing = true;
+    try {
+      await super.repoint(apiUrl);
+    } finally {
+      this.repointing = false;
+    }
+  }
+
+  /**
    * Force-clear the MV3 resurrection state (session run-intent + watchdog alarm)
    * regardless of the in-memory running flag, then stop if running. Called from
    * the Task Center stop path so the watchdog can NEVER resurrect the crawler
@@ -379,10 +407,6 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
     } else {
       await this.persistRuntime(false);
       await this.clearWatchdog();
-    }
-    if (this.wakeUnsubscribe) {
-      this.wakeUnsubscribe();
-      this.wakeUnsubscribe = null;
     }
     if (closeTabs) {
       await this.pool.closeAll();
@@ -421,6 +445,12 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
   /** The unified pause gate: anti-scrape cooldown OR shared human-interference. */
   protected isWorkerPaused(): boolean {
     return Date.now() < this.cooldownUntil || tabController.isPaused();
+  }
+
+  /** Claim queue-head tasks early only while the worker can crawl them. */
+  protected async prefetchChangedHead(taskTypes?: string[]): Promise<void> {
+    if (this.inOutage || this.isWorkerPaused()) return;
+    await super.prefetchChangedHead(taskTypes);
   }
 
   /**
@@ -496,20 +526,22 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
    * Normalize a raw config (from the popup, the persisted runtime, or a live
    * update) into the fully-defaulted internal shape, optionally layering it over
    * an existing config so a partial update keeps prior values. Sanitizes ranges
-   * and accepts the popup's `fetchInterval` as an alias for `pollInterval` (the
-   * popup field is named fetchInterval — historically the worker read only
-   * pollInterval and silently ignored the UI's poll interval).
+   * and accepts the popup's `pollInterval` / `fetchInterval` as the base
+   * runtime's `pollWait` (the popup field is named fetchInterval — historically
+   * the worker read only pollInterval and silently ignored the UI's poll interval).
    */
   protected normalizeConfig(raw: WorkerConfig, base?: Required<WorkerConfig>): Required<WorkerConfig> {
     const clamp = (n: number, lo: number, hi: number, fallback: number) =>
       Number.isFinite(n) ? Math.max(lo, Math.min(hi, Math.round(n))) : fallback;
     const pollRaw =
-      raw.pollInterval ?? (raw as any).fetchInterval ?? base?.pollInterval ?? TASK_CENTER_DEFAULTS.pollInterval;
+      raw.pollInterval ?? (raw as any).fetchInterval ?? raw.pollWait ?? base?.pollWait ?? TASK_CENTER_DEFAULTS.pollInterval;
+    const pollWait = clamp(Number(pollRaw), 1, 3600, TASK_CENTER_DEFAULTS.pollInterval);
     return {
       // Trim + strip trailing slashes so base + '/api/...' never double-slashes.
       apiUrl: (raw.apiUrl ?? base?.apiUrl ?? '').trim().replace(/\/+$/, ''),
       workerName: raw.workerName ?? base?.workerName ?? 'MCP Chrome Bing Translation Worker',
-      pollInterval: clamp(Number(pollRaw), 1, 3600, TASK_CENTER_DEFAULTS.pollInterval),
+      pollWait,
+      pollInterval: pollWait,
       heartbeatInterval: clamp(
         Number(raw.heartbeatInterval ?? base?.heartbeatInterval ?? TASK_CENTER_DEFAULTS.heartbeatInterval),
         5,
@@ -525,12 +557,13 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
 
   /**
    * Apply a config change WITHOUT stopping the service (real-time settings):
-   *   - poll / heartbeat intervals are re-armed when they change;
+   *   - the poll loop reads pollWait every round; the heartbeat is re-armed
+   *     when its interval changes;
    *   - the Bing tab pool is grown/shrunk when tabCount changes (only while not
    *     mid-task, so a resize never closes a tab a slot is using);
    *   - batchSize, source/target language are read live each poll/task, so they
    *     take effect on the next cycle with no extra work;
-   *   - an apiUrl change re-points + re-registers the worker.
+   *   - an apiUrl change goes through the shared repoint.
    * When the service is not running this just stores the config for the next
    * start(). Safe to call repeatedly.
    */
@@ -538,64 +571,31 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
     const prev = this.config;
     const next = this.normalizeConfig(patch, prev ?? undefined);
 
-    if (!this.isRunning) {
+    if (!this.isRunning || !prev) {
       this.config = next;
       logger.info(LOG, 'Config stored (service idle; applies on next start)');
       return;
     }
 
-    // Re-point only between poll cycles. A task claimed from the old endpoint
-    // must submit its terminal result to that same endpoint.
-    const endpointChanged = !!next.apiUrl && (!prev || prev.apiUrl !== next.apiUrl);
-    if (endpointChanged) {
-      const previousClient = this.workerClient;
-      this.reconfiguring = true;
-      try {
-        while (this.polling || this.processing) {
-          await waitForDelay(50);
-        }
-        if (!this.isRunning) {
-          this.config = next;
-          return;
-        }
-        logger.info(LOG, `Endpoint changed live -> ${next.apiUrl}, re-registering`);
-        this.config = next;
-        this.connectWorkerApi(next.apiUrl);
-        await this.registerWorker();
-        this.subscribeRealtimeWake();
-      } catch (error) {
-        this.config = prev;
-        this.replaceWorkerApi(previousClient);
-        logger.error(LOG, 'Re-register after endpoint change failed', error);
-        throw error;
-      } finally {
-        this.reconfiguring = false;
-      }
-    } else {
-      this.config = next;
+    this.config = { ...next, apiUrl: prev.apiUrl };
+    if (next.apiUrl && prev.apiUrl !== next.apiUrl) {
+      logger.info(LOG, `Endpoint changed live -> ${next.apiUrl}, re-pointing`);
+      await this.repoint(next.apiUrl);
     }
 
-    // Re-arm the poll loop on a new interval (no immediate extra poll).
-    if (!prev || prev.pollInterval !== next.pollInterval) {
-      this.taskPolling.restart(() => {
-        this.pollAndProcessTasks().catch((e) => logger.warn(LOG, 'Poll error', e));
-      }, next.pollInterval * 1000);
-      logger.info(LOG, `Poll interval -> ${next.pollInterval}s (live)`);
+    if (prev.pollWait !== next.pollWait) {
+      logger.info(LOG, `Poll interval -> ${next.pollWait}s (live)`);
     }
 
-    // Re-arm the heartbeat on a new interval.
-    if (!prev || prev.heartbeatInterval !== next.heartbeatInterval) {
-      this.heartbeatPolling.restart(
-        () => this.heartbeatOnce(),
-        next.heartbeatInterval * 1000,
-      );
+    if (prev.heartbeatInterval !== next.heartbeatInterval) {
+      this.restartHeartbeat();
       logger.info(LOG, `Heartbeat interval -> ${next.heartbeatInterval}s (live)`);
     }
 
     // Resize the parallel Bing tab pool. Only when idle: shrinking mid-task could
     // close a tab a slot is actively driving. A change requested mid-task is not
     // lost — it is the new ceiling and the next task's pool.ensure() honors it.
-    if ((!prev || prev.tabCount !== next.tabCount) && !this.processing) {
+    if (prev.tabCount !== next.tabCount && !this.processing) {
       try {
         await this.pool.resize(next.tabCount, false);
         this.stats.activeTabs = this.pool.size;
@@ -708,90 +708,6 @@ export abstract class BingDictionaryWorkerRuntimeBase extends LaravelWorkerLifec
     };
   }
 
-  // ------------------------------------------------------------------
-  // Registration / heartbeat / polling
-  // ------------------------------------------------------------------
-
-  protected async registerWorker(): Promise<void> {
-    if (!this.workerClient || !this.config) {
-      throw new Error('Worker client not initialized');
-    }
-
-    const workerId = `mcp-chrome-bing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-    const response = await this.registerWorkerPresence({
-      worker_id: workerId,
-      worker_name: this.config.workerName,
-      // This Chrome service owns Bing translation work. Pycore independently
-      // claims other eligible translation tasks from Laravel. Pronunciation capture remains
-      // part of each dictionary lookup and the Extension diagnostic tools, while
-      // dedicated audio-generation tasks are owned by the shared Qwen TTS worker.
-      processor_types: [
-        LANES.REMOTE_CLIENT,
-        LANES.REMOTE_TRANSLATION,
-        LANES.REMOTE_FAST,
-      ] as ProcessorType[],
-      // Advertise ONLY 'translate' (B18: Bing is the Chrome translate claimant;
-      // WebAiTranslate owns Chrome ai_translate, while Pycore remains an independent
-      // claimant declared in the central contract). 'image' is no longer in the
-      // shared fast set (B17) — a Bing dictionary tab can scrape a word lookup but
-      // cannot GENERATE an image, so the dispatcher must never route a true image
-      // task here. The processTask capability guard still rejects any image task
-      // that somehow slips through. (sentence_audio is generated inline
-      // server-side, never by a Bing tab; ai_translate belongs only to the web-AI
-      // worker.)
-      capabilities: [TASK_CAPABILITY_BY_ROLE.translate],
-      hostname: 'chrome-extension',
-      platform: navigator.userAgent,
-      metadata: {
-        version: chrome.runtime.getManifest().version,
-        extensionId: chrome.runtime.id,
-        tabCount: this.config.tabCount,
-      },
-    });
-
-    if (response.success && response.data) {
-      this.stats.workerId = response.data.worker_id;
-      this.stats.isOnline = true;
-      logger.info(LOG, 'Registered successfully', response.data.worker_id);
-    } else {
-      throw new Error(response.message || 'Registration failed');
-    }
-  }
-
-  protected async heartbeatOnce(): Promise<void> {
-    if (!this.workerClient) return;
-    try {
-      await this.heartbeatWorkerPresence();
-      this.stats.isOnline = true;
-    } catch (error) {
-      logger.error(LOG, 'Heartbeat failed', error);
-      this.stats.isOnline = false;
-    }
-  }
-
-  protected startHeartbeat(): void {
-    if (!this.workerClient || !this.config) return;
-    this.heartbeatOnce();
-    this.heartbeatPolling.start(
-      () => this.heartbeatOnce(),
-      this.config.heartbeatInterval * 1000,
-    );
-  }
-
-  protected startPolling(): void {
-    if (!this.config) return;
-
-    const poll = async () => {
-      await this.pollAndProcessTasks();
-    };
-
-    poll();
-    this.taskPolling.start(() => void poll(), this.config.pollInterval * 1000);
-  }
-
-  protected abstract pollAndProcessTasks(): Promise<void>;
   protected abstract enqueuePending(): Promise<void>;
-  protected abstract subscribeRealtimeWake(): void;
 }
 

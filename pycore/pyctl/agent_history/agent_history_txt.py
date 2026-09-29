@@ -27,6 +27,8 @@ from pycore.pyfoundations.system_paths import (
     APP_DATA_DIR,
     get_local_data_dir,
 )
+from pycore.pyctl.agent_history.root_spool import SPOOL_DIR_MODE, SPOOL_FILE_MODE
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import json
 
@@ -39,19 +41,40 @@ ARTICLE_FRAGMENT_BOOLEAN_FIELDS = ("article_boundary", "direct_text")
 _SHARED_STATE_DIR = AI_SHARED_STATE_DIR / "agent_history"
 _LEGACY_DIR = AI_LEGACY_DIR / "agent_history"
 
+
+def restrict_mode(path: Path, mode: int, label: str) -> None:
+    """Best-effort chmod (skipped on Windows, a condition not an except).
+
+    Shared by every store under this package (the txt store here and the
+    prompt archive) so there is exactly one chmod-with-logging helper."""
+    if os.name == "nt":
+        return
+    try:
+        os.chmod(path, mode)
+    except OSError as exc:
+        ColorPrint.yellow(
+            f"[AgentHistory] {label} chmod failed path={path} mode={oct(mode)} errno={exc.errno}"
+        )
+
+
+def _restricted_dir(path: Path) -> Path:
+    """mkdir + restrict to the root-spool dir mode; the store may mix
+    root-only sessions into shared files, so the whole store is kept as
+    tight as the root-spool output it can carry."""
+    path.mkdir(parents=True, exist_ok=True)
+    restrict_mode(path, SPOOL_DIR_MODE, "Store dir")
+    return path
+
+
 def store_dir() -> Path:
     try:
-        _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
-        return _SHARED_STATE_DIR
+        return _restricted_dir(_SHARED_STATE_DIR)
     except OSError:
-        _LEGACY_DIR.mkdir(parents=True, exist_ok=True)
-        return _LEGACY_DIR
+        return _restricted_dir(_LEGACY_DIR)
 
 
 def sessions_dir() -> Path:
-    d = store_dir() / "sessions"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+    return _restricted_dir(store_dir() / "sessions")
 
 
 def safe_id(raw: str) -> str:
@@ -70,6 +93,8 @@ def _atomic_write(path: Path, content: str) -> None:
             tmp.unlink(missing_ok=True)
         except OSError:
             pass
+        return
+    restrict_mode(path, SPOOL_FILE_MODE, "Store file")
 
 
 def _escape_value(val: str) -> str:

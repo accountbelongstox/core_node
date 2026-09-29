@@ -16,7 +16,6 @@ server whichever row carries it.
 """
 
 import base64
-import hashlib
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
@@ -38,8 +37,12 @@ from pycore.pyutils.laravel.delivery_outbox import (
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
-from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
-from pycore.pyutils.tts.word_audio_cache import cache_root as word_audio_cache_root
+from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger, word_md5
+from pycore.pyutils.tts.word_audio_cache import (
+    LEGACY_SEPARATOR,
+    WORD_PROVIDER_SEPARATOR,
+    cache_root as word_audio_cache_root,
+)
 from pycore.pyctl.audio_orchestration import orch_store
 from pycore.pyctl.task_history.store import query_records
 from pycore.pyctl.tts import word_audio_service
@@ -54,6 +57,47 @@ RESOURCE_BATCH_LIMIT = 200
 BOOTSTRAP_META_KEY = "audio_cache.ledger_bootstrap"
 BOOTSTRAP_HISTORY_LIMIT = 1000
 LANE_HISTORY_WORKERS = ("tts_queue_poller", "tts_sentence_worker")
+# Contract word_identity.fallback_when_md5_absent.rejection_code
+# (config/queue_center_contract.json): an md5-less word Laravel cannot
+# resolve by lang + cleaned_word. Single-upload counterpart of the batch
+# path's BATCH_TERMINAL_REJECTIONS (no_target/invalid).
+WORD_NOT_FOUND_REJECTION_CODE = "WORD_NOT_FOUND"
+# 4xx statuses that ARE worth retrying (throttling/conflict, not a
+# permanent rejection) - shared with laravel_audio_delivery's domain-report
+# terminal rule.
+RETRYABLE_4XX_HTTP_STATUSES = (408, 409, 425, 429)
+
+
+def is_terminal_delivery_rejection(
+    detail: str = "", status_code: Optional[int] = None, error_code: str = "",
+) -> bool:
+    """ONE shared 4xx-terminal rule for Laravel delivery rejections (used by
+    the domain-report path in ``laravel_audio_delivery`` and the word-audio
+    single upload below): a rejection that retrying can never resolve, so it
+    must settle terminal instead of retry-poisoning the delivery row
+    forever. Excludes throttling/conflict codes (408/409/425/429).
+
+    Accepts a failure ``detail`` string (``"server validation rejected:
+    ..."``, ``"unknown task on server (404)"``, ``"HTTP 4xx: ..."``), a raw
+    ``status_code`` when only that is available (a plain 4xx body with no
+    such prefix, e.g. word/audio/upload's "md5, lang and audio_base64 are
+    required" for an md5-less word), and/or the contract rejection code
+    (``word_identity.fallback_when_md5_absent.rejection_code``), which
+    settles terminal on its own regardless of the HTTP status the response
+    carried it with."""
+    if str(error_code or "") == WORD_NOT_FOUND_REJECTION_CODE:
+        return True
+    normalized = str(detail or "").lower()
+    if normalized.startswith("server validation rejected"):
+        return True
+    if normalized.startswith("unknown task on server"):
+        return True
+    retryable_prefixes = tuple(f"http {code}" for code in RETRYABLE_4XX_HTTP_STATUSES)
+    if normalized.startswith("http 4") and not normalized.startswith(retryable_prefixes):
+        return True
+    if isinstance(status_code, int) and 400 <= status_code < 500:
+        return status_code not in RETRYABLE_4XX_HTTP_STATUSES
+    return False
 
 
 class AudioResourceDelivery:
@@ -109,11 +153,13 @@ class AudioResourceDelivery:
         group_key: str = "",
         first_namespace: str = "",
         skip_namespace: str = "",
+        md5: str = "",
     ) -> Dict[str, Any]:
         """Record one new local clip and queue it for every target server
         (``first_namespace`` first, ``skip_namespace`` excluded - e.g. the
-        lane's own server, whose lane row carries the clip)."""
-        ledger_row = audio_resource_ledger.record(kind, language, text, path, provider, variant)
+        lane's own server, whose lane row carries the clip); ``md5`` is the
+        Laravel word identity when the producer has it."""
+        ledger_row = audio_resource_ledger.record(kind, language, text, path, provider, variant, md5)
         if ledger_row is None:
             return {"queued": False}
         record = self._record(ledger_row, group_key)
@@ -168,17 +214,20 @@ class AudioResourceDelivery:
 
     @staticmethod
     def _word_cache_rows() -> List[Dict[str, Any]]:
-        """``<lang>/{word}_{provider}.mp3`` whose name is unambiguous: one
-        separator, word and provider made of letters/digits only (a word the
-        file name sanitizer changed cannot be recovered)."""
+        """``<lang>/{word}@{provider}.mp3`` (legacy: ``{word}_{provider}.mp3``)
+        whose name is unambiguous: word and provider made of letters/digits
+        only (a word the file name sanitizer changed cannot be recovered)."""
         rows: List[Dict[str, Any]] = []
         root = word_audio_cache_root()
         if not root.is_dir():
             return rows
         for language_dir in sorted(entry for entry in root.iterdir() if entry.is_dir()):
             for path in language_dir.glob("*.mp3"):
-                word, _, provider = path.stem.partition("_")
-                if path.stem.count("_") != 1 or not word.isalnum() or not provider.isalnum() or path.stat().st_size <= 0:
+                separator = (
+                    WORD_PROVIDER_SEPARATOR if WORD_PROVIDER_SEPARATOR in path.stem else LEGACY_SEPARATOR
+                )
+                word, _, provider = path.stem.partition(separator)
+                if path.stem.count(separator) != 1 or not word.isalnum() or not provider.isalnum() or path.stat().st_size <= 0:
                     continue
                 row = audio_resource_ledger.entry("word", language_dir.name, word, str(path), provider)
                 if row is not None:
@@ -301,23 +350,51 @@ class AudioResourceDelivery:
         word_audio_service.word_audio_media(
             resource["text"], resource["language"], base_url=base_url, metadata_only=True,
         )
-        receipt = word_audio_service.upload_word_audio({
-            "md5": hashlib.md5(resource["text"].strip().lower().encode("utf-8")).hexdigest(),
+        clip_md5 = word_md5(resource.get("resource_key"))
+        upload_payload = {
             "lang": resource["language"], "provider": resource.get("provider") or "cache",
             "cleaned_word": resource["text"],
             "audio_base64": base64.b64encode(payload).decode("ascii"),
-        }, base_url=base_url)
+        }
+        if clip_md5:
+            # X4: pycore never invents a stand-in md5 for a word Laravel gave
+            # none for; the server resolves by lang + cleaned_word instead.
+            upload_payload["md5"] = clip_md5
+        receipt = word_audio_service.upload_word_audio(upload_payload, base_url=base_url)
         receipt_status = (receipt.get("data") or {}).get("status")
         if receipt_status == "not_found":
             # No dictionary row for this (lang, md5): fill-missing does not
             # apply to arbitrary tokens; terminal, not retry-poison.
             ColorPrint.gray(f"[AudioCacheDelivery] delivery={claimed['delivery_id']} word not in dictionary; no fill needed")
         elif not receipt.get("success") or receipt_status not in ("stored", "exists"):
-            raise RuntimeError(str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete"))
+            error = str(receipt.get("error") or receipt.get("message") or "word_upload_incomplete")
+            if not clip_md5 and (
+                receipt_status == WORD_NOT_FOUND_REJECTION_CODE
+                or is_terminal_delivery_rejection(
+                    detail=error, status_code=receipt.get("http_status"),
+                    error_code=receipt.get("error_code"),
+                )
+            ):
+                # An md5-less word: the server has no md5 to resolve by, so a
+                # rejection here means the same as the contract's
+                # WORD_NOT_FOUND rejection - terminal, not retry-poison
+                # (mirrors the batch path's no_target/invalid handling).
+                ColorPrint.gray(
+                    f"[AudioCacheDelivery] delivery={claimed['delivery_id']} "
+                    f"md5-less word upload rejected ({error}); no fill needed"
+                )
+                return {"status": OUTCOME_DONE, "skipped": WORD_NOT_FOUND_REJECTION_CODE}
+            raise RuntimeError(error)
         return {"status": OUTCOME_DONE}
 
 
 audio_resource_delivery = AudioResourceDelivery()
 
 
-__all__ = ["RESOURCE_KIND", "audio_resource_delivery"]
+__all__ = [
+    "RESOURCE_KIND",
+    "WORD_NOT_FOUND_REJECTION_CODE",
+    "RETRYABLE_4XX_HTTP_STATUSES",
+    "is_terminal_delivery_rejection",
+    "audio_resource_delivery",
+]

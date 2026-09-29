@@ -69,7 +69,7 @@ export function VoiceSubtitleManager() {
       if (categoriesRes.success) setCategories(categoriesRes.data);
       if (statsRes.success) setStats(statsRes.data);
     } catch (error: any) {
-      toast.error(error.message || t('messages.networkError'));
+      toast.error(error.message || t('common.network_error'));
     } finally {
       setLoading(false);
     }

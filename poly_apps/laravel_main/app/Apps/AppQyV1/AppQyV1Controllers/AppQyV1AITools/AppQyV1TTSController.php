@@ -79,7 +79,7 @@ class AppQyV1TTSController extends Controller
         $firstResult = $result['results'][0] ?? null;
 
         if (!$firstResult) {
-            return $this->error('Failed to process request', 500, [
+            return $this->error(__('app_qy_v1.messages.failed_to_process_request'), 500, [
                 'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
             ]);
         }
@@ -97,7 +97,7 @@ class AppQyV1TTSController extends Controller
                 'text' => $request->input('text'),
                 'language' => $request->input('language'),
                 'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
-            ], 'Audio generated successfully');
+            ], __('app_qy_v1.messages.audio_generated_successfully'));
         }
 
         // Task queued, return task ID for polling
@@ -115,7 +115,7 @@ class AppQyV1TTSController extends Controller
             'status' => $status,
             'message' => 'Task added to queue. Poll /api/app_qy_v1/ai_tools/tts/queue/task/{task_id} for status.',
             'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
-        ], 'Task queued successfully');
+        ], __('app_qy_v1.messages.task_queued_successfully'));
     }
     
     /**
@@ -178,7 +178,7 @@ class AppQyV1TTSController extends Controller
         return $this->success([
             'results' => $legacyResults,
             'deprecated_notice' => 'This endpoint is deprecated. Use POST /api/app_qy_v1/ai_tools/tts/queue/batch/query instead.',
-        ], 'Batch generation processed successfully');
+        ], __('app_qy_v1.messages.batch_generation_processed_successfully'));
     }
     
     public function serveAudio(string $language, string $type, string $filename)
@@ -200,7 +200,7 @@ class AppQyV1TTSController extends Controller
         $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/{$type}/{$speed}/{$filename}");
 
         if (!$response) {
-            return $this->notFound('Audio file not found');
+            return $this->notFound(__('app_qy_v1.messages.audio_file_not_found'));
         }
 
         return $response;
@@ -210,14 +210,14 @@ class AppQyV1TTSController extends Controller
     {
         return $this->success([
             'languages' => $this->ttsService->getSupportedLanguages(),
-        ], 'Languages retrieved successfully');
+        ], __('app_qy_v1.messages.languages_retrieved_successfully'));
     }
 
     public function getVoices(Request $request): JsonResponse
     {
         return $this->success([
             'voices' => $this->ttsService->getAvailableVoices(),
-        ], 'Voices retrieved successfully');
+        ], __('app_qy_v1.messages.voices_retrieved_successfully'));
     }
 
     public function getOptions(Request $request): JsonResponse
@@ -247,7 +247,7 @@ class AppQyV1TTSController extends Controller
                 'default' => 0,
                 'unit' => 'Hz',
             ],
-        ], 'Options retrieved successfully');
+        ], __('app_qy_v1.messages.options_retrieved_successfully'));
     }
 
     /**
@@ -304,7 +304,7 @@ class AppQyV1TTSController extends Controller
             'available' => $available,
             'queued_count' => count($queued),
             'available_count' => count($available),
-        ], 'Batch request processed successfully');
+        ], __('app_qy_v1.messages.batch_request_processed_successfully'));
     }
 
     /**
@@ -316,7 +316,7 @@ class AppQyV1TTSController extends Controller
     {
         $stats = $this->unifiedQueueService->getQueueStats();
 
-        return $this->success($stats, 'Queue statistics retrieved');
+        return $this->success($stats, __('app_qy_v1.messages.queue_statistics_retrieved'));
     }
 
     /**
@@ -337,10 +337,10 @@ class AppQyV1TTSController extends Controller
         );
 
         if ($status === null) {
-            return $this->notFound('Word not found in queue');
+            return $this->notFound(__('app_qy_v1.messages.word_not_found_in_queue'));
         }
 
-        return $this->success($status, 'Queue status retrieved');
+        return $this->success($status, __('app_qy_v1.messages.queue_status_retrieved'));
     }
 
     /**
@@ -484,7 +484,7 @@ class AppQyV1TTSController extends Controller
             'results' => $results,
             'not_found' => $notFound,
             'summary' => $summary,
-        ], 'Batch status check completed');
+        ], __('app_qy_v1.messages.batch_status_check_completed'));
     }
 
 }

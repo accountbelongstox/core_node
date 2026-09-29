@@ -1,13 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries;
 
@@ -43,7 +34,7 @@ class AppQyV1DictionaryTaskController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $language = 'english';
@@ -71,7 +62,7 @@ class AppQyV1DictionaryTaskController extends Controller
             return $this->success($result, $result['message']);
         }
 
-        return $this->success($result, 'Dictionary explanation task created');
+        return $this->success($result, __('app_qy_v1.messages.dictionary_explanation_task_created'));
     }
 
     /**
@@ -87,7 +78,7 @@ class AppQyV1DictionaryTaskController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $limit = 100;
@@ -103,6 +94,6 @@ class AppQyV1DictionaryTaskController extends Controller
             'words' => $words
         ];
 
-        return $this->success($data, 'Untranslated words retrieved');
+        return $this->success($data, __('app_qy_v1.messages.untranslated_words_retrieved'));
     }
 }

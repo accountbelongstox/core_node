@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -18,7 +6,7 @@ $SCRIPT_INDEX = "[Step 18]"
 $SCRIPT_VERSION = "3.0"
 
 # Import required modules
-$GlobalVarsPath = Join-Path $PSScriptRoot "..\win_common\GlobalVars.ps1"
+$GlobalVarsPath = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1"
 if (Test-Path $GlobalVarsPath) {
     . $GlobalVarsPath
 } else {
@@ -27,7 +15,7 @@ if (Test-Path $GlobalVarsPath) {
 
 # Declare variables
 $PowerShellRegistryPath = "HKEY_CLASSES_ROOT\Microsoft.PowerShellScript.1\Shell\Open\Command"
-$PowerShellExecutable = "${env:SystemRoot}\System32\WindowsPowerShell\v1.0\powershell.exe"
+$PowerShellExecutable = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 $PowerShellCommandTemplate = '"{0}" -noLogo -ExecutionPolicy Bypass -File "%1" %*'
 
 function Write-ColorMessage {

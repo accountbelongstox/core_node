@@ -50,6 +50,7 @@ raises and returns a best-effort list of launched PIDs.
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -60,6 +61,11 @@ from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.launcher.linux_desktop_user import root_terminal_env
 from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
 from pycore.pyutils.launcher.linux_terminal_argv import LinuxTerminalArgv
+
+GRID_RC_DIR_PREFIX = "pylauncher-"
+GRID_RC_DIR_MODE = 0o700
+GRID_RC_FILE_NAME = "grid.rc"
+GRID_RC_FILE_MODE = 0o600
 
 
 class LinuxTerminalLauncher:
@@ -113,19 +119,43 @@ class LinuxTerminalLauncher:
             str: Shell snippet for ``bash -lc``.
         """
         try:
-            rc_path = os.path.join(str(TMP_DIR), "pylauncher-grid.rc")
-            with open(rc_path, "w", encoding="utf-8") as fh:
-                fh.write(self._GRID_RC_TEXT)
-            # The launcher may run as root (pkexec grid) or as the desktop user;
-            # keep the shared rc rewritable by both so neither is stuck with the
-            # other's copy.
-            os.chmod(rc_path, 0o666)
+            rc_path = self._private_grid_rc()
+            if not rc_path:
+                return "printf '\\033]0;%s\\007'; exec ${SHELL:-bash}" % title
             return ("export PYLAUNCHER_TITLE={title}; "
                     "printf '\\033]0;%s\\007' \"$PYLAUNCHER_TITLE\"; "
                     "exec bash --rcfile {rc} -i").format(
                         title=shlex.quote(title), rc=shlex.quote(rc_path))
         except Exception:
             return "printf '\\033]0;%s\\007'; exec ${SHELL:-bash}" % title
+
+    def _private_grid_rc(self):
+        """
+        Write the grid rc into a directory private to the running UID
+        (``<TMP_DIR>/pylauncher-<uid>``, mode 0700, file 0600). A root grid
+        shell never sources a file another user can write; a directory that
+        someone else created or opened up is refused (returns '').
+        """
+        uid = os.getuid()
+        rc_dir = os.path.join(str(TMP_DIR), f"{GRID_RC_DIR_PREFIX}{uid}")
+        os.makedirs(rc_dir, mode=GRID_RC_DIR_MODE, exist_ok=True)
+        info = os.lstat(rc_dir)
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or info.st_uid != uid
+            or stat.S_IMODE(info.st_mode) & 0o077
+        ):
+            return ""
+        rc_path = os.path.join(rc_dir, GRID_RC_FILE_NAME)
+        descriptor = os.open(
+            rc_path,
+            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0),
+            GRID_RC_FILE_MODE,
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8") as fh:
+            fh.write(self._GRID_RC_TEXT)
+        os.chmod(rc_path, GRID_RC_FILE_MODE)
+        return rc_path
 
     def _spawn_env(self, env_extra=None):
         """

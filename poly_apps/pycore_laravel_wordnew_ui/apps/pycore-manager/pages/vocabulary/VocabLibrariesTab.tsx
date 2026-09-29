@@ -21,16 +21,11 @@ import type {
   VocabLibraryWordRow,
   VocabLibraryWordsResponse,
 } from '@/apps/pycore-manager/api';
+import { pcLaravelErrorMessage } from '@/apps/pycore-manager/utils/pcErrorCodes';
 import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
-const L = {
-  languagePh: 'english',
-  openLib: 'Open',
-  words: 'words',
-  noCover: 'No cover',
-  detailTitle: 'Library words',
-  empty: 'No libraries.',
-};
+const DEFAULT_LANGUAGE = 'english';
+const DETAIL_PAGE_SIZE = 50;
 
 function VocabCoverImage({ url, alt }: { url: string; alt: string }) {
   const [src, setSrc] = useState('');
@@ -86,71 +81,89 @@ function CoverTaskChip({ cover }: { cover: LibraryCoverView }) {
 export default function VocabLibrariesTab() {
   const { t } = useTranslation('pc');
   const coverTasks = useLibraryCoverTasks(pcLibraryCoverTaskModel);
-  const [language, setLanguage] = useState('english');
+  const [languageDraft, setLanguageDraft] = useState(DEFAULT_LANGUAGE);
+  const [language, setLanguage] = useState(DEFAULT_LANGUAGE);
   const [libs, setLibs] = useState<VocabLibrary[]>([]);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<VocabLibrary | null>(null);
+  const requestSequence = useRef(0);
 
   const load = useCallback(async () => {
+    const sequence = requestSequence.current + 1;
+    requestSequence.current = sequence;
     setLoading(true);
     setError(null);
     try {
       const r = await laravelApi.getVocabLibraries({ language, page: 1, per_page: 100 });
+      if (sequence !== requestSequence.current) return;
       const list = toArray<VocabLibrary>(vp(r));
       setLibs(list);
       pcLibraryCoverTaskModel.track(list);
       setOffline(false);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : VL.error;
+      if (sequence !== requestSequence.current) return;
+      const msg = pcLaravelErrorMessage(e, t(VL.error));
       if (/offline|unavailable|Failed to fetch|timed out/i.test(msg)) setOffline(true);
       setError(msg);
     } finally {
-      setLoading(false);
+      if (sequence === requestSequence.current) setLoading(false);
     }
-  }, [language]);
+  }, [language, t]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const applyLanguage = () => {
+    const next = languageDraft.trim();
+    if (next !== language) setLanguage(next);
+  };
+
+  const refresh = () => {
+    if (languageDraft.trim() === language) void load();
+    else applyLanguage();
+  };
 
   const enqueueCover = async (lib: VocabLibrary, mode: LibraryCoverMode) => {
     try {
       await pcLibraryCoverTaskModel.enqueue([lib.id], mode);
     } catch (e) {
-      setError(e instanceof Error ? e.message : VL.error);
+      setError(pcLaravelErrorMessage(e, t(VL.error)));
     }
   };
 
   const deleteLib = async (lib: VocabLibrary) => {
-    if (!confirm(VL.confirmDelete)) return;
+    if (!confirm(t(VL.confirmDelete))) return;
     try {
       await laravelApi.deleteVocabLibrary(lib.id);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : VL.error);
+      setError(pcLaravelErrorMessage(e, t(VL.error)));
     }
   };
 
   if (loading && libs.length === 0) return <VocabLoading />;
-  if (offline && libs.length === 0) return <VocabBanner kind="offline" message={VL.offline} />;
+  if (offline && libs.length === 0) return <VocabBanner kind="offline" message={t(VL.offline)} />;
 
   return (
     <div className="space-y-3">
       <div className="flex items-end gap-2">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-slate-400">{VL.language}</span>
-          <input value={language} onChange={(e) => setLanguage(e.target.value)}
-            placeholder={L.languagePh}
+          <span className="text-xs text-slate-400">{t(VL.language)}</span>
+          <input value={languageDraft} onChange={(e) => setLanguageDraft(e.target.value)}
+            onBlur={applyLanguage}
+            onKeyDown={(e) => { if (e.key === 'Enter') applyLanguage(); }}
+            placeholder={DEFAULT_LANGUAGE}
             className="w-32 px-2 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700 text-slate-100 focus:outline-none focus:border-sky-400" />
         </label>
-        <button onClick={load}
-          className="px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm hover:bg-sky-400">{VL.refresh}</button>
+        <button onClick={refresh}
+          className="px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm hover:bg-sky-400">{t(VL.refresh)}</button>
       </div>
 
       {error && <VocabBanner kind="error" message={error} />}
 
       {libs.length === 0 ? (
-        <p className="py-8 text-center text-slate-500">{L.empty}</p>
+        <p className="py-8 text-center text-slate-500">{t('vocabularyPage.libraries.empty')}</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {libs.map((lib) => {
@@ -169,10 +182,10 @@ export default function VocabLibrariesTab() {
                 </button>
                 <div className="p-2 space-y-1">
                   <div className="text-sm font-medium text-slate-100 truncate">{lib.name}</div>
-                  <div className="text-xs text-slate-400">{humanInt(lib.word_count)} {L.words}</div>
+                  <div className="text-xs text-slate-400">{t('vocabularyPage.libraries.wordCount', { count: humanInt(lib.word_count) })}</div>
                   <div className="flex items-center gap-1 pt-1">
-                    <button onClick={() => setDetail(lib)} title={L.openLib}
-                      className="flex-1 px-2 py-1 rounded text-xs bg-slate-700/50 text-slate-200 hover:bg-slate-700">{L.openLib}</button>
+                    <button onClick={() => setDetail(lib)} title={t('vocabularyPage.libraries.open')}
+                      className="flex-1 px-2 py-1 rounded text-xs bg-slate-700/50 text-slate-200 hover:bg-slate-700">{t('vocabularyPage.libraries.open')}</button>
                     <IconBtn title={t('vocabularyPage.libraries.regenerateCover')}
                       onClick={() => void enqueueCover(lib, 'generate')} disabled={cover.active}>
                       {cover.active ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
@@ -181,7 +194,7 @@ export default function VocabLibrariesTab() {
                       onClick={() => void enqueueCover(lib, 'search')} disabled={cover.active}>
                       <ScanSearch className="w-3.5 h-3.5" />
                     </IconBtn>
-                    <IconBtn title={VL.delete} onClick={() => deleteLib(lib)} danger><Trash2 className="w-3.5 h-3.5" /></IconBtn>
+                    <IconBtn title={t(VL.delete)} onClick={() => deleteLib(lib)} danger><Trash2 className="w-3.5 h-3.5" /></IconBtn>
                   </div>
                 </div>
               </div>
@@ -196,17 +209,17 @@ export default function VocabLibrariesTab() {
 }
 
 function LibraryDetailModal({ lib, onClose }: { lib: VocabLibrary; onClose: () => void }) {
+  const { t } = useTranslation('pc');
   const [page, setPage] = useState(1);
   const [words, setWords] = useState<VocabLibraryWordRow[]>([]);
   const [stats, setStats] = useState<VocabLibraryWordsResponse['stats'] | null>(null);
   const [pagination, setPagination] = useState<{ total?: number; last_page?: number; has_more?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
-  const perPage = 50;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    laravelApi.getVocabLibraryWords(lib.id, { page, per_page: perPage })
+    laravelApi.getVocabLibraryWords(lib.id, { page, per_page: DETAIL_PAGE_SIZE })
       .then((r) => {
         if (cancelled) return;
         const p = vp<any>(r);
@@ -225,32 +238,32 @@ function LibraryDetailModal({ lib, onClose }: { lib: VocabLibrary; onClose: () =
         <div className="flex items-center justify-between p-4 border-b border-slate-700">
           <div>
             <h3 className="text-base font-semibold text-slate-100">{lib.name}</h3>
-            <div className="text-xs text-slate-400">{lib.language} · {humanInt(lib.word_count)} {L.words}</div>
+            <div className="text-xs text-slate-400">{lib.language} · {t('vocabularyPage.libraries.wordCount', { count: humanInt(lib.word_count) })}</div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} aria-label={t(VL.close)} className="text-slate-400 hover:text-slate-200"><X className="w-5 h-5" /></button>
         </div>
 
         {stats && (
           <div className="flex flex-wrap gap-2 px-4 py-2 text-xs text-slate-300 border-b border-slate-800">
-            <Stat label="Total" v={stats.total} />
-            <Stat label="Translated" v={stats.translated} />
-            <Stat label="Audio" v={stats.with_audio} />
-            <Stat label="Image" v={stats.with_image} />
-            <Stat label="Invalid" v={stats.invalid} />
+            <Stat label={t('vocabularyPage.libraries.stats.total')} v={stats.total} />
+            <Stat label={t('vocabularyPage.libraries.stats.translated')} v={stats.translated} />
+            <Stat label={t('vocabularyPage.libraries.stats.audio')} v={stats.with_audio} />
+            <Stat label={t('vocabularyPage.libraries.stats.image')} v={stats.with_image} />
+            <Stat label={t('vocabularyPage.libraries.stats.invalid')} v={stats.invalid} />
           </div>
         )}
 
         <div className="overflow-auto flex-1">
           {loading ? <VocabLoading /> : words.length === 0 ? (
-            <p className="py-8 text-center text-slate-500">{VL.empty}</p>
+            <p className="py-8 text-center text-slate-500">{t(VL.empty)}</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-slate-800/60 text-slate-400 sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 text-left">Word</th>
-                  <th className="px-3 py-2 text-left">Translations</th>
-                  <th className="px-3 py-2 text-center">T</th>
-                  <th className="px-3 py-2 text-center">A</th>
+                  <th className="px-3 py-2 text-left">{t('vocabularyPage.libraries.word')}</th>
+                  <th className="px-3 py-2 text-left">{t('vocabularyPage.libraries.translations')}</th>
+                  <th className="px-3 py-2 text-center">{t(VL.translationBadge)}</th>
+                  <th className="px-3 py-2 text-center">{t(VL.audioBadge)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -258,8 +271,8 @@ function LibraryDetailModal({ lib, onClose }: { lib: VocabLibrary; onClose: () =
                   <tr key={w.md5 || w.word || i} className="border-t border-slate-800">
                     <td className="px-3 py-2 text-slate-100">{w.word}</td>
                     <td className="px-3 py-2 text-slate-300"><div className="truncate max-w-xs">{(w.translations || []).join('; ')}</div></td>
-                    <td className="px-3 py-2 text-center"><PresenceBadge ok={!!w.has_translation} yesLabel="T" noLabel="-" /></td>
-                    <td className="px-3 py-2 text-center"><PresenceBadge ok={!!w.has_audio} yesLabel="A" noLabel="-" /></td>
+                    <td className="px-3 py-2 text-center"><PresenceBadge ok={!!w.has_translation} yesLabel={t(VL.translationBadge)} noLabel="-" /></td>
+                    <td className="px-3 py-2 text-center"><PresenceBadge ok={!!w.has_audio} yesLabel={t(VL.audioBadge)} noLabel="-" /></td>
                   </tr>
                 ))}
               </tbody>
@@ -268,7 +281,7 @@ function LibraryDetailModal({ lib, onClose }: { lib: VocabLibrary; onClose: () =
         </div>
 
         <div className="flex items-center justify-between p-3 border-t border-slate-700 text-sm text-slate-400">
-          <span>{pagination?.total != null ? `${humanInt(pagination.total)} ${VL.total}` : ''}</span>
+          <span>{pagination?.total != null ? t(VL.totalCount, { count: humanInt(pagination.total) }) : ''}</span>
           <div className="flex items-center gap-2">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}
               className="p-1 rounded border border-slate-600 disabled:opacity-40 hover:bg-slate-700/50"><ChevronLeft className="w-4 h-4" /></button>

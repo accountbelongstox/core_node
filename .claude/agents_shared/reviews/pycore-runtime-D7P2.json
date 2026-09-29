@@ -1,0 +1,127 @@
+{
+  "task_id": "pycore-runtime-D7P2",
+  "role": "pycore-runtime",
+  "reviewer": "pycore-lead",
+  "verdict": "approved",
+  "scope_reviewed": "The phase-2 runtime half that was done before the API outage and is unreviewed. It is on HEAD in 5bbb23682 (user commit 'win0.0.1', 17:33), and the later commits b20962b4f, 120296148 and 8f95a2a24 do not touch pycore. The working tree equals HEAD for every file. Files: pycore/pyutils/common/queue_center_contract.py (QUEUE_CENTER_DELIVERY, the X4 audio_dedup_key fallback, the hashlib removal, 7 EOL-only lines), pycore/pyutils/laravel/delivery_diff.py and identity.py (LDRI-35-py), pycore/pyctl/runtime/event_handlers.py (apply_assist_runtime at the end of the audio-lane boot chain: the runtime half of RESTARTTRAY-03/AOQSD-19/AOQSD-41, plus AOQSD-36 for this file), the X4 _MD5_RE/_sanitize_item_md5 hunk in pycore/callmodule/rpc_routes/local_queue_head_routes.py (p5-02), and pycore/pyctl/queue_center/snapshot_service.py. merge_meta.json has no D7P2 entry, and reports/pycore-runtime.md has no D7P2 section (the outage lost both), so the D7P2 hunks were separated by time. The pycore-5 D10 hunks were approved at 16:48, and D7P2 ran from 17:0x to 17:3x. File mtimes: snapshot_service.py 16:14; the other files 17:13-17:18. Items: .claude/agents_shared/d7/phase2_items.json, d22/merge_meta.json deferred (LDRI-35-py, LDRI-12 fourth site, RESTARTTRAY-03 merged), and TASKS.md p5-02. The pycore-ai half (capability_sync.py, audio_queue_center.py, audio_resource_ledger.py, audio_resource_delivery.py) was read for fit only and is not judged here.",
+  "findings": {
+    "LDRI-35-py": {
+      "status": "done except one gap (B5)",
+      "detail": "identity.py:12-14 reads delivery.server_identity. delivery_diff.py:41-67 reads the routes, diff_reasons, batch_states, batch_stored_statuses, batch_terminal_rejections, error_codes, diff_item_limits, diff_item_limit_default and batch_limits from QUEUE_CENTER_DELIVERY (queue_center_contract.py:223). An in-process probe shows every constant equals its old literal. DEFAULT_DIFF_LIMITS is now a superset: it adds word_audio/sentence_audio/orch_segment/static_file at 5000, the value of the old DEFAULT_DIFF_LIMIT fallback, so behavior is unchanged. Import direction pyutils/laravel -> pyutils/common is allowed, and there is no cycle. Gap: the batch content and status paths are still built by suffixing, at delivery_diff.py:257 f\"{DELIVERY_BATCH_PATH}/{batch_id}/content\" and :274 f\"{DELIVERY_BATCH_PATH}/{batch_id}\". The contract's routes.batch_content and routes.batch_status templates ({batch_id} token) are read by nothing in pycore.",
+      "status_after_fix": "done; the B5 gap is fixed (delivery_diff.py:46-47, :258, :275 use the contract batch_content/batch_status templates)"
+    },
+    "LDRI-12 / CKA-23 (fourth site: queue_center_contract.audio_dedup_key)": {
+      "status": "done functionally; centralization missing (B1)",
+      "detail": "hashlib is gone from the module. The fallback is queue_center_contract.py:596 'text:' + strip().lower(), which the probe shows gives 'en:text:hello'. That matches build_local_task ('manual-word-en-text:hello', the from-task key 'en:text:hello') and audio_resource_ledger.resource_key ('en:text:hello'). However, the same contract format is now hand-built in three modules (queue_center_contract.py:596, audio_resource_ledger.py:42, audio_queue_center.py:140) and parsed in a fourth (audio_resource_ledger.py:52, parts[1] == 'text'). No pycore code reads config/queue_center_contract.json word_identity.fallback_when_md5_absent.key_format. The audio_dedup_key docstring (:578-590) keeps the three copies in sync only by saying they match. This breaks the adapter's own rule (queue_center_contract.py:10-11, 'consumers must not introduce another literal vocabulary') and AGENTS.md reuse/centralize.",
+      "status_after_fix": "done; B1 gives the word identity one owner (queue_center_contract.py:27-40, :586-607), and pycore-ai adopted it in 22ea5b992"
+    },
+    "p5-02 (manual-promote RPC accepts only 32-hex items[].md5)": {
+      "status": "partial (B1, B2)",
+      "detail": "local_queue_head_routes.py:30,43-48 drops a non-32-hex md5. Probe: a non-hex value, '', a leading space, an int, and None are all dropped. Two gaps. (a) An upper-case md5 passes through unchanged ('5D41...'). Laravel's md5 and its resource keys are lower-case only (AppQyV1ResourceIndexService.php:44 MEDIA_KEY_PATTERN [a-f0-9]{32}), so such an item becomes a second dedup key 'en:5D41...' beside the Laravel task 'en:5d41...', and it gets an upload key that the Laravel index pattern rejects. (b) items[].task bypasses the check. The handler forwards whole item dicts (:54-60), and audio_queue_center.promote_local_head uses a caller-supplied item['task'] as-is (audio_queue_center.py:499-506). An RPC caller can therefore insert a task with any payload.md5, no _local_source, and its own _laravel_base_url, which is the URL the lane validates claims against and posts results to (worker_base.py:719-722, laravel_audio_worker_execution.py:674-677). The route has no explicit relay policy, so it falls to route_policy_matching.default_profile general_action (exposure relay) and is reachable through the Laravel relay. The only UI caller sends {kind?, language, text} only (PycoreApiLocal.ts:429-434).",
+      "status_after_fix": "done; B1 lower-cases a valid md5, and B2 builds RPC items from a whitelist, so 'task' can no longer be injected"
+    },
+    "RESTARTTRAY-03 / AOQSD-19 / AOQSD-41 (runtime half)": {
+      "status": "partial (B3, B4)",
+      "detail": "event_handlers.py:495-511 starts the boot chain with assist_settings, and :436-439 runs apply_assist_runtime in the finally after activate_enabled_audio_lanes. The audio lanes' heartbeat callbacks (capability_sync._toggle_callback, :123) and request_start are therefore enabled only after the restore. The pycore-ai gate (capability_sync.py:30-36) also holds request_start on wait_for_restore, so the two agree at boot. One remote-intake path in pycore-runtime scope is still ungated. The realtime thread starts on the main thread right after the boot chain is spawned (event_handlers.py:512-513). On connect it replays every event since the stored cursor (snapshot_service.py:160-163). apply_head_event then calls worker.request_pull(prefer_remote=True) for the audio lane (:549-550) with no restore or lane-enabled check, unlike wake_workers (:362-371). A wordnew head ticket replayed at boot therefore starts a remote pull while the snapshot is still loading, which breaks R6/§5.4 'cache before any remote access'.",
+      "status_after_fix": "done; B3 gates the head-event and wake_workers pulls on the heartbeat callback plus restore_complete (snapshot_service.py:107-119, :380, :561)"
+    },
+    "AOQSD-36 (event_handlers part)": {
+      "status": "except removed, but the failure is now silent (B4)",
+      "detail": "_run_audio_lane_boot_chain now uses try/finally, and the docstring (:431-434) says the failure 'still propagates to the bus-task thread boundary instead of being hidden here'. It does not. BusTaskThread.run catches it (serialized_worker.py:140-145), and because start_bus_task was called without response_signal, _publish_response returns at :42 and the error is dropped. Probe: start_bus_task(<raises RuntimeError>) printed nothing on stdout or stderr. Before this change the failure printed a red '[EventHandlers] Runtime step audio_lane_boot_chain failed' line. Now a failed cache restore (for example a corrupt snapshot) leaves no trace.",
+      "status_after_fix": "done; F-1 reports the failure in red, and the docstring (event_handlers.py:423-438) states it; re-checked"
+    },
+    "snapshot_service.py (RV-007/D10 hunks)": {
+      "status": "not changed in D7P2",
+      "detail": "The f4f223414..HEAD hunks (QUEUE_CENTER_TASK_PRIORITY_QUEUE, removal of the items[].task_id loop, and the realtime_head_key_valid filter in _head_entries) predate D7P2 (mtime 16:14) and were approved in pycore-5 (16:48). The only D7P2 finding in this file is B3, a path the phase-2 invariant now requires."
+    },
+    "EOL": {
+      "status": "accepted",
+      "detail": "The 74e7770..HEAD numstat is 55/20, or 48/13 with --ignore-space-at-eol, for queue_center_contract.py. That is 7 EOL-only lines, which were LF in a CRLF file (lines 180-184 and 710-711 at f4f223414). Git history shows the file was uniformly CRLF at 75001c1ae (09-22) and that 45901d3f6 (09-26) introduced those 7 LF lines. D7P2 made them CRLF again, so HEAD is 814/814 CRLF. That repairs a prior mixed-EOL defect in the file's own convention, and it is the pycore-6 CRLF restore for this file. The other 5 files have numstat equal to --ignore-space-at-eol and keep LF."
+    }
+  },
+  "blocking_issues": [],
+  "non_blocking": [
+    "pycore-ai follow-up to B1: audio_resource_ledger.py:42 (resource_key) and :52 (word_md5, parts[1] == 'text') and audio_queue_center.py:139-140 (build_local_task) should import the B1 helper, so the fallback format has one builder and one parser (pycore-lead memory: 'audio_dedup_key's fallback must stay identical to build_local_task's').",
+    "X4 consequence to record for the D7 audio long run (orchestrator): a local task without an md5 ('en:text:hello') and the same word's Laravel task ('en:<md5>') are different whole-Queue dedup keys. Before X4 they coincided when the stored word was lower-case. The word cache lookup is by word text, so a second synthesis should not happen, but the Queue can hold both entries. The X4 ruling accepts this; check it in the PRAO-38 run.",
+    "event_handlers.py:436-439: translation and STT now also wait for the audio-lane restore, because apply_assist_runtime runs as a whole at the end of the boot chain. That is still needed at boot for the audio lanes' heartbeat callbacks (_toggle_callback enables them immediately; the pycore-ai gate covers only request_start). A later split would remove the delay: enable the audio-lane callbacks after the restore and translation/STT at once. This is a design note for pycore-runtime with pycore-ai.",
+    "event_handlers.py:509-511: if start_bus_task itself fails, apply_assist_runtime runs without any restore. The audio lanes then start after the 180 s gate timeout. This happens only on a thread-start failure.",
+    "capability_sync.py:35-36 (pycore-ai): _start_audio_lane_after_restore ignores the False result of wait_for_restore on timeout and starts the pull silently. Log the timeout. This goes with the existing merge finding M-4 (assist_config activation).",
+    "queue_center_contract.py:589: the rewrapped docstring line keeps the pre-existing em dash. PYTHON_PYCORE.md §1 is ASCII-only, so use '-' at the next touch (B1 rewrites this docstring anyway).",
+    "delivery_diff.py:47-50: DIFF_KIND_* stay literals. The contract names kinds only as the keys of diff_item_limits and batch_kinds, and there is no kind enumeration to read, so they are acceptable.",
+    "identity.py:34-40: __all__ omits LARAVEL_SERVER_ID_FIELD and LARAVEL_HEALTH_SERVICE. This predates D7P2 and is cosmetic."
+  ],
+  "cross_scope_followups": [
+    "pycore-lead F-1 (pyfoundations/serialized_worker.py BusTaskThread.run): report a failed fire-and-forget bus task with ColorPrint.red. B4 depends on it. The reviewer service verifies it, as pycore-lead's own development.",
+    "pycore-ai: adopt the B1 helper in audio_resource_ledger.py and audio_queue_center.py; log the capability_sync restore-wait timeout."
+  ],
+  "checks": [
+    "Scope and window: git log 74e7770..HEAD. The D7P2 hunks are in 5bbb23682. b20962b4f, 120296148 and 8f95a2a24 touch no pycore file. git status -- pycore pyapps is clean. The D10 and D7P2 hunks were separated by mtime and by the pycore-5 verdict time (16:48).",
+    "EOL, with Python byte counts: queue_center_contract.py is 814/814 CRLF at HEAD and was 772/779 at 74e7770. The 7 LF lines at 45901d3f6 and f4f223414 are lines 180-184 and 707-708/710-711, and 75001c1ae had 0 LF lines. delivery_diff.py, identity.py, event_handlers.py, local_queue_head_routes.py and snapshot_service.py are 0 CR at base and HEAD, with numstat equal to --ignore-space-at-eol.",
+    "Resource guard: 5.91 GB free before the probe.",
+    "Probe (scratchpad d7p2_runtime_review.py, python -B, PYTHONDONTWRITEBYTECODE=1, PIP_NO_INDEX=1, os._exit; no register_http_routes, no promote call, no service): ast.parse and py_compile pass on all 6 files. Every delivery_diff and identity constant equals its old literal. DEFAULT_DIFF_LIMITS = {word_audio 5000, sentence_audio 5000, orch_segment 5000, article 500, static_file 5000, orch_output 500}. The contract batch_content and batch_status templates are unused by the code. audio_dedup_key gives en:text:hello, en:<md5>, 'en:text:' for empty text, and en:5eb63bbb... for a sentence. The sanitize results are listed in finding p5-02. build_local_task, audio_dedup_key_from_task and resource_key agree on en:text:hello. start_bus_task with a raising callback printed nothing (stdout '' and stderr '').",
+    "Non-ASCII in the lines D7P2 added: 1 line, queue_center_contract.py:589 (a carried-over em dash).",
+    "Remaining md5 recomputation grep over the runtime and audio paths: only result_cache (not identity), media_content_id (sentence content id) and the article md5 in laravel_audio_worker_state.py:551 (not a word_identity field, per pycore-5). None is a word fallback.",
+    "Relay exposure: pycore_relay_contract.json has no route_policies entry for ui/queue_center/promote_local_head, so the route takes default_profile general_action (exposure relay).",
+    "Layering (PYTHON_PYCORE.md §2): pyutils/laravel -> pyutils/common, callmodule -> pyutils/tts, and pyctl/runtime -> pyctl/assist are all allowed. The new threads are start_bus_task BusTaskThread subclasses (§4). No new try/except was added in these files; the one added line in the pre-existing except at event_handlers.py:511 is a call. No user-facing text was added, and no tests were added or changed."
+  ],
+  "decisions": [
+    "Recommended option: verdict changes_requested rather than approval with notes. B2 and B3 are behavior defects in pycore-runtime files: a relay-reachable bypass of the X4 check, and a remote pull before the cache restore at boot. B4 turned a logged boot failure into a silent one. B1 and B5 are one-source gaps inside the items' own intent.",
+    "Recommended option for B4: fix it once in the foundation (pycore-lead F-1) rather than restoring an except in event_handlers. That keeps AOQSD-36 (no try/except) and fixes every fire-and-forget bus task.",
+    "Recommended option for B3: gate the wake at the pycore-runtime call site with the existing wake_workers condition plus restore_complete. A central gate in the audio worker (pycore-ai) is an option for the coordinator later.",
+    "The EOL normalization of the 7 lines is accepted: it restores the file's own CRLF, as recorded in the history above."
+  ],
+  "notes": "pycore-runtime-D7P2: approved at re-review. The six blocking items were fixed in pycore-runtime-D7P2-fix (round 4, approved), and the pycore-runtime-G3 gate is released. The earlier notes stay below for history. The open non-blocking items are listed in reviews/pycore-runtime-D7P2-fix.json.",
+  "checked_at": "2026-09-27",
+  "previous_verdict": "changes_requested (2026-09-27, 20:14; six blocking items B1-B6)",
+  "round": 2,
+  "resolved_blocking_issues": [
+    {
+      "id": "B1",
+      "status": "fixed",
+      "fixed_in": "pycore-runtime-D7P2-fix round 4 (member hunks in user commit 93f8de054, 21:48:43; F-1 in ab566fdf7)",
+      "verified": "reviews/pycore-runtime-D7P2-fix.json round 4 (pycore-lead, 2026-09-27T22:08:00+10:00)",
+      "original": "B1 (pycore/pyutils/common/queue_center_contract.py:596, :578-590; pycore/callmodule/rpc_routes/local_queue_head_routes.py:26-30, :43-48). Give the X4 word identity one owner in the contract adapter. At the top, read _CONTRACT_DOCUMENT['word_identity'] once: fallback_when_md5_absent.key_format ('<lang>:text:<cleaned_word>'), no literal. Export one helper pair in __all__: word_identity_md5(value) -> str returns strip().lower() when the result is 32 hex chars, otherwise ''. word_identity_content(md5, text) -> str returns word_identity_md5(md5), or else the fallback content derived from key_format, with cleaned_word = strip().lower() and '' when the text is empty. audio_dedup_key uses word_identity_content, and the docstring drops 'matching build_local_task and audio_resource_ledger.resource_key'. _sanitize_item_md5 uses word_identity_md5 and stores the normalized value, so '5D41...' becomes '5d41...' instead of a second key. _MD5_RE goes away. Verify: 'en:text:hello' and 'en:5d41402abc4b2a76b9719d911017c592' for the upper-case input, and a grep for f\"text: in pyutils/common and callmodule finds nothing. pycore-ai adopts the helper in audio_resource_ledger.py:42/:52 and audio_queue_center.py:140 as a recorded follow-up (non_blocking); that is not part of this assignment."
+    },
+    {
+      "id": "B2",
+      "status": "fixed",
+      "fixed_in": "pycore-runtime-D7P2-fix round 4 (member hunks in user commit 93f8de054, 21:48:43; F-1 in ab566fdf7)",
+      "verified": "reviews/pycore-runtime-D7P2-fix.json round 4 (pycore-lead, 2026-09-27T22:08:00+10:00)",
+      "original": "B2 (pycore/callmodule/rpc_routes/local_queue_head_routes.py:54-60). The manual-promote RPC must not accept prebuilt tasks. Drop 'task' from each RPC item, for example by building each item from language, text, kind, content_id and the sanitized md5 only. The lane then always gets its task from build_local_task with local_source=LOCAL_SOURCE_MANUAL. In-process callers (orch_promote) call audio_queue_center.promote_local_head directly and keep passing tasks. Verify: a direct handler call with items=[{language:'en', text:'hello', task:{task_id:'x', task_type:'word_audio', payload:{md5:'zz'}, _laravel_base_url:'http://evil'}}] reaches promote_local_head without 'task'. Check with a stubbed audio_queue_center.promote_local_head; do not call register_http_routes."
+    },
+    {
+      "id": "B3",
+      "status": "fixed",
+      "fixed_in": "pycore-runtime-D7P2-fix round 4 (member hunks in user commit 93f8de054, 21:48:43; F-1 in ab566fdf7)",
+      "verified": "reviews/pycore-runtime-D7P2-fix.json round 4 (pycore-lead, 2026-09-27T22:08:00+10:00)",
+      "original": "B3 (pycore/pyctl/queue_center/snapshot_service.py:549-550). Gate the head-ticket wake. Call worker.request_pull(prefer_remote=True) only when the lane's heartbeat callback is enabled (the same check as wake_workers :365-368, via LANE_REGISTRY[lane]['heartbeat_callback']) and, for an audio lane, when audio_queue_center.restore_complete(lane) is True. Keep set_cached_task_head and the snapshot update unconditional. No wake is lost, because activate_audio_lane issues request_pull(prefer_remote=True) right after the restore (audio_lane_activation.py:52), and a lane whose switch is off must not pull. Put the check in one small helper used by both wake paths, not in a second copy. Verify statically, plus one direct apply_head_event call with a stub worker, before and after the restore signal."
+    },
+    {
+      "id": "B4",
+      "status": "fixed",
+      "fixed_in": "pycore-runtime-D7P2-fix round 4 (member hunks in user commit 93f8de054, 21:48:43; F-1 in ab566fdf7)",
+      "verified": "reviews/pycore-runtime-D7P2-fix.json round 4 (pycore-lead, 2026-09-27T22:08:00+10:00)",
+      "original": "B4 (pycore/pyctl/runtime/event_handlers.py:423-439). A boot-chain failure must be visible again, and the docstring must say where it is reported. Recommended option: pycore-lead adds the foundation report as follow-up F-1. In pyfoundations/serialized_worker.py BusTaskThread.run, a failed callback with no response_signal prints one ColorPrint.red line with the thread name, the error type, the message and the traceback. That one change covers AudioLaneBootChainThread, AudioLaneRestoreGate.*, AiProbeStartupThread and the worker pull tasks. pycore-runtime then rewrites the docstring's propagation sentence (:431-434) to name that report. Keep try/finally with no except. Re-review check: after F-1, a probe that makes _start_audio_lane_boot_chain raise prints one red line naming AudioLaneBootChainThread, and apply_assist_runtime still runs."
+    },
+    {
+      "id": "B5",
+      "status": "fixed",
+      "fixed_in": "pycore-runtime-D7P2-fix round 4 (member hunks in user commit 93f8de054, 21:48:43; F-1 in ab566fdf7)",
+      "verified": "reviews/pycore-runtime-D7P2-fix.json round 4 (pycore-lead, 2026-09-27T22:08:00+10:00)",
+      "original": "B5 (pycore/pyutils/laravel/delivery_diff.py:257, :274, :39-40; pycore/pyutils/common/queue_center_contract.py:220-222). Finish LDRI-35-py. Build the batch content and status URLs from the contract templates, str(_DELIVERY_ROUTES['batch_content']) and str(_DELIVERY_ROUTES['batch_status']), each with .replace('{batch_id}', batch_id) or format, instead of suffixing DELIVERY_BATCH_PATH. Then no delivery route shape is copied in pycore. Also remove the change-history phrasing 'this module used to keep its own copy of every one of them' (delivery_diff.py:40) and 'which used to keep their own copies of these values' (queue_center_contract.py:222). AGENTS.md: no progress summaries in source files. Verify: the probe prints the same two URLs for batch id 'b1' before and after the change."
+    },
+    {
+      "id": "B6",
+      "status": "fixed",
+      "fixed_in": "pycore-runtime-D7P2-fix round 4 (member hunks in user commit 93f8de054, 21:48:43; F-1 in ab566fdf7)",
+      "verified": "reviews/pycore-runtime-D7P2-fix.json round 4 (pycore-lead, 2026-09-27T22:08:00+10:00)",
+      "original": "B6 (.claude/agents_shared/reports/pycore-runtime.md). Add the pycore-runtime-D7P2 section that the outage lost: items (LDRI-35-py, the LDRI-12 fourth site, p5-02, the runtime half of RESTARTTRAY-03/AOQSD-19/41, AOQSD-36 for event_handlers), changed files, the per-file EOL result, and the B1-B5 verification output."
+    }
+  ],
+  "cross_scope_followups_status": [
+    "F-1: done, approved by the reviewer service (reviews/pycore-lead-F1.json).",
+    "pycore-ai B1 helper adoption: done at 22ea5b992 (audio_queue_center.py:146-148, audio_resource_ledger.py:42). The ledger parser at :52 is still hand-built (non_blocking in the fix verdict).",
+    "pycore-ai restore-wait timeout log: done (capability_sync.py _start_audio_lane_after_restore logs in yellow on timeout)."
+  ],
+  "rechecked_at": "2026-09-27T22:08:00+10:00"
+}

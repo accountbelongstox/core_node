@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import io
 import os
-import re
 import sys
 import threading
 import time
@@ -22,10 +21,11 @@ import soundfile as sf
 from pydub import AudioSegment
 
 import tts_server_common
+from tts_audio_assembly import concatenate_wavs
 from tts_text_chunking import (
-    CLAUSE_SPLIT_RE,
     SENTENCE_MERGE_RATIO,
-    SENTENCE_SPLIT_RE,
+    ChunkPolicy,
+    split_text,
 )
 
 # Sentence-level chunked synthesis: long inputs are split into
@@ -50,7 +50,8 @@ from tts_text_chunking import (
 #   hard cap  - QWEN3TTS_CHUNK_MAX_CHARS at speed 1.0 (default 280, ~20s of
 #               audio). A single pathological sentence longer than the merge
 #               budget (but within the hard cap) is still synthesized whole;
-#               anything beyond the hard cap is hard-cut.
+#               anything beyond the hard cap is cut at the last whitespace
+#               (tts_text_chunking.split_text, shared by every engine).
 #   merge cap - a fixed fraction of the hard cap. ADJACENT SENTENCES are only
 #               merged while the merged chunk stays within it, so a
 #               multi-sentence text never becomes one long merged chunk.
@@ -60,8 +61,7 @@ _CHUNK_PAUSE_MS_DEFAULT = getattr(_network_constants, "QWEN3TTS_CHUNK_PAUSE_MS",
 _SENTENCE_MERGE_RATIO = SENTENCE_MERGE_RATIO
 _SPEED_MIN = getattr(_network_constants, "QWEN3TTS_SPEED_MIN", 0.25)
 _SPEED_MAX = getattr(_network_constants, "QWEN3TTS_SPEED_MAX", 3.0)
-_SENTENCE_SPLIT_RE = SENTENCE_SPLIT_RE
-_CLAUSE_SPLIT_RE = CLAUSE_SPLIT_RE
+_JOB_TEXT_MAX_CHARS = int(getattr(_network_constants, "QWEN3TTS_JOB_TEXT_MAX_CHARS", 100000))
 
 
 def _chunk_max_chars(speed: float = 1.0) -> int:
@@ -85,55 +85,19 @@ def _chunk_pause_ms() -> int:
         return _CHUNK_PAUSE_MS_DEFAULT
 
 
-def _pack_units(units: List[str], merge_cap: int, hard_cap: int) -> List[str]:
-    """Greedy sentence merging: adjacent units merge only while the merged
-    chunk stays within ``merge_cap``; a single unit longer than the merge cap
-    (but within ``hard_cap``) is kept whole, and only a unit beyond the hard
-    cap is hard-cut."""
-    chunks: List[str] = []
-    current = ""
-    for unit in units:
-        while len(unit) > hard_cap:
-            if current:
-                chunks.append(current)
-                current = ""
-            chunks.append(unit[:hard_cap])
-            unit = unit[hard_cap:].strip()
-        if not unit:
-            continue
-        candidate = f"{current} {unit}".strip() if current else unit
-        if current and len(candidate) > merge_cap:
-            chunks.append(current)
-            current = unit
-        else:
-            current = candidate
-    if current:
-        chunks.append(current)
-    return chunks
-
-
 def _split_long_text(text: str, hard_cap: int) -> List[str]:
-    """ALWAYS sentence-aware chunks - even when the whole text fits the hard
-    cap, a multi-sentence text is still split at sentence boundaries and only
-    merged up to the (tighter) merge cap, so no generation ever carries an
-    over-long merged run of sentences."""
-    cleaned = (text or "").strip()
-    if not cleaned:
-        return []
-    merge_cap = max(60, round(hard_cap * _SENTENCE_MERGE_RATIO))
-    sentences = [
-        piece.strip() for piece in _SENTENCE_SPLIT_RE.split(cleaned) if piece.strip()
-    ]
-    units: List[str] = []
-    for sentence in sentences:
-        if len(sentence) <= hard_cap:
-            units.append(sentence)
-            continue
-        clauses = [
-            piece.strip() for piece in _CLAUSE_SPLIT_RE.split(sentence) if piece.strip()
-        ]
-        units.extend(clauses if len(clauses) > 1 else sentence.split())
-    return _pack_units(units, merge_cap, hard_cap)
+    """ALWAYS sentence-aware chunks through the shared splitter
+    (tts_text_chunking.split_text: dot shielding, clause and whitespace
+    preferring cuts): even a text within the hard cap splits at sentence
+    boundaries and merges only up to the tighter merge cap. The job text limit
+    bounds the chunk count, so the budget is that limit."""
+    policy = ChunkPolicy(
+        owner="qwen3tts",
+        soft_limit=max(60, round(hard_cap * _SENTENCE_MERGE_RATIO)),
+        hard_limit=hard_cap,
+        max_chunks=_JOB_TEXT_MAX_CHARS,
+    )
+    return [chunk.text for chunk in split_text(text, policy)]
 
 
 def _stretch_to_speed(wav: np.ndarray, speed: float) -> np.ndarray:
@@ -402,16 +366,10 @@ class QwenSynthesis:
                 len(group),
                 start + len(group),
             )
-        parts: List[Any] = []
         for index, wav in enumerate(ordered):
             if wav is None:
                 raise RuntimeError(f"chunk {index} produced no audio")
-            if parts and pause_ms > 0:
-                parts.append(
-                    np.zeros(int(sample_rate * pause_ms / 1000), dtype=np.float32)
-                )
-            parts.append(wav)
-        return np.concatenate(parts), int(sample_rate)
+        return concatenate_wavs(ordered, int(sample_rate), pause_ms), int(sample_rate)
 
     def _generate_chunk_group(
         self, model: Any, gen_kwargs: Dict[str, Any], group: List[str]

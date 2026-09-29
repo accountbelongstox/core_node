@@ -176,6 +176,25 @@ class LaravelDeliveryRepository:
         ).fetchall()
         return [self._row(values) for values in rows]
 
+    def payload_referenced(self, kind: str, identity: str, logical_id: str, payload_sha256: str) -> bool:
+        """True while any row (any namespace) still shares one retained
+        payload: the same kind and digest, and the same identity (or, without
+        an identity, the same logical delivery id)."""
+        if identity:
+            values = self._connection.execute(
+                f"SELECT 1 FROM {LARAVEL_DELIVERIES_TABLE} "
+                "WHERE kind = ? AND identity = ? AND payload_sha256 = ? LIMIT 1",
+                (kind, identity, payload_sha256),
+            ).fetchone()
+        else:
+            values = self._connection.execute(
+                f"SELECT 1 FROM {LARAVEL_DELIVERIES_TABLE} "
+                "WHERE kind = ? AND payload_sha256 = ? "
+                "AND substr(delivery_id, instr(delivery_id, ?) + 1) = ? LIMIT 1",
+                (kind, payload_sha256, NAMESPACE_SEPARATOR, logical_id),
+            ).fetchone()
+        return values is not None
+
     def unassigned(self, limit: int) -> List[Dict[str, Any]]:
         rows = self._connection.execute(
             f"SELECT {_SELECT} FROM {LARAVEL_DELIVERIES_TABLE} WHERE namespace = '' LIMIT ?",

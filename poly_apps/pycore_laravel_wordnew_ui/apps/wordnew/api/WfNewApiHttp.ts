@@ -57,8 +57,9 @@ import {
 
 // Transport core + word mappers extracted (see WfNewApiTransport / WfNewApiMappers).
 import {
-  getJSON, authedGetJSON, postJSON, authedPostJSON, postMultipart, deleteJSON,
+  getJSON, getFreshJSON, authedGetJSON, postJSON, authedPostJSON, postMultipart, deleteJSON,
   setToken, authToken, syncPersistedToken, authExpiredSubs, unwrapEnvelope, toAuthResult,
+  clearOfflineWriteQueue,
 } from './WfNewApiTransport';
 import {
   toWord, toGroup, decorate, asArray, logContentFallback, toAbsoluteUrl,
@@ -143,6 +144,7 @@ export const wfNewApiHttp: WfNewApi = {
   },
 
   async logout(): Promise<void> {
+    clearOfflineWriteQueue();
     // Best-effort server-side revoke; the local token is cleared regardless.
     try {
       if (authToken) await postJSON(WfNewApiPaths.logout, {});
@@ -642,7 +644,7 @@ export const wfNewApiHttp: WfNewApi = {
     word: string,
     opts: WfNewWordMediaOptions = {},
   ): Promise<WfNewWordMedia> {
-    const res = await getJSON<any>(WfNewApiPaths.wordAudio(language, word, opts));
+    const res = await getFreshJSON<any>(WfNewApiPaths.wordAudio(language, word, opts));
     return mapWordAudioState(res, word, language);
   },
 

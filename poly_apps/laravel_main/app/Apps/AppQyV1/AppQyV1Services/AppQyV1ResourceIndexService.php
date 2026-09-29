@@ -7,6 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Providers\PathMapper;
+use App\Support\QueueCenterContract;
 use App\Utils\FileSystemManager;
 use App\Utils\RedisBucketIndex;
 use Generator;
@@ -41,7 +42,11 @@ final class AppQyV1ResourceIndexService
 
     public const PRESENT_VALUE = '1';
     public const AUDIO_STATIC_SUBDIR = 'app_qy_v1/audio';
-    private const MEDIA_KEY_PATTERN = '/^([A-Za-z][A-Za-z_-]{1,15}):([a-f0-9]{32})(?::([A-Za-z0-9_-]{1,32}))?$/';
+    private const KEY_LANGUAGE_PATTERN = '[A-Za-z][A-Za-z_-]{1,15}';
+    private const MEDIA_KEY_PATTERN = '/^(' . self::KEY_LANGUAGE_PATTERN . '):([a-f0-9]{32})(?::([A-Za-z0-9_-]{1,32}))?$/';
+    private const WORD_TEXT_LANGUAGE_TOKEN = '<lang>';
+    private const WORD_TEXT_WORD_TOKEN = '<cleaned_word>';
+    private const WORD_TEXT_WORD_PATTERN = '[^\p{Cc}]+';
     private const SHA256_PATTERN = '/^[a-f0-9]{64}$/';
     private const SENTENCE_FILE_PATTERN = '/^([^\/]+)\/([a-f0-9]{32})(?:_([A-Za-z0-9_-]{1,32}))?\.mp3$/';
     private const ORCH_FILE_PATTERN = '/^[a-f0-9]{2}\/([a-f0-9]{64})\.mp3$/';
@@ -116,14 +121,24 @@ final class AppQyV1ResourceIndexService
         RedisBucketIndex::remove(self::KIND_STATIC_FILE, [self::normalizeStaticPath($relativePath)]);
     }
 
-    /** Forget a deleted file given its absolute path; paths outside the static root are ignored. */
+    /** Record a stored file given its absolute path; paths outside the static_file kind are ignored. */
+    public function recordStaticPath(string $absolutePath): void
+    {
+        $relative = self::staticRelativePath($absolutePath);
+
+        clearstatcache(true, $absolutePath);
+        if ($relative !== null && is_file($absolutePath)) {
+            $this->recordStaticFile($relative, (int) filesize($absolutePath));
+        }
+    }
+
+    /** Forget a deleted file given its absolute path; paths outside the static_file kind are ignored. */
     public function forgetStaticPath(string $absolutePath): void
     {
-        $root = rtrim(str_replace('\\', '/', PathMapper::getLaravelStaticDir()), '/') . '/';
-        $path = str_replace('\\', '/', $absolutePath);
+        $relative = self::staticRelativePath($absolutePath);
 
-        if (str_starts_with($path, $root)) {
-            $this->forgetStaticFile(substr($path, strlen($root)));
+        if ($relative !== null) {
+            $this->forgetStaticFile($relative);
         }
     }
 
@@ -322,7 +337,7 @@ final class AppQyV1ResourceIndexService
         $byLanguage = [];
 
         foreach ($keys as $key) {
-            $parsed = self::parseMediaKey($key);
+            $parsed = self::parseMediaKey($key, self::KIND_WORD_AUDIO);
             if ($parsed === null) {
                 $result[$key] = self::rejected(self::REJECT_INVALID_KEY);
                 continue;
@@ -337,9 +352,13 @@ final class AppQyV1ResourceIndexService
                 }
                 continue;
             }
-            $rows = AppQyV1LangDictionaryModel::rowsByHashes($language, array_column($items, 'hash'))->keyBy('md5');
+            $rows = AppQyV1LangDictionaryModel::rowsByHashes($language, array_filter(array_column($items, 'hash')))->keyBy('md5');
+            $textRows = AppQyV1DictionaryTTSCoordinator::rowsByCleanedWords(
+                $language,
+                array_fill_keys(array_filter(array_column($items, 'cleaned_word'), static fn (string $word): bool => $word !== ''), null)
+            );
             foreach ($items as $key => $parsed) {
-                $row = $rows->get($parsed['hash']);
+                $row = $parsed['hash'] !== '' ? $rows->get($parsed['hash']) : ($textRows[$parsed['cleaned_word']] ?? null);
                 if ($row === null) {
                     $result[$key] = self::rejected(self::REJECT_NO_TARGET);
                     continue;
@@ -360,7 +379,7 @@ final class AppQyV1ResourceIndexService
         $sentenceAudio = app(AppQyV1SentenceAudioService::class);
 
         foreach ($keys as $key) {
-            $parsed = self::parseMediaKey($key);
+            $parsed = self::parseMediaKey($key, self::KIND_SENTENCE_AUDIO);
             if ($parsed === null) {
                 $result[$key] = self::rejected(self::REJECT_INVALID_KEY);
             } elseif (!self::sentenceLanguageExists($parsed['language'])) {
@@ -540,18 +559,53 @@ final class AppQyV1ResourceIndexService
         return $variantKey !== null && $variantKey !== '' ? $key . ':' . $variantKey : $key;
     }
 
-    /** @return array{language:string,hash:string,variant:string}|null */
-    public static function parseMediaKey(string $key): ?array
+    /**
+     * Parse a canonical media key "<lang>:<md5|content id>[:<variant>]". The
+     * word kind also takes the contract key of a word without a stored md5
+     * (word_identity.fallback_when_md5_absent.key_format): its hash is '' and
+     * the row is resolved by lang + cleaned_word.
+     *
+     * @return array{language:string,hash:string,variant:string,cleaned_word:string}|null
+     */
+    public static function parseMediaKey(string $key, string $kind): ?array
     {
-        if (preg_match(self::MEDIA_KEY_PATTERN, $key, $match) !== 1) {
-            return null;
-        }
-        $language = AppQyV1TableMaps::normalizeLangCode($match[1]);
-        if ($language === '' || self::mediaKey($language, $match[2], $match[3] ?? null) !== $key) {
-            return null;
-        }
+        $match = [];
+        $language = '';
+        $cleanedWord = '';
 
-        return ['language' => $language, 'hash' => $match[2], 'variant' => (string) ($match[3] ?? '')];
+        if (preg_match(self::MEDIA_KEY_PATTERN, $key, $match) === 1) {
+            $language = AppQyV1TableMaps::normalizeLangCode($match[1]);
+            return $language !== '' && self::mediaKey($language, $match[2], $match[3] ?? null) === $key
+                ? ['language' => $language, 'hash' => $match[2], 'variant' => (string) ($match[3] ?? ''), 'cleaned_word' => '']
+                : null;
+        }
+        if ($kind !== self::KIND_WORD_AUDIO
+            || preg_match(self::wordTextKeyPattern(), $key, $match) !== 1
+            || !isset($match['language'], $match['cleaned_word'])) {
+            return null;
+        }
+        $language = AppQyV1TableMaps::normalizeLangCode($match['language']);
+        $cleanedWord = $match['cleaned_word'];
+
+        return $language !== '' && trim($cleanedWord) === $cleanedWord && self::wordTextKey($language, $cleanedWord) === $key
+            ? ['language' => $language, 'hash' => '', 'variant' => '', 'cleaned_word' => $cleanedWord]
+            : null;
+    }
+
+    private static function wordTextKey(string $language, string $cleanedWord): string
+    {
+        return strtr(QueueCenterContract::wordIdentityFallbackKeyFormat(), [
+            self::WORD_TEXT_LANGUAGE_TOKEN => $language,
+            self::WORD_TEXT_WORD_TOKEN => $cleanedWord,
+        ]);
+    }
+
+    private static function wordTextKeyPattern(): string
+    {
+        return '/^' . strtr(preg_quote(QueueCenterContract::wordIdentityFallbackKeyFormat(), '/'), [
+            preg_quote(self::WORD_TEXT_LANGUAGE_TOKEN, '/') => '(?<language>' . self::KEY_LANGUAGE_PATTERN . ')',
+            preg_quote(self::WORD_TEXT_WORD_TOKEN, '/') => '(?<cleaned_word>' . self::WORD_TEXT_WORD_PATTERN . ')',
+        ]) . '$/u';
     }
 
     private static function sentenceLanguageExists(string $language): bool
@@ -563,7 +617,7 @@ final class AppQyV1ResourceIndexService
 
     public static function orchSegmentPath(string $sha256): string
     {
-        return PathMapper::getAppQyV1AudioBaseDir(AppQyV1OrchAudioService::segmentAudioRelative($sha256));
+        return AppQyV1OrchAudioService::segmentAudioPath($sha256);
     }
 
     public static function normalizeStaticPath(string $path): string
@@ -576,6 +630,15 @@ final class AppQyV1ResourceIndexService
         }
 
         return $path;
+    }
+
+    private static function staticRelativePath(string $absolutePath): ?string
+    {
+        $root = rtrim(str_replace('\\', '/', PathMapper::getLaravelStaticDir()), '/') . '/';
+        $path = str_replace('\\', '/', $absolutePath);
+        $relative = str_starts_with($path, $root) ? self::normalizeStaticPath(substr($path, strlen($root))) : '';
+
+        return $relative !== '' && !str_starts_with($relative, self::AUDIO_STATIC_SUBDIR . '/') ? $relative : null;
     }
 
     private static function nonEmptyFile(string $path): bool

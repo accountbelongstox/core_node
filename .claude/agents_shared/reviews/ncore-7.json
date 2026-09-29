@@ -1,0 +1,31 @@
+{
+  "task_id": "ncore-7",
+  "role": "ncore",
+  "verdict": "approved",
+  "checked_at": "2026-09-27T09:41:31+10:00",
+  "findings": {
+    "K7 guard alignment (B9)": {
+      "status": "fixed",
+      "reason": "Resubmit: local_rpc_guard.js:69-107. isLoopbackAddress accepts only a real IPv4 (net.isIP===4) in 127.0.0.0/8, unwraps ::ffff: only around an IPv4, and matches IPv6 and names exactly. isLoopbackHostHeader (used for Host and the Origin host) is exact contract membership after lower-casing and removing one trailing dot. hostnameOf keeps a bare IPv6 whole. Re-ran the stubbed guard. Refused 403 host_forbidden: 127.attacker.example (with and without a matching Origin), 127.0.0.1.nip.io from ::ffff:127.0.0.1, localhost.attacker.example, 127.0.0.2, [::ffff:127.0.0.1], 0:0:0:0:0:0:0:1, an empty Host, and the mcp-chrome case (allowLoopbackOrigins:false, rebinding Host, no Origin). Refused 403 origin_forbidden: Origin 127.attacker.example, localhost.attacker.example, 'null'. Allowed: localhost, [::1], ::1, localhost., 127.0.0.1., loopback origins http://localhost:5173 and http://[::1]:3000, and the mcp-chrome extension origin. Non-loopback or mapped non-loopback peers get 401 client_key_missing. isLoopbackBind('127.evil') and ('0.0.0.0') are false. node --check passes."
+    },
+    "NC-002/NC-024 config/index.js secrets": {
+      "status": "fixed",
+      "reason": "No ENC: value and no plaintext secret remain in config/index.js. The 8 secret keys are SECRET:<NAME> references (API_TOKEN_SALT_1, ADMIN_JWT_SECRET_1, TRANSFER_TOKEN_SALT_1, JWT_SECRET_1, MYSQL_PWD_1, AZURE_SPEECH_KEYA_1, STRAPI_TOKEN_1, GITEA_TOKEN_1), resolved by config_tool through readRawSecret; a missing key logs the store name only and resolves to null (fail closed). All 11 new store files exist at 0600 debian:debian (stat only, contents not read), and .gitignore:149 ignores **/.secret_ignore/. No migration artefact is in the repo. The old values stay in git history: the rotation is a user action and is recorded in the report."
+    },
+    "NC-026/NC-011 twins in config/index.js": {
+      "status": "fixed",
+      "reason": "DATA_DRIVER, LANG_COMPILER_DIRNAME and APP_INSTALL_NAME are now imported from globaldir.js (the os-release tag and the resolved drive); the os.type() tag and the D:\\-exists logic are gone. There is no require cycle: gconfig loads globaldir before config_tool, and config_tool requires config/index.js later. node --check passes, and all 54 lines keep CRLF."
+    },
+    "NC-008 contract pickup": {
+      "status": "fixed",
+      "reason": "superCode.ts takes super_code_format and super_code_public_key from service_contract.json#dingdoudou and fails closed (returns null) when either is missing. The Ed25519 verify, device binding and exp checks are unchanged from the approved ncore-5/laravel-T10 cross-end check."
+    }
+  },
+  "issues": [
+    "(resolved) The DNS-rebinding bypass is closed: Host/Origin names are an exact contract match, and peer/bind addresses go through an IP parse.",
+    "(resolved, recorded) The any-port loopback Origin default and the trailing-dot normalization are recorded in the ncore report as deliberate differences from pycore. Neither can be held by a remote page.",
+    "(resolved) superCode.ts:10 uses import { dingdoudou } and backendUrl.ts:2 uses import { access }, so the extension bundle no longer carries the whole host/IP map. tsconfig is ESNext/Bundler with resolveJsonModule. Line endings are kept: superCode.ts is all CRLF, and backendUrl.ts keeps its HEAD 27/41 mix.",
+    "(note, pre-existing, orchestrator) The .secret_keys/.secret_ignore directory and most of the older store files are 0777 on this ntfs3 mount. Not ncore's scope."
+  ],
+  "checks": "First pass: config/index.js read with values masked, the whole guard read, stubbed K7 decisions, stat and git check-ignore on the store (names and modes only), node --check. Resubmit: stubbed guard re-run over 22 hostile and valid Host/Origin/peer cases plus 2 mcp-chrome cases; node --check on local_rpc_guard.js; EOL checked. No tests or builds were run."
+}

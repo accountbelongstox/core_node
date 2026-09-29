@@ -3,12 +3,18 @@ import path from 'path';
 import os from 'os';
 import { execSync } from 'child_process';
 import { promisify } from 'util';
-import { COMMAND_NAME, DESCRIPTION, EXTENSION_ID, FIREFOX_EXTENSION_ID, HOST_NAME } from './constant';
-import { BrowserType, getBrowserConfig, detectInstalledBrowsers } from './browser-config';
+import { COMMAND_NAME, DESCRIPTION, EXTENSION_ID, HOST_NAME } from './constant';
+import {
+  BrowserType,
+  getBrowserConfig,
+  detectInstalledBrowsers,
+  nativeHostCommon,
+} from './browser-config';
 
 export const access = promisify(fs.access);
 export const mkdir = promisify(fs.mkdir);
 export const writeFile = promisify(fs.writeFile);
+const PACKAGE_DIST_DIR = path.join(__dirname, '..');
 let isAdmin: () => boolean = () => false;
 
 if (process.platform === 'win32') {
@@ -41,15 +47,7 @@ export function colorText(text: string, color: string): string {
  * Get native host startup script file path
  */
 export async function getMainPath(): Promise<string> {
-  try {
-    const packageDistDir = path.join(__dirname, '..');
-    const wrapperScriptName = process.platform === 'win32' ? 'run_host.bat' : 'run_host.sh';
-    const absoluteWrapperPath = path.resolve(packageDistDir, wrapperScriptName);
-    return absoluteWrapperPath;
-  } catch (error) {
-    console.log(colorText('Cannot find global package path, using current directory', 'yellow'));
-    throw error;
-  }
+  return nativeHostCommon.getRunHostPath(PACKAGE_DIST_DIR);
 }
 
 /**
@@ -144,11 +142,8 @@ async function ensureWindowsFilePermissions(packageDistDir: string): Promise<voi
  */
 export async function writeNodePath(): Promise<void> {
   try {
-    const nodePath = process.execPath;
-    const nodePathFile = path.join(__dirname, '..', 'node_path.txt');
-
-    console.log(colorText(`Writing Node.js path: ${nodePath}`, 'blue'));
-    fs.writeFileSync(nodePathFile, nodePath, 'utf8');
+    console.log(colorText(`Writing Node.js path: ${process.execPath}`, 'blue'));
+    nativeHostCommon.writeNodePath(PACKAGE_DIST_DIR);
     console.log(colorText('[OK] Node.js path written for run_host scripts', 'green'));
   } catch (error: any) {
     console.warn(colorText(`[WARNING] Failed to write Node.js path: ${error.message}`, 'yellow'));
@@ -156,29 +151,18 @@ export async function writeNodePath(): Promise<void> {
 }
 
 /**
- * Create Native Messaging host manifest content
- * Defaults to Chromium-family format; Firefox uses allowed_extensions instead of allowed_origins
+ * Create Native Messaging host manifest content for the given target file
+ * Chromium-family manifests use allowed_origins; Firefox uses allowed_extensions
  */
-export async function createManifestContent(browser?: BrowserType): Promise<any> {
-  const mainPath = await getMainPath();
-
-  if (browser === BrowserType.FIREFOX) {
-    return {
-      name: HOST_NAME,
-      description: DESCRIPTION,
-      path: mainPath, // Node.js executable path
-      type: 'stdio',
-      allowed_extensions: [FIREFOX_EXTENSION_ID],
-    };
-  }
-
-  return {
-    name: HOST_NAME,
+export async function createManifestContent(
+  manifestPath: string,
+  browser: BrowserType,
+): Promise<Record<string, unknown>> {
+  return nativeHostCommon.createManifestContent(manifestPath, browser, {
     description: DESCRIPTION,
-    path: mainPath, // Node.js executable path
-    type: 'stdio',
-    allowed_origins: [`chrome-extension://${EXTENSION_ID}/`],
-  };
+    extensionId: EXTENSION_ID,
+    runHostPath: await getMainPath(),
+  });
 }
 
 /**
@@ -203,13 +187,8 @@ function verifyWindowsRegistryEntry(registryKey: string, expectedPath: string): 
   }
 }
 
-function createWindowsRegistryCommand(registryKey: string, manifestPath: string): string {
-  const escapedPath = manifestPath.replace(/\\/g, '\\\\');
-  return `reg add "${registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
-}
-
 function writeWindowsRegistryEntry(registryKey: string, manifestPath: string): boolean {
-  const command = createWindowsRegistryCommand(registryKey, manifestPath);
+  const command = nativeHostCommon.buildWindowsRegistryAddCommand(registryKey, manifestPath);
   execSync(command, { stdio: 'pipe' });
   return verifyWindowsRegistryEntry(registryKey, manifestPath);
 }
@@ -245,43 +224,27 @@ export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): 
     let successCount = 0;
     const results: { browser: string; success: boolean; error?: string }[] = [];
 
-    // 3. Register for each browser with browser-specific manifest content
+    // 3. Register for each browser through the shared user-level registration
+    // (scripts/native-host-common.cjs, also used by register-local-dev.cjs)
     for (const browserType of browsersToRegister) {
       const config = getBrowserConfig(browserType);
       console.log(colorText(`\nRegistering for ${config.displayName}...`, 'blue'));
 
-      try {
-        // Create manifest content for this browser
-        const manifest = await createManifestContent(browserType);
-
-        // Ensure directory exists
-        await mkdir(path.dirname(config.userManifestPath), { recursive: true });
-
-        // Write manifest file
-        await writeFile(config.userManifestPath, JSON.stringify(manifest, null, 2));
-        console.log(colorText(`[OK] Manifest written to ${config.userManifestPath}`, 'green'));
-
-        // Windows requires additional registry entries
-        if (os.platform() === 'win32' && config.registryKey) {
-          try {
-            if (writeWindowsRegistryEntry(config.registryKey, config.userManifestPath)) {
-              console.log(colorText(`[OK] Registry entry created for ${config.displayName}`, 'green'));
-            } else {
-              throw new Error('Registry verification failed');
-            }
-          } catch (error: any) {
-            throw new Error(`Registry error: ${error.message}`);
-          }
-        }
-
+      if (
+        nativeHostCommon.registerUserHost(browserType, {
+          description: DESCRIPTION,
+          extensionId: EXTENSION_ID,
+          nativeServerDist: PACKAGE_DIST_DIR,
+        })
+      ) {
         successCount++;
         results.push({ browser: config.displayName, success: true });
-        console.log(colorText(`[OK] Successfully registered ${config.displayName}`, 'green'));
-      } catch (error: any) {
-        results.push({ browser: config.displayName, success: false, error: error.message });
-        console.log(
-          colorText(`[X] Failed to register ${config.displayName}: ${error.message}`, 'red'),
-        );
+      } else {
+        results.push({
+          browser: config.displayName,
+          success: false,
+          error: config.userManifestPath,
+        });
       }
     }
 
@@ -339,11 +302,11 @@ async function registerSystemLevelHost(browserType: BrowserType): Promise<void> 
     // 1. Ensure execution permissions
     await ensureExecutionPermissions();
 
-    // 2. Prepare browser-flavored manifest content
-    const manifest = await createManifestContent(browserType);
-
-    // 3. Get system-level manifest path
+    // 2. Get system-level manifest path
     const manifestPath = config.systemManifestPath;
+
+    // 3. Prepare browser-flavored manifest content
+    const manifest = await createManifestContent(manifestPath, browserType);
 
     // 4. Create temporary manifest file
     const tempManifestPath = path.join(os.tmpdir(), `${HOST_NAME}.${browserType}.json`);
@@ -417,7 +380,7 @@ async function registerSystemLevelHost(browserType: BrowserType): Promise<void> 
     // 6. Windows special handling - set system-level registry
     if (os.platform() === 'win32' && config.systemRegistryKey) {
       const registryKey = config.systemRegistryKey;
-      const regCommand = createWindowsRegistryCommand(registryKey, manifestPath);
+      const regCommand = nativeHostCommon.buildWindowsRegistryAddCommand(registryKey, manifestPath);
 
       console.log(colorText(`Creating system registry entry: ${registryKey}`, 'blue'));
       console.log(colorText(`Manifest path: ${manifestPath}`, 'blue'));

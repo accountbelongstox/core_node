@@ -95,7 +95,7 @@ class AppQyV1WordGroupProgressController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $gid = $request->input('gid');
@@ -103,7 +103,7 @@ class AppQyV1WordGroupProgressController extends Controller
         $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
-            return $this->error('Group not found', 404, [
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404, [
                 'supported_params' => $supported_params,
             ]);
         }
@@ -143,7 +143,7 @@ class AppQyV1WordGroupProgressController extends Controller
                     (int) $wordId
                 );
                 if (!$word) {
-                    return $this->error('Word not found', 404, [
+                    return $this->error(__('app_qy_v1.messages.word_not_found'), 404, [
                         'supported_params' => $supported_params,
                     ]);
                 }
@@ -196,7 +196,7 @@ class AppQyV1WordGroupProgressController extends Controller
                 'word_id' => $wordId,
                 'action' => $action,
                 'progress' => self::entryToProgressArray($entry),
-            ], 'Progress updated successfully');
+            ], __('app_qy_v1.messages.progress_updated_successfully'));
         });
     }
 
@@ -272,7 +272,7 @@ class AppQyV1WordGroupProgressController extends Controller
                 'reads' => $reads,
                 'reviews' => $reviews,
                 'progress' => $progressByWordId,
-            ], 'Progress batch updated successfully');
+            ], __('app_qy_v1.messages.progress_batch_updated_successfully'));
         });
     }
 
@@ -294,7 +294,7 @@ class AppQyV1WordGroupProgressController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $gid = $request->input('gid');
@@ -304,7 +304,7 @@ class AppQyV1WordGroupProgressController extends Controller
         $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
-            return $this->error('Group not found', 404, [
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404, [
                 'supported_params' => $supported_params,
             ]);
         }
@@ -385,7 +385,7 @@ class AppQyV1WordGroupProgressController extends Controller
             'gname' => $group->gname,
             'review_words_count' => count($words),
             'words' => $words,
-        ], 'Review words retrieved successfully');
+        ], __('app_qy_v1.messages.review_words_retrieved_successfully'));
     }
 
     public function getProgressStats(Request $request): JsonResponse
@@ -404,7 +404,7 @@ class AppQyV1WordGroupProgressController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $gid = $request->input('gid');
@@ -412,7 +412,7 @@ class AppQyV1WordGroupProgressController extends Controller
         $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
-            return $this->error('Group not found', 404, [
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404, [
                 'supported_params' => $supported_params,
             ]);
         }
@@ -480,7 +480,7 @@ class AppQyV1WordGroupProgressController extends Controller
                 'struggling_words' => $strugglingWords,
                 'due_for_review' => $dueForReview,
             ],
-        ], 'Progress stats retrieved successfully');
+        ], __('app_qy_v1.messages.progress_stats_retrieved_successfully'));
     }
 
     /**
@@ -508,7 +508,7 @@ class AppQyV1WordGroupProgressController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $gid = $request->input('gid');
@@ -516,7 +516,7 @@ class AppQyV1WordGroupProgressController extends Controller
         $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
-            return $this->error('Group not found', 404, [
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404, [
                 'supported_params' => $supported_params,
             ]);
         }
@@ -539,7 +539,7 @@ class AppQyV1WordGroupProgressController extends Controller
             'total_words' => $totalWords,
             'legend' => AppQyV1GroupWordProgressModel::ENTRY_LEGEND,
             'words' => (object) $wordsMap,
-        ], 'Progress blob retrieved successfully');
+        ], __('app_qy_v1.messages.progress_blob_retrieved_successfully'));
     }
 
     public function getCourseAnalysis(Request $request, $gid): JsonResponse
@@ -548,12 +548,12 @@ class AppQyV1WordGroupProgressController extends Controller
 
         $user = Auth::user();
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $group = AppQyV1WordGroupModel::findByGid($gid);
         if (!$group) {
-            return $this->error('Group not found', 404);
+            return $this->error(__('app_qy_v1.messages.group_not_found'), 404);
         }
 
         $groupWordSet = [];
@@ -634,6 +634,6 @@ class AppQyV1WordGroupProgressController extends Controller
             'newWords' => $newWords,
             'estimatedDays' => $estimatedDays,
             'similarity' => $similarity,
-        ], 'Course analysis retrieved successfully');
+        ], __('app_qy_v1.messages.course_analysis_retrieved_successfully'));
     }
 }

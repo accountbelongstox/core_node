@@ -85,6 +85,30 @@
   "apiCustomEndpointDescription": {
     "message": "사용자 지정: {0}"
   },
+  "apiEndpointProduction": {
+    "message": "프로덕션 클라우드 서버"
+  },
+  "apiEndpointLocalhost": {
+    "message": "로컬 개발 서버"
+  },
+  "apiEndpointLoopback": {
+    "message": "로컬 루프백 서버"
+  },
+  "apiEndpointLanBackup": {
+    "message": "LAN 백업 서버"
+  },
+  "apiEndpointLanPrimary": {
+    "message": "LAN 기본 서버"
+  },
+  "apiEndpointRemoteLaravel": {
+    "message": "원격 Laravel 메인"
+  },
+  "apiEndpointTailnetNuul": {
+    "message": "Tailnet Nuul 서버"
+  },
+  "apiEndpointTailnetApi": {
+    "message": "Tailnet API 서버"
+  },
   "httpStatusError": {
     "message": "{0} (HTTP {1})"
   },
@@ -1840,7 +1864,7 @@
     "message": "  일회성 빌드를 선택했습니다."
   },
   "startWatchPrompt": {
-    "message": "개발 감시 모드를 사용하시겠습니까? [Y/n]"
+    "message": "개발 감시 모드를 사용하시겠습니까?"
   },
   "stateLabel": {
     "message": "상태"
@@ -2439,6 +2463,98 @@
       "pid": {
         "content": "$1",
         "example": "1234"
+      }
+    }
+  },
+  "unknownActionError": {
+    "message": "알 수 없는 작업: $action$",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "unknownCapabilityError": {
+    "message": "알 수 없는 기능: $capability$",
+    "placeholders": {
+      "capability": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerStartedStatus": {
+    "message": "작업자가 시작되었습니다"
+  },
+  "workerStoppedStatus": {
+    "message": "작업자가 중지되었습니다"
+  },
+  "workerConfigRequired": {
+    "message": "작업자 구성이 필요합니다"
+  },
+  "workerConfigApplied": {
+    "message": "구성이 적용되었습니다"
+  },
+  "apiUrlEmpty": {
+    "message": "API URL이 비어 있습니다"
+  },
+  "serverReturnedError": {
+    "message": "서버가 오류를 반환했습니다"
+  },
+  "taskCenterStartedStatus": {
+    "message": "작업 센터가 시작되었습니다"
+  },
+  "taskCenterStoppedStatus": {
+    "message": "작업 센터가 중지되었습니다"
+  },
+  "processorTypeRequired": {
+    "message": "프로세서 유형이 필요합니다"
+  },
+  "processorEnabledStatus": {
+    "message": "프로세서 $processor$이(가) 활성화되었습니다",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorDisabledStatus": {
+    "message": "프로세서 $processor$이(가) 비활성화되었습니다",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStartedStatus": {
+    "message": "프로세서 $processor$이(가) 시작되었습니다",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "processorStoppedStatus": {
+    "message": "프로세서 $processor$이(가) 중지되었습니다",
+    "placeholders": {
+      "processor": {
+        "content": "$1"
+      }
+    }
+  },
+  "enterAtLeastOneWord": {
+    "message": "단어를 하나 이상 입력하세요"
+  },
+  "startSupersededByStop": {
+    "message": "시작이 중지로 대체되었습니다"
+  },
+  "capabilityChangeSupersededByStop": {
+    "message": "기능 변경이 중지로 대체되었습니다"
+  },
+  "connectedPendingStatus": {
+    "message": "연결됨 · 대기 중 $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
       }
     }
   }

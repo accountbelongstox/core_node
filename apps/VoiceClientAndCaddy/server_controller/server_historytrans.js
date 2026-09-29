@@ -1,22 +1,10 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const { OLD_DB_DIR, TRANSLATE_TMP_DIR, TRANSLATE_DIR } = require('../provider/baseDir/BaseDirProvider.js');
 const { fdir, dcopy, file, arrtool, freader, strtool } = require('#@btools');
 const path = require('path');
 const fs = require('fs');
 const { scanDirectory } = fdir;
 const logger = require('#@logger');
-const { decompress } = require('#@/ncore/foundation/utilities/zip-tool/best_decompressor.js');
+const { decompress } = require('#@ncore/utils/zip_tool/best_decompressor.js');
 const { APP_DATA_CACHE_DIR } = require('#@global_dir');
 const preExt = `.expected_ext_marker.j7son.js`;
 const splitTokenText = `------------------------------TokenLine-----------------------------`;

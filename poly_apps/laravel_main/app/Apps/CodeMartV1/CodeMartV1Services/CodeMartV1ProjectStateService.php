@@ -38,7 +38,7 @@ class CodeMartV1ProjectStateService
         $actorRole = $asAdmin ? CodeMartV1Constants::TRANSITION_ACTOR_ADMIN : CodeMartV1Constants::TRANSITION_ACTOR_OWNER;
 
         if (!$asAdmin && ($actorId === null || !$project->isOwnedBy($actorId))) {
-            return self::failure(CodeMartV1Constants::ERROR_ACCESS_DENIED, 403, 'Only the project owner can change the project status');
+            return self::failure(CodeMartV1Constants::ERROR_ACCESS_DENIED, 403, __('codemart.errors.project_status_owner_only'));
         }
 
         return self::apply($project, $toStatus, $actorId, $actorRole, self::ACTION_STATUS_CHANGED, $reason);
@@ -122,7 +122,7 @@ class CodeMartV1ProjectStateService
         bool $notify = true
     ): array {
         if (!in_array($toStatus, CodeMartV1Constants::getAllProjectStatuses(), true)) {
-            return self::failure(CodeMartV1Constants::ERROR_INVALID_PROJECT_TRANSITION, 422, 'Unknown project status', [
+            return self::failure(CodeMartV1Constants::ERROR_INVALID_PROJECT_TRANSITION, 422, __('codemart.errors.project_status_unknown'), [
                 'to' => $toStatus,
             ]);
         }
@@ -130,12 +130,12 @@ class CodeMartV1ProjectStateService
         $result = CodeMartV1ProjectModel::runInTransaction(function () use ($project, $toStatus, $actorId, $actorRole, $action, $reason, $params, $notify): array {
             $locked = CodeMartV1ProjectModel::lockById((int) $project->id);
             if (!$locked) {
-                return self::failure(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 404, 'Project not found');
+                return self::failure(CodeMartV1Constants::ERROR_PROJECT_NOT_FOUND, 404, __('codemart.messages.project_not_found'));
             }
 
             $fromStatus = (string) $locked->status;
             if (!in_array($actorRole, CodeMartV1Constants::projectTransitionActors($fromStatus, $toStatus), true)) {
-                return self::failure(CodeMartV1Constants::ERROR_INVALID_PROJECT_TRANSITION, 409, 'Project status transition is not allowed', [
+                return self::failure(CodeMartV1Constants::ERROR_INVALID_PROJECT_TRANSITION, 409, __('codemart.errors.project_transition_not_allowed'), [
                     'from' => $fromStatus,
                     'to' => $toStatus,
                     'allowed' => self::allowedTargets($fromStatus, $actorRole),
@@ -144,7 +144,7 @@ class CodeMartV1ProjectStateService
 
             if ($toStatus === CodeMartV1Constants::PROJECT_STATUS_COMPLETED
                 && CodeMartV1TaskModel::unfinishedCountForProject((int) $locked->id) > 0) {
-                return self::failure(CodeMartV1Constants::ERROR_PROJECT_TASKS_UNFINISHED, 409, 'All tasks must be completed or cancelled first', [
+                return self::failure(CodeMartV1Constants::ERROR_PROJECT_TASKS_UNFINISHED, 409, __('codemart.errors.project_tasks_unfinished'), [
                     'unfinished_tasks' => CodeMartV1TaskModel::unfinishedCountForProject((int) $locked->id),
                 ]);
             }
@@ -218,6 +218,14 @@ class CodeMartV1ProjectStateService
             );
             CodeMartV1DeveloperStatsModel::recordProjectCompletion($developerIds);
             $effects['credited_developers'] = count($developerIds);
+        }
+
+        if (in_array($toStatus, [CodeMartV1Constants::PROJECT_STATUS_CANCELLED, CodeMartV1Constants::PROJECT_STATUS_COMPLETED], true)) {
+            $effects['escrow_refund'] = CodeMartV1EscrowService::refundRemainderForProject(
+                (int) $project->id,
+                $actorId,
+                'project_' . $toStatus
+            );
         }
 
         return $effects;

@@ -6,13 +6,17 @@
  * (local generation shows the qwen TTS backend that produced the clip).
  *
  * Reuses the global PcFloatingPanel + PcPager; all data comes from the pycore
- * orch_store manifest, nothing is re-derived on the UI side.
+ * orch_store manifest, nothing is re-derived on the UI side. The page reloads
+ * when the audio lane state moves (lane push / revision), so each row shows
+ * pycore's current queue_state.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowUpToLine, Loader2 } from 'lucide-react';
 import {
+  audioLaneRevisionKey,
   pycoreApi,
+  useAudioLaneState,
   type OrchManifestCategory,
   type OrchManifestItem,
 } from '@/apps/pycore-manager/api';
@@ -23,6 +27,10 @@ import { ORCH_L, orchErrorMessage } from './orchShared';
 import { absoluteTime } from '../../utils/pcFormat';
 
 const PAGE_SIZE = 50;
+/** Lane pushes arrive in bursts: one manifest reload per quiet period. */
+const LANE_REFRESH_DEBOUNCE_MS = 800;
+/** Part1 fill states in which pycore already holds the item at the local queue head. */
+const HEAD_QUEUE_STATES: ReadonlySet<string> = new Set(['queued', 'processing']);
 
 const CATEGORIES: Array<{ key: OrchManifestCategory; label: () => string }> = [
   { key: 'all', label: () => ORCH_L.catAll },
@@ -58,9 +66,8 @@ const OrchManifestPanel: React.FC<{
   taskId: string;
   taskName: string;
   initialCategory: OrchManifestCategory;
-  running?: boolean;
   onClose: () => void;
-}> = ({ open, taskId, taskName, initialCategory, running, onClose }) => {
+}> = ({ open, taskId, taskName, initialCategory, onClose }) => {
   const { t } = useTranslation('pc');
   const [category, setCategory] = useState<OrchManifestCategory>(initialCategory);
   const [page, setPage] = useState(1);
@@ -72,23 +79,35 @@ const OrchManifestPanel: React.FC<{
   // LOCAL self-adjust only: promoting fills Part1 of the Pycore shared
   // audio queue and NEVER notifies Laravel (wordnew owns the Part2 path).
   const [promotingId, setPromotingId] = useState<string | null>(null);
-  const [promotedIds, setPromotedIds] = useState<Set<string>>(new Set());
-
+  const laneState = useAudioLaneState();
+  const laneRevision = audioLaneRevisionKey(laneState.payload);
+  const laneRevisionRef = useRef(laneRevision);
+  const shownRevision = useRef<string | null>(null);
+  const requestSeq = useRef(0);
+  const viewRef = useRef({ category, page });
+  laneRevisionRef.current = laneRevision;
+  viewRef.current = { category, page };
 
   const load = useCallback(async (cat: OrchManifestCategory, targetPage: number) => {
+    const request = ++requestSeq.current;
+    shownRevision.current = laneRevisionRef.current;
     setLoading(true);
     try {
       const response = await pycoreApi.orchTaskManifestPage(taskId, cat, targetPage, PAGE_SIZE);
-      if (!response.success) throw new Error(response.error || ORCH_L.loadFailed);
+      if (request !== requestSeq.current) return;
+      if (!response.success) {
+        setError(orchErrorMessage(response, ORCH_L.loadFailed));
+        return;
+      }
       setItems(response.items || []);
       setTotal(response.total || 0);
       setPageCount(response.page_count || 1);
       setPage(response.page || 1);
       setError(null);
     } catch (e) {
-      setError(orchErrorMessage(e, ORCH_L.loadFailed));
+      if (request === requestSeq.current) setError(orchErrorMessage(e, ORCH_L.loadFailed));
     } finally {
-      setLoading(false);
+      if (request === requestSeq.current) setLoading(false);
     }
   }, [taskId]);
 
@@ -102,8 +121,10 @@ const OrchManifestPanel: React.FC<{
         items: [{ kind, language: item.language, text: item.text }],
         owner: taskId,
       });
-      if (!response.success) throw new Error(response.error || ORCH_L.actionFailed);
-      setPromotedIds((prev) => new Set(prev).add(item.resource_id));
+      if (!response.success) {
+        setError(orchErrorMessage(response, ORCH_L.actionFailed));
+        return;
+      }
       setError(null);
       void load(category, page);
     } catch (e) {
@@ -120,12 +141,12 @@ const OrchManifestPanel: React.FC<{
     void load(initialCategory, 1);
   }, [open, initialCategory, load]);
 
-  // Live refresh while the task is generating so pending rows resolve in place.
+  // State-driven refresh: reload the shown page when the lane state moves.
   useEffect(() => {
-    if (!open || !running) return;
-    const timer = setInterval(() => void load(category, page), 5000);
-    return () => clearInterval(timer);
-  }, [open, running, category, page, load]);
+    if (!open || laneRevision === shownRevision.current) return undefined;
+    const timer = setTimeout(() => void load(viewRef.current.category, viewRef.current.page), LANE_REFRESH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [open, laneRevision, load]);
 
   const pickCategory = (next: OrchManifestCategory) => {
     setCategory(next);
@@ -170,55 +191,56 @@ const OrchManifestPanel: React.FC<{
           <p className="text-[11px] text-slate-500">{ORCH_L.manifestEmpty}</p>
         )}
         <div className="space-y-1">
-          {items.map((item) => (
-            <div
-              key={item.resource_id}
-              className="rounded-lg border border-slate-200 dark:border-white/10 px-2.5 py-1.5"
-            >
-              <div className="flex items-center gap-2">
-                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${sourceBadgeClass(item)}`}>
-                  {sourceLabel(item)}
-                </span>
-                <span className="shrink-0 text-[10px] font-mono text-slate-500">
-                  {item.kind}/{item.language}
-                </span>
-                {item.provider && (
-                  <span className="shrink-0 text-[10px] font-mono text-slate-500">{item.provider}</span>
-                )}
-                {item.resolved_at && (
-                  <span className="shrink-0 text-[10px] font-mono text-slate-500" title={ORCH_L.resolvedAt}>
-                    {absoluteTime(item.resolved_at)}
+          {items.map((item) => {
+            const atHead = HEAD_QUEUE_STATES.has(item.queue_state || '');
+            return (
+              <div
+                key={item.resource_id}
+                className="rounded-lg border border-slate-200 dark:border-white/10 px-2.5 py-1.5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${sourceBadgeClass(item)}`}>
+                    {sourceLabel(item)}
                   </span>
-                )}
-                {item.queue_state && (
-                  <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] text-indigo-300">
-                    {t('queueCenter.audioLane.part1')} · {t(`queueCenter.audioLane.states.${item.queue_state}`)}
+                  <span className="shrink-0 text-[10px] font-mono text-slate-500">
+                    {item.kind}/{item.language}
                   </span>
-                )}
-                {(item.synced || item.sync_queued) && (
-                  <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                    {item.synced ? ORCH_L.manifestSynced : ORCH_L.syncingNow}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  title={ORCH_L.moveToHead}
-                  disabled={promotingId !== null || promotedIds.has(item.resource_id)}
-                  onClick={() => void promoteToHead(item)}
-                  className="ml-auto shrink-0 rounded border border-slate-300 dark:border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 hover:border-indigo-400/50 hover:text-indigo-300 disabled:opacity-50 disabled:hover:border-slate-300 dark:disabled:hover:border-white/10 disabled:hover:text-slate-500 dark:disabled:hover:text-slate-400"
-                >
-                  {promotingId === item.resource_id ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : promotedIds.has(item.resource_id) ? (
-                    ORCH_L.moveToHeadDone
-                  ) : (
-                    <ArrowUpToLine className="w-3 h-3" />
+                  {item.provider && (
+                    <span className="shrink-0 text-[10px] font-mono text-slate-500">{item.provider}</span>
                   )}
-                </button>
+                  {item.resolved_at && (
+                    <span className="shrink-0 text-[10px] font-mono text-slate-500" title={ORCH_L.resolvedAt}>
+                      {absoluteTime(item.resolved_at)}
+                    </span>
+                  )}
+                  {item.queue_state && (
+                    <span className="shrink-0 rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] text-indigo-300">
+                      {t('queueCenter.audioLane.part1')} · {t(`queueCenter.audioLane.states.${item.queue_state}`)}
+                    </span>
+                  )}
+                  {(item.synced || item.sync_queued) && (
+                    <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                      {item.synced ? ORCH_L.manifestSynced : ORCH_L.syncingNow}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    title={atHead ? ORCH_L.moveToHeadDone : ORCH_L.moveToHead}
+                    disabled={promotingId !== null || atHead}
+                    onClick={() => void promoteToHead(item)}
+                    className="ml-auto shrink-0 rounded border border-slate-300 dark:border-white/10 px-1.5 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 hover:border-indigo-400/50 hover:text-indigo-300 disabled:opacity-50 disabled:hover:border-slate-300 dark:disabled:hover:border-white/10 disabled:hover:text-slate-500 dark:disabled:hover:text-slate-400"
+                  >
+                    {promotingId === item.resource_id ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <ArrowUpToLine className="w-3 h-3" />
+                    )}
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-700 dark:text-slate-300 break-words">{item.text}</p>
               </div>
-              <p className="mt-1 text-[11px] text-slate-700 dark:text-slate-300 break-words">{item.text}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </PcFloatingPanel>

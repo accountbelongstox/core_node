@@ -1,0 +1,49 @@
+{
+  "task_id": "laravel-codemart-D7-fix",
+  "role": "codemart-laravel",
+  "reviewer": "codemart-lead",
+  "verdict": "approved",
+  "base": "74e7770",
+  "scope": "Round 1 of laravel-codemart-D7: the three blocking issues B1-B3. The reviewed delta is 8f95a2a24..worktree for the 5 CodeMartV1 files, which is now commit 4ddb4be8e with identical stats (3/28/5/7/13 lines). The full 74e7770 diff of the same files was read for context. All changed paths are in the codemart-laravel scope (app/Apps/CodeMartV1/), plus the member's own report file.",
+  "findings": {
+    "laravel-codemart-D7-B1": {
+      "status": "confirmed",
+      "detail": "CodeMartV1DemoSeeder.php:756-762: ensure(), then seedAccounts(), then CodeMartV1AdminPassword::apply() only when $secret['generated'] is true. It reuses the command's locked, idempotent applier (AdminPassword.php:101-130). With an existing file nothing is rehashed: seedAccounts (:846) hashes only new users, and apply() is not called. Re-run of the rolled-back probe with a missing scratch secret file: generated=true, 24 characters, 7 hashes changed, 7/7 accept the generated password, 0/7 accept the removed literal (baseline 7/7). Seed 2 with the same file: generated=false, 0 hashes changed, 7/7 accept. apply() afterwards: 7 unchanged. Docblocks in AdminPassword.php:13-20, AdminPasswordCommand.php:9-14 and Initializer.php:537-543 now describe the generated-file exception."
+    },
+    "laravel-codemart-D7-B2": {
+      "status": "confirmed",
+      "detail": "CodeMartV1DemoSeeder.php:761 now logs only __('codemart.cli.seed.password_file', ['path']), and nothing in the seeder uses the password_generated key any more. The password stays in the returned summary (:782-786). Initializer.php:562-564 (the step message) and sys:codemartinit print it to the console. AppInitializationManager logs no step messages, and the Initializer status file stores only flags. Re-run of the probe, with MessageLogged capture and the callback wired as in the Initializer (Log::info): seed 1 logged 2 messages, 0 with the password and 1 with the path; seed 2 logged 0 with the password. The member's run counted 3 messages in seed 1; the count depends on data state, and both runs have 0 with the password."
+    },
+    "laravel-codemart-D7-B3": {
+      "status": "confirmed",
+      "detail": "CodeMartV1Constants.php:600-605 adds SUBMISSION_TERMINAL_STATUSES [approved, needs_revision, rejected] and ANALYSIS_TERMINAL_STATUSES [completed, failed], served as terminal_states.submission and .analysis (:802-803). getAllSubmissionStatuses() (:454-463) is the single source for states.submission (:742, which now includes pending) and for the Initializer submission check constraint (Initializer.php:201), replacing a duplicated literal list with the same values in the same order. The comment at :798 was reworded as the D7 non-blocking note asked. Non-terminal remainders: submission [pending, pending_review] equals SUBMISSION_REVIEWABLE_STATUSES and CmSubmissionsPanel.tsx:15; analysis [pending, processing, revising] equals CmProjectAnalysisPanel.tsx:13 ACTIVE_ANALYSIS_STATUSES (the requirement text says :12; the line is :13). In-process GET /api/codemart/v1/bootstrap returned 200 and its vocabulary equals contractVocabulary() with both new groups. alignStatusConstraints (rolled back) returned success with 0 ALTER statements. The UI locale already has states.submission.pending (cm-locales/en.ts:131), so the extra state has a label. No config/*_contract.json mirrors terminal_states, so no contract change is needed."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "CodeMartV1DemoSeeder.php:756-760: ensure() writes the secret file before seedAccounts() and apply(). If either throws, the next seed sees an existing file (generated=false) and never applies it, so the printed password would not work until codemart:admin-password runs (Step175 does this on every deploy). This follows the ruling ('with an existing file the seeder never rehashes') and is acceptable. Record it for codemart-laravel-G1 in case the ruling is revisited.",
+    "Initializer.php:562-564: on a first run the step message still carries the generated password. It reaches the sys:init console, which is intended, and the web system/init response, where the route group in routes/web.php has no dashboard.auth. Carried to pycore-laravel (unchanged from the D7 verdict).",
+    "Carried from the D7 verdict to codemart-laravel-G1: the English RuntimeException literals at CodeMartV1AdminPassword.php:33,89; accept_idempotency_key (Initializer.php:414) with no reader (cmgap-U30); writePrivateFile reuse; the CKA-28 literal sweep; cmgap-R1; CMDES-08; cmcont-11. Carried to pycore-laravel: app/Console/Commands/CodeMartV1SeedDemoData.php:18-19 prints hardcoded English.",
+    "codemart-ui cmdesign-03: CmApiTypes.ts:92-106 types vocabulary without terminal_states. Type it (Record<string, string[]>) when deriving the local sets in CmSubmissionsPanel.tsx:15 and CmProjectAnalysisPanel.tsx:13."
+  ],
+  "checks": [
+    "Free RAM was 3.19 GB before the in-process runs (guard 3 GB).",
+    "git diff HEAD before the user's commit 4ddb4be8e, then 8f95a2a24..4ddb4be8e: identical deltas in the 5 files. The working tree equals HEAD for them.",
+    "php -l: no syntax errors in DemoSeeder, AdminPassword, AdminPasswordCommand, Initializer and Constants.",
+    "Line endings: 0 CR in the working tree, HEAD and 74e7770 for all 5 files (LF kept). No BOM. The files start with '<?php', as at HEAD, and no AI rules header was re-added.",
+    "grep for 'Codemart#2026' and DEMO_PASSWORD across laravel app/routes/lang, the codemart UI, config and scripts: 0 hits.",
+    "Lang keys codemart.cli.seed.password_file and password_generated exist in lang/en and lang/zh_CN (codemart.php:146-147). password_generated is still used by Initializer.php:563.",
+    "Re-run of scratchpad/d7fix_probe.php 'Codemart#2026' (17 s, rolled back on main and codemartv1; output in scratchpad/lead_d7fix_probe_out.json). Baseline 7 accounts, 7/7 accept the removed literal. Seed 1: generated, 7 changed, 7/7 accept the generated password, 0/7 accept the literal, 0 log messages with the password. Seed 2: 0 changed. apply: 7 unchanged. Bootstrap: 200, vocabulary equal. After rollback: hashes restored, 0 probe tokens, scratch removed.",
+    "Re-run of scratchpad/d7fix_align.php (rolled back): 'Aligned 5 check constraints', 0 ALTER statements.",
+    "php artisan route:list --path=api/codemart/v1: 113 routes, exit 0.",
+    "GET http://127.0.0.1:9000/api/health: 200 (the member restarted the workers after the change; the reviewer made no code change).",
+    "Boundaries: every changed path is under poly_apps/laravel_main/app/Apps/CodeMartV1/ (codemart-laravel), plus .claude/agents_shared/reports/codemart-laravel.md. No tests were touched and no contract file was changed.",
+    "AGENTS.md: English code and logs; the new log line uses an i18n key; constants are centralized (getAllSubmissionStatuses removes a duplicated list); no destructive action."
+  ],
+  "decisions": [
+    "Approved, because all three blocking items are confirmed by an independent re-run of the verify steps. The residual file-before-apply window is recorded as non-blocking, because the ruling explicitly keeps 'never rehash with an existing file'.",
+    "The member's probe script lives in this session's scratchpad. It was read in full before it was re-run, and it was re-run unchanged, with the removed literal passed as argv."
+  ],
+  "next_owner": "codemart-lead (merge and group combined checks); codemart-ui for cmdesign-03 using terminal_states.submission/.analysis; pycore-laravel for the carried cross-scope notes.",
+  "checked_at": "2026-09-27T20:28:14+10:00"
+}

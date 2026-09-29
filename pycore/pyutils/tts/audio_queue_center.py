@@ -40,7 +40,9 @@ Public API (the ONLY external surface; everything else is library-internal):
   INTERNAL persistence hooks: ``restore_from_cache(lane)`` (once per process,
   before any remote intake) and ``persist_snapshot(lane, source)`` (marks the
   lane dirty; the persister thread writes it debounced, and a final flush
-  runs at shutdown).
+  runs at shutdown). ``restore_complete(lane)`` / ``wait_for_restore(lane,
+  timeout)`` let a lane's own remote-intake starter (state-driven, no
+  polling) hold off until that lane's cache-first restore has finished.
 
 Every mutation bumps the lane revision and publishes the THREAD_BUS signal
 ``AUDIO_QUEUE_CHANGED_SIGNAL`` so the pyctl lane-state publisher can push the
@@ -51,10 +53,9 @@ upward.
 
 from __future__ import annotations
 
-import hashlib
 import threading
 import time
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -62,6 +63,8 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import (
     audio_dedup_key,
     audio_dedup_key_from_task,
+    word_identity_content,
+    word_identity_md5,
 )
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.tts import audio_queue_cache
@@ -75,9 +78,22 @@ AUDIO_QUEUE_LANE_BY_KIND = {kind: lane for lane, kind in AUDIO_QUEUE_KIND_BY_LAN
 
 # THREAD_BUS signal published on every lane mutation ({lane, revision, reason}).
 AUDIO_QUEUE_CHANGED_SIGNAL = "audio_queue_center.changed"
+# Per-owner wake signal: set when an item an owner watches settles, when the
+# owner is released, or on wake_owner (cancel); owners wait on it, never poll.
+AUDIO_QUEUE_OWNER_SIGNAL_PREFIX = "audio_queue_center.owner"
 _PERSIST_SIGNAL = "audio_queue_center.persist_requested"
 _PERSIST_PAUSE_SIGNAL = "audio_queue_center.persist_pause"
 _PERSIST_MIN_INTERVAL_SECONDS = 5.0
+# Per-lane restore-complete signal: set once restore_from_cache(lane) has
+# finished (whole-Queue populated from the local snapshot), so a lane's own
+# first remote pull can wait on it (R6 section 5.4: cache before any remote
+# access).
+_RESTORE_COMPLETE_SIGNAL_PREFIX = "audio_queue_center.restore_complete"
+# Safety bound on ``wait_for_restore`` below (R6 section 5.4): loading even a
+# large local snapshot takes seconds, not minutes; this only guards against
+# the boot chain never running for the lane at all. ONE definition - a lane
+# starter imports this instead of declaring its own copy.
+AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS = 180.0
 
 # Tracker states of Part1 items (observability only).
 TRACK_QUEUED = "queued"
@@ -87,6 +103,7 @@ TRACK_FAILED = "failed"
 TRACK_TERMINAL = (TRACK_DONE, TRACK_FAILED)
 # settled_by value for items a lane worker popped (owners use their own id).
 SETTLED_BY_LANE = "lane"
+PRUNED_SETTLE_ERROR = "pruned_absent_from_laravel_pending"
 _TRACKED_TERMINAL_CAP = 5000
 _LANE_VIEW_ITEM_LIMIT = 200
 
@@ -104,10 +121,14 @@ def build_local_task(
     source: str,
     base_url: str = "",
     extra_payload: Optional[Dict[str, Any]] = None,
+    md5: str = "",
 ) -> Optional[Dict[str, Any]]:
     """ONE builder for pycore-local lane tasks (orchestration, manual promote,
     full pull). Payload shapes match the Laravel producers so the lane
-    workers process them unchanged; ``_local_source`` skips claim/result."""
+    workers process them unchanged; ``_local_source`` skips claim/result.
+    ``md5`` is the Laravel word identity when the caller has it (X4); a
+    word without one carries ``cleaned_word`` instead and no ``md5`` key -
+    pycore never recomputes a stand-in md5 from the text."""
     lane = str(lane or "").strip()
     language = str(language or "").strip().lower()
     text = str(text or "").strip()
@@ -122,13 +143,17 @@ def build_local_task(
             "content_id": identity,
         }
     else:
-        identity = hashlib.md5(text.lower().encode("utf-8")).hexdigest()
+        real_md5 = word_identity_md5(md5)
+        cleaned_word = text.lower()
+        identity = word_identity_content(real_md5, text)
         payload = {
             "word": text,
             "content": text,
             "language": language,
-            "md5": identity,
+            "cleaned_word": cleaned_word,
         }
+        if real_md5:
+            payload["md5"] = real_md5
     payload.update(extra_payload or {})
     task: Dict[str, Any] = {
         "task_id": f"{source}-{AUDIO_QUEUE_KIND_BY_LANE[lane]}-{language}-{identity}",
@@ -149,6 +174,15 @@ def _task_text(task: Dict[str, Any]) -> str:
 def _task_language(task: Dict[str, Any]) -> str:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     return str(payload.get("language") or "")
+
+
+def _restore_signal_name(lane: str) -> str:
+    return f"{_RESTORE_COMPLETE_SIGNAL_PREFIX}.{lane}"
+
+
+def owner_signal(lane: str, owner: str) -> str:
+    """THREAD_BUS wake signal of one owner on one lane."""
+    return f"{AUDIO_QUEUE_OWNER_SIGNAL_PREFIX}.{lane}.{owner}"
 
 
 class AudioQueuePersistThread(threading.Thread):
@@ -316,10 +350,21 @@ class AudioQueueCenter:
         if queue is None:
             return {"reordered": 0, "pruned": 0}
         reordered = queue.reorder(ordered_task_ids)
-        pruned = queue.prune_absent(ordered_task_ids)
+        pruned, pruned_part1 = queue.prune_absent(ordered_task_ids)
+        owners: Set[str] = set()
+        if pruned_part1:
+            # A Part1 owner watching a pruned entry must not wait forever:
+            # its tracker entry settles (failed -> the owner resolves the
+            # item itself, e.g. downloads the audio produced elsewhere).
+            _released, owners = self._settle_state(
+                lane,
+                {key: {"ok": False, "error": PRUNED_SETTLE_ERROR} for key in pruned_part1},
+                SETTLED_BY_LANE,
+            )
         if reordered or pruned:
             self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LARAVEL_INTAKE)
             self._notify(lane, "laravel_order")
+        self._wake_owners(lane, owners)
         return {"reordered": reordered, "pruned": pruned}
 
     def apply_head_ticket(
@@ -461,7 +506,10 @@ class AudioQueueCenter:
             meta[key] = {"text": item.get("text"), "language": item.get("language")}
             task = item.get("task")
             if not isinstance(task, dict) and local_source:
-                task = build_local_task(lane, str(item.get("language") or ""), str(item.get("text") or ""), local_source)
+                task = build_local_task(
+                    lane, str(item.get("language") or ""), str(item.get("text") or ""), local_source,
+                    md5=str(item.get("md5") or ""),
+                )
             if isinstance(task, dict):
                 tasks_by_key[key] = task
         if not keys:
@@ -552,10 +600,12 @@ class AudioQueueCenter:
         lane: str,
         outcomes: Dict[str, Dict[str, Any]],
         settled_by: str,
-    ) -> List[Dict[str, Any]]:
-        """INTERNAL: tracker terminal + Part1 release; returns taken tasks to complete."""
+    ) -> Tuple[List[Dict[str, Any]], Set[str]]:
+        """INTERNAL: tracker terminal + Part1 release; returns the taken tasks
+        to complete and the owners watching the settled keys."""
         now = time.time()
         released: List[Dict[str, Any]] = []
+        owners: Set[str] = set()
         for key, outcome in outcomes.items():
             self._part1_keys[lane].discard(key)
             task = self._taken[lane].pop(key, None)
@@ -564,6 +614,7 @@ class AudioQueueCenter:
             entry = self._tracked[lane].get(key)
             if entry is None:
                 continue
+            owners.update(entry["owners"])
             ok = bool(outcome.get("ok"))
             entry["state"] = TRACK_DONE if ok else TRACK_FAILED
             entry["provider"] = str(outcome.get("provider") or entry.get("provider") or "")
@@ -573,7 +624,18 @@ class AudioQueueCenter:
             entry["finished_at"] = now
             entry["updated_at"] = now
         self._evict_terminal(lane)
-        return released
+        return released, owners
+
+    @staticmethod
+    def _wake_owners(lane: str, owners: Set[str]) -> None:
+        for owner in owners:
+            if owner:
+                THREAD_BUS.signal(owner_signal(lane, owner), time.time())
+
+    def wake_owner(self, owner: str) -> None:
+        """Wake an owner waiting on any lane (e.g. its task was cancelled)."""
+        for lane in AUDIO_QUEUE_LANES:
+            self._wake_owners(lane, {str(owner or "")})
 
     def settle_local(self, lane: str, outcomes: Dict[str, Dict[str, Any]], owner: str) -> None:
         """M3 owner-side: record the owner's generation outcome per key
@@ -583,10 +645,12 @@ class AudioQueueCenter:
         queue = self.queue_for(lane)
         if queue is None or not outcomes:
             return
-        for task in self._settle_state(lane, dict(outcomes), str(owner or "")):
+        released, owners = self._settle_state(lane, dict(outcomes), str(owner or ""))
+        for task in released:
             queue.complete(task)
         self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         self._notify(lane, "local_settle")
+        self._wake_owners(lane, owners)
 
     @serialized_method
     def owner_counts(self, lane: str, owner: str) -> Dict[str, int]:
@@ -639,6 +703,7 @@ class AudioQueueCenter:
             queue.push(task)
         self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         self._notify(lane, "owner_released")
+        self._wake_owners(lane, {str(owner)})
         return dropped
 
     def tracked_states(self, lane: str, keys: List[str]) -> Dict[str, Dict[str, Any]]:
@@ -705,6 +770,7 @@ class AudioQueueCenter:
             return {"success": True, "lane": lane, "restored": 0, "cached": False, "already_restored": True}
         snapshot = audio_queue_cache.load_snapshot(lane)
         if not snapshot:
+            self._signal_restore_complete(lane)
             return {"success": True, "lane": lane, "restored": 0, "cached": False}
         tasks = snapshot.get("tasks") or []
         part1_tasks = {
@@ -737,6 +803,7 @@ class AudioQueueCenter:
             f"source={snapshot.get('source')}"
         )
         self._notify(lane, "cache_restore")
+        self._signal_restore_complete(lane)
         return {
             "success": True,
             "lane": lane,
@@ -745,6 +812,28 @@ class AudioQueueCenter:
             "saved_at": snapshot.get("saved_at"),
             "source": snapshot.get("source"),
         }
+
+    @staticmethod
+    def _signal_restore_complete(lane: str) -> None:
+        THREAD_BUS.signal(_restore_signal_name(lane), True)
+
+    def restore_complete(self, lane: str) -> bool:
+        """True once ``restore_from_cache(lane)`` has finished."""
+        return bool(THREAD_BUS.has_signal(_restore_signal_name(lane)))
+
+    def wait_for_restore(
+        self, lane: str, timeout: Optional[float] = AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
+    ) -> bool:
+        """Block until this lane's cache-first restore finishes (condition-
+        driven, no polling); True once signaled, False on timeout. A caller
+        about to make this lane's first remote call waits on this so the
+        local cache always loads before any remote access (R6/§5.4). A lane
+        whose switch is OFF never restores, so callers only wait for a lane
+        they know is being (or about to be) activated. A False return means
+        the restore never signaled within the bound - the caller should log
+        it (this library never sees why: the boot chain not running for the
+        lane, or a stalled restore)."""
+        return bool(THREAD_BUS.wait_signal(_restore_signal_name(lane), timeout=timeout))
 
     @serialized_method
     def persist_snapshot(self, lane: str, source: str = "") -> None:
@@ -937,13 +1026,15 @@ class AudioQueueCenter:
             return
         queue.complete(task)
         dedup_key = audio_dedup_key_from_task(task, lane)
+        owners: Set[str] = set()
         if dedup_key:
-            self._settle_state(
+            _released, owners = self._settle_state(
                 lane,
                 {dedup_key: {"ok": bool(ok), "provider": provider, "error": error}},
                 SETTLED_BY_LANE,
             )
         self._notify(lane, "complete")
+        self._wake_owners(lane, owners)
 
     def request_pull(self, lane: str, prefer_remote: bool = False) -> None:
         """M5 wake entry: re-run the lane's Laravel intake (M1/M2)."""
@@ -954,7 +1045,9 @@ audio_queue_center = AudioQueueCenter()
 
 
 __all__ = [
+    "AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS",
     "AUDIO_QUEUE_CHANGED_SIGNAL",
+    "AUDIO_QUEUE_OWNER_SIGNAL_PREFIX",
     "AUDIO_QUEUE_KIND_BY_LANE",
     "AUDIO_QUEUE_LANE_BY_KIND",
     "AUDIO_QUEUE_LANES",
@@ -964,6 +1057,7 @@ __all__ = [
     "SETTLED_BY_LANE",
     "TRACK_DONE",
     "TRACK_FAILED",
+    "owner_signal",
     "TRACK_PROCESSING",
     "TRACK_QUEUED",
     "AudioQueueCenter",

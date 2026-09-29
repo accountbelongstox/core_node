@@ -1,17 +1,5 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "GlobalVars.ps1")
+. (Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "win_common") "CommonFunc.ps1")
 
 $STEP_NUMBER = 5
 
@@ -94,24 +82,28 @@ function Decrypt-SSHKeys {
     $plainConfirmPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
     [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
     if ($plainPassword -ne $plainConfirmPassword) {
+        $plainPassword = $null
+        $plainConfirmPassword = $null
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Passwords do not match. Please try again." -Type "Error"
         return
     }
+    $plainConfirmPassword = $null
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Decrypting SSH key files..." -Type "Info"
     try {
-        & $Global:NODE_EXE_PATH $Global:SSH_PUB_PATH pwd $plainPassword $Global:SSH_DIR
+        Invoke-SecretPasswordTool -Password $plainPassword -ToolPath $Global:SSH_PUB_PATH -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $Global:SSH_DIR) | Out-Host
         if (-not (Test-Path $Global:SSH_PUB_PATH)) { throw "Failed to decrypt public key" }
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Public key decrypted successfully" -Type "Success"
     } catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error decrypting public key: $_" -Type "Error"
     }
     try {
-        & $Global:NODE_EXE_PATH $Global:SSH_KEY_PATH pwd $plainPassword $Global:SSH_DIR
+        Invoke-SecretPasswordTool -Password $plainPassword -ToolPath $Global:SSH_KEY_PATH -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $Global:SSH_DIR) | Out-Host
         if (-not (Test-Path $Global:SSH_KEY_PATH)) { throw "Failed to decrypt private key" }
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Private key decrypted successfully" -Type "Success"
     } catch {
         Write-ColorMessage -Message "[Step $STEP_NUMBER] Error decrypting private key: $_" -Type "Error"
     }
+    $plainPassword = $null
 }
 
 function Set-SSHKeyPermissions {

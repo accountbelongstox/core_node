@@ -17,7 +17,7 @@ class InviteCodeController extends Controller
     {
         $codes = InviteCode::publicCodes(10);
 
-        return $this->success($codes, 'Public invite codes retrieved successfully');
+        return $this->success($codes, __('api.messages.public_invite_codes_retrieved_successfully'));
     }
 
     public function validate(Request $request): JsonResponse
@@ -28,7 +28,7 @@ class InviteCodeController extends Controller
 
         $code = InviteCode::findByCode($validated['code']);
         if (!$code) {
-            return $this->error('Invalid invite code', 400);
+            return $this->error(__('api.messages.invalid_invite_code'), 400);
         }
 
         $canBeUsed = $code->canBeUsed();
@@ -61,24 +61,24 @@ class InviteCodeController extends Controller
         $codeValue = trim($validated['code']);
         $canonicalAccessCode = trim((string) InstallationAccessCode::value());
         if ($canonicalAccessCode === '' || !hash_equals($canonicalAccessCode, $codeValue)) {
-            return $this->error('Invalid super-admin code', 400);
+            return $this->error(__('api.messages.invalid_super_admin_code'), 400);
         }
 
         $userId = (int) $user->id;
         if ($user->isSuperAdmin()) {
             return $this->success([
                 'user' => $this->superAdminUserPayload($user),
-            ], 'User already has super-admin access');
+            ], __('api.messages.user_already_has_super_admin_access'));
         }
 
         $fresh = User::grantSuperAdmin($userId);
         if (!$fresh) {
-            return $this->error('User not found after role update', 500);
+            return $this->error(__('api.messages.user_not_found_after_role_update'), 500);
         }
 
         return $this->success([
             'user' => $this->superAdminUserPayload($fresh),
-        ], 'Super-admin access granted');
+        ], __('api.messages.super_admin_access_granted'));
     }
 
     private function superAdminUserPayload(User $user): array

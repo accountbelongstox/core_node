@@ -20,6 +20,8 @@ use RuntimeException;
  */
 final class QueueCenterContract
 {
+    private const LABEL = 'Queue Center contract';
+
     private static ?array $document = null;
     private static ?array $taskTypeIndex = null;
 
@@ -72,6 +74,76 @@ final class QueueCenterContract
     public static function schemaVersion(): int
     {
         return (int) (self::document()['schema_version'] ?? 0);
+    }
+
+    public static function string(string $path): string
+    {
+        return ContractDocument::string(self::document(), $path, self::LABEL);
+    }
+
+    public static function positiveInt(string $path): int
+    {
+        return ContractDocument::positiveInt(self::document(), $path, self::LABEL);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function stringList(string $path): array
+    {
+        return ContractDocument::stringList(self::document(), $path, self::LABEL);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function section(string $path): array
+    {
+        return ContractDocument::section(self::document(), $path, self::LABEL);
+    }
+
+    /**
+     * Identity of a word that has no stored dictionary md5
+     * (word_identity.fallback_when_md5_absent: key_format, resolver, rule,
+     * rejection_code, applies_to).
+     *
+     * @return array<string, mixed>
+     */
+    public static function wordIdentityFallback(): array
+    {
+        return self::section('word_identity.fallback_when_md5_absent');
+    }
+
+    public static function wordIdentityFallbackKeyFormat(): string
+    {
+        return self::string('word_identity.fallback_when_md5_absent.key_format');
+    }
+
+    public static function wordIdentityFallbackRejectionCode(): string
+    {
+        return self::string('word_identity.fallback_when_md5_absent.rejection_code');
+    }
+
+    /**
+     * W7 pycore -> Laravel resource delivery block (routes, server identity,
+     * diff and batch limits, batch states and item statuses, error codes,
+     * retention).
+     *
+     * @return array<string, mixed>
+     */
+    public static function delivery(): array
+    {
+        return self::section('delivery');
+    }
+
+    public static function deliveryServerIdentityHeader(): string
+    {
+        return self::string('delivery.server_identity.header');
+    }
+
+    public static function deliveryServerIdentityBodyField(): string
+    {
+        return self::string('delivery.server_identity.body_field');
     }
 
     public static function controlNames(): array
@@ -194,6 +266,12 @@ final class QueueCenterContract
         return (string) self::libraryCover()['fallback_worker_id'];
     }
 
+    /** Most library ids one cover request may carry (library_cover.max_ids). */
+    public static function libraryCoverMaxIds(): int
+    {
+        return self::positiveInt('library_cover.max_ids');
+    }
+
     /**
      * Contract-owned endpoint path templates (worker + queue-center plane).
      * Laravel registers these routes; the other three ends render the same
@@ -255,6 +333,26 @@ final class QueueCenterContract
     public static function realtimeEvents(): array
     {
         return array_values(self::realtime()['events'] ?? []);
+    }
+
+    public static function realtimeEvent(string $name): string
+    {
+        $event = self::realtime()['events'][$name] ?? null;
+        if (!is_string($event) || $event === '') {
+            throw new RuntimeException("Unknown queue-center realtime event: {$name}");
+        }
+
+        return $event;
+    }
+
+    public static function realtimeTopic(): string
+    {
+        $topic = self::realtime()['topic'] ?? null;
+        if (!is_string($topic) || $topic === '') {
+            throw new RuntimeException('Unknown queue-center realtime topic');
+        }
+
+        return $topic;
     }
 
     /**
@@ -408,15 +506,6 @@ final class QueueCenterContract
             static fn (string $role): string => (string) ($values[$role] ?? $role),
             $events[$group] ?? []
         ));
-    }
-
-    public static function taskStreamEvent(string $role): string
-    {
-        $events = self::taskContract()['stream_events'] ?? [];
-        if (!array_key_exists($role, $events)) {
-            throw new RuntimeException("Unknown global-task stream event role: {$role}");
-        }
-        return (string) $events[$role];
     }
 
     public static function taskExecutionTypes(): array

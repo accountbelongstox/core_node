@@ -19,7 +19,7 @@ import {
 import { humanBytes, humanInt, VocabBanner } from '../vocabulary/vocabShared';
 import OrchManifestPanel from './OrchManifestPanel';
 import OrchTaskLaneProgress from './OrchTaskLaneProgress';
-import { ORCH_L, ORCH_PHASE_LABELS, orchErrorMessage } from './orchShared';
+import { ORCH_L, ORCH_PHASE_LABELS, orchCodedMessage, orchErrorMessage } from './orchShared';
 import OrchRunTiming, { OrchSegmentTiming } from './OrchRunTiming';
 import OrchSourceDetail from './OrchSourceDetail';
 import { OrchTaskOutputDelivery } from './OrchDeliveryStatus';
@@ -104,7 +104,7 @@ const OrchTaskDetail: React.FC<{ taskId: string; running: boolean }> = ({ taskId
       <div className="max-h-40 overflow-y-auto rounded-lg bg-slate-950/60 border border-slate-800 p-2 space-y-0.5">
         {events.map((event, index) => (
           <p key={index} className="text-[10px] font-mono text-slate-500">
-            {new Date(event.ts * 1000).toLocaleTimeString()} · {event.message}
+            {new Date(event.ts * 1000).toLocaleTimeString()} · {orchCodedMessage(event.code, event.params, event.message)}
           </p>
         ))}
       </div>
@@ -125,7 +125,6 @@ const OrchTaskList: React.FC<{
     taskId: string;
     name: string;
     category: OrchManifestCategory;
-    running: boolean;
   } | null>(null);
   const remove = async (taskId: string) => {
     if (!window.confirm(ORCH_L.confirmDelete)) return;
@@ -220,7 +219,7 @@ const OrchTaskList: React.FC<{
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setManifestView({ taskId: task.task_id, name: task.name, category: 'all', running: Boolean(task.running) });
+                        setManifestView({ taskId: task.task_id, name: task.name, category: 'all' });
                       }}
                       className="text-[10px] font-mono text-slate-500 hover:text-sky-400 hover:underline underline-offset-2"
                     >
@@ -248,7 +247,7 @@ const OrchTaskList: React.FC<{
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setManifestView({ taskId: task.task_id, name: task.name, category: cat, running: Boolean(task.running) });
+                            setManifestView({ taskId: task.task_id, name: task.name, category: cat });
                           }}
                           className="hover:text-sky-400 hover:underline underline-offset-2"
                         >
@@ -261,7 +260,7 @@ const OrchTaskList: React.FC<{
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setManifestView({ taskId: task.task_id, name: task.name, category: 'missing', running: Boolean(task.running) });
+                          setManifestView({ taskId: task.task_id, name: task.name, category: 'missing' });
                         }}
                         className={`hover:text-sky-400 hover:underline underline-offset-2 ${progress.missing ? 'text-amber-400' : ''}`}
                       >
@@ -273,8 +272,10 @@ const OrchTaskList: React.FC<{
                   {task.running && progress.current_item && (
                     <p className="text-[10px] font-mono text-slate-400 truncate">{progress.current_item}</p>
                   )}
-                  {progress.message && (
-                    <p className="text-[10px] font-mono text-slate-500">{progress.message}</p>
+                  {(progress.message_code || progress.message) && (
+                    <p className="text-[10px] font-mono text-slate-500">
+                      {orchCodedMessage(progress.message_code, progress.message_params, progress.message)}
+                    </p>
                   )}
                 </div>
               )}
@@ -343,7 +344,6 @@ const OrchTaskList: React.FC<{
           taskId={manifestView.taskId}
           taskName={manifestView.name}
           initialCategory={manifestView.category}
-          running={manifestView.running}
           onClose={() => setManifestView(null)}
         />
       )}

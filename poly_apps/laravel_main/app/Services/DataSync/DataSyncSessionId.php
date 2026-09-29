@@ -9,7 +9,7 @@ final class DataSyncSessionId
     public static function require(string $value): string
     {
         if (preg_match(self::PATTERN, $value) !== 1) {
-            throw new \InvalidArgumentException('Synchronization session ID is invalid.');
+            throw new \InvalidArgumentException(__('data_sync.session_id_invalid'));
         }
 
         return $value;

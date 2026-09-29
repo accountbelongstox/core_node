@@ -8,8 +8,26 @@ nav: {
       tools: "工具箱",
       api: "API 测试",
       settings: "系统设置",
+      tools_dashboard: {
+        search_placeholder: "搜索工具...",
+        all_tools: "全部工具",
+        favorites: "收藏",
+        history: "历史",
+        recent_history: "最近历史",
+        all_utilities: "全部实用工具",
+        clear_history: "清空历史",
+        clear: "清空",
+        no_history: "暂无历史。",
+        no_favorites: "暂无收藏。",
+        no_tools_found: "未找到工具。",
+        tools_available: "可用工具",
+        recent: "最近",
+        add_to_favorites: "加入收藏",
+        remove_from_favorites: "取消收藏"
+      },
       system: "系统信息",
       vocabulary: "词汇学习",
+      aiTools: "AI 工具",
       aiManagement: "AI 管理",
       devHistory: "AI 记录",
       mcp: "MCP 管理器",
@@ -27,7 +45,8 @@ mediaHub: {
       segCode: "代码",
       searchPlaceholder: "搜索…",
       refresh: "刷新",
-      emptyPrompt: "选择一个项目以在此查看。"
+      emptyPrompt: "选择一个项目以在此查看。",
+      loginRequired: "访问资源中心需要登录。"
     },
 dbSync: {
       title: "机器数据同步",
@@ -469,6 +488,25 @@ vocabulary: {
         total: "总计",
         recent_attempts: "近期尝试",
         no_records: "暂无近期 TTS 记录。"
+      },
+      tasks_panel: {
+        refresh: "刷新任务",
+        list: "任务",
+        vocabulary: "词汇（{{learned}}/{{total}}）",
+        mark_learned: "标记为已掌握",
+        mark_unlearned: "标记为未掌握",
+        no_words: "该任务没有词汇",
+        empty: "暂无任务"
+      },
+      libraries: {
+        filters: "筛选",
+        language: "语言",
+        title: "词汇库",
+        words_one: "{{count}} 个单词",
+        words: "{{count}} 个单词",
+        recommended: "推荐",
+        category: "分类：{{category}}",
+        empty: "没有 {{language}} 的词汇库"
       },
       words_manager: {
         static_resources: "静态资源",

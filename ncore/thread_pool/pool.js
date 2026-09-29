@@ -97,7 +97,7 @@ class GlobalThreadPool {
 
     _syncToEncyclopedia() {
         try {
-            const ENCYCLOPEDIA = require('#@foundation/encyclopedia');
+            const ENCYCLOPEDIA = require('#@foundation/encyclopedia.js');
 
             const threadsData = {};
             this._threads.forEach((info, name) => {
@@ -363,7 +363,7 @@ function getGlobalThreadPool() {
 
 function getThreadPoolFromEncyclopedia() {
     try {
-        const ENCYCLOPEDIA = require('#@foundation/encyclopedia');
+        const ENCYCLOPEDIA = require('#@foundation/encyclopedia.js');
         const threads = ENCYCLOPEDIA.get(THREAD_POOL_THREADS_KEY);
         const taskHandlers = ENCYCLOPEDIA.get(THREAD_POOL_TASK_HANDLERS_KEY);
 

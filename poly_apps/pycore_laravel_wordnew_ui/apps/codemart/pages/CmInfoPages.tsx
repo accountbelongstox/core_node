@@ -29,7 +29,7 @@ import {
 } from '../components/public-home/CmPublicBlocks';
 import { CmPublicCta } from '../components/public-home/CmPublicCta';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
-import type { CmPublicImageName } from '../components/public-home/cmPublicImages';
+import type { CmImageName } from '../assets/cmImageRegistry';
 import { CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE } from '../components/public-home/cmPublicRoutes';
 
 interface CmContactDraft {
@@ -203,7 +203,7 @@ const DELIVERY_STATUSES: CmPublicCardItem[] = ['project', 'task', 'submission'].
 }));
 const DELIVERY_FAQ = ['revision', 'stalled', 'pause', 'refund'];
 
-const SERVICE_FEATURES: Array<{ id: string; image: CmPublicImageName; action: { to: string; labelKey: string } }> = [
+const SERVICE_FEATURES: Array<{ id: string; image: CmImageName; action: { to: string; labelKey: string } }> = [
   { id: 'managed', image: 'service-managed', action: { to: CM_PROTECTED_ROUTE.projectCreate, labelKey: 'infoPages.services.managed.action' } },
   { id: 'marketplace', image: 'service-marketplace', action: { to: CM_PUBLIC_ROUTE.showcaseOpenWork, labelKey: 'infoPages.services.marketplace.action' } },
   { id: 'review', image: 'service-review', action: { to: CM_PUBLIC_ROUTE.delivery, labelKey: 'infoPages.services.review.action' } },
@@ -246,7 +246,6 @@ export const CmAboutPage: React.FC = () => (
     <CmPublicSection>
       <CmPublicSplit
         image="about-mission"
-        altKey="infoPages.about.intro.alt"
         eyebrowKey="infoPages.about.intro.eyebrow"
         titleKey="infoPages.about.intro.title"
         bodyKeys={['infoPages.about.intro.body1', 'infoPages.about.intro.body2']}
@@ -270,7 +269,7 @@ export const CmDeliveryProcessPage: React.FC = () => {
     <CmPublicPage titleKey="infoPages.delivery.title" descriptionKey="infoPages.delivery.lead" eyebrow={<CmInfoEyebrow pageId="delivery" />} lead={<CmInfoLead pageId="delivery" />}>
       <CmPublicSection titleKey="infoPages.delivery.overview.title" leadKey="infoPages.delivery.overview.lead">
         <figure className="cm-public-figure">
-          <CmPublicIllustration name="process-overview" altKey="infoPages.delivery.overview.alt" eager />
+          <CmPublicIllustration name="process-overview" />
         </figure>
         <ol className="cm-public-timeline">
           {DELIVERY_STAGES.map((stage, index) => (
@@ -382,7 +381,7 @@ export const CmInformationPage: React.FC = () => {
       <CmPublicSection>
         <div className="cm-info-contact">
           <aside className="cm-info-contact__aside">
-            <CmPublicIllustration name="contact-support" altKey="infoPages.information.contactAlt" eager className="cm-info-contact__image" />
+            <CmPublicIllustration name="contact-support" className="cm-info-contact__image" />
             <h2>{t('infoPages.information.contactTitle')}</h2>
             <p>{t('infoPages.information.contactBody')}</p>
             <CmPublicChecklist keys={INFORMATION_TOPICS.map((id) => `infoPages.information.topics.${id}`)} />

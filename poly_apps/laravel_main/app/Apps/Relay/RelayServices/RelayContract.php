@@ -9,6 +9,14 @@ use Illuminate\Support\Facades\Log;
 
 final class RelayContract
 {
+    /** Contract event names a paired device may post (POST device event). */
+    private const DEVICE_EVENT_NAMES = [
+        'terminal_changed',
+        'agent_history_prompt_new',
+        'agent_history_prompt_derived',
+        'agent_history_config_changed',
+    ];
+
     private static ?array $document = null;
     private static ?string $rawBytes = null;
     private static ?string $digest = null;
@@ -157,6 +165,16 @@ final class RelayContract
         }
 
         return $value;
+    }
+
+    /**
+     * Wire values of the events a paired device may post.
+     *
+     * @return array<int, string>
+     */
+    public static function deviceEvents(): array
+    {
+        return array_map(static fn (string $name): string => self::event($name), self::DEVICE_EVENT_NAMES);
     }
 
     public static function endpoint(string $name): string
@@ -556,9 +574,7 @@ final class RelayContract
             'pairing_changed',
             'credential_revoked',
             'device_presence',
-            'terminal_changed',
-            'agent_history_prompt_new',
-            'agent_history_prompt_derived',
+            ...self::DEVICE_EVENT_NAMES,
         ];
         $requiredTopics = ['device_wake', 'owner_roster', 'pairing_operation'];
         $requiredPublicUrls = ['laravel_api_origin', 'mercure_hub'];

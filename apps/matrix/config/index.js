@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * Matrix Application Configuration
  *
@@ -22,6 +10,7 @@ const os = require('os');
 const fs = require('fs');
 const { gdir, appname } = require('#@global_vars');
 const logger = require('#@logger');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 
 const {
     BASEDIR,
@@ -31,7 +20,7 @@ const {
 
 const APP_NAME = 'matrix';
 
-const WEB_HOST = '0.0.0.0';
+const WEB_HOST = resolveBindHost();
 const WEB_PORT = 48000;
 
 const APP_RESOURCES_DIR = path.join(APP_DIR, 'resources');

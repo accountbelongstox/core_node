@@ -1,12 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 
@@ -69,7 +61,7 @@ class AppQyV1DailyRecitationController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $validator = Validator::make($request->all(), [
@@ -81,12 +73,12 @@ class AppQyV1DailyRecitationController extends Controller
             'batch_id' => 'nullable|string|max:64',
         ]);
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $items = $request->input('words');
         if (count($items) > self::MAX_WORDS_PER_CALL) {
-            return $this->error('Too many words: max ' . self::MAX_WORDS_PER_CALL . ' per call', 400);
+            return $this->error(__('app_qy_v1.messages.too_many_words_max') . self::MAX_WORDS_PER_CALL . ' per call', 400);
         }
 
         $language = $this->resolveLanguage($request);
@@ -107,7 +99,7 @@ class AppQyV1DailyRecitationController extends Controller
                     'date' => $batchDate,
                     'replayed' => true,
                     'today' => $this->buildDaySummary($user->id, $batchDate, $goal),
-                ], 'Recitation batch already logged');
+                ], __('app_qy_v1.messages.recitation_batch_already_logged'));
             }
         }
 
@@ -142,7 +134,7 @@ class AppQyV1DailyRecitationController extends Controller
         }
 
         if (count($rows) === 0) {
-            return $this->error('No valid words provided', 400);
+            return $this->error(__('app_qy_v1.messages.no_valid_words_provided'), 400);
         }
 
         AppQyV1DailyRecitationLogModel::insertRows($rows);
@@ -179,7 +171,7 @@ class AppQyV1DailyRecitationController extends Controller
             'date' => $today,
             'replayed' => false,
             'today' => $this->buildDaySummary($user->id, $today, $goal),
-        ], 'Recitation logged');
+        ], __('app_qy_v1.messages.recitation_logged'));
     }
 
     // ------------------------------------------------------------------
@@ -203,7 +195,7 @@ class AppQyV1DailyRecitationController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $language = $this->resolveLanguage($request);
@@ -352,7 +344,7 @@ class AppQyV1DailyRecitationController extends Controller
             'goal' => $goal,
             'done_today' => $doneToday,
             'words' => $planWords,
-        ], 'Today plan retrieved');
+        ], __('app_qy_v1.messages.today_plan_retrieved'));
     }
 
     // ------------------------------------------------------------------
@@ -363,7 +355,7 @@ class AppQyV1DailyRecitationController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         $date = $request->input('date');
@@ -371,7 +363,7 @@ class AppQyV1DailyRecitationController extends Controller
             $date = Carbon::today()->toDateString();
         }
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-            return $this->error('Invalid date format, expected YYYY-MM-DD', 400);
+            return $this->error(__('app_qy_v1.messages.invalid_date_format_expected_yyyy_mm_dd'), 400);
         }
 
         $goal = $this->resolveDailyGoal($user);
@@ -400,7 +392,7 @@ class AppQyV1DailyRecitationController extends Controller
             'goal' => $summaryData['goal'],
             'goal_met' => $summaryData['goal_met'],
             'words' => $words,
-        ], 'Recitation summary retrieved');
+        ], __('app_qy_v1.messages.recitation_summary_retrieved'));
     }
 
     // ------------------------------------------------------------------
@@ -411,7 +403,7 @@ class AppQyV1DailyRecitationController extends Controller
     {
         $user = $request->user();
         if (!$user) {
-            return $this->error('Unauthorized', 401);
+            return $this->error(__('app_qy_v1.messages.unauthorized'), 401);
         }
 
         // One grouped query over the log table: distinct active days with
@@ -474,7 +466,7 @@ class AppQyV1DailyRecitationController extends Controller
             'current_streak' => $currentStreak,
             'longest_streak' => $longestStreak,
             'days' => $windowDays,
-        ], 'Recitation streak retrieved');
+        ], __('app_qy_v1.messages.recitation_streak_retrieved'));
     }
 
     // ------------------------------------------------------------------

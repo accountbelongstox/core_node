@@ -14,6 +14,7 @@ use App\Providers\PathMapper;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class AppQyV1VocabularyLibraryPublicController extends Controller
 {
@@ -23,6 +24,9 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      * NO try-catch allowed - trust Laravel validation
      * NO ?? or || allowed - use explicit if statements
      */
+
+    private const WORD_PAIR_CACHE_PREFIX = 'appqyv1:vocabulary:word_pairs:v1:';
+    private const WORD_PAIR_CACHE_SECONDS = 300;
 
     private AppQyV1VocabularyCoverService $coverService;
     private AppQyV1LibraryCoverTaskService $coverTaskService;
@@ -355,43 +359,33 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      * POST /api/app_qy_v1/vocabulary/libraries/{libraryId}/cover/ai-regenerate
      * Body: { prompt? }
      *
-     * One-click cover regeneration through Laravel's OWN AI image gateway
-     * (App\Services\AiGateway\AiGateway::generateImage — free-quota providers
-     * first: gemini flash image / zhipu cogview / pollinations, then paid,
-     * with multi-key failover + cooldowns). An explicit regenerate always calls
-     * a provider (the prompt-hash cache is not read); fresh output is still
-     * written into that cache before it becomes the cover. Provenance lands on cover_provider /
-     * cover_model / cover_latency_ms.
+     * Queues one AI cover generation for the library on the global task queue
+     * (the chrome worker first, the Laravel AI fallback after the contract
+     * grace), so no request thread waits on the image provider. An existing
+     * live generate task is returned as is. Answers 202 with the task.
      */
     public function regenerateCoverAi(Request $request, int $libraryId): JsonResponse
     {
+        $request->validate([
+            'prompt' => 'nullable|string|max:' . AppQyV1LibraryCoverTaskService::PROMPT_MAX_CHARS,
+        ]);
         $library = AppQyV1VocabularyLibraryModel::findPublicById($libraryId, true);
-
-        $activeTask = $this->coverTaskService->activeTasksForLibraries([(int) $library->id])[(int) $library->id] ?? null;
-        if ($activeTask !== null) {
-            return $this->conflict(
-                "Library {$library->id} already has a live cover task {$activeTask['task_id']} "
-                . "({$activeTask['task_type']}, status {$activeTask['status']}); wait for it to finish before a synchronous regenerate",
-                ['cover_task' => $activeTask]
-            );
-        }
-
         $prompt = trim((string) $request->input('prompt', ''));
         $promptOverride = null;
         if ($prompt !== '') {
             $promptOverride = $prompt;
         }
 
-        set_time_limit(300);
-        $result = $this->coverService->regenerateWithAi($library, $promptOverride, true);
-        if (empty($result['success'])) {
-            return response()->json([
-                'success' => false,
-                'message' => $result['error'] ?? 'AI cover generation failed',
-            ], 502);
+        $result = $this->coverTaskService->enqueue(
+            [(int) $library->id],
+            AppQyV1LibraryCoverTaskService::MODE_GENERATE,
+            $promptOverride
+        );
+        if ($result['tasks'] === []) {
+            return $this->conflict(__('app_qy_v1.messages.cover_task_not_queued'), ['skipped' => $result['skipped']]);
         }
 
-        return $this->success($result, 'Cover regenerated');
+        return $this->success($result['tasks'][0], __('app_qy_v1.messages.library_cover_tasks_queued'), 202);
     }
 
     /**
@@ -490,62 +484,33 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $languageCode = AppQyV1DictionaryService::getLanguageCode($language);
         $hasDictionaryTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
 
-        // Membership lives in vocabulary_libraries.word_ids: build the
-        // (library, word_id, in-library index) pair list for every public
-        // library of the language, order by word text (the previous SQL
-        // ORDER BY w.word), then resolve full dictionary rows for the page.
+        // Membership lives in vocabulary_libraries.word_ids: the (library,
+        // word_id, in-library index) pairs of every public library of the
+        // language, ordered by word text. The sorted index is cached per
+        // language and keyed by the libraries' ids + updated_at, so a page
+        // request only slices it; any library write changes the key.
         $libraries = new \Illuminate\Support\Collection();
         if ($hasDictionaryTable) {
             $libraries = AppQyV1VocabularyLibraryModel::publicForLanguage(
                 $language,
-                ['id', 'name', 'language', 'word_ids']
-            );
+                ['id', 'name', 'language', 'updated_at']
+            )->keyBy('id');
         }
-
-        $pairs = [];
-        $allIds = [];
-        foreach ($libraries as $library) {
-            $index = 0;
-            foreach ($library->getWordIdsArray() as $wordId) {
-                $pairs[] = [$library, $wordId, $index];
-                $allIds[$wordId] = true;
-                $index++;
-            }
-        }
+        $signature = md5((string) json_encode($libraries->map(
+            static fn ($library): array => [(int) $library->id, (string) $library->updated_at]
+        )->values()->all()));
+        $pairs = Cache::remember(
+            self::WORD_PAIR_CACHE_PREFIX . $languageCode . ':' . $signature,
+            self::WORD_PAIR_CACHE_SECONDS,
+            static fn (): array => self::sortedWordPairs($language, $languageCode, $libraries->keys()->all())
+        );
 
         $total = count($pairs);
-
-        // Chunked id -> content lookups (light columns only) for the sort key.
-        $contentById = [];
-        foreach (array_chunk(array_keys($allIds), 1000) as $chunk) {
-            $rows = AppQyV1LangDictionaryModel::rowsByIds($languageCode, $chunk, ['id', 'content']);
-            foreach ($rows as $row) {
-                $contentById[(int) $row->id] = (string) $row->content;
-            }
-        }
-
-        usort($pairs, function (array $a, array $b) use ($contentById) {
-            $wordA = '';
-            if (isset($contentById[$a[1]])) {
-                $wordA = $contentById[$a[1]];
-            }
-            $wordB = '';
-            if (isset($contentById[$b[1]])) {
-                $wordB = $contentById[$b[1]];
-            }
-            if ($wordA !== $wordB) {
-                return strcmp($wordA, $wordB);
-            }
-            if ($a[0]->id !== $b[0]->id) {
-                return $a[0]->id <=> $b[0]->id;
-            }
-            return $a[2] <=> $b[2];
-        });
 
         $pageSlice = array_slice($pairs, $offset, $perPage);
 
         $pageIds = [];
-        foreach ($pageSlice as [$library, $wordId, $index]) {
+        foreach ($pageSlice as [$libraryId, $wordId, $index]) {
             $pageIds[$wordId] = true;
         }
 
@@ -558,11 +523,12 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         }
 
         $words = [];
-        foreach ($pageSlice as [$library, $wordId, $index]) {
-            if (!isset($rowsById[$wordId])) {
+        foreach ($pageSlice as [$libraryId, $wordId, $index]) {
+            if (!isset($rowsById[$wordId]) || !$libraries->has($libraryId)) {
                 continue;
             }
             $row = $rowsById[$wordId];
+            $library = $libraries->get($libraryId);
 
             $words[] = array_merge(
                 [
@@ -598,6 +564,59 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
                 'has_more' => $page < $lastPage,
             ],
         ];
+    }
+
+    /**
+     * Sorted membership pairs [library_id, word_id, in-library index] of the
+     * given public libraries, ordered by word text, then library, then index.
+     *
+     * @param array<int,int> $libraryIds
+     * @return array<int,array{0:int,1:int,2:int}>
+     */
+    private static function sortedWordPairs(string $language, string $languageCode, array $libraryIds): array
+    {
+        $pairs = [];
+        $allIds = [];
+        $contentById = [];
+        $libraries = AppQyV1VocabularyLibraryModel::publicForLanguage($language, ['id', 'word_ids'])
+            ->whereIn('id', $libraryIds);
+
+        foreach ($libraries as $library) {
+            $index = 0;
+            foreach ($library->getWordIdsArray() as $wordId) {
+                $pairs[] = [(int) $library->id, (int) $wordId, $index];
+                $allIds[(int) $wordId] = true;
+                $index++;
+            }
+        }
+
+        // Chunked id -> content lookups (light columns only) for the sort key.
+        foreach (array_chunk(array_keys($allIds), 1000) as $chunk) {
+            $rows = AppQyV1LangDictionaryModel::rowsByIds($languageCode, $chunk, ['id', 'content']);
+            foreach ($rows as $row) {
+                $contentById[(int) $row->id] = (string) $row->content;
+            }
+        }
+
+        usort($pairs, static function (array $a, array $b) use ($contentById): int {
+            $wordA = '';
+            if (isset($contentById[$a[1]])) {
+                $wordA = $contentById[$a[1]];
+            }
+            $wordB = '';
+            if (isset($contentById[$b[1]])) {
+                $wordB = $contentById[$b[1]];
+            }
+            if ($wordA !== $wordB) {
+                return strcmp($wordA, $wordB);
+            }
+            if ($a[0] !== $b[0]) {
+                return $a[0] <=> $b[0];
+            }
+            return $a[2] <=> $b[2];
+        });
+
+        return $pairs;
     }
 
     /**
@@ -793,7 +812,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
      */
     private function transformLibrary(AppQyV1VocabularyLibraryModel $library, array $coverTasks = []): array
     {
-        $cover = $this->coverService->getCoverData($library);
+        $cover = $this->coverService->presentCover($library);
         if (!is_array($cover)) {
             $cover = [];
         }

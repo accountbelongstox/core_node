@@ -1,15 +1,8 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Providers;
 
+use App\Support\ServiceContract;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
@@ -47,33 +40,36 @@ class PathMapper
         'GIT_UPDATE_TYPE',
     ];
 
-    /** Path constant center. SYNC: pycore core_node_dirs.py /
-     * ncore system_paths.js / SharedCacheEnv.ps1 / runtime_environment.sh. */
-    public const WINDOWS_DATA_DRIVE_ROOT = 'D:\\';
-    public const WWW_DIR_NAME = 'www';
-    public const LINUX_WWW_ROOT = '/www';
-    public const CORE_NODE_DATA_DIR_NAME = 'core_node';
+    /** Path names that service_contract.json#paths does not carry. The drive
+     * roots, www/data dir names, Linux www roots, legacy data dir, NTFS types
+     * and the drive layout come from the contract through ServiceContract.
+     * SYNC: pycore core_node_dirs.py / ncore system_paths.js /
+     * SharedCacheEnv.ps1 / runtime_environment.sh. */
     public const CACHE_DIR_NAME = 'cache';
-    public const GLOBAL_VAR_DIR_NAME = 'global_var';
-    public const LEGACY_LINUX_DATA_DIR = '/var/_core_node';
     public const LEGACY_USER_DATA_DIR_NAME = '.core_node';
     public const LEGACY_GLOBAL_VAR_DIR_NAME = '.global_vars';
-    public const LEGACY_WINDOWS_PROGRAMING_USERS_DIR = self::WINDOWS_DATA_DRIVE_ROOT . 'programing\\Users';
     public const UNIFIED_MANAGER_DIR_NAME = 'unified_manager';
     public const UNIFIED_MANAGER_LAUNCHER_DIR_NAME = 'temp_scripts';
     public const WINDOWS_TMP_DIR_NAME = '.tmp';
-    private const NTFS_FILE_SYSTEMS = ['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g'];
+    private const LEGACY_WINDOWS_PROGRAMING_USERS_SUBPATH = 'programing\\Users';
+    /** Var-center key of the program drive the Windows center selected
+     * (SharedCacheEnv.ps1 $Global:WINDOWS_PROGRAM_DRIVE_ROOT). */
+    private const WINDOWS_PROGRAM_DRIVE_VAR = 'WINDOWS_PROGRAM_DRIVE_ROOT';
 
     private static function windowsWwwBase(): string
     {
-        return self::WINDOWS_DATA_DRIVE_ROOT . self::WWW_DIR_NAME;
+        return ServiceContract::windowsDataDriveRoot() . ServiceContract::wwwDirName();
     }
 
     /** Linux WWW base honoring the dual-boot extra level (/www/www vs /www). */
     private static function linuxWwwBase(): string
     {
-        $nested = self::LINUX_WWW_ROOT . '/' . self::WWW_DIR_NAME;
-        return self::wwwNtfsRootMounted() ? $nested : self::LINUX_WWW_ROOT;
+        return self::wwwNtfsRootMounted() ? ServiceContract::linuxNtfsNestedWwwRoot() : ServiceContract::linuxWwwRoot();
+    }
+
+    private static function legacyWindowsProgramingUsersDir(): string
+    {
+        return ServiceContract::windowsDataDriveRoot() . self::LEGACY_WINDOWS_PROGRAMING_USERS_SUBPATH;
     }
 
     private static function userHomeDir(): string
@@ -118,26 +114,28 @@ class PathMapper
             // stays on native ext4 (pg_mount -> /var/lib/postgresql/d).
             $dataBase = self::getBaseDataDirectory();
             $wwwPathVar = self::readPersistedVar('WWW_PATH');
+            $linuxWwwRoot = ServiceContract::linuxWwwRoot();
             if (self::isWSL()) {
-                $basePath = $dataBase . '/' . self::WWW_DIR_NAME;
+                $basePath = $dataBase . '/' . ServiceContract::wwwDirName();
             } elseif ($wwwPathVar !== '' && is_dir($wwwPathVar)) {
                 $basePath = $wwwPathVar;
             } elseif (self::wwwNtfsRootMounted()) {
                 $basePath = self::linuxWwwBase();
-            } elseif ($dataBase === '/' || $dataBase === self::LINUX_WWW_ROOT) {
-                $basePath = self::LINUX_WWW_ROOT;
+            } elseif ($dataBase === '/' || $dataBase === $linuxWwwRoot) {
+                $basePath = $linuxWwwRoot;
             } else {
-                $basePath = $dataBase . '/' . self::WWW_DIR_NAME;
+                $basePath = $dataBase . '/' . ServiceContract::wwwDirName();
             }
         }
         
         // Path separator based on OS
         $separator = $isWindows ? '\\' : '/';
 
-        // Development-tooling location (node/python/go/...). Linux prefers a local
-        // /opt when the root (/) filesystem has more than DEV_ROOT_MIN_FREE_GB free
-        // (so it is NOT mapped onto the largest secondary disk), else the secondary
-        // disk; Windows mirrors deploy.ps1 (D:\_win{ver}). Mirrors gvar_common.sh.
+        // Development-tooling location (node/python/go/...): the contract
+        // drive layout's tool root. Linux is pinned to the ext4 base of
+        // drive_layout.tool_root.linux; Windows uses the recorded program
+        // drive (else drive_layout.program_drive_fallback). Mirrors
+        // gvar_storage_common.sh get_dev_compile_base and system_paths.py.
         [$compileBase, $devSuffix] = self::getDevCompileParts($isWindows);
         $compileDir = $compileBase . $separator . '_' . $devSuffix;
 
@@ -275,25 +273,27 @@ class PathMapper
      *   Linux NTFS dual-boot: /www/www/core_node  (== D:\www\core_node)
      *   Linux native:         /www/core_node
      * CORE_NODE_DATA_DIR (already exported) wins on every platform. Linux
-     * falls back to the legacy /var/_core_node, then ~/core_node, only when
-     * the preferred dir is not writable (mirrors get_core_node_data_dir). */
+     * falls back to the legacy data dir, then the home fallback, only when
+     * the preferred dir is not writable (mirrors get_core_node_data_dir).
+     * Every name and root comes from service_contract.json#paths. */
     public static function getCoreNodeRuntimeDir(): string
     {
         static $resolved = null;
         $env = trim((string) getenv('CORE_NODE_DATA_DIR'));
         $candidates = [];
+        $home = '';
         if ($env !== '') {
             return rtrim($env, '/\\');
         }
         if (self::isWindows()) {
-            return self::windowsWwwBase() . '\\' . self::CORE_NODE_DATA_DIR_NAME;
+            return self::windowsWwwBase() . '\\' . ServiceContract::coreNodeDataDirName();
         }
         if ($resolved !== null) {
             return $resolved;
         }
         $candidates = [
-            self::linuxWwwBase() . '/' . self::CORE_NODE_DATA_DIR_NAME,
-            self::LEGACY_LINUX_DATA_DIR,
+            self::linuxWwwBase() . '/' . ServiceContract::coreNodeDataDirName(),
+            ServiceContract::legacyLinuxDataDir(),
         ];
         foreach ($candidates as $candidate) {
             self::ensureDirectory($candidate);
@@ -302,8 +302,8 @@ class PathMapper
                 return $resolved;
             }
         }
-        $home = self::userHomeDir();
-        $resolved = $home !== '' ? $home . '/' . self::CORE_NODE_DATA_DIR_NAME : $candidates[0];
+        $home = ServiceContract::homeDataDirFallback(self::userHomeDir());
+        $resolved = $home !== '' ? $home : $candidates[0];
         return $resolved;
     }
 
@@ -322,17 +322,18 @@ class PathMapper
     {
         $home = self::userHomeDir();
         $user = (string) (getenv('USERNAME') ?: getenv('USER') ?: 'default');
-        $dirs = [self::getCoreNodeRuntimeDir() . DIRECTORY_SEPARATOR . self::GLOBAL_VAR_DIR_NAME];
+        $globalVarDirName = ServiceContract::globalVarDirName();
+        $dirs = [self::getCoreNodeRuntimeDir() . DIRECTORY_SEPARATOR . $globalVarDirName];
         if (self::isWindows()) {
-            $dirs[] = self::LEGACY_WINDOWS_PROGRAMING_USERS_DIR . '\\' . $user . '\\'
+            $dirs[] = self::legacyWindowsProgramingUsersDir() . '\\' . $user . '\\'
                 . self::LEGACY_USER_DATA_DIR_NAME . '\\' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
             if ($home !== '') {
                 $dirs[] = $home . '\\' . self::LEGACY_USER_DATA_DIR_NAME . '\\' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
             }
         } else {
-            $dirs[] = self::LEGACY_LINUX_DATA_DIR . '/' . self::GLOBAL_VAR_DIR_NAME;
+            $dirs[] = ServiceContract::legacyLinuxDataDir() . '/' . $globalVarDirName;
             if ($home !== '') {
-                $dirs[] = $home . '/' . self::LEGACY_USER_DATA_DIR_NAME . '/' . self::GLOBAL_VAR_DIR_NAME;
+                $dirs[] = $home . '/' . self::LEGACY_USER_DATA_DIR_NAME . '/' . $globalVarDirName;
                 $dirs[] = $home . '/' . self::LEGACY_USER_DATA_DIR_NAME . '/' . self::LEGACY_GLOBAL_VAR_DIR_NAME;
             }
         }
@@ -427,16 +428,17 @@ class PathMapper
     private static function wwwNtfsRootMounted(): bool
     {
         static $mounted = null;
-        $root = self::LINUX_WWW_ROOT;
+        $root = '';
         if ($mounted !== null) {
             return $mounted;
         }
         $mounted = false;
-        if (self::isWindows() || !is_dir($root . '/' . self::WWW_DIR_NAME)) {
+        if (self::isWindows() || !is_dir(ServiceContract::linuxNtfsNestedWwwRoot())) {
             return $mounted;
         }
+        $root = ServiceContract::linuxWwwRoot();
         $fsWww = (string) strtok(self::shellTrim('findmnt -n -o FSTYPE --target ' . escapeshellarg($root)), "\r\n");
-        if (!in_array($fsWww, self::NTFS_FILE_SYSTEMS, true)) {
+        if (!in_array($fsWww, ServiceContract::ntfsFileSystemTypes(), true)) {
             return $mounted;
         }
         $srcWww = (string) strtok(self::shellTrim('findmnt -n -o SOURCE --target ' . escapeshellarg($root)), "\r\n");
@@ -455,7 +457,7 @@ class PathMapper
     {
         $wwwPathVar = self::readPersistedVar('WWW_PATH');
         $candidate = null;
-        if ($wwwPathVar !== '' && $wwwPathVar !== self::LINUX_WWW_ROOT && is_dir($wwwPathVar)) {
+        if ($wwwPathVar !== '' && $wwwPathVar !== ServiceContract::linuxWwwRoot() && is_dir($wwwPathVar)) {
             $candidate = rtrim($wwwPathVar, '/') . '/' . self::CACHE_DIR_NAME;
         } elseif (self::wwwNtfsRootMounted()) {
             $candidate = self::linuxWwwBase() . '/' . self::CACHE_DIR_NAME;
@@ -489,6 +491,7 @@ class PathMapper
     private static function readPersistedBase(): ?string
     {
         $val = self::readPersistedVar('BASE_DATA_DIR');
+        $linuxWwwRoot = '';
         if ($val === '') {
             return null;
         }
@@ -498,7 +501,8 @@ class PathMapper
         if (self::pathHostsProject($val)) {
             return $val;
         }
-        if ($val === self::LINUX_WWW_ROOT || $val === '/mnt/d') {
+        $linuxWwwRoot = ServiceContract::linuxWwwRoot();
+        if ($val === $linuxWwwRoot || $val === '/mnt/d') {
             return $val;
         }
         if (self::isRealDistinctMount($val)) {
@@ -506,7 +510,7 @@ class PathMapper
             $rootFree = @disk_free_space('/');
             $diskFree = ($diskFree === false) ? 0.0 : (float) $diskFree;
             $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
-            return $diskFree > $rootFree ? $val : self::LINUX_WWW_ROOT;
+            return $diskFree > $rootFree ? $val : $linuxWwwRoot;
         }
         return null;
     }
@@ -590,7 +594,7 @@ class PathMapper
         }
         $rootFree = @disk_free_space('/');
         $rootFree = ($rootFree === false) ? 0.0 : (float) $rootFree;
-        return $rootFree >= $bestFree ? self::LINUX_WWW_ROOT : $bestPath;
+        return $rootFree >= $bestFree ? ServiceContract::linuxWwwRoot() : $bestPath;
     }
 
     /**
@@ -672,31 +676,32 @@ class PathMapper
     }
 
     /**
-     * Check whether the root (/) filesystem has more than $minGb free space.
-     * Mirrors gvar_common.sh::root_has_sufficient_free_space with the project
-     * threshold supplied by the caller.
-     */
-    private static function rootHasSufficientFreeSpace(int $minGb = 50): bool
-    {
-        $free = @disk_free_space('/');
-        if ($free === false) {
-            return false;
-        }
-        return $free > $minGb * (1024 ** 3);
-    }
-
-    /**
-     * Compute the development-tooling base directory and its naming suffix.
-     * Mirrors gvar_common.sh get_dev_compile_base() + the compile_dir naming.
+     * Compute the development-tooling base directory and its naming suffix
+     * from the contract drive layout (service_contract.json#paths.drive_layout).
+     * Mirrors gvar_storage_common.sh get_dev_compile_base() and system_paths.py.
      *
-     * Linux: '/opt' when root (/) has sufficient free space (non-WSL),
-     *        else the largest secondary disk (getBaseDataDirectory()).
-     * Windows: 'D:' with a win{ver} suffix (mirrors deploy.ps1 / system_paths.py).
+     * Linux (WSL too): always the ext4 base of drive_layout.tool_root.linux;
+     *        never the NTFS web/data base and no free-space switch.
+     * Windows: the program drive the Windows center recorded in the var
+     *        center, else drive_layout.program_drive_fallback; the drive is
+     *        never probed here. Suffix win{ver}.
      *
-     * @return array{0:string,1:string} [base, suffix] e.g. ['/opt','kali_2026']
+     * @return array{0:string,1:string} [base, suffix] e.g. ['D:','win10']
      */
     private static function getDevCompileParts(bool $isWindows): array
     {
+        static $parts = [];
+        $cacheKey = (int) $isWindows;
+        $recordedDrive = '';
+        $release = '';
+        $suffix = '';
+        $sysName = '';
+        $sysVersion = '';
+
+        if (isset($parts[$cacheKey])) {
+            return $parts[$cacheKey];
+        }
+
         if ($isWindows) {
             $release = strtolower(php_uname('r'));
             if (str_contains($release, '11')) {
@@ -706,21 +711,25 @@ class PathMapper
             } else {
                 $suffix = 'win' . $release;
             }
-            return [rtrim(self::WINDOWS_DATA_DRIVE_ROOT, '\\'), $suffix];
+            $recordedDrive = rtrim(self::readPersistedVar(self::WINDOWS_PROGRAM_DRIVE_VAR), '/\\');
+            $parts[$cacheKey] = [
+                self::isWindowsDriveSpec($recordedDrive) ? strtoupper($recordedDrive) : ServiceContract::windowsProgramDriveFallback(),
+                $suffix,
+            ];
+            return $parts[$cacheKey];
         }
 
         [$sysName, $sysVersion] = self::getSystemNameVersion();
         $suffix = $sysVersion !== '' ? "{$sysName}_{$sysVersion}" : $sysName;
+        $parts[$cacheKey] = [ServiceContract::linuxToolBase(), $suffix];
 
-        // WSL keeps its Windows-backed /mnt/d design (root / is the ephemeral vhdx).
-        // STICKY /opt: if the /opt dev dir already exists keep using it regardless
-        // of current root free space; otherwise select /opt when root (/) has more
-        // than DEV_ROOT_MIN_FREE_GB free. Once /opt is chosen, never switch away.
-        if (!self::isWSL() && (is_dir('/opt/_' . $suffix) || self::rootHasSufficientFreeSpace())) {
-            return ['/opt', $suffix];
-        }
+        return $parts[$cacheKey];
+    }
 
-        return [self::getBaseDataDirectory(), $suffix];
+    /** True for a bare drive spec such as "E:". */
+    private static function isWindowsDriveSpec(string $value): bool
+    {
+        return strlen($value) === 2 && ctype_alpha($value[0]) && $value[1] === ':';
     }
 
     /**
@@ -887,8 +896,13 @@ class PathMapper
      */
     private static function getBaseTempDir(): string
     {
-        if (self::isWindows() && is_dir(self::WINDOWS_DATA_DRIVE_ROOT)) {
-            $base = self::WINDOWS_DATA_DRIVE_ROOT . self::WINDOWS_TMP_DIR_NAME;
+        $dataDriveRoot = '';
+        $base = '';
+        if (self::isWindows()) {
+            $dataDriveRoot = ServiceContract::windowsDataDriveRoot();
+        }
+        if ($dataDriveRoot !== '' && is_dir($dataDriveRoot)) {
+            $base = $dataDriveRoot . self::WINDOWS_TMP_DIR_NAME;
             self::ensureDirectory($base);
             return $base;
         }
@@ -1643,7 +1657,7 @@ class PathMapper
         } elseif (self::isWindows()) {
             $base = self::windowsWwwBase() . '\\' . self::CACHE_DIR_NAME;
         } else {
-            $base = self::linuxCrossOsCacheDir() ?? self::LEGACY_LINUX_DATA_DIR . '/' . self::CACHE_DIR_NAME;
+            $base = self::linuxCrossOsCacheDir() ?? ServiceContract::legacyLinuxDataDir() . '/' . self::CACHE_DIR_NAME;
         }
         $full = $base;
         if ($subPath !== null && $subPath !== '') {

@@ -63,7 +63,7 @@
  * ========================================================================== */
 
 import { useCallback, useEffect, useState } from 'react';
-import { CapDatabase } from './CapDatabase';
+import { CapDatabase, applyQuery } from './CapDatabase';
 import type { CapDoc, CapQuery, CapWhere } from './CapDatabase';
 import { getStorageEstimate } from './CapFilesystem';
 import { AutoWebDb } from './CapAutoWebDb';

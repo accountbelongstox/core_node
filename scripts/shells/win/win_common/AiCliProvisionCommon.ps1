@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # =============================================================================
 # Shared idempotent AI CLI provisioning (Windows / PowerShell)
 # =============================================================================
@@ -46,15 +34,43 @@ $AiCliClaudeLatestUrl = "https://downloads.claude.ai/claude-code-releases/latest
 $AiCliClaudeBinDir = Join-Path (Join-Path $env:USERPROFILE ".local") "bin"
 $AiCliClaudeExe = Join-Path $AiCliClaudeBinDir "claude.exe"
 $AiCliClaudeInstallerFile = Join-Path ([System.IO.Path]::GetTempPath()) "claude-code-install.ps1"
-$AiCliPackages = @{
-    "claude" = "@anthropic-ai/claude-code"
-    "codex"  = "@openai/codex"
-    "kimi"   = "@moonshot-ai/kimi-code"
+
+# Read from the shared AI Tools Catalog (single source of truth for AI CLI
+# metadata) instead of duplicating package ids / labels here. PnpmFallbackPackage
+# is this file's own fallback path (pnpm add --global) when the native
+# installer fails, kept distinct from the catalog's WindowsPackageKey/PackageId
+# (which point at the winget/PowerShellCommand-based DEV_SOFTWARE_PACKAGES
+# entry the main installer prefers).
+if (-not (Get-Command Get-AiTool -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot "AiToolsCatalog.ps1")
 }
-$AiCliLabels = @{
-    "claude" = "Claude Code"
-    "codex"  = "Codex CLI"
-    "kimi"   = "Kimi Code CLI"
+$AiCliPackages = @{}
+$AiCliLabels = @{}
+foreach ($aiCliKey in @("claude", "codex", "kimi")) {
+    $aiCliTool = Get-AiTool -Key $aiCliKey
+    if ($null -eq $aiCliTool) { continue }
+    $AiCliPackages[$aiCliKey] = [string]$aiCliTool.PnpmFallbackPackage
+    $AiCliLabels[$aiCliKey] = [string]$aiCliTool.Name
+}
+
+# Masked form of a secret for launcher summaries (at most 4 chars kept per end).
+function Get-AiCliMaskedSecret {
+    param([string]$Value)
+
+    $length = 0
+    $keep = 4
+
+    if ([string]::IsNullOrEmpty($Value)) {
+        return "[empty]"
+    }
+    $length = $Value.Length
+    if ($length -le 4) {
+        return ("*" * $length)
+    }
+    if ($length -le 8) {
+        $keep = 1
+    }
+    return ("{0}{1}{2}" -f $Value.Substring(0, $keep), ("*" * ($length - (2 * $keep))), $Value.Substring($length - $keep))
 }
 
 function Get-AiCliVersion {
@@ -85,21 +101,47 @@ function Get-AiCliVersion {
     return $null
 }
 
+# Tells running programs (Explorer, new terminals) that the environment changed.
+function Send-AiCliEnvironmentChange {
+    $result = [IntPtr]::Zero
+
+    if (-not ("AiCliEnvironmentBroadcast" -as [type])) {
+        Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class AiCliEnvironmentBroadcast {
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, string lParam, uint flags, uint timeout, out IntPtr result);
+}
+"@
+    }
+    [void][AiCliEnvironmentBroadcast]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [IntPtr]::Zero, "Environment", 0x0002, 5000, [ref]$result)
+}
+
+# The user PATH is read and written unexpanded as REG_EXPAND_SZ, so entries such
+# as %USERPROFILE%\... or %JAVA_HOME%\bin keep following their variables.
 function Add-AiCliUserPath {
     param([string]$Directory)
 
-    $userPath = $null
+    $environmentKey = $null
+    $userPath = ""
     $userEntries = @()
     $processEntries = @()
 
     if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
         return
     }
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    $userEntries = @(($userPath -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    if ($userEntries -notcontains $Directory) {
-        [Environment]::SetEnvironmentVariable("Path", ((@($Directory) + $userEntries) -join ';'), "User")
-        Write-Host "[PATH] Added $Directory to the user PATH." -ForegroundColor Green
+    $environmentKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment", $true)
+    try {
+        $userPath = [string]$environmentKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        $userEntries = @(($userPath -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($userEntries -notcontains $Directory) {
+            $environmentKey.SetValue("Path", ((@($Directory) + $userEntries) -join ';'), [Microsoft.Win32.RegistryValueKind]::ExpandString)
+            Send-AiCliEnvironmentChange
+            Write-Host "[PATH] Added $Directory to the user PATH." -ForegroundColor Green
+        }
+    } finally {
+        $environmentKey.Close()
     }
     $processEntries = @(($env:Path -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     if ($processEntries -notcontains $Directory) {
@@ -395,6 +437,8 @@ function Get-AiCliUltracodeArgs {
 
     $ultracodeChoice = ""
     $ultracodeSettingsFile = $null
+    $existingSettings = $null
+    $tempDirectory = [System.IO.Path]::GetTempPath()
 
     Write-Host "Enable ultracode? [Y/n] (auto-Y in $AiCliUltracodeTimeoutSeconds`s): " -ForegroundColor Yellow -NoNewline
     $ultracodeChoice = Read-AiCliTimedChoice -TimeoutSeconds $AiCliUltracodeTimeoutSeconds
@@ -405,8 +449,25 @@ function Get-AiCliUltracodeArgs {
         Write-Host "[INFO] Ultracode: off" -ForegroundColor Green
         return
     }
-    $ultracodeSettingsFile = Join-Path ([System.IO.Path]::GetTempPath()) "$($SettingsName)_ultracode_settings.json"
-    [System.IO.File]::WriteAllText($ultracodeSettingsFile, $AiCliUltracodeSettingsJson)
+    # Role windows start about 1 s apart and share this file: write only when the
+    # content differs, and fall back to a per-process file when a parallel
+    # writer holds it.
+    $ultracodeSettingsFile = Join-Path $tempDirectory ("{0}_ultracode_settings.json" -f $SettingsName)
+    if (Test-Path -LiteralPath $ultracodeSettingsFile -PathType Leaf) {
+        try {
+            $existingSettings = [System.IO.File]::ReadAllText($ultracodeSettingsFile)
+        } catch [System.IO.IOException] {
+            $existingSettings = $null
+        }
+    }
+    if ($existingSettings -ne $AiCliUltracodeSettingsJson) {
+        try {
+            [System.IO.File]::WriteAllText($ultracodeSettingsFile, $AiCliUltracodeSettingsJson)
+        } catch [System.IO.IOException] {
+            $ultracodeSettingsFile = Join-Path $tempDirectory ("{0}_ultracode_settings_{1}.json" -f $SettingsName, $PID)
+            [System.IO.File]::WriteAllText($ultracodeSettingsFile, $AiCliUltracodeSettingsJson)
+        }
+    }
     Write-Host "[INFO] Ultracode: on" -ForegroundColor Green
     return @("--settings", $ultracodeSettingsFile)
 }

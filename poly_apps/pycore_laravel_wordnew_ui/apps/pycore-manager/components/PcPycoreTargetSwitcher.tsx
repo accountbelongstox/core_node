@@ -3,25 +3,22 @@
  * chosen pycore node and manage that client.
  *
  * Backend targets carry full URLs (PART_3 §3.3):
- *   - Current URL (origin, DEFAULT): direct to <page-host>:59000 (no proxy).
- *   - Local (this machine): same as Current URL - <page-host>:59000 direct.
- *   - Remote direct: http://<host>:59000 (LAN/Tailscale/public IP).
+ *   - Current URL (origin, DEFAULT) / Local: direct to <page-host>:59000, offered
+ *     only on a loopback page (K7a).
  *   - Remote relay (https entry): the server-side reverse proxy of the relay -
  *     requests ride the paired machine (PycoreLaravelRelayTransport) and the
  *     Relay-scoped roster link offers machine designation below.
+ * Browsers on other hosts manage pycore through the relay only (K7a).
  * Picking any target re-points the canonical pycore HTTP transport and reloads
- * the page so the entire UI manages the chosen node. Fixed quick-connect
- * presets plus Recent history and a custom add input are offered. This is
- * pure UI (state lives in pycoreTarget + LaravelRelayRoster +
- * PycoreLaravelRelayTransport).
+ * the page so the entire UI manages the chosen node. This is pure UI (state
+ * lives in pycoreTarget + LaravelRelayRoster + PycoreLaravelRelayTransport).
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe, Link as LinkIcon, AlertTriangle, Radio, Users } from 'lucide-react';
 import {
   getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
-  localPycoreHost, isPycoreSecureContext, pnaBlockedReason,
-  pycoreLocalConnectionHint, isPycoreRelayMode,
+  directPycoreHost, isPycoreRelayMode, isPycoreDirectAccessAllowed,
   designateLaravelRelayDevice, laravelRelayDeviceId, clearLaravelRelayDevice,
   subscribeLaravelRelayDevice,
 } from '@/apps/pycore-manager/api';
@@ -43,16 +40,13 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const presets = getPycoreTargetPresets();
   const presetHosts = new Set(presets.map((p) => p.url ?? `http://${p.host}:${PYCORE_HTTP_PORT}`));
   const recentShown = recent.filter((u) => !presetHosts.has(u));  // presets already cover these
-  const localHost = localPycoreHost();        // page host - the "Local" target
-  const connHint = pycoreLocalConnectionHint();
+  const directAllowed = isPycoreDirectAccessAllowed();
+  const connHint = t('pycoreTarget.directHint', { host: directPycoreHost(), port: PYCORE_HTTP_PORT });
   const label = mode === 'remote'
-    ? (remoteUrl.replace(/^https?:\/\//, '') || 'remote')
-    : mode === 'local' ? 'Local'
-      : 'Current URL';
-  // Private Network Access: a non-secure-context page (HTTP on a public IP) is
-  // blocked by the browser from reaching loopback/private pycore hosts directly.
-  const secureCtx = isPycoreSecureContext();
-  const pnaReason = pnaBlockedReason(mode === 'remote' ? null : localHost);
+    ? (remoteUrl.replace(/^https?:\/\//, '') || t('pycoreTarget.remote'))
+    : !directAllowed ? t('pycoreTarget.relayRequired')
+      : mode === 'local' ? t('pycoreTarget.localShort')
+        : t('pycoreTarget.currentUrl');
 
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
@@ -61,6 +55,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const [claimCode, setClaimCode] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [claimNotice, setClaimNotice] = useState('');
+  const [targetRejected, setTargetRejected] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
   // Relay-only roster link: registry truth + presence deltas (PART_3 §3.4).
@@ -98,15 +93,15 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   }, [open]);
 
   const goOrigin = () => setPycoreTarget({ mode: 'origin' });          // persists + reloads
-  const goLocal = () => setPycoreTarget({ mode: 'local' });            // persists + reloads
+  const goLocal = () => setTargetRejected(!setPycoreTarget({ mode: 'local' }));
   const goRemote = (u: string) => {
     const norm = normalizePycoreHost(u);
-    if (norm) setPycoreTarget({ mode: 'remote', host: norm });         // persists + reloads
+    if (norm) setTargetRejected(!setPycoreTarget({ mode: 'remote', host: norm }));
   };
   const goUrl = (u: string) => {
     const trimmed = u.trim();
     if (!trimmed) return;
-    setPycoreTarget({ mode: 'remote', url: trimmed });                 // accepts http(s) entries
+    setTargetRejected(!setPycoreTarget({ mode: 'remote', url: trimmed }));
   };
 
   const designate = (machineId: string) => {
@@ -148,7 +143,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     <div ref={rootRef} className={`relative ${variant === 'block' ? 'w-full' : ''}`}>
       <button
         onClick={() => setOpen((v) => !v)}
-        title="Manage which pycore node this UI controls"
+        title={t('pycoreTarget.chipTitle')}
         className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-mono font-bold transition-all ${
           relayMode
             ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
@@ -164,9 +159,9 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             className={`px-1.5 rounded text-[9px] font-bold uppercase ${
               designated ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
             }`}
-            title={designated ? `Paired with ${designated}` : 'Relay scheme selected - no machine designated'}
+            title={designated ? t('pycoreTarget.pairedWith', { device: designated }) : t('pycoreTarget.noDesignation')}
           >
-            {designated ? 'paired' : 'unpaired'}
+            {designated ? t('pycoreTarget.paired') : t('pycoreTarget.unpaired')}
           </span>
         )}
         <ChevronDown className="w-3.5 h-3.5 opacity-70" />
@@ -175,25 +170,18 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
       {open && (
         <div className="absolute right-0 mt-2 w-80 z-50 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-3 text-sm max-h-[75vh] overflow-y-auto">
           <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-400">
-            <Server className="w-3.5 h-3.5" /> Managed pycore node
+            <Server className="w-3.5 h-3.5" /> {t('pycoreTarget.heading')}
           </div>
 
-          {/* PNA warning: non-secure-context page cannot directly reach a
-              loopback/private pycore host. Tell the user the three workarounds. */}
-          {pnaReason && (
+          {(!directAllowed || targetRejected) && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>{pnaReason}</span>
-            </div>
-          )}
-          {!pnaReason && !secureCtx && !relayMode && (
-            <div className="flex items-start gap-2 rounded-xl border border-slate-200 dark:border-white/5 px-3 py-1.5 text-[10px] leading-relaxed text-slate-400">
-              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>Not a secure context (HTTP public IP): direct access to <b>127.0.0.1</b> or private IPs will be blocked by Private Network Access. Use the HTTPS relay backend (https:// entry below) or a localhost origin.</span>
+              <span>{t(directAllowed ? 'pycoreTarget.rejected' : 'pycoreTarget.relayOnly')}</span>
             </div>
           )}
 
           {/* Current URL (origin, default) - direct to <page-host>:59000 */}
+          {directAllowed && (
           <button
             onClick={goOrigin}
             className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
@@ -201,13 +189,15 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             }`}
           >
             <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
-              <span className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-indigo-500" /> Current URL</span>
+              <span className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-indigo-500" /> {t('pycoreTarget.currentUrl')}</span>
               <span className="text-[10px] font-mono text-slate-400 pl-6">{connHint}</span>
             </span>
             {mode === 'origin' && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
+          )}
 
           {/* Local (this machine) - page host on :59000 */}
+          {directAllowed && (
           <button
             onClick={goLocal}
             className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
@@ -215,25 +205,27 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             }`}
           >
             <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
-              <span className="flex items-center gap-2"><MonitorSmartphone className="w-4 h-4 text-indigo-500" /> Local (this machine)</span>
+              <span className="flex items-center gap-2"><MonitorSmartphone className="w-4 h-4 text-indigo-500" /> {t('pycoreTarget.local')}</span>
               <span className="text-[10px] font-mono text-slate-400 pl-6">{connHint}</span>
             </span>
             {mode === 'local' && <Check className="w-4 h-4 text-indigo-500" />}
           </button>
+          )}
 
           {/* Quick-connect presets (fixed hosts on :59000) */}
           {presets.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">Quick connect</div>
+              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.quickConnect')}</div>
               {presets.map((p) => {
                 const active = p.url
                   ? mode === 'remote' && remoteUrl === p.url
                   : mode === 'remote' && remoteUrl === `http://${p.host}:${PYCORE_HTTP_PORT}`;
+                const presetLabel = p.source === 'relay_origin' ? t('pycoreTarget.relayOrigin') : p.label;
                 return (
                   <button
                     key={p.host}
                     onClick={() => (p.url ? goUrl(p.url) : goRemote(p.host))}
-                    title={p.hint ? `${p.label} (${p.hint})` : p.label}
+                    title={`${presetLabel} (${t(p.url ? 'pycoreTarget.relayEntry' : 'pycoreTarget.directEntry')})`}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
                       active
                         ? p.url
@@ -247,7 +239,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                         {p.url
                           ? <Radio className="w-4 h-4 text-emerald-500" />
                           : <Globe className="w-4 h-4 text-sky-500" />}
-                        {' '}{p.label}
+                        {' '}{presetLabel}
                       </span>
                       <span className="text-[10px] font-mono text-slate-400 pl-6">
                         {p.url ?? `${p.host}:${PYCORE_HTTP_PORT}`}
@@ -263,7 +255,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           {/* Recent backends (URLs - direct entries and relay entries alike) */}
           {recentShown.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">Recent</div>
+              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.recent')}</div>
               {recentShown.map((u) => {
                 const active = mode === 'remote' && remoteUrl === u;
                 const isRelay = u.startsWith('https://');
@@ -390,7 +382,11 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               {providers.map((provider) => (
                 <span
                   key={provider.id}
-                  title={`${provider.providerClass} · provides: ${provider.provides.join(', ') || 'nothing declared'} ${provider.implemented ? '(implemented)' : '(declared, not implemented)'}`}
+                  title={t('pycoreTarget.providerTitle', {
+                    providerClass: provider.providerClass,
+                    provides: provider.provides.join(', ') || t('pycoreTarget.providerNothing'),
+                    state: t(provider.implemented ? 'pycoreTarget.providerImplemented' : 'pycoreTarget.providerDeclared'),
+                  })}
                   className={`px-1.5 py-0.5 rounded text-[9px] font-mono border ${
                     provider.implemented
                       ? 'border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
@@ -406,7 +402,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
           {/* Add / connect a backend */}
           <div className="space-y-2 pt-1 border-t border-slate-200 dark:border-white/5">
             <label className="text-[10px] font-mono uppercase tracking-wide text-slate-400 block">
-              Connect to backend URL (direct or relay)
+              {t('pycoreTarget.connectLabel')}
             </label>
             <div className="flex gap-2">
               <input
@@ -414,21 +410,18 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') goUrl(url); }}
-                placeholder="e.g. mesh-host · http://host:port · https://server"
+                placeholder={t(directAllowed ? 'pycoreTarget.connectPlaceholder' : 'pycoreTarget.connectPlaceholderRelay', { port: PYCORE_HTTP_PORT })}
                 className="flex-1 py-2 px-3 text-xs font-mono rounded-lg outline-none bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
               />
               <button
                 onClick={() => goUrl(url)}
                 className="flex items-center gap-1 text-xs font-mono font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg"
               >
-                <Plus className="w-3.5 h-3.5" /> Go
+                <Plus className="w-3.5 h-3.5" /> {t('pycoreTarget.go')}
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Bare host / <b>http</b> entries connect directly on <b>:{PYCORE_HTTP_PORT}</b> (no proxy).
-              An <b>https</b> entry is the relay scheme - the server-side reverse proxy that rides
-              the designated machine. Current URL / Local = {localHost}:{PYCORE_HTTP_PORT}.
-              Laravel is separate (<b>:9000</b>, header switcher). Switching reloads the page.
+              {t('pycoreTarget.help', { port: PYCORE_HTTP_PORT })}
             </p>
           </div>
         </div>

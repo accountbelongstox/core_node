@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import type {
   GlobalTaskCapability,
@@ -18,6 +18,9 @@ import {
   isGlobalTaskQueuePositionOrdered,
 } from '../../integrations/pycore';
 
+/** systemctl start/stop/restart can wait on unit timeouts well past the module default. */
+const SERVICE_CONTROL_TIMEOUT_MS = 3 * 60 * 1000;
+
 // ==================== Global Task / Worker substrate types ====================
 // laravel_main's distributed worker queue (`global_tasks` + `workers` tables).
 // These are real /api routes (TaskController / WorkerController, ApiResponse
@@ -32,7 +35,7 @@ export type GlobalTaskItem = GlobalTaskSummary;
 export type GlobalTaskDetail = GlobalTaskStatusRecord;
 
 // ==================== Live task drilldown (detail / events) ====================
-// laravel_main control-plane routes (no-auth), NOT under /api/app_qy_v1:
+// laravel_main control-plane routes (operator login or client key), NOT under /api/app_qy_v1:
 //   GET  /api/task/{id}/detail        — full detail snapshot (task + events + phase)
 //   POST /api/task/{id}/bump          — move by the task type's contract ordering
 // Queue Center Mercure events wake the shared detail refresh owner.
@@ -171,10 +174,11 @@ export interface TaskCenterOverview {
 }
 
 // ==================== Assist requests (CoreBook §6) ====================
-// Record-scoped assist-request layer on top of the worker-pull assist pool.
-// Real /api routes under /api/app_qy_v1/assist/requests (no-auth, same trust
-// level as media/ingest). The Task Center "Assist Requests" panel + per-record
-// modal drive these.
+// Record-scoped assist-request layer on top of the worker-pull assist pool,
+// under /api/app_qy_v1/assist/requests. Reads are public; filing and deleting
+// need the operator login (client key or dashboard). Claim/submit/release are
+// machine-only (client key) and are not exposed here. The Task Center
+// "Assist Requests" panel + per-record modal drive these.
 
 /** A record-scoped assist request row. */
 export interface AssistRequestItem {
@@ -205,7 +209,7 @@ export interface AssistRequestCreateItem {
  * ServerManager API Module
  * Manages systemd services (local access only)
  */
-export class ServerManagerAPI extends BaseAPI {
+export class ServerManagerAPI extends LmBaseAPI {
   /**
    * List all services
    */
@@ -238,7 +242,7 @@ export class ServerManagerAPI extends BaseAPI {
     status: string;
     output: string;
   }>> {
-    return this.post(`/server-manager/services/${serviceName}/start`, {});
+    return this.serviceControl(serviceName, 'start');
   }
 
   /**
@@ -249,7 +253,7 @@ export class ServerManagerAPI extends BaseAPI {
     status: string;
     output: string;
   }>> {
-    return this.post(`/server-manager/services/${serviceName}/stop`, {});
+    return this.serviceControl(serviceName, 'stop');
   }
 
   /**
@@ -260,7 +264,7 @@ export class ServerManagerAPI extends BaseAPI {
     status: string;
     output: string;
   }>> {
-    return this.post(`/server-manager/services/${serviceName}/restart`, {});
+    return this.serviceControl(serviceName, 'restart');
   }
 
   /**
@@ -275,14 +279,28 @@ export class ServerManagerAPI extends BaseAPI {
   }
 
   /**
-   * Toggle auto-start
+   * Set auto-start to an explicit state (the route no longer flips it).
    */
-  async toggleAutoStart(serviceName: string): Promise<APIResponse<{
+  async setAutoStart(serviceName: string, enabled: boolean): Promise<APIResponse<{
     service_name: string;
     enabled: boolean;
     action: string;
   }>> {
-    return this.post(`/server-manager/services/${serviceName}/toggle-autostart`, {});
+    return this.serviceControl(serviceName, 'toggle-autostart', { enabled });
+  }
+
+  /**
+   * One transport attempt under the action's Idempotency-Key: the operator's
+   * retry replays or joins the first run instead of acting on the unit twice.
+   */
+  private serviceControl<T>(serviceName: string, action: string, data: Record<string, unknown> = {}): Promise<APIResponse<T>> {
+    return this.requestIdempotent<T>(`service:${serviceName}:${action}:${JSON.stringify(data)}`, {
+      url: `/server-manager/services/${encodeURIComponent(serviceName)}/${action}`,
+      method: 'POST',
+      data,
+      retry: false,
+      timeout: SERVICE_CONTROL_TIMEOUT_MS,
+    });
   }
 
   /**
@@ -421,7 +439,6 @@ export class ServerManagerAPI extends BaseAPI {
 
   // ==================== Assist requests (CoreBook §6) ====================
   // Record-scoped assist requests under /api/app_qy_v1/assist/requests.
-  // Same no-auth trust level as media/ingest (server-side caller).
 
   /**
    * List assist requests with optional filters (Task Center panel).
@@ -460,46 +477,6 @@ export class ServerManagerAPI extends BaseAPI {
     items: AssistRequestItem[];
   }>> {
     return this.post('/app_qy_v1/assist/requests', data);
-  }
-
-  /**
-   * Worker lease pull (60-minute lease).
-   * POST /api/app_qy_v1/assist/requests/claim
-   */
-  async claimAssistRequests(data: {
-    types: string[];
-    limit?: number;
-    claimer: string;
-  }): Promise<APIResponse<{
-    success: boolean;
-    items: AssistRequestItem[];
-    lease_minutes: number;
-  }>> {
-    return this.post('/app_qy_v1/assist/requests/claim', data);
-  }
-
-  /**
-   * Report a request result (completed / failed / processing).
-   * POST /api/app_qy_v1/assist/requests/submit
-   */
-  async submitAssistRequest(data: {
-    id: number;
-    status: 'completed' | 'failed' | 'processing';
-    result?: any;
-    error?: string;
-  }): Promise<APIResponse<{ ok: boolean; status: string; already_done?: boolean }>> {
-    return this.post('/app_qy_v1/assist/requests/submit', data);
-  }
-
-  /**
-   * Release leased request(s) back to pending.
-   * POST /api/app_qy_v1/assist/requests/release
-   */
-  async releaseAssistRequests(data: {
-    ids: number[];
-    error?: string;
-  }): Promise<APIResponse<{ success: boolean; released: number }>> {
-    return this.post('/app_qy_v1/assist/requests/release', data);
   }
 
   /**

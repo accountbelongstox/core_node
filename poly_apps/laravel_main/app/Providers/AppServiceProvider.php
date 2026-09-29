@@ -1,13 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Providers;
 
@@ -36,6 +27,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1PolyApps
 use App\Console\Commands\CheckCertbotCommand;
 use App\Console\Commands\NuxtServiceRefreshCommand;
 use App\Apps\AppQyV1\AppQyV1Commands\AppQyV1ResourceIndexCommand;
+use App\Apps\CodeMartV1\CodeMartV1Commands\CodeMartV1AdminPasswordCommand;
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -109,6 +101,7 @@ class AppServiceProvider extends ServiceProvider
                 CheckCertbotCommand::class,
                 NuxtServiceRefreshCommand::class,
                 AppQyV1ResourceIndexCommand::class,
+                CodeMartV1AdminPasswordCommand::class,
             ]);
         }
     }

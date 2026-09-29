@@ -432,10 +432,10 @@ def _build_runtime() -> Dict[str, Any]:
             "supported_tools": list(SUPPORTED_TOOLS),
             "tool_support": {
                 tool: {
-                    "platforms": list(spec.get("platforms") or ()),
-                    "verified": str(spec.get("verified") or ""),
+                    "platforms": list(AGENT_HISTORY_OFFICIAL_HOME_MARKERS[tool].get("platforms") or ()),
+                    "verified": str(AGENT_HISTORY_OFFICIAL_HOME_MARKERS[tool].get("verified") or ""),
                 }
-                for tool, spec in AGENT_HISTORY_OFFICIAL_HOME_MARKERS.items()
+                for tool in SUPPORTED_TOOLS
             },
             "unreadable_homes": uncovered_unreadable_homes(),
             "root_spool": spool_status(),

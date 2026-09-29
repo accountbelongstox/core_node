@@ -1,0 +1,39 @@
+{
+  "task_id": "ncore-G1",
+  "role": "ncore",
+  "verdict": "changes_requested",
+  "checked_at": "2026-09-27T21:40:33+10:00",
+  "base": "74e7770 (task base). The G1 hunks were isolated as 5bbb23682..HEAD (4ddb4be8e ncore/utils, 2f31f9cd3 apps). The CKA-5/CKA-20 hunks were isolated as f4f223414..5bbb23682. HEAD at review is ab566fdf7, and no ncore/apps (non-mcp-chrome) file changed after 6ecff3401.",
+  "notes": "B1 contract-reader sweep incomplete. The task asks for 'any contract readers (service_contract.json#paths incl. drive_layout; no literals)', and the report checked only drive_layout. Remaining #paths literals: ncore/foundation/utilities/pathtool.js:38,54,56,130 '/var/_core_node' (= paths.legacy_linux_data_dir) -> use system_paths.LEGACY_LINUX_DATA_DIR; ncore/global_vars/global_dir/globaldir.js:41 '/www' (= paths.linux_www_root) -> read it through system_paths (export LINUX_WWW_ROOT or use getLinuxWwwBase); ncore/foundation/common/downloader.js:32 'D:\\\\' (= paths.windows_data_drive_root) -> system_paths.WINDOWS_DATA_DRIVE_ROOT. B2 ncore/utils/flutter_icon_tool/libs/image_processor.js:373-376: compressImage returns false on an ImageMagick failure before the catch cleanup at :390-393 runs, so a partial <image>.tmp now stays. Before G1 the throw reached that cleanup -> unlink tempPath before return false (one shared cleanup path). B3 ncore/utils/flutter_icon_tool/libs/flutter_icon_manager.js:181-189: replaceImage ignores resizeAndCropImage()'s boolean. On false it still logs 'Resized and replaced' and returns true, so batchReplaceImages (:216, :338) counts a failure as success. This refutes the report's 'no call site left silently treating false/null as success' (reports/ncore.md:153) -> if (!await ...resizeAndCropImage(...)) return false. B4 ncore/utils/ai_translator/config/index.js:190: the validateConfig(finalConfig) result is discarded, so an invalid config is now exported and used silently; the old guard failed fast. CKA-21 requires 'Callers are updated to check the returned result' -> keep the result (e.g. an exported validity flag) and have main.js's start path log and return when it is false. Non-blocking: see non_blocking.",
+  "items": {
+    "CKA-5": {
+      "claimed": "done (pre-landed in 5bbb23682)",
+      "result": "confirmed for system_paths.js",
+      "detail": "system_paths.js reads ntfs_fs_types, windows_data_drive_root, www_dir_name, core_node_data_dir_name, global_var_dir_name, legacy_linux_data_dir, linux_www_root, linux_ntfs_nested_www_root and home_data_dir_fallback, plus the linux_data_dir_candidates when/join list, via '#@/config/service_contract.js'.document.paths. That is the client_key_auth.js pattern. The selection matches paths.linux_data_dir_selection (CORE_NODE_DATA_DIR wins; the home fallback is used untested). The Windows candidates are still [D:\\www\\core_node, user dir]. The file has no '/var/_core_node' or 'ntfs3' literal, and node --check passes. The G1-wide 'no literals' sweep is B1."
+    },
+    "CKA-14": {
+      "claimed": "deferred (blocked on laravel CKA-13)",
+      "result": "ncore side confirmed; blocker now stale",
+      "detail": "backendClient.ts:32-34 keeps super/locked, and :52 uses dto.label only as the last member fallback. Popup.tsx:348 renders text.superLicense, and uiI18n.ts:166/:183 have the keys. Laravel CKA-13 landed after the report, in ab566fdf7 (21:31): DingDuoDuoV1LicenseService.php:54 is now 'label' => null. CKA-14 can close as soon as the laravel lead accepts CKA-13. No ncore edit is needed."
+    },
+    "CKA-20": {
+      "claimed": "done (pre-landed in 5bbb23682)",
+      "result": "confirmed",
+      "detail": "fwriter.js and sequelize_db.js no longer read #@global_vars/#@global_dir. saveCacheText resolves a relative path against the caller's baseDir; it also fixes the const reassignment and the dead expiry branch, and writes to fullpath. getDBPathFromDBName logs and returns null when a name is relative and has no sqliteDir. The GlobalDBMaps const-reassign bug is also fixed. node --check passes on both. The report's caller claim is wrong, though the conclusion holds: DataProvider.js reaches ncore/utils/db_tool/sequelize_db.js, which proxies to ncore/utils/memory_db/index.js, not to foundation/db_utils. The only foundation consumer is ai_translator/libs/cache_manager.js:31, which calls obtainInstantiationSequelize with an absolute path. The only fwriter.saveCacheJSON caller, cacheMainMid.js:33/36, passes an absolute path."
+    },
+    "CKA-21": {
+      "claimed": "deferred (partial)",
+      "result": "counts verified; 3 conversion defects (B2-B4)",
+      "detail": "The re-grep matches the report: docker_liunx_tool 0, flutter_icon_tool 0, ai_translator 12, smart_compression 9, rpc 13, ittools 172, puppeteer_spider_v2 106, dingdoudou 8, DocumentOffline 1, VoiceClientAndCaddy 0, WebLocalAreaNetwork 1, and the rest 95 in 35 files. node --check passes on all 14 changed .js files. The edited files have 0 CR both before and after. Every changed file is inside the ncore scope."
+    }
+  },
+  "non_blocking": [
+    "CKA-21 policy: the 'kept by design' set (ai_translator 12, smart_compression 9, dingdoudou 8, DocumentOffline 1, plus rpc SubAppManager:99 and 2 examples) goes beyond the item's '17 RPC client-side promise rejections' and NODE_NCORE_GUIDE.md:7 ('Never throw new Error'). The orchestrator has to rule on that widening. reports/ncore.md:159-164 should mark these sites 'pending ruling', not settled.",
+    "apps/DocumentOffline/controller/crawl_controller.js:925 does not null-check fetch(). The null path cannot be reached today, since fileMapper is set in the constructor at :33. If it were reached, fetchResult.content would throw inside the save try, and :961 would requeue the item forever. Treat a null result as a failed attempt.",
+    "crawl_controller.js:94-97: a missing or invalid URL now exits with code 0 (main.js .catch no longer fires). Record this behaviour change in the report.",
+    "apps/WebLocalAreaNetwork/template/static/scripts/voice_status.js still throws, and now differs from the converted live VoiceClientAndCaddy copy (dead duplicate). Convert it the same way, or ask the orchestrator to delete it.",
+    "apps/WebLocalAreaNetwork/template/download.html:44-47 repeats the error markup from the catch at :82-84. A small render helper, like renderStatusError in voice_status.js, removes the duplicate.",
+    "ncore/utils/smart_compression/libs/compression_queue.js:40-51: invalid input now returns null, singleFileCallback never fires, and example.js does not check the task id. There is no external importer, so this is low impact.",
+    "reports/ncore.md:148 CKA-20 caller path and :149 CKA-13 'not started' are stale (see items)."
+  ]
+}

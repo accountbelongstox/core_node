@@ -1,65 +1,79 @@
 /**
  * WordNewTtsEnginePriorityPanel - Settings card to re-order the TTS engine try-list.
- * Talks to pycore DIRECTLY on :59000 (via pycoreApi). GET/POST /api/local/capabilities/settings.
- * engine list + order are fetched live; engines are tried top -> bottom.
+ * Talks to pycore through the WordNew pycore adapter (capability settings GET/POST).
+ * The engine list and order come only from pycore; engines are tried top -> bottom.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AudioLines, ChevronUp, ChevronDown, Save, Loader2, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
-import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '@/apps/wordnew/integrations/pycore';
+import {
+  classifyPycoreAccess, pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel, type PycoreAccess,
+} from '@/apps/wordnew/integrations/pycore';
 
-/** Fallback try-order ONLY when the GET fails (mirrors pycore
- *  tts_orchestrator._DEFAULT_PRIORITY: gptsovits-first). */
-const DEFAULT_TTS_PRIORITY: string[] = [
-  'gptsovits', 'streamelements', 'sherpa', 'melotts', 'edge', 'gtts_web', 'azure',
-  'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts',
-];
+type Translate = (key: string, replacements?: Record<string, string | number>) => string;
+
+const UNREACHABLE_ACCESS: PycoreAccess = { kind: 'unreachable' };
+const ACCESS_HINT_KEYS: Record<PycoreAccess['kind'], string> = {
+  relay_only: 'ttsPriority.relayOnly',
+  origin_not_allowed: 'ttsPriority.originNotAllowed',
+  host_forbidden: 'ttsPriority.hostForbidden',
+  origin_forbidden: 'ttsPriority.originForbidden',
+  client_key_rejected: 'ttsPriority.clientKeyRejected',
+  unreachable: 'ttsPriority.unreachable',
+};
+
+function accessHint(access: PycoreAccess, trans: Translate): string {
+  return trans(ACCESS_HINT_KEYS[access.kind], {
+    origin: window.location.origin,
+    code: 'code' in access ? access.code : '',
+    ports: access.kind === 'origin_not_allowed' ? access.ports.join(' / ') : '',
+  });
+}
 
 interface Props {
   activeTheme: ElementTheme;
-  trans: (key: string, replacements?: Record<string, string | number>) => string;
+  trans: Translate;
 }
 
 export const WordNewTtsEnginePriorityPanel: React.FC<Props> = ({ activeTheme, trans }) => {
-  const [draft, setDraft] = useState<string[]>([...DEFAULT_TTS_PRIORITY]);
+  const [draft, setDraft] = useState<string[]>([]);
   const [available, setAvailable] = useState<Record<string, boolean>>({});
   const [installed, setInstalled] = useState<Record<string, boolean>>({});
   const [setupReasons, setSetupReasons] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  const [unreachable, setUnreachable] = useState(false);
+  const [access, setAccess] = useState<PycoreAccess | null>(null);
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setUnreachable(false);
+    setAccess(null);
     setNotice(null);
     try {
       const r = await pycoreApi.getCapabilitySettings();
       if (!mounted.current) return;
-      // pycore returns the four capability blocks; tts must be present. A
+      // pycore returns the capability blocks; tts must be present. A
       // missing/falsey block means pycore is unreachable or misconfigured.
-      if (!r || (r as any).success === false || !r.tts) {
-        throw new Error((r as any)?.error || 'unavailable');
+      if (!r || r.success === false || !r.tts) {
+        throw new Error(r?.error || 'unavailable');
       }
       const tts = r.tts;
       setAvailable(tts.available ?? {});
       setInstalled(tts.installed ?? {});
       setSetupReasons(tts.setup_reasons ?? {});
-      // Order from the saved priority; fall back to the default list when empty.
       setDraft(
         Array.isArray(tts.priority) && tts.priority.length
           ? [...tts.priority]
-          : [...DEFAULT_TTS_PRIORITY],
+          : Object.keys(tts.available ?? {}),
       );
-    } catch {
+    } catch (error) {
       if (mounted.current) {
-        setUnreachable(true);
-        setDraft([...DEFAULT_TTS_PRIORITY]);
+        setAccess(classifyPycoreAccess(error) ?? UNREACHABLE_ACCESS);
+        setDraft([]);
       }
     } finally {
       if (mounted.current) setLoading(false);
@@ -84,9 +98,9 @@ export const WordNewTtsEnginePriorityPanel: React.FC<Props> = ({ activeTheme, tr
     try {
       const r = await pycoreApi.saveCapabilitySettings('tts', { priority: draft });
       if (!mounted.current) return;
-      if (!r || (r as any).success === false) {
-        const detail = (r as any)?.error ?? (r as any)?.detail;
-        throw new Error(typeof detail === 'string' ? detail : 'save rejected');
+      if (!r || r.success === false) {
+        setNotice({ ok: false, text: trans('ttsPriority.saveFailed') });
+        return;
       }
       // Reflect the server-returned order + availability (it may append omitted engines).
       setDraft(Array.isArray(r.priority) && r.priority.length ? [...r.priority] : draft);
@@ -94,8 +108,12 @@ export const WordNewTtsEnginePriorityPanel: React.FC<Props> = ({ activeTheme, tr
       setInstalled(r.installed ?? installed);
       setSetupReasons(r.setup_reasons ?? setupReasons);
       setNotice({ ok: true, text: trans('ttsPriority.saved') });
-    } catch {
-      if (mounted.current) setNotice({ ok: false, text: trans('ttsPriority.saveFailed') });
+    } catch (error) {
+      if (mounted.current) {
+        setAccess(classifyPycoreAccess(error) ?? UNREACHABLE_ACCESS);
+        setDraft([]);
+        setNotice({ ok: false, text: trans('ttsPriority.saveFailed') });
+      }
     } finally {
       if (mounted.current) setSaving(false);
     }
@@ -119,10 +137,10 @@ export const WordNewTtsEnginePriorityPanel: React.FC<Props> = ({ activeTheme, tr
         {trans('ttsPriority.hint')}
       </p>
 
-      {unreachable && (
+      {access && (
         <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="break-words">{trans('ttsPriority.unreachable')}</span>
+          <span className="break-words">{accessHint(access, trans)}</span>
         </div>
       )}
 
@@ -180,7 +198,7 @@ export const WordNewTtsEnginePriorityPanel: React.FC<Props> = ({ activeTheme, tr
       )}
 
       <div className="flex items-center gap-3 pt-1">
-        <button type="button" onClick={() => void save()} disabled={saving || loading}
+        <button type="button" onClick={() => void save()} disabled={saving || loading || access !== null || draft.length === 0}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition cursor-pointer">
           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
           {saving ? trans('ttsPriority.saving') : trans('ttsPriority.save')}

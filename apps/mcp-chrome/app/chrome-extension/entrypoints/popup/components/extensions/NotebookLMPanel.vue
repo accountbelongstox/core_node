@@ -124,7 +124,7 @@ const onDialogueTest = async () => {
     if (response && response.success) {
       const r = response.result || {};
       dialogueAnswer.value = r.answer || '';
-      if (!dialogueAnswer.value) dialogueError.value = r.error || 'No answer returned';
+      if (!dialogueAnswer.value) dialogueError.value = r.error || t('noAnswerReturned');
     } else {
       dialogueError.value = (response && response.error) || 'NotebookLM request failed';
     }

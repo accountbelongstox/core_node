@@ -9,17 +9,23 @@
 
     Opt-in: -Full or FISHSPEECH_INSTALL=1 or NEURAL_TTS_INSTALL=1.
     GPU hosts install CUDA torch by default. Skip with FISHSPEECH_SKIP=1.
+    Docker backend: -Test or DOCKER_MODEL_TEST=1 runs one bounded test after ensure.
 #>
 [CmdletBinding()]
 param(
     [string]$Python = 'python',
     [switch]$Full,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Test
 )
 
 $ErrorActionPreference = 'Stop'
 
 $SCRIPT_INDEX   = '[Step56-Fishspeech]'
+$DOCKER_MODEL   = 'fishspeech'
+$dockerBackendKey = "TTS_$($DOCKER_MODEL.ToUpperInvariant())_BACKEND"
+$doDockerTest   = ($Test -or $env:DOCKER_MODEL_TEST -eq '1')
+$dockerOptInNote = 'opt-in; use -Full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1'
 $REPO_URL       = 'https://github.com/fishaudio/fish-speech.git'
 $serverUrl      = if ($env:FISHSPEECH_URL) { $env:FISHSPEECH_URL.TrimEnd('/') } else { 'http://127.0.0.1:8080' }
 $stagingDefault = $null
@@ -77,22 +83,29 @@ if ($env:FISHSPEECH_SKIP -eq '1') {
 . (Join-Path $winCommonDir 'InstallMethodCommon.ps1')
 $installMethod = Select-TtsInstallMethod -Engine fishspeech `
     -SupportedBackends @('native','docker') `
-    -RecommendedBackend 'native' `
-    -RecommendationSource 'Fish Speech docs document native install and an official docker option (hub: fishaudio/fish-speech) - https://speech.fish.audio/install/' `
-    -DefaultBackend 'native' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
+    -RecommendedBackend 'docker' `
+    -RecommendationSource 'Fish Speech official install docs: "System: Linux, WSL"; official Docker images fishaudio/fish-speech (Docker Hub) - https://speech.fish.audio/install/' `
+    -DefaultBackend 'docker' -Method $env:TTS_METHOD -Reselect:([bool]$env:TTS_METHOD_RESELECT)
 if (-not $installMethod) { Write-Host "$SCRIPT_INDEX [i] install method selection cancelled; nothing changed."; return }
 if ($installMethod -eq 'docker') {
+    if (-not $doFull -and -not $Force) {
+        Write-Host ("$SCRIPT_INDEX  saved backend        : {0}" -f (Get-GlobalVar -key $dockerBackendKey -defaultValue 'none')) -ForegroundColor DarkGray
+        Write-Host ("$SCRIPT_INDEX  docker provider state: {0}" -f (Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown')) -ForegroundColor DarkGray
+        Write-Host "$SCRIPT_INDEX [i] $dockerOptInNote -> NOT ensuring the docker backend (no WSL call)." -ForegroundColor DarkGray
+        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @() -AbsentOk -AbsentNote $dockerOptInNote
+        return
+    }
     . (Join-Path $winCommonDir 'DockerWslBridge.ps1')
-    if (-not (Invoke-TtsDockerEnsure -Engine fishspeech -Prefix $SCRIPT_INDEX)) {
-        Write-Host "$SCRIPT_INDEX [!] docker platform is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown'))." -ForegroundColor DarkYellow
-        exit 1
+    if (-not (Invoke-DockerModelRunner -Model $DOCKER_MODEL -Action ensure -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker backend is not ready (state: $(Get-GlobalVar -key 'TTS_DOCKER_PROVIDER_STATE' -defaultValue 'unknown')); the RESULT line above names the phase." -ForegroundColor DarkYellow
+        return
     }
-    Save-TtsInstallBackend -Engine fishspeech -Backend docker
-    if (-not (Invoke-TtsDockerApply -Engine fishspeech -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
-        Write-Host "$SCRIPT_INDEX [!] docker compose apply failed (phase above); docker backend is not ready." -ForegroundColor DarkYellow
-        exit 1
+    Save-TtsInstallBackend -Engine $DOCKER_MODEL -Backend docker
+    if ($doDockerTest -and -not (Invoke-DockerModelRunner -Model $DOCKER_MODEL -Action test -StagingDir $targetDir -Prefix $SCRIPT_INDEX)) {
+        Write-Host "$SCRIPT_INDEX [!] docker test did not pass (RESULT line above); the image and staging data are kept." -ForegroundColor DarkYellow
+        return
     }
-    Write-Host "$SCRIPT_INDEX [OK] docker compose service converged (project pycore-tts-fishspeech)." -ForegroundColor Green
+    Write-Host "$SCRIPT_INDEX [OK] docker backend ensured (image pycore-tts-$($DOCKER_MODEL):local; no container left running)." -ForegroundColor Green
     return
 }
 Save-TtsInstallBackend -Engine fishspeech -Backend native

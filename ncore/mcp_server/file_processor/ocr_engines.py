@@ -19,8 +19,12 @@ import tempfile
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Default API Keys
-DEFAULT_FREE_OCR_API_KEY = "K84414795888957"  # Official OCR.space free API key
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from pycore.pyfoundations.secret_manager import get_secret_key_indexed
+from ocr_config import APIKeys
 
 class OCRResult:
     """OCR result data structure"""
@@ -55,18 +59,18 @@ class FreeOCREngine:
 
     def __init__(self, api_key: str = None):
         self.base_url = "https://api.ocr.space/parse/image"
-        # Use provided API key, environment variable, default official key, or demo key as fallback
-        self.api_key = api_key or os.getenv('OCRSPACE_API_KEY') or DEFAULT_FREE_OCR_API_KEY
+        # Use provided API key, else the shared secret store (or its environment variable)
+        self.api_key = api_key or get_secret_key_indexed(APIKeys.ENV_FREE_OCR_KEY)
         self.supported_formats = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.bmp', '.tiff']
         self.max_file_size = 1024 * 1024  # 1MB limit for free tier
 
         # Note about API key status
-        if self.api_key == "helloworld":
+        if not self.api_key:
+            logger.warning(f"OCR.space key missing: {APIKeys.ENV_FREE_OCR_KEY}_1; run dd.sh (Linux) or dd.cmd (Windows) to decrypt the shared secret store")
+        elif self.api_key == "helloworld":
             logger.warning("Using demo API key. Register at https://ocr.space/ocrapi for free API key (500 requests/day)")
-        elif self.api_key == DEFAULT_FREE_OCR_API_KEY:
-            logger.info("Using official Free OCR API key (500 requests/day limit)")
         else:
-            logger.info("Using custom Free OCR API key")
+            logger.info("Using Free OCR API key from the shared secret store")
 
     def _prepare_image(self, image_path: str) -> Optional[str]:
         """Prepare image for OCR processing"""

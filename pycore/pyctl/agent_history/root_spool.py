@@ -10,9 +10,9 @@ this small root process next to the worker:
     python -m pycore.pyctl.agent_history.root_spool --worker-user <user> --parent-pid <pid>
 
 Root side (``run``): every AGENT_HISTORY_ROOT_SPOOL_INTERVAL_S it discovers
-sources with the shared extractor registry, keeps ONLY regular files the
-worker cannot read that stay inside the home they were found in (no symlink /
-hard-link escape), parses them and writes the parsed sessions into
+sources with the shared extractor registry, keeps ONLY root-owned regular
+files the worker cannot read that stay inside the home they were found in (no
+symlink / hard-link escape), parses them and writes the parsed sessions into
 AGENT_HISTORY_ROOT_SPOOL_DIR (root:<worker gid>, 0750 / 0640). It exits when
 the parent (the worker's sudo process) exits.
 
@@ -43,6 +43,9 @@ SPOOL_INDEX_FILE = "index.json"
 SPOOL_LOCK_FILE = ".lock"
 SPOOL_DIR_MODE = 0o750
 SPOOL_FILE_MODE = 0o640
+# Only root-owned agent sessions (claudeteam / kimi slots started as root) are
+# spooled; another human user's private sessions are never exposed.
+SPOOL_SOURCE_OWNER_UID = 0
 _READ_BIT = 4
 _EXEC_BIT = 1
 
@@ -205,7 +208,12 @@ def _spoolable_sources(extractors: List[Any], access: _WorkerAccess) -> Dict[str
                     st = os.lstat(path)
                 except OSError:
                     continue
-                if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or access.can_read(path, st):
+                if (
+                    not stat.S_ISREG(st.st_mode)
+                    or st.st_nlink != 1
+                    or st.st_uid != SPOOL_SOURCE_OWNER_UID
+                    or access.can_read(path, st)
+                ):
                     continue
                 found[path] = {
                     "tool": extractor.tool(),

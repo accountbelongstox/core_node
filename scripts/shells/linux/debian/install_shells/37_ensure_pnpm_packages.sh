@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -30,6 +19,7 @@ fi
 
 CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_packages.js"
 INSTALLED_PNPM=""
+PNPM_GLOBAL_ROOT=""
 
 # Fallback registry when registry.npmjs.org returns 403 (e.g. network/proxy/geo restriction)
 FALLBACK_REGISTRY="https://registry.npmmirror.com/"
@@ -132,23 +122,16 @@ get_installed_packages() {
     echo "$GLOBAL_PACKAGES" | grep -v 'pnpm@\|npm@' | sed -n 's/.*\([@/][^@]*\)@.*/\1/p' | sed 's/^[@/]*//'
 }
 
-# Function to check if a package is installed and linked correctly
+# A package counts as installed when its directory exists in THIS node's pnpm
+# global root. Binary names differ from package names (typescript -> tsc), and
+# a PATH lookup hits stale links into other Node trees, so neither is used.
 is_package_installed() {
     local package_name=$1
-    local pnpm_bin_dir=""
-    local pnpm_bin=""
 
-    pnpm_bin="$(resolve_pnpm_binary_path)"
-    if [ -n "$pnpm_bin" ] && [ -x "$pnpm_bin" ]; then
-        pnpm_bin_dir="$(resolve_pnpm_global_bin_dir "$pnpm_bin")"
+    if [ -z "$PNPM_GLOBAL_ROOT" ]; then
+        PNPM_GLOBAL_ROOT="$(run_pnpm_with_absolute_path root -g 2>/dev/null | tail -1)"
     fi
-    if [ -z "$pnpm_bin_dir" ] && [ -n "$pnpm_bin" ] && [ -x "$pnpm_bin" ]; then
-        pnpm_bin_dir="$("$pnpm_bin" bin -g 2>/dev/null || true)"
-    fi
-
-    if [ -n "$pnpm_bin_dir" ] && [ -e "$pnpm_bin_dir/$package_name" ]; then
-        echo "true"
-    elif command -v "$package_name" >/dev/null 2>&1; then
+    if [ -n "$PNPM_GLOBAL_ROOT" ] && [ -f "$PNPM_GLOBAL_ROOT/$package_name/package.json" ]; then
         echo "true"
     else
         echo "false"
@@ -433,6 +416,8 @@ ensure_registry_accessible
 
 
 echo "[$SCRIPT_INDEX] Checking currently installed global packages..."
+PNPM_GLOBAL_ROOT="$(run_pnpm_with_absolute_path root -g 2>/dev/null | tail -1)"
+echo "[$SCRIPT_INDEX] pnpm global root: ${PNPM_GLOBAL_ROOT:-unknown}"
 
 # Cache the global packages list
 INSTALLED_PACKAGES=$(get_installed_packages)

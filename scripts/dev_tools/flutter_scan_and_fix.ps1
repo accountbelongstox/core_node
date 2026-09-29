@@ -22,7 +22,7 @@ Write-Host ""
 Write-Host "[1/5] Scanning Dart files..." -ForegroundColor Green
 $dartFiles = Get-ChildItem -Path $TargetDir -Filter "*.dart" -Recurse -File
 $dartFilesList = $dartFiles | Select-Object -ExpandProperty FullName | Sort-Object
-$dartFilesList | Out-File -FilePath "$OutputDir\dart_files_full.txt" -Encoding UTF8
+$dartFilesList | Out-File -FilePath (Join-Path $OutputDir "dart_files_full.txt") -Encoding UTF8
 Write-Host "      Found $($dartFiles.Count) Dart files" -ForegroundColor White
 
 Write-Host ""
@@ -39,7 +39,7 @@ $directoryStats | ForEach-Object {
 
 Write-Host ""
 Write-Host "[3/5] Running flutter analyze..." -ForegroundColor Green
-$analyzeLogPath = "$OutputDir\flutter_analyze_full.log"
+$analyzeLogPath = Join-Path $OutputDir "flutter_analyze_full.log"
 
 Push-Location -Path (Split-Path $TargetDir -Parent)
 try {
@@ -77,7 +77,7 @@ Write-Host "      Errors: $($errors.Count)" -ForegroundColor Red
 Write-Host "      Warnings: $($warnings.Count)" -ForegroundColor Yellow
 Write-Host "      Infos: $($infos.Count)" -ForegroundColor Cyan
 
-$errors | Out-File -FilePath "$OutputDir\errors_full.txt" -Encoding UTF8
+$errors | Out-File -FilePath (Join-Path $OutputDir "errors_full.txt") -Encoding UTF8
 
 if ($FixErrors -and -not $DryRun) {
     Write-Host ""
@@ -87,7 +87,7 @@ if ($FixErrors -and -not $DryRun) {
     Push-Location -Path (Split-Path $TargetDir -Parent)
     try {
         $fixOutput = dart fix --apply 2>&1
-        $fixOutput | Out-File -FilePath "$OutputDir\dart_fix_output.txt" -Encoding UTF8
+        $fixOutput | Out-File -FilePath (Join-Path $OutputDir "dart_fix_output.txt") -Encoding UTF8
         Write-Host "      dart fix completed" -ForegroundColor White
     } catch {
         Write-Host "      Error: $_" -ForegroundColor Red
@@ -100,10 +100,10 @@ if ($FixErrors -and -not $DryRun) {
     Push-Location -Path (Split-Path $TargetDir -Parent)
     try {
         $analyzeOutput2 = flutter analyze lib 2>&1
-        $analyzeOutput2 | Out-File -FilePath "$OutputDir\flutter_analyze_after_fix.log" -Encoding UTF8
+        $analyzeOutput2 | Out-File -FilePath (Join-Path $OutputDir "flutter_analyze_after_fix.log") -Encoding UTF8
 
         $errorsAfter = @()
-        Get-Content "$OutputDir\flutter_analyze_after_fix.log" | ForEach-Object {
+        Get-Content (Join-Path $OutputDir "flutter_analyze_after_fix.log") | ForEach-Object {
             if ($_ -match '^\s*error\s+-') {
                 $errorsAfter += $_
             }

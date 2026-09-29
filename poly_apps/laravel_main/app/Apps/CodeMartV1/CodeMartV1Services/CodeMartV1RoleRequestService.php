@@ -31,7 +31,7 @@ class CodeMartV1RoleRequestService
             return CodeMartV1AdminService::failure(
                 CodeMartV1Constants::ERROR_INVALID_ROLE_TYPE,
                 422,
-                'This role cannot be requested directly'
+                __('codemart.errors.role_not_requestable')
             );
         }
 
@@ -42,7 +42,7 @@ class CodeMartV1RoleRequestService
             return CodeMartV1AdminService::failure(
                 CodeMartV1Constants::ERROR_ROLE_ALREADY_EXISTS,
                 409,
-                'Role already requested'
+                __('codemart.errors.role_already_requested')
             );
         }
 

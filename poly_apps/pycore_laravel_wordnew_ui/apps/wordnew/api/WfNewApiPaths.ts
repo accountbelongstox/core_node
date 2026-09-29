@@ -382,7 +382,7 @@ export const WFNEW_ADMIN_DEBUG_STATUS_PATH = '/api/dashboard/auth/debug-status';
  * AppQyV1AITools,AppQyV1Learning,AppQyV1Assist}.php.
  */
 export const WfNewAdminPaths = {
-  // ---- dictionary word management (AppQyV1Vocabulary.php — PUBLIC) ----
+  // ---- dictionary word management (AppQyV1Vocabulary.php — reads public, writes dashboard.auth admin) ----
   /** Paginated dictionary rows: ?language=&filter=&q=&sort=&order=&start=&limit=. */
   dictionaryWords: (opts: {
     language: string; filter?: string; q?: string;
@@ -431,7 +431,7 @@ export const WfNewAdminPaths = {
   /** Delete a user-created library (DELETE, auth:sanctum). */
   learningLibrary: (libraryId: number | string): string =>
     p(`/learning/libraries/${encodeURIComponent(String(libraryId))}`),
-  /** Queue library cover tasks (POST {ids[], mode: generate|search, prompt?}). */
+  /** Queue library cover tasks (POST {ids[], mode: generate|search, prompt?}; admin session). */
   libraryCoverTasks: p(APPQYV1_LIBRARY_COVER_ROUTES.tasks),
   /** Per-library cover state + latest cover task (GET ?ids=1,2). */
   libraryCoverTaskStatus: (ids: number[]): string =>
@@ -452,14 +452,14 @@ export const WfNewAdminPaths = {
     params.set('limit', String(opts.limit ?? 50));
     return p(`${APPQYV1_AI_TOOLS_ROUTES.ttsQueueItems}?${params.toString()}`);
   },
-  /** Translation-queue control plane (PUBLIC — pycore monitor surface). */
+  /** Translation-queue control plane (reads public; enqueue-pending needs an admin session). */
   translationQueueList: p(APPQYV1_AI_TOOLS_ROUTES.translationQueueList),
   translationPendingWords: p('/ai_tools/translation/queue/pending-words'),
   translationEnqueuePending: p('/ai_tools/translation/queue/enqueue-pending'),
   /** Re-queue specific words (POST, custom.authenticate — needs session). */
   translationBatchAdd: p(APPQYV1_AI_TOOLS_ROUTES.translationBatchAdd),
 
-  // ---- translate / TTS tools (translate + generate are auth:sanctum) ----
+  // ---- translate / TTS tools (translate is auth:sanctum; generate needs any logged-in user) ----
   translationLanguages: p(APPQYV1_AI_TOOLS_ROUTES.translationLanguages),
   translationTranslate: p(APPQYV1_AI_TOOLS_ROUTES.translationTranslate),
   ttsGenerate: p(APPQYV1_AI_TOOLS_ROUTES.ttsGenerate),

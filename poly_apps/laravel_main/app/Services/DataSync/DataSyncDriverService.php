@@ -74,9 +74,7 @@ final class DataSyncDriverService
 
     public function finishCancelled(array $job): array
     {
-        $job = $this->runtime->finish($job, 'cancelled', DataSyncProtocol::CANCELLED_MESSAGE);
-        $this->cancelPeer($job);
-        return $job;
+        return $this->runtime->finish($job, 'cancelled', DataSyncProtocol::cancelledMessage());
     }
 
     private function run(array $job): void
@@ -85,8 +83,8 @@ final class DataSyncDriverService
         $deadline = microtime(true) + DataSyncProtocol::DRIVER_TICK_BUDGET_SECONDS;
 
         try {
-            if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
-                throw new \RuntimeException('The session protocol version is incompatible.');
+            if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::version()) {
+                throw new \RuntimeException(__('data_sync.protocol_incompatible'));
             }
             do {
                 if ($this->runtime->cancelRequested($id)) {
@@ -115,8 +113,7 @@ final class DataSyncDriverService
         } catch (DataSyncAbortException) {
             $this->finishCancelled($this->store->get($id) ?? $job);
         } catch (\Throwable $exception) {
-            $job = $this->runtime->finish($this->store->get($id) ?? $job, 'failed', $exception->getMessage());
-            $this->cancelPeer($job);
+            $this->runtime->finish($this->store->get($id) ?? $job, 'failed', $exception->getMessage());
         }
     }
 
@@ -130,18 +127,6 @@ final class DataSyncDriverService
             $this->refreshCounterpart($job, null, true);
         } catch (\Throwable $exception) {
             $this->runtime->finish($this->store->get((string) $job['id']) ?? $job, 'failed', $exception->getMessage());
-        }
-    }
-
-    private function cancelPeer(array $job): void
-    {
-        if (empty($job['context']['peer_session_id']) || empty($job['context']['peer_token'])) {
-            return;
-        }
-        try {
-            $this->peer->call($job, 'POST', '/cancel');
-        } catch (\Throwable) {
-            // The passive side also ends itself once the driver stays idle.
         }
     }
 
@@ -168,10 +153,10 @@ final class DataSyncDriverService
         $job = $this->store->save($job);
 
         if (in_array($response['status'] ?? null, ['failed', 'cancelled'], true)) {
-            throw new \RuntimeException('Peer session ended: ' . ($response['error'] ?? $response['status']));
+            throw new \RuntimeException(__('data_sync.peer_session_ended', ['reason' => (string) ($response['error'] ?? $response['status'])]));
         }
         if (($response['status'] ?? null) === 'completed' && $key !== 'complete' && !str_starts_with((string) $key, 'finalize_')) {
-            throw new \RuntimeException('Peer session completed before the transfer finished.');
+            throw new \RuntimeException(__('data_sync.peer_completed_early'));
         }
         return $job;
     }
@@ -214,7 +199,7 @@ final class DataSyncDriverService
             'verify_resource_manifests' => $this->verifyResources($job),
             'finalize_receiver_session', 'finalize_exporter_session' => $this->peerCall($job, 'POST', '/finalize'),
             'complete' => $this->done($job, 'Synchronization completed.'),
-            default => throw new \RuntimeException("Unknown synchronization step: {$key}"),
+            default => throw new \RuntimeException(__('data_sync.step_unknown', ['step' => $key])),
         };
     }
 
@@ -240,7 +225,7 @@ final class DataSyncDriverService
         }
         $peerMachineCode = (string) ($response['machine_code'] ?? '');
         if ($peerMachineCode !== '' && hash_equals($this->machine->code(), $peerMachineCode)) {
-            throw new \RuntimeException('The peer is this same machine; choose a different node.');
+            throw new \RuntimeException(__('data_sync.peer_is_self'));
         }
         $job['context']['peer_health'] = $response;
         return $this->done($this->store->save($job), $peerMachineCode !== '' ? substr($peerMachineCode, 0, 12) : null);
@@ -249,14 +234,14 @@ final class DataSyncDriverService
     private function negotiateProtocol(array $job): array
     {
         $peerVersion = (int) ($job['context']['peer_health']['protocol_version'] ?? 0);
-        if ($peerVersion !== DataSyncProtocol::VERSION) {
-            throw new \RuntimeException("Peer protocol version {$peerVersion} differs from local version " . DataSyncProtocol::VERSION . '.');
+        if ($peerVersion !== DataSyncProtocol::version()) {
+            throw new \RuntimeException(__('data_sync.peer_protocol_mismatch', ['peer' => $peerVersion, 'local' => DataSyncProtocol::version()]));
         }
         if (!empty($job['options']['compression'])
             && (empty($job['context']['peer_health']['compression_available']) || !SystemArchiveManager::available())) {
             throw new \RuntimeException('7-Zip compression was selected but system 7-Zip is not available on both nodes.');
         }
-        return $this->done($job, 'v' . DataSyncProtocol::VERSION);
+        return $this->done($job, 'v' . DataSyncProtocol::version());
     }
 
     private function createPeerSession(array $job, string $path, string $idField, string $basePath): array
@@ -273,8 +258,8 @@ final class DataSyncDriverService
         if (isset($response['__waiting'])) {
             return $this->wait($this->store->save($job), $response['__waiting']);
         }
-        if ((int) ($response['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
-            throw new \RuntimeException('The prepared peer session protocol version is incompatible.');
+        if ((int) ($response['protocol_version'] ?? 0) !== DataSyncProtocol::version()) {
+            throw new \RuntimeException(__('data_sync.prepared_protocol_incompatible'));
         }
         $job['context']['peer_session_id'] = (string) $response['id'];
         $job['context']['peer_base_path'] = $basePath . rawurlencode((string) $response['id']);
@@ -430,7 +415,7 @@ final class DataSyncDriverService
         if ($entry === null) {
             return $this->done($job, 'All database chunks transferred.');
         }
-        $chunk = $this->databases->readChunk($entry['connection'], $entry['table'], $offset);
+        $chunk = $this->databases->readChunk($entry['connection'], $entry['table'], $offset, $this->databaseCursor($job));
         $response = $this->peer->call($job, 'POST', '/database-chunks', [
             'connection' => $entry['connection'],
             'table' => $entry['table'],
@@ -457,11 +442,12 @@ final class DataSyncDriverService
         if ($entry === null) {
             return $this->done($job, 'All database chunks fetched.');
         }
-        $chunk = $this->peer->call($job, 'GET', '/database-chunks', [
+        $chunk = $this->peer->call($job, 'GET', '/database-chunks', array_filter([
             'connection' => $entry['connection'],
             'table' => $entry['table'],
             'offset' => $offset,
-        ]);
+            'cursor' => $this->databaseCursor($job),
+        ], static fn ($value): bool => $value !== null));
         if (isset($chunk['__waiting'])) {
             return $this->wait($job, $chunk['__waiting']);
         }
@@ -475,6 +461,13 @@ final class DataSyncDriverService
         }
         $job['context']['received']['database_rows'] = (int) ($job['context']['received']['database_rows'] ?? 0) + count((array) ($chunk['rows'] ?? []));
         return $this->advanceDatabaseCheckpoint($job, $entry, $chunk, $result);
+    }
+
+    private function databaseCursor(array $job): ?array
+    {
+        $cursor = $job['context']['database_checkpoint_cursor'] ?? null;
+
+        return is_array($cursor) && $cursor !== [] ? array_values(array_map('strval', $cursor)) : null;
     }
 
     private function databaseCheckpoint(array $job): array
@@ -499,9 +492,11 @@ final class DataSyncDriverService
             }
         }
         $job['context']['database_checkpoint_offset'] = (int) ($chunk['next_offset'] ?? 0);
+        $job['context']['database_checkpoint_cursor'] = is_array($chunk['next_cursor'] ?? null) ? $chunk['next_cursor'] : null;
         if (!empty($chunk['done'])) {
             $job['context']['database_checkpoint_index'] = (int) $job['context']['database_checkpoint_index'] + 1;
             $job['context']['database_checkpoint_offset'] = 0;
+            $job['context']['database_checkpoint_cursor'] = null;
         }
         $job = $this->store->save($job);
         $remaining = (int) $job['context']['database_checkpoint_index'] < (int) ($job['context']['database_checkpoint_count'] ?? 0);
@@ -601,6 +596,13 @@ final class DataSyncDriverService
         }
         $files = 0;
         $bytes = 0;
+        if (!isset($job['context']['peer_resource_roots'])) {
+            $status = $this->peer->status($job);
+            if (isset($status['__waiting'])) {
+                return $this->wait($job, $status['__waiting']);
+            }
+            $job = $this->alignResourceRoots($job, $status['context']['resource_roots'] ?? null);
+        }
         foreach ($job['context']['resource_roots'] ?? [] as $key) {
             $response = $this->peer->call($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
             if (isset($response['__waiting'])) {
@@ -742,15 +744,15 @@ final class DataSyncDriverService
         }
         $received = (array) ($response['files'] ?? []);
         if ($received === []) {
-            throw new \RuntimeException('The exporter returned an empty resource batch.');
+            throw new \RuntimeException(__('data_sync.exporter_empty_batch'));
         }
         foreach ($received as $position => $file) {
             $planned = $pending[$position] ?? null;
             if ($planned === null || $planned['relative_path'] !== ($file['relative_path'] ?? null)) {
-                throw new \RuntimeException('The exporter returned resource files out of order.');
+                throw new \RuntimeException(__('data_sync.exporter_out_of_order'));
             }
             $content = base64_decode((string) ($file['content'] ?? ''), true);
-            if ($content === false || !hash_equals($planned['sha256'], hash('sha256', $content))) {
+            if (!empty($file['missing']) || $content === false || !hash_equals($planned['sha256'], hash('sha256', $content))) {
                 $job = $this->skipResource($job, "{$item['key']}/{$planned['relative_path']}");
                 continue;
             }
@@ -804,9 +806,12 @@ final class DataSyncDriverService
         if (isset($chunk['__waiting'])) {
             return $this->wait($job, $chunk['__waiting']);
         }
+        if (!empty($chunk['missing'])) {
+            return $this->nextResourceItem($this->skipResource($job, "{$item['key']}/{$item['relative_path']}"));
+        }
         $content = base64_decode((string) ($chunk['content'] ?? ''), true);
         if ($content === false) {
-            throw new \RuntimeException('The exported resource chunk is not valid base64.');
+            throw new \RuntimeException(__('data_sync.export_chunk_invalid'));
         }
         try {
             $result = $this->resources->receiveFileChunk((string) $job['id'], $item['key'], $item['relative_path'], $offset, $content, $item['sha256'], (bool) ($chunk['final'] ?? false));
@@ -820,6 +825,9 @@ final class DataSyncDriverService
     {
         $offset = (int) ($job['context']['resource_checkpoint_offset'] ?? 0);
         $chunk = $this->resources->readFileChunk($item['key'], $item['relative_path'], $offset);
+        if (!empty($chunk['missing'])) {
+            return $this->nextResourceItem($this->skipResource($job, "{$item['key']}/{$item['relative_path']}"));
+        }
         $response = $this->peer->call($job, 'POST', '/resource-file-chunks', [
             'key' => $item['key'],
             'relative_path' => $item['relative_path'],
@@ -861,9 +869,18 @@ final class DataSyncDriverService
         }
         $content = base64_decode((string) ($chunk['content'] ?? ''), true);
         if ($content === false) {
-            throw new \RuntimeException('The exported archive chunk is not valid base64.');
+            throw new \RuntimeException(__('data_sync.export_archive_chunk_invalid'));
         }
-        $result = $this->resources->receiveArchiveChunk((string) $job['id'], $item['key'], $offset, $content, $item['sha256'], (bool) ($chunk['final'] ?? false));
+        $result = $this->resources->receiveArchiveChunk(
+            (string) $job['id'],
+            $item['key'],
+            $offset,
+            $content,
+            $item['sha256'],
+            (bool) ($chunk['final'] ?? false),
+            false,
+            $this->archiveManifest($item)
+        );
         return $this->advanceArchiveChunk($job, $item, $result, strlen($content));
     }
 
@@ -871,18 +888,24 @@ final class DataSyncDriverService
     {
         $offset = (int) ($job['context']['resource_checkpoint_offset'] ?? 0);
         $chunk = $this->resources->readArchiveChunk((string) $job['id'], $item['key'], $offset);
-        $response = $this->peer->call($job, 'POST', '/resource-chunks', [
+        $payload = [
             'key' => $item['key'],
             'offset' => $offset,
             'content' => $chunk['content'],
             'sha256' => $item['sha256'],
             'final' => $chunk['final'],
-        ]);
+        ];
+        if ($chunk['final'] && $chunk['next_offset'] > $offset && count($item['paths']) <= ResourceSyncService::ARCHIVE_MAX_FILES) {
+            // Only the chunk carrying the last bytes sends the manifest; the
+            // empty polls that wait for the receiver's extraction do not.
+            $payload['manifest'] = $this->archiveManifest($item);
+        }
+        $response = $this->peer->call($job, 'POST', '/resource-chunks', $payload);
         if (isset($response['__waiting'])) {
             return $this->wait($job, $response['__waiting']);
         }
         if (!empty($response['hash_mismatch'])) {
-            throw new \RuntimeException("The receiver rejected the resource archive: {$item['key']}");
+            throw new \RuntimeException(__('data_sync.receiver_rejected_archive', ['key' => $item['key']]));
         }
         return $this->advanceArchiveChunk($job, $item, $response, $chunk['next_offset'] - $offset);
     }
@@ -895,11 +918,22 @@ final class DataSyncDriverService
         }
         $job['context']['resource_results']['transferred_bytes'] = (int) ($job['context']['resource_results']['transferred_bytes'] ?? 0) + $bytes;
         if (!empty($result['complete'])) {
-            $job['context']['resource_results']['transferred_files'] = (int) ($job['context']['resource_results']['transferred_files'] ?? 0) + count($item['paths']);
+            $skipped = array_map('strval', (array) ($result['skipped'] ?? []));
+            $job = $this->skipResources($job, array_map(static fn (string $relativePath): string => "{$item['key']}/{$relativePath}", $skipped));
+            $job['context']['resource_results']['transferred_files'] = (int) ($job['context']['resource_results']['transferred_files'] ?? 0)
+                + count($item['paths']) - count(array_intersect($item['paths'], $skipped));
             return $this->nextResourceItem($job);
         }
         $job['context']['resource_checkpoint_offset'] = (int) $result['offset'];
         return $this->progress($this->store->save($job), "{$item['key']}.7z @ {$result['offset']}");
+    }
+
+    /**
+     * @return array<string, string> planned relative path => SHA-256 of one archive item
+     */
+    private function archiveManifest(array $item): array
+    {
+        return array_map(static fn (array $metadata): string => (string) ($metadata['sha256'] ?? ''), (array) ($item['manifest'] ?? []));
     }
 
     private function advanceResourceBatch(array $job, array $item, int $done): array
@@ -939,16 +973,53 @@ final class DataSyncDriverService
         return $job;
     }
 
+    /**
+     * Syncs only the resource roots both nodes expose. Roots that exist on one
+     * side only (host path overrides nest them differently) are recorded as
+     * skipped instead of failing the session.
+     */
+    private function alignResourceRoots(array $job, mixed $peerRoots): array
+    {
+        $localRoots = $job['context']['resource_roots'] ?? [];
+        $sharedRoots = [];
+
+        if (!is_array($peerRoots)) {
+            $job['context']['peer_resource_roots'] = $localRoots;
+            return $this->store->save($job);
+        }
+        $peerRoots = array_values(array_map('strval', $peerRoots));
+        $sharedRoots = array_values(array_intersect($localRoots, $peerRoots));
+        $job['context']['peer_resource_roots'] = $peerRoots;
+        $job['context']['resource_roots'] = $sharedRoots;
+        $job['context']['resource_results']['skipped_roots'] = array_values(array_unique(array_merge(
+            array_diff($localRoots, $sharedRoots),
+            array_diff($peerRoots, $sharedRoots)
+        )));
+
+        return $this->store->save($job);
+    }
+
     private function skipResource(array $job, string $resource): array
     {
-        $results = $job['context']['resource_results'] ?? [];
-        $results['skipped_count'] = (int) ($results['skipped_count'] ?? 0) + 1;
-        if (count($results['skipped'] ?? []) < self::SKIP_LIST_LIMIT) {
-            $results['skipped'][] = $resource;
+        return $this->skipResources($job, [$resource]);
+    }
+
+    /**
+     * @param list<string> $resources
+     */
+    private function skipResources(array $job, array $resources): array
+    {
+        if ($resources === []) {
+            return $job;
         }
+        $results = $job['context']['resource_results'] ?? [];
+        $results['skipped_count'] = (int) ($results['skipped_count'] ?? 0) + count($resources);
+        $results['skipped'] = array_slice(array_merge($results['skipped'] ?? [], $resources), 0, self::SKIP_LIST_LIMIT);
         $job['context']['resource_results'] = $results;
         $skippedAll = $this->artifacts->get((string) $job['id'], 'resource_skipped') ?? [];
-        $skippedAll[$resource] = true;
+        foreach ($resources as $resource) {
+            $skippedAll[$resource] = true;
+        }
         $this->artifacts->put((string) $job['id'], 'resource_skipped', $skippedAll);
         return $job;
     }
@@ -987,7 +1058,7 @@ final class DataSyncDriverService
             }
             foreach ($files as $relativePath => $sha256) {
                 if (($manifest[$relativePath]['sha256'] ?? null) !== $sha256) {
-                    throw new \RuntimeException("Resource verification failed: {$key}/{$relativePath}");
+                    throw new \RuntimeException(__('data_sync.resource_verification_failed', ['path' => "{$key}/{$relativePath}"]));
                 }
                 $verified++;
             }

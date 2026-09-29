@@ -80,7 +80,7 @@ class MediaIngestController extends Controller
             'slots' => $request->input('slots', []) ?? [],
         ]);
 
-        return $this->success($result, 'Media ingested successfully');
+        return $this->success($result, __('api.messages.media_ingested_successfully'));
     }
 
     /**
@@ -111,7 +111,7 @@ class MediaIngestController extends Controller
             return $this->success([
                 'path' => $targetPath,
                 'skipped' => true,
-            ], 'Clip already present, skipped');
+            ], __('api.messages.clip_already_present_skipped'));
         }
 
         $request->file('file')->move($targetDir, $name);
@@ -119,7 +119,7 @@ class MediaIngestController extends Controller
         return $this->success([
             'path' => $targetPath,
             'skipped' => false,
-        ], 'Clip stored successfully');
+        ], __('api.messages.clip_stored_successfully'));
     }
 
     /**
@@ -293,6 +293,6 @@ class MediaIngestController extends Controller
 
         $result = $this->sentenceEnrichmentService->enrich($limit, $language);
 
-        return $this->success($result, 'Sentence enrichment completed');
+        return $this->success($result, __('api.messages.sentence_enrichment_completed'));
     }
 }

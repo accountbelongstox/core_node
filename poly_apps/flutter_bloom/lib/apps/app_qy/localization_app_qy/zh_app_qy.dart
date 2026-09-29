@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 import 'localization_keys_app_qy.dart';
 
 /// Chinese localization for QY App
@@ -108,6 +96,8 @@ class ZhAppQy {
     QyAppLocalizationKeys.qyYesLogout: '确认退出',
     QyAppLocalizationKeys.qyLogin: '登录',
     QyAppLocalizationKeys.qyLoginFailed: '登录失败',
+    QyAppLocalizationKeys.qyErrorUnauthorized: '请先登录后再使用此功能',
+    QyAppLocalizationKeys.qyErrorForbidden: '当前账号无权使用此功能，请重新登录',
     QyAppLocalizationKeys.qyRegister: '注册',
     QyAppLocalizationKeys.qyRegisterSuccess: '注册成功',
     QyAppLocalizationKeys.qyRegisterFailed: '注册失败',

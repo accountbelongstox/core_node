@@ -1,73 +1,98 @@
-// 超级码 (Super-code) — offline, login-free, full-permission unlock.
+// Super code: offline, login-free unlock issued by the DingDuoDuoV1 backend.
 //
-// A valid super-code grants the extension full access with NO backend and NO login.
-// It can manage unlimited bound Pinduoduo users (cross-user management).
-//
-// Two ways a code can be valid:
-//   1. It is one of the built-in MASTER_CODES (always valid, offline).
-//   2. It matches the signed format  DDK-<BASE>-<SIG>  where
-//        SIG = last 6 hex chars of FNV-1a-32(BASE_UPPER + SUPER_SALT), upper-cased.
-//
-// The Laravel backend (DingDuoDuoV1) mints codes with the SAME algorithm + salt so
-// an admin can issue new super-codes that verify fully offline inside the extension.
-// IMPORTANT: keep SUPER_SALT identical to the PHP side (DingDuoDuoV1SuperCodeService).
+// Format: DDK2.<payload>.<signature>
+//   payload   = base64url(JSON { v, device, exp, iat, tier, features, maxBinds })
+//   signature = base64url(Ed25519 over the ASCII text "DDK2.<payload>")
+// Only the backend holds the private key; the extension ships the public key
+// (config/service_contract.json#dingdoudou.super_code_public_key). A code is valid
+// only for the device id it names and only until `exp` (unix seconds).
 
+import { dingdoudou } from '../../../config/service_contract.json';
 import type { LicenseState } from './types';
 
-export const SUPER_SALT = 'dingduoduo::supercode::v1';
+interface SuperCodeContract {
+  super_code_format?: string;
+  super_code_public_key?: string;
+}
 
-// Built-in master codes. Always valid, offline, unlimited.
-export const MASTER_CODES: ReadonlySet<string> = new Set([
-  'DDK-MASTER-0000',
-  'DINGDUODUO-VIP',
-  'DDK-SUPER-FOREVER',
-]);
+export interface SuperCodeClaims {
+  v: number;
+  device: string;
+  exp: number;
+  iat?: number;
+  tier?: string;
+  features?: string[];
+  maxBinds?: number;
+}
 
-// FNV-1a 32-bit hash (must match the PHP implementation exactly).
-function fnv1a32(input: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
+const SUPER_CODE_CONTRACT: SuperCodeContract = dingdoudou || {};
+const SUPER_CODE_PREFIX = SUPER_CODE_CONTRACT.super_code_format || '';
+const SUPER_CODE_VERSION = 2;
+const SUPER_CODE_SEPARATOR = '.';
+const SUPER_CODE_ALGORITHM = 'Ed25519';
+const MS_PER_SECOND = 1000;
+const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
+const DEFAULT_TIER = 'unlimited';
+const DEFAULT_FEATURES = ['*'];
+const SUPER_CODE_PUBLIC_KEY = SUPER_CODE_CONTRACT.super_code_public_key || '';
+
+export const SUPER_CODE_PLACEHOLDER = `${SUPER_CODE_PREFIX}${SUPER_CODE_SEPARATOR}…`;
+
+function base64UrlToBytes(value: string): Uint8Array | null {
+  if (!value || !BASE64URL_RE.test(value)) return null;
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (value.length % 4)) % 4);
+  try {
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch {
+    return null;
   }
-  return h >>> 0;
 }
 
-function signatureFor(base: string): string {
-  const hex = fnv1a32(base.toUpperCase() + SUPER_SALT)
-    .toString(16)
-    .padStart(8, '0')
-    .toUpperCase();
-  return hex.slice(-6);
+function parseClaims(bytes: Uint8Array): SuperCodeClaims | null {
+  try {
+    const claims = JSON.parse(new TextDecoder().decode(bytes)) as SuperCodeClaims;
+    return claims && typeof claims === 'object' ? claims : null;
+  } catch {
+    return null;
+  }
 }
 
-// Mint a signed super-code from an arbitrary base label (A-Z0-9, <=12 chars).
-export function mintSuperCode(base: string): string {
-  const b = base.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'CODE';
-  return `DDK-${b}-${signatureFor(b)}`;
+// Verify a super code against this device; returns its claims or null.
+export async function verifySuperCode(raw: string, deviceId: string): Promise<SuperCodeClaims | null> {
+  const parts = (raw || '').trim().split(SUPER_CODE_SEPARATOR);
+  if (parts.length !== 3 || !SUPER_CODE_PREFIX || parts[0] !== SUPER_CODE_PREFIX || !deviceId) return null;
+
+  const publicKey = base64UrlToBytes(SUPER_CODE_PUBLIC_KEY);
+  const payload = base64UrlToBytes(parts[1]);
+  const signature = base64UrlToBytes(parts[2]);
+  if (!publicKey || !payload || !signature) return null;
+
+  try {
+    const key = await crypto.subtle.importKey('raw', publicKey, { name: SUPER_CODE_ALGORITHM }, false, ['verify']);
+    const signed = new TextEncoder().encode(`${parts[0]}${SUPER_CODE_SEPARATOR}${parts[1]}`);
+    if (!(await crypto.subtle.verify({ name: SUPER_CODE_ALGORITHM }, key, signature, signed))) return null;
+  } catch {
+    return null;
+  }
+
+  const claims = parseClaims(payload);
+  if (!claims || claims.v !== SUPER_CODE_VERSION || claims.device !== deviceId) return null;
+  if (!Number.isFinite(claims.exp) || claims.exp * MS_PER_SECOND <= Date.now()) return null;
+  return claims;
 }
 
-const SIGNED_RE = /^DDK-([A-Z0-9]{1,12})-([0-9A-F]{6})$/;
-
-export function verifySuperCode(raw: string): boolean {
-  const code = (raw || '').trim().toUpperCase();
-  if (!code) return false;
-  if (MASTER_CODES.has(code)) return true;
-  const m = code.match(SIGNED_RE);
-  if (!m) return false;
-  return signatureFor(m[1]) === m[2];
-}
-
-// Build the LicenseState a verified super-code yields: everything, forever, offline.
-export function superLicense(raw: string): LicenseState {
+// Build the LicenseState a verified super code grants: its tier and features until it expires.
+export function superLicense(raw: string, claims: SuperCodeClaims): LicenseState {
   return {
     mode: 'super',
-    code: raw.trim().toUpperCase(),
-    tier: 'unlimited',
-    features: ['*'],
-    maxBinds: Number.MAX_SAFE_INTEGER,
-    expiresAt: null,
-    label: '超级码 · 全功能离线版',
+    code: raw.trim(),
+    tier: claims.tier || DEFAULT_TIER,
+    features: Array.isArray(claims.features) && claims.features.length ? claims.features : DEFAULT_FEATURES,
+    maxBinds: Number.isInteger(claims.maxBinds) ? Number(claims.maxBinds) : Number.MAX_SAFE_INTEGER,
+    expiresAt: claims.exp * MS_PER_SECOND,
     verifiedAt: Date.now(),
     offline: true,
   };

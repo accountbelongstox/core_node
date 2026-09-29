@@ -7,4 +7,5 @@ return [
     'frankenphp_service_action_unsupported' => 'Unsupported FrankenPHP service action.',
     'frankenphp_service_postcondition_failed' => 'FrankenPHP service postcondition was not reached.',
     'frankenphp_certificate_postcondition_failed' => 'Windows certificate postcondition failed.',
+    'invite_code_none_active' => 'No active, unexpired admin invite code exists.',
 ];

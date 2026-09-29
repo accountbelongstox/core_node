@@ -2,13 +2,17 @@
 """
 Word audio persistent cache.
 
-Files: ``<app_cache>/word_audio/<lang>/{word}_{provider}.mp3`` — any
-provider's file counts as a hit (newest wins). ``word_audio_cache_index``
-loads the whole cache into memory once at pycore boot (background) and is
-kept current by every store, so batch lookups (audio orchestration manifests)
-are dictionary hits instead of a directory scan per task. Every store is
-also recorded in ``audio_resource_ledger`` (the word text is not recoverable
-from the file name).
+Files: ``<app_cache>/word_audio/<lang>/{word}@{provider}.mp3`` with the word
+lower-cased and both parts sanitized to letters, digits and ``_``, so the
+``@`` separator splits a name exactly: a lookup matches the whole word only,
+and any provider's file counts as a hit (newest wins). Legacy
+``{word}_{provider}.mp3`` names are renamed once at boot (from the ledger or
+an unambiguous name). ``word_audio_cache_index`` loads the whole cache into
+memory once at pycore boot (background) and is kept current by every store,
+so batch lookups (audio orchestration manifests) are dictionary hits instead
+of a directory scan per task. Every store is also recorded in
+``audio_resource_ledger`` (the exact word text is not recoverable from the
+sanitized file name).
 """
 import os
 import shutil
@@ -26,6 +30,11 @@ from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 
 
+WORD_PROVIDER_SEPARATOR = "@"
+LEGACY_SEPARATOR = "_"
+AUDIO_SUFFIX = ".mp3"
+
+
 def _get_cache_dir() -> str:
     return str(get_app_cache_dir() / "word_audio")
 
@@ -39,26 +48,88 @@ def _safe(value: str) -> str:
     return "".join(c if c.isalnum() else "_" for c in value)
 
 
+def _word_key(word: str) -> str:
+    return _safe(str(word or "").strip().lower())
+
+
+def _file_name(word: str, provider: str) -> str:
+    return f"{_word_key(word)}{WORD_PROVIDER_SEPARATOR}{_safe(provider)}{AUDIO_SUFFIX}"
+
+
 def get_cache_path(word: str, language: str, provider: str) -> str:
-    return os.path.join(_get_cache_dir(), _safe(language), f"{_safe(word)}_{_safe(provider)}.mp3")
+    return os.path.join(_get_cache_dir(), _safe(language), _file_name(word, provider))
 
 
-def _stem_prefixes(stem: str) -> List[str]:
-    """Every ``{safe_word}`` a ``{safe_word}_{provider}`` stem may belong to."""
-    return [stem[:index] for index, char in enumerate(stem) if char == "_" and index > 0]
+def _name_word_key(name: str) -> str:
+    """Exact ``{safe_word}`` of a ``{safe_word}@{provider}.mp3`` name ('' for
+    any other name, including legacy ones)."""
+    if not name.endswith(AUDIO_SUFFIX):
+        return ""
+    word, separator, _provider = name[:-len(AUDIO_SUFFIX)].rpartition(WORD_PROVIDER_SEPARATOR)
+    return word if separator else ""
+
+
+def _legacy_word_provider(stem: str, ledger_word: str) -> Tuple[str, str]:
+    """(word, provider) of a legacy ``{safe_word}_{provider}`` stem: from the
+    ledger text when it prefixes the stem, else from an unambiguous name (one
+    separator, letters/digits only); ('', '') when it cannot be recovered."""
+    safe_word = _safe(ledger_word)
+    if ledger_word and stem.startswith(safe_word + LEGACY_SEPARATOR):
+        return ledger_word, stem[len(safe_word) + 1:]
+    word, _separator, provider = stem.partition(LEGACY_SEPARATOR)
+    if stem.count(LEGACY_SEPARATOR) == 1 and word.isalnum() and provider.isalnum():
+        return word, provider
+    return "", ""
+
+
+def migrate_legacy_names() -> int:
+    """Rename legacy ``{word}_{provider}.mp3`` files to the exact
+    ``{word}@{provider}.mp3`` form once (lower-cased word); returns the count."""
+    root = Path(_get_cache_dir())
+    if not root.is_dir():
+        return 0
+    ledger_words = {
+        str(Path(row["path"])): str(row.get("text") or "")
+        for row in audio_resource_ledger.entries()
+        if row.get("kind") == "word"
+    }
+    moved = 0
+    for directory in sorted(entry for entry in root.iterdir() if entry.is_dir()):
+        for path in sorted(directory.glob("*" + AUDIO_SUFFIX)):
+            if WORD_PROVIDER_SEPARATOR in path.stem or path.stat().st_size <= 0:
+                continue
+            word, provider = _legacy_word_provider(path.stem, ledger_words.get(str(path.resolve()), ""))
+            if not word:
+                continue
+            target = directory / _file_name(word, provider)
+            if target.is_file() and target.stat().st_mtime_ns >= path.stat().st_mtime_ns:
+                continue
+            os.replace(path, target)
+            audio_resource_ledger.record("word", directory.name, word, str(target), provider)
+            moved += 1
+    return moved
 
 
 class WordAudioCacheIndex:
     """In-memory index {safe_lang: {safe_word: (mtime_ns, path)}} of the cache.
 
-    Same match semantics as the directory scan (a stem prefix before any
-    ``_`` is a candidate word, newest file wins). A language not loaded yet
-    falls back to the directory scan.
+    Same match semantics as the directory scan (the exact word before the
+    ``@`` separator, newest file wins). A language not loaded yet falls back
+    to the directory scan.
     """
 
     def __init__(self) -> None:
         self._index: Dict[str, Dict[str, Tuple[int, str]]] = {}
+        # Stores for a language ``_install`` has not published into
+        # ``_index`` yet (still being scanned, or not reached yet by the
+        # current ``load_all`` pass). Kept separate so ``_lookup`` keeps
+        # returning None (not-loaded) for that language instead of a
+        # partial live mapping.
+        self._pending: Dict[str, Dict[str, Tuple[int, str]]] = {}
         self._loading = False
+        # Set once ``load_all`` has completed (never reset - it runs once
+        # at boot); a store after this point always goes live immediately.
+        self._load_finished = False
         init_serialized_owner(self, "tts.word_audio_cache_index", "WordAudioCacheIndexState")
 
     @staticmethod
@@ -70,7 +141,8 @@ class WordAudioCacheIndex:
             return newest
         with os.scandir(directory) as entries:
             for entry in entries:
-                if not entry.name.endswith(".mp3") or not entry.is_file():
+                key = _name_word_key(entry.name)
+                if not key or not entry.is_file():
                     continue
                 try:
                     metadata = entry.stat()
@@ -78,10 +150,9 @@ class WordAudioCacheIndex:
                     continue
                 if metadata.st_size <= 0:
                     continue
-                for prefix in _stem_prefixes(entry.name[:-4]):
-                    previous = newest.get(prefix)
-                    if previous is None or metadata.st_mtime_ns > previous[0]:
-                        newest[prefix] = (metadata.st_mtime_ns, entry.path)
+                previous = newest.get(key)
+                if previous is None or metadata.st_mtime_ns > previous[0]:
+                    newest[key] = (metadata.st_mtime_ns, entry.path)
         return newest
 
     @serialized_method
@@ -93,21 +164,39 @@ class WordAudioCacheIndex:
 
     @serialized_method
     def _install(self, safe_lang: str, mapping: Dict[str, Tuple[int, str]]) -> None:
-        current = self._index.get(safe_lang) or {}
-        # Stores that landed during the scan are newer than the scan result.
-        for key, value in current.items():
-            if key not in mapping or value[0] > mapping[key][0]:
-                mapping[key] = value
+        """Publish one language's scan result as the live mapping, merged
+        with any stores ``note_stored`` queued to ``_pending`` while this
+        language was still being scanned (newest wins)."""
+        pending = self._pending.pop(safe_lang, None)
+        if pending:
+            for key, value in pending.items():
+                if key not in mapping or value[0] > mapping[key][0]:
+                    mapping[key] = value
         self._index[safe_lang] = mapping
 
     @serialized_method
     def _finish_load(self) -> None:
+        # A language a store touched but this pass never scanned (its
+        # directory appeared after the boot snapshot) has no other language
+        # id to be installed by; from here on every store goes live directly
+        # (see note_stored), so fold whatever it queued in now.
+        for safe_lang, mapping in self._pending.items():
+            current = self._index.get(safe_lang) or {}
+            for key, value in current.items():
+                if key not in mapping or value[0] > mapping[key][0]:
+                    mapping[key] = value
+            self._index[safe_lang] = mapping
+        self._pending.clear()
         self._loading = False
+        self._load_finished = True
 
     def load_all(self) -> None:
         """Full boot load of every language directory (background thread)."""
         if not self._begin_load():
             return
+        migrated = migrate_legacy_names()
+        if migrated:
+            ColorPrint.cyan(f"[WordAudioCache] renamed {migrated} legacy cache file(s) to exact word names")
         root = Path(_get_cache_dir())
         languages: List[str] = []
         if root.is_dir():
@@ -133,17 +222,30 @@ class WordAudioCacheIndex:
 
     @serialized_method
     def note_stored(self, path: str) -> None:
-        """Keep a loaded language current after a store."""
+        """Keep the index current after a store.
+
+        A language ``_install`` has already published (or any language once
+        ``load_all`` has fully finished - covers a directory created after
+        boot, whose first store starts its live entry) is updated live,
+        lazily creating its mapping. A language still awaiting its turn in
+        the current ``load_all`` pass is NOT: writing into ``_index`` there
+        would make ``_lookup`` treat it as loaded and report every other
+        cached word of that language as a miss instead of falling back to
+        the directory scan. Such a store queues into ``_pending`` instead;
+        ``_install`` merges it in (newest wins) when that language's scan
+        completes, and ``_finish_load`` folds in anything left over.
+        """
         target = Path(path)
         safe_lang = target.parent.name
-        mapping = self._index.get(safe_lang)
-        if mapping is None or not target.name.endswith(".mp3"):
+        key = _name_word_key(target.name)
+        if not key:
             return
         stamp = target.stat().st_mtime_ns if target.is_file() else 0
-        for prefix in _stem_prefixes(target.name[:-4]):
-            previous = mapping.get(prefix)
-            if previous is None or stamp >= previous[0]:
-                mapping[prefix] = (stamp, str(target))
+        live = self._load_finished or safe_lang in self._index
+        mapping = self._index.setdefault(safe_lang, {}) if live else self._pending.setdefault(safe_lang, {})
+        previous = mapping.get(key)
+        if previous is None or stamp >= previous[0]:
+            mapping[key] = (stamp, str(target))
 
     def lookup_many(self, words: Iterable[str], language: str) -> Optional[Dict[str, Path]]:
         """{lowercased word: path} from the index; None when not loaded."""
@@ -151,7 +253,7 @@ class WordAudioCacheIndex:
         for word in words:
             key = str(word or "").strip().lower()
             if key:
-                wanted.setdefault(_safe(key), []).append(key)
+                wanted.setdefault(_word_key(key), []).append(key)
         hits = self._lookup(_safe(language), list(wanted))
         if hits is None:
             return None
@@ -161,7 +263,7 @@ class WordAudioCacheIndex:
 word_audio_cache_index = WordAudioCacheIndex()
 
 
-def save_to_cache(word: str, language: str, provider: str, tmp_path: str) -> None:
+def save_to_cache(word: str, language: str, provider: str, tmp_path: str, md5: str = "") -> None:
     cache_path = get_cache_path(word, language, provider)
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
     try:
@@ -169,7 +271,7 @@ def save_to_cache(word: str, language: str, provider: str, tmp_path: str) -> Non
     except Exception:
         return
     word_audio_cache_index.note_stored(cache_path)
-    audio_resource_ledger.record("word", language, word, cache_path, provider)
+    audio_resource_ledger.record("word", language, word, cache_path, provider, md5=md5)
 
 
 def find_cached(word: str, language: str) -> Path | None:
@@ -193,7 +295,7 @@ def find_cached_many(words, language: str, scan_callback=None, cancel_requested=
     for word in words:
         key = str(word or "").strip().lower()
         if key:
-            wanted.setdefault(_safe(key), []).append(key)
+            wanted.setdefault(_word_key(key), []).append(key)
     if not wanted or not directory.is_dir():
         return {}
     with os.scandir(directory) as entries:
@@ -204,10 +306,8 @@ def find_cached_many(words, language: str, scan_callback=None, cancel_requested=
                     break
                 if scan_callback is not None:
                     scan_callback(scanned)
-            if not entry.name.endswith(".mp3") or not entry.is_file():
-                continue
-            prefixes = [prefix for prefix in _stem_prefixes(entry.name[:-4]) if prefix in wanted]
-            if not prefixes:
+            key = _name_word_key(entry.name)
+            if key not in wanted or not entry.is_file():
                 continue
             try:
                 metadata = entry.stat()
@@ -215,10 +315,9 @@ def find_cached_many(words, language: str, scan_callback=None, cancel_requested=
                 continue
             if metadata.st_size <= 0:
                 continue
-            for prefix in prefixes:
-                previous = newest.get(prefix)
-                if previous is None or metadata.st_mtime_ns > previous[0]:
-                    newest[prefix] = (metadata.st_mtime_ns, Path(entry.path))
+            previous = newest.get(key)
+            if previous is None or metadata.st_mtime_ns > previous[0]:
+                newest[key] = (metadata.st_mtime_ns, Path(entry.path))
     if scan_callback is not None:
         scan_callback(scanned)
     return {

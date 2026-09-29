@@ -44,16 +44,6 @@ $USE_SUDO chmod +x "$SCRIPT_DIR/claude5.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/claude5.sh" /usr/local/bin/claude5
 echo "[LINK] claude5 -> $SCRIPT_DIR/claude5.sh"
 
-# Link claude6
-$USE_SUDO chmod +x "$SCRIPT_DIR/claude6.sh"
-$USE_SUDO ln -sf "$SCRIPT_DIR/claude6.sh" /usr/local/bin/claude6
-echo "[LINK] claude6 -> $SCRIPT_DIR/claude6.sh"
-
-# Link claude9
-$USE_SUDO chmod +x "$SCRIPT_DIR/claude9.sh"
-$USE_SUDO ln -sf "$SCRIPT_DIR/claude9.sh" /usr/local/bin/claude9
-echo "[LINK] claude9 -> $SCRIPT_DIR/claude9.sh"
-
 # Link codex1
 $USE_SUDO chmod +x "$SCRIPT_DIR/codex1.sh"
 $USE_SUDO ln -sf "$SCRIPT_DIR/codex1.sh" /usr/local/bin/codex1
@@ -98,8 +88,6 @@ echo "  claude2"
 echo "  claude3"
 echo "  claude4"
 echo "  claude5"
-echo "  claude6"
-echo "  claude9"
 echo "  codex1"
 echo "  codex2"
 echo "  openai1"

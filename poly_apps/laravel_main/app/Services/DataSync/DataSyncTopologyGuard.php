@@ -20,7 +20,7 @@ final class DataSyncTopologyGuard
                 waitFor: 0
             );
         } catch (LockTimeoutException) {
-            throw new \RuntimeException('Another synchronization topology request is already being processed.');
+            throw new \RuntimeException(__('data_sync.topology_busy'));
         }
     }
 }

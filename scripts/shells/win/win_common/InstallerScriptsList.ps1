@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # DevInstaller manifest (callers: DevInstaller.ps1, InitializationManager.ps1, TestInstaller.ps1).
 # Step scripts live under install_powershells/ and are invoked in numeric sweep order only.
 
@@ -88,6 +76,7 @@ $SCRIPT_STEP60_INSTALL_PARLER = "Step60_InstallParler.ps1"
 $SCRIPT_STEP61_INSTALL_QWEN3TTS = "Step61_InstallQwen3Tts.ps1"
 $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES = "Step62_InstallAndroidSdkPackages.ps1"
 $SCRIPT_STEP63_INSTALL_CODEX_MULTI_DEVICE = "Step63_InstallCodexMultiDevice.ps1"
+$SCRIPT_STEP65_INSTALL_AI_TOOLS = "Step65_InstallAiTools.ps1"
 $SCRIPT_STEP93_INSTALL_FRANKENPHP = "Step93_InstallFrankenPHP.ps1"
 $SCRIPT_STEP94_INSTALL_COMPOSER = "Step94_InstallComposer.ps1"
 $SCRIPT_STEP96_CONFIGURE_PHP85 = "Step96_ConfigurePHP85.ps1"
@@ -157,6 +146,7 @@ $InstallerScriptsMap = @{
     "InstallQwen3Tts" = $SCRIPT_STEP61_INSTALL_QWEN3TTS
     "InstallAndroidSdkPackages" = $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES
     "InstallCodexMultiDevice" = $SCRIPT_STEP63_INSTALL_CODEX_MULTI_DEVICE
+    "InstallAiTools" = $SCRIPT_STEP65_INSTALL_AI_TOOLS
     "InstallFrankenPHP" = $SCRIPT_STEP93_INSTALL_FRANKENPHP
     "InstallComposer" = $SCRIPT_STEP94_INSTALL_COMPOSER
     "ConfigurePHP85" = $SCRIPT_STEP96_CONFIGURE_PHP85
@@ -227,6 +217,7 @@ $InstallerScripts = @(
     $SCRIPT_STEP61_INSTALL_QWEN3TTS,
     $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES,
     $SCRIPT_STEP63_INSTALL_CODEX_MULTI_DEVICE,
+    $SCRIPT_STEP65_INSTALL_AI_TOOLS,
     $SCRIPT_STEP93_INSTALL_FRANKENPHP,
     $SCRIPT_STEP94_INSTALL_COMPOSER,
     $SCRIPT_STEP96_CONFIGURE_PHP85,

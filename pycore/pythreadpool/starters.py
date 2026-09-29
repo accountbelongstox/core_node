@@ -47,6 +47,7 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
     HTTP_API_PREFIX,
+    HTTP_BIND_HOST,
     HTTP_STATUS_PATH,
 )
 
@@ -138,7 +139,7 @@ def start_heartbeat(config: Dict[str, Any]) -> Any:
 def start_rpc_v2(config: Dict[str, Any]) -> Any:
     """Start RPC v2 service (original class)"""
     port = config.get('port', PYCORE_HTTP_PORT)
-    host = config.get('host', '0.0.0.0')
+    host = config.get('host', HTTP_BIND_HOST)
     debug = config.get('debug', False)
 
     # Extract router and static mount configurations
@@ -187,8 +188,8 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
         name="rpc_v2"
     )
 
-    ColorPrint.green(f"[rpc_v2] RPC v2 Server started on {host}:{port}")
-    ColorPrint.blue(f"[rpc_v2] HTTP controllers: http://{host}:{port}{HTTP_API_PREFIX}/<path>")
+    ColorPrint.green(f"[rpc_v2] RPC v2 Server started on {instance.host}:{port}")
+    ColorPrint.blue(f"[rpc_v2] HTTP controllers: http://{instance.host}:{port}{HTTP_API_PREFIX}/<path>")
     ColorPrint.blue(f"[rpc_v2] HTTP events: {'enabled' if enable_http_events else 'disabled'}")
 
     return instance

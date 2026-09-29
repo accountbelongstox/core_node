@@ -1,4 +1,5 @@
 const logger = require('#@logger');
+const { resolveBindHost } = require('#@foundation/common/local_rpc_guard.js');
 const { SERVICE_STARTERS, THREAD_REGISTRY } = require('./registry');
 
 let _restartHandlersRegistered = false;
@@ -71,7 +72,7 @@ function startHeartbeat(config) {
 
 function startRpcV2(config) {
     const port = config.port || 58100;
-    const host = config.host || '0.0.0.0';
+    const host = resolveBindHost(config.host);
     const debug = config.debug || false;
     const fastAPIRouters = config.fastapi_routers || [];
     const staticMounts = config.static_mounts || [];
@@ -86,7 +87,7 @@ function startRpcV2(config) {
     }
 
     try {
-        const rpc = require('#@ncore/utils/rpc');
+        const rpc = require('#@ncore/utils/rpc/index.js');
         const expressServer = rpc.createExpressServer({
             port,
             host,

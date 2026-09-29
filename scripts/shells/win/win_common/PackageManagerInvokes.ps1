@@ -1,22 +1,10 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Package Manager Invocation Functions
 # This script contains all Invoke-*Command functions for various package managers
 # Excluded: Invoke-WingetCommand (remains in CommonFunc.ps1)
 
 # Import required modules
-. "$PSScriptRoot\CommonFunc.ps1"
-. "$PSScriptRoot\PythonRuntimeCommon.ps1"
+. (Join-Path $PSScriptRoot "CommonFunc.ps1")
+. (Join-Path $PSScriptRoot "PythonRuntimeCommon.ps1")
 
 function Test-PipPackagePresentOnDisk {
     param(
@@ -2422,7 +2410,7 @@ function Invoke-ChocoCommand {
         # Chocolatey default installation directories
         $chocoInstallPath = $env:ChocolateyInstall
         if (-not $chocoInstallPath) {
-            $chocoInstallPath = "$env:ProgramData\chocolatey"
+            $chocoInstallPath = Join-Path $env:ProgramData "chocolatey"
         }
         
         # Main chocolatey bin directory
@@ -2647,7 +2635,7 @@ function Invoke-ScoopCommand {
         # Global scoop installation paths
         $globalScoopPath = $env:SCOOP_GLOBAL
         if (-not $globalScoopPath) {
-            $globalScoopPath = "$env:ProgramData\scoop"
+            $globalScoopPath = Join-Path $env:ProgramData "scoop"
         }
         
         if (Test-Path $globalScoopPath) {
@@ -3320,7 +3308,7 @@ function Invoke-GemCommand {
         # Common Windows Ruby installation paths
         $commonRubyPaths = @(
             "C:\Ruby*\bin",
-            "$env:ProgramFiles\Ruby*\bin",
+            (Join-Path $env:ProgramFiles "Ruby*\bin"),
             "${env:ProgramFiles(x86)}\Ruby*\bin"
         )
         
@@ -3926,8 +3914,8 @@ function Invoke-PowerShellCommand {
         "C:\Program Files",
         "C:\Program Files (x86)",
         $env:USERPROFILE,
-        "$env:USERPROFILE\bin",
-        "$env:USERPROFILE\.local\bin"
+        (Join-Path $env:USERPROFILE "bin"),
+        (Join-Path $env:USERPROFILE ".local\bin")
     )
     $searchPaths += $systemPaths
 
@@ -4003,8 +3991,8 @@ function Invoke-PowerShellCommand {
         "C:\Program Files",
         "C:\Program Files (x86)",
         $env:USERPROFILE,
-        "$env:USERPROFILE\bin",
-        "$env:USERPROFILE\.local\bin"
+        (Join-Path $env:USERPROFILE "bin"),
+        (Join-Path $env:USERPROFILE ".local\bin")
     )
     $searchPaths += $systemPaths
     

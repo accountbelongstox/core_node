@@ -1,4 +1,5 @@
-import { BaseAPI, getSharedBaseURL } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { getSharedBaseURL } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 import type { AiChatAttachmentRef, AiChatMessage, AiChatUsageTokens, AiUsageProviderStat } from '../../../../core/contracts/ai';
 
@@ -412,7 +413,7 @@ export interface AiPromptCacheStats {
  * AiManagementAPI module. Prefix is configured in core/api/index.ts as
  * `/api/local/ai`, so method paths are relative to that.
  */
-export class AiManagementAPI extends BaseAPI {
+export class AiManagementAPI extends LmBaseAPI {
   /**
    * Provider catalog — no network call, renders the grid instantly with masked
    * keys / models / tier / limits / cached rate snapshot (tested:false).

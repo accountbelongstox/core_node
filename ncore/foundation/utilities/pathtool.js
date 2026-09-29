@@ -1,20 +1,10 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 'use strict';
 
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+const { LEGACY_LINUX_DATA_DIR } = require('../common/system_paths.js');
+const LEGACY_LINUX_SHARED_DOWNLOADS_DIR = path.join(LEGACY_LINUX_DATA_DIR, 'shared_downloads');
 
 class PathUtil {
 
@@ -47,7 +37,7 @@ class PathUtil {
 
     _getLinuxSharedDownloadDir() {
         const sharedPaths = [
-            '/var/_core_node/shared_downloads',
+            LEGACY_LINUX_SHARED_DOWNLOADS_DIR,
             '/var/tmp/downloads',
             '/opt/downloads'
         ];
@@ -63,9 +53,9 @@ class PathUtil {
             }
         }
 
-        const defaultShared = '/var/_core_node/shared_downloads';
+        const defaultShared = LEGACY_LINUX_SHARED_DOWNLOADS_DIR;
         try {
-            const baseDir = '/var/_core_node';
+            const baseDir = LEGACY_LINUX_DATA_DIR;
             if (!fs.existsSync(baseDir)) {
                 fs.mkdirSync(baseDir, { recursive: true, mode: 0o777 });
                 fs.chmodSync(baseDir, 0o777);
@@ -139,7 +129,7 @@ class PathUtil {
 
     _getLinuxUserDownloadDirs() {
         const dirs = [
-            '/var/_core_node/shared_downloads'
+            LEGACY_LINUX_SHARED_DOWNLOADS_DIR
         ];
 
         try {
@@ -314,6 +304,45 @@ class PathUtil {
             searchDirs: this.getAllUserDownloadDirs(),
             defaultDir: this.ensureSharedDownloadDir()
         };
+    }
+
+    realpathExisting(targetPath) {
+        let current = targetPath;
+        const missing = [];
+
+        while (!fs.existsSync(current)) {
+            const parent = path.dirname(current);
+            if (parent === current) {
+                return null;
+            }
+            missing.unshift(path.basename(current));
+            current = parent;
+        }
+
+        try {
+            return path.join(fs.realpathSync(current), ...missing);
+        } catch (error) {
+            return null;
+        }
+    }
+
+    isInside(rootDir, targetPath) {
+        const relative = path.relative(rootDir, targetPath);
+
+        return relative === '' || (!path.isAbsolute(relative) && relative.split(path.sep)[0] !== '..');
+    }
+
+    resolveInside(rootDir, requestedPath) {
+        let root, target;
+
+        if (!rootDir || typeof requestedPath !== 'string' || requestedPath.includes('\0')) {
+            return null;
+        }
+
+        root = this.realpathExisting(path.resolve(rootDir));
+        target = root ? this.realpathExisting(path.resolve(root, requestedPath.replace(/^[\\/]+/, ''))) : null;
+
+        return target && this.isInside(root, target) ? target : null;
     }
 
 }

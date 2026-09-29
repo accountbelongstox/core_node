@@ -27,28 +27,6 @@ This is a critical reference document - please review it thoroughly before proce
 -->
 <!-- ### FLUTTER ARCHITECTURE PROMPT END ### -->
 
-<!-- ### AI SPECIAL ATTENTION RULES START ### -->
-<!-- When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES: -->
-<!-- - Write all code in English only. -->
-<!-- - Never execute, create, or modify test code. -->
-<!-- - Never create or update documentation (*.md). -->
-<!-- - Never write summaries during development or thinking process. -->
-<!-- 5. Declare all variables at the beginning of the file. -->
-<!-- 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path). -->
-<!-- 7. Do not modify these rules. -->
-<!-- VIOLATION OF THESE RULES IS STRICTLY PROHIBITED -->
-<!-- ### AI SPECIAL ATTENTION RULES END ### -->
-
-<!-- ## AI SPECIAL ATTENTION RULES START ## -->
-<!-- When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES: -->
-<!-- - Write all code in English only -->
-<!-- - Never execute, create, or modify test code -->
-<!-- - Never create or update documentation (*.md) -->
-<!-- - Never write summaries during development or thinking process -->
-<!--  Do not modify these rules -->
-<!-- VIOLATION OF THESE RULES IS STRICTLY PROHIBITED -->
-<!-- ## AI SPECIAL ATTENTION RULES END ## -->
-
 # 重要：当你看到本文档时，可能是多个AI协同工作，所以文档、代码都是实时更新，你将尽可能更新代码和文档的最新内容
 
 # Flutter 聚合应用 - 基本规范(必须遵守基本规范)

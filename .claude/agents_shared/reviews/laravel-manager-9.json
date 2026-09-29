@@ -1,0 +1,11 @@
+{
+  "task_id": "laravel-manager-9",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-027": {"status": "fixed", "reason": "BaseAPI part: setSharedBaseURL no longer calls persistSharedBaseURL (activation and failover only update the registry and dispatch SHARED_BASE_URL_CHANGED_EVENT). ApiManager.switchEndpoint, a verified user switch, is the only caller of persistSharedBaseURL. Together with pycore-manager-4's bridge change, no tab rebinds pycore's worker endpoint on a transient activation."}
+  },
+  "issues": [],
+  "checks": "BaseAPI hunk and doc comment read; grep for persistSharedBaseURL/setSharedBaseURL callers across core, shell, shared and apps.",
+  "checked_at": "2026-09-27T04:30:08+10:00"
+}

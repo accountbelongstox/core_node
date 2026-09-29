@@ -36,6 +36,9 @@ export async function getLicense(): Promise<LicenseState | null> {
 export async function submitSuperCode(code: string): Promise<LicenseState> {
   return unwrap(await sendToBackground({ type: 'license.submitSuperCode', code }));
 }
+export async function getDeviceId(): Promise<string> {
+  return unwrap(await sendToBackground({ type: 'license.deviceId' }));
+}
 export async function loginMember(
   baseUrl: string,
   username: string,

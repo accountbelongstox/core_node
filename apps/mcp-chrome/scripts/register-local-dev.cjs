@@ -8,68 +8,22 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
 const { getExtensionIdFromManifest } = require('./extension-id-calculator.cjs');
 const {
-  HOST_NAME,
   EXTENSION_BUILD_DIR,
+  NATIVE_SERVER_DIST,
   SUPPORTED_BROWSERS,
   getUserManifestPath,
-  getWindowsUserRegistryKey,
+  getSystemManifestPath,
   getRunHostPath,
-  ensureDir,
-  addWindowsRegistryKey,
-  buildAllowedOrigins,
+  registerUserHost,
+  registerSystemHost,
 } = require('./native-host-common.cjs');
 
 const DESCRIPTION = 'Node.js Host for Browser Bridge Extension (Local Development)';
 
 // Project root directory (this script is in apps/mcp-chrome/scripts/)
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const NATIVE_SERVER_DIST = path.join(PROJECT_ROOT, 'app', 'native-server', 'dist');
-
-/**
- * Get native host startup script path
- */
-function getMainPath() {
-  return getRunHostPath(NATIVE_SERVER_DIST);
-}
-
-/**
- * Create manifest content with extension ID from built manifest.json
- * Preserves non-extension origins already present in the target manifest
- * @param {string} manifestPath - Target manifest file being written
- * @param {string} extensionId - Required extension ID (must be provided)
- */
-function createManifestContent(manifestPath, extensionId) {
-  const mainPath = getMainPath();
-
-  // Read existing manifest to preserve other extension IDs if any
-  let existingOrigins = [];
-
-  if (fs.existsSync(manifestPath)) {
-    try {
-      const existing = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-      if (existing.allowed_origins && Array.isArray(existing.allowed_origins)) {
-        // Keep existing origins that are not from this extension
-        existingOrigins = existing.allowed_origins.filter(
-          origin => !origin.includes('chrome-extension://')
-        );
-      }
-    } catch (err) {
-      // If existing manifest is corrupted, we'll overwrite it
-      console.log(`[WARN] Could not read existing manifest: ${err.message}`);
-    }
-  }
-
-  return {
-    name: HOST_NAME,
-    description: DESCRIPTION,
-    path: mainPath,
-    type: 'stdio',
-    allowed_origins: buildAllowedOrigins(existingOrigins, extensionId)
-  };
-}
 
 /**
  * Set execution permissions (Unix/Linux/macOS)
@@ -98,74 +52,6 @@ function setExecutionPermissions() {
 }
 
 /**
- * Fix permissions for system directory (readable by all users)
- */
-function fixSystemPermissions(dirPath) {
-  if (os.platform() === 'win32') {
-    return; // Windows handles permissions differently
-  }
-
-  try {
-    // Set directory and files to be readable by all users (755 for dirs, 644 for files)
-    execSync(`chmod 755 "${dirPath}" 2>/dev/null`, { stdio: 'pipe' });
-    execSync(`chmod 644 "${dirPath}"/*.json 2>/dev/null`, { stdio: 'pipe' });
-    console.log(`[OK] Set permissions for system directory (755/644)`);
-  } catch (err) {
-    console.warn(`[WARN] Failed to set permissions: ${err.message}`);
-  }
-}
-
-/**
- * Register for a browser
- */
-function registerForBrowser(manifestPath, browserName, registryKey = null, extensionId = null) {
-  try {
-    // Ensure directory exists
-    ensureDir(path.dirname(manifestPath));
-
-    // Create manifest with extension ID (extensionId is required)
-    if (!extensionId) {
-      throw new Error(`Extension ID is required for ${browserName} registration`);
-    }
-
-    const manifest = createManifestContent(manifestPath, extensionId);
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-    console.log(`[OK] Manifest written: ${manifestPath}`);
-    console.log(`[OK] Configured extension ID: ${extensionId}`);
-
-    // Fix permissions for system directory
-    fixSystemPermissions(path.dirname(manifestPath));
-
-    // Windows requires HKCU registry entry for user-level native messaging host discovery
-    const effectiveRegistryKey = registryKey || getWindowsUserRegistryKey(browserName.toLowerCase());
-    if (effectiveRegistryKey) {
-      try {
-        addWindowsRegistryKey(effectiveRegistryKey, manifestPath);
-        console.log(`[OK] Registry entry created: ${effectiveRegistryKey}`);
-      } catch (err) {
-        console.warn(`[WARN] Registry entry failed for ${browserName}: ${err.message}`);
-        console.warn(`[HINT] Try running as Administrator if this fails`);
-      }
-    }
-
-    // Write node_path.txt for run_host.bat to find Node.js
-    try {
-      const nodePathFile = path.join(NATIVE_SERVER_DIST, 'node_path.txt');
-      fs.writeFileSync(nodePathFile, process.execPath, 'utf8');
-      console.log(`[OK] Node.js path written: ${process.execPath}`);
-    } catch (err) {
-      console.warn(`[WARN] Failed to write node_path.txt: ${err.message}`);
-    }
-
-    console.log(`[SUCCESS] Successfully registered ${browserName}\n`);
-    return true;
-  } catch (err) {
-    console.error(`[ERROR] Failed to register ${browserName}: ${err.message}\n`);
-    return false;
-  }
-}
-
-/**
  * Main registration function
  */
 function main() {
@@ -186,7 +72,7 @@ function main() {
   }
 
   // Check if run_host script exists
-  const runHostScript = getMainPath();
+  const runHostScript = getRunHostPath(NATIVE_SERVER_DIST);
   if (!fs.existsSync(runHostScript)) {
     console.error(`[ERROR] Error: Run host script not found at ${runHostScript}`);
     console.error('Please build the native server first.\n');
@@ -243,8 +129,21 @@ function main() {
 
   const registrationResults = SUPPORTED_BROWSERS.map(browser => {
     const manifestPath = getUserManifestPath(browser.type);
-    const success = registerForBrowser(manifestPath, browser.displayName, null, extensionId);
-    return { ...browser, manifestPath, success };
+    const success = registerUserHost(browser.type, {
+      extensionId,
+      description: DESCRIPTION,
+      nativeServerDist: NATIVE_SERVER_DIST,
+    });
+    // Also register system-wide (root only; no-op with a warning otherwise)
+    // so the manifest exists at the SAME path start.sh verifies, regardless
+    // of which user's Chrome profile loads the extension.
+    const systemManifestPath = getSystemManifestPath(browser.type);
+    const systemSuccess = registerSystemHost(browser.type, {
+      extensionId,
+      description: DESCRIPTION,
+      nativeServerDist: NATIVE_SERVER_DIST,
+    });
+    return { ...browser, manifestPath, success, systemManifestPath, systemSuccess };
   });
 
   // Summary
@@ -255,8 +154,13 @@ function main() {
   for (const result of registrationResults) {
     console.log(
       result.success
-        ? `[SUCCESS] ${result.displayName}: ${result.manifestPath}`
-        : `[FAILED] ${result.displayName}: Failed`,
+        ? `[SUCCESS] ${result.displayName} (user): ${result.manifestPath}`
+        : `[FAILED] ${result.displayName} (user): Failed`,
+    );
+    console.log(
+      result.systemSuccess
+        ? `[SUCCESS] ${result.displayName} (system): ${result.systemManifestPath}`
+        : `[SKIPPED] ${result.displayName} (system): not root, or failed - see warnings above`,
     );
   }
 

@@ -11,6 +11,7 @@ import {
   type CmAdminContactMessageRow,
   type CmAdminDepositRow,
   type CmAdminDisputeResolution,
+  type CmAdminEscrowRefundResult,
   type CmAdminEscrowRow,
   type CmAdminKycDocument,
   type CmAdminKycRecord,
@@ -176,6 +177,10 @@ export class CmAdminApi extends BaseAPI {
 
   escrows(query: CmAdminQuery): CmAdminListResponse<CmAdminEscrowRow> {
     return this.list<CmAdminEscrowRow>('admin/escrows', query);
+  }
+
+  refundEscrow(escrowId: number, notes: string): Promise<APIResponse<CmAdminEscrowRefundResult>> {
+    return this.post(`admin/escrows/${escrowId}/refund`, { notes: notes || undefined });
   }
 
   resolveDispute(paymentId: number, resolution: CmAdminDisputeResolution, notes: string): Promise<APIResponse<unknown>> {

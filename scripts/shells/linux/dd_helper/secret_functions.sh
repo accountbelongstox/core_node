@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # Secret Functions for dd.sh and standalone launchers.
@@ -27,6 +16,9 @@ fi
 [ -z "${CORE_NODE_DATA_DIR:-}" ] && source "$_DD_HELPER_SECRETS_DIR/../common/runtime_environment.sh"
 source "$_DD_HELPER_SECRETS_DIR/../common/prompt_common.sh"
 source "$_DD_HELPER_SECRETS_DIR/../common/arrow_menu.sh"
+source "$_DD_HELPER_SECRETS_DIR/../common/secret_tool_common.sh"
+source "$_DD_HELPER_SECRETS_DIR/../common/fs_perm_helpers.sh"
+source "$_DD_HELPER_SECRETS_DIR/../common/service_contract_common.sh"
 
 SECRET_ROOT_DIR="$CORE_NODE_ROOT_DIR/.secret_keys"
 SECRET_ENCRYPTED_DIR="$SECRET_ROOT_DIR/already_encrypted"
@@ -46,6 +38,9 @@ SECRET_PASSWORD=""
 SECRET_PENDING_FILES=()
 SECRET_CHANGED_FILES=()
 SECRET_REENCRYPT_FILES=()
+# Shared client key (config/service_contract.json#client_key_auth).
+SECRET_CLIENT_KEY_CONTRACT_NAME="client_key_auth.secret_key_sign_name"
+SECRET_CLIENT_KEY_CONTRACT_BYTES="client_key_auth.key_min_bytes"
 SECRET_MODE_MENU_ITEMS=(
     "Batch mode (Bundle) - Fast, single process"
     "Individual mode (Original) - Multiple processes"
@@ -110,60 +105,6 @@ cleanup_secret_cache() {
 # Helpers
 # =============================================================================
 
-read_secret_input() {
-    local prompt="$1"
-    local password=""
-    local char=""
-    local old_stty=""
-    local tty_device="/dev/tty"
-    local stty_failed=false
-
-    if [ ! -t 0 ] || [ ! -w "$tty_device" ]; then
-        return 1
-    fi
-
-    if ! exec 3<> "$tty_device" 2>/dev/null; then
-        return 1
-    fi
-
-    if ! old_stty=$(stty -g <&3 2>/dev/null); then
-        stty_failed=true
-    fi
-
-    printf "%s" "$prompt" >&3
-
-    if ! stty -echo <&3 2>/dev/null; then
-        stty_failed=true
-    fi
-    while IFS= read -r -n1 char <&3; do
-        if [ -z "$char" ]; then
-            printf "\n" >&3
-            break
-        fi
-        if [[ $char == $'\n' || $char == $'\r' ]]; then
-            printf "\n" >&3
-            break
-        fi
-        if [[ $char == $'\x7f' || $char == $'\b' ]]; then
-            if [ -n "$password" ]; then
-                password="${password%?}"
-                printf "\b \b" >&3
-            fi
-        else
-            password+="$char"
-            printf "*" >&3
-        fi
-    done
-    if [ "$stty_failed" = false ] && [ -n "$old_stty" ]; then
-        stty "$old_stty" <&3 2>/dev/null
-    else
-        stty echo <&3 2>/dev/null
-    fi
-    exec 3>&- 3<&-
-
-    echo "$password"
-}
-
 secret_resolve_node() {
     SECRET_NODE_CMD=""
     if [ -n "${NODE_BIN:-}" ] && [ -x "$NODE_BIN" ]; then
@@ -205,12 +146,12 @@ secret_read_password() {
 
     SECRET_PASSWORD=""
     echo -e "\033[36m[$label] Password input is hidden and shows * for each character.\033[0m"
-    SECRET_PASSWORD="$(read_secret_input "Please enter password: ")" || SECRET_PASSWORD=""
+    secret_read_hidden SECRET_PASSWORD "Please enter password: "
     if [ -z "$SECRET_PASSWORD" ]; then
         echo -e "\033[33m[$label] Unable to capture password or empty password provided. Skipping.\033[0m"
         return 1
     fi
-    password_confirm="$(read_secret_input "Please confirm password: ")" || password_confirm=""
+    secret_read_hidden password_confirm "Please confirm password: "
     if [ "$SECRET_PASSWORD" != "$password_confirm" ]; then
         SECRET_PASSWORD=""
         echo -e "\033[31m[$label] Passwords do not match or unable to capture. Skipping.\033[0m"
@@ -335,7 +276,7 @@ secret_decrypt_accept() {
 
     if [ "$SECRET_USE_BATCH" = true ]; then
         echo -e "\033[36m[BATCH MODE] Bundle: ${SECRET_BUNDLE_FILE##*/} -> $SECRET_RAW_DIR\033[0m"
-        if "$SECRET_NODE_CMD" "$SECRET_BUNDLE_FILE" pwd "$SECRET_PASSWORD" "$SECRET_RAW_DIR"; then
+        if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$SECRET_BUNDLE_FILE" pwd "$SECRET_PASSWORD_ARG" "$SECRET_RAW_DIR"; then
             while IFS= read -r -d '' raw_file; do
                 base_name="${raw_file##*/}"
                 set_decryption_timestamp_cache "$base_name"
@@ -355,13 +296,14 @@ secret_decrypt_accept() {
             echo -e "\033[31m[BATCH MODE] Batch decryption failed (wrong password or corrupted bundle)\033[0m"
         fi
         SECRET_PASSWORD=""
+        repair_private_tree "$SECRET_ROOT_DIR" || true
         return 0
     fi
 
     for enc_file in "${SECRET_PENDING_FILES[@]}"; do
         file_name="${enc_file##*/}"
         echo -e "\033[36m[SECRETS] Decrypting: $file_name\033[0m"
-        if "$SECRET_NODE_CMD" "$enc_file" pwd "$SECRET_PASSWORD" "$SECRET_RAW_DIR"; then
+        if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$enc_file" pwd "$SECRET_PASSWORD_ARG" "$SECRET_RAW_DIR"; then
             success_count=$((success_count + 1))
             base_name="${file_name%.js}"
             base_name="${base_name%.JS}"
@@ -374,6 +316,7 @@ secret_decrypt_accept() {
         fi
     done
     SECRET_PASSWORD=""
+    repair_private_tree "$SECRET_ROOT_DIR" || true
     echo -e "\033[36m[SECRETS] Decryption summary: ${#SECRET_PENDING_FILES[@]} total, $success_count successful, $((${#SECRET_PENDING_FILES[@]} - success_count)) failed\033[0m"
 }
 
@@ -422,7 +365,7 @@ secret_reencrypt_accept() {
         raw_file="$SECRET_RAW_DIR/$base_name"
         if [ "$SECRET_USE_BATCH" = true ]; then
             echo -e "\033[36m[BATCH MODE]   Processing: $base_name\033[0m"
-            if "$SECRET_NODE_CMD" "$SECRET_ENCRYPTION_TOOLS_DIR/bundle_add_file.js" "$SECRET_BUNDLE_FILE" "$raw_file" "$SECRET_PASSWORD" --replace 2>&1 | grep -q "SUCCESS"; then
+            if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$SECRET_ENCRYPTION_TOOLS_DIR/bundle_add_file.js" "$SECRET_BUNDLE_FILE" "$raw_file" "$SECRET_PASSWORD_ARG" --replace 2>&1 | grep -q "SUCCESS"; then
                 success_count=$((success_count + 1))
                 echo -e "\033[32m[BATCH MODE]     SUCCESS\033[0m"
             else
@@ -432,7 +375,7 @@ secret_reencrypt_accept() {
         fi
         enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
         echo -e "\033[36m[INDIVIDUAL MODE]   Processing: $base_name\033[0m"
-        if "$SECRET_NODE_CMD" "$SECRET_DISGUISE_JS" "$raw_file" "$SECRET_PASSWORD" "$SECRET_ENCRYPTED_DIR" >/dev/null 2>&1 && [ -f "$enc_file" ]; then
+        if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$SECRET_DISGUISE_JS" "$raw_file" "$SECRET_PASSWORD_ARG" "$SECRET_ENCRYPTED_DIR" >/dev/null 2>&1 && [ -f "$enc_file" ]; then
             success_count=$((success_count + 1))
             touch -r "$enc_file" "$raw_file" 2>/dev/null || true
             set_encrypted_content_hash_cache "$base_name" "$enc_file"
@@ -442,11 +385,48 @@ secret_reencrypt_accept() {
         fi
     done
     SECRET_PASSWORD=""
+    repair_private_tree "$SECRET_ROOT_DIR" || true
     echo -e "\033[36m[RE-ENCRYPT] Summary: ${#SECRET_REENCRYPT_FILES[@]} total, $success_count successful, $((${#SECRET_REENCRYPT_FILES[@]} - success_count)) failed\033[0m"
 }
 
 secret_reencrypt_decline() {
     echo -e "\033[33m[RE-ENCRYPT] Skipped; files remain out of sync\033[0m"
+}
+
+# Shared client key: generated only when no raw file, no encrypted copy and no
+# bundle entry exists; the re-encrypt prompt then encrypts it. An encrypted
+# copy is restored by the decrypt flow instead. The value is never printed.
+secret_ensure_client_key() {
+    local key_name=""
+    local key_bytes=""
+    local bundle_file=""
+    local tmp_file=""
+
+    key_name="$(sc_get "$SECRET_CLIENT_KEY_CONTRACT_NAME")"
+    key_bytes="$(sc_get "$SECRET_CLIENT_KEY_CONTRACT_BYTES")"
+    if [ -z "$key_name" ] || [ -z "$key_bytes" ]; then
+        echo -e "\033[31m[SECRETS] Client key contract unreadable ($SERVICE_CONTRACT_FILE: $SECRET_CLIENT_KEY_CONTRACT_NAME, $SECRET_CLIENT_KEY_CONTRACT_BYTES)\033[0m"
+        return 0
+    fi
+    [ -s "$SECRET_RAW_DIR/$key_name" ] && return 0
+    [ -e "$SECRET_ENCRYPTED_DIR/$key_name.js" ] && return 0
+    [ -e "$SECRET_ENCRYPTED_DIR/$key_name.JS" ] && return 0
+    for bundle_file in "$SECRET_BATCH_ENCRYPTED_DIR"/*.js; do
+        [ -f "$bundle_file" ] || continue
+        grep -qF "\"filename\": \"$key_name\"" "$bundle_file" && return 0
+    done
+
+    tmp_file="$(mktemp "$SECRET_RAW_DIR/.$key_name.XXXXXX")" || return 0
+    head -c "$key_bytes" /dev/urandom | base64 -w 0 | tr '+/' '-_' | tr -d '=' > "$tmp_file"
+    if [ ! -s "$tmp_file" ]; then
+        rm -f "$tmp_file"
+        echo -e "\033[31m[SECRETS] Failed to generate $key_name in $SECRET_RAW_DIR\033[0m"
+        return 0
+    fi
+    chmod 600 "$tmp_file"
+    mv -f "$tmp_file" "$SECRET_RAW_DIR/$key_name"
+    repair_private_tree "$SECRET_ROOT_DIR" || true
+    echo -e "\033[33m[SECRETS] Generated $key_name ($SECRET_RAW_DIR); encrypt it now and sync the encrypted copy to every host\033[0m"
 }
 
 # =============================================================================
@@ -462,7 +442,7 @@ ensure_secret_keys_ready() {
         return 0
     fi
     cleanup_secret_cache
-    if [ ! -d "$SECRET_RAW_DIR" ] && ! mkdir -p "$SECRET_RAW_DIR" 2>/dev/null; then
+    if [ ! -d "$SECRET_RAW_DIR" ] && ! mkdir -p -m 700 "$SECRET_RAW_DIR" 2>/dev/null; then
         echo -e "\033[31m[SECRETS] Failed to create decrypted secrets directory: $SECRET_RAW_DIR\033[0m"
         return 1
     fi
@@ -486,6 +466,7 @@ ensure_secret_keys_ready() {
         echo -e "\033[32m[SECRETS] Decrypted secret files are up to date\033[0m"
     fi
 
+    secret_ensure_client_key
     secret_scan_reencrypt_state
     if [ "${#SECRET_REENCRYPT_FILES[@]}" -gt 0 ]; then
         echo -e "\033[33m[SECRETS] ${#SECRET_REENCRYPT_FILES[@]} file(s) need re-encryption:\033[0m"

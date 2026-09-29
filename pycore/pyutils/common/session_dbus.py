@@ -68,6 +68,10 @@ def call_method(
         reply = connection.send_and_get_reply(message, timeout=timeout)
     except TimeoutError:
         return DBusReply(False, error_name=DBUS_ERROR_TIMEOUT)
+    except OSError:
+        # Broken transport (the session bus restarted): callers drop and
+        # reopen their connection on this error.
+        return DBusReply(False, error_name=DBUS_ERROR_BUS_UNAVAILABLE)
     if reply.header.message_type == jeepney.MessageType.error:
         error_name = str(reply.header.fields.get(jeepney.HeaderFields.error_name, ""))
         error_message = str(reply.body[0]) if reply.body else ""
@@ -113,12 +117,24 @@ def name_has_owner(name: str) -> bool:
     return bool(reply.value(0, False))
 
 
-def add_match(connection: Any, rule: Any) -> DBusReply:
-    message = jeepney_bus_messages.message_bus.AddMatch(rule)
-    reply = connection.send_and_get_reply(message, timeout=DEFAULT_CALL_TIMEOUT_SECONDS)
+def _bus_rule_call(connection: Any, message: Any) -> DBusReply:
+    try:
+        reply = connection.send_and_get_reply(message, timeout=DEFAULT_CALL_TIMEOUT_SECONDS)
+    except TimeoutError:
+        return DBusReply(False, error_name=DBUS_ERROR_TIMEOUT)
+    except OSError:
+        return DBusReply(False, error_name=DBUS_ERROR_BUS_UNAVAILABLE)
     if reply.header.message_type == jeepney.MessageType.error:
         return DBusReply(False, error_name=str(reply.header.fields.get(jeepney.HeaderFields.error_name, "")))
     return DBusReply(True)
+
+
+def add_match(connection: Any, rule: Any) -> DBusReply:
+    return _bus_rule_call(connection, jeepney_bus_messages.message_bus.AddMatch(rule))
+
+
+def remove_match(connection: Any, rule: Any) -> DBusReply:
+    return _bus_rule_call(connection, jeepney_bus_messages.message_bus.RemoveMatch(rule))
 
 
 def unique_name(connection: Any) -> str:
@@ -133,6 +149,7 @@ __all__ = [
     "DBUS_ERROR_UNKNOWN_METHOD",
     "DBusReply",
     "add_match",
+    "remove_match",
     "call_method",
     "call_session_method",
     "name_has_owner",

@@ -26,10 +26,15 @@ from pycore.pyfoundations.network_constants import (
     HTTP_STATUS_PATH,
     PYCORE_HTTP_PORT,
 )
+from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 from pycore.pyutils.rpc_v2.dispatcher import HttpRoute
 from pycore.pyutils.rpc_v2.execution import rpc_execution_kernel
 from pycore.pyutils.rpc_v2.http.event_service import HttpEventService
+from pycore.pyutils.rpc_v2.http.local_rpc_middleware import (
+    LOCAL_RPC_ORIGIN_SCOPE_KEY,
+    LocalRpcGuardMiddleware,
+)
 
 
 fastapi = get_third_package_fastapi()
@@ -79,9 +84,12 @@ class _HttpProtocolMiddleware:
 
         async def send_with_protocol(message: Dict[str, Any]) -> None:
             if message.get("type") == "http.response.start":
-                headers = list(message.get("headers") or [])
-                headers.append((b"access-control-allow-private-network", b"true"))
-                message["headers"] = headers
+                # Private Network Access only for an allowed dashboard origin
+                # (set by LocalRpcGuardMiddleware); never for foreign origins.
+                if scope.get(LOCAL_RPC_ORIGIN_SCOPE_KEY):
+                    headers = list(message.get("headers") or [])
+                    headers.append((b"access-control-allow-private-network", b"true"))
+                    message["headers"] = headers
                 self.log_response(scope, int(message.get("status") or 0))
             await send(message)
 
@@ -93,10 +101,12 @@ class HttpServer:
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         server_options = options or {}
-        self.host = str(server_options.get("host", HTTP_BIND_HOST))
+        # K7: loopback bind unless the LAN bind setting admits the host;
+        # browser origins come from the service contract (never "*").
+        self.host = resolve_bind_host(str(server_options.get("host", HTTP_BIND_HOST)))
         self.port = int(server_options.get("port", PYCORE_HTTP_PORT))
         self.debug = bool(server_options.get("debug", False))
-        self.allow_origins = list(server_options.get("allow_origins", ["*"]))
+        self.allow_origins = allowed_origins(server_options.get("allowed_origin_ports", ()))
         self.http_events_enabled = bool(server_options.get("enable_http_events", True))
         self.http_keep_alive_timeout = max(
             1.0,
@@ -112,12 +122,13 @@ class HttpServer:
         )
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=self.allow_origins,
+            allow_origins=sorted(self.allow_origins),
             allow_methods=["*"],
             allow_headers=["*"],
-            allow_credentials=True,
+            allow_credentials=False,
         )
         self.app.add_middleware(_HttpProtocolMiddleware)
+        self.app.add_middleware(LocalRpcGuardMiddleware, origins=self.allow_origins)
         self.dispatcher = rpc_execution_kernel.dispatcher
         self.event_service = (
             HttpEventService(

@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
+use App\Apps\McpV1\McpV1Models\McpV1PlaceholderImageModel;
 
 return new class extends Migration
 {
@@ -13,31 +14,10 @@ return new class extends Migration
 
     public function up(): void
     {
-        $tableStructure = [
-            'columns' => [
-                'id' => ['type' => 'bigIncrements'],
-                'uuid' => ['type' => 'string', 'length' => 36, 'nullable' => false, 'unique' => true, 'index' => true],
-                'filename' => ['type' => 'string', 'nullable' => false],
-                'width' => ['type' => 'integer', 'nullable' => false],
-                'height' => ['type' => 'integer', 'nullable' => false],
-                'text' => ['type' => 'text', 'nullable' => true],
-                'type' => ['type' => 'string', 'length' => 50, 'nullable' => false, 'default' => 'simple'],
-                'file_path' => ['type' => 'string', 'nullable' => false],
-                'file_size' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
-                'downloaded' => ['type' => 'boolean', 'nullable' => false, 'default' => false],
-                'downloaded_at' => ['type' => 'timestamp', 'nullable' => true],
-                'created_at' => ['type' => 'timestamp', 'nullable' => true],
-                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
-            ],
-            'indexes' => [
-                ['columns' => ['downloaded', 'created_at']],
-            ],
-        ];
-        
         SafeMigrationHelper::alignTableStructureFromArray(
             $this->connection,
             $this->tableName,
-            $tableStructure,
+            McpV1PlaceholderImageModel::tableStructure(),
             [
                 'shrink_columns' => false,
                 'modify_columns' => true,

@@ -80,7 +80,6 @@ class BusSignals:
     # Commands
     TRAY_UPDATE_MENU = "ui.tray.update_menu"
     TRAY_UPDATE_ICON = "ui.tray.update_icon"
-    TRAY_SHOW_MESSAGE = "ui.tray.show_message"
     TRAY_STOP = "ui.tray.stop"
 
     # Startup window signals
@@ -125,6 +124,8 @@ class BusSignals:
     VOICE_SUBTITLE_UI_SHOW = "voice_subtitle_ui_show"
     VOICE_SUBTITLE_UPDATE = "voice_subtitle_update"
     VOICE_SUBTITLE_UI_WINDOW_VISIBLE = "voice_subtitle_ui.window_visible"
+    VOICE_SUBTITLE_MODE_ENTER = "voice_subtitle.subtitle_mode_enter"
+    VOICE_SUBTITLE_MODE_EXIT = "voice_subtitle.subtitle_mode_exit"
 
     # TTS availability signals
     TTS_CHATTTS_AVAILABLE = "pyutils.tts.chattts.available"
@@ -144,6 +145,7 @@ class BusSignals:
     # System tray signals
     TRAY_CODESYNC_STATE = "tray.codesync.state"
     TRAY_MENU_PAYLOAD = "tray.menu.payload"
+    TRAY_SHOW_NOTIFICATION = "tray.show_notification"
 
 
 # ============================================================

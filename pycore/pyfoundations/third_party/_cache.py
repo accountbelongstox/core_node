@@ -10,7 +10,7 @@ import importlib
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyfoundations.third_party._deps import DEPENDENCY_MAP, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES
+from pycore.pyfoundations.third_party._deps import DEPENDENCY_MAP, LINUX_ONLY_PACKAGES, OPTIONAL_PACKAGES, WINDOWS_ONLY_PACKAGES
 from pycore.pyfoundations.third_party._hf_helpers import get_third_package_cnocr
 from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
 from pycore.pyfoundations.third_party._pip_runner import build_pip_install_command, run_pip_install_with_realtime_output
@@ -45,6 +45,8 @@ def _lazy_import(package_name: str, import_statement: str):
                 pip_package = OPTIONAL_PACKAGES[package_name]
             elif package_name in WINDOWS_ONLY_PACKAGES:
                 pip_package = WINDOWS_ONLY_PACKAGES[package_name]
+            elif package_name in LINUX_ONLY_PACKAGES:
+                pip_package = LINUX_ONLY_PACKAGES[package_name]
 
             if pip_package:
                 ColorPrint.yellow(f"[INSTALL] Package '{package_name}' not found. Installing '{pip_package}'...")

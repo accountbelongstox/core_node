@@ -4,13 +4,17 @@ import { Bell, LogOut, Menu, ShieldCheck, X } from 'lucide-react';
 import { useTranslation } from '../../core/i18n/UiI18n';
 import { cmCanOpenPage, cmIsApplyEntry } from './auth/cmPageAccess';
 import { useCmSignOut } from './auth/useCmSignOut';
+import { CmBootstrapRefreshNotice } from './components/access/CmBootstrapRefreshNotice';
 import { CmBrand } from './components/CmBrand';
 import { CmChromeControls } from './components/CmChromeControls';
+import { CmIcon } from './components/CmImage';
+import { CM_ADMIN_ROUTE, CM_PROTECTED_ROUTE, CM_PUBLIC_ROUTE, cmWorkspacePath } from './components/public-home/cmPublicRoutes';
 import { useCmBootstrap } from './contexts/CmBootstrapContext';
 import { CM_PAGES, type CmPageDef } from './cmPages';
 
 const NOTIFICATIONS_PAGE_ID = 'notifications';
 const MAX_BADGE_COUNT = 99;
+const NAV_ICON_SIZE = 20;
 
 const linkClassName = ({ isActive }: { isActive: boolean }): string => (
   `cm-workspace-nav__link ${isActive ? 'is-active' : ''}`
@@ -40,7 +44,7 @@ export const CmLayout: React.FC = () => {
 
   const bellLink = hasCapability('notification.read') ? (
     <Link
-      to="/codemart/notifications"
+      to={CM_PROTECTED_ROUTE.notifications}
       className="cm-topbar-bell"
       aria-label={t('notifications.unreadCount', { count: unreadCount })}
     >
@@ -54,15 +58,14 @@ export const CmLayout: React.FC = () => {
   const primaryPages = visiblePages.filter((page) => page.group === 'primary');
   const accountPages = visiblePages.filter((page) => page.group === 'account');
   const renderLink = (page: CmPageDef): React.ReactElement => {
-    const Icon = page.Icon;
     return (
       <NavLink
         key={page.id}
-        to={`/codemart/${page.path}`}
+        to={cmWorkspacePath(page.path)}
         className={linkClassName}
         onClick={() => setMenuOpen(false)}
       >
-        <Icon aria-hidden="true" />
+        <CmIcon name={page.icon} size={NAV_ICON_SIZE} decorative />
         <span>{t(isApplyEntry(page) && page.applyLabelKey ? page.applyLabelKey : page.labelKey)}</span>
         {page.id === NOTIFICATIONS_PAGE_ID && unreadCount > 0 && (
           <span className="cm-nav-badge" aria-label={t('notifications.unreadCount', { count: unreadCount })}>
@@ -76,7 +79,7 @@ export const CmLayout: React.FC = () => {
   return (
     <div className="cm-workspace" data-end="codemart">
       <header className="cm-workspace-mobile-header">
-        <Link to="/codemart"><CmBrand compact /></Link>
+        <Link to={CM_PUBLIC_ROUTE.home}><CmBrand compact /></Link>
         <div className="cm-workspace-mobile-header__controls">
           {bellLink}
           <CmChromeControls />
@@ -92,14 +95,14 @@ export const CmLayout: React.FC = () => {
       </header>
       {menuOpen && <button type="button" className="cm-workspace-backdrop" aria-label={t('common.closeMenu')} onClick={() => setMenuOpen(false)} />}
       <aside className={`cm-workspace-sidebar ${menuOpen ? 'is-open' : ''}`}>
-        <Link to="/codemart" className="cm-workspace-sidebar__brand" onClick={() => setMenuOpen(false)}>
+        <Link to={CM_PUBLIC_ROUTE.home} className="cm-workspace-sidebar__brand" onClick={() => setMenuOpen(false)}>
           <CmBrand />
         </Link>
         <nav className="cm-workspace-nav" aria-label={t('workspace.navLabel')}>
           <div>{primaryPages.map(renderLink)}</div>
           <div className="cm-workspace-nav__account">
             {bootstrap?.is_admin && (
-              <NavLink to="/codemart/admin" className={linkClassName} onClick={() => setMenuOpen(false)}>
+              <NavLink to={CM_ADMIN_ROUTE.home} className={linkClassName} onClick={() => setMenuOpen(false)}>
                 <ShieldCheck aria-hidden="true" />
                 <span>{t('admin.badge')}</span>
               </NavLink>
@@ -120,6 +123,7 @@ export const CmLayout: React.FC = () => {
           {bellLink}
           <CmChromeControls />
         </div>
+        <CmBootstrapRefreshNotice />
         <Outlet />
       </div>
     </div>

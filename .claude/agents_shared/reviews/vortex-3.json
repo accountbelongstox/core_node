@@ -1,0 +1,11 @@
+{
+  "task_id": "vortex-3",
+  "role": "vortex",
+  "verdict": "approved",
+  "findings": {
+    "FU-042": {"status": "fixed", "reason": "vortex part: the inline VORTEX_I18N and L(lang) dictionaries are removed. VortexApp and the three OKX panels use useTranslation('vx') with en/zh bundles (zh typed by VxTranslationDict), registered once at module level like codemart. Toasts, titles, the English-only trade toasts and the language-switch toast (t with lng) use keys. The trade time is written as Date.now() and rendered with i18n.language, and legacy string entries render as stored (closes the vortex-1 note). The language buttons come from SHELL_LANGUAGES filtered to the shipped bundles. A heuristic scan of the four files finds no remaining English UI literals; USDT and the BTC placeholder are data/code, as the owner stated."}
+  },
+  "issues": [],
+  "checks": "git diff read; shell/shell-i18n.ts is a one-line EndNamespace change, assigned in requirements section 6 (line 122) to vortex; the useShell lang/setLang source is checked; the owner's tsc --noEmit is clean for apps/vortex and shell/; line endings are preserved.",
+  "checked_at": "2026-09-27T04:12:49+10:00"
+}

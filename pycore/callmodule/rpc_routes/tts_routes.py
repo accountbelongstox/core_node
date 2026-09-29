@@ -67,7 +67,7 @@ def synthesize_speech(params: Dict[str, Any]) -> Dict[str, Any]:
 
     tmp_path: Optional[Path] = None
     try:
-        # Temp-file convention mirrors word_audio_service.edge_synth: the
+        # Temp-file convention: the
         # orchestrator writes to a path; sentence_audio_cache stores its own
         # copy of the bytes, so the temp file is safe to delete afterwards.
         with tempfile.NamedTemporaryFile(

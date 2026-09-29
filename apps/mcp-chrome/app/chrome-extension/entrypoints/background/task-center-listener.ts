@@ -35,6 +35,8 @@ import type { AiWebProvider } from './tools/browser/ai-web-common';
 import { STORAGE_KEYS, UI_STORAGE_PREFIX } from '@/utils/storage-keys';
 import { AsyncOperationController } from '@/utils/async';
 import { apiManager, ensureApiManagerReady, getApiBase, resolveApiBase } from '@/services/ApiManager';
+import { getMessage } from '@/utils/i18n';
+import { unknownActionResponse } from '@/utils/runtime-message';
 
 interface PersistedTaskCenterRuntime {
   running: boolean;
@@ -366,7 +368,7 @@ async function runStopAction(sendResponse: (response: any) => void): Promise<voi
   lastStartConfig = null;
   sendResponse({
     success: true,
-    message: 'Task Center stopped',
+    message: getMessage('taskCenterStoppedStatus'),
     status: await buildFullStatus(),
   });
 }
@@ -392,7 +394,7 @@ async function handleValidityTestMessage(
           .map((word) => ({ word }))
       : [];
     if (words.length === 0) {
-      sendResponse({ success: false, error: 'Enter at least one word' });
+      sendResponse({ success: false, error: getMessage('enterAtLeastOneWord') });
       return;
     }
     const result = await runWordValidityClassification(
@@ -466,49 +468,49 @@ async function handleTaskCenterMessage(
 
       case 'enable_processor': {
         if (!message.processorType) {
-          sendResponse({ success: false, error: 'Processor type is required' });
+          sendResponse({ success: false, error: getMessage('processorTypeRequired') });
           return;
         }
         taskCenter.enableProcessor(message.processorType);
-        sendResponse({ success: true, message: `Processor ${message.processorType} enabled` });
+        sendResponse({ success: true, message: getMessage('processorEnabledStatus', [message.processorType]) });
         break;
       }
 
       case 'disable_processor': {
         if (!message.processorType) {
-          sendResponse({ success: false, error: 'Processor type is required' });
+          sendResponse({ success: false, error: getMessage('processorTypeRequired') });
           return;
         }
         taskCenter.disableProcessor(message.processorType);
-        sendResponse({ success: true, message: `Processor ${message.processorType} disabled` });
+        sendResponse({ success: true, message: getMessage('processorDisabledStatus', [message.processorType]) });
         break;
       }
 
       case 'start_processor': {
         if (!message.processorType) {
-          sendResponse({ success: false, error: 'Processor type is required' });
+          sendResponse({ success: false, error: getMessage('processorTypeRequired') });
           return;
         }
         await taskCenter.startProcessor(message.processorType, {
           ...(message.config || {}),
           apiUrl: await resolveApiBase(),
         });
-        sendResponse({ success: true, message: `Processor ${message.processorType} started` });
+        sendResponse({ success: true, message: getMessage('processorStartedStatus', [message.processorType]) });
         break;
       }
 
       case 'stop_processor': {
         if (!message.processorType) {
-          sendResponse({ success: false, error: 'Processor type is required' });
+          sendResponse({ success: false, error: getMessage('processorTypeRequired') });
           return;
         }
         taskCenter.stopProcessor(message.processorType);
-        sendResponse({ success: true, message: `Processor ${message.processorType} stopped` });
+        sendResponse({ success: true, message: getMessage('processorStoppedStatus', [message.processorType]) });
         break;
       }
 
       default: {
-        sendResponse({ success: false, error: `Unknown action: ${message.action}` });
+        sendResponse(unknownActionResponse(message.action));
       }
     }
   } catch (error: any) {
@@ -579,7 +581,7 @@ async function handleStart(
 
     if (startEpoch !== runtimeEpoch) {
       taskCenter.stopAll();
-      sendResponse({ success: false, error: 'Start superseded by Stop' });
+      sendResponse({ success: false, error: getMessage('startSupersededByStop') });
       return;
     }
   } catch (error) {
@@ -591,7 +593,7 @@ async function handleStart(
   // resurrecting a running state the user already cancelled (d.txt 6.2.2).
   if (startEpoch !== runtimeEpoch) {
     taskCenter.stopAll();
-    sendResponse({ success: false, error: 'Start superseded by Stop' });
+    sendResponse({ success: false, error: getMessage('startSupersededByStop') });
     return;
   }
 
@@ -602,7 +604,7 @@ async function handleStart(
 
   sendResponse({
     success: true,
-    message: 'Task Center started',
+    message: getMessage('taskCenterStartedStatus'),
     status: await buildFullStatus(),
   });
 }
@@ -656,7 +658,7 @@ async function handleSetCapability(
   sendResponse: (response: any) => void,
 ) {
   if (!capability || !(capability in CAPABILITY_BY_KEY)) {
-    sendResponse({ success: false, error: `Unknown capability: ${capability}` });
+    sendResponse({ success: false, error: getMessage('unknownCapabilityError', [String(capability)]) });
     return;
   }
   const capEpoch = runtimeEpoch;
@@ -714,7 +716,7 @@ async function handleSetCapability(
     await taskCenter.syncProcessors(enabledProcessors, nextConfig);
     if (capEpoch !== runtimeEpoch) {
       taskCenter.stopAll();
-      sendResponse({ success: false, error: 'Capability change superseded by Stop' });
+      sendResponse({ success: false, error: getMessage('capabilityChangeSupersededByStop') });
       return;
     }
   } catch (error: any) {
@@ -741,7 +743,7 @@ async function handleSetCapability(
   // A Stop landed mid-toggle — do not resurrect run-intent (d.txt 6.2.2).
   if (capEpoch !== runtimeEpoch) {
     taskCenter.stopAll();
-    sendResponse({ success: false, error: 'Capability change superseded by Stop' });
+    sendResponse({ success: false, error: getMessage('capabilityChangeSupersededByStop') });
     return;
   }
 

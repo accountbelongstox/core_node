@@ -23,6 +23,7 @@ import { initTaskCenterListener, restoreTaskCenterRuntime } from './task-center-
 import { setupAudioStatusListener } from './tools/audio';
 import { initWebSearchListener } from './web-search-listener';
 import { initBackendTimeoutCache } from '@/utils/backend-timeout';
+import { followUserLocale } from '@/utils/i18n';
 import { cleanupModelCache } from '@/utils/semantic-similarity-engine';
 import { logger } from '@/utils/logger';
 
@@ -32,6 +33,7 @@ interface BackgroundService {
 }
 
 const CORE_SERVICES: BackgroundService[] = [
+  { name: 'user-locale', initialize: () => void followUserLocale() },
   { name: 'native-host', initialize: initNativeHostListener },
   { name: 'build-reload', initialize: initBuildReloadWatcher },
   { name: 'semantic-similarity', initialize: initSemanticSimilarityListener },

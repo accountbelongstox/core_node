@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY FORBIDDEN
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Cursor Agent Post-Installation Processor
 # Official verification is `agent --version` (https://cursor.com/docs/cli/installation).
 # Cursor install never skips agent detection; agent detection never skips PATH refresh.
@@ -205,7 +193,7 @@ function Invoke-CursorAgentPostInstallProcessor {
         Write-Host "$LogPrefix Agent CLI in PATH but version check failed (broken); will attempt repair." -ForegroundColor Yellow
     }
     if (-not $runtimeIntact -and $agentPresentBefore -and -not $agentBroken) {
-        Write-Host "$LogPrefix Note: legacy cursor-agent\versions\index.js not found; agent CLI version OK — skipping reinstall (idempotent)." -ForegroundColor Cyan
+        Write-Host "$LogPrefix Note: legacy cursor-agent\versions\index.js not found; agent CLI version OK - skipping reinstall (idempotent)." -ForegroundColor Cyan
     }
     if ($agentNeedInstall) {
         Write-Host "$LogPrefix Installing Cursor agent CLI (cursor + agent command)..." -ForegroundColor Cyan

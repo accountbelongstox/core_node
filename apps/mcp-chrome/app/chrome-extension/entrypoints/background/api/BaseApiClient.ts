@@ -5,7 +5,8 @@
  */
 
 import { getCachedBackendTimeoutMs } from '@/utils/backend-timeout';
-import { delay as wait, fetchWithTimeout } from '@/utils/async';
+import { delay as wait } from '@/utils/async';
+import { laravelFetch } from '@/services/LaravelTransport';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -76,16 +77,17 @@ export abstract class BaseApiClient {
 
     const url = `${this.baseUrl}${endpoint}`;
     const requestHeaders = { ...this.defaultHeaders, ...headers };
+    const requestBody = body ? JSON.stringify(body) : undefined;
 
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const response = await fetchWithTimeout(url, timeout, {
+        const response = await laravelFetch(url, {
           method,
           headers: requestHeaders,
-          body: body ? JSON.stringify(body) : undefined,
-        });
+          body: requestBody,
+        }, timeout);
 
         const data = await response.json().catch(() => null);
 

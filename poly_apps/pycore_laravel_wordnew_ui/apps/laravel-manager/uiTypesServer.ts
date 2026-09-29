@@ -85,7 +85,7 @@ export interface FrankenPhpStatusOverview {
 export interface NginxSiteCreateRequest {
   site_name: string;
   domain: string;
-  site_type: 'laravel' | 'static' | 'proxy' | 'swoole';
+  site_type: 'laravel' | 'static' | 'proxy';
   config?: {
     www_dir: string;
     php_version?: string;

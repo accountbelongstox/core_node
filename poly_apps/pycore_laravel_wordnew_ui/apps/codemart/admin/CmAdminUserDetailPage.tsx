@@ -1,40 +1,40 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
+import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
+import { CmErrorState, CmLoadingState, CmNotice } from '../components/workspace/CmStateViews';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
 import { CmAdminKycDocumentViewer } from './CmAdminPages';
 import {
   CmAdminActivityTable,
   CmAdminDate,
   CmAdminMoney,
-  CmAdminNotice,
-  CmAdminPageHeader,
-  CmAdminStatus,
   CmAdminTable,
   useCmAdminAction,
 } from './CmAdminShared';
 import {
-  CM_ADMIN_GRANT_STATUSES,
-  CM_ADMIN_ROLE_REASON_REQUIRED,
-  CM_ADMIN_ROLE_TYPES,
   type CmAdminUserDetail,
   type CmAdminUserRole,
 } from './CmAdminTypes';
 
-const ADMIN_USERS_PATH = '/codemart/admin/users';
-const ADMIN_ACTIVITY_PATH = '/codemart/admin/activity';
-
 export const CmAdminUserDetailPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const { userId } = useParams();
+  const { roles, stateRule } = useCmBootstrap();
   const numericId = Number(userId);
   const [detail, setDetail] = useState<CmAdminUserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [grantRole, setGrantRole] = useState('');
-  const [grantStatus, setGrantStatus] = useState<string>('pending');
+  const [grantStatusChoice, setGrantStatusChoice] = useState('');
+  const grantStatuses = stateRule('role_admin_grantable');
+  const grantStatus = grantStatuses.includes(grantStatusChoice) ? grantStatusChoice : grantStatuses[0] ?? '';
+  const reasonRequiredStates = stateRule('role_reason_required');
 
   const load = useCallback(async (): Promise<void> => {
     if (!Number.isFinite(numericId) || numericId <= 0) {
@@ -61,10 +61,10 @@ export const CmAdminUserDetailPage: React.FC = () => {
   }, [load]);
 
   const heldRoles = new Set((detail?.roles ?? []).map((role) => role.role_type));
-  const grantableRoles = CM_ADMIN_ROLE_TYPES.filter((role) => !heldRoles.has(role));
+  const grantableRoles = roles.filter((role) => !heldRoles.has(role));
 
   const changeRole = (role: CmAdminUserRole, target: string): void => {
-    const reasonRequired = (CM_ADMIN_ROLE_REASON_REQUIRED as readonly string[]).includes(target);
+    const reasonRequired = reasonRequiredStates.includes(target);
     const roleLabel = t(`roles.${role.role_type}`, { defaultValue: role.role_type });
     const targetLabel = t(`states.role.${target}`, { defaultValue: target });
     action.ask({
@@ -109,31 +109,26 @@ export const CmAdminUserDetailPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <Link className="cm-workspace-link cm-admin-back" to={ADMIN_USERS_PATH}>
+      <Link className="cm-workspace-link cm-admin-back" to={CM_ADMIN_ROUTE.users}>
         <ArrowLeft aria-hidden="true" /> {t('admin.userDetail.back')}
       </Link>
-      <CmAdminPageHeader
+      <CmPageHeader
+        variant="admin"
         titleKey="admin.userDetail.title"
         purposeKey="admin.purpose.userDetail"
         title={account ? account.username : undefined}
         onRefresh={() => void load()}
-      >
-        {account && (
-          <Link className="cm-workspace-button" to={`${ADMIN_ACTIVITY_PATH}?actor_id=${account.id}`}>
+        actions={account && (
+          <Link className="cm-workspace-button" to={cmRouteWithQuery(CM_ADMIN_ROUTE.activity, { actor_id: account.id })}>
             {t('admin.userDetail.actorActivity')}
           </Link>
         )}
-      </CmAdminPageHeader>
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       {loading ? (
-        <p className="cm-admin-state" role="status">{t('common.loading')}</p>
+        <CmLoadingState />
       ) : error || !detail || !account ? (
-        <div className="cm-admin-state" data-tone="error" role="alert">
-          <p>{error ?? t('admin.loadFailed')}</p>
-          <button type="button" className="cm-workspace-button" onClick={() => void load()}>
-            <RefreshCw aria-hidden="true" /> {t('admin.retry')}
-          </button>
-        </div>
+        <CmErrorState message={error ?? t('admin.loadFailed')} onRetry={() => void load()} />
       ) : (
         <>
           <section className="cm-admin-panel-grid">
@@ -180,7 +175,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                   {detail.roles.map((role) => (
                     <tr key={role.id}>
                       <td>{t(`roles.${role.role_type}`, { defaultValue: role.role_type })}</td>
-                      <td><CmAdminStatus status={role.role_status} group="states.role" /></td>
+                      <td><CmStatusBadge status={role.role_status} prefix="states.role" /></td>
                       <td><CmAdminMoney amount={role.deposit_amount} currency={detail.wallet.currency} /></td>
                       <td className="cm-admin-nowrap"><CmAdminDate value={role.role_activated_at} stacked /></td>
                       <td>
@@ -190,7 +185,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                             <button
                               key={target}
                               type="button"
-                              className={`cm-workspace-button ${(CM_ADMIN_ROLE_REASON_REQUIRED as readonly string[]).includes(target) ? 'is-danger' : 'is-primary'}`}
+                              className={`cm-workspace-button ${reasonRequiredStates.includes(target) ? 'is-danger' : 'is-primary'}`}
                               onClick={() => changeRole(role, target)}
                             >
                               {t(`admin.userDetail.transition.${target}`, { defaultValue: target })}
@@ -216,8 +211,8 @@ export const CmAdminUserDetailPage: React.FC = () => {
                 </label>
                 <label>
                   <span>{t('admin.userDetail.initialStatus')}</span>
-                  <select value={grantStatus} onChange={(event) => setGrantStatus(event.target.value)}>
-                    {CM_ADMIN_GRANT_STATUSES.map((status) => (
+                  <select value={grantStatus} onChange={(event) => setGrantStatusChoice(event.target.value)}>
+                    {grantStatuses.map((status) => (
                       <option key={status} value={status}>{t(`states.role.${status}`)}</option>
                     ))}
                   </select>
@@ -273,7 +268,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <div className="cm-record-card__meta">
                         <span>{t('admin.recordNumber', { id: item.id })}</span>
                         <span>{t(`admin.kyc.identity.${item.identity_type}`, { defaultValue: item.identity_type })}</span>
-                        <CmAdminStatus status={item.verification_status} group="states.kyc" />
+                        <CmStatusBadge status={item.verification_status} prefix="states.kyc" />
                         <span><CmAdminDate value={item.submitted_at} /></span>
                       </div>
                       {item.verification_notes && <p>{t('admin.notesValue', { notes: item.verification_notes })}</p>}
@@ -281,7 +276,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                     </div>
                     {item.reviewable && (
                       <div className="cm-record-card__actions">
-                        <Link className="cm-workspace-button is-primary" to={`/codemart/admin/kyc?status=pending&search=${encodeURIComponent(account.username)}`}>
+                        <Link className="cm-workspace-button is-primary" to={cmRouteWithQuery(CM_ADMIN_ROUTE.kyc, { status: 'pending', search: account.username })}>
                           {t('admin.userDetail.reviewKyc')}
                         </Link>
                       </div>
@@ -316,7 +311,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <td>{t(`roles.${deposit.role_type}`, { defaultValue: deposit.role_type })}</td>
                       <td><CmAdminMoney amount={deposit.amount} currency={detail.wallet.currency} /></td>
                       <td>{t(`admin.method.${deposit.payment_method}`, { defaultValue: deposit.payment_method })}</td>
-                      <td><CmAdminStatus status={deposit.status} group="admin.states.deposit" /></td>
+                      <td><CmStatusBadge status={deposit.status} prefix="admin.states.deposit" /></td>
                       <td className="cm-admin-nowrap"><CmAdminDate value={deposit.paid_at} stacked /></td>
                       <td className="cm-admin-nowrap"><CmAdminDate value={deposit.created_at} stacked /></td>
                     </tr>
@@ -347,7 +342,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <td>{t('admin.recordNumber', { id: project.id })}</td>
                       <td>{project.title}</td>
                       <td><CmAdminMoney amount={project.budget} currency={project.currency} /></td>
-                      <td><CmAdminStatus status={project.status} group="states.project" /></td>
+                      <td><CmStatusBadge status={project.status} prefix="states.project" /></td>
                       <td><CmAdminDate value={project.created_at} dateOnly /></td>
                     </tr>
                   ))}
@@ -377,7 +372,7 @@ export const CmAdminUserDetailPage: React.FC = () => {
                       <td>{t('admin.recordNumber', { id: task.id })}</td>
                       <td>{task.title}</td>
                       <td><CmAdminMoney amount={task.budget_allocation} currency={detail.wallet.currency} /></td>
-                      <td><CmAdminStatus status={task.status} group="states.task" /></td>
+                      <td><CmStatusBadge status={task.status} prefix="states.task" /></td>
                       <td><CmAdminDate value={task.due_date} dateOnly /></td>
                     </tr>
                   ))}

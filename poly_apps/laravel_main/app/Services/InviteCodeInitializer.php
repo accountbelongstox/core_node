@@ -97,7 +97,7 @@ class InviteCodeInitializer
                 ]);
             } else {
                 $results['default_codes'] = 'exists';
-                $results['codes'] = InviteCode::codesByType('admin');
+                $results['codes'] = InviteCode::activeCodesByType('admin');
             }
 
         } catch (\Exception $e) {

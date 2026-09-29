@@ -1,0 +1,5 @@
+- [Remote role messaging](remote_role_messaging.md) — RC on both ends; code to remote hosts via pyservice CodeSync, never git; server / not 0777
+- [Model policy](feedback_opus_everywhere.md) — latest only; now lead opus/medium, roles sonnet/high; pass model in workflows; run workflows from repo root
+- [Alias sessions](project_alias_sessions.md) — pre-D22 alias ct-* sessions may run beside the roster; roster member is default writer (R2)
+- [Parallel user sessions](project_parallel_sessions.md) — core-node-* peers and CodeHeaderCleaner edit the repo too; check before blaming a role
+- [Stuck onboarding panes](project_stuck_onboarding_panes.md) — ct-* panes may sit at onboarding; debian uid-1000 team invisible to root; census via claudeteamup --status

@@ -161,67 +161,6 @@ export DISK_COUNT
 export DISK_LIST
 export DISK_MOUNT_INFO
 
-# Function to help with disk mounting operations
-mount_additional_disk() {
-    local disk_device="$1"
-    local mount_point="$2"
-    local filesystem_type="${3:-ext4}"
-    
-    if [ -z "$disk_device" ] || [ -z "$mount_point" ]; then
-        echo "Usage: mount_additional_disk <device> <mount_point> [filesystem_type]"
-        echo "Example: mount_additional_disk /dev/sdb /mnt/data ext4"
-        return 1
-    fi
-    
-    # Check if device exists
-    if [ ! -b "$disk_device" ]; then
-        echo "Error: Device $disk_device does not exist"
-        return 1
-    fi
-    
-    # Check if mount point exists, create if not
-    if [ ! -d "$mount_point" ]; then
-        echo "Creating mount point: $mount_point"
-        $USE_SUDO mkdir -p "$mount_point"
-    fi
-    
-    # Check if device is already mounted
-    if mountpoint -q "$mount_point"; then
-        echo "Warning: $mount_point is already mounted"
-        return 1
-    fi
-    
-    # Check if device has a filesystem
-    if ! blkid "$disk_device" >/dev/null 2>&1; then
-        echo "Device $disk_device has no filesystem. Creating $filesystem_type filesystem..."
-        $USE_SUDO mkfs.$filesystem_type "$disk_device"
-    fi
-    
-    # Mount the device
-    echo "Mounting $disk_device to $mount_point..."
-    if $USE_SUDO mount "$disk_device" "$mount_point"; then
-        echo "Successfully mounted $disk_device to $mount_point"
-        
-        # Set proper permissions
-        $USE_SUDO chmod 755 "$mount_point"
-        
-        # Add to fstab for persistent mounting (single entry per UUID, no duplicates)
-        local uuid=$(blkid -s UUID -o value "$disk_device")
-        if [ -n "$uuid" ]; then
-            local fstab_entry="UUID=$uuid $mount_point $filesystem_type defaults 0 2"
-            echo "Adding to /etc/fstab for persistent mounting..."
-            $USE_SUDO cp /etc/fstab "/etc/fstab.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-            $USE_SUDO sed -i "\|UUID=$uuid|d" /etc/fstab 2>/dev/null || true
-            echo "$fstab_entry" | $USE_SUDO tee -a /etc/fstab >/dev/null
-        fi
-        
-        return 0
-    else
-        echo "Failed to mount $disk_device to $mount_point"
-        return 1
-    fi
-}
-
 # CORE_NODE_DATA_DIR is defined once in runtime_environment.sh (sourced first by
 # gvar_common.sh); here it is only consumed to derive the standardized subtrees.
 PROGRAMING_USERS_DIR="$CORE_NODE_DATA_DIR/Users"

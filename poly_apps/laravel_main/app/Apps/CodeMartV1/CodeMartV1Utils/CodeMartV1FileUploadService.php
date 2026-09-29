@@ -35,29 +35,70 @@ class CodeMartV1FileUploadService
     }
 
     /**
-     * Resolve a stored KYC document: new uploads live on the private disk,
-     * documents stored before the private-disk change stay readable from the
-     * legacy public disk.
+     * Resolve a stored KYC document on the private disk (the only KYC read
+     * path; sys:init moves documents of older uploads off the public disk).
      *
      * @return array{disk:string,path:string}|null
      */
     public function locateKycFile(?string $path): ?array
     {
-        if ($path === null || $path === '') {
+        if ($path === null || $path === '' || !Storage::disk(CodeMartV1Constants::KYC_PRIVATE_DISK)->exists($path)) {
             return null;
         }
 
-        foreach ([CodeMartV1Constants::KYC_PRIVATE_DISK, CodeMartV1Constants::KYC_LEGACY_PUBLIC_DISK] as $disk) {
-            try {
-                if (Storage::disk($disk)->exists($path)) {
-                    return ['disk' => $disk, 'path' => $path];
-                }
-            } catch (\Throwable $e) {
-                continue;
+        return ['disk' => CodeMartV1Constants::KYC_PRIVATE_DISK, 'path' => $path];
+    }
+
+    /**
+     * First half of moving a KYC document that an upload before the
+     * private-disk change left on the public upload disk: copy it to the
+     * private KYC disk and verify the checksum. Returns the private path the
+     * row must store (the same path, unless a different file already occupies
+     * it; the alternative name derives from the checksum so a rerun reuses
+     * it), or null when the public disk holds no copy.
+     */
+    public function copyLegacyKycFileToPrivate(string $path): ?string
+    {
+        $public = Storage::disk(self::UPLOAD_DISK);
+        $private = Storage::disk(CodeMartV1Constants::KYC_PRIVATE_DISK);
+        if ($path === '' || !$public->exists($path)) {
+            return null;
+        }
+
+        $checksum = $public->checksum($path);
+        if ($checksum === false) {
+            throw new \RuntimeException(__('codemart.cli.init.kyc_read_failed', ['path' => $path]));
+        }
+
+        $target = $path;
+        if ($private->exists($target) && $private->checksum($target) !== $checksum) {
+            $target = self::KYC_UPLOAD_PATH . '/' . substr((string) $checksum, 0, 16) . '_' . basename($path);
+        }
+
+        if (!$private->exists($target)) {
+            $stream = $public->readStream($path);
+            $written = is_resource($stream) && $private->writeStream($target, $stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+            if (!$written) {
+                throw new \RuntimeException(__('codemart.cli.init.kyc_write_failed', ['path' => $target]));
             }
         }
 
-        return null;
+        if ($private->checksum($target) !== $checksum) {
+            throw new \RuntimeException(__('codemart.cli.init.kyc_checksum_mismatch', ['path' => $path, 'target' => $target]));
+        }
+
+        return $target;
+    }
+
+    /** Second half of the move: delete the verified public copy. */
+    public function deleteLegacyKycFile(string $path): void
+    {
+        if (!Storage::disk(self::UPLOAD_DISK)->delete($path)) {
+            throw new \RuntimeException(__('codemart.cli.init.kyc_delete_failed', ['path' => $path]));
+        }
     }
 
     public function uploadProfileImage(object $file): string|bool

@@ -17,11 +17,6 @@ export interface CmPublicHomeData extends CmPublicMetricData {
   testimonials: CmPublicTestimonialData[];
 }
 
-export interface CmPublicHomeLoadResult {
-  data: CmPublicHomeData | null;
-  errorCode: string | null;
-}
-
 export interface CmRegisterPayload {
   username: string;
   email: string;
@@ -44,6 +39,12 @@ export interface CmRegisterResult {
   next_step: string;
 }
 
+export interface CmEmailResendResult {
+  result: string;
+  email?: string | null;
+  next_step?: string | null;
+}
+
 export interface CmBootstrapUser {
   id: number;
   username: string;
@@ -58,6 +59,7 @@ export interface CmOnboardingStep {
   key: string;
   completed: boolean;
   blocked: boolean;
+  optional?: boolean;
 }
 
 export interface CmOnboarding {
@@ -69,6 +71,7 @@ export interface CmOnboarding {
   steps: CmOnboardingStep[];
   next_step: string | null;
   complete: boolean;
+  phone_verification_available?: boolean;
 }
 
 export interface CmCounters {
@@ -82,6 +85,40 @@ export interface CmCounters {
   unread_notifications: number;
 }
 
+export type CmPolicyListKey =
+  | 'supported_currencies'
+  | 'deposit_payment_methods'
+  | 'withdrawal_methods'
+  | 'payment_types'
+  | 'payment_creatable_types'
+  | 'identity_types'
+  | 'kyc_document_slots'
+  | 'dispute_resolutions'
+  | 'supported_locales'
+  | 'task_priorities'
+  | 'complexities'
+  | 'budget_types';
+
+export type CmBootstrapPolicy = {
+  currency: string;
+  deposit_amounts: Record<string, number>;
+  platform_commission_rate: number;
+  default_page_size: number;
+  max_page_size: number;
+  withdrawal_min_amount?: number;
+  [key: string]: unknown;
+} & Partial<Record<CmPolicyListKey, string[]>>;
+
+export interface CmVocabulary {
+  states: Record<string, string[]>;
+  terminal_states?: Record<string, string[]>;
+  state_rules?: Record<string, string[]>;
+  capability_roles?: Record<string, string>;
+  roles: string[];
+  transitions?: Record<string, Record<string, Record<string, string[]>>>;
+  policy: CmBootstrapPolicy;
+}
+
 export interface CmBootstrap {
   contract_version: string;
   min_supported_ui_version: string;
@@ -92,20 +129,7 @@ export interface CmBootstrap {
   capabilities: string[];
   onboarding: CmOnboarding;
   profile: CmProfileData | null;
-  vocabulary: {
-    states: Record<string, string[]>;
-    roles: string[];
-    transitions?: Record<string, Record<string, Record<string, string[]>>>;
-    policy: {
-      currency: string;
-      supported_currencies: string[];
-      deposit_amounts: Record<string, number>;
-      platform_commission_rate: number;
-      default_page_size: number;
-      max_page_size: number;
-      [key: string]: unknown;
-    };
-  };
+  vocabulary: CmVocabulary;
   counters: CmCounters;
 }
 
@@ -214,6 +238,16 @@ export interface CmProjectDetail extends CmProject {
   milestones?: CmMilestone[];
   latest_analysis?: CmAnalysisSummary | null;
   access?: CmProjectAccess;
+}
+
+export interface CmProjectTransitionResult {
+  project: CmProject;
+  from: string;
+  to: string;
+  side_effects?: {
+    escrow_refund?: { refunded_escrows: number; refunded_amount: string };
+    [key: string]: unknown;
+  };
 }
 
 export interface CmProjectProposal {
@@ -397,7 +431,11 @@ export interface CmWalletTransaction {
   type: string;
   amount: string;
   balance_after: string | null;
+  /** Server text; shown only for legacy rows without a description_code. */
   description: string | null;
+  /** Ledger code (CodeMartV1Constants LEDGER_*), rendered through cm wallet.ledger.<code>. */
+  description_code?: string | null;
+  description_params?: Record<string, string | number> | null;
   metadata?: { direction?: string } & Record<string, unknown> | null;
   status: string;
   created_at: string | null;

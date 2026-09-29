@@ -163,10 +163,10 @@ class VoiceSubtitleBackgroundServices:
         """
         # Check if content is sentence length (at least 10 characters)
         if len(content.strip()) < 10:
-            ColorPrint.blue(f"[VoiceSubtitle] Clipboard content too short, ignoring: {content[:30]}...")
+            ColorPrint.blue(f"[VoiceSubtitle] Clipboard content too short, ignoring: {len(content)} chars")
             return
 
-        ColorPrint.blue(f"[VoiceSubtitle] Clipboard changed, adding to AI queue: {content[:50]}...")
+        ColorPrint.blue(f"[VoiceSubtitle] Clipboard changed, adding to AI queue: {len(content)} chars")
 
         THREAD_BUS.send_message(_AI_QUEUE, content)
 
@@ -201,7 +201,7 @@ class VoiceSubtitleBackgroundServices:
                     time.sleep(sleep_time)
 
                 # Process through the unified AI gateway
-                ColorPrint.blue(f"[AI] Processing: {content[:50]}...")
+                ColorPrint.blue(f"[AI] Processing clipboard text: {len(content)} chars")
                 processed = self._process_clipboard_with_ai(content)
                 last_ai_request = time.time()
 
@@ -210,7 +210,7 @@ class VoiceSubtitleBackgroundServices:
                     # Add processed text to voice subtitle queue (AI-attributed)
                     asyncio.run(self._add_to_queue_sync(
                         text, category='clipboard', ai_provider=provider, ai_model=model))
-                    ColorPrint.green(f"[AI] {provider}/{model} processed and added to queue: {text[:50]}...")
+                    ColorPrint.green(f"[AI] {provider}/{model} processed and added to queue: {len(text)} chars")
                 else:
                     ColorPrint.yellow("[AI] Processing returned empty result")
 
@@ -259,7 +259,7 @@ class VoiceSubtitleBackgroundServices:
         try:
             await process_text_input(text, langs=['en'], category=category,
                                      ai_provider=ai_provider, ai_model=ai_model)
-            ColorPrint.green(f"[VoiceSubtitle] Added to queue: {text[:50]}...")
+            ColorPrint.green(f"[VoiceSubtitle] Added to queue: {len(text)} chars")
         except Exception as e:
             ColorPrint.red(f"[VoiceSubtitle] Error adding to queue: {e}")
 

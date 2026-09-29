@@ -1,8 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# ### AI SPECIAL ATTENTION RULES END ###
 #
 # GitHub520 hosts refresh. Replaces only the marked block in hosts file.
 # Markers: # GitHub520 Host Start ... # GitHub520 Host End

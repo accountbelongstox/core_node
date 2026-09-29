@@ -12,12 +12,32 @@ lifecycle (request_start / request_stop) through the canonical lane registry.
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.assist_settings import assist_callback_states
 from pycore.pyctl.queue_center.lane_registry import (
     LANE_BY_CALLBACK,
     lane_worker,
 )
+from pycore.pyutils.tts.audio_queue_center import (
+    AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
+    AUDIO_QUEUE_LANES,
+    audio_queue_center,
+)
+
+
+def _start_audio_lane_after_restore(control: str, worker: Any) -> None:
+    """Off the settings-sync thread: hold this lane's first remote pull
+    until its cache-first restore finishes (R6/§5.4 - the local cache loads
+    in full before any remote access), then start it. BusTaskThread isolates
+    a failure here from the caller."""
+    restored = audio_queue_center.wait_for_restore(control, timeout=AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS)
+    if not restored:
+        ColorPrint.yellow(
+            f"[AssistSync] {control} cache-first restore did not signal within "
+            f"{AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS:.0f}s; starting the lane anyway"
+        )
+    worker.request_start()
 
 
 def _apply_lane_lifecycle(callback_name: str, want: bool, graceful_stop: bool) -> None:
@@ -25,16 +45,26 @@ def _apply_lane_lifecycle(callback_name: str, want: bool, graceful_stop: bool) -
 
     request_start() wakes one immediate remote-first pull so an enable action
     processes the first bounded batch without waiting for the poll interval.
-    request_stop() closes the pull/accept gates and halts background drains;
-    ``graceful_stop`` selects finish-the-claimed-heap vs immediate stop with
-    active release of unstarted claims. Both are idempotent and coalesced, so
-    reconciling an already-consistent lane is a no-op.
+    An audio lane (word_audio / sentence_audio) defers that start to a
+    background task that waits for the lane's own cache-first restore first,
+    so this settings-sync call never blocks on a snapshot load and the
+    remote pull never races it (R6/§5.4). request_stop() closes the
+    pull/accept gates and halts background drains; ``graceful_stop`` selects
+    finish-the-claimed-heap vs immediate stop with active release of
+    unstarted claims. Both are idempotent and coalesced, so reconciling an
+    already-consistent lane is a no-op.
     """
     control = LANE_BY_CALLBACK.get(callback_name)
     if control is None:
         return
     worker = lane_worker(control)
     if worker is None:
+        return
+    if want and control in AUDIO_QUEUE_LANES:
+        start_bus_task(
+            _start_audio_lane_after_restore, control, worker,
+            thread_name=f"AudioLaneRestoreGate.{control}",
+        )
         return
     try:
         if want:

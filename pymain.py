@@ -14,6 +14,7 @@ Usage:
 
 import sys
 import os
+import traceback
 
 # MCP Mode Detection - MUST BE FIRST (before any imports)
 IS_MCP_MODE = False
@@ -25,6 +26,8 @@ for arg in sys.argv[1:]:
         break
 
 OUTPUT_STREAM = sys.stderr
+EXIT_SUCCESS = 0
+EXIT_FAILURE = 1
 
 if not IS_MCP_MODE:
     print('\n' + '=' * 70, file=OUTPUT_STREAM)
@@ -57,11 +60,12 @@ if __name__ == '__main__':
         success = launcher.start()
     except KeyboardInterrupt:
         print('\nInterrupted by user', file=OUTPUT_STREAM)
-        sys.exit(0)
+        sys.exit(EXIT_SUCCESS)
     except Exception as e:
         print(f'\n{"=" * 70}', file=OUTPUT_STREAM)
         print(f'Unexpected error: {e}', file=OUTPUT_STREAM)
         print('=' * 70, file=OUTPUT_STREAM)
 
-        import traceback
         traceback.print_exc(file=OUTPUT_STREAM)
+        sys.exit(EXIT_FAILURE)
+    sys.exit(EXIT_SUCCESS if success is not False else EXIT_FAILURE)

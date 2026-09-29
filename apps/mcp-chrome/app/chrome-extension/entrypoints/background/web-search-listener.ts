@@ -5,7 +5,7 @@ import {
   searchBookCoverUrls,
 } from './services/web-search-service';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Web Search Listener';
@@ -29,7 +29,7 @@ export function initWebSearchListener(): void {
       case 'get_status':
         return { success: true, progress: await getWebSearchProgress() };
       default:
-        return { success: false, error: `Unknown action: ${message.action}` };
+        return unknownActionResponse(message.action);
     }
   }, {
     createErrorResponse: (error) => {

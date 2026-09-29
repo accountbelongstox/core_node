@@ -14,13 +14,19 @@ from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_launcher import open_path
-from pycore.pyutils.laravel.client import laravel_client, laravel_failure
+from pycore.pyutils.laravel.client import (
+    LARAVEL_ERROR_ENDPOINT_UNKNOWN,
+    laravel_client,
+    laravel_failure,
+)
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_generate,
+    orch_messages,
     orch_promote,
     orch_events,
     orch_resources,
@@ -67,6 +73,8 @@ def auth_login(username: str, password: str, access_token: str = "", base_url: s
     token_data: Any = None
     if endpoint and (endpoint.scheme not in ("http", "https") or not endpoint.netloc or endpoint.username):
         return {"success": False, "error": "invalid Laravel endpoint"}
+    if base_url and not laravel_endpoint_manager.is_catalog_endpoint(base_url):
+        return {"success": False, "error": LARAVEL_ERROR_ENDPOINT_UNKNOWN, "error_code": LARAVEL_ERROR_ENDPOINT_UNKNOWN}
     if not token and (not username or not password):
         return {"success": False, "error": "username and password are required"}
     try:
@@ -373,12 +381,26 @@ def task_get(task_id: str) -> Dict[str, Any]:
 
 
 def _recover_task_status(task: Dict[str, Any]) -> None:
-    if task.get("status") == "generating" and not orch_generate.is_running(str(task.get("task_id") or "")):
-        task["status"] = "failed"
-        task["progress"] = {**(task.get("progress") or {}), "message": "generation interrupted; regenerate resumes from the persisted manifest"}
-        orch_store.append_task_event(task, "generation interrupted; persisted manifest, local audio caches and pending deliveries retained")
-        orch_store.save_task(task)
-        orch_events.publish_task_changed(task)
+    task_id = str(task.get("task_id") or "")
+    if task.get("status") != "generating" or orch_generate.is_running(task_id):
+        return
+    # The job is gone, so it saves nothing more: the stored copy is final. A
+    # caller's copy read before the job's terminal save is refreshed, never
+    # overwritten with "failed".
+    fresh = orch_store.get_task(task_id) or {}
+    if fresh:
+        task.clear()
+        task.update(fresh)
+    if task.get("status") != "generating":
+        return
+    task["status"] = "failed"
+    task["progress"] = {
+        **(task.get("progress") or {}),
+        **orch_messages.progress_fields(orch_messages.ORCH_MSG_GENERATION_INTERRUPTED),
+    }
+    orch_store.append_task_event(task, orch_messages.ORCH_MSG_GENERATION_INTERRUPTED)
+    orch_store.save_task(task)
+    orch_events.publish_task_changed(task)
 
 
 def _task_progress(task: Dict[str, Any], pending_counts=None, output_counts=None) -> Dict[str, Any]:
@@ -482,6 +504,7 @@ def task_delete(task_id: str) -> Dict[str, Any]:
     if not orch_store.delete_task(task_id):
         return {"success": False, "error": "task not found"}
     orch_resources.release_owner_queue(task_id)
+    orch_store.delete_task_files(task)
     orch_events.publish_task_changed(task, orch_events.TASK_STATUS_DELETED)
     return {"success": True}
 

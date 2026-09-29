@@ -3,7 +3,10 @@
 
 from pycore.pyfoundations.service_contract import host, port
 
-HTTP_BIND_HOST = host("any")
+# K7: local servers bind loopback by default; the LAN bind host is used only
+# when the LAN bind setting admits it (pyutils/common/local_rpc_guard.py).
+HTTP_BIND_HOST = host("loopback")
+HTTP_LAN_BIND_HOST = host("any")
 HTTP_LOOPBACK_HOST = host("loopback")
 HTTP_DEFAULT_TIMEOUT_SECONDS = 10.0
 EXTERNAL_API_HTTP_TIMEOUT = (8, 25)
@@ -50,14 +53,15 @@ QWEN3TTS_DEFAULT_SPEED = 0.75
 # Single source shared by pycore (qwen.config) and the isolated api server.
 QWEN3TTS_SPEED_MIN = 0.25
 QWEN3TTS_SPEED_MAX = 3.0
-# qwen3tts VRAM launch policy (MiB). qwen3tts is the ONLY engine that uses the
-# GPU by design, so when free VRAM is below the recommended floor the launcher
-# and the startup profile forcibly stop OTHER GPU-holding processes
-# (memory_gate.reclaim_vram); after reclaim, a GPU with at least the minimum
-# free VRAM takes the model, below it the server starts on CPU. Single source
-# shared by pycore (memory_gate, tts_service_manager) and the isolated api
-# server (loaded from source). Env overrides: QWEN3TTS_MIN_FREE_VRAM_MB /
-# QWEN3TTS_RECOMMENDED_FREE_VRAM_MB / QWEN3TTS_VRAM_RECLAIM=0.
+# qwen3tts VRAM launch policy (MiB). With the opt-in reclaim
+# (QWEN3TTS_VRAM_RECLAIM=1) the launcher and the startup profile stop GPU
+# processes pycore itself started when free VRAM is below the recommended
+# floor (memory_gate.reclaim_vram); other processes are never touched. A GPU
+# with at least the minimum free VRAM takes the model, below it the server
+# starts on CPU. Single source shared by pycore (memory_gate,
+# tts_service_manager) and the isolated api server (loaded from source). Env
+# overrides: QWEN3TTS_MIN_FREE_VRAM_MB / QWEN3TTS_RECOMMENDED_FREE_VRAM_MB /
+# QWEN3TTS_VRAM_RECLAIM=1.
 QWEN3TTS_MIN_FREE_VRAM_MB = 800
 QWEN3TTS_RECOMMENDED_FREE_VRAM_MB = 6144
 QWEN3TTS_MIN_FREE_VRAM_MB_ENV = "QWEN3TTS_MIN_FREE_VRAM_MB"
@@ -98,6 +102,9 @@ GPTSOVITS_HTTP_PORT = 9880
 TTS_AVAILABILITY_TTL_SECONDS = 30.0
 TTS_REQUEST_TIMEOUT_SECONDS = 300.0
 TTS_HEALTH_TIMEOUT_SECONDS = 3.0
+# A hung driver must never hang a caller: nvidia-smi is bounded. Single source
+# shared by pycore (memory_gate) and the api servers (loaded from source).
+NVIDIA_SMI_TIMEOUT_SECONDS = 10
 
 SSE_CONTENT_TYPE = "text/event-stream"
 SSE_RESPONSE_HEADERS = (
@@ -133,6 +140,7 @@ __all__ = [
     "GPTSOVITS_HTTP_PORT",
     "HTTP_API_PREFIX",
     "HTTP_BIND_HOST",
+    "HTTP_LAN_BIND_HOST",
     "HTTP_CLIENT_ID_PATH",
     "HTTP_DEFAULT_TIMEOUT_SECONDS",
     "HTTP_EVENT_PRE_BIND_BUFFER_MAX",
@@ -150,6 +158,7 @@ __all__ = [
     "HTTP_USER_AGENT",
     "MELOTTS_HTTP_PORT",
     "MELOTTS_HTTP_TIMEOUT_SECONDS",
+    "NVIDIA_SMI_TIMEOUT_SECONDS",
     "PYCORE_HTTP_PORT",
     "QWEN3TTS_CHUNK_MAX_CHARS",
     "QWEN3TTS_CHUNK_PAUSE_MS",

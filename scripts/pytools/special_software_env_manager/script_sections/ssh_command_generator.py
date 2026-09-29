@@ -17,19 +17,7 @@ class SSHCommandGenerator:
         ssh_conn_key = f"SSH_CONNECTION_{file_number}"
         password_key_name = f"SSH_PASSWORD_{file_number}"
 
-        header = f"""# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
-<#
+        header = f"""<#
 .SYNOPSIS
     {config_name} Global File #{file_number}
 
@@ -166,7 +154,7 @@ if ($sshConnection) {{
 
 $sshPassword = Get-SSHSecret "{password_key_name}"
 if ($sshPassword) {{
-    Write-Host "[SUCCESS] SSH password loaded = $sshPassword" -ForegroundColor Green
+    Write-Host "[SUCCESS] SSH password loaded ($($sshPassword.Length) chars; displayed only when a password login is needed)" -ForegroundColor Green
 }} else {{
     Write-Host "[INFO] No password configured (using SSH key authentication)" -ForegroundColor Yellow
 }}
@@ -270,17 +258,6 @@ $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         password_key_name = f"SSH_PASSWORD_{file_number}"
 
         header = f"""#!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # {config_name} Global File #{file_number}
@@ -399,7 +376,7 @@ fi
 
 SSH_PASSWORD=$(get_secret_value "{password_key_name}")
 if [ -n "$SSH_PASSWORD" ]; then
-    echo "[SUCCESS] SSH password loaded: $SSH_PASSWORD"
+    echo "[SUCCESS] SSH password loaded (${{#SSH_PASSWORD}} chars; displayed only when a password login is needed)"
 else
     echo "[INFO] No password configured (using SSH key authentication)"
 fi

@@ -449,19 +449,31 @@ class _EdgeTTSClient:
         self._avail_probing = False
 
     @serialized_method
+    def _cached_availability(self, force: bool) -> Optional[Dict[str, Any]]:
+        cached = getattr(self, '_avail_cache', None)
+        if cached and not force and (time.time() - cached['checked_at']) < _AVAIL_TTL_S:
+            return {**cached, 'cached': True}
+        return None
+
+    @serialized_method
+    def _store_availability(self, result: Dict[str, Any]) -> None:
+        self._avail_cache = result
+
     def test_availability(self, force: bool = False) -> Dict[str, Any]:
         """
         Live availability check: synthesize a tiny clip and report the outcome.
 
         Cached for _AVAIL_TTL_S so a status poll never hammers the endpoint
         (each test is a real synth round-trip that counts against rate limits).
+        The network probe runs on the calling thread, bounded by the synth
+        timeout, so it never blocks the client's state owner.
 
         Returns: { available, version, proxy, error, checked_at, cached }
         """
         now = time.time()
-        cached = getattr(self, '_avail_cache', None)
-        if cached and not force and (now - cached['checked_at']) < _AVAIL_TTL_S:
-            return {**cached, 'cached': True}
+        cached = self._cached_availability(force)
+        if cached is not None:
+            return cached
 
         version = self.get_version()
         proxy = _edge_tts_proxy()
@@ -476,7 +488,7 @@ class _EdgeTTSClient:
 
         if not edge_tts:
             result['error'] = 'edge-tts package not installed'
-            self._avail_cache = result
+            self._store_availability(result)
             return result
 
 
@@ -500,12 +512,12 @@ class _EdgeTTSClient:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         try:
-            loop.run_until_complete(_probe())
+            loop.run_until_complete(asyncio.wait_for(_probe(), timeout=get_synth_timeout()))
             result['available'] = True
         except Exception as e:  # noqa: BLE001 — report the failure to the UI
-            result['error'] = str(e)
+            result['error'] = str(e) or type(e).__name__
 
-        self._avail_cache = result
+        self._store_availability(result)
         return result
 
     @serialized_method

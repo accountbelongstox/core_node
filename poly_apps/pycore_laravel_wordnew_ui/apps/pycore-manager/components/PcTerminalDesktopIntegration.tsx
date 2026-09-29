@@ -40,7 +40,7 @@ export default function PcTerminalDesktopIntegration({
   errorTranslationKey,
   onAction,
 }: PcTerminalDesktopIntegrationProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('pc');
   const profile = snapshot?.platform_profile;
   const capabilities = snapshot?.capabilities;
   if (!profile || profile.platform !== 'linux' || !capabilities) return null;

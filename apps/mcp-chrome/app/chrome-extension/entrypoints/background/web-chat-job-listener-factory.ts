@@ -5,7 +5,7 @@
  * factory bound to its own message `type` and WebChatJobToolBase instance.
  */
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
 
 export interface WebChatJobTool {
@@ -24,7 +24,7 @@ export function createWebChatJobListener(messageType: string, tool: WebChatJobTo
         const result = await tool.status(String(message.jobId || ''));
         return { success: result.status !== 'unknown', result };
       }
-      return { success: false, error: `Unknown action: ${message.action}` };
+      return unknownActionResponse(message.action);
     }, {
       createErrorResponse: (error) => {
         logger.error(label, 'request failed', error);

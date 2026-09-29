@@ -1,0 +1,52 @@
+{
+  "task_id": "pycore-architect-D7",
+  "role": "pycore-architect (retired; lane now in pycore-lead scope)",
+  "reviewer": "pycore-lead",
+  "verdict": "approved",
+  "scope": "Six done items of the retired lane, all landed in HEAD 5bbb23682 (user commit 'win0.0.1', 17:33) with no lane report and no merge_meta entry. The changed set was derived from git: pycore/pyfoundations/{desktop_session,core_node_dirs,service_contract,system_paths,agent_home_scanner,python_package_policy,thread_bus_constants}.py and third_party/{_cache,_dep_check,_deps}.py. The working tree equals HEAD for all ten files. The _cookie_mtime hunk in desktop_session.py (:191-209) comes from the earlier commit f4f223414 and is not part of this lane. arch-audit is still open and stays with pycore-lead G1.",
+  "findings": {
+    "arch-bus-signals": {
+      "status": "confirmed",
+      "detail": "thread_bus_constants.py:148 TRAY_SHOW_NOTIFICATION = 'tray.show_notification', under the system tray signals. The unused TRAY_SHOW_MESSAGE is removed from :83. AGENT_HISTORY_CONFIG_CHANGED exists at :103 for the tray-state push. The 'ui.tray.show_message' grep now matches only tray_config.py:270, which is the AHSC-11 owner's duplicate. An AST sweep found no BusSignals.TRAY_SHOW_MESSAGE reader."
+    },
+    "LTCW-03-exports": {
+      "status": "confirmed",
+      "detail": "desktop_session.py exports RUN_USER_ROOT (:14, renamed from RUNTIME_ROOT), SESSION_BUS_SOCKET, BUS_ADDRESS_FORMAT, the *_ENV names (:24-30) and the per-user resolver user_session_endpoints (:167-178), which returns None off Linux. Its helpers bus_address_for, first_wayland_socket and default_x11_display (:152-164) reproduce the base linux_desktop_user.py logic line for line (base :242-250). The consumer, linux_desktop_user.py:22-32 and :191-204, already imports them. The internal readers _resolve_dbus_address and ensure_session_environment reuse the new constants."
+    },
+    "LTCW-02": {
+      "status": "confirmed",
+      "detail": "The os-release reader is now public (desktop_session.parse_os_release, :130-146) and adds LinuxDistro.detected (:50). core_node_dirs.get_os_var_tag (:284) uses _linux_os_var_tag(LINUX_DISTRO) (:258-261), and the inline /etc/os-release parser is gone. Grep finds one os-release reader in pycore, and system_info.get_linux_distro_info (:436-438) already delegates to LINUX_DISTRO."
+    },
+    "CKA-04": {
+      "status": "confirmed",
+      "detail": "core_node_dirs.py:49-52, :68-71 and :83 read the data-dir names, the Windows drive/www base, the Linux www roots, the legacy dir, the home fallback and the NTFS types from service_contract.json#paths, through the new service_contract.path_value/path_values (:36-47). Those follow the existing host()/port() accessor pattern. www_data_root_mounted and get_linux_www_base (:119-132) use the constants, and the home fallback is _home_data_dir (:135-136). An AST scan finds no '/var/_core_node', '/www/www', '/www' or 'D:/' string constant in code (docstrings keep them as documentation). There is no new import cycle, because pygvar already reached service_contract through network_constants at 74e7770."
+    },
+    "AHSC-21": {
+      "status": "confirmed",
+      "detail": "system_paths.py:128-143: claude6 and claude9 are removed, codex2 is {'win32': programing, 'linux': tmp} slot Codex2, and ark is split into win32 ark1-7 and linux ark1-2. All were checked against scripts/winenvs/{codex2,ark1,kimi1}.ps1 and scripts/linuxenvs/{codex2,ark1,ark2,kimi1,openai1}.sh (D:\\programing\\Users, /var/_core_node/Users, D:\\.tmp\\Users, /tmp/Users). AGENT_SLOT_USERS_ROOTS (:147-154) is derived from the profiles over AGENT_SLOT_ROOT_TEMPLATES (:73-88), so the comments at :56-60 and agent_home_scanner.py:5-6 are now true. agent_home_scanner.py:118 uses AGENT_HISTORY_ROOT_USER_HOME (system_paths.py:90), and _expand_root (:63-68) uses the two root tokens. An AST sweep of pycore, pyapps and scripts found no reader of the dropped empty 'win32' entries; the scanner reads spec.get(platform) or ()."
+    },
+    "LTCW-20": {
+      "status": "confirmed",
+      "detail": "python_package_policy.py:113-121 adds LINUX_ONLY_PACKAGES (Xlib/python-xlib, jeepney), taken out of DEPENDENCY_MAP, and PLATFORM_ONLY_PACKAGES. installer_packages (:187) reads PLATFORM_ONLY_PACKAGES. The runtime paths follow: _deps.py:13, _cache.py:48-49 (lazy install) and _dep_check.py:46-47 (Linux only). PythonDependencyMapInstallCommon.ps1:43 passes '--platform windows', and pycore_package_policy_install.sh:125 passes '--platform linux', so no shell-windows item is needed."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "_dep_check.py:44-47: the new Linux branch is a second platform switch beside PLATFORM_ONLY_PACKAGES. `all_dependencies.update(PLATFORM_ONLY_PACKAGES.get(current_platform.lower(), {}))` would be the one lookup. The Windows branch sits under a user 'DO NOT MODIFY' comment, so leaving it alone was right. Owner: pycore-lead (pyfoundations).",
+    "third_party/api.py:42/:288 re-exports WINDOWS_ONLY_PACKAGES but not LINUX_ONLY_PACKAGES. No caller needs it today.",
+    "desktop_session.py:232 and :243-245 still read XDG_SESSION_TYPE, XDG_CURRENT_DESKTOP and DESKTOP_SESSION inline, while the other env names moved to *_ENV constants (:26-30). This is pre-existing; centralize them in the next pyfoundations touch.",
+    "system_paths.py:121 still gives 'MyBest1..N' as the example of a '*' slot family. No launcher creates MyBest slots any more (the families are ark* and Kimi*).",
+    "core_node_dirs.py:3 docstring still says 'stdlib-only'. :35-37 states the new, correct rule (it imports only the stdlib-only foundations service_contract and desktop_session).",
+    "The AHSC-11 consumers are still open, as expected (pycore-runtime G1): win32_system_tray.py:508 and thread_bus_bridge.py:115 register the literal 'tray.show_notification', and system_notification.py:33 and tray_config.py:270 keep their duplicates."
+  ],
+  "checks": [
+    "EOL gate: git diff --shortstat 74e7770..HEAD equals --ignore-space-at-eol on the ten files (209/76). Byte counts: eight files are pure LF at base and HEAD. _cache.py is pure CRLF (62->64). service_contract.py is mixed (62->76 CRLF of 87->101), and the 14 inserted lines (:36-49) are CRLF, like their neighbours. No AI rules header was re-added.",
+    "Scope: every file is under pycore/pyfoundations (pycore-lead's scope). No in-flight D1 file was touched (serialized_worker.py and secret_manager.py changed only in f4f223414). config/service_contract.json#paths was applied by the contracts step (merge_meta contracts_applied=true).",
+    "Layering: the new imports are pyfoundations to pyfoundations only (core_node_dirs to desktop_session and service_contract; agent_home_scanner to system_paths). No try/except was added. Imports are at the top and constants at the top. No user-facing text was added and no tests were touched.",
+    "Windows (python, free RAM 4.26 GB): py_compile passed on all 10 files. BusSignals.TRAY_SHOW_NOTIFICATION == 'tray.show_notification'. user_session_endpoints(1000) is None. Sample os-release files were checked against the base inline parser, and the tags are identical (DEBIAN_13, UBUNTU_26, KALI_2026, ARCH_0, UNKNOWN). The base core_node_dirs (74e7770) and HEAD agree on 12 constants, get_core_node_data_dir (D:\\www\\core_node), get_global_var_dir and get_os_var_tag (WIN10). installer_packages('windows') has neither python-xlib nor jeepney, and 'linux' has both. The profile roots equal the derived AGENT_SLOT_USERS_ROOTS. The per-platform root templates equal the base set (win32: 2, linux: 4). scan_user_homes ran OK.",
+    "Debian 13 WSL (python3, repo at /mnt/d): base and HEAD agree on get_os_var_tag DEBIAN_13, get_linux_www_base /www and www_data_root_mounted. user_session_endpoints(1000) returns /run/user/1000, its bus address and x11 ':0'. Slot roots are [/www/core_node/Users, /var/_core_node/Users, /root/.kimi_slots, /tmp/Users]. The installer 'linux' set includes python-xlib and jeepney.",
+    "Import resolution: fresh processes import pygvar, core_node_dirs, third_party.api, third_party._dep_check (it no longer checks python-xlib/jeepney on Windows) and pyutils.launcher.linux_desktop_user. An AST sweep of pycore, pyapps and scripts checked 344 'from <changed module> import' names and every BusSignals.<attr> access: 0 missing (this covers the RUNTIME_ROOT, _parse_os_release and TRAY_SHOW_MESSAGE removals)."
+  ],
+  "notes": "Approved. All six done items meet their requirement and verify steps. The six non-blocking notes are small centralization and comment cleanups inside pyfoundations, plus the already-assigned AHSC-11 consumer work. pycore-lead G1 may now edit system_paths.py and service_contract.py. The lane left no report; this verdict is the record.",
+  "checked_at": "2026-09-27"
+}

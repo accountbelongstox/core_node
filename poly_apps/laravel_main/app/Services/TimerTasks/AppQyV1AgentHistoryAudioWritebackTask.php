@@ -11,6 +11,11 @@ final class AppQyV1AgentHistoryAudioWritebackTask extends OctaneTimerTaskAbstrac
 
     private const RECOVERY_AGE_SECONDS = 30;
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     public function getInterval(): int
     {
         return self::INTERVAL_SECONDS;

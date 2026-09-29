@@ -18,6 +18,22 @@ import type {
 const LIBRARY_COVER_POLL_INTERVAL_MS = 3000;
 const COVER_VERSION_PARAM = 'v';
 
+/** Library `cover_status` values (AppQyV1VocabularyCoverService::COVER_STATUSES). */
+export const LIBRARY_COVER_STATUS = {
+  pending: 'pending',
+  processing: 'processing',
+  retry: 'retry',
+  ready: 'ready',
+  failed: 'failed',
+} as const;
+
+/** Cover statuses still waiting for a cover (AppQyV1VocabularyLibraryModel::COVER_QUEUED_STATUSES). */
+export const LIBRARY_COVER_WAITING_STATUSES: ReadonlySet<string> = new Set([
+  LIBRARY_COVER_STATUS.pending,
+  LIBRARY_COVER_STATUS.retry,
+  LIBRARY_COVER_STATUS.processing,
+]);
+
 export type LibraryCoverPhase = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export interface LibraryCoverEntry {
@@ -82,8 +98,8 @@ function taskPhase(task: LibraryCoverTask): LibraryCoverPhase {
 }
 
 function idlePhase(coverStatus: string | null): LibraryCoverPhase {
-  if (coverStatus === 'failed') return 'failed';
-  if (coverStatus === 'ready') return 'completed';
+  if (coverStatus === LIBRARY_COVER_STATUS.failed) return 'failed';
+  if (coverStatus === LIBRARY_COVER_STATUS.ready) return 'completed';
   return 'cancelled';
 }
 
@@ -208,7 +224,7 @@ export class LibraryCoverTaskModel {
         ...this.emptyEntry(id, previous[id]),
         mode,
         phase: 'queued',
-        coverStatus: 'pending',
+        coverStatus: LIBRARY_COVER_STATUS.pending,
         coverErrorMessage: null,
         active: true,
       };
@@ -216,6 +232,9 @@ export class LibraryCoverTaskModel {
     this.publish(optimistic);
 
     const trimmedPrompt = prompt?.trim();
+    const sent = new Set<number>();
+    let failed = false;
+    let failure: unknown;
     try {
       for (const chunk of chunks(targets)) {
         const response = await this.transport.enqueue({
@@ -225,18 +244,19 @@ export class LibraryCoverTaskModel {
         });
         result.tasks.push(...(response.tasks ?? []));
         result.skipped.push(...(response.skipped ?? []));
+        chunk.forEach((id) => sent.add(id));
       }
     } catch (error) {
-      const restored = { ...this.state.entries };
-      for (const id of targets) {
-        if (previous[id]) restored[id] = previous[id];
-        else delete restored[id];
-      }
-      this.publish(restored);
-      throw error;
+      failed = true;
+      failure = error;
     }
 
     const entries = { ...this.state.entries };
+    for (const id of targets) {
+      if (sent.has(id)) continue;
+      if (previous[id]) entries[id] = previous[id];
+      else delete entries[id];
+    }
     for (const skipped of result.skipped) {
       const id = Number(skipped.id);
       if (previous[id]) entries[id] = previous[id];
@@ -248,6 +268,7 @@ export class LibraryCoverTaskModel {
     }
     this.publish(entries);
     this.refreshNow();
+    if (failed) throw failure;
     return result;
   }
 
@@ -333,9 +354,18 @@ export class LibraryCoverTaskModel {
       for (const chunk of chunks(ids)) {
         const response = await this.transport.status(chunk);
         const entries = { ...this.state.entries };
+        const returned = new Set<number>();
         for (const item of response.items ?? []) {
           const id = Number(item.library_id);
+          returned.add(id);
           entries[id] = this.fromStatus(item, entries[id]);
+        }
+        if (Array.isArray(response.items)) {
+          for (const id of chunk) {
+            const entry = entries[id];
+            if (returned.has(id) || !entry?.active) continue;
+            entries[id] = { ...entry, phase: idlePhase(entry.coverStatus), active: false };
+          }
         }
         this.publish(entries);
       }

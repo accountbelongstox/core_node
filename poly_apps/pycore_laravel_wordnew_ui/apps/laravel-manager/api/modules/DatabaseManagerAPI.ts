@@ -1,5 +1,9 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
+import type { APIResponse } from '../../types';
+
+/** Dumps, restores and imports run for minutes; a client abort must not end the operator's wait early. */
+const DB_LONG_OPERATION_TIMEOUT_MS = 15 * 60 * 1000;
 
 /**
  * DatabaseManagerAPI
@@ -196,14 +200,25 @@ export interface DataSyncProbeResult {
   error?: string;
 }
 
-/** Error thrown by the data-sync endpoints; `status` carries the HTTP code (401 drives the peer login popup). */
-export class DataSyncApiError extends Error {
+/**
+ * Failed db-manager call: `message` is the server's message (empty when it
+ * sent none, so the UI shows its localized fallback) and `status` the HTTP code.
+ */
+export class DatabaseManagerApiError extends Error {
   status: number;
 
   constructor(message: string, status: number) {
     super(message);
-    this.name = 'DataSyncApiError';
+    this.name = 'DatabaseManagerApiError';
     this.status = status;
+  }
+}
+
+/** Error thrown by the data-sync endpoints; `status` 401 drives the peer login popup. */
+export class DataSyncApiError extends DatabaseManagerApiError {
+  constructor(message: string, status: number) {
+    super(message, status);
+    this.name = 'DataSyncApiError';
   }
 }
 
@@ -270,7 +285,7 @@ export interface DbCredentialResetResult {
   new_password: string;
 }
 
-export class DatabaseManagerAPI extends BaseAPI {
+export class DatabaseManagerAPI extends LmBaseAPI {
   /** GET /connections — all reachable connections (main + sub-apps). */
   async getConnections(): Promise<DbConnectionInfo[]> {
     const res = await this.get<{ connections: DbConnectionInfo[] }>('connections');
@@ -292,17 +307,17 @@ export class DatabaseManagerAPI extends BaseAPI {
     return (res.data as { tables: DbTableInfo[] }).tables ?? [];
   }
 
-  /** GET /tables/{table}/structure?connection=K — column metadata. */
+  /** GET /tables/{table}/structure?connection=K — column metadata; rejects on failure. */
   async getStructure(table: string, connection: string): Promise<DbStructureColumn[]> {
     const res = await this.get<{ columns: DbStructureColumn[] }>(
       `tables/${encodeURIComponent(table)}/structure`,
       { connection }
     );
-    if (!res.success || !res.data) return [];
+    if (!res.success || !res.data) throw this.failure(res);
     return (res.data as { columns: DbStructureColumn[] }).columns ?? [];
   }
 
-  /** GET /tables/{table}/data?connection=K&page&per_page — paginated rows. */
+  /** GET /tables/{table}/data?connection=K&page&per_page — paginated rows; rejects on failure. */
   async getData(
     table: string,
     connection: string,
@@ -313,9 +328,7 @@ export class DatabaseManagerAPI extends BaseAPI {
       `tables/${encodeURIComponent(table)}/data`,
       { connection, page, per_page: perPage }
     );
-    if (!res.success || !res.data) {
-      return { data: [], total: 0, per_page: perPage, current_page: page, last_page: 1 };
-    }
+    if (!res.success || !res.data) throw this.failure(res);
     return res.data as DbTableDataResponse;
   }
 
@@ -350,21 +363,18 @@ export class DatabaseManagerAPI extends BaseAPI {
     form.append('mode', mode);
     form.append('connection', connection);
 
-    const res = await this.post<DbImportResult>(
-      `tables/${encodeURIComponent(table)}/import`,
-      form
-    );
+    const res = await this.longOperation<DbImportResult>(`tables/${encodeURIComponent(table)}/import`, form);
     if (!res.success || !res.data) {
-      throw new Error(res.error || 'Import failed');
+      throw this.failure(res);
     }
     return res.data as DbImportResult;
   }
 
   /** POST /backup { connection } — create a backup for the connection. */
   async createBackup(connection: string): Promise<DbBackup> {
-    const res = await this.post<{ backup: DbBackup }>('backup', { connection });
+    const res = await this.longOperation<{ backup: DbBackup }>('backup', { connection }, `backup:${connection}`);
     if (!res.success || !res.data) {
-      throw new Error(res.error || 'Backup failed');
+      throw this.failure(res);
     }
     return (res.data as { backup: DbBackup }).backup;
   }
@@ -379,8 +389,18 @@ export class DatabaseManagerAPI extends BaseAPI {
 
   /** POST /backups/{id}/restore — restore a backup. */
   async restoreBackup(id: string): Promise<{ success: boolean; message?: string }> {
-    const res = await this.post<unknown>(`backups/${encodeURIComponent(id)}/restore`);
+    const res = await this.longOperation<unknown>(`backups/${encodeURIComponent(id)}/restore`, undefined, `restore:${id}`);
     return { success: res.success, message: res.message || res.error || undefined };
+  }
+
+  /**
+   * One transport attempt: a re-sent dump, restore or import would run twice.
+   * Backup and restore also carry the action's Idempotency-Key, so the
+   * operator's retry replays or joins the first run on the server.
+   */
+  private longOperation<T>(url: string, data?: unknown, idempotentAction?: string): Promise<APIResponse<T>> {
+    const config = { url, method: 'POST' as const, data, retry: false, timeout: DB_LONG_OPERATION_TIMEOUT_MS };
+    return idempotentAction ? this.requestIdempotent<T>(idempotentAction, config) : this.request<T>(config);
   }
 
   /** DELETE /backups/{id} — delete a backup. */
@@ -475,6 +495,10 @@ export class DatabaseManagerAPI extends BaseAPI {
     return new DataSyncApiError(res.error || res.message || '', res.status);
   }
 
+  private failure(res: { error: string | null; status: number }): DatabaseManagerApiError {
+    return new DatabaseManagerApiError(res.error || '', res.status);
+  }
+
   /**
    * GET /credentials?connection=K — credential snapshot for the connection.
    * sqlite returns supports_password=false with an explanatory note.
@@ -502,7 +526,7 @@ export class DatabaseManagerAPI extends BaseAPI {
       ...(user ? { user } : {})
     });
     if (!res.success || !res.data) {
-      throw new Error(res.error || 'Password change failed');
+      throw this.failure(res);
     }
     return res.data as DbCredentialChangeResult;
   }
@@ -524,7 +548,7 @@ export class DatabaseManagerAPI extends BaseAPI {
       ...(password ? { password } : {})
     });
     if (!res.success || !res.data) {
-      throw new Error(res.error || 'Account creation failed');
+      throw this.failure(res);
     }
     return res.data as DbAccountCreateResult;
   }
@@ -535,7 +559,7 @@ export class DatabaseManagerAPI extends BaseAPI {
       `credentials/users/${encodeURIComponent(username)}?connection=${encodeURIComponent(connection)}`
     );
     if (!res.success) {
-      throw new Error(res.error || 'Account drop failed');
+      throw this.failure(res);
     }
     return true;
   }
@@ -548,7 +572,7 @@ export class DatabaseManagerAPI extends BaseAPI {
   async resetPassword(connection: string): Promise<DbCredentialResetResult> {
     const res = await this.post<DbCredentialResetResult>('credentials/reset', { connection });
     if (!res.success || !res.data) {
-      throw new Error(res.error || 'Password reset failed');
+      throw this.failure(res);
     }
     return res.data as DbCredentialResetResult;
   }
@@ -564,7 +588,7 @@ export class DatabaseManagerAPI extends BaseAPI {
     });
 
     if (!response.ok) {
-      throw new Error(`Download failed (HTTP ${response.status})`);
+      throw new DatabaseManagerApiError('', response.status);
     }
 
     const blob = await response.blob();
@@ -593,7 +617,7 @@ export interface AuthDebugStatus {
   client_ip: string;
 }
 
-export class AuthDebugAPI extends BaseAPI {
+export class AuthDebugAPI extends LmBaseAPI {
   /**
    * GET /debug-status (no auth) — loopback debug-bypass probe.
    *

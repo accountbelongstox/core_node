@@ -16,6 +16,16 @@ interface NginxSiteModalProps {
   lang?: Language;
 }
 
+/** The form speaks the create-request vocabulary; a listed Nuxt site is served through a reverse proxy. */
+function toFormSiteType(siteType: NginxSite['site_type']): NginxSiteCreateRequest['site_type'] {
+  return siteType === 'nuxt' ? 'proxy' : siteType;
+}
+
+function toFormPhpMode(phpMode: NginxSite['php_mode'] | undefined): NonNullable<NginxSiteCreateRequest['config']>['php_mode'] {
+  if (phpMode === 'fpm') return 'php-fpm';
+  return phpMode ?? 'none';
+}
+
 const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
   isOpen,
   onClose,
@@ -109,10 +119,10 @@ const NginxSiteModal: React.FC<NginxSiteModalProps> = ({
       setFormData({
         site_name: site.site_name,
         domain: site.domain,
-        site_type: site.site_type || 'static',
+        site_type: toFormSiteType(site.site_type || 'static'),
         config: {
           www_dir: site.www_dir || '/www/wwwroot/',
-          php_mode: site.php_mode || 'none',
+          php_mode: toFormPhpMode(site.php_mode),
           php_version: '8.2',
           swoole_port: site.swoole_port
         },

@@ -37,6 +37,7 @@ export const LIMITS = {
 export const ERROR_MESSAGES = {
   NATIVE_CONNECTION_FAILED: 'Failed to connect to native host',
   NATIVE_DISCONNECTED: 'Native connection disconnected',
+  NATIVE_REQUEST_TIMEOUT: 'Native host request timed out',
   SERVER_STATUS_LOAD_FAILED: 'Failed to load server status',
   SERVER_STATUS_SAVE_FAILED: 'Failed to save server status',
   TOOL_EXECUTION_FAILED: 'Tool execution failed',

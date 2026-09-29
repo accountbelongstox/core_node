@@ -41,6 +41,8 @@ UI_START_SH = REPO_ROOT / "poly_apps" / "pycore_laravel_wordnew_ui" / "scripts" 
 
 PYCORE_UNIT = "pycore"
 UI_UNIT = NEXUS_DASH_SERVICE_NAME
+PROC_SELF_CGROUP = Path("/proc/self/cgroup")
+SYSTEMD_RUN_SCOPE = ["systemd-run", "--scope", "--quiet"]
 
 
 def _sudo_prefix():
@@ -60,16 +62,32 @@ def _run(args, timeout=60):
         return None
 
 
-def _run_shell(script_path: Path, script_args, timeout=300):
+def _inside_unit(unit: str) -> bool:
+    """True when this process runs inside ``<unit>.service``'s cgroup."""
+    if not PROC_SELF_CGROUP.is_file():
+        return False
+    return f"/{unit}.service" in PROC_SELF_CGROUP.read_text(encoding="utf-8", errors="replace")
+
+
+def _run_shell(script_path: Path, script_args, timeout=300, outside_unit: str = ""):
     """Run one of the repo's service shell scripts (root via sudo when needed).
 
     The scripts already self-elevate internally, but prefixing sudo here lets them
     run as root directly so their inner $USE_SUDO no-ops and SUDO_USER is set for
     pycore_resolve_user() to pick the real desktop user.
+
+    ``outside_unit``: when this process runs inside that unit, the script runs
+    in its own transient scope (systemd-run --scope), so stopping the unit
+    cannot kill the script half way (it disables and removes the unit itself).
     """
     if not script_path.exists():
         return None
-    cmd = _sudo_prefix() + ["bash", str(script_path)] + list(script_args)
+    scope = (
+        SYSTEMD_RUN_SCOPE
+        if outside_unit and _inside_unit(outside_unit) and shutil.which(SYSTEMD_RUN_SCOPE[0])
+        else []
+    )
+    cmd = _sudo_prefix() + scope + ["bash", str(script_path)] + list(script_args)
     return _run(cmd, timeout=timeout)
 
 
@@ -116,7 +134,7 @@ def install_pycore_service() -> dict:
 
 def uninstall_pycore_service() -> dict:
     """Stop + disable + remove ONLY the pycore unit. The UI unit is left alone."""
-    res = _run_shell(PYCORE_SERVICE_SH, ["uninstall"], timeout=120)
+    res = _run_shell(PYCORE_SERVICE_SH, ["uninstall"], timeout=120, outside_unit=PYCORE_UNIT)
     out = ((res.stdout or "") + (res.stderr or "")) if res else ""
     ok = not pycore_service_enabled()
     return {

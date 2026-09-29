@@ -2,11 +2,18 @@
 
 namespace App\Services\DataSync;
 
+use App\Services\ClientKey\ClientKeyAuthService;
+use App\Support\LaravelServerIdentity;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\Http;
+use Psr\Http\Message\RequestInterface;
 
 final class DataSyncPeerClient
 {
+    private const SIGNING_CLIENT = 'laravel_peer';
+    private const JSON_CONTENT_TYPE = 'application/json';
+
     public function normalizeAddress(string $input): string
     {
         $trimmedInput = trim($input);
@@ -19,7 +26,7 @@ final class DataSyncPeerClient
         $parts = parse_url($candidate);
 
         if (!is_array($parts)) {
-            throw new \InvalidArgumentException('The peer address is not a valid IP address or host with an optional port.');
+            throw new \InvalidArgumentException(__('data_sync.peer_address_invalid'));
         }
 
         $scheme = strtolower((string) ($parts['scheme'] ?? 'http'));
@@ -29,7 +36,7 @@ final class DataSyncPeerClient
         // reverse-proxied domain such as https://api.example.com).
         $port = (int) ($parts['port'] ?? ($explicitScheme
             ? ($scheme === 'https' ? 443 : 80)
-            : DataSyncProtocol::DEFAULT_PORT));
+            : DataSyncProtocol::defaultPort()));
         $path = (string) ($parts['path'] ?? '');
 
         if (
@@ -43,7 +50,7 @@ final class DataSyncPeerClient
             || isset($parts['query'])
             || isset($parts['fragment'])
         ) {
-            throw new \InvalidArgumentException('The peer address is not a valid IP address or host with an optional port.');
+            throw new \InvalidArgumentException(__('data_sync.peer_address_invalid'));
         }
 
         $normalizedHost = strtolower($host);
@@ -75,7 +82,7 @@ final class DataSyncPeerClient
         }
 
         if (!$response->successful()) {
-            return ['reachable' => false, 'error' => "Peer HTTP {$response->status()}"];
+            return ['reachable' => false, 'error' => __('data_sync.peer_http_status', ['status' => $response->status()])];
         }
 
         return [
@@ -116,11 +123,30 @@ final class DataSyncPeerClient
             $path = $basePath . $path;
         }
 
-        $url = rtrim((string) ($session['target'] ?? ''), '/') . DataSyncProtocol::API_PREFIX . $path;
+        $requestPath = DataSyncProtocol::API_PREFIX . $path;
+        $rawQuery = $method === 'GET' ? http_build_query($payload, '', '&', PHP_QUERY_RFC3986) : '';
+        $body = $method === 'GET' ? '' : json_encode($payload, JSON_THROW_ON_ERROR);
+        $url = rtrim((string) ($session['target'] ?? ''), '/') . $requestPath . ($rawQuery !== '' ? '?' . $rawQuery : '');
         $request = Http::acceptJson()
             ->connectTimeout(DataSyncProtocol::CONNECT_TIMEOUT_SECONDS)
             ->timeout(DataSyncProtocol::REQUEST_TIMEOUT_SECONDS)
-            ->retry([250, 500], throw: false);
+            ->retry([250, 500], throw: false)
+            ->beforeSending(static function (ClientRequest $attempt) use ($method, $requestPath, $rawQuery, $body): RequestInterface {
+                $psrRequest = $attempt->toPsrRequest();
+                foreach (ClientKeyAuthService::signedHeaders(
+                    self::SIGNING_CLIENT,
+                    LaravelServerIdentity::id(),
+                    $method,
+                    $requestPath,
+                    $rawQuery,
+                    $body,
+                    $method === 'GET' ? '' : self::JSON_CONTENT_TYPE
+                ) as $name => $value) {
+                    $psrRequest = $psrRequest->withHeader($name, $value);
+                }
+
+                return $psrRequest;
+            });
 
         if ($authenticated) {
             $request = $request->withHeaders([
@@ -130,14 +156,14 @@ final class DataSyncPeerClient
 
         try {
             $response = $method === 'GET'
-                ? $request->get($url, $payload)
-                : $request->send($method, $url, ['json' => $payload]);
+                ? $request->get($url)
+                : $request->withBody($body, self::JSON_CONTENT_TYPE)->send($method, $url);
         } catch (ConnectionException $exception) {
             return ['__waiting' => $exception->getMessage()];
         }
 
         if (in_array($response->status(), DataSyncProtocol::TRANSIENT_HTTP_STATUSES, true)) {
-            return ['__waiting' => "Peer HTTP {$response->status()}; retrying idempotently."];
+            return ['__waiting' => __('data_sync.peer_http_retrying', ['status' => $response->status()])];
         }
 
         if ($response->serverError()) {
@@ -152,17 +178,17 @@ final class DataSyncPeerClient
                     false
                 );
                 if (!isset($receiver['__waiting']) && ($receiver['status'] ?? null) === 'failed') {
-                    throw new \RuntimeException((string) ($receiver['error'] ?? 'Receiver synchronization failed.'));
+                    throw new \RuntimeException((string) ($receiver['error'] ?? __('data_sync.receiver_failed')));
                 }
             }
 
             throw new \RuntimeException(
-                (string) ($response->json('message') ?? "Peer HTTP {$response->status()}")
+                (string) ($response->json('message') ?? __('data_sync.peer_http_status', ['status' => $response->status()]))
             );
         }
 
         if (!$response->successful()) {
-            throw new \RuntimeException((string) ($response->json('message') ?? "Peer HTTP {$response->status()}"));
+            throw new \RuntimeException((string) ($response->json('message') ?? __('data_sync.peer_http_status', ['status' => $response->status()])));
         }
 
         return (array) ($response->json('data') ?? $response->json());

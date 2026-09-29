@@ -680,7 +680,7 @@ class UnifiedAppManager:
                         menu.clear_screen()
                         menu.log_header("Creating Service with Domain Proxy")
                         menu.log_info(f"App: {app.name}")
-                        menu.log_info(f"Domain: {domain}")
+                        menu.log_info(f"Domains: {', '.join(domains)}")
                         print()
                         menu.log_success("Proxy creation command prepared")
                         print()

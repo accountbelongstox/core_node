@@ -1,0 +1,18 @@
+{
+  "task_id": "wordnew-1",
+  "role": "wordnew",
+  "verdict": "approved",
+  "findings": {
+    "FU-031": {
+      "status": "fixed",
+      "reason": "Behavior is correct: each queued write stores the owner scope (scopeFor(token), the token its replay would send); the drain replays only the live owner's entries (FIFO per owner); send() re-checks the owner after resolving auth and throws QueueOwnerChangedError, which is never queued on the first send and pauses the drain with the entry kept. Legacy ownerless entries are pruned on load and never replayed; logout clears the queue before the revoke. Every queueable write carries an Idempotency-Key from its first send and the persisted entry reuses it, the name agreed with laravel. One user's writes can no longer replay under another login."
+    }
+  },
+  "issues": [
+    "(resolved) MasterApiClient.ts now imports IDEMPOTENCY_KEY_HEADER from BaseAPI (:49) and uses it at :421/:423; the local IDEMPOTENCY_HEADER is gone (grep over core, apps, shared and shell is empty).",
+    "(non-blocking, accepted with reason) the owner scope is a token hash. The shared AuthSession stores no user id, and wordnew's userId setting can belong to another login, so a token-scoped owner trades 'pruned after 24 h across a session expiry' for 'never cross-user'. A stable owner would need AuthSession to store the user id with the token (a shared-layer follow-up).",
+    "(cross-end) laravel must honour Idempotency-Key on group/update_progress, recitation/log and learning/sentence-words/played (laravel-T5)."
+  ],
+  "checks": "RequestQueue.ts and MasterApiClient.ts diffs read (writer assignment in requirements section 6 confirmed by the orchestrator); the load prune re-persists after dropping legacy entries; clear() exists; wordnew scopeFor export, transport hook and logout clear read; grep for the idempotency header across core, shared, shell and apps.",
+  "checked_at": "2026-09-27T04:24:51+10:00"
+}

@@ -176,12 +176,6 @@
 
    function's result, detect binaries by file probing
 
- - AI SPECIAL ATTENTION RULES headers in scripts:
-
-   English-only code, never tests, never docs/summaries in
-
-   source, variables at file top, PS1 path rules
-
  - Mercure JWT keys (publisher_jwt/subscriber_jwt) never
 
    ship to pycore/browser/extension; tokens never in URLs;
@@ -690,11 +684,7 @@
 
    RealtimeConnectionService、worker 路由组模式。
 
- - 路由模式：routes/api.php 顶部有 “AI SPECIAL ATTENTION
-
-   RULES” 注释（代码仅英文、写完即停不运行测试、不写 md/进度
-
-   注释、不改规则）。worker 路由组用
+ - 路由模式：worker 路由组用
 
    Route::prefix('worker')->group(...)，路径镜像 contract
 

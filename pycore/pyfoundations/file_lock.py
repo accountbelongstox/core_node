@@ -33,7 +33,12 @@ import time
 import hashlib
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Iterator, Optional
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
@@ -50,6 +55,11 @@ JsonData = Dict[str, Any]
 # ---------------------------------------------------------------------------
 LOCK_TIMEOUT_SECONDS = 300  # 5 minutes
 LOCK_RETRY_INTERVAL = 1.0   # 1 second
+# One OS-locked file per target: the kernel gives mutual exclusion between
+# processes and between threads (each acquire opens its own descriptor) and
+# drops the lock when its holder dies, so no stale-lock detection is needed.
+LOCK_FILE_NAME = "file.lock"
+LOCK_BYTES = 1
 
 
 class FileLockManager:
@@ -59,15 +69,15 @@ class FileLockManager:
     Features:
     - Cross-platform cache directory support (Windows/Linux)
     - MD5-based lock directory isolation
-    - Timestamp-based lock files (no content reading needed)
-    - 5-minute zombie lock detection
+    - One OS-locked file per target (fcntl.flock / msvcrt.locking): exclusive
+      between processes and threads, released by the kernel when the holder dies
     - Automatic retry on lock contention (1 second interval)
     - JSON read/write/update operations
     - Process-safe atomic operations
 
     Lock Structure:
-        Windows: D:\\www\\core_node\\_lck\\{md5}\\{timestamp}.{pid}.lck
-        Linux:   <core_node_data_dir>/_lck/{md5}/{timestamp}.{pid}.lck
+        Windows: D:\\www\\core_node\\_lck\\{md5}\\file.lock
+        Linux:   <core_node_data_dir>/_lck/{md5}/file.lock
 
     Usage:
         # Create manager for a file
@@ -144,9 +154,6 @@ class FileLockManager:
         # Lock directory: {cache_base}/_lck/{md5_hash}/
         self._lock_dir = self._cache_base / '_lck' / self._path_hash
 
-        # Current lock file (set when lock is acquired)
-        self._current_lock_file: Optional[Path] = None
-
         self._log(f"FileLockManager initialized")
         self._log(f"  Target file: {self.file_path}")
         self._log(f"  Lock directory: {self._lock_dir}")
@@ -182,86 +189,32 @@ class FileLockManager:
         md5.update(path.encode('utf-8'))
         return md5.hexdigest()
 
-    def _get_lock_files(self) -> list[Path]:
-        """
-        Get all lock files in lock directory
+    @property
+    def _lock_file(self) -> Path:
+        return self._lock_dir / LOCK_FILE_NAME
 
-        Returns:
-            List of lock file paths (sorted by timestamp, newest first)
-        """
-        if not self._lock_dir.exists():
-            return []
-
-        # Find all .lck files matching pattern: *.*.lck
-        lock_files = list(self._lock_dir.glob('*.*.lck'))
-
-        # Sort by creation time (newest first), safely handling deleted files
-        def safe_ctime(f: Path) -> float:
-            # Check if file exists before getting stats
-            if not f.exists():
-                return 0.0
-            return f.stat().st_ctime
-
-        lock_files.sort(key=safe_ctime, reverse=True)
-
-        # Filter out files that no longer exist
-        lock_files = [f for f in lock_files if f.exists()]
-
-        return lock_files
-
-    def _is_lock_stale(self, lock_file: Path) -> bool:
-        """
-        Check if lock file is stale (zombie lock from crashed process)
-
-        Args:
-            lock_file: Lock file path
-
-        Returns:
-            True if lock is older than timeout threshold
-        """
-        # Check if file exists first
-        if not lock_file.exists():
-            return True
-
-        stat = lock_file.stat()
-        # Use creation time on Windows, modification time on Unix
-        created_at = getattr(stat, 'st_ctime', stat.st_mtime)
-        age = time.time() - created_at
-        return age > self.lock_timeout
-
-    def _cleanup_stale_locks(self):
-        """Remove all stale lock files"""
-        lock_files = self._get_lock_files()
-
-        for lock_file in lock_files:
-            if self._is_lock_stale(lock_file):
-                lock_file.unlink(missing_ok=True)
-                self._log(f"  Removed stale lock: {lock_file.name}")
-
-    def _check_self_deadlock(self, lock_file: Path) -> bool:
-        """
-        Check if lock file belongs to current process (self-deadlock prevention)
-
-        Args:
-            lock_file: Lock file path
-
-        Returns:
-            True if lock belongs to current process
-        """
-        # Lock filename format: {timestamp}.{pid}.lck
-        parts = lock_file.stem.split('.')
-        if len(parts) < 2:
+    @staticmethod
+    def _try_lock(descriptor: int) -> bool:
+        """Non-blocking exclusive OS lock on one open descriptor."""
+        try:
+            if os.name == "nt":
+                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, LOCK_BYTES)
+            else:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
             return False
+        return True
 
-        # Check if last part is a valid PID number
-        if not parts[-1].isdigit():
-            return False
-
-        lock_pid = int(parts[-1])
-        return lock_pid == os.getpid()
+    @staticmethod
+    def _unlock(descriptor: int) -> None:
+        if os.name == "nt":
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(descriptor, msvcrt.LK_UNLCK, LOCK_BYTES)
+        else:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
 
     @contextmanager
-    def lock(self):
+    def lock(self) -> Iterator[None]:
         """
         Context manager for acquiring exclusive file lock
 
@@ -270,96 +223,33 @@ class FileLockManager:
                 # ... exclusive access ...
                 pass
         """
-        self._acquire_lock()
+        descriptor = self._acquire_lock()
         try:
             yield
         finally:
-            self._release_lock()
+            self._release_lock(descriptor)
 
-    def _acquire_lock(self):
+    def _acquire_lock(self) -> int:
+        """Block until this call holds the OS lock; returns its descriptor.
+
+        The descriptor is per call (never stored on the instance), so threads
+        sharing one manager each wait for their own exclusive hold.
         """
-        Acquire exclusive lock (blocks until lock is available)
-
-        Lock acquisition steps:
-        1. Create lock directory if needed
-        2. Scan for existing lock files
-        3. Clean up stale locks (older than timeout)
-        4. Check for self-deadlock (own PID)
-        5. If active locks exist, wait and retry
-        6. Create new lock file with timestamp + PID
-        """
-        current_pid = os.getpid()
-
-        ColorPrint.plain(f"[FileLockManager] Acquiring lock for {self.file_path.name} (PID {current_pid})...", flush=True)
-
-        while True:
-            # Ensure lock directory exists
-            self._lock_dir.mkdir(parents=True, exist_ok=True)
-
-            # Get all existing lock files
-            ColorPrint.plain(f"[FileLockManager] Scanning lock directory: {self._lock_dir}", flush=True)
-            lock_files = self._get_lock_files()
-            ColorPrint.plain(f"[FileLockManager] Found {len(lock_files)} lock files", flush=True)
-
-            # Clean up stale locks and check for self-deadlock
-            active_locks = []
-            for lock_file in lock_files:
-                if self._is_lock_stale(lock_file):
-                    lock_file.unlink(missing_ok=True)
-                    self._log(f"  Removed stale lock: {lock_file.name}")
-                elif self._check_self_deadlock(lock_file):
-                    # Own stale lock, remove it
-                    lock_file.unlink(missing_ok=True)
-                    self._log(f"  Removed self-deadlock: {lock_file.name}")
-                else:
-                    # Active lock held by another process
-                    active_locks.append(lock_file)
-
-            # If no active locks, try to acquire
-            if not active_locks:
-                ColorPrint.plain(f"[FileLockManager] No active locks, attempting to acquire...", flush=True)
-
-                # Create lock file: {timestamp}.{pid}.lck
-                timestamp = int(time.time() * 1000000)  # microseconds
-                lock_filename = f"{timestamp}.{current_pid}.lck"
-                self._current_lock_file = self._lock_dir / lock_filename
-
-                # Check if file already exists (race condition check)
-                if self._current_lock_file.exists():
-                    ColorPrint.plain(f"[FileLockManager] Race condition, retrying...", flush=True)
-                    self._current_lock_file = None
-                    time.sleep(self.retry_interval)
-                    continue
-
-                # Create empty lock file
-                with self._current_lock_file.open('w') as f:
-                    pass  # Empty file
-
-                ColorPrint.plain(f"[FileLockManager] Lock acquired: {lock_filename}", flush=True)
-                return  # Lock acquired successfully
-            else:
-                # Active locks exist, show waiting message
-                active_pids = [f.stem.split('.')[-1] for f in active_locks]
-                ColorPrint.plain(f"[FileLockManager] Waiting for lock (held by PID {active_pids})...", flush=True)
-
-            # Wait before retry
+        self._lock_dir.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(str(self._lock_file), os.O_RDWR | os.O_CREAT, 0o600)
+        waited = False
+        while not self._try_lock(descriptor):
+            if not waited:
+                self._log(f"Waiting for lock on {self.file_path.name} (PID {os.getpid()})...")
+                waited = True
             time.sleep(self.retry_interval)
+        self._log(f"Lock acquired: {self.file_path.name}")
+        return descriptor
 
-    def _release_lock(self):
-        """
-        Release the acquired lock
-
-        After releasing the lock, sleeps for 0.5 seconds to give other processes
-        a fair chance to acquire the lock (prevents one process from monopolizing).
-        """
-        if self._current_lock_file is not None:
-            self._current_lock_file.unlink(missing_ok=True)
-            self._log(f"Lock released: {self._current_lock_file.name}")
-            self._current_lock_file = None
-
-            # Sleep to give other processes a chance to acquire the lock
-            # This prevents one process from monopolizing lock acquisition
-            time.sleep(0.5)
+    def _release_lock(self, descriptor: int) -> None:
+        self._unlock(descriptor)
+        os.close(descriptor)
+        self._log(f"Lock released: {self.file_path.name}")
 
     def ensure_file_exists(self):
         """Ensure target file exists with default content"""
@@ -501,37 +391,19 @@ class FileLockManager:
         Returns:
             Dictionary with lock information
         """
-        lock_files = self._get_lock_files()
-
-        status = {
+        self._lock_dir.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(str(self._lock_file), os.O_RDWR | os.O_CREAT, 0o600)
+        free = self._try_lock(descriptor)
+        if free:
+            self._unlock(descriptor)
+        os.close(descriptor)
+        return {
             'file_path': str(self.file_path),
             'lock_dir': str(self._lock_dir),
+            'lock_file': str(self._lock_file),
             'path_hash': self._path_hash,
-            'lock_count': len(lock_files),
-            'locks': [],
+            'locked': not free,
         }
-
-        for lock_file in lock_files:
-            # Check if file exists
-            if not lock_file.exists():
-                continue
-
-            stat = lock_file.stat()
-            created_at = getattr(stat, 'st_ctime', stat.st_mtime)
-            age = time.time() - created_at
-
-            # Parse PID from filename
-            parts = lock_file.stem.split('.')
-            pid = int(parts[-1]) if len(parts) >= 2 and parts[-1].isdigit() else None
-
-            status['locks'].append({
-                'filename': lock_file.name,
-                'pid': pid,
-                'age_seconds': round(age, 2),
-                'is_stale': age > self.lock_timeout,
-            })
-
-        return status
 
 
 # TODO(legacy-dup): Consolidate the ThreadSafeJsonStore legacy duplicate at
@@ -588,7 +460,7 @@ def main():
     status = manager.get_lock_status()
     ColorPrint.plain(f"Lock directory: {status['lock_dir']}")
     ColorPrint.plain(f"Path hash: {status['path_hash']}")
-    ColorPrint.plain(f"Active locks: {status['lock_count']}")
+    ColorPrint.plain(f"Locked: {status['locked']}")
 
     # Test 5: Manual lock control
     ColorPrint.plain("\n--- Test 5: Manual Lock Control ---")

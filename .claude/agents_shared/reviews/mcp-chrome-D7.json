@@ -1,0 +1,46 @@
+{
+  "task_id": "mcp-chrome-D7",
+  "role": "wordnew-link (old role mcp-chrome)",
+  "verdict": "approved",
+  "scope": "Only the pre-outage part of CKA-01 (merged CKA-01, CKA-02): the manifest edit, the two lockfile regenerations and the pnpm-workspace.yaml deletion. The CKA-01 build step and the items MCHR-05, MCHR-15, MCHR-32, MCHR-33, MCHR-36, MCHR-37, MCHR-43 and MCHR-45 were not implemented. This verdict does not close them. They continue under wordnew-link-G2, which may now continue on these files.",
+  "findings": {
+    "CKA-01 manifest": {
+      "status": "fixed",
+      "detail": "app/native-server/package.json no longer lists @fastify/cors. It was at :36 in 74e7770, and the dependencies block is now :35-46. git diff 74e7770 removes exactly 1 line. The file is LF on both sides and keeps mode 100755. The change reached HEAD through the user's commit 5bbb23682, and the working tree equals HEAD. A grep for 'cors' in app/native-server/src finds nothing: the FU-001 K7 guard (local_rpc_guard via src/ncore.ts) replaced it."
+    },
+    "CKA-01 lockfiles": {
+      "status": "fixed",
+      "detail": "bun.lock (17:30) and pnpm-lock.yaml (17:44) contain 0 'fastify/cors' matches. In a scripted comparison, all 6 bun.lock workspaces ('', advanced-control-panel, app/chrome-extension, app/native-server, packages/shared, packages/wasm-simd) have the same dependency sections as their package.json files (0 mismatches). The only remaining 'cors' entry is cors@2.8.6, a transitive dependency of @modelcontextprotocol/sdk. Both lockfiles are git-ignored (.gitignore:229 '**/*.lock' and :232 'apps/**/pnpm-lock.yaml', both already present at 74e7770), so neither produces a tracked diff."
+    },
+    "apps/mcp-chrome/pnpm-workspace.yaml deletion": {
+      "status": "keep the deletion (no restore)",
+      "detail": "The file is absent at 74e7770. f853d9489 (2026-09-18, the pnpm to bun migration that moved package.json to bun scripts and 'workspaces') deleted it on purpose. It was re-created during CKA-01 as a temporary file with packages 'app/*' and 'packages/shared'. That content differs from the pre-f853d9489 version, and it matches pnpm-lock.yaml's importers exactly ('.', app/chrome-extension, app/native-server, packages/shared). pnpm ignores package.json 'workspaces', so it needs this file to regenerate its lock. The user's sweep commit b20962b4f (17:36:31) picked the file up, the member removed it at about 17:44 once pnpm-lock.yaml was written, and the user's commit 120296148 (20:02:56) recorded the deletion. git diff 74e7770 HEAD for this path is now empty. No mcp-chrome script or source file references pnpm; the grep hits are only in .gitignore and .prettierignore. A restore would re-add a file the base does not have, so none is needed and no file was written."
+    },
+    "CKA-01 build": {
+      "status": "open (wordnew-link-G2)",
+      "detail": "The build has not run since the change. build_output/build_extension/build-stamp.json is {\"buildId\":\"1790442813787\"}, dated 03:13, and app/native-server/dist and packages/shared/dist are also from 03:13. The item's verify (bun run build writes a new build-stamp.json) is still pending."
+    }
+  },
+  "issues": [],
+  "non_blocking": [
+    "For G2: the stale native dist (03:13) is older than FU-001 (src/server/index.ts 04:22). dist/server/index.js:8 still has require(\"@fastify/cors\") and registers it at :54, and it has no local_rpc_guard. The registered native host therefore runs without the K7 guard until the rebuild. Rebuilding in order (build:shared, then native, then extension) is the part of CKA-01 that matters for security. Rebuild before any install prunes app/native-server/node_modules/@fastify/cors, which still links to node_modules/.bun/@fastify+cors@11.2.0. Otherwise the stale host fails at require().",
+    "For G2: a Windows-side check (tsc 5.9.3 --noEmit -p app/native-server/tsconfig.json, run with node and with bun, inside and outside the sandbox) stops with TS2688 'Cannot find type definition file' for 'node' and 'jest'. Plain node also fails with EPERM on stat of node_modules/typescript. The node_modules links date from 09-21, and the 17:23-17:30 bun install only added win32 binaries and .bunx/.exe shims. This state predates the change and is unrelated to it. If the Windows build hits it, use the Debian WSL. Deleting node_modules needs the user's approval.",
+    "pnpm-lock.yaml covers only the four importers of the temporary workspace file. It does not include advanced-control-panel or packages/wasm-simd, which bun.lock has. The file is git-ignored and no script uses it, and bun is the package manager. Whether to keep a pnpm lockfile at all is the owner's decision later. No action now.",
+    "Process: the temporary pnpm-workspace.yaml entered history twice through the user's sweep commits (added in b20962b4f, deleted in 120296148), with no net change against 74e7770. Create and remove temporary package-manager files within a single step, or keep them outside the tracked tree. G2 should record the lockfile method in its report, because reports/mcp-chrome.md (09:37) predates CKA-01."
+  ],
+  "checks": [
+    "git diff 74e7770 -- apps/mcp-chrome/app/native-server/package.json: -1 line ('@fastify/cors': '^11.0.1'). git show --stat 5bbb23682 lists it; git diff HEAD is empty.",
+    "file(1) reports both the 74e7770 blob and the working tree as JSON text with no CRLF. Mode 100755 on both sides.",
+    "grep -c 'fastify/cors': package.json 0, bun.lock 0, pnpm-lock.yaml 0. A grep for 'cors' in app/native-server/src (*.ts) finds nothing.",
+    "Python compare of bun.lock workspaces against the 6 package.json files: 0 mismatches.",
+    "git log --name-status for pnpm-workspace.yaml: A 90263fd7c, M 79fd43701, M 79d7924fa, D f853d9489 (ancestor of 74e7770), A b20962b4f, D 120296148. git show 74e7770:apps/mcp-chrome/pnpm-workspace.yaml fails (the path does not exist).",
+    "git check-ignore -v confirms that bun.lock and pnpm-lock.yaml are ignored by the root .gitignore rules, which are present at 74e7770.",
+    "git status --short -- apps/mcp-chrome is clean after 120296148. There are no untracked or other member changes under apps/mcp-chrome.",
+    "The build stamps and both dist directories are all dated 03:13.",
+    "Free RAM was 3.58 GB (guard 3 GB), and the native-server tsc --noEmit attempt ran into the environment issue in non_blocking[1]. No build ran: the build belongs to the G2 continuation, and running it here would compete with G2 on the same files.",
+    "AGENTS.md: no code text, i18n, test or header changes. No destructive action was taken: no restore was needed, and no git writes were made."
+  ],
+  "notes": "Approved. The manifest and both lockfiles are free of @fastify/cors, and the pnpm-workspace.yaml deletion stays, which matches 74e7770 and the bun migration. The CKA-01 build and the remaining mcp-chrome-D7 items continue under wordnew-link-G2.",
+  "checked_at": "2026-09-27T20:06:00+10:00",
+  "checked_by": "wordnew-lead"
+}

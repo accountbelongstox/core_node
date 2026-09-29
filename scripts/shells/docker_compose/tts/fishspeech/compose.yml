@@ -1,18 +1,29 @@
-# Project-managed compose service for the Fish Speech official api_server.
+# Project-managed compose service for the Fish Speech v1.5.1 official api_server.
 # restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
+# Limits, port, device and staging come from model.sh through the docker model
+# runner. /data is the staging bind mount, so checkpoints stay outside the image.
 services:
   fishspeech:
     build:
       context: .
       args:
         TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+      labels:
+        pycore.fingerprint: ${TTS_IMAGE_FINGERPRINT:-}
     image: pycore-tts-fishspeech:local
     container_name: pycore-tts-fishspeech
     restart: "no"
+    mem_limit: ${TTS_MEM_LIMIT:-4608m}
+    memswap_limit: ${TTS_MEM_LIMIT:-4608m}
+    cpus: ${TTS_CPUS:-3.0}
+    pids_limit: ${TTS_PIDS_LIMIT:-512}
     ports:
       - "127.0.0.1:${TTS_PORT:-8080}:8080"
     volumes:
-      - ${TTS_STAGING}:/data
+      - ${TTS_STAGING:?TTS_STAGING is required}:/data
+    environment:
+      FISHSPEECH_DEVICE: ${TTS_DEVICE:-cpu}
+      FISHSPEECH_CHECKPOINT_DIR: /data/${TTS_WEIGHTS_SUBDIR:-checkpoints/fish-speech-1.5}
     labels:
       pycore.managed: "true"
       pycore.engine: "fishspeech"

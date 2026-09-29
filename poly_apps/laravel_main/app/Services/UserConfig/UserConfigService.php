@@ -3,6 +3,7 @@
 namespace App\Services\UserConfig;
 
 use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -25,6 +26,8 @@ use Illuminate\Support\Facades\Log;
  */
 class UserConfigService
 {
+    private const WRITE_LOCK_SUFFIX = '.lock';
+
     public const APPQYV1_ASSIST_ENABLED = 'appqyv1_assist_enabled';
     public const APPQYV1_COVER_GENERATION_ENABLED = 'appqyv1_cover_generation_enabled';
     public const APPQYV1_COVER_MAINTENANCE_ENABLED = 'appqyv1_cover_maintenance_enabled';
@@ -90,9 +93,12 @@ class UserConfigService
             @mkdir($dir, 0775, true);
         }
 
-        $fp = @fopen($path, 'c+');
+        // Writers serialize on a sidecar lock file and replace the settings
+        // file atomically (temp file + rename), so lock-free readers see
+        // either the old or the new document, never a truncated one.
+        $fp = @fopen($path . self::WRITE_LOCK_SUFFIX, 'c');
         if ($fp === false) {
-            Log::warning('[UserConfig] cannot open settings file for write', ['path' => $path]);
+            Log::warning('[UserConfig] cannot open settings lock file for write', ['path' => $path]);
             return false;
         }
 
@@ -102,11 +108,7 @@ class UserConfigService
                 return false;
             }
 
-            $raw = '';
-            $size = (int) filesize($path);
-            if ($size > 0) {
-                $raw = (string) stream_get_contents($fp);
-            }
+            $raw = is_file($path) ? (string) @file_get_contents($path) : '';
             $data = $this->decode($raw);
 
             if ($value === null) {
@@ -115,11 +117,11 @@ class UserConfigService
                 $data[$key] = $value;
             }
 
-            // Atomic-ish write: truncate + rewrite under the lock.
-            rewind($fp);
-            ftruncate($fp, 0);
-            fwrite($fp, $this->encode($data));
-            fflush($fp);
+            if (!FileSystemManager::writeFileAtomic($path, $this->encode($data))) {
+                Log::warning('[UserConfig] cannot write settings file', ['path' => $path]);
+                return false;
+            }
+            clearstatcache(true, $path);
 
             // Refresh the memoized cache so a subsequent get() in the same
             // request reflects the new value.

@@ -19,6 +19,7 @@ import type {
   AudioLaneTrackedItem,
 } from '@/apps/pycore-manager/api';
 import { absoluteTime, formatElapsed, spanSeconds } from '../utils/pcFormat';
+import { pcErrorCodeText } from '../utils/pcErrorCodes';
 
 const TRACK_STATES: AudioLaneTrackState[] = ['queued', 'processing', 'done', 'failed'];
 
@@ -97,6 +98,7 @@ export function PcAudioLaneQueueView({
   lane: AudioLaneKey;
   view: AudioLaneQueueView | null | undefined;
   loading?: boolean;
+  /** Pycore error code of the last failed read (localized here). */
   error?: string | null;
   compact?: boolean;
 }): ReactElement {
@@ -106,7 +108,9 @@ export function PcAudioLaneQueueView({
     return (
       <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-[10px] text-slate-500 flex items-center gap-2">
         <span className="uppercase tracking-wider text-slate-400">{title}</span>
-        {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span>{error || t('queueCenter.audioLane.unavailable')}</span>}
+        {loading
+          ? <Loader2 className="h-3 w-3 animate-spin" />
+          : <span>{error ? pcErrorCodeText(error) : t('queueCenter.audioLane.unavailable')}</span>}
       </div>
     );
   }

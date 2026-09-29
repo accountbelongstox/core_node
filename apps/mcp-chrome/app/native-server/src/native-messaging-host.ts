@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { NativeMessageType } from 'chrome-mcp-shared';
 import { ERROR_MESSAGES, TIMEOUTS } from './constant';
 import fileHandler from './file-handler';
+import { signClientRequest } from './client-key-signer';
 import { SingletonDetector } from './server/singleton';
 import { createLogger } from './util/logger';
 
@@ -140,6 +141,11 @@ export class NativeMessagingHost {
       return;
     }
 
+    if (message.type === NativeMessageType.SIGN_CLIENT_REQUEST) {
+      this.handleSignClientRequest(message);
+      return;
+    }
+
     // Handle directive messages from Chrome
     try {
       log('INFO', 'Received message from Chrome Extension', { type: message.type, payload: message.payload });
@@ -180,6 +186,21 @@ export class NativeMessagingHost {
         }
       }
     }
+  }
+
+  /**
+   * Answer a client-key sign request (one per Laravel call, so it is not logged).
+   */
+  private handleSignClientRequest(message: any): void {
+    if (!message.requestId) {
+      this.sendError('Sign request without a request id');
+      return;
+    }
+    this.sendMessage({
+      type: NativeMessageType.SIGN_CLIENT_REQUEST_RESPONSE,
+      responseToRequestId: message.requestId,
+      payload: signClientRequest(message.payload),
+    });
   }
 
   /**

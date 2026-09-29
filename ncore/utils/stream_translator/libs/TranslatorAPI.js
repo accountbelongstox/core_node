@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const https = require('https');
 const config = require('../config/index.js');
 const logger = require('./Logger.js');
@@ -233,7 +221,7 @@ class TranslatorAPI {
             this.deepseekTranslator = new DeepSeekTranslator({
                 modelPath: this.deepseekConfig.modelPath || 'deepseek-ai/deepseek-vl-1.3b-chat',
                 modelDir: this.deepseekConfig.modelDir || null,
-                pythonCommand: this.deepseekConfig.pythonCommand || 'python',
+                pythonCommand: this.deepseekConfig.pythonCommand,
                 timeout: this.deepseekConfig.timeout || 30000
             });
 

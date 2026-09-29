@@ -61,7 +61,7 @@ class CodeMartV1DepositCtl extends Controller
         $userId = (int) $user->id;
         $roles = array_map(fn (CodeMartV1UserRoleModel $role): array => $this->roleSummary($userId, $role), $this->depositRoles($userId));
         if ($roles === []) {
-            return $this->codedError('role_not_found', 'User role not found', null, 404);
+            return $this->codedError('role_not_found', __('codemart.messages.user_role_not_found'), null, 404);
         }
 
         $primary = collect($roles)->first(fn (array $role): bool => (float) $role['required_amount'] > 0) ?? $roles[0];
@@ -95,7 +95,7 @@ class CodeMartV1DepositCtl extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->codedError('validation_failed', 'Validation failed', $validator->errors(), 422);
+            return $this->codedError('validation_failed', __('codemart.messages.validation_failed'), $validator->errors(), 422);
         }
 
         $userId = (int) $user->id;
@@ -109,19 +109,19 @@ class CodeMartV1DepositCtl extends Controller
             $roleType = collect($policies)->first(fn (array $policy): bool => !$policy['is_sufficient'])['role_type'] ?? null;
         }
         if ($roleType === null || !isset($policies[$roleType])) {
-            return $this->codedError('deposit_role_not_allowed', 'Deposit role is not held or applied for by this user', null, 422);
+            return $this->codedError('deposit_role_not_allowed', __('codemart.messages.deposit_role_is_not_held_or_applied'), null, 422);
         }
 
         $policy = $policies[$roleType];
         if ($policy['is_sufficient']) {
-            return $this->codedError('deposit_not_required', 'Deposit requirement for this role is already satisfied', $policy, 409);
+            return $this->codedError('deposit_not_required', __('codemart.messages.deposit_requirement_for_this_role_is_already'), $policy, 409);
         }
 
         $remaining = $policy['remaining_amount'];
         $amount = $request->filled('amount') ? CodeMartV1FinanceService::money($request->input('amount')) : $remaining;
         $minimum = min((float) $remaining, (float) CodeMartV1Constants::DEPOSIT_MIN_AMOUNT);
         if ((float) $amount < $minimum || bccomp($amount, $remaining, 2) > 0) {
-            return $this->codedError('deposit_amount_invalid', 'Deposit amount must be between the minimum and the remaining requirement', [
+            return $this->codedError('deposit_amount_invalid', __('codemart.messages.deposit_amount_must_be_between_the_minimum'), [
                 'minimum' => CodeMartV1FinanceService::money($minimum),
                 'remaining' => $remaining,
             ], 422);
@@ -167,7 +167,7 @@ class CodeMartV1DepositCtl extends Controller
 
         return $this->success(
             $this->depositPayload($deposit) + ['idempotent_replay' => $replayed],
-            'Deposit payment created. Awaiting administrator confirmation.',
+            __('codemart.messages.deposit_payment_created_awaiting_administrator_confirmation'),
             $replayed ? 200 : 201
         );
     }
@@ -180,7 +180,7 @@ class CodeMartV1DepositCtl extends Controller
         $deposit = CodeMartV1DepositModel::findOwned((int) $depositId, (int) $user->id);
 
         if (!$deposit) {
-            return $this->codedError('deposit_not_found', 'Deposit not found', null, 404);
+            return $this->codedError('deposit_not_found', __('codemart.messages.deposit_not_found'), null, 404);
         }
 
         return $this->success($this->depositPayload($deposit));
@@ -194,7 +194,7 @@ class CodeMartV1DepositCtl extends Controller
         $deposit = CodeMartV1DepositModel::findOwned((int) $depositId, (int) $user->id);
 
         if (!$deposit) {
-            return $this->codedError('deposit_not_found', 'Deposit not found', null, 404);
+            return $this->codedError('deposit_not_found', __('codemart.messages.deposit_not_found'), null, 404);
         }
 
         return $this->success([
@@ -216,12 +216,7 @@ class CodeMartV1DepositCtl extends Controller
 
     private function generatePaymentUrl(CodeMartV1DepositModel $deposit): string
     {
-        $orderId = CodeMartV1Constants::DEPOSIT_BANK_REFERENCE_PREFIX . $deposit->id;
-        $amount = (string) $deposit->amount;
-
         return match ($deposit->payment_method) {
-            'alipay' => "https://openapi.alipay.com/gateway.do?order_id={$orderId}&amount={$amount}",
-            'wechat' => "https://api.mch.weixin.qq.com/pay/unifiedorder?order_id={$orderId}&amount={$amount}",
             'bank_transfer' => "/api/codemart/v1/deposits/{$deposit->id}/bank-info",
             default => '',
         };

@@ -49,7 +49,7 @@ class AppQyV1VocabularyCoverTaskCtl extends Controller
             $prompt
         );
 
-        return $this->success($result, 'Library cover tasks queued');
+        return $this->success($result, __('app_qy_v1.messages.library_cover_tasks_queued'));
     }
 
     public function status(Request $request): JsonResponse
@@ -67,12 +67,12 @@ class AppQyV1VocabularyCoverTaskCtl extends Controller
             'ids' => 'required|array|min:1|max:' . AppQyV1LibraryCoverTaskService::MAX_IDS,
             'ids.*' => 'required|integer|min:1',
         ], [
-            'ids.required' => 'Query parameter ids is required (comma-separated library ids)',
+            'ids.required' => __('app_qy_v1.messages.cover_task_ids_required'),
         ]);
         if ($validator->fails()) {
             return $this->validationError($validator->errors(), $validator->errors()->first());
         }
 
-        return $this->success($this->coverTaskService->statusForLibraries($ids), 'Library cover task status');
+        return $this->success($this->coverTaskService->statusForLibraries($ids), __('app_qy_v1.messages.library_cover_task_status'));
     }
 }

@@ -1,16 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
-#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -152,11 +139,15 @@ class VideoProcessor {
         const startTime = Date.now();
         
         try {
-            await VideoCompressor.compressVideo(paths.temp, paths.completed);
+            const compressed = await VideoCompressor.compressVideo(paths.temp, paths.completed);
             const endTime = Date.now();
-            
-            if (!fs.existsSync(paths.completed)) {
-                throw new Error('Compressed file was not created');
+
+            if (!compressed || !fs.existsSync(paths.completed) || FileOperations.getFileSize(paths.completed) === 0) {
+                logger.error('Compression failed: ffmpeg did not produce a complete output file');
+                return {
+                    success: false,
+                    error: 'ffmpeg_failed'
+                };
             }
 
             const originalSize = videoStatus.sizes.original || videoStatus.sizes.deleted;

@@ -1,30 +1,25 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Idempotently starts the Claude Code roles as independent sessions (Windows).
 
 .DESCRIPTION
-    Provisions Claude Code and Windows Terminal when missing, then opens one
-    positioned window per role from config/claude_team_roles.json running
-    claudeteam.ps1 --agent <role> --name ct-<role>. Roles coordinate through
-    cross-session messaging (ListAgents / SendMessage). Live PIDs are skipped.
-    Agent-teams variant: claudeagents.ps1
+    Provisions Claude Code and Windows Terminal when missing, then opens one named,
+    maximized Windows Terminal window with every enabled role of .claude/agents
+    (catalog overrides in config/claude_team_roles.json) in its own pane, packed
+    into tabs by the measured monitor size and DPI. Each pane runs
+    claudeteam.ps1 --team-pane sessions --agent <role> --name ct-<role>; the lead
+    ct-orchestrator gets sessions.kickoff_lead. Roles coordinate through
+    cross-session messaging (ListAgents / SendMessage). Live PIDs are skipped;
+    -Status prints the plan (monitors, tabs, panes, commands) without opening
+    anything. While the Claude account is not signed in, set up or trusted, only
+    the lead starts; -SkipAccountCheck starts every role anyway.
+    Agent-teams lead variant: claudeagents.ps1
     Linux counterpart: scripts/linuxenvs/claudeteamup.sh
 
 .EXAMPLE
     .\claudeteamup.ps1
     .\claudeteamup.ps1 -Status
+    .\claudeteamup.ps1 -SkipAccountCheck
     .\claudeteamup.ps1 -Roles orchestrator,reviewer -NoKickoff
 #>
 
@@ -32,7 +27,8 @@ param(
     [switch]$Status,
     [switch]$NoWindows,
     [switch]$NoKickoff,
-    [string[]]$Roles = @()
+    [string[]]$Roles = @(),
+    [switch]$SkipAccountCheck
 )
 
 Set-StrictMode -Version Latest
@@ -68,6 +64,6 @@ Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "claudeteamup.ps1 - Claude Code roles as independent sessions (cross-session messaging)" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host ("[INFO] Options: Status={0} NoWindows={1} NoKickoff={2} Roles={3}" -f [bool]$Status, [bool]$NoWindows, [bool]$NoKickoff, $(if ($roleList.Count -gt 0) { $roleList -join "," } else { "all" })) -ForegroundColor Green
+Write-Host ("[INFO] Options: Status={0} NoWindows={1} NoKickoff={2} Roles={3} SkipAccountCheck={4}" -f [bool]$Status, [bool]$NoWindows, [bool]$NoKickoff, $(if ($roleList.Count -gt 0) { $roleList -join "," } else { "all" }), [bool]$SkipAccountCheck) -ForegroundColor Green
 
-Invoke-ClaudeTeamUp -Mode "sessions" -Status:$Status -NoWindows:$NoWindows -NoKickoff:$NoKickoff -Roles $roleList
+Invoke-ClaudeTeamUp -Mode "sessions" -Status:$Status -NoWindows:$NoWindows -NoKickoff:$NoKickoff -Roles $roleList -SkipAccountCheck:$SkipAccountCheck

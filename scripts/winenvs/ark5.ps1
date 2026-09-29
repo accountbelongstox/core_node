@@ -293,23 +293,6 @@ if (-not [string]::IsNullOrWhiteSpace($arkcliApi)) {
 }
 $usePlainClaude = -not [string]::IsNullOrWhiteSpace($arkcliApiKey)
 
-function Get-MaskedSecret {
-    param([string]$Value)
-    if ([string]::IsNullOrEmpty($Value)) { return "[empty]" }
-    $len = $Value.Length
-    if ($len -le 4) {
-        return ("*" * $len)
-    }
-    if ($len -le 8) {
-        $keep = 1
-    } else {
-        $keep = 4
-    }
-    $middleLen = $len - (2 * $keep)
-    if ($middleLen -lt 1) { $middleLen = 1 }
-    return ($Value.Substring(0, $keep) + ("*" * $middleLen) + $Value.Substring($len - $keep))
-}
-
 function Resolve-PnpmExe {
     $exe = $Global:PNPM_EXE_PATH
     if (-not $exe -or -not (Test-Path -LiteralPath $exe)) {
@@ -413,7 +396,7 @@ if (-not $claudeOk) {
 Write-Host "claude: $(& claude --version 2>$null | Select-Object -First 1)" -ForegroundColor White
 Write-Host "Isolated user dir: $arkUserDir (Claude data/config for this slot)" -ForegroundColor Cyan
 if ($usePlainClaude) {
-    Write-Host "Mode: plain Claude (ARKCLI_API_KEY set — skip arkcli)" -ForegroundColor Yellow
+    Write-Host "Mode: plain Claude (ARKCLI_API_KEY set - skip arkcli)" -ForegroundColor Yellow
     Write-Host "  Purpose: use Claude under Ark custom user dir without arkcli." -ForegroundColor DarkGray
     if ([string]::IsNullOrWhiteSpace($arkcliApi)) {
         Write-Host "[ERROR] ARKCLI_API_KEY is set but ARKCLI_API (BASE_URL) is empty." -ForegroundColor Red
@@ -422,13 +405,13 @@ if ($usePlainClaude) {
         exit 1
     }
     # Match claudevolc/claudealibaba: AUTH_TOKEN + BASE_URL only.
-    # Do NOT set ANTHROPIC_API_KEY — it can force official Anthropic auth and cause API errors.
+    # Do NOT set ANTHROPIC_API_KEY - it can force official Anthropic auth and cause API errors.
     $env:ANTHROPIC_BASE_URL = $arkcliApi
     $env:ANTHROPIC_AUTH_TOKEN = $arkcliApiKey
     Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
     $claudeSettingsFile = Join-Path $claudeConfigDir "settings.json"
     Remove-StaleAnthropicEnv -SettingsPath $claudeSettingsFile
-    $maskedApiKey = Get-MaskedSecret $arkcliApiKey
+    $maskedApiKey = Get-AiCliMaskedSecret -Value $arkcliApiKey
     Write-Host "ARKCLI_API_KEY: $maskedApiKey -> ANTHROPIC_AUTH_TOKEN" -ForegroundColor White
     Write-Host "ANTHROPIC_BASE_URL: $env:ANTHROPIC_BASE_URL (set now)" -ForegroundColor White
 } else {
@@ -441,7 +424,7 @@ if (-not [string]::IsNullOrWhiteSpace($arkcliProfile)) {
 if (-not [string]::IsNullOrWhiteSpace($arkcliModel)) {
     Write-Host "ARKCLI_MODEL: $arkcliModel (Use model? [Y/n]; N -> auto ark-code-latest)" -ForegroundColor White
 } else {
-    Write-Host "ARKCLI_MODEL: (empty — Use model kimi-k3? [Y/n]; N -> auto ark-code-latest)" -ForegroundColor DarkGray
+    Write-Host "ARKCLI_MODEL: (empty - Use model kimi-k3? [Y/n]; N -> auto ark-code-latest)" -ForegroundColor DarkGray
 }
 if (-not [string]::IsNullOrWhiteSpace($arkcliMcpProfile)) {
     Write-Host "ARKCLI_MCP_PROFILE: $arkcliMcpProfile" -ForegroundColor White
@@ -449,7 +432,7 @@ if (-not [string]::IsNullOrWhiteSpace($arkcliMcpProfile)) {
 if (-not [string]::IsNullOrWhiteSpace($arkcliApi)) {
     Write-Host "ARKCLI_API: $arkcliApi (ANTHROPIC_BASE_URL)" -ForegroundColor White
 } elseif ($usePlainClaude) {
-    Write-Host "ARKCLI_API: (empty — set with ARKCLI_API_KEY for Anthropic-compatible BASE_URL)" -ForegroundColor Yellow
+    Write-Host "ARKCLI_API: (empty - set with ARKCLI_API_KEY for Anthropic-compatible BASE_URL)" -ForegroundColor Yellow
 }
 if ($enableTeam) {
     Write-Host "Agent Teams: ON (-team) CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 --teammate-mode in-process" -ForegroundColor Green
@@ -562,7 +545,7 @@ $mcpResult = Invoke-ExternalCaptured -FilePath "arkcli" -ArgumentList $mcpArgs
 $mcpExit = [int]$mcpResult.ExitCode
 $mcpOutput = [string]$mcpResult.Output
 if ($mcpExit -ne 0) {
-    if ($mcpOutput -match '(?i)agent[- ]?plan|no agent plan|未找到.*[Aa]gent|[Aa]gent.*not found|not found.*profile|openviking|已跳过') {
+    if ($mcpOutput -match '(?i)agent[- ]?plan|no agent plan|\u672A\u627E\u5230.*[Aa]gent|[Aa]gent.*not found|not found.*profile|openviking|\u5DF2\u8DF3\u8FC7') {
         Write-Host "[WARN] Agent Plan MCP incomplete or unavailable; continuing so Claude can still start." -ForegroundColor Yellow
         if (-not [string]::IsNullOrWhiteSpace($mcpOutput)) {
             Write-Host $mcpOutput.Trim() -ForegroundColor DarkYellow
@@ -576,7 +559,7 @@ if ($mcpExit -ne 0) {
     }
 } else {
     Write-Host "[OK] Agent Plan MCP configured." -ForegroundColor Green
-    if ($mcpOutput -match '(?i)openviking|已跳过') {
+    if ($mcpOutput -match '(?i)openviking|\u5DF2\u8DF3\u8FC7') {
         Write-Host "[INFO] arkcli note (non-fatal):" -ForegroundColor DarkYellow
         Write-Host $mcpOutput.Trim() -ForegroundColor DarkYellow
     }
@@ -698,7 +681,7 @@ if ($usePlainClaude) {
     $env:ANTHROPIC_AUTH_TOKEN = $arkcliApiKey
     Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
     if ([string]::IsNullOrWhiteSpace($maskedApiKey)) {
-        $maskedApiKey = Get-MaskedSecret $arkcliApiKey
+        $maskedApiKey = Get-AiCliMaskedSecret -Value $arkcliApiKey
     }
 }
 

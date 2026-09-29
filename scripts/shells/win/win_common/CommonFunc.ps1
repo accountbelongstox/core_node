@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Set UTF-8 encoding for proper Chinese character handling
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
@@ -623,7 +611,7 @@ function Find-ExecutableByKeyword {
         "C:\Program Files",
         "C:\Program Files (x86)",
         "$env:USERPROFILE",
-        "$env:USERPROFILE\bin"
+        (Join-Path $env:USERPROFILE "bin")
     ) | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) }
     if ($IncludeSystemPaths) {
         $searchPaths += $systemPaths
@@ -1065,7 +1053,7 @@ function Repair-WingetInstallation {
         else {
             # Standard copy for other applications
             # Use -ErrorAction SilentlyContinue to handle broken symlinks gracefully
-            Copy-Item -Path "$foundInstallDir\*" -Destination $ExpectedInstallDir -Recurse -Force -ErrorAction SilentlyContinue
+            Copy-Item -Path (Join-Path $foundInstallDir "*") -Destination $ExpectedInstallDir -Recurse -Force -ErrorAction SilentlyContinue
         }
         
         # Verify the copy was successful - search for executable in the copied directory
@@ -1621,11 +1609,11 @@ function Repair-InstallerPermissions {
         
         $tempLocations = @(
             "$env:TEMP",
-            "$env:LOCALAPPDATA\Temp",
+            (Join-Path $env:LOCALAPPDATA "Temp"),
             "C:\Windows\Temp",
             "C:\Windows\Installer",
-            "$env:LOCALAPPDATA\Microsoft\Windows\INetCache",
-            "$env:LOCALAPPDATA\Microsoft\Windows\WebCache"
+            (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\INetCache"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\Windows\WebCache")
         )
         
         foreach ($location in $tempLocations) {
@@ -1666,9 +1654,9 @@ function Repair-InstallerPermissions {
         Write-Host "       [REPAIR] Cleaning WinGet cache..." -ForegroundColor Cyan
         
         $wingetCachePaths = @(
-            "$env:LOCALAPPDATA\Temp\WinGet",
-            "$env:LOCALAPPDATA\Microsoft\WinGet\Packages",
-            "$env:LOCALAPPDATA\Microsoft\WinGet\Cache"
+            (Join-Path $env:LOCALAPPDATA "Temp\WinGet"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Cache")
         )
         
         foreach ($cachePath in $wingetCachePaths) {
@@ -1677,7 +1665,7 @@ function Repair-InstallerPermissions {
                     $cacheSize = (Get-ChildItem -Path $cachePath -Recurse -ErrorAction SilentlyContinue | 
                         Measure-Object -Property Length -Sum).Sum
                     
-                    Remove-Item -Path "$cachePath\*" -Recurse -Force -ErrorAction SilentlyContinue
+                    Remove-Item -Path (Join-Path $cachePath "*") -Recurse -Force -ErrorAction SilentlyContinue
                     $repairResults.CacheCleared++
                     $repairResults.DiskSpaceFreed += $cacheSize
                     Write-Host "       [REPAIR] Cleared WinGet cache: $cachePath" -ForegroundColor Green
@@ -1862,10 +1850,10 @@ function Reset-WinGetEnvironment {
         Write-Host "       [RESET] Clearing WinGet cache..." -ForegroundColor Cyan
         
         $wingetCachePaths = @(
-            "$env:LOCALAPPDATA\Microsoft\WinGet",
-            "$env:LOCALAPPDATA\Temp\WinGet",
-            "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache",
-            "$env:TEMP\winget*"
+            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet"),
+            (Join-Path $env:LOCALAPPDATA "Temp\WinGet"),
+            (Join-Path $env:LOCALAPPDATA "Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache"),
+            (Join-Path $env:TEMP "winget*")
         )
         
         foreach ($cachePath in $wingetCachePaths) {

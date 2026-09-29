@@ -2,21 +2,21 @@ import React, { useMemo, useState } from 'react';
 import { Ban, Check, EyeOff, MailCheck, Save, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
+import { CmListState, CmNotice } from '../components/workspace/CmStateViews';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPager } from '../components/workspace/CmPager';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { cmHumanize } from '../components/workspace/cmWorkspaceFormat';
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
 import {
   CmAdminActivityTable,
   CmAdminDate,
-  CmAdminListState,
-  CmAdminNotice,
-  CmAdminPageHeader,
-  CmAdminPager,
   CmAdminSearch,
   CmAdminSelect,
-  CmAdminStatus,
   CmAdminTable,
   CmAdminToolbar,
   CmAdminUserLink,
-  cmAdminHumanize,
   useCmAdminAction,
   useCmAdminFormat,
   useCmAdminList,
@@ -25,10 +25,6 @@ import {
 import {
   CM_ADMIN_ACTIVITY_ACTIONS,
   CM_ADMIN_ACTIVITY_RESOURCES,
-  CM_ADMIN_CONTACT_STATUSES,
-  CM_ADMIN_REVIEWER_STATUSES,
-  CM_ADMIN_TESTIMONIAL_LOCALES,
-  CM_ADMIN_TESTIMONIAL_STATUSES,
   type CmAdminContactMessageRow,
   type CmAdminReviewerApplicationRow,
   type CmAdminTestimonialRow,
@@ -39,6 +35,7 @@ const SCORE_FRACTION_DIGITS = 1;
 export const CmAdminTestimonialsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
+  const { states, policyList } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [search, setSearch] = useState('');
   const [sortDrafts, setSortDrafts] = useState<Record<number, string>>({});
@@ -84,31 +81,31 @@ export const CmAdminTestimonialsPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.testimonials" purposeKey="admin.purpose.testimonials" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.testimonials" purposeKey="admin.purpose.testimonials" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.testimonials.search" value={search} onApply={setSearch} />
         <CmAdminSelect
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_TESTIMONIAL_STATUSES}
+          options={states('testimonial')}
           optionLabel={(option) => t(`admin.states.testimonial.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noTestimonials" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noTestimonials" onRetry={() => void list.reload()}>
         <section className="cm-card-list">
           {list.items.map((item) => (
             <article key={item.id} className="cm-record-card cm-admin-record">
               <div className="cm-record-card__main">
                 <div className="cm-admin-record__title">
                   <h2>{authorOf(item)}{roleOf(item) ? <small> · {roleOf(item)}</small> : null}</h2>
-                  <CmAdminStatus status={item.status} group="admin.states.testimonial" />
+                  <CmStatusBadge status={item.status} prefix="admin.states.testimonial" />
                 </div>
                 <div className="cm-admin-quotes">
-                  {CM_ADMIN_TESTIMONIAL_LOCALES.map((locale) => (
+                  {policyList('supported_locales').map((locale) => (
                     <blockquote key={locale}>
-                      <small>{t(`admin.testimonials.locale.${locale}`)}</small>
+                      <small>{t(`admin.testimonials.locale.${locale}`, { defaultValue: locale })}</small>
                       <span>{item.quotes?.[locale] ?? (item.quote_key ? t(item.quote_key, { defaultValue: item.quote_key }) : t('admin.testimonials.noQuote'))}</span>
                     </blockquote>
                   ))}
@@ -155,8 +152,8 @@ export const CmAdminTestimonialsPage: React.FC = () => {
             </article>
           ))}
         </section>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );
@@ -165,6 +162,7 @@ export const CmAdminTestimonialsPage: React.FC = () => {
 export const CmAdminReviewerApplicationsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status'));
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ status, search }), [status, search]);
@@ -186,26 +184,26 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
     const parsed = value === null ? Number.NaN : Number(value);
     return Number.isFinite(parsed)
       ? t('admin.reviewers.scoreValue', {
-        score: new Intl.NumberFormat(format.language, { maximumFractionDigits: SCORE_FRACTION_DIGITS }).format(parsed),
+        score: format.number(parsed, SCORE_FRACTION_DIGITS),
       })
       : t('common.unavailable');
   };
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.reviewers" purposeKey="admin.purpose.reviewers" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.reviewers" purposeKey="admin.purpose.reviewers" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.searchUsers" placeholderKey="admin.searchUsersPlaceholder" value={search} onApply={setSearch} />
         <CmAdminSelect
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_REVIEWER_STATUSES}
+          options={states('reviewer_application')}
           optionLabel={(option) => t(`admin.states.reviewer.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noReviewerApplications" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noReviewerApplications" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.nav.reviewers')} actions>
           <thead>
             <tr>
@@ -225,8 +223,8 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
                 <td>{t('admin.recordNumber', { id: item.id })}</td>
                 <td><CmAdminUserLink user={item.user} userId={item.user_id} /></td>
                 <td>{score(item.score)}</td>
-                <td><CmAdminStatus status={item.status} group="admin.states.reviewer" /></td>
-                <td>{item.reviewer_role_status ? <CmAdminStatus status={item.reviewer_role_status} group="states.role" /> : t('admin.noRole')}</td>
+                <td><CmStatusBadge status={item.status} prefix="admin.states.reviewer" /></td>
+                <td>{item.reviewer_role_status ? <CmStatusBadge status={item.reviewer_role_status} prefix="states.role" /> : t('admin.noRole')}</td>
                 <td className="cm-admin-nowrap"><CmAdminDate value={item.completed_at} stacked /></td>
                 <td className="cm-admin-wide">{item.revoke_reason ?? t('common.unavailable')}</td>
                 <td>
@@ -240,8 +238,8 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );
@@ -249,6 +247,7 @@ export const CmAdminReviewerApplicationsPage: React.FC = () => {
 
 export const CmAdminContactMessagesPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { states } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status', 'new'));
   const [search, setSearch] = useState('');
   const filters = useMemo(() => ({ status, search }), [status, search]);
@@ -265,26 +264,26 @@ export const CmAdminContactMessagesPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.contact" purposeKey="admin.purpose.contact" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.contact" purposeKey="admin.purpose.contact" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.contact.search" value={search} onApply={setSearch} />
         <CmAdminSelect
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_CONTACT_STATUSES}
+          options={states('contact_message')}
           optionLabel={(option) => t(`admin.states.contact.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noContactMessages" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noContactMessages" onRetry={() => void list.reload()}>
         <section className="cm-card-list">
           {list.items.map((item) => (
             <article key={item.id} className="cm-record-card cm-admin-record">
               <div className="cm-record-card__main">
                 <div className="cm-admin-record__title">
                   <h2>{item.subject || t('admin.contact.noSubject')}</h2>
-                  <CmAdminStatus status={item.status} group="admin.states.contact" />
+                  <CmStatusBadge status={item.status} prefix="admin.states.contact" />
                 </div>
                 <dl className="cm-admin-facts">
                   <div><dt>{t('admin.contact.from')}</dt><dd>{item.name}</dd></div>
@@ -310,8 +309,8 @@ export const CmAdminContactMessagesPage: React.FC = () => {
             </article>
           ))}
         </section>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );
@@ -341,14 +340,14 @@ export const CmAdminActivityPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.activity" purposeKey="admin.purpose.activity" onRefresh={() => void list.reload()} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.activity" purposeKey="admin.purpose.activity" onRefresh={() => void list.reload()} />
       <CmAdminToolbar>
         <CmAdminSelect
           labelKey="admin.activity.resourceType"
           value={resourceType}
           onChange={setResourceType}
           options={CM_ADMIN_ACTIVITY_RESOURCES}
-          optionLabel={(option) => t(`admin.activity.resources.${option}`, { defaultValue: cmAdminHumanize(option) })}
+          optionLabel={(option) => t(`admin.activity.resources.${option}`, { defaultValue: cmHumanize(option) })}
           allKey="admin.allTypes"
         />
         <CmAdminSearch labelKey="admin.activity.resourceId" value={resourceId} onApply={setResourceId} icon={false} inputMode="numeric" />
@@ -357,7 +356,7 @@ export const CmAdminActivityPage: React.FC = () => {
           value={actionName}
           onChange={setActionName}
           options={CM_ADMIN_ACTIVITY_ACTIONS}
-          optionLabel={(option) => t(`admin.activity.actions.${option}`, { defaultValue: cmAdminHumanize(option) })}
+          optionLabel={(option) => t(`admin.activity.actions.${option}`, { defaultValue: cmHumanize(option) })}
           allKey="admin.activity.allActions"
         />
         <CmAdminSearch labelKey="admin.activity.actorId" value={actorId} onApply={setActorId} icon={false} inputMode="numeric" />
@@ -370,7 +369,7 @@ export const CmAdminActivityPage: React.FC = () => {
           </button>
         </p>
       )}
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noActivity" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noActivity" onRetry={() => void list.reload()}>
         <CmAdminActivityTable
           rows={list.items}
           onResource={(type, id) => {
@@ -380,8 +379,8 @@ export const CmAdminActivityPage: React.FC = () => {
             setActionName('');
           }}
         />
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
     </main>
   );
 };

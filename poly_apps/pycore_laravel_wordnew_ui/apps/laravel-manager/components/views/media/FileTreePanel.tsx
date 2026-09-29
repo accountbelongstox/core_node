@@ -9,7 +9,7 @@ import { ResourceSource } from './resourceSources';
 import UploadProgressCard from './UploadProgressCard';
 import { DeleteConfirmModal, FileTreeItem, NewFolderModal, UploadModal } from './FileTreeParts';
 import {
-    AlertCircle, Code2, File, Film, Folder, FolderPlus,
+    AlertCircle, File, Folder, FolderPlus,
     Loader2, Lock, RefreshCw, UploadCloud,
 } from "lucide-react";
 
@@ -481,10 +481,9 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
 
   // Capability-derived UI flags (explicit branching — no ||/?? in this file).
   const showTargetTools = source.canUpload === true ? true : source.canMkdir === true;
-  const headerIcon = source.id === 'code' ? Code2 : Film;
 
   return (
-    <BentoCard title={source.label} className="flex-1 flex flex-col min-h-0" icon={headerIcon} glowing>
+    <BentoCard title={source.label} className="flex-1 flex flex-col min-h-0" glowing>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex items-center gap-2 min-w-0">
           <button

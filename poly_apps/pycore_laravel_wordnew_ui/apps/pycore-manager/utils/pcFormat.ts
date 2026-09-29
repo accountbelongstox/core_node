@@ -1,39 +1,35 @@
+import type { TFunction } from 'i18next';
 import { formatBytes } from '../../../core/utils/formatBytes';
+
+const RELATIVE_JUST_NOW_SECONDS = 5;
 
 /** Byte size label for task detail / history rows. */
 export function humanBytes(n?: number | null, invalidLabel = '—'): string {
   return formatBytes(n, invalidLabel);
 }
 
-/** Compact relative time for recent-task table rows. */
-export function relativeTime(iso: string): string {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return iso;
-  const diff = Date.now() - t;
-  const s = Math.round(diff / 1000);
-  if (s < 5) return 'just now';
-  if (s < 60) return `${s}s ago`;
+function relativeFromMs(ms: number, t: TFunction): string {
+  const s = Math.round((Date.now() - ms) / 1000);
+  if (s < RELATIVE_JUST_NOW_SECONDS) return t('common.relative.justNow');
+  if (s < 60) return t('common.relative.secondsAgo', { count: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('common.relative.minutesAgo', { count: m });
   const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
-  return `${d}d ago`;
+  if (h < 24) return t('common.relative.hoursAgo', { count: h });
+  return t('common.relative.daysAgo', { count: Math.round(h / 24) });
+}
+
+/** Compact relative time for recent-task table rows (`t` from the `pc` namespace). */
+export function relativeTime(iso: string, t: TFunction): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return iso;
+  return relativeFromMs(ms, t);
 }
 
 /** Compact "N ago" from a unix timestamp (seconds or ms). Empty/0 -> em dash. */
-export function relativeAgo(unix?: number | null): string {
+export function relativeAgo(unix: number | null | undefined, t: TFunction): string {
   if (!unix) return '—';
-  const ms = unix < 1e12 ? unix * 1000 : unix;
-  const diff = Date.now() - ms;
-  if (diff < 5000) return 'just now';
-  const s = Math.round(diff / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.round(h / 24)}d ago`;
+  return relativeFromMs(unix < 1e12 ? unix * 1000 : unix, t);
 }
 
 /** Absolute local time label from a unix timestamp (seconds or ms). */

@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
 export interface InviteCode {
@@ -39,7 +39,7 @@ export interface ValidateInviteCodeResponse {
   message: string;
 }
 
-export class InviteCodeAPI extends BaseAPI {
+export class InviteCodeAPI extends LmBaseAPI {
   async listPublic(): Promise<InviteCode[]> {
     const response = await this.get<InviteCode[]>(LARAVEL_API_ROUTE.inviteCodes.public);
     return response.data ?? [];

@@ -1,0 +1,13 @@
+{
+  "task_id": "wordnew-2",
+  "role": "wordnew",
+  "verdict": "approved",
+  "findings": {
+    "FU-008": {"status": "fixed", "reason": "WordNewBookReaderPlayback: after resolveAudioUrl a paused engine sets src and handlers (clipArmed) but skips play(). A step reached while paused with nothing to play is parked, and resume() re-runs it. resume() plays the element only when it holds the current step's clip, so audio no longer starts under a paused UI and the next press toggles correctly. Every onended path goes through runStep, which parks while paused."},
+    "FU-009": {"status": "fixed", "reason": "useOrchAudioPlayback: jumpSeqRef is bumped by every playback command, by the mode switch and by the engine cleanup. A segment jump applies only if its sequence and engine instance are still current, so a late ensureRange no longer plays a stale segment or plays after leaving the page."},
+    "FU-023": {"status": "fixed", "reason": "WfNewBookReader.loadVerses: newest load wins; stale loads return [] without touching verses or loadingVerses. The book effect invalidates in-flight loads, loads progress once and checks cancelled after awaiting it. WfNewApp keys the reader by sourceKey, so a book change remounts it."}
+  },
+  "issues": [],
+  "checks": "git diff read; all runStep/onended/pause paths traced in the engine; the 120 ms paused-wait loops at :186 and :207 are pre-existing and not introduced here; scope apps/wordnew only.",
+  "checked_at": "2026-09-27T04:02:17+10:00"
+}

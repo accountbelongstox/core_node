@@ -1,14 +1,64 @@
 const { v4: uuidv4 } = require('uuid');
 const logger = require('#@logger');
 
+const CLIENT_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+const DEFAULT_MAX_AGE_MS = 1800000;
+const DEFAULT_CLEANUP_INTERVAL_MS = 60000;
+const DEFAULT_MAX_SESSIONS = 10000;
+
+function normalizeClientId(clientId) {
+    return typeof clientId === 'string' && CLIENT_ID_PATTERN.test(clientId) ? clientId : null;
+}
+
 class SessionManager {
-    constructor() {
+    constructor(options = {}) {
         this.sessions = new Map();
         this.groups = new Map();
+        this.maxAge = options.maxAge || DEFAULT_MAX_AGE_MS;
+        this.cleanupInterval = options.cleanupInterval || DEFAULT_CLEANUP_INTERVAL_MS;
+        this.maxSessions = options.maxSessions || DEFAULT_MAX_SESSIONS;
+        this.cleanupTimer = null;
+
+        this.startAutoCleanup();
+    }
+
+    startAutoCleanup() {
+        this.stopAutoCleanup();
+        this.cleanupTimer = setInterval(() => this.cleanup(this.maxAge), this.cleanupInterval);
+        this.cleanupTimer.unref();
+        return this;
+    }
+
+    stopAutoCleanup() {
+        if (this.cleanupTimer) {
+            clearInterval(this.cleanupTimer);
+            this.cleanupTimer = null;
+        }
+        return this;
+    }
+
+    evictOldest() {
+        let oldestId = null;
+        let oldestActivity = Infinity;
+
+        for (const [sessionId, session] of this.sessions.entries()) {
+            if (session.lastActivity < oldestActivity) {
+                oldestActivity = session.lastActivity;
+                oldestId = sessionId;
+            }
+        }
+
+        if (oldestId !== null) {
+            this.removeSession(oldestId);
+        }
     }
 
     createSession(clientId = null) {
-        const sessionId = clientId || uuidv4();
+        const sessionId = normalizeClientId(clientId) || uuidv4();
+
+        if (!this.sessions.has(sessionId) && this.sessions.size >= this.maxSessions) {
+            this.evictOldest();
+        }
 
         if (!this.sessions.has(sessionId)) {
             this.sessions.set(sessionId, {
@@ -109,7 +159,7 @@ class SessionManager {
         return this.sessions.size;
     }
 
-    cleanup(maxAge = 1800000) {
+    cleanup(maxAge = this.maxAge) {
         const now = Date.now();
         let cleaned = 0;
 
@@ -147,5 +197,6 @@ const defaultSessionManager = new SessionManager();
 
 module.exports = {
     SessionManager,
-    defaultSessionManager
+    defaultSessionManager,
+    normalizeClientId
 };

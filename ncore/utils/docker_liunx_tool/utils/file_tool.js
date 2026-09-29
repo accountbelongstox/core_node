@@ -1,20 +1,9 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const Base = require('#@base');
     const os = require('os');
     const fs = require('fs');
     const path = require('path');
     const { execSync } = require('child_process');
+    const logger = require('#@logger');
 
     class FileTool extends Base {
         constructor() {
@@ -23,7 +12,8 @@ const Base = require('#@base');
 
         copyFilesRecursively(srcPath, destPath, overwrite = false) {
             if (!fs.existsSync(srcPath)) {
-                throw new Error(`Source path does not exist: ${srcPath}`);
+                logger.error(`Source path does not exist: ${srcPath}`);
+                return false;
             }
 
             if (!fs.existsSync(destPath)) {
@@ -42,21 +32,25 @@ const Base = require('#@base');
                     }
                 }
             });
+            return true;
         }
 
         copyAndReplaceFile(srcFile, destFile, overwrite = false) {
             if (!fs.existsSync(srcFile)) {
-                throw new Error(`Source file does not exist: ${srcFile}`);
+                logger.error(`Source file does not exist: ${srcFile}`);
+                return false;
             }
 
             if (overwrite || !fs.existsSync(destFile)) {
                 fs.copyFileSync(srcFile, destFile);
             }
+            return true;
         }
 
         copyFilesToContainer(srcPath, containerName, containerPath, overwrite = false) {
             if (!fs.existsSync(srcPath)) {
-                throw new Error(`Source path does not exist: ${srcPath}`);
+                logger.error(`Source path does not exist: ${srcPath}`);
+                return false;
             }
 
             const command = `docker cp ${srcPath} ${containerName}:${containerPath}`;
@@ -65,11 +59,13 @@ const Base = require('#@base');
             if (overwrite) {
                 // Docker `cp` command will overwrite files if they already exist in the container.
             }
+            return true;
         }
 
         copyFileToContainer(srcFile, containerName, containerPath, overwrite = false) {
             if (!fs.existsSync(srcFile)) {
-                throw new Error(`Source file does not exist: ${srcFile}`);
+                logger.error(`Source file does not exist: ${srcFile}`);
+                return false;
             }
 
             const command = `docker cp ${srcFile} ${containerName}:${containerPath}`;
@@ -78,6 +74,7 @@ const Base = require('#@base');
             if (overwrite) {
                 // Docker `cp` command will overwrite files if they already exist in the container.
             }
+            return true;
         }
 
         removeFileOrFolderFromContainer(srcPath, containerName) {

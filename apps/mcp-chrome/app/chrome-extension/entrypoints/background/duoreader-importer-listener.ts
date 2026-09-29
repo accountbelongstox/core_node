@@ -9,7 +9,7 @@ import {
   unpackPzMessageBytes,
 } from './services/duoreader-importer-service';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
 import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Duoreader Listener';
@@ -69,7 +69,7 @@ export function initDuoreaderImporterListener(): void {
         return { success: true, decoded: Array.from(decoded), size: decoded.length };
       }
       default:
-        return { success: false, error: `Unknown action: ${message.action}` };
+        return unknownActionResponse(message.action);
     }
   }, {
     createErrorResponse: (error, message) => {

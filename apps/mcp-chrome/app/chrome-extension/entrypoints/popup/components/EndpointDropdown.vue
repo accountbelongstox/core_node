@@ -61,7 +61,7 @@
           <div class="flex items-center justify-between gap-1.5">
             <div class="flex items-center gap-1.5 min-w-0">
               <span :class="['w-2 h-2 rounded-full shrink-0', dotClass(ep.id)]" />
-              <span class="text-[10px] font-medium truncate" style="color: var(--text)">{{ ep.description }}</span>
+              <span class="text-[10px] font-medium truncate" style="color: var(--text)">{{ getEndpointLabel(ep) }}</span>
               <span v-if="!autoMode && isCurrentEndpoint(ep.id)" class="text-[9px] shrink-0 text-indigo-400">✓</span>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
@@ -134,6 +134,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { endpointAddress, useEndpointSelection } from '@/composables/useEndpointSelection';
+import { getEndpointLabel } from '@/config/api-endpoints';
 import { getMessage } from '@/utils/i18n';
 
 const {

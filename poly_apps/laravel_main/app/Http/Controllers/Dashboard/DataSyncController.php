@@ -9,9 +9,11 @@ use App\Http\Requests\DataSync\SetDataSyncTargetRequest;
 use App\Http\Requests\DataSync\StartDataSyncRequest;
 use App\Services\DataSync\DataSyncAbortException;
 use App\Services\DataSync\DataSyncBusyException;
+use App\Services\DataSync\DataSyncNotFoundException;
 use App\Services\DataSync\DataSyncPassiveService;
 use App\Services\DataSync\DataSyncProtocol;
 use App\Services\DataSync\DataSyncService;
+use App\Services\DataSync\ResourceSyncService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,14 +33,15 @@ final class DataSyncController extends Controller
         return $this->respond(fn (): array => [
             'sessions' => $this->service->list(),
             'machine_code' => $this->service->machineCode(),
-            'protocol_version' => DataSyncProtocol::VERSION,
+            'protocol_version' => DataSyncProtocol::version(),
+            'terminal_retention' => DataSyncProtocol::terminalRetention(),
         ]);
     }
 
     public function show(string $id): JsonResponse
     {
         return $this->respond(fn (): array => [
-            'session' => $this->service->get($id) ?? throw new \InvalidArgumentException('Data synchronization session was not found.'),
+            'session' => $this->service->get($id) ?? throw new DataSyncNotFoundException(),
         ]);
     }
 
@@ -195,7 +198,7 @@ final class DataSyncController extends Controller
     public function peerResourceFileBatch(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate([
-            'files' => 'required|array|max:' . \App\Services\DataSync\ResourceSyncService::BATCH_MAX_FILES,
+            'files' => 'required|array|max:' . ResourceSyncService::BATCH_MAX_FILES,
             'files.*.key' => 'required|string|max:128',
             'files.*.relative_path' => 'required|string|max:4096',
             'files.*.sha256' => 'required|string|size:64|regex:/^[a-f0-9]{64}$/',
@@ -230,7 +233,8 @@ final class DataSyncController extends Controller
             (int) $validated['offset'],
             $this->decodeContent((string) $validated['content']),
             (string) $validated['sha256'],
-            (bool) $validated['final']
+            (bool) $validated['final'],
+            isset($validated['manifest']) ? array_map(static fn (mixed $hash): string => is_string($hash) ? $hash : '', $validated['manifest']) : null
         ));
     }
 
@@ -240,6 +244,8 @@ final class DataSyncController extends Controller
             'connection' => 'required|string|max:128',
             'table' => 'required|string|max:128',
             'offset' => 'required|integer|min:0',
+            'cursor' => 'sometimes|array|max:16',
+            'cursor.*' => 'present|string|max:1024',
         ]);
 
         return $this->respond(fn (): array => $this->passive->exportDatabaseChunk(
@@ -247,7 +253,8 @@ final class DataSyncController extends Controller
             $this->token($request),
             (string) $validated['connection'],
             (string) $validated['table'],
-            (int) $validated['offset']
+            (int) $validated['offset'],
+            isset($validated['cursor']) ? array_values($validated['cursor']) : null
         ));
     }
 
@@ -271,7 +278,7 @@ final class DataSyncController extends Controller
     public function peerExportResourceFileBatch(Request $request, string $id): JsonResponse
     {
         $validated = $request->validate([
-            'items' => 'required|array|max:' . \App\Services\DataSync\ResourceSyncService::BATCH_MAX_FILES,
+            'items' => 'required|array|max:' . ResourceSyncService::BATCH_MAX_FILES,
             'items.*.key' => 'required|string|max:128',
             'items.*.relative_path' => 'required|string|max:4096',
         ]);
@@ -283,7 +290,7 @@ final class DataSyncController extends Controller
     {
         $validated = $request->validate([
             'key' => 'required|string|max:128',
-            'paths' => 'required|array|max:100000',
+            'paths' => 'required|array|max:' . ResourceSyncService::ARCHIVE_MAX_FILES,
             'paths.*' => 'string|max:4096',
         ]);
 
@@ -318,17 +325,17 @@ final class DataSyncController extends Controller
     private function respond(callable $callback, int $status = 200): JsonResponse
     {
         try {
-            return $this->success($callback(), 'Success', $status);
+            return $this->success($callback(), __('api.messages.success'), $status);
         } catch (ValidationException $exception) {
             throw $exception;
         } catch (DataSyncBusyException $exception) {
             return $this->error($exception->getMessage(), 503);
         } catch (DataSyncAbortException $exception) {
             return $this->error($exception->getMessage(), 409);
+        } catch (DataSyncNotFoundException $exception) {
+            return $this->notFound($exception->getMessage());
         } catch (\InvalidArgumentException $exception) {
-            return str_contains($exception->getMessage(), 'not found')
-                ? $this->notFound($exception->getMessage())
-                : $this->error($exception->getMessage(), 422);
+            return $this->error($exception->getMessage(), 422);
         } catch (\RuntimeException $exception) {
             return $this->error($exception->getMessage(), 409);
         }
@@ -345,6 +352,8 @@ final class DataSyncController extends Controller
         ];
         if ($withRelativePath) {
             $rules['relative_path'] = 'required|string|max:4096';
+        } else {
+            $rules['manifest'] = 'sometimes|array|max:' . ResourceSyncService::ARCHIVE_MAX_FILES;
         }
         return $request->validate($rules);
     }

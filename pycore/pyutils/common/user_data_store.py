@@ -22,6 +22,11 @@ STORE_FILE_NAME = "user_data.json"
 DEFAULT_CONFIG_DIR = CORE_NODE_ROOT / "config"
 DEFAULT_FILE_PATTERNS = ("*.config.json", "*.settings.json")
 DEFAULT_FILE_EXCLUDES = frozenset({"queue_center_contract.json"})
+# Settings (e.g. system_settings.rpcLanBind) are private to the pycore runtime
+# user: the owner of the config dir. A root writer (sudo pyservice) hands the
+# file to that user; nobody else can read or change it.
+SETTINGS_FILE_MODE = 0o600
+_PERMISSION_BITS = 0o777
 USER_DATA_SECTION_SYSTEM_SETTINGS = "system_settings"
 USER_DATA_SECTION_VIDEO_EXTRACT = "video_extract"
 USER_DATA_SECTION_CAPABILITY_PRIORITIES = "capability_priorities"
@@ -42,6 +47,24 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
         else:
             merged[key] = copy.deepcopy(value)
     return merged
+
+
+def _settings_owner(directory: Path) -> tuple:
+    """(uid, gid) the settings file must have: the config dir owner when root
+    writes, else the writing user."""
+    stat = directory.stat()
+    if os.geteuid() == 0:
+        return stat.st_uid, stat.st_gid
+    return os.geteuid(), os.getegid()
+
+
+def _verify_private(path: Path, uid: int) -> None:
+    stat = path.stat()
+    if stat.st_uid != uid or stat.st_mode & _PERMISSION_BITS != SETTINGS_FILE_MODE:
+        ColorPrint.red(
+            f"[UserDataStore] {path} is uid={stat.st_uid} mode={oct(stat.st_mode & _PERMISSION_BITS)}; "
+            f"expected uid={uid} mode={oct(SETTINGS_FILE_MODE)}"
+        )
 
 
 def _read_json_object(path: Path) -> Dict[str, Any]:
@@ -96,6 +119,7 @@ class _UserDataDocument:
         if self._data is not None:
             return self._data
         self._defaults = self._load_defaults()
+        self._tighten_mode()
         try:
             self._overrides = _read_json_object(self._path)
         except Exception as exc:
@@ -119,12 +143,33 @@ class _UserDataDocument:
         except Exception:
             pass
 
+    def _tighten_mode(self) -> None:
+        """A settings file this user owns from before (0666) becomes private."""
+        if os.name == "nt" or not self._path.is_file():
+            return
+        stat = self._path.stat()
+        if stat.st_uid == os.geteuid() and stat.st_mode & _PERMISSION_BITS != SETTINGS_FILE_MODE:
+            os.chmod(str(self._path), SETTINGS_FILE_MODE)
+
     def _write_overrides(self, overrides: Dict[str, Any]) -> None:
+        """Atomic private write: a 0600 temp file (chowned to the runtime user
+        when root writes) replaces the file, then ownership and mode are verified."""
         self._base_dir.mkdir(parents=True, exist_ok=True)
         temporary_path = self._path.with_suffix(
             self._path.suffix + f".tmp.{os.getpid()}.{uuid.uuid4().hex}"
         )
-        with temporary_path.open("w", encoding="utf-8") as file_handle:
+        descriptor = os.open(
+            str(temporary_path),
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
+            SETTINGS_FILE_MODE,
+        )
+        owner = None
+        if os.name != "nt":
+            owner = _settings_owner(self._base_dir)
+            os.fchmod(descriptor, SETTINGS_FILE_MODE)
+            if os.geteuid() == 0:
+                os.fchown(descriptor, owner[0], owner[1])
+        with os.fdopen(descriptor, "w", encoding="utf-8") as file_handle:
             json.dump(
                 overrides,
                 file_handle,
@@ -135,11 +180,8 @@ class _UserDataDocument:
             file_handle.flush()
             os.fsync(file_handle.fileno())
         os.replace(str(temporary_path), str(self._path))
-        if os.name != "nt":
-            try:
-                os.chmod(str(self._path), 0o666)
-            except OSError:
-                pass
+        if owner is not None:
+            _verify_private(self._path, owner[0])
 
     def save(self) -> None:
         self._write_overrides(self._overrides or {})

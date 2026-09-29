@@ -31,6 +31,7 @@ from pycore.pyfoundations.third_party.api import (
 
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
+from pycore.pyutils.tts.engine_policy import engine_setting
 from pycore.pyutils.tts.serialized_model_engine import SerializedModelEngine
 from pycore.pyutils.tts.batch import batch_constants as batch_const
 
@@ -67,7 +68,7 @@ def _model_id() -> str:
 
 
 def _description() -> str:
-    return (os.environ.get("PARLER_DESCRIPTION") or _DEFAULT_DESCRIPTION).strip() or _DEFAULT_DESCRIPTION
+    return (engine_setting("PARLER_DESCRIPTION") or _DEFAULT_DESCRIPTION).strip() or _DEFAULT_DESCRIPTION
 
 
 def _dtype() -> Any:

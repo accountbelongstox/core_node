@@ -92,6 +92,8 @@ const VocabularyLearning: React.FC = () => {
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Only the newest library load may apply: language switches race.
+  const librariesRequestRef = useRef(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -216,7 +218,6 @@ const VocabularyLearning: React.FC = () => {
   useEffect(() => {
     loadLanguages();
     loadTasks();
-    loadLibraries();
     loadQueueStats();
     loadAssistOverview();
   }, []);
@@ -276,67 +277,13 @@ const VocabularyLearning: React.FC = () => {
     }
   };
 
-  const loadTasks = async () => {
-    setTasks(prev => ({ ...prev, loading: true, status: 'loading' }));
-    try {
-      // Mock data for now - replace with actual API call when available
-      const mockTasks: VocabularyTask[] = [
-        {
-          id: 'task_1',
-          title: 'Daily Vocabulary - Day 1',
-          description: 'Learn 10 common English words',
-          words: [
-            {
-              id: 'word_1',
-              word: 'apple',
-              translation: '苹果',
-              phonetic: 'ˈæpl',
-              part_of_speech: 'noun',
-              definition: 'A round fruit with red, green, or yellow skin',
-              example_sentences: ['I eat an apple every day.'],
-              learned: false,
-              proficiency: 0
-            },
-            {
-              id: 'word_2',
-              word: 'book',
-              translation: '书',
-              phonetic: 'bʊk',
-              part_of_speech: 'noun',
-              definition: 'A written or printed work',
-              example_sentences: ['I love reading books.'],
-              learned: false,
-              proficiency: 0
-            }
-          ],
-          status: 'in_progress',
-          progress: 20,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ];
-      
-      setTasks({
-        data: mockTasks,
-        loading: false,
-        error: null,
-        status: 'success'
-      });
-      
-      if (mockTasks.length > 0 && !selectedTask) {
-        setSelectedTask(mockTasks[0]);
-      }
-    } catch (error) {
-      setTasks({
-        data: null,
-        loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load tasks',
-        status: 'error'
-      });
-    }
+  // No learning-task backend exists: the panel shows its empty state.
+  const loadTasks = () => {
+    setTasks({ data: [], loading: false, error: null, status: 'success' });
   };
 
   const loadLibraries = async () => {
+    const request = ++librariesRequestRef.current;
     setLoadingLibraries(true);
     try {
       const response = await api.appQyV1.getLibraries({
@@ -344,6 +291,7 @@ const VocabularyLearning: React.FC = () => {
         page: 1,
         per_page: 20
       });
+      if (request !== librariesRequestRef.current) return;
 
       if (response.success && response.data) {
         const librariesData = response.data.libraries || response.data || [];
@@ -354,11 +302,12 @@ const VocabularyLearning: React.FC = () => {
         setLibraries([]);
       }
     } catch (error: any) {
+      if (request !== librariesRequestRef.current) return;
       console.error('Failed to load libraries:', error);
       logError('vocab', `Failed to load libraries: ${error?.message || 'unknown error'}`);
       setLibraries([]);
     } finally {
-      setLoadingLibraries(false);
+      if (request === librariesRequestRef.current) setLoadingLibraries(false);
     }
   };
 
@@ -1119,7 +1068,6 @@ const VocabularyLearning: React.FC = () => {
           vocabularyWords={vocabularyWords}
           loadTasks={loadTasks}
           toggleWordLearned={toggleWordLearned}
-          t={t}
         />
       </div>
 

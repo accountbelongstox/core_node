@@ -339,12 +339,11 @@ interface ContractDocument {
       values: Record<string, string>;
       terminal: string[];
     };
-    stream_events: Record<'initial' | 'transition' | 'ping' | 'close', string>;
     execution_types: Record<string, ProcessorType>;
     priorities: Record<'default' | 'manual' | 'fast' | 'maximum', number>;
     progress_stages: Record<'accepted' | 'synthesizing' | 'uploading' | 'finalizing' | 'completed', number>;
     limits: Record<
-      'list_default' | 'list' | 'monitor' | 'worker_pull_default' | 'worker_pull' | 'completed' | 'long_poll_seconds' | 'history_records' | 'history_timeline' | 'event_batch',
+      'list_default' | 'list' | 'monitor' | 'worker_pull_default' | 'worker_pull' | 'completed' | 'long_poll_seconds' | 'event_batch',
       number
     >;
     capability_labels: Record<string, string>;
@@ -446,10 +445,6 @@ export const WORKER_RESULT_STATUSES = taskStatusesForRoles(
   QUEUE_CENTER_CONTRACT.task_contract.statuses.worker_reportable,
 );
 export const TASK_EVENT_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.events.values;
-export const TERMINAL_TASK_EVENTS = QUEUE_CENTER_CONTRACT.task_contract.events.terminal.map(
-  (role) => TASK_EVENT_BY_ROLE[role] ?? role,
-);
-export const TASK_STREAM_EVENT_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.stream_events;
 export const EXECUTION_TYPES_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.execution_types;
 export const EXECUTION_TYPES = Object.values(EXECUTION_TYPES_BY_ROLE);
 export const WORKER_CAPABILITIES = Object.keys(

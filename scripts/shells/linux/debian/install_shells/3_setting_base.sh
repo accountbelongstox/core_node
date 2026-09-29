@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # Index 2 - Base System Setup: Disk Detection, Mount Management, and Mail Service Control
@@ -415,7 +404,10 @@ install_packages_and_configure_git() {
     # xdg-utils provides xdg-open (used by pycore to open files/URLs). Idempotent,
     # non-fatal: only installs when xdg-open is missing. Output streams live.
     if ! command -v xdg-open >/dev/null 2>&1; then $USE_SUDO apt-get install -y xdg-utils || true; fi
-    git config --global http.sslVerify "false" || true
+    # TLS verification stays on; drop the global "false" earlier runs wrote.
+    if [ "$(git config --global --get http.sslVerify 2>/dev/null)" = "false" ]; then
+        git config --global --unset http.sslVerify || true
+    fi
     git config --global user.name "prop-dev" || true
     git config --global user.email "prop-dev@serve.com" || true
     echo "Essential packages installed."

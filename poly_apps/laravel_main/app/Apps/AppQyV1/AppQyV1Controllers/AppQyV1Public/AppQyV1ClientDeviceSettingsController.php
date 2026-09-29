@@ -22,14 +22,14 @@ class AppQyV1ClientDeviceSettingsController extends Controller
     {
         $clientKey = trim((string) $request->query('client_key', ''));
         if (!$this->isValidClientKey($clientKey)) {
-            return $this->error('Invalid client_key', 422);
+            return $this->error(__('app_qy_v1.messages.invalid_client_key'), 422);
         }
 
         $settings = $this->settingsService->getByClientKey($clientKey);
 
         return $this->success(
             ['settings' => $settings],
-            'Client device settings retrieved'
+            __('app_qy_v1.messages.client_device_settings_retrieved')
         );
     }
 
@@ -55,7 +55,7 @@ class AppQyV1ClientDeviceSettingsController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+            return $this->error(__('app_qy_v1.messages.validation_failed') . $validator->errors()->first(), 422);
         }
 
         $validated = $validator->validated();
@@ -70,7 +70,7 @@ class AppQyV1ClientDeviceSettingsController extends Controller
 
         $saved = $this->settingsService->saveForClientKey($clientKey, $payload);
 
-        return $this->success(['settings' => $saved], 'Client device settings saved');
+        return $this->success(['settings' => $saved], __('app_qy_v1.messages.client_device_settings_saved'));
     }
 
     private function isValidClientKey(string $clientKey): bool

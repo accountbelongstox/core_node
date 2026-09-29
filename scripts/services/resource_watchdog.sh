@@ -114,7 +114,28 @@ alert_key() {
     echo "$1" | tr ' ' '_' | tr -s '_'
 }
 
+# Prints the PID of a running watchdog daemon recorded in PID_FILE, else nothing.
+running_daemon_pid() {
+    local pid=""
+
+    [ -f "$PID_FILE" ] || return 0
+    pid="$(cat "$PID_FILE" 2>/dev/null)"
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null || return 0
+    tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "resource_watchdog.sh" && echo "$pid"
+}
+
 daemon_loop() {
+    local running_pid=""
+
+    if ! mkdir -p "$LOG_DIR" 2>/dev/null || [ ! -w "$LOG_DIR" ]; then
+        echo "cannot write $LOG_DIR (run as root)" >&2
+        return
+    fi
+    running_pid="$(running_daemon_pid)"
+    if [ -n "$running_pid" ]; then
+        echo "daemon already running (pid $running_pid)"
+        return
+    fi
     echo "$$" > "$PID_FILE"
     log_line "[WATCHDOG] daemon started pid=$$ interval=${INTERVAL_SECONDS}s thresholds(load/core>$LOAD_PER_CORE_MAX,mem_avail<$MEM_AVAIL_PCT_MIN%,swap>$SWAP_USED_PCT_MAX%,frankenphp_count>$FRANKENPHP_COUNT_MAX,frankenphp_rss>${FRANKENPHP_RSS_MB_MAX}Mb,proc_cpu>$PROC_CPU_PCT_MAX%)"
     declare -A last_alert_at=()
@@ -136,9 +157,12 @@ daemon_loop() {
 }
 
 stop_daemon() {
-    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
-        kill "$(cat "$PID_FILE")"
-        log_line "[WATCHDOG] daemon stopped pid=$(cat "$PID_FILE")"
+    local running_pid=""
+
+    running_pid="$(running_daemon_pid)"
+    if [ -n "$running_pid" ]; then
+        kill "$running_pid"
+        log_line "[WATCHDOG] daemon stopped pid=$running_pid"
         rm -f "$PID_FILE"
         echo "daemon stopped"
     else

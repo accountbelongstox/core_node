@@ -40,15 +40,22 @@ from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyutils.tts.engine_policy import engine_setting
+from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_SETTING_REQUIRED, tts_reason
 
 _AVAIL_SIGNAL = BusSignals.TTS_COSYVOICE_AVAILABLE
 _AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
+# Model family marker -> PCM rate; 300M is checked before "cosyvoice3".
+_SAMPLE_RATE_BY_FAMILY = (("cosyvoice300m", 22050), ("cosyvoice3", 24000), ("cosyvoice2", 24000))
+_SAMPLE_RATE_SETTING = "COSYVOICE_SAMPLE_RATE"
+_VOICE_SETTINGS = "COSYVOICE_SPK_ID / COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT)"
 def _sample_rate() -> int:
-    """PCM sample rate of the configured model's server output.
+    """PCM sample rate of the configured model's server output (0 = unknown).
 
     The official fastapi server streams raw PCM without a header, so the rate
-    must come from model metadata: the CosyVoice2 family generates 24 kHz,
-    CosyVoice 1.x (300M/SFT) 22050 Hz. COSYVOICE_SAMPLE_RATE overrides.
+    must come from model metadata: CosyVoice 1.x (300M) generates 22050 Hz,
+    the CosyVoice2/3 families 24 kHz. Any other model id needs
+    COSYVOICE_SAMPLE_RATE, which always overrides.
     """
     explicit = (os.environ.get("COSYVOICE_SAMPLE_RATE") or "").strip()
     if explicit:
@@ -62,9 +69,11 @@ def _sample_rate() -> int:
         model = str(runtime_engine_model("cosyvoice") or "")
     except Exception:  # noqa: BLE001
         model = ""
-    if "cosyvoice2" in model.lower().replace("-", ""):
-        return 24000
-    return 22050
+    normalized = model.lower().replace("-", "").replace("_", "")
+    for marker, rate in _SAMPLE_RATE_BY_FAMILY:
+        if marker in normalized:
+            return rate
+    return 0
 
 
 def base_url() -> str:
@@ -85,16 +94,18 @@ def _mode() -> str:
         return explicit
     if _ref_audio() is not None:
         return "zero_shot"
-    if (os.environ.get("COSYVOICE_INSTRUCT") or "").strip():
+    if engine_setting("COSYVOICE_INSTRUCT").strip():
         return "instruct"
     return "sft"
 
 
 def _spk_id() -> str:
-    return (os.environ.get("COSYVOICE_SPK_ID") or "").strip()
+    return engine_setting("COSYVOICE_SPK_ID").strip()
 
 
 def _configured() -> bool:
+    if _sample_rate() <= 0:
+        return False
     mode = _mode()
     if mode == "zero_shot":
         return _ref_audio() is not None
@@ -106,7 +117,9 @@ def _configured() -> bool:
 def disabled_reason() -> Optional[str]:
     if _configured():
         return None
-    return "Set COSYVOICE_SPK_ID or COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT)"
+    if _sample_rate() <= 0:
+        return tts_reason(TTS_REASON_SETTING_REQUIRED, setting=_SAMPLE_RATE_SETTING)
+    return tts_reason(TTS_REASON_SETTING_REQUIRED, setting=_VOICE_SETTINGS)
 
 
 def available() -> bool:
@@ -159,14 +172,14 @@ def _endpoint_and_form(text: str) -> Tuple[str, dict, Optional[dict]]:
         data = {
             "tts_text": text,
             "spk_id": _spk_id(),
-            "instruct_text": (os.environ.get("COSYVOICE_INSTRUCT") or "").strip(),
+            "instruct_text": engine_setting("COSYVOICE_INSTRUCT").strip(),
         }
         return "/inference_instruct", data, None
     if mode == "instruct2":
         ref = _ref_audio()
         data = {
             "tts_text": text,
-            "instruct_text": (os.environ.get("COSYVOICE_INSTRUCT") or "").strip(),
+            "instruct_text": engine_setting("COSYVOICE_INSTRUCT").strip(),
         }
         files = {"prompt_wav": (ref.name, ref.read_bytes(), "audio/wav")} if ref else None
         return "/inference_instruct2", data, files
@@ -204,7 +217,8 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
 
     Long text: the official frontend already splits natively; the client only
     applies the protective guard (chunked_synthesis) for over-long inputs and
-    concatenates the PCM chunks before the mp3 conversion."""
+    concatenates the PCM chunks before the mp3 conversion. The official
+    endpoints take no speed, so speed is applied in that conversion."""
     cleaned = (text or "").strip()
     if not cleaned or not _configured():
         return False
@@ -224,7 +238,7 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
             f"[cosyvoice] protective chunking: {stats.get('chunk_count')} chunks"
         )
     try:
-        return wav_to_mp3(tmp_wav, output_mp3)
+        return wav_to_mp3(tmp_wav, output_mp3, tempo=speed)
     finally:
         try:
             tmp_wav.unlink()

@@ -65,6 +65,9 @@ export function useOrchAudioPlayback(detail: WfNewOrchAudioDetail): OrchAudioPla
   const playbackRef = useRef<WordNewBookReaderPlayback | null>(null);
   /** The sentence page the engine is walking (sentence mode). */
   const enginePageRef = useRef(1);
+  /** Bumped by every playback command; a segment jump whose page fetch resolves
+   *  after a newer command (or after unmount) is dropped. */
+  const jumpSeqRef = useRef(0);
 
   const sentences = useOrchAudioSentencePages(detail);
   const langs = useMemo(() => orchAudioLanguages(detail, sentences.loaded), [detail, sentences.loaded]);
@@ -171,12 +174,18 @@ export function useOrchAudioPlayback(detail: WfNewOrchAudioDetail): OrchAudioPla
       },
     });
     playbackRef.current = playback;
-    return () => playback.stop();
+    return () => {
+      jumpSeqRef.current += 1;
+      playback.stop();
+    };
   }, [detail.item.id]);
 
   const updateSettings = useCallback((patch: Partial<OrchAudioPlaybackSettings>) => {
     const next = mergeOrchAudioSettings(settingsRef.current, patch);
-    if (next.mode !== settingsRef.current.mode) playbackRef.current?.stop();
+    if (next.mode !== settingsRef.current.mode) {
+      jumpSeqRef.current += 1;
+      playbackRef.current?.stop();
+    }
     settingsRef.current = next;
     setSettings(next);
     saveOrchAudioSettings(next);
@@ -186,15 +195,19 @@ export function useOrchAudioPlayback(detail: WfNewOrchAudioDetail): OrchAudioPla
     const segment = detail.segments.find((item) => item.index === index);
     if (!segment) return;
     if (settingsRef.current.mode !== 'segments') updateSettings({ mode: 'segments' });
+    const jumpSeq = (jumpSeqRef.current += 1);
+    const playback = playbackRef.current;
     // Jump: load the segment's sentence pages first so the highlight has text.
     void sentencesRef.current.ensureRange(segment.start, segment.end).then(() => {
+      if (jumpSeqRef.current !== jumpSeq || playbackRef.current !== playback) return;
       const verse = segmentVersesRef.current.find((item) => item.seq === index);
-      if (verse) void playbackRef.current?.playFrom(verse);
+      if (verse) void playback?.playFrom(verse);
     });
   }, [detail.segments, updateSettings]);
 
   const playSentence = useCallback((verse: WfNewBookVerse, lang?: string) => {
     if (settingsRef.current.mode !== 'sentences') updateSettings({ mode: 'sentences' });
+    jumpSeqRef.current += 1;
     enginePageRef.current = sentencesRef.current.pageOf(verse.seq);
     void playbackRef.current?.playFrom(verse, lang);
   }, [updateSettings]);
@@ -203,6 +216,7 @@ export function useOrchAudioPlayback(detail: WfNewOrchAudioDetail): OrchAudioPla
     const playback = playbackRef.current;
     if (!playback) return;
     if (playback.isPlaying()) {
+      jumpSeqRef.current += 1;
       playback.togglePause();
       return;
     }
@@ -220,9 +234,18 @@ export function useOrchAudioPlayback(detail: WfNewOrchAudioDetail): OrchAudioPla
     if (start) playSentence(start);
   }, [activeVerse, playSegment, playSentence]);
 
-  const stop = useCallback(() => playbackRef.current?.stop(), []);
-  const next = useCallback(() => { void playbackRef.current?.stepSentence(1); }, []);
-  const prev = useCallback(() => { void playbackRef.current?.stepSentence(-1); }, []);
+  const stop = useCallback(() => {
+    jumpSeqRef.current += 1;
+    playbackRef.current?.stop();
+  }, []);
+  const next = useCallback(() => {
+    jumpSeqRef.current += 1;
+    void playbackRef.current?.stepSentence(1);
+  }, []);
+  const prev = useCallback(() => {
+    jumpSeqRef.current += 1;
+    void playbackRef.current?.stepSentence(-1);
+  }, []);
 
   const activeSegment = activeVerse?.grain === ORCH_SEGMENT_GRAIN
     ? detail.segments.find((segment) => segment.index === activeVerse.seq) ?? null

@@ -40,20 +40,23 @@ import json
 import os
 import re
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.pyutils.common.flat_text_store import SAFE_TEXT_KEY_PATTERN
+from pycore.pyutils.common.serialized_files import serialized_files
 
 _LIST_CAP = 500
 _INDEX_FILE_NAME = "index.json"
 _ID_RE = SAFE_TEXT_KEY_PATTERN
 
 # Rule §4: no module-level locks. On-disk state is mutated via single atomic
-# file replacements (_atomic_write_json -> os.replace); index updates are
-# build-then-write of a new rows list.
+# file replacements (_atomic_write_json -> os.replace, a unique temp name per
+# write); every index read-modify-write runs on the index file's serialized
+# owner, so concurrent writers never drop each other's rows.
 
 
 def records_dir() -> Path:
@@ -87,8 +90,12 @@ def _index_path() -> Path:
     return records_dir() / _INDEX_FILE_NAME
 
 
+def _index_owner() -> Any:
+    return serialized_files.owner(_index_path())
+
+
 def _atomic_write_json(path: Path, data: Any) -> None:
-    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}.{uuid.uuid4().hex}")
     try:
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         os.replace(str(tmp), str(path))
@@ -145,6 +152,10 @@ def _align_durable_index(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def load_index() -> Dict[str, Any]:
+    return _index_owner().execute(_load_index_owned)
+
+
+def _load_index_owned() -> Dict[str, Any]:
     path = _index_path()
     if not path.is_file():
         return {"records": _align_durable_index([])}
@@ -333,8 +344,8 @@ def summarize_records() -> Dict[str, int]:
 
 def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
     """Write <id>.json, optional audio, and prepend the record to the index."""
-    # Rule §4: no lock — writes land via atomic os.replace; the index is
-    # rebuilt as a new list and swapped in with one atomic write.
+    # Rule §4: no lock — writes land via atomic os.replace; the index
+    # read-modify-write runs on the index owner.
     rid = str(record.get("id") or "")
     if not rid or not _ID_RE.match(rid):
         raise ValueError("invalid record id")
@@ -345,8 +356,13 @@ def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
     record["uploaded_at"] = record.get("uploaded_at") or None
     if audio_bytes:
         (audio_dir() / f"{rid}.mp3").write_bytes(audio_bytes)
+    return _index_owner().execute(_save_record_owned, record)
+
+
+def _save_record_owned(record: Dict[str, Any]) -> Dict[str, Any]:
+    rid = str(record["id"])
     _atomic_write_json(records_dir() / f"{rid}.json", record)
-    rows = [r for r in load_index()["records"] if r.get("id") != rid]
+    rows = [r for r in _load_index_owned()["records"] if r.get("id") != rid]
     rows.insert(0, record)
     _atomic_write_json(_index_path(), {"records": rows})
     return record
@@ -369,9 +385,14 @@ def get_record(record_id: str) -> Optional[Dict[str, Any]]:
 
 def _commit_record(rec: Dict[str, Any], index_fields: List[str]) -> Dict[str, Any]:
     """Shared record mutation commit: rewrite <id>.json atomically and mirror
-    the named fields into the matching index row (single atomic swap)."""
+    the named fields into the matching index row (single atomic swap), on the
+    index owner."""
+    return _index_owner().execute(_commit_record_owned, rec, index_fields)
+
+
+def _commit_record_owned(rec: Dict[str, Any], index_fields: List[str]) -> Dict[str, Any]:
     _atomic_write_json(records_dir() / f"{rec['id']}.json", rec)
-    rows = load_index()["records"]
+    rows = _load_index_owned()["records"]
     for r in rows:
         if r.get("id") == rec["id"]:
             for field in index_fields:

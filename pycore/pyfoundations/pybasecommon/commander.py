@@ -14,6 +14,7 @@ import os
 import sys
 import platform
 import shutil
+import shlex
 import re
 import subprocess
 from typing import Optional, Union, List, Tuple
@@ -23,6 +24,9 @@ from typing import Optional, Union, List, Tuple
 # routes its live output through ColorPrint so subprocess lines reach the SAME
 # shared callback registry (the observer pipeline) as colored logs.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+TIMEOUT_RETURN_CODE = 124
+LINUX_SHELL = "/bin/bash"
 
 
 class CommandResult:
@@ -129,110 +133,110 @@ class Commander:
         return shutil.which(executable)
     
     @staticmethod
-    def _prepare_command(command: Union[str, List]) -> Tuple[str, Optional[str]]:
-        """Prepare command string and executable"""
-        if isinstance(command, list):
-            executable = command[0]
-            command_str = " ".join(str(cmd) for cmd in command)
-        else:
-            command_str = str(command)
-            executable = command_str.split(' ')[0] if command_str else None
-        
-        return command_str, executable
-    
-    @staticmethod
-    def _create_process(command: str, executable: Optional[str] = None, cwd: Optional[str] = None) -> subprocess.Popen:
-        """Create subprocess with platform-specific settings"""
-        system = platform.system()
+    def _prepare_command(command: Union[str, List]) -> Tuple[Union[str, List[str]], bool, str]:
+        """Popen arguments, shell flag and display string.
 
-        if system == "Linux":
-            return subprocess.Popen(
-                command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                executable="/bin/bash",
-                bufsize=1,
-                universal_newlines=True,
-                encoding='utf-8',
-                errors='replace',
-                cwd=cwd
-            )
-        else:
-            # Windows or other platforms
-            # Do NOT set executable parameter on Windows when shell=True
-            # Setting executable replaces the shell (cmd.exe) with the specified program
-            # which causes issues when the command contains paths with special characters
-            return subprocess.Popen(
-                command,
-                shell=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                bufsize=1,
-                universal_newlines=True,
-                encoding='utf-8',
-                errors='replace',
-                cwd=cwd
-            )
+        A list is an argv and runs WITHOUT a shell (no quoting or injection
+        issues); only an explicit string command goes through the shell.
+        """
+        if isinstance(command, (list, tuple)):
+            args = [str(item) for item in command]
+            display = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+            return args, False, display
+        command_str = str(command)
+        return command_str, True, command_str
+
+    @staticmethod
+    def _create_process(
+        args: Union[str, List[str]],
+        shell: bool,
+        cwd: Optional[str] = None,
+        merge_stderr: bool = False,
+        stdin_pipe: bool = False,
+    ) -> subprocess.Popen:
+        """Create the subprocess; ``merge_stderr`` folds stderr into stdout so a
+        streaming reader can never block on a full stderr pipe, and
+        ``stdin_pipe`` opens stdin for ``communicate(input=...)``."""
+        options = {
+            "shell": shell,
+            "stdin": subprocess.PIPE if stdin_pipe else None,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.STDOUT if merge_stderr else subprocess.PIPE,
+            "bufsize": 1,
+            "universal_newlines": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+            "cwd": cwd,
+        }
+        # Windows: never set executable with shell=True (it would replace cmd.exe).
+        if shell and platform.system() == "Linux":
+            options["executable"] = LINUX_SHELL
+        return subprocess.Popen(args, **options)
     
     @staticmethod
     def exec_realtime(
         command: Union[str, List],
         info: bool = True,
         cwd: Optional[str] = None,
-        show_output: bool = True
+        show_output: bool = True,
+        timeout: Optional[float] = None,
+        input_text: Optional[str] = None,
     ) -> CommandResult:
         """
         Execute command with real-time output and collect results
         
         This method:
-        - Displays output in real-time (if show_output=True)
-        - Collects all output (stdout, stderr, combined)
+        - Displays output in real-time (if show_output=True); stderr is merged
+          into the streamed output so neither pipe can fill up and block
+        - Otherwise collects stdout and stderr separately and concurrently
+          (communicate), honoring ``timeout`` (return code 124 on expiry)
         - Returns CommandResult with all collected data
         
         Recommended: Use returned CommandResult.get_output() or str(result) for checking results
         instead of relying on return_code alone.
         
         Args:
-            command: Command to execute (string or list)
+            command: Command to execute (list = argv without a shell; string = shell command)
             info: Show command info message
             cwd: Working directory for command execution
             show_output: Whether to display output in real-time
+            timeout: Seconds before a non-streaming command is killed
+            input_text: Text written to stdin of a non-streaming command (secrets
+                go here, never into the argv)
         
         Returns:
             CommandResult object with return_code, stdout, stderr, and combined output
         """
-        command_str, executable = Commander._prepare_command(command)
+        args, shell, command_str = Commander._prepare_command(command)
 
         if info:
             ColorPrint.stream(f"Executing command: {command_str}", color="blue", log_level="INFO")
 
         try:
-            process = Commander._create_process(command_str, executable, cwd)
-
             stdout_lines = []
             stderr_lines = []
+            return_code = 0
 
-            # Read stdout in real-time
-            while True:
-                output = process.stdout.readline()
-                if output == '' and process.poll() is not None:
-                    break
-                if output:
+            if show_output:
+                process = Commander._create_process(args, shell, cwd, merge_stderr=True)
+                for output in process.stdout:
                     line = output.strip()
                     stdout_lines.append(line)
-                    if show_output and info:
+                    if info:
                         ColorPrint.stream(line, color="gray", log_level="DEBUG")
-
-            # Read stderr
-            stderr_output = process.stderr.read()
-            if stderr_output:
-                stderr_lines = [line.strip() for line in stderr_output.strip().split('\n') if line.strip()]
-                if show_output and info:
-                    for line in stderr_lines:
-                        ColorPrint.stream(line, color="yellow", log_level="WARNING")
-            
-            return_code = process.poll()
+                return_code = process.wait()
+            else:
+                process = Commander._create_process(args, shell, cwd, stdin_pipe=input_text is not None)
+                try:
+                    stdout_output, stderr_output = process.communicate(input=input_text, timeout=timeout)
+                    return_code = process.returncode
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout_output, stderr_output = process.communicate()
+                    return_code = TIMEOUT_RETURN_CODE
+                    stderr_output = f"{stderr_output or ''}\ntimeout after {timeout}s: {command_str}"
+                stdout_lines = [line.strip() for line in (stdout_output or "").splitlines()]
+                stderr_lines = [line.strip() for line in (stderr_output or "").strip().split('\n') if line.strip()]
             
             # Combine outputs
             stdout_text = "\n".join(stdout_lines)
@@ -321,16 +325,18 @@ class Commander:
             command: Command to execute (string or list)
             info: Show command info message (default: False for silent mode)
             cwd: Working directory for command execution
-            **kwargs: Additional arguments (e.g., capture_output, text, timeout) are accepted for
-                     compatibility with subprocess.run() but may be ignored since exec_silent
-                     already captures output by default
+            **kwargs: ``timeout`` (seconds) kills the command on expiry (return code 124);
+                     ``input`` (text) is written to the command's stdin;
+                     other subprocess.run()-style arguments (capture_output, text, ...) are
+                     accepted for compatibility and ignored, since output is always captured
 
         Returns:
             CommandResult object with return_code, stdout, stderr, and combined output
         """
-        # Note: kwargs like capture_output, text are ignored since exec_silent already captures output
-        # timeout is also handled internally by subprocess operations
-        return Commander.exec_realtime(command, info, cwd, show_output=False)
+        return Commander.exec_realtime(
+            command, info, cwd, show_output=False, timeout=kwargs.get("timeout"),
+            input_text=kwargs.get("input"),
+        )
 
 
     @staticmethod
@@ -479,7 +485,7 @@ def run_background(
     Returns:
         Popen process object
     """
-    command_str, executable = Commander._prepare_command(command)
+    args, shell, _command_str = Commander._prepare_command(command)
 
     # Determine stdout/stderr
     if log_file:
@@ -499,8 +505,8 @@ def run_background(
         CREATE_NEW_PROCESS_GROUP = 0x00000200
 
         return subprocess.Popen(
-            command_str,
-            shell=True,
+            args,
+            shell=shell,
             cwd=cwd,
             env=env,
             creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
@@ -512,8 +518,8 @@ def run_background(
     elif system == "Linux" and detached:
         # Linux: Use start_new_session for proper detachment
         return subprocess.Popen(
-            command_str,
-            shell=True,
+            args,
+            shell=shell,
             cwd=cwd,
             env=env,
             start_new_session=True,
@@ -525,8 +531,8 @@ def run_background(
     else:
         # Other platforms or non-detached
         return subprocess.Popen(
-            command_str,
-            shell=True,
+            args,
+            shell=shell,
             cwd=cwd,
             env=env,
             stdin=subprocess.DEVNULL,

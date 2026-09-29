@@ -1,15 +1,4 @@
 #!/usr/bin/env python3
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIALLY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY FORBIDDEN
-# ### AI SPECIAL ATTENTION RULES END ###
 
 """
 Common utilities for AI tools scripts.
@@ -17,10 +6,13 @@ Common utilities for AI tools scripts.
 Provides shared functions used across multiple AI tools synchronization scripts.
 """
 
+import json
 import os
+import stat
 import sys
 import copy
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Dict, Any, Set, List, Optional
 
@@ -328,6 +320,45 @@ def cleanup_old_backups(backup_dir: Path, keep_count: int = 5, backup_pattern: s
                 print(f"[CLEANUP] Removed old backup: {file_path.name}")
             except Exception as e:
                 print(f"[WARNING] Failed to remove old backup {file_path.name}: {e}")
+
+
+def write_json_atomic(config_path, data: Dict[str, Any], st: Optional[os.stat_result] = None) -> None:
+    """Atomically replace the symlink-resolved config_path; mode/owner set on the fd (new file: 0600, dir owner when root)."""
+    real_path = os.path.realpath(os.fspath(config_path))
+    directory = os.path.dirname(real_path)
+    basename = os.path.basename(real_path)
+    is_root = hasattr(os, "geteuid") and os.geteuid() == 0
+    dir_st = None
+    if st is None and is_root:
+        try:
+            dir_st = os.stat(directory)
+        except OSError:
+            dir_st = None
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix="." + basename + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+            if st is None:
+                if hasattr(os, "fchmod"):
+                    os.fchmod(f.fileno(), 0o600)
+                else:
+                    os.chmod(tmp_path, 0o600)
+                if dir_st is not None and dir_st.st_uid != 0 and hasattr(os, "fchown"):
+                    os.fchown(f.fileno(), dir_st.st_uid, dir_st.st_gid)
+            else:
+                mode = stat.S_IMODE(st.st_mode)
+                if hasattr(os, "fchmod"):
+                    os.fchmod(f.fileno(), mode)
+                else:
+                    os.chmod(tmp_path, mode)
+                if is_root and hasattr(os, "fchown"):
+                    os.fchown(f.fileno(), st.st_uid, st.st_gid)
+        os.replace(tmp_path, real_path)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 def merge_mcp_servers(target_servers: Dict[str, Any], template_servers: Dict[str, Any]) -> tuple[Dict[str, Any], Set[str]]:

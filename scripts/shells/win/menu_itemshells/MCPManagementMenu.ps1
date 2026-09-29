@@ -1,20 +1,18 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
-    MCP Management Menu
+    AI Tools & MCP Menu (Windows), parity with the Linux "AI Tools & MCP"
+    menu (scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh).
 .DESCRIPTION
-    Menu for MCP-related actions. Every MCP install auto-syncs config to all AI tools.
+    Same core item set as Linux: Ensure ALL AI tools (one click) / install or
+    upgrade one AI tool / status table / shared-login setup / mcp-chrome
+    (build+service, status, restart, logs) / sync the chrome MCP entry to
+    every installed AI tool. Every AI-tool item below calls
+    install_powershells/Step65_InstallAiTools.ps1 or win_common/AiToolsCatalog.ps1
+    (single source of truth; no duplicated logic here). The pre-existing
+    "AI Management" (Claude Code Agent Teams) wizard and the extra MCP
+    install/sync entries (Context7, per-tool sync, Install-All) are kept below
+    as Windows-only sections, since Linux keeps an analogous extra
+    "API keys / env setup" section rather than dropping functionality.
     Output is streamed in real time; no exit code detection.
 #>
 
@@ -30,9 +28,14 @@ $script:INSTALL_ALL_MCP_PS1 = Join-Path $script:PS_CURRENT_DIR "InstallAllMCPSer
 $script:AI_PS1TOOLS_DIR = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools"
 $script:WIN_COMMON_DIR = Join-Path $script:WIN_DIR "win_common"
 $script:GLOBALVARS_PS1 = Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1"
-$script:MCP_STATUS_PS1 = Join-Path $script:AI_PS1TOOLS_DIR "mcp_status.ps1"
+$script:AI_TOOLS_CATALOG_PS1 = Join-Path $script:WIN_COMMON_DIR "AiToolsCatalog.ps1"
+$script:SERVICE_CONTRACT_PS1 = Join-Path $script:WIN_COMMON_DIR "ServiceContract.ps1"
+$script:STARTUP_MANAGER_PS1 = Join-Path $script:WIN_COMMON_DIR "StartupManager.ps1"
+$script:INSTALL_AI_TOOLS_PS1 = Join-Path $script:SCRIPT_DIR "install_powershells\Step65_InstallAiTools.ps1"
+$script:MCP_STATUS_PS1 = Join-Path $script:CORE_NODE_DIR "scripts\ai_ps1tools\mcp_status.ps1"
 $script:AI_ACTIONS_PS1 = Join-Path $script:PS_CURRENT_DIR "claude_assistant\AIManagementActions.ps1"
 $script:AI_ACTIONS_AVAILABLE = $false
+$script:MCP_CHROME_TASK_NAME = $null
 
 $script:SYNC_SCRIPTS = @(
     "claude_sync_mcp_servers.ps1",
@@ -63,6 +66,11 @@ if (Test-Path -LiteralPath $script:AI_ACTIONS_PS1) {
     $script:AI_ACTIONS_AVAILABLE = $true
 } else {
     Write-Host "[WARNING] AIManagementActions.ps1 not found: $script:AI_ACTIONS_PS1" -ForegroundColor Yellow
+}
+if (Test-Path -LiteralPath $script:AI_TOOLS_CATALOG_PS1) {
+    . $script:AI_TOOLS_CATALOG_PS1
+} else {
+    Write-Host "[WARNING] AiToolsCatalog.ps1 not found: $script:AI_TOOLS_CATALOG_PS1" -ForegroundColor Yellow
 }
 #endregion
 
@@ -124,6 +132,12 @@ function Write-ColorMessage {
     Write-Host -ForegroundColor $color "$prefix$Message"
 }
 
+function Wait-MCPMenuKey {
+    Write-Host ""
+    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+}
+
 function Invoke-SyncToAllAITools {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
@@ -145,7 +159,11 @@ function Invoke-SyncToAllAITools {
         Write-Host ""
     }
     Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
-    Write-ColorMessage -Message "All AI tools sync complete." -Type "Success"
+    # Context7 is included by each sync script only when a CONTEXT7_API_KEY
+    # secret is configured (mcp_config_provider.ps1 Get-Context7Config), so by
+    # default this syncs the chrome MCP entry only -- matching the Linux
+    # design's "context7 stays opt-in, not part of this default flow".
+    Write-ColorMessage -Message "Chrome MCP sync complete (context7 included only when its API key secret is configured)." -Type "Success"
     Write-Host "========================================" -ForegroundColor $script:COLOR_HIGHLIGHT
 }
 
@@ -157,26 +175,19 @@ function Invoke-SyncToSingleTool {
     $scriptPath = Join-Path $script:AI_PS1TOOLS_DIR $scriptFileName
     if (-not (Test-Path -LiteralPath $scriptPath)) {
         Write-ColorMessage -Message "Sync script not found: $scriptPath" -Type "Error"
-        Write-Host ""
-        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        Wait-MCPMenuKey
         return
     }
     Write-ColorMessage -Message "Syncing MCP config to $ToolName..." -Type "Info"
     & $scriptPath
     Write-Host ""
     Write-ColorMessage -Message "$ToolName sync complete." -Type "Success"
-    Write-Host ""
-    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Wait-MCPMenuKey
 }
 
-function Invoke-ChromeMCPInstall {
+function Invoke-ChromeMCPBuild {
     if (-not (Test-Path -LiteralPath $script:CHROME_MCP_START_PS1)) {
         Write-ColorMessage -Message "Chrome MCP start script not found: $script:CHROME_MCP_START_PS1" -Type "Error"
-        Write-Host ""
-        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         return
     }
     Write-ColorMessage -Message "Running Chrome MCP install/setup (all output below is real-time)..." -Type "Info"
@@ -196,7 +207,7 @@ function Invoke-ChromeMCPInstall {
     $prevDir = Get-Location
     try {
         Set-Location (Split-Path -Parent (Split-Path -Parent $script:CHROME_MCP_START_PS1))
-        & $script:CHROME_MCP_START_PS1
+        & $script:CHROME_MCP_START_PS1 -Service
     }
     finally {
         Set-Location $prevDir
@@ -206,17 +217,12 @@ function Invoke-ChromeMCPInstall {
     Write-Host ""
     Write-ColorMessage -Message "Chrome MCP install finished. Now syncing to all AI tools..." -Type "Info"
     Invoke-SyncToAllAITools
-    Write-Host ""
-    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 }
 
 function Invoke-Context7MCPInstall {
     if (-not (Test-Path -LiteralPath $script:CONTEXT7_PS1)) {
         Write-ColorMessage -Message "Context7 script not found: $script:CONTEXT7_PS1" -Type "Error"
-        Write-Host ""
-        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        Wait-MCPMenuKey
         return
     }
     Write-ColorMessage -Message "Running Context7 MCP (may start server)..." -Type "Info"
@@ -225,48 +231,217 @@ function Invoke-Context7MCPInstall {
     Write-Host ""
     Write-ColorMessage -Message "Context7 MCP install finished. Now syncing to all AI tools..." -Type "Info"
     Invoke-SyncToAllAITools
-    Write-Host ""
-    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Wait-MCPMenuKey
 }
 
 function Invoke-InstallAllMCPServices {
     if (-not (Test-Path -LiteralPath $script:INSTALL_ALL_MCP_PS1)) {
         Write-ColorMessage -Message "Install All script not found: $script:INSTALL_ALL_MCP_PS1" -Type "Error"
-        Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        Wait-MCPMenuKey
         return
     }
     Write-ColorMessage -Message "Running Install All MCP Services (Chrome + Context7 + built-in + sync)..." -Type "Info"
     & $script:INSTALL_ALL_MCP_PS1
-    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Wait-MCPMenuKey
 }
 
 function Invoke-SyncAllOnly {
     Invoke-SyncToAllAITools
+    Wait-MCPMenuKey
+}
+
+# --- AI Tools (Step65_InstallAiTools.ps1 / AiToolsCatalog.ps1) --------------
+function Invoke-EnsureAllAiTools {
+    if (-not (Test-Path -LiteralPath $script:INSTALL_AI_TOOLS_PS1)) {
+        Write-ColorMessage -Message "Step65_InstallAiTools.ps1 not found: $script:INSTALL_AI_TOOLS_PS1" -Type "Error"
+        Wait-MCPMenuKey
+        return
+    }
+    Write-ColorMessage -Message "Ensuring every AI tool + mcp-chrome (idempotent; installed tools are skipped)..." -Type "Info"
+    & $script:INSTALL_AI_TOOLS_PS1
+    Wait-MCPMenuKey
+}
+
+function Show-AiToolsStatusTable {
+    if (-not (Test-Path -LiteralPath $script:INSTALL_AI_TOOLS_PS1)) {
+        Write-ColorMessage -Message "Step65_InstallAiTools.ps1 not found: $script:INSTALL_AI_TOOLS_PS1" -Type "Error"
+        Wait-MCPMenuKey
+        return
+    }
+    & $script:INSTALL_AI_TOOLS_PS1 -Status
+    Wait-MCPMenuKey
+}
+
+function Invoke-AiToolsSharedLoginSetup {
+    if (-not (Get-Command Initialize-AiToolSharedLogin -ErrorAction SilentlyContinue)) {
+        Write-ColorMessage -Message "AiToolsCatalog.ps1 not loaded; cannot configure shared login." -Type "Error"
+        Wait-MCPMenuKey
+        return
+    }
+    Write-ColorMessage -Message "Configuring shared login (Machine-scope config-dir env vars for shareable AI CLIs)..." -Type "Info"
+    Initialize-AiToolSharedLogin | Out-Null
     Write-Host ""
-    Write-Host "Press any key to return to menu..." -ForegroundColor $script:COLOR_HIGHLIGHT
-    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    Show-AiToolSharedLoginStatus
+    Wait-MCPMenuKey
+}
+
+function Show-AiToolPerToolMenu {
+    $keys = @(Get-AiToolKeys)
+    $selected = 0
+    $total = $keys.Count
+
+    while ($true) {
+        Clear-Host
+        Write-ColorMessage -Message "== Per-tool AI CLI install / upgrade ======================" -Type "Info"
+        for ($i = 0; $i -lt $total; $i++) {
+            $tool = Get-AiTool -Key $keys[$i]
+            $label = "$($keys[$i])  ($($tool.Name))$(if (-not $tool.Supported) { ' [unsupported on Windows]' })"
+            if ($i -eq $selected) {
+                Write-Host -NoNewline "  > " -ForegroundColor $script:COLOR_HIGHLIGHT
+                Write-Host $label -ForegroundColor Black -BackgroundColor White
+            } else {
+                Write-Host "    $label"
+            }
+        }
+        if ($selected -eq $total) {
+            Write-Host -NoNewline "  > " -ForegroundColor $script:COLOR_HIGHLIGHT
+            Write-Host "Back" -ForegroundColor Black -BackgroundColor White
+        } else {
+            Write-Host "    Back"
+        }
+        Write-Host "Use Up/Down arrows to navigate, Enter to select" -ForegroundColor $script:COLOR_HIGHLIGHT
+
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        switch ($key.VirtualKeyCode) {
+            38 { $selected--; if ($selected -lt 0) { $selected = $total } }
+            40 { $selected++; if ($selected -gt $total) { $selected = 0 } }
+            13 {
+                if ($selected -eq $total) { return }
+                Clear-Host
+                & $script:INSTALL_AI_TOOLS_PS1 -Only $keys[$selected]
+                Wait-MCPMenuKey
+            }
+        }
+    }
+}
+
+# --- mcp-chrome (ncore-mcp-chrome logon task) submenu -----------------------
+function Get-McpChromeTaskName {
+    if ($script:MCP_CHROME_TASK_NAME) { return $script:MCP_CHROME_TASK_NAME }
+    if ((Test-Path -LiteralPath $script:SERVICE_CONTRACT_PS1) -and (Test-Path -LiteralPath $script:STARTUP_MANAGER_PS1)) {
+        try {
+            . $script:SERVICE_CONTRACT_PS1
+            . $script:STARTUP_MANAGER_PS1
+            $script:MCP_CHROME_TASK_NAME = Get-ServiceContractValue -ContractPath "mcp_chrome.windows_task_name"
+        } catch { }
+    }
+    return $script:MCP_CHROME_TASK_NAME
+}
+
+function Show-McpChromeStatus {
+    $taskName = Get-McpChromeTaskName
+    if (-not $taskName) {
+        Write-ColorMessage -Message "Could not resolve the mcp-chrome logon task name (ServiceContract.ps1 / StartupManager.ps1 missing?)." -Type "Error"
+        return
+    }
+    $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if (-not $task) {
+        Write-ColorMessage -Message "Logon task '$taskName' is not installed. Use 'Build + install service' first." -Type "Warning"
+        return
+    }
+    $info = Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction SilentlyContinue
+    Write-ColorMessage -Message "Task: $taskName" -Type "Info"
+    Write-ColorMessage -Message "State: $($task.State)" -Type "Info"
+    if ($info) {
+        Write-ColorMessage -Message "Last run: $($info.LastRunTime)  (result: $($info.LastTaskResult))" -Type "Info"
+        Write-ColorMessage -Message "Next run: $($info.NextRunTime)" -Type "Info"
+    }
+}
+
+function Restart-McpChromeTask {
+    $taskName = Get-McpChromeTaskName
+    if (-not $taskName) {
+        Write-ColorMessage -Message "Could not resolve the mcp-chrome logon task name." -Type "Error"
+        return
+    }
+    if (-not (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) {
+        Write-ColorMessage -Message "Logon task '$taskName' is not installed. Use 'Build + install service' first." -Type "Warning"
+        return
+    }
+    Write-ColorMessage -Message "Restarting logon task '$taskName'..." -Type "Info"
+    Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 1
+    Start-ScheduledTask -TaskName $taskName
+    Write-ColorMessage -Message "Restarted." -Type "Success"
+}
+
+function Show-McpChromeLogs {
+    # Windows Task Scheduler has no journalctl-style log stream for a plain
+    # logon task: this is a known gap versus the Linux systemd unit. Point at
+    # the two places that do carry information instead of fabricating a log
+    # file that does not exist.
+    $taskName = Get-McpChromeTaskName
+    Write-ColorMessage -Message "No centralized log file for the '$taskName' logon task yet (gap vs. Linux's journalctl -u ncore-mcp-chrome)." -Type "Warning"
+    Write-ColorMessage -Message "Options: Task Scheduler > Task Scheduler Library > $taskName > History tab; or run 'apps\mcp-chrome\scripts\start.ps1' directly in a console for live output." -Type "Info"
+}
+
+function Show-McpChromeSubmenu {
+    $items = @(
+        @{ Text = "Build + install as the ncore-mcp-chrome logon task"; Action = { Invoke-ChromeMCPBuild } },
+        @{ Text = "Service status (Get-ScheduledTask)"; Action = { Show-McpChromeStatus } },
+        @{ Text = "Restart service"; Action = { Restart-McpChromeTask } },
+        @{ Text = "Logs"; Action = { Show-McpChromeLogs } },
+        @{ Text = "Back"; Action = $null }
+    )
+    $selected = 0
+    $total = $items.Count
+
+    while ($true) {
+        Clear-Host
+        Write-ColorMessage -Message "== mcp-chrome =============================================" -Type "Info"
+        for ($i = 0; $i -lt $total; $i++) {
+            if ($i -eq $selected) {
+                Write-Host -NoNewline "  > " -ForegroundColor $script:COLOR_HIGHLIGHT
+                Write-Host $items[$i].Text -ForegroundColor Black -BackgroundColor White
+            } else {
+                Write-Host "    $($items[$i].Text)"
+            }
+        }
+        Write-Host "Use Up/Down arrows to navigate, Enter to select" -ForegroundColor $script:COLOR_HIGHLIGHT
+
+        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        switch ($key.VirtualKeyCode) {
+            38 { $selected--; if ($selected -lt 0) { $selected = $total - 1 } }
+            40 { $selected++; if ($selected -ge $total) { $selected = 0 } }
+            13 {
+                if ($items[$selected].Text -eq "Back") { return }
+                Clear-Host
+                & $items[$selected].Action
+                Wait-MCPMenuKey
+            }
+        }
+    }
 }
 #endregion
 
 #region Menu System
 function Show-MCPMenu {
     $menuItems = @(
+        @{ Text = "== AI Tools =============================================="; Action = { }; IsHeader = $true },
+        @{ Text = "  Ensure ALL AI tools (one click)"; Action = { Invoke-EnsureAllAiTools }; IsHeader = $false },
+        @{ Text = "  Install / upgrade one AI tool"; Action = { Show-AiToolPerToolMenu }; IsHeader = $false },
+        @{ Text = "  Status table (installed, version, linked, login shared)"; Action = { Show-AiToolsStatusTable }; IsHeader = $false },
+        @{ Text = "  Shared-login setup (config-dir env vars for shareable CLIs)"; Action = { Invoke-AiToolsSharedLoginSetup }; IsHeader = $false },
+        @{ Text = "== mcp-chrome (only MCP server) ========================="; Action = { }; IsHeader = $true },
+        @{ Text = "  Build + install service / status / restart / logs"; Action = { Show-McpChromeSubmenu }; IsHeader = $false },
+        @{ Text = "  Sync chrome MCP to all installed AI tools"; Action = { Invoke-SyncAllOnly }; IsHeader = $false },
         @{ Text = "== AI Management (Claude Code Agent Teams) =============="; Action = { }; IsHeader = $true },
         @{ Text = "  One-click Setup (guided wizard)"; Action = { Invoke-AIAction -Action { Invoke-OneClickSetupWizard } }; IsHeader = $false },
         @{ Text = "  Environment diagnostics"; Action = { Invoke-AIAction -Action { Invoke-EnvironmentDiagnostics } }; IsHeader = $false },
         @{ Text = "  Open Agent Teams docs (browser)"; Action = { Invoke-AIAction -Action { Invoke-OpenAgentTeamsDocumentation } }; IsHeader = $false },
-        @{ Text = "== MCP: Inspect ========================================"; Action = { }; IsHeader = $true },
-        @{ Text = "  Show planned servers + command details (dry-run)"; Action = { Invoke-ShowPlannedServers }; IsHeader = $false },
-        @{ Text = "  Re-detect AI tools + existing MCP (refresh panel)"; Action = { Invoke-RefreshStatus }; IsHeader = $false },
-        @{ Text = "== MCP: Install (auto-syncs all tools) ================="; Action = { }; IsHeader = $true },
+        @{ Text = "== MCP: extra install / sync (Context7 stays opt-in) ===="; Action = { }; IsHeader = $true },
         @{ Text = "  Install All MCP + Sync to All AI Tools"; Action = { Invoke-InstallAllMCPServices }; IsHeader = $false },
-        @{ Text = "  Install Chrome MCP + Sync All"; Action = { Invoke-ChromeMCPInstall }; IsHeader = $false },
         @{ Text = "  Install Context7 MCP + Sync All"; Action = { Invoke-Context7MCPInstall }; IsHeader = $false },
-        @{ Text = "== MCP: Sync config only (no install) =================="; Action = { }; IsHeader = $true },
-        @{ Text = "  Sync to All AI Tools"; Action = { Invoke-SyncAllOnly }; IsHeader = $false },
         @{ Text = "  Sync to Claude"; Action = { Invoke-SyncToSingleTool -ToolName "claude" }; IsHeader = $false },
         @{ Text = "  Sync to Cursor (+ Cursor Agent)"; Action = { Invoke-SyncToSingleTool -ToolName "cursor" }; IsHeader = $false },
         @{ Text = "  Sync to Codex"; Action = { Invoke-SyncToSingleTool -ToolName "codex" }; IsHeader = $false },
@@ -284,7 +459,7 @@ function Show-MCPMenu {
     while ($true) {
         Clear-Host
         Write-ColorMessage -Message "========================================================" -Type "Info"
-        Write-ColorMessage -Message "       AI & MCP Management" -Type "Info"
+        Write-ColorMessage -Message "       AI Tools & MCP" -Type "Info"
         Write-ColorMessage -Message "========================================================" -Type "Info"
         Show-MCPStatusPanel
 

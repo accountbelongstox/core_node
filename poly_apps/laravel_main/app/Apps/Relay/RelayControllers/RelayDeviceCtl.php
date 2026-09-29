@@ -9,6 +9,7 @@ use App\Apps\Relay\RelayServices\RelayDeviceService;
 use App\Apps\Relay\RelayServices\RelayEnrollmentService;
 use App\Apps\Relay\RelayServices\RelayOperationService;
 use App\Http\Controllers\Controller;
+use App\Services\ClientKey\ClientKeyAuthService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,7 +44,12 @@ final class RelayDeviceCtl extends Controller
             'device.capabilities.*' => ['string', 'max:128'],
         ]);
 
-        return $this->success($this->enrollments->create($validated['device']), __('relay.success'));
+        $enrollment = $this->enrollments->create($validated['device']);
+        if (ClientKeyAuthService::isMachineCall($request)) {
+            $enrollment = $this->enrollments->approveWithClientKey($enrollment);
+        }
+
+        return $this->success($enrollment, __('relay.success'));
     }
 
     public function enrollmentStatus(Request $request, string $enrollment_id): JsonResponse

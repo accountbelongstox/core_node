@@ -44,13 +44,12 @@
 }
 
 .cm-brand__mark {
-  display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  border: 1px solid currentColor;
-  border-radius: 10px;
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  display: inline-flex;
+  flex: none;
+}
+
+.cm-brand__mark img {
+  display: block;
 }
 
 .cm-brand__copy {

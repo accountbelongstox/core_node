@@ -6,6 +6,7 @@ import json
 import time
 from typing import Any, Dict, Iterable, Optional
 
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
@@ -41,6 +42,9 @@ class TerminalService:
         self._backend = backend
         self._state_repository = state_repository
         self._screenshot_cache = screenshot_cache
+        # Focus, pointer and clipboard are process-wide: every window action
+        # (RPC routes and the scheduler alike) runs on this one input owner.
+        init_serialized_owner(self, "pyctl.terminal.input", "TerminalInputThread")
 
     def snapshot(
         self,
@@ -108,11 +112,13 @@ class TerminalService:
             return ""
         return self._state_repository.resolve_window_id(terminal_number)
 
+    @serialized_method
     def activate(self, window_id: str) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
         return self._backend.activate(window_id)
 
+    @serialized_method
     def click(
         self,
         window_id: str,
@@ -140,6 +146,7 @@ class TerminalService:
             return self._failure("terminal_number_required")
         return self._state_repository.save_draft(terminal_number, text)
 
+    @serialized_method
     def navigate_history(
         self,
         window_id: str,
@@ -154,6 +161,7 @@ class TerminalService:
             return activation
         return self._backend.navigate_history(window_id, direction)
 
+    @serialized_method
     def scroll(
         self,
         window_id: str,
@@ -205,6 +213,7 @@ class TerminalService:
             log_id,
         )
 
+    @serialized_method
     def input_text(
         self,
         window_id: str,
@@ -225,7 +234,6 @@ class TerminalService:
             return self._failure("terminal_state_not_found")
         log_id = str(pending_log.get("id") or "")
         clipboard_backup = clipboard_manager.get_text()
-        backup_text = clipboard_backup if clipboard_backup is not None else ""
         if not clipboard_manager.set_text(
             content,
             self._backend.paste_uses_primary_selection(),
@@ -247,7 +255,13 @@ class TerminalService:
             )
             time.sleep(CLIPBOARD_RESTORE_DELAY_SECONDS)
         finally:
-            clipboard_restored = clipboard_manager.set_text(backup_text)
+            # A non-text (or unreadable) clipboard is left alone instead of
+            # being overwritten with an empty string.
+            clipboard_restored = (
+                clipboard_manager.set_text(clipboard_backup)
+                if clipboard_backup is not None
+                else True
+            )
 
         success = bool(action.get("success")) and clipboard_restored
         error_code = action.get("error_code")
@@ -264,6 +278,7 @@ class TerminalService:
             },
         )
 
+    @serialized_method
     def press_enter(
         self,
         window_id: str,

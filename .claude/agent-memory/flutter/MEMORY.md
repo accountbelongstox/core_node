@@ -1,0 +1,1 @@
+- [app_qy backend pitfalls](app_qy_backend_pitfalls.md) — dict/v1 has no laravel_main route; bearer/session restore location; QyApp above MaterialApp

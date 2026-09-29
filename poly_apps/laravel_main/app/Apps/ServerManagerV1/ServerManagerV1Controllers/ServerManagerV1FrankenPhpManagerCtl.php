@@ -93,7 +93,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
                 'hub_path' => '/.well-known/mercure',
             ],
             'install_hint' => $installed ? null : self::FRANKENPHP_INSTALL_HINT,
-        ], 'FrankenPHP plane status retrieved successfully');
+        ], __('server_manager.messages.frankenphp_plane_status_retrieved_successfully'));
     }
 
     /**
@@ -115,7 +115,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         $report = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
         if (($report['error'] ?? '') !== '') {
             return $this->error(
-                'Caddyfile ensure failed: ' . $report['error'],
+                __('server_manager.messages.caddyfile_ensure_failed') . $report['error'],
                 ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
             );
         }
@@ -158,7 +158,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
             'path' => $path,
             'canonical' => $this->caddyfileIsCanonical(),
             'content' => $this->readCaddyfile(),
-        ], 'Caddyfile retrieved');
+        ], __('server_manager.messages.caddyfile_retrieved'));
     }
 
     /**
@@ -200,14 +200,14 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         $plane = (string) $request->input('plane', '');
         if (!in_array($plane, WebServerPlane::PLANES, true)) {
             return $this->error(
-                'Invalid plane. Allowed values: ' . implode(', ', WebServerPlane::PLANES),
+                __('server_manager.messages.invalid_plane_allowed_values') . implode(', ', WebServerPlane::PLANES),
                 ServerManagerV1Constants::RESPONSE_BAD_REQUEST
             );
         }
 
         if (!WebServerPlane::adopt($plane)) {
             return $this->error(
-                'Unable to write the WEB_SERVER_PLANE record',
+                __('server_manager.messages.unable_to_write_the_web_server_plane'),
                 ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
             );
         }
@@ -253,7 +253,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         $report = ServerManagerV1FrankenPhpCaddyfileBuilder::storeDnsPodToken($token);
         if (($report['stored'] ?? false) !== true) {
             return $this->error(
-                'DNSPod token store failed: ' . ($report['error'] ?? 'unknown'),
+                __('server_manager.messages.dnspod_token_store_failed') . ($report['error'] ?? 'unknown'),
                 ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
             );
         }
@@ -271,7 +271,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
                 'ready' => ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule(),
             ],
             'caddyfile' => $report,
-        ], 'DNSPod token stored; the frankenphp plane picks it up on the next restart');
+        ], __('server_manager.messages.dnspod_token_stored_the_frankenphp_plane_picks'));
     }
 
     public function listSites(Request $request): JsonResponse
@@ -287,7 +287,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         return $this->success([
             'sites' => $sites,
             'total' => count($sites),
-        ], 'FrankenPHP sites retrieved successfully');
+        ], __('server_manager.messages.frankenphp_sites_retrieved_successfully'));
     }
 
     public function site(Request $request, string $siteName): JsonResponse
@@ -300,10 +300,10 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
         $site = ServerManagerV1FrankenPhpSiteManager::find($siteName);
         if ($site === null) {
-            return $this->error('FrankenPHP site not found.', ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+            return $this->error(__('server_manager.messages.frankenphp_site_not_found'), ServerManagerV1Constants::RESPONSE_NOT_FOUND);
         }
 
-        return $this->success($site, 'FrankenPHP site retrieved successfully');
+        return $this->success($site, __('server_manager.messages.frankenphp_site_retrieved_successfully'));
     }
 
     public function createSite(Request $request): JsonResponse
@@ -399,10 +399,10 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
         $result = ServerManagerV1FrankenPhpReloadJob::status($jobId);
         if ($result === null) {
-            return $this->error('FrankenPHP reload job not found.', ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+            return $this->error(__('server_manager.messages.frankenphp_reload_job_not_found'), ServerManagerV1Constants::RESPONSE_NOT_FOUND);
         }
 
-        return $this->success($result, 'FrankenPHP reload job retrieved successfully');
+        return $this->success($result, __('server_manager.messages.frankenphp_reload_job_retrieved_successfully'));
     }
 
     public function serviceControl(Request $request): JsonResponse

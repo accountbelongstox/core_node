@@ -393,7 +393,7 @@ export function useBookStudyGenerator() {
       if (!res) continue;
       if (res.status === 'done') return res.answer || '';
       if (res.status === 'failed' || res.status === 'unknown') {
-        throw new Error(res.error || `${PROVIDER_LABELS[job.provider]} generation failed`);
+        throw new Error(res.error || getMessage('providerGenerationFailed', [PROVIDER_LABELS[job.provider]]));
       }
       // still generating -> keep polling
     }

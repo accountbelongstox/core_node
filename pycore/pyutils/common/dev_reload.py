@@ -121,10 +121,13 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
 
     def _run():
         baseline = _snapshot(roots)
-        # Files saved during boot drop out of the baseline -> first scan restarts.
+        # Files saved during boot drop out of the baseline -> first scan
+        # restarts. A future mtime (clock-skewed copy, archive, network
+        # mount) stays in the baseline: dropping it would restart forever.
+        scanned_at_ns = time.time_ns()
         baseline = {
             path: mtime for path, mtime in baseline.items()
-            if mtime <= PROCESS_IMAGE_STARTED_NS
+            if mtime <= PROCESS_IMAGE_STARTED_NS or mtime > scanned_at_ns
         }
         ColorPrint.blue(
             f"[reload] dev hot-reload ON - watching {len(baseline)} runtime files under "

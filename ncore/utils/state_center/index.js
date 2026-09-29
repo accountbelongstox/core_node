@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 'use strict';
 
 const { EventEmitter } = require('events');
@@ -371,8 +359,12 @@ class SettingsCenter extends EventEmitter {
         const previous = this.get(path);
         setNestedValue(this.cache, segments, cloneValue(value));
         if (options.persist !== false) {
-            this.userSettings.saveSettings(this.cache);
-            this.userSettings.syncToFile(segments.join(PATH_SEPARATOR), value);
+            // Merge into the current file content instead of overwriting it with a stale cache
+            const saved = this.userSettings.updateSettings((settings) => setNestedValue(settings, segments, cloneValue(value)));
+            if (saved) {
+                this.cache = saved;
+                this.userSettings.syncToFile(segments.join(PATH_SEPARATOR), value);
+            }
         }
         this.emit('change', {
             path: segments.join(PATH_SEPARATOR),
@@ -399,8 +391,11 @@ class SettingsCenter extends EventEmitter {
         const previous = this.get(path);
         const deleted = deleteNestedValue(this.cache, segments);
         if (deleted && options.persist !== false) {
-            this.userSettings.saveSettings(this.cache);
-            this.userSettings.syncToFile(segments.join(PATH_SEPARATOR));
+            const saved = this.userSettings.updateSettings((settings) => deleteNestedValue(settings, segments));
+            if (saved) {
+                this.cache = saved;
+                this.userSettings.syncToFile(segments.join(PATH_SEPARATOR));
+            }
         }
         if (deleted) {
             this.emit('delete', {

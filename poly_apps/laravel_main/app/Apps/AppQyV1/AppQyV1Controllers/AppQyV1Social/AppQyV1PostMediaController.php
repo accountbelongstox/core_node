@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\.."; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
@@ -23,6 +12,7 @@ use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostImageModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostLikeModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ResourceIndexService;
 
 /**
  * Social Center post media uploads (Social Center expansion §POSTS images/video).
@@ -83,10 +73,10 @@ class AppQyV1PostMediaController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
         if ((int) $post->user_id !== $myId) {
-            return $this->forbidden('Only the author can add images to this post');
+            return $this->forbidden(__('app_qy_v1.messages.only_the_author_can_add_images_to'));
         }
 
         $validator = Validator::make($request->all(), [
@@ -99,7 +89,7 @@ class AppQyV1PostMediaController extends Controller
 
         $files = $request->file('images');
         if (!is_array($files) || empty($files)) {
-            return $this->error('No images provided', 422);
+            return $this->error(__('app_qy_v1.messages.no_images_provided'), 422);
         }
 
         // Cap total images on the post at MAX_IMAGES across calls.
@@ -107,7 +97,7 @@ class AppQyV1PostMediaController extends Controller
         $startSeq = (int) $imageState['max_sequence'];
         $existingCount = (int) $imageState['image_count'];
         if (($existingCount + count($files)) > self::MAX_IMAGES) {
-            return $this->error('A post can have at most ' . self::MAX_IMAGES . ' images', 422);
+            return $this->error(__('app_qy_v1.messages.a_post_can_have_at_most') . self::MAX_IMAGES . ' images', 422);
         }
 
         $storageDir = PathMapper::getLaravelStaticDir(self::POST_IMAGES_SUBDIR . '/' . $id);
@@ -115,7 +105,7 @@ class AppQyV1PostMediaController extends Controller
             @mkdir($storageDir, 0755, true);
         }
         if (!is_dir($storageDir)) {
-            return $this->error('Failed to prepare image storage directory', 500);
+            return $this->error(__('app_qy_v1.messages.failed_to_prepare_image_storage_directory'), 500);
         }
 
         $seq = $startSeq;
@@ -135,6 +125,7 @@ class AppQyV1PostMediaController extends Controller
                 $seq--;
                 continue;
             }
+            app(AppQyV1ResourceIndexService::class)->recordStaticPath($fullPath);
 
             $relativeUrl = self::POST_IMAGES_URL_PREFIX . '/' . $id . '/' . $seq . '.jpg';
             $imageRows[] = [
@@ -146,7 +137,7 @@ class AppQyV1PostMediaController extends Controller
         }
 
         if ($stored === 0) {
-            return $this->error('Failed to process uploaded images', 422);
+            return $this->error(__('app_qy_v1.messages.failed_to_process_uploaded_images'), 422);
         }
 
         AppQyV1PostImageModel::storeForPost($id, $imageRows);
@@ -154,7 +145,7 @@ class AppQyV1PostMediaController extends Controller
 
         return $this->success([
             'post' => $this->freshPostShape($id, $myId),
-        ], 'Images uploaded');
+        ], __('app_qy_v1.messages.images_uploaded'));
     }
 
     /**
@@ -179,10 +170,10 @@ class AppQyV1PostMediaController extends Controller
 
         $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
-            return $this->notFound('Post not found');
+            return $this->notFound(__('app_qy_v1.messages.post_not_found'));
         }
         if ((int) $post->user_id !== $myId) {
-            return $this->forbidden('Only the author can add a video to this post');
+            return $this->forbidden(__('app_qy_v1.messages.only_the_author_can_add_a_video'));
         }
 
         // 200MB = 204800 KB.
@@ -200,7 +191,7 @@ class AppQyV1PostMediaController extends Controller
             @mkdir($storageDir, 0755, true);
         }
         if (!is_dir($storageDir)) {
-            return $this->error('Failed to prepare video storage directory', 500);
+            return $this->error(__('app_qy_v1.messages.failed_to_prepare_video_storage_directory'), 500);
         }
 
         // Stored verbatim as {post_id}.mp4 (extension normalized; no transcode).
@@ -209,9 +200,10 @@ class AppQyV1PostMediaController extends Controller
             // move_uploaded_file fails outside a real upload context; fall back
             // to a stream copy so the path still works under Octane test clients.
             if (@copy($file->getRealPath(), $fullPath) === false) {
-                return $this->error('Failed to store uploaded video', 500);
+                return $this->error(__('app_qy_v1.messages.failed_to_store_uploaded_video'), 500);
             }
         }
+        app(AppQyV1ResourceIndexService::class)->recordStaticPath($fullPath);
 
         $relativeUrl = self::POST_VIDEOS_URL_PREFIX . '/' . $myId . '/' . $id . '.mp4';
 
@@ -219,7 +211,7 @@ class AppQyV1PostMediaController extends Controller
 
         return $this->success([
             'post' => $this->freshPostShape($id, $myId),
-        ], 'Video uploaded');
+        ], __('app_qy_v1.messages.video_uploaded'));
     }
 
     /**

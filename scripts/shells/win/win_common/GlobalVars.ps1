@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $sharedCacheEnvPath = Join-Path $PSScriptRoot 'SharedCacheEnv.ps1'
@@ -106,7 +94,7 @@ $Global:BACKUP_NAME_PREFIX = "core_node"
 
 # Check if current script is running from BASE_DIR or its subdirectories
 $Global:IS_RUNNING_FROM_BASE_DIR = $PSScriptRoot -like "$Global:BASE_DIR*"
-$Global:IS_RUNNING_FROM_BASE_DIR_SUBDIR = $PSScriptRoot -like "$Global:BASE_DIR\*"  
+$Global:IS_RUNNING_FROM_BASE_DIR_SUBDIR = $PSScriptRoot -like (Join-Path $Global:BASE_DIR "*")
 $Global:APPS_DIR = Join-Path $BASE_DIR "apps"
 $Global:TEMP_DIR = "D:\.tmp"
 $Global:DOWNLOADS_DIR = Join-Path $TEMP_DIR "Downloads"
@@ -143,23 +131,23 @@ $Global:LANG_COMPILER_DIR = "D:\.dev_$systemName"
 $Global:WINENVS_DIR = ".winenvs"  # Windows environment scripts directory name
 $Global:APP_INSTALL_DIR = "D:\applications"
 $Global:CURSOR_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "cursor"
-$Global:WEIXIN_INSTALL_DIR = "$Global:APP_INSTALL_DIR\Weixin"
+$Global:WEIXIN_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "Weixin"
 $Global:WEIXIN_EXE_PATH = Join-Path $Global:WEIXIN_INSTALL_DIR "Weixin.exe"
-$Global:QQ_INSTALL_DIR = "$Global:APP_INSTALL_DIR\QQ"
+$Global:QQ_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "QQ"
 $Global:QQ_EXE_PATH = Join-Path $Global:QQ_INSTALL_DIR "QQ.exe"
 $Global:PROJECT_ROOT_DIR = $Global:WINDOWS_PROGRAMING_DIR
-$Global:PROJECT_DIR = "$PROJECT_ROOT_DIR\core_node"
-$Global:PROJECT_SCRIPTS_DIR = "$PROJECT_DIR\scripts"
-$Global:PROJECT_WIN_SCRIPTS_DIR = "$PROJECT_SCRIPTS_DIR\shells\win"
-$Global:INLINE_WINENVS_DIR = "$PROJECT_SCRIPTS_DIR\winenvs"  # Inline scripts directory - scripts in memory travel with code
+$Global:PROJECT_DIR = Join-Path $PROJECT_ROOT_DIR "core_node"
+$Global:PROJECT_SCRIPTS_DIR = Join-Path $PROJECT_DIR "scripts"
+$Global:PROJECT_WIN_SCRIPTS_DIR = Join-Path $PROJECT_SCRIPTS_DIR "shells\win"
+$Global:INLINE_WINENVS_DIR = Join-Path $PROJECT_SCRIPTS_DIR "winenvs"  # Inline scripts directory - scripts in memory travel with code
 $Global:CHOCO_DIR = "C:\ProgramData\chocolatey"
-$Global:SCOOP_CACHE_DIR = "$TEMP_DIR\scoop"
-$Global:SCOOP_DIR = "$LANG_COMPILER_DIR\scoop"
-$Global:SCOOP_APPS_DIR = "$LANG_COMPILER_DIR\scoop\apps"
-$Global:SCOOP_EXE = "$SCOOP_DIR\shims\scoop.cmd"
-$Global:SCOOP_GLOBAL_DIR = "$LANG_COMPILER_DIR\scoop\apps"
-$Global:CHOCO_EXE = "$CHOCO_DIR\choco.exe"
-$Global:CHOCO_CACHE_DIR = "$TEMP_DIR\chocolatey"
+$Global:SCOOP_CACHE_DIR = Join-Path $TEMP_DIR "scoop"
+$Global:SCOOP_DIR = Join-Path $LANG_COMPILER_DIR "scoop"
+$Global:SCOOP_APPS_DIR = Join-Path $LANG_COMPILER_DIR "scoop\apps"
+$Global:SCOOP_EXE = Join-Path $SCOOP_DIR "shims\scoop.cmd"
+$Global:SCOOP_GLOBAL_DIR = Join-Path $LANG_COMPILER_DIR "scoop\apps"
+$Global:CHOCO_EXE = Join-Path $CHOCO_DIR "choco.exe"
+$Global:CHOCO_CACHE_DIR = Join-Path $TEMP_DIR "chocolatey"
 
 $Global:PROGRAMING_USERS_DIR = $Global:WINDOWS_PROGRAMING_USERS_DIR
 $Global:PROGRAMING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
@@ -233,7 +221,7 @@ foreach ($legacyGlobalVarDir in $Global:LEGACY_GLOBAL_VAR_DIRS) {
 
 
 # Git related global variables
-$Global:GIT_INSTALL_DIR = "$Global:APP_INSTALL_DIR\Git"
+$Global:GIT_INSTALL_DIR = Join-Path $Global:APP_INSTALL_DIR "Git"
 $Global:GIT_EXE_PATH = Join-Path $Global:GIT_INSTALL_DIR "cmd\git.exe"
 $Global:GIT_FLAG_FILE = Join-Path $Global:USER_DIR "git_set"
 $Global:GIT_WINGET_ID = "Git.Git"
@@ -244,6 +232,10 @@ $Global:GIT_DEFAULT_EMAIL = "devops@example.com"
 $Global:NODE_VERSION = "24.11.1"
 $Global:NODE_DIR = Join-Path $Global:LANG_COMPILER_DIR "node-v$Global:NODE_VERSION"
 $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
+# Secret tools get their password on stdin through this runner, never on a command line.
+$Global:SECRET_ENCRYPTION_TOOLS_DIR = Join-Path $Global:CORE_NODE_SCRIPTS_DIR "encryption_tools"
+$Global:SECRET_PASSWORD_RUNNER_JS = Join-Path $Global:SECRET_ENCRYPTION_TOOLS_DIR "secret_password_runner.js"
+$Global:SECRET_PASSWORD_ARG = "--password-stdin"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
 $Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
 $Global:PNPM_GLOBAL_DIR = Join-Path $Global:NODE_DIR "pnpm-global"
@@ -409,12 +401,12 @@ $Global:GITEE_SCRIPTS_URL = "$Global:CURRENT_BASE_URL/scripts"
 $Global:GITEE_UTILS_URL = "$Global:CURRENT_BASE_URL/ncore/utils"
 
 # Environment Scripts related global variables
-$Global:SET_ENV_JS_PATH = "$Global:SCRIPTS_DIR\winpath.js"
+$Global:SET_ENV_JS_PATH = Join-Path $Global:SCRIPTS_DIR "winpath.js"
 $Global:SET_ENV_JS_URL = "$Global:GITEE_UTILS_URL/win_tool/libs/winpath.js"
 
 # Global 7-Zip Variables
 $Global:SEVENZIP_TEMP_DIR = $Global:TEMP_DIR
-$Global:SEVENZIP_INSTALL_DIR = "$Global:LANG_COMPILER_DIR\7z"
+$Global:SEVENZIP_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "7z"
 $Global:SEVENZIP_DOWNLOAD_URL = "https://www.7-zip.org/a/7z2408-x64.exe"
 $Global:SEVENZIP_EXE_PATH = Join-Path $Global:SEVENZIP_INSTALL_DIR "7z.exe"
 $Global:SEVENZIP_TMP_NAME = "7z2408-x64.exe"
@@ -446,8 +438,8 @@ $Global:PHP_VERSIONS = @(
     }
 )
 $Global:PHP_CONFIGFILE_URL = "$Global:GITEE_SCRIPTS_URL/shells/win/1_phpconfig/configure_php_ini.php"
-$Global:PHP_CONFIGFILE_PATH = "$Global:SCRIPTS_DIR\configure_php_ini.php"
-$Global:PHP_CONFIGFILE_LOCAL_PATH = "$Global:PROJECT_WIN_SCRIPTS_DIR\1_phpconfig\configure_php_ini.php"
+$Global:PHP_CONFIGFILE_PATH = Join-Path $Global:SCRIPTS_DIR "configure_php_ini.php"
+$Global:PHP_CONFIGFILE_LOCAL_PATH = Join-Path $Global:PROJECT_WIN_SCRIPTS_DIR "1_phpconfig\configure_php_ini.php"
 
 # Note: Java configuration moved to ApplicationsList.ps1 for consistency
 # Note: FFmpeg configuration moved to ApplicationsList.ps1 for consistency
@@ -460,7 +452,7 @@ $Global:ANDROID_DIR = "C:\Program Files\Android"
 $Global:ANDROID_STUDIO_DIR = Join-Path $ANDROID_DIR "Android Studio"
 $Global:ANDROID_STUDIO_EXE_PATH = Join-Path $ANDROID_STUDIO_DIR "bin\studio64.exe"
 $Global:ANDROID_SDK_DIR = Join-Path $ANDROID_DIR "Sdk"
-$Global:ANDROID_STUDIO_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\AndroidStudio_Installed_flag"
+$Global:ANDROID_STUDIO_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "AndroidStudio_Installed_flag"
 
 # Note: Go configuration moved to ApplicationsList.ps1 for consistency
 
@@ -468,7 +460,7 @@ $Global:ANDROID_STUDIO_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\AndroidStudio_In
 $Global:FLUTTER_VERSION = "3.35.5-stable"
 $Global:FLUTTER_DIR = Join-Path $Global:LANG_COMPILER_DIR "flutter"
 $Global:FLUTTER_EXE_PATH = Join-Path $Global:FLUTTER_DIR "bin\flutter.bat"
-$Global:FLUTTER_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\Flutter_Installed_flag"
+$Global:FLUTTER_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "Flutter_Installed_flag"
 
 # Global Go install constants
 $Global:GO_RELEASE_API_URL = "https://go.dev/dl/?mode=json"
@@ -640,8 +632,8 @@ $Global:CHINESE_CHUANSUO = [char]0x7A7F + [char]0x68AD  # chuansuo (Shuttle)
 $Global:ENABLE_DEFENDER_EXE_URL = "$Global:GITEE_SCRIPTS_URL/shells/win/encrypt_scripts/enable-defender.exe.js"
 $Global:ENABLE_DEFENDER_TMP_PATH = Join-Path $Global:USER_CACHE_DIR "enable-defender.exe.js"
 $Global:ENABLE_DEFENDER_EXE_PATH = Join-Path $Global:USER_CACHE_DIR "enable-defender.exe"
-$Global:WSL_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\WSL_Installed_flag"
-$Global:STEP8_DV_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\Step8_DV_Installed.flag"
+$Global:WSL_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "WSL_Installed_flag"
+$Global:STEP8_DV_INSTALLED_FLAG = Join-Path $Global:USER_CACHE_DIR "Step8_DV_Installed.flag"
 $Global:STEP2_BASE_SETTINGS_FLAG = Join-Path $Global:USER_CACHE_DIR "Step2_BaseSettings_Completed.flag"
 $Global:STEP2_EXPLORER_RESTART_FLAG = Join-Path $Global:USER_CACHE_DIR "Step2_ExplorerRestart_Completed.flag"
 $Global:STEP2_WIN10_CONTEXT_MENU_FLAG = Join-Path $Global:USER_CACHE_DIR "Step2_Win10ContextMenu_Completed.flag"

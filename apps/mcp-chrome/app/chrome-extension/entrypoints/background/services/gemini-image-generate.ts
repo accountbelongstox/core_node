@@ -1,16 +1,17 @@
 /**
  * Shared Gemini web image generation (start -> status poll). The Gemini tool
  * drives ONE gemini.google.com tab and isolates results by a baseline image
- * snapshot, so generations are serialized: the global-task pull and the
- * assist claim cycle of the Gemini image worker may both ask concurrently.
+ * snapshot, so generations are serialized on the tool's generation mutex: the
+ * global-task pull and the assist claim cycle of the Gemini image worker may
+ * both ask concurrently, and the interactive tool and popup share the tab.
  * Returns null on ANY failure so callers can fall back to another provider.
  */
 import { geminiImageTool } from '../tools/browser/gemini-image';
-import { AsyncMutex, delay as waitForDelay } from '@/utils/async';
+import { delay as waitForDelay } from '@/utils/async';
 
 const GENERATION_TIMEOUT_MS = 110000;
 const POLL_INTERVAL_MS = 3000;
-const generationMutex = new AsyncMutex();
+const GENERATION_ABANDONED = 'Generation abandoned before an image was collected';
 
 export interface GeminiGeneratedImage {
   imageBase64: string;
@@ -26,12 +27,7 @@ export async function generateViaGemini(prompt: string): Promise<GeminiGenerated
   const trimmed = prompt.trim();
   if (!trimmed) return null;
 
-  const release = await generationMutex.acquire();
-  try {
-    return await generateOnce(trimmed);
-  } finally {
-    release();
-  }
+  return geminiImageTool.runExclusive(() => generateOnce(trimmed));
 }
 
 async function generateOnce(prompt: string): Promise<GeminiGeneratedImage | null> {
@@ -50,7 +46,10 @@ async function generateOnce(prompt: string): Promise<GeminiGeneratedImage | null
     if (last.status === 'done' || last.status === 'failed' || last.status === 'unknown') break;
   }
 
-  if (!last || last.status !== 'done' || !last.dataUrl) return null;
+  if (!last || last.status !== 'done' || !last.dataUrl) {
+    await geminiImageTool.cancel(started.jobId, last?.error || GENERATION_ABANDONED);
+    return null;
+  }
   return {
     imageBase64: last.dataUrl.replace(/^data:[^;]+;base64,/, ''),
     mime: last.mime || 'image/png',

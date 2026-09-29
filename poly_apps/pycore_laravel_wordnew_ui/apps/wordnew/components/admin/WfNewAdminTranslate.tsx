@@ -20,7 +20,7 @@ import {
   ArrowLeftRight, Languages, Loader2, Volume2, Play, Pause, History, Database, ShieldAlert,
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
-import { wfNewAdminApi } from '../../api';
+import { wfNewAdminApi, adminErrorText } from '../../api';
 import type { WfNewAdminLangOption, WfNewAdminTranslateResult } from '../../api';
 import { puterTranslate } from '../../hooks/puterTranslate';
 
@@ -146,10 +146,8 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
           ...prev.filter((h) => h.text !== trimmed),
         ].slice(0, HISTORY_MAX));
         addToast(trans('admin.t.fallback'), 'info');
-      } else if (e?.status === 401) {
-        addToast(trans('admin.needLogin'), 'warning');
       } else {
-        addToast(String(e?.message || 'Request failed'), 'warning');
+        addToast(adminErrorText(e), 'warning');
       }
     } finally {
       if (alive.current) setBusy(false);
@@ -168,8 +166,7 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
       setAudioUrl(audio_url);
       if (audio_url) playUrl(audio_url);
     } catch (e: any) {
-      if (e?.status === 401) addToast(trans('admin.needLogin'), 'warning');
-      else addToast(String(e?.message || 'Request failed'), 'warning');
+      addToast(adminErrorText(e), 'warning');
     } finally {
       if (alive.current) setTtsBusy(false);
     }

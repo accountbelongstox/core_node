@@ -70,11 +70,20 @@ final class DatabaseSyncService
         return $counts;
     }
 
-    public function readChunk(string $connectionKey, string $table, int $offset): array
+    /**
+     * One chunk of rows in identity order. Tables with a NOT NULL identity
+     * page by keyset (`cursor` = the last identity values), so a chunk costs
+     * the same at any depth and deletes on the exporter never shift later
+     * rows past the reader; other tables fall back to OFFSET paging.
+     */
+    public function readChunk(string $connectionKey, string $table, int $offset, ?array $cursor = null): array
     {
         $connection = DatabaseManagerService::connectionName($connectionKey);
         $meta = $this->table($connection, $table);
         $query = DB::connection($connection)->table($table)->select($meta['writable']);
+        $keyset = $this->supportsKeyset($meta);
+        $identityColumns = '';
+        $placeholders = '';
 
         foreach ($meta['identity'] as $column) {
             $query->orderBy($column);
@@ -82,8 +91,18 @@ final class DatabaseSyncService
         if ($meta['identity'] === []) {
             $query->orderByRaw('ctid');
         }
+        if ($keyset && $cursor !== null && count($cursor) === count($meta['identity'])) {
+            $identityColumns = implode(', ', array_map(
+                static fn (string $column): string => $query->getGrammar()->wrap($column),
+                $meta['identity']
+            ));
+            $placeholders = implode(', ', array_fill(0, count($meta['identity']), '?'));
+            $query->whereRaw("({$identityColumns}) > ({$placeholders})", array_values($cursor));
+        } elseif (!$keyset || $offset > 0) {
+            $query->offset(max(0, $offset));
+        }
 
-        $fetchedRows = $query->offset(max(0, $offset))->limit(self::CHUNK_ROWS)->get()
+        $fetchedRows = $query->limit(self::CHUNK_ROWS)->get()
             ->map(fn (object $row): array => $this->encodeRow((array) $row))
             ->all();
         $rows = [];
@@ -102,9 +121,45 @@ final class DatabaseSyncService
             'rows' => $rows,
             'offset' => $offset,
             'next_offset' => $offset + count($rows),
+            'next_cursor' => $keyset ? $this->identityCursor($meta['identity'], end($rows) ?: null) : null,
             'done' => count($rows) === count($fetchedRows) && count($fetchedRows) < self::CHUNK_ROWS,
             'identity' => $meta['identity'],
         ];
+    }
+
+    private function supportsKeyset(array $meta): bool
+    {
+        $notNull = [];
+
+        foreach ($meta['columns'] as $column) {
+            if (($column['nullable'] ?? 'YES') === 'NO') {
+                $notNull[(string) $column['name']] = true;
+            }
+        }
+        foreach ($meta['identity'] as $column) {
+            if (!isset($notNull[$column]) || !in_array($column, $meta['writable'], true)) {
+                return false;
+            }
+        }
+
+        return $meta['identity'] !== [];
+    }
+
+    private function identityCursor(array $identity, ?array $lastRow): ?array
+    {
+        $cursor = [];
+
+        if ($lastRow === null) {
+            return null;
+        }
+        foreach ($identity as $column) {
+            if (!array_key_exists($column, $lastRow) || !is_scalar($lastRow[$column])) {
+                return null;
+            }
+            $cursor[] = (string) $lastRow[$column];
+        }
+
+        return $cursor;
     }
 
     /**
@@ -155,7 +210,7 @@ final class DatabaseSyncService
                 : (($stored = $appliedRows[$this->identityKey($identityValues)] ?? null) !== null
                     && $this->rowHash($stored, $meta['types']) === $this->rowHash($row, $meta['types']));
             if (!$verified) {
-                throw new \RuntimeException("Row verification failed after apply: {$connectionKey}.{$table}");
+                throw new \RuntimeException(__('data_sync.row_verification_failed', ['table' => "{$connectionKey}.{$table}"]));
             }
             $counters['verified']++;
         }
@@ -266,7 +321,7 @@ final class DatabaseSyncService
             $catalog = $this->catalog($connection, true);
         }
 
-        return $catalog[$table] ?? throw new \InvalidArgumentException("Unknown table: {$connection}.{$table}");
+        return $catalog[$table] ?? throw new \InvalidArgumentException(__('data_sync.table_unknown', ['table' => "{$connection}.{$table}"]));
     }
 
     /**
@@ -502,7 +557,7 @@ final class DatabaseSyncService
             if (is_array($value) && isset($value['__data_sync_binary'])) {
                 $decoded = base64_decode((string) $value['__data_sync_binary'], true);
                 if ($decoded === false) {
-                    throw new \InvalidArgumentException('Database row contains an invalid binary value.');
+                    throw new \InvalidArgumentException(__('data_sync.row_binary_invalid'));
                 }
                 $row[$key] = $decoded;
             }

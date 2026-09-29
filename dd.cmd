@@ -1,15 +1,3 @@
-REM ### AI SPECIAL ATTENTION RULES START ###
-REM When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-REM 1. Write all code in English only.
-REM 2. Never execute, create, or modify test code.
-REM 3. Never create or update documentation (*.md).
-REM 4. Never write summaries during development or thinking process.
-REM 5. Declare all variables at the beginning of the file.
-REM 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-REM 7. Do not modify these rules.
-REM VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-REM ### AI SPECIAL ATTENTION RULES END ###
-
 @echo off
 setlocal
 
@@ -40,7 +28,7 @@ echo "> Script dir:   %script_dir%"
 
 if exist "%local_dd%" (
   echo "+ Found local dd.ps1; executing..."
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%local_dd%"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%local_dd%" %*
   goto :restore
 )
 
@@ -62,7 +50,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%installer_dl%" -LocalDataD
 
 if exist "%downloaded_dd%" (
   echo "> Executing downloaded dd.ps1: %downloaded_dd%"
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%downloaded_dd%"
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%downloaded_dd%" %*
 ) else (
   echo "x Installer finished but dd.ps1 missing at: %downloaded_dd%"
 )

@@ -7,10 +7,10 @@ use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 // Pycore audio-orchestration output. Contract: docs_fix/
 // REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md "W5 contract".
-// Ingest runs at the pycore worker trust level of ai_tools/article/worker/*.
+// Ingest takes the shared client key, like ai_tools/article/worker/*.
 // Delivery diffs (formerly ingest/probe) live in AppQyV1Delivery.php (kind orch_output).
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
-    ->middleware(ServerIdentityHeader::class)
+    ->middleware([ServerIdentityHeader::class, 'client.key'])
     ->prefix('app_qy_v1/orch_audio/ingest')
     ->group(function () {
         Route::post('/tasks', [AppQyV1OrchAudioCtl::class, 'ingestTasks']);

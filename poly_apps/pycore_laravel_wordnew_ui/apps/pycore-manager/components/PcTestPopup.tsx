@@ -27,6 +27,7 @@ import {
   usePcEngineLoadStatus,
 } from '@/apps/pycore-manager/api';
 import { PcBlobAudio } from './PcBlobMedia';
+import { pcTtsReasonText } from '../utils/pcErrorCodes';
 import type {
   TtsTestResponse, SttTestResponse, OcrTestResponse, AiChatResponse,
   EngineLoadStatusEntry,
@@ -383,7 +384,8 @@ export const PcTestPopup: React.FC<PcTestPopupProps> = ({ state, onClose }) => {
         setPhase('ok');
       } else {
         setPhase('fail');
-        setRunError((res as AnyResult)?.error || 'test failed');
+        const ttsFailure = kind === 'tts' ? res as TtsTestResponse : null;
+        setRunError(pcTtsReasonText(ttsFailure?.error_code, ttsFailure?.error_params, (res as AnyResult)?.error) || 'test failed');
       }
     } catch (e: unknown) {
       setPhase('fail');

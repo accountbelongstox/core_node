@@ -1,0 +1,23 @@
+{
+  "task_id": "pycore-2",
+  "role": "pycore",
+  "verdict": "approved",
+  "findings": {
+    "PR-001": {"status": "fixed", "reason": "LocalRpcGuardMiddleware is the outermost ASGI layer of the rpc_v2 HttpServer. A loopback peer needs a loopback Host (403 local_rpc_host_forbidden stops DNS rebinding) and, when it sends Origin, a contract dashboard origin (loopback hosts x nexus_dash_frontend/pycore_backend/PYCORE_UI_PORT; 403 local_rpc_origin_forbidden). A non-loopback peer needs a valid K3 signature over the buffered body (401 client_key_*). CORS lists only those origins with allow_credentials False (no *), and access-control-allow-private-network is sent only for an allowed origin. The bind resolves to loopback unless system_settings.rpcLanBind is true (network_constants, pythreadpool starters, pyservice.ps1 -BindHost). Relay operations run in-process, unchanged. A foreign web page or LAN host can no longer drive terminals."},
+    "PR-021": {"status": "fixed", "reason": "thread_bus/trigger_event admits only voice_subtitle mode enter/exit (new BusSignals, also used by the PySide6 bridge) with an empty payload; every other event name returns event_name_forbidden. The route sits behind K7."},
+    "PR-030": {"status": "fixed", "reason": "ui/video_extract/open hands only video, audio-codec and subtitle files to the OS handler (by resolved suffix); scripts, executables and launchers are refused, and directories still open. An output-root allowlist is not applied because source videos are user-picked; K7 gates the caller. The finding's code-execution scenario is closed."},
+    "PR-031": {"status": "fixed", "reason": "Every route is behind K7. Books extraction is limited to BOOK_EXTENSIONS. set_system_settings type-checks the keys pycore acts on. Client-supplied Laravel base URLs (audio_orch login, audio_lane_full_sync, queue_center accept_task) must be catalog endpoints (is_catalog_endpoint, LARAVEL_ENDPOINT_UNKNOWN), so pycore never logs in to or signs for an arbitrary host."},
+    "PR-037": {"status": "fixed", "reason": "Clipboard text is never logged (lengths only) in clipboard_monitor, clipboard_sync and background_services, and the monitor start route is behind K7."},
+    "AT-006": {"status": "fixed", "reason": "f5tts writes the reference audio as the fixed stem 'ref' plus a sanitized extension (no client path), and binds 127.0.0.1 by default; the launcher passes the loopback host."},
+    "AT-029": {"status": "fixed", "reason": "The launcher passes CHATTTS/F5TTS host and port (loopback default), and the chattts, f5tts, fishspeech and qwen3tts servers default to 127.0.0.1. Residual: CosyVoice's upstream server hardcodes 0.0.0.0 (upstream clone, recorded)."},
+    "okx reveal_credentials (frontend-ui cross-scope)": {"status": "refuted_ok", "reason": "No okx/* handler or route name exists in pycore/ or pyapps/ (my own grep during vortex-4 agrees). The UI no longer calls it (vortex-4), and pyapps/okx_price_monitor uses the shared HttpServer, so K7 applies."}
+  },
+  "issues": [
+    "pycore/pyutils/rpc_v2/http/local_rpc_middleware.py:31 (non-blocking) scopes whose type is not 'http' pass ungated. Only lifespan exists today (no websocket routes in pycore), but gate or refuse 'websocket' scopes so a future WS route cannot bypass K7.",
+    "local_rpc_middleware.py _read_body (non-blocking) buffers a non-loopback body without a size cap before K3 verification. Cap it at the server's payload limit so an unsigned LAN peer cannot make pycore hold an arbitrary body.",
+    "(cross-scope, shell) scripts/shells/linux/common/pyservice_entry.sh still passes --host 0.0.0.0; pycore downgrades it to loopback without rpcLanBind, but the default should change on the shell side.",
+    "Same line-ending churn as pycore-1 (rpc_v2/server.py, thread_bus_bridge.py, video_extract_service.py, network_constants.py, starters.py, TTS servers). Restore per-line endings from HEAD. f5tts_api_server.py and tts_service_manager.py also carry pycore-4 hunks (AT-030, AT-005/AT-032), which are not covered here."
+  ],
+  "checks": "local_rpc_guard.py and local_rpc_middleware.py read; the diffs (ignore-space-at-eol) of rpc_v2/server.py, thread_bus_routes, video_extract_service, user_data_service, local_queue_accept_routes, audio_lane_full_sync, clipboard, tts_service_manager and the f5tts/chattts servers read; UI checked for credentials:'include' toward pycore (none, so allow_credentials False is safe); grep for websocket routes in pycore (none).",
+  "checked_at": "2026-09-27T04:36:32+10:00"
+}

@@ -24,6 +24,7 @@ from pycore.pyutils.common.session_dbus import (
     add_match,
     call_method,
     open_session_bus,
+    remove_match,
     unique_name,
     variant,
 )
@@ -60,6 +61,7 @@ PORTAL_ERROR_DENIED = "portal_request_denied"
 PORTAL_ERROR_TIMEOUT = "portal_request_timeout"
 PORTAL_ERROR_NO_STREAM = "portal_stream_unavailable"
 PORTAL_ERROR_KEY_UNMAPPED = "portal_key_unmapped"
+PORTAL_ERROR_NOT_APPLICABLE = "portal_not_applicable"
 portal_activity_log = ActivityLog("XdgDesktopPortal")
 
 
@@ -86,6 +88,8 @@ class XdgDesktopPortal:
             )
         }
         if not versions[PORTAL_REMOTE_DESKTOP_INTERFACE]:
+            # Reopen on the next call: the cached connection may be dead.
+            self._drop_connection()
             return {"available": False, "error_code": PORTAL_ERROR_UNAVAILABLE, "versions": versions}
         return {
             "available": True,
@@ -303,12 +307,22 @@ class XdgDesktopPortal:
                 error_message=reply.error_message,
             )
             self._session_handle = ""
+            if reply.error_name == DBUS_ERROR_BUS_UNAVAILABLE:
+                self._drop_connection()
         return reply
 
     def _ensure_connection(self) -> Optional[Any]:
         if self._connection is None:
             self._connection = open_session_bus()
         return self._connection
+
+    def _drop_connection(self) -> None:
+        """Forget a (possibly broken) bus connection and its session."""
+        if self._connection is not None:
+            self._connection.close()
+        self._connection = None
+        self._session_handle = ""
+        self._streams = []
 
     def _request(
         self,
@@ -329,34 +343,42 @@ class XdgDesktopPortal:
             member="Response",
             path=request_path,
         )
-        add_match(connection, rule)
-        with connection.filter(rule) as queue:
-            reply = call_method(
-                connection,
-                PORTAL_BUS_NAME,
-                PORTAL_OBJECT_PATH,
-                interface,
-                method,
-                signature,
-                (*body, {**options, "handle_token": variant("s", token)}),
-            )
-            if not reply.success:
-                portal_activity_log.warning(
-                    "request.rejected",
-                    method=method,
-                    error_name=reply.error_name,
-                    error_message=reply.error_message,
+        if not add_match(connection, rule).success:
+            self._drop_connection()
+            return -1, {}
+        try:
+            with connection.filter(rule) as queue:
+                reply = call_method(
+                    connection,
+                    PORTAL_BUS_NAME,
+                    PORTAL_OBJECT_PATH,
+                    interface,
+                    method,
+                    signature,
+                    (*body, {**options, "handle_token": variant("s", token)}),
                 )
-                return -1, {}
-            deadline = time.monotonic() + timeout
-            while time.monotonic() < deadline:
-                remaining = max(0.05, deadline - time.monotonic())
-                try:
-                    signal = connection.recv_until_filtered(queue, timeout=remaining)
-                except TimeoutError:
-                    break
-                response, results = signal.body
-                return int(response), dict(results)
+                if not reply.success:
+                    portal_activity_log.warning(
+                        "request.rejected",
+                        method=method,
+                        error_name=reply.error_name,
+                        error_message=reply.error_message,
+                    )
+                    return -1, {}
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    remaining = max(0.05, deadline - time.monotonic())
+                    try:
+                        signal = connection.recv_until_filtered(queue, timeout=remaining)
+                    except TimeoutError:
+                        break
+                    response, results = signal.body
+                    return int(response), dict(results)
+        finally:
+            # Every request path removes its match rule; a broken transport
+            # drops the connection so the next call reopens it.
+            if remove_match(connection, rule).error_name == DBUS_ERROR_BUS_UNAVAILABLE:
+                self._drop_connection()
         portal_activity_log.warning("request.timeout", method=method, timeout=timeout)
         return -2, {}
 
@@ -389,6 +411,7 @@ xdg_desktop_portal = XdgDesktopPortal()
 
 __all__ = [
     "PORTAL_ERROR_AUTHORIZATION_REQUIRED",
+    "PORTAL_ERROR_NOT_APPLICABLE",
     "PORTAL_ERROR_UNAVAILABLE",
     "xdg_desktop_portal",
 ]

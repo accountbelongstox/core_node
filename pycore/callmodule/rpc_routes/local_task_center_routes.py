@@ -9,11 +9,14 @@ from pycore.pyctl.queue_center.task_center_service import (
     get_local_task_detail,
     set_queue_center_control,
 )
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DELIVERY
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_sentence_audio_worker,
     laravel_word_audio_worker,
 )
+
+DELIVERY_ERROR_KIND_UNSUPPORTED = str(QUEUE_CENTER_DELIVERY["error_codes"]["kind_unsupported"])
 
 
 def register_local_task_center_routes(server) -> None:
@@ -79,7 +82,7 @@ def register_local_task_center_routes(server) -> None:
         kind = str(request.get("kind") or "").strip()
         kinds = laravel_delivery_outbox.kinds()
         if kind and kind not in kinds:
-            return {"success": False, "error": "unknown delivery kind"}
+            return {"success": False, "error_code": DELIVERY_ERROR_KIND_UNSUPPORTED}
         retried = {name: laravel_delivery_outbox.retry_dead_letters(name) for name in ([kind] if kind else kinds)}
         if request.get("reconcile"):
             namespace = str(request.get("namespace") or "").strip()

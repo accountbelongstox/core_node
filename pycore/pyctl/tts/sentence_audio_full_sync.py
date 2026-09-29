@@ -25,7 +25,7 @@ from pycore.pyutils.common.queue_center_contract import (
     task_language_priority,
     task_payload_text_max_chars,
 )
-from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.tts.audio_queue_center import LOCAL_SOURCE_FULL_SYNC, build_local_task
 
 QUEUE_KEY = "sentence_audio"
@@ -40,28 +40,28 @@ class SentenceAudioFullSync(AudioLaneFullSync):
     DISABLED_CODE = "AUDIO_LANE_DISABLED"
     LOG_PREFIX = "[SentenceAudioFullSync]"
 
-    def _fetch_languages(self, base_url: str) -> List[Dict[str, Any]]:
+    def _fetch_languages(self, base_url: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Laravel per-language backlog sizes, contract language tiers first."""
         response = laravel_client.get(
             _WITHOUT_AUDIO_PATH, base_url=base_url, timeout=self.REQUEST_TIMEOUT_SECONDS,
         )
-        rows: List[Dict[str, Any]] = []
-        if response.status_code == 200:
-            payload = response.json()
-            data = payload.get("data") if isinstance(payload, dict) else None
-            listed = data.get("languages") if isinstance(data, dict) else None
-            rows = [
-                {
-                    "language": str(row.get("language") or ""),
-                    "language_code": str(row.get("language") or ""),
-                    "without_audio": int(row.get("without_audio") or 0),
-                }
-                for row in (listed if isinstance(listed, list) else [])
-                if isinstance(row, dict) and row.get("language")
-            ]
+        if response.status_code != 200:
+            return [], laravel_failure(status_code=response.status_code)
+        payload = response.json()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        listed = data.get("languages") if isinstance(data, dict) else None
+        rows = [
+            {
+                "language": str(row.get("language") or ""),
+                "language_code": str(row.get("language") or ""),
+                "without_audio": int(row.get("without_audio") or 0),
+            }
+            for row in (listed if isinstance(listed, list) else [])
+            if isinstance(row, dict) and row.get("language")
+        ]
         priority = [str(code) for code in task_language_priority(QUEUE_KEY)]
         rows.sort(key=lambda row: priority.index(row["language_code"]) if row["language_code"] in priority else len(priority))
-        return rows
+        return rows, {}
 
     def _page_request(self, language: Dict[str, Any], cursor: int) -> Tuple[str, Dict[str, Any]]:
         return _WITHOUT_AUDIO_PATH, {

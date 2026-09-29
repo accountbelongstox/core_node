@@ -94,7 +94,7 @@ class TaskController extends Controller
 
         return $this->success(
             QueueCenterContract::projectTask($task, 'create_result'),
-            'Task created successfully'
+            __('api.messages.task_created_successfully')
         );
     }
 
@@ -108,12 +108,12 @@ class TaskController extends Controller
         $task = GlobalTask::findByTaskId($taskId);
 
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
 
         return $this->success([
             'task' => QueueCenterContract::projectTask($task, 'status'),
-        ], 'Task status retrieved successfully');
+        ], __('api.messages.task_status_retrieved_successfully'));
     }
 
     /**
@@ -133,13 +133,13 @@ class TaskController extends Controller
     {
         $task = GlobalTask::findByTaskId($taskId);
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
 
         if (QueueCenterContract::isQueuePositionOrdered((string) $task->task_type)) {
             $head = $this->queueCenter->moveExistingTaskToHead($taskId);
             if (($head['status'] ?? null) !== 'moved_to_head') {
-                return $this->error('Task is not pending and cannot be moved to the queue head', 409);
+                return $this->error(__('api.messages.task_is_not_pending_and_cannot_be'), 409);
             }
             $task = $head['task'] instanceof GlobalTask ? $head['task'] : $task;
 
@@ -147,7 +147,7 @@ class TaskController extends Controller
                 'task_id' => $taskId,
                 'queue_position' => (int) $task->queue_position,
                 'status' => $task->status,
-            ], 'Task moved to queue head');
+            ], __('api.messages.task_moved_to_queue_head'));
         }
 
         $validated = $request->validate([
@@ -157,10 +157,10 @@ class TaskController extends Controller
         $outcome = $this->taskManager->bumpTaskPriority($taskId, $priority);
 
         if ($outcome === 'not_found') {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
         if ($outcome === 'not_pending') {
-            return $this->error('Task is not pending and cannot be bumped', 409);
+            return $this->error(__('api.messages.task_is_not_pending_and_cannot_be_2'), 409);
         }
 
         $task = GlobalTask::findByTaskId($taskId);
@@ -169,7 +169,7 @@ class TaskController extends Controller
             'task_id' => $taskId,
             'priority' => $task ? (int) $task->priority : $priority,
             'status' => $task ? $task->status : null,
-        ], 'Task priority bumped');
+        ], __('api.messages.task_priority_bumped'));
     }
 
     /**
@@ -185,12 +185,12 @@ class TaskController extends Controller
         $task = GlobalTask::findByTaskId($taskId);
 
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
 
         return $this->success(
             $this->taskDetailData($task),
-            'Task detail retrieved successfully'
+            __('api.messages.task_detail_retrieved_successfully')
         );
     }
 
@@ -281,7 +281,7 @@ class TaskController extends Controller
 
         return $this->success(
             $this->taskManager->getTaskListSnapshot($filters, $limit, $offset),
-            'Tasks list retrieved successfully'
+            __('api.messages.tasks_list_retrieved_successfully')
         );
     }
 
@@ -299,17 +299,17 @@ class TaskController extends Controller
         $outcome = $this->taskManager->cancelTask($taskId);
 
         if ($outcome === 'not_found') {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
 
         if ($outcome === 'not_cancellable') {
-            return $this->error('Task already finished — cannot cancel', 409);
+            return $this->error(__('api.messages.task_already_finished_cannot_cancel'), 409);
         }
 
         return $this->success([
             'task_id' => $taskId,
             'status' => GlobalTask::status('cancelled'),
-        ], 'Task cancelled');
+        ], __('api.messages.task_cancelled'));
     }
 
     /**
@@ -321,7 +321,7 @@ class TaskController extends Controller
     {
         $stats = $this->taskManager->getTaskStats();
 
-        return $this->success(['stats' => $stats], 'Task stats retrieved successfully');
+        return $this->success(['stats' => $stats], __('api.messages.task_stats_retrieved_successfully'));
     }
 
     /**
@@ -335,7 +335,7 @@ class TaskController extends Controller
 
         return $this->success([
             'deleted_count' => $deletedCount
-        ], 'Invalid tasks cleaned successfully');
+        ], __('api.messages.invalid_tasks_cleaned_successfully'));
     }
 
     /**
@@ -362,6 +362,6 @@ class TaskController extends Controller
         return $this->success([
             'reset_count' => $updatedCount,
             'include_processing' => $includeProcessing,
-        ], 'Assigned tasks reset successfully');
+        ], __('api.messages.assigned_tasks_reset_successfully'));
     }
 }

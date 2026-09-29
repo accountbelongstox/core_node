@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # ============================================================================
 # PROJECT-WIDE NODE.JS PACKAGE MANAGEMENT NOTICE
 # ============================================================================
@@ -67,13 +55,14 @@ param(
 #>
 
 # Load global variables and common functions
-. "$PSScriptRoot\..\win_common\GlobalVars.ps1"
-. "$PSScriptRoot\..\win_common\ApplicationsList.ps1"
-. "$PSScriptRoot\..\win_common\CommonFunc.ps1"
-. "$PSScriptRoot\..\win_common\WindowsPathFunction.ps1"
-. "$PSScriptRoot\..\win_common\PackageManagerInvokes.ps1"
-. "$PSScriptRoot\..\win_common\PostInstallCallbackProcessor.ps1"
-. "$PSScriptRoot\..\win_common\DesktopIconManager.ps1"
+$winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) "win_common"
+. (Join-Path $winCommonDir "GlobalVars.ps1")
+. (Join-Path $winCommonDir "ApplicationsList.ps1")
+. (Join-Path $winCommonDir "CommonFunc.ps1")
+. (Join-Path $winCommonDir "WindowsPathFunction.ps1")
+. (Join-Path $winCommonDir "PackageManagerInvokes.ps1")
+. (Join-Path $winCommonDir "PostInstallCallbackProcessor.ps1")
+. (Join-Path $winCommonDir "DesktopIconManager.ps1")
 
 
 # Local debug configuration for this script
@@ -1262,6 +1251,9 @@ try {
     elseif ($finalOrganization.Errors.Count -eq 0) {
         Write-Host "$SCRIPT_INDEX Final desktop organization completed successfully!" -ForegroundColor Green
         Write-Host "$SCRIPT_INDEX Summary: Categories: $($finalOrganization.CategoriesProcessed), Moved: $($finalOrganization.ShortcutsMoved), Unmatched: $($finalOrganization.UnmatchedShortcuts)" -ForegroundColor Green
+        if ($finalOrganization.ManifestPath) {
+            Write-Host "$SCRIPT_INDEX Undo: dd.ps1 > Management & Backup > Windows Management > Organize Desktop Icons [undo] ($($finalOrganization.ManifestPath))" -ForegroundColor Green
+        }
     }
     else {
         Write-Host "$SCRIPT_INDEX Final desktop organization completed with warnings" -ForegroundColor Yellow

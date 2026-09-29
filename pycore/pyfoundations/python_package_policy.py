@@ -65,8 +65,6 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "pynput": "pynput",
     "keyboard": "keyboard",
     "pyperclip": "pyperclip",
-    "Xlib": "python-xlib",
-    "jeepney": "jeepney",
     "googletrans": "googletrans",
     "httpx": "httpx",
     "okx": "python-okx",
@@ -110,6 +108,16 @@ WINDOWS_ONLY_PACKAGES: Dict[str, str] = {
     "uiautomation": "uiautomation",
     "pyaudiowpatch": "pyaudiowpatch",
     "pyaudio": "pyaudio",
+}
+
+LINUX_ONLY_PACKAGES: Dict[str, str] = {
+    "Xlib": "python-xlib",
+    "jeepney": "jeepney",
+}
+
+PLATFORM_ONLY_PACKAGES: Dict[str, Dict[str, str]] = {
+    "windows": WINDOWS_ONLY_PACKAGES,
+    "linux": LINUX_ONLY_PACKAGES,
 }
 
 WINDOWS_OCR_WINRT_PACKAGES: Tuple[str, ...] = (
@@ -176,12 +184,11 @@ def installer_packages(platform_name: str, include_optional: bool = True) -> Ite
                 continue
             seen.add(pip_spec.lower())
             yield import_name, pip_spec
-    if normalized == "windows":
-        for import_name, pip_spec in WINDOWS_ONLY_PACKAGES.items():
-            if pip_spec.lower() in seen:
-                continue
-            seen.add(pip_spec.lower())
-            yield import_name, pip_spec
+    for import_name, pip_spec in PLATFORM_ONLY_PACKAGES.get(normalized, {}).items():
+        if pip_spec.lower() in seen:
+            continue
+        seen.add(pip_spec.lower())
+        yield import_name, pip_spec
 
 
 def package_rows(set_name: str, platform_name: str, include_optional: bool = True) -> Iterator[Tuple[str, str]]:
@@ -241,7 +248,9 @@ __all__ = [
     "DEPENDENCY_MAP",
     "DOCUMENT_PARSING_IMPORTS",
     "GUI_ONLY_IMPORTS",
+    "LINUX_ONLY_PACKAGES",
     "OPTIONAL_PACKAGES",
+    "PLATFORM_ONLY_PACKAGES",
     "PREPARE_ALIGNED_PACKAGES",
     "SPECIALIZED_IMPORTS",
     "WINDOWS_OCR_WINRT_PACKAGES",

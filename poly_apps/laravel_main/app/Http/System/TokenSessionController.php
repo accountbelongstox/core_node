@@ -1,12 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Http\System;
 
@@ -17,16 +9,21 @@ use Illuminate\Support\Facades\Cache;
 use App\Events\TokenKeyEvent;
 class TokenSessionController extends Controller
 {
+    private const TOKEN_RULE = 'required|string|max:128';
+    private const KEY_RULE = 'required|string|max:128';
+    private const VALUE_RULE = 'required|string|max:65536';
+    private const TTL_SECONDS = 86400;
+
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'token' => 'required|string',
-            'key' => 'required|string',
-            'value' => 'required|string'
+            'token' => self::TOKEN_RULE,
+            'key' => self::KEY_RULE,
+            'value' => self::VALUE_RULE,
         ]);
 
         $cacheKey = "session:{$validated['token']}";
-        Cache::put($cacheKey.':'.$validated['key'], $validated['value']);
+        Cache::put($cacheKey.':'.$validated['key'], $validated['value'], self::TTL_SECONDS);
 
         return response()->json(['status' => 'success']);
     }
@@ -34,8 +31,8 @@ class TokenSessionController extends Controller
     public function retrieve(Request $request)
     {
         $validated = $request->validate([
-            'token' => 'required|string',
-            'key' => 'required|string'
+            'token' => self::TOKEN_RULE,
+            'key' => self::KEY_RULE,
         ]);
 
         $cacheKey = "session:{$validated['token']}:{$validated['key']}";
@@ -50,9 +47,9 @@ class TokenSessionController extends Controller
     public function broadcast(Request $request)
     {
         $validated = $request->validate([
-            'token' => 'required|string',
-            'key' => 'required|string',
-            'message' => 'required|string'
+            'token' => self::TOKEN_RULE,
+            'key' => self::KEY_RULE,
+            'message' => self::VALUE_RULE,
         ]);
 
         event(new TokenKeyEvent(

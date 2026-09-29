@@ -24,18 +24,6 @@
 # state without destroying existing configuration.
 #
 
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Script identification and path setup
 SCRIPT_INDEX="97"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,6 +36,9 @@ source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/installation_library.sh"
 source "$PARENT_DIR_LEVEL_2/common/firewall_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/desktop_shortcut_manager.sh"
+# TAILSCALE_SERVICE + is_tailscale_installed() (single definition, shared with
+# the Tailscale management menu / tailscale_common.sh dispatcher).
+source "$PARENT_DIR_LEVEL_2/common/tailscale_common.sh"
 
 # Initialize global variables
 init_global_vars
@@ -61,7 +52,7 @@ TAILSCALE_ADVERTISE_ROUTES=$(get_var "TAILSCALE_ADVERTISE_ROUTES")
 
 # Tailscale configuration
 TAILSCALE_INSTALL_URL="https://tailscale.com/install.sh"
-TAILSCALE_SERVICE="tailscaled"
+# TAILSCALE_SERVICE is defined once in common/tailscale_common.sh (sourced above).
 # GNOME Shell quick-settings toggle (extensions.gnome.org pk / uuid).
 TAILSCALE_GS_EXTENSION_PK="9193"
 TAILSCALE_GS_EXTENSION_UUID="tailscale-gnome-qs@tailscale-qs.github.io"
@@ -78,13 +69,7 @@ fi
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-# Check if Tailscale is already installed
-is_tailscale_installed() {
-    if command -v tailscale >/dev/null 2>&1; then
-        return 0  # Installed
-    fi
-    return 1  # Not installed
-}
+# is_tailscale_installed() is defined once in common/tailscale_common.sh (sourced above).
 
 # Ensure curl is present (required by the official installer)
 ensure_curl() {

@@ -8,7 +8,8 @@
 import { puterTranslateWorkerService } from './services/puter-translate-worker-service';
 import { logger } from '@/utils/logger';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
-import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler, unknownActionResponse } from '@/utils/runtime-message';
+import { getMessage } from '@/utils/i18n';
 import { toErrorMessage } from '@/utils/errors';
 import { resolveApiBase } from '@/services/ApiManager';
 
@@ -35,14 +36,14 @@ async function handleMessage(
         workerName: message.config?.workerName || 'MCP Chrome Puter AI Worker',
         batchSize: message.config?.batchSize ?? 3,
       });
-      return { success: true, message: 'Puter translate worker started' };
+      return { success: true, message: getMessage('workerStartedStatus') };
     }
     case 'stop':
       puterTranslateWorkerService.stop();
-      return { success: true, message: 'Puter translate worker stopped' };
+      return { success: true, message: getMessage('workerStoppedStatus') };
     case 'get_status':
       return { success: true, status: puterTranslateWorkerService.getStatus() };
     default:
-      return { success: false, error: `Unknown action: ${message.action}` };
+      return unknownActionResponse(message.action);
   }
 }

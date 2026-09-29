@@ -563,9 +563,13 @@ class LaravelAudioWorkerStateMixin:
             return info
 
         word = str(payload.get("word") or payload.get("content") or "").strip()
+        # Word identity is Laravel's md5 of the stored dictionary content
+        # (queue_center_contract word_identity); it is never recomputed here.
+        # A local task (no Laravel global_tasks row) carries no md5 either -
+        # build_local_task keys it by cleaned_word instead, and the cache /
+        # ledger layers already fall back to "text:<cleaned_word>" for that.
         md5 = str(payload.get("md5") or "").strip()
-        if not md5 and word:
-            md5 = hashlib.md5(word.encode("utf-8")).hexdigest()
+        is_local = bool(info.get("_local_source"))
         dict_row_id: Optional[int] = None
         raw_row_id = payload.get("dict_row_id")
         if raw_row_id not in (None, ""):
@@ -585,6 +589,8 @@ class LaravelAudioWorkerStateMixin:
         word_limit = task_payload_text_max_chars(self.QUEUE_KEY)
         if not word:
             info["error"] = "word_audio payload carried no word/content"
+        elif not md5 and not is_local:
+            info["error"] = "word_audio payload carried no md5"
         elif word_limit > 0 and len(word) > word_limit:
             info["error"] = (
                 f"word_audio payload word is {len(word)} chars "

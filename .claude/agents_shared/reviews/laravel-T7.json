@@ -1,0 +1,16 @@
+{
+  "task_id": "laravel-T7",
+  "role": "laravel",
+  "verdict": "approved",
+  "findings": {
+    "LB-008 (admin escrow refund)": {"status": "fixed", "reason": "POST /api/codemart/v1/admin/escrows/{escrowId}/refund (routes/CodeMartV1Router/api.php:119, in the admin group, via adminAction) refunds the unreleased remainder under a row lock through the shared EscrowService::refundHeldRemainder (the same path as the cancel/complete auto-refund). A disputed escrow is refused with 409 escrow_not_refundable, and one with nothing left returns replayed:true. It emits escrow_refunded with the notes. escrowRow exposes refundable (held and remainder > 0), which codemart-4 consumes."},
+    "LB-019 (optional phone step)": {"status": "fixed", "reason": "OtpService::smsDeliveryAvailable() is config-derived (SMS_PROVIDERS). The bootstrap marks the phone step optional when unavailable, next_step skips optional steps, onboarding.phone_verification_available is exposed, and the request answers codedError sms_unavailable 503. This matches codemart-4."},
+    "LB-020 (bootstrap policy)": {"status": "fixed", "reason": "vocabulary.policy.deposit_payment_methods = DEPOSIT_PAYMENT_METHODS (bank_transfer only), consumed by codemart-4."},
+    "LB-035": {"status": "fixed", "reason": "Recorded: the DingDuoDuo admin gate landed in laravel-T2 (dashboard.auth on the admin group)."}
+  },
+  "issues": [
+    "(recorded) the wallet-ledger descriptions (for example 'Project {id} escrow remainder refund') are persisted strings in the LB-034 remainder; converting them needs a stored code rendered at read time, not __() at write time."
+  ],
+  "checks": "AdminFinanceService::refundEscrow/escrowRow, AdminFinanceCtl::refundEscrow and the route read; the bootstrap/OTP/constants lines checked against codemart-4's consumers.",
+  "checked_at": "2026-09-27T04:52:28+10:00"
+}

@@ -44,13 +44,13 @@ class AppQyV1DailyReadingLibraryDefaults
             $library = self::ensureLibrary();
             return [
                 'status' => 'success',
-                'message' => "Daily reading library ensured (id {$library->id})",
+                'message' => __('app_qy_v1.messages.daily_reading_library_ensured', ['id' => $library->id]),
                 'library_id' => (int) $library->id,
             ];
         } catch (\Exception $e) {
             return [
                 'status' => 'warning',
-                'message' => 'Daily reading library seeding failed: ' . $e->getMessage(),
+                'message' => __('app_qy_v1.messages.daily_reading_library_seeding_failed', ['error' => $e->getMessage()]),
             ];
         }
     }

@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using Split-Path, Join-Path, or Resolve-Path.
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 # Chrome MCP Server Startup Script (Windows). Shell owns build/watch orchestration;
 # Python is called after builds to recover the MCP connection.
 
@@ -82,6 +70,9 @@ $ServiceExe = $null
 $ServiceArguments = $null
 $NativeHostName = $null
 $DevWatchScript = $null
+$DevWatchArguments = @()
+$DevWatchProcess = $null
+$NodeExe = $null
 $ServiceRestartSeconds = 5
 
 function Get-LocalizedMessage {
@@ -198,12 +189,25 @@ $SupervisorArguments = @(
     "--recover-on-start"
 )
 
-# Logon-task run: recovery supervisor plus the WXT/tsup/nodemon watchers; a
-# watcher exit restarts the set after a short pause.
+# Logon-task run: this host owns the recovery supervisor and the WXT/tsup/nodemon
+# watchers. Both track it through --parent-pid, so stopping the task (converge or
+# -UninstallService) ends the whole set; either one exiting is restarted after a
+# short pause.
 if ($ServiceRun) {
-    Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden | Out-Null
+    $NodeExe = (Get-Command node).Source
+    $SupervisorArguments += @("--parent-pid", [string]$PID)
+    $DevWatchArguments = @(
+        [string]::Concat('"', $DevWatchScript, '"'),
+        "--parent-pid",
+        [string]$PID
+    )
     while ($true) {
-        & node $DevWatchScript --parent-pid $PID
+        if ((-not $SupervisorProcess) -or $SupervisorProcess.HasExited) {
+            $SupervisorProcess = Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden -PassThru
+        }
+        if ((-not $DevWatchProcess) -or $DevWatchProcess.HasExited) {
+            $DevWatchProcess = Start-Process -FilePath $NodeExe -ArgumentList $DevWatchArguments -NoNewWindow -PassThru
+        }
         Start-Sleep -Seconds $ServiceRestartSeconds
     }
 }
@@ -249,6 +253,12 @@ if (Test-UserLogonTask -TaskName $ServiceTaskName) {
 $WatchChoice = $env:MCP_CHROME_WATCH_MODE
 if ($ServiceMode -ne "none") {
     $WatchChoice = "once"
+}
+if ([string]::IsNullOrWhiteSpace($WatchChoice)) {
+    $WatchChoice = "dev"
+    if (-not (Read-YesNoDefaultYes (Get-LocalizedMessage -Key "startWatchPrompt"))) {
+        $WatchChoice = "once"
+    }
 }
 if ($WatchChoice -match "^(n|no|once)$") {
     $WatchMode = "once"

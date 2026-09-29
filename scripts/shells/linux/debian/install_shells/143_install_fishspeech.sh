@@ -27,6 +27,9 @@ REPO_MARKER="$TARGET_DIR/tools/api_server.py"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 API_SRC="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")/fishspeech_api_server.py"
 API_DST="$TARGET_DIR/fishspeech_api_server.py"
+DOCKER_MODEL="fishspeech"
+DOCKER_RUNNER="$SCRIPT_DIR/docker_model_runner.sh"
+DOCKER_MODEL_TEST="${DOCKER_MODEL_TEST:-0}"
 source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 while [[ $# -gt 0 ]]; do
@@ -40,14 +43,40 @@ done
 SERVER_URL="${SERVER_URL%/}"
 [[ "${FISHSPEECH_INSTALL:-0}" == "1" || "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && DO_FULL=1
 
+# Docker backend: opt-in only (--full, FISHSPEECH_INSTALL=1, or
+# NEURAL_TTS_INSTALL=1), so an unattended boot never spends minutes on the
+# runner unrequested. Then runner ensure (no container left running), then an
+# optional bounded test (DOCKER_MODEL_TEST=1). Failures print a message and
+# return.
+fishspeech_docker_backend() {
+    if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
+        echo "[install_fishspeech] saved backend: $(get_var "$(_install_method_key "$DOCKER_MODEL" BACKEND)" "none")"
+        echo "[install_fishspeech] [i] opt-in only -> NOT ensuring the docker backend (no runner call). Pass --full, FISHSPEECH_INSTALL=1, or NEURAL_TTS_INSTALL=1."
+        return 0
+    fi
+    if ! bash "$DOCKER_RUNNER" ensure "$DOCKER_MODEL" "$TARGET_DIR"; then
+        echo "[install_fishspeech] [!] docker backend is not ready; the RESULT line above names the phase." >&2
+        return 1
+    fi
+    install_method_record_backend "$DOCKER_MODEL" docker
+    if [[ "$DOCKER_MODEL_TEST" == "1" ]] && ! bash "$DOCKER_RUNNER" test "$DOCKER_MODEL" "$TARGET_DIR"; then
+        echo "[install_fishspeech] [!] docker test did not pass (RESULT line above); the image and staging data are kept." >&2
+        return 1
+    fi
+    echo "[install_fishspeech] [OK] docker backend ensured (image pycore-tts-${DOCKER_MODEL}:local; no container left running)."
+    return 0
+}
+
 # --- Install method selection (native/docker), plan steps 16-17 ---
 # Per-engine choice; a saved valid choice is reused verbatim with no countdown.
+# Linux keeps native as the default (the docs list "System: Linux, WSL");
+# Windows defaults to docker (Step56).
 if [[ "${FISHSPEECH_SKIP:-0}" != "1" ]]; then
     . "$SCRIPT_DIR/../../common/install_method_common.sh"
     INSTALL_METHOD="$(install_method_select fishspeech \
         --supported "native docker" \
         --recommended native \
-        --recommendation-source "Fish Speech docs document native install and an official docker option (hub: fishaudio/fish-speech) - https://speech.fish.audio/install/" \
+        --recommendation-source "Fish Speech official install docs: \"System: Linux, WSL\"; native install on Linux, official Docker images fishaudio/fish-speech - https://speech.fish.audio/install/" \
         --default native --method "${TTS_METHOD:-}" ${TTS_METHOD_RESELECT:+--reselect})" || {
         _method_rc=$?
         if [[ $_method_rc -eq 10 ]]; then
@@ -57,19 +86,8 @@ if [[ "${FISHSPEECH_SKIP:-0}" != "1" ]]; then
         exit "$_method_rc"
     }
     if [[ "$INSTALL_METHOD" == "docker" ]]; then
-        . "$SCRIPT_DIR/../../common/docker_prereq_common.sh"
-        if ! docker_prereq_ensure_for_engine fishspeech "$SCRIPT_DIR"; then
-            echo "[fishspeech][!] docker platform ensure failed (phase above); docker backend is not ready." >&2
-            exit 1
-        fi
-        install_method_record_backend fishspeech docker
-        . "$SCRIPT_DIR/../../common/tts_docker_compose_common.sh"
-        if ! tts_docker_apply_engine fishspeech "$TARGET_DIR"; then
-            echo "[fishspeech][!] docker compose apply failed (phase above); docker backend is not ready." >&2
-            exit 1
-        fi
-        echo "[fishspeech][OK] docker compose service converged (project pycore-tts-fishspeech)."
-        exit 0
+        fishspeech_docker_backend
+        exit $?
     fi
     install_method_record_backend fishspeech native
 fi

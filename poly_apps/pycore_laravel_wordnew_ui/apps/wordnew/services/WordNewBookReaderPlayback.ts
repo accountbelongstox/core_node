@@ -67,6 +67,10 @@ export class WordNewBookReaderPlayback {
   private currentLang = '';
   private emptyCross = 0;
   private readonly maxEmptyCross = 8;
+  /** The audio element holds the current step's clip (resume may play it). */
+  private clipArmed = false;
+  /** A step that stopped at a pause with nothing waiting; resume re-runs it. */
+  private parkedStep: { verse: WfNewBookVerse; stepIdx: number; sentenceReplay: boolean } | null = null;
 
   constructor(private readonly deps: WordNewBookReaderPlaybackDeps) {}
 
@@ -89,6 +93,8 @@ export class WordNewBookReaderPlayback {
     this.currentVerse = null;
     this.currentLang = '';
     this.emptyCross = 0;
+    this.clipArmed = false;
+    this.parkedStep = null;
     if (this.audio) {
       try { this.audio.pause(); } catch { /* ignore */ }
       this.audio.onended = null;
@@ -114,9 +120,12 @@ export class WordNewBookReaderPlayback {
     if (!this.playing || !this.paused) return;
     this.paused = false;
     this.deps.onPaused(false);
-    if (this.usingSpeech) resumeBookSpeech();
-    else if (this.audio) void this.audio.play().catch(() => this.stop());
-    else if (this.currentVerse) void this.runStep(this.currentVerse, this.stepIndex);
+    if (this.parkedStep) {
+      const { verse, stepIdx, sentenceReplay } = this.parkedStep;
+      this.parkedStep = null;
+      void this.runStep(verse, stepIdx, sentenceReplay);
+    } else if (this.usingSpeech) resumeBookSpeech();
+    else if (this.audio && this.clipArmed) void this.audio.play().catch(() => this.stop());
   }
 
   togglePause(): void {
@@ -205,8 +214,13 @@ export class WordNewBookReaderPlayback {
     stepIdx: number,
     sentenceReplay = false,
   ): Promise<void> {
-    if (!this.playing || this.paused) return;
+    if (!this.playing) return;
+    if (this.paused) {
+      this.parkedStep = { verse, stepIdx, sentenceReplay };
+      return;
+    }
     const token = (this.playToken += 1);
+    this.clipArmed = false;
     const settings = this.deps.getSettings();
     const seq = settings.sequence.length ? settings.sequence : [{ lang: 'en', repeat: 1 }];
     if (stepIdx >= seq.length) {
@@ -257,6 +271,10 @@ export class WordNewBookReaderPlayback {
     );
 
     if (!this.playing || this.playToken !== token) return;
+    if (!url && this.paused) {
+      this.parkedStep = { verse, stepIdx, sentenceReplay };
+      return;
+    }
 
     if (url) {
       this.emptyCross = 0;
@@ -284,6 +302,8 @@ export class WordNewBookReaderPlayback {
           verse, lang, text, step.repeat, stepIdx, token, sentenceReplay,
         );
       };
+      this.clipArmed = true;
+      if (this.paused) return;
       void audio.play().catch(() => {
         void this.fallbackSpeechOrSkip(
           verse, lang, text, step.repeat, stepIdx, token, sentenceReplay,
@@ -307,6 +327,7 @@ export class WordNewBookReaderPlayback {
     sentenceReplay: boolean,
   ): Promise<void> {
     if (!this.playing || this.playToken !== token) return;
+    this.clipArmed = false;
     // Backend audio missing: ALWAYS try the browser's speech engine first so
     // playback never stalls on a sentence laravel is still generating. The
     // reader moves the sentence to Laravel's queue head in parallel (see

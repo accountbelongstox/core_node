@@ -1,20 +1,10 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const WebSocket = require('ws');
 const { EventEmitter } = require('events');
 const { v4: uuidv4 } = require('uuid');
 const logger = require('#@logger');
+const localRpcGuard = require('#@foundation/common/local_rpc_guard.js');
 const { RPC_CONSTANTS, getSessionManager, getRequestManager, getResponseCache } = require('../common');
+const { normalizeClientId } = require('../common/session_manager');
 const WS_RPC_CONSTANTS = RPC_CONSTANTS;
 const HeartbeatManager = require('./libs/HeartbeatManager');
 const MiddlewareChain = require('./libs/MiddlewareChain');
@@ -118,7 +108,8 @@ class WsRpcServer extends EventEmitter {
 
                 this.wss = new WebSocket.Server({
                     host: this.host,
-                    port: this.port
+                    port: this.port,
+                    verifyClient: localRpcGuard.createWsVerifyClient({ allowedOrigins: this.options.allowedOrigins || [] })
                 });
 
                 this._attachHandlers();
@@ -377,8 +368,8 @@ class WsRpcServer extends EventEmitter {
             try {
                 const message = JSON.parse(data.toString());
 
-                if (message.type === 'init' && message.clientId) {
-                    clientId = message.clientId;
+                if (message.type === 'init' && normalizeClientId(message.clientId)) {
+                    clientId = normalizeClientId(message.clientId);
                     const sessionId = this.sessionManager.createSession(clientId);
                     this.sessionManager.addToGroup(clientId, sessionId);
 
@@ -405,16 +396,20 @@ class WsRpcServer extends EventEmitter {
 
         ws.on('close', () => {
             const actualClientId = clientId || tempId;
+            const clientInfo = this.clients.get(actualClientId);
+
+            if (clientInfo && clientInfo.ws !== ws) {
+                logger.info(`Superseded connection closed: ${actualClientId}`);
+                return;
+            }
+
             this.heartbeat.stop(actualClientId);
             this.auth.revoke(actualClientId);
             this.namespace.removeClient(actualClientId);
             this.clients.delete(actualClientId);
 
-            if (clientId) {
-                const clientInfo = this.clients.get(clientId);
-                if (clientInfo && clientInfo.sessionId) {
-                    this.sessionManager.removeSession(clientInfo.sessionId);
-                }
+            if (clientInfo && clientInfo.sessionId) {
+                this.sessionManager.removeSession(clientInfo.sessionId);
             }
 
             logger.info(`Client disconnected: ${actualClientId}`);
@@ -674,7 +669,7 @@ class WsRpcServer extends EventEmitter {
 
         const clientInfo = this.clients.get(clientId);
         if (!clientInfo || !clientInfo.ws) {
-            this.responseCache.set(requestId, responseData, 1800000);
+            this.responseCache.set(requestId, responseData, 1800000, clientId);
             logger.warn(`Client ${clientId} not found, response cached for HTTP query`);
             return false;
         }
@@ -701,7 +696,7 @@ class WsRpcServer extends EventEmitter {
             }
         }
 
-        this.responseCache.set(requestId, responseData, 1800000);
+        this.responseCache.set(requestId, responseData, 1800000, clientId);
         logger.warn(`WebSocket send failed after ${maxRetries} attempts for ${clientId}, response cached for HTTP query`);
         return false;
     }

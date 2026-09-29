@@ -11,6 +11,9 @@ class QueueCenterRealtimeService
     private const REVISION_KEY = 'queue_center:realtime:revision';
     private const CURSOR_KEY = 'queue_center:realtime:cursor';
     private const CURSOR_CACHE_SECONDS = 1;
+    private const SIGNAL_SECONDS = 1;
+    private const PENDING_SECONDS = 10;
+    private const TRAILING_DELAY_MICROSECONDS = 1100000;
     private RealtimeConnectionService $connections;
 
     public function __construct(?RealtimeConnectionService $connections = null)
@@ -18,30 +21,68 @@ class QueueCenterRealtimeService
         $this->connections = $connections ?? new RealtimeConnectionService();
     }
 
+    /**
+     * Leading-edge throttled `queue.changed` signal (one per second). A change
+     * that lands inside the window is not dropped: it marks the window
+     * pending, and one deferred callback per window emits the trailing signal
+     * after the response, so the last change of a burst is always signaled.
+     */
     public function publish(string $resource, ?string $language = null, int|string|null $id = null): int
     {
         try {
             $cache = QueueCenterCacheStore::get();
-            if (!$cache->add(self::REVISION_KEY . ':signal', true, 1)) {
+            if (!$cache->add(self::REVISION_KEY . ':signal', true, self::SIGNAL_SECONDS)) {
+                $this->scheduleTrailing($resource, $language, $id);
                 return $this->revision();
             }
+            $cache->forget(self::REVISION_KEY . ':pending');
 
-            $revision = QueueCenterCacheStore::increment(self::REVISION_KEY);
-            AppQyV1TranslationEventModel::emit(
-                (string) (QueueCenterContract::realtime()['event'] ?? 'queue.changed'),
-                [
-                    'revision' => $revision,
-                    'resource' => $resource,
-                    'language' => $language,
-                    'resource_id' => $id,
-                    'changed_at' => now()->toIso8601String(),
-                ]
-            );
-
-            return $revision;
+            return $this->emit($resource, $language, $id);
         } catch (\Throwable) {
             return 0;
         }
+    }
+
+    private function emit(string $resource, ?string $language, int|string|null $id): int
+    {
+        $revision = QueueCenterCacheStore::increment(self::REVISION_KEY);
+
+        AppQyV1TranslationEventModel::emit(
+            QueueCenterContract::realtimeEvent('queue_changed'),
+            [
+                'revision' => $revision,
+                'resource' => $resource,
+                'language' => $language,
+                'resource_id' => $id,
+                'changed_at' => now()->toIso8601String(),
+            ]
+        );
+
+        return $revision;
+    }
+
+    private function scheduleTrailing(string $resource, ?string $language, int|string|null $id): void
+    {
+        $cache = QueueCenterCacheStore::get();
+
+        $cache->put(self::REVISION_KEY . ':pending', true, self::PENDING_SECONDS);
+        if (!$cache->add(self::REVISION_KEY . ':trailing', true, self::PENDING_SECONDS)) {
+            return;
+        }
+        defer(function () use ($resource, $language, $id): void {
+            $trailingCache = null;
+
+            try {
+                $trailingCache = QueueCenterCacheStore::get();
+                usleep(self::TRAILING_DELAY_MICROSECONDS);
+                $trailingCache->forget(self::REVISION_KEY . ':trailing');
+                if ($trailingCache->pull(self::REVISION_KEY . ':pending')) {
+                    $trailingCache->put(self::REVISION_KEY . ':signal', true, self::SIGNAL_SECONDS);
+                    $this->emit($resource, $language, $id);
+                }
+            } catch (\Throwable) {
+            }
+        });
     }
 
     public function revision(): int
@@ -66,12 +107,10 @@ class QueueCenterRealtimeService
 
     public function connection(): array
     {
-        $contract = QueueCenterContract::realtime();
-
         return $this->connections->hubConnection(
-            [(string) ($contract['topic'] ?? 'queue-center')],
+            [QueueCenterContract::realtimeTopic()],
             [
-                'event' => (string) ($contract['event'] ?? 'queue.changed'),
+                'event' => QueueCenterContract::realtimeEvent('queue_changed'),
                 'revision' => $this->revision(),
                 'cursor' => $this->cursor(),
             ]

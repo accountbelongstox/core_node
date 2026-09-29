@@ -127,7 +127,7 @@ for ($i = 0; $i -lt 10; $i++) {
     if ($sz -gt 200000) { $armed = $true; Write-Host "  ProcMon armed (backing file growing: $([math]::Round($sz/1KB)) KB)"; break }
 }
 if (-not $armed) {
-    Write-Host "  WARN: ProcMon backing file did not grow ($((Get-Item $pml -ErrorAction SilentlyContinue).Length) bytes) — capture may be inert."
+    Write-Host "  WARN: ProcMon backing file did not grow ($((Get-Item $pml -ErrorAction SilentlyContinue).Length) bytes) - capture may be inert."
 }
 
 # 3) Launch the suspect Chrome at the local page (real profile)

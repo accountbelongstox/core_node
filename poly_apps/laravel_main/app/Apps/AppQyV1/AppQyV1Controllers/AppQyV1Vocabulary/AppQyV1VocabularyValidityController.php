@@ -124,7 +124,7 @@ class AppQyV1VocabularyValidityController extends Controller
         $hasTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
 
         if (!$hasTable) {
-            return $this->error('Dictionary table not found for language: ' . $languageCode, 404);
+            return $this->error(__('app_qy_v1.messages.dictionary_table_not_found_for_language') . $languageCode, 404);
         }
 
         $updated = 0;

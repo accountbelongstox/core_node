@@ -17,6 +17,7 @@ use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class CodeMartV1PaymentCtl extends Controller
 {
@@ -39,7 +40,7 @@ class CodeMartV1PaymentCtl extends Controller
 
     private function validationFailed($validator): JsonResponse
     {
-        return $this->codedError('validation_failed', 'Validation failed', $validator->errors(), 422);
+        return $this->codedError('validation_failed', __('codemart.messages.validation_failed'), $validator->errors(), 422);
     }
 
     public function getWallet(Request $request): JsonResponse
@@ -60,7 +61,7 @@ class CodeMartV1PaymentCtl extends Controller
         $wallet = CodeMartV1WalletModel::forUser((int) $user->id);
 
         if (!$wallet) {
-            return $this->codedError('wallet_not_found', 'Wallet not found', null, 404);
+            return $this->codedError('wallet_not_found', __('codemart.messages.wallet_not_found'), null, 404);
         }
 
         [$page, $pageSize] = CodeMartV1FinanceService::pageParams($request);
@@ -83,7 +84,7 @@ class CodeMartV1PaymentCtl extends Controller
             'project_id' => 'nullable|exists:codemartv1.codemart_v1_projects,id',
             'milestone_id' => 'nullable|exists:codemartv1.codemart_v1_milestones,id',
             'amount' => 'required|numeric|min:0.01',
-            'type' => 'required|in:milestone,hourly,bonus',
+            'type' => 'required|in:' . implode(',', CodeMartV1Constants::PAYMENT_CREATABLE_TYPES),
             'payment_method' => 'required|in:' . implode(',', CodeMartV1Constants::getAllPaymentMethods()),
             'description' => 'nullable|string',
         ]);
@@ -95,7 +96,7 @@ class CodeMartV1PaymentCtl extends Controller
         $payerId = (int) $user->id;
         $payeeId = (int) $request->input('payee_id');
         if ($payerId === $payeeId) {
-            return $this->codedError('payment_self_not_allowed', 'Payer and payee must differ', null, 422);
+            return $this->codedError('payment_self_not_allowed', __('codemart.messages.payer_and_payee_must_differ'), null, 422);
         }
 
         $amount = CodeMartV1FinanceService::money($request->input('amount'));
@@ -129,10 +130,10 @@ class CodeMartV1PaymentCtl extends Controller
 
                 if ($isWallet) {
                     $meta = ['payment_id' => $payment->id];
-                    if (!$wallets[$payerId]->debit($amount, CodeMartV1Constants::WALLET_TX_PAYMENT, "Payment {$payment->id} to user {$payeeId}", $meta)) {
-                        throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
+                    if (!$wallets[$payerId]->debit($amount, CodeMartV1Constants::WALLET_TX_PAYMENT, CodeMartV1Constants::LEDGER_PAYMENT_SENT, ['payment_id' => $payment->id, 'user_id' => $payeeId], $meta)) {
+                        throw new CodeMartV1FinanceException('insufficient_balance', __('codemart.errors.insufficient_balance'), 422);
                     }
-                    $wallets[$payeeId]->credit($amount, CodeMartV1Constants::WALLET_TX_EARNING, "Payment {$payment->id} from user {$payerId}", $meta);
+                    $wallets[$payeeId]->credit($amount, CodeMartV1Constants::WALLET_TX_EARNING, CodeMartV1Constants::LEDGER_PAYMENT_RECEIVED, ['payment_id' => $payment->id, 'user_id' => $payerId], $meta);
                 }
 
                 return [$payment, false];
@@ -159,7 +160,7 @@ class CodeMartV1PaymentCtl extends Controller
 
         return $this->success(
             $payment->loadRecordRelations(['payer', 'payee'])->toArray() + ['idempotent_replay' => $replayed],
-            'Payment created successfully',
+            __('codemart.messages.payment_created_successfully'),
             $replayed ? 200 : 201
         );
     }
@@ -172,11 +173,11 @@ class CodeMartV1PaymentCtl extends Controller
         $payment = CodeMartV1PaymentModel::findDetailed($paymentId);
 
         if (!$payment) {
-            return $this->codedError('payment_not_found', 'Payment not found', null, 404);
+            return $this->codedError('payment_not_found', __('codemart.messages.payment_not_found'), null, 404);
         }
 
         if (!$payment->isParticipant((int) $user->id) && !AuthHelper::requireAdmin($request)) {
-            return $this->codedError('payment_forbidden', 'You do not have access to this payment', null, 403);
+            return $this->codedError('payment_forbidden', __('codemart.messages.you_do_not_have_access_to_this'), null, 403);
         }
 
         return $this->success($payment);
@@ -218,27 +219,47 @@ class CodeMartV1PaymentCtl extends Controller
         $payment = CodeMartV1PaymentModel::findById((int) $request->payment_id);
 
         if (!$payment || (int) $payment->payee_id !== (int) $user->id) {
-            return $this->codedError('invoice_forbidden', 'Only the payee can create an invoice for this payment', null, 403);
+            return $this->codedError('invoice_forbidden', __('codemart.messages.only_the_payee_can_create_an_invoice'), null, 403);
         }
 
         $tax = CodeMartV1FinanceService::money($request->tax ?? 0);
         $subtotal = CodeMartV1FinanceService::money($payment->amount);
         $total = bcadd($subtotal, $tax, 2);
 
-        $invoice = CodeMartV1InvoiceModel::createRecord([
-            'payment_id' => $request->payment_id,
-            'invoice_number' => 'INV-' . now()->format('YmdHis') . '-' . $user->id,
-            'issued_by' => $user->id,
-            'description' => $request->description,
-            'line_items' => $request->line_items,
-            'subtotal' => $subtotal,
-            'tax' => $tax,
-            'total' => $total,
-            'issued_date' => now()->toDateString(),
-            'status' => CodeMartV1Constants::INVOICE_STATUS_SENT,
-        ]);
+        // One live invoice per payment: the payment row lock serializes
+        // concurrent requests, and a repeat returns the existing invoice.
+        $result = CodeMartV1PaymentModel::runInTransaction(function () use ($request, $payment, $user, $subtotal, $tax, $total): array {
+            $existing = null;
 
-        return $this->success($invoice->loadRecordRelations('payment'), 'Invoice created successfully', 201);
+            CodeMartV1PaymentModel::lockById((int) $payment->id);
+            $existing = CodeMartV1InvoiceModel::query()
+                ->where('payment_id', $payment->id)
+                ->where('status', '!=', CodeMartV1Constants::INVOICE_STATUS_CANCELLED)
+                ->orderBy('id')
+                ->first();
+            if ($existing) {
+                return ['invoice' => $existing, 'replayed' => true];
+            }
+
+            return ['invoice' => CodeMartV1InvoiceModel::createRecord([
+                'payment_id' => $payment->id,
+                'invoice_number' => 'INV-' . now()->format('Ymd') . '-' . strtoupper((string) Str::ulid()),
+                'issued_by' => $user->id,
+                'description' => $request->description,
+                'line_items' => $request->line_items,
+                'subtotal' => $subtotal,
+                'tax' => $tax,
+                'total' => $total,
+                'issued_date' => now()->toDateString(),
+                'status' => CodeMartV1Constants::INVOICE_STATUS_SENT,
+            ]), 'replayed' => false];
+        });
+
+        return $this->success(
+            $result['invoice']->loadRecordRelations('payment'),
+            __($result['replayed'] ? 'codemart.messages.invoice_already_exists' : 'codemart.messages.invoice_created_successfully'),
+            $result['replayed'] ? 200 : 201
+        );
     }
 
     public function getInvoices(Request $request): JsonResponse
@@ -290,19 +311,16 @@ class CodeMartV1PaymentCtl extends Controller
                 function () use ($request, $userId, $paymentId, $idempotencyKey, &$fromState): CodeMartV1RefundModel {
                     $payment = CodeMartV1PaymentModel::lockById($paymentId);
                     if (!$payment) {
-                        throw new CodeMartV1FinanceException('payment_not_found', 'Payment not found', 404);
+                        throw new CodeMartV1FinanceException('payment_not_found', __('codemart.messages.payment_not_found'), 404);
                     }
                     if ((int) $payment->payer_id !== $userId) {
-                        throw new CodeMartV1FinanceException('refund_forbidden_not_payer', 'Only the payer can request a refund', 403);
+                        throw new CodeMartV1FinanceException('refund_forbidden_not_payer', __('codemart.errors.refund_forbidden_not_payer'), 403);
                     }
-                    if (!in_array($payment->status, [
-                        CodeMartV1Constants::PAYMENT_STATUS_COMPLETED,
-                        CodeMartV1Constants::PAYMENT_STATUS_DISPUTED,
-                    ], true)) {
-                        throw new CodeMartV1FinanceException('refund_not_allowed_status', 'Payment is not refundable in its current status', 409);
+                    if (!in_array($payment->status, CodeMartV1Constants::PAYMENT_REFUNDABLE_STATUSES, true)) {
+                        throw new CodeMartV1FinanceException('refund_not_allowed_status', __('codemart.errors.payment_not_refundable'), 409);
                     }
                     if (CodeMartV1RefundModel::openForPayment((int) $payment->id)) {
-                        throw new CodeMartV1FinanceException('refund_already_open', 'This payment already has an open refund', 409);
+                        throw new CodeMartV1FinanceException('refund_already_open', __('codemart.errors.refund_already_open'), 409);
                     }
 
                     $fromState = $payment->status;
@@ -344,7 +362,7 @@ class CodeMartV1PaymentCtl extends Controller
 
         return $this->success(
             $refund->toArray() + ['idempotent_replay' => $replayed],
-            'Refund request created successfully',
+            __('codemart.messages.refund_request_created_successfully'),
             $replayed ? 200 : 201
         );
     }
@@ -421,11 +439,12 @@ class CodeMartV1PaymentCtl extends Controller
                     $ledger = $wallet->freeze(
                         $amount,
                         CodeMartV1Constants::WALLET_TX_WITHDRAWAL,
-                        "Withdrawal {$withdrawal->id} requested",
+                        CodeMartV1Constants::LEDGER_WITHDRAWAL_REQUESTED,
+                        ['withdrawal_id' => $withdrawal->id],
                         ['withdrawal_id' => $withdrawal->id, 'phase' => 'freeze']
                     );
                     if (!$ledger) {
-                        throw new CodeMartV1FinanceException('insufficient_balance', 'Insufficient available wallet balance', 422);
+                        throw new CodeMartV1FinanceException('insufficient_balance', __('codemart.errors.insufficient_balance'), 422);
                     }
 
                     return $withdrawal;
@@ -453,7 +472,7 @@ class CodeMartV1PaymentCtl extends Controller
 
         return $this->success(
             $withdrawal->toArray() + ['idempotent_replay' => $replayed],
-            'Withdrawal requested',
+            __('codemart.messages.withdrawal_requested'),
             $replayed ? 200 : 201
         );
     }

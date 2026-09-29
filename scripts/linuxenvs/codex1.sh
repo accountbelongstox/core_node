@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
 # Codex CLI Global File #1
@@ -47,20 +36,17 @@ echo "Running: codex1.sh"
 echo "============================================================"
 echo ""
 
-#region Upgrade Codex CLI (npm)
-echo ""
-echo "============================================================"
-echo "Codex CLI - Upgrade Check"
-echo "============================================================"
-read -p "Upgrade Codex CLI via 'npm install -g @openai/codex'? (y/N) " codex_upgrade_choice
-if [ "$codex_upgrade_choice" = "y" ] || [ "$codex_upgrade_choice" = "Y" ]; then
-    echo "[INFO] Running: npm install -g @openai/codex"
-    npm install -g @openai/codex
-    echo "[SUCCESS] Codex CLI upgrade complete"
-else
-    echo "[INFO] Skipping Codex CLI upgrade"
+#region AI CLI Provisioning (install if missing + idempotent upgrade prompt)
+aiCliProvisionSource="${BASH_SOURCE[0]}"
+aiCliProvisionScriptsDir=""
+aiCliProvisionCommonPath=""
+if [ -L "$aiCliProvisionSource" ]; then
+    aiCliProvisionSource="$(readlink -f "$aiCliProvisionSource" 2>/dev/null || echo "$aiCliProvisionSource")"
 fi
-echo ""
+aiCliProvisionScriptsDir="$(cd "$(dirname "$aiCliProvisionSource")/.." && pwd)"
+aiCliProvisionCommonPath="$aiCliProvisionScriptsDir/shells/linux/common/ai_cli_provision_common.sh"
+. "$aiCliProvisionCommonPath"
+ai_cli_provision "codex"
 #endregion
 
 
@@ -115,6 +101,9 @@ echo ""
 secret_dir="$projectRootPath/.secret_keys/.secret_ignore"
 echo "[DEBUG] Secret directory: $secret_dir"
 echo "[DEBUG] Project root: $projectRootPath"
+
+# Secret values are printed masked through the shared launcher helper.
+declare -F ai_cli_mask_secret >/dev/null 2>&1 || . "$projectRootPath/scripts/shells/linux/common/ai_cli_provision_common.sh"
 
 read_secret_file() {
     # =============================================================================
@@ -179,14 +168,17 @@ load_secret_value() {
     # =============================================================================
     # Enhanced function to load secret value and set environment variable
     # =============================================================================
-    # Usage: load_secret_value <key_name> <env_name> <display_name> <default_value>
-    # Calls read_secret_file for actual file reading
+    # Usage: load_secret_value <key_name> <env_name> <display_name> <default_value> <secret|plain>
+    # Calls read_secret_file for actual file reading; secret values print masked
     # =============================================================================
     local key_name="$1"
     local env_name="$2"
     local display_name="$3"
     local default_value="$4"
+    local display_mode="${5:-secret}"
     local value=""
+    local shown_value=""
+    local shown_current=""
     local secret_file="$secret_dir/$key_name"
     local fix_instruction="Run dd.sh (Secret Decryption Fix) to decrypt secret files"
 
@@ -207,22 +199,26 @@ load_secret_value() {
 
     if [ -n "$value" ]; then
         export "$env_name"="$value"
+        shown_value="$value"
+        [ "$display_mode" = "plain" ] || shown_value="$(ai_cli_mask_secret "$value")"
         if [ -n "$default_value" ] && [ "$value" = "$default_value" ]; then
-            echo "[SUCCESS] Loaded $display_name = $value (default)"
+            echo "[SUCCESS] Loaded $display_name = $shown_value (default)"
         else
-            echo "[SUCCESS] Loaded $display_name = $value"
+            echo "[SUCCESS] Loaded $display_name = $shown_value"
         fi
-        echo "[INFO] Command executed: export $env_name="$value""
+        echo "[INFO] Command executed: export $env_name="$shown_value""
         
         # Verify environment variable is correctly set
         current_value="${!env_name}"
+        shown_current="$current_value"
+        [ "$display_mode" = "plain" ] || shown_current="$(ai_cli_mask_secret "$current_value")"
         if [ "$current_value" = "$value" ]; then
             echo "[VERIFY] Environment variable $env_name is correctly set"
-            echo "[VERIFY] Current value: $current_value"
+            echo "[VERIFY] Current value: $shown_current"
         else
             echo "[WARNING] Environment variable $env_name verification failed"
-            echo "[WARNING] Expected: $value"
-            echo "[WARNING] Actual: $current_value"
+            echo "[WARNING] Expected: $shown_value"
+            echo "[WARNING] Actual: $shown_current"
         fi
         return 0
     fi
@@ -232,31 +228,38 @@ load_secret_value() {
     return 1
 }
 
-load_secret_value "OPENAI_API_KEY_1" "OPENAI_API_KEY" "OPENAI_API_KEY" ""
-load_secret_value "OPENAI_BASE_URL_1" "OPENAI_BASE_URL" "OPENAI_BASE_URL" ""
-load_secret_value "CODEX_MODEL_1" "CODEX_MODEL" "CODEX_MODEL" ""
+load_secret_value "OPENAI_API_KEY_1" "OPENAI_API_KEY" "OPENAI_API_KEY" "" "secret"
+load_secret_value "OPENAI_BASE_URL_1" "OPENAI_BASE_URL" "OPENAI_BASE_URL" "" "plain"
+load_secret_value "CODEX_MODEL_1" "CODEX_MODEL" "CODEX_MODEL" "" "plain"
 
 echo ""
 
 #region Build Launch Command Display
+# env_vars_parts run the tool; env_vars_display_parts are printed (secrets masked).
 env_vars_parts=()
+env_vars_display_parts=()
 
 if [ -n "${OPENAI_API_KEY:-}" ]; then
     env_vars_parts+=("OPENAI_API_KEY='${OPENAI_API_KEY}'")
+    env_vars_display_parts+=("OPENAI_API_KEY='$(ai_cli_mask_secret "${OPENAI_API_KEY}")'")
 fi
 
 if [ -n "${OPENAI_BASE_URL:-}" ]; then
     env_vars_parts+=("OPENAI_BASE_URL='${OPENAI_BASE_URL}'")
+    env_vars_display_parts+=("OPENAI_BASE_URL='${OPENAI_BASE_URL}'")
 fi
 
 if [ -n "${CODEX_MODEL:-}" ]; then
     env_vars_parts+=("CODEX_MODEL='${CODEX_MODEL}'")
+    env_vars_display_parts+=("CODEX_MODEL='${CODEX_MODEL}'")
 fi
 
 if [ ${#env_vars_parts[@]} -gt 0 ]; then
     env_vars_command=$(IFS=' ' ; echo "${env_vars_parts[*]}")
-    full_command_display="$env_vars_command codex --yolo"
+    full_command="$env_vars_command codex --yolo"
+    full_command_display="$(IFS=' ' ; echo "${env_vars_display_parts[*]}") codex --yolo"
 else
+    full_command="codex --yolo"
     full_command_display="codex --yolo"
 fi
 #endregion
@@ -475,22 +478,28 @@ if ! command -v codex &> /dev/null; then
     echo "[INFO] For permanent fix, run: sudo $projectRootPath/dd.sh"
     echo ""
 
-    # Generate npx fallback command
+    # Generate npx fallback command (display parts mask secrets)
     env_vars_parts_npx=()
+    env_vars_display_parts_npx=()
     if [ -n "${OPENAI_API_KEY:-}" ]; then
         env_vars_parts_npx+=("OPENAI_API_KEY='${OPENAI_API_KEY}'")
+        env_vars_display_parts_npx+=("OPENAI_API_KEY='$(ai_cli_mask_secret "${OPENAI_API_KEY}")'")
     fi
     if [ -n "${OPENAI_BASE_URL:-}" ]; then
         env_vars_parts_npx+=("OPENAI_BASE_URL='${OPENAI_BASE_URL}'")
+        env_vars_display_parts_npx+=("OPENAI_BASE_URL='${OPENAI_BASE_URL}'")
     fi
     if [ -n "${CODEX_MODEL:-}" ]; then
         env_vars_parts_npx+=("CODEX_MODEL='${CODEX_MODEL}'")
+        env_vars_display_parts_npx+=("CODEX_MODEL='${CODEX_MODEL}'")
     fi
 
     if [ ${#env_vars_parts_npx[@]} -gt 0 ]; then
         env_vars_command_npx=$(IFS=' ' ; echo "${env_vars_parts_npx[*]}")
-        full_command_display="$env_vars_command_npx npx -y @openai/codex"
+        full_command="$env_vars_command_npx npx -y @openai/codex"
+        full_command_display="$(IFS=' ' ; echo "${env_vars_display_parts_npx[*]}") npx -y @openai/codex"
     else
+        full_command="npx -y @openai/codex"
         full_command_display="npx -y @openai/codex"
     fi
 
@@ -504,7 +513,7 @@ echo ""
 echo "============================================================"
 echo "Variable Summary"
 echo "============================================================"
-echo "OPENAI_API_KEY = ${OPENAI_API_KEY}"
+echo "OPENAI_API_KEY = $(ai_cli_mask_secret "${OPENAI_API_KEY}")"
 echo "OPENAI_BASE_URL = ${OPENAI_BASE_URL}"
 echo "CODEX_MODEL = ${CODEX_MODEL}"
 echo "Codex home: $HOME/.codex"
@@ -518,5 +527,5 @@ read -p "Press Enter to continue"
 #region Launch Tool
 echo ""
 echo "Executing: codex --yolo"
-eval "$full_command_display"
+eval "$full_command"
 #endregion

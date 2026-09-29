@@ -3,6 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Models\User;
+use App\Providers\PathMapper;
 use App\Support\RuntimeConfigurationStore;
 use Illuminate\Http\Request;
 
@@ -16,9 +17,9 @@ use Illuminate\Http\Request;
  * session and BYPASS login -- the dashboard becomes login-free. Remote (non-local)
  * requests always fall back to the normal Sanctum token guard.
  *
- * The bypass can be disabled (e.g. on a shared host where localhost is not trusted)
- * by writing `false` into the global-var store key DASHBOARD_LOCAL_DEBUG; it is
- * enabled by default so same-machine development is friction-free.
+ * The global-var store key DASHBOARD_LOCAL_DEBUG switches the bypass. When it is
+ * unset, the bypass is on for development hosts (Windows, WSL, desktop session)
+ * and off for production hosts, where loopback callers must log in too.
  */
 class DebugAuthService
 {
@@ -43,12 +44,13 @@ class DebugAuthService
     }
 
     /**
-     * Whether the loopback debug bypass is enabled. Enabled unless the global-var
-     * DASHBOARD_LOCAL_DEBUG is explicitly set to a falsey value.
+     * Whether the loopback debug bypass is enabled: the global-var
+     * DASHBOARD_LOCAL_DEBUG when set, else on only for development hosts.
      */
     public static function debugEnabled(): bool
     {
-        $flag = strtolower((string) RuntimeConfigurationStore::get('DASHBOARD_LOCAL_DEBUG', 'true'));
+        $default = PathMapper::isWindows() || !PathMapper::isProduction() ? 'true' : 'false';
+        $flag = strtolower((string) RuntimeConfigurationStore::get('DASHBOARD_LOCAL_DEBUG', $default));
 
         return !in_array($flag, ['false', '0', 'off', 'no', ''], true);
     }

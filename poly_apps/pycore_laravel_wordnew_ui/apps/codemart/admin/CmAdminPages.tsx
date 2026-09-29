@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -11,7 +11,6 @@ import {
   Inbox,
   ListChecks,
   MessageSquareQuote,
-  RefreshCw,
   RotateCcw,
   ShieldCheck,
   UserCog,
@@ -22,18 +21,20 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmErrorMessage } from '../api/cmErrors';
-import adminConsoleImage from '../assets/images/admin-console.webp';
+import { cmFormatPercent } from '../components/workspace/cmWorkspaceFormat';
+import { CmImage } from '../components/CmImage';
+import { CM_ADMIN_ROUTE, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
+import { CmEmptyState, CmErrorState, CmListState, CmLoadingState, CmNotice } from '../components/workspace/CmStateViews';
+import { CmPageHeader } from '../components/workspace/CmPageHeader';
+import { CmPager } from '../components/workspace/CmPager';
+import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
+import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { cmAdminApi } from './CmAdminApi';
 import {
   CmAdminDate,
-  CmAdminListState,
   CmAdminMoney,
-  CmAdminNotice,
-  CmAdminPageHeader,
-  CmAdminPager,
   CmAdminSearch,
   CmAdminSelect,
-  CmAdminStatus,
   CmAdminTable,
   CmAdminToolbar,
   CmAdminUserLink,
@@ -43,21 +44,12 @@ import {
   useCmAdminParam,
 } from './CmAdminShared';
 import {
-  CM_ADMIN_IDENTITY_TYPES,
-  CM_ADMIN_KYC_DOCUMENTS,
-  CM_ADMIN_KYC_STATUSES,
-  CM_ADMIN_PROJECT_STATUSES,
-  CM_ADMIN_ROLE_STATUSES,
-  CM_ADMIN_ROLE_TYPES,
   type CmAdminKycDocument,
   type CmAdminKycRecord,
   type CmAdminOverviewData,
   type CmAdminPolicy,
 } from './CmAdminTypes';
 
-const ADMIN_BASE = '/codemart/admin';
-const BANNER_WIDTH = 1280;
-const BANNER_HEIGHT = 720;
 const GLOSSARY_TERMS = ['deposit', 'escrow', 'dispute', 'refund', 'withdrawal', 'kyc', 'roleStatus', 'reviewer', 'testimonial'] as const;
 
 type CmAdminQueue = {
@@ -69,19 +61,20 @@ type CmAdminQueue = {
 
 function queuesFor(overview: CmAdminOverviewData): CmAdminQueue[] {
   return [
-    { id: 'kyc', count: overview.kyc_pending, to: `${ADMIN_BASE}/kyc?status=pending`, Icon: ShieldCheck },
-    { id: 'deposits', count: overview.deposits_pending, to: `${ADMIN_BASE}/deposits?status=pending`, Icon: WalletCards },
-    { id: 'refunds', count: overview.refunds_pending, to: `${ADMIN_BASE}/refunds?status=pending`, Icon: RotateCcw },
-    { id: 'withdrawals', count: overview.withdrawals_pending, to: `${ADMIN_BASE}/withdrawals?status=pending`, Icon: Banknote },
-    { id: 'roles', count: overview.roles_pending, to: `${ADMIN_BASE}/users?status=pending`, Icon: UserCog },
-    { id: 'testimonials', count: overview.testimonials_pending, to: `${ADMIN_BASE}/testimonials?status=pending`, Icon: MessageSquareQuote },
-    { id: 'contact', count: overview.contact_messages_new, to: `${ADMIN_BASE}/contact-messages?status=new`, Icon: Inbox },
+    { id: 'kyc', count: overview.kyc_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.kyc, { status: 'pending' }), Icon: ShieldCheck },
+    { id: 'deposits', count: overview.deposits_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.deposits, { status: 'pending' }), Icon: WalletCards },
+    { id: 'refunds', count: overview.refunds_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.refunds, { status: 'pending' }), Icon: RotateCcw },
+    { id: 'withdrawals', count: overview.withdrawals_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.withdrawals, { status: 'pending' }), Icon: Banknote },
+    { id: 'roles', count: overview.roles_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.users, { status: 'pending' }), Icon: UserCog },
+    { id: 'testimonials', count: overview.testimonials_pending, to: cmRouteWithQuery(CM_ADMIN_ROUTE.testimonials, { status: 'pending' }), Icon: MessageSquareQuote },
+    { id: 'contact', count: overview.contact_messages_new, to: cmRouteWithQuery(CM_ADMIN_ROUTE.contactMessages, { status: 'new' }), Icon: Inbox },
   ];
 }
 
 export const CmAdminOverviewPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
+  const { states } = useCmBootstrap();
   const [overview, setOverview] = useState<CmAdminOverviewData | null>(null);
   const [policy, setPolicy] = useState<CmAdminPolicy | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,45 +103,33 @@ export const CmAdminOverviewPage: React.FC = () => {
   const clearQueues = queues.filter((queue) => queue.count === 0);
   const pendingTotal = openQueues.reduce((sum, queue) => sum + queue.count, 0);
   const projectCounts = overview?.projects_by_status ?? {};
+  const knownProjectStatuses = states('project');
   const projectStatuses = [
-    ...CM_ADMIN_PROJECT_STATUSES.filter((status) => projectCounts[status]),
-    ...Object.keys(projectCounts).filter((status) => !(CM_ADMIN_PROJECT_STATUSES as readonly string[]).includes(status)),
+    ...knownProjectStatuses.filter((status) => projectCounts[status]),
+    ...Object.keys(projectCounts).filter((status) => !knownProjectStatuses.includes(status)),
   ];
 
   const totals = overview ? [
-    { key: 'users', value: overview.users_total, to: `${ADMIN_BASE}/users`, Icon: Users },
-    { key: 'roleHolders', value: overview.codeMart_role_holders, to: `${ADMIN_BASE}/users?status=active`, Icon: UserCog },
-    { key: 'projects', value: overview.projects_total, to: `${ADMIN_BASE}/projects`, Icon: BriefcaseBusiness },
+    { key: 'users', value: overview.users_total, to: CM_ADMIN_ROUTE.users, Icon: Users },
+    { key: 'roleHolders', value: overview.codeMart_role_holders, to: cmRouteWithQuery(CM_ADMIN_ROUTE.users, { status: 'active' }), Icon: UserCog },
+    { key: 'projects', value: overview.projects_total, to: CM_ADMIN_ROUTE.projects, Icon: BriefcaseBusiness },
     { key: 'tasks', value: overview.tasks_total, to: null, Icon: ListChecks },
-    { key: 'reviewersPassed', value: overview.reviewer_applications_passed, to: `${ADMIN_BASE}/reviewer-applications?status=passed`, Icon: BadgeCheck },
+    { key: 'reviewersPassed', value: overview.reviewer_applications_passed, to: cmRouteWithQuery(CM_ADMIN_ROUTE.reviewerApplications, { status: 'passed' }), Icon: BadgeCheck },
   ] : [];
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader
+      <CmPageHeader
+        variant="admin"
         titleKey="admin.nav.overview"
         purposeKey="admin.purpose.overview"
         onRefresh={() => void load()}
-        aside={(
-          <img
-            className="cm-admin-heading__image"
-            src={adminConsoleImage}
-            alt=""
-            width={BANNER_WIDTH}
-            height={BANNER_HEIGHT}
-            decoding="async"
-          />
-        )}
+        aside={<CmImage name="admin-console" className="cm-admin-heading__image" />}
       />
       {loading ? (
-        <p className="cm-admin-state" role="status">{t('common.loading')}</p>
+        <CmLoadingState />
       ) : error || !overview ? (
-        <div className="cm-admin-state" data-tone="error" role="alert">
-          <p>{error ?? t('admin.loadFailed')}</p>
-          <button type="button" className="cm-workspace-button" onClick={() => void load()}>
-            <RefreshCw aria-hidden="true" /> {t('admin.retry')}
-          </button>
-        </div>
+        <CmErrorState message={error ?? t('admin.loadFailed')} onRetry={() => void load()} />
       ) : (
         <>
           <section className="cm-admin-section" aria-labelledby="cm-admin-queues">
@@ -210,12 +191,12 @@ export const CmAdminOverviewPage: React.FC = () => {
           <section className="cm-admin-section" aria-labelledby="cm-admin-projects">
             <h2 id="cm-admin-projects">{t('admin.overview.projectsByStatus')}</h2>
             {projectStatuses.length === 0 ? (
-              <p className="cm-admin-state">{t('admin.noProjectsAtAll')}</p>
+              <CmEmptyState title={t('admin.noProjectsAtAll')} compact />
             ) : (
               <div className="cm-admin-status-strip">
                 {projectStatuses.map((status) => (
-                  <Link key={status} to={`${ADMIN_BASE}/projects?status=${status}`} className="cm-admin-status-chip">
-                    <CmAdminStatus status={status} group="states.project" />
+                  <Link key={status} to={cmRouteWithQuery(CM_ADMIN_ROUTE.projects, { status })} className="cm-admin-status-chip">
+                    <CmStatusBadge status={status} prefix="states.project" />
                     <strong>{format.number(projectCounts[status] ?? 0)}</strong>
                   </Link>
                 ))}
@@ -233,7 +214,6 @@ export const CmAdminOverviewPage: React.FC = () => {
 const CmAdminPolicyCard: React.FC<{ policy: CmAdminPolicy }> = ({ policy }) => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
-  const commission = Number(policy.platform_commission_rate);
   const thresholdRows = [
     ...Object.entries(policy.architect_thresholds ?? {}).map(([key, value]) => ({ key: `architect.${key}`, value })),
     ...Object.entries(policy.reviewer_thresholds ?? {}).map(([key, value]) => ({ key: `reviewer.${key}`, value })),
@@ -261,9 +241,7 @@ const CmAdminPolicyCard: React.FC<{ policy: CmAdminPolicy }> = ({ policy }) => {
             </div>
             <div>
               <dt>{t('admin.policy.commission')}</dt>
-              <dd>{Number.isFinite(commission)
-                ? new Intl.NumberFormat(format.language, { style: 'percent', maximumFractionDigits: 2 }).format(commission)
-                : String(policy.platform_commission_rate)}</dd>
+              <dd>{cmFormatPercent(policy.platform_commission_rate, format.language)}</dd>
             </div>
           </dl>
         </article>
@@ -331,6 +309,7 @@ const CmAdminGlossary: React.FC = () => {
 
 export const CmAdminUsersPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { roles, states } = useCmBootstrap();
   const [search, setSearch] = useState(useCmAdminParam('search'));
   const [role, setRole] = useState(useCmAdminParam('role'));
   const [status, setStatus] = useState(useCmAdminParam('status'));
@@ -339,14 +318,14 @@ export const CmAdminUsersPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.users" purposeKey="admin.purpose.users" onRefresh={() => void list.reload()} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.users" purposeKey="admin.purpose.users" onRefresh={() => void list.reload()} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.searchUsers" placeholderKey="admin.searchUsersPlaceholder" value={search} onApply={setSearch} />
         <CmAdminSelect
           labelKey="admin.filterRole"
           value={role}
           onChange={setRole}
-          options={CM_ADMIN_ROLE_TYPES}
+          options={roles}
           optionLabel={(option) => t(`roles.${option}`)}
           allKey="admin.allRoles"
         />
@@ -354,11 +333,11 @@ export const CmAdminUsersPage: React.FC = () => {
           labelKey="admin.filterRoleStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_ROLE_STATUSES}
+          options={states('role')}
           optionLabel={(option) => t(`states.role.${option}`)}
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noUsers" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noUsers" onRetry={() => void list.reload()}>
         <CmAdminTable label={t('admin.nav.users')}>
           <thead>
             <tr>
@@ -397,8 +376,8 @@ export const CmAdminUsersPage: React.FC = () => {
             ))}
           </tbody>
         </CmAdminTable>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
     </main>
   );
 };
@@ -406,27 +385,36 @@ export const CmAdminUsersPage: React.FC = () => {
 /** Authenticated private KYC document preview (blob -> object URL, revoked on change/unmount). */
 export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAdminKycRecord['documents'] }> = ({ kycId, documents }) => {
   const { t } = useTranslation('cm');
+  const { policyList } = useCmBootstrap();
   const [active, setActive] = useState<CmAdminKycDocument | null>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const available = CM_ADMIN_KYC_DOCUMENTS.filter((type) => documents?.[type]);
+  const requestRef = useRef(0);
+  const available = policyList('kyc_document_slots').filter((type) => documents?.[type]);
 
   useEffect(() => () => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }, [objectUrl]);
 
+  useEffect(() => () => {
+    requestRef.current += 1;
+  }, []);
+
   const open = async (type: CmAdminKycDocument): Promise<void> => {
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    setObjectUrl(null);
+    setError(null);
     if (active === type) {
       setActive(null);
-      setObjectUrl(null);
+      setLoading(false);
       return;
     }
     setActive(type);
-    setObjectUrl(null);
-    setError(null);
     setLoading(true);
     const response = await cmAdminApi.kycFile(kycId, type);
+    if (requestId !== requestRef.current) return;
     setLoading(false);
     if (response.success && response.data) {
       setObjectUrl(URL.createObjectURL(response.data));
@@ -457,7 +445,7 @@ export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAd
       {active && (
         <figure className="cm-admin-document">
           {loading && <p className="cm-contract-note">{t('common.loading')}</p>}
-          {error && <p className="cm-admin-notice" data-tone="error">{error}</p>}
+          <CmNotice notice={error ? { tone: 'error', text: error } : null} />
           {objectUrl && <img src={objectUrl} alt={t(`admin.kyc.document.${active}`)} />}
           {objectUrl && <figcaption>{t('admin.kyc.privateNote')}</figcaption>}
         </figure>
@@ -468,6 +456,7 @@ export const CmAdminKycDocumentViewer: React.FC<{ kycId: number; documents: CmAd
 
 export const CmAdminKycPage: React.FC = () => {
   const { t } = useTranslation('cm');
+  const { states, policyList } = useCmBootstrap();
   const [status, setStatus] = useState(useCmAdminParam('status', 'pending'));
   const [search, setSearch] = useState(useCmAdminParam('search'));
   const [identityType, setIdentityType] = useState('');
@@ -500,34 +489,34 @@ export const CmAdminKycPage: React.FC = () => {
 
   return (
     <main className="cm-workspace-page">
-      <CmAdminPageHeader titleKey="admin.nav.kyc" purposeKey="admin.purpose.kyc" onRefresh={() => void list.reload()} />
-      <CmAdminNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
+      <CmPageHeader variant="admin" titleKey="admin.nav.kyc" purposeKey="admin.purpose.kyc" onRefresh={() => void list.reload()} />
+      <CmNotice notice={action.notice} onDismiss={() => action.setNotice(null)} />
       <CmAdminToolbar>
         <CmAdminSearch labelKey="admin.searchKyc" value={search} onApply={setSearch} />
         <CmAdminSelect
           labelKey="admin.filterStatus"
           value={status}
           onChange={setStatus}
-          options={CM_ADMIN_KYC_STATUSES}
+          options={states('kyc')}
           optionLabel={(option) => t(`states.kyc.${option}`)}
         />
         <CmAdminSelect
           labelKey="admin.kyc.identityType"
           value={identityType}
           onChange={setIdentityType}
-          options={CM_ADMIN_IDENTITY_TYPES}
+          options={policyList('identity_types')}
           optionLabel={(option) => t(`admin.kyc.identity.${option}`, { defaultValue: option })}
           allKey="admin.allTypes"
         />
       </CmAdminToolbar>
-      <CmAdminListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noKyc" onRetry={() => void list.reload()}>
+      <CmListState loading={list.loading} error={list.error} empty={list.items.length === 0} emptyKey="admin.noKyc" onRetry={() => void list.reload()}>
         <section className="cm-card-list">
           {list.items.map((item) => (
             <article key={item.id} className="cm-record-card cm-admin-record">
               <div className="cm-record-card__main">
                 <div className="cm-admin-record__title">
                   <h2>{item.real_name}</h2>
-                  <CmAdminStatus status={item.verification_status} group="states.kyc" />
+                  <CmStatusBadge status={item.verification_status} prefix="states.kyc" />
                 </div>
                 <dl className="cm-admin-facts">
                   <div><dt>{t('admin.columnUser')}</dt><dd><CmAdminUserLink user={item.user} userId={item.user_id} /></dd></div>
@@ -551,8 +540,8 @@ export const CmAdminKycPage: React.FC = () => {
             </article>
           ))}
         </section>
-      </CmAdminListState>
-      <CmAdminPager page={list.page} totalPages={list.totalPages} total={list.total} onPage={list.setPage} />
+      </CmListState>
+      <CmPager variant="admin" page={list.page} totalPages={list.totalPages} total={list.total} disabled={list.loading} onChange={(next) => void list.load(next)} />
       {action.dialog}
     </main>
   );

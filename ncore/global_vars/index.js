@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const encyclopedia = require('./gcommon/encyclopedia.js')
 const RPC_CONSTANTS = require('./gconfig/rpc_constants.js')
 
@@ -20,6 +8,8 @@ const PUPPETEER_NAVIGATION_TIMEOUT_MINUTES = PUPPETEER_NAVIGATION_TIMEOUT_MS / 6
 const path = require('path');
 // const fs = require('fs');
 const os = require('os');
+// Single debug flag definition: the foundation logger parses the debug argument
+const { isDebug } = require('#@logger');
 const gdir = require('./global_dir/globaldir.js');
 const env = require('./libs/env.js');
 const { getAppName, getIsServer, getIsService, apps } = require('./libs/app_parameter.js');
@@ -73,25 +63,6 @@ const request_headers = {
     'Upgrade-Insecure-Requests': '1',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 }
-function isDebugEnabled() {
-    const args = process.argv.slice(2); // Exclude node and script path
-    for (const arg of args) {
-        const [key, value] = arg.split('=').map(str => str.trim().toLowerCase());
-
-        if (key === 'debug') {
-            if (value != "false" || value != "0") {
-                return true
-            }
-            return false;
-        }
-
-        if (key === 'debug=true') return true; // Handles cases like --DEBUG=true
-        if (key == 'debug=false') return false;
-    }
-
-    return false; // Default is false if not found
-}
-const isDebug = isDebugEnabled()
 const app = {
     appname,
     coredir,

@@ -1,0 +1,11 @@
+{
+  "task_id": "laravel-manager-12",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "LaravelRealtime typing root cause (orchestrator assignment)": {"status": "fixed", "reason": "Wire names stay contract-resolved in the private LARAVEL_REALTIME_WIRE_EVENTS; LARAVEL_REALTIME_EVENTS now maps each symbolic name to itself, and the payload map is keyed by the symbolic name, so each subscribe() handler gets its own payload type. Incoming SSE, hub-envelope and replay events resolve wire -> symbolic through EVENT_BY_WIRE_NAME (unknown events are ignored). Every consumer (laravel-manager TaskCenterState/QueuePanel, wordnew DailyReadingSection/QueueRuntime) uses the constants only for subscribe(), and no code sends the constant values to the server, so the change is safe."}
+  },
+  "issues": [],
+  "checks": "LaravelRealtime.ts diff read; grep of every LARAVEL_REALTIME_EVENTS use across apps, core, shared and shell.",
+  "checked_at": "2026-09-27T04:44:37+10:00"
+}

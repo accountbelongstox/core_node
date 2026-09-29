@@ -31,6 +31,7 @@ xlib_xauth = get_third_package_Xlib_module("xauth")
 
 X11_ERROR_DISPLAY_UNSET = "x11_display_unset"
 X11_ERROR_CONNECT_FAILED = "x11_connect_failed"
+X11_NO_COOKIE_SOURCE = "no-cookie"
 X11_ERROR_XTEST_MISSING = "x11_xtest_unavailable"
 X11_ERROR_EWMH_MISSING = "x11_ewmh_unavailable"
 EWMH_SOURCE_PAGER = 2
@@ -333,8 +334,13 @@ class X11Display:
             if path and Path(path).is_file()
         )
         failures = []
-        for source in sources:
-            os.environ["XAUTHORITY"] = X11Display._normalized_xauthority(source, session)
+        original_xauthority = os.environ.get("XAUTHORITY")
+        # Each cookie first; then one attempt with no cookie at all (os.devnull
+        # holds none) for servers reachable by host access (xhost, Xvfb).
+        for source in (*sources, None):
+            os.environ["XAUTHORITY"] = (
+                X11Display._normalized_xauthority(source, session) if source else os.devnull
+            )
             try:
                 display = xlib_display.Display(session.display)
             except (
@@ -343,15 +349,25 @@ class X11Display:
                 xlib_error.XauthError,
                 OSError,
             ) as error:
-                failures.append(f"{source}: {error}")
+                failures.append(f"{source or X11_NO_COOKIE_SOURCE}: {error}")
                 continue
+            if source is None:
+                X11Display._restore_xauthority(original_xauthority)
             return X11Connection(display), None
+        X11Display._restore_xauthority(original_xauthority)
         x11_activity_log.warning(
             "connect.failed",
             display=session.display,
             attempts=failures,
         )
         return None, X11_ERROR_CONNECT_FAILED
+
+    @staticmethod
+    def _restore_xauthority(value: Optional[str]) -> None:
+        if value is None:
+            os.environ.pop("XAUTHORITY", None)
+        else:
+            os.environ["XAUTHORITY"] = value
 
     @staticmethod
     def _fake_motion(connection: X11Connection, x: int, y: int) -> None:

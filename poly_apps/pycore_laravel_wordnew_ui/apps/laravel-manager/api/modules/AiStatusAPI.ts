@@ -1,11 +1,11 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 
 /**
  * AiStatusAPI — provider availability + live AI test for the AI Tools panel.
  *
  * Backed by laravel_main :9000 under the prefix `/api/app_qy_v1/ai_tools/ai`
- * (both routes are public / no-auth). BaseAPI already unwraps the
+ * (status is public; the live test needs an admin login). BaseAPI unwraps the
  * `{ success, data, message }` ApiResponse envelope, so callers read
  * `res.data` directly.
  *
@@ -55,7 +55,7 @@ export interface AiTestResult {
  * AiStatusAPI module. Prefix is configured in core/api/index.ts as
  * `/api/app_qy_v1/ai_tools/ai`, so method paths are relative to that.
  */
-export class AiStatusAPI extends BaseAPI {
+export class AiStatusAPI extends LmBaseAPI {
   /**
    * Provider availability snapshot: masked key, models (= versions), latency,
    * and the fallback dispatch chain. Pass `refresh=true` to bypass the

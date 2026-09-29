@@ -1,33 +1,20 @@
 import React from 'react';
 import { ArrowRight, Check, ChevronDown } from 'lucide-react';
 import { useTranslation } from '../../../../core/i18n/UiI18n';
-import { cmPublicImage, type CmPublicImageName } from './cmPublicImages';
+import type { CmImageName } from '../../assets/cmImageRegistry';
+import { CmImage } from '../CmImage';
 import { useCmProtectedNavigate } from './useCmProtectedNavigate';
 
 export interface CmPublicIllustrationProps {
-  name: CmPublicImageName;
-  altKey?: string;
+  name: CmImageName;
   eager?: boolean;
   className?: string;
 }
 
-/** Bundled illustration with localized alt text (empty when decorative) and fixed intrinsic size. */
-export const CmPublicIllustration: React.FC<CmPublicIllustrationProps> = ({ name, altKey, eager = false, className }) => {
-  const { t } = useTranslation('cm');
-  const image = cmPublicImage(name);
-  if (!image) return null;
-  return (
-    <img
-      className={`cm-public-illustration ${className ?? ''}`}
-      src={image.src}
-      width={image.width}
-      height={image.height}
-      alt={altKey ? t(altKey) : ''}
-      loading={eager ? 'eager' : 'lazy'}
-      decoding="async"
-    />
-  );
-};
+/** Registry illustration styled for the public pages. */
+export const CmPublicIllustration: React.FC<CmPublicIllustrationProps> = ({ name, eager, className }) => (
+  <CmImage name={name} eager={eager} className={`cm-public-illustration ${className ?? ''}`} />
+);
 
 /** Link that opens public routes directly and protected routes through sign-in. */
 export const CmPublicLink: React.FC<{ to: string; className?: string; children: React.ReactNode }> = ({ to, className, children }) => {
@@ -99,8 +86,7 @@ export const CmPublicChecklist: React.FC<{ keys: string[] }> = ({ keys }) => {
 };
 
 export interface CmPublicSplitProps {
-  image: CmPublicImageName;
-  altKey?: string;
+  image: CmImageName;
   eyebrowKey?: string;
   titleKey: string;
   bodyKeys: string[];
@@ -114,13 +100,12 @@ export interface CmPublicSplitProps {
 /** Two-column feature: illustration beside a heading, paragraphs, checklist, and optional link. */
 export const CmPublicSplit: React.FC<CmPublicSplitProps> = ({
   image,
-  altKey,
   eyebrowKey,
   titleKey,
   bodyKeys,
   pointKeys = [],
   reverse = false,
-  eager = false,
+  eager,
   action,
   id,
 }) => {
@@ -128,7 +113,7 @@ export const CmPublicSplit: React.FC<CmPublicSplitProps> = ({
   return (
     <article id={id} className={`cm-public-split ${reverse ? 'is-reverse' : ''}`}>
       <div className="cm-public-split__media">
-        <CmPublicIllustration name={image} altKey={altKey} eager={eager} />
+        <CmPublicIllustration name={image} eager={eager} />
       </div>
       <div className="cm-public-split__copy">
         {eyebrowKey && <p className="cm-public-section__eyebrow">{t(eyebrowKey)}</p>}
@@ -151,7 +136,7 @@ export interface CmPublicCardItem {
   titleKey: string;
   bodyKey: string;
   metaKey?: string;
-  image?: CmPublicImageName;
+  image?: CmImageName;
   to?: string;
   actionKey?: string;
 }

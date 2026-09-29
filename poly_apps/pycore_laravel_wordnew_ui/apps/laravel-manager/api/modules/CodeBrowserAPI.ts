@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 
 /**
@@ -14,7 +14,7 @@ import { APIResponse } from '../../types';
  *   read-file -> { content, path, extension, size, modified }
  *   save-file -> { success, path } | { error }  (bare error normalized below)
  */
-export class CodeBrowserAPI extends BaseAPI {
+export class CodeBrowserAPI extends LmBaseAPI {
   /** One directory level of the code tree (lazy). path is repo-relative; '' = root. */
   async fileTree(path?: string): Promise<APIResponse> {
     return this.get('file-tree', path ? { path } : undefined, false);

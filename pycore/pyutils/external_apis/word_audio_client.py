@@ -59,6 +59,7 @@ from urllib.parse import quote, urljoin
 
 from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT, HTTP_USER_AGENT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.text_parsing import normalize_language_codes
 from pycore.pyfoundations.third_party.api import get_third_package_BeautifulSoup, get_third_package_requests
@@ -496,7 +497,7 @@ def _forvo(
             return None
         data = resp.json() or {}
     except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[WordAudio] Forvo lookup failed ({exc})")
+        ColorPrint.yellow(f"[WordAudio] Forvo lookup failed ({redacted_http_error(exc)})")
         return None
 
     items: List[Dict[str, Any]] = (data.get("items") or []) if isinstance(data, dict) else []

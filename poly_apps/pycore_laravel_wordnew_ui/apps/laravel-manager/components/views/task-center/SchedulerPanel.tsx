@@ -4,8 +4,8 @@
  * Full port of the former components/views/OctaneTasks.tsx as a tab panel:
  * summary cards, heartbeat status, filter chips, search, task table, detail
  * modal (Portal + OVERLAY_*), verify button — all behavior preserved. The
- * header refresh controls now live in TaskCenter and arrive as props
- * (autoRefresh / refreshIntervalSec / refreshToken).
+ * header refresh controls live in TaskCenter and reach panels through
+ * TaskCenterState (autoRefresh / refreshIntervalSec / refreshToken).
  *
  * NEW vs the old view: rows whose task name has a queue_role in the aggregate
  * overview (passed down as prop) are annotated with the shared RoleBadge —
@@ -505,8 +505,8 @@ const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
 
       {/* Task Detail Modal */}
       {selectedTask && (
-        <Portal id={OVERLAY_CONTAINER}>
-          <div className={`fixed inset-0 ${OVERLAY_Z} flex items-center justify-center p-4`}>
+        <Portal>
+          <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal}`}>
             <div className={`absolute inset-0 ${OVERLAY_BACKDROP}`} onClick={closeTaskDetail} />
             <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">

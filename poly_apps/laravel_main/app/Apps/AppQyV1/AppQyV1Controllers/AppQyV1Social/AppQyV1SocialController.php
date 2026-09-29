@@ -1,15 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
@@ -312,7 +301,7 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
 
         $targetUser = User::findById($id);
         if (!$targetUser) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('app_qy_v1.messages.user_not_found'));
         }
 
         // ---- Follow / friend relationships (appqyv1 connection) ----
@@ -371,12 +360,12 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
 
         $targetId = (int) $request->input('user_id');
         if ($targetId === (int) $currentUser->id) {
-            return $this->error('Cannot follow yourself', 422);
+            return $this->error(__('app_qy_v1.messages.cannot_follow_yourself'), 422);
         }
 
         $targetUser = User::findById($targetId);
         if (!$targetUser) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('app_qy_v1.messages.user_not_found'));
         }
 
         AppQyV1UserFollowModel::follow($currentUser->id, $targetId);
@@ -384,7 +373,7 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
         return $this->success([
             'following' => true,
             'user_id' => $targetId,
-        ], 'User followed');
+        ], __('app_qy_v1.messages.user_followed'));
     }
 
     /**
@@ -413,7 +402,7 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
         return $this->success([
             'following' => false,
             'user_id' => $targetId,
-        ], 'User unfollowed');
+        ], __('app_qy_v1.messages.user_unfollowed'));
     }
 
     /**
@@ -439,7 +428,7 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
 
         $period = $request->query('period', 'all');
         if (!in_array($period, ['week', 'all'], true)) {
-            return $this->error('Invalid period. Supported values: week, all', 422);
+            return $this->error(__('app_qy_v1.messages.invalid_period_supported_values_week_all'), 422);
         }
         if ($period === 'week') {
             $since = now()->subDays(self::ACTIVITY_WINDOW_DAYS);
@@ -583,17 +572,17 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
         $myId = (int) $currentUser->id;
         $targetId = (int) $request->input('user_id');
         if ($targetId === $myId) {
-            return $this->error('Cannot friend yourself', 422);
+            return $this->error(__('app_qy_v1.messages.cannot_friend_yourself'), 422);
         }
 
         $targetUser = User::findById($targetId);
         if (!$targetUser) {
-            return $this->notFound('User not found');
+            return $this->notFound(__('app_qy_v1.messages.user_not_found'));
         }
 
         // Already accepted friends -> nothing to do.
         if (AppQyV1FriendRequestModel::areFriends($myId, $targetId)) {
-            return $this->success(['status' => AppQyV1FriendRequestModel::STATUS_ACCEPTED, 'request_id' => null], 'Already friends');
+            return $this->success(['status' => AppQyV1FriendRequestModel::STATUS_ACCEPTED, 'request_id' => null], __('app_qy_v1.messages.already_friends'));
         }
 
         $row = AppQyV1FriendRequestModel::sendOrReset($myId, $targetId);
@@ -619,7 +608,7 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
         return $this->success([
             'request_id' => (int) $row->id,
             'status' => (string) $row->status,
-        ], 'Friend request sent');
+        ], __('app_qy_v1.messages.friend_request_sent'));
     }
 
     /**
@@ -655,19 +644,19 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
 
         $row = AppQyV1FriendRequestModel::findRequest($requestId);
         if (!$row) {
-            return $this->notFound('Friend request not found');
+            return $this->notFound(__('app_qy_v1.messages.friend_request_not_found'));
         }
         // Only the addressee may accept/reject.
         if ((int) $row->addressee_id !== $myId) {
-            return $this->forbidden('Not your friend request to respond to');
+            return $this->forbidden(__('app_qy_v1.messages.not_your_friend_request_to_respond_to'));
         }
         if ($row->status !== AppQyV1FriendRequestModel::STATUS_PENDING) {
-            return $this->error('Friend request is not pending', 422);
+            return $this->error(__('app_qy_v1.messages.friend_request_is_not_pending'), 422);
         }
 
         if ($action === 'reject') {
             $row->rejectRequest();
-            return $this->success(['request_id' => $requestId, 'status' => $row->status], 'Friend request rejected');
+            return $this->success(['request_id' => $requestId, 'status' => $row->status], __('app_qy_v1.messages.friend_request_rejected'));
         }
 
         // accept
@@ -694,7 +683,7 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
             ]);
         }
 
-        return $this->success(['request_id' => $requestId, 'status' => $row->status], 'Friend request accepted');
+        return $this->success(['request_id' => $requestId, 'status' => $row->status], __('app_qy_v1.messages.friend_request_accepted'));
     }
 
     /**
@@ -782,12 +771,12 @@ $statsByUser = AppQyV1SocialPresenter::aggregateProgressStats($followedIds, null
         $myId = (int) $currentUser->id;
         $targetId = (int) $request->input('user_id');
         if ($targetId === $myId) {
-            return $this->error('Cannot block yourself', 422);
+            return $this->error(__('app_qy_v1.messages.cannot_block_yourself'), 422);
         }
 
         $row = AppQyV1FriendRequestModel::blockPair($myId, $targetId);
 
-        return $this->success(['user_id' => $targetId, 'status' => $row->status], 'User blocked');
+        return $this->success(['user_id' => $targetId, 'status' => $row->status], __('app_qy_v1.messages.user_blocked'));
     }
 
 }

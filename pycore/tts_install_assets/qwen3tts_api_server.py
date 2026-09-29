@@ -12,7 +12,7 @@ script. Lifecycle spec: development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_A
 Official: https://github.com/QwenLM/Qwen3-TTS  pip install -U qwen-tts
 
 Env:
-  QWEN3TTS_HOST / QWEN3TTS_PORT  - bind (default 0.0.0.0:57210)
+  QWEN3TTS_HOST / QWEN3TTS_PORT  - bind (default 127.0.0.1:57210)
   QWEN3TTS_MODEL                 - HF id or local path. Managed Pycore startup
                                    always supplies the verified persistent
                                    staging/weights path when available; the HF
@@ -131,7 +131,7 @@ JSONResponse = fastapi.responses.JSONResponse
 Qwen3TTSModel = qwen_tts.Qwen3TTSModel
 Response = fastapi.responses.Response
 StreamingResponse = fastapi.responses.StreamingResponse
-_DEFAULT_HOST = "0.0.0.0"
+_DEFAULT_HOST = "127.0.0.1"
 _MANAGED_CODE_ID = os.environ.get("PYCORE_MANAGED_CODE_ID") or ""
 _PYCORE_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 _PYFOUNDATIONS_PACKAGE_ROOT = _PYCORE_PACKAGE_ROOT / "pyfoundations"

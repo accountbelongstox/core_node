@@ -11,8 +11,8 @@
  *
  * Usage:
  *   const { Encyclopedia, ENCYCLOPEDIA } = require('#@foundation');
- *   const { EventBus, EventTypes } = require('#@foundation/event_bus');
- *   const { Task, TaskState } = require('#@foundation/task_models');
+ *   const { EventBus, EventTypes } = require('#@foundation/event_bus.js');
+ *   const { Task, TaskState } = require('#@foundation/task_models.js');
  */
 
 const { Encyclopedia, ENCYCLOPEDIA } = require('./encyclopedia');

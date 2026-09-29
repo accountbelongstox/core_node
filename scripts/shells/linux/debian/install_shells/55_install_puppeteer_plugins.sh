@@ -1,15 +1,4 @@
 #!/bin/bash
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -26,12 +15,29 @@ if [ -z "$USE_SUDO" ]; then
     USE_SUDO="sudo"
 fi
 
+APT_INDEX_REFRESHED="false"
+PNPM_GLOBAL_ROOT=""
+
+# Idempotent: refresh the apt index and install only when a package is missing.
+ensure_apt_packages() {
+    local pkg=""
+    local missing=()
+    for pkg in "$@"; do
+        dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed" || missing+=("$pkg")
+    done
+    [ ${#missing[@]} -eq 0 ] && return 0
+    if [ "$APT_INDEX_REFRESHED" != "true" ]; then
+        $USE_SUDO apt-get update
+        APT_INDEX_REFRESHED="true"
+    fi
+    $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+}
+
 echo "[$SCRIPT_INDEX] Installing Puppeteer Anti-Detection Plugins..."
 
 # Install xvfb for virtual display (required for puppeteer-real-browser on Linux)
 echo "[$SCRIPT_INDEX] Installing xvfb for virtual display..."
-$USE_SUDO apt-get update
-$USE_SUDO apt-get install -y xvfb
+ensure_apt_packages xvfb
 
 # Install required system dependencies for Chromium
 echo "[$SCRIPT_INDEX] Installing Chromium dependencies..."
@@ -53,7 +59,7 @@ if [ -n "$AUDIO_PACKAGE" ]; then
     CHROMIUM_DEPS="$CHROMIUM_DEPS $AUDIO_PACKAGE"
 fi
 
-$USE_SUDO apt-get install -y $CHROMIUM_DEPS
+ensure_apt_packages $CHROMIUM_DEPS
 
 # Ensure pnpm is available and PATH is set
 echo "[$SCRIPT_INDEX] Configuring pnpm environment..."
@@ -119,13 +125,14 @@ if [ -z "$PNPM_CMD" ]; then
 else
     echo "[$SCRIPT_INDEX] pnpm version: $("$PNPM_CMD" --version)"
     echo "[$SCRIPT_INDEX] pnpm location: $PNPM_CMD"
+    PNPM_GLOBAL_ROOT="$("$PNPM_CMD" root -g 2>/dev/null | tail -1)"
 
     # Function to install pnpm package
     install_pnpm_package() {
         local package=$1
         # Idempotency: skip if the global package is already installed so re-runs are
         # fast no-ops and never re-resolve the whole global store.
-        if "$PNPM_CMD" list -g "$package" >/dev/null 2>&1 && "$PNPM_CMD" list -g "$package" 2>/dev/null | grep -q "$package"; then
+        if [ -n "$PNPM_GLOBAL_ROOT" ] && [ -f "$PNPM_GLOBAL_ROOT/$package/package.json" ]; then
             echo "[$SCRIPT_INDEX] $package already installed, skipping"
             return
         fi
@@ -163,10 +170,9 @@ else
     # `pnpm list -g <pkg>` exits 0 even when the package is absent, so verify the
     # package.json on disk instead of trusting the exit code.
     echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
-    pnpm_global_root="$("$PNPM_CMD" root -g 2>/dev/null)"
-    if [ -n "$pnpm_global_root" ] && [ -f "$pnpm_global_root/puppeteer-core/package.json" ]; then
+    if [ -n "$PNPM_GLOBAL_ROOT" ] && [ -f "$PNPM_GLOBAL_ROOT/puppeteer-core/package.json" ]; then
         echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
-        "$PNPM_CMD" dlx rebrowser-patches@latest patch --packagePath "$pnpm_global_root/puppeteer-core" || true
+        "$PNPM_CMD" dlx rebrowser-patches@latest patch --packagePath "$PNPM_GLOBAL_ROOT/puppeteer-core" || true
     else
         echo "[$SCRIPT_INDEX] No vanilla puppeteer-core found; rebrowser packages are pre-patched, skipping"
     fi

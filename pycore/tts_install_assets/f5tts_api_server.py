@@ -9,11 +9,13 @@ documented in SWivid/F5-TTS issue #329. Run from the cloned F5-TTS staging dir
 after `pip install -e .`.
 
 Env:
-  F5TTS_HOST / F5TTS_PORT  - bind (default 0.0.0.0:7860)
+  F5TTS_HOST / F5TTS_PORT  - bind (default 127.0.0.1:7860)
   F5TTS_DEVICE             - cuda:0 | cpu | auto (default auto)
 """
 
 import os
+import re
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -26,9 +28,14 @@ import tts_server_common
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.background import BackgroundTask
 import uvicorn
 
 TMP_DIR = tts_server_common.TMP_DIR
+_DEFAULT_HOST = "127.0.0.1"
+_REF_AUDIO_STEM = "ref"
+_REF_AUDIO_DEFAULT_SUFFIX = ".wav"
+_REF_AUDIO_SUFFIX_PATTERN = re.compile(r"^\.[a-z0-9]{1,5}$")
 _network_constants = tts_server_common.load_network_constants()
 _DEFAULT_PORT = getattr(_network_constants, "F5TTS_HTTP_PORT", 7860)
 
@@ -66,17 +73,24 @@ def root():
     return health()
 
 
+def _ref_audio_suffix(filename: str) -> str:
+    """Only the extension of the client file name is kept (never its path)."""
+    suffix = Path(str(filename or "")).suffix.lower()
+    return suffix if _REF_AUDIO_SUFFIX_PATTERN.fullmatch(suffix) else _REF_AUDIO_DEFAULT_SUFFIX
+
+
 @app.post("/process")
-async def process(
+def process(
     ref_audio: UploadFile = File(...),
     ref_text: str = Form(...),
     gen_text: str = Form(...),
 ):
     f5 = _get_f5()
     tmp_dir = Path(tempfile.mkdtemp(prefix="f5tts_", dir=str(TMP_DIR)))
-    ref_path = tmp_dir / (ref_audio.filename or "ref.wav")
+    cleanup = BackgroundTask(shutil.rmtree, str(tmp_dir), ignore_errors=True)
+    ref_path = tmp_dir / (_REF_AUDIO_STEM + _ref_audio_suffix(ref_audio.filename))
     out_path = tmp_dir / "out.wav"
-    ref_path.write_bytes(await ref_audio.read())
+    ref_path.write_bytes(ref_audio.file.read())
     try:
         f5.infer(
             ref_file=str(ref_path),
@@ -86,14 +100,14 @@ async def process(
             seed=-1,
         )
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": str(exc)}, status_code=500, background=cleanup)
     if not out_path.exists() or out_path.stat().st_size == 0:
-        return JSONResponse({"error": "F5-TTS produced no audio"}, status_code=500)
-    return FileResponse(str(out_path), media_type="audio/wav", filename="out.wav")
+        return JSONResponse({"error": "F5-TTS produced no audio"}, status_code=500, background=cleanup)
+    return FileResponse(str(out_path), media_type="audio/wav", filename="out.wav", background=cleanup)
 
 
 def main():
-    host = (os.environ.get("F5TTS_HOST") or "0.0.0.0").strip()
+    host = (os.environ.get("F5TTS_HOST") or _DEFAULT_HOST).strip()
     port = int(os.environ.get("F5TTS_PORT") or _DEFAULT_PORT)
     uvicorn.run(app, host=host, port=port)
 

@@ -3,19 +3,14 @@ import path from "node:path";
 
 const SESSION_ENV = "CLAUDE_AGENTS_SESSION";
 const CATALOG_PARTS = ["config", "claude_team_roles.json"];
-const SHARED_DIR_PARTS = [".claude", "agents_shared"];
-const REVIEWS_DIR = "reviews";
-const REPORTS_DIR = "reports";
-const GATE_STATE_FILE = ".team_gate_state.json";
-const REVIEW_EXEMPT_ROLES = new Set(["orchestrator", "reviewer"]);
-const APPROVED_VERDICT = "approved";
-const REPORT_MAX_AGE_MINUTES = 30;
-const IDLE_BLOCK_LIMIT = 2;
+const DEFAULT_AGENTS_DIR = ".claude/agents";
+const AGENT_FILE_EXTENSION = ".md";
+const FRONTMATTER_FENCE = "---";
+const FRONTMATTER_NAME_KEY = "name";
 const TASK_TAG_PATTERN = /^\[([a-z0-9-]+)\]\s+\S/;
 
 let payload = {};
 let projectDir = "";
-let sharedDir = "";
 
 function readJson(filePath, fallback) {
     try {
@@ -30,9 +25,43 @@ function block(message) {
     process.exit(2);
 }
 
+function frontmatterName(filePath) {
+    let lines = [];
+    try {
+        lines = fs.readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/);
+    } catch {
+        return "";
+    }
+    if (lines.length === 0 || lines[0].trim() !== FRONTMATTER_FENCE) {
+        return "";
+    }
+    for (let index = 1; index < lines.length; index += 1) {
+        const line = lines[index];
+        if (line.trim() === FRONTMATTER_FENCE) {
+            break;
+        }
+        const separator = line.indexOf(":");
+        if (separator > 0 && !/^\s/.test(line) && line.slice(0, separator).trim() === FRONTMATTER_NAME_KEY) {
+            return line.slice(separator + 1).trim().replace(/^(["'])(.*)\1$/, "$2");
+        }
+    }
+    return "";
+}
+
+// Valid role tags: the frontmatter names of the agent definitions (the official
+// role registry); a catalog row with "enabled": false excludes its role.
 function roleIds() {
     const catalog = readJson(path.join(projectDir, ...CATALOG_PARTS), { roles: [] });
-    return (catalog.roles || []).filter((role) => role.enabled !== false).map((role) => role.name);
+    const agentsDir = path.join(projectDir, catalog.agents_dir || DEFAULT_AGENTS_DIR);
+    const disabled = new Set((catalog.roles || []).filter((role) => role.enabled === false).map((role) => role.name));
+    let files = [];
+    try {
+        files = fs.readdirSync(agentsDir).filter((file) => file.endsWith(AGENT_FILE_EXTENSION)).sort();
+    } catch {
+        files = [];
+    }
+    return [...new Set(files.map((file) => frontmatterName(path.join(agentsDir, file))).filter(Boolean))]
+        .filter((name) => !disabled.has(name));
 }
 
 function taskRole(subject) {
@@ -49,60 +78,13 @@ function onTaskCreated() {
     }
 }
 
-function onTaskCompleted() {
-    const role = taskRole(payload.task_subject);
-    const completer = String(payload.teammate_name || "");
-    const verdictPath = path.join(sharedDir, REVIEWS_DIR, `${payload.task_id}.json`);
-    const verdict = readJson(verdictPath, null);
-    if (REVIEW_EXEMPT_ROLES.has(role) || REVIEW_EXEMPT_ROLES.has(completer)) {
-        return;
-    }
-    if (verdict && verdict.verdict === APPROVED_VERDICT) {
-        return;
-    }
-    const notes = verdict && verdict.notes ? ` Reviewer notes: ${verdict.notes}` : "";
-    block(`Task ${payload.task_id} "${payload.task_subject}" needs reviewer approval before it can be completed. `
-        + `Leave it in progress and message the reviewer with the changed files; the reviewer writes `
-        + `${verdictPath} as {"verdict": "approved"|"changes_requested", "notes": "..."}.${notes}`);
-}
-
-function onTeammateIdle() {
-    const teammate = String(payload.teammate_name || "");
-    const reportPath = path.join(sharedDir, REPORTS_DIR, `${teammate}.md`);
-    const statePath = path.join(sharedDir, GATE_STATE_FILE);
-    const state = readJson(statePath, {});
-    const idleBlocks = state[teammate] || 0;
-    let reportFresh = false;
-    try {
-        reportFresh = (Date.now() - fs.statSync(reportPath).mtimeMs) <= REPORT_MAX_AGE_MINUTES * 60000;
-    } catch {
-        reportFresh = false;
-    }
-    if (reportFresh || idleBlocks >= IDLE_BLOCK_LIMIT || !teammate) {
-        state[teammate] = 0;
-        fs.mkdirSync(sharedDir, { recursive: true });
-        fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
-        return;
-    }
-    state[teammate] = idleBlocks + 1;
-    fs.mkdirSync(sharedDir, { recursive: true });
-    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
-    block(`Before going idle, write your handoff report to ${reportPath}: task ids, changed files, `
-        + `status, blockers, and who must act next. Other roles read it instead of your transcript.`);
-}
-
 payload = readJson(0, {});
 if (process.env[SESSION_ENV] !== "1") {
     process.exit(0);
 }
 projectDir = process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
-sharedDir = path.join(projectDir, ...SHARED_DIR_PARTS);
 
 if (payload.hook_event_name === "TaskCreated") {
     onTaskCreated();
-} else if (payload.hook_event_name === "TaskCompleted") {
-    onTaskCompleted();
-} else if (payload.hook_event_name === "TeammateIdle") {
-    onTeammateIdle();
 }
 process.exit(0);

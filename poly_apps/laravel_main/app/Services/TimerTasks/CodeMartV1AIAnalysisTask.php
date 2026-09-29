@@ -34,6 +34,11 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
         return 'codemartv1_ai_analysis';
     }
 
+    public function getExecutionMode(): string
+    {
+        return self::EXECUTION_BACKGROUND;
+    }
+
     public function getInterval(): int
     {
         return self::INTERVAL_SECONDS;

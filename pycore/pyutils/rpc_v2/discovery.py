@@ -14,6 +14,7 @@ from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.network_constants import HTTP_STATUS_PATH, PYCORE_HTTP_PORT
+from pycore.pyutils.common.client_key_auth import client_key_headers
 from pycore.pyutils.common.http_client import HttpClient, build_http_base_url
 
 
@@ -92,11 +93,16 @@ class HttpServiceScanner:
 
     def _check_host(self, ip: str) -> Optional[HttpServiceHost]:
         started_at = time.monotonic()
+        base_url = build_http_base_url(ip, self.port)
         client = HttpClient(
-            base_url=build_http_base_url(ip, self.port),
+            base_url=base_url,
             default_timeout=self.timeout,
         )
-        response = client.get(HTTP_STATUS_PATH)
+        # A LAN pycore admits only K3-signed machine callers (K7).
+        response = client.get(
+            HTTP_STATUS_PATH,
+            headers=client_key_headers("GET", base_url.rstrip("/") + HTTP_STATUS_PATH),
+        )
         payload = response.json() if response.status_code == 200 else {}
         if not isinstance(payload, dict) or not payload.get("is_http_service"):
             return None

@@ -1,8 +1,13 @@
+import zlib
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+
+# Fixed owner pool: one path always maps to the same owner (per-path order is
+# kept) while the thread count stays bounded however many paths are touched.
+SERIALIZED_FILE_OWNER_COUNT = 8
 
 
 class SerializedFile:
@@ -16,15 +21,13 @@ class SerializedFile:
 
 class SerializedFiles:
     def __init__(self) -> None:
-        self._files: Dict[str, SerializedFile] = {}
-        init_serialized_owner(self, "serialized_files.registry", "SerializedFilesRegistryThread")
+        self._owners: Tuple[SerializedFile, ...] = tuple(
+            SerializedFile() for _index in range(SERIALIZED_FILE_OWNER_COUNT)
+        )
 
-    @serialized_method
     def owner(self, path: Path) -> SerializedFile:
-        key = str(Path(path).resolve())
-        if key not in self._files:
-            self._files[key] = SerializedFile()
-        return self._files[key]
+        key = str(Path(path).resolve()).encode("utf-8")
+        return self._owners[zlib.crc32(key) % len(self._owners)]
 
 
 serialized_files = SerializedFiles()

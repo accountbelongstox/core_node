@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\\..\\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const path = require('path');
 const fs = require('fs');
 const logger = require('#@logger');
@@ -44,7 +32,7 @@ class FlutterIconManager {
             
             if (!ftools.file.exists(projectPath)) {
                 logger.error('Flutter project path does not exist', { projectPath });
-                throw new Error(`Flutter project path does not exist: ${projectPath}`);
+                return null;
             }
 
             this.scannedImages = {};
@@ -176,11 +164,13 @@ class FlutterIconManager {
             const absoluteTargetPath = path.resolve(targetPath);
             
             if (!ftools.file.exists(absoluteSourcePath)) {
-                throw new Error(`Source image does not exist: ${absoluteSourcePath}`);
+                logger.error(`Source image does not exist: ${absoluteSourcePath}`);
+                return false;
             }
-            
+
             if (!ftools.file.exists(absoluteTargetPath)) {
-                throw new Error(`Target image does not exist: ${absoluteTargetPath}`);
+                logger.error(`Target image does not exist: ${absoluteTargetPath}`);
+                return false;
             }
 
             const backupPath = await this.createBackup(absoluteTargetPath);
@@ -189,12 +179,16 @@ class FlutterIconManager {
             if (options.autoResize) {
                 const targetInfo = await this.getImageInfo(absoluteTargetPath);
                 if (targetInfo && targetInfo.width && targetInfo.height) {
-                    await this.imageProcessor.resizeAndCropImage(
+                    const resized = await this.imageProcessor.resizeAndCropImage(
                         absoluteSourcePath,
                         absoluteTargetPath,
                         targetInfo.width,
                         targetInfo.height
                     );
+                    if (!resized) {
+                        logger.error(`Failed to resize and replace image: ${absoluteTargetPath}`);
+                        return false;
+                    }
                     logger.info(`Resized and replaced image: ${absoluteTargetPath}`);
                     return true;
                 }

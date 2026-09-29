@@ -91,7 +91,7 @@ class WorkerController extends Controller
 
         return $this->success([
             'worker_id' => $worker->worker_id
-        ], 'Worker registered successfully');
+        ], __('api.messages.worker_registered_successfully'));
     }
 
     /**
@@ -111,7 +111,7 @@ class WorkerController extends Controller
         $success = $this->workerManager->heartbeat($validated['worker_id'], $capabilities);
 
         if (!$success) {
-            return $this->notFound('Worker not found');
+            return $this->notFound(__('api.messages.worker_not_found'));
         }
 
         // Notify signal: number of priority>=100 PENDING tasks waiting for this
@@ -128,7 +128,7 @@ class WorkerController extends Controller
             // Shared fast lane backlog this worker can claim — a non-zero value
             // tells the client to re-poll immediately and process now.
             'pending_fast' => $pendingFast,
-        ], 'Heartbeat received');
+        ], __('api.messages.heartbeat_received'));
     }
 
     /**
@@ -144,13 +144,13 @@ class WorkerController extends Controller
         $workerId = $validated['worker_id'];
 
         if (!$this->workerManager->unregister($workerId)) {
-            return $this->notFound('Worker not found');
+            return $this->notFound(__('api.messages.worker_not_found'));
         }
 
         return $this->success([
             'worker_id' => $workerId,
             'status' => 'offline',
-        ], 'Worker unregistered successfully');
+        ], __('api.messages.worker_unregistered_successfully'));
     }
 
     /**
@@ -285,7 +285,7 @@ class WorkerController extends Controller
                 static fn ($task): array => QueueCenterContract::projectTask($task, 'worker_pull'),
                 $tasks
             ),
-        ], 'Tasks pulled and assigned successfully');
+        ], __('api.messages.tasks_pulled_and_assigned_successfully'));
     }
 
     /**
@@ -311,7 +311,7 @@ class WorkerController extends Controller
 
         $storedType = $this->storedTaskType($validated['task_id']);
         if ($storedType === null) {
-            return $this->notFound('Task or worker not found');
+            return $this->notFound(__('api.messages.task_or_worker_not_found'));
         }
         if ($storedType !== $taskType) {
             return $this->error("Task type mismatch: task is '{$storedType}', not '{$taskType}'", 422);
@@ -323,17 +323,17 @@ class WorkerController extends Controller
         );
 
         if ($outcome === 'not_found') {
-            return $this->notFound('Task or worker not found');
+            return $this->notFound(__('api.messages.task_or_worker_not_found'));
         }
 
         if ($outcome === 'conflict') {
-            return $this->error('Task is owned by another worker or already finished', 409);
+            return $this->error(__('api.messages.task_is_owned_by_another_worker_or'), 409);
         }
 
         return $this->success([
             'task_id' => $validated['task_id'],
             'worker_id' => $validated['worker_id'],
-        ], 'Task accepted');
+        ], __('api.messages.task_accepted'));
     }
 
     /**
@@ -359,7 +359,7 @@ class WorkerController extends Controller
 
         $storedType = $this->storedTaskType($validated['task_id']);
         if ($storedType === null) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('api.messages.task_not_found'));
         }
         if ($storedType !== $taskType) {
             return $this->error("Task type mismatch: task is '{$storedType}', not '{$taskType}'", 422);
@@ -397,10 +397,10 @@ class WorkerController extends Controller
         );
 
         if (!$success) {
-            return $this->error('Worker not assigned to this task or task was reassigned', 409);
+            return $this->error(__('api.messages.worker_not_assigned_to_this_task_or'), 409);
         }
 
-        return $this->success($outcome, 'Result submitted');
+        return $this->success($outcome, __('api.messages.result_submitted'));
     }
 
     /**
@@ -431,7 +431,7 @@ class WorkerController extends Controller
             $taskType
         );
 
-        return $this->success($outcome, 'Tasks released');
+        return $this->success($outcome, __('api.messages.tasks_released'));
     }
 
     /**
@@ -446,7 +446,7 @@ class WorkerController extends Controller
         return $this->success([
             'count' => $workers->count(),
             'workers' => $workers,
-        ], 'Workers list retrieved successfully');
+        ], __('api.messages.workers_list_retrieved_successfully'));
     }
 
     /**
@@ -458,6 +458,6 @@ class WorkerController extends Controller
     {
         $stats = $this->workerManager->getWorkerStats();
 
-        return $this->success(['stats' => $stats], 'Worker stats retrieved successfully');
+        return $this->success(['stats' => $stats], __('api.messages.worker_stats_retrieved_successfully'));
     }
 }

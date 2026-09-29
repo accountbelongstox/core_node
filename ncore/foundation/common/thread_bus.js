@@ -1,15 +1,3 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 /**
  * ThreadBus - Global Process Event Management
  *
@@ -31,6 +19,7 @@
  */
 
 const { EventEmitter } = require('events');
+const logger = require('./logger');
 
 class ThreadBus extends EventEmitter {
     constructor() {
@@ -50,18 +39,18 @@ class ThreadBus extends EventEmitter {
         process.on('exit', (code) => this.emit('exit', code));
 
         process.on('uncaughtException', (error) => {
-            console.error('[ThreadBus] Uncaught exception:', error);
-            this.shutdown('uncaughtException').finally(() => process.exit(1));
+            logger.error('[ThreadBus] Uncaught exception:', error);
+            this.shutdown('uncaughtException', true).finally(() => process.exit(1));
         });
 
         process.on('unhandledRejection', (reason, promise) => {
-            console.error('[ThreadBus] Unhandled rejection:', reason);
+            logger.error('[ThreadBus] Unhandled rejection:', reason);
         });
     }
 
     async _handleSignal(signal) {
-        console.log(`[ThreadBus] Received ${signal}`);
-        await this.shutdown(signal);
+        logger.info(`[ThreadBus] Received ${signal}`);
+        await this.shutdown(signal, true);
         process.exit(0);
     }
 
@@ -75,7 +64,7 @@ class ThreadBus extends EventEmitter {
      */
     register(name, options = {}) {
         if (this.services.has(name)) {
-            console.warn(`[ThreadBus] Service '${name}' already registered, updating...`);
+            logger.warn(`[ThreadBus] Service '${name}' already registered, updating...`);
         }
 
         const service = {
@@ -87,7 +76,7 @@ class ThreadBus extends EventEmitter {
         };
 
         this.services.set(name, service);
-        console.log(`[ThreadBus] Service registered: ${name} (priority: ${service.priority})`);
+        logger.info(`[ThreadBus] Service registered: ${name} (priority: ${service.priority})`);
         this.emit('service:registered', service);
 
         return this;
@@ -101,7 +90,7 @@ class ThreadBus extends EventEmitter {
         if (this.services.has(name)) {
             this.services.delete(name);
             this.busyServices.delete(name);
-            console.log(`[ThreadBus] Service unregistered: ${name}`);
+            logger.info(`[ThreadBus] Service unregistered: ${name}`);
             this.emit('service:unregistered', name);
         }
         return this;
@@ -184,13 +173,13 @@ class ThreadBus extends EventEmitter {
      */
     async shutdown(reason = 'Requested', force = false) {
         if (this.isShuttingDown) {
-            console.log('[ThreadBus] Shutdown already in progress');
+            logger.info('[ThreadBus] Shutdown already in progress');
             return this.shutdownPromise;
         }
 
         const shutdownCheck = this.canShutdown();
         if (!shutdownCheck.canShutdown && !force) {
-            console.log(`[ThreadBus] Cannot shutdown: ${shutdownCheck.reason}`);
+            logger.info(`[ThreadBus] Cannot shutdown: ${shutdownCheck.reason}`);
             return {
                 success: false,
                 reason: shutdownCheck.reason
@@ -198,7 +187,7 @@ class ThreadBus extends EventEmitter {
         }
 
         this.isShuttingDown = true;
-        console.log(`[ThreadBus] Starting shutdown: ${reason}`);
+        logger.info(`[ThreadBus] Starting shutdown: ${reason}`);
         this.emit('shutdown:start', reason);
 
         this.shutdownPromise = this._executeShutdown(reason);
@@ -215,7 +204,7 @@ class ThreadBus extends EventEmitter {
         for (const service of sortedServices) {
             if (service.onShutdown) {
                 try {
-                    console.log(`[ThreadBus] Shutting down service: ${service.name}`);
+                    logger.info(`[ThreadBus] Shutting down service: ${service.name}`);
                     await Promise.race([
                         service.onShutdown(reason),
                         new Promise((_, reject) =>
@@ -223,9 +212,9 @@ class ThreadBus extends EventEmitter {
                         )
                     ]);
                     results.push({ name: service.name, success: true });
-                    console.log(`[ThreadBus] Service shutdown complete: ${service.name}`);
+                    logger.info(`[ThreadBus] Service shutdown complete: ${service.name}`);
                 } catch (error) {
-                    console.error(`[ThreadBus] Service shutdown failed: ${service.name}`, error.message);
+                    logger.error(`[ThreadBus] Service shutdown failed: ${service.name}`, error.message);
                     results.push({ name: service.name, success: false, error: error.message });
                 }
             } else {
@@ -234,7 +223,7 @@ class ThreadBus extends EventEmitter {
         }
 
         this.emit('shutdown:complete', results);
-        console.log('[ThreadBus] Shutdown complete');
+        logger.info('[ThreadBus] Shutdown complete');
 
         return {
             success: true,

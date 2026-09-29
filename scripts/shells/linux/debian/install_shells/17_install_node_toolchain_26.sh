@@ -218,18 +218,16 @@ repair_pnpm_global_shim_links() {
     done
 }
 
+# Other Node trees may serve other services: they are reported, never removed.
+# Our /usr/local/bin links point at NODE_INSTALL_DIR regardless.
 cleanup_wrong_install_locations() {
     local candidate=""
     local candidate_state=""
 
     for candidate in /usr/local/node /opt/node /var/node; do
-        if [ -d "$candidate" ] && [ "$candidate" != "$NODE_INSTALL_DIR" ]; then
-            if [ -x "$candidate/bin/node" ] && [ -x "$candidate/bin/npm" ] && [ -x "$candidate/bin/npx" ]; then
-                candidate_state="$("$candidate/bin/node" -v 2>/dev/null || true)"
-                if [ -n "$candidate_state" ]; then
-                    $USE_SUDO rm -rf "$candidate"
-                fi
-            fi
+        if [ -d "$candidate" ] && [ "$candidate" != "$NODE_INSTALL_DIR" ] && [ -x "$candidate/bin/node" ]; then
+            candidate_state="$("$candidate/bin/node" -v 2>/dev/null || true)"
+            echo "[17] Other Node.js install left in place: $candidate (${candidate_state:-unknown version}); remove it by hand if nothing uses it."
         fi
     done
 }
@@ -452,12 +450,10 @@ ensure_link() {
         return
     fi
 
-    if [ -L "$link_path" ]; then
-        local current_link=""
-        current_link="$(readlink -f "$link_path" 2>/dev/null || true)"
-        if [ "$current_link" = "$source_bin" ]; then
-            return
-        fi
+    # Compare resolved targets: bin/npm, bin/pnpm, ... are themselves relative
+    # symlinks, so readlink -f of the link never equals the unresolved source.
+    if [ -L "$link_path" ] && [ "$(readlink -f "$link_path" 2>/dev/null)" = "$(readlink -f "$source_bin" 2>/dev/null)" ]; then
+        return
     fi
 
     $USE_SUDO rm -f "$link_path"
@@ -538,6 +534,7 @@ ensure_pnpm_path_persistence() {
     local pnpm_global_bin="$1"
     local pnpm_bin=""
     local profile_script="/etc/profile.d/pnpm-global-bin.sh"
+    local profile_content=""
 
     if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin" ]; then
         return
@@ -568,17 +565,27 @@ ensure_pnpm_path_persistence() {
         return
     fi
 
-    $USE_SUDO cat > "$profile_script" <<EOF
+    profile_content="$(cat <<EOF
 # Added by $SCRIPT_NAME
 case "\$PATH" in
     *"${pnpm_global_bin}"*) ;;
     *) export PATH="${pnpm_global_bin}:\$PATH" ;;
 esac
 EOF
+)"
+    if [ "$profile_content" = "$(cat "$profile_script" 2>/dev/null)" ]; then
+        return
+    fi
+    printf '%s\n' "$profile_content" | $USE_SUDO tee "$profile_script" >/dev/null
     $USE_SUDO chmod 644 "$profile_script" 2>/dev/null || true
 }
 
 ensure_npm_latest() {
+    # Idempotent: a runnable npm (bundled with node) is kept; only a missing or
+    # broken npm is (re)installed, so re-runs never re-download npm.
+    if [ -x "$NPM_BIN_PATH" ] && [ -n "$("$NPM_BIN_PATH" -v 2>/dev/null)" ]; then
+        return
+    fi
     if [ -x "$NPM_BIN_PATH" ]; then
         # npm@12 engine: ^22.22.2 || ^24.15.0 || >=26.0.0. On pins outside that
         # range npm@latest fails with EBADENGINE, so fall back to the npm@11 line.
@@ -617,10 +624,7 @@ resolve_project_pnpm_spec() {
 # (a project package.json packageManager pin would change what corepack
 # resolves). The shim must actually EXECUTE, not merely exist.
 pnpm_neutral_version() {
-    if [ ! -x "$PNPM_BIN_PATH" ]; then
-        return
-    fi
-    (cd /tmp 2>/dev/null && timeout 60 "$PNPM_BIN_PATH" -v 2>/dev/null) || true
+    tool_neutral_version "$PNPM_BIN_PATH"
 }
 
 pnpm_shim_works() {
@@ -638,9 +642,13 @@ activate_corepack_pnpm() {
     fi
     TARGET_PNPM_VERSION="${PNPM_PREPARE_SPEC#pnpm@}"
     ACTIVE_PNPM_VERSION="$(pnpm_neutral_version)"
-    if [ "$ACTIVE_PNPM_VERSION" = "$TARGET_PNPM_VERSION" ]; then
-        return
-    fi
+    # Exact pins match exactly; range specs (pnpm@10) match by prefix;
+    # pnpm@latest accepts any runnable version.
+    case "$ACTIVE_PNPM_VERSION" in
+        "") ;;
+        "$TARGET_PNPM_VERSION"|"$TARGET_PNPM_VERSION".*) return ;;
+        *) [ "$TARGET_PNPM_VERSION" = "latest" ] && return ;;
+    esac
 
     echo "[17] Activating corepack pnpm: $PNPM_PREPARE_SPEC (active: ${ACTIVE_PNPM_VERSION:-unknown})"
     "$COREPACK_BIN_PATH" prepare "$PNPM_PREPARE_SPEC" --activate || true
@@ -671,11 +679,23 @@ corepack_prepare_pnpm() {
     fi
 }
 
+corepack_shims_present() {
+    [ -x "$PNPM_BIN_PATH" ] && [ -x "$PNPX_BIN_PATH" ] && [ -x "$YARN_BIN_PATH" ] && [ -x "$YARNPKG_BIN_PATH" ]
+}
+
+# Probe a tool from a neutral directory (a project packageManager pin would
+# change what a corepack shim resolves).
+tool_neutral_version() {
+    [ -x "$1" ] || return 0
+    (cd /tmp 2>/dev/null && timeout 60 "$1" -v 2>/dev/null) || true
+}
+
+# pnpm and yarn activation live in ensure_pnpm / ensure_yarn (each idempotent).
 ensure_corepack() {
     if [ -x "$COREPACK_BIN_PATH" ]; then
-        "$COREPACK_BIN_PATH" enable || true
-        corepack_prepare_pnpm
-        "$COREPACK_BIN_PATH" prepare yarn@stable --activate || true
+        if ! corepack_shims_present; then
+            "$COREPACK_BIN_PATH" enable || true
+        fi
     elif [ -x "$NPM_BIN_PATH" ]; then
         "$NPM_BIN_PATH" install -g corepack@latest --no-audit --no-fund --ignore-scripts || true
     fi
@@ -683,6 +703,15 @@ ensure_corepack() {
     if [ -x "$COREPACK_BIN_PATH" ]; then
         ensure_link "$COREPACK_BIN_PATH" "$COREPACK_LINK"
     fi
+}
+
+ensure_pnpm_config() {
+    local key="$1"
+    local value="$2"
+    if [ "$("$PNPM_BIN_PATH" config get "$key" 2>/dev/null)" = "$value" ]; then
+        return
+    fi
+    "$PNPM_BIN_PATH" config set "$key" "$value" || true
 }
 
 ensure_pnpm() {
@@ -707,10 +736,10 @@ ensure_pnpm() {
         fi
         $USE_SUDO mkdir -p "$PNPM_HOME_PATH" "$PNPM_HOME_PATH/bin" "$PNPM_HOME_PATH/store"
         repair_owned_tree_777 "$PNPM_HOME_PATH"
-        "$PNPM_BIN_PATH" config set global-dir "$PNPM_HOME_PATH" || true
-        "$PNPM_BIN_PATH" config set global-bin-dir "$pnpm_global_bin_dir" || true
-        "$PNPM_BIN_PATH" config set store-dir "$PNPM_HOME_PATH/store" || true
-        "$PNPM_BIN_PATH" config set registry "$PNPM_REGISTRY" || true
+        ensure_pnpm_config global-dir "$PNPM_HOME_PATH"
+        ensure_pnpm_config global-bin-dir "$pnpm_global_bin_dir"
+        ensure_pnpm_config store-dir "$PNPM_HOME_PATH/store"
+        ensure_pnpm_config registry "$PNPM_REGISTRY"
         set_var "PNPM_GLOBAL_DIR" "$PNPM_HOME_PATH" || true
         set_var "PNPM_GLOBAL_BIN_DIR" "$pnpm_global_bin_dir" || true
         export PNPM_GLOBAL_DIR="$PNPM_HOME_PATH"
@@ -722,7 +751,7 @@ ensure_pnpm() {
 }
 
 ensure_yarn() {
-    if [ -x "$COREPACK_BIN_PATH" ]; then
+    if [ -x "$COREPACK_BIN_PATH" ] && [ -z "$(tool_neutral_version "$YARN_BIN_PATH")" ]; then
         "$COREPACK_BIN_PATH" prepare yarn@stable --activate || true
     fi
     if [ ! -x "$YARN_BIN_PATH" ] && [ -x "$NPM_BIN_PATH" ]; then
@@ -734,11 +763,7 @@ ensure_yarn() {
 }
 
 ensure_bun() {
-    if [ -x "$BUN_BIN_PATH" ]; then
-        "$BUN_BIN_PATH" upgrade || true
-    fi
-
-    if [ ! -x "$BUN_BIN_PATH" ]; then
+    if [ -z "$("$BUN_BIN_PATH" --version 2>/dev/null)" ]; then
         $USE_SUDO mkdir -p "$BUN_INSTALL_DIR"
         if command -v curl >/dev/null 2>&1; then
             $USE_SUDO env HOME="$BUN_INSTALL_DIR" BUN_INSTALL="$BUN_INSTALL_DIR" sh -c 'curl -fsSL https://bun.sh/install | bash' || true

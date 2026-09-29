@@ -45,6 +45,7 @@ from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_events,
+    orch_messages as msg,
     orch_resources,
     orch_sources,
     orch_store,
@@ -56,6 +57,8 @@ from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
 _generation_jobs = BackgroundJobs("AudioOrchGeneration")
 _GAP_SECONDS = 0.6
 _MANIFEST_SAVE_EVERY_RESOURCES = 1000
+_THROTTLED_ACTIVITY_CODES = (msg.ORCH_MSG_RESOURCE_SCAN_PROGRESS, msg.ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE)
+_STAT_PARAM_KEYS = ("cache_hits", "laravel_hits", "generated", "synced", "missing")
 
 
 # --------------------------------------------------------------------------- #
@@ -261,7 +264,7 @@ def _segment_timeline(
 
 def _concat_segment(ffmpeg: str, gap: Optional[Path], files: List[Path], output: Path) -> Optional[str]:
     """Concatenate item files into one mp3 (re-encoded, mono 44.1kHz). Returns
-    an error string or None on success."""
+    an error code or None on success; the detail goes to the terminal log."""
     list_file = output.with_suffix(".concat.txt")
     lines: List[str] = []
     for index, path in enumerate(files):
@@ -271,7 +274,8 @@ def _concat_segment(ffmpeg: str, gap: Optional[Path], files: List[Path], output:
     try:
         list_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     except OSError as exc:
-        return f"concat list write failed: {exc}"
+        ColorPrint.yellow(f"[AudioOrch] concat list write failed for {output.name}: {exc}")
+        return msg.ORCH_CONCAT_LIST_WRITE_FAILED
     cmd = [
         ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
         "-ar", "44100", "-ac", "1", "-b:a", "128k", str(output),
@@ -279,10 +283,12 @@ def _concat_segment(ffmpeg: str, gap: Optional[Path], files: List[Path], output:
     try:
         proc = subprocess.run(cmd, capture_output=True, timeout=3600)
     except Exception as exc:  # noqa: BLE001
-        return f"ffmpeg launch failed: {exc}"
+        ColorPrint.yellow(f"[AudioOrch] ffmpeg launch failed for {output.name}: {exc}")
+        return msg.ORCH_FFMPEG_LAUNCH_FAILED
     if proc.returncode != 0 or not output.is_file() or output.stat().st_size == 0:
         tail = (proc.stderr or b"").decode("utf-8", "replace")[-400:]
-        return f"ffmpeg concat failed: {tail or proc.returncode}"
+        ColorPrint.yellow(f"[AudioOrch] ffmpeg concat failed for {output.name}: {tail or proc.returncode}")
+        return msg.ORCH_FFMPEG_CONCAT_FAILED
     return None
 
 
@@ -297,7 +303,11 @@ def request_cancel(task_id: str) -> bool:
     task = orch_store.get_task(task_id)
     if not task:
         return False
-    return _generation_jobs.cancel(task_id)
+    cancelled = _generation_jobs.cancel(task_id)
+    if cancelled:
+        orch_resources.wake_owner(task_id)
+        orch_sources.wake_sentence_waiters(task)
+    return cancelled
 
 
 def has_resumable_state(task: Dict[str, Any]) -> bool:
@@ -355,6 +365,10 @@ def start_generation(
     return {"success": True, "task_id": task_id, "resumed": bool(resume)}
 
 
+def _stat_params(stats: Dict[str, Any]) -> Dict[str, Any]:
+    return {key: stats.get(key, 0) for key in _STAT_PARAM_KEYS}
+
+
 def _close_phase(progress: Dict[str, Any], now: float) -> None:
     """Copy-on-write phase_times with the current phase's timing closed."""
     progress["phase_times"] = {key: dict(value) for key, value in (progress.get("phase_times") or {}).items()}
@@ -400,8 +414,12 @@ def _run_generation(task_id: str, auth_record: Dict[str, Any], resume: bool = Fa
         _generate(task, auth_record, resume=resume)
     except Exception as exc:  # noqa: BLE001
         ColorPrint.red(f"[AudioOrch] generation crashed for {task_id}: {exc}")
+        # Part1 items this task still holds in the lane queues are released,
+        # so no tracker entry or dedup key stays owned by a dead run.
+        orch_resources.release_owner_queue(task_id)
         _finish(task, "failed")
-        _progress(task, message=f"generation crashed: {exc}")
+        orch_store.append_task_event(task, msg.ORCH_MSG_GENERATION_CRASHED, error_type=type(exc).__name__)
+        _progress(task, **msg.progress_fields(msg.ORCH_MSG_GENERATION_CRASHED, error_type=type(exc).__name__))
 
 
 def _cancel(task: Dict[str, Any], stats: Dict[str, Any]) -> bool:
@@ -409,7 +427,7 @@ def _cancel(task: Dict[str, Any], stats: Dict[str, Any]) -> bool:
         return False
     orch_resources.release_owner_queue(str(task.get("task_id") or ""))
     _finish(task, "draft")
-    _progress(task, message="cancelled", **stats)
+    _progress(task, **msg.progress_fields(msg.ORCH_MSG_CANCELLED), **stats)
     return True
 
 
@@ -420,7 +438,11 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     # log so the UI still shows what the interrupted run already did.
     if not resume:
         task["events"] = []
-    orch_store.append_task_event(task, f"generation {'resumed' if resume else 'started'} for {orch_sources.task_label(task)}")
+    orch_store.append_task_event(
+        task,
+        msg.ORCH_MSG_GENERATION_RESUMED if resume else msg.ORCH_MSG_GENERATION_STARTED,
+        **orch_sources.task_label_params(task),
+    )
     task["status"] = "generating"
     # Run timing: a resume keeps the original start; every run clears the
     # previous finish until it reaches a terminal state again.
@@ -432,12 +454,12 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         task["generation_id"] = uuid.uuid4().hex
     elif not task.get("generation_id"):
         task["generation_id"] = uuid.uuid4().hex
-    _progress(task, phase="sync", message="syncing book sentences", current_item="")
+    _progress(task, phase="sync", current_item="", **msg.progress_fields(msg.ORCH_MSG_SENTENCE_SYNC))
     synced = orch_sources.ensure_task_sentences(
         task,
         cancel_requested=lambda: _generation_jobs.cancelled(task_id),
         progress_callback=lambda state: _progress(
-            task, phase="sync", message="syncing book sentences",
+            task, phase="sync", **msg.progress_fields(msg.ORCH_MSG_SENTENCE_SYNC),
             item_index=state.get("fetched") or 0, item_total=state.get("total") or 0,
         ),
     )
@@ -446,16 +468,20 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     sentences = synced.get("sentences") if isinstance(synced, dict) else None
     if not sentences:
         _finish(task, "failed")
-        orch_store.append_task_event(task, "sentence sync failed")
-        _progress(task, message=f"no sentences for {orch_sources.task_label(task)}: {synced.get('error') if isinstance(synced, dict) else 'unknown'}")
+        sync_params = {
+            **orch_sources.task_label_params(task),
+            "error": str((synced.get("error") if isinstance(synced, dict) else "") or "unknown"),
+        }
+        orch_store.append_task_event(task, msg.ORCH_MSG_SENTENCE_SYNC_FAILED, **sync_params)
+        _progress(task, **msg.progress_fields(msg.ORCH_MSG_SENTENCE_SYNC_FAILED, **sync_params))
         return
 
     binary = ffmpeg_runtime.binaries().ffmpeg
     ffmpeg = str(binary) if binary is not None else None
     if not ffmpeg:
         _finish(task, "failed")
-        orch_store.append_task_event(task, "ffmpeg not found")
-        _progress(task, message="ffmpeg not found")
+        orch_store.append_task_event(task, msg.ORCH_MSG_FFMPEG_MISSING)
+        _progress(task, **msg.progress_fields(msg.ORCH_MSG_FFMPEG_MISSING))
         return
 
     task["plan_signature"] = _plan_signature(task, len(sentences))
@@ -502,7 +528,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             task, sentences, auth_record,
             cancel_requested=lambda: _generation_jobs.cancelled(task_id),
             progress_callback=lambda index, total: _progress(
-                task, phase="manifest", message="loading word read states",
+                task, phase="manifest", **msg.progress_fields(msg.ORCH_MSG_WORD_STATES_LOADING),
                 item_index=index, item_total=total, **stats,
             ),
         )
@@ -513,7 +539,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         # (consuming the virtual-read set exactly once) and collect the unique
         # word/sentence resources the whole task needs.
         _progress(
-            task, phase="manifest", message="building manifest",
+            task, phase="manifest", **msg.progress_fields(msg.ORCH_MSG_MANIFEST_BUILDING),
             segment_index=0, resource_index=0, resource_total=0, **stats,
             item_index=0, item_total=len(sentences),
         )
@@ -545,7 +571,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             segment_items.append(items)
             _progress(
                 task, phase="manifest",
-                message=f"manifest: segment {segment['index']}/{len(task['segments'])}",
+                **msg.progress_fields(
+                    msg.ORCH_MSG_MANIFEST_SEGMENT, segment=segment["index"], segments=len(task["segments"]),
+                ),
                 segment_index=segment["index"], resource_total=len(resources), **stats,
                 item_index=segment["end"] + 1, item_total=len(sentences),
             )
@@ -553,8 +581,8 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         orch_store.save_task(task)
         _save_manifest_state(task, segment_items, resolved, stats)
         orch_store.append_task_event(
-            task,
-            f"manifest ready: {len(resources)} unique resources across {len(task['segments'])} segments",
+            task, msg.ORCH_MSG_MANIFEST_READY,
+            resources=len(resources), segments=len(task["segments"]),
         )
     else:
         # Resume: the manifest (item expansion + consumed virtual-read set) and
@@ -597,9 +625,10 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                     }
         orch_store.save_task(task)
         orch_store.append_task_event(
-            task,
-            f"resuming: {len(resolved)}/{len(resources)} resources already resolved, "
-            f"{sum(1 for s in task['segments'] if s.get('status') == 'done')}/{len(task['segments'])} segments done",
+            task, msg.ORCH_MSG_RESUMING,
+            resolved=len(resolved), resources=len(resources),
+            segments_done=sum(1 for s in task["segments"] if s.get("status") == "done"),
+            segments=len(task["segments"]),
         )
 
     # Phase 2: resources — local caches first in BATCH (orch_resources
@@ -614,17 +643,21 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     resource_done_base = resource_total - len(resource_list)
     last_resource_write = 0.0
     manifest_dirty = 0
-    _progress(task, phase="resources", message="scanning local audio caches",
+    _progress(task, phase="resources", **msg.progress_fields(msg.ORCH_MSG_RESOURCE_SCAN),
               resource_index=resource_done_base, resource_total=resource_total, item_index=0, item_total=0, **stats)
 
     def _resource_activity(resource: Dict[str, Any], event: Dict[str, Any]) -> None:
         nonlocal last_resource_write
-        message = str(event.get("stage") or event.get("status") or "preparing audio resource")
-        persist = not message.startswith("scanning") or time.monotonic() - last_resource_write >= 0.5
+        code = str(event.get("stage") or "")
+        params = dict(event.get("params") or {})
+        if not msg.is_message_code(code):
+            # An engine progress stage is not an orchestration message code.
+            code, params = msg.ORCH_MSG_RESOURCE_PREPARING, {}
+        persist = code not in _THROTTLED_ACTIVITY_CODES or time.monotonic() - last_resource_write >= 0.5
         if persist:
             last_resource_write = time.monotonic()
         _progress(task, phase="resources",
-                  message=message, persist=persist,
+                  persist=persist, **msg.progress_fields(code, **params),
                   current_item=f"{resource['kind']}: {resource['text'][:60]}", **stats)
 
     def _resource_done(index: int, resource: Dict[str, Any], result: Dict[str, Any]) -> None:
@@ -676,17 +709,20 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                         meta["synced"] = True
                     elif not sync.get("queued"):
                         orch_store.append_task_event(
-                            task,
-                            f"sync pending: {resource['text'][:60]} ({sync.get('error') or 'queued'})",
+                            task, msg.ORCH_MSG_SYNC_PENDING,
+                            text=resource["text"][:60], error=str(sync.get("error") or "queued"),
                         )
                 except Exception as sync_error:  # noqa: BLE001
+                    ColorPrint.yellow(f"[AudioOrch] sync deferred ({resource['text'][:40]}): {sync_error}")
                     orch_store.append_task_event(
-                        task,
-                        f"sync deferred: {resource['text'][:60]} ({sync_error})",
+                        task, msg.ORCH_MSG_SYNC_DEFERRED,
+                        text=resource["text"][:60], error_type=type(sync_error).__name__,
                     )
         else:
             stats["missing"] += 1
-            orch_store.append_task_event(task, f"missing {resource['kind']}: {resource['text'][:60]}")
+            orch_store.append_task_event(
+                task, msg.ORCH_MSG_RESOURCE_MISSING, kind=resource["kind"], text=resource["text"][:60],
+            )
             ColorPrint.yellow(f"[AudioOrch] resource failed ({resource['kind']}: {resource['text'][:40]})")
         manifest_dirty += 1
         if manifest_dirty >= _MANIFEST_SAVE_EVERY_RESOURCES:
@@ -698,7 +734,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             last_resource_write = time.monotonic()
         _progress(
             task, phase="resources",
-            message=f"resources: {absolute_index}/{resource_total}",
+            **msg.progress_fields(msg.ORCH_MSG_RESOURCES_PROGRESS, index=absolute_index, total=resource_total),
             resource_index=absolute_index, resource_total=resource_total,
             current_item=f"{resource['kind']}: {resource['text'][:60]} [{source}]",
             persist=persist,
@@ -717,11 +753,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     _save_manifest_state(task, segment_items, resolved, stats, resource_meta)
     if _cancel(task, stats):
         return
-    orch_store.append_task_event(
-        task,
-        f"resources ready (cache={stats['cache_hits']} laravel={stats['laravel_hits']} "
-        f"generated={stats['generated']} synced={stats['synced']} missing={stats['missing']})",
-    )
+    orch_store.append_task_event(task, msg.ORCH_MSG_RESOURCES_READY, **_stat_params(stats))
 
     # Phase 3: assemble — concat each segment's resolved items in pattern
     # order; segments whose every item is missing fail without aborting the
@@ -744,14 +776,17 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         ]
         if not files:
             segment["status"] = "failed"
-            segment["error"] = "no audio items resolved"
-            orch_store.append_task_event(task, f"segment {segment['index']}: no audio items resolved")
+            segment["error"] = msg.ORCH_MSG_SEGMENT_NO_AUDIO
+            orch_store.append_task_event(task, msg.ORCH_MSG_SEGMENT_NO_AUDIO, segment=segment["index"])
             orch_store.save_task(task)
             continue
         if len(files) != len(items):
             segment["status"] = "failed"
-            segment["error"] = f"missing {len(items) - len(files)} of {len(items)} audio items"
-            orch_store.append_task_event(task, f"segment {segment['index']}: {segment['error']}")
+            segment["error"] = msg.ORCH_MSG_SEGMENT_MISSING_ITEMS
+            orch_store.append_task_event(
+                task, msg.ORCH_MSG_SEGMENT_MISSING_ITEMS,
+                segment=segment["index"], missing=len(items) - len(files), total=len(items),
+            )
             orch_store.save_task(task)
             continue
         segment["status"] = "assembling"
@@ -759,7 +794,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         segment["finished_at"] = None
         _progress(
             task, phase="assemble",
-            message=f"segment {segment['index']}: assembling {len(files)} items",
+            **msg.progress_fields(msg.ORCH_MSG_SEGMENT_ASSEMBLING, segment=segment["index"], items=len(files)),
             segment_index=segment["index"], item_index=0, item_total=len(files), **stats,
         )
         output = output_dir / f"segment_{segment['index']:03d}.mp3"
@@ -770,28 +805,32 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         if error:
             segment["status"] = "failed"
             segment["error"] = error
-            orch_store.append_task_event(task, f"segment {segment['index']}: concat failed: {error[:120]}")
+            orch_store.append_task_event(
+                task, msg.ORCH_MSG_SEGMENT_CONCAT_FAILED, segment=segment["index"], error=error,
+            )
         else:
             segment["status"] = "done"
             segment["output"] = str(output)
             # Per-clip offsets for precise player highlight (W5 `timeline`).
             segment["timeline"] = _segment_timeline(items, files, gap, clip_durations)
             segment["duration_ms"] = int(round(float(ffprobe_client.probe(output).duration or 0.0) * 1000)) or None
-            orch_store.append_task_event(task, f"segment {segment['index']}: done -> {output.name}")
+            orch_store.append_task_event(
+                task, msg.ORCH_MSG_SEGMENT_DONE, segment=segment["index"], output=output.name,
+            )
         orch_store.save_task(task)
 
     failed = [s for s in task["segments"] if s.get("status") == "failed"]
     _finish(task, "failed" if failed else "done")
     orch_store.append_task_event(
-        task,
-        f"generation finished: {task['status']} "
-        f"(cache={stats['cache_hits']} laravel={stats['laravel_hits']} "
-        f"generated={stats['generated']} synced={stats['synced']} missing={stats['missing']})",
+        task, msg.ORCH_MSG_GENERATION_FINISHED, status=task["status"], **_stat_params(stats),
     )
     _progress(
         task,
         phase="done",
-        message="done" if task["status"] == "done" else "all segments failed",
+        **(
+            msg.progress_fields(msg.ORCH_MSG_SEGMENTS_FAILED, failed=len(failed), segments=len(task["segments"]))
+            if failed else msg.progress_fields(msg.ORCH_MSG_DONE)
+        ),
         output_dir=str(output_dir),
         **stats,
     )

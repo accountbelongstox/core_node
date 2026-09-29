@@ -1,29 +1,15 @@
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-// 1. Write all code in English only.
-// 2. Never execute, create, or modify test code.
-// 3. Never create or update documentation (*.md).
-// 4. Never write summaries during development or thinking process.
-// 5. Declare all variables at the beginning of the file.
-// 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-// 7. Do not modify these rules.
-// VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-// ### AI SPECIAL ATTENTION RULES END ###
-
 const fs = require('fs');
 const path = require('path');
 const logger = require('#@logger');
+const { pathtool } = require('#@btools');
 const { ALLOW_DOWNLOAD_DIR, SKIP_DIRS } = require('#@gconfig');
 
 // List directory contents (dirs and files), skip SKIP_DIRS and __* dirs, only under ALLOW_DOWNLOAD_DIR
 function listDir(req, res) {
     let dir = req.query.dir;
     if (!dir || dir === '' || dir === '/') dir = '/';
-    let absDir = path.resolve(ALLOW_DOWNLOAD_DIR, '.' + dir);
-    // Normalize both paths to remove trailing slashes/backslashes
-    const normAbsDir = absDir.replace(/[\\/]+$/, '');
-    const normRoot = ALLOW_DOWNLOAD_DIR.replace(/[\\/]+$/, '');
-    if (!normAbsDir.startsWith(normRoot)) {
+    const absDir = pathtool.resolveInside(ALLOW_DOWNLOAD_DIR, String(dir));
+    if (!absDir) {
         return res.status(403).json({ error: 'Unauthorized directory' });
     }
     let items = [];
@@ -73,11 +59,9 @@ function downloadFile(req, res) {
         return null;
     }
     
-    let absFile = path.resolve(ALLOW_DOWNLOAD_DIR, '.' + file);
-    const normAbsFile = absFile.replace(/[\\/]+$/, '');
-    const normRoot = ALLOW_DOWNLOAD_DIR.replace(/[\\/]+$/, '');
-    
-    if (!normAbsFile.startsWith(normRoot)) {
+    const absFile = pathtool.resolveInside(ALLOW_DOWNLOAD_DIR, String(file));
+
+    if (!absFile) {
         res.status(403).send('Unauthorized directory');
         return null;
     }

@@ -102,9 +102,6 @@ class PlaceholderImageGeneratorConstants:
     BING_FETCH_TIMEOUT = 10
 
     # Unsplash API configuration
-    UNSPLASH_ACCESS_KEY = "sUgzcLPI22a7oOMYMCrO4gVdO3jOyXzOplktg5BGOCs"
-    UNSPLASH_SECRET_KEY = "Qvn1_xptzrnWzSB1ToI0NDiRATloEpUy2_l1lixChQM"
-    UNSPLASH_APPLICATION_ID = "825736"
     UNSPLASH_RANDOM_API = "https://api.unsplash.com/photos/random"
     UNSPLASH_SEARCH_API = "https://api.unsplash.com/search/photos"
     UNSPLASH_FETCH_TIMEOUT = 15

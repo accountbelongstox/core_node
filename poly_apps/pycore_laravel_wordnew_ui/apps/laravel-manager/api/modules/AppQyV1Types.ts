@@ -1,5 +1,4 @@
 /** AppQyV1 request and response types. */
-import type { GlobalQueuePositionTaskAlias } from '../../../../core/contracts/QueueCenterTypes';
 
 // ========== Vocabulary export (server-side file download) ==========
 
@@ -198,12 +197,12 @@ export interface TranslationLanguageOption {
   native_name: string;
 }
 
-type TranslationLanguageCatalog = Record<
+export type TranslationLanguageCatalog = Record<
   string,
   string | Partial<TranslationLanguageOption>
 >;
 
-function normalizeTranslationLanguages(
+export function normalizeTranslationLanguages(
   payload: { languages?: TranslationLanguageCatalog | TranslationLanguageOption[] } | null,
 ): TranslationLanguageOption[] {
   const languages = payload?.languages;

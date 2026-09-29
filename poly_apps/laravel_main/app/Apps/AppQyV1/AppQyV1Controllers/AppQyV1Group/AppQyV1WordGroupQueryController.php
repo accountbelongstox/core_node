@@ -1,13 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
@@ -71,7 +62,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized access',
+                    'message' => __('app_qy_v1.messages.unauthorized_access'),
                     'supported_params' => $supported_params,
                 ], 401);
             }
@@ -82,7 +73,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$group) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group not found',
+                    'message' => __('app_qy_v1.messages.group_not_found'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 404);
@@ -150,7 +141,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$user) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Unauthorized access',
+                    'message' => __('app_qy_v1.messages.unauthorized_access'),
                     'supported_params' => $supported_params,
                 ], 401);
             }
@@ -158,7 +149,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$gname) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group name is required',
+                    'message' => __('app_qy_v1.messages.group_name_is_required'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 400);
@@ -169,7 +160,7 @@ class AppQyV1WordGroupQueryController extends Controller
             if (!$group) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Group not found',
+                    'message' => __('app_qy_v1.messages.group_not_found'),
                     'supported_params' => $supported_params,
                     'uid' => $uid
                 ], 404);
@@ -217,7 +208,7 @@ class AppQyV1WordGroupQueryController extends Controller
                 'status' => 'error',
                 'code' => 404,
                 'gid' => $gid,
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
@@ -265,7 +256,7 @@ class AppQyV1WordGroupQueryController extends Controller
                 'status' => 'error',
                 'code' => 404,
                 'gid' => $gid,
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
@@ -313,7 +304,7 @@ class AppQyV1WordGroupQueryController extends Controller
                 'status' => 'error',
                 'code' => 404,
                 'gid' => $gid,
-                'message' => 'Group not found',
+                'message' => __('app_qy_v1.messages.group_not_found'),
                 'supported_params' => $supported_params,
             ], 404);
         }
@@ -340,7 +331,7 @@ class AppQyV1WordGroupQueryController extends Controller
     {
         $user = AuthHelper::requireAuth($request);
         if (!$user) {
-            return $this->unauthorized('Authentication required');
+            return $this->unauthorized(__('app_qy_v1.messages.authentication_required'));
         }
 
         $validated = $request->validate([
@@ -419,6 +410,6 @@ class AppQyV1WordGroupQueryController extends Controller
             'limit' => $limit,
             'groups_length' => $groups->count(),
             'groups' => $mappedGroups,
-        ], 'Groups retrieved successfully');
+        ], __('app_qy_v1.messages.groups_retrieved_successfully'));
     }
 }

@@ -55,8 +55,6 @@ from pycore.pyfoundations.serialized_worker import (
 
 speechsdk = get_third_package_speechsdk()
 from pycore.pyutils.azure_speech.config import AzureSpeechConfig
-from pycore.pyfoundations.speech_models import WordModel, SentenceModel, DocumentModel
-from pycore.pyfoundations.speech_queue_ops import TTSQueueOps
 from pycore.pyutils.common.azure_speech_quota_state import (
     mark_tts_quota_exceeded,
     clear_tts_quota_issue,
@@ -205,25 +203,6 @@ class AzureSpeechClient:
         finally:
             self._mark_task_end()
     
-    @serialized_method
-    def add_to_queue(self, item: WordModel | SentenceModel | DocumentModel) -> bool:
-        """
-        Add item to shared queue
-        
-        Args:
-            item: Word, Sentence, or Document model
-        
-        Returns:
-            bool: True if added successfully
-        """
-        if isinstance(item, DocumentModel):
-            return TTSQueueOps.add_document(item)
-        elif isinstance(item, SentenceModel):
-            return TTSQueueOps.add_sentence(item)
-        elif isinstance(item, WordModel):
-            return TTSQueueOps.add_word(item)
-        return False
-
     @serialized_method
     def is_busy(self) -> bool:
         """Return True while synthesis tasks are running."""

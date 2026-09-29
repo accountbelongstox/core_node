@@ -1,11 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Inbox, RefreshCw, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
 import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
-import { useCmPageTitle } from '../components/public-home/useCmPageTitle';
+import { CM_ADMIN_ROUTE, cmAdminUserPath, cmRouteWithQuery } from '../components/public-home/cmPublicRoutes';
+import { CmNotice, type CmNoticeState } from '../components/workspace/CmStateViews';
+import {
+  cmFormatDate,
+  cmFormatDateTime,
+  cmFormatMoney,
+  cmFormatNumber,
+  cmFormatTime,
+  cmHumanize,
+} from '../components/workspace/cmWorkspaceFormat';
+import { useCmPagedList, type CmPagedList, type CmPagedSlice } from '../components/workspace/useCmPagedList';
 import {
   CM_ADMIN_FALLBACK_CURRENCY,
   CM_ADMIN_RESOURCE_STATE_GROUPS,
@@ -15,7 +25,6 @@ import {
   type CmAdminUserSummary,
 } from './CmAdminTypes';
 
-export type CmAdminNoticeState = { tone: 'success' | 'error'; text: string } | null;
 export type CmAdminReasonMode = 'none' | 'optional' | 'required';
 
 export interface CmAdminActionRequest {
@@ -26,19 +35,14 @@ export interface CmAdminActionRequest {
   reason?: CmAdminReasonMode;
   reasonLabel?: string;
   successKey: string;
+  successText?: (data: unknown) => string;
   run: (reason: string) => Promise<APIResponse<unknown>>;
 }
 
 type CmAdminFetcher<T> = (query: CmAdminQuery) => Promise<APIResponse<CmAdminPage<T>>>;
 
-const ADMIN_USER_PATH = '/codemart/admin/users';
-const ADMIN_ACTIVITY_PATH = '/codemart/admin/activity';
-const MONEY_FRACTION_DIGITS = 2;
-
-/** Readable fallback for server identifiers that have no translation yet. */
-export function cmAdminHumanize(value: string): string {
-  const text = value.replace(/[_-]+/g, ' ').trim();
-  return text ? text.charAt(0).toUpperCase() + text.slice(1) : value;
+function extractAdminPage<T>(data: CmAdminPage<T>): CmPagedSlice<T> {
+  return { items: data.items, totalPages: data.total_pages, total: data.total };
 }
 
 /** Locale-aware money, number and date formatting for the console. */
@@ -49,79 +53,26 @@ export function useCmAdminFormat() {
   const defaultCurrency = bootstrap?.vocabulary.policy.currency || CM_ADMIN_FALLBACK_CURRENCY;
 
   return useMemo(() => {
-    const money = (amount: string | number, currency?: string | null): string => {
-      const value = typeof amount === 'number' ? amount : Number(amount);
-      if (!Number.isFinite(value)) return String(amount);
-      try {
-        return new Intl.NumberFormat(language, {
-          style: 'currency',
-          currency: currency || defaultCurrency,
-          minimumFractionDigits: MONEY_FRACTION_DIGITS,
-          maximumFractionDigits: MONEY_FRACTION_DIGITS,
-        }).format(value);
-      } catch {
-        return new Intl.NumberFormat(language, { minimumFractionDigits: MONEY_FRACTION_DIGITS }).format(value);
-      }
-    };
-    const number = (value: number): string => new Intl.NumberFormat(language).format(value);
-    const date = (value: string, withTime: boolean): string | null => {
-      const parsed = new Date(value);
-      if (Number.isNaN(parsed.getTime())) return null;
-      return new Intl.DateTimeFormat(language, withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }).format(parsed);
-    };
-    const time = (value: string): string => {
-      const parsed = new Date(value);
-      return Number.isNaN(parsed.getTime()) ? '' : new Intl.DateTimeFormat(language, { timeStyle: 'short' }).format(parsed);
-    };
+    const money = (amount: string | number, currency?: string | null): string => cmFormatMoney(amount, currency || defaultCurrency, language);
+    const number = (value: number, maxFractionDigits?: number): string => cmFormatNumber(value, language, maxFractionDigits);
+    const date = (value: string, withTime: boolean, calendar = false): string => (
+      withTime ? cmFormatDateTime(value, language) : cmFormatDate(value, language, calendar)
+    );
+    const time = (value: string): string => cmFormatTime(value, language);
     return { language, money, number, date, time };
   }, [defaultCurrency, language]);
 }
 
-/** Paginated admin list with filter-driven page reset, stale-response guard and localized errors. */
-export function useCmAdminList<T>(fetcher: CmAdminFetcher<T>, filters: CmAdminQuery) {
-  const { t } = useTranslation('cm');
+/** Admin list on the shared paged-list hook: the filters feed each request and a filter change restarts at page 1. */
+export function useCmAdminList<T>(fetcher: CmAdminFetcher<T>, filters: CmAdminQuery): CmPagedList<T> {
   const filterKey = JSON.stringify(filters);
   const fetcherRef = useRef(fetcher);
-  const requestRef = useRef(0);
-  const [appliedKey, setAppliedKey] = useState(filterKey);
-  const [page, setPage] = useState(1);
-  const [items, setItems] = useState<T[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   fetcherRef.current = fetcher;
-  if (appliedKey !== filterKey) {
-    setAppliedKey(filterKey);
-    setPage(1);
-  }
-
-  const reload = useCallback(async (): Promise<void> => {
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
-    setLoading(true);
-    setError(null);
-    const response = await fetcherRef.current({ ...(JSON.parse(appliedKey) as CmAdminQuery), page });
-    if (requestId !== requestRef.current) return;
-    if (response.success && response.data) {
-      setItems(response.data.items);
-      setTotal(response.data.total);
-      setTotalPages(response.data.total_pages);
-    } else {
-      setItems([]);
-      setTotal(0);
-      setTotalPages(1);
-      setError(cmErrorMessage(t, response, 'admin.loadFailed'));
-    }
-    setLoading(false);
-  }, [appliedKey, page, t]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
-
-  return { items, total, totalPages, page, setPage, loading, error, reload };
+  const fetchPage = useCallback(
+    (page: number) => fetcherRef.current({ ...(JSON.parse(filterKey) as CmAdminQuery), page }),
+    [filterKey],
+  );
+  return useCmPagedList(fetchPage, extractAdminPage<T>, 'admin.loadFailed');
 }
 
 /** Initial filter value taken from the query string (used by overview counter links). */
@@ -134,7 +85,7 @@ export function useCmAdminParam(key: string, fallback = ''): string {
 export function useCmAdminAction(onDone: () => void | Promise<void>) {
   const { t } = useTranslation('cm');
   const [request, setRequest] = useState<CmAdminActionRequest | null>(null);
-  const [notice, setNotice] = useState<CmAdminNoticeState>(null);
+  const [notice, setNotice] = useState<CmNoticeState | null>(null);
 
   const close = useCallback(() => setRequest(null), []);
 
@@ -144,7 +95,7 @@ export function useCmAdminAction(onDone: () => void | Promise<void>) {
     if (!response.success) {
       return cmErrorMessage(t, response, 'admin.actionFailed');
     }
-    setNotice({ tone: 'success', text: t(request.successKey) });
+    setNotice({ tone: 'success', text: request.successText ? request.successText(response.data) : t(request.successKey) });
     setRequest(null);
     await onDone();
     return null;
@@ -208,7 +159,7 @@ const CmAdminDialog: React.FC<{
             <textarea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} autoFocus />
           </label>
         )}
-        {error && <p className="cm-admin-notice" data-tone="error">{error}</p>}
+        <CmNotice notice={error ? { tone: 'error', text: error } : null} />
         <div className="cm-admin-dialog__actions">
           <button type="button" className="cm-workspace-button" onClick={onCancel} disabled={busy}>
             {t('common.cancel')}
@@ -219,52 +170,6 @@ const CmAdminDialog: React.FC<{
         </div>
       </form>
     </div>
-  );
-};
-
-export const CmAdminNotice: React.FC<{ notice: CmAdminNoticeState; onDismiss?: () => void }> = ({ notice, onDismiss }) => {
-  const { t } = useTranslation('cm');
-  if (!notice) return null;
-  return (
-    <p className="cm-admin-notice" data-tone={notice.tone} role={notice.tone === 'error' ? 'alert' : 'status'}>
-      <span>{notice.text}</span>
-      {onDismiss && (
-        <button type="button" onClick={onDismiss} aria-label={t('admin.dismiss')}>×</button>
-      )}
-    </p>
-  );
-};
-
-/** Page heading with the purpose line; also owns the localized document title. */
-export const CmAdminPageHeader: React.FC<{
-  titleKey: string;
-  purposeKey: string;
-  title?: string;
-  onRefresh?: () => void;
-  children?: React.ReactNode;
-  aside?: React.ReactNode;
-}> = ({ titleKey, purposeKey, title, onRefresh, children, aside }) => {
-  const { t } = useTranslation('cm');
-  useCmPageTitle(titleKey, purposeKey);
-  return (
-    <header className="cm-admin-heading">
-      <div className="cm-admin-heading__text">
-        <span className="cm-admin-heading__eyebrow">{t('admin.badge')}</span>
-        <h1>{title ?? t(titleKey)}</h1>
-        <p>{t(purposeKey)}</p>
-        {(children || onRefresh) && (
-          <div className="cm-admin-heading__actions">
-            {children}
-            {onRefresh && (
-              <button type="button" className="cm-workspace-button" onClick={onRefresh}>
-                <RefreshCw aria-hidden="true" /> {t('common.refresh')}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-      {aside}
-    </header>
   );
 };
 
@@ -332,66 +237,6 @@ export const CmAdminSearch: React.FC<{
   );
 };
 
-export const CmAdminPager: React.FC<{
-  page: number;
-  totalPages: number;
-  total: number;
-  onPage: (page: number) => void;
-}> = ({ page, totalPages, total, onPage }) => {
-  const { t } = useTranslation('cm');
-  const format = useCmAdminFormat();
-  if (total === 0) return null;
-  return (
-    <nav className="cm-admin-pager" aria-label={t('admin.pager.label')}>
-      <span>{t('admin.pager.summary', { page: format.number(page), pages: format.number(totalPages), total: format.number(total) })}</span>
-      {totalPages > 1 && (
-        <div>
-          <button type="button" className="cm-workspace-button" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-            <ChevronLeft aria-hidden="true" /> {t('admin.pager.previous')}
-          </button>
-          <button type="button" className="cm-workspace-button" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>
-            {t('admin.pager.next')} <ChevronRight aria-hidden="true" />
-          </button>
-        </div>
-      )}
-    </nav>
-  );
-};
-
-/** Loading / error (with retry) / empty states shared by every admin list. */
-export const CmAdminListState: React.FC<{
-  loading: boolean;
-  error: string | null;
-  empty: boolean;
-  emptyKey: string;
-  onRetry?: () => void;
-  children: React.ReactNode;
-}> = ({ loading, error, empty, emptyKey, onRetry, children }) => {
-  const { t } = useTranslation('cm');
-  if (loading) return <p className="cm-admin-state" role="status">{t('common.loading')}</p>;
-  if (error) {
-    return (
-      <div className="cm-admin-state" data-tone="error" role="alert">
-        <p>{error}</p>
-        {onRetry && (
-          <button type="button" className="cm-workspace-button" onClick={onRetry}>
-            <RefreshCw aria-hidden="true" /> {t('admin.retry')}
-          </button>
-        )}
-      </div>
-    );
-  }
-  if (empty) {
-    return (
-      <div className="cm-admin-state">
-        <Inbox aria-hidden="true" />
-        <p>{t(emptyKey)}</p>
-      </div>
-    );
-  }
-  return <>{children}</>;
-};
-
 /** Table that scrolls horizontally inside its own card instead of widening the page. */
 export const CmAdminTable: React.FC<{ children: React.ReactNode; label?: string; actions?: boolean }> = ({ children, label, actions = false }) => (
   <div className="cm-admin-table" data-actions={actions || undefined} role="region" aria-label={label} tabIndex={0}>
@@ -399,20 +244,10 @@ export const CmAdminTable: React.FC<{ children: React.ReactNode; label?: string;
   </div>
 );
 
-export const CmAdminStatus: React.FC<{ status: string | null | undefined; group: string }> = ({ status, group }) => {
-  const { t } = useTranslation('cm');
-  if (!status) return <span>{t('common.unavailable')}</span>;
-  return (
-    <span className="cm-status" data-status={status}>
-      {t(`${group}.${status}`, { defaultValue: cmAdminHumanize(status) })}
-    </span>
-  );
-};
-
 export const CmAdminDate: React.FC<{ value: string | null | undefined; dateOnly?: boolean; stacked?: boolean }> = ({ value, dateOnly = false, stacked = false }) => {
   const { t } = useTranslation('cm');
   const format = useCmAdminFormat();
-  const text = value ? format.date(value, !dateOnly && !stacked) : null;
+  const text = value ? format.date(value, !dateOnly && !stacked, dateOnly) : '';
   if (!value || !text) return <>{t('common.unavailable')}</>;
   if (stacked && !dateOnly) {
     return (
@@ -442,7 +277,7 @@ export const CmAdminUserLink: React.FC<{
   if (!id) return <>{t(fallbackKey)}</>;
   const label = user?.username || user?.name || t('admin.userNumber', { id });
   return (
-    <Link className="cm-workspace-link cm-admin-user" to={`${ADMIN_USER_PATH}/${id}`} title={user?.name ?? undefined}>
+    <Link className="cm-workspace-link cm-admin-user" to={cmAdminUserPath(id)} title={user?.name ?? undefined}>
       {label}
     </Link>
   );
@@ -461,9 +296,9 @@ export const CmAdminKeyValues: React.FC<{ value: Record<string, unknown> | null 
   if (entries.length === 0) return <>{t('common.unavailable')}</>;
   const display = (key: string, entry: unknown): string => {
     if (MONEY_FIELDS.includes(key) && (typeof entry === 'string' || typeof entry === 'number')) return format.money(entry);
-    if (ROLE_FIELDS.includes(key) && typeof entry === 'string') return t(`roles.${entry}`, { defaultValue: cmAdminHumanize(entry) });
+    if (ROLE_FIELDS.includes(key) && typeof entry === 'string') return t(`roles.${entry}`, { defaultValue: cmHumanize(entry) });
     if (typeof entry === 'boolean') return t(entry ? 'admin.yes' : 'admin.no');
-    if (Array.isArray(entry)) return entry.map((item) => (typeof item === 'string' ? t(`admin.fields.${item}`, { defaultValue: cmAdminHumanize(item) }) : JSON.stringify(item))).join(', ');
+    if (Array.isArray(entry)) return entry.map((item) => (typeof item === 'string' ? t(`admin.fields.${item}`, { defaultValue: cmHumanize(item) }) : JSON.stringify(item))).join(', ');
     if (typeof entry === 'object') return JSON.stringify(entry);
     return String(entry);
   };
@@ -471,7 +306,7 @@ export const CmAdminKeyValues: React.FC<{ value: Record<string, unknown> | null 
     <dl className="cm-admin-kv">
       {entries.map(([key, entry]) => (
         <div key={key}>
-          <dt>{t(`admin.fields.${key}`, { defaultValue: cmAdminHumanize(key) })}</dt>
+          <dt>{t(`admin.fields.${key}`, { defaultValue: cmHumanize(key) })}</dt>
           <dd>{display(key, entry)}</dd>
         </div>
       ))}
@@ -485,7 +320,7 @@ export const CmAdminStateChange: React.FC<{ resourceType: string; from: string |
   const group = CM_ADMIN_RESOURCE_STATE_GROUPS[resourceType];
   const label = (state: string | null): string => {
     if (!state) return t('common.unavailable');
-    return group ? t(`${group}.${state}`, { defaultValue: cmAdminHumanize(state) }) : cmAdminHumanize(state);
+    return group ? t(`${group}.${state}`, { defaultValue: cmHumanize(state) }) : cmHumanize(state);
   };
   if (!from && !to) return <>{t('common.unavailable')}</>;
   return <span className="cm-admin-transition">{from ? `${label(from)} → ${label(to)}` : label(to)}</span>;
@@ -518,7 +353,7 @@ export const CmAdminActivityTable: React.FC<{
       <tbody>
         {rows.map((row) => {
           const resourceLabel = t('admin.activity.resourceLabel', {
-            type: t(`admin.activity.resources.${row.resource_type}`, { defaultValue: cmAdminHumanize(row.resource_type) }),
+            type: t(`admin.activity.resources.${row.resource_type}`, { defaultValue: cmHumanize(row.resource_type) }),
             id: row.resource_id,
           });
           return (
@@ -526,11 +361,11 @@ export const CmAdminActivityTable: React.FC<{
               <td className="cm-admin-nowrap"><CmAdminDate value={row.created_at} stacked /></td>
               {showActor && <td><CmAdminUserLink user={row.actor} userId={row.actor_id} fallbackKey="admin.system" /></td>}
               <td className="cm-admin-event">
-                <strong>{t(`admin.activity.actions.${row.action}`, { defaultValue: cmAdminHumanize(row.action) })}</strong>
+                <strong>{t(`admin.activity.actions.${row.action}`, { defaultValue: cmHumanize(row.action) })}</strong>
                 <small className="cm-admin-sub">
                   <Link
                     className="cm-workspace-link"
-                    to={`${ADMIN_ACTIVITY_PATH}?resource_type=${encodeURIComponent(row.resource_type)}&resource_id=${row.resource_id}`}
+                    to={cmRouteWithQuery(CM_ADMIN_ROUTE.activity, { resource_type: row.resource_type, resource_id: row.resource_id })}
                     onClick={() => onResource?.(row.resource_type, row.resource_id)}
                   >
                     {resourceLabel}

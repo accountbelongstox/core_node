@@ -1,0 +1,22 @@
+{
+  "task_id": "ncore-3",
+  "role": "ncore",
+  "verdict": "approved",
+  "findings": {
+    "NC-003": {"status": "fixed", "reason": "execPowerShell spawns the PowerShell executable directly with an argv (-NoProfile -NonInteractive -EncodedCommand <utf16le base64>) through runCommand; there is no cmd.exe string joining or quoting, so PowerShell 7 paths with spaces and commands containing double quotes work."},
+    "NC-004": {"status": "fixed", "reason": "runCommand returns {success, code, stdout, stderr} from the exit status, and execCmd returns '' on any non-zero exit (the failure-word heuristic is gone); package_manager checks exit status and the installed marker."},
+    "NC-012": {"status": "fixed", "reason": "package_manager.remove uses a per-manager remove command (pmanager_map) and returns false on failure; purge/autoremove/clean check results."},
+    "NC-017": {"status": "fixed", "reason": "winget.configureSource verifies the source list before persisting 'configured' and resets on failure (per the owner report; the diff follows the finding's fix)."},
+    "NC-018": {"status": "fixed", "reason": "Async results keep stderr as the error (no stdout overwrite)."},
+    "NC-019": {"status": "fixed", "reason": "edge-tts is spawned with an argv array and its success is checked, so text containing quotes, $(...) or %VAR% cannot break out."},
+    "NC-029": {"status": "fixed", "reason": "spawnAsync clears its idle timer on finish (close/error), so no callback fires after exit; pipeExecCmdAsync maps its arguments explicitly."},
+    "NC-031": {"status": "fixed", "reason": "VideoCompressor checks result.success and passes stderr (ffmpeg's progress stream) to the progress callback."},
+    "NC-032": {"status": "fixed", "reason": "No process.chdir remains in commander.js, cmder.js or porttool.js; options.cwd is used. The dead copies with chdir are left for ncore-6 deletion."}
+  },
+  "issues": [
+    "ncore/foundation/common/commander.js:271, :512 (non-blocking) execCmd and execPowerShell still join an array command with spaces into one shell string, so a caller that passes an argv array with a spaced path gets shell splitting. Route arrays to runCommand's argv form in execCmd, as runCommand already supports.",
+    "(pre-existing, not in scope) spawnAsync's handleYesNo answers 'Yes' to any y/n prompt it sees on stdout; worth a follow-up finding."
+  ],
+  "checks": "runCommand, execCmd, execPowerShell and spawnAsync read; package_manager/winget diffs read; grep for process.chdir in the exec layer; cmder.js is a thin adapter keeping its exported names.",
+  "checked_at": "2026-09-27T04:39:38+10:00"
+}

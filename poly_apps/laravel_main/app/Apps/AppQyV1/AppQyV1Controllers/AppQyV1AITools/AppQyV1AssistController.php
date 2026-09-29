@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Support\QueueCenterContract;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1PosterPriorityService;
@@ -39,6 +40,8 @@ use Illuminate\Support\Facades\Validator;
  */
 class AppQyV1AssistController extends Controller
 {
+    private const RESOURCE_KEY_LIBRARY = 'library:';
+
     private AppQyV1AssistService $assist;
     private AppQyV1PosterPriorityService $posterPriority;
 
@@ -291,10 +294,16 @@ class AppQyV1AssistController extends Controller
         try {
             $reset = $this->assist->retryFailedCovers($ids, $all);
             $boost = AppQyV1VocabularyLibraryModel::promotePendingCovers($ids, $all);
-            AppQyV1TranslationEventModel::emit('cover.priority', [
+            AppQyV1TranslationEventModel::emit(QueueCenterContract::realtimeEvent('cover_priority'), [
                 'batch' => true,
                 'count' => $boost['promoted'],
                 'ids' => $all ? [] : array_values($ids),
+                // Library covers are not global tasks: each head is keyed by
+                // its resource, "library:<id>".
+                'items' => $all ? [] : array_map(
+                    static fn ($id): array => ['resource_key' => self::RESOURCE_KEY_LIBRARY . (int) $id],
+                    array_values($ids)
+                ),
                 'all' => $all,
                 'priority' => $boost['priority'],
             ]);
@@ -327,10 +336,15 @@ class AppQyV1AssistController extends Controller
 
         $items = $request->input('items');
         $promoted = $this->posterPriority->promote($items);
-        AppQyV1TranslationEventModel::emit('poster.priority', [
+        AppQyV1TranslationEventModel::emit(QueueCenterContract::realtimeEvent('poster_priority'), [
             'batch' => true,
             'count' => $promoted,
-            'items' => $items,
+            // Posters are not global tasks: each head is keyed by its
+            // resource, "<media_type>:<id>".
+            'items' => array_map(
+                static fn (array $item): array => $item + ['resource_key' => $item['media_type'] . ':' . (int) $item['id']],
+                $items
+            ),
         ]);
         return response()->json(['success' => true, 'promoted' => $promoted]);
     }

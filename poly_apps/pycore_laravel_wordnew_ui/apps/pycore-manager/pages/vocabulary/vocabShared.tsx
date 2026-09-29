@@ -4,6 +4,7 @@
  * pycoreApi + local React state, matching PcWordAudioPage's style).
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, MinusCircle, Loader2, AlertCircle } from 'lucide-react';
 import { humanBytes as formatHumanBytes } from '../../utils/pcFormat';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
@@ -21,33 +22,29 @@ export const VOCAB_TABS = [
 export type VocabTabKey = (typeof VOCAB_TABS)[number]['key'];
 export const VOCAB_TAB_KEY = StorageKeys.PYCORE_VOCAB_TAB;
 
-/** Shared UI labels (en literals; zh kept as comments per page convention). */
+/** Shared UI label keys in the `pc` namespace. */
 export const VL = {
-  offline: 'pycore is offline - vocabulary data unavailable.',  // pycore 离线 - 词汇数据不可用。
-  laravelDown: 'Laravel backend unreachable - counts may be zero.',  // Laravel 后端不可达 - 计数可能为零。
-  refresh: 'Refresh',                                           // 刷新
-  loading: 'Loading…',                                         // 加载中…
-  empty: 'No data.',                                           // 暂无数据。
-  error: 'Failed to load.',                                    // 加载失败。
-  retry: 'Retry',                                              // 重试
-  search: 'Search',                                            // 搜索
-  language: 'Language',                                        // 语言
-  page: 'Page',                                                // 页码
-  perPage: 'Per page',                                         // 每页
-  total: 'Total',                                              // 共计
-  prev: 'Prev',                                                // 上一页
-  next: 'Next',                                                // 下一页
-  of: 'of',                                                    // /
-  actions: 'Actions',                                          // 操作
-  delete: 'Delete',                                            // 删除
-  edit: 'Edit',                                                // 编辑
-  save: 'Save',                                                // 保存
-  cancel: 'Cancel',                                            // 取消
-  close: 'Close',                                              // 关闭
-  confirmDelete: 'Delete this item? This cannot be undone.',   // 确认删除？此操作不可撤销。
-  yes: 'Yes',                                                  // 是
-  no: 'No',                                                    // 否
-};
+  offline: 'vocabularyPage.common.offline',
+  refresh: 'vocabularyPage.common.refresh',
+  loading: 'vocabularyPage.common.loading',
+  empty: 'vocabularyPage.common.empty',
+  error: 'vocabularyPage.common.error',
+  search: 'vocabularyPage.common.search',
+  language: 'vocabularyPage.common.language',
+  totalCount: 'vocabularyPage.common.totalCount',
+  range: 'vocabularyPage.common.range',
+  prev: 'vocabularyPage.common.prev',
+  next: 'vocabularyPage.common.next',
+  actions: 'vocabularyPage.common.actions',
+  delete: 'vocabularyPage.common.delete',
+  save: 'vocabularyPage.common.save',
+  cancel: 'vocabularyPage.common.cancel',
+  close: 'vocabularyPage.common.close',
+  confirmDelete: 'vocabularyPage.common.confirmDelete',
+  translationBadge: 'vocabularyPage.common.badges.translation',
+  audioBadge: 'vocabularyPage.common.badges.audio',
+  validBadge: 'vocabularyPage.common.badges.valid',
+} as const;
 
 export const OK_BADGE = 'bg-emerald-500/15 text-emerald-500';
 export const OFF_BADGE = 'bg-slate-500/15 text-slate-400';
@@ -155,10 +152,11 @@ function languageOptions(value: Record<string, unknown>): unknown[] {
 
 /** Spinner row. */
 export function VocabLoading({ label }: { label?: string }) {
+  const { t } = useTranslation('pc');
   return (
     <div className="flex items-center justify-center gap-2 py-10 text-slate-400">
       <Loader2 className="w-4 h-4 animate-spin" />
-      <span>{label || VL.loading}</span>
+      <span>{label || t(VL.loading)}</span>
     </div>
   );
 }

@@ -4,12 +4,13 @@ import { useTranslation } from '../../../../core/i18n/UiI18n';
 import { cmApi } from '../../api/CmApi';
 import type { CmProjectAnalysis, CmProjectDetail } from '../../api/CmApiTypes';
 import { cmErrorMessage } from '../../api/cmErrors';
+import { useCmIdempotencyKey } from '../../api/useCmIdempotencyKey';
+import { useCmBootstrap } from '../../contexts/CmBootstrapContext';
 import { CmErrorState, CmLoadingState, CmNotice, useCmNotice } from './CmStateViews';
 import { CmStatusBadge } from './CmStatusBadge';
 import { cmFormatNumber, useCmFormat } from './cmWorkspaceFormat';
 
 const ANALYSIS_POLL_MS = 4000;
-const ACTIVE_ANALYSIS_STATUSES = new Set(['pending', 'processing', 'revising']);
 const DRAFT_STATUS = 'draft';
 const PROPOSAL_REVIEW_STATUS = 'proposal_review';
 const COMPLETED_STATUS = 'completed';
@@ -33,6 +34,11 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const notice = useCmNotice();
+  const idempotency = useCmIdempotencyKey();
+  const { openStates } = useCmBootstrap();
+  const activeStates = openStates('analysis');
+  const activeStatesRef = useRef(activeStates);
+  activeStatesRef.current = activeStates;
   const [data, setData] = useState<CmProjectAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -41,36 +47,56 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   const [showRevision, setShowRevision] = useState(false);
   const pollTimer = useRef<number | null>(null);
   const wasActive = useRef(false);
+  const aliveRef = useRef(false);
+  const generationRef = useRef(0);
   const projectChangedRef = useRef(onProjectChanged);
   projectChangedRef.current = onProjectChanged;
+  const translate = useRef(t);
+  translate.current = t;
 
   const load = useCallback(async (): Promise<void> => {
+    const generation = generationRef.current;
+    const isCurrent = (): boolean => aliveRef.current && generation === generationRef.current;
+    if (!isCurrent()) return;
     const response = await cmApi.getProjectAnalysis(project.id);
+    if (!isCurrent()) return;
     setLoading(false);
     if (!response.success || !response.data) {
-      setLoadError(cmErrorMessage(t, response, 'analysis.loadFailed'));
+      setLoadError(cmErrorMessage(translate.current, response, 'analysis.loadFailed'));
       return;
     }
     setLoadError(null);
-    const active = ACTIVE_ANALYSIS_STATUSES.has(response.data.analysis?.status ?? '');
+    const active = activeStatesRef.current.includes(response.data.analysis?.status ?? '');
     setData(response.data);
     if (wasActive.current && !active) {
       await projectChangedRef.current();
+      if (!isCurrent()) return;
     }
     wasActive.current = active;
     if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
     pollTimer.current = active ? window.setTimeout(() => { void load(); }, ANALYSIS_POLL_MS) : null;
-  }, [project.id, t]);
+  }, [project.id]);
 
   useEffect(() => {
+    aliveRef.current = true;
     void load();
     return () => {
+      aliveRef.current = false;
+      generationRef.current += 1;
+      wasActive.current = false;
       if (pollTimer.current !== null) window.clearTimeout(pollTimer.current);
+      pollTimer.current = null;
     };
   }, [load]);
 
   const analysis = data?.analysis ?? null;
-  const active = ACTIVE_ANALYSIS_STATUSES.has(analysis?.status ?? '');
+  const analysisId = analysis?.analysis_id ?? null;
+
+  useEffect(() => {
+    idempotency.reset();
+  }, [analysisId, idempotency.reset]);
+
+  const active = activeStates.includes(analysis?.status ?? '');
   const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active;
   const canRevise = isOwner && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
   const revisionValid = revisionNotes.trim().length >= REVISION_MIN_LENGTH;
@@ -89,9 +115,10 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
     if (!analysis) return;
     setBusy(true);
     notice.clear();
-    const response = await cmApi.acceptAnalysis(analysis.analysis_id);
+    const response = await cmApi.acceptAnalysis(analysis.analysis_id, idempotency.current());
     setBusy(false);
     if (response.success) {
+      idempotency.reset();
       notice.success(t('analysis.acceptedWithAmount', { amount: format.money(response.data?.funding_amount ?? '', project.currency) }));
       await load();
       await onProjectChanged();

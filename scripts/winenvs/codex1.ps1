@@ -1,15 +1,3 @@
-# ### AI SPECIAL ATTENTION RULES START ###
-# When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
-# 1. Write all code in English only.
-# 2. Never execute, create, or modify test code.
-# 3. Never create or update documentation (*.md).
-# 4. Never write summaries during development or thinking process.
-# 5. Declare all variables at the beginning of the file.
-# 6. For PowerShell (*.ps1) scripts: Do not append strings directly to variables, Do not use relative paths such as "..\..\"; instead resolve absolute paths using parent path parsing (Split-Path, Join-Path, or Resolve-Path).
-# 7. Do not modify these rules.
-# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-# ### AI SPECIAL ATTENTION RULES END ###
-
 <#
 .SYNOPSIS
     Codex CLI Global File #1
@@ -39,20 +27,18 @@ Write-Host "Running: codex1.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-#region Upgrade Codex CLI (npm)
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Codex CLI - Upgrade Check" -ForegroundColor Yellow
-Write-Host "============================================================" -ForegroundColor Cyan
-$codexUpgradeChoice = Read-Host "Upgrade Codex CLI via 'npm install -g @openai/codex'? (y/N)"
-if ($codexUpgradeChoice -eq "y" -or $codexUpgradeChoice -eq "Y") {
-    Write-Host "[INFO] Running: npm install -g @openai/codex" -ForegroundColor Cyan
-    npm install -g "@openai/codex"
-    Write-Host "[SUCCESS] Codex CLI upgrade complete" -ForegroundColor Green
-} else {
-    Write-Host "[INFO] Skipping Codex CLI upgrade" -ForegroundColor Cyan
+#region AI CLI Provisioning (install if missing + idempotent upgrade prompt)
+$aiCliProvisionActualPath = $PSCommandPath
+$aiCliProvisionItem = Get-Item -LiteralPath $PSCommandPath
+$aiCliProvisionScriptsDir = $null
+$aiCliProvisionCommonPath = $null
+if ($aiCliProvisionItem -and $aiCliProvisionItem.LinkType) {
+    $aiCliProvisionActualPath = $aiCliProvisionItem.Target
 }
-Write-Host ""
+$aiCliProvisionScriptsDir = Split-Path (Split-Path $aiCliProvisionActualPath -Parent) -Parent
+$aiCliProvisionCommonPath = Join-Path $aiCliProvisionScriptsDir "shells\win\win_common\AiCliProvisionCommon.ps1"
+. $aiCliProvisionCommonPath
+Invoke-AiCliProvision -Tool "codex"
 #endregion
 
 
@@ -125,6 +111,11 @@ Write-Host ""
 $secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
 Write-Host "[DEBUG] Secret directory: $secretDir" -ForegroundColor DarkGray
 Write-Host "[DEBUG] Project root: $projectRootPath" -ForegroundColor DarkGray
+
+# Secret values are printed masked through the shared launcher helper.
+if (-not (Get-Command Get-AiCliMaskedSecret -ErrorAction SilentlyContinue)) {
+    . (Join-Path $projectRootPath "scripts\shells\win\win_common\AiCliProvisionCommon.ps1")
+}
 
 function Read-SecretFile {
     <#
@@ -216,7 +207,6 @@ function Get-SecretValue {
 
     if ($value) {
         Write-Host "[DEBUG] Returned value length: $($value.Length)" -ForegroundColor DarkGray
-        Write-Host "[DEBUG] Value: $value" -ForegroundColor DarkGray
     }
 
     return $value
@@ -224,7 +214,7 @@ function Get-SecretValue {
 
 $env:OPENAI_API_KEY = Get-SecretValue "OPENAI_API_KEY_1"
 if ($env:OPENAI_API_KEY) {
-    Write-Host "[SUCCESS] Loaded OPENAI_API_KEY = $($env:OPENAI_API_KEY)" -ForegroundColor Green
+    Write-Host "[SUCCESS] Loaded OPENAI_API_KEY = $(Get-AiCliMaskedSecret -Value $env:OPENAI_API_KEY)" -ForegroundColor Green
 } else {
     Write-Host "[WARNING] Failed to load OPENAI_API_KEY" -ForegroundColor Yellow
 }
@@ -246,10 +236,12 @@ if ($env:CODEX_MODEL) {
 
 
 #region Build Launch Command Display
+# Printed only (secrets masked). The tool runs as $fullCommand and inherits the
+# $env: values, so no value is ever put on a child command line.
 $envVarsParts = @()
 
 if ($env:OPENAI_API_KEY) {
-    $envVarsParts += "`$env:OPENAI_API_KEY='$($env:OPENAI_API_KEY)'"
+    $envVarsParts += "`$env:OPENAI_API_KEY='$(Get-AiCliMaskedSecret -Value $env:OPENAI_API_KEY)'"
 }
 
 if ($env:OPENAI_BASE_URL) {
@@ -261,6 +253,7 @@ if ($env:CODEX_MODEL) {
 }
 
 $envVarsCommand = $envVarsParts -join '; '
+$fullCommand = "codex --yolo"
 if ($envVarsCommand) {
     $fullCommandDisplay = "$envVarsCommand; codex --yolo"
 } else {
@@ -456,7 +449,7 @@ if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
     # Generate npx fallback command
     $envVarsPartsNpx = @()
     if ($env:OPENAI_API_KEY) {
-        $envVarsPartsNpx += "`$env:OPENAI_API_KEY='$($env:OPENAI_API_KEY)'"
+        $envVarsPartsNpx += "`$env:OPENAI_API_KEY='$(Get-AiCliMaskedSecret -Value $env:OPENAI_API_KEY)'"
     }
     if ($env:OPENAI_BASE_URL) {
         $envVarsPartsNpx += "`$env:OPENAI_BASE_URL='$($env:OPENAI_BASE_URL)'"
@@ -466,6 +459,7 @@ if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
     }
 
     $envVarsCommandNpx = $envVarsPartsNpx -join '; '
+    $fullCommand = "npx -y @openai/codex"
     if ($envVarsCommandNpx) {
         $fullCommandDisplay = "$envVarsCommandNpx; npx -y @openai/codex"
     } else {
@@ -482,7 +476,7 @@ Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Variable Summary" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "OPENAI_API_KEY = $env:OPENAI_API_KEY" -ForegroundColor Gray
+Write-Host "OPENAI_API_KEY = $(Get-AiCliMaskedSecret -Value $env:OPENAI_API_KEY)" -ForegroundColor Gray
 Write-Host "OPENAI_BASE_URL = $env:OPENAI_BASE_URL" -ForegroundColor Gray
 Write-Host "CODEX_MODEL = $env:CODEX_MODEL" -ForegroundColor Gray
 Write-Host "Codex home: $env:USERPROFILE\.codex" -ForegroundColor Gray
@@ -496,5 +490,5 @@ $null = Read-Host "Press Enter to continue"
 #region Launch Tool
 Write-Host ""
 Write-Host "Executing: codex --yolo" -ForegroundColor White
-powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommandDisplay
+powershell -NoProfile -ExecutionPolicy Bypass -Command $fullCommand
 #endregion

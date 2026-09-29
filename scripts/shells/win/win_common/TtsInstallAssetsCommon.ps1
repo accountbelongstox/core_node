@@ -160,7 +160,7 @@ function Ensure-SoxOnPath {
         return $true
     }
 
-    Write-Host ("{0} [!] SoX NOT on PATH — pysox (qwen-tts tokenizer) warns at import. Install: winget install ChrisBagwell.SoX" -f $Prefix) -ForegroundColor DarkYellow
+    Write-Host ("{0} [!] SoX NOT on PATH - pysox (qwen-tts tokenizer) warns at import. Install: winget install ChrisBagwell.SoX" -f $Prefix) -ForegroundColor DarkYellow
     return $false
 }
 
@@ -980,7 +980,7 @@ function Install-WhisperModelWeights {
 }
 
 # --------------------------------------------------------------------------- #
-# Generic isolated per-engine TTS venv (Bucket B) — GENERALISES Step61's proven #
+# Generic isolated per-engine TTS venv (Bucket B) - GENERALISES Step61's proven #
 # qwen3tts approach via pycore.pyutils.common.python_env.isolated_venv.         #
 # melotts + gptsovits pin a transformers that must NEVER touch the shared main  #
 # interpreter, so they run their api server inside a DEDICATED per-engine venv.  #

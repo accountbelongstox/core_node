@@ -1,10 +1,12 @@
 /** Composed Pycore Manager English locale. */
 import { pcEnCore } from './PcEnCore';
 import { pcEnFeatures } from './PcEnFeatures';
+import { pcEnPages } from './PcEnPages';
 
 export const pcEn = {
   ...pcEnCore,
   ...pcEnFeatures,
+  ...pcEnPages,
 } as const;
 
 type PcDeepStringify<T> = {

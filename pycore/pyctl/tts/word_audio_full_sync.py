@@ -17,10 +17,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.tts.audio_lane_full_sync import AudioLaneFullSync
-from pycore.pyutils.common.queue_center_contract import task_language_priority
-from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.tts.audio_queue_center import LOCAL_SOURCE_FULL_SYNC, build_local_task
 
 QUEUE_KEY = "word_audio"
@@ -40,30 +38,21 @@ class WordAudioFullSync(AudioLaneFullSync):
     DISABLED_CODE = "WORD_AUDIO_DISABLED"
     LOG_PREFIX = "[WordAudioFullSync]"
 
-    def _fetch_languages(self, base_url: str) -> List[Dict[str, Any]]:
-        """Language set: Laravel breakdown -> contract fallback -> english."""
-        try:
-            response = laravel_client.get(
-                _LANGUAGE_BREAKDOWN_PATH,
-                base_url=base_url,
-                timeout=self.REQUEST_TIMEOUT_SECONDS,
-            )
-            if response.status_code == 200:
-                payload = response.json()
-                data = payload.get("data") if isinstance(payload, dict) else None
-                rows = data.get("languages") if isinstance(data, dict) else None
-                if isinstance(rows, list) and rows:
-                    return [dict(row) for row in rows if isinstance(row, dict)]
-        except Exception as exc:  # noqa: BLE001 - fallback below
-            ColorPrint.yellow(
-                f"{self.LOG_PREFIX} language breakdown unavailable ({exc}); "
-                "using contract language list"
-            )
-        fallback = [
-            {"language": str(code), "language_code": str(code)}
-            for code in task_language_priority(QUEUE_KEY)
-        ]
-        return fallback or [{"language": "english", "language_code": "en"}]
+    def _fetch_languages(self, base_url: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Language set from the Laravel breakdown. A failed breakdown fails
+        the pull (retried on the next activation); it never falls back to a
+        guessed language set (the contract has no word_audio tiers)."""
+        response = laravel_client.get(
+            _LANGUAGE_BREAKDOWN_PATH,
+            base_url=base_url,
+            timeout=self.REQUEST_TIMEOUT_SECONDS,
+        )
+        if response.status_code != 200:
+            return [], laravel_failure(status_code=response.status_code)
+        payload = response.json()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        rows = data.get("languages") if isinstance(data, dict) else None
+        return [dict(row) for row in (rows if isinstance(rows, list) else []) if isinstance(row, dict)], {}
 
     def _page_request(self, language: Dict[str, Any], cursor: int) -> Tuple[str, Dict[str, Any]]:
         # The listing resolves dictionary language NAMES (breakdown rows).
@@ -87,7 +76,8 @@ class WordAudioFullSync(AudioLaneFullSync):
             word,
             LOCAL_SOURCE_MARKER,
             base_url=base_url,
-            extra_payload={"md5": md5, "dict_row_id": int(row_id)},
+            extra_payload={"dict_row_id": int(row_id)},
+            md5=md5,
         )
 
 

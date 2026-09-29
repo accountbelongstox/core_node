@@ -26,6 +26,10 @@ _LARAVEL_SENTENCE_WORDS = "/api/app_qy_v1/learning/sentence-words"
 _CLIENT_KEY = "audio_orchestration"
 _REQUEST_TIMEOUT = orch_store.ORCH_REQUEST_TIMEOUT
 _WORD_RE = re.compile(r"[^\W\d_]+(?:['\u2019][^\W\d_]+)*", re.UNICODE)
+# Han / Kana / Hangul runs have no spaces between words: a regex run is a whole
+# clause, never a dictionary word. Those words come from the Laravel
+# sentence-words resolver (server-side segmentation) only.
+_CJK_RE = re.compile("[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]")
 _WORD_STATE_BATCH_SIZE = 300
 
 
@@ -61,13 +65,18 @@ def prepare_word_states(task, sentences, auth_record, cancel_requested=None, pro
         progress_callback(len(words), len(words))
 
 
+def has_cjk(text: str) -> bool:
+    return bool(_CJK_RE.search(str(text or "")))
+
+
 def tokenize(sentence: str) -> List[str]:
-    """Unique alphabetic tokens of one sentence, lower-cased, order kept."""
+    """Unique alphabetic tokens of one sentence, lower-cased, order kept.
+    CJK runs are skipped (not segmentable locally)."""
     seen = set()
     words: List[str] = []
     for match in _WORD_RE.finditer(str(sentence or "")):
         word = match.group(0).strip("'-").lower()
-        if not word or word in seen:
+        if not word or word in seen or has_cjk(word):
             continue
         seen.add(word)
         words.append(word)
@@ -160,10 +169,10 @@ def select_words(
     prepared = auth_record is not None and "word_states" in auth_record
     states = (auth_record or {}).get("word_states")
     rows = None
-    if use_backend and word_mode == "new_only":
-        if prepared and isinstance(states, dict):
+    if use_backend and (word_mode == "new_only" or has_cjk(sentence)):
+        if prepared and isinstance(states, dict) and not has_cjk(sentence):
             rows = [states.get(word, {"word": word, "group_read_count": 0}) for word in tokenize(sentence)]
-        elif not prepared:
+        elif not prepared or has_cjk(sentence):
             rows = resolve_sentence_words(sentence, language, target_language, max_read_count, auth_record, task.get("word_group_id"))
     if rows is not None:
         words: List[str] = []
@@ -194,4 +203,4 @@ def select_words(
     return {"words": words, "source": "local"}
 
 
-__all__ = ["tokenize", "resolve_sentence_words", "select_words"]
+__all__ = ["has_cjk", "tokenize", "resolve_sentence_words", "select_words"]

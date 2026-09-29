@@ -1,13 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
-
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
@@ -232,10 +223,10 @@ class AppQyV1ArticleController extends Controller
                 ],
                 'sentences' => $generateSentenceAudio ? $sentencesData : [],
                 'words' => $generateWordAudio ? $wordsData : [],
-            ], 'Article saved successfully. TTS generation in progress.');
+            ], __('app_qy_v1.messages.article_saved_successfully_tts_generation_in_progress'));
 
         } catch (\Throwable $e) {
-            return $this->error('Failed to save article: ' . $e->getMessage(), 500);
+            return $this->error(__('app_qy_v1.messages.failed_to_save_article') . $e->getMessage(), 500);
         }
     }
 
@@ -261,12 +252,12 @@ class AppQyV1ArticleController extends Controller
         $task = GlobalTask::findByTaskId($taskId);
 
         if (!$task) {
-            return $this->notFound('Task not found');
+            return $this->notFound(__('app_qy_v1.messages.task_not_found'));
         }
 
         $article = AppQyV1Article::findByTaskId($taskId);
         if (!$article) {
-            return $this->error('Article data not found', 404);
+            return $this->error(__('app_qy_v1.messages.article_data_not_found'), 404);
         }
         $metadata = is_array($article->metadata) ? $article->metadata : [];
 
@@ -289,7 +280,7 @@ class AppQyV1ArticleController extends Controller
             $responseData['audio_url'] = $metadata['audio_url'] ?? null;
         }
 
-        return $this->success($responseData, 'Task status retrieved successfully');
+        return $this->success($responseData, __('app_qy_v1.messages.task_status_retrieved_successfully'));
     }
 
     /**
@@ -351,7 +342,7 @@ class AppQyV1ArticleController extends Controller
             'total_sentences' => $parsedResult['total_sentences'],
             'total_words' => $parsedResult['total_words'],
             'unique_words' => $parsedResult['unique_words'],
-        ], 'Article parsed successfully');
+        ], __('app_qy_v1.messages.article_parsed_successfully'));
     }
 
     /**
@@ -388,7 +379,7 @@ class AppQyV1ArticleController extends Controller
         return $this->success([
             'mapped' => $mapped,
             'failed' => $failed,
-        ], 'Article library backfill completed');
+        ], __('app_qy_v1.messages.article_library_backfill_completed'));
     }
 
     /**
@@ -520,10 +511,10 @@ class AppQyV1ArticleController extends Controller
             $data = (new AppQyV1DailySentenceService())->list($limit, $offset);
             $data['article_type'] = 'short';
             $data['deprecated_notice'] = 'Short sentences live under article/list?type=short; /daily-sentences/list is deprecated.';
-            return $this->success($data, 'Short articles (daily sentences)');
+            return $this->success($data, __('app_qy_v1.messages.short_articles_daily_sentences'));
         }
 
-        return $this->error('Unsupported article list type. Use type=short.', 400, [
+        return $this->error(__('app_qy_v1.messages.unsupported_article_list_type_use_type_short'), 400, [
             'supported_types' => ['short'],
         ]);
     }
@@ -548,7 +539,7 @@ class AppQyV1ArticleController extends Controller
             ], 'Short article recommendation');
         }
 
-        return $this->error('Unsupported article recommend type. Use type=short.', 400, [
+        return $this->error(__('app_qy_v1.messages.unsupported_article_recommend_type_use_type_short'), 400, [
             'supported_types' => ['short'],
         ]);
     }
@@ -563,7 +554,7 @@ class AppQyV1ArticleController extends Controller
     {
         $path = (new AppQyV1DailySentenceService())->audioFile($id);
         if (!is_file($path)) {
-            return $this->notFound('Audio not found');
+            return $this->notFound(__('app_qy_v1.messages.audio_not_found'));
         }
         return response()->file($path, [
             'Content-Type' => 'audio/mpeg',
@@ -656,7 +647,7 @@ class AppQyV1ArticleController extends Controller
         return $this->success([
             'items' => $data['items'],
             'total' => $data['total'],
-        ], 'Recent daily-reading articles');
+        ], __('app_qy_v1.messages.recent_daily_reading_articles'));
     }
 
 }

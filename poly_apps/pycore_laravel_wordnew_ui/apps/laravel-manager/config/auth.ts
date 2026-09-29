@@ -5,6 +5,8 @@
  * - Server Manager (SERVER_MANAGER)
  * - Settings (SETTINGS)
  * - Database Manager (DATABASE_MANAGER) — absorbed the former Database Viewer
+ * - AI Management (AI_MANAGEMENT) — every local/ai route is dashboard.auth admin
+ * - Task Center (TASK_CENTER) — its task/worker/queue reads need the operator login
  *
  * NOTE: a loopback DEBUG bypass (setDebugAuthBypass / isDebugAuthBypass) can
  * globally treat the user as authenticated; see below.
@@ -34,7 +36,9 @@ export const REQUIRE_LOGIN_VIEWS: ViewType[] = [
   ViewType.SERVER_MANAGER,
   ViewType.MEDIA_BROWSER,
   ViewType.SETTINGS,
-  ViewType.DATABASE_MANAGER
+  ViewType.DATABASE_MANAGER,
+  ViewType.AI_MANAGEMENT,
+  ViewType.TASK_CENTER
 ];
 
 /**

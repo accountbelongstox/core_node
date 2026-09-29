@@ -2,6 +2,7 @@
 
 namespace App\Services\AiGateway;
 
+use App\Utils\FileSystemManager;
 use App\Providers\PathMapper;
 
 /**
@@ -237,10 +238,7 @@ class AiPromptCache
         if (!is_dir($dir)) {
             @mkdir($dir, 0775, true);
         }
-        $tmp = $path . '.tmp.' . getmypid();
-        if (@file_put_contents($tmp, json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)) !== false) {
-            @rename($tmp, $path);
-        }
+        FileSystemManager::writeFileAtomic($path, (string) json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
 
     /** Serialize read-modify-write across Octane workers via an flock'd lock file. */

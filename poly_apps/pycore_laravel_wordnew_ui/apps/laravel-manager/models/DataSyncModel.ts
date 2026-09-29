@@ -16,6 +16,8 @@ import {
   LARAVEL_API_PREFIX,
 } from '../../../core/integrations/laravel/transport/ApiContract';
 import { getSharedAuthToken } from '../../../core/integrations/laravel/transport/BaseAPI';
+import { requestGlobalLogin } from '../../../core/integrations/laravel/transport/LoginRequestBridge';
+import { LARAVEL_API_BACKEND_PORT } from '../../../core/contracts/ServiceContract';
 import { StorageManager } from '../../../core/persistence';
 
 const WORKSPACE_TIMEOUT_MS = 5000;
@@ -24,7 +26,10 @@ export const DATA_SYNC_PROTOCOL_MISMATCH_ERROR = 'DATA_SYNC_PROTOCOL_VERSION_MIS
 export const DATA_SYNC_PEER_UNREACHABLE_ERROR = 'DATA_SYNC_PEER_UNREACHABLE';
 export const DATA_SYNC_MAX_MANAGED_ENDPOINTS = 2;
 export const DATA_SYNC_SAME_NODE_ERROR = 'DATA_SYNC_SAME_NODE';
-const DATA_SYNC_DEFAULT_PORT = 9000;
+/** Forward probe skipped: a LAN new server is reached by pull only. */
+export const DATA_SYNC_LAN_PULL_ONLY = 'DATA_SYNC_LAN_PULL_ONLY';
+const EXPLICIT_SCHEME_PATTERN = /^https?:\/\//i;
+const EXPLICIT_PORT_PATTERN = /^(?:\[[^\]]*\]|[^/:]*):\d+/;
 
 export interface DataSyncManagedEndpoint {
   id: string;
@@ -230,30 +235,28 @@ export class DataSyncModel {
   /**
    * Resolve the typed new-server address to a managed endpoint when it
    * matches one, otherwise to an ad-hoc node (kept for this browser session
-   * so its sessions join the workspace once authenticated).
+   * so its sessions join the workspace once authenticated). Nodes are told
+   * apart by scheme://host:port; a bare host (no scheme, no port) matches the
+   * only registry node on that host.
    */
   resolveNewServer(input: string): DataSyncManagedEndpoint | null {
     const trimmed = input.trim();
     if (trimmed === '') return null;
 
-    const byAddress = this.endpoints().find((endpoint) =>
-      endpoint.syncTarget === trimmed || endpoint.baseUrl === trimmed);
-    if (byAddress) return byAddress;
-
-    const host = trimmed.replace(/^https?:\/\//i, '').split(/[:/]/)[0]?.toLowerCase() ?? '';
-    const byHost = host !== ''
-      ? this.endpoints().find((endpoint) => {
-        try {
-          return new URL(endpoint.baseUrl).hostname.toLowerCase() === host;
-        } catch {
-          return false;
-        }
-      }) ?? null
-      : null;
-    if (byHost) return byHost;
-
+    const endpoints = this.endpoints();
     const baseUrl = this.normalizeAdhocAddress(trimmed);
+    const byAddress = endpoints.find((endpoint) =>
+      endpoint.syncTarget === trimmed
+      || endpoint.baseUrl === trimmed
+      || (baseUrl !== null && this.normalizeAdhocAddress(endpoint.syncTarget) === baseUrl));
+    if (byAddress) return byAddress;
     if (baseUrl === null) return null;
+
+    if (!EXPLICIT_SCHEME_PATTERN.test(trimmed) && !EXPLICIT_PORT_PATTERN.test(trimmed)) {
+      const host = new URL(baseUrl).hostname;
+      const onHost = endpoints.filter((endpoint) => this.hostnameOf(endpoint.baseUrl) === host);
+      if (onHost.length === 1) return onHost[0];
+    }
 
     const existing = this.adhocEndpoints.get(baseUrl);
     if (existing) return existing;
@@ -309,7 +312,7 @@ export class DataSyncModel {
         forward: {
           target: newServer.syncTarget,
           reachable: false,
-          error: 'LAN address: the old server is not probed; the new server downloads directly.',
+          error: DATA_SYNC_LAN_PULL_ONLY,
         },
         backward: null,
       };
@@ -419,10 +422,23 @@ export class DataSyncModel {
     return saved && typeof saved === 'object' ? { ...saved } : {};
   }
 
-  private authHeaderFor(endpoint: DataSyncManagedEndpoint): string | null {
-    const peerAuth = this.peerAuth(endpoint.id);
+  /** "Current" is read per request: the header endpoint can change while a client is cached. */
+  private isCurrentEndpoint(endpointId: string): boolean {
+    return apiManager.getCurrentEndpoint()?.id === endpointId;
+  }
+
+  private authHeaderFor(endpointId: string): string | null {
+    const peerAuth = this.peerAuth(endpointId);
     if (peerAuth) return `Bearer ${peerAuth.token}`;
-    return endpoint.current ? getSharedAuthToken() : null;
+    return this.isCurrentEndpoint(endpointId) ? getSharedAuthToken() : null;
+  }
+
+  private hostnameOf(address: string): string {
+    try {
+      return new URL(address).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
   }
 
   /**
@@ -430,7 +446,7 @@ export class DataSyncModel {
    * port; an explicit scheme without a port uses that scheme's standard port.
    */
   private normalizeAdhocAddress(input: string): string | null {
-    const explicitScheme = /^https?:\/\//i.test(input);
+    const explicitScheme = EXPLICIT_SCHEME_PATTERN.test(input);
     const candidate = explicitScheme ? input : `http://${input}`;
 
     try {
@@ -441,9 +457,9 @@ export class DataSyncModel {
       const protocol = parsed.protocol === 'https:' ? 'https' : 'http';
       const port = parsed.port !== ''
         ? Number(parsed.port)
-        : (explicitScheme ? (protocol === 'https' ? 443 : 80) : DATA_SYNC_DEFAULT_PORT);
+        : (explicitScheme ? (protocol === 'https' ? 443 : 80) : LARAVEL_API_BACKEND_PORT);
       if (!Number.isInteger(port) || port < 1 || port > 65535) return null;
-      const host = parsed.hostname.includes(':') ? `[${parsed.hostname}]` : parsed.hostname;
+      const host = parsed.hostname.includes(':') && !parsed.hostname.startsWith('[') ? `[${parsed.hostname}]` : parsed.hostname;
       return `${protocol}://${host}:${port}`;
     } catch {
       return null;
@@ -458,7 +474,9 @@ export class DataSyncModel {
   }
 
   private client(endpoint: DataSyncManagedEndpoint): DatabaseManagerAPI {
-    const cached = this.clients.get(endpoint.id);
+    const endpointId = endpoint.id;
+    const cacheKey = `${endpointId}\n${endpoint.baseUrl}`;
+    const cached = this.clients.get(cacheKey);
     if (cached) return cached;
 
     const client = new DatabaseManagerAPI({
@@ -467,12 +485,14 @@ export class DataSyncModel {
         endpoint.baseUrl,
         WORKSPACE_TIMEOUT_MS,
       ),
-      authToken: () => this.authHeaderFor(endpoint),
+      authToken: () => this.authHeaderFor(endpointId),
       // Remote nodes own a separate login state: their 401s open the
       // endpoint-scoped peer login, never the shared login modal.
-      onUnauthorized: endpoint.current ? undefined : () => undefined,
+      onUnauthorized: () => {
+        if (this.isCurrentEndpoint(endpointId)) requestGlobalLogin();
+      },
     });
-    this.clients.set(endpoint.id, client);
+    this.clients.set(cacheKey, client);
     return client;
   }
 

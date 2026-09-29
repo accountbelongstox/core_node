@@ -8,6 +8,7 @@ Supports directory browsing and file downloading with resume capability
 import os
 import sys
 import socket
+import platform
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn

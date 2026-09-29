@@ -38,7 +38,7 @@ export {
 // Super-admin gateway (loopback local-management mode) — separate from the
 // http/mock pair on purpose: pinned page-origin base, only alive when the
 // backend grants the loopback debug bypass. See WfNewAdminApi header.
-export { wfNewAdminApi, wfNewAdminCoverTaskModel } from './WfNewAdminApi';
+export { wfNewAdminApi, wfNewAdminCoverTaskModel, adminErrorText } from './WfNewAdminApi';
 export type {
   WfNewSuperAdminStatus, WfNewAdminWordRow, WfNewAdminWordsPage,
   WfNewAdminWordFilter, WfNewAdminWordSort, WfNewAdminWordEditable,

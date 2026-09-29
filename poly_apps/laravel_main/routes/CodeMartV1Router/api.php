@@ -1,12 +1,4 @@
 <?php
-// ### AI SPECIAL ATTENTION RULES START ###
-// When AI sees this, MUST comply:
-// 1. Write all code in English only.
-// 2. After writing code, STOP - do NOT compile, run, test, start the server, or otherwise verify. Delivering the written code is the entire task. Never execute, create, or modify test code.
-// 3. Do NOT create or update docs (*.md), or write progress/summary notes inside source files.
-// 4. Do not modify these rules.
-// VIOLATION IS PROHIBITED.
-// ### AI SPECIAL ATTENTION RULES END ###
 
 use Illuminate\Support\Facades\Route;
 use App\Apps\CodeMartV1\CodeMartV1Controllers\CodeMartV1AdminCtl;
@@ -54,6 +46,9 @@ Route::prefix('codemart/v1')->name('codemart.')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/bootstrap', [CodeMartV1BootstrapCtl::class, 'bootstrap'])->name('bootstrap');
 
+        Route::post('/auth/resend-verification-email', [CodeMartV1RegistrationCtl::class, 'resendVerificationEmail'])
+            ->middleware(CodeMartV1Constants::THROTTLE_EMAIL_RESEND)
+            ->name('resend-verification-email');
         Route::post('/auth/request-phone-verification', [CodeMartV1RegistrationCtl::class, 'requestPhoneVerification'])->name('request-phone-verification');
         Route::post('/auth/verify-phone-otp', [CodeMartV1RegistrationCtl::class, 'verifyPhoneOtp'])->name('verify-phone-otp');
         Route::post('/auth/upload-kyc-documents', [CodeMartV1RegistrationCtl::class, 'uploadKycDocuments'])->name('upload-kyc-documents');
@@ -116,6 +111,7 @@ Route::prefix('codemart/v1')->name('codemart.')->group(function () {
             Route::get('/payments', [CodeMartV1AdminFinanceCtl::class, 'payments'])->name('payments');
             Route::post('/payments/{paymentId}/resolve-dispute', [CodeMartV1AdminFinanceCtl::class, 'resolveDispute'])->name('payment-resolve-dispute');
             Route::get('/escrows', [CodeMartV1AdminFinanceCtl::class, 'escrows'])->name('escrows');
+            Route::post('/escrows/{escrowId}/refund', [CodeMartV1AdminFinanceCtl::class, 'refundEscrow'])->name('escrow-refund');
             Route::get('/projects', [CodeMartV1AdminCtl::class, 'projects'])->name('projects');
         });
 

@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
+from pycore.pyfoundations.serialized_worker import SerializedValue, SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
 import pycore.pyutils.tts.sherpa_engine as sherpa_engine
@@ -32,6 +32,8 @@ _MODEL_QUEUE = "tts.kokoro.model"
 _MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, "KokoroTTSModelThread")
 _MODEL_WORKER.start()
 _tts: Any = None
+# Readable without entering the model queue (never waits behind a synthesis).
+_MODEL_LOADED = SerializedValue(False, "KokoroTTSModelLoadedStateThread")
 
 
 def model_dir() -> Path:
@@ -68,6 +70,7 @@ def _get_tts() -> Any:
         return None
     try:
         _tts = sherpa.OfflineTts(config)
+        _MODEL_LOADED.set(True)
         ColorPrint.green(f"[kokoro-tts] loaded model from {root}")
         return _tts
     except Exception as e:
@@ -106,17 +109,14 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
     )
 
 
-def _is_model_loaded() -> bool:
-    return _tts is not None
-
-
 def is_model_loaded() -> bool:
-    return call_serialized(_MODEL_QUEUE, _is_model_loaded)
+    return bool(_MODEL_LOADED.get())
 
 
 def _unload_model() -> None:
     global _tts
     _tts = None
+    _MODEL_LOADED.set(False)
 
 
 def unload_model() -> None:

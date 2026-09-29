@@ -1,4 +1,4 @@
-import { NativeMessageType } from 'chrome-mcp-shared';
+import { NativeMessageType, type ClientKeySignResult } from 'chrome-mcp-shared';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import {
   NATIVE_HOST,
@@ -11,10 +11,25 @@ import {
 import { handleCallTool } from './tools';
 import { TimeoutController } from '@/utils/async';
 import { toErrorMessage } from '@/utils/errors';
+import { respondAsync } from '@/utils/runtime-message';
 import { localStorage } from '@/services/ExtensionStorage';
+import {
+  registerClientKeySignTransport,
+  requestClientKeySignature,
+} from '@/services/LaravelTransport';
+
+interface PendingNativeRequest {
+  resolve: (payload: unknown) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
 
 let nativePort: chrome.runtime.Port | null = null;
 export const HOST_NAME = NATIVE_HOST.NAME;
+// Extension -> host requests (client-key signing) answered by responseToRequestId.
+const NATIVE_REQUEST_TIMEOUT_MS = 5000;
+const pendingNativeRequests = new Map<string, PendingNativeRequest>();
+const nativePortWaiters = new Set<() => void>();
 
 // ---------------------------------------------------------------------------
 // Connection recovery (auto-reconnect + watchdog)
@@ -51,6 +66,57 @@ function postNativeMessage(connection: chrome.runtime.Port, message: unknown): b
     connection.disconnect();
     return false;
   }
+}
+
+function rejectPendingNativeRequests(reason: string): void {
+  for (const pending of pendingNativeRequests.values()) {
+    clearTimeout(pending.timer);
+    pending.reject(new Error(reason));
+  }
+  pendingNativeRequests.clear();
+}
+
+function resolvePendingNativeRequest(message: any): boolean {
+  const pending = message?.responseToRequestId
+    ? pendingNativeRequests.get(message.responseToRequestId)
+    : undefined;
+  if (!pending) return false;
+  clearTimeout(pending.timer);
+  pendingNativeRequests.delete(message.responseToRequestId);
+  pending.resolve(message.payload);
+  return true;
+}
+
+/** The current port, or the one connected within `timeoutMs` (startup race). */
+function waitForNativePort(timeoutMs: number): Promise<chrome.runtime.Port | null> {
+  if (nativePort || userDisconnected) return Promise.resolve(nativePort);
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      nativePortWaiters.delete(done);
+      resolve(nativePort);
+    };
+    const timer = setTimeout(done, timeoutMs);
+    nativePortWaiters.add(done);
+  });
+}
+
+async function requestNativeHost<T>(type: string, payload: unknown): Promise<T> {
+  const connection = await waitForNativePort(NATIVE_REQUEST_TIMEOUT_MS);
+  if (!connection) throw new Error(ERROR_MESSAGES.NATIVE_DISCONNECTED);
+  const requestId = crypto.randomUUID();
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingNativeRequests.delete(requestId);
+      reject(new Error(`${ERROR_MESSAGES.NATIVE_REQUEST_TIMEOUT}: ${type}`));
+    }, NATIVE_REQUEST_TIMEOUT_MS);
+    pendingNativeRequests.set(requestId, { resolve: resolve as (value: unknown) => void, reject, timer });
+    if (!postNativeMessage(connection, { type, requestId, payload })) {
+      clearTimeout(timer);
+      pendingNativeRequests.delete(requestId);
+      reject(new Error(ERROR_MESSAGES.NATIVE_DISCONNECTED));
+    }
+  });
 }
 
 /**
@@ -173,6 +239,7 @@ function createServerStatusResponse() {
 function releaseNativeConnection(connection: chrome.runtime.Port, reconnect: boolean): void {
   if (nativePort !== connection) return;
   nativePort = null;
+  rejectPendingNativeRequests(ERROR_MESSAGES.NATIVE_DISCONNECTED);
   currentServerStatus = {
     ...currentServerStatus,
     isRunning: false,
@@ -218,9 +285,11 @@ export function connectNativeHost(
     const connection = chrome.runtime.connectNative(HOST_NAME);
     connectionForCleanup = connection;
     nativePort = connection;
+    for (const notify of [...nativePortWaiters]) notify();
 
     connection.onMessage.addListener(async (message) => {
       if (nativePort !== connection) return;
+      if (resolvePendingNativeRequest(message)) return;
       // chrome.notifications.create({
       //   type: NOTIFICATIONS.TYPE,
       //   iconUrl: chrome.runtime.getURL(ICONS.NOTIFICATION),
@@ -364,6 +433,10 @@ export function connectNativeHost(
  * Initialize native host listeners and load initial state
  */
 export const initNativeHostListener = () => {
+  registerClientKeySignTransport((request) =>
+    requestNativeHost<ClientKeySignResult>(NativeMessageType.SIGN_CLIENT_REQUEST, request),
+  );
+
   Promise.all([loadServerStatus(), shouldAutoConnect()])
     .then(([status, autoConnect]) => {
       currentServerStatus = { ...status, isRunning: false, lastUpdated: Date.now() };
@@ -408,7 +481,7 @@ export const initNativeHostListener = () => {
     connectNativeHost(port);
   });
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === NativeMessageType.CONNECT_NATIVE) {
       const port =
         typeof message === 'object' && message.port ? message.port : NATIVE_HOST.DEFAULT_PORT;
@@ -417,6 +490,20 @@ export const initNativeHostListener = () => {
       const success = connectNativeHost(port, forceReconnect);
       sendResponse({ success, port });
       return true;
+    }
+
+    if (message.type === BACKGROUND_MESSAGE_TYPES.CLIENT_KEY_SIGN) {
+      // Only extension pages (popup, offscreen) relay; never content or injected tab scripts.
+      if (sender.id !== chrome.runtime.id || sender.tab) {
+        sendResponse({ ok: false });
+        return true;
+      }
+      return respondAsync(
+        sendResponse,
+        requestClientKeySignature(message.payload),
+        undefined,
+        (error) => ({ ok: false, error: toErrorMessage(error) }),
+      );
     }
 
     if (message.type === NativeMessageType.PING_NATIVE) {

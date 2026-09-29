@@ -1,0 +1,15 @@
+{
+  "task_id": "laravel-manager-5",
+  "role": "laravel-manager",
+  "verdict": "approved",
+  "findings": {
+    "FU-024": {"status": "fixed", "reason": "lm part: common.cancel/login/retry/refresh/network_error and mediaHub.loginRequired are added, plus the 17 missing zh keys. zh is now typed as LmTranslationDict (the en key tree with string leaves), so a missing zh key is a type error, the same rule cm and pc use. A rough leaf count shows parity (Operations 788 = 788, Core 777 = 777)."},
+    "FU-042": {"status": "fixed", "reason": "lm part: DatabaseManager.tsx and ServerManager.tsx move every UI literal to db_manager.* / server.* keys (Trans with named components for the bold sentences); every '|| English' fallback and every English defaultValue (MediaHub) is removed; DatabaseManagerAPI throws DatabaseManagerApiError(serverMessage, status) with no English fallback, so the UI shows its localized text; VoiceSubtitleManager's undefined messages.networkError becomes common.network_error. A heuristic scan finds only technical tokens left (JSON option, null cell, the 'delete' confirmation word)."}
+  },
+  "issues": [
+    "Not covered by this verdict (laravel-manager-6 / route table): the new api/LmBaseAPI.ts (401/403 AUTH_FORBIDDEN mapped to lm i18n), DatabaseManagerAPI/AuthDebugAPI now extending it, and the WordAudioAPI.ts and config/auth.ts edits.",
+    "(note) The BaseAPI.setSharedBaseURL hunk that removes the implicit persistSharedBaseURL call (FU-027 support) is checked and correct; it is recorded in pycore-manager-4."
+  ],
+  "checks": "Diffs of the locale files, LmTranslations.ts, DatabaseManagerAPI.ts, MediaHub.tsx and VoiceSubtitleManager.tsx read; literal scan of DatabaseManager.tsx and ServerManager.tsx; the laravel-manager-2/-4 hunks in the same files were approved earlier.",
+  "checked_at": "2026-09-27T04:23:14+10:00"
+}

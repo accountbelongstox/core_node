@@ -1,11 +1,11 @@
-import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LmBaseAPI } from '../LmBaseAPI';
 import { APIResponse } from '../../types';
 
 /**
  * ItToolsV1 API Module
  * IT developer tools API - 100+ tools
  */
-export class ItToolsV1API extends BaseAPI {
+export class ItToolsV1API extends LmBaseAPI {
   // ========== Unified API ==========
   // Backend (ItToolsV1UnifiedCtl) requires `text` (not `input`).
   async encode(data: { type: string; text: string }): Promise<APIResponse> {

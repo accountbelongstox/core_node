@@ -1,0 +1,11 @@
+{
+  "task_id": "wordnew-5",
+  "role": "wordnew",
+  "verdict": "approved",
+  "findings": {
+    "pre-existing runtime errors (orchestrator-assigned)": {"status": "fixed", "reason": "The undeclared names that would throw ReferenceError now import the single existing definitions (EARTH_RADIUS_M/DEG2RAD exported from CapGeolocationCore; connectionGlyph/describeConnectionType from CapNetworkCore; applyQuery from CapDatabase; CapDbBackendKind as a type-only import, so there is no runtime cycle). WfNewBookReader passes all PlayBar props: sentence stepping through the engine, page stepping that continues playback, progressText (reader.progress) and todayCount from the new readToday/markReadToday with the WORDNEW_READING_TODAY storage key, with new keys in 4 locales. The two private localDateKey copies are one export in WordNewTimeFormat. WfNewBottomDock takes WordNewTab (type-only)."}
+  },
+  "issues": [],
+  "checks": "Diffs read; import graph of CapDatabase/CapDatabaseBackends/CapAutoStore checked for value cycles; the owner's tsc reports 0 errors under apps/wordnew and core/network/api-client.",
+  "checked_at": "2026-09-27T04:24:01+10:00"
+}

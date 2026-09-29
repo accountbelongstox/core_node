@@ -1,7 +1,14 @@
+import { CM_APP_VERSION } from './cmFlavor';
+
+const ANDROID_DOWNLOAD_URL = CM_APP_VERSION ? `/downloads/codemart/codemart-${CM_APP_VERSION}-release.apk` : '';
+const IOS_DOWNLOAD_URL = 'https://apps.apple.com/app/codemart';
+const PROBE_TIMEOUT_MS = 6000;
+const HTML_CONTENT_TYPE = 'text/html';
+
 /**
  * Central CodeMart mobile-app download metadata. Update the URLs here when a
  * new artifact is published; the download page and every entry point read
- * from this single source. Version tracks flavors/codemart/flavor.json.
+ * from this single source. The version comes from flavors/codemart/flavor.json.
  */
 export type CmAppPlatform = 'android' | 'ios';
 
@@ -17,14 +24,14 @@ export interface CmAppDownload {
 export const CM_APP_DOWNLOADS: Record<CmAppPlatform, CmAppDownload> = {
   android: {
     platform: 'android',
-    version: '1.0.0',
-    url: '/downloads/codemart/codemart-1.0.0-release.apk',
+    version: CM_APP_VERSION,
+    url: ANDROID_DOWNLOAD_URL,
     minOsKey: 'downloadPage.androidMinOs',
   },
   ios: {
     platform: 'ios',
-    version: '1.0.0',
-    url: 'https://apps.apple.com/app/codemart',
+    version: CM_APP_VERSION,
+    url: IOS_DOWNLOAD_URL,
     minOsKey: 'downloadPage.iosMinOs',
   },
 };
@@ -38,9 +45,6 @@ export function detectMobilePlatform(): CmAppPlatform | null {
   if (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1) return 'ios';
   return null;
 }
-
-const PROBE_TIMEOUT_MS = 6000;
-const HTML_CONTENT_TYPE = 'text/html';
 
 /**
  * HEAD-probe a download artifact. Same-origin URLs must answer OK with a

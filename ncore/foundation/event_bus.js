@@ -11,7 +11,7 @@
  * - Pre-defined event types
  *
  * Usage:
- *   const { EventBus, EventTypes } = require('#@foundation/event_bus');
+ *   const { EventBus, EventTypes } = require('#@foundation/event_bus.js');
  *   const bus = EventBus.instance();
  *
  *   bus.subscribe(EventTypes.DEVICE_CONNECTED, (event) => {
