@@ -14,8 +14,11 @@
 #     (session_env, kickoffs), read through claude_team_common.sh.
 #       claudeteam [claude args...]
 #           Standalone lead: session_env.all + session_env.lead
-#           (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1).
+#           (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1). On a server profile device
+#           it runs the server role, the same as --device-slot 1.
 #       claudeteam --agent <role> [--name <session>] [claude args...]
+#           Outside a team pane the session is <device>-<role>-<abbr> unless --name
+#           is given, and --remote-control is added (or the manual line printed).
 #           Role session: session_env.all (+ .lead for the orchestrator, which also
 #           gets --teammate-mode team.teammate_mode_linux; .remote instead of .all
 #           for a role with a catalog remote block). Every other role has the
@@ -75,6 +78,8 @@ deviceSlot=""
 deviceProfile=""
 deviceRole=""
 deviceRemoteHint=""
+remoteControlName=""
+passthroughHasRemoteControl="0"
 claudeDeviceProfileCommonPath=""
 claudeSettingsPresetPath=""
 sharedConfigHome=""
@@ -172,6 +177,10 @@ while [ "$#" -gt 0 ]; do
             effortGiven="1"
             passthrough_args+=("$argument")
             ;;
+        --remote-control|--remote-control=*|--rc)
+            passthroughHasRemoteControl="1"
+            passthrough_args+=("$argument")
+            ;;
         *) passthrough_args+=("$argument") ;;
     esac
     shift
@@ -188,6 +197,15 @@ if claude_team_load_catalog >/dev/null 2>&1; then
     catalogLoaded="1"
 fi
 
+# Plain claudeteam (no role, no slot, no team pane) on a server: run the
+# server profile role, the same as py passing --device-slot 1.
+if [ -z "$deviceSlot" ] && [ -z "$teamMode" ] && [ -z "$agentName" ]; then
+    . "$claudeDeviceProfileCommonPath"
+    if [ "$(claude_device_profile)" = "server" ]; then
+        deviceSlot="1"
+    fi
+fi
+
 # Cross-device slot: resolve the role and session name for this device.
 if [ -n "$deviceSlot" ]; then
     . "$claudeDeviceProfileCommonPath"
@@ -198,7 +216,15 @@ if [ -n "$deviceSlot" ]; then
         agentName="$deviceRole"
         sessionName="$(claude_device_session_name "$deviceRole")"
         passthrough_args=(--agent "$agentName" --name "$sessionName" "${passthrough_args[@]}")
+        remoteControlName="$sessionName"
     fi
+elif [ -z "$teamMode" ] && [ -n "$agentName" ]; then
+    . "$claudeDeviceProfileCommonPath"
+    if [ -z "$sessionName" ]; then
+        sessionName="$(claude_device_session_name "$agentName")"
+        passthrough_args=(--name "$sessionName" "${passthrough_args[@]}")
+    fi
+    remoteControlName="$sessionName"
 fi
 
 # Role pane: the PID file first (this shell keeps the PID while claude runs as
@@ -236,11 +262,11 @@ if [ -n "$deviceSlot" ] && [ -z "$deviceRole" ]; then
     claude_team_restore_shared_owner
     exit $claudeExitCode
 fi
-if [ -n "$deviceRole" ]; then
+if [ -n "$remoteControlName" ] && [ "$passthroughHasRemoteControl" = "0" ]; then
     if claude_device_remote_control_supported; then
-        passthrough_args+=(--remote-control "$sessionName")
+        passthrough_args+=(--remote-control "$remoteControlName")
     else
-        deviceRemoteHint="[ACTION] Remote Control cannot be added at launch: type /remote-control $sessionName in this session"
+        deviceRemoteHint="[ACTION] Remote Control cannot be added at launch: type /remote-control $remoteControlName in this session"
     fi
 fi
 

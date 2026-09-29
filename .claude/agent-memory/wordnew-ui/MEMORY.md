@@ -1,1 +1,0 @@
-- [Windows tooling pitfalls](windows-tooling-pitfalls.md) — bun lint needs typescript/bin/tsc; Edit normalizes mixed EOLs; count CR with perl/tr, not MSYS grep/awk

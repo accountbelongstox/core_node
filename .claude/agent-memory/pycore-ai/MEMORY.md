@@ -1,3 +1,0 @@
-- [Line endings](feedback_line_endings.md) — keep per-line CRLF/LF in pycore; reviewer rejects EOL churn; how to verify and restore
-- [pycore pitfalls](project_pycore_pitfalls.md) — serialized-call guard deadlock, engine-test settings via ContextVar, contract-owned policies, static check recipe
-- [Requirement clauses](feedback_requirement_clauses.md) — implement every named clause literally (e.g. a specific error/rejection code), not just a fix that resolves today's probe

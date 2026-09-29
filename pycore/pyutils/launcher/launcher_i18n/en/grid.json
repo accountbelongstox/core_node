@@ -17,6 +17,6 @@
   "launcher.grid.startup_cells": "  [{first}-{last}] {command}",
   "launcher.grid.startup_cell": "  [{cell}] {command}",
   "launcher.grid.startup_rest": "  [{cell}+] plain shell",
-  "launcher.grid.menu_cross_device": "  [4] - Cross-Device Launch (grid cells run claudeteam --device-slot <n>)",
+  "launcher.grid.menu_cross_device": "  [1] - Cross-Device Launch (grid cells run claudeteam --device-slot <n>)",
   "launcher.grid.mode_cross_device": "\n[Launcher] Mode: Cross-Device (claudeteam resolves device, profile and roles)"
 }

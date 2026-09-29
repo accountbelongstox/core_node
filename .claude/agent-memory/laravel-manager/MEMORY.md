@@ -1,3 +1,0 @@
-- [LM i18n conventions](lm-i18n-conventions.md) — two t() styles, zh typed against en, no English fallbacks
-- [LM static checks](lm-static-checks.md) — compiler-API noEmit type check; Edit tool EOL pitfall on CRLF/mixed files
-- [LM transport and auth](lm-transport-auth.md) — modules extend LmBaseAPI; BaseAPI retry/coalescing rules; dashboard.auth levels

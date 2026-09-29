@@ -1,3 +1,0 @@
-- [CRLF / mixed line endings](crlf-mixed-line-endings.md) — check EOL before scripted edits; Python text mode converts CRLF to LF
-- [UI static type check](ui-static-typecheck.md) — tsc --noEmit in the UI root is write-free; diff against a baseline
-- [wordnew i18n and session scope](wordnew-i18n-session-scope.md) — non-React translate via translateActive; per-session data scope is scopeFor(token)

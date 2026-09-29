@@ -1,3 +1,0 @@
-- [Central formatting + Laravel dates](laravel-date-serialization.md) — date-only fields arrive as UTC-midnight ISO; all formatting via cmWorkspaceFormat.ts
-- [Task board fallback](team-task-board-fallback.md) — no task tools: codemart-<n> list atop my report, ids to lead; TASKS.md is lead-only
-- [Preserve line endings](preserve-line-endings.md) — api/index.ts is CRLF; python write_text converts to LF; check CRLF counts vs HEAD

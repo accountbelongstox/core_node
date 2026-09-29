@@ -21,7 +21,7 @@ Related: `FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` (Tails
 
 | Area | Files |
 |---|---|
-| Launcher menu `[4]` / `--mode device` (i18n en/zh) | `pycore/pyutils/launcher/launcher.py`, `grid_profile.py` (`enable_cross_device_mode`, cells 1–8 → `claudeteam --device-slot <n>`), `launcher_i18n/{en,zh}/grid.json` |
+| Launcher menu `[1]` / `--mode device` (i18n en/zh) | `pycore/pyutils/launcher/launcher.py`, `grid_profile.py` (`enable_cross_device_mode`, cells 1–8 → `claudeteam --device-slot <n>`), `launcher_i18n/{en,zh}/grid.json` |
 | Device profile helpers | `scripts/shells/linux/common/claude_device_profile_common.sh`, `scripts/shells/win/win_common/ClaudeDeviceProfileCommon.ps1` (Tailscale name/IP via existing Tailscale libs; GPU via `gpu_hardware_present` / PCI `VEN_10DE`; server = no `graphical.target` and no `DISPLAY`/`WAYLAND_DISPLAY`) |
 | `--device-slot` | `scripts/linuxenvs/claudeteam.sh`, `scripts/winenvs/claudeteam.ps1` |
 | Profiles | `config/claude_team_roles.json` `device_profiles` (`{os}` = windows/linux) |
