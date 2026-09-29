@@ -43,6 +43,7 @@ $ErrorActionPreference = "Stop"
 
 $scriptPath = $null
 $scriptsDirPath = $null
+$projectRootPath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $aiCliProvisionCommonScript = $null
@@ -80,6 +81,7 @@ if ([string]::IsNullOrWhiteSpace($scriptPath)) {
     $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
 $scriptsDirPath = Split-Path $scriptPath -Parent
+$projectRootPath = Split-Path $scriptsDirPath -Parent
 $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
@@ -261,6 +263,9 @@ try {
         # auto-update re-triggers the version-gated onboarding/login screens in
         # each window. Upgrades stay manual through the provisioning step.
         $env:DISABLE_AUTOUPDATER = "1"
+        # Project agents (.claude/agents) and CLAUDE.md resolve from the working
+        # directory, so claude always starts in the core_node root.
+        Set-Location -LiteralPath $projectRootPath
         & claude @claudeArgs
         $exitCode = $LASTEXITCODE
         if ($null -eq $exitCode) {

@@ -107,6 +107,7 @@ if [ -L "$scriptSource" ]; then
 fi
 scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
+projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
 claudeTeamCommonPath="$scriptsDirPath/shells/linux/common/claude_team_common.sh"
 aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
 claudeDeviceProfileCommonPath="$scriptsDirPath/shells/linux/common/claude_device_profile_common.sh"
@@ -330,6 +331,10 @@ if [ -n "$deviceRemoteHint" ]; then
 fi
 echo "============================================================"
 echo ""
+
+# Project agents (.claude/agents) and CLAUDE.md resolve from the working
+# directory, so claude always starts in the core_node root.
+cd "$projectRootPath" || exit 1
 
 # Wrap (not exec) so the shared-dir repair below runs after claude exits. The
 # PID file written for team panes still matches: this shell stays alive exactly
