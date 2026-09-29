@@ -1,6 +1,6 @@
 ---
 name: pycore-laravel
-description: pycore group: Laravel side of pycore — the machine routes pycore/mcp-chrome/flutter call, relay, the APIs the pycore UI apps call, and the Laravel foundation (bootstrap, config, middleware, shared services, initializers, timers, AI gateway, client key auth, unassigned apps).
+description: "pycore group: Laravel side of pycore — the machine routes pycore/mcp-chrome/flutter call, relay, the APIs the pycore UI apps call, and the Laravel foundation (bootstrap, config, middleware, shared services, initializers, timers, AI gateway, client key auth, unassigned apps)."
 model: sonnet
 effort: high
 memory: project

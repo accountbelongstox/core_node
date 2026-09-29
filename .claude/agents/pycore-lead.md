@@ -1,6 +1,6 @@
 ---
 name: pycore-lead
-description: pycore/pyservice full-stack lead and developer: owns pycore entry points, launcher and foundations, and handles complex work spanning pycore, Laravel relay APIs, UI, prerequisites and model initialization.
+description: "pycore/pyservice full-stack lead and developer: owns pycore entry points, launcher and foundations, and handles complex work spanning pycore, Laravel relay APIs, UI, prerequisites and model initialization."
 model: sonnet
 effort: high
 memory: project

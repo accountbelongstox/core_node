@@ -1,6 +1,6 @@
 ---
 name: flutter
-description: Flutter developer for poly_apps/flutter_bloom (qyflutter multi-app workspace: Android, iOS, mobile Web).
+description: "Flutter developer for poly_apps/flutter_bloom (qyflutter multi-app workspace: Android, iOS, mobile Web)."
 model: sonnet
 effort: high
 memory: project

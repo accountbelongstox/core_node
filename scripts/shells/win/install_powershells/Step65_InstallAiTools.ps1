@@ -55,6 +55,8 @@ $step21Path = Join-Path $installPowerShellsDir "Step21_InstallApplications.ps1"
 $pathFunctionPath = Join-Path $winCommonDir "WindowsPathFunction.ps1"
 $ai65LogPrefix = "ai_tools_install"
 $ai65NodeToolchainCommands = @("node", "npm")
+# Step-only installers already run in this invocation (bun/pi/omp share Step41).
+$ai65StepOnlyResults = @{}
 $ai65LogFile = $null
 $ai65LatestLog = $null
 $mcpChromeStartPath = $null
@@ -223,15 +225,20 @@ function Invoke-Ai65PathHygiene {
 function Invoke-Ai65EnsureStepOnlyGroup {
     param([string]$StepFileName)
     $stepPath = Join-Path $installPowerShellsDir $StepFileName
+    if ($ai65StepOnlyResults.ContainsKey($StepFileName)) {
+        Write-Ai65Log "[SKIP] $StepFileName already ran in this invocation." "Success"
+        return $ai65StepOnlyResults[$StepFileName]
+    }
     if (-not (Test-Path -LiteralPath $stepPath)) {
         Write-Ai65Log "Step-only installer not found: $stepPath" "Error"
         return $false
     }
     Write-Ai65Log "Running $StepFileName (installs bun + pi + omp together) ..."
-    try { & $stepPath; return $true } catch {
+    try { & $stepPath; $ai65StepOnlyResults[$StepFileName] = $true } catch {
         Write-Ai65Log "$StepFileName reported errors: $($_.Exception.Message)" "Warning"
-        return $false
+        $ai65StepOnlyResults[$StepFileName] = $false
     }
+    return $ai65StepOnlyResults[$StepFileName]
 }
 
 function Invoke-Ai65EnsureTool {

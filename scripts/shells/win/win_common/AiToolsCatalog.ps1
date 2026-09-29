@@ -141,7 +141,8 @@ $Global:AiToolsCatalog = @{
     }
     cursor_agent = @{
         Name = "Cursor Agent"
-        Exec = "agent.exe"
+        # The official installer (cursor.com/install?win32=true) creates cmd shims.
+        Exec = "cursor-agent.cmd"
         WindowsPackageKey = "CursorAgent"
         PnpmFallbackPackage = ""
         StepOnly = $null

@@ -1,6 +1,6 @@
 ---
 name: laravel
-description: Laravel foundation developer for poly_apps/laravel_main: owns bootstrap, config, middleware, shared services, initializers, timers/scheduler, AI gateway, client-key auth and unassigned Laravel apps.
+description: "Laravel foundation developer for poly_apps/laravel_main: owns bootstrap, config, middleware, shared services, initializers, timers/scheduler, AI gateway, client-key auth and unassigned Laravel apps."
 model: sonnet
 effort: high
 memory: project

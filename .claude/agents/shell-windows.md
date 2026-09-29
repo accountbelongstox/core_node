@@ -1,6 +1,6 @@
 ---
 name: shell-windows
-description: Windows shell/installer developer: dd.cmd/dd.ps1 steps, scripts/winenvs, scripts/shells/win, every PowerShell/cmd script under scripts/, Windows installers (winget/scoop), WSL2 bootstrap and Windows-side delegation into Debian WSL2, desktop icon manager, Windows claude team launchers and Invoke-ClaudeTeamInstall. Keeps every feature aligned with shell-linux.
+description: "Windows shell/installer developer: dd.cmd/dd.ps1 steps, scripts/winenvs, scripts/shells/win, every PowerShell/cmd script under scripts/, Windows installers (winget/scoop), WSL2 bootstrap and Windows-side delegation into Debian WSL2, desktop icon manager, Windows claude team launchers and Invoke-ClaudeTeamInstall. Keeps every feature aligned with shell-linux."
 model: sonnet
 effort: high
 memory: project

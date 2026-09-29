@@ -1,6 +1,6 @@
 ---
 name: ui-vortex
-description: UI developer for the Vortex Sandbox sub-app of the pycore UI (apps/vortex: crypto trading sandbox, OKX account/backtest/quant panels).
+description: "UI developer for the Vortex Sandbox sub-app of the pycore UI (apps/vortex: crypto trading sandbox, OKX account/backtest/quant panels)."
 model: sonnet
 effort: high
 memory: project

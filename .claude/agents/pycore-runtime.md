@@ -1,6 +1,6 @@
 ---
 name: pycore-runtime
-description: pycore group: the pyservice backend (local state, cache, DB, RPC K7, relay, CodeSync with K3, queue center, audio-orchestration state, the one delivery layer to Laravel, agent history, terminal/desktop/browser/MCP/device areas, pyapps) and pyservice prerequisite scripts.
+description: "pycore group: the pyservice backend (local state, cache, DB, RPC K7, relay, CodeSync with K3, queue center, audio-orchestration state, the one delivery layer to Laravel, agent history, terminal/desktop/browser/MCP/device areas, pyapps) and pyservice prerequisite scripts."
 model: sonnet
 effort: high
 memory: project
