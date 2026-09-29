@@ -306,7 +306,7 @@ function Write-ClientKeyEncryptNotice {
         if ($baseName -ne $keyName) {
             continue
         }
-        Write-Host "[SECRET_CLIENT_KEY] Encrypting the shared client key $keyName: sync already_encrypted\$keyName.js to every host, decrypt it there and restart the Laravel workers and pyservice" -ForegroundColor Yellow
+        Write-Host "[SECRET_CLIENT_KEY] Encrypting the shared client key ${keyName}: sync already_encrypted\$keyName.js to every host, decrypt it there and restart the Laravel workers and pyservice" -ForegroundColor Yellow
         return
     }
 }
@@ -352,7 +352,7 @@ function Invoke-ClientKeyRegenerateOffer {
     }
     Write-Host "[SECRET_CLIENT_KEY] $keyName cannot be decrypted with this password" -ForegroundColor Red
     Write-Host "[SECRET_CLIENT_KEY] Regenerating replaces the shared key: every other host must sync the new encrypted copy, decrypt it and restart the Laravel workers and pyservice" -ForegroundColor Yellow
-    $answer = Read-Host "Regenerate $keyName and encrypt it now? [y/N]"
+    $answer = Read-Host "Regenerate $keyName and encrypt it now (replaces already_encrypted\$keyName.js)? [y/N]"
     if ($answer -notmatch '^[Yy]') {
         return
     }
@@ -430,20 +430,18 @@ function Invoke-ClientKeyAfterDecrypt {
     Idempotently leave a valid shared client key in the raw dir
 
 .DESCRIPTION
-    Invalid raw key -> removed. Encrypted copy without raw key -> asks for the password
-    (interactive console only) and decrypts it; after the last wrong attempt, offers to
-    regenerate the key. No copy anywhere -> generated. The value is never printed; the
-    non-secret key id is.
+    Invalid raw key -> removed. Encrypted copy without raw key -> asks for the password once
+    (interactive console only) and decrypts it through the shared decrypt path; a wrong
+    password at once offers to regenerate the key and encrypt-replace its .js. No copy anywhere -> generated. The value is never printed;
+    the non-secret key id is.
 #>
 function Initialize-ClientKeyReady {
     $dirs = Get-SecretDirectories
-    $maxAttempts = 3
-    $attempt = 0
     $keyState = $null
     $encryptedFile = ""
     $password = ""
+    $decryptResult = $null
     $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
-    $stopTrying = $false
 
     Remove-InvalidClientKeySecret
     $keyState = Get-ClientKeyState
@@ -452,32 +450,20 @@ function Initialize-ClientKeyReady {
         if (-not $interactive) {
             Write-Host "[SECRET_CLIENT_KEY] $($keyState.Name) is encrypted but not decrypted; run dd.cmd in a console to decrypt it" -ForegroundColor Yellow
         } else {
-            if (-not (Test-Path -LiteralPath $dirs.RAW_DIR)) {
-                New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
-            }
-            while ($attempt -lt $maxAttempts) {
-                $attempt++
-                $password = Read-SecretPassword -Label ("[SECRET_CLIENT_KEY] {0} decrypt ({1}/{2})" -f $keyState.Name, $attempt, $maxAttempts)
-                if ([string]::IsNullOrEmpty($password)) {
-                    $stopTrying = $true
-                    break
+            $password = Read-SecretPassword -Label ("[SECRET_CLIENT_KEY] {0} decrypt" -f $keyState.Name)
+            if (-not [string]::IsNullOrEmpty($password)) {
+                if (-not (Test-Path -LiteralPath $dirs.RAW_DIR)) {
+                    New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
                 }
-                Invoke-SecretCryptoBatch -Password $password -Command decrypt -ArgumentList @($dirs.RAW_DIR, "--force", $encryptedFile) | Out-Null
+                $decryptResult = Invoke-SecretCryptoBatch -Password $password -Command decrypt -ArgumentList @($dirs.RAW_DIR, "--force", $encryptedFile)
                 $keyState = Get-ClientKeyState
                 if ($keyState.State -eq "valid") {
                     (Get-Item -LiteralPath $keyState.RawFile).LastWriteTime = (Get-Item -LiteralPath $encryptedFile).LastWriteTime
                     Protect-SecretFile -Path $keyState.RawFile
                     Write-Host "[SECRET_CLIENT_KEY] Decrypted $($keyState.Name)" -ForegroundColor Green
-                    $password = $null
-                    $stopTrying = $true
-                    break
+                } else {
+                    Invoke-ClientKeyAfterDecrypt -Result $decryptResult -Password $password
                 }
-                Write-Host "[SECRET_CLIENT_KEY] Wrong password for $($keyState.Name)" -ForegroundColor Red
-            }
-            if (-not $stopTrying) {
-                # All attempts were wrong (never empty, never valid): offer to regenerate,
-                # reusing the last-entered password as the suggested new one.
-                Invoke-ClientKeyRegenerateOffer -Password $password
             }
             $password = $null
         }

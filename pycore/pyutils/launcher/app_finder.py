@@ -35,7 +35,7 @@ class AppFinder:
     # candidate chain (first executable hit wins):
     #   1. Shell central constants: the numbered install scripts under
     #      scripts/shells/linux persist resolved paths into the shared gvar store
-    #      (e.g. 51_install_chrome.sh writes CHROME_BIN / CHROME_INSTALL_DIR);
+    #      (e.g. 41_install_browsers.sh writes CHROME_BIN / CHROME_INSTALL_DIR);
     #      gvar_keys are exact binary paths, gvar_dir_keys are install dirs that
     #      are probed with the app's binary names.
     #   2. Derived central install dir: <compile_dir>/applications/<app_subdir>
@@ -71,9 +71,9 @@ class AppFinder:
         'cursor': {
             'binaries': ['cursor'],
             'app_subdir': 'cursor',
-            # 155_install_cursor.sh: AppRun under the extracted AppImage tree.
+            # 155_install_ides.sh: AppRun under the extracted AppImage tree.
             'subdir_binary': 'extracted/squashfs-root/AppRun',
-            # The PATH wrapper (155_install_cursor.sh) adds --no-sandbox, the
+            # The PATH wrapper (155_install_ides.sh) adds --no-sandbox, the
             # browser bridge and IME env, all REQUIRED for Electron-as-root;
             # the raw AppRun aborts as root. Non-root callers keep the AppRun
             # path (the wrapper self-elevates via pkexec and is filtered out by

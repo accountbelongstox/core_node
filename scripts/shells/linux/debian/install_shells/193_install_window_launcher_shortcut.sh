@@ -33,7 +33,7 @@
 # re-spawn, which sanitizes the environment - can miss the session IM variables, so
 # the spawned terminal cannot type Chinese. The helper restores any unset
 # GTK_IM_MODULE/QT_IM_MODULE/XMODIFIERS/SDL_IM_MODULE/CLUTTER_IM_MODULE/INPUT_METHOD
-# from /etc/environment (written by 173_install_chinese_wubi.sh via im-config) and
+# from /etc/environment (written by 10_install_chinese_wubi.sh via im-config) and
 # derives DBUS_SESSION_BUS_ADDRESS from XDG_RUNTIME_DIR, then re-injects them
 # through the pkexec env(1) list.
 # Root terminals (the pkexec path) get XIM instead of the dbus modules: the user
@@ -193,7 +193,7 @@ IM_VAR=""
 IM_VALUE=""
 # Input-method variables a desktop-icon click or pkexec re-spawn may be missing;
 # restored from /etc/environment (the im-config backstop written by
-# 173_install_chinese_wubi.sh) so fcitx5/ibus (e.g. wubi) works in the terminal.
+# 10_install_chinese_wubi.sh) so fcitx5/ibus (e.g. wubi) works in the terminal.
 IM_VARS=(GTK_IM_MODULE QT_IM_MODULE XMODIFIERS SDL_IM_MODULE CLUTTER_IM_MODULE INPUT_METHOD)
 
 ensure_im_environment() {

@@ -3,8 +3,9 @@
 # dd.sh, 175_laravel_main_start.sh and pyservice. Idempotent:
 #   valid raw key            -> report its key id
 #   invalid raw key (decoy)  -> removed; a wrong-password decrypt writes random data
-#   encrypted copy, no raw   -> ask for the password and decrypt it (terminal only);
-#                               a failed decrypt offers to regenerate + encrypt at once
+#   encrypted copy, no raw   -> ask for the password once and decrypt it through the
+#                               shared decrypt path (terminal only); a wrong password
+#                               at once offers to regenerate + encrypt-replace the .js
 #   no copy anywhere         -> generate it; dd.sh then offers to encrypt it
 # The key value is never printed.
 
@@ -23,7 +24,6 @@ CLIENT_KEY_BATCH_ENCRYPTED_DIR="$CLIENT_KEY_SECRET_ROOT_DIR/already_batch_encryp
 CLIENT_KEY_CONTRACT_NAME="client_key_auth.secret_key_sign_name"
 CLIENT_KEY_CONTRACT_BYTES="client_key_auth.key_min_bytes"
 CLIENT_KEY_CONTRACT_ID="client_key_auth.key_id"
-CLIENT_KEY_DECRYPT_ATTEMPTS=3
 CLIENT_KEY_FORCE_ARG="--force"
 CLIENT_KEY_NAME=""
 CLIENT_KEY_MIN_BYTES=""
@@ -175,7 +175,7 @@ client_key_offer_regenerate() {
     fi
     echo -e "\033[31m[CLIENT_KEY] $CLIENT_KEY_NAME cannot be decrypted with this password\033[0m"
     echo -e "\033[33m[CLIENT_KEY] Regenerating replaces the shared key: every other host must sync the new encrypted copy, decrypt it and restart the Laravel workers and pyservice\033[0m"
-    prompt_read_default answer "n" 120 "Regenerate $CLIENT_KEY_NAME and encrypt it now? [y/N]: "
+    prompt_read_default answer "n" 120 "Regenerate $CLIENT_KEY_NAME and encrypt it now (replaces already_encrypted/$CLIENT_KEY_NAME.js)? [y/N]: "
     [[ "$answer" =~ ^[Yy] ]] || return 0
     [ -n "$password" ] || secret_prompt_password password "[CLIENT_KEY] $CLIENT_KEY_NAME encryption"
     [ -n "$password" ] || return 0
@@ -224,12 +224,11 @@ client_key_after_decrypt() {
     done
 }
 
-# Asks for the password and decrypts the encrypted copy; after the last wrong
-# password, offers to regenerate.
+# Asks for the password once and decrypts the encrypted copy; a wrong password
+# goes through client_key_after_decrypt (regenerate + encrypt-replace offer).
 client_key_decrypt_interactive() {
     local encrypted_file="$CLIENT_KEY_ENCRYPTED_DIR/$CLIENT_KEY_NAME.js"
     local password=""
-    local attempt=0
 
     client_key_resolve_node
     [ -n "$CLIENT_KEY_NODE_BIN" ] || return 0
@@ -237,22 +236,18 @@ client_key_decrypt_interactive() {
         echo -e "\033[33m[CLIENT_KEY] $CLIENT_KEY_NAME is encrypted but not decrypted; run dd.sh or this script in a terminal to decrypt it\033[0m"
         return 0
     fi
-    while [ "$attempt" -lt "$CLIENT_KEY_DECRYPT_ATTEMPTS" ]; do
-        attempt=$((attempt + 1))
-        secret_prompt_password password "[CLIENT_KEY] $CLIENT_KEY_NAME decrypt ($attempt/$CLIENT_KEY_DECRYPT_ATTEMPTS)"
-        [ -n "$password" ] || return 0
-        secret_crypto_batch "$password" "$CLIENT_KEY_NODE_BIN" decrypt "$CLIENT_KEY_RAW_DIR" "$CLIENT_KEY_FORCE_ARG" "$encrypted_file"
-        client_key_inspect
-        if [ "$CLIENT_KEY_STATE" = "valid" ]; then
-            password=""
-            touch -r "$encrypted_file" "$CLIENT_KEY_RAW_DIR/$CLIENT_KEY_NAME" 2>/dev/null || true
-            repair_private_tree "$CLIENT_KEY_SECRET_ROOT_DIR" || true
-            echo -e "\033[32m[CLIENT_KEY] Decrypted $CLIENT_KEY_NAME\033[0m"
-            return 0
-        fi
-        echo -e "\033[31m[CLIENT_KEY] Wrong password for $CLIENT_KEY_NAME\033[0m"
-    done
-    client_key_offer_regenerate "$password"
+    secret_prompt_password password "[CLIENT_KEY] $CLIENT_KEY_NAME decrypt"
+    [ -n "$password" ] || return 0
+    secret_crypto_batch "$password" "$CLIENT_KEY_NODE_BIN" decrypt "$CLIENT_KEY_RAW_DIR" "$CLIENT_KEY_FORCE_ARG" "$encrypted_file"
+    client_key_inspect
+    if [ "$CLIENT_KEY_STATE" = "valid" ]; then
+        password=""
+        touch -r "$encrypted_file" "$CLIENT_KEY_RAW_DIR/$CLIENT_KEY_NAME" 2>/dev/null || true
+        repair_private_tree "$CLIENT_KEY_SECRET_ROOT_DIR" || true
+        echo -e "\033[32m[CLIENT_KEY] Decrypted $CLIENT_KEY_NAME\033[0m"
+        return 0
+    fi
+    client_key_after_decrypt "$password"
     password=""
 }
 
