@@ -1,10 +1,12 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const GUARD_ENV = "CLAUDE_AGENTS_SESSION";
 const GIT_GRANT_TTL_MINUTES = 120;
-const SHARED_DIR_PARTS = [".claude", "agents_shared"];
-const GRANT_FILE_NAME = "git_grant.json";
+const GRANT_DIR_NAME = "core_node_claude_git_guard";
+const GRANT_KEY_LENGTH = 16;
 const REVOKE_PATTERN = /(禁止\s*git|deny-git)/i;
 const GRANT_PATTERN = /(允许\s*git|allow-git|(^|[^A-Za-z0-9_.-])(git|gh)([^A-Za-z0-9_-]|$)|提交代码|推送代码|创建分支|合并分支)/i;
 const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
@@ -127,7 +129,11 @@ if (process.env[GUARD_ENV] !== "1") {
     process.exit(0);
 }
 projectDir = process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
-grantPath = path.join(projectDir, ...SHARED_DIR_PARTS, GRANT_FILE_NAME);
+grantPath = path.join(
+    os.tmpdir(),
+    GRANT_DIR_NAME,
+    `${crypto.createHash("sha256").update(path.resolve(projectDir)).digest("hex").slice(0, GRANT_KEY_LENGTH)}.json`,
+);
 
 if (payload.hook_event_name === "UserPromptSubmit") {
     const prompt = String(payload.prompt || "");

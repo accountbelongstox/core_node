@@ -235,7 +235,7 @@ restart_gnome_rdp() {
     local rdp_status=$(sudo -u "$TARGET_USER" DBUS_SESSION_BUS_ADDRESS="$DBUS_ADDRESS" XDG_RUNTIME_DIR="/run/user/$USER_UID" \
         grdctl status 2>/dev/null)
 
-    if echo "$rdp_status" | grep -q "RDP.*enabled"; then
+    if echo "$rdp_status" | awk '/^[A-Za-z]+:/{in_rdp=($0=="RDP:")} in_rdp && /Status: enabled/{found=1} END{exit !found}'; then
         echo "  [OK] RDP is enabled"
 
         # Show connection information
@@ -268,13 +268,26 @@ EOF
         echo ""
         echo "[SUCCESS] GNOME Remote Desktop is ready!"
     else
-        echo "  [WARNING] RDP may not be enabled"
+        echo "  [WARNING] RDP is not enabled"
         echo ""
         echo "RDP Status:"
         echo "$rdp_status"
         echo ""
-        echo "To enable RDP, run:"
-        echo "  bash $CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/163_setup_gnome_rdp.sh"
+        printf "Enable RDP now (TLS + credentials, idempotent)? [Y/n]: "
+        read -r rdp_enable_answer
+        case "$rdp_enable_answer" in
+            [Nn]*)
+                echo "Skipped. Alternative: [T] Tailscale > Remote Control > Allow remote control of this machine"
+                ;;
+            *)
+                local RC_COMMON_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/remote_control_common.sh"
+                if [ -s "$RC_COMMON_SCRIPT" ]; then
+                    bash "$RC_COMMON_SCRIPT" rdp
+                else
+                    echo "Error: remote_control_common.sh not found at: $RC_COMMON_SCRIPT"
+                fi
+                ;;
+        esac
     fi
 
     echo ""

@@ -1772,7 +1772,7 @@ function Show-ClaudeTeamReport {
         $script:ClaudeTeamMonitor.Index, ($script:ClaudeTeamMonitor.WorkRight - $script:ClaudeTeamMonitor.WorkLeft), ($script:ClaudeTeamMonitor.WorkBottom - $script:ClaudeTeamMonitor.WorkTop), `
         $budget.Dpi, $budget.TotalCols, $budget.TotalRows, @($script:ClaudeTeamTabs).Count, $paneCount)
     Write-ClaudeTeamLog "OK" ("PID files: {0} (<session>.pid)" -f $ClaudeTeamStateDir)
-    Write-ClaudeTeamLog "OK" ("Shared project data: {0} (files by path; git grant file git_grant.json); role memory: {1}" -f (Join-Path $ClaudeTeamRootDir ([string](Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "shared_dir" -Default ""))), (Join-Path (Join-Path $ClaudeTeamRootDir ".claude") "agent-memory"))
+    Write-ClaudeTeamLog "OK" ("Shared project data: {0} (files by path); role memory: {1}" -f (Join-Path $ClaudeTeamRootDir ([string](Get-ClaudeTeamProperty -Object $script:ClaudeTeamCatalog -Name "shared_dir" -Default ""))), (Join-Path (Join-Path $ClaudeTeamRootDir ".claude") "agent-memory"))
     $taskList = (Get-ClaudeTeamSessionEnvironment -Kinds @("all"))[$ClaudeTeamTaskListVariable]
     if (-not [string]::IsNullOrWhiteSpace($taskList)) {
         Write-ClaudeTeamLog "OK" ("Independent-session task list: {0} through {1}" -f $taskList, $ClaudeTeamTaskListVariable)

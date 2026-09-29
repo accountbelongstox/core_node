@@ -2279,7 +2279,7 @@ claude_team_finish() {
 
 claude_team_print_shared_data() {
     local team_dir=""
-    claude_team_log OK "Shared project data: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR (files by path; git grant file git_grant.json)"
+    claude_team_log OK "Shared project data: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR (files by path)"
     claude_team_log OK "Shared handoff path: $CLAUDE_TEAM_ROOT_DIR/$CLAUDE_TEAM_SHARED_DIR ; role memory: $CLAUDE_TEAM_ROOT_DIR/.claude/agent-memory"
     if [ -n "$CLAUDE_TEAM_TASK_LIST" ]; then
         claude_team_log OK "Independent-session task list: $CLAUDE_TEAM_TASK_LIST ($CLAUDE_TEAM_USER_TASKS_DIR/$CLAUDE_TEAM_TASK_LIST)"

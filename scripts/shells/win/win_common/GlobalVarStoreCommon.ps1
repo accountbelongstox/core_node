@@ -106,7 +106,8 @@ if ($null -eq (Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ErrorActi
         'PHP_RUNTIME_PLANE',
         'SELECTED_REGION',
         'GIT_PUSH_BRANCH',
-        'GIT_UPDATE_TYPE'
+        'GIT_UPDATE_TYPE',
+        'WINDOWS_RTC_UTC'
     )
 }
 if (-not (Get-Command Get-GlobalVarWriteName -ErrorAction SilentlyContinue)) {

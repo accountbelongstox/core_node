@@ -6,6 +6,8 @@ WEB_ACCESS_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$WEB_ACCESS_COMMON_DIR/service_contract_common.sh"
 # shellcheck source=/dev/null
 source "$WEB_ACCESS_COMMON_DIR/file_ops_common.sh"
+# shellcheck source=/dev/null
+source "$WEB_ACCESS_COMMON_DIR/tailscale_common.sh"
 
 WEB_ACCESS_REPO_ROOT="$(cd "$WEB_ACCESS_COMMON_DIR/../../../.." && pwd)"
 WEB_ACCESS_CORE_NODE_DIR="${CORE_NODE_DIR:-$WEB_ACCESS_REPO_ROOT}"
@@ -129,16 +131,35 @@ web_access_load_sources() {
     WEB_ACCESS_PYCORE_HOSTS="$(web_access_source_hosts pycore | web_access_valid_hosts | web_access_unique_lines)"
 }
 
+# This machine's own identity (hostname, MagicDNS full and short name,
+# Tailscale IPv4): every end runs the same contract, so the host a browser
+# uses to reach THIS machine is never a static contract entry.
+web_access_local_hosts() {
+    local dns=""
+
+    hostname 2>/dev/null
+    hostname -s 2>/dev/null
+    dns="$(ts_self_dnsname)"
+    if [ -n "$dns" ]; then
+        printf '%s\n%s\n' "$dns" "${dns%%.*}"
+    fi
+    net_detect_tailscale_ipv4
+    echo
+}
+
 web_access_resolve() {
     local domain=""
     local host=""
     local prefix=""
     local ui_port=""
+    local local_hosts=""
 
     web_access_load_sources
     prefix="$WEB_ACCESS_API_REGION_PREFIX"
     ui_port="$(sc_require ports.nexus_dash_frontend)"
+    local_hosts="$(web_access_local_hosts | web_access_valid_hosts | web_access_unique_lines)"
     WEB_ACCESS_ALLOWED_HOSTS="$({
+        printf '%s\n' "$local_hosts"
         while IFS= read -r host; do
             [ -z "$host" ] && continue
             printf '%s\n' "$host"
@@ -153,7 +174,7 @@ web_access_resolve() {
         while IFS= read -r host; do
             [ -z "$host" ] && continue
             printf 'http://%s:%s\nhttp://%s\nhttps://%s\n' "$host" "$ui_port" "$host" "$host"
-        done <<< "$WEB_ACCESS_BROWSER_HOSTS"
+        done <<< "$local_hosts"$'\n'"$WEB_ACCESS_BROWSER_HOSTS"
         while IFS= read -r domain; do
             [ -z "$domain" ] && continue
             for host in "$domain" "www.$domain" "$prefix.$domain" "www.$prefix.$domain" "api.$prefix.$domain"; do

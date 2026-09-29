@@ -37,6 +37,8 @@ source "$DOMAIN_SETUP_COMMON_DIR/nginx_common.sh"
 source "$DOMAIN_SETUP_COMMON_DIR/arrow_menu.sh"
 # shellcheck source=/dev/null
 source "$DOMAIN_SETUP_COMMON_DIR/network_detect_common.sh"
+# shellcheck source=/dev/null
+source "$DOMAIN_SETUP_COMMON_DIR/tailscale_common.sh"
 
 DOMAIN_SETUP_REPO_ROOT="$(cd "$DOMAIN_SETUP_COMMON_DIR/../../../.." && pwd)"
 DOMAIN_SETUP_CORE_NODE_DIR="${CORE_NODE_DIR:-$DOMAIN_SETUP_REPO_ROOT}"
@@ -109,6 +111,12 @@ DOMAIN_LAN_TS_CERT=""
 DOMAIN_LAN_TS_KEY=""
 DOMAIN_LAN_MKCERT_PEM=""
 DOMAIN_LAN_MKCERT_KEY=""
+# api.<machine>.<tailnet>.ts.net (Laravel main on the tailnet): tailscale cert
+# never issues subdomains, so this name carries a mkcert local-CA certificate.
+DOMAIN_TS_API_LABEL="$(sc_get access.tailnet.api_label)"
+DOMAIN_TS_API_DNSNAME=""
+DOMAIN_LAN_TS_API_CERT=""
+DOMAIN_LAN_TS_API_KEY=""
 DOMAIN_MKCERT_VERSION="v1.4.4"
 
 # Persist one key in the file-backed global-var store (the user data
@@ -263,17 +271,7 @@ domain_setup_load_tailscale_domain() {
 # the result so a foreign-tailnet name is never certified.
 domain_setup_tailscale_dnsname() {
     local dns=""
-    if command -v python3 >/dev/null 2>&1; then
-        dns=$(tailscale status --json 2>/dev/null | python3 -c 'import sys, json
-try:
-    print(json.load(sys.stdin).get("Self", {}).get("DNSName", "").rstrip("."))
-except Exception:
-    pass' 2>/dev/null)
-    fi
-    if [ -z "$dns" ]; then
-        dns=$(tailscale status --json 2>/dev/null | sed -n 's/.*"DNSName": *"\([^"]*\)".*/\1/p' | head -1)
-        dns="${dns%.}"
-    fi
+    dns="$(ts_self_dnsname)"
     if [ -n "$dns" ] && [ -n "$DOMAIN_TAILSCALE_DOMAIN" ]; then
         case "$dns" in
             *."$DOMAIN_TAILSCALE_DOMAIN"|"$DOMAIN_TAILSCALE_DOMAIN") ;;
@@ -304,6 +302,8 @@ domain_setup_lan_cert_paths_refresh() {
     DOMAIN_LAN_TS_KEY=""
     DOMAIN_LAN_MKCERT_PEM=""
     DOMAIN_LAN_MKCERT_KEY=""
+    DOMAIN_LAN_TS_API_CERT=""
+    DOMAIN_LAN_TS_API_KEY=""
     domain_setup_resolve_lan_cert_dir
     if [ -z "$DOMAIN_TAILSCALE_DOMAIN" ]; then
         domain_setup_load_tailscale_domain
@@ -316,6 +316,16 @@ domain_setup_lan_cert_paths_refresh() {
         && [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.key" ]; then
         DOMAIN_LAN_TS_CERT="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.crt"
         DOMAIN_LAN_TS_KEY="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_DNSNAME.key"
+    fi
+    DOMAIN_TS_API_DNSNAME=""
+    if [ -n "$DOMAIN_TS_DNSNAME" ] && [ -n "$DOMAIN_TS_API_LABEL" ]; then
+        DOMAIN_TS_API_DNSNAME="${DOMAIN_TS_API_LABEL}.${DOMAIN_TS_DNSNAME}"
+    fi
+    if [ -n "$DOMAIN_TS_API_DNSNAME" ] \
+        && [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_API_DNSNAME.pem" ] \
+        && [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_API_DNSNAME-key.pem" ]; then
+        DOMAIN_LAN_TS_API_CERT="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_API_DNSNAME.pem"
+        DOMAIN_LAN_TS_API_KEY="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_API_DNSNAME-key.pem"
     fi
     DOMAIN_LAN_MKCERT_PEM="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*.pem 2>/dev/null | grep -v -- '-key\.pem$' | head -1)"
     DOMAIN_LAN_MKCERT_KEY="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*-key.pem 2>/dev/null | head -1)"
@@ -400,6 +410,47 @@ domain_setup_mkcert_install() {
     return 1
 }
 
+# Trust the mkcert root CA in every NSS store (Chrome/Chromium ~/.pki/nssdb and
+# every Firefox profile) of every real user and root (list_real_users_and_root;
+# LINUX_SHELL_RULES.md section 3). `mkcert -install` alone reaches only the
+# invoking user. Each store is written as its owner; a present nickname is kept.
+domain_setup_mkcert_trust_all_users() {
+    local mkcert_bin="$1"
+    local ca_file=""
+    local ca_name=""
+    local ca_copy=""
+    local user_name=""
+    local user_home=""
+    local nss_dir=""
+
+    [ "$(id -u)" -eq 0 ] || return 0
+    command -v certutil >/dev/null 2>&1 || return 0
+    ca_file="$("$mkcert_bin" -CAROOT 2>/dev/null)/rootCA.pem"
+    [ -f "$ca_file" ] || return 0
+    ca_name="$(openssl x509 -in "$ca_file" -noout -subject -nameopt multiline 2>/dev/null | sed -n 's/^ *commonName *= *//p')"
+    [ -n "$ca_name" ] || ca_name="mkcert development CA"
+    # The CA lives under root's home; hand every user a readable public copy.
+    ca_copy="$(mktemp)" || return 0
+    cp "$ca_file" "$ca_copy" && chmod 644 "$ca_copy"
+
+    while IFS= read -r user_name; do
+        user_home="$(getent passwd "$user_name" | cut -d: -f6)"
+        [ -d "$user_home" ] || continue
+        for nss_dir in "$user_home/.pki/nssdb" "$user_home"/.mozilla/firefox/*.default* "$user_home"/snap/firefox/common/.mozilla/firefox/*.default*; do
+            [ -f "$nss_dir/cert9.db" ] || continue
+            if runuser -u "$user_name" -- certutil -d "sql:$nss_dir" -L -n "$ca_name" >/dev/null 2>&1; then
+                continue
+            fi
+            if runuser -u "$user_name" -- certutil -d "sql:$nss_dir" -A -t "C,," -n "$ca_name" -i "$ca_copy" 2>/dev/null; then
+                echo "[domain] [OK] mkcert root CA trusted for $user_name: $nss_dir"
+            else
+                echo "[domain] [WARN] Could not import the mkcert root CA into $nss_dir ($user_name)"
+            fi
+        done
+    done < <(list_real_users_and_root)
+    rm -f "$ca_copy"
+}
+
 domain_setup_lan_cert_mkcert() {
     local mkcert_bin
     mkcert_bin="$(command -v mkcert 2>/dev/null || true)"
@@ -425,6 +476,7 @@ domain_setup_lan_cert_mkcert() {
     echo "[domain] mkcert present; ensuring the local CA and the 127.0.0.1 certificate in $DOMAIN_LAN_CERT_DIR ..."
     (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" -install 2>&1) | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
     (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" 127.0.0.1 localhost ::1 2>&1) | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
+    domain_setup_mkcert_trust_all_users "$mkcert_bin"
     domain_setup_lan_cert_paths_refresh
     if [ -n "$DOMAIN_LAN_MKCERT_PEM" ] && [ -n "$DOMAIN_LAN_MKCERT_KEY" ]; then
         echo "[domain] [OK] 127.0.0.1 certificate ready: $DOMAIN_LAN_MKCERT_PEM (+ key)"
@@ -487,13 +539,53 @@ domain_setup_lan_cert_tailscale() {
     return 1
 }
 
+# api.<machine>.<tailnet>.ts.net certificate from the mkcert local CA
+# (installed by domain_setup_lan_cert_mkcert). Idempotent: an existing cert
+# is kept. Resolving the name also needs the tailnet policy node attribute
+# "dns-subdomain-resolve" (MagicDNS subdomains), set in the admin console.
+domain_setup_lan_cert_tailnet_api() {
+    local mkcert_bin=""
+
+    domain_setup_lan_cert_paths_refresh
+    [ -n "$DOMAIN_TS_API_DNSNAME" ] || return 0
+    if [ -n "$DOMAIN_LAN_TS_API_CERT" ]; then
+        echo "[domain] [OK] Tailnet API certificate present: $DOMAIN_LAN_TS_API_CERT"
+        return 0
+    fi
+    mkcert_bin="$(command -v mkcert 2>/dev/null || true)"
+    if [ -z "$mkcert_bin" ]; then
+        echo "[domain] [MANUAL] mkcert missing; cannot create the $DOMAIN_TS_API_DNSNAME certificate"
+        return 1
+    fi
+    (cd "$DOMAIN_LAN_CERT_DIR" && "$mkcert_bin" -cert-file "$DOMAIN_TS_API_DNSNAME.pem" -key-file "$DOMAIN_TS_API_DNSNAME-key.pem" "$DOMAIN_TS_API_DNSNAME" 2>&1) \
+        | while IFS= read -r DOMAIN_LAN_OUTPUT; do echo "[domain]   $DOMAIN_LAN_OUTPUT"; done
+    domain_setup_lan_cert_paths_refresh
+    if [ -n "$DOMAIN_LAN_TS_API_CERT" ]; then
+        echo "[domain] [OK] Tailnet API certificate ready (mkcert local CA): $DOMAIN_LAN_TS_API_CERT"
+        echo "[domain]   Clients trust it after installing the mkcert root CA ($(mkcert -CAROOT 2>/dev/null)/rootCA.pem);"
+        echo "[domain]   the name resolves after the tailnet policy grants nodeAttrs \"dns-subdomain-resolve\"."
+        return 0
+    fi
+    echo "[domain] [WARN] mkcert ran but $DOMAIN_TS_API_DNSNAME.pem was not found in $DOMAIN_LAN_CERT_DIR"
+    return 1
+}
+
+# Tailnet certificates: <machine>.<tailnet>.ts.net (tailscale cert) plus
+# api.<machine>... (mkcert). Additive on every host with a connected
+# tailscaled, public servers included.
+domain_setup_tailnet_certificates() {
+    domain_setup_lan_cert_tailscale || true
+    domain_setup_lan_cert_tailnet_api || true
+    domain_setup_lan_cert_paths_refresh
+    return 0
+}
+
 # LAN-mode certificate replacement for the public-domain flow: best-effort
 # direct issuance where the tooling exists, printed steps where it does not.
 domain_setup_lan_certificates() {
     echo "[domain] Provisioning local certificates (LAN mode):"
     domain_setup_lan_cert_mkcert || true
-    domain_setup_lan_cert_tailscale || true
-    domain_setup_lan_cert_paths_refresh
+    domain_setup_tailnet_certificates
     return 0
 }
 

@@ -5,7 +5,13 @@
 
 import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
 import { getWebAccessConfig, resolveApiHostname } from '../../contracts/DomainConfig';
-import { LARAVEL_API_BACKEND_PORT, SERVICE_CONTRACT_URL_ENTRIES } from '../../contracts/ServiceContract';
+import {
+  LARAVEL_API_BACKEND_PORT,
+  SERVICE_CONTRACT_URL_ENTRIES,
+  TAILNET_API_LABEL,
+  TAILNET_API_PATH,
+  TAILNET_DNS_SUFFIX,
+} from '../../contracts/ServiceContract';
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 
@@ -16,6 +22,8 @@ export interface BackendApiEndpoint {
   url: string;
   protocol: 'http' | 'https';
   port?: number;
+  /** Path prefix the API is mounted under behind a reverse proxy (e.g. /laravel-api). */
+  basePath?: string;
   priority: number;
   isLocal: boolean;
   description: string;
@@ -41,15 +49,17 @@ function isLocalHostname(hostname: string): boolean {
 }
 
 /** Full-URL service entries from the central contract (https machine entries). */
-function parseServiceUrl(raw: string): { hostname: string; protocol: 'http' | 'https'; port?: number } | null {
+function parseServiceUrl(raw: string): { hostname: string; protocol: 'http' | 'https'; port?: number; basePath?: string } | null {
   try {
     const parsed = new URL(raw);
     const protocol = parsed.protocol === 'https:' ? 'https' : parsed.protocol === 'http:' ? 'http' : null;
     if (!protocol || !parsed.hostname) return null;
+    const basePath = parsed.pathname.replace(/\/+$/, '');
     return {
       hostname: parsed.hostname,
       protocol,
       port: parsed.port ? Number(parsed.port) : undefined,
+      basePath: basePath || undefined,
     };
   } catch {
     return null;
@@ -86,6 +96,7 @@ function getConfiguredApiEndpoints(): BackendApiEndpoint[] {
       url: parsed.hostname,
       protocol: parsed.protocol,
       port: parsed.port,
+      basePath: parsed.basePath,
       priority: 40 + index,
       isLocal: isLocalHostname(parsed.hostname),
       description: entry.label,
@@ -104,6 +115,24 @@ function createCurrentOriginEndpoint(
   protocol: 'http' | 'https',
 ): BackendApiEndpoint {
   const isLocal = isLocalHostname(hostname);
+
+  // Tailnet origin (<machine>.<tailnet>.ts.net): Laravel main is reverse
+  // proxied on the same trusted name under the tailnet API path.
+  const tailnetHost = hostname.trim().toLowerCase().replace(/\.$/, '');
+  if (protocol === 'https' && tailnetHost.endsWith(`.${TAILNET_DNS_SUFFIX}`)) {
+    const machineHost = tailnetHost.startsWith(`${TAILNET_API_LABEL}.`)
+      ? tailnetHost.slice(TAILNET_API_LABEL.length + 1)
+      : tailnetHost;
+    return {
+      id: `${CURRENT_URL_TYPE}:${machineHost}${TAILNET_API_PATH}`,
+      url: machineHost,
+      protocol,
+      basePath: TAILNET_API_PATH,
+      priority: 5,
+      isLocal: false,
+      description: `Current URL - this machine (${protocol}://${machineHost}${TAILNET_API_PATH})`,
+    };
+  }
 
   // HTTPS on a public origin: the api.<prefix>.<domain> nginx site serves
   // the API on 443, so the :9000 backend port is NEVER appended; the region
@@ -199,9 +228,15 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
 /**
  * Build the full API URL
  */
-export function buildApiUrl(endpoint: BackendApiEndpoint, path: string = ''): string {
+export function endpointBaseUrl(
+  endpoint: Pick<BackendApiEndpoint, 'protocol' | 'url' | 'port' | 'basePath'>,
+): string {
   const port = endpoint.port ? `:${endpoint.port}` : '';
-  const baseUrl = `${endpoint.protocol}://${endpoint.url}${port}`;
+  return `${endpoint.protocol}://${endpoint.url}${port}${endpoint.basePath ?? ''}`;
+}
+
+export function buildApiUrl(endpoint: BackendApiEndpoint, path: string = ''): string {
+  const baseUrl = endpointBaseUrl(endpoint);
 
   if (!path) return baseUrl;
 
@@ -219,9 +254,9 @@ export function buildApiUrl(endpoint: BackendApiEndpoint, path: string = ''): st
  * same key.                                                                    *
  * -------------------------------------------------------------------------- */
 /** Normalized identity of an endpoint for de-duplication. */
-export function endpointKey(e: { protocol: string; url: string; port?: number }): string {
+export function endpointKey(e: { protocol: string; url: string; port?: number; basePath?: string }): string {
   const port = e.port ? `:${e.port}` : '';
-  return `${e.protocol}://${(e.url || '').toLowerCase()}${port}`;
+  return `${e.protocol}://${(e.url || '').toLowerCase()}${port}${e.basePath ?? ''}`;
 }
 
 function readCustomEndpoints(): BackendApiEndpoint[] {

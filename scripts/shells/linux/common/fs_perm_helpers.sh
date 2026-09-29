@@ -17,9 +17,10 @@
 # fstype values whose permissions are fixed by mount options, so recursive
 # chown/chmod are no-ops-in-effect and full-tree-walks-in-cost -> skipped.
 FS_PERM_MOUNT_FIXED_FSTYPES="fuse fuseblk ntfs ntfs3 exfat vfat drvfs"
-# Never opened to mode 777 by a tree walk: secret stores become owner-only,
+# Never opened to mode 777 by a tree walk: secret stores (incl. acme.sh TLS
+# keys and DNS API credentials) become owner-only,
 # git metadata keeps its own modes and only loses group/other write.
-FS_PERM_PRIVATE_TREE_NAMES=(".secret_keys" ".secrets")
+FS_PERM_PRIVATE_TREE_NAMES=(".secret_keys" ".secrets" ".acme.sh")
 FS_PERM_GIT_TREE_NAME=".git"
 # Application secret stores whose owner is the reading runtime (Laravel's
 # .core_node_secrets, read by the PHP user): the owner is kept, files become
@@ -27,6 +28,12 @@ FS_PERM_GIT_TREE_NAME=".git"
 FS_PERM_APP_SECRET_TREE_NAMES=(".core_node_secrets")
 # Decrypted secret directories inside a private tree (files there are 0600).
 FS_PERM_PRIVATE_RAW_DIR_NAMES=(".secret_ignore" "raw")
+# Regular login accounts start at UID_MIN (login.defs); uid 1..UID_MIN-1 and
+# nobody are service accounts. A tree walk never takes over service-owned
+# data (e.g. a PostgreSQL cluster requires owner-only postgres modes and
+# refuses to start once opened to 777).
+FS_PERM_REGULAR_UID_MIN=1000
+FS_PERM_NOBODY_UID=65534
 ACTIVE_PERMISSION_USER=""
 ACTIVE_PERMISSION_GROUP=""
 ACTIVE_PERMISSION_SOURCE=""
@@ -53,8 +60,8 @@ active_permission_user_is_regular() {
     [ -n "$candidate" ] || return 1
     candidate_uid="$(id -u "$candidate" 2>/dev/null || true)"
     [ -n "$candidate_uid" ] || return 1
-    [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return 1
-    [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return 1
+    [ "$candidate_uid" -ge "$FS_PERM_REGULAR_UID_MIN" ] 2>/dev/null || return 1
+    [ "$candidate_uid" -lt "$FS_PERM_NOBODY_UID" ] 2>/dev/null || return 1
     permission_user_is_excluded "$candidate" && return 1
     if command -v getent >/dev/null 2>&1; then
         candidate_entry="$(getent passwd "$candidate" 2>/dev/null || true)"
@@ -63,6 +70,20 @@ active_permission_user_is_regular() {
             */nologin|*/false) return 1 ;;
         esac
     fi
+    return 0
+}
+
+# list_real_users_and_root -> one user per line: root, then every real login
+# user (active_permission_user_is_regular). The single enumerator for
+# per-user state; service accounts (git, postgres, ...) are never listed.
+list_real_users_and_root() {
+    local user_name=""
+
+    echo "root"
+    while IFS=: read -r user_name _; do
+        [ -n "$user_name" ] || continue
+        active_permission_user_is_regular "$user_name" && echo "$user_name"
+    done < <(getent passwd 2>/dev/null)
     return 0
 }
 
@@ -311,6 +332,7 @@ repair_owned_tree_777() {
     local repair_status=0
     local privilege_command=()
     local prune_names=()
+    local service_owned=()
     local target_safety=""
 
     target_safety="$(fs_perm_target_safety "$target_path")"
@@ -342,11 +364,15 @@ repair_owned_tree_777() {
         prune_names+=(-name "$tree_name")
     done
 
+    service_owned=(\( ! -uid 0 \( -uid "-$FS_PERM_REGULAR_UID_MIN" -o -uid "$FS_PERM_NOBODY_UID" \) \))
+
     mismatch_list="$(mktemp)" || return 1
     protected_list="$(mktemp)" || { rm -f "$mismatch_list"; return 1; }
     "${privilege_command[@]}" find "$target_path" \
         \( "${prune_names[@]}" \) -prune -fprint0 "$protected_list" \
-        -o \( -type d -o -type f \) \( ! -user "$target_user" -o ! -group "$target_group" -o ! -perm 0777 \) \
+        -o \( -type d "${service_owned[@]}" \) -prune \
+        -o \( -type d -o -type f \) ! "${service_owned[@]}" \
+        \( ! -user "$target_user" -o ! -group "$target_group" -o ! -perm 0777 \) \
         -print0 > "$mismatch_list" 2>/dev/null || scan_status=$?
     while IFS= read -r -d '' protected_path; do
         if [ "${protected_path##*/}" = "$FS_PERM_GIT_TREE_NAME" ]; then

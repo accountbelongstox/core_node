@@ -38,24 +38,69 @@ _WINDOWS_START_TEMPLATE = 'cmd.exe /c start "{title}" /D "{cwd}" cmd.exe /k "{co
 
 
 def _spawn_detached(argv, cwd=None, shell=False, env=None):
-    """Launch a fully-detached child that survives the launcher exiting.
+    """Launch a fully-detached process that survives the launcher exiting.
 
-    Windows uses DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP — those flags do NOT
-    exist on Linux/macOS and accessing them raises AttributeError; POSIX uses
-    start_new_session=True (setsid) for the same detach effect.
+    Windows uses DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP (unchanged). POSIX
+    delegates to spawn_detached_posix (the setsid system tool).
     """
     if IS_WINDOWS:
         flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         return subprocess.Popen(argv, cwd=cwd, shell=shell, env=env,
                                 creationflags=flags, close_fds=True)
-    # Detached GUI apps must not inherit the launcher's stdio: Electron/GTK noise
-    # would pollute the launcher console and keep its pty/pipe open long after
-    # the launcher exits. The env drops the launcher's private session bus and
-    # systemd service markers (see linux_desktop_user).
-    return subprocess.Popen(argv, cwd=cwd, env=gui_child_env() if env is None else env,
-                            start_new_session=True, close_fds=True,
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
+    return spawn_detached_posix(argv, cwd=cwd, env=env)
+
+
+class DetachedLaunch:
+    """Result of a system-tool launch.
+
+    The started process is owned by the OS (re-parented to init by setsid),
+    never a Python child, so ``pid``/``process`` are None on POSIX -- the
+    system tool does not report the final process id.
+    """
+
+    __slots__ = ('pid', 'process')
+
+    def __init__(self, pid=None, process=None):
+        self.pid = pid
+        self.process = process
+
+
+def spawn_detached_posix(argv, cwd=None, env=None, stdout=None, stderr=None):
+    """Launch *argv* through the setsid(1) system tool instead of a Python child.
+
+    ``setsid --fork`` forks and re-parents the process to init in a fresh
+    session: after this call no Python child exists at all, and the process
+    outlives the launcher no matter how the launcher dies. Detached apps get
+    devnull stdio and the scrubbed GUI env (see linux_desktop_user) unless
+    overridden. Falls back to a plain detached Popen only when setsid itself
+    is missing (setsid is util-linux, always present on Debian/Ubuntu).
+
+    Returns:
+        DetachedLaunch on success, None when the spawn failed.
+    """
+    argv = [argv] if isinstance(argv, str) else list(argv)
+    env = gui_child_env() if env is None else env
+    stdin = subprocess.DEVNULL
+    stdout = subprocess.DEVNULL if stdout is None else stdout
+    stderr = subprocess.DEVNULL if stderr is None else stderr
+    setsid = shutil.which('setsid')
+    if setsid is None:
+        try:
+            proc = subprocess.Popen(argv, cwd=cwd, env=env,
+                                    start_new_session=True, close_fds=True,
+                                    stdin=stdin, stdout=stdout, stderr=stderr)
+        except OSError:
+            return None
+        return DetachedLaunch(pid=proc.pid, process=proc)
+    try:
+        result = subprocess.run([setsid, '--fork'] + argv, cwd=cwd, env=env,
+                                stdin=stdin, stdout=stdout, stderr=stderr,
+                                check=False, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    return DetachedLaunch()
 
 
 def _open_on_linux(path_str, as_desktop_user=False):

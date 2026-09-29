@@ -58,6 +58,7 @@ import time
 from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import PROJECT_ROOT, TMP_DIR
+from pycore.pyutils.launcher.explorer_executor import spawn_detached_posix
 from pycore.pyutils.launcher.grid_profile import grid_startup_command
 from pycore.pyutils.launcher.linux_desktop_user import root_terminal_env
 from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
@@ -68,6 +69,11 @@ GRID_RC_DIR_MODE = 0o700
 GRID_RC_FILE_NAME = "grid.rc"
 GRID_RC_FILE_MODE = 0o600
 GRID_STARTUP_ENV_KEYS = "PYLAUNCHER_TITLE,PYLAUNCHER_CWD,PYLAUNCHER_STARTUP"
+
+
+def _pid_suffix(pid):
+    """Log fragment for a launch pid; empty when setsid reported no pid."""
+    return f" (pid {pid})" if pid is not None else ""
 
 
 class LinuxTerminalLauncher:
@@ -106,6 +112,10 @@ class LinuxTerminalLauncher:
         + r"""PROMPT_COMMAND='printf "\033]0;%s\007" "$PYLAUNCHER_TITLE"'"""
         + '\n'
         + '[ -n "$PYLAUNCHER_CWD" ] && cd "$PYLAUNCHER_CWD"\n'
+        # AI TUIs (claude, codex, kimi) capture the mouse and their own copy is
+        # OSC 52, which VTE-based xfce4-terminal drops; the Shift bypass is the
+        # only native copy path. One line per window so it stays in scrollback.
+        + 'printf "%s\\n" "[tip] AI apps capture the mouse: Shift+drag = select, Shift+right-click = copy/paste menu, Ctrl+Shift+C/V = copy/paste."\n'
         + '_pylauncher_startup="$PYLAUNCHER_STARTUP"; unset PYLAUNCHER_STARTUP\n'
         + 'if [ -n "$_pylauncher_startup" ]; then history -s "$_pylauncher_startup"; '
         + 'eval "$_pylauncher_startup"; fi\n'
@@ -233,8 +243,13 @@ class LinuxTerminalLauncher:
 
         is_wayland = current_desktop_session().is_wayland
         positioner = self._placer._find_positioner()              # shared X11/Xwayland display or None
-        geom_emu = self._argv._find_x11_emulator()                # geometry-capable, no qterminal
-        any_emu = self._argv._find_fallback_emulator_or_none()    # broad list incl. qterminal
+        # System-native terminal first (GNOME default application / the
+        # x-terminal-emulator alternative); the capability gates below still
+        # win over preference -- a native terminal that cannot be positioned
+        # never breaks the grid.
+        native = self._argv.system_default_terminal()
+        geom_emu = self._argv._find_x11_emulator(preferred=native)  # geometry-capable, no qterminal
+        any_emu = self._argv._find_fallback_emulator_or_none(preferred=native)  # broad list incl. qterminal
 
         # Strategy selection. Separate real windows are the DEFAULT (the user
         # asked for "12 windows"); the paned grid is the automatic fallback.
@@ -242,8 +257,8 @@ class LinuxTerminalLauncher:
         #      did not force paned -> N separate windows positioned BY TITLE.
         #      Title-matching is the only thing that works with qterminal (no
         #      geometry flag) and sidesteps its shared-server-PID problem. Prefer
-        #      a geometry-capable emulator when present (its --geometry hint gets
-        #      the window close before we enforce), else use qterminal/any.
+        #      the system-native terminal when present; else a geometry-capable
+        #      one (its --geometry hint gets the window close before we enforce).
         #   2. Wayland + a positioner + an X11-backend-capable emulator -> the
         #      same separate-windows path through XWayland (backend-forcing env).
         #   3. X11 + a geometry-capable emulator but no positioner -> geometry
@@ -252,12 +267,18 @@ class LinuxTerminalLauncher:
         #      -> paned window.
         if (not is_wayland and positioner and any_emu
                 and not getattr(self, "prefer_paned", False)):
+            emu = any_emu if (native and any_emu == native) else (geom_emu or any_emu)
             return self._launch_x11_positioned(
-                configs, geom_emu or any_emu, positioner, delay)
+                configs, emu, positioner, delay)
 
         if is_wayland and not getattr(self, "prefer_paned", False):
-            wayland_emu = self._argv._find_wayland_x11_emulator()
+            wayland_emu = self._argv._find_wayland_x11_emulator(preferred=native)
             if positioner and wayland_emu:
+                if native and native != wayland_emu:
+                    ColorPrint.plain(
+                        f"System default terminal '{native}' cannot be grid-positioned on Wayland "
+                        "(its windows belong to a server-side backend no external tool can place); "
+                        f"using '{wayland_emu}' so the grid layout keeps working.")
                 ColorPrint.plain("Wayland session detected: launching separate windows on the "
                       "X11 backend (XWayland) so they can be positioned like on X11.")
                 return self._launch_x11_positioned(
@@ -353,15 +374,13 @@ class LinuxTerminalLauncher:
             argv = self._argv._build_titled_argv(emulator, inner, geometry)
             if argv is None:
                 continue
-            try:
-                # GUI emulator stderr is GTK/dbus noise (session-manager and
-                # portal warnings), never actionable on the launcher console.
-                proc = subprocess.Popen(argv, start_new_session=True, env=popen_env,
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                pids.append(proc.pid)
-            except Exception as e:
-                ColorPrint.plain(f"  Window {i}: failed to launch ({e})")
+            # setsid launches via the system tool: no Python child, and the
+            # emulator's GTK/dbus noise dies with its devnull stdio.
+            launch = spawn_detached_posix(argv, env=popen_env)
+            if launch is None:
+                ColorPrint.plain(f"  Window {i}: failed to launch")
                 continue
+            pids.append(launch.pid)
             # Identify the window we just created (one launch -> one new id).
             wid = self._placer._resolve_new_window_id(snapshot)
             if wid is not None:
@@ -373,7 +392,7 @@ class LinuxTerminalLauncher:
                 placed.append((wid, px, py, w, h))
                 ColorPrint.plain(f"  Window {i}: {emulator} -> id {wid:#010x} @ {px},{py}"
                       + (f" ({w}x{h}px)" if cell_w else "")
-                      + f" (pid {proc.pid})")
+                      + _pid_suffix(launch.pid))
             else:
                 # Id capture timed out: fall back to (hardened, exact) title match.
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)

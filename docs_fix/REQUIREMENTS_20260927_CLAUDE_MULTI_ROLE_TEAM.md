@@ -163,7 +163,8 @@ Changes to the earlier sections:
     `permissionDecision` is ignored in bypass mode; exit 2 still blocks.
   - `UserPromptSubmit` grants git for `GIT_GRANT_TTL_MINUTES` when the user's
     prompt contains `允许git` or `allow-git`. `禁止git` or `deny-git` revokes
-    the grant. The grant file is `.claude/agents_shared/git_grant.json`.
+    the grant. The grant state lives in the OS temp dir
+    (`<tmp>/core_node_claude_git_guard/<project hash>.json`), outside the repository.
   - The guard is active only in launcher sessions (`CLAUDE_AGENTS_GIT_GUARD=1`,
     which is also set as tmux session env, so split-pane teammates inherit it).
   - `includeGitInstructions: false` in the project settings.

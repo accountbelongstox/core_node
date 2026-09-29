@@ -19,11 +19,11 @@
       https://tailscale.com/kb/1193/tailscale-ssh   (Tailscale SSH server: Linux/macOS only)
 
 .NOTES
-    powershell -File RemoteControlCommon.ps1 -Action Menu|Endpoints|Controller|Host|Connect|Status|Help
+    powershell -File RemoteControlCommon.ps1 -Action Menu|Endpoints|Controller|Host|Connect|Status|Diagnose|ClaudePeer|Help
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [ValidateSet('', 'Menu', 'Endpoints', 'Controller', 'Host', 'Connect', 'Status', 'Help')]
+    [ValidateSet('', 'Menu', 'Endpoints', 'Controller', 'Host', 'Connect', 'Status', 'Diagnose', 'ClaudePeer', 'Help')]
     [string]$Action = ''
 )
 
@@ -34,6 +34,8 @@ $script:REMOTE_CONTROL_SCRIPT = $PSCommandPath
 $script:TAILSCALE_COMMON_FOR_RC = Join-Path $script:REMOTE_CONTROL_DIR 'TailscaleCommon.ps1'
 $script:INSTALL_POWERSHELLS_DIR_FOR_RC = Join-Path (Split-Path $script:REMOTE_CONTROL_DIR -Parent) 'install_powershells'
 $script:SHARED_KEY_INSTALLER = Join-Path $script:INSTALL_POWERSHELLS_DIR_FOR_RC 'Step5_InstallGitSSH.ps1'
+# Claude Peer Link reuses the Claude team installer checks (account, Remote Control blockers).
+$script:CLAUDE_TEAM_INSTALL_COMMON_FOR_RC = Join-Path $script:REMOTE_CONTROL_DIR 'ClaudeTeamInstallCommon.ps1'
 . $script:TAILSCALE_COMMON_FOR_RC
 
 $script:RcRdpPort = 3389
@@ -54,6 +56,11 @@ $script:RcAdministratorsSid = '*S-1-5-32-544'
 $script:RcSystemSid = '*S-1-5-18'
 $script:RcRdpFileDir = Join-Path $env:TEMP 'core_node_rdp'
 $script:RcConnectOsNames = @('linux', 'windows')
+$script:RcSshdConfigFile = Join-Path (Join-Path $env:ProgramData 'ssh') 'sshd_config'
+$script:RcOpenSshRegistryKey = 'HKLM:\SOFTWARE\OpenSSH'
+$script:RcClaudePeerLogPrefix = 'claude_peer_link'
+$script:RcClaudePeerLatestLog = Join-Path $Global:LOGS_DIR ('{0}_latest.log' -f $script:RcClaudePeerLogPrefix)
+$script:RcClaudePeerSessionName = 'win-desktop'
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -133,6 +140,12 @@ function Test-RemoteControlRdpHostSupported {
     return (-not ($editionId -like 'Core*'))
 }
 
+# True when something listens on the TCP port (post-enable verification).
+function Test-RemoteControlPortListening {
+    param([Parameter(Mandatory = $true)][int]$Port)
+    return ($null -ne (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1))
+}
+
 # Microsoft account e-mail when this user signs in with one (RDP user name), else ''.
 function Get-RemoteControlMicrosoftAccount {
     $entry = Get-ChildItem -Path $script:RcMsaIdentityKey -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -206,11 +219,12 @@ function Enable-RemoteControlClient {
 
 function Enable-RemoteControlRdpHost {
     $msAccount = ''
+    $termService = $null
 
     Write-ColorMessage -Message '-- Remote Desktop (RDP) --' -Type 'Info'
     if (-not (Test-RemoteControlRdpHostSupported)) {
-        Write-ColorMessage -Message 'Windows Home cannot host Remote Desktop. Use SSH (enabled below) or upgrade to Pro:' -Type 'Warning'
-        Write-ColorMessage -Message '  Settings > System > Activation > Upgrade your edition of Windows.' -Type 'Info'
+        Write-ColorMessage -Message 'Windows Home cannot host Remote Desktop; SSH (below) and RustDesk still work.' -Type 'Warning'
+        Write-ColorMessage -Message '  To get RDP: Settings > System > Activation > Upgrade your edition of Windows.' -Type 'Info'
         return
     }
     Set-ItemProperty -Path $script:RcTerminalServerKey -Name 'fDenyTSConnections' -Value 0
@@ -219,12 +233,23 @@ function Enable-RemoteControlRdpHost {
         New-NetFirewallRule -Name $script:RcRdpTailscaleRule -DisplayName 'Remote Desktop (Tailscale)' -Enabled True -Direction Inbound `
             -Protocol TCP -LocalPort $script:RcRdpPort -RemoteAddress $script:RcTailscaleCidr -Action Allow -Profile Any | Out-Null
     }
+    $termService = Get-Service -Name 'TermService' -ErrorAction SilentlyContinue
+    if ($null -ne $termService -and $termService.StartType -eq 'Disabled') {
+        Set-Service -Name 'TermService' -StartupType 'Manual'
+        Write-ColorMessage -Message '  TermService was Disabled; startup type restored to Manual.' -Type 'Warning'
+    }
     Start-Service -Name 'TermService' -ErrorAction SilentlyContinue
     # "Only allow Windows Hello sign-in" blocks password logon over RDP.
     if (Test-Path -LiteralPath $script:RcPasswordLessKey) {
         Set-ItemProperty -Path $script:RcPasswordLessKey -Name 'DevicePasswordLessBuildVersion' -Value 0 -Type DWord
     }
-    Write-ColorMessage -Message "  Remote Desktop enabled (port $script:RcRdpPort, firewall open for $script:RcTailscaleCidr)." -Type 'Success'
+
+    if (Test-RemoteControlPortListening -Port $script:RcRdpPort) {
+        Write-ColorMessage -Message "  Remote Desktop enabled and listening on $script:RcRdpPort (firewall open for $script:RcTailscaleCidr)." -Type 'Success'
+    } else {
+        Write-ColorMessage -Message "  Port $script:RcRdpPort is NOT listening after enable; check: services.msc > Remote Desktop Services (TermService) must be Running." -Type 'Error'
+        Write-ColorMessage -Message '  Group Policy "Allow users to connect remotely" must not be Disabled: gpedit.msc > Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Connections.' -Type 'Info'
+    }
 
     $msAccount = Get-RemoteControlMicrosoftAccount
     if (-not [string]::IsNullOrWhiteSpace($msAccount)) {
@@ -248,6 +273,9 @@ function Enable-RemoteControlSshHost {
             -Protocol TCP -Action Allow -LocalPort $script:RcSshPort | Out-Null
     }
     Write-ColorMessage -Message "  sshd: $((Get-Service -Name 'sshd').Status)" -Type 'Success'
+    if (-not (Test-RemoteControlPortListening -Port $script:RcSshPort)) {
+        Write-ColorMessage -Message "  Port $script:RcSshPort is NOT listening; check sshd logs: Get-EventLog -LogName Application -Source sshd -Newest 5" -Type 'Error'
+    }
 
     if (-not (Confirm-RemoteControlSharedKey)) { return }
     $sharedKey = Find-RemoteControlSharedKey
@@ -261,13 +289,27 @@ function Enable-RemoteControlSshHost {
 }
 
 function Enable-RemoteControlHost {
+    $rdpListening = $false
+    $sshListening = $false
+
     Write-ColorMessage -Message "== Allow remote control of this machine (user $env:USERNAME) ==" -Type 'Info'
     if (-not $Global:IS_RUN_ADMIN) { Invoke-RemoteControlElevated -ElevatedAction 'Host'; return }
     Enable-RemoteControlRdpHost
     Write-Host ''
     Enable-RemoteControlSshHost
     Write-Host ''
-    Write-ColorMessage -Message "Connect from Linux: xfreerdp3 /v:$(Get-RemoteControlSelfIPv4) /u:$env:USERNAME /dynamic-resolution +clipboard /cert:tofu" -Type 'Info'
+    $rdpListening = Test-RemoteControlPortListening -Port $script:RcRdpPort
+    $sshListening = Test-RemoteControlPortListening -Port $script:RcSshPort
+    Write-ColorMessage -Message '== Verification (safe to re-run; every step above is idempotent) ==' -Type 'Info'
+    Write-Host "  RDP $script:RcRdpPort listening: $(if ($rdpListening) { 'yes' } else { 'no' })"
+    Write-Host "  SSH $script:RcSshPort listening:  $(if ($sshListening) { 'yes' } else { 'no' })"
+    Write-Host "  Tailscale IPv4:   $(Get-RemoteControlSelfIPv4)"
+    if (-not $rdpListening -and -not $sshListening) {
+        Write-ColorMessage -Message 'Neither channel is up; see the messages above and Help for manual steps.' -Type 'Error'
+        return
+    }
+    Write-Host ''
+    Write-ColorMessage -Message "Connect from Linux: dd.sh > [T] Tailscale > Remote Control > Connect to a peer (or: xfreerdp3 /v:$(Get-RemoteControlSelfIPv4) /u:$env:USERNAME /dynamic-resolution +clipboard /cert:tofu)" -Type 'Info'
     Write-ColorMessage -Message 'If a step could not be automated, see Help for the manual UI steps.' -Type 'Info'
 }
 
@@ -343,9 +385,285 @@ function Show-RemoteControlStatus {
     Write-Host "  Tailscale:      $(Get-TailscaleQuickStateLabel)  IPv4 $(Get-RemoteControlSelfIPv4)"
     Write-Host "  Login user:     $env:USERNAME"
     Write-Host "  RDP host:       $(if (-not (Test-RemoteControlRdpHostSupported)) { 'unsupported (Windows Home)' } elseif ($rdpDenied -eq 0) { 'enabled' } else { 'disabled' })"
+    Write-Host "  RDP listening:  $(if (Test-RemoteControlPortListening -Port $script:RcRdpPort) { "yes ($script:RcRdpPort)" } else { 'no' })"
     Write-Host "  SSH server:     $(if ($null -ne $sshd) { $sshd.Status } else { 'not installed' })"
+    Write-Host "  SSH listening:  $(if (Test-RemoteControlPortListening -Port $script:RcSshPort) { "yes ($script:RcSshPort)" } else { 'no' })"
     Write-Host "  SSH client:     $(if (Get-Command -Name 'ssh.exe' -ErrorAction SilentlyContinue) { 'installed' } else { 'not installed' })"
     Write-Host "  Shared key:     $(if ($null -ne $sharedKey) { $sharedKey } else { 'not installed' })"
+}
+
+# One line per check: [OK]/[WARN]/[FAIL] + name + detail. Returns $Ok for counting.
+function Write-RemoteControlCheck {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][bool]$Ok,
+        [string]$Detail = '',
+        [switch]$WarnOnly
+    )
+    $tag = '[OK]  '
+    $type = 'Success'
+    if (-not $Ok) {
+        if ($WarnOnly) { $tag = '[WARN]'; $type = 'Warning' } else { $tag = '[FAIL]'; $type = 'Error' }
+    }
+    $line = "  $tag $Name"
+    if (-not [string]::IsNullOrWhiteSpace($Detail)) { $line = "$line -- $Detail" }
+    Write-ColorMessage -Message $line -Type $type
+    return $Ok
+}
+
+# Per-item readiness audit of everything a Linux client (xfreerdp/remmina/ssh
+# over Tailscale) needs from this Windows host. Read-only; safe to re-run.
+function Show-RemoteControlDiagnostics {
+    $passed = 0
+    $failed = 0
+    $ok = $false
+    $editionId = ''
+    $rdpDenied = $null
+    $termService = $null
+    $termDetail = 'not found'
+    $nla = $null
+    $passwordLess = $null
+    $rule = $null
+    $ruleDetail = ''
+    $sshdCap = $null
+    $sshd = $null
+    $sshdDetail = 'not found'
+    $selfIp = ''
+    $msAccount = ''
+    $sharedKey = $null
+    $pubLine = ''
+    $tsState = ''
+    $summaryType = 'Success'
+
+    Write-ColorMessage -Message '== Remote control diagnostics (what the Linux side needs from this host) ==' -Type 'Info'
+    Write-Host ''
+
+    Write-ColorMessage -Message '-- Tailscale --' -Type 'Info'
+    $tsState = Get-TailscaleQuickStateLabel
+    $selfIp = Get-RemoteControlSelfIPv4
+    $ok = ($tsState -eq $script:TailscaleRunningState)
+    if (Write-RemoteControlCheck -Name 'Tailscale backend' -Ok $ok -Detail "state=$tsState, IPv4=$selfIp") { $passed++ } else { $failed++ }
+
+    Write-ColorMessage -Message '-- RDP host --' -Type 'Info'
+    $editionId = [string](Get-ItemProperty -Path $script:RcCurrentVersionKey -Name 'EditionID' -ErrorAction SilentlyContinue).EditionID
+    $ok = Test-RemoteControlRdpHostSupported
+    if (Write-RemoteControlCheck -Name 'Edition supports RDP host' -Ok $ok -Detail "EditionID=$editionId (Core* = Home, no RDP host)") { $passed++ } else { $failed++ }
+
+    $rdpDenied = (Get-ItemProperty -Path $script:RcTerminalServerKey -Name 'fDenyTSConnections' -ErrorAction SilentlyContinue).fDenyTSConnections
+    $ok = ($rdpDenied -eq 0)
+    if (Write-RemoteControlCheck -Name 'fDenyTSConnections' -Ok $ok -Detail "value=$rdpDenied (0 = remote connections allowed)") { $passed++ } else { $failed++ }
+
+    $termService = Get-Service -Name 'TermService' -ErrorAction SilentlyContinue
+    if ($null -ne $termService) { $termDetail = "Status=$($termService.Status), StartType=$($termService.StartType)" }
+    $ok = ($null -ne $termService -and $termService.Status -eq 'Running' -and $termService.StartType -ne 'Disabled')
+    if (Write-RemoteControlCheck -Name 'TermService (Remote Desktop Services)' -Ok $ok -Detail $termDetail) { $passed++ } else { $failed++ }
+
+    $ok = Test-RemoteControlPortListening -Port $script:RcRdpPort
+    if (Write-RemoteControlCheck -Name "TCP $script:RcRdpPort listening" -Ok $ok -Detail "$(if ($ok) { 'RDP reachable over the tailnet' } else { 'no listener; Linux clients get connection refused' })") { $passed++ } else { $failed++ }
+
+    $rule = Get-NetFirewallRule -Name 'RemoteDesktop-UserMode-In-TCP' -ErrorAction SilentlyContinue
+    $ruleDetail = 'rule missing'
+    if ($null -ne $rule) { $ruleDetail = "Enabled=$($rule.Enabled), Profile=$($rule.Profile)" }
+    $ok = ($null -ne $rule -and "$($rule.Enabled)" -eq 'True')
+    if (Write-RemoteControlCheck -Name 'Firewall: RemoteDesktop-UserMode-In-TCP' -Ok $ok -Detail $ruleDetail) { $passed++ } else { $failed++ }
+
+    $rule = Get-NetFirewallRule -Name $script:RcRdpTailscaleRule -ErrorAction SilentlyContinue
+    $ruleDetail = 'rule missing (built-in RDP rules already cover the tailnet)'
+    if ($null -ne $rule) { $ruleDetail = "Enabled=$($rule.Enabled), RemoteAddress=$script:RcTailscaleCidr" }
+    $ok = ($null -ne $rule -and "$($rule.Enabled)" -eq 'True')
+    if (Write-RemoteControlCheck -Name "Firewall: $script:RcRdpTailscaleRule" -Ok $ok -Detail $ruleDetail -WarnOnly) { $passed++ }
+
+    $nla = (Get-ItemProperty -Path "$($script:RcTerminalServerKey)\WinStations\RDP-Tcp" -Name 'UserAuthentication' -ErrorAction SilentlyContinue).UserAuthentication
+    [void](Write-RemoteControlCheck -Name 'NLA (UserAuthentication)' -Ok $true -Detail "value=$nla (1 = required; xfreerdp/remmina support NLA)")
+
+    if (Test-Path -LiteralPath $script:RcPasswordLessKey) {
+        $passwordLess = (Get-ItemProperty -Path $script:RcPasswordLessKey -Name 'DevicePasswordLessBuildVersion' -ErrorAction SilentlyContinue).DevicePasswordLessBuildVersion
+        $ok = ($passwordLess -eq 0)
+        if (Write-RemoteControlCheck -Name 'Password logon over RDP allowed' -Ok $ok -Detail "DevicePasswordLessBuildVersion=$passwordLess (0 = allowed; 2 blocks password RDP logon)") { $passed++ } else { $failed++ }
+    }
+
+    $msAccount = Get-RemoteControlMicrosoftAccount
+    if (-not [string]::IsNullOrWhiteSpace($msAccount)) {
+        [void](Write-RemoteControlCheck -Name 'Sign-in account' -Ok $true -Detail "Microsoft account; Linux side username = $msAccount (account password, not PIN)")
+    } else {
+        [void](Write-RemoteControlCheck -Name 'Sign-in account' -Ok $true -Detail "local account; Linux side username = $env:USERNAME (Windows sign-in password)")
+    }
+
+    Write-ColorMessage -Message '-- SSH host (fallback channel) --' -Type 'Info'
+    $sshdCap = Get-WindowsCapability -Online -Name $script:RcSshServerCapability -ErrorAction SilentlyContinue
+    $ok = ($null -ne $sshdCap -and $sshdCap.State -eq 'Installed')
+    if (Write-RemoteControlCheck -Name 'OpenSSH.Server capability' -Ok $ok -Detail "State=$(if ($null -ne $sshdCap) { $sshdCap.State } else { 'unknown' })") { $passed++ } else { $failed++ }
+
+    $sshd = Get-Service -Name 'sshd' -ErrorAction SilentlyContinue
+    if ($null -ne $sshd) { $sshdDetail = "Status=$($sshd.Status), StartType=$($sshd.StartType)" }
+    $ok = ($null -ne $sshd -and $sshd.Status -eq 'Running')
+    if (Write-RemoteControlCheck -Name 'sshd service' -Ok $ok -Detail $sshdDetail) { $passed++ } else { $failed++ }
+
+    $ok = Test-RemoteControlPortListening -Port $script:RcSshPort
+    if (Write-RemoteControlCheck -Name "TCP $script:RcSshPort listening" -Ok $ok -Detail "$(if ($ok) { 'SSH reachable over the tailnet' } else { 'no listener; Linux ssh gets connection refused' })") { $passed++ } else { $failed++ }
+
+    $rule = Get-NetFirewallRule -Name $script:RcSshFirewallRule -ErrorAction SilentlyContinue
+    $ruleDetail = 'rule missing'
+    if ($null -ne $rule) { $ruleDetail = "Enabled=$($rule.Enabled)" }
+    $ok = ($null -ne $rule -and "$($rule.Enabled)" -eq 'True')
+    if (Write-RemoteControlCheck -Name "Firewall: $script:RcSshFirewallRule" -Ok $ok -Detail $ruleDetail) { $passed++ } else { $failed++ }
+
+    $sharedKey = Find-RemoteControlSharedKey
+    if ($null -eq $sharedKey) {
+        [void](Write-RemoteControlCheck -Name 'Shared key authorized' -Ok $false -WarnOnly -Detail 'no shared key; password login still works (Step5_InstallGitSSH.ps1 installs it)')
+    } else {
+        $pubLine = (Get-Content -LiteralPath "$sharedKey.pub" -TotalCount 1).Trim()
+        $ok = (Test-Path -LiteralPath $script:RcAdminKeysFile) -and (Select-String -LiteralPath $script:RcAdminKeysFile -SimpleMatch -Pattern $pubLine -Quiet)
+        if (Write-RemoteControlCheck -Name 'Shared key authorized' -Ok ([bool]$ok) -Detail "$script:RcAdminKeysFile") { $passed++ } else { $failed++ }
+    }
+
+    Write-Host ''
+    if ($failed -gt 0) { $summaryType = 'Warning' }
+    Write-ColorMessage -Message "== Result: $passed passed, $failed failed ==" -Type $summaryType
+    if ($failed -gt 0) {
+        Write-ColorMessage -Message "Fix: run 'Allow remote control of this machine' (idempotent) from this menu, then re-run Diagnostics." -Type 'Info'
+    }
+    Write-ColorMessage -Message "Linux side: dd.sh > [T] Tailscale > Remote Control > Connect to a peer (this host: $selfIp)" -Type 'Info'
+}
+
+# Section header for the Claude Peer Link log (numbered, easy to quote back).
+function Write-RemoteControlSection {
+    param([Parameter(Mandatory = $true)][string]$Title)
+    Write-Host ''
+    Write-ColorMessage -Message ('==== {0} ====' -f $Title) -Type 'Info'
+}
+
+# Run a native command and echo its full output through Write-Host, so the
+# Windows PowerShell 5.1 transcript records it (direct native output is not).
+function Write-RemoteControlNativeOutput {
+    param(
+        [Parameter(Mandatory = $true)][string]$Label,
+        [Parameter(Mandatory = $true)][scriptblock]$Command
+    )
+    $text = ''
+    Write-Host ('  $ {0}' -f $Label)
+    try {
+        $text = (& $Command 2>&1 | Out-String).TrimEnd()
+    } catch {
+        $text = "error: $($_.Exception.Message)"
+    }
+    if ([string]::IsNullOrWhiteSpace($text)) { $text = '(no output)' }
+    foreach ($line in ($text -split "`r?`n")) { Write-Host ('    {0}' -f $line) }
+}
+
+# One-shot, idempotent link of this Windows host into the cross-machine Claude
+# agent team over Tailscale: SSH host (control from Linux) + readiness audit +
+# Claude Code Remote Control prerequisites (communication). Everything is
+# written to a transcript under LOGS_DIR, plus a stable *_latest.log copy.
+# Tailscale SSH has no Windows server, so control uses Windows OpenSSH Server.
+function Invoke-RemoteControlClaudePeerLink {
+    $logFile = ''
+    $selfIp = ''
+    $selfDns = ''
+    $status = $null
+    $selfNode = $null
+    $installInfo = $null
+    $osInfo = $null
+    $claudeCommand = $null
+    $gitCommand = $null
+    $sharedKey = $null
+    $defaultShell = ''
+    $keyLine = ''
+    $keyFile = ''
+
+    if (-not $Global:IS_RUN_ADMIN) {
+        Invoke-RemoteControlElevated -ElevatedAction 'ClaudePeer'
+        Write-ColorMessage -Message "Full log (copy this file): $script:RcClaudePeerLatestLog" -Type 'Info'
+        return
+    }
+    if (-not (Test-Path -LiteralPath $Global:LOGS_DIR)) { New-Item -ItemType Directory -Path $Global:LOGS_DIR -Force | Out-Null }
+    $logFile = Join-Path $Global:LOGS_DIR ('{0}_{1}.log' -f $script:RcClaudePeerLogPrefix, (Get-Date -Format 'yyyyMMdd_HHmmss'))
+    Start-Transcript -LiteralPath $logFile -Force | Out-Null
+    try {
+        Write-ColorMessage -Message '== Claude Peer Link over Tailscale (idempotent; safe to re-run) ==' -Type 'Info'
+
+        Write-RemoteControlSection -Title '1. System'
+        $osInfo = Get-CimInstance Win32_OperatingSystem
+        Write-Host "  Time:          $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss zzz')"
+        Write-Host "  Computer:      $env:COMPUTERNAME"
+        Write-Host "  User:          $env:USERDOMAIN\$env:USERNAME (admin: $Global:IS_RUN_ADMIN)"
+        Write-Host "  OS:            $($osInfo.Caption) $($osInfo.Version) (build $($osInfo.BuildNumber))"
+        Write-Host "  PowerShell:    $($PSVersionTable.PSVersion)"
+        Write-Host "  Script:        $script:REMOTE_CONTROL_SCRIPT"
+
+        Write-RemoteControlSection -Title '2. Tailscale'
+        $installInfo = Get-TailscaleInstallInfo
+        Write-Host "  Installed:     $($installInfo.Installed) ($($installInfo.ExePath))"
+        if ($installInfo.Installed) {
+            $status = Get-TailscaleStatusJson -TailscaleExe $installInfo.ExePath
+            $selfNode = Get-TailscaleJsonProperty -Object $status -Name 'Self' -Default $null
+            $selfDns = ([string](Get-TailscaleJsonProperty -Object $selfNode -Name 'DNSName' -Default '')).TrimEnd('.')
+            Write-Host "  Backend:       $(Get-TailscaleJsonProperty -Object $status -Name 'BackendState' -Default 'unknown')"
+            Write-Host "  MagicDNS:      $selfDns"
+        }
+        $selfIp = Get-RemoteControlSelfIPv4
+        Write-Host "  IPv4:          $selfIp"
+        Show-RemoteControlPeerTable -Peers @(Get-RemoteControlPeers)
+
+        Write-RemoteControlSection -Title '3. SSH host (control from Linux; installs/repairs only what is missing)'
+        Enable-RemoteControlSshHost
+
+        Write-RemoteControlSection -Title '4. SSH details'
+        $sharedKey = Find-RemoteControlSharedKey
+        Write-Host "  Shared key:    $(if ($null -ne $sharedKey) { $sharedKey } else { 'not found' })"
+        if ($null -ne $sharedKey) {
+            $keyFile = "$sharedKey.pub"
+            Write-RemoteControlNativeOutput -Label "ssh-keygen -lf $keyFile" -Command { ssh-keygen.exe -lf $keyFile }
+        }
+        if (Test-Path -LiteralPath $script:RcAdminKeysFile) {
+            Write-Host "  Authorized keys ($script:RcAdminKeysFile):"
+            foreach ($keyLine in @(Get-Content -LiteralPath $script:RcAdminKeysFile | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+                Write-RemoteControlNativeOutput -Label 'ssh-keygen -lf <authorized key>' -Command { $keyLine | ssh-keygen.exe -lf - }
+            }
+            Write-RemoteControlNativeOutput -Label "icacls $script:RcAdminKeysFile" -Command { icacls.exe $script:RcAdminKeysFile }
+        } else {
+            Write-ColorMessage -Message "  $script:RcAdminKeysFile does not exist" -Type 'Warning'
+        }
+        if (Test-Path -LiteralPath $script:RcSshdConfigFile) {
+            Write-RemoteControlNativeOutput -Label "active lines of $script:RcSshdConfigFile" -Command {
+                Get-Content -LiteralPath $script:RcSshdConfigFile | Where-Object { $_ -match '\S' -and $_ -notmatch '^\s*#' }
+            }
+        }
+        $defaultShell = [string](Get-ItemProperty -Path $script:RcOpenSshRegistryKey -Name 'DefaultShell' -ErrorAction SilentlyContinue).DefaultShell
+        Write-Host "  DefaultShell:  $(if ([string]::IsNullOrWhiteSpace($defaultShell)) { 'cmd.exe (OpenSSH default)' } else { $defaultShell })"
+        Write-RemoteControlNativeOutput -Label 'sshd events (newest 5)' -Command {
+            Get-WinEvent -LogName 'OpenSSH/Operational' -MaxEvents 5 -ErrorAction SilentlyContinue | Format-List TimeCreated, LevelDisplayName, Message
+        }
+
+        Write-RemoteControlSection -Title '5. Readiness audit (Tailscale / RDP / SSH)'
+        Show-RemoteControlDiagnostics
+
+        Write-RemoteControlSection -Title '6. Claude Code (cross-machine messaging = Remote Control)'
+        $claudeCommand = Get-Command 'claude' -ErrorAction SilentlyContinue
+        $gitCommand = Get-Command 'git' -ErrorAction SilentlyContinue
+        Write-Host "  claude:        $(if ($null -ne $claudeCommand) { $claudeCommand.Source } else { 'not found' })"
+        if ($null -ne $claudeCommand) { Write-RemoteControlNativeOutput -Label 'claude --version (native Windows messaging needs 2.1.234+)' -Command { claude --version } }
+        Write-Host "  git:           $(if ($null -ne $gitCommand) { $gitCommand.Source } else { 'not found (Remote Control on native Windows needs Git for Windows)' })"
+        if ($null -ne $gitCommand) { Write-RemoteControlNativeOutput -Label 'git --version' -Command { git --version } }
+        if (Test-Path -LiteralPath $script:CLAUDE_TEAM_INSTALL_COMMON_FOR_RC) {
+            . $script:CLAUDE_TEAM_INSTALL_COMMON_FOR_RC
+            Test-ClaudeTeamRemoteControlEnvironment
+            Test-ClaudeTeamAccount
+        } else {
+            Write-ColorMessage -Message "  $script:CLAUDE_TEAM_INSTALL_COMMON_FOR_RC not found; Claude checks skipped" -Type 'Warning'
+        }
+
+        Write-RemoteControlSection -Title '7. Next steps'
+        Write-Host "  Control from Linux:   ssh $env:USERNAME@$selfIp$(if (-not [string]::IsNullOrWhiteSpace($selfDns)) { "   (or ssh $env:USERNAME@$selfDns)" })"
+        Write-Host '  Messaging (manual, once): in the project folder run  claude  ->  /login (same claude.ai account as the Linux side)'
+        Write-Host ('                          then  /remote-control {0}   (the Linux session also runs /remote-control)' -f $script:RcClaudePeerSessionName)
+        Write-Host '  Verify from Linux:    ListAgents shows the session; SendMessage to it'
+    } finally {
+        Stop-Transcript | Out-Null
+        Copy-Item -LiteralPath $logFile -Destination $script:RcClaudePeerLatestLog -Force
+        Write-ColorMessage -Message "Full log: $logFile" -Type 'Success'
+        Write-ColorMessage -Message "Latest copy: $script:RcClaudePeerLatestLog" -Type 'Success'
+    }
 }
 
 function Show-RemoteControlHelp {
@@ -354,6 +672,7 @@ function Show-RemoteControlHelp {
     Write-Host 'Automated here:'
     Write-Host '  Windows host:   Remote Desktop (fDenyTSConnections=0 + firewall), OpenSSH Server + shared key'
     Write-Host '  Windows client: OpenSSH Client, mstsc (built in), shared key'
+    Write-Host '  Diagnostics:    per-item readiness checks with details (menu item / -Action Diagnose)'
     Write-Host '  Linux side:     dd.sh > Linux System Tools > [T] Tailscale > Remote Control'
     Write-Host ''
     Write-Host 'Manual UI steps when automation is not possible:'
@@ -383,6 +702,8 @@ function Show-RemoteControlMenu {
         @{ Text = 'Connect to a peer (RDP or SSH)';                                       Action = { Connect-RemoteControlPeer } },
         @{ Text = 'Endpoints (all Tailscale IPs + connect commands)';                     Action = { Show-RemoteControlEndpoints } },
         @{ Text = 'Status';                                                               Action = { Show-RemoteControlStatus } },
+        @{ Text = 'Diagnostics (per-item RDP/SSH/Tailscale readiness checks)';            Action = { Show-RemoteControlDiagnostics } },
+        @{ Text = 'Claude Peer Link (SSH host + Claude Remote Control checks, full log)'; Action = { Invoke-RemoteControlClaudePeerLink } },
         @{ Text = 'Help (manual UI steps + official docs)';                               Action = { Show-RemoteControlHelp } },
         @{ Text = 'Back';                                                                 Action = { return } }
     )
@@ -438,5 +759,7 @@ switch ($script:RcRequestedAction) {
     'Host'       { Enable-RemoteControlHost; Wait-MenuContinue }
     'Connect'    { Connect-RemoteControlPeer }
     'Status'     { Show-RemoteControlStatus }
+    'ClaudePeer' { Invoke-RemoteControlClaudePeerLink; Wait-MenuContinue }
+    'Diagnose'   { Show-RemoteControlDiagnostics; Wait-MenuContinue }
     'Help'       { Show-RemoteControlHelp }
 }

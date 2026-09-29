@@ -1,6 +1,0 @@
-{
-  "granted_at": "2026-09-29T10:49:20.778Z",
-  "expires_at": "2026-09-29T12:49:20.785Z",
-  "session_id": "fda58104-34d6-4829-b9a5-87871563990b",
-  "prompt_excerpt": "\n\n<pasted_content id=\"ad88\">\n\n● The Windows side needs no code change for the\n  409, and I've written a handoff doc for\n  continuing the Laravel fix on Linux:\n  docs_fix/FIX_20260929_WINDOWS_MEMORY_AN"
-}

@@ -24,10 +24,11 @@
 #   rc_show_endpoints        - every Tailscale IP (self + peers) with RDP/SSH commands
 #   rc_enable_controller     - one-click: this machine can control remote hosts
 #   rc_enable_host           - one-click: allow remote hosts to control this machine
-#   rc_connect_peer          - pick a peer, connect by RDP or SSH
+#   rc_enable_rdp_host       - one-click (idempotent): RDP host only (GNOME grdctl or xrdp)
+#   rc_connect_peer          - one-click: number = RDP, +r = Remmina, +s = SSH (cached user)
 #   rc_show_status           - host/client readiness summary
 #   rc_show_help             - manual UI steps + doc links
-#   remote_control_common_main <endpoints|controller|host|connect|status|help>
+#   remote_control_common_main <endpoints|controller|host|rdp|connect|status|help>
 # =============================================================================
 
 if [ "${REMOTE_CONTROL_COMMON_LOADED:-false}" = "true" ]; then
@@ -58,6 +59,7 @@ RC_HOST_XRDP_PACKAGES="xrdp xorgxrdp"
 RC_PEER_ROWS=()
 RC_RDP_BACKEND=""
 RC_LOGIN_PASSWORD=""
+RC_CONNECT_CACHE_FILE="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/rc_connect_users"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -103,6 +105,11 @@ rc_pause() {
     echo ""
     echo "Press Enter to continue..."
     read -r
+}
+
+# stdin filter: exit 0 when grdctl status shows the RDP section enabled.
+rc_status_rdp_enabled() {
+    awk '/^[A-Za-z]+:/{in_rdp=($0=="RDP:")} in_rdp && /Status: enabled/{found=1} END{exit !found}'
 }
 
 # "HOST<TAB>OS<TAB>ONLINE<TAB>IPV4<TAB>DNSNAME<TAB>SELF" rows (self first) into RC_PEER_ROWS.
@@ -398,16 +405,22 @@ rc_enable_xrdp() {
     echo "  Log out locally first: xrdp cannot open a second GNOME session for the same user."
 }
 
-rc_enable_host() {
-    local user=""
-    user="$(rc_target_user)"
-    echo "== Allow remote control of this machine (user '$user') =="
-    rc_sudo apt-get update -qq
-    rc_enable_ssh_host "$user"
-    echo ""
+# RDP host only. Idempotent: TLS pair generation skips existing files, grdctl
+# set-* rewrites the same values, systemctl enable --now is a no-op when done.
+rc_enable_rdp_host() {
+    local user="$1"
     echo "-- Remote desktop (RDP $RC_RDP_PORT) --"
     RC_RDP_BACKEND="$(rc_rdp_backend)"
     echo "  backend: $RC_RDP_BACKEND"
+    case "$RC_RDP_BACKEND" in
+        gnome-system)
+            rc_sudo grdctl --system status 2>/dev/null | rc_status_rdp_enabled && \
+                echo "  already enabled; re-running refreshes TLS/credentials" ;;
+        gnome-user)
+            rc_run_as_user_session "$user" grdctl status 2>/dev/null | rc_status_rdp_enabled && \
+                echo "  already enabled; re-running refreshes TLS/credentials" ;;
+    esac
+    rc_sudo apt-get update -qq
     case "$RC_RDP_BACKEND" in
         gnome-system|gnome-user)
             if systemctl is-active --quiet xrdp 2>/dev/null; then
@@ -426,6 +439,16 @@ rc_enable_host() {
         xrdp) rc_enable_xrdp ;;
     esac
     rc_allow_firewall_port "$RC_RDP_PORT"
+}
+
+rc_enable_host() {
+    local user=""
+    user="$(rc_target_user)"
+    echo "== Allow remote control of this machine (user '$user') =="
+    rc_sudo apt-get update -qq
+    rc_enable_ssh_host "$user"
+    echo ""
+    rc_enable_rdp_host "$user"
     echo ""
     echo "Connect from Windows: mstsc /v:$(net_detect_tailscale_ipv4 2>/dev/null || echo '<tailscale-ip>')  (user '$user', system login password)"
     echo "If a step could not be automated, see Help for the manual UI steps."
@@ -435,20 +458,77 @@ rc_enable_host() {
 # 4) Connect to a peer
 # ---------------------------------------------------------------------------
 
-rc_connect_rdp() {
-    local ipv4="$1" remote_user="$2" client="" target="" desktop_user="" desktop_uid=""
-    client="$(rc_rdp_client_bin)" || { echo "No RDP client; run 'Enable this machine to control remote' first."; return 1; }
+# Last-used remote username per peer hostname (tab-separated "host<TAB>user").
+rc_connect_cached_user() {
+    local host="$1" line=""
+    if [ -n "$host" ] && [ -f "$RC_CONNECT_CACHE_FILE" ]; then
+        line="$(grep -F "$host"$'\t' "$RC_CONNECT_CACHE_FILE" 2>/dev/null | tail -1)"
+    fi
+    if [ -n "$line" ]; then printf '%s' "${line#*$'\t'}"; else rc_target_user; fi
+}
+
+rc_connect_cache_user() {
+    local host="$1" user="$2"
+    [ -n "$host" ] || return 0
+    mkdir -p "$(dirname "$RC_CONNECT_CACHE_FILE")"
+    grep -vF "$host"$'\t' "$RC_CONNECT_CACHE_FILE" 2>/dev/null > "$RC_CONNECT_CACHE_FILE.tmp" || true
+    printf '%s\t%s\n' "$host" "$user" >> "$RC_CONNECT_CACHE_FILE.tmp"
+    mv "$RC_CONNECT_CACHE_FILE.tmp" "$RC_CONNECT_CACHE_FILE"
+}
+
+# Xauthority for the desktop user's Xwayland display: probe each mutter cookie
+# with xdpyinfo, else fall back to the newest file (empty when none found).
+# Never reuse the caller's XAUTHORITY: it may be unreadable by the target user.
+rc_session_xauthority() {
+    local uid="$1" display="${DISPLAY:-:0}" f=""
+    if command -v xdpyinfo >/dev/null 2>&1; then
+        for f in /run/user/"$uid"/.mutter-Xwaylandauth.*; do
+            [ -r "$f" ] || continue
+            if env DISPLAY="$display" XAUTHORITY="$f" xdpyinfo >/dev/null 2>&1; then
+                printf '%s' "$f"
+                return 0
+            fi
+        done
+    fi
+    ls -t /run/user/"$uid"/.mutter-Xwaylandauth.* 2>/dev/null | head -1
+}
+
+# Run a GUI command on the desktop user's session (direct when already that user).
+rc_run_gui_as_desktop_user() {
+    local target="" desktop_user="" desktop_uid="" xauth=""
     target="$(ts_target_user 2>/dev/null)" || target=""
     desktop_user="${target%% *}"
     desktop_uid="${target##* }"
-    echo "\$ $client /v:$ipv4 /u:$remote_user /dynamic-resolution +clipboard /cert:tofu"
     if [ "$(id -u)" -eq 0 ] && [ -n "$desktop_user" ] && [ "$desktop_user" != "root" ]; then
+        xauth="$(rc_session_xauthority "$desktop_uid")"
         rc_as_user "$desktop_user" env XDG_RUNTIME_DIR="/run/user/$desktop_uid" \
             DISPLAY="${DISPLAY:-:0}" WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
-            "$client" "/v:$ipv4" "/u:$remote_user" /dynamic-resolution +clipboard /cert:tofu
+            ${xauth:+XAUTHORITY="$xauth"} "$@"
     else
-        "$client" "/v:$ipv4" "/u:$remote_user" /dynamic-resolution +clipboard /cert:tofu
+        "$@"
     fi
+}
+
+# TCP reachability probe (3s timeout).
+rc_port_open() {
+    timeout 3 bash -c "echo > /dev/tcp/$1/$2" 2>/dev/null
+}
+
+rc_connect_rdp() {
+    local ipv4="$1" remote_user="$2" client=""
+    client="$(rc_rdp_client_bin)" || { echo "No RDP client; run 'Enable this machine to control remote' first."; return 1; }
+    echo "\$ $client /v:$ipv4 /u:$remote_user /dynamic-resolution +clipboard /cert:tofu"
+    rc_run_gui_as_desktop_user "$client" "/v:$ipv4" "/u:$remote_user" /dynamic-resolution +clipboard /cert:tofu
+}
+
+# Remmina GUI in the background: it stays open after the session disconnects.
+rc_connect_remmina() {
+    local ipv4="$1" remote_user="$2"
+    command -v remmina >/dev/null 2>&1 || { echo "remmina not installed; run 'Enable this machine to control remote' first."; return 1; }
+    echo "\$ remmina -c rdp://$remote_user@$ipv4"
+    rc_run_gui_as_desktop_user remmina -c "rdp://$remote_user@$ipv4" >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+    echo "Remmina launched on the desktop."
 }
 
 rc_connect_ssh() {
@@ -463,29 +543,83 @@ rc_connect_ssh() {
     fi
 }
 
+# One-click: peer number = RDP desktop (xfreerdp), number+'r' = Remmina GUI,
+# number+'s' = SSH shell (e.g. '0s', '1r'), or a raw 100.x IP. The port is
+# probed first; username defaults to the last one used for that host.
 rc_connect_peer() {
-    local choice="" row="" host="" os="" online="" ipv4="" dns="" kind="" remote_user="" mode=""
+    local choice="" row="" host="" os="" online="" ipv4="" dns="" kind=""
+    local remote_user="" input_user="" mode="rdp" index=0 port="" launch_anyway=""
+    local peers=()
     echo "== Connect to a Tailscale peer =="
-    rc_print_peer_table
-    [ "${#RC_PEER_ROWS[@]}" -gt 0 ] || return 0
-    printf "Peer number (or a Tailscale IP): "
-    read -r choice
-    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -lt "${#RC_PEER_ROWS[@]}" ]; then
-        row="${RC_PEER_ROWS[$choice]}"
+    rc_load_peer_rows
+    for row in "${RC_PEER_ROWS[@]}"; do
         IFS=$'\t' read -r host os online ipv4 dns kind <<<"$row"
+        [ "$kind" = "self" ] && continue
+        case "$os" in linux|windows) ;; *) continue ;; esac
+        peers+=("$row")
+    done
+    if [ "${#peers[@]}" -eq 0 ]; then
+        echo "  (no Linux/Windows peers; Tailscale state: $(ts_backend_state))"
+        return 0
+    fi
+    printf "  %-3s %-20s %-8s %-7s %s\n" "#" "HOSTNAME" "OS" "ONLINE" "TAILSCALE IPV4"
+    for row in "${peers[@]}"; do
+        IFS=$'\t' read -r host os online ipv4 dns kind <<<"$row"
+        printf "  %-3s %-20s %-8s %-7s %s\n" "$index" "$host" "$os" "$online" "$ipv4"
+        index=$((index + 1))
+    done
+    printf "Peer number (r=Remmina, s=SSH; e.g. 1r / 0s; or a 100.x IP): "
+    read -r choice
+    case "$choice" in
+        *[sS]) mode="ssh"; choice="${choice%[sS]}" ;;
+        *[rR]) mode="remmina"; choice="${choice%[rR]}" ;;
+    esac
+    host=""
+    os=""
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -lt "${#peers[@]}" ]; then
+        IFS=$'\t' read -r host os online ipv4 dns kind <<<"${peers[$choice]}"
     elif [[ "$choice" =~ ^100\. ]]; then
         ipv4="$choice"
     else
         echo "Invalid selection."
         return 1
     fi
-    printf "Remote username [%s]: " "$(rc_target_user)"
-    read -r remote_user
-    [ -n "$remote_user" ] || remote_user="$(rc_target_user)"
-    printf "Mode: [1] RDP desktop  [2] SSH shell  [1]: "
-    read -r mode
+    port="$RC_RDP_PORT"
+    [ "$mode" = "ssh" ] && port="$RC_SSH_PORT"
+    if ! rc_port_open "$ipv4" "$port"; then
+        echo ""
+        echo "Cannot reach $ipv4:$port -- the remote machine may not be hosting this service yet."
+        case "$os" in
+            windows)
+                echo "On that Windows PC run: dd.cmd > [T] Tailscale > Remote Control > Allow remote control of this machine."
+                echo "(Windows Home cannot host RDP; enable OpenSSH Server there for SSH, or use RustDesk.)"
+                ;;
+            linux)
+                echo "On that Linux machine run: dd.sh > [T] Tailscale > Remote Control > Allow remote control of this machine."
+                ;;
+            *)
+                echo "Enable the service on the remote machine first (RDP $RC_RDP_PORT / SSH $RC_SSH_PORT)."
+                ;;
+        esac
+        echo ""
+        printf "Start the remote tool anyway? [Y/n]: "
+        read -r launch_anyway
+        case "$launch_anyway" in
+            [Nn]*) return 1 ;;
+        esac
+    fi
+    remote_user="$(rc_connect_cached_user "$host")"
+    if [ "$os" = "windows" ]; then
+        printf "Remote Windows sign-in user [%s]: " "$remote_user"
+    else
+        printf "Remote username [%s]: " "$remote_user"
+    fi
+    read -r input_user
+    [ -n "$input_user" ] && remote_user="$input_user"
+    rc_connect_cache_user "$host" "$remote_user"
     case "$mode" in
-        2) rc_connect_ssh "$ipv4" "$remote_user" ;;
+        ssh) rc_connect_ssh "$ipv4" "$remote_user" ;;
+        remmina) rc_connect_remmina "$ipv4" "$remote_user" ;;
         *) rc_connect_rdp "$ipv4" "$remote_user" ;;
     esac
 }
@@ -518,6 +652,9 @@ Automated here:
   Linux host:   openssh-server + shared key, GNOME Remote Desktop (grdctl) or xrdp, ufw on $RC_TAILSCALE_IFACE
   Linux client: freerdp3 (freerdp2 on Debian 12), remmina, openssh-client, shared key
   Windows side: dd.cmd > Windows Management > [T] Tailscale > Remote Control
+  Connect: peer number = RDP desktop (xfreerdp), number+r = Remmina GUI, number+s = SSH
+    shell (e.g. '1r', '0s'); the port is probed first, and the username is remembered
+    per host, so a repeat connection is peer number + Enter + Enter.
 
 Manual UI steps when automation is not possible:
   GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >
@@ -544,6 +681,7 @@ remote_control_common_main() {
         endpoints) rc_show_endpoints ;;
         controller) rc_enable_controller ;;
         host) rc_enable_host ;;
+        rdp) rc_enable_rdp_host "$(rc_target_user)" ;;
         connect) rc_connect_peer ;;
         status) rc_show_status ;;
         *) rc_show_help ;;

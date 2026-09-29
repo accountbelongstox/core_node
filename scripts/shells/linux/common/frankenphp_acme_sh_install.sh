@@ -14,6 +14,8 @@ source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 source "$SCRIPT_CURRENT_DIR/common_functions.sh"
 source "$SCRIPT_CURRENT_DIR/step_state.sh"
 source "$SCRIPT_CURRENT_DIR/frankenphp_manager.sh"
+# Owns SYSTEMD_DIR and the content-idempotent unit/timer writers.
+source "$SCRIPT_CURRENT_DIR/systemd_service_manager.sh"
 
 # Unified path family (builder single source): acme.sh lives under the same
 # persistent FrankenPHP build root as the sources and the prebuilt cache.
@@ -29,8 +31,7 @@ ACME_INSTALL_FINGERPRINT="prebuilt-v1"
 ACME_SH_FLOCK_FILE="/run/lock/core_node_acme_sh.lock"
 ACME_SH_INSTALL_LOG="${ACME_INSTALL_CONFIG_DIR}/install.log"
 ACME_SH_SERVICE_NAME="ncore-acme-cert"
-ACME_SH_SERVICE_UNIT="/etc/systemd/system/${ACME_SH_SERVICE_NAME}.service"
-ACME_SH_TIMER_UNIT="/etc/systemd/system/${ACME_SH_SERVICE_NAME}.timer"
+ACME_SH_SERVICE_UNIT="${SYSTEMD_DIR}/${ACME_SH_SERVICE_NAME}.service"
 ACME_SH_MINIMUM_VALIDITY_SECONDS="${ACME_SH_MINIMUM_VALIDITY_SECONDS:-604800}"
 
 acme_install_fingerprint() {
@@ -468,8 +469,6 @@ EOF
 acme_sh_service_ensure() {
     local acme_bin=""
     local service_content=""
-    local timer_content=""
-    local units_changed="no"
     local timer_active=""
     local timer_enabled=""
 
@@ -492,32 +491,12 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 SyslogIdentifier=${ACME_SH_SERVICE_NAME}
-ExecStart=${acme_bin} --cron --home ${ACME_INSTALL_HOME_DIR} --config-home ${ACME_INSTALL_CONFIG_DIR}"
-    timer_content="[Unit]
-Description=Renewal of Let's Encrypt certificates (core_node acme.sh)
+ExecStart=${acme_bin} --cron --home ${ACME_INSTALL_HOME_DIR} --config-home ${ACME_INSTALL_CONFIG_DIR}
+"
 
-[Timer]
-OnCalendar=0/6:00:00
-RandomizedOffsetSec=6h
-FixedRandomDelay=true
-Persistent=true
-
-[Install]
-WantedBy=timers.target"
-
-    if [ "$(cat "$ACME_SH_SERVICE_UNIT" 2>/dev/null || true)" != "$service_content" ]; then
-        printf '%s\n' "$service_content" > "$ACME_SH_SERVICE_UNIT"
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal service unit written: $ACME_SH_SERVICE_UNIT"
-        units_changed="yes"
-    fi
-    if [ "$(cat "$ACME_SH_TIMER_UNIT" 2>/dev/null || true)" != "$timer_content" ]; then
-        printf '%s\n' "$timer_content" > "$ACME_SH_TIMER_UNIT"
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal timer unit written: $ACME_SH_TIMER_UNIT"
-        units_changed="yes"
-    fi
-    if [ "$units_changed" = "yes" ]; then
-        systemctl daemon-reload >/dev/null 2>&1 || true
-    fi
+    dsm_write_unit "$ACME_SH_SERVICE_UNIT" "$service_content"
+    create_systemd_timer "$ACME_SH_SERVICE_NAME" "Renewal of Let's Encrypt certificates (core_node acme.sh)" \
+        "0/6:00:00" "RandomizedDelaySec=6h" "FixedRandomDelay=true"
     timer_active="$(systemctl is-active "${ACME_SH_SERVICE_NAME}.timer" 2>/dev/null || true)"
     timer_enabled="$(systemctl is-enabled "${ACME_SH_SERVICE_NAME}.timer" 2>/dev/null || true)"
     if [ "$timer_active" != "active" ] || [ "$timer_enabled" != "enabled" ]; then

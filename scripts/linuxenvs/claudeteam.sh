@@ -24,8 +24,9 @@
 #       claudeteam --team-pane <team|sessions> --agent <role> --name <session>
 #                  [--team-roles a,b] [--team-no-kickoff] [claude args...]
 #           Pane of claudeagents (team) / claudeteamup (sessions), same options as
-#           claudeteam.ps1: first writes <state dir>/<session>.pid (exec keeps the
-#           PID), then appends the catalog kickoff expanded for that mode; a remote
+#           claudeteam.ps1: first writes <state dir>/<session>.pid (this shell keeps
+#           the PID while claude runs as its child), then appends the catalog
+#           kickoff expanded for that mode; a remote
 #           role pane runs the ssh loop to its server tmux session instead.
 #     Permissions: --permission-mode auto for root and regular users alike.
 #     CLAUDE_AGENTS_SESSION=1 enables the project hooks (git guard, team gate).
@@ -35,7 +36,9 @@
 #     - Tool Name: Claude AI (Agent Teams)
 #     - Command Prefix: claudeteam
 #     - File Name: claudeteam.sh
-#     - Idempotent: it sets session-only environment variables and exec()s claude.
+#     - Idempotent: it sets session-only environment variables, runs claude as a
+#       child (a post-exit chown hands the shared config dir back to the real
+#       user after root runs), and exits with claude's exit code.
 # =============================================================================
 
 # Variable declarations (declared at the beginning of the file)
@@ -60,6 +63,9 @@ pidPath=""
 roleIndex=""
 envPair=""
 envName=""
+aiSharedLoginCommonPath=""
+realUserHome=""
+claudeExitCode=0
 
 # Initialize path variables
 scriptSource="${BASH_SOURCE[0]}"
@@ -70,6 +76,27 @@ scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
 claudeTeamCommonPath="$scriptsDirPath/shells/linux/common/claude_team_common.sh"
 aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
+
+# Shared login: default claude's config/auth directory to the real desktop
+# user's, resolved through the common ai_shared_login helpers (never hardcoded:
+# the user comes from detect_system_user, the dir from the tools catalog), so
+# root windows share the real user's login, settings and session state. Login
+# shells already export the same value via /etc/profile.d; non-login shells
+# (tmux panes, scripts) resolve it here. An explicit CLAUDE_CONFIG_DIR wins.
+aiSharedLoginCommonPath="$scriptsDirPath/shells/linux/common/ai_shared_login.sh"
+if [ -f "$aiSharedLoginCommonPath" ]; then
+    . "$aiSharedLoginCommonPath"
+fi
+if [ -z "${CLAUDE_CONFIG_DIR:-}" ] && command -v ai_shared_login_real_home >/dev/null 2>&1; then
+    realUserHome="$(ai_shared_login_real_home 2>/dev/null)"
+    if [ -n "$realUserHome" ] && [ -d "$realUserHome" ]; then
+        CLAUDE_CONFIG_DIR="$(ai_catalog_expand_config_dir "claude" "$realUserHome" 2>/dev/null)"
+        [ -n "$CLAUDE_CONFIG_DIR" ] && export CLAUDE_CONFIG_DIR
+    fi
+fi
+if [ -z "${CLAUDE_CONFIG_DIR:-}" ]; then
+    export CLAUDE_CONFIG_DIR="$HOME/.claude"
+fi
 
 # Launcher options are consumed; every other argument goes to claude unchanged.
 while [ "$#" -gt 0 ]; do
@@ -125,8 +152,9 @@ if claude_team_load_catalog >/dev/null 2>&1; then
     catalogLoaded="1"
 fi
 
-# Role pane: the PID file first (exec keeps this PID for claude), so the launcher
-# sees the role while the CLI provisioning below still runs.
+# Role pane: the PID file first (this shell keeps the PID while claude runs as
+# its child), so the launcher sees the role while the CLI provisioning below
+# still runs.
 if [ -n "$teamMode" ] && [ -n "$agentName" ]; then
     if [ -z "$sessionName" ]; then
         sessionName="$(claude_team_session_name "$agentName")"
@@ -167,6 +195,10 @@ for envPair in "${CLAUDE_TEAM_SPEC_ENV[@]}"; do
 done
 # Marks a role session: enables the project git guard and task-owner tag hook.
 export CLAUDE_AGENTS_SESSION="1"
+# Keep every grid/team window on the same claude build: a background auto-update
+# re-triggers the version-gated onboarding/login screens independently in each
+# window. Upgrades stay manual through ai_cli_provision above.
+export DISABLE_AUTOUPDATER="1"
 
 # Every role runs in auto mode; teammates inherit the lead's mode. Do not force
 # ultracode: it adds a planning workflow to every substantive request.
@@ -187,9 +219,31 @@ echo "============================================================"
 echo "claudeteam.sh"
 echo "============================================================"
 echo "[INFO] Role: ${agentName:-standalone lead}${teamMode:+ (team mode $teamMode, PID file $pidPath)}"
+echo "[INFO] Claude config: $CLAUDE_CONFIG_DIR (auth, settings and sessions; root shares the real user's dir by default)"
 echo "[INFO] Environment: ${CLAUDE_TEAM_SPEC_ENV[*]:-none} $CLAUDE_TEAM_GIT_GUARD_ENV; removed: ${CLAUDE_TEAM_SPEC_UNSET[*]:-none}"
 echo "[INFO] Invoking: ${claude_invoke_display}"
 echo "============================================================"
 echo ""
 
-exec claude "${claude_args[@]}"
+# Wrap (not exec) so the shared-dir repair below runs after claude exits. The
+# PID file written for team panes still matches: this shell stays alive exactly
+# as long as claude.
+claude "${claude_args[@]}"
+claudeExitCode=$?
+
+# Root runs write root-owned files (credentials included) into the shared
+# config dir; hand ownership back to the real user so their own sessions keep
+# reading the same login. No-op for non-root or a root-owned config dir.
+if [ "$(id -u)" -eq 0 ]; then
+    case "$CLAUDE_CONFIG_DIR" in
+        /root|/root/*|"") ;;
+        *)
+            sharedConfigHome="$(dirname "$CLAUDE_CONFIG_DIR")"
+            sharedConfigOwner="$(stat -c '%u:%g' "$sharedConfigHome" 2>/dev/null || echo '0:0')"
+            if [ "$sharedConfigOwner" != "0:0" ]; then
+                chown -R "$sharedConfigOwner" "$CLAUDE_CONFIG_DIR" 2>/dev/null || true
+            fi
+            ;;
+    esac
+fi
+exit $claudeExitCode

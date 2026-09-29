@@ -67,6 +67,7 @@ gpu_present() {
 gpu_hardware_present() {
     local dev=""
     if [[ "${TORCH_FORCE_CUDA:-0}" == "1" ]]; then return 0; fi
+    if [[ "${CUDA_VISIBLE_DEVICES:-}" == "-1" ]]; then return 1; fi
     if [[ -n "$_GPU_HW_PRESENT_CACHE" ]]; then
         [[ "$_GPU_HW_PRESENT_CACHE" == "1" ]]
         return
@@ -89,8 +90,7 @@ gpu_hardware_present() {
         fi
     done
     if command -v lspci >/dev/null 2>&1 \
-        && lspci 2>/dev/null | grep -iqE 'vga|3d|display' \
-        && lspci 2>/dev/null | grep -iq nvidia; then
+        && lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -iq nvidia; then
         _GPU_HW_PRESENT_CACHE="1"
         return 0
     fi

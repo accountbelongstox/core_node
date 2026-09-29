@@ -46,5 +46,6 @@ All deletion or removal remains subject to the authorization restriction below.
   - `claude fable`
   - `kimi-k3`
   - `gpt-5.6-sol`
+  - `claude opus 5.5` (`claude-opus-5-5`)
 - **Model Verification:** Before performing any deletion, the model **MUST** verify its own name in that specific step.
 - If you cannot definitively confirm your model name matches one of the authorized models above, **DO NOT DELETE ANYTHING**.
