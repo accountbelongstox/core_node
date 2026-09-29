@@ -1,6 +1,6 @@
 ---
 name: ncore
-description: Node.js ncore developer: ncore/ (foundation, utils, global_vars, ncontroller, launcher, mcp_server) and the Node apps under apps/ except mcp-chrome.
+description: "Node.js ncore developer: ncore/ (foundation, utils, global_vars, ncontroller, launcher, mcp_server) and the Node apps under apps/ except mcp-chrome."
 model: sonnet
 effort: high
 memory: project

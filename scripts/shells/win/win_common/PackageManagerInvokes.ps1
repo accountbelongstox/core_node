@@ -1667,6 +1667,12 @@ function Invoke-UvCommand {
 
     $Recurse = $false
     $ExecutableExtensions = @(".exe", ".bat", ".cmd", ".ps1")
+    $pipExe = $null
+    $installOutput = @()
+    $installExitCode = 0
+    $previousErrorAction = $ErrorActionPreference
+    # uv's own message for a tool whose environment is corrupt (e.g. its python.exe is gone).
+    $uvBrokenToolPattern = 'Invalid environment|malformed tool'
 
     Write-DebugLog -Message "Processing uv package: $PackageName" -Category "UV" -Color "Cyan"
 
@@ -1801,7 +1807,20 @@ function Invoke-UvCommand {
         $Command = "uv $($installArgs -join ' ')"
         Write-DebugLog -Message "Command: $Command" -Category "UV" -Color "Magenta"
         
-        & $uvExe $installArgs
+        # uv prints progress on stderr; it must not abort the caller.
+        $ErrorActionPreference = "Continue"
+        $installOutput = @(& $uvExe $installArgs 2>&1)
+        $installExitCode = $LASTEXITCODE
+        $installOutput | ForEach-Object { Write-Host "  $_" }
+        if (($installExitCode -ne 0) -and (($installOutput | Out-String) -match $uvBrokenToolPattern)) {
+            # Official uv remedy for a corrupt tool environment: uninstall, then install again.
+            Write-DebugLog -Message "Corrupt uv tool environment for $PackageName; running uv tool uninstall and reinstalling" -Category "UV" -Color "Yellow"
+            & $uvExe tool uninstall $PackageName 2>&1 | ForEach-Object { Write-Host "  $_" }
+            & $uvExe $installArgs 2>&1 | ForEach-Object { Write-Host "  $_" }
+            $installExitCode = $LASTEXITCODE
+        }
+        $ErrorActionPreference = $previousErrorAction
+        Write-DebugLog -Message "uv tool install exit code: $installExitCode" -Category "UV" -Color "Magenta"
         
         # Refresh search paths after tool install
         Write-DebugLog -Message "Refreshing search paths..." -Category "UV" -Color "Magenta"

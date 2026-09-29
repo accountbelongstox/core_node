@@ -1,6 +1,6 @@
 ---
 name: ui-laravel-manager
-description: UI developer for the laravel-manager app in poly_apps/pycore_laravel_wordnew_ui (Laravel server management: data sync, nginx multi-end, queue center views).
+description: "UI developer for the laravel-manager app in poly_apps/pycore_laravel_wordnew_ui (Laravel server management: data sync, nginx multi-end, queue center views)."
 model: sonnet
 effort: high
 memory: project

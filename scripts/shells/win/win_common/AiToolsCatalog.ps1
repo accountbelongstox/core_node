@@ -141,7 +141,8 @@ $Global:AiToolsCatalog = @{
     }
     cursor_agent = @{
         Name = "Cursor Agent"
-        Exec = "agent.exe"
+        # The official installer (cursor.com/install?win32=true) creates cmd shims.
+        Exec = "cursor-agent.cmd"
         WindowsPackageKey = "CursorAgent"
         PnpmFallbackPackage = ""
         StepOnly = $null
@@ -324,6 +325,20 @@ function Get-AiTool {
         return $Global:AiToolsCatalog[$Key]
     }
     return $null
+}
+
+# Optional catalog field of <Key>; $null when the tool or the field is absent
+# (StrictMode throws on a missing hashtable key read as a property).
+function Get-AiToolField {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Field
+    )
+    $tool = Get-AiTool -Key $Key
+    if (($null -eq $tool) -or (-not $tool.ContainsKey($Field))) {
+        return $null
+    }
+    return $tool[$Field]
 }
 
 function Test-AiToolExists {

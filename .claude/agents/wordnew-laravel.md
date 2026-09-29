@@ -1,6 +1,6 @@
 ---
 name: wordnew-laravel
-description: wordnew group: Laravel AppQyV1 (the wordnew backend: words, books, sentences, TTS cache, word audio, AppQyV1 services and migrations).
+description: "wordnew group: Laravel AppQyV1 (the wordnew backend: words, books, sentences, TTS cache, word audio, AppQyV1 services and migrations)."
 model: sonnet
 effort: high
 memory: project

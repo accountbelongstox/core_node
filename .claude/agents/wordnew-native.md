@@ -1,6 +1,6 @@
 ---
 name: wordnew-native
-description: wordnew group: the wordnew native shell (Capacitor project under native/wordnew and its build) and the wordnew build/prerequisite scripts on Windows and Linux.
+description: "wordnew group: the wordnew native shell (Capacitor project under native/wordnew and its build) and the wordnew build/prerequisite scripts on Windows and Linux."
 model: sonnet
 effort: high
 memory: project

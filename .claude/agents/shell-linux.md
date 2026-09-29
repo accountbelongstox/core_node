@@ -1,6 +1,6 @@
 ---
 name: shell-linux
-description: Linux shell/installer developer: dd.sh, scripts/linuxenvs, scripts/shells/linux, shared sh libraries, Docker compose (incl. TTS/model containers), Debian 13 / Ubuntu 26.04 / Kali installers, nginx/FrankenPHP/SSH/systemd, Debian WSL2 side of Windows delegation, Linux claude team launchers and claude_team_install. Keeps every feature aligned with shell-windows.
+description: "Linux shell/installer developer: dd.sh, scripts/linuxenvs, scripts/shells/linux, shared sh libraries, Docker compose (incl. TTS/model containers), Debian 13 / Ubuntu 26.04 / Kali installers, nginx/FrankenPHP/SSH/systemd, Debian WSL2 side of Windows delegation, Linux claude team launchers and claude_team_install. Keeps every feature aligned with shell-windows."
 model: sonnet
 effort: high
 memory: project

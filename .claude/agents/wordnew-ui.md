@@ -1,6 +1,6 @@
 ---
 name: wordnew-ui
-description: wordnew group: the wordnew app of the pycore UI (apps/wordnew, flavors/wordnew): word learning, queue command center, orchestrated audio listing and player.
+description: "wordnew group: the wordnew app of the pycore UI (apps/wordnew, flavors/wordnew): word learning, queue command center, orchestrated audio listing and player."
 model: sonnet
 effort: high
 memory: project

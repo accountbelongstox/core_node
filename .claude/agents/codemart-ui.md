@@ -1,6 +1,6 @@
 ---
 name: codemart-ui
-description: CodeMart group: the codemart app of the pycore UI (apps/codemart, flavors/codemart).
+description: "CodeMart group: the codemart app of the pycore UI (apps/codemart, flavors/codemart)."
 model: sonnet
 effort: high
 memory: project

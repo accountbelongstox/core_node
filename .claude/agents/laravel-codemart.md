@@ -1,6 +1,6 @@
 ---
 name: laravel-codemart
-description: Laravel CodeMartV1 sub-app backend developer: marketplace, projects, tasks, estimate, wallet/escrow/payout, invoices, KYC, admin APIs of CodeMart; pairs with ui-codemart.
+description: "Laravel CodeMartV1 sub-app backend developer: marketplace, projects, tasks, estimate, wallet/escrow/payout, invoices, KYC, admin APIs of CodeMart; pairs with ui-codemart."
 model: sonnet
 effort: high
 memory: project

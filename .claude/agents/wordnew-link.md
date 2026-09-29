@@ -1,6 +1,6 @@
 ---
 name: wordnew-link
-description: wordnew group: pycore linkage and mcp-chrome linkage — owns apps/mcp-chrome (extension + native host) and builds the wordnew-side glue to pycore (pycore code changes are requested from the pycore group).
+description: "wordnew group: pycore linkage and mcp-chrome linkage — owns apps/mcp-chrome (extension + native host) and builds the wordnew-side glue to pycore (pycore code changes are requested from the pycore group)."
 model: sonnet
 effort: high
 memory: project

@@ -1,6 +1,6 @@
 ---
 name: codemart-laravel
-description: CodeMart group: Laravel CodeMartV1 (marketplace, projects, tasks, estimate, wallet/escrow/payout, invoices, KYC, admin).
+description: "CodeMart group: Laravel CodeMartV1 (marketplace, projects, tasks, estimate, wallet/escrow/payout, invoices, KYC, admin)."
 model: sonnet
 effort: high
 memory: project

@@ -1,6 +1,6 @@
 ---
 name: laravel-api
-description: Laravel UI-API developer: every API the pycore_laravel_wordnew UI apps call (dashboard/admin, settings, auth, data sync, queue-center and task-center views, server manager, media browse, realtime/Mercure, relay); pairs with ui-laravel-manager and ui-pycore-manager.
+description: "Laravel UI-API developer: every API the pycore_laravel_wordnew UI apps call (dashboard/admin, settings, auth, data sync, queue-center and task-center views, server manager, media browse, realtime/Mercure, relay); pairs with ui-laravel-manager and ui-pycore-manager."
 model: sonnet
 effort: high
 memory: project

@@ -1,6 +1,6 @@
 ---
 name: laravel-qyapp
-description: Laravel AppQyV1 sub-app developer: the wordnew backend and every machine route pycore/mcp-chrome/flutter call (worker, internal/pycore, ingest, orch-audio, agent-history, delivery, queue-center lanes); pairs with pycore-runtime and ui-wordnew.
+description: "Laravel AppQyV1 sub-app developer: the wordnew backend and every machine route pycore/mcp-chrome/flutter call (worker, internal/pycore, ingest, orch-audio, agent-history, delivery, queue-center lanes); pairs with pycore-runtime and ui-wordnew."
 model: sonnet
 effort: high
 memory: project

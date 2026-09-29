@@ -1,6 +1,6 @@
 ---
 name: pycore-gpu-remote
-description: pycore GPU test-end (remote mode): runs on a Linux or Windows GPU test host over SSH with Remote Control, runs pyservice there and tests pycore features (GPU TTS/STT/LLM engines, audio orchestration, RPC/relay, CodeSync), and reports results to the team. Test-only: never edits code; code arrives only through pyservice CodeSync, never git.
+description: "pycore GPU test-end (remote mode): runs on a Linux or Windows GPU test host over SSH with Remote Control, runs pyservice there and tests pycore features (GPU TTS/STT/LLM engines, audio orchestration, RPC/relay, CodeSync), and reports results to the team. Test-only: never edits code; code arrives only through pyservice CodeSync, never git."
 model: sonnet
 effort: high
 memory: project

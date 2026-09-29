@@ -469,11 +469,28 @@ function Get-ExecutableProviders {
     }
 }
 
-# Replacement-style PATH ownership of executable <Name>: <UniqueDir> becomes the
-# ONLY PATH directory that provides <Name> (PATHEXT), placed where the previous
-# winner was (its scope; Machine needs admin) or at the front of the User PATH
-# when nothing provided <Name>. Every other providing directory is removed,
-# except Windows system directories. Idempotent: no write when already unique.
+# True when <Directory> holds a PATHEXT program other than <Name> (a shared bin
+# directory such as the Node.js one); such a directory is never removed.
+function Test-DirectoryProvidesOthers {
+    param (
+        [string]$Directory,
+        [string]$Name
+    )
+    $extensions = @($env:PATHEXT -split ";" | Where-Object { $_ } | ForEach-Object { $_.ToLowerInvariant() })
+    $file = $null
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue)) {
+        if (($extensions -contains $file.Extension.ToLowerInvariant()) -and ($file.BaseName -ne $Name)) { return $true }
+    }
+    return $false
+}
+
+# Replacement-style PATH ownership of executable <Name>: <UniqueDir> is placed
+# where the previous winner was (its scope; Machine needs admin), or at the
+# front of the User PATH when nothing provided <Name>. Every other directory
+# that provides ONLY <Name> is removed; a shared directory (it also provides
+# other programs, e.g. the Node.js directory) and Windows system directories
+# stay, and the copy left there is reported so its package can be uninstalled.
+# Idempotent: no write when <Name> already resolves uniquely.
 function Set-ExecutableUniquePath {
     param (
         [string]$Name,
@@ -495,6 +512,7 @@ function Set-ExecutableUniquePath {
     $index = -1
     $winnerKey = ""
     $removeKeys = @{}
+    $sharedDirs = @()
 
     foreach ($extension in @($env:PATHEXT -split ";" | Where-Object { $_ })) {
         if (Test-Path -LiteralPath (Join-Path $UniqueDir ($baseName + $extension)) -PathType Leaf) { $providesName = $true; break }
@@ -508,15 +526,21 @@ function Set-ExecutableUniquePath {
     foreach ($provider in $providers) {
         Write-Log "  [$($provider.Scope)] $($provider.File)"
         $segmentKey = Get-PathSegmentKey -Segment $provider.Directory
-        if ($segmentKey -ne $uniqueKey -and -not $segmentKey.StartsWith($systemRootKey)) { $removeKeys[$segmentKey] = $provider.Directory }
+        if ($segmentKey -eq $uniqueKey -or $segmentKey.StartsWith($systemRootKey)) { continue }
+        if (Test-DirectoryProvidesOthers -Directory $provider.Directory -Name $baseName) {
+            $sharedDirs += $provider.File
+        } else {
+            $removeKeys[$segmentKey] = $provider.Directory
+        }
     }
     if ($providers.Count -gt 0) {
         $winner = $providers[0]
         $targetScope = $winner.Scope
         $winnerKey = Get-PathSegmentKey -Segment $winner.Directory
     }
-    if ($providers.Count -eq 1 -and $winnerKey -eq $uniqueKey) {
-        Write-Log "'$Name' already unique: $($winner.File)" -color "Green"
+    foreach ($provider in $sharedDirs) { Write-Log "  shadowed copy in a shared directory (kept on PATH; uninstall its package): $provider" -color "Yellow" }
+    if ($winnerKey -eq $uniqueKey -and $removeKeys.Count -eq 0) {
+        Write-Log "'$Name' already resolves from $($winner.File)" -color "Green"
         return
     }
     if (-not $Global:HAS_ADMIN_RIGHTS) {

@@ -1,6 +1,6 @@
 ---
 name: orchestrator
-description: Claude Code agent-team lead for core_node: handles simple work directly and coordinates only the teammates needed for independent parallel work.
+description: "Claude Code agent-team lead for core_node: handles simple work directly and coordinates only the teammates needed for independent parallel work."
 model: claude-opus-5-5
 effort: medium
 memory: project

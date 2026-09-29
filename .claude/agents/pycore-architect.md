@@ -1,6 +1,6 @@
 ---
 name: pycore-architect
-description: pycore architecture specialist: keeps all pycore code conformant with development-guides/PYTHON_PYCORE.md (layering, shared libraries, no duplicates, thread-bus/serialized owners, variables at top, i18n); owns the foundations (pyfoundations, pythreadpool, pyheartbeat); audits and routes conformance fixes to owners.
+description: "pycore architecture specialist: keeps all pycore code conformant with development-guides/PYTHON_PYCORE.md (layering, shared libraries, no duplicates, thread-bus/serialized owners, variables at top, i18n); owns the foundations (pyfoundations, pythreadpool, pyheartbeat); audits and routes conformance fixes to owners."
 model: opus
 effort: high
 memory: project
