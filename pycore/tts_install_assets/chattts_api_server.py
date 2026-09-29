@@ -91,7 +91,7 @@ def _free_vram_mb() -> Optional[int]:
     executable = shutil.which("nvidia-smi")
     if not executable:
         for candidate in ("/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"):
-            if os.path.isfile(candidate):
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
                 executable = candidate
                 break
     if not executable:

@@ -89,6 +89,12 @@ CLAUDE_TEAM_PANE_ROLE_OPTION="@claude_role"
 CLAUDE_TEAM_PANE_SESSION_OPTION="@claude_session"
 CLAUDE_TEAM_PANE_BORDER_FORMAT=' #{?#{@claude_role},#{@claude_role} (#{@claude_session}),#{pane_title}} '
 CLAUDE_TEAM_REGRID_HOOKS=("after-split-window" "after-select-layout" "after-kill-pane")
+# xterm's default disallowedWindowOps minus SetSelection, so the OSC 52 copies tmux
+# forwards reach the clipboard; Shift+drag selects into CLIPBOARD as well.
+CLAUDE_TEAM_XTERM_CLIPBOARD_XRM_ARGS=(
+    -xrm "XTerm*disallowedWindowOps: 1,2,3,4,5,6,7,8,9,11,13,14,18,19,20,21,GetSelection,SetWinLines,SetXprop"
+    -xrm "XTerm*selectToClipboard: true"
+)
 CLAUDE_TEAM_SAFE_ARG_PATTERN='^[A-Za-z0-9_./:=%@+,-]+$'
 # claude's own --name flag and its short form (Windows: $ClaudeTeamNameFlags, SPL-110).
 CLAUDE_TEAM_NAME_FLAGS=("--name" "-n")
@@ -125,7 +131,7 @@ CLAUDE_TEAM_SESSIONS_KICKOFF_LEAD=""
 CLAUDE_TEAM_SESSIONS_KICKOFF=""
 CLAUDE_TEAM_TEAM_SESSION_NAME="ca-orchestrator"
 CLAUDE_TEAM_TEAM_SOCKET="claudeagents"
-CLAUDE_TEAM_TEAM_TEAMMATE_MODE="tmux"
+CLAUDE_TEAM_TEAM_TEAMMATE_MODE="auto"
 CLAUDE_TEAM_TEAM_KICKOFF=""
 CLAUDE_TEAM_REMOTE_KICKOFF=""
 CLAUDE_TEAM_REMOTE_RECONNECT_SECONDS="5"
@@ -1130,9 +1136,9 @@ claude_team_select_terminal() {
     cci_detect_team_terminal
     CLAUDE_TEAM_TERMINAL="$CCI_TEAM_TERMINAL"
     if [ -n "$CLAUDE_TEAM_TERMINAL" ]; then
-        claude_team_log OK "Terminal: $(command -v "$CLAUDE_TEAM_TERMINAL") (one maximized window attached to tmux session $CLAUDE_TEAM_LAYOUT_SESSION)"
+        claude_team_log OK "Terminal: $(command -v "$CLAUDE_TEAM_TERMINAL") (system default first; one window attached to tmux session $CLAUDE_TEAM_LAYOUT_SESSION)"
     elif [ "$CLAUDE_TEAM_GRAPHICAL" = "1" ]; then
-        claude_team_log WARN "No supported terminal (${CCI_TEAM_TERMINALS[*]}): headless, tmux attaches in the current tty"
+        claude_team_log WARN "No supported terminal (${CCI_TEAM_DEFAULT_TERMINALS[*]} ${CCI_TEAM_TERMINALS[*]}): headless, tmux attaches in the current tty"
     else
         claude_team_log OK "Headless: tmux attaches in the current tty"
     fi
@@ -1277,9 +1283,10 @@ claude_team_terminal_argv() {
         ptyxis) CLAUDE_TEAM_TERMINAL_ARGV=(ptyxis --new-window --maximize -- "${attach[@]}") ;;
         gnome-terminal) CLAUDE_TEAM_TERMINAL_ARGV=(gnome-terminal --window --maximize -- "${attach[@]}") ;;
         konsole) CLAUDE_TEAM_TERMINAL_ARGV=(konsole --separate --fullscreen -e "${attach[@]}") ;;
-        xterm) CLAUDE_TEAM_TERMINAL_ARGV=(xterm -maximized -title "$CLAUDE_TEAM_LAYOUT_SESSION" -e "${attach[@]}") ;;
+        xterm) CLAUDE_TEAM_TERMINAL_ARGV=(xterm -maximized -title "$CLAUDE_TEAM_LAYOUT_SESSION" "${CLAUDE_TEAM_XTERM_CLIPBOARD_XRM_ARGS[@]}" -e "${attach[@]}") ;;
         xfce4-terminal) CLAUDE_TEAM_TERMINAL_ARGV=(xfce4-terminal --disable-server --maximize "--title=$CLAUDE_TEAM_LAYOUT_SESSION" -x "${attach[@]}") ;;
         qterminal) CLAUDE_TEAM_TERMINAL_ARGV=(qterminal -e "${attach[*]}") ;;
+        xdg-terminal-exec) CLAUDE_TEAM_TERMINAL_ARGV=(xdg-terminal-exec "${attach[@]}") ;;
         *) CLAUDE_TEAM_TERMINAL_ARGV=("$CLAUDE_TEAM_TERMINAL" -e "${attach[@]}") ;;
     esac
 }
@@ -1864,10 +1871,37 @@ claude_team_regrid_hook_command() {
         "$CLAUDE_TEAM_MIN_LEAD_COLS" "$CLAUDE_TEAM_MIN_LEAD_ROWS"
 }
 
+# mouse on hands every click to tmux (or to Claude Code, which tracks the mouse),
+# so the terminal's own selection and right-click menu never see them: a drag
+# lands only in a tmux buffer (tmux copy mode, or the app's OSC 52 accepted by
+# set-clipboard on), and the default MouseDown3Pane opens the tmux menu. Copies
+# are piped to the system clipboard (xclip on X11 or Xwayland, else wl-copy), a
+# drag keeps its highlight, and right-click copies the copy-mode selection or,
+# without one, the latest buffer. Alt+right-click keeps the tmux menu.
+claude_team_apply_tmux_clipboard() {
+    local copy_command=""
+    local table=""
+    if [ -n "${DISPLAY:-}" ] && command -v xclip >/dev/null 2>&1; then
+        copy_command="xclip -selection clipboard -i"
+    elif [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-copy >/dev/null 2>&1; then
+        copy_command="wl-copy"
+    fi
+    claude_team_tmux_do set-option -s set-clipboard on
+    claude_team_tmux_do set-option -s copy-command "$copy_command"
+    [ -n "$copy_command" ] || return 0
+    for table in copy-mode copy-mode-vi; do
+        claude_team_tmux_do bind-key -T "$table" MouseDragEnd1Pane send-keys -X copy-pipe-no-clear
+    done
+    claude_team_tmux_do bind-key -T root MouseDown3Pane select-pane -t = '\;' \
+        if-shell -F -t = '#{selection_present}' 'send-keys -t = -X copy-pipe-and-cancel' \
+        "run-shell -b \"tmux -S '#{socket_path}' save-buffer - 2>/dev/null | $copy_command >/dev/null 2>&1\""
+}
+
 # Server options per the Claude Code terminal docs (passthrough for notifications
 # and progress, extended keys for Shift+Enter, mouse for wheel scrolling), role
 # titles on the pane borders, and the session-scoped hooks that re-apply the grid
-# (after-* hooks are session hooks; -w is ignored for them).
+# (after-* hooks are session hooks; -w is ignored for them). Team mode removes the
+# hooks: Claude Code splits and lays out its own teammate panes in the lead window.
 claude_team_apply_tmux_options() {
     local features=""
     local hook=""
@@ -1884,12 +1918,22 @@ claude_team_apply_tmux_options() {
         claude_team_tmux_do set-option -g allow-passthrough on
     fi
     claude_team_tmux_do set-option -g mouse on
+    claude_team_apply_tmux_clipboard
     claude_team_tmux_do set-option -g set-titles on
     claude_team_tmux_do set-option -g set-titles-string '#S: #W'
     claude_team_tmux_do set-option -g automatic-rename off
     claude_team_tmux_do set-option -g allow-rename off
     claude_team_tmux_do set-option -g pane-border-status top
     claude_team_tmux_do set-option -g pane-border-format "$CLAUDE_TEAM_PANE_BORDER_FORMAT"
+    if [ "$CLAUDE_TEAM_MODE" = "team" ]; then
+        for hook in "${CLAUDE_TEAM_REGRID_HOOKS[@]}"; do
+            claude_team_tmux_do set-hook -u -t "=$CLAUDE_TEAM_LAYOUT_SESSION" "$hook" || true
+        done
+        if [ "$CLAUDE_TEAM_DRY_RUN" = "0" ]; then
+            claude_team_log OK "tmux: extended-keys, terminal-features extkeys, allow-passthrough all, mouse, pane-border-status top; no regrid hooks (teammate panes are laid out by Claude Code, --teammate-mode $CLAUDE_TEAM_TEAM_TEAMMATE_MODE)"
+        fi
+        return 0
+    fi
     hook_command="$(claude_team_regrid_hook_command)"
     for hook in "${CLAUDE_TEAM_REGRID_HOOKS[@]}"; do
         claude_team_tmux_do set-hook -t "=$CLAUDE_TEAM_LAYOUT_SESSION" "$hook" "$hook_command"
@@ -2212,6 +2256,7 @@ claude_team_probe_ready() {
 claude_team_finish() {
     if [ "$CLAUDE_TEAM_DRY_RUN" = "1" ]; then
         claude_team_apply_tmux_options
+        [ "$CLAUDE_TEAM_MODE" != "team" ] || return 0
         claude_team_log PLAN "regrid: bash $CLAUDE_TEAM_COMMON_PATH --regrid $CLAUDE_TEAM_TMUX_SOCKET $CLAUDE_TEAM_LAYOUT_SESSION $CLAUDE_TEAM_LEAD_ROLE $CLAUDE_TEAM_MIN_LEAD_COLS $CLAUDE_TEAM_MIN_LEAD_ROWS (resize-pane per column and row)"
         return 0
     fi
@@ -2220,8 +2265,10 @@ claude_team_finish() {
     fi
     claude_team_apply_tmux_options
     claude_team_verify_roles
-    claude_team_regrid "$CLAUDE_TEAM_LAYOUT_SESSION" "$CLAUDE_TEAM_LEAD_ROLE" "$CLAUDE_TEAM_MIN_LEAD_COLS" "$CLAUDE_TEAM_MIN_LEAD_ROWS"
-    claude_team_log OK "Grid applied (resize-pane per column and row)"
+    if [ "$CLAUDE_TEAM_MODE" != "team" ]; then
+        claude_team_regrid "$CLAUDE_TEAM_LAYOUT_SESSION" "$CLAUDE_TEAM_LEAD_ROLE" "$CLAUDE_TEAM_MIN_LEAD_COLS" "$CLAUDE_TEAM_MIN_LEAD_ROWS"
+        claude_team_log OK "Grid applied (resize-pane per column and row)"
+    fi
     claude_team_probe_ready
     if [ -n "$CLAUDE_TEAM_LEAD_PANE_ID" ]; then
         claude_team_tmux select-window -t "$CLAUDE_TEAM_LEAD_PANE_ID" >/dev/null 2>&1 </dev/null

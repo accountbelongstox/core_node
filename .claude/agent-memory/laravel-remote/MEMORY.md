@@ -1,0 +1,3 @@
+- [Cross-machine messaging](reference_cross_machine_messaging.md) — ca-orchestrator unreachable at startup: report-file fallback, no env/credential probing
+- [Never run 175 live](feedback_never_run_175_live.md) — 175 = web outage + PG15 restart; sys:init seeds demo admin unless guarded
+- [Server layout](reference_server_layout.md) — service/log paths, .env keys ignored (LaravelConfig), no jq, php-zts repo, PG clusters

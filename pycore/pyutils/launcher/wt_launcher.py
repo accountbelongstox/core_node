@@ -7,6 +7,7 @@ Handles launching Windows Terminal windows and Ubuntu terminals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.script_generator import ScriptGenerator, format_wt_size
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
+from pycore.pyutils.launcher.grid_profile import grid_startup_command
 from pycore.pyutils.launcher.ubuntu_finder import UbuntuFinder
 import time
 
@@ -26,7 +27,7 @@ class WindowsTerminalLauncher:
         self.executor = executor or ExplorerExecutor()
         self.ubuntu_finder = UbuntuFinder()
     
-    def launch_windows(self, windows_config, delay=0.2, ubuntu_count=0):
+    def launch_windows(self, windows_config, delay=0.2, ubuntu_count=0, first_cell=0):
         """
         Launch multiple Windows Terminal windows
         
@@ -34,6 +35,8 @@ class WindowsTerminalLauncher:
             windows_config: List of tuples (x, y, term_cols, term_rows)
             delay: Delay between launches in seconds
             ubuntu_count: Number of Ubuntu terminals to launch (0 = no Ubuntu)
+            first_cell: Grid index of the first entry (deficit top-up); selects
+                each cell's grid_startup_command.
         
         Returns:
             list: List of created batch file paths
@@ -47,7 +50,8 @@ class WindowsTerminalLauncher:
         ColorPrint.plain("\nCreating batch files:")
         # One .bat per window: launch_terminal_1.bat .. launch_terminal_N.bat (each runs wt.exe -w -1 --pos ... --size ...)
         for i, (x, y, term_cols, term_rows) in enumerate(wt_windows, 1):
-            bat_path = self.script_generator.create_wt_bat(i, x, y, term_cols, term_rows)
+            bat_path = self.script_generator.create_wt_bat(
+                i, x, y, term_cols, term_rows, grid_startup_command(first_cell + i - 1))
             bat_files.append(bat_path)
             ColorPrint.plain(f"  Windows Terminal {i}: {bat_path}")
         ColorPrint.plain(f"  -> Created {len(wt_windows)} batch files (one per window).")

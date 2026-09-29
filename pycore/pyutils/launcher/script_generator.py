@@ -4,15 +4,29 @@ Script Generator
 Generates temporary batch scripts for launching applications
 """
 
+import shutil
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.pygvar import PROJECT_ROOT, TMP_DIR
+
+WT_STARTUP_SHELLS = ('pwsh.exe', 'powershell.exe')
+WT_STARTUP_SHELL_ARGS = '-NoLogo -NoExit -ExecutionPolicy Bypass -Command'
 
 
 def format_wt_size(term_cols, term_rows):
     """Format --size per Microsoft Learn: columns,rows (comma-separated character cells)."""
     return f'{term_cols},{term_rows}'
+
+
+def wt_startup_args(startup=None):
+    """wt.exe tail that opens PROJECT_ROOT and, with ``startup``, runs that
+    .winenvs command in a shell kept open (elevation follows the launcher)."""
+    args = f'-d "{PROJECT_ROOT}"'
+    if startup:
+        shell = next((name for name in WT_STARTUP_SHELLS if shutil.which(name)), WT_STARTUP_SHELLS[-1])
+        args += f' {shell} {WT_STARTUP_SHELL_ARGS} {startup}'
+    return args
 
 
 class ScriptGenerator:
@@ -31,7 +45,7 @@ class ScriptGenerator:
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
     
-    def create_wt_bat(self, index, x, y, term_cols, term_rows):
+    def create_wt_bat(self, index, x, y, term_cols, term_rows, startup=None):
         """
         Create batch file for Windows Terminal
         
@@ -41,16 +55,17 @@ class ScriptGenerator:
             y: Window Y position
             term_cols: Terminal columns
             term_rows: Terminal rows
-        
+            startup: Optional .winenvs command run in the new window
+
         Returns:
             Path: Path to created batch file
         """
         bat_path = self.temp_dir / f'launch_terminal_{index}.bat'
-        
+
         # Format: wt.exe -w -1 --pos "x,y" --size "cols,rows"  (Learn: --size c,r)
         # -w -1 forces a new window so each launch gets its own window (not tab in existing)
         size_arg = format_wt_size(term_cols, term_rows)
-        cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}"'
+        cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{size_arg}" {wt_startup_args(startup)}'
         
         lines = [
             '@echo off',

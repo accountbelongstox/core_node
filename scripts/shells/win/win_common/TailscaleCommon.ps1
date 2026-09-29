@@ -63,6 +63,7 @@ $script:TailscaleStatusWebListen = '127.0.0.1:8384'
 $script:TailscaleWebListenDefault = 'localhost:8088'
 $script:TailscaleExitNodeRouteV4 = '0.0.0.0/0'
 $script:TailscaleExitNodeRouteV6 = '::/0'
+$script:RemoteControlCommonScript = Join-Path $script:TAILSCALE_COMMON_DIR 'RemoteControlCommon.ps1'
 
 # ---------------------------------------------------------------------------
 # Install / service detection
@@ -835,7 +836,7 @@ function Get-TailscaleQuickStateLabel {
 
 # Same item list as the Linux Tailscale menu (scripts/shells/linux/menu_itemshells/
 # tailscale_menu.sh): Install/Repair, Settings, Open UI, All IPs, Status, Restart
-# service, Login, Logout, Help. Every item calls a shared function above --
+# service, Login, Logout, Remote Control (RemoteControlCommon.ps1), Help. Every item calls a shared function above --
 # no logic is duplicated in this loop.
 function Show-TailscaleQuickMenu {
     $menuItems = @(
@@ -847,6 +848,7 @@ function Show-TailscaleQuickMenu {
         @{ Text = 'Restart service';                          Action = { [void](Restart-TailscaleServiceElevated) } },
         @{ Text = 'Login';                                    Action = { [void](Invoke-TailscaleLogin) } },
         @{ Text = 'Logout';                                   Action = { [void](Invoke-TailscaleLogout) } },
+        @{ Text = 'Remote Control (Windows <-> Linux: RDP/SSH, all IPs)'; Action = { & powershell -NoProfile -ExecutionPolicy Bypass -File $script:RemoteControlCommonScript -Action Menu } },
         @{ Text = 'Help';                                     Action = { Show-TailscaleHelp } },
         @{ Text = 'Back';                                     Action = { return } }
     )

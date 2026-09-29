@@ -13,7 +13,7 @@
   "team": {
     "session_name": "ca-orchestrator",
     "tmux_socket": "claudeagents",
-    "teammate_mode_linux": "tmux",
+    "teammate_mode_linux": "auto",
     "kickoff": "You are the agent-team lead in session {session}. Follow {guide} and handle each user request to completion. For a simple or single-scope task, work directly without teammates. For independent parallel work, spawn only the needed named agent types from this roster: {roles}. Use Sonnet for ordinary coding and name Opus only for genuinely complex architecture, cross-layer design, or difficult root-cause work. Do not create separate plan, implementation, or review agents and do not force a plan-review loop. Give each teammate a concrete deliverable and exclusive paths, let the owner implement and verify its own work, wait for active teammates, then synthesize the result."
   },
   "grid": {

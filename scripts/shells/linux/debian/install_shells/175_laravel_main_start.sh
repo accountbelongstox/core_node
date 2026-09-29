@@ -736,7 +736,31 @@ fi
 # foreground runtime; stop the service first when a foreground run is
 # explicitly wanted.
 _resolve_laravel_service_plane
-if [ -f "/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service" ]; then
+# PHP_BIN is the resolved absolute path from resolve_php (frankenphp plane:
+# the canonical /usr/local/bin/php link to the real CLI binary); WORKERS and
+# MAX_REQUESTS use the runtime launcher's own defaults. The runtime launcher
+# resolves the site host from the central service contract on every start,
+# so a regenerated domain list cannot leave a stale issuer pinned in the
+# systemd environment.
+SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
+LARAVEL_SERVICE_UNIT_FILE="/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service"
+# Unit drift repair: a unit registered before the php link convergence
+# (93/96 php_link_common.sh) pins a PHP_BIN that no longer exists (e.g. the
+# retired /usr/local/bin/php-cli shim); a plain restart would crash-loop it.
+if [ -f "$LARAVEL_SERVICE_UNIT_FILE" ] && [ -n "$PHP_BIN" ] \
+    && ! grep -qxF "Environment=\"PHP_BIN=${PHP_BIN}\"" "$LARAVEL_SERVICE_UNIT_FILE"; then
+    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} pins a stale PHP_BIN; re-registering with PHP_BIN=${PHP_BIN}..."
+    if [ -z "$LARAVEL_SERVICE_MEM" ]; then
+        LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
+    fi
+    register_laravel_service "$SERVICE_EXEC_CMD"
+    if [ "$LARAVEL_SERVICE_READY" = "yes" ]; then
+        echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
+        return
+    fi
+    echo "  Warning: ${LARAVEL_SERVICE_PLANE_NAME} did not come up; inspect: journalctl -u ${LARAVEL_SERVICE_PLANE_NAME} -n 100"
+fi
+if [ -f "$LARAVEL_SERVICE_UNIT_FILE" ]; then
     # Boot-persistence repair: a previously registered plane service must stay
     # boot-enabled (a manual stop/disable must not survive the next reboot)
     # and active; converge or restart it instead of launching a competing
@@ -898,13 +922,6 @@ if [ "$AS_SERVICE" = "yes" ]; then
     done
     ${USE_SUDO:-} systemctl daemon-reload 2>/dev/null
 
-    # PHP_BIN is the resolved absolute path from resolve_php (frankenphp
-    # plane: the canonical /usr/local/bin/php link to the real CLI binary);
-    # WORKERS and MAX_REQUESTS use the runtime launcher's own defaults.
-    # The runtime launcher resolves the site host from the central service
-    # contract on every start, so a regenerated domain list cannot leave a
-    # stale issuer pinned in the systemd environment.
-    SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
     register_laravel_service "$SERVICE_EXEC_CMD"
     if [ "$LARAVEL_SERVICE_READY" = "yes" ]; then
         echo "Service $LARAVEL_SERVICE_PLANE_NAME registered and started."
