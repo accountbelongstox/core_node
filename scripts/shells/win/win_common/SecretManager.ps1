@@ -490,14 +490,19 @@ function Initialize-ClientKeyReady {
 .PARAMETER Password
     Decryption password (if not provided, will prompt)
 
+.PARAMETER KeyNames
+    Limits decryption to these secret names (encrypted file base names); empty means all
+
 .EXAMPLE
     Invoke-SecretDecryptAll
     Invoke-SecretDecryptAll -OutputDir "C:\temp\secrets" -Password "mypassword"
+    Invoke-SecretDecryptAll -KeyNames @("OPENAI_API_KEY_1")
 #>
 function Invoke-SecretDecryptAll {
     param(
         [string]$OutputDir,
-        [string]$Password
+        [string]$Password,
+        [string[]]$KeyNames = @()
     )
 
     $dirs = Get-SecretDirectories
@@ -526,6 +531,9 @@ function Invoke-SecretDecryptAll {
     }
 
     $encryptedFiles = @(Get-ChildItem -Path $dirs.ENCRYPTED_DIR -Filter "*.js" -File -ErrorAction SilentlyContinue)
+    if ($KeyNames.Count -gt 0) {
+        $encryptedFiles = @($encryptedFiles | Where-Object { $KeyNames -contains $_.BaseName })
+    }
 
     if ($encryptedFiles.Count -eq 0) {
         Write-Host "[SECRET_DECRYPT_ALL] No encrypted files found in: $($dirs.ENCRYPTED_DIR)" -ForegroundColor Yellow
