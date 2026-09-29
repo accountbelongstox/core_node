@@ -102,7 +102,7 @@ install_essential_packages() {
 
 
 # AI CLIs are owned by install_shells/99_install_ai_tools.sh (single source of
-# truth, see common/ai_tools_catalog.sh). This delegates the whole "AI" group
+# truth for the catalog and every install). This delegates the whole "AI" group
 # to that script instead of duplicating the per-app install loop here.
 install_ai_package_group() {
     local apps_to_install=("$@")
@@ -523,6 +523,11 @@ handle_exact_app() {
     log_message "=========================================="
     log_message "Exact App Install: $app_key (group: $app_group)"
     log_message "=========================================="
+
+    if [ "$app_group" = "AI" ]; then
+        install_ai_package_group "$app_key"
+        return
+    fi
 
     log_message "Checking and fixing pnpm global binary permissions..."
     fix_pnpm_permissions

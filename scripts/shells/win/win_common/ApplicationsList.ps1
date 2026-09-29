@@ -1312,7 +1312,7 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
     # Official CLI: run command "agent" after install (https://cursor.com/docs/cli/overview). Executable: agent.exe.
     # Formerly Step128_InstallCursorAgent.ps1; installed via Step21 DevSoftwarePackages.
     CursorAgent     = @{
-        Exec                = "agent.exe"
+        Exec                = "cursor-agent.cmd"
         Name                = "CursorAgent"
         DesktopCategory     = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description         = "Cursor Agent - AI-powered coding assistant (CLI)"

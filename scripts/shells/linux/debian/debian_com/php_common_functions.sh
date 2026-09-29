@@ -1,162 +1,23 @@
 #!/bin/bash
-# PHP Common Functions for Debian/Ubuntu PHP Installation Scripts
-# This file contains shared functions used across PHP-related installation scripts
 
-# Source common variables
-SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_CURRENT_DIR/php_common_vars.sh"
+PHP_COMMON_FUNCTIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PHP_COMMON_FUNCTIONS_COMMON_DIR="$(cd "$PHP_COMMON_FUNCTIONS_DIR/../../common" && pwd)"
 
-# Source common functions for print functions and USE_SUDO
-PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
-PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
-source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-source "$PARENT_DIR_LEVEL_2/common/service_contract_common.sh"
+source "$PHP_COMMON_FUNCTIONS_DIR/php_common_vars.sh"
+source "$PHP_COMMON_FUNCTIONS_COMMON_DIR/gvar_common.sh"
+source "$PHP_COMMON_FUNCTIONS_COMMON_DIR/common_functions.sh"
+source "$PHP_COMMON_FUNCTIONS_COMMON_DIR/service_contract_common.sh"
+source "$PHP_COMMON_FUNCTIONS_COMMON_DIR/frankenphp_manager.sh"
 
 PHP_COMMON_PERMISSION_READY="no"
 PHP_COMMON_LARAVEL_CONFIG_READY="no"
 PHP_COMMON_LARAVEL_CONFIG_SEEN="no"
-PHP_COMMON_NETWORK_READY="no"
-PHP_COMMON_FPM_STATE="unknown"
-PHP_COMMON_SYMLINK_STATE="unknown"
-PHP_COMMON_FPM_POOL_READY="no"
-PHP_COMMON_SOCKET_READY="no"
+PHP_CONFIGURATION_READY="no"
+PHP_CONFIGURATION_RUNTIME_READY="no"
 PHP_RUNTIME_UPLOAD_MAX_FILESIZE="$(sc_require php_runtime.upload_max_filesize)"
 PHP_RUNTIME_POST_MAX_SIZE="$(sc_require php_runtime.post_max_size)"
 PHP_RUNTIME_MAX_EXECUTION_TIME="$(sc_require php_runtime.max_execution_time_seconds)"
 PHP_RUNTIME_MAX_INPUT_TIME="$(sc_require php_runtime.max_input_time_seconds)"
-
-# Check network connectivity with multiple test hosts
-check_network_connectivity_from_php_common() {
-    local script_index="${1:-[NETWORK]}"
-    PHP_COMMON_NETWORK_READY="no"
-    print_step_from_common_functions "$script_index Checking network connectivity..."
-    
-    # Test multiple servers
-    local test_hosts=("8.8.8.8" "1.1.1.1" "archive.ubuntu.com" "packages.sury.org")
-    local connected=false
-    
-    for host in "${test_hosts[@]}"; do
-        if ping -c 1 -W 5 "$host" >/dev/null 2>&1; then
-            print_success_from_common_functions "$script_index Network connectivity confirmed (via $host)"
-            connected=true
-            break
-        fi
-    done
-    
-    if [ "$connected" = false ]; then
-        print_error_from_common_functions "$script_index Network connectivity failed"
-        print_step_from_common_functions "$script_index Attempting to use offline/cached packages"
-        return
-    fi
-
-    PHP_COMMON_NETWORK_READY="yes"
-}
-
-# Check PHP-FPM installation and service status
-check_php_fpm_status_from_php_common() {
-    local php_version="${1:-8.4}"
-    local script_index="${2:-[PHP_FPM]}"
-    local fpm_service="php${php_version}-fpm"
-    local socket_path="/run/php/php${php_version}-fpm.sock"
-    
-    PHP_COMMON_FPM_STATE="unknown"
-    print_step_from_common_functions "$script_index Checking PHP-FPM service status..."
-    
-    # Check if service exists
-    if ! systemctl list-unit-files | grep -q "$fpm_service"; then
-        print_error_from_common_functions "$script_index PHP-FPM service not installed: $fpm_service"
-        PHP_COMMON_FPM_STATE="not_installed"
-        return
-    fi
-    
-    # Check if service is enabled
-    if ! systemctl is-enabled --quiet "$fpm_service" 2>/dev/null; then
-        print_warning_from_common_functions "$script_index PHP-FPM service not enabled: $fpm_service"
-    fi
-    
-    # Check if service is running
-    if systemctl is-active --quiet "$fpm_service"; then
-        print_success_from_common_functions "$script_index PHP-FPM service is running: $fpm_service"
-    else
-        print_error_from_common_functions "$script_index PHP-FPM service not running: $fpm_service"
-        PHP_COMMON_FPM_STATE="not_running"
-        return
-    fi
-    
-    # Check socket file
-    if [ -S "$socket_path" ]; then
-        print_success_from_common_functions "$script_index PHP-FPM socket exists: $socket_path"
-        local socket_perms=$(stat -c "%a" "$socket_path" 2>/dev/null || echo "unknown")
-        print_info_from_common_functions "$script_index Socket permissions: $socket_perms"
-    else
-        print_error_from_common_functions "$script_index PHP-FPM socket not found: $socket_path"
-        PHP_COMMON_FPM_STATE="socket_missing"
-        return
-    fi
-
-    PHP_COMMON_FPM_STATE="ready"
-}
-
-# Check symbolic link integrity for universal PHP paths
-check_symbolic_link_from_php_common() {
-    local binary_name="${1:-php}"
-    local expected_version="${2:-8.4}"
-    local script_index="${3:-[SYMLINK]}"
-    local target_link="/usr/local/bin/$binary_name"
-    local expected_binary="/usr/bin/${binary_name}${expected_version}"
-    
-    PHP_COMMON_SYMLINK_STATE="unknown"
-    print_step_from_common_functions "$script_index Checking symbolic link: $target_link"
-    
-    if [ -L "$target_link" ]; then
-        local current_target=$(readlink "$target_link")
-        print_info_from_common_functions "$script_index Current symlink target: $current_target"
-        
-        if [ "$current_target" = "$expected_binary" ]; then
-            print_success_from_common_functions "$script_index Symlink is correct: $target_link -> $current_target"
-            PHP_COMMON_SYMLINK_STATE="ready"
-            return
-        else
-            print_warning_from_common_functions "$script_index Symlink points to wrong version: $current_target (expected: $expected_binary)"
-            PHP_COMMON_SYMLINK_STATE="wrong_target"
-            return
-        fi
-    elif [ -f "$target_link" ]; then
-        print_warning_from_common_functions "$script_index Target exists but is not a symlink: $target_link"
-        PHP_COMMON_SYMLINK_STATE="not_symlink"
-        return
-    else
-        print_error_from_common_functions "$script_index Symlink not found: $target_link"
-        PHP_COMMON_SYMLINK_STATE="missing"
-        return
-    fi
-}
-
-# Prevent Apache2 conflicts
-prevent_apache2_conflicts_from_php_common() {
-    local script_index="${1:-[APACHE2]}"
-    print_step_from_common_functions "$script_index Preventing Apache2 conflicts..."
-    
-    # Stop Apache2 if running
-    if systemctl is-active --quiet apache2 2>/dev/null; then
-        print_warning_from_common_functions "$script_index Stopping Apache2 service..."
-        $USE_SUDO systemctl stop apache2 || true
-    fi
-    
-    # Disable Apache2 if enabled
-    if systemctl is-enabled --quiet apache2 2>/dev/null; then
-        print_warning_from_common_functions "$script_index Disabling Apache2 service..."
-        $USE_SUDO systemctl disable apache2 || true
-    fi
-    
-    # Hold Apache2 packages to prevent installation
-    print_step_from_common_functions "$script_index Holding Apache2 packages..."
-    $USE_SUDO apt-mark hold apache2 apache2-bin apache2-data apache2-utils libapache2-mod-php* 2>/dev/null || true
-    
-    print_success_from_common_functions "$script_index Apache2 conflicts prevented"
-    return
-}
 
 # Set directory permissions for web applications
 set_directory_permissions_from_php_common() {
@@ -223,163 +84,6 @@ php_laravel_ini_ready_from_php_common() {
     printf '%s' "$ready"
 }
 
-# Configure PHP-FPM pool
-configure_php_fpm_pool_from_php_common() {
-    local version="${1:-8.4}"
-    local socket_path="${2:-/run/php/php8.5-fpm.sock}"
-    local script_index="${3:-[PHP_FPM_POOL]}"
-    
-    PHP_COMMON_FPM_POOL_READY="no"
-    print_step_from_common_functions "$script_index Configuring PHP-FPM pool for version $version"
-    
-    local pool_config="/etc/php/$version/fpm/pool.d/www.conf"
-    
-    if [ -f "$pool_config" ]; then
-        # Backup original configuration
-        $USE_SUDO cp "$pool_config" "${pool_config}.backup.$(date +%Y%m%d_%H%M%S)"
-        
-        # Update socket path
-        print_step_from_common_functions "$script_index Setting socket path: $socket_path"
-        $USE_SUDO sed -i "s|listen = .*|listen = $socket_path|" "$pool_config"
-        
-        # Update user and group
-        print_step_from_common_functions "$script_index Setting user and group to root"
-        $USE_SUDO sed -i 's/^user = .*/user = root/' "$pool_config"
-        $USE_SUDO sed -i 's/^group = .*/group = root/' "$pool_config"
-
-        # Update listen.owner and listen.group
-        $USE_SUDO sed -i 's/^listen.owner = .*/listen.owner = root/' "$pool_config"
-        $USE_SUDO sed -i 's/^listen.group = .*/listen.group = root/' "$pool_config"
-        
-        # CRITICAL: Remove open_basedir restrictions from pool config
-        # This matches ServerManagerV1PHPConfigFixer::fixPHPFpmPoolConfig() behavior
-        # Remove php_value[open_basedir] and php_admin_value[open_basedir] settings
-        # See: ../../../../../../poly_apps/laravel_main/app/Apps/ServerManagerV1/ServerManagerV1Utils/ServerManagerV1PHPConfigFixer.php
-        print_step_from_common_functions "$script_index Removing open_basedir restrictions from pool config"
-        $USE_SUDO sed -i '/^php_value\[open_basedir\]/d' "$pool_config"
-        $USE_SUDO sed -i '/^php_admin_value\[open_basedir\]/d' "$pool_config"
-        $USE_SUDO sed -i '/^;php_value\[open_basedir\]/d' "$pool_config"
-        $USE_SUDO sed -i '/^;php_admin_value\[open_basedir\]/d' "$pool_config"
-        
-        print_success_from_common_functions "$script_index PHP-FPM pool configured successfully"
-        PHP_COMMON_FPM_POOL_READY="yes"
-        return
-    else
-        print_error_from_common_functions "$script_index PHP-FPM pool configuration file not found: $pool_config"
-        return
-    fi
-}
-
-# Ensure socket directory exists
-ensure_socket_directory_from_php_common() {
-    local socket_path="${1:-/run/php/php8.5-fpm.sock}"
-    local script_index="${2:-[SOCKET_DIR]}"
-    local socket_dir=$(dirname "$socket_path")
-    
-    print_step_from_common_functions "$script_index Ensuring socket directory exists: $socket_dir"
-    
-    if [ ! -d "$socket_dir" ]; then
-        print_step_from_common_functions "$script_index Creating socket directory: $socket_dir"
-        $USE_SUDO mkdir -p "$socket_dir"
-    fi
-    
-    # Set proper permissions
-    $USE_SUDO chmod 755 "$socket_dir"
-    $USE_SUDO chown root:root "$socket_dir"
-    
-    print_success_from_common_functions "$script_index Socket directory ready: $socket_dir"
-    return
-}
-
-# Verify PHP-FPM socket with retry mechanism
-verify_php_fpm_socket_from_php_common() {
-    local socket_path="${1:-/run/php/php8.5-fpm.sock}"
-    local script_index="${2:-[SOCKET_VERIFY]}"
-    local max_attempts=10
-    local attempt=1
-    
-    PHP_COMMON_SOCKET_READY="no"
-    print_step_from_common_functions "$script_index Verifying PHP-FPM socket: $socket_path"
-    
-    while [ $attempt -le $max_attempts ]; do
-        if [ -S "$socket_path" ]; then
-            print_success_from_common_functions "$script_index Socket verified: $socket_path"
-            local socket_perms=$(stat -c "%a" "$socket_path" 2>/dev/null || echo "unknown")
-            print_info_from_common_functions "$script_index Socket permissions: $socket_perms"
-            PHP_COMMON_SOCKET_READY="yes"
-            return
-        fi
-        
-        print_step_from_common_functions "$script_index Attempt $attempt/$max_attempts: Socket not ready, waiting..."
-        sleep 2
-        ((attempt++))
-    done
-    
-    print_error_from_common_functions "$script_index Socket verification failed after $max_attempts attempts"
-    return
-}
-
-# Update Nginx configuration for PHP
-update_nginx_config_from_php_common() {
-    local php_version="${1:-8.4}"
-    local socket_path="${2:-/run/php/php8.5-fpm.sock}"
-    local script_index="${3:-[NGINX_CONFIG]}"
-    local install_nginx="${4:-false}"
-    
-    print_step_from_common_functions "$script_index Updating Nginx configuration for PHP $php_version"
-    
-    if [ "$install_nginx" != "true" ]; then
-        print_info_from_common_functions "$script_index Nginx installation not enabled, skipping configuration"
-        return
-    fi
-    
-    if ! command -v nginx >/dev/null 2>&1; then
-        print_warning_from_common_functions "$script_index Nginx not installed, skipping configuration"
-        return
-    fi
-    
-    # Update nginx configuration to use correct socket path
-    local nginx_conf="/etc/nginx/nginx.conf"
-    if [ -f "$nginx_conf" ]; then
-        print_step_from_common_functions "$script_index Updating Nginx main configuration"
-        
-        # Update fastcgi_pass directives
-        $USE_SUDO sed -i "s|fastcgi_pass unix:.*|fastcgi_pass unix:$socket_path;|g" "$nginx_conf"
-        
-        print_success_from_common_functions "$script_index Nginx configuration updated"
-    fi
-    
-    return
-}
-
-# Update Caddy configuration for PHP
-update_caddy_config_from_php_common() {
-    local socket_path="${1:-/run/php/php8.5-fpm.sock}"
-    local script_index="${2:-[CADDY_CONFIG]}"
-    local core_node_dir=$(get_core_node_dir)
-    local shells_root="${3:-$core_node_dir/scripts/shells}"
-    
-    print_step_from_common_functions "$script_index Updating Caddy configuration for PHP"
-    
-    if ! command -v caddy >/dev/null 2>&1; then
-        print_info_from_common_functions "$script_index Caddy not installed, skipping configuration"
-        return
-    fi
-    
-    # Update Caddy configuration
-    local caddy_config="$shells_root/linux/debian/caddy/Caddyfile"
-    if [ -f "$caddy_config" ]; then
-        print_step_from_common_functions "$script_index Updating Caddyfile with PHP socket"
-        
-        # Update fastcgi directives
-        $USE_SUDO sed -i "s|fastcgi unix .*|fastcgi unix $socket_path|g" "$caddy_config"
-        
-        print_success_from_common_functions "$script_index Caddy configuration updated"
-    fi
-    
-    return
-}
-
 # Configure PHP for Laravel with proper open_basedir
 configure_php_for_laravel_from_php_common() {
     local script_index="${1:-[LARAVEL_CONFIG]}"
@@ -439,48 +143,46 @@ error_log = \"$PHP_ERROR_LOG_PATH\""
     else
         print_error_from_common_functions "$script_index PHP Laravel configuration remains incomplete"
     fi
-
-    # NOTE: PHP-FPM reload DISABLED - Using Swoole with Laravel Octane
-    # PHP-FPM is not installed when using Swoole
-    # force_reload_php_fpm_from_php_common "$script_index"  # DISABLED
-
 }
 
-# Force reload PHP-FPM service to apply configuration changes
-# NOTE: DISABLED - Not using PHP-FPM with Swoole setup
-force_reload_php_fpm_from_php_common() {
-    local script_index="${1:-[PHP_RELOAD]}"
+# Converge the PHP ini contract of the active runtime plane (frankenphp scan-dir
+# ini or the system php.ini managed block) plus the web root permissions.
+php_configuration_ensure() {
+    local script_index="${1:-[PHP_CONFIG]}"
+    local plane=""
+    local ini_file=""
+    local expected_line=""
+    local lines_ready="yes"
 
-    print_step_from_common_functions "$script_index [SKIPPED] PHP-FPM reload not needed - Using Swoole with Laravel Octane"
-    print_step_from_common_functions "$script_index PHP-FPM is not installed in Swoole configuration"
+    PHP_CONFIGURATION_READY="no"
+    PHP_CONFIGURATION_RUNTIME_READY="no"
+    plane="$(php_runtime_plane)"
+    print_step_from_common_functions "$script_index PHP ${PHP_VERSION} configuration convergence (plane: $plane)"
 
-    # No need to restart PHP-FPM as it's not used with Swoole
-    return
-}
+    if [ "$plane" = "frankenphp" ]; then
+        ini_file="$(fm_php_ini_dir)/99-core-node.ini"
+        fm_php_ini_ensure
+        for expected_line in \
+            'memory_limit = 512M' \
+            "upload_max_filesize = $PHP_RUNTIME_UPLOAD_MAX_FILESIZE" \
+            "post_max_size = $PHP_RUNTIME_POST_MAX_SIZE" \
+            "max_execution_time = $PHP_RUNTIME_MAX_EXECUTION_TIME" \
+            "max_input_time = $PHP_RUNTIME_MAX_INPUT_TIME"; do
+            if ! grep -Fq "$expected_line" "$ini_file" 2>/dev/null; then
+                lines_ready="no"
+            fi
+        done
+        PHP_CONFIGURATION_RUNTIME_READY="$lines_ready"
+    else
+        configure_php_for_laravel_from_php_common "$script_index"
+        PHP_CONFIGURATION_RUNTIME_READY="$PHP_COMMON_LARAVEL_CONFIG_READY"
+    fi
 
-# Verify open_basedir configuration
-verify_open_basedir_config_from_php_common() {
-    local script_index="${1:-[VERIFY_OPEN_BASEDIR]}"
-    
-    print_step_from_common_functions "$script_index Verifying open_basedir configuration"
-    
-    # Read the active open_basedir line straight from the ini files that
-    # configure_php_for_laravel_from_php_common wrote (open_basedir = none). Avoids php -i,
-    # whose "Directive => Master => Local" text format broke the old `cut -d'>' -f2` parse
-    # ("no value =" -> false "still restricted" warning). Empty/none/no-value = unrestricted;
-    # any path = restricted. PHP_INI_FILES covers every SAPI the stack configures (CLI under
-    # Swoole; FPM is not installed).
-    local ini_file ob_value
-    for ini_file in "${PHP_INI_FILES[@]}"; do
-        [ -f "$ini_file" ] || continue
-        ob_value="$(grep -E '^[[:space:]]*open_basedir[[:space:]]*=' "$ini_file" 2>/dev/null | tail -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/[[:space:]]*$//; s/^"//; s/"$//')"
-        print_info_from_common_functions "$script_index ${ini_file##*/}: open_basedir = ${ob_value:-<unrestricted>}"
-        if [ -z "$ob_value" ] || [ "$ob_value" = "none" ] || [ "$ob_value" = "no value" ]; then
-            print_success_from_common_functions "$script_index ${ini_file##*/} open_basedir is properly disabled"
-        else
-            print_warning_from_common_functions "$script_index ${ini_file##*/} open_basedir is still restricted: $ob_value"
-        fi
-    done
-    
-    return
+    set_directory_permissions_from_php_common "$(map_web_path "wwwroot")" "$script_index"
+    if [ "$PHP_CONFIGURATION_RUNTIME_READY" = "yes" ] && [ "$PHP_COMMON_PERMISSION_READY" = "yes" ]; then
+        PHP_CONFIGURATION_READY="yes"
+        print_success_from_common_functions "$script_index PHP configuration is canonical"
+    else
+        print_error_from_common_functions "$script_index PHP configuration remains incomplete"
+    fi
 }

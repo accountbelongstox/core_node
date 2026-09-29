@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Prebuilt runner for 93_install_frankenphp:
+# Prebuilt runner for 93_install_php (runtime part):
 # delegate all orchestration and prebuilt version parsing to this wrapper.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

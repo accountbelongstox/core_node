@@ -256,16 +256,17 @@ declare -gA APP_PACKAGES=(
 
 )
 
-# AI Tools definitions - generated from the single catalog
-# (scripts/shells/linux/common/ai_tools_catalog.sh) instead of a duplicated
-# table. Only the keys in AI_PACKAGE_LIST below are exposed as an "AI"
-# package-group app (install_shells/99_install_ai_tools.sh owns the actual
-# install/link for every catalog key, including ones not listed here, e.g.
-# claude/qwen/zhipuai/pi/omp/bun/agy).
-AI_TOOLS_CATALOG_LIB="$(dirname "${BASH_SOURCE[0]}")/ai_tools_catalog.sh"
-if ! command -v ai_catalog_get >/dev/null 2>&1 && [ -s "$AI_TOOLS_CATALOG_LIB" ]; then
-    # shellcheck source=ai_tools_catalog.sh
-    source "$AI_TOOLS_CATALOG_LIB"
+# AI Tools definitions - generated from the single catalog in
+# install_shells/99_install_ai_tools.sh (sourced in library mode) instead of a
+# duplicated table. Only the keys in AI_PACKAGE_LIST below are exposed as an "AI"
+# package-group app (99_install_ai_tools.sh owns the actual install/link for every
+# catalog key, including ones not listed here, e.g. claude/qwen/zhipuai/pi/omp/bun/agy).
+AI_TOOLS_INSTALLER_LIB="$(dirname "${BASH_SOURCE[0]}")/../debian/install_shells/99_install_ai_tools.sh"
+if [ -z "${AI_TOOLS_CATALOG_KEYS[*]:-}" ] && [ -s "$AI_TOOLS_INSTALLER_LIB" ]; then
+    # shellcheck source=/dev/null
+    AI99_CATALOG_ONLY=1
+    source "$AI_TOOLS_INSTALLER_LIB"
+    unset AI99_CATALOG_ONLY
 fi
 
 declare -gA AI_PACKAGES=()
@@ -302,9 +303,9 @@ APP_PACKAGE_LIST=(
     "firefox" "libreoffice" "opera"
 )
 
-# NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
-# the dedicated install_shells/171_install_claude_code.sh step (official native
-# installer), the single source of truth shared with the dd.sh AI workflow.
+# NOTE: "claude" is intentionally NOT listed here. Claude Code is installed by
+# install_shells/99_install_ai_tools.sh (official native installer), like every
+# other AI CLI.
 AI_PACKAGE_LIST=(
     "gemini" "codex" "cursor_agent" "kimi" "cline" "arkcli" "superclaude" "opencode" "auggie" "droid"
 )

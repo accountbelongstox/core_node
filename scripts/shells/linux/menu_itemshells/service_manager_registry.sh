@@ -2,9 +2,9 @@
 
 # Service Manager registry: every menu item maps one install-shell lifecycle.
 # Replacement stack (FrankenPHP plane):
-#   frankenphp   -> 93_install_frankenphp.sh  (FrankenPHP runtime, variant-aware)
-#   composer     -> 94_install_composer.sh    (Composer phar + wrappers)
-#   php85        -> 96_configure_php85.sh     (PHP 8.5 runtime configuration)
+#   frankenphp   -> 93_install_php.sh --only=runtime,config (FrankenPHP runtime, variant-aware)
+#   composer     -> 93_install_php.sh --only=composer  (Composer phar + wrappers)
+#   php85        -> 93_install_php.sh --only=config    (PHP 8.5 runtime configuration)
 #   laravel_main -> 175_laravel_main_start.sh (ncore-laravel-* systemd service)
 #   nexus_dash   -> 175_laravel_main_start.sh --ui-service (ncore-nexus-dash dashboard service)
 # Retained legacy services:
@@ -31,18 +31,18 @@ declare -A SERVICE_MANAGER_SCRIPT
 
 SERVICE_NAME["frankenphp"]="FrankenPHP"
 SERVICE_KIND["frankenphp"]="runtime"
-SERVICE_INSTALL_SCRIPT["frankenphp"]="93_install_frankenphp.sh"
-SERVICE_INSTALL_ARGS["frankenphp"]=""
+SERVICE_INSTALL_SCRIPT["frankenphp"]="93_install_php.sh"
+SERVICE_INSTALL_ARGS["frankenphp"]="--only=runtime,config"
 
 SERVICE_NAME["composer"]="Composer"
 SERVICE_KIND["composer"]="runtime"
-SERVICE_INSTALL_SCRIPT["composer"]="94_install_composer.sh"
-SERVICE_INSTALL_ARGS["composer"]=""
+SERVICE_INSTALL_SCRIPT["composer"]="93_install_php.sh"
+SERVICE_INSTALL_ARGS["composer"]="--only=composer"
 
 SERVICE_NAME["php85"]="PHP 8.5"
 SERVICE_KIND["php85"]="runtime"
-SERVICE_INSTALL_SCRIPT["php85"]="96_configure_php85.sh"
-SERVICE_INSTALL_ARGS["php85"]=""
+SERVICE_INSTALL_SCRIPT["php85"]="93_install_php.sh"
+SERVICE_INSTALL_ARGS["php85"]="--only=config"
 
 SERVICE_NAME["laravel_main"]="Laravel Main"
 SERVICE_KIND["laravel_main"]="systemd"

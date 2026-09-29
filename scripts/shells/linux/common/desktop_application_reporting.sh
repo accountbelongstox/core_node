@@ -173,10 +173,11 @@ exec \"$binary_path\" \"\$@\"" ]; then
 }
 
 # Function to refresh environment variables and shell configuration
+# (AI CLI links under /usr/local/bin are owned by install_shells/99_install_ai_tools.sh)
 refresh_environment() {
     log_message ""
     log_message "=========================================="
-    log_message "REFRESHING PNPM BINARIES AND LAUNCH SCRIPTS"
+    log_message "REFRESHING LAUNCH SCRIPT DIRECTORIES"
     log_message "=========================================="
     
     # Create super_scripts directory if it doesn't exist
@@ -186,37 +187,6 @@ refresh_environment() {
         $USE_SUDO chmod 755 "/usr/local/super_scripts"
     fi
     
-    # Get pnpm global bin directory
-    local pnpm_binary=""
-    local pnpm_global_bin=""
-    pnpm_binary="$(resolve_pnpm_binary_path)"
-    pnpm_global_bin="$(resolve_pnpm_global_bin_dir "$pnpm_binary")"
-    if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin" ]; then
-        log_message "Warning: Could not determine pnpm global bin directory"
-        return
-    fi
-    
-    log_message "pnpm global bin directory: $pnpm_global_bin"
-    
-    # Process all AI packages that use pnpm installation method.
-    # NOTE: "claude" is excluded here on purpose -- Claude Code is installed and
-    # linked by install_shells/171_install_claude_code.sh (native workflow).
-    local pnpm_packages=("gemini" "codex" "auggie")
-
-    for package in "${pnpm_packages[@]}"; do
-        local exec_name=$(get_app_property "$package" "exec")
-
-        if [ -z "$exec_name" ]; then
-            log_message "Skipping $package: missing exec_name"
-            continue
-        fi
-
-        # Link /usr/local/bin/<exec> directly to the pnpm global binary.
-        refresh_npm_package_links "$exec_name" "$package"
-    done
-    
-    log_message ""
-    log_message "PNPM binaries refresh completed!"
     log_message "=========================================="
 }
 

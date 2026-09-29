@@ -195,7 +195,7 @@
   "remote": {
     "reconnect_seconds": 5,
     "kickoff": "You are the {role} role in session {session} on the remote server. Follow your agent definition and {guide}. Implement the assigned change directly in this checkout, verify it on this server, and report the result and changed paths to {lead}.",
-    "code_distribution": "pyservice CodeSync only (docs_fix/CODESYNC_AI_COMMUNICATION_API.md): DEV pushes signed file versions to the remote host's CodeSync client; never git",
+    "code_distribution": "Code sync: run `dd.sh syncgit` (Linux) or `dd.cmd syncgit` (Windows); if the merge fails, the current role resolves it and keeps the remote's latest features.",
     "enable_rule": "a remote role starts only when its ssh_secret resolves; os auto = probe `uname -s || ver` and use the Linux (bash/tmux/claudeteam.sh) or Windows (powershell/claudeteam.ps1) remote command"
   },
   "role_source": {

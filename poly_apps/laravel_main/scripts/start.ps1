@@ -610,7 +610,7 @@ try {
         Write-Host "PHP pdo_pgsql extension present." -ForegroundColor Green
     } else {
         # Canonical auto-fix (dd.cmd chain): configure_php_ini.php enables the required
-        # extensions idempotently -- same role as 77_ensure_php_pgsql.sh on Linux.
+        # extensions idempotently -- same role as 93_install_php.sh --only=runtime on Linux.
         if (Test-Path -LiteralPath $PhpIniConfigScript) {
             $PhpExeForConfig = (Get-Command php -ErrorAction SilentlyContinue).Source
             if ($PhpExeForConfig) {

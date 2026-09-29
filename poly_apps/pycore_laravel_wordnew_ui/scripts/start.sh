@@ -360,7 +360,7 @@ serve_dashboard() {
         fi
         FRANKENPHP_BIN="$(fm_get_binary)"
         if [ -z "$FRANKENPHP_BIN" ]; then
-            err "The selected FrankenPHP runtime is unavailable. Run 93_install_frankenphp.sh."
+            err "The selected FrankenPHP runtime is unavailable. Run 93_install_php.sh --only=runtime,config."
             exit 1
         fi
         log "Serving production dist with Caddy on ${BIND_HOST}:${DEV_PORT}"

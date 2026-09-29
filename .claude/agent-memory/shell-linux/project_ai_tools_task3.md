@@ -8,25 +8,18 @@ metadata:
 Implemented 2026-09-28: single source of truth for every AI CLI install on
 Linux, per docs_fix/DESIGN_20260928_DD_TAILSCALE_OS_UPGRADE_AI_TOOLS.md Task 3.
 
-Core new files:
-- scripts/shells/linux/common/ai_tools_catalog.sh - the catalog (17 keys:
-  claude, codex, gemini, qwen, cursor_agent, kimi, cline, arkcli, superclaude,
-  opencode, auggie, droid, zhipuai, bun, pi, omp, agy). ai_catalog_get/has/keys.
-- scripts/shells/linux/common/ai_shared_login.sh - root<->real-user config-dir
-  sharing (profile.d + sudoers env_keep, ownership repair).
-- scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh - the
-  installer (--only key[,key], --list, --status; default = ensure all + mcp-chrome).
-
-Old numbered steps (153 AI group, 155 cursor_agent, 165 agy, 171 claude, 177
-qwen, 179 zhipuai, 185 pi/omp/bun) are now thin delegates to 99 --only <key>.
-Chain ordering works because install_test_menu.sh sorts install_shells/*.sh
-NUMERICALLY (99 < 153), so 99 always runs first and the old steps become
-instant no-ops when the chain reaches them.
-
-Menu renamed "AI & MCP Management" -> "AI Tools & MCP" in
-scripts/shells/linux/dd_helper/linux_management.sh (single line, per
-concurrent-agent scoping) and rewritten in
-scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh.
+Core file (merged 2026-09-29, supersedes the earlier 3-file split):
+- scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh owns the catalog
+  (17 keys, incl. native_bin/legacy_* fields), shared login, per-tool official installs
+  run AS THE REAL USER, legacy purge, /usr/local/bin links, --only/--upgrade/--list/--status/
+  --shared-login. Sourceable (BASH_SOURCE guard); AI99_CATALOG_ONLY=1 skips the gvar load.
+- common/ai_tools_catalog.sh, common/ai_shared_login.sh and install_shells 171/177/179/185
+  were deleted; 153/155/165, ai_cli_provision_common, menus, piyolo/piark/*yolo launchers
+  call 99. claude_code_install.sh keeps only claude_team_install (+ delegates install to 99).
+- Do not `export -f` catalog functions: arrays do not export, so children see functions but
+  an empty catalog; guard on AI_TOOLS_CATALOG_KEYS, not `command -v ai_catalog_get`.
+- `VAR=1 source file` (prefix assignment) drops the sourced file's arrays; set the var first.
+- kimi1/kimi2 (generated slot-isolated launchers) still carry their own curl installer on purpose.
 
 mcp-chrome native-host fix: apps/mcp-chrome/scripts/native-host-common.cjs
 getUserManifestPath used to resolve os.homedir() even when running as root via

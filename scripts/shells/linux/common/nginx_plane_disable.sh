@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Nginx plane-disable (common area; companion of nginx_manager.sh, called by
-# 93_install_frankenphp.sh for the web-server plane mutual exclusion, usable
+# 93_install_php.sh for the web-server plane mutual exclusion, usable
 # standalone). DISABLES THE SERVICE AND RECORDS STATE ONLY: never uninstalls
 # packages, never removes configs/sites/certificates - re-running
 # 33_install_nginx.sh (or nginx_manager.sh) restores the plane at any time.

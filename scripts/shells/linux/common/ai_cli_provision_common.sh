@@ -8,14 +8,13 @@
 #   scripts/shells/win/win_common/AiCliProvisionCommon.ps1
 #
 # ai_cli_provision <tool> runs two idempotent steps:
-#   1. Install the CLI when the command is missing. Claude Code reuses the
-#      canonical dd.sh workflow (scripts/ai_shtools/claude_code_install.sh, the
-#      same function the install_shells 171 step calls), so the native installer,
-#      the /usr/local/bin all-user install and the claudeteam link stay in one
-#      place. Other CLIs use their official native installer, then pnpm/npm.
+#   1. Install the CLI when the command is missing, through
+#      install_shells/99_install_ai_tools.sh --only <tool> (the single owner of the
+#      official native install, /usr/local/bin link and ownership of every AI CLI).
 #   2. Prompt for an upgrade only when the published version is newer, defaulting
-#      to N and auto-skipping after AI_CLI_UPGRADE_TIMEOUT_SECONDS. Claude Code
-#      compares against the official native release channel.
+#      to N and auto-skipping after AI_CLI_UPGRADE_TIMEOUT_SECONDS; the upgrade is
+#      99_install_ai_tools.sh --only <tool> --upgrade. Claude Code compares against
+#      the official native release channel.
 # Both steps are no-ops when the CLI is present and current. The launcher stops
 # with an error when the CLI is still missing, instead of exec'ing a missing command.
 #
@@ -31,21 +30,22 @@ AI_CLI_ULTRACODE_ARGS=()
 AI_CLI_CLAUDE_LATEST_URL="https://downloads.claude.ai/claude-code-releases/latest"
 AI_CLI_PROVISION_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AI_CLI_CORE_NODE_DIR="$(cd "$AI_CLI_PROVISION_COMMON_DIR/../../../.." && pwd)"
-AI_CLI_CLAUDE_INSTALL_LIB="$AI_CLI_CORE_NODE_DIR/scripts/ai_shtools/claude_code_install.sh"
+AI_CLI_AI_TOOLS_INSTALLER="$AI_CLI_CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh"
 
-# Single catalog (key, command, method, package/URL, link name) - read instead
-# of keeping a second package table here.
-if ! command -v ai_catalog_get >/dev/null 2>&1; then
-    # shellcheck source=ai_tools_catalog.sh
-    . "$AI_CLI_PROVISION_COMMON_DIR/ai_tools_catalog.sh"
+# Single catalog (install_shells/99_install_ai_tools.sh, sourced in library mode):
+# read instead of keeping a second package table here.
+if [ -z "${AI_TOOLS_CATALOG_KEYS[*]:-}" ]; then
+    AI99_CATALOG_ONLY=1
+    . "$AI_CLI_AI_TOOLS_INSTALLER"
+    unset AI99_CATALOG_ONLY
 fi
-AI_CLI_KIMI_INSTALLER_URL="$(ai_catalog_get kimi package_id)"
 
-# Only claude/codex/kimi are lazily installed/upgraded by launchers; every
-# other catalog tool is handled up front by install_shells/99_install_ai_tools.sh.
+# Only claude/codex/kimi are lazily installed/upgraded by launchers (npm package
+# name = the published-version source); every other catalog tool is handled by
+# 99_install_ai_tools.sh directly.
 ai_cli_package() {
     case "$1" in
-        claude|codex|kimi) ai_catalog_get "$1" "package_id" ;;
+        claude|codex|kimi) ai_catalog_get "$1" "npm_package" ;;
         *) printf '%s' "" ;;
     esac
 }
@@ -130,67 +130,8 @@ ai_cli_version_is_newer() {
     return 1
 }
 
-ai_cli_native_install() {
-    local tool="$1"
-    case "$tool" in
-        claude)
-            # Canonical dd.sh workflow (official native installer + all-user
-            # /usr/local/bin install + claudeteam link), idempotent by itself.
-            . "$AI_CLI_CLAUDE_INSTALL_LIB"
-            claude_code_install
-            return $?
-            ;;
-        kimi)
-            if command -v curl >/dev/null 2>&1; then
-                if curl -fsSL "$AI_CLI_KIMI_INSTALLER_URL" | bash; then
-                    return 0
-                fi
-            fi
-            return 1
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-ai_cli_native_upgrade() {
-    local tool="$1"
-    case "$tool" in
-        claude)
-            # Official native updater; DISABLE_AUTOUPDATER only blocks the silent
-            # background updater, so it is cleared for this explicit upgrade. The
-            # canonical workflow then re-syncs the shared /usr/local/bin binary.
-            if env -u DISABLE_AUTOUPDATER "$tool" update; then
-                . "$AI_CLI_CLAUDE_INSTALL_LIB"
-                claude_code_install
-                return $?
-            fi
-            return 1
-            ;;
-        kimi)
-            ai_cli_native_install "$tool"
-            return $?
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-ai_cli_package_manager_install() {
-    local package="$1"
-    if command -v pnpm >/dev/null 2>&1; then
-        if pnpm add --global "$package@latest"; then
-            return 0
-        fi
-    fi
-    if command -v npm >/dev/null 2>&1; then
-        if npm install --global "$package@latest"; then
-            return 0
-        fi
-    fi
-    return 1
+ai_cli_run_installer() {
+    bash "$AI_CLI_AI_TOOLS_INSTALLER" --only "$@"
 }
 
 ai_cli_install_if_missing() {
@@ -208,10 +149,7 @@ ai_cli_install_if_missing() {
     label="$(ai_cli_label "$tool")"
 
     echo "[INFO] $label is not installed; running the idempotent install..."
-    if ! ai_cli_native_install "$tool"; then
-        echo "[INFO] Falling back to the global package manager for $label..."
-        ai_cli_package_manager_install "$package" || true
-    fi
+    ai_cli_run_installer "$tool" || true
     hash -r 2>/dev/null || true
     if command -v "$tool" >/dev/null 2>&1; then
         echo "[INFO] $label install completed."
@@ -223,19 +161,12 @@ ai_cli_install_if_missing() {
 
 ai_cli_upgrade_install() {
     local tool="$1"
-    local package="$2"
     local label=""
     label="$(ai_cli_label "$tool")"
     echo "[INFO] Upgrading $label..."
-    if ai_cli_native_upgrade "$tool"; then
+    if ai_cli_run_installer "$tool" --upgrade; then
         hash -r 2>/dev/null || true
-        echo "[INFO] $label upgraded with the official native updater."
-        return 0
-    fi
-    echo "[INFO] Falling back to the global package manager for $label..."
-    if ai_cli_package_manager_install "$package"; then
-        hash -r 2>/dev/null || true
-        echo "[INFO] $label upgraded with the global package manager."
+        echo "[INFO] $label upgrade finished."
         return 0
     fi
     echo "[WARN] $label upgrade failed; keeping the installed version."
@@ -279,7 +210,7 @@ ai_cli_upgrade_prompt() {
 
     case "$upgrade_choice" in
         y|Y)
-            ai_cli_upgrade_install "$tool" "$package" || true
+            ai_cli_upgrade_install "$tool" || true
             ;;
         *)
             echo "[INFO] $label upgrade skipped (default N)."

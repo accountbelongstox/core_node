@@ -8,6 +8,8 @@ LINUX_DIR=""
 COMMON_DIR=""
 INSTALL_SHELLS_DIR=""
 STEP120_SCRIPT=""
+AI_TOOLS_SCRIPT=""
+AI_TOOLS_ALL_ENTRY=""
 ARROW_MENU_SCRIPT=""
 
 _resolve_app_install_paths() {
@@ -16,17 +18,19 @@ _resolve_app_install_paths() {
     COMMON_DIR="$LINUX_DIR/common"
     INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
     STEP120_SCRIPT="$INSTALL_SHELLS_DIR/153_install_desktop_applications.sh"
+    AI_TOOLS_SCRIPT="$INSTALL_SHELLS_DIR/99_install_ai_tools.sh"
+    AI_TOOLS_ALL_ENTRY="script:99_install_ai_tools.sh|AI Tools (all, one-click)"
     ARROW_MENU_SCRIPT="$COMMON_DIR/arrow_menu.sh"
 }
 
 _resolve_app_install_paths
 
-# Script-based installs: "script:filename|Display Name"
+# Script-based installs: "script:filename|Display Name"; AI CLIs: "ai:<key>|Display Name"
 # Infra/DB: 46 Redis, 47 PostgreSQL, 48 Docker, 51 MySQL
 # Desktop/App: 36 Chrome, 122 Cursor, 123 VSCode, 127 Antigravity, 128 WeChat, 31 Edge
 # Runtime/Toolchain: 13 Python, 15 faster-whisper, 16 Node 26, 20 UV, 43 Rust, 54 Go, 55 Java, 35 Composer, 39 Flutter, 42 Ruby, 38 .NET
 # Server/Service: 26 Nginx, 27 Certbot, 53 Tailscale, 86 Code Server, 124 Gitea, 125 RustDesk Client, 129 RustDesk Server
-# AI: 96 DeepSeek, 97 DeepSeek OCR (Cline/Ark/Kimi/Cursor Agent via linux_applications_list AI group)
+# AI: 96 DeepSeek, 97 DeepSeek OCR; every AI CLI is a "ai:<key>" entry from the 99_install_ai_tools.sh catalog
 # Setup: 126 GNOME RDP
 SCRIPT_INSTALL_ENTRIES=(
     "script:79_install_docker.sh|Docker"
@@ -77,7 +81,7 @@ get_all_packages_flat_list() {
     local group
     local app_key
     local display
-    for group in BASE DEV APP AI MCP; do
+    for group in BASE DEV APP MCP; do
         while IFS= read -r app_key; do
             [ -z "$app_key" ] && continue
             display=$(get_app_property "$app_key" "name")
@@ -89,7 +93,12 @@ get_all_packages_flat_list() {
     for e in "${SCRIPT_INSTALL_ENTRIES[@]}"; do
         list+=("$e")
     done
-    # Sort by display name (field after '|'), case-insensitive (GNU sort)
+    for app_key in "${AI_TOOLS_CATALOG_KEYS[@]}"; do
+        list+=("ai:${app_key}|AI Tool - $(ai_catalog_get "$app_key" name)")
+    done
+    # One-click AI entry first, then the rest sorted by display name (field after '|'),
+    # case-insensitive (GNU sort)
+    printf '%s\n' "$AI_TOOLS_ALL_ENTRY"
     printf '%s\n' "${list[@]}" | sort -t '|' -k2,2 -f
 }
 
@@ -112,6 +121,15 @@ _run_install_entry() {
         echo "Running script: $display_name ($script_name)..."
         echo ""
         bash "$script_path"
+    elif [[ "$package_key" == ai:* ]]; then
+        if [ ! -s "$AI_TOOLS_SCRIPT" ]; then
+            echo "Script not found: $AI_TOOLS_SCRIPT"
+            return 1
+        fi
+        echo ""
+        echo "Running AI tool install: $display_name (${package_key#ai:})..."
+        echo ""
+        bash "$AI_TOOLS_SCRIPT" --only "${package_key#ai:}"
     else
         if [ ! -s "$STEP120_SCRIPT" ]; then
             echo "120 script not found: $STEP120_SCRIPT"
@@ -127,9 +145,13 @@ _run_install_entry() {
 # Install EVERY listed entry in order. Heavy + long; continues past failures and
 # prints a summary. Confirmation required.
 install_all_entries() {
-    local entries=("$@")
+    local entries=()
+    local listed_entry
+    for listed_entry in "$@"; do
+        [[ "$listed_entry" == ai:* ]] || entries+=("$listed_entry")
+    done
     echo ""
-    echo "This installs ALL ${#entries[@]} listed packages. This is heavy and can take a long time."
+    echo "This installs ALL ${#entries[@]} listed packages (AI tools run once through the AI Tools entry). This is heavy and can take a long time."
     local confirm
     read -r -p "Type 'yes' to proceed (anything else cancels): " confirm
     if [ "$confirm" != "yes" ]; then

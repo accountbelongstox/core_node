@@ -5,7 +5,7 @@
 #              incl. Ubuntu 24+). Uses official native packages from packages.dragonflydb.io
 #              (the repo serves one static "noble" suite that installs on any Debian-family).
 # Author: System Administrator
-# Design: Same style as 96_configure_php85.sh and 73_install_redis.sh
+# Design: Same style as 93_install_php.sh and 73_install_redis.sh
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

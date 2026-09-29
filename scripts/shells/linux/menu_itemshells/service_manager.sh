@@ -400,7 +400,7 @@ show_php85_details() {
         if [ -f "$php_ini" ]; then
             echo "PHP ini: $php_ini"
         else
-            echo "PHP ini: missing (re-run 96_configure_php85.sh)"
+            echo "PHP ini: missing (re-run 93_install_php.sh --only=config)"
         fi
         return
     fi

@@ -38,7 +38,7 @@ fi
 script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
 scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
-codex_install_script_path="$scripts_dir_path/shells/linux/debian/install_shells/153_install_desktop_applications.sh"
+codex_install_script_path="$scripts_dir_path/shells/linux/debian/install_shells/99_install_ai_tools.sh"
 mcp_chrome_path="$core_node_path/apps/mcp-chrome"
 mcp_chrome_node_modules_path="$mcp_chrome_path/node_modules"
 mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
@@ -94,17 +94,13 @@ echo "codexyolo.sh"
 echo "============================================================"
 
 if ! command -v codex >/dev/null 2>&1; then
-    echo "[INFO] codex is not available on PATH; installing via 153_install_desktop_applications.sh --exact-app codex..."
+    echo "[INFO] codex is not available on PATH; installing via 99_install_ai_tools.sh --only codex..."
     if [ -s "$codex_install_script_path" ]; then
-        bash "$codex_install_script_path" --exact-app codex
+        bash "$codex_install_script_path" --only codex
     else
         echo "[ERROR] Codex install script not found: $codex_install_script_path"
     fi
     hash -r
-    if ! command -v codex >/dev/null 2>&1 && [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
-        PATH="$PNPM_GLOBAL_BIN_DIR:$PATH"
-        hash -r
-    fi
     if ! command -v codex >/dev/null 2>&1; then
         echo "[ERROR] codex is still not available on PATH after installation attempt."
         exit 1
@@ -136,12 +132,12 @@ process.stdout.write(large ? "1" : "0");
 ' "$current_version_output" "$latest_version_output" 2>/dev/null || true)"
 fi
 if [ "$version_gap_large" = "1" ]; then
-    printf '\033[33mUpgrade Codex CLI via '\''pnpm add --global @openai/codex@latest'\''? [N/y]: \033[0m'
+    printf '\033[33mUpgrade Codex CLI via '\''99_install_ai_tools.sh --only codex --upgrade'\''? [N/y]: \033[0m'
     read -r upgrade_choice || upgrade_choice=""
 fi
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
-    echo "[INFO] Upgrading Codex CLI with pnpm..."
-    pnpm add --global @openai/codex@latest
+    echo "[INFO] Upgrading Codex CLI with the official installer..."
+    bash "$codex_install_script_path" --only codex --upgrade
     hash -r
     echo "[INFO] Codex CLI upgrade command completed."
 elif [ "$version_gap_large" = "1" ]; then

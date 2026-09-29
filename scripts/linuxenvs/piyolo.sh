@@ -126,9 +126,9 @@ VOLC_AGENT_MCP_CANDIDATES=(
 )
 UVX_BIN_PATH="$(command -v uvx 2>/dev/null || true)"
 
-PI_BIN_PATH="$PNPM_GLOBAL_BIN_DIR/pi"
-if [ ! -x "$PI_BIN_PATH" ] && [ -x /usr/local/bin/pi ]; then
-    PI_BIN_PATH="/usr/local/bin/pi"
+PI_BIN_PATH="/usr/local/bin/pi"
+if [ ! -x "$PI_BIN_PATH" ] && [ -x "$PNPM_GLOBAL_BIN_DIR/pi" ]; then
+    PI_BIN_PATH="$PNPM_GLOBAL_BIN_DIR/pi"
 fi
 
 if [ "$#" -gt 0 ]; then
@@ -476,15 +476,15 @@ else
         echo "[ERROR] Pi prerequisites are still incomplete after automatic installation."
         exit 1
     fi
-    echo "[INFO] Pi prerequisites are incomplete. Automatically running 185_install_pi_harness.sh..."
-    PI_HARNESS_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/185_install_pi_harness.sh"
+    echo "[INFO] Pi prerequisites are incomplete. Automatically running 99_install_ai_tools.sh --only bun,pi,omp..."
+    PI_HARNESS_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh"
     if [ -f "$PI_HARNESS_SCRIPT" ]; then
-        bash "$PI_HARNESS_SCRIPT"
+        bash "$PI_HARNESS_SCRIPT" --only bun,pi,omp
         echo "[INFO] Restarting piyolo.sh..."
         export PIYOLO_AUTO_INSTALL=1
         exec "$SCRIPT_SOURCE" "${FORWARD_ARGS[@]}"
     else
-        echo "[ERROR] Pi prerequisites are incomplete. Run 185_install_pi_harness.sh first."
+        echo "[ERROR] Pi prerequisites are incomplete. Run 99_install_ai_tools.sh --only bun,pi,omp first."
         exit 1
     fi
 fi

@@ -2351,7 +2351,7 @@ claude_team_attach_here() {
 claude_team_run() {
     claude_team_step 1 "Platform profile"
     claude_team_detect_platform
-    claude_team_step 2 "Team setup, item by item (shared claude_team_install, same as dd.sh step 171)"
+    claude_team_step 2 "Team setup, item by item (shared claude_team_install)"
     claude_team_install_items
     claude_team_step 3 "Claude Code CLI (shared ai_cli_provision)"
     claude_team_ensure_claude

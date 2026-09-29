@@ -1,7 +1,6 @@
 #!/bin/bash
 
 upgrade_choice=""
-kimi_installer_url="https://code.kimi.com/kimi-code/install.sh"
 current_version_output=""
 latest_version_output=""
 version_gap_large="0"
@@ -71,7 +70,7 @@ mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
 mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
 mcp_chrome_service_contract_common_path="$mcp_chrome_linux_common_dir/service_contract_common.sh"
 ai_cli_provision_common_path="$mcp_chrome_linux_common_dir/ai_cli_provision_common.sh"
-kimi_install_script_path="$core_node_path/scripts/shells/linux/debian/install_shells/153_install_desktop_applications.sh"
+kimi_install_script_path="$core_node_path/scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh"
 source "$mcp_chrome_gvar_common_path"
 source "$mcp_chrome_venv_python_common_path"
 source "$mcp_chrome_service_contract_common_path"
@@ -183,17 +182,12 @@ echo "kimiyolo.sh"
 echo "============================================================"
 
 if ! command -v kimi >/dev/null 2>&1; then
-    echo "[INFO] kimi is not available on PATH; installing via script library..."
+    echo "[INFO] kimi is not available on PATH; installing via 99_install_ai_tools.sh --only kimi..."
     if [ -f "$kimi_install_script_path" ]; then
-        bash "$kimi_install_script_path" --exact-app kimi
-        hash -r
-    elif command -v curl >/dev/null 2>&1; then
-        echo "[WARN] Install script not found at: $kimi_install_script_path"
-        echo "[INFO] Falling back to the official native installer..."
-        curl -fsSL "$kimi_installer_url" | bash
+        bash "$kimi_install_script_path" --only kimi
         hash -r
     else
-        echo "[ERROR] kimi is not available on PATH and no installer is reachable."
+        echo "[ERROR] kimi is not available on PATH and the installer is missing: $kimi_install_script_path"
         exit 1
     fi
     if ! command -v kimi >/dev/null 2>&1; then
@@ -237,11 +231,11 @@ if [ "$version_gap_large" = "1" ]; then
     read -r upgrade_choice || upgrade_choice=""
 fi
 if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
-    if ! command -v curl >/dev/null 2>&1; then
-        echo "[WARN] curl is unavailable; keeping the installed Kimi Code CLI."
+    if [ ! -f "$kimi_install_script_path" ]; then
+        echo "[WARN] Installer is missing ($kimi_install_script_path); keeping the installed Kimi Code CLI."
     else
         echo "[INFO] Upgrading Kimi Code CLI with the official native installer..."
-        curl -fsSL "$kimi_installer_url" | bash
+        bash "$kimi_install_script_path" --only kimi --upgrade
         hash -r
         echo "[INFO] Kimi Code CLI native upgrade command completed."
     fi

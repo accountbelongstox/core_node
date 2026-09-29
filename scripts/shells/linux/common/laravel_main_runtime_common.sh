@@ -173,8 +173,8 @@ resolve_php() {
 }
 
 # Converge the PostgreSQL PDO contract before Composer or Laravel bootstrap.
-# FrankenPHP variants are prepared by step 93 and are only re-probed here;
-# system PHP delegates installation to its canonical package ensurer.
+# FrankenPHP variants are prepared by step 93 (93_install_php.sh) and are only
+# re-probed here; system PHP delegates installation to the same step.
 ensure_php_pdo_pgsql() {
     local runtime_binary=""
 
@@ -186,7 +186,7 @@ ensure_php_pdo_pgsql() {
     if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
         runtime_binary="$(fm_variant_binary)"
         if [ "$(fm_php_install_extensions_ready "$runtime_binary")" != "yes" ] \
-            && [ -n "$PHP_ENSURE_SCRIPT_FRANKENPHP" ] && [ -f "$PHP_ENSURE_SCRIPT_FRANKENPHP" ]; then
+            && [ -n "$PHP_INSTALL_SCRIPT" ] && [ -f "$PHP_INSTALL_SCRIPT" ]; then
             # Auto-resolve through the canonical variant lifecycle (93): the
             # recorded variant is pinned so the mode prompt is skipped, and the
             # missing contract packages install idempotently (e.g. php-zts-gd
@@ -196,11 +196,11 @@ ensure_php_pdo_pgsql() {
             # compile; the prebuilt release already embeds it.
             RUNTIME_EXTENSIONS_CHANGED="yes"
             echo "FrankenPHP runtime extension contract incomplete. Invoking init-ensure installer:"
-            echo "  $PHP_ENSURE_SCRIPT_FRANKENPHP --mode=$(fm_variant)"
+            echo "  $PHP_INSTALL_SCRIPT --only=runtime,config --mode=$(fm_variant)"
             if [ -n "$(fm_variant)" ]; then
-                bash "$PHP_ENSURE_SCRIPT_FRANKENPHP" "--mode=$(fm_variant)"
+                bash "$PHP_INSTALL_SCRIPT" --only=runtime,config "--mode=$(fm_variant)"
             else
-                bash "$PHP_ENSURE_SCRIPT_FRANKENPHP"
+                bash "$PHP_INSTALL_SCRIPT" --only=runtime,config
             fi
             runtime_binary="$(fm_variant_binary)"
         fi
@@ -209,7 +209,7 @@ ensure_php_pdo_pgsql() {
             echo "FrankenPHP runtime extension contract ready."
         else
             echo "ERROR: The selected FrankenPHP variant does not satisfy the required PHP extension contract."
-            echo "  Repair: run $PHP_ENSURE_SCRIPT_FRANKENPHP and select the intended variant."
+            echo "  Repair: run $PHP_INSTALL_SCRIPT --only=runtime and select the intended variant."
         fi
         return
     fi
@@ -221,8 +221,8 @@ ensure_php_pdo_pgsql() {
     fi
 
     echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
-    echo "  $PHP_PGSQL_ENSURE_SCRIPT"
-    bash "$PHP_PGSQL_ENSURE_SCRIPT"
+    echo "  $PHP_INSTALL_SCRIPT --only=runtime"
+    bash "$PHP_INSTALL_SCRIPT" --only=runtime
     if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
         PHP_PDO_PGSQL_READY="yes"
         echo "pdo_pgsql installed -> PostgreSQL driver available."
@@ -246,11 +246,7 @@ ensure_php_redis() {
         if ! "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
             echo "PHP redis extension missing. Installing php-redis (system PHP)..."
             RUNTIME_EXTENSIONS_CHANGED="yes"
-            $USE_SUDO apt-get install -y php-redis
-            if ! "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
-                $USE_SUDO apt-get update -qq
-                $USE_SUDO apt-get install -y php-redis
-            fi
+            php_system_extension_ensure "php-redis" "redis"
         fi
         if "$PHP_BIN" -m 2>/dev/null | grep -qi '^redis$'; then
             PHP_REDIS_READY="yes"
@@ -261,7 +257,7 @@ ensure_php_redis() {
     else
         echo "  Warning: phpredis unavailable; Laravel Redis features fall back to the database path."
         if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
-            echo "  Repair: bash $PHP_ENSURE_SCRIPT_FRANKENPHP --mode=$(fm_variant)"
+            echo "  Repair: bash $PHP_INSTALL_SCRIPT --only=runtime,config --mode=$(fm_variant)"
         fi
     fi
 }

@@ -3,13 +3,12 @@
 # php_link_common.sh - converge the php CLI entrypoint on ONE canonical link.
 #
 # Single source of truth for the `php` command contract (sourced by
-# 53_install_swoole.sh, 96_configure_php85.sh, 93_install_frankenphp.sh and the
-# frankenphp lifecycle):
+# 93_install_php.sh and the frankenphp lifecycle):
 #   * CANONICAL: /usr/local/bin/php -- a plain SYMLINK to the real CLI binary
 #     (php-zts from the henderkes/frankenphp apt plane, or the versioned distro
 #     build). /usr/local/bin precedes /usr/bin in PATH, so this one link is the
 #     effective `php` for composer, pecl, artisan and every probe
-#     (php_common_vars.sh TARGET_LINK_PATH, 191 octane ExecStart).
+#     (191 octane ExecStart).
 #   * DUPLICATES are removed idempotently: /usr/bin/php (plain symlink or
 #     update-alternatives entry) and the legacy frankenphp bash shims
 #     (/usr/local/bin/php{,-cli}) which exec `frankenphp php-cli` -- that

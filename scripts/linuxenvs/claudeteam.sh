@@ -78,12 +78,12 @@ claudeTeamCommonPath="$scriptsDirPath/shells/linux/common/claude_team_common.sh"
 aiCliProvisionCommonPath="$scriptsDirPath/shells/linux/common/ai_cli_provision_common.sh"
 
 # Shared login: default claude's config/auth directory to the real desktop
-# user's, resolved through the common ai_shared_login helpers (never hardcoded:
+# user's, resolved through the shared-login helpers of 99_install_ai_tools.sh (never hardcoded:
 # the user comes from detect_system_user, the dir from the tools catalog), so
 # root windows share the real user's login, settings and session state. Login
 # shells already export the same value via /etc/profile.d; non-login shells
 # (tmux panes, scripts) resolve it here. An explicit CLAUDE_CONFIG_DIR wins.
-aiSharedLoginCommonPath="$scriptsDirPath/shells/linux/common/ai_shared_login.sh"
+aiSharedLoginCommonPath="$scriptsDirPath/shells/linux/debian/install_shells/99_install_ai_tools.sh"
 if [ -f "$aiSharedLoginCommonPath" ]; then
     . "$aiSharedLoginCommonPath"
 fi

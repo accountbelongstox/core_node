@@ -21,13 +21,13 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
     /**
      * Hint shown when the frankenphp binary is not installed on the host.
      */
-    private const FRANKENPHP_INSTALL_HINT = 'frankenphp is not installed. Run: bash scripts/shells/linux/debian/install_shells/93_install_frankenphp.sh (idempotent installer)';
+    private const FRANKENPHP_INSTALL_HINT = 'frankenphp is not installed. Run: bash scripts/shells/linux/debian/install_shells/93_install_php.sh --only=runtime,config (idempotent installer)';
 
     // SYNC CONTRACT (two ends, one truth): this controller is the Laravel end
     // of the frankenphp web-server plane (binary + Caddyfile + plane record).
     // The shell end is:
     //   scripts/shells/linux/common/frankenphp_manager.sh (fm_* primitives)
-    //   scripts/shells/linux/debian/install_shells/93_install_frankenphp.sh
+    //   scripts/shells/linux/debian/install_shells/93_install_php.sh
     //   scripts/shells/linux/debian/debian_com/laravel_runtime_frankenphp.sh
     // Any change to probe fields, canonical Caddyfile semantics, or plane
     // adoption MUST be applied to both ends in the same change. The UI
@@ -221,7 +221,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
             'plane' => WebServerPlane::current(),
             'runtime_hint' => $plane === WebServerPlane::NGINX
                 ? 'Record adopted. Run 33_install_nginx.sh to provision + disable the frankenphp runtime.'
-                : 'Record adopted. Run 93_install_frankenphp.sh to provision the frankenphp plane.',
+                : 'Record adopted. Run 93_install_php.sh --only=runtime,config to provision the frankenphp plane.',
         ], "Web-server plane record set to '{$plane}'");
     }
 
