@@ -264,8 +264,9 @@ ai_cli_provision "claude"
 python3 "$claudeSettingsPresetPath"
 claude_team_restore_shared_owner
 
+claude_team_load_policy_args
 if [ -n "$deviceSlot" ] && [ -z "$deviceRole" ]; then
-    claude "${passthrough_args[@]}"
+    claude "${CLAUDE_TEAM_POLICY_ARGS[@]}" "${passthrough_args[@]}"
     claudeExitCode=$?
     claude_team_restore_shared_owner
     exit $claudeExitCode
@@ -307,13 +308,14 @@ export DISABLE_AUTOUPDATER="1"
 # Every role runs in auto mode; teammates inherit the lead's mode. Do not force
 # ultracode: it adds a planning workflow to every substantive request.
 claude_args+=(--permission-mode auto)
+claude_args+=("${CLAUDE_TEAM_POLICY_ARGS[@]}")
 claude_args+=("${CLAUDE_TEAM_SPEC_ARGS[@]}")
 claude_args+=("${passthrough_args[@]}")
 if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_args+=("$CLAUDE_TEAM_SPEC_KICKOFF")
 fi
 
-claude_invoke_display="claude --permission-mode auto ${CLAUDE_TEAM_SPEC_ARGS[*]} ${passthrough_args[*]}"
+claude_invoke_display="claude --permission-mode auto ${CLAUDE_TEAM_POLICY_ARGS[0]:-} ${CLAUDE_TEAM_POLICY_ARGS[1]:-} --append-system-prompt <policy> ${CLAUDE_TEAM_SPEC_ARGS[*]} ${passthrough_args[*]}"
 if [ -n "$CLAUDE_TEAM_SPEC_KICKOFF" ]; then
     claude_invoke_display="$claude_invoke_display <kickoff ${#CLAUDE_TEAM_SPEC_KICKOFF} chars>"
 fi

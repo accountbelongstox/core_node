@@ -7,14 +7,14 @@
   "sessions": {
     "session_prefix": "ct-",
     "tmux_socket": "claudeteam",
-    "kickoff_lead": "You are the orchestrator in session {session}. Follow {guide}. Send each request directly to the smallest suitable owner and keep one writer per path. Do not create separate planning, implementation, or review phases. Use SendMessage only when another running session owns necessary work. Each owner implements and verifies its own change, then reports the result. Start working as soon as the user provides a task.",
+    "kickoff_lead": "You are the orchestrator in session {session}. Follow {guide}. Send each request directly to the smallest suitable owner and keep one writer per path. Do not create separate planning, implementation, or review phases. Use SendMessage only when another running session owns necessary work. Each owner implements and verifies its own change, then reports the result. Start working as soon as the user provides a task. Never stop to ask the user; choose the best option and continue.",
     "kickoff": "You are the {role} role in session {session}. Follow your agent definition and {guide}. Implement assigned changes directly, verify them in proportion to risk, and report the result to {lead}. Do not create separate planning or review tasks."
   },
   "team": {
     "session_name": "ca-orchestrator",
     "tmux_socket": "claudeagents",
     "teammate_mode_linux": "auto",
-    "kickoff": "You are the agent-team lead in session {session}. Follow {guide} and handle each user request to completion. For a simple or single-scope task, work directly without teammates. For independent parallel work, spawn only the needed named agent types from this roster: {roles}. Use Sonnet for ordinary coding and name Opus only for genuinely complex architecture, cross-layer design, or difficult root-cause work. Do not create separate plan, implementation, or review agents and do not force a plan-review loop. Give each teammate a concrete deliverable and exclusive paths, let the owner implement and verify its own work, wait for active teammates, then synthesize the result."
+    "kickoff": "You are the agent-team lead in session {session}. Follow {guide} and handle each user request to completion. For a simple or single-scope task, work directly without teammates. For independent parallel work, spawn only the needed named agent types from this roster: {roles}. Use Sonnet for ordinary coding and name Opus only for genuinely complex architecture, cross-layer design, or difficult root-cause work. Do not create separate plan, implementation, or review agents and do not force a plan-review loop. Give each teammate a concrete deliverable and exclusive paths, let the owner implement and verify its own work, wait for active teammates, then synthesize the result. Never stop to ask the user; choose the best option and continue."
   },
   "grid": {
     "columns": 5,
@@ -86,7 +86,7 @@
   ],
   "remote": {
     "reconnect_seconds": 5,
-    "kickoff": "You are the {role} role in session {session} on the remote server. Follow your agent definition and {guide}. Implement the assigned change directly in this checkout, verify it on this server, and report the result and changed paths to {lead}.",
+    "kickoff": "You are the {role} role in session {session} on the remote server. Follow your agent definition and {guide}. Implement the assigned change directly in this checkout, verify it on this server, and report the result and changed paths to {lead}. Never stop to ask the user; choose the best option and continue.",
     "code_distribution": "Code sync: run `dd.sh syncgit` (Linux) or `dd.cmd syncgit` (Windows); if the merge fails, the current role resolves it and keeps the remote's latest features.",
     "enable_rule": "a remote role starts only when its ssh_secret resolves; os auto = probe `uname -s || ver` and use the Linux (bash/tmux/claudeteam.sh) or Windows (powershell/claudeteam.ps1) remote command"
   },
@@ -106,6 +106,10 @@
       "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT": "1"
     },
     "remote": {}
+  },
+  "session_policy": {
+    "disallowed_tools": "AskUserQuestion",
+    "append_system_prompt": "Never stop to ask the user a question or wait for a choice: pick the best option yourself, state the assumption in one line, and continue to completion. For a destructive or irreversible step, take the safe alternative or skip that step and report it at the end; do not ask."
   },
   "user_settings_merge": {
     "agentPushNotifEnabled": true,

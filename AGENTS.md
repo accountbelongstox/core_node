@@ -31,4 +31,6 @@
 
 **Kimi:** When running as a Kimi model, do not use the multi-Agents mode (Agent/AgentSwarm subagents); complete all work directly in the current agent. Use Edit for code changes; never use Write for long content.
 
+**Autonomy:** Never stop to ask the user; choose the best option, note the assumption, and continue to completion.
+
 **Concise:** Reduce every rule and core requirement to its shortest complete form; do not restate known context.

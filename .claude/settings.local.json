@@ -10,7 +10,10 @@
       "Bash(tmux -V)",
       "Read(//root/**)",
       "Bash(cd *)",
-      "Bash(python3 -)"
+      "Bash(python3 -)",
+      "Bash(claude --version)",
+      "Bash(python3 *)",
+      "Bash(bash -n scripts/linuxenvs/claudeteam.sh)"
     ],
     "deny": [],
     "ask": []
