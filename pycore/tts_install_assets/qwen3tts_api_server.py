@@ -122,6 +122,7 @@ from tts_server_common import (
     _NETWORK_CONSTANTS_MODULE_NAME,
     _PYCORE_MODULE_NAME,
     _PYFOUNDATIONS_MODULE_NAME,
+    apply_gpu_memory_fraction,
 )
 
 BaseModel = pydantic.BaseModel
@@ -472,6 +473,10 @@ def _load_model():
          f"(cuda_available={torch.cuda.is_available()})")
     t0 = time.monotonic()
     try:
+        if _device.startswith("cuda"):
+            fraction = apply_gpu_memory_fraction(torch, _logical_gpu_index())
+            if fraction:
+                _log(f"[api] CUDA allocator capped to {fraction:.3f} of VRAM (display headroom)")
         model = Qwen3TTSModel.from_pretrained(
             model_id,
             device_map=_device,

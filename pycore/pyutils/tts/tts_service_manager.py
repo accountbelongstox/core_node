@@ -124,7 +124,7 @@ def _gpu_device_or_fallback(
     free_bytes = memory_gate.free_vram_bytes(device_index)
     if free_bytes is None:
         return ""
-    free_mb = int(free_bytes) // _MIB
+    free_mb = int(free_bytes) // _MIB - memory_gate.display_reserve_mb(device_index)
     if free_mb >= required_mb:
         return "cuda"
     ColorPrint.yellow(
@@ -263,6 +263,8 @@ def _start_command(engine: str) -> Optional[Tuple]:
         if not (os.environ.get("CHATTTS_DEVICE") or "").strip():
             required_mb = _env_int("CHATTTS_MIN_FREE_VRAM_MB") or _CHATTTS_MIN_FREE_VRAM_MB
             env["CHATTTS_DEVICE"] = _gpu_device_or_fallback("chattts", required_mb)
+        if env.get("CHATTTS_DEVICE") != "cpu":
+            env.update(memory_gate.gpu_memory_env())
         return staging, [py, str(script)], env
     if engine == "cosyvoice":
         script = staging / "runtime" / "python" / "fastapi" / "server.py"
@@ -597,6 +599,7 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
         extra["CUDA_VISIBLE_DEVICES"] = physical_index
         extra["QWEN3TTS_PHYSICAL_GPU_INDEX"] = physical_index
         extra["QWEN3TTS_DEVICE"] = "cuda:0"
+        extra.update(memory_gate.gpu_memory_env(int(physical_index)))
     elif device:
         extra["QWEN3TTS_DEVICE"] = device
     return staging, [venv_python, str(api_server)], _isolated_env(extra)

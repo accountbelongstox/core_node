@@ -78,6 +78,17 @@ CHATTTS_HTTP_PORT = 8000
 # PYCORE_PROJECT_ROOT). Env override: CHATTTS_MIN_FREE_VRAM_MB.
 CHATTTS_MIN_FREE_VRAM_MB = 4096
 
+# Display-GPU VRAM headroom (MiB): a GPU that also drives the display
+# (nvidia-smi display_active=Enabled) keeps max(MIN, ratio * total) for the
+# compositor/browser; local model servers cap their CUDA allocator to the rest
+# (torch.cuda.set_per_process_memory_fraction). Headless GPUs reserve nothing.
+# Env override: PYCORE_GPU_DISPLAY_RESERVE_MB (0 disables). The launcher hands
+# the resulting fraction to the server as PYCORE_GPU_MEMORY_FRACTION.
+GPU_DISPLAY_RESERVE_MIN_MB = 1024
+GPU_DISPLAY_RESERVE_RATIO = 0.10
+GPU_DISPLAY_RESERVE_MB_ENV = "PYCORE_GPU_DISPLAY_RESERVE_MB"
+GPU_MEMORY_FRACTION_ENV = "PYCORE_GPU_MEMORY_FRACTION"
+
 # MeloTTS class-C HTTP server (isolated per-engine venv; managed lifecycle).
 MELOTTS_HTTP_PORT = 57212
 MELOTTS_HTTP_TIMEOUT_SECONDS = 300.0
@@ -136,6 +147,10 @@ __all__ = [
     "COSYVOICE_HTTP_PORT",
     "EXTERNAL_API_HTTP_TIMEOUT",
     "F5TTS_HTTP_PORT",
+    "GPU_DISPLAY_RESERVE_MB_ENV",
+    "GPU_DISPLAY_RESERVE_MIN_MB",
+    "GPU_DISPLAY_RESERVE_RATIO",
+    "GPU_MEMORY_FRACTION_ENV",
     "FISHSPEECH_HTTP_PORT",
     "GPTSOVITS_HTTP_PORT",
     "HTTP_API_PREFIX",

@@ -25,6 +25,10 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.network_constants import (
+    GPU_DISPLAY_RESERVE_MB_ENV,
+    GPU_DISPLAY_RESERVE_MIN_MB,
+    GPU_DISPLAY_RESERVE_RATIO,
+    GPU_MEMORY_FRACTION_ENV,
     NVIDIA_SMI_TIMEOUT_SECONDS,
     QWEN3TTS_MIN_FREE_VRAM_MB,
     QWEN3TTS_MIN_FREE_VRAM_MB_ENV,
@@ -223,6 +227,51 @@ def free_vram_bytes(device_index: Optional[int] = None) -> Optional[int]:
     if 0 <= index < len(rows):
         return int(rows[index][1])
     return None
+
+
+def display_reserve_mb(device_index: Optional[int] = None) -> int:
+    """VRAM (MiB) kept free for the desktop on a GPU that also drives the
+    display (nvidia-smi display_active=Enabled); 0 on a headless GPU or when
+    unreadable. PYCORE_GPU_DISPLAY_RESERVE_MB overrides (0 disables)."""
+    override = (os.environ.get(GPU_DISPLAY_RESERVE_MB_ENV) or "").strip()
+    if override.isdigit():
+        return int(override)
+    index = 0 if device_index is None else int(device_index)
+    try:
+        smi = CUDADetector._nvidia_smi_cmd()
+        if not smi:
+            return 0
+        result = exec_silent(
+            [smi, "-i", str(index),
+             "--query-gpu=display_active,memory.total",
+             "--format=csv,noheader,nounits"],
+            info=False,
+            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
+        )
+        if result.return_code != 0:
+            return 0
+        parts = [part.strip() for part in (result.stdout or "").strip().splitlines()[0].split(",")]
+        if len(parts) != 2 or parts[0].lower() != "enabled" or not parts[1].isdigit():
+            return 0
+        return max(GPU_DISPLAY_RESERVE_MIN_MB, int(int(parts[1]) * GPU_DISPLAY_RESERVE_RATIO))
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def gpu_memory_env(device_index: Optional[int] = None) -> Dict[str, str]:
+    """Env for a model server subprocess capping its CUDA allocator so the
+    display GPU keeps display_reserve_mb(); empty when nothing is reserved."""
+    reserve_mb = display_reserve_mb(device_index)
+    if reserve_mb <= 0:
+        return {}
+    rows = _gpu_query()
+    index = 0 if device_index is None else int(device_index)
+    if not rows or not 0 <= index < len(rows):
+        return {}
+    total_mb = rows[index][2] // _MB
+    if total_mb <= reserve_mb:
+        return {}
+    return {GPU_MEMORY_FRACTION_ENV: f"{(total_mb - reserve_mb) / total_mb:.3f}"}
 
 
 def _fmt(num_bytes: int) -> str:
