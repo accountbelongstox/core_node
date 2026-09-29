@@ -1,2 +1,0 @@
-- [CRLF files pitfall](crlf-files-pitfall.md) — UI files are CRLF/mixed; Python text rewrites convert to LF; check with --ignore-space-at-eol
-- [UI tsconfig non-strict narrowing](ui-tsconfig-nonstrict-narrowing.md) — boolean discriminants don't narrow; use `in` checks; tsc --noEmit filtered to own files

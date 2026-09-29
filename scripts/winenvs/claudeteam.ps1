@@ -56,6 +56,7 @@ $deviceProfile = ""
 $deviceRole = ""
 $deviceSession = ""
 $deviceRemoteHint = ""
+$remoteControlSession = ""
 $claudeArgs = @()
 $claudeDisplayArgs = @()
 $forwardArgs = @()
@@ -136,6 +137,19 @@ if ($deviceSlot -gt 0) {
         $paneRole = $deviceRole
         $deviceSession = Get-ClaudeDeviceSessionName -Role $deviceRole
         $forwardArgs = @("--agent", $deviceRole, "--name", $deviceSession) + $forwardArgs
+        $remoteControlSession = $deviceSession
+    }
+} elseif ((-not $paneMode) -and $paneRole) {
+    . $claudeDeviceProfileCommonScript
+    $nameIndex = [Array]::IndexOf($forwardArgs, "--name")
+    if ($nameIndex -lt 0) {
+        $nameIndex = [Array]::IndexOf($forwardArgs, "-n")
+    }
+    if (($nameIndex -ge 0) -and (($nameIndex + 1) -lt $forwardArgs.Count)) {
+        $remoteControlSession = [string]$forwardArgs[$nameIndex + 1]
+    } else {
+        $remoteControlSession = Get-ClaudeDeviceSessionName -Role $paneRole
+        $forwardArgs = @("--name", $remoteControlSession) + $forwardArgs
     }
 }
 
@@ -173,11 +187,11 @@ try {
             Write-Host "[WARN] python not found; Claude settings preset not applied" -ForegroundColor Yellow
         }
 
-        if ($deviceRole) {
+        if ($remoteControlSession -and ($forwardArgs -notcontains "--remote-control")) {
             if (Test-ClaudeDeviceRemoteControlSupported) {
-                $forwardArgs += @("--remote-control", $deviceSession)
+                $forwardArgs += @("--remote-control", $remoteControlSession)
             } else {
-                $deviceRemoteHint = ("[ACTION] Remote Control cannot be added at launch: type /remote-control {0} in this session" -f $deviceSession)
+                $deviceRemoteHint = ("[ACTION] Remote Control cannot be added at launch: type /remote-control {0} in this session" -f $remoteControlSession)
             }
         }
 

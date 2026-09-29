@@ -1,4 +1,0 @@
-- [Laravel date serialization](laravel-date-serialization.md) — date-only fields arrive as UTC-midnight ISO; use cmParseDate calendar mode
-- [Task board fallback](team-task-board-fallback.md) — no task tools: use codemart-<n> rows in shared TASKS.md + report file
-- [Laravel config not env](feedback-laravel-config-not-env.md) — user ruling: Laravel settings come from config files, never env(); flag env() in CodeMart backend
-- [Shared registries](codemart-shared-registries.md) — routes, image registry, flavor version/icon, ledger codes: single sources to reuse

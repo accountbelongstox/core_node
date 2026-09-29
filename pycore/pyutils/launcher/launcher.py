@@ -157,10 +157,10 @@ def main():
     ColorPrint.plain("Window Launcher - Startup Options")
     ColorPrint.plain("=" * 60)
     ColorPrint.plain("Options:")
-    ColorPrint.plain("  [1] - Launch Window Layout Only")
-    ColorPrint.plain("  [2] - Launch Pycore Module Only (background)")
-    ColorPrint.plain("  [3] - Launch Both (Window Layout + Pycore Module)")
     ColorPrint.plain(launcher_text.get(GridI18nKeys.MENU_CROSS_DEVICE))
+    ColorPrint.plain("  [2] - Launch Window Layout Only")
+    ColorPrint.plain("  [3] - Launch Pycore Module Only (background)")
+    ColorPrint.plain("  [4] - Launch Both (Window Layout + Pycore Module)")
     ColorPrint.plain("  [M] - Configuration Menu")
     ColorPrint.plain("  [Enter] - Default (Launch Both)")
     ColorPrint.plain("=" * 60)
@@ -178,13 +178,13 @@ def main():
         # equivalent menu option; with no mode use the default (Both), the same
         # action [Enter] selects in the interactive menu.
         if mode == 'windows':
-            user_input = '1'
-        elif mode == 'module':
             user_input = '2'
-        elif mode == 'device':
-            user_input = '4'
-        else:  # 'both' or None
+        elif mode == 'module':
             user_input = '3'
+        elif mode == 'device':
+            user_input = '1'
+        else:  # 'both' or None
+            user_input = '4'
         ColorPrint.plain(f"[Launcher] Headless mode (no-pause); auto-selected option {user_input}")
     else:
         try:
@@ -193,19 +193,19 @@ def main():
             # stdin reported a TTY but yielded EOF (e.g. closed pipe): take the default.
             user_input = ''
 
-    if user_input == '1':
+    if user_input == '2':
         launch_windows = True
         launch_module = False
         ColorPrint.plain("\n[Launcher] Mode: Window Layout Only")
-    elif user_input == '2':
+    elif user_input == '3':
         launch_windows = False
         launch_module = True
         ColorPrint.plain("\n[Launcher] Mode: Pycore Module Only")
-    elif user_input == '3' or user_input == '':
+    elif user_input == '4' or user_input == '':
         launch_windows = True
         launch_module = True
         ColorPrint.plain("\n[Launcher] Mode: Both (Window Layout + Pycore Module)")
-    elif user_input == '4':
+    elif user_input == '1':
         enable_cross_device_mode()
         launch_windows = True
         launch_module = False

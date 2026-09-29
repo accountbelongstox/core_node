@@ -1,3 +1,0 @@
-- [Verify in-process without writes](verify-in-process-without-writes.md) — scratchpad kernel boot, array cache, lang keys, rolled-back PG DDL, in-process HTTP
-- [Laravel route auth model](laravel-route-auth-model.md) — client.key / client.key_or_dashboard / dashboard.auth levels since 2026-09-27
-- [Writer roster: reserve since 2026-09-28](writer-roster-reserve-2026-09-28.md) — wordnew-laravel/pycore-laravel are default writers now; laravel-qyapp edits only when named temporary writer

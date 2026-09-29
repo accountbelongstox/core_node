@@ -52,39 +52,11 @@
       "enabled": true
     },
     {
-      "name": "pycore-ai",
-      "enabled": true
-    },
-    {
-      "name": "pycore-runtime",
-      "enabled": true
-    },
-    {
-      "name": "pycore-laravel",
-      "enabled": true
-    },
-    {
       "name": "pycore-ui",
       "enabled": true
     },
     {
       "name": "wordnew-lead",
-      "enabled": true
-    },
-    {
-      "name": "wordnew-ui",
-      "enabled": true
-    },
-    {
-      "name": "wordnew-laravel",
-      "enabled": true
-    },
-    {
-      "name": "wordnew-native",
-      "enabled": true
-    },
-    {
-      "name": "wordnew-link",
       "enabled": true
     },
     {
@@ -100,14 +72,6 @@
       "enabled": true
     },
     {
-      "name": "codemart-ui",
-      "enabled": true
-    },
-    {
-      "name": "codemart-laravel",
-      "enabled": true
-    },
-    {
       "name": "laravel-manager-lead",
       "enabled": true
     },
@@ -118,47 +82,6 @@
         "ssh_secret": "SSH_CONNECTION_1",
         "root": "/www/programing/core_node"
       }
-    },
-    {
-      "name": "pycore-gpu-remote",
-      "enabled": false,
-      "remote": {
-        "ssh_secret": "SSH_CONNECTION_GPU_1",
-        "os": "auto",
-        "root_linux": "/www/programing/core_node",
-        "root_windows": "D:\\programing\\core_node",
-        "purpose": "GPU test-end: runs pyservice on the GPU host and tests pycore features; test-only"
-      }
-    },
-    {
-      "name": "reviewer",
-      "enabled": false,
-      "window": false
-    },
-    {
-      "name": "ncore",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "flutter",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "pycore-architect",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "pycore-assist",
-      "enabled": true,
-      "window": false
-    },
-    {
-      "name": "ui-vortex",
-      "enabled": true,
-      "window": false
     }
   ],
   "remote": {
@@ -223,22 +146,13 @@
       ],
       [
         "pycore-lead",
-        "pycore-ai",
-        "pycore-runtime",
-        "pycore-laravel",
         "pycore-ui"
       ],
       [
-        "wordnew-lead",
-        "wordnew-ui",
-        "wordnew-laravel",
-        "wordnew-native",
-        "wordnew-link"
+        "wordnew-lead"
       ],
       [
-        "codemart-lead",
-        "codemart-ui",
-        "codemart-laravel"
+        "codemart-lead"
       ],
       [
         "laravel-manager-lead"
@@ -261,24 +175,14 @@
       "leader": "pycore-lead",
       "members": [
         "pycore-lead",
-        "pycore-ai",
-        "pycore-runtime",
-        "pycore-laravel",
         "pycore-ui"
-      ],
-      "remote_members": [
-        "pycore-gpu-remote"
       ]
     },
     {
       "name": "wordnew",
       "leader": "wordnew-lead",
       "members": [
-        "wordnew-lead",
-        "wordnew-ui",
-        "wordnew-laravel",
-        "wordnew-native",
-        "wordnew-link"
+        "wordnew-lead"
       ]
     },
     {
@@ -293,9 +197,7 @@
       "name": "codemart",
       "leader": "codemart-lead",
       "members": [
-        "codemart-lead",
-        "codemart-ui",
-        "codemart-laravel"
+        "codemart-lead"
       ]
     },
     {
@@ -311,16 +213,6 @@
       "members": [
         "laravel-remote"
       ]
-    },
-    {
-      "name": "service",
-      "leader": "orchestrator",
-      "members": [
-        "reviewer",
-        "ncore",
-        "flutter"
-      ],
-      "window": false
     }
   ]
 }

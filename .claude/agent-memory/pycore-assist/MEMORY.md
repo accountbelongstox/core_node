@@ -1,3 +1,0 @@
-- [Line endings](feedback_line_endings.md) — keep per-line CRLF/LF in pycore; reviewer rejects EOL churn; how to verify and restore
-- [pycore pitfalls](project_pycore_pitfalls.md) — serialized-call guard deadlock, engine-test settings via ContextVar, contract-owned policies, static check recipe
-- [Role status](project_role_status.md) — post-D22: pycore-runtime is default writer for my whole scope incl. agent_history; I'm reserve, wait to be named temporary writer

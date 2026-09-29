@@ -46,25 +46,12 @@ Choose the narrowest role whose description covers the requested files. The agen
 | Agent launchers, role catalog, Claude configuration | `orchestrator`, `shell-linux`, `shell-windows` |
 | Linux shell, installers, system services, Docker shell | `shell-linux` |
 | Windows PowerShell, cmd, Windows installers and WSL bootstrap | `shell-windows` |
-| pycore foundations, entry points and architecture | `pycore-lead`, `pycore-architect` |
-| pycore model, TTS, STT, OCR and AI engines | `pycore-ai` |
-| pycore runtime, RPC, relay, CodeSync, queues and pyapps | `pycore-runtime`, `pycore-assist` |
-| pycore-facing Laravel services and Laravel foundation | `pycore-laravel` |
-| pycore UI apps and shared UI | `pycore-ui`, `ui-vortex` |
+| pycore foundations, entry points and architecture | `pycore-lead` |
+| pycore UI apps and shared UI | `pycore-ui` |
 | laravel-manager UI and its Laravel APIs | `laravel-manager-lead` |
 | wordnew coordination and docs | `wordnew-lead` |
-| wordnew UI | `wordnew-ui` |
-| wordnew Laravel AppQyV1 | `wordnew-laravel` |
-| wordnew native/Capacitor and prerequisite scripts | `wordnew-native` |
-| wordnew pycore or mcp-chrome linkage | `wordnew-link` |
 | CodeMart coordination and cross-cutting work | `codemart-lead` |
-| CodeMart UI | `codemart-ui` |
-| CodeMart Laravel | `codemart-laravel` |
 | Laravel server-only implementation and verification | `laravel-remote` |
-| Node.js ncore and non-mcp-chrome Node apps | `ncore` |
-| Flutter workspace | `flutter` |
-| GPU-host verification | `pycore-gpu-remote` |
-| Explicit independent review | `reviewer` |
 
 ## 5. Boundaries
 
