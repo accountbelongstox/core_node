@@ -266,6 +266,7 @@ try {
         # Project agents (.claude/agents) and CLAUDE.md resolve from the working
         # directory, so claude always starts in the core_node root.
         Set-Location -LiteralPath $projectRootPath
+        $claudeArgs = @(Get-ClaudeTeamPolicyArguments) + $claudeArgs
         & claude @claudeArgs
         $exitCode = $LASTEXITCODE
         if ($null -eq $exitCode) {

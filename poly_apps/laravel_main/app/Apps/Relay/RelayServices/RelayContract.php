@@ -15,6 +15,7 @@ final class RelayContract
         'agent_history_prompt_new',
         'agent_history_prompt_derived',
         'agent_history_config_changed',
+        'pycore_events',
     ];
 
     private static ?array $document = null;

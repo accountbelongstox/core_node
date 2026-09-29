@@ -107,6 +107,7 @@ RELAY_REQUIRED_EVENTS = {
     "agent_history_prompt_new",
     "agent_history_prompt_derived",
     "agent_history_config_changed",
+    "pycore_events",
 }
 
 

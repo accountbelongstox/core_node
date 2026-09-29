@@ -9,7 +9,11 @@
       "Bash(git rev-parse:*)",
       "Bash(tmux -V)",
       "Read(//root/**)",
-      "Bash(cd *)"
+      "Bash(cd *)",
+      "Bash(python3 -)",
+      "Bash(claude --version)",
+      "Bash(python3 *)",
+      "Bash(bash -n scripts/linuxenvs/claudeteam.sh)"
     ],
     "deny": [],
     "ask": []

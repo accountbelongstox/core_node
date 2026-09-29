@@ -510,6 +510,22 @@ function Get-ClaudeTeamRoleBlockedState {
     return $null
 }
 
+function Get-ClaudeTeamPolicyArguments {
+    $catalog = Get-Content -LiteralPath $ClaudeTeamInstallCatalogPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $policy = Get-ClaudeTeamProperty -Object $catalog -Name "session_policy" -Default $null
+    $disallowed = [string](Get-ClaudeTeamProperty -Object $policy -Name "disallowed_tools" -Default "")
+    $prompt = [string](Get-ClaudeTeamProperty -Object $policy -Name "append_system_prompt" -Default "")
+    $policyArgs = @()
+    if ($disallowed) {
+        $policyArgs += @("--disallowedTools", $disallowed)
+    }
+    if ($prompt) {
+        $policyArgs += @("--append-system-prompt", $prompt)
+    }
+    Write-Host ("[DEBUG] session policy: disallowedTools={0} append-system-prompt={1} chars (catalog {2})" -f $(if ($disallowed) { $disallowed } else { "<none>" }), $prompt.Length, $ClaudeTeamInstallCatalogPath) -ForegroundColor DarkGray
+    return $policyArgs
+}
+
 function Import-ClaudeTeamCatalog {
     $agents = @()
     $agentByName = @{}

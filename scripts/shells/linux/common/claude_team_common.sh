@@ -489,6 +489,30 @@ claude_team_ensure_claude() {
 # Roles come from the .claude/agents frontmatter (name, model, effort); catalog
 # roles[] rows override enabled/remote/window. Catalog order first, then agent
 # files without a row, by name.
+# Session policy (config session_policy): no AskUserQuestion, and a system prompt
+# that makes claude choose the best option and continue instead of stopping to ask.
+CLAUDE_TEAM_POLICY_ARGS=()
+claude_team_load_policy_args() {
+    local disallowed=""
+    local prompt=""
+    CLAUDE_TEAM_POLICY_ARGS=()
+    disallowed="$(python3 - "$CLAUDE_TEAM_CATALOG_PATH" disallowed_tools <<'PY' 2>/dev/null
+import json, sys
+with open(sys.argv[1], encoding="utf-8-sig") as handle:
+    print((json.load(handle).get("session_policy") or {}).get(sys.argv[2], ""), end="")
+PY
+)"
+    prompt="$(python3 - "$CLAUDE_TEAM_CATALOG_PATH" append_system_prompt <<'PY' 2>/dev/null
+import json, sys
+with open(sys.argv[1], encoding="utf-8-sig") as handle:
+    print((json.load(handle).get("session_policy") or {}).get(sys.argv[2], ""), end="")
+PY
+)"
+    [ -n "$disallowed" ] && CLAUDE_TEAM_POLICY_ARGS+=(--disallowedTools "$disallowed")
+    [ -n "$prompt" ] && CLAUDE_TEAM_POLICY_ARGS+=(--append-system-prompt "$prompt")
+    echo "[DEBUG] session policy: disallowedTools=${disallowed:-<none>} append-system-prompt=${#prompt} chars (catalog $CLAUDE_TEAM_CATALOG_PATH)"
+}
+
 claude_team_load_catalog() {
     local parsed=""
     local kind=""

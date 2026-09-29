@@ -46,7 +46,14 @@ const OPERATION_CONNECT_WAIT_MS = 3_000;
 const OPERATION_POLL_FLOOR_MS = 1_000;
 const OPERATION_POLL_MAX_MS = 15_000;
 const OPERATION_RECONCILIATION_MS = 10_000;
+const RATE_LIMIT_BACKOFF_MIN_MS = 5_000;
+const RATE_LIMIT_BACKOFF_MAX_MS = 60_000;
 const pairFlights = new Map<string, Promise<RelayPairing>>();
+// Identical in-flight reads share ONE Relay operation (single-flight): N
+// panels polling the same route cost one admission instead of N.
+const inFlightReads = new Map<string, Promise<Response>>();
+let admissionBlockedUntil = 0;
+let admissionBackoffMs = RATE_LIMIT_BACKOFF_MIN_MS;
 const operationWakeWaiters = new Map<string, Set<() => void>>();
 const selectionHandlers = new Set<(deviceId: string | null) => void>();
 let relayState: PersistedRelayState | null = null;
@@ -417,18 +424,61 @@ async function responseBytes(operation: RelayOperation): Promise<Uint8Array | nu
   return bytes;
 }
 
+function noteAdmissionOutcome(error: unknown): void {
+  if ((error as { status?: number })?.status !== 429) return;
+  admissionBlockedUntil = Date.now() + admissionBackoffMs;
+  admissionBackoffMs = Math.min(RATE_LIMIT_BACKOFF_MAX_MS, admissionBackoffMs * 2);
+}
+
+function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(new DOMException('Aborted', 'AbortError'));
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
+async function deliverManaged(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+  ensureOperationWake();
+  laravelRelayRoster.start();
+  try {
+    const response = await deliverOperation(url, init, signal);
+    admissionBackoffMs = RATE_LIMIT_BACKOFF_MIN_MS;
+    return response;
+  } catch (error) {
+    noteAdmissionOutcome(error);
+    throw error;
+  } finally {
+    laravelRelayRoster.stop();
+  }
+}
+
 export async function deliverThroughLaravelRelay(
   url: string,
   init: RequestInit,
   signal?: AbortSignal,
 ): Promise<Response> {
-  ensureOperationWake();
-  laravelRelayRoster.start();
-  try {
-    return await deliverOperation(url, init, signal);
-  } finally {
-    laravelRelayRoster.stop();
+  const method = String(init.method || 'GET').toUpperCase();
+  const isRead = (method === 'GET' || method === 'HEAD') && init.body == null;
+  if (!isRead) return deliverManaged(url, init, signal);
+  // Reads yield to the owner rate limiter: while a 429 backoff is active they
+  // fail fast instead of adding admissions; mutations still go through.
+  if (Date.now() < admissionBlockedUntil) {
+    throw new PycoreRelayError('http', 'RELAY_RATE_LIMITED', 429);
   }
+  const key = `${method} ${url}`;
+  let shared = inFlightReads.get(key);
+  if (!shared) {
+    const { signal: _ignored, ...sharedInit } = init;
+    shared = deliverManaged(url, sharedInit).finally(() => inFlightReads.delete(key));
+    inFlightReads.set(key, shared);
+  }
+  return raceAbort(shared.then((response) => response.clone()), signal);
 }
 
 async function deliverOperation(

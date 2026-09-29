@@ -57,9 +57,10 @@ class AppServiceProvider extends ServiceProvider
         });
         RateLimiter::for('relay-owner', static function (Request $request): Limit {
             $lane = (string) $request->route()?->getActionMethod();
+            $owner = $request->user()?->getAuthIdentifier();
 
             return Limit::perMinute(RelayContract::rateLimit('owner_requests_per_minute'))
-                ->by((string) $request->ip().':'.$lane);
+                ->by(($owner !== null ? 'user:'.$owner : (string) $request->ip()).':'.$lane);
         });
         RateLimiter::for('relay-enrollment-claim', static function (Request $request): Limit {
             return Limit::perMinute(RelayContract::rateLimit('enrollment_claims_per_minute'))
