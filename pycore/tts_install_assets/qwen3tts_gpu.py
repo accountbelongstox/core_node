@@ -179,7 +179,7 @@ def _nvidia_smi_cmd() -> str:
             ["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"]
         )
     return next(
-        (candidate for candidate in candidates if candidate and os.path.isfile(candidate)),
+        (candidate for candidate in candidates if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK)),
         "",
     )
 

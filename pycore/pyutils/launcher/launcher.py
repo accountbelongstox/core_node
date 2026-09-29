@@ -46,7 +46,7 @@ from pycore.pyutils.launcher.editor_launcher import EditorLauncher
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.menu import InteractiveMenu
-from pycore.pyutils.launcher.grid_profile import resolve_terminal_grid
+from pycore.pyutils.launcher.grid_profile import print_grid_startup_commands, resolve_terminal_grid
 from pycore.pyutils.launcher.app_slots import launch_configured_apps
 from pycore.pyutils.launcher.service_orchestrator import run_launcher_service_prompts
 
@@ -160,6 +160,8 @@ def main():
     ColorPrint.plain("  [3] - Launch Both (Window Layout + Pycore Module)")
     ColorPrint.plain("  [M] - Configuration Menu")
     ColorPrint.plain("  [Enter] - Default (Launch Both)")
+    ColorPrint.plain("=" * 60)
+    print_grid_startup_commands(PROJECT_ROOT)
     ColorPrint.plain("=" * 60)
     if platform.system() == 'Windows':
         ColorPrint.plain("Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.")

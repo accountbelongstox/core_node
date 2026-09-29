@@ -14,7 +14,6 @@ import sys
 
 from pycore.pyfoundations.serialized_worker import SerializedValue
 import importlib.metadata
-import shutil
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -127,7 +126,7 @@ def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
     a newer CUDA than the driver supports trips torch.cuda.is_available()=False (the 'driver
     too old' UserWarning). nvidia-smi prints 'CUDA Version: X.Y' in its header."""
     smi = CUDADetector._nvidia_smi_cmd()
-    if not (os.path.isfile(smi) or shutil.which(smi)):
+    if not smi:
         return None
     proc = run_third_party_command([smi], capture_output=True, timeout=15)
     out = (getattr(proc, "stdout", "") or "") if proc is not None else ""

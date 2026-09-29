@@ -144,6 +144,8 @@ def _gpu_query() -> Optional[List[Tuple[int, int, int]]]:
     kills the whole service with no traceback."""
     try:
         smi = CUDADetector._nvidia_smi_cmd()
+        if not smi:
+            return None
         result = exec_silent(
             [smi, "--query-gpu=utilization.gpu,memory.free,memory.total",
              "--format=csv,noheader,nounits"],
@@ -209,6 +211,8 @@ def _gpu_compute_apps(device_index: Optional[int]) -> Optional[List[Tuple[int, i
     (same no-torch rule as _gpu_query). None when unreadable."""
     try:
         smi = CUDADetector._nvidia_smi_cmd()
+        if not smi:
+            return None
         cmd = [smi]
         if device_index is not None:
             cmd += ["-i", str(int(device_index))]

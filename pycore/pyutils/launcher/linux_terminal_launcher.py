@@ -57,7 +57,8 @@ import time
 
 from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.pygvar import PROJECT_ROOT, TMP_DIR
+from pycore.pyutils.launcher.grid_profile import grid_startup_command
 from pycore.pyutils.launcher.linux_desktop_user import root_terminal_env
 from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
 from pycore.pyutils.launcher.linux_terminal_argv import LinuxTerminalArgv
@@ -66,6 +67,7 @@ GRID_RC_DIR_PREFIX = "pylauncher-"
 GRID_RC_DIR_MODE = 0o700
 GRID_RC_FILE_NAME = "grid.rc"
 GRID_RC_FILE_MODE = 0o600
+GRID_STARTUP_ENV_KEYS = "PYLAUNCHER_TITLE,PYLAUNCHER_CWD,PYLAUNCHER_STARTUP"
 
 
 class LinuxTerminalLauncher:
@@ -103,31 +105,51 @@ class LinuxTerminalLauncher:
         + '\n'
         + r"""PROMPT_COMMAND='printf "\033]0;%s\007" "$PYLAUNCHER_TITLE"'"""
         + '\n'
+        + '[ -n "$PYLAUNCHER_CWD" ] && cd "$PYLAUNCHER_CWD"\n'
+        + '_pylauncher_startup="$PYLAUNCHER_STARTUP"; unset PYLAUNCHER_STARTUP\n'
+        + 'if [ -n "$_pylauncher_startup" ]; then history -s "$_pylauncher_startup"; '
+        + 'eval "$_pylauncher_startup"; fi\n'
+        + 'unset _pylauncher_startup\n'
     )
 
-    def _grid_shell_inner(self, title):
+    def _grid_shell_inner(self, title, startup=None):
         """
         Build the ``bash -lc`` snippet that opens an interactive grid shell
         whose window keeps its ``pylauncher-NN`` title (the launch_guard
         deficit counter matches that marker). Falls back to a plain login
         shell when the rc file cannot be written.
 
+        Every shell starts in PROJECT_ROOT; with ``startup`` the shell is
+        re-entered as root (sudo when not root yet) and runs it first.
+
         Args:
             title: Unique grid window title (e.g. "pylauncher-01").
+            startup: Optional command run once the shell is ready.
 
         Returns:
             str: Shell snippet for ``bash -lc``.
         """
+        cwd = shlex.quote(str(PROJECT_ROOT))
+        not_root = '[ "$(id -u)" -ne 0 ]'
+        fallback = "printf '\\033]0;%s\\007'; cd %s; " % (title, cwd)
+        if startup:
+            fallback += "if %s; then sudo bash -lc %s; else %s; fi; " % (
+                not_root, shlex.quote("cd %s && %s" % (cwd, startup)), startup)
+        fallback += "exec ${SHELL:-bash}"
         try:
             rc_path = self._private_grid_rc()
             if not rc_path:
-                return "printf '\\033]0;%s\\007'; exec ${SHELL:-bash}" % title
-            return ("export PYLAUNCHER_TITLE={title}; "
-                    "printf '\\033]0;%s\\007' \"$PYLAUNCHER_TITLE\"; "
-                    "exec bash --rcfile {rc} -i").format(
-                        title=shlex.quote(title), rc=shlex.quote(rc_path))
+                return fallback
+            shell = "bash --rcfile %s -i" % shlex.quote(rc_path)
+            exports = "export PYLAUNCHER_TITLE=%s PYLAUNCHER_CWD=%s; " % (shlex.quote(title), cwd)
+            launch = "exec %s" % shell
+            if startup:
+                exports += "export PYLAUNCHER_STARTUP=%s; " % shlex.quote(startup)
+                launch = "if %s; then exec sudo --preserve-env=%s %s; fi; exec %s" % (
+                    not_root, GRID_STARTUP_ENV_KEYS, shell, shell)
+            return exports + "printf '\\033]0;%s\\007' \"$PYLAUNCHER_TITLE\"; " + launch
         except Exception:
-            return "printf '\\033]0;%s\\007'; exec ${SHELL:-bash}" % title
+            return fallback
 
     def _private_grid_rc(self):
         """
@@ -176,7 +198,7 @@ class LinuxTerminalLauncher:
     # Public surface (mirrors WindowsTerminalLauncher.launch_windows)
     # ------------------------------------------------------------------ #
 
-    def launch_windows(self, windows_config, delay=0.2, ubuntu_count=0):
+    def launch_windows(self, windows_config, delay=0.2, ubuntu_count=0, first_cell=0):
         """
         Launch the terminal grid described by ``windows_config``.
 
@@ -186,6 +208,8 @@ class LinuxTerminalLauncher:
             delay: Delay between launches in seconds.
             ubuntu_count: Windows/WSL split count. IGNORED on Linux -- every
                 entry is launched as a native terminal.
+            first_cell: Grid index of the first entry (deficit top-up); selects
+                each cell's grid_startup_command.
 
         Returns:
             list: Best-effort list of launched PIDs.
@@ -201,6 +225,7 @@ class LinuxTerminalLauncher:
                 cell_hint = (int(entry[6]), int(entry[7]))
                 break
         self._cell_hint = cell_hint
+        self._first_cell = first_cell
         count = len(configs)
         if count == 0:
             ColorPrint.plain("No windows to launch.")
@@ -320,7 +345,8 @@ class LinuxTerminalLauncher:
             if self.command:
                 inner = "printf '\\033]0;%s\\007'; exec %s" % (title, self.command)
             else:
-                inner = self._grid_shell_inner(title)
+                inner = self._grid_shell_inner(
+                    title, grid_startup_command(self._first_cell + i - 1))
             # A geometry hint gets the window roughly placed up front (harmless on
             # emulators that ignore it); the id-based move then snaps it exactly.
             geometry = f"{cols}x{rows}+{x}+{y}" if geom_capable else None
@@ -412,7 +438,9 @@ class LinuxTerminalLauncher:
                 # Interactive shell: use the grid-shell snippet so the window
                 # keeps its pylauncher-NN title (deficit counting matches it).
                 argv = self._argv._build_titled_argv(
-                    emulator, self._grid_shell_inner(title), geometry)
+                    emulator,
+                    self._grid_shell_inner(title, grid_startup_command(self._first_cell + i - 1)),
+                    geometry)
             if argv is None:
                 continue
             try:

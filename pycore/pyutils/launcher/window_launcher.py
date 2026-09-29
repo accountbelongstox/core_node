@@ -357,7 +357,8 @@ class WindowLauncher:
         ubuntu_count = self.calculate_ubuntu_count(total_windows)
 
         # Launch Windows Terminal and Ubuntu windows
-        bat_files = self.wt_launcher.launch_windows(windows_config, delay, ubuntu_count)
+        bat_files = self.wt_launcher.launch_windows(
+            windows_config, delay, ubuntu_count, first_cell=first_cell)
 
         wt_count = total_windows - ubuntu_count
         terminal_label = "native terminal" if IS_LINUX else "Windows Terminal"
