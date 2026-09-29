@@ -149,6 +149,10 @@ def _load_chat_model():
     if not model_path.is_dir():
         _load_error = f"ChatTTS model directory is missing: {model_path}"
         raise RuntimeError(_load_error)
+    if _device == "cuda":
+        fraction = tts_server_common.apply_gpu_memory_fraction(torch)
+        if fraction:
+            print(f"[chattts] CUDA allocator capped to {fraction:.3f} of VRAM (display headroom)", flush=True)
     model = ChatTTS.Chat()
     loaded = model.load(
         compile=False,

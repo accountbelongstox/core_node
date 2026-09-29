@@ -83,8 +83,24 @@ def load_network_constants() -> Any:
     )
 
 
+def apply_gpu_memory_fraction(torch_module: Any, device_index: int = 0) -> float:
+    """Cap this process's CUDA caching allocator to the fraction the launcher
+    computed (PYCORE_GPU_MEMORY_FRACTION) so a display GPU keeps its headroom.
+    Returns the applied fraction, 0.0 when unset/unusable."""
+    raw = (os.environ.get(load_network_constants().GPU_MEMORY_FRACTION_ENV) or "").strip()
+    try:
+        fraction = float(raw)
+        if not 0.0 < fraction < 1.0 or not torch_module.cuda.is_available():
+            return 0.0
+        torch_module.cuda.set_per_process_memory_fraction(fraction, device_index)
+        return fraction
+    except Exception:  # noqa: BLE001
+        return 0.0
+
+
 __all__ = [
     "TMP_DIR",
+    "apply_gpu_memory_fraction",
     "load_network_constants",
     "load_source_module",
     "pycore_package_root",
