@@ -1031,3 +1031,7 @@ Rulings (B9):
 - Follow-up for the D20 syncgit scripts (shell-windows and shell-linux):
   - `git pull --no-edit`: both implementations capture the pull output, so a merge editor would hang invisibly;
   - a repo-local `core.fileMode false` when the checkout is on NTFS (Linux, through the library NTFS check).
+
+## Update 2026-09-29
+
+- mkcert root CA trust (B9 context): Linux now imports it into every real user's and root's NSS stores (`domain_setup_mkcert_trust_all_users` over `list_real_users_and_root`); Windows imports it into `Cert:\LocalMachine\Root` (`Ensure-FrankenPhpMkcertMachineTrust`). Rule recorded in `development-guides/LINUX_SHELL_RULES.md` §3. The port-80 probe / port guard no longer resolve a desktop process to `user@<uid>.service` (`pg_system_unit_for_pid`). See `FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §1, §6.

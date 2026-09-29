@@ -1,7 +1,7 @@
 # Shared GPU/CUDA detection for the iniscripts installers -- the ONE shell-side
 # source of truth, mirroring the canonical PYTHON detector:
 #   pycore/pyfoundations/pybasecommon/compute_caps.py  ->  CUDADetector
-# (nvidia-smi + CUDA env vars, no third-party deps; honors TORCH_FORCE_CUDA).
+# (nvidia-smi, no third-party deps; honors TORCH_FORCE_CUDA and CUDA_VISIBLE_DEVICES=-1).
 #
 # This is NOT an installer (prepare.ps1 only runs install_*.ps1), so it is never
 # auto-run. Dot-source it from any installer:

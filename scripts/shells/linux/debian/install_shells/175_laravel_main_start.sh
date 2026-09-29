@@ -1,5 +1,6 @@
 #!/bin/bash
 SCRIPT_INDEX="175"
+# Tailnet binding (development-guides/LARAVEL_GUIDE.md "Tailnet"): --domains-only adds <machine>.ts.net -> UI and /laravel-api -> 9000 when Tailscale is connected.
 
 # --- All variables and file references (declared at top) ---
 ORIGINAL_DIR=$(pwd)
@@ -736,20 +737,18 @@ fi
 # foreground runtime; stop the service first when a foreground run is
 # explicitly wanted.
 _resolve_laravel_service_plane
-# PHP_BIN is the resolved absolute path from resolve_php (frankenphp plane:
-# the canonical /usr/local/bin/php link to the real CLI binary); WORKERS and
-# MAX_REQUESTS use the runtime launcher's own defaults. The runtime launcher
-# resolves the site host from the central service contract on every start,
-# so a regenerated domain list cannot leave a stale issuer pinned in the
-# systemd environment.
-SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
+# PHP_BIN is NOT pinned in the unit: the plane launcher resolves `php` from
+# PATH on every start (the converged canonical link), so a later php link
+# convergence can never leave a dead binary path in the systemd environment.
+# WORKERS and MAX_REQUESTS use the runtime launcher's own defaults; the site
+# host is resolved from the central service contract on every start.
+SERVICE_EXEC_CMD="PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
 LARAVEL_SERVICE_UNIT_FILE="/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service"
-# Unit drift repair: a unit registered before the php link convergence
-# (93/96 php_link_common.sh) pins a PHP_BIN that no longer exists (e.g. the
-# retired /usr/local/bin/php-cli shim); a plain restart would crash-loop it.
-if [ -f "$LARAVEL_SERVICE_UNIT_FILE" ] && [ -n "$PHP_BIN" ] \
-    && ! grep -qxF "Environment=\"PHP_BIN=${PHP_BIN}\"" "$LARAVEL_SERVICE_UNIT_FILE"; then
-    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} pins a stale PHP_BIN; re-registering with PHP_BIN=${PHP_BIN}..."
+# Unit drift repair: a unit registered by an older installer still pins
+# PHP_BIN (e.g. the retired /usr/local/bin/php-cli shim) and would crash-loop
+# once that path disappears; re-register it without the pin.
+if [ -f "$LARAVEL_SERVICE_UNIT_FILE" ] && grep -q '^Environment="PHP_BIN=' "$LARAVEL_SERVICE_UNIT_FILE"; then
+    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} pins PHP_BIN; re-registering without the pin..."
     if [ -z "$LARAVEL_SERVICE_MEM" ]; then
         LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
     fi

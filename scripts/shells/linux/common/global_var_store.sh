@@ -188,8 +188,10 @@ set_global_var() {
     local prev_val=""
     [ -f "$file_path" ] && prev_val="$($USE_SUDO cat "$file_path" 2>/dev/null || cat "$file_path" 2>/dev/null)"
 
-    # Write value to file
-    if echo "$val" | $USE_SUDO tee "$file_path" >/dev/null; then
+    # Write value to file: direct write first (the var dir is shared 1777, and
+    # unattended services have no TTY for a sudo password), sudo as fallback.
+    if { [ -w "$file_path" ] || { [ ! -e "$file_path" ] && [ -w "$GLOBAL_VAR_DIR" ]; }; } && echo "$val" 2>/dev/null > "$file_path" \
+        || echo "$val" | $USE_SUDO tee "$file_path" >/dev/null; then
         # Keep shared variable files aligned with the common mode-777 policy.
         $USE_SUDO chmod 777 "$file_path" 2>/dev/null || chmod 777 "$file_path" 2>/dev/null || true
         if [[ "$print" != "false" ]] && [ "$prev_val" != "$val" ]; then

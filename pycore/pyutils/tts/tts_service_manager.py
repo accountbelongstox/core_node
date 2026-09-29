@@ -63,7 +63,7 @@ from pycore.pyutils.common.python_env.isolated_venv import (
 from pycore.pyfoundations.third_party.api import get_third_package_psutil, get_third_package_requests
 from pycore.pyutils.common.managed_service import ServiceSpec
 from pycore.pyutils.common.managed_service_facade import ManagedServiceFacade
-from pycore.pyutils.common.model_tiers import runtime_engine_model
+from pycore.pyutils.common.model_tiers import gpu_present, runtime_engine_model
 import pycore.pyutils.common.hf_local_weights as hf_local_weights
 from pycore.pyutils.common.port_utils import is_port_in_use
 from pycore.pyutils.tts import memory_gate
@@ -119,12 +119,11 @@ def _gpu_device_or_fallback(
     required_mb: int,
     device_index: Optional[int] = None,
 ) -> str:
-    """"cuda" when the target GPU has >= required_mb free, else "cpu".
-    Unknown readings (no GPU / no driver) keep the engine's own auto logic,
-    so the fallback is "cuda" - the server re-checks free VRAM itself."""
+    """"cuda" when the target GPU has >= required_mb free, "cpu" when it is
+    short, "" (the engine's own auto logic) when VRAM cannot be read."""
     free_bytes = memory_gate.free_vram_bytes(device_index)
     if free_bytes is None:
-        return "cuda"
+        return ""
     free_mb = int(free_bytes) // _MIB
     if free_mb >= required_mb:
         return "cuda"
@@ -580,18 +579,13 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
             or memory_gate.QWEN3TTS_MIN_FREE_VRAM_MB
         )
         index_raw = (os.environ.get("QWEN3TTS_GPU_INDEX") or "").strip()
-        device_suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
-        probe_index = (
-            int(index_raw) if index_raw.isdigit()
-            else int(device_suffix) if device_suffix.isdigit()
-            else 0
-        )
+        probe_index = int(index_raw) if index_raw.isdigit() else 0
         memory_gate.reclaim_vram(probe_index)
         if _gpu_device_or_fallback(QWEN_ENGINE_NAME, required_mb, probe_index) == "cpu":
             device = "cpu"
     if device == "cpu":
         extra["QWEN3TTS_DEVICE"] = "cpu"
-    elif device.startswith("cuda") or gpu_tier:
+    elif device.startswith("cuda") or (gpu_tier and gpu_present()):
         configured_index = (os.environ.get("QWEN3TTS_GPU_INDEX") or "").strip()
         device_suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
         physical_index = (

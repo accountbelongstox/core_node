@@ -31,6 +31,11 @@ export const WEB_ACCESS_CONFIG_FILE_NAME: string = contractDocument.files.web_ac
 export const MERCURE_TRANSPORT_NAME: string = contractDocument.realtime.mercure_transport;
 export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
 export const DEFAULT_API_REGION_PREFIX: string = contractDocument.access.default_api_region_prefix;
+/** Tailscale MagicDNS suffix: <machine>.<tailnet>.<suffix> serves the UI, <api_label>.<machine>... the API. */
+export const TAILNET_DNS_SUFFIX: string = contractDocument.access.tailnet.dns_suffix;
+export const TAILNET_API_LABEL: string = contractDocument.access.tailnet.api_label;
+/** Laravel main on https://<machine>.<tailnet>.ts.net<api_path> (trusted tailscale cert). */
+export const TAILNET_API_PATH: string = contractDocument.access.tailnet.api_path;
 export const DEFAULT_LARAVEL_API_HOST: string = [
   ...LARAVEL_API_DOMAIN_PARTS.map((part) => (
     part === '{region}' ? DEFAULT_API_REGION_PREFIX : part

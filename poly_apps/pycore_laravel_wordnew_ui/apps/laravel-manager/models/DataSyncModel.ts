@@ -9,6 +9,7 @@ import { LaravelManagerStorageKeys } from '../persistence/LaravelManagerStorageK
 import { apiManager } from '../../../core/integrations/laravel/ApiManager';
 import {
   buildApiUrl,
+  FIXED_API_PORT,
   type BackendApiEndpoint,
 } from '../../../core/integrations/laravel/LaravelEndpoints';
 import {
@@ -400,10 +401,16 @@ export class DataSyncModel {
   }
 
   private syncTarget(endpoint: BackendApiEndpoint): string {
-    const port = endpoint.port ?? (endpoint.protocol === 'https' ? 443 : 80);
     const host = endpoint.url.includes(':') && !endpoint.url.startsWith('[')
       ? `[${endpoint.url}]`
       : endpoint.url;
+    // A path-mounted endpoint (tailnet /laravel-api) is a browser entry; peers
+    // sync host-to-host on the Laravel Main port (the tailnet is already
+    // WireGuard-encrypted), matching the backend's path-free peer rule.
+    if (endpoint.basePath) {
+      return `http://${host}:${FIXED_API_PORT}`;
+    }
+    const port = endpoint.port ?? (endpoint.protocol === 'https' ? 443 : 80);
     return `${endpoint.protocol}://${host}:${port}`;
   }
 

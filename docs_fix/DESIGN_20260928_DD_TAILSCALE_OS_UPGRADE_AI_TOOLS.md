@@ -108,3 +108,7 @@ Step63, `AiCliProvisionCommon.ps1`.
 - `bash -n` on every changed shell file; PowerShell parse check on changed .ps1.
 - Re-running any installer is a no-op when everything is present.
 - Menus render and every item calls the shared script (no duplicated logic).
+
+## Update 2026-09-29
+
+- `tailscale_common.sh::ts_self_dnsname` is the single MagicDNS-name lookup (reused by `ts_show_all_ips`, domain setup and web access config). Any host with a connected tailscaled now gets `https://<machine>.<tailnet>.ts.net` → UI and `/laravel-api` → Laravel main (tailscale cert), additive to public domains, on Linux and Windows. See `FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §5.

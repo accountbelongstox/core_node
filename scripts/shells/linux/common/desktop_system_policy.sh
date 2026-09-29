@@ -802,6 +802,39 @@ power_disable_disk_spindown() {
     fi
 }
 
+# Keep the hardware clock (RTC) in UTC - the only mode systemd fully supports
+# (a local-time RTC breaks on DST/timezone changes and makes journal
+# timestamps jump). On a Windows dual-boot the switch waits until Windows
+# Step2 has set RealTimeIsUniversal=1 and published the shared
+# WINDOWS_RTC_UTC=1 var; switching earlier would make Windows write local time
+# back into an RTC that Linux then reads as UTC.
+ensure_rtc_utc() {
+    local windows_present="false"
+    local windows_rtc_utc=""
+
+    command -v timedatectl >/dev/null 2>&1 || return 0
+    if [ "$(timedatectl show -p LocalRTC --value 2>/dev/null || true)" != "yes" ]; then
+        info "Hardware clock already UTC."
+        return 0
+    fi
+    if [ -d /boot/efi/EFI/Microsoft ] \
+        || { command -v efibootmgr >/dev/null 2>&1 && efibootmgr 2>/dev/null | grep -q "Windows Boot Manager"; }; then
+        windows_present="true"
+    fi
+    if command -v get_global_var >/dev/null 2>&1; then
+        windows_rtc_utc="$(get_global_var "WINDOWS_RTC_UTC" "" 2>/dev/null || true)"
+    fi
+    if [ "$windows_present" = "true" ] && [ "$windows_rtc_utc" != "1" ]; then
+        warning "Hardware clock is local time (Windows dual-boot). Run Windows Step2 (sets RealTimeIsUniversal=1) or set the shared var WINDOWS_RTC_UTC=1, then rerun to switch Linux to UTC."
+        return 0
+    fi
+    if $USE_SUDO timedatectl set-local-rtc 0; then
+        log "Hardware clock switched to UTC."
+    else
+        warning "timedatectl set-local-rtc 0 failed"
+    fi
+}
+
 # Auto-detect the correct timezone from the public IP (multiple providers, the
 # first valid IANA name wins), apply via timedatectl only when it differs, and
 # make sure NTP sync is enabled so the clock stays correct. Idempotent: an
@@ -848,6 +881,7 @@ ensure_timezone_correct() {
     else
         info "NTP time synchronization already enabled."
     fi
+    ensure_rtc_utc
     return 0
 }
 

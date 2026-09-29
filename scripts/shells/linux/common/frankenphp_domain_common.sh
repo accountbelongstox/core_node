@@ -42,6 +42,10 @@ FM_DOMAIN_API_EARLY_HINTS_LINK="$(sc_require http.api_early_hints_link)"
 FM_DOMAIN_UI_EARLY_HINTS_LINK="$(sc_require http.ui_early_hints_link)"
 FM_DOMAIN_HTTP_PORT="$(sc_get ports.frankenphp_http)"
 FM_DOMAIN_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
+# Laravel main on the tailnet under the UI site's trusted tailscale cert:
+# https://<machine>.<tailnet>.ts.net<api_path> (tailscale cert never covers
+# api.<machine>, and no extra port is opened).
+FM_DOMAIN_TAILNET_API_PATH="$(sc_get access.tailnet.api_path)"
 FM_DOMAIN_MARKER="managed-by: frankenphp_domain_common"
 FM_DOMAIN_UI_BINDING_READY="no"
 FM_DOMAIN_CADDY_RELOAD_READY="no"
@@ -51,6 +55,7 @@ FM_DOMAIN_INSTALL_READY="no"
 FM_DOMAIN_CERTIFICATES_READY="no"
 FM_DOMAIN_LAN_SITE_READY="no"
 FM_DOMAIN_LAN_RENDERED=""
+FM_DOMAIN_TAILNET_ACTIVE="no"
 # Live-apply contract: the plane service unit the reload/restart fallback
 # owns, plus the bounded /load retry window (tolerates transient admin
 # endpoint blips such as a worker-restart window).
@@ -341,6 +346,11 @@ fm_domain_cleanup_stale_routes() {
             if ! grep -q "$FM_DOMAIN_MARKER" "$route_file" 2>/dev/null; then
                 continue
             fi
+            # The tailnet/LAN route is owned by fm_domain_lan_site_ensure
+            # (additive to the public domains), never by the domain list.
+            if head -n 1 "$route_file" 2>/dev/null | grep -q 'lan=local_lan'; then
+                continue
+            fi
             domain="$(basename "$route_file" .caddy)"
             found=""
             while IFS= read -r candidate_domain; do
@@ -358,13 +368,18 @@ fm_domain_cleanup_stale_routes() {
     fi
 }
 
-# Render the LAN-mode route file: one HTTPS site per available local
-# certificate (Tailscale ts.net cert and/or the mkcert 127.0.0.1 cert), each
-# proxying to the SAME canonical Laravel backend. Only blocks with real cert
-# material on disk are rendered.
+# Render the tailnet/LAN route file, one HTTPS site per certificate on disk:
+#   <machine>.<tailnet>.ts.net      -> UI frontend   (tailscale cert)
+#   <machine>...ts.net<api_path>    -> Laravel main  (tailscale cert)
+#   api.<machine>.<tailnet>.ts.net  -> Laravel main  (mkcert local CA)
+#   127.0.0.1                       -> Laravel main  (mkcert local CA)
 fm_domain_lan_site_render() {
     local api_handlers=""
+    local ui_handlers=""
+    local api_mount=""
     api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL" "$FM_DOMAIN_API_EARLY_HINTS_LINK")"
+    ui_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_UI_BACKEND_URL" "$FM_DOMAIN_UI_EARLY_HINTS_LINK")"
+    api_mount="$(fm_caddy_path_mount_render "$FM_DOMAIN_TAILNET_API_PATH" "$FM_DOMAIN_BACKEND_URL")"
 
     FM_DOMAIN_LAN_RENDERED="$({
         echo "# ${FM_DOMAIN_MARKER} lan=local_lan ts=${DOMAIN_TS_DNSNAME:-none}"
@@ -373,11 +388,27 @@ fm_domain_lan_site_render() {
 
 https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} {
 	tls ${DOMAIN_LAN_TS_CERT} ${DOMAIN_LAN_TS_KEY}
-${api_handlers}
+${api_mount}
+	handle {
+${ui_handlers}
+	}
 }
 
 http://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTP_PORT} {
 	redir https://${DOMAIN_TS_DNSNAME}{uri} permanent
+}
+EOF
+        fi
+        if [ -n "$DOMAIN_LAN_TS_API_CERT" ] && [ -n "$DOMAIN_LAN_TS_API_KEY" ]; then
+            cat <<EOF
+
+https://${DOMAIN_TS_API_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} {
+	tls ${DOMAIN_LAN_TS_API_CERT} ${DOMAIN_LAN_TS_API_KEY}
+${api_handlers}
+}
+
+http://${DOMAIN_TS_API_DNSNAME}:${FM_DOMAIN_HTTP_PORT} {
+	redir https://${DOMAIN_TS_API_DNSNAME}{uri} permanent
 }
 EOF
         fi
@@ -395,9 +426,9 @@ EOF
 
 # Ensure the LAN-mode route file (content-hash idempotent). Drops the managed
 # file when no local certificate material exists (the printed manual steps
-# produce it on the next run). Server-mode runs never create this file, and
-# fm_domain_cleanup_stale_routes removes it there (basename not in the public
-# domain list), so the LAN site can never leak onto a public server.
+# produce it on the next run). On a public server it is written only when
+# tailscaled is connected (fm_domain_tailnet_site_ensure), and its sites only
+# answer tailnet/loopback names, so the public domain routes are unaffected.
 fm_domain_lan_site_ensure() {
     local route_file="${FM_DOMAIN_ROUTES_DIR}/local_lan.caddy"
     local rendered=""
@@ -430,13 +461,37 @@ fm_domain_lan_site_ensure() {
         FM_DOMAIN_LAN_SITE_READY="yes"
         echo "[fm-domain] [OK] LAN route file: $route_file"
         if [ -n "$DOMAIN_LAN_TS_CERT" ]; then
-            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: tailscale cert)"
+            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_UI_BACKEND_URL} (tls: tailscale cert)"
+            echo "[fm-domain]     https://${DOMAIN_TS_DNSNAME}${FM_DOMAIN_TAILNET_API_PATH}/ -> ${FM_DOMAIN_BACKEND_URL} (tls: tailscale cert)"
+        fi
+        if [ -n "$DOMAIN_LAN_TS_API_CERT" ]; then
+            echo "[fm-domain]     https://${DOMAIN_TS_API_DNSNAME}:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: mkcert local CA)"
         fi
         if [ -n "$DOMAIN_LAN_MKCERT_PEM" ]; then
             echo "[fm-domain]     https://127.0.0.1:${FM_DOMAIN_HTTPS_PORT} -> ${FM_DOMAIN_BACKEND_URL} (tls: mkcert local CA)"
         fi
     else
         echo "[fm-domain] [FAIL] LAN route file postcondition failed: $route_file"
+    fi
+}
+
+# Public servers that are ALSO tailnet members get the tailnet sites added on
+# top of the public domain routes (additive; the public routes are untouched).
+# A host without a connected tailscaled is a no-op.
+fm_domain_tailnet_certificates_ensure() {
+    FM_DOMAIN_TAILNET_ACTIVE="no"
+    if ! command -v tailscale >/dev/null 2>&1 || ! tailscale status >/dev/null 2>&1; then
+        return
+    fi
+    FM_DOMAIN_TAILNET_ACTIVE="yes"
+    domain_setup_lan_cert_mkcert || true
+    domain_setup_tailnet_certificates
+}
+
+fm_domain_tailnet_site_ensure() {
+    fm_domain_tailnet_certificates_ensure
+    if [ "$FM_DOMAIN_TAILNET_ACTIVE" = "yes" ]; then
+        fm_domain_lan_site_ensure
     fi
 }
 
@@ -504,6 +559,7 @@ fm_domain_install_all() {
     done <<< "$DOMAIN_DOMAINS_LIST"
 
     fm_domain_cleanup_stale_routes "$DOMAIN_DOMAINS_LIST"
+    fm_domain_tailnet_site_ensure
 
     # The main Caddyfile owns only the internal TLS site. Public API and UI
     # hosts remain exclusively owned by the per-domain route files above.
@@ -548,6 +604,7 @@ fm_domain_certificates_only() {
     domain_setup_persist_state
     fm_dnspod_token_ensure
     fm_dns01_ensure
+    fm_domain_tailnet_certificates_ensure
     FM_DOMAIN_CERTIFICATES_READY="yes"
     echo "[fm-domain] [OK] DNS-01 readiness converged (Caddy issues/renews wildcard at launch)"
 }

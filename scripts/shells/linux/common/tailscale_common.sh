@@ -30,6 +30,7 @@
 #   ts_quick_menu_label             - "<INSTALL_TAILSCALE flag>|<backend state>" for the quick menu entry
 #   ts_show_status                  - human-readable install/service/IP summary
 #   ts_show_devices                 - every tailnet device (table + detail)
+#   ts_self_dnsname                 - this node's MagicDNS name without the trailing dot (stdout)
 #   ts_show_all_ips                 - this machine's IPs/MagicDNS/LAN IPs + every peer's IPs
 #   ts_show_settings                - current `tailscale set`-able prefs (tailscale debug prefs)
 #   ts_apply_setting <name> <value> - apply one setting via `tailscale set` (never --reset)
@@ -288,6 +289,28 @@ for peer in nodes:
 ' 2>/dev/null || echo "Could not parse status --json output."
 }
 
+# This node's MagicDNS name (status --json .Self.DNSName, trailing dot
+# stripped); empty when tailscaled cannot report it.
+ts_self_dnsname() {
+    local dns=""
+
+    command -v tailscale >/dev/null 2>&1 || return 0
+    if command -v python3 >/dev/null 2>&1; then
+        dns="$(tailscale status --json 2>/dev/null | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(((data.get("Self") or {}).get("DNSName") or "").rstrip("."))
+except Exception:
+    pass' 2>/dev/null)"
+    fi
+    if [ -z "$dns" ]; then
+        dns="$(tailscale status --json 2>/dev/null | sed -n 's/.*"DNSName": *"\([^"]*\)".*/\1/p' | head -1)"
+        dns="${dns%.}"
+    fi
+    printf '%s' "$dns"
+}
+
 # All IPs: this machine (Tailscale IPv4/IPv6, MagicDNS name, LAN IPs -- every
 # non-Tailscale local IPv4, reusing net_detect_local_ipv4s and excluding the
 # 100.64.0.0/10 CGNAT range Tailscale itself uses, same range net_ip_is_private
@@ -302,15 +325,7 @@ ts_show_all_ips() {
     local ipv4="" ipv6="" magicdns="" lan_ips="" lan_ips_line=""
     ipv4="$(net_detect_tailscale_ipv4 2>/dev/null)"
     ipv6="$(tailscale ip -6 2>/dev/null | head -n1)"
-    if command -v python3 >/dev/null 2>&1; then
-        magicdns="$(tailscale status --json 2>/dev/null | python3 -c '
-import sys, json
-try:
-    data = json.load(sys.stdin)
-    print(((data.get("Self") or {}).get("DNSName") or "").rstrip("."))
-except Exception:
-    pass' 2>/dev/null)"
-    fi
+    magicdns="$(ts_self_dnsname)"
     lan_ips="$(net_detect_local_ipv4s 2>/dev/null | grep -vE '^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.')"
     lan_ips_line="$(printf '%s' "$lan_ips" | tr '\n' ' ' | sed 's/[[:space:]]*$//')"
 

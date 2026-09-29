@@ -24,6 +24,9 @@ source "$COMMON_DIR/common_functions.sh"
 # reused by the reachability detection below.
 source "$COMMON_DIR/network_detect_common.sh"
 
+# Shared PID -> system service resolution (never a user session manager).
+source "$COMMON_DIR/port_guard_common.sh"
+
 # Get region from global variable
 SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
 if [ -z "$SELECTED_REGION" ]; then
@@ -503,20 +506,13 @@ public_ip_probe_port80_pids() {
     fi
 }
 
-# Echo the systemd unit owning a PID (from its cgroup), empty when the process
-# is not service-managed.
-public_ip_probe_unit_for_pid() {
-    local pid="$1"
-    grep -oE '[a-zA-Z0-9_.@:-]+\.service' "/proc/$pid/cgroup" 2>/dev/null | head -1
-}
-
 # Stop every port-80 listener: service-managed processes via systemctl (the
 # units are remembered for restoration), unmanaged PIDs via kill (logged as
 # non-restorable).
 public_ip_probe_stop_port80() {
     PUBLIC_IP_PROBE_STOPPED_UNITS=""
     for PROBE_PID in $(public_ip_probe_port80_pids); do
-        PROBE_UNIT="$(public_ip_probe_unit_for_pid "$PROBE_PID")"
+        PROBE_UNIT="$(pg_system_unit_for_pid "$PROBE_PID")"
         if [ -n "$PROBE_UNIT" ]; then
             case " $PUBLIC_IP_PROBE_STOPPED_UNITS " in
                 *" $PROBE_UNIT "*) continue ;;

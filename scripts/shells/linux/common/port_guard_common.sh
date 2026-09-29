@@ -41,6 +41,29 @@ PG_HOLDER_PACKAGE=""
 PG_HOLDER_CONTAINER_ID=""
 PG_HOLDER_CONTAINER_NAME=""
 
+# Echo the system-level systemd service that directly owns a PID, empty when
+# the process is not a system service. Only the cgroup leaf is considered and
+# only under system.slice: a desktop-session process lives under
+# /user.slice/user-<uid>.slice/user@<uid>.service/..., and stopping that
+# ancestor would terminate the whole graphical session (black screen).
+pg_system_unit_for_pid() {
+    local pid="$1"
+    local cg_path=""
+    local leaf=""
+
+    cg_path=$(awk -F: '$1 == "0" { print $3; exit }' "/proc/$pid/cgroup" 2>/dev/null)
+    [ -z "$cg_path" ] && cg_path=$(awk -F: '$2 ~ /(^|,)name=systemd(,|$)/ { print $3; exit }' "/proc/$pid/cgroup" 2>/dev/null)
+    case "$cg_path" in
+        /system.slice/*) ;;
+        *) return 0 ;;
+    esac
+    leaf="${cg_path##*/}"
+    case "$leaf" in
+        *.service) echo "$leaf" ;;
+    esac
+    return 0
+}
+
 # y/N prompt that DEFAULTS TO NO on the controlling TTY; non-interactive
 # shells answer No automatically (policy: never uninstall unattended).
 # Override with PORT_GUARD_AUTO_UNINSTALL=yes (pre-confirm) or =no (force No).
@@ -141,7 +164,7 @@ pg_holder_identify() {
     PG_HOLDER_CONTAINER_ID=""
     PG_HOLDER_CONTAINER_NAME=""
 
-    PG_HOLDER_UNIT=$(grep -oE '[a-zA-Z0-9_.@-]+\.service' "/proc/$pid/cgroup" 2>/dev/null | head -1)
+    PG_HOLDER_UNIT=$(pg_system_unit_for_pid "$pid")
 
     # Package ownership: dpkg queries the binary FILE on disk directly.
     if [ -n "$PG_HOLDER_EXE" ] && [ -e "$PG_HOLDER_EXE" ] && command -v dpkg-query >/dev/null 2>&1; then

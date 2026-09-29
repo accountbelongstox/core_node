@@ -405,6 +405,37 @@ function Get-FrankenPhpAccessConfiguration {
     return @{ Prefix = $prefix; Domains = $domains; CorsOrigins = @($corsOrigins | Select-Object -Unique) }
 }
 
+# This machine's own identity (computer name, MagicDNS full and short name,
+# Tailscale IPv4) - the Linux twin is web_access_local_hosts: the host a
+# browser uses to reach THIS machine is never a static contract entry.
+function Get-FrankenPhpLocalAccessHosts {
+    $localHosts = @()
+    $tailscaleExe = ''
+    $status = $null
+    $selfNode = $null
+    $dnsName = ''
+    $address = ''
+
+    if (-not [string]::IsNullOrWhiteSpace($env:COMPUTERNAME)) {
+        $localHosts = @($localHosts) + @($env:COMPUTERNAME.ToLower())
+    }
+    $tailscaleExe = [string](Find-TailscaleExecutable)
+    if (-not [string]::IsNullOrWhiteSpace($tailscaleExe)) {
+        $status = Get-TailscaleStatusJson -TailscaleExe $tailscaleExe
+        $selfNode = Get-TailscaleJsonProperty -Object $status -Name 'Self' -Default $null
+        $dnsName = ([string](Get-TailscaleJsonProperty -Object $selfNode -Name 'DNSName' -Default '')).TrimEnd('.').ToLower()
+        if (-not [string]::IsNullOrWhiteSpace($dnsName)) {
+            $localHosts = @($localHosts) + @($dnsName, $dnsName.Split('.')[0])
+        }
+        foreach ($address in @(Get-TailscaleJsonProperty -Object $selfNode -Name 'TailscaleIPs' -Default @())) {
+            if ([string]$address -match '^\d+\.\d+\.\d+\.\d+$') {
+                $localHosts = @($localHosts) + @([string]$address)
+            }
+        }
+    }
+    return @($localHosts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+}
+
 function Ensure-FrankenPhpWebAccessConfiguration {
     $contract = Get-ServiceContractDocument
     $prefix = [string](Get-ServiceContractValue -ContractPath 'access.default_api_region_prefix')
@@ -423,6 +454,16 @@ function Ensure-FrankenPhpWebAccessConfiguration {
     $document = $null
     $content = ''
     $domainValue = $null
+    $localHost = ''
+
+    foreach ($localHost in @(Get-FrankenPhpLocalAccessHosts)) {
+        $allowedHosts = @($allowedHosts) + @($localHost)
+        $corsOrigins = @($corsOrigins) + @(
+            ("http://{0}:{1}" -f $localHost, $uiPort),
+            ("http://{0}" -f $localHost),
+            ("https://{0}" -f $localHost)
+        )
+    }
 
     if (Test-Path -LiteralPath $script:FrankenPhpWebAccessPath -PathType Leaf) {
         try {
@@ -493,6 +534,36 @@ function Get-FrankenPhpReverseProxyHandlers {
 		header @early_hints Link "$EarlyHintsLink"
 		respond @early_hints 103
 		reverse_proxy $Upstream {
+			stream_close_delay $streamCloseDelay
+		}
+	}
+"@
+}
+
+# Mount an upstream under a path prefix inside a site (Linux twin:
+# fm_caddy_path_mount_render): handle_path strips the prefix and
+# X-Forwarded-Prefix hands it to Laravel; root-relative sub-requests of a
+# mounted page (Referer under the prefix) reach the same upstream unstripped;
+# other paths fall through to `handle`.
+function Get-FrankenPhpPathMountHandlers {
+    param(
+        [Parameter(Mandatory = $true)][string]$PathPrefix,
+        [Parameter(Mandatory = $true)][string]$Upstream
+    )
+    $streamCloseDelay = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_proxy_close_delay')
+
+    return @"
+	redir $PathPrefix $PathPrefix/ 308
+	handle_path $PathPrefix/* {
+		reverse_proxy $Upstream {
+			header_up X-Forwarded-Prefix $PathPrefix
+			stream_close_delay $streamCloseDelay
+		}
+	}
+	@path_mount_referer header_regexp Referer ^https?://[^/]+$PathPrefix(/|$)
+	handle @path_mount_referer {
+		reverse_proxy $Upstream {
+			header_up X-Forwarded-Prefix $PathPrefix
 			stream_close_delay $streamCloseDelay
 		}
 	}
@@ -587,7 +658,10 @@ function Get-FrankenPhpTailscaleDnsName {
 # on the local mkcert/tailscale tooling).
 function Get-FrankenPhpLanCertificateMaterial {
     $certDir = Get-FrankenPhpLanCertificateDirectory
-    $material = @{ TsDnsName = ''; TsCert = ''; TsKey = ''; MkcertPem = ''; MkcertKey = '' }
+    $material = @{ TsDnsName = ''; TsCert = ''; TsKey = ''; MkcertPem = ''; MkcertKey = ''; TsApiDnsName = ''; TsApiCert = ''; TsApiKey = '' }
+    $apiLabel = [string](Get-ServiceContractValue -ContractPath 'access.tailnet.api_label')
+    $apiPemPath = ''
+    $apiKeyPath = ''
     $pemFile = $null
     $keyFile = $null
     $crtFile = $null
@@ -612,8 +686,29 @@ function Get-FrankenPhpLanCertificateMaterial {
                 $material.TsKey = $tsKeyPath
             }
         }
+        if (-not [string]::IsNullOrWhiteSpace([string]$material.TsDnsName) -and -not [string]::IsNullOrWhiteSpace($apiLabel)) {
+            $material.TsApiDnsName = '{0}.{1}' -f $apiLabel, $material.TsDnsName
+            $apiPemPath = Join-Path $certDir ('{0}.pem' -f $material.TsApiDnsName)
+            $apiKeyPath = Join-Path $certDir ('{0}-key.pem' -f $material.TsApiDnsName)
+            if ((Test-Path -LiteralPath $apiPemPath -PathType Leaf) -and (Test-Path -LiteralPath $apiKeyPath -PathType Leaf)) {
+                $material.TsApiCert = $apiPemPath
+                $material.TsApiKey = $apiKeyPath
+            }
+        }
     }
     return $material
+}
+
+# Tailnet member = Tailscale installed and connected. Such a host gets the
+# tailnet sites additively, public servers included (Linux twin:
+# fm_domain_tailnet_certificates_ensure).
+function Test-FrankenPhpTailnetConnected {
+    $tailscaleExe = [string](Find-TailscaleExecutable)
+    if ([string]::IsNullOrWhiteSpace($tailscaleExe)) {
+        return $false
+    }
+    & $tailscaleExe status 2>&1 | Out-Null
+    return ($LASTEXITCODE -eq 0)
 }
 
 function Test-FrankenPhpLanLocalRouteMaterial {
@@ -712,12 +807,46 @@ function Ensure-FrankenPhpMkcert {
 # LAN-mode local certificates: 127.0.0.1 through mkcert plus the Tailscale
 # ts.net certificate. Direct issuance where the tooling exists; printed
 # manual steps where it does not (mirrors domain_setup_lan_certificates).
+# Trust the mkcert root CA machine-wide (Cert:\LocalMachine\Root covers every
+# account; `mkcert -install` alone reaches only the current user). Idempotent:
+# an already-present thumbprint is kept. Linux twin:
+# domain_setup_mkcert_trust_all_users (LINUX_SHELL_RULES.md section 3).
+function Ensure-FrankenPhpMkcertMachineTrust {
+    param([Parameter(Mandatory = $true)][string]$MkcertPath)
+    $caRoot = ''
+    $caFile = ''
+    $caCert = $null
+
+    $caRoot = [string](& $MkcertPath -CAROOT 2>$null)
+    if ([string]::IsNullOrWhiteSpace($caRoot)) {
+        return
+    }
+    $caFile = Join-Path $caRoot.Trim() 'rootCA.pem'
+    if (-not (Test-Path -LiteralPath $caFile -PathType Leaf)) {
+        return
+    }
+    $caCert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 $caFile
+    if (Test-Path -LiteralPath (Join-Path 'Cert:\LocalMachine\Root' $caCert.Thumbprint)) {
+        return
+    }
+    try {
+        Import-Certificate -FilePath $caFile -CertStoreLocation 'Cert:\LocalMachine\Root' | Out-Null
+        Write-FrankenPhpLog -Message "mkcert root CA trusted machine-wide (LocalMachine\Root): $($caCert.Subject)" -Type 'Success'
+    }
+    catch {
+        Write-FrankenPhpLog -Message "Could not import the mkcert root CA into LocalMachine\Root (run elevated): $_" -Type 'Warning'
+    }
+}
+
 function Ensure-FrankenPhpLanLocalCertificates {
     $certDir = Get-FrankenPhpLanCertificateDirectory
     $mkcertPath = ''
     $tailscaleExe = ''
     $tailnetDomain = ''
     $dnsName = ''
+    $apiDnsName = ''
+    $apiPemPath = ''
+    $apiKeyPath = ''
 
     Ensure-FrankenPhpDirectory -Path $certDir | Out-Null
 
@@ -728,6 +857,7 @@ function Ensure-FrankenPhpLanLocalCertificates {
         try {
             & $mkcertPath -install
             & $mkcertPath 127.0.0.1 localhost ::1
+            Ensure-FrankenPhpMkcertMachineTrust -MkcertPath $mkcertPath
         }
         finally {
             Pop-Location
@@ -772,6 +902,30 @@ function Ensure-FrankenPhpLanLocalCertificates {
         return $false
     }
     Write-FrankenPhpLog -Message "Tailscale certificate ready for $dnsName (globally trusted, Let's Encrypt)" -Type 'Success'
+
+    # api.<machine>.<tailnet>.ts.net: tailscale cert never issues subdomains,
+    # so this name carries a mkcert local-CA certificate (kept when present).
+    $apiDnsName = '{0}.{1}' -f ([string](Get-ServiceContractValue -ContractPath 'access.tailnet.api_label')), $dnsName
+    $apiPemPath = Join-Path $certDir ('{0}.pem' -f $apiDnsName)
+    $apiKeyPath = Join-Path $certDir ('{0}-key.pem' -f $apiDnsName)
+    if ((Test-Path -LiteralPath $apiPemPath -PathType Leaf) -and (Test-Path -LiteralPath $apiKeyPath -PathType Leaf)) {
+        Write-FrankenPhpLog -Message "Tailnet API certificate present: $apiPemPath"
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($mkcertPath)) {
+        Push-Location $certDir
+        try {
+            & $mkcertPath -cert-file $apiPemPath -key-file $apiKeyPath $apiDnsName
+        }
+        finally {
+            Pop-Location
+        }
+        if (Test-Path -LiteralPath $apiPemPath -PathType Leaf) {
+            Write-FrankenPhpLog -Message "Tailnet API certificate ready (mkcert local CA): $apiPemPath; the name resolves after the tailnet policy grants nodeAttrs dns-subdomain-resolve" -Type 'Success'
+        }
+    }
+    else {
+        Write-FrankenPhpLog -Message "[MANUAL] mkcert missing; cannot create the $apiDnsName certificate" -Type 'Warning'
+    }
     return $true
 }
 
@@ -787,8 +941,15 @@ function Ensure-FrankenPhpLanLocalRoute {
     $loopback = Get-ServiceContractHost -Name 'loopback'
     $apiHints = [string](Get-ServiceContractValue -ContractPath 'http.api_early_hints_link')
     $apiHandlers = Get-FrankenPhpReverseProxyHandlers -Upstream ("http://{0}:{1}" -f $loopback, $apiPort) -EarlyHintsLink $apiHints
+    $uiPort = Get-ServiceContractPort -Name 'nexus_dash_frontend'
+    $uiHints = [string](Get-ServiceContractValue -ContractPath 'http.ui_early_hints_link')
+    $uiHandlers = Get-FrankenPhpReverseProxyHandlers -Upstream ("http://{0}:{1}" -f $loopback, $uiPort) -EarlyHintsLink $uiHints
+    $apiMount = ''
     $material = Get-FrankenPhpLanCertificateMaterial
     $tsDnsName = [string]$material.TsDnsName
+    $tsApiDnsName = [string]$material.TsApiDnsName
+    $tailnetApiPath = [string](Get-ServiceContractValue -ContractPath 'access.tailnet.api_path')
+    $tsApiTlsLine = ''
     $tsTlsLine = ''
     $mkcertTlsLine = ''
     $blocks = @()
@@ -796,6 +957,10 @@ function Ensure-FrankenPhpLanLocalRoute {
 
     if (-not [string]::IsNullOrWhiteSpace([string]$material.TsCert)) {
         $tsTlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsCert)), (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsKey))
+    }
+    $apiMount = Get-FrankenPhpPathMountHandlers -PathPrefix $tailnetApiPath -Upstream ("http://{0}:{1}" -f $loopback, $apiPort)
+    if (-not [string]::IsNullOrWhiteSpace([string]$material.TsApiCert)) {
+        $tsApiTlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsApiCert)), (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.TsApiKey))
     }
     if (-not [string]::IsNullOrWhiteSpace([string]$material.MkcertPem)) {
         $mkcertTlsLine = "`ttls {0} {1}`n" -f (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.MkcertPem)), (ConvertTo-FrankenPhpCaddyPath -Path ([string]$material.MkcertKey))
@@ -814,11 +979,26 @@ function Ensure-FrankenPhpLanLocalRoute {
         $blocks = @($blocks) + @(@"
 
 https://$tsDnsName`:$httpsPort {
-$tsTlsLine$apiHandlers
+$tsTlsLine$apiMount
+	handle {
+$uiHandlers
+	}
 }
 
 http://$tsDnsName`:$httpPort {
 	redir https://$tsDnsName{uri} permanent
+}
+"@)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($tsApiTlsLine)) {
+        $blocks = @($blocks) + @(@"
+
+https://$tsApiDnsName`:$httpsPort {
+$tsApiTlsLine$apiHandlers
+}
+
+http://$tsApiDnsName`:$httpPort {
+	redir https://$tsApiDnsName{uri} permanent
 }
 "@)
     }
@@ -839,7 +1019,11 @@ $mkcertTlsLine$apiHandlers
         return $false
     }
     if (-not [string]::IsNullOrWhiteSpace($tsTlsLine)) {
-        Write-FrankenPhpLog -Message "LAN site: https://${tsDnsName}:$httpsPort -> http://${loopback}:$apiPort (tls: tailscale cert)" -Type 'Success'
+        Write-FrankenPhpLog -Message "LAN site: https://${tsDnsName}:$httpsPort -> http://${loopback}:$uiPort (tls: tailscale cert)" -Type 'Success'
+        Write-FrankenPhpLog -Message "LAN site: https://${tsDnsName}$tailnetApiPath/ -> http://${loopback}:$apiPort (tls: tailscale cert)" -Type 'Success'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($tsApiTlsLine)) {
+        Write-FrankenPhpLog -Message "LAN site: https://${tsApiDnsName}:$httpsPort -> http://${loopback}:$apiPort (tls: mkcert local CA)" -Type 'Success'
     }
     if (-not [string]::IsNullOrWhiteSpace($mkcertTlsLine)) {
         Write-FrankenPhpLog -Message "LAN site: https://127.0.0.1:$httpsPort -> http://${loopback}:$apiPort (tls: mkcert local CA)" -Type 'Success'

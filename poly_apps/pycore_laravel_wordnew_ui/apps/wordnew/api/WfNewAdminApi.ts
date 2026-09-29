@@ -34,6 +34,7 @@
 
 import { WfNewAdminPaths, WFNEW_ADMIN_DEBUG_STATUS_PATH } from './WfNewApiPaths';
 import { WFNEW_API_PORT } from './WfNewEndpoints';
+import { endpointBaseUrl, getCurrentOriginEndpoint } from '@/core/integrations/laravel/LaravelEndpoints';
 import { loadToken } from './WfNewApiTransport';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
 import { translateActive } from '../WfNewLocales';
@@ -231,6 +232,9 @@ export interface WfNewAdminLangOption { code: string; name: string; native_name?
 /** Page-origin API base — see BASE-URL POLICY in the header. */
 function adminBase(): string {
   const { protocol, hostname } = window.location;
+  // A path-mounted page origin (tailnet /laravel-api) is still this machine.
+  const origin = getCurrentOriginEndpoint();
+  if (origin?.basePath) return endpointBaseUrl(origin);
   return `${protocol}//${hostname}:${WFNEW_API_PORT}`;
 }
 

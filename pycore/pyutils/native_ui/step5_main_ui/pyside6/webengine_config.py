@@ -57,6 +57,7 @@ _ALL_TIERS_CONFIGURED = SerializedValue(
 # persisted fallback marker). 'auto' = normal accelerated path.
 _GPU_ENV_VAR = 'PYCORE_WEBENGINE_GPU'
 _SOFTWARE_GPU_MODES = ('software', 'off', 'disable', 'none')
+_ZEROCOPY_ENV_VAR = 'PYCORE_WEBENGINE_ZEROCOPY'
 
 # Persisted marker: written after repeated GPU/render crashes so the NEXT launch
 # starts in software rendering without user intervention (self-healing fallback).
@@ -166,12 +167,10 @@ def _build_chromium_flags(
     disabled_features: List[str] = []
     flags: List[str] = []
 
-    # Keep the hidden tray-resident webview active so it is ready when shown.
-    flags.extend([
-        '--disable-background-timer-throttling',
-        '--disable-renderer-backgrounding',
-        '--disable-backgrounding-occluded-windows',
-    ])
+    # Keep the hidden tray-resident webview's timers alive so it is ready when
+    # shown, but let hidden/occluded windows stop painting: continuous hidden
+    # rendering keeps the GPU that also drives the display busy.
+    flags.append('--disable-background-timer-throttling')
 
     # Check if running as root (Linux/macOS only) -> needs --no-sandbox
     is_root = False
@@ -216,12 +215,18 @@ def _build_chromium_flags(
                 'VaapiVideoEncoder',
             ])
             disabled_features.append('UseChromeOSDirectVideoDecoder')
+            # Same safe set as resolve_browser_gpu_flags (app_resource_limit.sh):
+            # zero-copy / native GBM buffers share scanout memory with the
+            # compositor and can blank or hang the display GPU, so opt-in only.
             flags.extend([
                 '--enable-accelerated-video-decode',
-                '--enable-native-gpu-memory-buffers',  # Linux-scoped (GBM)
-                '--enable-zero-copy',
                 '--ignore-gpu-blocklist',
             ])
+            if os.environ.get(_ZEROCOPY_ENV_VAR, '').strip() == '1':
+                flags.extend([
+                    '--enable-native-gpu-memory-buffers',
+                    '--enable-zero-copy',
+                ])
         elif is_windows:
             # ANGLE->D3D11 + DirectComposition is the Qt default and works out of
             # the box (WebGL2 + D3D11 video). Add only the safe hardware-video

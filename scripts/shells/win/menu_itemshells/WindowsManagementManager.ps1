@@ -21,6 +21,7 @@ $script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootR
 $script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
 $script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
 $script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
+$script:REMOTE_CONTROL_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "RemoteControlCommon.ps1"
 
 # Import required modules
 . (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
@@ -240,6 +241,15 @@ function Show-WindowsManagementSubMenu {
             Key = $null;
             Action = {
                 Show-TailscaleQuickMenu
+            }
+        },
+        @{
+            Text = "[C] Claude Peer Link (Tailscale)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:REMOTE_CONTROL_COMMON_SCRIPT -Action ClaudePeer
             }
         },
         @{

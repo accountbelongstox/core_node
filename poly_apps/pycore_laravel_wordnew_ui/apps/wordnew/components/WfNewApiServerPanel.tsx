@@ -11,6 +11,7 @@ import { Server, ChevronRight, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { wfNewEndpoints, useWfNewEndpoints } from '../api';
 import { WfNewApiServerDialog } from './WfNewApiServerDialog';
+import { endpointBaseUrl } from '@/core/integrations/laravel/LaravelEndpoints';
 
 interface WfNewApiServerPanelProps {
   activeTheme: ElementTheme;
@@ -26,7 +27,7 @@ export const WfNewApiServerPanel: React.FC<WfNewApiServerPanelProps> = ({ active
 
   const current = useMemo(() => endpoints.find((e) => e.id === currentId) ?? null, [endpoints, currentId]);
   const currentHealth = currentId ? health[currentId] : undefined;
-  const baseUrl = current ? `${current.protocol}://${current.url}${current.port ? `:${current.port}` : ''}` : '—';
+  const baseUrl = current ? endpointBaseUrl(current) : '—';
 
   const status: 'healthy' | 'offline' | 'pending' =
     testing || !ready ? 'pending' : currentHealth?.isHealthy ? 'healthy' : 'offline';
